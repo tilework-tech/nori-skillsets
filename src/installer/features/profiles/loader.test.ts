@@ -238,48 +238,74 @@ describe('profilesLoader', () => {
   });
 
   describe('uninstall', () => {
-    it('should remove profiles directory for free installation', async () => {
+    it('should remove built-in profiles for free installation', async () => {
       const config: Config = { installType: 'free' };
 
       // First install profiles
       await profilesLoader.run({ config });
-      let exists = await fs
+      const exists = await fs
         .access(profilesDir)
         .then(() => true)
         .catch(() => false);
       expect(exists).toBe(true);
 
+      // Verify built-in profiles exist
+      const seniorSweExists = await fs
+        .access(path.join(profilesDir, 'senior-swe'))
+        .then(() => true)
+        .catch(() => false);
+      expect(seniorSweExists).toBe(true);
+
       // Uninstall profiles
       await profilesLoader.uninstall({ config });
 
-      // Verify profiles directory was removed
-      exists = await fs
-        .access(profilesDir)
+      // Verify built-in profiles were removed
+      const seniorSweExistsAfter = await fs
+        .access(path.join(profilesDir, 'senior-swe'))
         .then(() => true)
         .catch(() => false);
-      expect(exists).toBe(false);
+      expect(seniorSweExistsAfter).toBe(false);
+
+      const amolExistsAfter = await fs
+        .access(path.join(profilesDir, 'amol'))
+        .then(() => true)
+        .catch(() => false);
+      expect(amolExistsAfter).toBe(false);
     });
 
-    it('should remove profiles directory for paid installation', async () => {
+    it('should remove built-in profiles for paid installation', async () => {
       const config: Config = { installType: 'paid' };
 
       // First install profiles
       await profilesLoader.run({ config });
-      let exists = await fs
+      const exists = await fs
         .access(profilesDir)
         .then(() => true)
         .catch(() => false);
       expect(exists).toBe(true);
 
+      // Verify built-in profiles exist
+      const seniorSweExists = await fs
+        .access(path.join(profilesDir, 'senior-swe'))
+        .then(() => true)
+        .catch(() => false);
+      expect(seniorSweExists).toBe(true);
+
       // Uninstall profiles
       await profilesLoader.uninstall({ config });
 
-      // Verify profiles directory was removed
-      exists = await fs
-        .access(profilesDir)
+      // Verify built-in profiles were removed
+      const seniorSweExistsAfter = await fs
+        .access(path.join(profilesDir, 'senior-swe'))
         .then(() => true)
         .catch(() => false);
-      expect(exists).toBe(false);
+      expect(seniorSweExistsAfter).toBe(false);
+
+      const amolExistsAfter = await fs
+        .access(path.join(profilesDir, 'amol'))
+        .then(() => true)
+        .catch(() => false);
+      expect(amolExistsAfter).toBe(false);
     });
 
     it('should not throw if profiles directory does not exist', async () => {
@@ -289,6 +315,65 @@ describe('profilesLoader', () => {
       await expect(
         profilesLoader.uninstall({ config }),
       ).resolves.not.toThrow();
+    });
+
+    it('should preserve custom user profiles during uninstall', async () => {
+      const config: Config = { installType: 'free' };
+
+      // Install built-in profiles
+      await profilesLoader.run({ config });
+
+      // Create a custom profile (no "builtin": true field)
+      const customProfileDir = path.join(profilesDir, 'my-custom-profile');
+      await fs.mkdir(customProfileDir, { recursive: true });
+      await fs.writeFile(
+        path.join(customProfileDir, 'profile.json'),
+        JSON.stringify({
+          name: 'my-custom-profile',
+          description: 'My custom profile',
+          mixins: { base: {} },
+        }),
+      );
+      await fs.writeFile(
+        path.join(customProfileDir, 'CLAUDE.md'),
+        '# My Custom Profile\n',
+      );
+
+      // Verify built-in and custom profiles exist before uninstall
+      const filesBeforeUninstall = await fs.readdir(profilesDir);
+      expect(filesBeforeUninstall).toContain('senior-swe');
+      expect(filesBeforeUninstall).toContain('amol');
+      expect(filesBeforeUninstall).toContain('my-custom-profile');
+
+      // Uninstall profiles
+      await profilesLoader.uninstall({ config });
+
+      // Verify custom profile still exists
+      const customExists = await fs
+        .access(customProfileDir)
+        .then(() => true)
+        .catch(() => false);
+      expect(customExists).toBe(true);
+
+      // Verify built-in profiles are removed
+      const seniorSweExists = await fs
+        .access(path.join(profilesDir, 'senior-swe'))
+        .then(() => true)
+        .catch(() => false);
+      expect(seniorSweExists).toBe(false);
+
+      const amolExists = await fs
+        .access(path.join(profilesDir, 'amol'))
+        .then(() => true)
+        .catch(() => false);
+      expect(amolExists).toBe(false);
+
+      // Verify profiles directory itself still exists (not deleted)
+      const profilesDirExists = await fs
+        .access(profilesDir)
+        .then(() => true)
+        .catch(() => false);
+      expect(profilesDirExists).toBe(true);
     });
   });
 

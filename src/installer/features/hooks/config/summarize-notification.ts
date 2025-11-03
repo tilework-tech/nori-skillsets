@@ -8,18 +8,35 @@
  * is being saved to Nori Agent Brain (while the async summarize hook runs in background).
  */
 
+import { loadDiskConfig } from '@/installer/config.js';
+
 /**
  * Main entry point
  */
-const main = (): void => {
-  const output = {
-    systemMessage: 'Saving transcript to nori...\n\n',
-  };
+export const main = async (): Promise<void> => {
+  // Load config to check if session transcripts are enabled
+  const diskConfig = await loadDiskConfig();
+
+  let output;
+  if (diskConfig?.sendSessionTranscript === 'disabled') {
+    output = {
+      systemMessage:
+        'Session transcripts disabled. Use /nori-toggle-session-transcripts to enable...\n\n',
+    };
+  } else {
+    // Default to enabled behavior (backward compatible)
+    output = {
+      systemMessage: 'Saving transcript to nori...\n\n',
+    };
+  }
 
   console.log(JSON.stringify(output));
 };
 
 // Run if executed directly
 if (import.meta.url === `file://${process.argv[1]}`) {
-  main();
+  main().catch(() => {
+    // Silent failure - notification hooks should not crash sessions
+    process.exit(0);
+  });
 }

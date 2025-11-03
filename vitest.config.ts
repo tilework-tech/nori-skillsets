@@ -20,7 +20,7 @@ export default defineConfig({
     setupFiles: ['./tests/setup.ts'],
     reporters: ['dot'],
     silent: true,
-    exclude: ['node_modules', 'dist', 'build'],
+    exclude: ['node_modules', 'dist', 'build', '../.worktrees'],
   },
   resolve: {
     alias: {

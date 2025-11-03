@@ -84,17 +84,39 @@ describe('version', () => {
   });
 
   describe('getInstalledVersion', () => {
-    const VERSION_FILE_PATH = path.join(
-      process.env.HOME || '~',
-      '.nori-installed-version',
-    );
+    let tempDir: string;
+    let originalHome: string | undefined;
+    let VERSION_FILE_PATH: string;
 
-    afterEach(() => {
-      // Clean up test version file
+    beforeEach(async () => {
+      // Create temp directory for testing
+      tempDir = await fsPromises.mkdtemp(
+        path.join(os.tmpdir(), 'version-test-getInstalledVersion-'),
+      );
+
+      // Save original HOME (might be undefined)
+      originalHome = process.env.HOME;
+
+      // Mock HOME to temp directory
+      process.env.HOME = tempDir;
+
+      // NOW compute path - it will use the mocked HOME
+      VERSION_FILE_PATH = path.join(tempDir, '.nori-installed-version');
+    });
+
+    afterEach(async () => {
+      // Restore HOME (handle both defined and undefined cases)
+      if (originalHome !== undefined) {
+        process.env.HOME = originalHome;
+      } else {
+        delete process.env.HOME;
+      }
+
+      // Clean up temp directory
       try {
-        fs.unlinkSync(VERSION_FILE_PATH);
+        await fsPromises.rm(tempDir, { recursive: true, force: true });
       } catch {
-        // Ignore if file doesn't exist
+        // Ignore if cleanup fails
       }
     });
 
@@ -133,20 +155,85 @@ describe('version', () => {
       const version = getInstalledVersion();
       expect(version).toBe('14.0.0');
     });
+
+    it('should never delete real user version file', () => {
+      // This test verifies that process.env.HOME is mocked and tests never touch the real version file
+      // Get what the real version path WOULD be (using originalHome from beforeEach)
+      const realVersionPath = path.join(
+        originalHome || '~',
+        '.nori-installed-version',
+      );
+
+      // Check if real version file exists before test
+      let existedBefore = false;
+      try {
+        fs.accessSync(realVersionPath);
+        existedBefore = true;
+      } catch {
+        // File doesn't exist, which is fine
+      }
+
+      // Verify that VERSION_FILE_PATH used by tests is NOT the real version path
+      // This proves HOME is mocked
+      expect(VERSION_FILE_PATH).not.toBe(realVersionPath);
+
+      // Verify the test HOME is actually different from real HOME
+      // (We expect process.env.HOME to be a temp directory like /tmp/version-test-getInstalledVersion-XXXXXX)
+      expect(process.env.HOME).toContain('/tmp/');
+      expect(process.env.HOME).toContain('version-test-getInstalledVersion-');
+
+      // Run all the test operations
+      fs.writeFileSync(VERSION_FILE_PATH, '13.5.2', 'utf-8');
+      getInstalledVersion();
+
+      // Verify real version file still exists (if it existed before)
+      if (existedBefore) {
+        let existsAfter = false;
+        try {
+          fs.accessSync(realVersionPath);
+          existsAfter = true;
+        } catch {
+          // File was deleted!
+        }
+        expect(existsAfter).toBe(true);
+      }
+    });
   });
 
   describe('saveInstalledVersion', () => {
-    const VERSION_FILE_PATH = path.join(
-      process.env.HOME || '~',
-      '.nori-installed-version',
-    );
+    let tempDir: string;
+    let originalHome: string | undefined;
+    let VERSION_FILE_PATH: string;
 
-    afterEach(() => {
-      // Clean up test version file
+    beforeEach(async () => {
+      // Create temp directory for testing
+      tempDir = await fsPromises.mkdtemp(
+        path.join(os.tmpdir(), 'version-test-saveInstalledVersion-'),
+      );
+
+      // Save original HOME (might be undefined)
+      originalHome = process.env.HOME;
+
+      // Mock HOME to temp directory
+      process.env.HOME = tempDir;
+
+      // NOW compute path - it will use the mocked HOME
+      VERSION_FILE_PATH = path.join(tempDir, '.nori-installed-version');
+    });
+
+    afterEach(async () => {
+      // Restore HOME (handle both defined and undefined cases)
+      if (originalHome !== undefined) {
+        process.env.HOME = originalHome;
+      } else {
+        delete process.env.HOME;
+      }
+
+      // Clean up temp directory
       try {
-        fs.unlinkSync(VERSION_FILE_PATH);
+        await fsPromises.rm(tempDir, { recursive: true, force: true });
       } catch {
-        // Ignore if file doesn't exist
+        // Ignore if cleanup fails
       }
     });
 
@@ -166,6 +253,48 @@ describe('version', () => {
 
       const savedVersion = fs.readFileSync(VERSION_FILE_PATH, 'utf-8');
       expect(savedVersion).toBe('11.0.0');
+    });
+
+    it('should never delete real user version file', () => {
+      // This test verifies that process.env.HOME is mocked and tests never touch the real version file
+      // Get what the real version path WOULD be (using originalHome from beforeEach)
+      const realVersionPath = path.join(
+        originalHome || '~',
+        '.nori-installed-version',
+      );
+
+      // Check if real version file exists before test
+      let existedBefore = false;
+      try {
+        fs.accessSync(realVersionPath);
+        existedBefore = true;
+      } catch {
+        // File doesn't exist, which is fine
+      }
+
+      // Verify that VERSION_FILE_PATH used by tests is NOT the real version path
+      // This proves HOME is mocked
+      expect(VERSION_FILE_PATH).not.toBe(realVersionPath);
+
+      // Verify the test HOME is actually different from real HOME
+      // (We expect process.env.HOME to be a temp directory like /tmp/version-test-saveInstalledVersion-XXXXXX)
+      expect(process.env.HOME).toContain('/tmp/');
+      expect(process.env.HOME).toContain('version-test-saveInstalledVersion-');
+
+      // Run all the test operations
+      saveInstalledVersion({ version: '15.0.0' });
+
+      // Verify real version file still exists (if it existed before)
+      if (existedBefore) {
+        let existsAfter = false;
+        try {
+          fs.accessSync(realVersionPath);
+          existsAfter = true;
+        } catch {
+          // File was deleted!
+        }
+        expect(existsAfter).toBe(true);
+      }
     });
   });
 

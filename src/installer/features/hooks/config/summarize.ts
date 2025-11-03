@@ -8,6 +8,7 @@
  */
 
 import { apiClient, ConfigManager } from '@/api/index.js';
+import { loadDiskConfig } from '@/installer/config.js';
 import { debug, error } from '@/installer/logger.js';
 
 type TranscriptMessage = {
@@ -151,6 +152,21 @@ const summarizeConversation = async (args: {
     error({
       message:
         'Nori hook: Not configured. Skipping memorization. Set credentials in ~/nori-config.json',
+    });
+    return;
+  }
+
+  // Check if session transcripts are enabled
+  const diskConfig = await loadDiskConfig();
+  if (diskConfig?.sendSessionTranscript === 'disabled') {
+    console.log(
+      JSON.stringify({
+        systemMessage:
+          'Session Transcript disabled. Use /nori-toggle-session-transcripts to reenable',
+      }),
+    );
+    debug({
+      message: 'Session transcripts disabled in config, skipping',
     });
     return;
   }

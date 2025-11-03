@@ -4,7 +4,7 @@
 
 Coding agents are magical, but they are general-purpose tools that need to be customized for your team. Otherwise, as you scale they will produce risky slop. Customizing agents is time-intensive and the landscape changes daily. Nori provides packaged customization that provides your engineering team the path to velocity and quality at scale.
 
-![Console](Console.png)
+![Console](https://raw.githubusercontent.com/tilework-tech/nori-plugin/refs/heads/main/Console.png)
 
 ## Installation
 
@@ -84,10 +84,11 @@ Coding agents are being used by more and more contributors, not just senior engi
 
 Nori comes with pre-built profiles, and a dead-simple profile switcher. Run with
 one of the existing profile sets:
-  - `senior-swe`: High-confirmation co-pilot mode, extensive planning leaning on the knowledge of the engineer
-  - `product-manager`: Full autonomy with frequent commits, technical guidance without hand-holding
-  - `documenter`: Specialized behavior focused on documentation
-  - `amol`: My personal profile. Fine tuned to run a half dozen agents in parallel.
+
+- `senior-swe`: High-confirmation co-pilot mode, extensive planning leaning on the knowledge of the engineer
+- `product-manager`: Full autonomy with frequent commits, technical guidance without hand-holding
+- `documenter`: Specialized behavior focused on documentation
+- `amol`: My personal profile. Fine tuned to run a half dozen agents in parallel.
 
 Or roll your own. Just copy one of the existing profile structures, write a CLAUDE.md, and pull in whatever mixins you want.
 

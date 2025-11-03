@@ -123,7 +123,7 @@ describe('build process', () => {
         '✓ profiles: All required profiles are properly installed',
       );
       expect(checkOutput).toContain(
-        '✓ slashcommands: All 4 slash commands are properly installed',
+        '✓ slashcommands: All 5 slash commands are properly installed',
       );
       expect(checkOutput).toContain('subagents are properly installed');
     } catch (error: unknown) {

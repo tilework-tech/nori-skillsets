@@ -113,6 +113,49 @@ describe('config with profile-based system', () => {
       const loaded = await loadDiskConfig();
       expect(loaded).toBeNull();
     });
+
+    it('should load sendSessionTranscript when set to enabled', async () => {
+      await fs.writeFile(
+        mockConfigPath,
+        JSON.stringify({ sendSessionTranscript: 'enabled' }),
+      );
+
+      const loaded = await loadDiskConfig();
+
+      expect(loaded?.sendSessionTranscript).toBe('enabled');
+    });
+
+    it('should load sendSessionTranscript when set to disabled', async () => {
+      await fs.writeFile(
+        mockConfigPath,
+        JSON.stringify({ sendSessionTranscript: 'disabled' }),
+      );
+
+      const loaded = await loadDiskConfig();
+
+      expect(loaded?.sendSessionTranscript).toBe('disabled');
+    });
+
+    it('should default sendSessionTranscript to enabled when field is missing', async () => {
+      await fs.writeFile(mockConfigPath, JSON.stringify({}));
+
+      const loaded = await loadDiskConfig();
+
+      expect(loaded?.sendSessionTranscript).toBe('enabled');
+    });
+
+    it('should save and load sendSessionTranscript', async () => {
+      await saveDiskConfig({
+        username: null,
+        password: null,
+        organizationUrl: null,
+        sendSessionTranscript: 'disabled',
+      });
+
+      const loaded = await loadDiskConfig();
+
+      expect(loaded?.sendSessionTranscript).toBe('disabled');
+    });
   });
 
   describe('generateConfig', () => {

@@ -304,6 +304,30 @@ describe('install integration test', () => {
     expect(version).toBe('13.0.0');
   });
 
+  it('should skip uninstall when skipUninstall is true', async () => {
+    // STEP 1: Simulate existing installation at version 12.0.0
+    fs.writeFileSync(VERSION_FILE_PATH, '12.0.0');
+    fs.writeFileSync(MARKER_FILE_PATH, 'installed by v12.0.0');
+
+    // Verify initial state
+    expect(getInstalledVersion()).toBe('12.0.0');
+    expect(fs.existsSync(MARKER_FILE_PATH)).toBe(true);
+
+    // STEP 2: Run installation with skipUninstall=true
+    await installMain({ nonInteractive: true, skipUninstall: true });
+
+    // STEP 3: Verify uninstall was NOT called
+    expect(uninstallCalledWith).toBeNull();
+
+    // Verify the marker file still exists (wasn't removed by uninstall)
+    expect(fs.existsSync(MARKER_FILE_PATH)).toBe(true);
+
+    // Version file should be updated to new version
+    expect(fs.existsSync(VERSION_FILE_PATH)).toBe(true);
+    const newVersion = fs.readFileSync(VERSION_FILE_PATH, 'utf-8');
+    expect(newVersion).toBe('13.0.0');
+  });
+
   it('should never delete real user config file', () => {
     // This test verifies that process.env.HOME is mocked and tests never touch the real config file
     // Get what the real config path WOULD be (using originalHome from beforeEach)

@@ -312,18 +312,69 @@ const configureProfilesPermissions = async (): Promise<void> => {
 
 /**
  * Uninstall profiles directory
+ * Only removes built-in profiles (those with "builtin": true in profile.json)
+ * Custom user profiles are preserved
  * @param args - Configuration arguments
  * @param args.config - Runtime configuration
  */
 const uninstallProfiles = async (args: { config: Config }): Promise<void> => {
   const { config: _config } = args;
 
-  info({ message: 'Removing Nori profiles...' });
+  info({ message: 'Removing built-in Nori profiles...' });
 
   try {
     await fs.access(CLAUDE_PROFILES_DIR);
-    await fs.rm(CLAUDE_PROFILES_DIR, { recursive: true, force: true });
-    success({ message: '✓ Profiles directory removed' });
+
+    // Read all profile directories
+    const entries = await fs.readdir(CLAUDE_PROFILES_DIR, {
+      withFileTypes: true,
+    });
+
+    let removedCount = 0;
+    let preservedCount = 0;
+
+    // Remove only built-in profiles
+    for (const entry of entries) {
+      if (!entry.isDirectory()) {
+        continue;
+      }
+
+      const profileDir = path.join(CLAUDE_PROFILES_DIR, entry.name);
+      const profileJsonPath = path.join(profileDir, 'profile.json');
+
+      try {
+        // Read profile.json to check if it's a built-in profile
+        const content = await fs.readFile(profileJsonPath, 'utf-8');
+        const profileData = JSON.parse(content);
+
+        if (profileData.builtin === true) {
+          // Built-in profile - remove it
+          await fs.rm(profileDir, { recursive: true, force: true });
+          removedCount++;
+        } else {
+          // Custom profile - preserve it
+          preservedCount++;
+        }
+      } catch {
+        // If profile.json doesn't exist or can't be read, treat as custom (preserve it)
+        preservedCount++;
+      }
+    }
+
+    if (removedCount > 0) {
+      success({
+        message: `✓ Removed ${removedCount} built-in profile${
+          removedCount === 1 ? '' : 's'
+        }`,
+      });
+    }
+    if (preservedCount > 0) {
+      info({
+        message: `  Preserved ${preservedCount} custom profile${
+          preservedCount === 1 ? '' : 's'
+        }`,
+      });
+    }
   } catch {
     info({ message: 'Profiles directory not found (may not be installed)' });
   }

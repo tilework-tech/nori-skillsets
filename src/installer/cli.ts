@@ -15,6 +15,7 @@ import {
 import { LoaderRegistry } from '@/installer/features/loaderRegistry.js';
 import { main as installMain } from '@/installer/install.js';
 import { error, success, info, warn } from '@/installer/logger.js';
+import { switchProfile } from '@/installer/profiles.js';
 import { main as uninstallMain } from '@/installer/uninstall.js';
 
 const showHelp = (): void => {
@@ -156,15 +157,13 @@ const main = async (): Promise<void> => {
       process.exit(1);
     }
 
-    // Import the profiles module
-    const { switchProfile } = await import('@/installer/profiles.js');
-
     // Switch to the profile
     await switchProfile({ profileName });
 
-    // Run install in non-interactive mode
+    // Run install in non-interactive mode with skipUninstall
+    // This preserves custom user profiles during the profile switch
     info({ message: 'Applying profile configuration...' });
-    await installMain({ nonInteractive: true });
+    await installMain({ nonInteractive: true, skipUninstall: true });
 
     return;
   }

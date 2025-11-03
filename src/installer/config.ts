@@ -22,6 +22,7 @@ export type DiskConfig = {
   profile?: {
     baseProfile: string;
   } | null;
+  sendSessionTranscript?: 'enabled' | 'disabled' | null;
 };
 
 /**
@@ -105,8 +106,22 @@ export const loadDiskConfig = async (): Promise<DiskConfig | null> => {
         }
       }
 
-      // Return result if we have at least auth or profile
-      if (result.auth != null || result.profile != null) {
+      // Check if sendSessionTranscript exists, default to 'enabled'
+      if (
+        config.sendSessionTranscript === 'enabled' ||
+        config.sendSessionTranscript === 'disabled'
+      ) {
+        result.sendSessionTranscript = config.sendSessionTranscript;
+      } else {
+        result.sendSessionTranscript = 'enabled'; // Default value
+      }
+
+      // Return result if we have at least auth, profile, or sendSessionTranscript
+      if (
+        result.auth != null ||
+        result.profile != null ||
+        result.sendSessionTranscript != null
+      ) {
         return result;
       }
     }
@@ -124,14 +139,22 @@ export const loadDiskConfig = async (): Promise<DiskConfig | null> => {
  * @param args.password - User's password (null to skip auth)
  * @param args.organizationUrl - Organization URL (null to skip auth)
  * @param args.profile - Profile selection (null to skip profile)
+ * @param args.sendSessionTranscript - Session transcript setting (null to skip)
  */
 export const saveDiskConfig = async (args: {
   username: string | null;
   password: string | null;
   organizationUrl: string | null;
   profile?: { baseProfile: string } | null;
+  sendSessionTranscript?: 'enabled' | 'disabled' | null;
 }): Promise<void> => {
-  const { username, password, organizationUrl, profile } = args;
+  const {
+    username,
+    password,
+    organizationUrl,
+    profile,
+    sendSessionTranscript,
+  } = args;
   const configPath = getConfigPath();
 
   const config: any = {};
@@ -149,6 +172,11 @@ export const saveDiskConfig = async (args: {
   // Add profile if provided
   if (profile != null) {
     config.profile = profile;
+  }
+
+  // Add sendSessionTranscript if provided
+  if (sendSessionTranscript != null) {
+    config.sendSessionTranscript = sendSessionTranscript;
   }
 
   await fs.writeFile(configPath, JSON.stringify(config, null, 2));
@@ -195,6 +223,10 @@ const configSchema = {
     username: { type: 'string' },
     password: { type: 'string' },
     organizationUrl: { type: 'string' },
+    sendSessionTranscript: {
+      type: 'string',
+      enum: ['enabled', 'disabled'],
+    },
   },
   additionalProperties: false,
 };

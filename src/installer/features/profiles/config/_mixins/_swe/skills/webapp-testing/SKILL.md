@@ -8,6 +8,8 @@ license: Complete terms in LICENSE.txt
 
 To test local web applications, write native Python Playwright scripts.
 
+<system-reminder>Any python packages that need to be installed MUST be in a venv</system-reminder>
+
 **Helper Scripts Available**:
 
 - `scripts/with_server.py` - Manages server lifecycle (supports multiple servers)
@@ -65,6 +67,8 @@ with sync_playwright() as p:
     # ... your automation logic
     browser.close()
 ```
+
+If Playwright is not available, install it in a virtual env.
 
 ## Reconnaissance-Then-Action Pattern
 

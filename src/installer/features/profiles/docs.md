@@ -12,7 +12,9 @@ The profiles loader executes FIRST in both interactive and non-interactive insta
 
 ### Core Implementation
 
-**Profile Structure**: Each profile directory contains `CLAUDE.md` (behavioral instructions) and `profile.json` (metadata with mixins configuration). Profile content is composed from mixins defined in `_mixins/` directory: `_base` (essential skills/commands), `_docs` (documentation workflows), `_swe` (software engineering skills), and `_paid` (premium features). The `paid` mixin is automatically injected when auth credentials are present.
+**Profile Structure**: Each profile directory contains `CLAUDE.md` (behavioral instructions) and `profile.json` (metadata with mixins configuration and optional builtin field). Profile content is composed from mixins defined in `_mixins/` directory: `_base` (essential skills/commands), `_docs` (documentation workflows), `_swe` (software engineering skills), and `_paid` (premium features). The `paid` mixin is automatically injected when auth credentials are present.
+
+**Built-in Profile Metadata**: All built-in profiles include `"builtin": true` in their profile.json files. This field is used by the uninstall process (@/plugin/src/installer/features/profiles/loader.ts uninstallProfiles function) to distinguish built-in profiles from custom user profiles. During uninstall, only profiles with `"builtin": true` are removed. Profiles without this field (or with `"builtin": false`) are treated as custom and preserved.
 
 **Built-in Profiles**: Three profiles ship with the package at @/plugin/src/installer/features/profiles/config/: `senior-swe` (co-pilot with high confirmation), `amol` (full autonomy with frequent commits), and `product-manager` (full autonomy for non-technical users). The default profile is `senior-swe` (see @/plugin/src/installer/config.ts getDefaultProfile()).
 
@@ -28,7 +30,7 @@ The profiles loader executes FIRST in both interactive and non-interactive insta
 
 **Directory-based vs JSON-based**: PR #197 replaced the JSON preference system with directory-based profiles, deleting 8,296 lines of code. PR #208 introduced profile composition with single inheritance via `extends` field. This PR replaces single inheritance with mixin composition, where profiles declare multiple mixins in profile.json and the loader composes them in alphabetical precedence order.
 
-**Custom profile preservation**: The loader maintains a hardcoded list of built-in profiles (`senior-swe`, `amol`, `product-manager`) at loader.ts:142. Any directory in `~/.claude/profiles/` not in this list is considered custom and never touched during installation, allowing users to safely modify or create profiles.
+**Custom profile preservation**: Built-in profiles are identified by the `"builtin": true` field in their profile.json files. During uninstall, the loader only removes profiles with `"builtin": true`, preserving any custom user profiles (those without the builtin field or with `"builtin": false`). This allows users to safely create custom profiles by copying built-in ones to `~/.claude/profiles/` and modifying them without losing their work during profile switches or upgrades.
 
 **CLAUDE.md as validation marker**: A directory is only a valid profile if it contains CLAUDE.md. This allows config/ to contain other files without treating them as profiles.
 
@@ -132,7 +134,10 @@ When you run `npx nori-ai@latest switch-profile <name>`:
 
 1. Validates profile exists in `~/.claude/profiles/`
 2. Saves profile name to `~/nori-config.json` (preserves auth credentials)
-3. Runs `npx nori-ai@latest install --non-interactive` to apply changes
+3. Runs `installMain({ nonInteractive: true, skipUninstall: true })` to apply changes
+   - The `skipUninstall: true` parameter prevents the installer from running uninstall first
+   - This preserves custom user profiles that would otherwise be removed during the uninstall step
+   - Built-in profiles are still updated to their latest versions during installation
 
 ### Key Files
 
@@ -151,4 +156,4 @@ The `validate()` function checks:
 
 ## Uninstallation
 
-During `npx nori-ai@latest uninstall`, the `~/.claude/profiles/` directory is removed (including custom profiles).
+During `npx nori-ai@latest uninstall`, only built-in profiles (those with `"builtin": true` in profile.json) are removed. Custom user profiles are preserved. The `~/.claude/profiles/` directory itself is not deleted, ensuring custom profiles survive uninstall operations.

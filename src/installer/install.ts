@@ -288,15 +288,17 @@ const completeConfig = async (args: {
  * Main installer entry point
  * @param args - Configuration arguments
  * @param args.nonInteractive - Whether to run in non-interactive mode
+ * @param args.skipUninstall - Whether to skip uninstall step (useful for profile switching)
  */
 export const main = async (args?: {
   nonInteractive?: boolean | null;
+  skipUninstall?: boolean | null;
 }): Promise<void> => {
-  const { nonInteractive } = args || {};
+  const { nonInteractive, skipUninstall } = args || {};
 
   try {
     // Check if there's an existing installation to clean up
-    if (hasExistingInstallation()) {
+    if (!skipUninstall && hasExistingInstallation()) {
       const previousVersion = getInstalledVersion();
       info({
         message: `Cleaning up previous installation (v${previousVersion})...`,
@@ -317,6 +319,12 @@ export const main = async (args?: {
           message: `Note: Uninstall at v${previousVersion} failed (may not exist). Continuing with installation...`,
         });
       }
+    } else if (skipUninstall) {
+      // Skipping uninstall explicitly (e.g., for profile switching)
+      info({
+        message:
+          'Skipping uninstall step (preserving existing installation)...',
+      });
     } else {
       // First-time installation - no cleanup needed
       info({

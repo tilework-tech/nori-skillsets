@@ -85,8 +85,14 @@ EOF
 
 8. Make sure the PR branch CI succeeds.
 
-- Use the github CLI to check if the branch ci suite has passed.
-- If not, set a timeout for a short period, then check again.
+```bash
+# Check if the PR CI succeeded
+gh pr checks
+
+# If it is still running, sleep and check again
+sleep 60 && gh pr checks
+```
+
 - If CI did not pass, examine why.
 - Make changes as needed, push a new commit, and repeat the process.
 <system-reminder> It is *critical* that you fix any ci issues, EVEN IF YOU DID NOT CAUSE THEM. </system-reminder>
