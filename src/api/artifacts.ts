@@ -19,6 +19,7 @@ export type Artifact = {
   sourceUrl?: string | null;
   userEmail?: string | null;
   type: ArtifactType;
+  repository: string;
 };
 
 export type CreateArtifactRequest = {

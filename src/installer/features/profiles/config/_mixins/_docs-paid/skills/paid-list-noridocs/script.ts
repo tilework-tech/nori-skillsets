@@ -18,29 +18,42 @@ import { loadDiskConfig, generateConfig } from '@/installer/config.js';
  * Show usage information
  */
 const showUsage = (): void => {
-  console.error(`Usage: node script.js [--pathPrefix="@/path"] [--limit=100]
+  console.error(`Usage: node script.js [--pathPrefix="@/path"] [--repository="repo-name"] [--limit=100]
 
 Parameters:
-  --pathPrefix  (optional) Filter by prefix like "@/server"
+  --pathPrefix  (optional) Filter by prefix like "@/server" or "@nori-watchtower/server"
+  --repository  (optional) Filter by repository name (e.g., "nori-watchtower", "no-repository")
   --limit       (optional) Maximum results (default: 100)
 
 Examples:
   # List all noridocs
   node script.js
 
+  # List noridocs in nori-watchtower repository
+  node script.js --repository="nori-watchtower"
+
   # List noridocs under server directory
   node script.js --pathPrefix="@/server"
 
+  # Combine repository and path filtering
+  node script.js --repository="nori-watchtower" --pathPrefix="@nori-watchtower/server"
+
   # List with custom limit
-  node script.js --pathPrefix="@/mcp" --limit=50
+  node script.js --repository="nori-watchtower" --limit=50
 
 Description:
-  Lists all noridocs, optionally filtered by path prefix for tree navigation.
+  Lists all noridocs, optionally filtered by repository and/or path prefix.
 
-  Examples:
+  Repository Filtering:
+  - Use --repository to filter by repository scope
+  - Repository names match those in the @<repository>/path format
+  - Use "no-repository" to find docs without a repository scope
+
+  Path Prefix Examples:
   - No prefix: Returns all noridocs
-  - Prefix "@/server": Returns all noridocs under server directory
-  - Prefix "@/server/src/persistence": Returns all noridocs in persistence folder`);
+  - Prefix "@/server": Returns all noridocs under server directory (any repository)
+  - Prefix "@nori-watchtower/server": Returns noridocs in specific repository and path
+  - Prefix "@nori-watchtower/server/src/persistence": Returns noridocs in specific folder`);
 };
 
 /**
@@ -61,6 +74,7 @@ export const main = async (): Promise<void> => {
   const args = minimist(process.argv.slice(2));
 
   const pathPrefix = (args.pathPrefix as string | null) ?? null;
+  const repository = (args.repository as string | null) ?? null;
   const limit = (args.limit as number | null) ?? 100;
 
   // Show usage if help requested
@@ -70,7 +84,7 @@ export const main = async (): Promise<void> => {
   }
 
   // 3. Execute API call
-  const noridocs = await apiClient.noridocs.list({ limit });
+  const noridocs = await apiClient.noridocs.list({ limit, repository });
 
   const filtered = pathPrefix
     ? noridocs.filter((n) => n.sourceUrl && n.sourceUrl.startsWith(pathPrefix))

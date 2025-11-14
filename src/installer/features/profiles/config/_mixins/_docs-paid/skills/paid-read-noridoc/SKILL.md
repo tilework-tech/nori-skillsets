@@ -23,17 +23,23 @@ Use regular Read tool instead for:
 ## Usage
 
 ```bash
-node ~/.claude/skills/read-noridoc/script.js --filePath="@/server/src/persistence"
+node ~/.claude/skills/read-noridoc/script.js --filePath="@<repository>/path"
 ```
 
 ## Parameters
 
-- `--filePath` (required): Path like "@/server/src/persistence"
+- `--filePath` (required): Path in format `@<repository>/<path>` (e.g., "@nori-watchtower/server/src/persistence")
+  - Use `@<repository>/path` for repository-scoped docs
+  - Use `@/path` for docs in the `no-repository` scope (old format)
 
-## Example
+## Examples
 
 ```bash
-node ~/.claude/skills/read-noridoc/script.js --filePath="@/plugin/src/api"
+# Read repository-scoped noridoc
+node ~/.claude/skills/read-noridoc/script.js --filePath="@nori-watchtower/server/src/api"
+
+# Read doc from no-repository scope
+node ~/.claude/skills/read-noridoc/script.js --filePath="@/server/src/api"
 ```
 
 ## Output

@@ -46,6 +46,7 @@ export type ListNoridocsRequest = {
   offset?: number | null;
   orderBy?: string | null;
   order?: 'ASC' | 'DESC' | null;
+  repository?: string | null;
 };
 
 /**
@@ -146,6 +147,9 @@ export const noridocsApi = {
     }
     if (args?.order != null) {
       queryParams.order = args.order;
+    }
+    if (args?.repository != null) {
+      queryParams.repository = args.repository;
     }
 
     return apiRequest<Array<Noridoc>>({

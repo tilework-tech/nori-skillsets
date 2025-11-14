@@ -67,7 +67,21 @@ Description:
   - Auto-detects Git remote URL from origin remote
   - Extracts Path: field from each file
   - Syncs to server with rate limiting
-  - Reports success/failure summary`);
+  - Reports success/failure summary
+
+  Repository Detection:
+    The repository is automatically extracted from each file's Path: field by the server:
+    - Path: @nori-watchtower/server/src/persistence → repository: "nori-watchtower"
+    - Path: @/server/src/persistence → repository: "no-repository"
+    - Path: server/src/persistence → repository: "no-repository"
+
+    Repository names must be lowercase letters, numbers, and hyphens only.
+
+  Migration from Old Format:
+    To migrate existing docs from "@/" to "@<repository>/" format:
+    1. Update Path: fields in your docs.md files from "@/..." to "@<repository>/..."
+    2. Run this sync command to update server-side noridocs with repository scope
+    3. Old docs with "@/" paths will remain in the "no-repository" scope`);
 };
 
 /**

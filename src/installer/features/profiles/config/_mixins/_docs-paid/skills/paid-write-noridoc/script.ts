@@ -18,18 +18,25 @@ import { loadDiskConfig, generateConfig } from '@/installer/config.js';
  * Show usage information
  */
 const showUsage = (): void => {
-  console.error(`Usage: node script.js --filePath="@/path" --content="Content" [--gitRepoUrl="https://..."]
+  console.error(`Usage: node script.js --filePath="@<repository>/path" --content="Content" [--gitRepoUrl="https://..."]
 
 Parameters:
-  --filePath    (required) Path where doc would normally live (e.g., "@/server/src/persistence")
+  --filePath    (required) Path in format "@<repository>/<path>" (e.g., "@nori-watchtower/server/src/persistence")
+                          or "@/path" or plain path (defaults to 'no-repository')
   --content     (required) Markdown content
   --gitRepoUrl  (optional) Link to git repository
 
-Example:
+Examples:
+  # Create noridoc with repository scope
   node script.js \\
-    --filePath="@/mcp/src/api" \\
+    --filePath="@nori-watchtower/server/src/api" \\
     --content="# API Client" \\
-    --gitRepoUrl="https://github.com/theahura/nori-agent-brain"
+    --gitRepoUrl="https://github.com/username/nori-watchtower"
+
+  # Create noridoc without repository scope (defaults to 'no-repository')
+  node script.js \\
+    --filePath="@/server/src/api" \\
+    --content="# API Client"
 
 Description:
   Writes documentation to the server-side noridocs system.
@@ -37,10 +44,18 @@ Description:
   Creates new version automatically. Use this instead of writing docs.md files directly.
   If noridoc doesn't exist, creates it. If it exists, updates and increments version.
 
-  Parameters:
-  - filePath (required): Path where doc would normally live (e.g., "@/server/src/persistence")
-  - content (required): Markdown content
-  - gitRepoUrl (optional): Link to git repository`);
+  Repository Detection:
+    The repository is automatically extracted from the filePath by the server:
+    - "@nori-watchtower/server/src/api" → repository: "nori-watchtower"
+    - "@/server/src/api" → repository: "no-repository"
+    - "server/src/api" → repository: "no-repository"
+
+    Repository names must be lowercase letters, numbers, and hyphens only.
+
+  Migration from Old Format:
+    To migrate existing docs from "@/" to "@<repository>/" format:
+    1. Update the filePath parameter to use "@<repository>/path"
+    2. The server will create a new noridoc scoped to that repository`);
 };
 
 /**
