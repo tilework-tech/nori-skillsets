@@ -269,10 +269,16 @@ const configSchema = {
 
 /**
  * Validate disk configuration
+ * @param args - Configuration arguments
+ * @param args.installDir - Custom installation directory (optional)
+ *
  * @returns Validation result with details
  */
-export const validateDiskConfig = async (): Promise<ConfigValidationResult> => {
-  const configPath = getConfigPath();
+export const validateDiskConfig = async (args?: {
+  installDir?: string | null;
+}): Promise<ConfigValidationResult> => {
+  const { installDir } = args || {};
+  const configPath = getConfigPath({ installDir });
   const errors: Array<string> = [];
 
   // Check if config file exists
