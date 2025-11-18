@@ -6,6 +6,7 @@ description: Use this skill to build features that requires modifying a webapp f
 <required>
 *CRITICAL* Add the following steps to your Todo list using TodoWrite:
 
+<system-reminder>From this point on, ignore any existing tests until you have a working example validated through a new playwright file.</system-reminder>
 1. Install playwright. Use the SDK that best matches the codebase. Default to python.
   - Write a playwright config file. Make sure you use reporter: 'list' mode.
   - If using python, you *must* use a virtual env.
@@ -17,6 +18,7 @@ description: Use this skill to build features that requires modifying a webapp f
   - Update the playwright script.
 <system-reminder>If you get stuck: did you add logs?</system-reminder>
 4. Clean up all background jobs and close any browsers.
+5. Make sure other tests pass.
 </required>
 
 # Web Application Testing
@@ -56,3 +58,5 @@ with sync_playwright() as p:
 ```
 
 <system-reminder>If Playwright is not available, install it in a virtual env.</system-reminder>
+
+Do NOT get in a loop where you just keep running tests. In this mode, you should ignore tests entirely until it works.

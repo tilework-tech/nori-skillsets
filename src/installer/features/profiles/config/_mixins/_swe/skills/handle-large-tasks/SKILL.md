@@ -10,6 +10,8 @@ description: Use this skill to split large plans into smaller chunks. This skill
 - Construct a plan for each subagent.
 - Write a test for each subagent based on what you expect the subagent to do.
 - Start each subagent using the Task tool with instructions to make the test pass.
+  - Subagents may come back and ask questions or present plans. Review and provide feedback.
+  - You may have to restart subagents. If that happens, simply pass in the previous produced plan.
 - Evaluate the code the subagent produces. Give feedback. Iterate until tests pass AND the code fits.
 - When all subagents complete, make sure all tests pass and all of the code fits together coherently.
 </required>
