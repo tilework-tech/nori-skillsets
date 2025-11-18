@@ -19,7 +19,7 @@ import { switchProfile } from '@/installer/profiles.js';
 import { main as uninstallMain } from '@/installer/uninstall.js';
 
 const showHelp = (): void => {
-  console.log('Usage: nori-ai [command]');
+  console.log('Usage: nori-ai [command] [options]');
   console.log('');
   console.log('Commands:');
   console.log('  install              Install Nori Agent Brain (default)');
@@ -31,6 +31,10 @@ const showHelp = (): void => {
     '  switch-profile <name> Switch to a different profile and reinstall',
   );
   console.log('  help                 Show this help message');
+  console.log('');
+  console.log('Options:');
+  console.log('  --install-dir <path> Custom installation directory (default: ~/.claude)');
+  console.log('  --non-interactive    Run without prompts');
 };
 
 /**
@@ -133,13 +137,19 @@ const main = async (): Promise<void> => {
   // Check for --non-interactive flag
   const nonInteractive = args.includes('--non-interactive');
 
+  // Check for --install-dir flag
+  const installDirIndex = args.indexOf('--install-dir');
+  const installDir = installDirIndex >= 0 && args[installDirIndex + 1]
+    ? args[installDirIndex + 1]
+    : null;
+
   if (command === 'install') {
-    await installMain({ nonInteractive });
+    await installMain({ nonInteractive, installDir });
     return;
   }
 
   if (command === 'uninstall') {
-    await uninstallMain({ nonInteractive });
+    await uninstallMain({ nonInteractive, installDir });
     return;
   }
 

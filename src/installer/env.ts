@@ -47,3 +47,30 @@ export const CLAUDE_SKILLS_DIR = path.join(CLAUDE_DIR, 'skills');
  * Claude profiles directory
  */
 export const CLAUDE_PROFILES_DIR = path.join(CLAUDE_DIR, 'profiles');
+
+/**
+ * Get the Claude directory path with optional override
+ * @param args.installDir - Optional custom installation directory. Defaults to null.
+ * @returns The Claude directory path
+ *
+ * Priority order:
+ * 1. Function argument (installDir)
+ * 2. Environment variable (CLAUDE_DIR)
+ * 3. Default (~/.claude)
+ */
+export const getClaudeDir = (args?: { installDir?: string | null }): string => {
+  const { installDir = null } = args || {};
+
+  // Priority 1: Function argument
+  if (installDir != null) {
+    return installDir;
+  }
+
+  // Priority 2: Environment variable
+  if (process.env.CLAUDE_DIR != null) {
+    return process.env.CLAUDE_DIR;
+  }
+
+  // Priority 3: Default
+  return CLAUDE_DIR;
+};

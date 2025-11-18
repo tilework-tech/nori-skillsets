@@ -218,4 +218,112 @@ describe('config with profile-based system', () => {
       });
     });
   });
+
+  describe('installDirs', () => {
+    it('should save and load installDirs with normalized paths', async () => {
+      const homeDir = process.env.HOME || '';
+      await saveDiskConfig({
+        username: null,
+        password: null,
+        organizationUrl: null,
+        installDirs: ['~/.claude', '/opt/nori'],
+      });
+
+      const loaded = await loadDiskConfig();
+
+      expect(loaded?.installDirs).toEqual([
+        path.join(homeDir, '.claude'),
+        '/opt/nori',
+      ]);
+    });
+
+    it('should normalize paths when saving installDirs', async () => {
+      const homeDir = process.env.HOME || '';
+      await saveDiskConfig({
+        username: null,
+        password: null,
+        organizationUrl: null,
+        installDirs: ['~/some/path', '~/another//path/'],
+      });
+
+      const content = await fs.readFile(mockConfigPath, 'utf-8');
+      const saved = JSON.parse(content);
+
+      expect(saved.installDirs).toEqual([
+        path.join(homeDir, 'some/path'),
+        path.join(homeDir, 'another/path'),
+      ]);
+    });
+
+    it('should normalize paths when loading installDirs', async () => {
+      const homeDir = process.env.HOME || '';
+      await fs.writeFile(
+        mockConfigPath,
+        JSON.stringify({
+          installDirs: ['~/.claude', '~/custom//dir/'],
+        }),
+      );
+
+      const loaded = await loadDiskConfig();
+
+      expect(loaded?.installDirs).toEqual([
+        path.join(homeDir, '.claude'),
+        path.join(homeDir, 'custom/dir'),
+      ]);
+    });
+
+    it('should migrate missing installDirs to default ~/.claude', async () => {
+      const homeDir = process.env.HOME || '';
+      await fs.writeFile(
+        mockConfigPath,
+        JSON.stringify({
+          username: 'test@example.com',
+        }),
+      );
+
+      const loaded = await loadDiskConfig();
+
+      expect(loaded?.installDirs).toEqual([path.join(homeDir, '.claude')]);
+    });
+
+    it('should handle empty installDirs array', async () => {
+      await saveDiskConfig({
+        username: null,
+        password: null,
+        organizationUrl: null,
+        installDirs: [],
+      });
+
+      const loaded = await loadDiskConfig();
+
+      expect(loaded?.installDirs).toEqual([]);
+    });
+
+    it('should handle null installDirs', async () => {
+      await saveDiskConfig({
+        username: null,
+        password: null,
+        organizationUrl: null,
+        installDirs: null,
+      });
+
+      const loaded = await loadDiskConfig();
+
+      expect(loaded?.installDirs).toBeNull();
+    });
+
+    it('should not save installDirs when undefined', async () => {
+      await saveDiskConfig({
+        username: null,
+        password: null,
+        organizationUrl: null,
+        profile: { baseProfile: 'test' },
+      });
+
+      const content = await fs.readFile(mockConfigPath, 'utf-8');
+      const saved = JSON.parse(content);
+
+      expect(saved.installDirs).toBeUndefined();
+    });
+  });
 });

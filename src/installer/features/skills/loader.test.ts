@@ -38,6 +38,10 @@ vi.mock('@/installer/env.js', () => ({
     return mockClaudeSkillsDir;
   },
   get CLAUDE_PROFILES_DIR() {
+  getClaudeDir: (args) => {
+    const { installDir } = args || {};
+    return installDir || mockClaudeDir;
+  },
     return path.join(mockClaudeDir, 'profiles');
   },
   MCP_ROOT: '/mock/mcp/root',

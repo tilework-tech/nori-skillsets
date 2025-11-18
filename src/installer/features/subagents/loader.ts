@@ -13,7 +13,7 @@ import type {
   ValidationResult,
 } from '@/installer/features/loaderRegistry.js';
 
-import { CLAUDE_DIR, CLAUDE_AGENTS_DIR } from '@/installer/env.js';
+import { getClaudeDir } from '@/installer/env.js';
 import { success, info, warn } from '@/installer/logger.js';
 
 // Get directory of this loader file
@@ -28,9 +28,9 @@ const __dirname = path.dirname(__filename);
  *
  * @returns Path to the subagents config directory for the profile
  */
-const getConfigDir = (args: { profileName: string }): string => {
-  const { profileName } = args;
-  return path.join(CLAUDE_DIR, 'profiles', profileName, 'subagents');
+const getConfigDir = (args: { claudeDir: string; profileName: string }): string => {
+  const { claudeDir, profileName } = args;
+  return path.join(claudeDir, 'profiles', profileName, 'subagents');
 };
 
 /**
@@ -43,11 +43,16 @@ const registerSubagents = async (args: { config: Config }): Promise<void> => {
   info({ message: 'Registering Nori subagents...' });
 
   // Get profile name from config (default to senior-swe)
+  // Get dynamic Claude directory
+  const claudeDir = getClaudeDir({ installDir: config.installDir || null });
+  const agentsDir = path.join(claudeDir, 'agents');
+
+  // Get profile name from config (default to senior-swe)
   const profileName = config.profile?.baseProfile || 'senior-swe';
-  const configDir = getConfigDir({ profileName });
+  const configDir = getConfigDir({ claudeDir, profileName });
 
   // Create agents directory if it doesn't exist
-  await fs.mkdir(CLAUDE_AGENTS_DIR, { recursive: true });
+  await fs.mkdir(agentsDir, { recursive: true });
 
   let registeredCount = 0;
   let skippedCount = 0;
@@ -60,7 +65,7 @@ const registerSubagents = async (args: { config: Config }): Promise<void> => {
 
   for (const file of mdFiles) {
     const subagentSrc = path.join(configDir, file);
-    const subagentDest = path.join(CLAUDE_AGENTS_DIR, file);
+    const subagentDest = path.join(agentsDir, file);
 
     try {
       await fs.access(subagentSrc);
@@ -106,8 +111,13 @@ const unregisterSubagents = async (args: {
   let removedCount = 0;
 
   // Get profile name from config (default to senior-swe)
+  // Get dynamic Claude directory
+  const claudeDir = getClaudeDir({ installDir: config.installDir || null });
+  const agentsDir = path.join(claudeDir, 'agents');
+
+  // Get profile name from config (default to senior-swe)
   const profileName = config.profile?.baseProfile || 'senior-swe';
-  const configDir = getConfigDir({ profileName });
+  const configDir = getConfigDir({ claudeDir, profileName });
 
   // Read all .md files from the profile's subagents directory
   try {
@@ -117,7 +127,7 @@ const unregisterSubagents = async (args: {
     );
 
     for (const file of mdFiles) {
-      const subagentPath = path.join(CLAUDE_AGENTS_DIR, file);
+      const subagentPath = path.join(agentsDir, file);
 
       try {
         await fs.access(subagentPath);
@@ -158,11 +168,15 @@ const validate = async (args: {
   const { config } = args;
   const errors: Array<string> = [];
 
+  // Get dynamic Claude directory
+  const claudeDir = getClaudeDir({ installDir: config.installDir || null });
+  const agentsDir = path.join(claudeDir, 'agents');
+
   // Check if agents directory exists
   try {
-    await fs.access(CLAUDE_AGENTS_DIR);
+    await fs.access(agentsDir);
   } catch {
-    errors.push(`Agents directory not found at ${CLAUDE_AGENTS_DIR}`);
+    errors.push(`Agents directory not found at ${agentsDir}`);
     errors.push('Run "nori-ai install" to create the agents directory');
     return {
       valid: false,
@@ -173,7 +187,7 @@ const validate = async (args: {
 
   // Get profile name from config (default to senior-swe)
   const profileName = config.profile?.baseProfile || 'senior-swe';
-  const configDir = getConfigDir({ profileName });
+  const configDir = getConfigDir({ claudeDir, profileName });
 
   // Check if all expected subagents are present
   const missingSubagents: Array<string> = [];
@@ -187,7 +201,7 @@ const validate = async (args: {
     expectedCount = mdFiles.length;
 
     for (const file of mdFiles) {
-      const subagentPath = path.join(CLAUDE_AGENTS_DIR, file);
+      const subagentPath = path.join(agentsDir, file);
       try {
         await fs.access(subagentPath);
       } catch {

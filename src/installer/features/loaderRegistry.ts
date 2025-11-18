@@ -29,7 +29,7 @@ export type Loader = {
   name: string;
   description: string;
   run: (args: { config: Config }) => Promise<void>;
-  uninstall: (args: { config: Config }) => Promise<void>;
+  uninstall: (args: { config: Config; installDir?: string | null }) => Promise<void>;
   validate?: (args: { config: Config }) => Promise<ValidationResult>;
 };
 

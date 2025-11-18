@@ -38,6 +38,7 @@ vi.mock('@/installer/env.js', () => ({
     return path.join(mockClaudeDir, 'nori', 'abilities');
   },
   MCP_ROOT: '/mock/mcp/root',
+  getClaudeDir: () => mockClaudeDir,
 }));
 
 // Import loader after mocking env

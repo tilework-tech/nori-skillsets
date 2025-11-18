@@ -13,7 +13,7 @@ import type {
   ValidationResult,
 } from '@/installer/features/loaderRegistry.js';
 
-import { CLAUDE_DIR, CLAUDE_COMMANDS_DIR } from '@/installer/env.js';
+import { getClaudeDir } from '@/installer/env.js';
 import { success, info, warn } from '@/installer/logger.js';
 
 // Get directory of this loader file
@@ -24,13 +24,17 @@ const __dirname = path.dirname(__filename);
  * Get config directory for slash commands based on selected profile
  *
  * @param args - Configuration arguments
+ * @param args.claudeDir - Claude directory path
  * @param args.profileName - Name of the profile to load slash commands from
  *
  * @returns Path to the slashcommands config directory for the profile
  */
-const getConfigDir = (args: { profileName: string }): string => {
-  const { profileName } = args;
-  return path.join(CLAUDE_DIR, 'profiles', profileName, 'slashcommands');
+const getConfigDir = (args: {
+  claudeDir: string;
+  profileName: string;
+}): string => {
+  const { claudeDir, profileName } = args;
+  return path.join(claudeDir, 'profiles', profileName, 'slashcommands');
 };
 
 /**
@@ -44,12 +48,16 @@ const registerSlashCommands = async (args: {
   const { config } = args;
   info({ message: 'Registering Nori slash commands...' });
 
+  // Get dynamic Claude directory
+  const claudeDir = getClaudeDir({ installDir: config.installDir || null });
+  const commandsDir = path.join(claudeDir, 'commands');
+
   // Get profile name from config (default to senior-swe)
   const profileName = config.profile?.baseProfile || 'senior-swe';
-  const configDir = getConfigDir({ profileName });
+  const configDir = getConfigDir({ claudeDir, profileName });
 
   // Create commands directory if it doesn't exist
-  await fs.mkdir(CLAUDE_COMMANDS_DIR, { recursive: true });
+  await fs.mkdir(commandsDir, { recursive: true });
 
   let registeredCount = 0;
   let skippedCount = 0;
@@ -62,7 +70,7 @@ const registerSlashCommands = async (args: {
 
   for (const file of mdFiles) {
     const commandSrc = path.join(configDir, file);
-    const commandDest = path.join(CLAUDE_COMMANDS_DIR, file);
+    const commandDest = path.join(commandsDir, file);
 
     try {
       await fs.access(commandSrc);
@@ -107,9 +115,13 @@ const unregisterSlashCommands = async (args: {
 
   let removedCount = 0;
 
+  // Get dynamic Claude directory
+  const claudeDir = getClaudeDir({ installDir: config.installDir || null });
+  const commandsDir = path.join(claudeDir, 'commands');
+
   // Get profile name from config (default to senior-swe)
   const profileName = config.profile?.baseProfile || 'senior-swe';
-  const configDir = getConfigDir({ profileName });
+  const configDir = getConfigDir({ claudeDir, profileName });
 
   // Read all .md files from the profile's slashcommands directory
   try {
@@ -119,7 +131,7 @@ const unregisterSlashCommands = async (args: {
     );
 
     for (const file of mdFiles) {
-      const commandPath = path.join(CLAUDE_COMMANDS_DIR, file);
+      const commandPath = path.join(commandsDir, file);
 
       try {
         await fs.access(commandPath);
@@ -160,11 +172,15 @@ const validate = async (args: {
   const { config } = args;
   const errors: Array<string> = [];
 
+  // Get dynamic Claude directory
+  const claudeDir = getClaudeDir({ installDir: config.installDir || null });
+  const commandsDir = path.join(claudeDir, 'commands');
+
   // Check if commands directory exists
   try {
-    await fs.access(CLAUDE_COMMANDS_DIR);
+    await fs.access(commandsDir);
   } catch {
-    errors.push(`Commands directory not found at ${CLAUDE_COMMANDS_DIR}`);
+    errors.push(`Commands directory not found at ${commandsDir}`);
     errors.push('Run "nori-ai install" to create the commands directory');
     return {
       valid: false,
@@ -175,7 +191,7 @@ const validate = async (args: {
 
   // Get profile name from config (default to senior-swe)
   const profileName = config.profile?.baseProfile || 'senior-swe';
-  const configDir = getConfigDir({ profileName });
+  const configDir = getConfigDir({ claudeDir, profileName });
 
   // Check if all expected slash commands are present
   const missingCommands: Array<string> = [];
@@ -189,7 +205,7 @@ const validate = async (args: {
     expectedCount = mdFiles.length;
 
     for (const file of mdFiles) {
-      const commandPath = path.join(CLAUDE_COMMANDS_DIR, file);
+      const commandPath = path.join(commandsDir, file);
       try {
         await fs.access(commandPath);
       } catch {

@@ -14,8 +14,10 @@ import {
   loadDiskConfig,
   generateConfig,
   getConfigPath,
+  removeInstallDir,
   type Config,
 } from '@/installer/config.js';
+import { normalizeInstallDir } from '@/utils/path.js';
 import { LoaderRegistry } from '@/installer/features/loaderRegistry.js';
 import { error, success, info, warn } from '@/installer/logger.js';
 import { promptUser } from '@/installer/prompt.js';
@@ -117,12 +119,14 @@ const removeConfigFile = async (): Promise<void> => {
  * @param args - Configuration arguments
  * @param args.removeConfig - Whether to remove the config file (default: false)
  * @param args.installedVersion - Version being uninstalled (for logging)
+ * @param args.installDir - Specific directory to uninstall from (null to uninstall from all)
  */
 export const runUninstall = async (args?: {
   removeConfig?: boolean | null;
   installedVersion?: string | null;
+  installDir?: string | null;
 }): Promise<void> => {
-  const { removeConfig, installedVersion } = args || {};
+  const { removeConfig, installedVersion, installDir } = args || {};
 
   // Load config to determine install type (defaults to free if none exists)
   const existingDiskConfig = await loadDiskConfig();
@@ -145,15 +149,44 @@ export const runUninstall = async (args?: {
   const registry = LoaderRegistry.getInstance();
   const loaders = registry.getAll();
 
-  // Execute uninstallers sequentially to avoid race conditions
-  // (hooks and statusline both read/write settings.json)
-  for (const loader of loaders) {
-    try {
-      await loader.uninstall({ config });
-    } catch (err: any) {
-      warn({
-        message: `Failed to uninstall ${loader.name}: ${err.message}`,
-      });
+  // If installDir specified, uninstall only from that directory
+  if (installDir != null) {
+    const normalizedDir = normalizeInstallDir({ path: installDir });
+    info({ message: `Uninstalling from ${normalizedDir}...` });
+
+    // Execute uninstallers for the specific directory
+    for (const loader of loaders) {
+      try {
+        await loader.uninstall({ config, installDir: normalizedDir });
+      } catch (err: any) {
+        warn({
+          message: `Failed to uninstall ${loader.name} from ${normalizedDir}: ${err.message}`,
+        });
+      }
+    }
+
+    // Remove from config.installDirs
+    await removeInstallDir({ installDir: normalizedDir });
+    success({ message: `✓ Removed ${normalizedDir} from configuration` });
+  } else {
+    // Uninstall from all configured directories
+    const installDirs = existingDiskConfig?.installDirs || [
+      path.join(process.env.HOME || '~', '.claude'),
+    ];
+
+    for (const dir of installDirs) {
+      info({ message: `Uninstalling from ${dir}...` });
+
+      // Execute uninstallers for each directory
+      for (const loader of loaders) {
+        try {
+          await loader.uninstall({ config, installDir: dir });
+        } catch (err: any) {
+          warn({
+            message: `Failed to uninstall ${loader.name} from ${dir}: ${err.message}`,
+          });
+        }
+      }
     }
   }
 

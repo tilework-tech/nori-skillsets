@@ -23,6 +23,7 @@ import {
   saveDiskConfig,
   generateConfig,
   getConfigPath,
+  addInstallDir,
   type DiskConfig,
   type Config,
 } from '@/installer/config.js';
@@ -290,12 +291,14 @@ const completeConfig = async (args: {
  * @param args - Configuration arguments
  * @param args.nonInteractive - Whether to run in non-interactive mode
  * @param args.skipUninstall - Whether to skip uninstall step (useful for profile switching)
+ * @param args.installDir - Custom installation directory (optional)
  */
 export const main = async (args?: {
   nonInteractive?: boolean | null;
   skipUninstall?: boolean | null;
+  installDir?: string | null;
 }): Promise<void> => {
-  const { nonInteractive, skipUninstall } = args || {};
+  const { nonInteractive, skipUninstall, installDir } = args || {};
 
   try {
     // Check if there's an existing installation to clean up
@@ -345,12 +348,14 @@ export const main = async (args?: {
         config = {
           ...generateConfig({ diskConfig: existingDiskConfig }),
           nonInteractive: true,
+          installDir: installDir || null,
         };
       } else {
         config = {
           installType: 'free',
           nonInteractive: true,
           profile: { baseProfile: 'senior-swe' },
+          installDir: installDir || null,
         };
       }
 
@@ -375,7 +380,10 @@ export const main = async (args?: {
         auth: auth || undefined,
         profile: existingDiskConfig?.profile || null,
       };
-      config = generateConfig({ diskConfig: tempDiskConfig });
+      config = {
+        ...generateConfig({ diskConfig: tempDiskConfig }),
+        installDir: installDir || null,
+      };
 
       // 3. Run profile loader with CORRECT config (paid if auth exists)
       info({ message: 'Loading available profiles...' });
@@ -442,6 +450,11 @@ export const main = async (args?: {
 
     // Installation complete
     console.log();
+
+    // Save installDir to config after successful installation
+    if (config.installDir != null) {
+      await addInstallDir({ installDir: config.installDir });
+    }
 
     // Save installed version
     const finalVersion = getCurrentPackageVersion();
