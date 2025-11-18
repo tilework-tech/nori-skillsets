@@ -17,9 +17,10 @@ import { main as installMain } from "@/installer/install.js";
 import { error, success, info, warn } from "@/installer/logger.js";
 import { switchProfile } from "@/installer/profiles.js";
 import { main as uninstallMain } from "@/installer/uninstall.js";
+import { normalizeInstallDir } from "@/utils/path.js";
 
 const showHelp = (): void => {
-  console.log("Usage: nori-ai [command]");
+  console.log("Usage: nori-ai [command] [options]");
   console.log("");
   console.log("Commands:");
   console.log("  install              Install Nori Agent Brain (default)");
@@ -31,12 +32,24 @@ const showHelp = (): void => {
     "  switch-profile <name> Switch to a different profile and reinstall",
   );
   console.log("  help                 Show this help message");
+  console.log("");
+  console.log("Options:");
+  console.log(
+    "  --install-dir <path> Install to custom directory (default: ~/.claude)",
+  );
+  console.log("  --non-interactive    Run without prompts");
 };
 
 /**
  * Run validation checks on Nori installation
+ * @param args - Configuration arguments
+ * @param args.installDir - Custom installation directory (optional)
  */
-const checkMain = async (): Promise<void> => {
+const checkMain = async (args?: {
+  installDir?: string | null;
+}): Promise<void> => {
+  const { installDir } = args || {};
+
   console.log("");
   info({ message: "Running Nori Agent Brain validation checks..." });
   console.log("");
@@ -45,7 +58,7 @@ const checkMain = async (): Promise<void> => {
 
   // Check config
   info({ message: "Checking configuration..." });
-  const configResult = await validateDiskConfig();
+  const configResult = await validateDiskConfig({ installDir });
   if (configResult.valid) {
     success({ message: `   ✓ ${configResult.message}` });
   } else {
@@ -60,8 +73,13 @@ const checkMain = async (): Promise<void> => {
   console.log("");
 
   // Load config to determine install type
-  const diskConfig = await loadDiskConfig();
+  const diskConfig = await loadDiskConfig({ installDir });
   const config = generateConfig({ diskConfig });
+
+  // Add installDir to config
+  if (installDir != null) {
+    config.installDir = installDir;
+  }
 
   // Check server connectivity (paid mode only)
   if (config.installType === "paid") {
@@ -121,6 +139,22 @@ const checkMain = async (): Promise<void> => {
   }
 };
 
+/**
+ * Parse --install-dir <path> from args
+ * @param args - Command line arguments
+ *
+ * @returns The install directory path or null
+ */
+const parseInstallDir = (args: Array<string>): string | null => {
+  const index = args.indexOf("--install-dir");
+  if (index === -1 || index === args.length - 1) {
+    return null;
+  }
+  const rawPath = args[index + 1];
+  // Normalize the path (handles ~, relative paths, and .claude suffix)
+  return normalizeInstallDir({ installDir: rawPath });
+};
+
 const main = async (): Promise<void> => {
   const args = process.argv.slice(2);
   const command = args[0] || "install";
@@ -133,18 +167,21 @@ const main = async (): Promise<void> => {
   // Check for --non-interactive flag
   const nonInteractive = args.includes("--non-interactive");
 
+  // Check for --install-dir flag
+  const installDir = parseInstallDir(args);
+
   if (command === "install") {
-    await installMain({ nonInteractive });
+    await installMain({ nonInteractive, installDir });
     return;
   }
 
   if (command === "uninstall") {
-    await uninstallMain({ nonInteractive });
+    await uninstallMain({ nonInteractive, installDir });
     return;
   }
 
   if (command === "check") {
-    await checkMain();
+    await checkMain({ installDir });
     return;
   }
 
@@ -158,12 +195,16 @@ const main = async (): Promise<void> => {
     }
 
     // Switch to the profile
-    await switchProfile({ profileName });
+    await switchProfile({ profileName, installDir });
 
     // Run install in non-interactive mode with skipUninstall
     // This preserves custom user profiles during the profile switch
     info({ message: "Applying profile configuration..." });
-    await installMain({ nonInteractive: true, skipUninstall: true });
+    await installMain({
+      nonInteractive: true,
+      skipUninstall: true,
+      installDir,
+    });
 
     return;
   }

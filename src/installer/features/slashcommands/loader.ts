@@ -7,7 +7,7 @@ import * as fs from "fs/promises";
 import * as path from "path";
 import { fileURLToPath } from "url";
 
-import { CLAUDE_DIR, CLAUDE_COMMANDS_DIR } from "@/installer/env.js";
+import { getClaudeDir, getClaudeCommandsDir } from "@/installer/env.js";
 import { success, info, warn } from "@/installer/logger.js";
 
 import type { Config } from "@/installer/config.js";
@@ -25,12 +25,17 @@ const __dirname = path.dirname(__filename);
  *
  * @param args - Configuration arguments
  * @param args.profileName - Name of the profile to load slash commands from
+ * @param args.installDir - Custom installation directory (optional)
  *
  * @returns Path to the slashcommands config directory for the profile
  */
-const getConfigDir = (args: { profileName: string }): string => {
-  const { profileName } = args;
-  return path.join(CLAUDE_DIR, "profiles", profileName, "slashcommands");
+const getConfigDir = (args: {
+  profileName: string;
+  installDir?: string | null;
+}): string => {
+  const { profileName, installDir } = args;
+  const claudeDir = getClaudeDir({ installDir });
+  return path.join(claudeDir, "profiles", profileName, "slashcommands");
 };
 
 /**
@@ -46,10 +51,16 @@ const registerSlashCommands = async (args: {
 
   // Get profile name from config (default to senior-swe)
   const profileName = config.profile?.baseProfile || "senior-swe";
-  const configDir = getConfigDir({ profileName });
+  const configDir = getConfigDir({
+    profileName,
+    installDir: config.installDir,
+  });
+  const claudeCommandsDir = getClaudeCommandsDir({
+    installDir: config.installDir,
+  });
 
   // Create commands directory if it doesn't exist
-  await fs.mkdir(CLAUDE_COMMANDS_DIR, { recursive: true });
+  await fs.mkdir(claudeCommandsDir, { recursive: true });
 
   let registeredCount = 0;
   let skippedCount = 0;
@@ -62,7 +73,7 @@ const registerSlashCommands = async (args: {
 
   for (const file of mdFiles) {
     const commandSrc = path.join(configDir, file);
-    const commandDest = path.join(CLAUDE_COMMANDS_DIR, file);
+    const commandDest = path.join(claudeCommandsDir, file);
 
     try {
       await fs.access(commandSrc);
@@ -109,7 +120,13 @@ const unregisterSlashCommands = async (args: {
 
   // Get profile name from config (default to senior-swe)
   const profileName = config.profile?.baseProfile || "senior-swe";
-  const configDir = getConfigDir({ profileName });
+  const configDir = getConfigDir({
+    profileName,
+    installDir: config.installDir,
+  });
+  const claudeCommandsDir = getClaudeCommandsDir({
+    installDir: config.installDir,
+  });
 
   // Read all .md files from the profile's slashcommands directory
   try {
@@ -119,7 +136,7 @@ const unregisterSlashCommands = async (args: {
     );
 
     for (const file of mdFiles) {
-      const commandPath = path.join(CLAUDE_COMMANDS_DIR, file);
+      const commandPath = path.join(claudeCommandsDir, file);
 
       try {
         await fs.access(commandPath);
@@ -160,11 +177,15 @@ const validate = async (args: {
   const { config } = args;
   const errors: Array<string> = [];
 
+  const claudeCommandsDir = getClaudeCommandsDir({
+    installDir: config.installDir,
+  });
+
   // Check if commands directory exists
   try {
-    await fs.access(CLAUDE_COMMANDS_DIR);
+    await fs.access(claudeCommandsDir);
   } catch {
-    errors.push(`Commands directory not found at ${CLAUDE_COMMANDS_DIR}`);
+    errors.push(`Commands directory not found at ${claudeCommandsDir}`);
     errors.push('Run "nori-ai install" to create the commands directory');
     return {
       valid: false,
@@ -175,7 +196,10 @@ const validate = async (args: {
 
   // Get profile name from config (default to senior-swe)
   const profileName = config.profile?.baseProfile || "senior-swe";
-  const configDir = getConfigDir({ profileName });
+  const configDir = getConfigDir({
+    profileName,
+    installDir: config.installDir,
+  });
 
   // Check if all expected slash commands are present
   const missingCommands: Array<string> = [];
@@ -189,7 +213,7 @@ const validate = async (args: {
     expectedCount = mdFiles.length;
 
     for (const file of mdFiles) {
-      const commandPath = path.join(CLAUDE_COMMANDS_DIR, file);
+      const commandPath = path.join(claudeCommandsDir, file);
       try {
         await fs.access(commandPath);
       } catch {

@@ -218,4 +218,117 @@ describe("config with profile-based system", () => {
       });
     });
   });
+
+  describe("installDir configuration", () => {
+    it("should save config to custom installDir as .nori-config.json", async () => {
+      const customDir = path.join(tempDir, "custom-project");
+      await fs.mkdir(customDir, { recursive: true });
+
+      await saveDiskConfig({
+        username: "test@example.com",
+        password: "password123",
+        organizationUrl: "https://example.com",
+        installDir: customDir,
+      });
+
+      // Config should be at customDir/.nori-config.json
+      const configPath = path.join(customDir, ".nori-config.json");
+      const exists = await fs
+        .access(configPath)
+        .then(() => true)
+        .catch(() => false);
+      expect(exists).toBe(true);
+
+      // Should NOT be at HOME/nori-config.json
+      const homeConfig = path.join(tempDir, "nori-config.json");
+      const homeExists = await fs
+        .access(homeConfig)
+        .then(() => true)
+        .catch(() => false);
+      expect(homeExists).toBe(false);
+    });
+
+    it("should load config from custom installDir", async () => {
+      const customDir = path.join(tempDir, "custom-project");
+      await fs.mkdir(customDir, { recursive: true });
+
+      // Write config to custom location
+      const configPath = path.join(customDir, ".nori-config.json");
+      await fs.writeFile(
+        configPath,
+        JSON.stringify({
+          username: "custom@example.com",
+          password: "custompass",
+          organizationUrl: "https://custom.com",
+        }),
+      );
+
+      const loaded = await loadDiskConfig({ installDir: customDir });
+
+      expect(loaded?.auth).toEqual({
+        username: "custom@example.com",
+        password: "custompass",
+        organizationUrl: "https://custom.com",
+      });
+    });
+
+    it("should return null when config does not exist in custom installDir", async () => {
+      const customDir = path.join(tempDir, "empty-project");
+      await fs.mkdir(customDir, { recursive: true });
+
+      const loaded = await loadDiskConfig({ installDir: customDir });
+      expect(loaded).toBeNull();
+    });
+
+    it("should save installDir in config for persistence", async () => {
+      const customDir = path.join(tempDir, "custom-project");
+      await fs.mkdir(customDir, { recursive: true });
+
+      await saveDiskConfig({
+        username: null,
+        password: null,
+        organizationUrl: null,
+        profile: { baseProfile: "senior-swe" },
+        installDir: customDir,
+      });
+
+      // Read the raw config to verify installDir is saved
+      const configPath = path.join(customDir, ".nori-config.json");
+      const content = await fs.readFile(configPath, "utf-8");
+      const config = JSON.parse(content);
+
+      expect(config.installDir).toBe(customDir);
+    });
+
+    it("should load installDir from config", async () => {
+      const customDir = path.join(tempDir, "custom-project");
+      await fs.mkdir(customDir, { recursive: true });
+
+      // Write config with installDir
+      const configPath = path.join(customDir, ".nori-config.json");
+      await fs.writeFile(
+        configPath,
+        JSON.stringify({
+          profile: { baseProfile: "senior-swe" },
+          installDir: customDir,
+        }),
+      );
+
+      const loaded = await loadDiskConfig({ installDir: customDir });
+      expect(loaded?.installDir).toBe(customDir);
+    });
+
+    it("should include installDir in generated config", () => {
+      const customDir = "/custom/project/path";
+      const diskConfig: DiskConfig = {
+        auth: null,
+        profile: { baseProfile: "senior-swe" },
+        installDir: customDir,
+      };
+
+      const config = generateConfig({ diskConfig });
+
+      expect(config.installDir).toBe(customDir);
+    });
+  });
 });

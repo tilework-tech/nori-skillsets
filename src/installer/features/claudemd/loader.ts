@@ -9,7 +9,7 @@ import { fileURLToPath } from "url";
 
 import { glob } from "glob";
 
-import { CLAUDE_DIR, CLAUDE_MD_FILE } from "@/installer/env.js";
+import { getClaudeDir, getClaudeMdFile } from "@/installer/env.js";
 import { success, info } from "@/installer/logger.js";
 
 import type { Config } from "@/installer/config.js";
@@ -27,12 +27,17 @@ const __dirname = path.dirname(__filename);
  *
  * @param args - Function arguments
  * @param args.profileName - Name of the profile to load CLAUDE.md from
+ * @param args.installDir - Custom installation directory (optional)
  *
  * @returns Path to the CLAUDE.md file for the profile
  */
-const getProfileClaudeMd = (args: { profileName: string }): string => {
-  const { profileName } = args;
-  return path.join(CLAUDE_DIR, "profiles", profileName, "CLAUDE.md");
+const getProfileClaudeMd = (args: {
+  profileName: string;
+  installDir?: string | null;
+}): string => {
+  const { profileName, installDir } = args;
+  const claudeDir = getClaudeDir({ installDir });
+  return path.join(claudeDir, "profiles", profileName, "CLAUDE.md");
 };
 
 /**
@@ -167,17 +172,20 @@ const formatSkillInfo = async (args: {
  *
  * @param args - Function arguments
  * @param args.profileName - Profile name to load skills from
+ * @param args.installDir - Custom installation directory (optional)
  *
  * @returns Formatted skills list markdown (empty string if skills cannot be found)
  */
 const generateSkillsList = async (args: {
   profileName: string;
+  installDir?: string | null;
 }): Promise<string> => {
-  const { profileName } = args;
+  const { profileName, installDir } = args;
 
   try {
     // Get skills directory for the profile from installed profiles
-    const skillsDir = path.join(CLAUDE_DIR, "profiles", profileName, "skills");
+    const claudeDir = getClaudeDir({ installDir });
+    const skillsDir = path.join(claudeDir, "profiles", profileName, "skills");
 
     // Find all skill files
     const skillFiles = await findSkillFiles({ dir: skillsDir });
@@ -239,23 +247,33 @@ const insertClaudeMd = async (args: { config: Config }): Promise<void> => {
   // Get profile name from config (default to senior-swe)
   const profileName = config.profile?.baseProfile || "senior-swe";
 
+  // Get paths using installDir
+  const claudeDir = getClaudeDir({ installDir: config.installDir });
+  const claudeMdFile = getClaudeMdFile({ installDir: config.installDir });
+
   // Read CLAUDE.md from the selected profile
-  const profileClaudeMdPath = getProfileClaudeMd({ profileName });
+  const profileClaudeMdPath = getProfileClaudeMd({
+    profileName,
+    installDir: config.installDir,
+  });
   let instructions = await fs.readFile(profileClaudeMdPath, "utf-8");
 
   // Generate and append skills list
-  const skillsList = await generateSkillsList({ profileName });
+  const skillsList = await generateSkillsList({
+    profileName,
+    installDir: config.installDir,
+  });
   if (skillsList.length > 0) {
     instructions = instructions + skillsList;
   }
 
   // Create .claude directory if it doesn't exist
-  await fs.mkdir(CLAUDE_DIR, { recursive: true });
+  await fs.mkdir(claudeDir, { recursive: true });
 
   // Read existing content or start with empty string
   let content = "";
   try {
-    content = await fs.readFile(CLAUDE_MD_FILE, "utf-8");
+    content = await fs.readFile(claudeMdFile, "utf-8");
   } catch {
     // File doesn't exist, will create it
   }
@@ -279,18 +297,24 @@ const insertClaudeMd = async (args: { config: Config }): Promise<void> => {
     info({ message: "Adding nori instructions to CLAUDE.md..." });
   }
 
-  await fs.writeFile(CLAUDE_MD_FILE, content);
-  success({ message: `✓ CLAUDE.md configured at ${CLAUDE_MD_FILE}` });
+  await fs.writeFile(claudeMdFile, content);
+  success({ message: `✓ CLAUDE.md configured at ${claudeMdFile}` });
 };
 
 /**
  * Remove nori-managed block from CLAUDE.md
+ *
+ * @param args - Configuration arguments
+ * @param args.config - Runtime configuration
  */
-const removeClaudeMd = async (): Promise<void> => {
+const removeClaudeMd = async (args: { config: Config }): Promise<void> => {
+  const { config } = args;
   info({ message: "Removing nori instructions from CLAUDE.md..." });
 
+  const claudeMdFile = getClaudeMdFile({ installDir: config.installDir });
+
   try {
-    const content = await fs.readFile(CLAUDE_MD_FILE, "utf-8");
+    const content = await fs.readFile(claudeMdFile, "utf-8");
 
     // Check if managed block exists
     if (!content.includes(BEGIN_MARKER)) {
@@ -307,10 +331,10 @@ const removeClaudeMd = async (): Promise<void> => {
 
     // If file is empty after removal, delete it
     if (updated.trim() === "") {
-      await fs.unlink(CLAUDE_MD_FILE);
+      await fs.unlink(claudeMdFile);
       success({ message: "✓ CLAUDE.md removed (was empty after cleanup)" });
     } else {
-      await fs.writeFile(CLAUDE_MD_FILE, updated);
+      await fs.writeFile(claudeMdFile, updated);
       success({
         message: "✓ Nori instructions removed from CLAUDE.md (file preserved)",
       });
@@ -323,16 +347,24 @@ const removeClaudeMd = async (): Promise<void> => {
 /**
  * Validate CLAUDE.md configuration
  *
+ * @param args - Configuration arguments
+ * @param args.config - Runtime configuration
+ *
  * @returns Validation result
  */
-const validate = async (): Promise<ValidationResult> => {
+const validate = async (args: {
+  config: Config;
+}): Promise<ValidationResult> => {
+  const { config } = args;
   const errors: Array<string> = [];
+
+  const claudeMdFile = getClaudeMdFile({ installDir: config.installDir });
 
   // Check if CLAUDE.md exists
   try {
-    await fs.access(CLAUDE_MD_FILE);
+    await fs.access(claudeMdFile);
   } catch {
-    errors.push(`CLAUDE.md not found at ${CLAUDE_MD_FILE}`);
+    errors.push(`CLAUDE.md not found at ${claudeMdFile}`);
     errors.push('Run "nori-ai install" to create CLAUDE.md');
     return {
       valid: false,
@@ -344,7 +376,7 @@ const validate = async (): Promise<ValidationResult> => {
   // Read and check for managed block
   let content: string;
   try {
-    content = await fs.readFile(CLAUDE_MD_FILE, "utf-8");
+    content = await fs.readFile(claudeMdFile, "utf-8");
   } catch (err) {
     errors.push("Failed to read CLAUDE.md");
     errors.push(`Error: ${err}`);
@@ -383,8 +415,9 @@ export const claudeMdLoader: Loader = {
     const { config } = args;
     await insertClaudeMd({ config });
   },
-  uninstall: async (_args: { config: Config }) => {
-    await removeClaudeMd();
+  uninstall: async (args: { config: Config }) => {
+    const { config } = args;
+    await removeClaudeMd({ config });
   },
   validate,
 };

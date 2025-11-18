@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "additionalDirectories": [
+      "/home/amol/code/nori/nori-plugin/.worktrees/configurable-install-dir/.claude/profiles",
+      "/home/amol/code/nori/nori-plugin/.worktrees/configurable-install-dir/.claude/skills"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node /home/amol/code/nori/nori-plugin/.worktrees/configurable-install-dir/build/src/installer/features/hooks/config/autoupdate.js",
+            "description": "Check for Nori Agent Brain updates on session start"
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/amol/code/nori/nori-plugin/.worktrees/configurable-install-dir/build/src/installer/features/hooks/config/notify-hook.sh",
+            "description": "Send desktop notification when Claude needs input"
+          }
+        ]
+      }
+    ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "/home/amol/code/nori/nori-plugin/.worktrees/configurable-install-dir/build/src/installer/features/statusline/config/nori-statusline.sh",
+    "padding": 0
+  }
+}

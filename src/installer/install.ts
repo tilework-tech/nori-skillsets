@@ -26,7 +26,7 @@ import {
   type DiskConfig,
   type Config,
 } from "@/installer/config.js";
-import { CLAUDE_DIR } from "@/installer/env.js";
+import { getClaudeDir } from "@/installer/env.js";
 import { LoaderRegistry } from "@/installer/features/loaderRegistry.js";
 import { profilesLoader } from "@/installer/features/profiles/loader.js";
 import {
@@ -52,9 +52,16 @@ const __dirname = path.dirname(__filename);
 
 /**
  * Prompt user to select a profile
+ * @param args - Configuration arguments
+ * @param args.installDir - Custom installation directory (optional)
+ *
  * @returns Selected profile name
  */
-const promptForProfileSelection = async (): Promise<string> => {
+const promptForProfileSelection = async (args?: {
+  installDir?: string | null;
+}): Promise<string> => {
+  const { installDir } = args || {};
+
   info({
     message: wrapText({
       text: "Please select a profile. Each profile contains a complete configuration with skills, subagents, and commands tailored for different use cases.",
@@ -63,7 +70,8 @@ const promptForProfileSelection = async (): Promise<string> => {
   console.log();
 
   // Read profiles from ~/.claude/profiles/ (populated by profiles loader)
-  const profilesDir = path.join(CLAUDE_DIR, "profiles");
+  const claudeDir = getClaudeDir({ installDir });
+  const profilesDir = path.join(claudeDir, "profiles");
   const entries = await fs.readdir(profilesDir, { withFileTypes: true });
 
   // Get all directories that have a profile.json file
@@ -248,6 +256,7 @@ const promptForAuth = async (args: {
  * @param args - Configuration arguments
  * @param args.auth - Auth credentials (already determined)
  * @param args.existingProfile - Existing profile selection (if reusing config)
+ * @param args.installDir - Custom installation directory (optional)
  *
  * @returns The configuration and disk config to save
  */
@@ -258,16 +267,18 @@ const completeConfig = async (args: {
     organizationUrl: string;
   } | null;
   existingProfile: { baseProfile: string } | null;
+  installDir?: string | null;
 }): Promise<{
   config: Config;
   diskConfigToSave: DiskConfig;
 }> => {
-  const { auth, existingProfile } = args;
+  const { auth, existingProfile, installDir } = args;
 
   // If we have an existing profile (from reusing existing config), use it
   // Otherwise, prompt for selection
   const selectedProfileName =
-    existingProfile?.baseProfile || (await promptForProfileSelection());
+    existingProfile?.baseProfile ||
+    (await promptForProfileSelection({ installDir }));
 
   // Build disk config with auth + profile
   const diskConfig: DiskConfig = {
@@ -290,12 +301,14 @@ const completeConfig = async (args: {
  * @param args - Configuration arguments
  * @param args.nonInteractive - Whether to run in non-interactive mode
  * @param args.skipUninstall - Whether to skip uninstall step (useful for profile switching)
+ * @param args.installDir - Custom installation directory (optional)
  */
 export const main = async (args?: {
   nonInteractive?: boolean | null;
   skipUninstall?: boolean | null;
+  installDir?: string | null;
 }): Promise<void> => {
-  const { nonInteractive, skipUninstall } = args || {};
+  const { nonInteractive, skipUninstall, installDir } = args || {};
 
   try {
     // Check if there's an existing installation to clean up
@@ -331,7 +344,7 @@ export const main = async (args?: {
     }
 
     // Load existing disk config (if any)
-    const existingDiskConfig = await loadDiskConfig();
+    const existingDiskConfig = await loadDiskConfig({ installDir });
 
     let config: Config;
     let diskConfigToSave: DiskConfig | null = null;
@@ -342,12 +355,14 @@ export const main = async (args?: {
         config = {
           ...generateConfig({ diskConfig: existingDiskConfig }),
           nonInteractive: true,
+          installDir: installDir || existingDiskConfig?.installDir || null,
         };
       } else {
         config = {
           installType: "free",
           nonInteractive: true,
           profile: { baseProfile: "senior-swe" },
+          installDir: installDir || null,
         };
       }
 
@@ -371,8 +386,13 @@ export const main = async (args?: {
       const tempDiskConfig: DiskConfig = {
         auth: auth || undefined,
         profile: existingDiskConfig?.profile || null,
+        installDir: installDir || existingDiskConfig?.installDir || null,
       };
       config = generateConfig({ diskConfig: tempDiskConfig });
+      // Add installDir to config if provided via CLI
+      if (installDir != null) {
+        config.installDir = installDir;
+      }
 
       // 3. Run profile loader with CORRECT config (paid if auth exists)
       info({ message: "Loading available profiles..." });
@@ -384,11 +404,17 @@ export const main = async (args?: {
         const result = await completeConfig({
           auth,
           existingProfile: null, // Force new selection
+          installDir,
         });
         config = result.config;
+        // Preserve installDir from CLI or existing config
+        config.installDir =
+          installDir || existingDiskConfig?.installDir || null;
         diskConfigToSave = result.diskConfigToSave;
       } else {
-        // Reusing existing config - no need to save
+        // Reusing existing config - no need to save, but ensure installDir is set
+        config.installDir =
+          installDir || existingDiskConfig?.installDir || null;
         diskConfigToSave = null;
       }
     }
@@ -419,8 +445,11 @@ export const main = async (args?: {
         password: diskConfigToSave.auth?.password || null,
         organizationUrl: diskConfigToSave.auth?.organizationUrl || null,
         profile: diskConfigToSave.profile || null,
+        installDir: installDir || null,
       });
-      success({ message: `Configuration saved to ${getConfigPath()}` });
+      success({
+        message: `Configuration saved to ${getConfigPath({ installDir })}`,
+      });
       console.log();
     }
 

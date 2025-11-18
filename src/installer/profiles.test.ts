@@ -8,27 +8,13 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 let testClaudeDir: string;
 
 vi.mock("@/installer/env.js", () => ({
-  get CLAUDE_DIR() {
-    return testClaudeDir;
-  },
-  get CLAUDE_MD_FILE() {
-    return path.join(testClaudeDir, "CLAUDE.md");
-  },
-  get CLAUDE_SETTINGS_FILE() {
-    return path.join(testClaudeDir, "settings.json");
-  },
-  get CLAUDE_AGENTS_DIR() {
-    return path.join(testClaudeDir, "agents");
-  },
-  get CLAUDE_COMMANDS_DIR() {
-    return path.join(testClaudeDir, "commands");
-  },
-  get CLAUDE_SKILLS_DIR() {
-    return path.join(testClaudeDir, "skills");
-  },
-  get CLAUDE_PROFILES_DIR() {
-    return path.join(testClaudeDir, "profiles");
-  },
+  getClaudeDir: () => testClaudeDir,
+  getClaudeSettingsFile: () => path.join(testClaudeDir, "settings.json"),
+  getClaudeAgentsDir: () => path.join(testClaudeDir, "agents"),
+  getClaudeCommandsDir: () => path.join(testClaudeDir, "commands"),
+  getClaudeMdFile: () => path.join(testClaudeDir, "CLAUDE.md"),
+  getClaudeSkillsDir: () => path.join(testClaudeDir, "skills"),
+  getClaudeProfilesDir: () => path.join(testClaudeDir, "profiles"),
   MCP_ROOT: "/mock/mcp/root",
 }));
 

@@ -6,6 +6,8 @@
 import * as path from "path";
 import { fileURLToPath } from "url";
 
+import { normalizeInstallDir } from "@/utils/path.js";
+
 /**
  * MCP root directory (where package.json is located)
  */
@@ -14,36 +16,90 @@ const __dirname = path.dirname(__filename);
 export const MCP_ROOT = path.resolve(__dirname, "../../..");
 
 /**
- * Claude directory path
+ * Get the Claude directory path
+ * @param args - Configuration arguments
+ * @param args.installDir - Custom installation directory (optional)
+ *
+ * @returns Absolute path to the .claude directory
  */
-export const CLAUDE_DIR = path.join(process.env.HOME || "~", ".claude");
+export const getClaudeDir = (args: { installDir?: string | null }): string => {
+  return normalizeInstallDir(args);
+};
 
 /**
- * Claude settings file path
+ * Get the Claude settings file path
+ * @param args - Configuration arguments
+ * @param args.installDir - Custom installation directory (optional)
+ *
+ * @returns Absolute path to settings.json
  */
-export const CLAUDE_SETTINGS_FILE = path.join(CLAUDE_DIR, "settings.json");
+export const getClaudeSettingsFile = (args: {
+  installDir?: string | null;
+}): string => {
+  return path.join(getClaudeDir(args), "settings.json");
+};
 
 /**
- * Claude agents directory
+ * Get the Claude agents directory path
+ * @param args - Configuration arguments
+ * @param args.installDir - Custom installation directory (optional)
+ *
+ * @returns Absolute path to the agents directory
  */
-export const CLAUDE_AGENTS_DIR = path.join(CLAUDE_DIR, "agents");
+export const getClaudeAgentsDir = (args: {
+  installDir?: string | null;
+}): string => {
+  return path.join(getClaudeDir(args), "agents");
+};
 
 /**
- * Claude commands directory
+ * Get the Claude commands directory path
+ * @param args - Configuration arguments
+ * @param args.installDir - Custom installation directory (optional)
+ *
+ * @returns Absolute path to the commands directory
  */
-export const CLAUDE_COMMANDS_DIR = path.join(CLAUDE_DIR, "commands");
+export const getClaudeCommandsDir = (args: {
+  installDir?: string | null;
+}): string => {
+  return path.join(getClaudeDir(args), "commands");
+};
 
 /**
- * CLAUDE.md file path
+ * Get the CLAUDE.md file path
+ * @param args - Configuration arguments
+ * @param args.installDir - Custom installation directory (optional)
+ *
+ * @returns Absolute path to CLAUDE.md
  */
-export const CLAUDE_MD_FILE = path.join(CLAUDE_DIR, "CLAUDE.md");
+export const getClaudeMdFile = (args: {
+  installDir?: string | null;
+}): string => {
+  return path.join(getClaudeDir(args), "CLAUDE.md");
+};
 
 /**
- * Claude skills directory
+ * Get the Claude skills directory path
+ * @param args - Configuration arguments
+ * @param args.installDir - Custom installation directory (optional)
+ *
+ * @returns Absolute path to the skills directory
  */
-export const CLAUDE_SKILLS_DIR = path.join(CLAUDE_DIR, "skills");
+export const getClaudeSkillsDir = (args: {
+  installDir?: string | null;
+}): string => {
+  return path.join(getClaudeDir(args), "skills");
+};
 
 /**
- * Claude profiles directory
+ * Get the Claude profiles directory path
+ * @param args - Configuration arguments
+ * @param args.installDir - Custom installation directory (optional)
+ *
+ * @returns Absolute path to the profiles directory
  */
-export const CLAUDE_PROFILES_DIR = path.join(CLAUDE_DIR, "profiles");
+export const getClaudeProfilesDir = (args: {
+  installDir?: string | null;
+}): string => {
+  return path.join(getClaudeDir(args), "profiles");
+};

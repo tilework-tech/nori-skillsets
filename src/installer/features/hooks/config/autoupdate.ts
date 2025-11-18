@@ -38,13 +38,27 @@ const getLatestVersion = async (): Promise<string | null> => {
  * Install the latest version in the background
  * @param args - Configuration arguments
  * @param args.version - Version to install
+ * @param args.installDir - Custom installation directory (optional)
  */
-const installUpdate = (args: { version: string }): void => {
-  const { version } = args;
+const installUpdate = (args: {
+  version: string;
+  installDir?: string | null;
+}): void => {
+  const { version, installDir } = args;
+
+  // Build command args
+  const cmdArgs = [
+    `${PACKAGE_NAME}@${version}`,
+    "install",
+    "--non-interactive",
+  ];
+  if (installDir != null && installDir !== "") {
+    cmdArgs.push("--install-dir", installDir);
+  }
 
   // Log to notifications file
   const logPath = join(process.env.HOME || "~", ".nori-notifications.log");
-  const logHeader = `\n=== Nori Autoupdate: ${new Date().toISOString()} ===\nInstalling v${version}...\nCommand: npx nori-ai@${version} install --non-interactive\n`;
+  const logHeader = `\n=== Nori Autoupdate: ${new Date().toISOString()} ===\nInstalling v${version}...\nCommand: npx ${cmdArgs.join(" ")}\n`;
   appendFileSync(logPath, logHeader);
 
   // Use openSync to get file descriptor for spawn stdio
@@ -52,14 +66,10 @@ const installUpdate = (args: { version: string }): void => {
 
   // Spawn background process with output redirected to log
   // Use npx to install the new version AND run the install script non-interactively
-  const child = spawn(
-    "npx",
-    [`${PACKAGE_NAME}@${version}`, "install", "--non-interactive"],
-    {
-      detached: true,
-      stdio: ["ignore", logFd, logFd],
-    },
-  );
+  const child = spawn("npx", cmdArgs, {
+    detached: true,
+    stdio: ["ignore", logFd, logFd],
+  });
 
   // Listen for spawn errors
   child.on("error", (err) => {
@@ -135,7 +145,10 @@ const main = async (): Promise<void> => {
     }
 
     // New version available - install in background
-    installUpdate({ version: latestVersion });
+    installUpdate({
+      version: latestVersion,
+      installDir: diskConfig?.installDir,
+    });
 
     // Notify user via additionalContext
     logToClaudeSession({

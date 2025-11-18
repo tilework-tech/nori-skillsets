@@ -23,6 +23,7 @@ export type DiskConfig = {
     baseProfile: string;
   } | null;
   sendSessionTranscript?: "enabled" | "disabled" | null;
+  installDir?: string | null;
 };
 
 /**
@@ -39,13 +40,27 @@ export type Config = {
   profile?: {
     baseProfile: string;
   } | null;
+  installDir?: string | null;
 };
 
 /**
  * Get the path to the config file
- * @returns The absolute path to nori-config.json
+ * @param args - Configuration arguments
+ * @param args.installDir - Custom installation directory (optional)
+ *
+ * @returns The absolute path to .nori-config.json
  */
-export const getConfigPath = (): string => {
+export const getConfigPath = (args?: {
+  installDir?: string | null;
+}): string => {
+  const { installDir } = args || {};
+
+  if (installDir != null && installDir !== "") {
+    // Use custom install directory with dotfile name
+    return path.join(installDir, ".nori-config.json");
+  }
+
+  // Legacy behavior: use HOME directory with non-dotfile name
   return path.join(process.env.HOME || "~", "nori-config.json");
 };
 
@@ -61,10 +76,16 @@ export const getDefaultProfile = (): { baseProfile: string } => {
 
 /**
  * Load existing configuration from disk
+ * @param args - Configuration arguments
+ * @param args.installDir - Custom installation directory (optional)
+ *
  * @returns The disk config if valid, null otherwise
  */
-export const loadDiskConfig = async (): Promise<DiskConfig | null> => {
-  const configPath = getConfigPath();
+export const loadDiskConfig = async (args?: {
+  installDir?: string | null;
+}): Promise<DiskConfig | null> => {
+  const { installDir } = args || {};
+  const configPath = getConfigPath({ installDir });
 
   try {
     await fs.access(configPath);
@@ -116,11 +137,17 @@ export const loadDiskConfig = async (): Promise<DiskConfig | null> => {
         result.sendSessionTranscript = "enabled"; // Default value
       }
 
-      // Return result if we have at least auth, profile, or sendSessionTranscript
+      // Check if installDir exists
+      if (config.installDir && typeof config.installDir === "string") {
+        result.installDir = config.installDir;
+      }
+
+      // Return result if we have at least auth, profile, sendSessionTranscript, or installDir
       if (
         result.auth != null ||
         result.profile != null ||
-        result.sendSessionTranscript != null
+        result.sendSessionTranscript != null ||
+        result.installDir != null
       ) {
         return result;
       }
@@ -140,6 +167,7 @@ export const loadDiskConfig = async (): Promise<DiskConfig | null> => {
  * @param args.organizationUrl - Organization URL (null to skip auth)
  * @param args.profile - Profile selection (null to skip profile)
  * @param args.sendSessionTranscript - Session transcript setting (null to skip)
+ * @param args.installDir - Custom installation directory (null to use default)
  */
 export const saveDiskConfig = async (args: {
   username: string | null;
@@ -147,6 +175,7 @@ export const saveDiskConfig = async (args: {
   organizationUrl: string | null;
   profile?: { baseProfile: string } | null;
   sendSessionTranscript?: "enabled" | "disabled" | null;
+  installDir?: string | null;
 }): Promise<void> => {
   const {
     username,
@@ -154,8 +183,9 @@ export const saveDiskConfig = async (args: {
     organizationUrl,
     profile,
     sendSessionTranscript,
+    installDir,
   } = args;
-  const configPath = getConfigPath();
+  const configPath = getConfigPath({ installDir });
 
   const config: any = {};
 
@@ -177,6 +207,11 @@ export const saveDiskConfig = async (args: {
   // Add sendSessionTranscript if provided
   if (sendSessionTranscript != null) {
     config.sendSessionTranscript = sendSessionTranscript;
+  }
+
+  // Add installDir if provided
+  if (installDir != null) {
+    config.installDir = installDir;
   }
 
   await fs.writeFile(configPath, JSON.stringify(config, null, 2));
@@ -204,6 +239,7 @@ export const generateConfig = (args: {
     installType,
     auth: diskConfig?.auth || null,
     profile,
+    installDir: diskConfig?.installDir || null,
   };
 };
 
@@ -233,10 +269,16 @@ const configSchema = {
 
 /**
  * Validate disk configuration
+ * @param args - Configuration arguments
+ * @param args.installDir - Custom installation directory (optional)
+ *
  * @returns Validation result with details
  */
-export const validateDiskConfig = async (): Promise<ConfigValidationResult> => {
-  const configPath = getConfigPath();
+export const validateDiskConfig = async (args?: {
+  installDir?: string | null;
+}): Promise<ConfigValidationResult> => {
+  const { installDir } = args || {};
+  const configPath = getConfigPath({ installDir });
   const errors: Array<string> = [];
 
   // Check if config file exists

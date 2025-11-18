@@ -17,9 +17,9 @@ import {
   type Config,
 } from "@/installer/config.js";
 import {
-  CLAUDE_AGENTS_DIR,
-  CLAUDE_COMMANDS_DIR,
-  CLAUDE_PROFILES_DIR,
+  getClaudeAgentsDir,
+  getClaudeCommandsDir,
+  getClaudeProfilesDir,
 } from "@/installer/env.js";
 import { LoaderRegistry } from "@/installer/features/loaderRegistry.js";
 import { error, success, info, warn } from "@/installer/logger.js";
@@ -27,11 +27,18 @@ import { promptUser } from "@/installer/prompt.js";
 
 /**
  * Prompt user for confirmation before uninstalling
+ * @param args - Configuration arguments
+ * @param args.installDir - Custom installation directory (optional)
+ *
  * @returns The configuration (paid or free) if user confirms, null to exit
  */
-const promptForUninstall = async (): Promise<{
+const promptForUninstall = async (args?: {
+  installDir?: string | null;
+}): Promise<{
   config: Config;
 } | null> => {
+  const { installDir } = args || {};
+
   info({ message: "Nori Agent Brain Uninstaller" });
   console.log();
   warn({
@@ -40,7 +47,7 @@ const promptForUninstall = async (): Promise<{
   console.log();
 
   // Check for existing configuration
-  const existingDiskConfig = await loadDiskConfig();
+  const existingDiskConfig = await loadDiskConfig({ installDir });
 
   if (existingDiskConfig?.auth) {
     info({ message: "Found existing Nori configuration:" });
@@ -80,22 +87,33 @@ const promptForUninstall = async (): Promise<{
 
   console.log();
 
-  return {
-    config: generateConfig({ diskConfig: existingDiskConfig }),
-  };
+  const config = generateConfig({ diskConfig: existingDiskConfig });
+  // Add installDir from CLI or existing config
+  if (installDir != null) {
+    config.installDir = installDir;
+  } else if (existingDiskConfig?.installDir != null) {
+    config.installDir = existingDiskConfig.installDir;
+  }
+
+  return { config };
 };
 
 /**
  * Remove empty directories that were created by Nori loaders
  * Only removes directories if they are empty (preserves user-created content)
+ * @param args - Configuration arguments
+ * @param args.config - Runtime configuration with installDir
  */
-const cleanupEmptyDirectories = async (): Promise<void> => {
+const cleanupEmptyDirectories = async (args: {
+  config: Config;
+}): Promise<void> => {
+  const { config } = args;
   info({ message: "Cleaning up empty directories..." });
 
   const directoriesToCheck = [
-    CLAUDE_AGENTS_DIR,
-    CLAUDE_COMMANDS_DIR,
-    CLAUDE_PROFILES_DIR,
+    getClaudeAgentsDir({ installDir: config.installDir }),
+    getClaudeCommandsDir({ installDir: config.installDir }),
+    getClaudeProfilesDir({ installDir: config.installDir }),
   ];
 
   for (const dir of directoriesToCheck) {
@@ -132,9 +150,14 @@ const cleanupNotificationsLog = async (): Promise<void> => {
 
 /**
  * Remove the nori-config.json file and .nori-installed-version file
+ * @param args - Configuration arguments
+ * @param args.installDir - Custom installation directory (optional)
  */
-const removeConfigFile = async (): Promise<void> => {
-  const configPath = getConfigPath();
+const removeConfigFile = async (args?: {
+  installDir?: string | null;
+}): Promise<void> => {
+  const { installDir } = args || {};
+  const configPath = getConfigPath({ installDir });
   const versionPath = path.join(
     process.env.HOME || "~",
     ".nori-installed-version",
@@ -166,16 +189,25 @@ const removeConfigFile = async (): Promise<void> => {
  * @param args - Configuration arguments
  * @param args.removeConfig - Whether to remove the config file (default: false)
  * @param args.installedVersion - Version being uninstalled (for logging)
+ * @param args.installDir - Custom installation directory (optional)
  */
 export const runUninstall = async (args?: {
   removeConfig?: boolean | null;
   installedVersion?: string | null;
+  installDir?: string | null;
 }): Promise<void> => {
-  const { removeConfig, installedVersion } = args || {};
+  const { removeConfig, installedVersion, installDir } = args || {};
 
   // Load config to determine install type (defaults to free if none exists)
-  const existingDiskConfig = await loadDiskConfig();
+  const existingDiskConfig = await loadDiskConfig({ installDir });
   const config = generateConfig({ diskConfig: existingDiskConfig });
+
+  // Add installDir to config
+  if (installDir != null) {
+    config.installDir = installDir;
+  } else if (existingDiskConfig?.installDir != null) {
+    config.installDir = existingDiskConfig.installDir;
+  }
 
   // Log installed version for debugging
   if (installedVersion) {
@@ -210,13 +242,13 @@ export const runUninstall = async (args?: {
   }
 
   // Clean up empty directories and standalone files
-  await cleanupEmptyDirectories();
+  await cleanupEmptyDirectories({ config });
   await cleanupNotificationsLog();
 
   // Remove config file only if explicitly requested (e.g., from user-initiated uninstall)
   if (removeConfig) {
     console.log();
-    await removeConfigFile();
+    await removeConfigFile({ installDir: config.installDir });
   }
 
   // Track uninstallation completion
@@ -232,28 +264,30 @@ export const runUninstall = async (args?: {
  * Main uninstaller entry point
  * @param args - Configuration arguments
  * @param args.nonInteractive - Whether to run in non-interactive mode (skips prompts, preserves config)
+ * @param args.installDir - Custom installation directory (optional)
  */
 export const main = async (args?: {
   nonInteractive?: boolean | null;
+  installDir?: string | null;
 }): Promise<void> => {
-  const { nonInteractive } = args || {};
+  const { nonInteractive, installDir } = args || {};
 
   try {
     // Initialize analytics
 
     if (nonInteractive) {
       // Non-interactive mode: preserve config (for upgrades/autoupdate)
-      await runUninstall({ removeConfig: false });
+      await runUninstall({ removeConfig: false, installDir });
     } else {
       // Interactive mode: prompt for confirmation and remove config
-      const result = await promptForUninstall();
+      const result = await promptForUninstall({ installDir });
 
       if (result == null) {
         process.exit(0);
       }
 
       // Run uninstall and remove config (user-initiated uninstall)
-      await runUninstall({ removeConfig: true });
+      await runUninstall({ removeConfig: true, installDir });
     }
 
     // Uninstallation complete

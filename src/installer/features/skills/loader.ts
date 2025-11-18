@@ -8,9 +8,9 @@ import * as path from "path";
 import { fileURLToPath } from "url";
 
 import {
-  CLAUDE_DIR,
-  CLAUDE_SKILLS_DIR,
-  CLAUDE_SETTINGS_FILE,
+  getClaudeDir,
+  getClaudeSkillsDir,
+  getClaudeSettingsFile,
 } from "@/installer/env.js";
 import { success, info, warn } from "@/installer/logger.js";
 
@@ -29,12 +29,17 @@ const __dirname = path.dirname(__filename);
  *
  * @param args - Configuration arguments
  * @param args.profileName - Name of the profile to load skills from
+ * @param args.installDir - Custom installation directory (optional)
  *
  * @returns Path to the skills config directory for the profile
  */
-const getConfigDir = (args: { profileName: string }): string => {
-  const { profileName } = args;
-  return path.join(CLAUDE_DIR, "profiles", profileName, "skills");
+const getConfigDir = (args: {
+  profileName: string;
+  installDir?: string | null;
+}): string => {
+  const { profileName, installDir } = args;
+  const claudeDir = getClaudeDir({ installDir });
+  return path.join(claudeDir, "profiles", profileName, "skills");
 };
 
 /**
@@ -48,13 +53,17 @@ const installSkills = async (args: { config: Config }): Promise<void> => {
 
   // Get profile name from config (default to senior-swe)
   const profileName = config.profile?.baseProfile || "senior-swe";
-  const configDir = getConfigDir({ profileName });
+  const configDir = getConfigDir({
+    profileName,
+    installDir: config.installDir,
+  });
+  const claudeSkillsDir = getClaudeSkillsDir({ installDir: config.installDir });
 
   // Remove existing skills directory if it exists
-  await fs.rm(CLAUDE_SKILLS_DIR, { recursive: true, force: true });
+  await fs.rm(claudeSkillsDir, { recursive: true, force: true });
 
   // Create skills directory
-  await fs.mkdir(CLAUDE_SKILLS_DIR, { recursive: true });
+  await fs.mkdir(claudeSkillsDir, { recursive: true });
 
   // Read all entries from config directory
   const entries = await fs.readdir(configDir, { withFileTypes: true });
@@ -63,7 +72,7 @@ const installSkills = async (args: { config: Config }): Promise<void> => {
     if (!entry.isDirectory()) {
       // Copy non-directory files (like docs.md) directly
       const sourcePath = path.join(configDir, entry.name);
-      const destPath = path.join(CLAUDE_SKILLS_DIR, entry.name);
+      const destPath = path.join(claudeSkillsDir, entry.name);
       await fs.copyFile(sourcePath, destPath);
       continue;
     }
@@ -84,13 +93,13 @@ const installSkills = async (args: { config: Config }): Promise<void> => {
       if (config.installType === "paid") {
         // Strip paid- prefix when copying
         const destName = entry.name.replace(/^paid-/, "");
-        const destPath = path.join(CLAUDE_SKILLS_DIR, destName);
+        const destPath = path.join(claudeSkillsDir, destName);
         await fs.cp(sourcePath, destPath, { recursive: true });
       }
       // Skip if free tier
     } else {
       // Copy non-paid skills for all tiers
-      const destPath = path.join(CLAUDE_SKILLS_DIR, entry.name);
+      const destPath = path.join(claudeSkillsDir, entry.name);
       await fs.cp(sourcePath, destPath, { recursive: true });
     }
   }
@@ -98,23 +107,34 @@ const installSkills = async (args: { config: Config }): Promise<void> => {
   success({ message: "✓ Installed skills" });
 
   // Configure permissions for skills directory
-  await configureSkillsPermissions();
+  await configureSkillsPermissions({ config });
 };
 
 /**
  * Configure permissions for skills directory
  * Adds skills directory to permissions.additionalDirectories in settings.json
+ *
+ * @param args - Configuration arguments
+ * @param args.config - Runtime configuration
  */
-const configureSkillsPermissions = async (): Promise<void> => {
+const configureSkillsPermissions = async (args: {
+  config: Config;
+}): Promise<void> => {
+  const { config } = args;
   info({ message: "Configuring permissions for skills directory..." });
 
+  const claudeSettingsFile = getClaudeSettingsFile({
+    installDir: config.installDir,
+  });
+  const claudeSkillsDir = getClaudeSkillsDir({ installDir: config.installDir });
+
   // Create .claude directory if it doesn't exist
-  await fs.mkdir(path.dirname(CLAUDE_SETTINGS_FILE), { recursive: true });
+  await fs.mkdir(path.dirname(claudeSettingsFile), { recursive: true });
 
   // Read or initialize settings
   let settings: any = {};
   try {
-    const content = await fs.readFile(CLAUDE_SETTINGS_FILE, "utf-8");
+    const content = await fs.readFile(claudeSettingsFile, "utf-8");
     settings = JSON.parse(content);
   } catch {
     settings = {
@@ -133,25 +153,30 @@ const configureSkillsPermissions = async (): Promise<void> => {
   }
 
   // Add skills directory if not already present
-  const skillsPath = CLAUDE_SKILLS_DIR;
-  if (!settings.permissions.additionalDirectories.includes(skillsPath)) {
-    settings.permissions.additionalDirectories.push(skillsPath);
+  if (!settings.permissions.additionalDirectories.includes(claudeSkillsDir)) {
+    settings.permissions.additionalDirectories.push(claudeSkillsDir);
   }
 
   // Write back to file
-  await fs.writeFile(CLAUDE_SETTINGS_FILE, JSON.stringify(settings, null, 2));
-  success({ message: `✓ Configured permissions for ${CLAUDE_SKILLS_DIR}` });
+  await fs.writeFile(claudeSettingsFile, JSON.stringify(settings, null, 2));
+  success({ message: `✓ Configured permissions for ${claudeSkillsDir}` });
 };
 
 /**
  * Uninstall skills
+ *
+ * @param args - Configuration arguments
+ * @param args.config - Runtime configuration
  */
-const uninstallSkills = async (): Promise<void> => {
+const uninstallSkills = async (args: { config: Config }): Promise<void> => {
+  const { config } = args;
   info({ message: "Removing Nori skills..." });
 
+  const claudeSkillsDir = getClaudeSkillsDir({ installDir: config.installDir });
+
   try {
-    await fs.access(CLAUDE_SKILLS_DIR);
-    await fs.rm(CLAUDE_SKILLS_DIR, { recursive: true, force: true });
+    await fs.access(claudeSkillsDir);
+    await fs.rm(claudeSkillsDir, { recursive: true, force: true });
     success({ message: "✓ Removed skills directory" });
   } catch {
     info({
@@ -160,25 +185,35 @@ const uninstallSkills = async (): Promise<void> => {
   }
 
   // Remove permissions configuration
-  await removeSkillsPermissions();
+  await removeSkillsPermissions({ config });
 };
 
 /**
  * Remove skills directory permissions
  * Removes skills directory from permissions.additionalDirectories in settings.json
+ *
+ * @param args - Configuration arguments
+ * @param args.config - Runtime configuration
  */
-const removeSkillsPermissions = async (): Promise<void> => {
+const removeSkillsPermissions = async (args: {
+  config: Config;
+}): Promise<void> => {
+  const { config } = args;
   info({ message: "Removing skills directory permissions..." });
 
+  const claudeSettingsFile = getClaudeSettingsFile({
+    installDir: config.installDir,
+  });
+  const claudeSkillsDir = getClaudeSkillsDir({ installDir: config.installDir });
+
   try {
-    const content = await fs.readFile(CLAUDE_SETTINGS_FILE, "utf-8");
+    const content = await fs.readFile(claudeSettingsFile, "utf-8");
     const settings = JSON.parse(content);
 
     if (settings.permissions?.additionalDirectories) {
-      const skillsPath = CLAUDE_SKILLS_DIR;
       settings.permissions.additionalDirectories =
         settings.permissions.additionalDirectories.filter(
-          (dir: string) => dir !== skillsPath,
+          (dir: string) => dir !== claudeSkillsDir,
         );
 
       // Clean up empty arrays/objects
@@ -189,10 +224,7 @@ const removeSkillsPermissions = async (): Promise<void> => {
         delete settings.permissions;
       }
 
-      await fs.writeFile(
-        CLAUDE_SETTINGS_FILE,
-        JSON.stringify(settings, null, 2),
-      );
+      await fs.writeFile(claudeSettingsFile, JSON.stringify(settings, null, 2));
       success({ message: "✓ Removed skills directory permissions" });
     } else {
       info({ message: "No permissions found in settings.json" });
@@ -215,11 +247,16 @@ const validate = async (args: {
   const { config } = args;
   const errors: Array<string> = [];
 
+  const claudeSkillsDir = getClaudeSkillsDir({ installDir: config.installDir });
+  const claudeSettingsFile = getClaudeSettingsFile({
+    installDir: config.installDir,
+  });
+
   // Check if skills directory exists
   try {
-    await fs.access(CLAUDE_SKILLS_DIR);
+    await fs.access(claudeSkillsDir);
   } catch {
-    errors.push(`Skills directory not found at ${CLAUDE_SKILLS_DIR}`);
+    errors.push(`Skills directory not found at ${claudeSkillsDir}`);
     errors.push('Run "nori-ai install" to install skills');
     return {
       valid: false,
@@ -230,7 +267,10 @@ const validate = async (args: {
 
   // Verify expected skills exist based on tier
   const profileName = config.profile?.baseProfile || "senior-swe";
-  const configDir = getConfigDir({ profileName });
+  const configDir = getConfigDir({
+    profileName,
+    installDir: config.installDir,
+  });
   const sourceEntries = await fs.readdir(configDir, { withFileTypes: true });
 
   for (const entry of sourceEntries) {
@@ -243,7 +283,7 @@ const validate = async (args: {
       if (config.installType === "paid") {
         const destName = entry.name.replace(/^paid-/, "");
         try {
-          await fs.access(path.join(CLAUDE_SKILLS_DIR, destName));
+          await fs.access(path.join(claudeSkillsDir, destName));
         } catch {
           errors.push(`Expected skill '${destName}' not found (paid tier)`);
         }
@@ -251,7 +291,7 @@ const validate = async (args: {
     } else {
       // Non-paid skills should exist for all tiers
       try {
-        await fs.access(path.join(CLAUDE_SKILLS_DIR, entry.name));
+        await fs.access(path.join(claudeSkillsDir, entry.name));
       } catch {
         errors.push(`Expected skill '${entry.name}' not found`);
       }
@@ -269,11 +309,11 @@ const validate = async (args: {
 
   // Check if permissions are configured in settings.json
   try {
-    const content = await fs.readFile(CLAUDE_SETTINGS_FILE, "utf-8");
+    const content = await fs.readFile(claudeSettingsFile, "utf-8");
     const settings = JSON.parse(content);
 
     if (
-      !settings.permissions?.additionalDirectories?.includes(CLAUDE_SKILLS_DIR)
+      !settings.permissions?.additionalDirectories?.includes(claudeSkillsDir)
     ) {
       errors.push(
         "Skills directory not configured in permissions.additionalDirectories",
@@ -311,8 +351,9 @@ export const skillsLoader: Loader = {
     const { config } = args;
     await installSkills({ config });
   },
-  uninstall: async (_args: { config: Config }) => {
-    await uninstallSkills();
+  uninstall: async (args: { config: Config }) => {
+    const { config } = args;
+    await uninstallSkills({ config });
   },
   validate,
 };
