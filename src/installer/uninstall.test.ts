@@ -32,6 +32,9 @@ vi.mock("@/installer/env.js", () => ({
   get CLAUDE_SKILLS_DIR() {
     return path.join(mockClaudeDir, "skills");
   },
+  get CLAUDE_PROFILES_DIR() {
+    return path.join(mockClaudeDir, "profiles");
+  },
   MCP_ROOT: "/mock/mcp/root",
 }));
 
@@ -61,6 +64,7 @@ vi.mock("@/installer/features/loaderRegistry.js", () => ({
   LoaderRegistry: {
     getInstance: () => ({
       getAll: () => [],
+      getAllReversed: () => [],
     }),
   },
 }));

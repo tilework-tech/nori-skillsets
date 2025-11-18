@@ -72,4 +72,15 @@ export class LoaderRegistry {
   public getAll(): Array<Loader> {
     return Array.from(this.loaders.values());
   }
+
+  /**
+   * Get all registered loaders in reverse order (for uninstall)
+   * During install, profiles must run first to create profile directories.
+   * During uninstall, profiles must run last so other loaders can still
+   * read from profile directories to know what files to remove.
+   * @returns Array of all loaders in reverse order
+   */
+  public getAllReversed(): Array<Loader> {
+    return Array.from(this.loaders.values()).reverse();
+  }
 }

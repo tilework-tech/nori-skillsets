@@ -9,6 +9,7 @@ import type * as childProcess from "child_process";
 
 import { getConfigPath } from "./config.js";
 import { main as installMain } from "./install.js";
+import { runUninstall } from "./uninstall.js";
 import { getInstalledVersion } from "./version.js";
 
 // Track which version of npx uninstall was called
@@ -360,5 +361,113 @@ describe("install integration test", () => {
       }
       expect(existsAfter).toBe(true);
     }
+  });
+
+  it("should completely clean up all Nori files after uninstall", async () => {
+    const CONFIG_PATH = getConfigPath();
+
+    // Helper to recursively get all files/dirs in a directory
+    const getDirectorySnapshot = (dir: string): Array<string> => {
+      const results: Array<string> = [];
+      if (!fs.existsSync(dir)) return results;
+
+      const walk = (currentPath: string) => {
+        const entries = fs.readdirSync(currentPath, { withFileTypes: true });
+        for (const entry of entries) {
+          const fullPath = path.join(currentPath, entry.name);
+          const relativePath = path.relative(dir, fullPath);
+          results.push(relativePath);
+          if (entry.isDirectory()) {
+            walk(fullPath);
+          }
+        }
+      };
+      walk(dir);
+      return results.sort();
+    };
+
+    // STEP 1: Snapshot state BEFORE install
+    const preInstallClaudeSnapshot = getDirectorySnapshot(TEST_CLAUDE_DIR);
+    const preInstallHomeSnapshot = getDirectorySnapshot(tempHomeDir);
+
+    // STEP 2: Install with paid config to get all features
+    const paidConfig = {
+      username: "test@example.com",
+      password: "testpass",
+      organizationUrl: "http://localhost:3000",
+      profile: {
+        baseProfile: "senior-swe",
+      },
+    };
+    fs.writeFileSync(CONFIG_PATH, JSON.stringify(paidConfig, null, 2));
+
+    await installMain({ nonInteractive: true });
+
+    // STEP 3: Verify installation actually created files
+    const postInstallClaudeSnapshot = getDirectorySnapshot(TEST_CLAUDE_DIR);
+    const postInstallHomeSnapshot = getDirectorySnapshot(tempHomeDir);
+
+    // Installation should have added files
+    expect(postInstallClaudeSnapshot.length).toBeGreaterThan(
+      preInstallClaudeSnapshot.length,
+    );
+    expect(postInstallHomeSnapshot.length).toBeGreaterThan(
+      preInstallHomeSnapshot.length,
+    );
+
+    // Verify some expected files exist (sanity check)
+    expect(postInstallClaudeSnapshot.some((f) => f.includes("agents"))).toBe(
+      true,
+    );
+    expect(postInstallClaudeSnapshot.some((f) => f.includes("commands"))).toBe(
+      true,
+    );
+    expect(postInstallClaudeSnapshot.some((f) => f.includes("profiles"))).toBe(
+      true,
+    );
+    expect(postInstallClaudeSnapshot.some((f) => f.includes("skills"))).toBe(
+      true,
+    );
+
+    // Create notifications log to test cleanup
+    const notificationsLog = path.join(tempHomeDir, ".nori-notifications.log");
+    fs.writeFileSync(notificationsLog, "test notification log");
+
+    // STEP 4: Run uninstall with removeConfig=true (user-initiated uninstall)
+    await runUninstall({ removeConfig: true });
+
+    // STEP 5: Snapshot state AFTER uninstall
+    const postUninstallClaudeSnapshot = getDirectorySnapshot(TEST_CLAUDE_DIR);
+    const postUninstallHomeSnapshot = getDirectorySnapshot(tempHomeDir);
+
+    // STEP 6: Compare snapshots - state should match pre-install
+    // Note: settings.json may remain as it's a shared Claude Code file,
+    // but it should be empty or only contain schema after cleanup
+    const allowedRemnants = ["settings.json"];
+    const filteredPostUninstall = postUninstallClaudeSnapshot.filter(
+      (f) => !allowedRemnants.includes(f),
+    );
+
+    // Claude directory should be back to pre-install state (except allowed remnants)
+    expect(filteredPostUninstall).toEqual(preInstallClaudeSnapshot);
+
+    // If settings.json remains, verify it has no Nori content
+    const settingsPath = path.join(TEST_CLAUDE_DIR, "settings.json");
+    if (fs.existsSync(settingsPath)) {
+      const settings = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
+      // Should not have hooks (removed by hooks loader)
+      expect(settings.hooks).toBeUndefined();
+      // Should not have Nori-specific permissions
+      if (settings.permissions?.additionalDirectories) {
+        const noriDirs = settings.permissions.additionalDirectories.filter(
+          (d: string) => d.includes("skills") || d.includes("profiles"),
+        );
+        expect(noriDirs.length).toBe(0);
+      }
+    }
+
+    // Home directory should be back to pre-install state
+    // (no config file, no version file, no notifications log)
+    expect(postUninstallHomeSnapshot).toEqual(preInstallHomeSnapshot);
   });
 });
