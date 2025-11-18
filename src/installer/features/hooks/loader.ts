@@ -7,7 +7,7 @@ import * as fs from "fs/promises";
 import * as path from "path";
 import { fileURLToPath } from "url";
 
-import { CLAUDE_DIR, CLAUDE_SETTINGS_FILE } from "@/installer/env.js";
+import { getClaudeDir, getClaudeSettingsFile } from "@/installer/env.js";
 import { success, info, warn } from "@/installer/logger.js";
 
 import type { Config } from "@/installer/config.js";
@@ -150,19 +150,27 @@ const notifyHook: HookInterface = {
 
 /**
  * Configure hooks for automatic conversation memorization (paid version)
+ * @param args - Configuration arguments
+ * @param args.config - Runtime configuration
  */
-const configurePaidHooks = async (): Promise<void> => {
+const configurePaidHooks = async (args: { config: Config }): Promise<void> => {
+  const { config } = args;
+  const claudeDir = getClaudeDir({ installDir: config.installDir });
+  const claudeSettingsFile = getClaudeSettingsFile({
+    installDir: config.installDir,
+  });
+
   info({
     message: "Configuring hooks for automatic conversation memorization...",
   });
 
   // Create .claude directory if it doesn't exist
-  await fs.mkdir(CLAUDE_DIR, { recursive: true });
+  await fs.mkdir(claudeDir, { recursive: true });
 
   // Initialize settings file if it doesn't exist
   let settings: any = {};
   try {
-    const content = await fs.readFile(CLAUDE_SETTINGS_FILE, "utf-8");
+    const content = await fs.readFile(claudeSettingsFile, "utf-8");
     settings = JSON.parse(content);
   } catch {
     settings = {
@@ -196,8 +204,8 @@ const configurePaidHooks = async (): Promise<void> => {
   // Merge hooks into settings
   settings.hooks = hooksConfig;
 
-  await fs.writeFile(CLAUDE_SETTINGS_FILE, JSON.stringify(settings, null, 2));
-  success({ message: `✓ Hooks configured in ${CLAUDE_SETTINGS_FILE}` });
+  await fs.writeFile(claudeSettingsFile, JSON.stringify(settings, null, 2));
+  success({ message: `✓ Hooks configured in ${claudeSettingsFile}` });
   info({ message: "Hooks are configured to automatically memorize:" });
   info({ message: "  - Session summaries (on SessionEnd event)" });
   info({
@@ -218,17 +226,25 @@ const configurePaidHooks = async (): Promise<void> => {
 
 /**
  * Configure notification-only hooks (free version)
+ * @param args - Configuration arguments
+ * @param args.config - Runtime configuration
  */
-const configureFreeHooks = async (): Promise<void> => {
+const configureFreeHooks = async (args: { config: Config }): Promise<void> => {
+  const { config } = args;
+  const claudeDir = getClaudeDir({ installDir: config.installDir });
+  const claudeSettingsFile = getClaudeSettingsFile({
+    installDir: config.installDir,
+  });
+
   info({ message: "Configuring desktop notification hook..." });
 
   // Create .claude directory if it doesn't exist
-  await fs.mkdir(CLAUDE_DIR, { recursive: true });
+  await fs.mkdir(claudeDir, { recursive: true });
 
   // Initialize settings file if it doesn't exist
   let settings: any = {};
   try {
-    const content = await fs.readFile(CLAUDE_SETTINGS_FILE, "utf-8");
+    const content = await fs.readFile(claudeSettingsFile, "utf-8");
     settings = JSON.parse(content);
   } catch {
     settings = {
@@ -242,13 +258,13 @@ const configureFreeHooks = async (): Promise<void> => {
 
   for (const hook of hooks) {
     const configs = await hook.install();
-    for (const config of configs) {
-      if (!hooksConfig[config.event]) {
-        hooksConfig[config.event] = [];
+    for (const hookConfig of configs) {
+      if (!hooksConfig[hookConfig.event]) {
+        hooksConfig[hookConfig.event] = [];
       }
-      hooksConfig[config.event].push({
-        matcher: config.matcher,
-        hooks: config.hooks,
+      hooksConfig[hookConfig.event].push({
+        matcher: hookConfig.matcher,
+        hooks: hookConfig.hooks,
       });
     }
   }
@@ -256,9 +272,9 @@ const configureFreeHooks = async (): Promise<void> => {
   // Merge hooks into settings
   settings.hooks = hooksConfig;
 
-  await fs.writeFile(CLAUDE_SETTINGS_FILE, JSON.stringify(settings, null, 2));
+  await fs.writeFile(claudeSettingsFile, JSON.stringify(settings, null, 2));
   success({
-    message: `✓ Notification hook configured in ${CLAUDE_SETTINGS_FILE}`,
+    message: `✓ Notification hook configured in ${claudeSettingsFile}`,
   });
   info({
     message:
@@ -273,20 +289,24 @@ const configureFreeHooks = async (): Promise<void> => {
 
 /**
  * Remove hooks from settings.json
+ * @param args - Configuration arguments
+ * @param args.config - Runtime configuration
  */
-const removeHooks = async (): Promise<void> => {
+const removeHooks = async (args: { config: Config }): Promise<void> => {
+  const { config } = args;
+  const claudeSettingsFile = getClaudeSettingsFile({
+    installDir: config.installDir,
+  });
+
   info({ message: "Removing hooks from Claude Code settings..." });
 
   try {
-    const content = await fs.readFile(CLAUDE_SETTINGS_FILE, "utf-8");
+    const content = await fs.readFile(claudeSettingsFile, "utf-8");
     const settings = JSON.parse(content);
 
     if (settings.hooks) {
       delete settings.hooks;
-      await fs.writeFile(
-        CLAUDE_SETTINGS_FILE,
-        JSON.stringify(settings, null, 2),
-      );
+      await fs.writeFile(claudeSettingsFile, JSON.stringify(settings, null, 2));
       success({ message: "✓ Hooks removed from settings.json" });
     } else {
       info({ message: "No hooks found in settings.json" });
@@ -309,13 +329,16 @@ const validate = async (args: {
   config: Config;
 }): Promise<ValidationResult> => {
   const { config } = args;
+  const claudeSettingsFile = getClaudeSettingsFile({
+    installDir: config.installDir,
+  });
   const errors: Array<string> = [];
 
   // Check if settings file exists
   try {
-    await fs.access(CLAUDE_SETTINGS_FILE);
+    await fs.access(claudeSettingsFile);
   } catch {
-    errors.push(`Settings file not found at ${CLAUDE_SETTINGS_FILE}`);
+    errors.push(`Settings file not found at ${claudeSettingsFile}`);
     errors.push('Run "nori-ai install" to create the settings file');
     return {
       valid: false,
@@ -327,7 +350,7 @@ const validate = async (args: {
   // Read and parse settings
   let settings: any;
   try {
-    const content = await fs.readFile(CLAUDE_SETTINGS_FILE, "utf-8");
+    const content = await fs.readFile(claudeSettingsFile, "utf-8");
     settings = JSON.parse(content);
   } catch (err) {
     errors.push("Failed to read or parse settings.json");
@@ -420,13 +443,13 @@ export const hooksLoader: Loader = {
     const { config } = args;
 
     if (config.installType === "paid") {
-      await configurePaidHooks();
+      await configurePaidHooks({ config });
     } else {
-      await configureFreeHooks();
+      await configureFreeHooks({ config });
     }
   },
-  uninstall: async (_args: { config: Config }) => {
-    await removeHooks();
+  uninstall: async (args: { config: Config }) => {
+    await removeHooks(args);
   },
   validate,
 };
