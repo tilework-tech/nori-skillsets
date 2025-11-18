@@ -9,6 +9,7 @@ import type * as childProcess from "child_process";
 
 import { getConfigPath } from "./config.js";
 import { main as installMain } from "./install.js";
+import { runUninstall } from "./uninstall.js";
 import { getInstalledVersion } from "./version.js";
 
 // Track which version of npx uninstall was called
@@ -359,6 +360,105 @@ describe("install integration test", () => {
         // File was deleted!
       }
       expect(existsAfter).toBe(true);
+    }
+  });
+
+  it("should completely clean up all Nori files after uninstall", async () => {
+    const CONFIG_PATH = getConfigPath();
+
+    // STEP 1: Install with paid config to get all features
+    const paidConfig = {
+      username: "test@example.com",
+      password: "testpass",
+      organizationUrl: "http://localhost:3000",
+      profile: {
+        baseProfile: "senior-swe",
+      },
+    };
+    fs.writeFileSync(CONFIG_PATH, JSON.stringify(paidConfig, null, 2));
+
+    await installMain({ nonInteractive: true });
+
+    // STEP 2: Verify installation created expected directories and files
+    const agentsDir = path.join(TEST_CLAUDE_DIR, "agents");
+    const commandsDir = path.join(TEST_CLAUDE_DIR, "commands");
+    const profilesDir = path.join(TEST_CLAUDE_DIR, "profiles");
+    const skillsDir = path.join(TEST_CLAUDE_DIR, "skills");
+    const claudeMdFile = path.join(TEST_CLAUDE_DIR, "CLAUDE.md");
+    const settingsFile = path.join(TEST_CLAUDE_DIR, "settings.json");
+
+    // Verify directories were created
+    expect(fs.existsSync(agentsDir)).toBe(true);
+    expect(fs.existsSync(commandsDir)).toBe(true);
+    expect(fs.existsSync(profilesDir)).toBe(true);
+    expect(fs.existsSync(skillsDir)).toBe(true);
+    expect(fs.existsSync(claudeMdFile)).toBe(true);
+    expect(fs.existsSync(settingsFile)).toBe(true);
+
+    // Verify files exist in agents directory
+    const agentFiles = fs.readdirSync(agentsDir);
+    expect(agentFiles.length).toBeGreaterThan(0);
+    expect(agentFiles.some((f) => f.startsWith("nori-"))).toBe(true);
+
+    // Verify files exist in commands directory
+    const commandFiles = fs.readdirSync(commandsDir);
+    expect(commandFiles.length).toBeGreaterThan(0);
+
+    // Verify version file was created
+    expect(fs.existsSync(VERSION_FILE_PATH)).toBe(true);
+
+    // Create notifications log to test cleanup
+    const notificationsLog = path.join(tempHomeDir, ".nori-notifications.log");
+    fs.writeFileSync(notificationsLog, "test notification log");
+    expect(fs.existsSync(notificationsLog)).toBe(true);
+
+    // STEP 3: Run uninstall with removeConfig=true (user-initiated uninstall)
+    await runUninstall({ removeConfig: true });
+
+    // STEP 4: Verify COMPLETE cleanup
+
+    // All Nori agent files should be removed
+    if (fs.existsSync(agentsDir)) {
+      const remainingAgents = fs.readdirSync(agentsDir);
+      const noriAgents = remainingAgents.filter((f) => f.startsWith("nori-"));
+      expect(noriAgents.length).toBe(0);
+    }
+
+    // All Nori command files should be removed
+    if (fs.existsSync(commandsDir)) {
+      const remainingCommands = fs.readdirSync(commandsDir);
+      const noriCommands = remainingCommands.filter((f) => f.endsWith(".md"));
+      expect(noriCommands.length).toBe(0);
+    }
+
+    // Empty directories should be removed
+    expect(fs.existsSync(agentsDir)).toBe(false);
+    expect(fs.existsSync(commandsDir)).toBe(false);
+    expect(fs.existsSync(profilesDir)).toBe(false);
+
+    // Skills directory should be removed
+    expect(fs.existsSync(skillsDir)).toBe(false);
+
+    // Notifications log should be removed
+    expect(fs.existsSync(notificationsLog)).toBe(false);
+
+    // Config file should be removed (removeConfig=true)
+    expect(fs.existsSync(CONFIG_PATH)).toBe(false);
+
+    // Version file should be removed
+    expect(fs.existsSync(VERSION_FILE_PATH)).toBe(false);
+
+    // CLAUDE.md should be removed or have no Nori content
+    // (in this test, the managed block removal would make it empty, so it gets deleted)
+    if (fs.existsSync(claudeMdFile)) {
+      const content = fs.readFileSync(claudeMdFile, "utf-8");
+      expect(content).not.toContain("NORI-AI MANAGED BLOCK");
+    }
+
+    // Settings.json may still exist but should not have Nori hooks
+    if (fs.existsSync(settingsFile)) {
+      const settings = JSON.parse(fs.readFileSync(settingsFile, "utf-8"));
+      expect(settings.hooks).toBeUndefined();
     }
   });
 });
