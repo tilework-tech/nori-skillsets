@@ -5,7 +5,7 @@
  *
  * This script is called by Claude Code hooks on SessionEnd event.
  * It outputs a synchronous message to inform the user that the transcript
- * is being saved to Nori Agent Brain (while the async summarize hook runs in background).
+ * is being saved to Nori Profiles (while the async summarize hook runs in background).
  */
 
 import { loadDiskConfig } from "@/installer/config.js";

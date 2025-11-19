@@ -4,7 +4,7 @@ Path: @/plugin/src/api
 
 ### Overview
 
-Client API for communicating with the Nori Agent Brain backend server, providing typed interfaces for artifacts (including repository-scoped artifacts), queries, conversation operations, analytics (report generation and event tracking), noridocs management (with repository filtering), prompt analysis, webhook management, and heartbeat monitoring.
+Client API for communicating with the Nori Profiles backend server, providing typed interfaces for artifacts (including repository-scoped artifacts), queries, conversation operations, analytics (report generation and event tracking), noridocs management (with repository filtering), prompt analysis, webhook management, and heartbeat monitoring.
 
 ### How it fits into the larger codebase
 

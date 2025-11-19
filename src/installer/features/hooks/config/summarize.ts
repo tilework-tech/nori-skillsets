@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Hook handler for summarizing conversations and storing them in Nori Agent Brain
+ * Hook handler for summarizing conversations and storing them in Nori Profiles
  *
  * This script is called by Claude Code hooks on SessionEnd and PreCompact events.
  * It summarizes the conversation context and stores it using the backend API.

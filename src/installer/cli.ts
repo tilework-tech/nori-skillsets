@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Nori Agent Brain CLI Router
+ * Nori Profiles CLI Router
  *
  * Routes commands to the appropriate installer/uninstaller.
  */
@@ -23,8 +23,8 @@ const showHelp = (): void => {
   console.log("Usage: nori-ai [command] [options]");
   console.log("");
   console.log("Commands:");
-  console.log("  install              Install Nori Agent Brain (default)");
-  console.log("  uninstall            Uninstall Nori Agent Brain");
+  console.log("  install              Install Nori Profiles (default)");
+  console.log("  uninstall            Uninstall Nori Profiles");
   console.log(
     "  check                Validate Nori installation and configuration",
   );
@@ -51,7 +51,7 @@ const checkMain = async (args?: {
   const { installDir } = args || {};
 
   console.log("");
-  info({ message: "Running Nori Agent Brain validation checks..." });
+  info({ message: "Running Nori Profiles validation checks..." });
   console.log("");
 
   let hasErrors = false;

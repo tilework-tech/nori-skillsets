@@ -1,5 +1,5 @@
 /**
- * Profile management for Nori Agent Brain
+ * Profile management for Nori Profiles
  * Handles profile listing, loading, and switching
  */
 

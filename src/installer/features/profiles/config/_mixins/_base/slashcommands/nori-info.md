@@ -1,8 +1,8 @@
 ---
-description: Display information about Nori Agent Brain features and capabilities
+description: Display information about Nori Profiles features and capabilities
 ---
 
-Please read the following information about Nori Agent Brain and provide a clear, concise summary to me. After your summary, state: "I loaded the nori documentation. You can ask me for more help about how to use nori if you would like."
+Please read the following information about Nori Profiles and provide a clear, concise summary to me. After your summary, state: "I loaded the nori documentation. You can ask me for more help about how to use nori if you would like."
 
 Suggest helpful follow-up questions like:
 
@@ -14,7 +14,7 @@ Suggest helpful follow-up questions like:
 
 ---
 
-# Nori Agent Brain Documentation
+# Nori Profiles Documentation
 
 Nori enhances Claude Code with better context management, specialized workflows, and team collaboration features.
 

@@ -152,7 +152,7 @@ const main = async (): Promise<void> => {
 
     // Notify user via additionalContext
     logToClaudeSession({
-      message: `🔄 Nori Agent Brain update available: v${installedVersion} → v${latestVersion}. Installing in background...`,
+      message: `🔄 Nori Profiles update available: v${installedVersion} → v${latestVersion}. Installing in background...`,
     });
   } catch (err) {
     // Silent failure - don't interrupt session startup

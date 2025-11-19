@@ -4,7 +4,7 @@ Path: @/plugin/src/installer
 
 ### Overview
 
-CLI installer for Nori Agent Brain that prompts for configuration, installs features into Claude Code, manages credentials, and tracks installation analytics via Google Analytics, supporting both free (local-only) and paid (backend-integrated) installation modes with directory-based profile system.
+CLI installer for Nori Profiles that prompts for configuration, installs features into Claude Code, manages credentials, and tracks installation analytics via Google Analytics, supporting both free (local-only) and paid (backend-integrated) installation modes with directory-based profile system.
 
 ### How it fits into the larger codebase
 

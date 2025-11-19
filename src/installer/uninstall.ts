@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
 /**
- * Nori Agent Brain MCP Tool Uninstaller
+ * Nori Profiles Uninstaller
  *
- * Removes all features installed by the Nori Agent Brain installer.
+ * Removes all features installed by the Nori Profiles installer.
  */
 
 import * as fs from "fs/promises";
@@ -39,10 +39,10 @@ const promptForUninstall = async (args?: {
 } | null> => {
   const { installDir } = args || {};
 
-  info({ message: "Nori Agent Brain Uninstaller" });
+  info({ message: "Nori Profiles Uninstaller" });
   console.log();
   warn({
-    message: "This will remove all Nori Agent Brain features from your system.",
+    message: "This will remove all Nori Profiles features from your system.",
   });
   console.log();
 
@@ -66,7 +66,6 @@ const promptForUninstall = async (args?: {
 
   info({ message: "The following will be removed:" });
   if (existingDiskConfig?.auth) {
-    info({ message: "  - MCP server (agent-brain)" });
     info({ message: "  - nori-knowledge-researcher subagent" });
     info({ message: "  - Automatic memorization hooks" });
   }
@@ -297,7 +296,7 @@ export const main = async (args?: {
         "======================================================================",
     });
     success({
-      message: "       Nori Agent Brain Uninstallation Complete!              ",
+      message: "       Nori Profiles Uninstallation Complete!              ",
     });
     success({
       message:
