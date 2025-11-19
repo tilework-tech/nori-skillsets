@@ -1,5 +1,5 @@
 /**
- * Configuration management for Nori Agent Brain MCP installer
+ * Configuration management for Nori Profiles installer
  * Functional library for loading and managing disk-based configuration
  */
 

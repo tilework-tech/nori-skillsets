@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Nori Agent Brain MCP Tool Installer
+ * Nori Profiles Installer
  *
  * Pipeline-style installer that prompts for configuration and executes feature loaders.
  */

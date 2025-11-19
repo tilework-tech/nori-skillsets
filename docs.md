@@ -4,7 +4,7 @@ Path: @/plugin
 
 ### Overview
 
-Claude Code plugin package providing comprehensive integration with the Nori Agent Brain system through a directory-based profile system. Each profile is a complete, self-contained configuration with its own CLAUDE.md instructions, skills, subagents, and slash commands. The installer CLI manages profile installation and switching, while backend API tools enable paid tier knowledge management features.
+Claude Code plugin package providing comprehensive integration with the Nori Profiles system through a directory-based profile system. Each profile is a complete, self-contained configuration with its own CLAUDE.md instructions, skills, subagents, and slash commands. The installer CLI manages profile installation and switching, while backend API tools enable paid tier knowledge management features.
 
 ### How it fits into the larger codebase
 

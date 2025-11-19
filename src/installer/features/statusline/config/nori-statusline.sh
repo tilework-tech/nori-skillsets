@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Nori Agent Brain Status Line
+# Nori Profiles Status Line
 # Displays git branch, session cost, token usage, and Nori branding
 
 # Read JSON context from stdin

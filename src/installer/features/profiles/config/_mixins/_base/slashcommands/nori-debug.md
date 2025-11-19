@@ -1,10 +1,10 @@
 ---
-description: Validate Nori Agent Brain installation and configuration
+description: Validate Nori Profiles installation and configuration
 ---
 
 !`npx nori-ai check`
 
-This validates the Nori Agent Brain installation:
+This validates the Nori Profiles installation:
 
 - Config file structure and credentials
 - Server authentication (paid mode only)
@@ -12,7 +12,6 @@ This validates the Nori Agent Brain installation:
 - Subagent files in ~/.claude/agents/
 - Slash command files in ~/.claude/commands/
 - CLAUDE.md managed block
-- MCP server registration (paid mode only)
 
 ## Troubleshooting
 

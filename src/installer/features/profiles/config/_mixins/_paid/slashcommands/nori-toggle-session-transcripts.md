@@ -3,7 +3,7 @@ description: Toggle session transcript summarization on or off
 allowed-tools: Read(~/nori-config.json:*), Write(~/nori-config.json:*)
 ---
 
-Toggle whether session transcripts are sent to Nori Agent Brain for summarization and storage.
+Toggle whether session transcripts are sent to Nori Profiles for summarization and storage.
 
 ## Your Task
 

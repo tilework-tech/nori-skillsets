@@ -1,5 +1,5 @@
 /**
- * Version tracking utilities for Nori Agent Brain installer
+ * Version tracking utilities for Nori Profiles installer
  *
  * Manages version tracking to ensure proper uninstallation of previous versions
  * before installing new versions.

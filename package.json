@@ -8,7 +8,7 @@
     "plugin",
     "context engineering"
   ],
-  "description": "Nori Agent Brain plugin for Claude Code",
+  "description": "Nori Profiles plugin for Claude Code",
   "type": "module",
   "bin": {
     "nori-ai": "./build/src/installer/cli.js"
