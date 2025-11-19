@@ -12,6 +12,10 @@ import { main as installMain } from "./install.js";
 import { runUninstall } from "./uninstall.js";
 import { getInstalledVersion } from "./version.js";
 
+// Store console output for testing warnings
+let consoleOutput: Array<string> = [];
+const originalConsoleLog = console.log;
+
 // Track which version of npx uninstall was called
 let uninstallCalledWith: string | null = null;
 
@@ -470,5 +474,66 @@ describe("install integration test", () => {
     // Home directory should be back to pre-install state
     // (no config file, no version file, no notifications log)
     expect(postUninstallHomeSnapshot).toEqual(preInstallHomeSnapshot);
+  });
+
+  it("should warn when ancestor directory has nori installation", async () => {
+    // Setup: Create a parent directory with a nori installation
+    const parentDir = path.join(tempHomeDir, "parent");
+    const childDir = path.join(parentDir, "child");
+    fs.mkdirSync(childDir, { recursive: true });
+
+    // Create nori config in parent (simulating existing installation)
+    fs.writeFileSync(
+      path.join(parentDir, ".nori-config.json"),
+      JSON.stringify({ profile: { baseProfile: "test" } }),
+    );
+
+    // Capture console output
+    consoleOutput = [];
+    console.log = (...args: Array<unknown>) => {
+      consoleOutput.push(args.map(String).join(" "));
+      originalConsoleLog(...args);
+    };
+
+    try {
+      // Run installation in the child directory
+      await installMain({
+        nonInteractive: true,
+        installDir: path.join(childDir, ".claude"),
+      });
+
+      // Verify warning was displayed about ancestor installation
+      // The warning message contains ⚠️ and "ancestor"
+      const hasAncestorWarning = consoleOutput.some(
+        (line) => line.includes("⚠️") && line.includes("ancestor"),
+      );
+      expect(hasAncestorWarning).toBe(true);
+
+      // Verify the parent path is shown
+      const hasParentPath = consoleOutput.some((line) =>
+        line.includes(parentDir),
+      );
+      expect(hasParentPath).toBe(true);
+
+      // Verify uninstall instructions were provided
+      const hasUninstallInstructions = consoleOutput.some(
+        (line) =>
+          line.includes("npx nori-ai@latest uninstall") ||
+          line.includes("nori-ai uninstall"),
+      );
+      expect(hasUninstallInstructions).toBe(true);
+
+      // Verify installation still proceeded (in non-interactive mode)
+      // Note: Due to the mocked env.js, files are created in TEST_CLAUDE_DIR
+      // not in childDir/.claude, but the ancestor detection uses normalizeInstallDir
+      // which correctly identifies the parent installation
+      const TEST_CLAUDE_DIR = "/tmp/install-integration-test-claude";
+      expect(fs.existsSync(path.join(TEST_CLAUDE_DIR, "settings.json"))).toBe(
+        true,
+      );
+    } finally {
+      // Restore console
+      console.log = originalConsoleLog;
+    }
   });
 });

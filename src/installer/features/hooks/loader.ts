@@ -130,6 +130,31 @@ const autoupdateHook: HookInterface = {
 };
 
 /**
+ * Nested install warning hook - warns about installations in ancestor directories
+ */
+const nestedInstallWarningHook: HookInterface = {
+  name: "nested-install-warning",
+  description: "Warn about Nori installations in ancestor directories",
+  install: async () => {
+    const scriptPath = path.join(HOOKS_CONFIG_DIR, "nested-install-warning.js");
+    return [
+      {
+        event: "SessionStart",
+        matcher: "startup",
+        hooks: [
+          {
+            type: "command",
+            command: `node ${scriptPath}`,
+            description:
+              "Warn about Nori installations in ancestor directories on session start",
+          },
+        ],
+      },
+    ];
+  },
+};
+
+/**
  * Notification hook - sends desktop notifications
  */
 const notifyHook: HookInterface = {
@@ -214,6 +239,7 @@ const configurePaidHooks = async (args: { config: Config }): Promise<void> => {
     summarizeNotificationHook,
     summarizeHook,
     autoupdateHook,
+    nestedInstallWarningHook,
     notifyHook,
     quickSwitchHook,
   ];
@@ -283,8 +309,13 @@ const configureFreeHooks = async (args: { config: Config }): Promise<void> => {
     };
   }
 
-  // Install notification, autoupdate, and quick-switch hooks for free version
-  const hooks = [autoupdateHook, notifyHook, quickSwitchHook];
+  // Install notification, autoupdate, nested-install-warning, and quick-switch hooks for free version
+  const hooks = [
+    autoupdateHook,
+    nestedInstallWarningHook,
+    notifyHook,
+    quickSwitchHook,
+  ];
   const hooksConfig: any = {};
 
   for (const hook of hooks) {

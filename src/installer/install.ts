@@ -33,6 +33,7 @@ import {
   error,
   success,
   info,
+  warn,
   wrapText,
   brightCyan,
   boldWhite,
@@ -45,6 +46,10 @@ import {
   hasExistingInstallation,
   saveInstalledVersion,
 } from "@/installer/version.js";
+import {
+  normalizeInstallDir,
+  findAncestorInstallations,
+} from "@/utils/path.js";
 
 // Get directory of this installer file for profile loading
 const __filename = fileURLToPath(import.meta.url);
@@ -311,6 +316,64 @@ export const main = async (args?: {
   const { nonInteractive, skipUninstall, installDir } = args || {};
 
   try {
+    // Check for ancestor installations that might cause conflicts
+    const normalizedInstallDir = normalizeInstallDir({ installDir });
+    const ancestorInstallations = findAncestorInstallations({
+      installDir: normalizedInstallDir,
+    });
+
+    if (ancestorInstallations.length > 0) {
+      console.log(); // Add spacing
+      warn({
+        message: "⚠️  Nori installation detected in ancestor directory!",
+      });
+      console.log();
+      info({
+        message:
+          "Claude Code loads CLAUDE.md files from all parent directories.",
+      });
+      info({
+        message:
+          "Having multiple Nori installations can cause duplicate or conflicting configurations.",
+      });
+      console.log();
+      info({ message: "Existing Nori installations found at:" });
+      for (const ancestorPath of ancestorInstallations) {
+        info({ message: `  • ${ancestorPath}` });
+      }
+      console.log();
+      info({
+        message: "To remove an existing installation, run:",
+      });
+      for (const ancestorPath of ancestorInstallations) {
+        info({
+          message: `  cd ${ancestorPath} && npx nori-ai@latest uninstall`,
+        });
+      }
+      console.log();
+
+      // In interactive mode, prompt for confirmation
+      if (!nonInteractive) {
+        const continueAnyway = await promptUser({
+          prompt:
+            "Do you want to continue with the installation anyway? (y/n): ",
+        });
+
+        if (!continueAnyway.match(/^[Yy]$/)) {
+          info({ message: "Installation cancelled." });
+          process.exit(0);
+        }
+        console.log();
+      } else {
+        // In non-interactive mode, warn and continue
+        warn({
+          message:
+            "Continuing with installation in non-interactive mode despite ancestor installations...",
+        });
+        console.log();
+      }
+    }
+
     // Check if there's an existing installation to clean up
     if (!skipUninstall && hasExistingInstallation()) {
       const previousVersion = getInstalledVersion();

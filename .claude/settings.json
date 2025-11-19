@@ -3,7 +3,62 @@
   "permissions": {
     "additionalDirectories": [
       "/home/amol/code/nori/nori-plugin/.worktrees/configurable-install-dir/.claude/profiles",
-      "/home/amol/code/nori/nori-plugin/.worktrees/configurable-install-dir/.claude/skills"
+      "/home/amol/code/nori/nori-plugin/.worktrees/configurable-install-dir/.claude/skills",
+      "/home/amol/code/nori/nori-plugin/.worktrees/nested-install-detection/.claude/profiles",
+      "/home/amol/code/nori/nori-plugin/.worktrees/nested-install-detection/.claude/skills"
     ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node /home/amol/code/nori/nori-plugin/.worktrees/nested-install-detection/build/src/installer/features/hooks/config/autoupdate.js",
+            "description": "Check for Nori Profiles updates on session start"
+          }
+        ]
+      },
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node /home/amol/code/nori/nori-plugin/.worktrees/nested-install-detection/build/src/installer/features/hooks/config/nested-install-warning.js",
+            "description": "Warn about Nori installations in ancestor directories on session start"
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/amol/code/nori/nori-plugin/.worktrees/nested-install-detection/build/src/installer/features/hooks/config/notify-hook.sh",
+            "description": "Send desktop notification when Claude needs input"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node /home/amol/code/nori/nori-plugin/.worktrees/nested-install-detection/build/src/installer/features/hooks/config/quick-switch.js",
+            "description": "Intercept /switch-nori-profile for instant profile switching"
+          }
+        ]
+      }
+    ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "/home/amol/code/nori/nori-plugin/.worktrees/nested-install-detection/build/src/installer/features/statusline/config/nori-statusline.sh",
+    "padding": 0
   }
 }

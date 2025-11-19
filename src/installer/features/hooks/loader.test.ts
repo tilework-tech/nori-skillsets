@@ -318,6 +318,64 @@ describe("hooksLoader", () => {
       }
       expect(hasQuickSwitchHook).toBe(true);
     });
+
+    it("should configure nested-install-warning hook for paid installation", async () => {
+      const config: Config = { installType: "paid" };
+
+      await hooksLoader.run({ config });
+
+      const content = await fs.readFile(settingsPath, "utf-8");
+      const settings = JSON.parse(content);
+
+      // Verify SessionStart hooks include nested-install-warning
+      expect(settings.hooks.SessionStart).toBeDefined();
+      expect(settings.hooks.SessionStart.length).toBeGreaterThan(0);
+
+      // Find nested-install-warning hook
+      let hasNestedWarningHook = false;
+      for (const hookConfig of settings.hooks.SessionStart) {
+        if (hookConfig.hooks) {
+          for (const hook of hookConfig.hooks) {
+            if (
+              hook.command &&
+              hook.command.includes("nested-install-warning")
+            ) {
+              hasNestedWarningHook = true;
+            }
+          }
+        }
+      }
+      expect(hasNestedWarningHook).toBe(true);
+    });
+
+    it("should configure nested-install-warning hook for free installation", async () => {
+      const config: Config = { installType: "free" };
+
+      await hooksLoader.run({ config });
+
+      const content = await fs.readFile(settingsPath, "utf-8");
+      const settings = JSON.parse(content);
+
+      // Verify SessionStart hooks include nested-install-warning
+      expect(settings.hooks.SessionStart).toBeDefined();
+      expect(settings.hooks.SessionStart.length).toBeGreaterThan(0);
+
+      // Find nested-install-warning hook
+      let hasNestedWarningHook = false;
+      for (const hookConfig of settings.hooks.SessionStart) {
+        if (hookConfig.hooks) {
+          for (const hook of hookConfig.hooks) {
+            if (
+              hook.command &&
+              hook.command.includes("nested-install-warning")
+            ) {
+              hasNestedWarningHook = true;
+            }
+          }
+        }
+      }
+      expect(hasNestedWarningHook).toBe(true);
+    });
   });
 
   describe("uninstall", () => {
