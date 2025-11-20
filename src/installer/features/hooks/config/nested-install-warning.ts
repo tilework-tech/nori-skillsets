@@ -59,8 +59,8 @@ export const main = async (args?: {
       installDir,
     });
 
-    if (ancestorInstallations.length === 0) {
-      // No ancestor installations found, nothing to warn about
+    if (ancestorInstallations.length < 2) {
+      // Less than 2 ancestor installations - no nested scenario
       return;
     }
 

@@ -53,13 +53,18 @@ describe("nested-install-warning hook", () => {
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
 
-  it("should output systemMessage JSON when ancestor installation exists", async () => {
-    // Setup: Create a nested structure with parent installation
-    const parentDir = path.join(tempDir, "parent");
+  it("should output systemMessage JSON when 2+ ancestor installations exist", async () => {
+    // Setup: Create grandparent and parent installations
+    const grandparentDir = path.join(tempDir, "grandparent");
+    const parentDir = path.join(grandparentDir, "parent");
     const childDir = path.join(parentDir, "child");
     fs.mkdirSync(childDir, { recursive: true });
 
-    // Create nori config in parent (simulating existing installation)
+    // Create nori configs in grandparent and parent
+    fs.writeFileSync(
+      path.join(grandparentDir, ".nori-config.json"),
+      JSON.stringify({ profile: { baseProfile: "test" } }),
+    );
     fs.writeFileSync(
       path.join(parentDir, ".nori-config.json"),
       JSON.stringify({ profile: { baseProfile: "test" } }),
@@ -83,6 +88,7 @@ describe("nested-install-warning hook", () => {
     expect(output).toHaveProperty("systemMessage");
     expect(output.systemMessage).toContain("⚠️");
     expect(output.systemMessage).toContain(parentDir);
+    expect(output.systemMessage).toContain(grandparentDir);
     expect(output.systemMessage).toContain("npx nori-ai@latest uninstall");
   });
 
@@ -118,5 +124,53 @@ describe("nested-install-warning hook", () => {
 
     // Hook should exit gracefully with no output
     expect(consoleOutput).toHaveLength(0);
+  });
+
+  it("should NOT warn when only one ancestor installation exists", async () => {
+    // Setup: Only parent has installation
+    const parentDir = path.join(tempDir, "parent");
+    const childDir = path.join(parentDir, "child");
+    fs.mkdirSync(childDir, { recursive: true });
+
+    // Only parent has nori config
+    fs.writeFileSync(
+      path.join(parentDir, ".nori-config.json"),
+      JSON.stringify({ profile: { baseProfile: "test" } }),
+    );
+
+    // Run hook from child subdirectory
+    await main({ installDir: path.join(childDir, ".claude") });
+
+    // Should NOT warn - only 1 ancestor installation
+    expect(consoleOutput).toHaveLength(0);
+  });
+
+  it("should warn when 2+ ancestor installations exist", async () => {
+    // Setup: grandparent and parent both have installations
+    const grandparentDir = path.join(tempDir, "grandparent");
+    const parentDir = path.join(grandparentDir, "parent");
+    const childDir = path.join(parentDir, "child");
+    fs.mkdirSync(childDir, { recursive: true });
+
+    // Create installations in grandparent and parent
+    fs.writeFileSync(
+      path.join(grandparentDir, ".nori-config.json"),
+      JSON.stringify({ profile: { baseProfile: "test" } }),
+    );
+    fs.writeFileSync(
+      path.join(parentDir, ".nori-config.json"),
+      JSON.stringify({ profile: { baseProfile: "test" } }),
+    );
+
+    // Run hook from child
+    await main({ installDir: path.join(childDir, ".claude") });
+
+    // Should warn - 2 ancestor installations
+    expect(consoleOutput).toHaveLength(1);
+    const output = JSON.parse(consoleOutput[0]);
+    expect(output).toHaveProperty("systemMessage");
+    expect(output.systemMessage).toContain("⚠️");
+    expect(output.systemMessage).toContain(parentDir);
+    expect(output.systemMessage).toContain(grandparentDir);
   });
 });
