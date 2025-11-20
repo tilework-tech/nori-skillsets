@@ -6,10 +6,25 @@
 # Read JSON context from stdin
 INPUT=$(cat)
 
+# === DERIVE INSTALL DIRECTORY ===
+# First, try to get install directory from the cwd in the JSON input
+# This is more reliable as the cwd is where Claude Code is running
+CWD=$(echo "$INPUT" | jq -r '.cwd // empty')
+
+# If we have a cwd, use it as the install directory
+if [ -n "$CWD" ] && [ -d "$CWD" ]; then
+    INSTALL_DIR="$CWD"
+else
+    # Fall back to deriving from script location
+    # Script is at .claude/statusline/nori-statusline.sh, so go up two directories
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    INSTALL_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
+fi
+
 # === CONFIG TIER ENRICHMENT ===
-# Get config tier from ~/nori-config.json
+# Get config tier from install directory config
 CONFIG_TIER="unknown"
-CONFIG_FILE="$HOME/nori-config.json"
+CONFIG_FILE="$INSTALL_DIR/.nori-config.json"
 
 if [ -f "$CONFIG_FILE" ]; then
     # Check if auth credentials exist in config
@@ -161,7 +176,7 @@ TIPS=(
 )
 
 # Check for install-in-progress marker
-INSTALL_MARKER="$HOME/.nori-install-in-progress"
+INSTALL_MARKER="$INSTALL_DIR/.nori-install-in-progress"
 if [ -f "$INSTALL_MARKER" ]; then
     # Install failed - read version from marker
     FAILED_VERSION=$(cat "$INSTALL_MARKER" 2>/dev/null || echo "unknown")
@@ -176,9 +191,9 @@ if [ -f "$INSTALL_MARKER" ]; then
     fi
 
     if [ "$MARKER_AGE_HOURS" -gt 24 ]; then
-        INSTALL_MESSAGE="⚠️  Nori install v${FAILED_VERSION} did not complete (marker is ${MARKER_AGE_HOURS}h old). Check ~/.nori-notifications.log or remove marker: rm ~/.nori-install-in-progress"
+        INSTALL_MESSAGE="⚠️  Nori install v${FAILED_VERSION} did not complete (marker is ${MARKER_AGE_HOURS}h old). Check ${INSTALL_DIR}/.nori-notifications.log or remove marker: rm ${INSTALL_MARKER}"
     else
-        INSTALL_MESSAGE="⚠️  Nori install v${FAILED_VERSION} did not complete. Check ~/.nori-notifications.log for details."
+        INSTALL_MESSAGE="⚠️  Nori install v${FAILED_VERSION} did not complete. Check ${INSTALL_DIR}/.nori-notifications.log for details."
     fi
     STATUS_TIP="${INSTALL_MESSAGE}"
 else

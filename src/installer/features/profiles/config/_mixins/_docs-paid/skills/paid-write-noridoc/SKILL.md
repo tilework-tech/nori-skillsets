@@ -23,7 +23,7 @@ Use regular Write tool instead for:
 ## Usage
 
 ```bash
-node ~/.claude/skills/write-noridoc/script.js --filePath="@<repository>/path" --content="# Documentation" [--gitRepoUrl="https://github.com/..."]
+node {{skills_dir}}/write-noridoc/script.js --filePath="@<repository>/path" --content="# Documentation" [--gitRepoUrl="https://github.com/..."]
 ```
 
 ## Parameters
@@ -49,7 +49,7 @@ Repository names must be **lowercase letters, numbers, and hyphens** only.
 ### Create repository-scoped noridoc
 
 ```bash
-node ~/.claude/skills/write-noridoc/script.js \
+node {{skills_dir}}/write-noridoc/script.js \
   --filePath="@my-repo/server/src/api" \
   --content="# API Client
 
@@ -60,7 +60,7 @@ Provides access to Nori backend." \
 ### Create noridoc without repository scope
 
 ```bash
-node ~/.claude/skills/write-noridoc/script.js \
+node {{skills_dir}}/write-noridoc/script.js \
   --filePath="@/server/src/api" \
   --content="# API Client"
 ```

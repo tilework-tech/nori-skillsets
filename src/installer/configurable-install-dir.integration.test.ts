@@ -214,6 +214,36 @@ describe("configurable install directory integration", () => {
       // Should be false - nothing in home directory
       expect(exists).toBe(false);
     });
+
+    it("should use absolute paths (not ~/.claude) for skill references in CLAUDE.md", async () => {
+      const config: Config = {
+        installType: "free",
+        profile: { baseProfile: "senior-swe" },
+        installDir: customInstallDir,
+      };
+
+      // Install profiles first
+      await profilesLoader.run({ config });
+
+      // Then create CLAUDE.md
+      await claudeMdLoader.run({ config });
+
+      // Read CLAUDE.md content
+      const claudeMdPath = path.join(customInstallDir, ".claude", "CLAUDE.md");
+      const content = await fs.readFile(claudeMdPath, "utf-8");
+
+      // Should have skills list
+      expect(content).toContain("# Nori Skills System");
+
+      // Skill paths should be absolute paths to the custom install directory
+      // NOT ~/.claude/skills/
+      expect(content).toContain(
+        `${customInstallDir}/.claude/skills/using-skills/SKILL.md`,
+      );
+
+      // Should NOT contain tilde notation since we're not installing to home
+      expect(content).not.toMatch(/~\/\.claude\/skills\//);
+    });
   });
 
   describe("config file location", () => {

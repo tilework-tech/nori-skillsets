@@ -53,7 +53,7 @@ Profiles control Claude's behavior and autonomy level. Three built-in profiles a
 
 ## 2. Skills System
 
-Skills are reusable workflows that guide Claude through complex tasks. Claude automatically references these from `~/.claude/skills/`.
+Skills are reusable workflows that guide Claude through complex tasks. Claude automatically references these from `{{skills_dir}}/`.
 
 ### 2.1 Free Tier Skills (13)
 

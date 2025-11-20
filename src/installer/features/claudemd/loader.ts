@@ -11,6 +11,10 @@ import { glob } from "glob";
 
 import { getClaudeDir, getClaudeMdFile } from "@/installer/env.js";
 import { success, info } from "@/installer/logger.js";
+import {
+  formatInstallPath,
+  substituteTemplatePaths,
+} from "@/utils/template.js";
 
 import type { Config } from "@/installer/config.js";
 import type {
@@ -120,13 +124,15 @@ const findSkillFiles = async (args: {
  * Format skill information for display in CLAUDE.md
  * @param args - Function arguments
  * @param args.skillPath - Path to SKILL.md file in config directory
+ * @param args.installDir - Custom installation directory (.claude path)
  *
  * @returns Formatted skill information or null if path doesn't match expected format
  */
 const formatSkillInfo = async (args: {
   skillPath: string;
+  installDir: string;
 }): Promise<string | null> => {
-  const { skillPath } = args;
+  const { skillPath, installDir } = args;
 
   try {
     const content = await fs.readFile(skillPath, "utf-8");
@@ -146,8 +152,11 @@ const formatSkillInfo = async (args: {
     // Strip paid- prefix from skill name to match actual installation
     skillName = skillName.replace(/^paid-/, "");
 
-    // Use tilde notation for the installed path
-    const installedPath = `~/.claude/skills/${skillName}/SKILL.md`;
+    // Format the installed path based on install directory
+    const installedPath = formatInstallPath({
+      installDir,
+      subPath: `skills/${skillName}/SKILL.md`,
+    });
 
     let output = `\n${installedPath}`;
 
@@ -197,7 +206,10 @@ const generateSkillsList = async (args: {
     // Format all skills
     const formattedSkills: Array<string> = [];
     for (const file of skillFiles) {
-      const formatted = await formatSkillInfo({ skillPath: file });
+      const formatted = await formatSkillInfo({
+        skillPath: file,
+        installDir: claudeDir,
+      });
       if (formatted != null) {
         formattedSkills.push(formatted);
       }
@@ -207,8 +219,11 @@ const generateSkillsList = async (args: {
       return "";
     }
 
-    // Build skills list message
-    const usingSkillsPath = "~/.claude/skills/using-skills/SKILL.md";
+    // Build skills list message with correct path for the install directory
+    const usingSkillsPath = formatInstallPath({
+      installDir: claudeDir,
+      subPath: "skills/using-skills/SKILL.md",
+    });
 
     const contextMessage = `
 # Nori Skills System
@@ -257,6 +272,12 @@ const insertClaudeMd = async (args: { config: Config }): Promise<void> => {
     installDir: config.installDir,
   });
   let instructions = await fs.readFile(profileClaudeMdPath, "utf-8");
+
+  // Apply template substitution to replace placeholders with actual paths
+  instructions = substituteTemplatePaths({
+    content: instructions,
+    installDir: claudeDir,
+  });
 
   // Generate and append skills list
   const skillsList = await generateSkillsList({

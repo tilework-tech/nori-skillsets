@@ -42,7 +42,7 @@ I can analyze that prompt for you. Please share the exact prompt text you'd like
 Once you have the prompt, use the Bash tool to run the analysis:
 
 ```bash
-node ~/.claude/skills/prompt-analysis/script.js --prompt="<my prompt here>"
+node {{skills_dir}}/prompt-analysis/script.js --prompt="<my prompt here>"
 ```
 
 **Important**:
@@ -85,7 +85,7 @@ Me: "Can you help me improve this prompt: Write a function to sort numbers"
 
 You: I can analyze that prompt for you. Let me run it through the analysis tool.
 
-[Run: node ~/.claude/skills/prompt-analysis/script.js --prompt="Write a function to sort numbers"]
+[Run: node {{skills_dir}}/prompt-analysis/script.js --prompt="Write a function to sort numbers"]
 
 [Output shows warnings about missing language, algorithm, format details]
 

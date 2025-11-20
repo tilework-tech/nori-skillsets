@@ -23,7 +23,7 @@ Use write-noridoc instead for:
 ## Usage
 
 ```bash
-node ~/.claude/skills/sync-noridocs/script.js [--delay=500] [--gitRepoUrl="https://github.com/..."]
+node {{skills_dir}}/sync-noridocs/script.js [--delay=500] [--gitRepoUrl="https://github.com/..."]
 ```
 
 ## Parameters
@@ -35,13 +35,13 @@ node ~/.claude/skills/sync-noridocs/script.js [--delay=500] [--gitRepoUrl="https
 
 ```bash
 # Sync all docs with default settings
-node ~/.claude/skills/sync-noridocs/script.js
+node {{skills_dir}}/sync-noridocs/script.js
 
 # Sync with custom delay to avoid rate limits
-node ~/.claude/skills/sync-noridocs/script.js --delay=1000
+node {{skills_dir}}/sync-noridocs/script.js --delay=1000
 
 # Sync with git repository URL
-node ~/.claude/skills/sync-noridocs/script.js --gitRepoUrl="https://github.com/username/repo"
+node {{skills_dir}}/sync-noridocs/script.js --gitRepoUrl="https://github.com/username/repo"
 ```
 
 ## Output

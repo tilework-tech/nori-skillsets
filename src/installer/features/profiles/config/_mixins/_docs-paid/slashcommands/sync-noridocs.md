@@ -1,6 +1,6 @@
 ---
 description: Sync all docs.md files to server-side noridocs
-allowed-tools: Bash(node ~/.claude/skills/sync-noridocs/script.js:*)
+allowed-tools: Bash(node {{skills_dir}}/sync-noridocs/script.js:*)
 ---
 
 Sync all local docs.md files in the codebase to the server-side noridocs system.
@@ -8,7 +8,7 @@ Sync all local docs.md files in the codebase to the server-side noridocs system.
 Run the sync-noridocs skill:
 
 ```bash
-node ~/.claude/skills/sync-noridocs/script.js
+node {{skills_dir}}/sync-noridocs/script.js
 ```
 
 This will:

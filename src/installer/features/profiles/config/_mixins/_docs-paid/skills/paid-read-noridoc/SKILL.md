@@ -23,7 +23,7 @@ Use regular Read tool instead for:
 ## Usage
 
 ```bash
-node ~/.claude/skills/read-noridoc/script.js --filePath="@<repository>/path"
+node {{skills_dir}}/read-noridoc/script.js --filePath="@<repository>/path"
 ```
 
 ## Parameters
@@ -36,10 +36,10 @@ node ~/.claude/skills/read-noridoc/script.js --filePath="@<repository>/path"
 
 ```bash
 # Read repository-scoped noridoc
-node ~/.claude/skills/read-noridoc/script.js --filePath="@my-repo/server/src/api"
+node {{skills_dir}}/read-noridoc/script.js --filePath="@my-repo/server/src/api"
 
 # Read doc from no-repository scope
-node ~/.claude/skills/read-noridoc/script.js --filePath="@/server/src/api"
+node {{skills_dir}}/read-noridoc/script.js --filePath="@/server/src/api"
 ```
 
 ## Output

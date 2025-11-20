@@ -26,7 +26,7 @@ Skip memorizing:
 ## Usage
 
 ```bash
-node ~/.claude/skills/memorize/script.js --name="Memory Title" --content="Detailed content here"
+node {{skills_dir}}/memorize/script.js --name="Memory Title" --content="Detailed content here"
 ```
 
 ## Parameters
@@ -37,7 +37,7 @@ node ~/.claude/skills/memorize/script.js --name="Memory Title" --content="Detail
 ## Example
 
 ```bash
-node ~/.claude/skills/memorize/script.js \
+node {{skills_dir}}/memorize/script.js \
   --name="TDD workflow for React components" \
   --content="# TDD Process\n\n1. Write failing test\n2. Implement component\n3. Verify test passes"
 ```

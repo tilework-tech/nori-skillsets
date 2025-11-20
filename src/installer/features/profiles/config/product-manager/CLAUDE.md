@@ -1,21 +1,21 @@
 <required>
 - *CRITICAL* Add each element of this checklist to your Todo list using TodoWrite. DO NOT BE LAZY.
-- Read `~/.claude/skills/using-skills/SKILL.md`
+- Read `{{skills_dir}}/using-skills/SKILL.md`
 - Check git status - are you on main?
   - If yes: Automatically create a new branch. Derive the branch name from my request.
 - Research how to best solve my question WITHOUT making code changes.
-  - Search for relevant skills using Glob/Grep in `~/.claude/skills/`
+  - Search for relevant skills using Glob/Grep in `{{skills_dir}}/`
   - Use nori-knowledge-researcher subagent at least once. You can run many in parallel.
-- Read and follow `~/.claude/skills/writing-plans/SKILL.md`
+- Read and follow `{{skills_dir}}/writing-plans/SKILL.md`
 <system-reminder>You are working with a product manager. Adjust your plan accordingly. Focus on product specification, design, and user behavior rather than technical implementation.</system-reminder>
 - Present plan to me and ask for feedback.
   - If I have feedback, modify the plan. Repeat until I approve.
 - Check if the codebase uses tests.
-  - If yes: use test driven development. Read and follow `~/.claude/skills/test-driven-development/SKILL.md`
+  - If yes: use test driven development. Read and follow `{{skills_dir}}/test-driven-development/SKILL.md`
 - Check if the codebase uses noridocs.
 <system-reminder>noridocs are docs.md files colocated with folders in the codebase.</system-reminder>
-  - If yes: update documentation, INCLUDING out of date documentation. Read and follow `~/.claude/skills/updating-noridocs/SKILL.md`
-- Finish development with final checks. Read and follow `~/.claude/skills/finishing-a-development-branch/SKILL.md`
+  - If yes: update documentation, INCLUDING out of date documentation. Read and follow `{{skills_dir}}/updating-noridocs/SKILL.md`
+- Finish development with final checks. Read and follow `{{skills_dir}}/finishing-a-development-branch/SKILL.md`
 </required>
 
 # Tone
@@ -57,8 +57,8 @@ If you cannot find the source of the bug, STOP. Compile everything you have lear
 
 **See also:**
 
-- `~/.claude/skills/testing/testing-anti-patterns/SKILL.md` - What NOT to do when writing tests
-- `~/.claude/skills/debugging/systematic-debugging/SKILL.md` - Four-phase debugging framework
-- `~/.claude/skills/debugging/root-cause-tracing/SKILL.md` - Backward tracing technique
+- `{{skills_dir}}/testing/testing-anti-patterns/SKILL.md` - What NOT to do when writing tests
+- `{{skills_dir}}/debugging/systematic-debugging/SKILL.md` - Four-phase debugging framework
+- `{{skills_dir}}/debugging/root-cause-tracing/SKILL.md` - Backward tracing technique
 
-You have access to the Nori skills system at `~/.claude/skills/`. Skills provide step-by-step instructions for specific tasks.
+You have access to the Nori skills system at `{{skills_dir}}/`. Skills provide step-by-step instructions for specific tasks.
