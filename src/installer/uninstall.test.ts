@@ -450,15 +450,16 @@ describe("uninstall with ancestor directory detection", () => {
       }),
     );
 
-    // Mock user confirmation (two calls: one for ancestor prompt, one for uninstall confirmation)
+    // Mock user confirmation (three calls: ancestor prompt, uninstall confirmation, hooks/statusline removal)
     (promptUser as any).mockResolvedValueOnce("y"); // Accept ancestor uninstall
     (promptUser as any).mockResolvedValueOnce("y"); // Confirm uninstall
+    (promptUser as any).mockResolvedValueOnce("y"); // Remove hooks/statusline
 
     // Run uninstall from child directory (no installation in child)
     await main({ nonInteractive: false, installDir: childDir });
 
-    // Verify promptUser was called twice (once for ancestor, once for uninstall confirm)
-    expect(promptUser).toHaveBeenCalledTimes(2);
+    // Verify promptUser was called three times (ancestor, uninstall confirm, hooks/statusline)
+    expect(promptUser).toHaveBeenCalledTimes(3);
 
     // Verify the first call asks about the ancestor directory
     const firstCall = (promptUser as any).mock.calls[0][0];
@@ -493,15 +494,16 @@ describe("uninstall with ancestor directory detection", () => {
       }),
     );
 
-    // Mock user responses: select option 2, then confirm
+    // Mock user responses: select option 2, confirm, remove hooks/statusline
     (promptUser as any).mockResolvedValueOnce("2"); // Select second installation
     (promptUser as any).mockResolvedValueOnce("y"); // Confirm uninstall
+    (promptUser as any).mockResolvedValueOnce("y"); // Remove hooks/statusline
 
     // Run from child directory
     await main({ nonInteractive: false, installDir: childInParent });
 
-    // Verify promptUser was called twice
-    expect(promptUser).toHaveBeenCalledTimes(2);
+    // Verify promptUser was called three times
+    expect(promptUser).toHaveBeenCalledTimes(3);
 
     // Verify first call asks for selection
     const firstCall = (promptUser as any).mock.calls[0][0];
