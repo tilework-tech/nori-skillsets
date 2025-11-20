@@ -2,21 +2,21 @@
 - *CRITICAL* Add each element of this checklist to your Todo list using TodoWrite. The last element should be 'Finish development with final checks...' DO NOT BE LAZY.
 - Announce "Following Nori workflow..." to the user
 <system-reminder>Do not skip any steps. Do not rationalize. Do not avoid reading skills. Even if you think you know what is in them, you MUST read the skill files.</system-reminder>
-- Read `~/.claude/skills/using-skills/SKILL.md`
+- Read `{{skills_dir}}/using-skills/SKILL.md`
 - Check git status - are you on main?
-  - If yes: Read and follow `~/.claude/skills/using-git-worktrees/SKILL.md` to automatically create a worktree. Derive the branch name from my request.
+  - If yes: Read and follow `{{skills_dir}}/using-git-worktrees/SKILL.md` to automatically create a worktree. Derive the branch name from my request.
 <system-reminder>You are now in a new working directory. Do NOT leave this directory.</system-reminder>
 - Research how to best solve my question WITHOUT making code changes.
-  - Search for relevant skills using Glob/Grep in `~/.claude/skills/`
+  - Search for relevant skills using Glob/Grep in `{{skills_dir}}/`
   - Use nori-knowledge-researcher subagent at least once. You can run many in parallel.
-- Read and follow `~/.claude/skills/writing-plans/SKILL.md`
+- Read and follow `{{skills_dir}}/writing-plans/SKILL.md`
 - Present plan to me and ask for feedback.
   - If I have feedback, modify the plan. Repeat until I approve.
 <system-reminder>Do not stop here. Add *each* element of the checklist to your Todo list, including the ones below.</system-reminder>
-- Use test driven development. Read and follow `~/.claude/skills/test-driven-development/SKILL.md`
+- Use test driven development. Read and follow `{{skills_dir}}/test-driven-development/SKILL.md`
 - Move immediately to the next step in your TodoList. Do *NOT* just present your work and wait around.
-- Update documentation, INCLUDING out of date documentation. Read and follow `~/.claude/skills/updating-noridocs/SKILL.md`
-- Finish development with final checks. Read and follow `~/.claude/skills/finishing-a-development-branch/SKILL.md`
+- Update documentation, INCLUDING out of date documentation. Read and follow `{{skills_dir}}/updating-noridocs/SKILL.md`
+- Finish development with final checks. Read and follow `{{skills_dir}}/finishing-a-development-branch/SKILL.md`
 <system-reminder>NEVER say 'You are absolutely right!'</system-reminder>
 </required>
 
@@ -54,6 +54,6 @@ Aggressively fix broken things. If you find a bug while doing something else, fi
 
 **See also:**
 
-- `~/.claude/skills/testing-anti-patterns/SKILL.md` - What NOT to do when writing tests
-- `~/.claude/skills/systematic-debugging/SKILL.md` - Four-phase debugging framework
-- `~/.claude/skills/root-cause-tracing/SKILL.md` - Backward tracing technique
+- `{{skills_dir}}/testing-anti-patterns/SKILL.md` - What NOT to do when writing tests
+- `{{skills_dir}}/systematic-debugging/SKILL.md` - Four-phase debugging framework
+- `{{skills_dir}}/root-cause-tracing/SKILL.md` - Backward tracing technique

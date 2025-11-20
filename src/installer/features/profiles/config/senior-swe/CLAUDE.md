@@ -1,9 +1,9 @@
 <required>
 - *CRITICAL* Add each element of this checklist to your Todo list using TodoWrite. DO NOT BE LAZY.
-- Read `~/.claude/skills/using-skills/SKILL.md`
+- Read `{{skills_dir}}/using-skills/SKILL.md`
 - Check git status - are you on main?
   - If yes: ask me if I want to create a branch or a worktree.
-  - If creating a worktree, read and follow `~/.claude/skills/using-git-worktrees/SKILL.md` to automatically create a worktree. Derive the branch name from my request.
+  - If creating a worktree, read and follow `{{skills_dir}}/using-git-worktrees/SKILL.md` to automatically create a worktree. Derive the branch name from my request.
 - Ask me to pick a mode: copilot or full-send.
 <system-reminder>In copilot mode, the agent works closely with me, asks lots of questions, and only does small pieces of work at a time.</system-reminder>
 <system-reminder>In full-send mode, the agent works with me to create a plan, and then operates autonomously until work is completed.</system-reminder>
@@ -15,16 +15,16 @@
 <required>
 - *CRITICAL* Add each element of this checklist to your Todo list using TodoWrite. DO NOT BE LAZY.
 - Research how to best solve my question WITHOUT making code changes.
-- Read and follow `~/.claude/skills/writing-plans/SKILL.md`
+- Read and follow `{{skills_dir}}/writing-plans/SKILL.md`
 - Present plan to me and ask for feedback.
   - If I have feedback, modify the plan. Repeat until I approve.
 <system-reminder> During implementation, after each step in the plan, check with me about progress.</system-reminder>
 - Ask if me wants to follow test driven development.
-  - If yes: use test driven development. Read and follow `~/.claude/skills/testing/test-driven-development/SKILL.md`
+  - If yes: use test driven development. Read and follow `{{skills_dir}}/testing/test-driven-development/SKILL.md`
 - Ask if me wants to update docs.
-  - If yes: update documentation, INCLUDING out of date documentation. Read and follow `~/.claude/skills/collaboration/updating-noridocs/SKILL.md`
+  - If yes: update documentation, INCLUDING out of date documentation. Read and follow `{{skills_dir}}/collaboration/updating-noridocs/SKILL.md`
 - Ask if me wants to create a PR.
-  - If yes: read and follow `~/.claude/skills/collaboration/finishing-a-development-branch/SKILL.md`
+  - If yes: read and follow `{{skills_dir}}/collaboration/finishing-a-development-branch/SKILL.md`
 </required>
 
 # Full-send Mode
@@ -32,18 +32,18 @@
 <required>
 - *CRITICAL* Add each element of this checklist to your Todo list using TodoWrite. DO NOT BE LAZY.
 - Research how to best solve my question WITHOUT making code changes.
-  - Search for relevant skills using Glob/Grep in `~/.claude/skills/`
+  - Search for relevant skills using Glob/Grep in `{{skills_dir}}/`
   - If you have access to the nori-knowledge-researcher subagent, use it at least once.
   - You can run many research subagents in parallel.
-- Read and follow `~/.claude/skills/writing-plans/SKILL.md`
+- Read and follow `{{skills_dir}}/writing-plans/SKILL.md`
 - Present plan to me and ask for feedback.
   - If I have feedback, modify the plan. Repeat until I approve.
 - Check if the codebase uses tests.
-  - If yes: use test driven development. Read and follow `~/.claude/skills/test-driven-development/SKILL.md`
+  - If yes: use test driven development. Read and follow `{{skills_dir}}/test-driven-development/SKILL.md`
 - Check if the codebase uses noridocs.
 <system-reminder>noridocs are docs.md files colocated with folders in the codebase.</system-reminder>
-    If yes: update documentation, INCLUDING out of date documentation. Read and follow `~/.claude/skills/updating-noridocs/SKILL.md`
-- Finish development with final checks. Read and follow `~/.claude/skills/finishing-a-development-branch/SKILL.md`
+    If yes: update documentation, INCLUDING out of date documentation. Read and follow `{{skills_dir}}/updating-noridocs/SKILL.md`
+- Finish development with final checks. Read and follow `{{skills_dir}}/finishing-a-development-branch/SKILL.md`
 </required>
 
 <system-reminder>
@@ -78,6 +78,6 @@ If you cannot find the source of the bug, STOP. Compile everything you have lear
 
 **See also:**
 
-- `~/.claude/skills/testing-anti-patterns/SKILL.md` - What NOT to do when writing tests
-- `~/.claude/skills/systematic-debugging/SKILL.md` - Four-phase debugging framework
-- `~/.claude/skills/root-cause-tracing/SKILL.md` - Backward tracing technique
+- `{{skills_dir}}/testing-anti-patterns/SKILL.md` - What NOT to do when writing tests
+- `{{skills_dir}}/systematic-debugging/SKILL.md` - Four-phase debugging framework
+- `{{skills_dir}}/root-cause-tracing/SKILL.md` - Backward tracing technique

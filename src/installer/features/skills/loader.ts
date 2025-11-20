@@ -13,6 +13,7 @@ import {
   getClaudeSettingsFile,
 } from "@/installer/env.js";
 import { success, info, warn } from "@/installer/logger.js";
+import { substituteTemplatePaths } from "@/utils/template.js";
 
 import type { Config } from "@/installer/config.js";
 import type {
@@ -23,6 +24,47 @@ import type {
 // Get directory of this loader file
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+/**
+ * Copy a directory recursively, applying template substitution to markdown files
+ *
+ * @param args - Copy arguments
+ * @param args.src - Source directory path
+ * @param args.dest - Destination directory path
+ * @param args.installDir - Installation directory for template substitution
+ */
+const copyDirWithTemplateSubstitution = async (args: {
+  src: string;
+  dest: string;
+  installDir: string;
+}): Promise<void> => {
+  const { src, dest, installDir } = args;
+
+  await fs.mkdir(dest, { recursive: true });
+
+  const entries = await fs.readdir(src, { withFileTypes: true });
+
+  for (const entry of entries) {
+    const srcPath = path.join(src, entry.name);
+    const destPath = path.join(dest, entry.name);
+
+    if (entry.isDirectory()) {
+      await copyDirWithTemplateSubstitution({
+        src: srcPath,
+        dest: destPath,
+        installDir,
+      });
+    } else if (entry.name.endsWith(".md")) {
+      // Apply template substitution to markdown files
+      const content = await fs.readFile(srcPath, "utf-8");
+      const substituted = substituteTemplatePaths({ content, installDir });
+      await fs.writeFile(destPath, substituted);
+    } else {
+      // Copy other files directly
+      await fs.copyFile(srcPath, destPath);
+    }
+  }
+};
 
 /**
  * Get config directory for skills based on selected profile
@@ -69,15 +111,23 @@ const installSkills = async (args: { config: Config }): Promise<void> => {
   const entries = await fs.readdir(configDir, { withFileTypes: true });
 
   for (const entry of entries) {
+    const sourcePath = path.join(configDir, entry.name);
+
     if (!entry.isDirectory()) {
-      // Copy non-directory files (like docs.md) directly
-      const sourcePath = path.join(configDir, entry.name);
+      // Copy non-directory files (like docs.md) with template substitution if markdown
       const destPath = path.join(claudeSkillsDir, entry.name);
-      await fs.copyFile(sourcePath, destPath);
+      if (entry.name.endsWith(".md")) {
+        const content = await fs.readFile(sourcePath, "utf-8");
+        const substituted = substituteTemplatePaths({
+          content,
+          installDir: config.installDir,
+        });
+        await fs.writeFile(destPath, substituted);
+      } else {
+        await fs.copyFile(sourcePath, destPath);
+      }
       continue;
     }
-
-    const sourcePath = path.join(configDir, entry.name);
 
     // Handle paid-prefixed skills
     //
@@ -94,13 +144,21 @@ const installSkills = async (args: { config: Config }): Promise<void> => {
         // Strip paid- prefix when copying
         const destName = entry.name.replace(/^paid-/, "");
         const destPath = path.join(claudeSkillsDir, destName);
-        await fs.cp(sourcePath, destPath, { recursive: true });
+        await copyDirWithTemplateSubstitution({
+          src: sourcePath,
+          dest: destPath,
+          installDir: config.installDir,
+        });
       }
       // Skip if free tier
     } else {
       // Copy non-paid skills for all tiers
       const destPath = path.join(claudeSkillsDir, entry.name);
-      await fs.cp(sourcePath, destPath, { recursive: true });
+      await copyDirWithTemplateSubstitution({
+        src: sourcePath,
+        dest: destPath,
+        installDir: config.installDir,
+      });
     }
   }
 

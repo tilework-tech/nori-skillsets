@@ -146,8 +146,8 @@ describe("statuslineLoader", () => {
       // Install statusline
       await statuslineLoader.run({ config });
 
-      // Create mock nori-config.json with profile in temp directory
-      const noriConfigPath = path.join(tempDir, "nori-config.json");
+      // Create mock .nori-config.json with profile in temp directory (install root)
+      const noriConfigPath = path.join(tempDir, ".nori-config.json");
       const noriConfigContent = JSON.stringify({
         profile: { baseProfile: "amol" },
       });

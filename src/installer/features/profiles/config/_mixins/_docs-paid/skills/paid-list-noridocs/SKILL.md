@@ -19,7 +19,7 @@ Use this when:
 ## Usage
 
 ```bash
-node ~/.claude/skills/list-noridocs/script.js [--repository="repo-name"] [--pathPrefix="@/server"] [--limit=100]
+node {{skills_dir}}/list-noridocs/script.js [--repository="repo-name"] [--pathPrefix="@/server"] [--limit=100]
 ```
 
 ## Parameters
@@ -32,19 +32,19 @@ node ~/.claude/skills/list-noridocs/script.js [--repository="repo-name"] [--path
 
 ```bash
 # List all noridocs
-node ~/.claude/skills/list-noridocs/script.js
+node {{skills_dir}}/list-noridocs/script.js
 
 # List noridocs in my-repo repository
-node ~/.claude/skills/list-noridocs/script.js --repository="my-repo"
+node {{skills_dir}}/list-noridocs/script.js --repository="my-repo"
 
 # List noridocs under server directory (any repository)
-node ~/.claude/skills/list-noridocs/script.js --pathPrefix="@/server"
+node {{skills_dir}}/list-noridocs/script.js --pathPrefix="@/server"
 
 # Combine repository and path filtering
-node ~/.claude/skills/list-noridocs/script.js --repository="my-repo" --pathPrefix="@my-repo/server"
+node {{skills_dir}}/list-noridocs/script.js --repository="my-repo" --pathPrefix="@my-repo/server"
 
 # List with custom limit
-node ~/.claude/skills/list-noridocs/script.js --repository="my-repo" --limit=50
+node {{skills_dir}}/list-noridocs/script.js --repository="my-repo" --limit=50
 ```
 
 ## Repository Filtering

@@ -220,6 +220,65 @@ describe("skillsLoader", () => {
     });
   });
 
+  describe("template substitution", () => {
+    it("should apply template substitution to skill markdown files for home install", async () => {
+      // tempDir simulates a home install at /tmp/xxx/.claude
+      const config: Config = {
+        installType: "free",
+        installDir: tempDir,
+      };
+
+      await skillsLoader.run({ config });
+
+      // Check a skill that references {{skills_dir}}
+      const skillPath = path.join(skillsDir, "using-skills", "SKILL.md");
+      const content = await fs.readFile(skillPath, "utf-8");
+
+      // Should have template placeholders substituted
+      // For a home install, paths should use tilde notation
+      expect(content).not.toContain("{{skills_dir}}");
+      expect(content).not.toContain("{{install_dir}}");
+    });
+
+    it("should apply template substitution to skill markdown files for custom install", async () => {
+      // Create a custom install directory (not under home)
+      const customInstallDir = path.join(tempDir, "custom-install", ".claude");
+      await fs.mkdir(customInstallDir, { recursive: true });
+
+      // Update mock paths
+      mockClaudeDir = customInstallDir;
+      mockClaudeSkillsDir = path.join(customInstallDir, "skills");
+
+      const config: Config = {
+        installType: "free",
+        installDir: path.join(tempDir, "custom-install"),
+      };
+
+      // Run profiles loader for custom install
+      await profilesLoader.run({ config });
+      await skillsLoader.run({ config });
+
+      // Check a skill that references {{skills_dir}}
+      const skillPath = path.join(
+        customInstallDir,
+        "skills",
+        "using-skills",
+        "SKILL.md",
+      );
+      const content = await fs.readFile(skillPath, "utf-8");
+
+      // Should have template placeholders substituted with absolute paths
+      expect(content).not.toContain("{{skills_dir}}");
+      expect(content).not.toContain("{{install_dir}}");
+
+      // For custom install, paths should be absolute (not tilde)
+      // If the skill references the skills directory, it should use absolute path
+      if (content.includes("skills/")) {
+        expect(content).not.toContain("~/.claude/skills/");
+      }
+    });
+  });
+
   describe("paid skills", () => {
     it("should install paid-prefixed skills without prefix for paid tier", async () => {
       const config: Config = {

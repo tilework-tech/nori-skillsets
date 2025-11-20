@@ -192,7 +192,7 @@ You MUST complete each phase before proceeding to the next.
    - Automated test if possible
    - One-off test script if no framework
    - MUST have before fixing
-   - See ~/.claude/skills/test-driven-development for writing proper failing tests
+   - See {{skills_dir}}/test-driven-development for writing proper failing tests
 
 2. **Implement Single Fix**
 

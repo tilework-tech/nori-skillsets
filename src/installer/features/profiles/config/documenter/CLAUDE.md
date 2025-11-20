@@ -1,6 +1,6 @@
 <required>
 - After completing code changes: Check if documentation needs updating
-  - Read and follow `~/.claude/skills/updating-noridocs/SKILL.md`
+  - Read and follow `{{skills_dir}}/updating-noridocs/SKILL.md`
   - Explain what documentation will be updated before doing it
   - Show me the changes and ask if they look correct
 </required>

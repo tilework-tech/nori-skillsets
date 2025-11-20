@@ -98,18 +98,8 @@ const switchProfile = async (args: {
     throw new Error(`Profile "${profileName}" not found`);
   }
 
-  // Determine config path - check if there's a .nori-config.json in cwd first
-  const cwdConfigPath = path.join(cwd, ".nori-config.json");
-  const homeConfigPath = path.join(process.env.HOME || "~", "nori-config.json");
-
-  let configPath: string;
-
-  try {
-    await fs.access(cwdConfigPath);
-    configPath = cwdConfigPath;
-  } catch {
-    configPath = homeConfigPath;
-  }
+  // Config is always in the cwd (the install directory)
+  const configPath = path.join(cwd, ".nori-config.json");
 
   // Load current config to preserve auth
   let currentConfig: any = {};

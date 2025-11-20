@@ -19,7 +19,7 @@ description: Describes how to use abilities. Read before any conversation.
 
 **2. If relevant ability exists, YOU MUST use it:**
 
-- Use Read tool with full path: `~/.claude/skills/<skill-name>/SKILL.md`
+- Use Read tool with full path: `{{skills_dir}}/<skill-name>/SKILL.md`
 - Read ENTIRE file, not just frontmatter
 - Announce: "I've read the Nori [Skill Name] ability and I'm using it to [purpose]"
 - Follow it exactly
@@ -47,7 +47,7 @@ If a ability has a checklist, YOU MUST create TodoWrite todos for EACH item.
 
 **Why:** Checklists without TodoWrite tracking = steps get skipped. Every time. The overhead of TodoWrite is tiny compared to the cost of missing steps.
 
-**Examples:** ~/.claude/skills/test-driven-development/SKILL.md, ~/.claude/skills/systematic-debugging/SKILL.md
+**Examples:** {{skills_dir}}/test-driven-development/SKILL.md, {{skills_dir}}/systematic-debugging/SKILL.md
 
 ## Announcing Skill Usage
 

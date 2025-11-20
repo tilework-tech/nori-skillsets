@@ -25,7 +25,7 @@ Skip searching when:
 ## Usage
 
 ```bash
-node ~/.claude/skills/recall/script.js --query="Your search query" --limit=10
+node {{skills_dir}}/recall/script.js --query="Your search query" --limit=10
 ```
 
 ## Parameters
@@ -36,7 +36,7 @@ node ~/.claude/skills/recall/script.js --query="Your search query" --limit=10
 ## Example
 
 ```bash
-node ~/.claude/skills/recall/script.js --query="implementing authentication endpoints" --limit=5
+node {{skills_dir}}/recall/script.js --query="implementing authentication endpoints" --limit=5
 ```
 
 ## Output

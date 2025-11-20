@@ -401,11 +401,12 @@ More user instructions.
       expect(content).toContain("Available Skills");
 
       // Should list at least some skills from senior-swe profile
-      expect(content).toContain("~/.claude/skills/using-skills/SKILL.md");
+      // Paths should be absolute since we're using a temp directory (not home)
+      expect(content).toContain(`${claudeDir}/skills/using-skills/SKILL.md`);
       expect(content).toContain(
-        "~/.claude/skills/test-driven-development/SKILL.md",
+        `${claudeDir}/skills/test-driven-development/SKILL.md`,
       );
-      expect(content).toContain("~/.claude/skills/brainstorming/SKILL.md");
+      expect(content).toContain(`${claudeDir}/skills/brainstorming/SKILL.md`);
     });
 
     it("should include skill name and description from frontmatter", async () => {
@@ -446,12 +447,13 @@ More user instructions.
       const content = await fs.readFile(claudeMdPath, "utf-8");
 
       // Should show installed paths without paid- prefix
-      expect(content).toContain("~/.claude/skills/recall/SKILL.md");
-      expect(content).toContain("~/.claude/skills/memorize/SKILL.md");
+      // Paths should be absolute since we're using a temp directory (not home)
+      expect(content).toContain(`${claudeDir}/skills/recall/SKILL.md`);
+      expect(content).toContain(`${claudeDir}/skills/memorize/SKILL.md`);
 
       // Should NOT contain paid- prefix in paths
-      expect(content).not.toContain("~/.claude/skills/paid-recall");
-      expect(content).not.toContain("~/.claude/skills/paid-memorize");
+      expect(content).not.toContain(`${claudeDir}/skills/paid-recall`);
+      expect(content).not.toContain(`${claudeDir}/skills/paid-memorize`);
     });
 
     it("should handle profiles with no skills gracefully", async () => {

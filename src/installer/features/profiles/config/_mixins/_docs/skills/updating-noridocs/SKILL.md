@@ -50,11 +50,11 @@ Task(subagent_type: nori-change-documenter)
 
 ### Step 4: Sync Remote docs.md Files
 
-- Check if the 'sync-noridocs' skill exists at `~/.claude/skills/sync-noridocs/SKILL.md`.
+- Check if the 'sync-noridocs' skill exists at `{{skills_dir}}/sync-noridocs/SKILL.md`.
   - If it does not exist, skip this step.
 - Ask the user if they want to sync all docs.md files to the remote server.
   - If the user declines, skip this step.
-- Read and follow `~/.claude/skills/sync-noridocs/SKILL.md` to sync all noridocs to the remote server.
+- Read and follow `{{skills_dir}}/sync-noridocs/SKILL.md` to sync all noridocs to the remote server.
 
 ## Noridocs Format
 

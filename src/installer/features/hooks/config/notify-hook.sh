@@ -4,8 +4,13 @@
 # This script is called by Claude Code Notification hooks
 # Supports Linux (notify-send), macOS (osascript), and Windows (PowerShell)
 
+# Derive install directory from script location
+# Script is at .claude/hooks/notify-hook.sh, so go up two directories
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+INSTALL_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
+
 # Configuration
-readonly LOG_FILE="$HOME/.nori-notifications.log"
+readonly LOG_FILE="$INSTALL_DIR/.nori-notifications.log"
 readonly NOTIFICATION_TITLE="Nori-Notification"
 readonly DEFAULT_MESSAGE="Claude Code needs your attention"
 readonly NOTIFICATION_TIMEOUT=5000
