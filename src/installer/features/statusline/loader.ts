@@ -50,17 +50,8 @@ const configureStatusLine = async (args: { config: Config }): Promise<void> => {
   // Create .claude directory if it doesn't exist
   await fs.mkdir(claudeDir, { recursive: true });
 
-  // Read source script and apply template substitution
-  // For bash scripts, we need absolute paths (not tilde notation) since ~ doesn't expand in variables
-  const scriptContent = await fs.readFile(sourceScript, "utf-8");
-  const installRoot = path.dirname(config.installDir);
-  const substitutedContent = scriptContent.replace(
-    /\{\{install_dir\}\}/g,
-    installRoot,
-  );
-
-  // Write substituted script to .claude directory
-  await fs.writeFile(destScript, substitutedContent);
+  // Copy script to .claude directory
+  await fs.copyFile(sourceScript, destScript);
 
   // Make script executable
   await fs.chmod(destScript, 0o755);

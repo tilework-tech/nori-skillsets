@@ -139,8 +139,8 @@ describe("statuslineLoader", () => {
     });
   });
 
-  describe("template substitution", () => {
-    it("should copy script to .claude directory with template substitution", async () => {
+  describe("script copying", () => {
+    it("should copy script to .claude directory", async () => {
       const config: Config = { installType: "free", installDir: claudeDir };
 
       await statuslineLoader.run({ config });
@@ -154,48 +154,10 @@ describe("statuslineLoader", () => {
 
       expect(exists).toBe(true);
 
-      // Read copied script and verify {{install_dir}} was substituted
+      // Verify script contains upward search logic
       const scriptContent = await fs.readFile(copiedScriptPath, "utf-8");
-      expect(scriptContent).not.toContain("{{install_dir}}");
-      // Should use absolute path (not tilde) for bash scripts
-      expect(scriptContent).toContain(`INSTALL_DIR="${tempDir}"`);
-    });
-
-    it("should use absolute path for home installs in bash scripts", async () => {
-      // Set tempDir to home directory
-      const homeDir = os.homedir();
-      const homeTempDir = await fs.mkdtemp(
-        path.join(homeDir, ".test-nori-statusline-"),
-      );
-      const homeClaudeDir = path.join(homeTempDir, ".claude");
-      const homeSettingsPath = path.join(homeClaudeDir, "settings.json");
-
-      // Update mocks for home install
-      mockClaudeDir = homeClaudeDir;
-      mockClaudeSettingsFile = homeSettingsPath;
-
-      await fs.mkdir(homeClaudeDir, { recursive: true });
-
-      try {
-        const config: Config = {
-          installType: "free",
-          installDir: homeClaudeDir,
-        };
-
-        await statuslineLoader.run({ config });
-
-        // Read copied script and verify absolute path is used (not tilde notation)
-        // Bash scripts need absolute paths since ~ doesn't expand in variables
-        const copiedScriptPath = path.join(homeClaudeDir, "nori-statusline.sh");
-        const scriptContent = await fs.readFile(copiedScriptPath, "utf-8");
-        expect(scriptContent).toContain(`INSTALL_DIR="${homeTempDir}"`);
-      } finally {
-        // Clean up
-        await fs.rm(homeTempDir, { recursive: true, force: true });
-        // Restore mocks
-        mockClaudeDir = claudeDir;
-        mockClaudeSettingsFile = settingsPath;
-      }
+      expect(scriptContent).toContain("find_install_dir");
+      expect(scriptContent).toContain(".nori-config.json");
     });
 
     it("should point settings.json to copied script in .claude directory", async () => {

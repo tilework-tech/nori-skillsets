@@ -6,9 +6,56 @@
 # Read JSON context from stdin
 INPUT=$(cat)
 
-# === INSTALL DIRECTORY ===
-# Install directory is templated at installation time
-INSTALL_DIR="{{install_dir}}"
+# === FIND INSTALL DIRECTORY ===
+# Search upward from CWD to find .nori-config.json
+find_install_dir() {
+    local current_dir="$1"
+    local max_depth=50
+    local depth=0
+
+    while [ "$depth" -lt "$max_depth" ]; do
+        # Check for new-style config
+        if [ -f "$current_dir/.nori-config.json" ]; then
+            echo "$current_dir"
+            return 0
+        fi
+
+        # Check for legacy config
+        if [ -f "$current_dir/nori-config.json" ]; then
+            echo "$current_dir"
+            return 0
+        fi
+
+        # Check if we've reached root
+        local parent_dir="$(dirname "$current_dir")"
+        if [ "$parent_dir" = "$current_dir" ]; then
+            break
+        fi
+
+        current_dir="$parent_dir"
+        depth=$((depth + 1))
+    done
+
+    return 1
+}
+
+# Extract CWD from JSON input
+CWD_FROM_JSON=$(echo "$INPUT" | jq -r '.cwd // empty')
+
+# Find install directory by searching upward from CWD
+if [ -n "$CWD_FROM_JSON" ] && [ -d "$CWD_FROM_JSON" ]; then
+    INSTALL_DIR=$(find_install_dir "$CWD_FROM_JSON")
+else
+    # Fall back to deriving from script location if no CWD provided
+    # Script is at .claude/nori-statusline.sh, so parent is install dir
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    INSTALL_DIR="$(dirname "$SCRIPT_DIR")"
+fi
+
+# If we still don't have an install dir, use CWD as fallback
+if [ -z "$INSTALL_DIR" ]; then
+    INSTALL_DIR="${CWD_FROM_JSON:-$(pwd)}"
+fi
 
 # === CONFIG TIER ENRICHMENT ===
 # Get config tier from install directory config
