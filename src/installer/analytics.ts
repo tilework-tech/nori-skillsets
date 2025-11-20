@@ -20,7 +20,9 @@ export const trackEvent = async (args: {
 
   try {
     // Load user email from config
-    const diskConfig = await loadDiskConfig();
+    // Analytics uses cwd as installDir since it's called at runtime from CLI
+    const installDir = process.cwd();
+    const diskConfig = await loadDiskConfig({ installDir });
     const currentUserEmail = diskConfig?.auth?.username || null;
 
     // Send to backend analytics proxy (fire and forget)

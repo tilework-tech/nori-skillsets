@@ -12,69 +12,69 @@ import { normalizeInstallDir, findAncestorInstallations } from "./path.js";
 
 describe("normalizeInstallDir", () => {
   describe("default behavior", () => {
-    it("should return process.cwd()/.claude when no installDir provided", () => {
+    it("should return process.cwd() when no installDir provided", () => {
       const result = normalizeInstallDir({});
-      expect(result).toBe(path.join(process.cwd(), ".claude"));
+      expect(result).toBe(process.cwd());
     });
 
-    it("should return process.cwd()/.claude when installDir is null", () => {
+    it("should return process.cwd() when installDir is null", () => {
       const result = normalizeInstallDir({ installDir: null });
-      expect(result).toBe(path.join(process.cwd(), ".claude"));
+      expect(result).toBe(process.cwd());
     });
 
-    it("should return process.cwd()/.claude when installDir is undefined", () => {
+    it("should return process.cwd() when installDir is undefined", () => {
       const result = normalizeInstallDir({ installDir: undefined });
-      expect(result).toBe(path.join(process.cwd(), ".claude"));
+      expect(result).toBe(process.cwd());
     });
   });
 
   describe("custom installDir", () => {
-    it("should return the provided absolute path with .claude appended", () => {
+    it("should return the provided absolute path as base directory", () => {
       const result = normalizeInstallDir({ installDir: "/custom/path" });
-      expect(result).toBe("/custom/path/.claude");
+      expect(result).toBe("/custom/path");
     });
 
     it("should expand tilde to home directory", () => {
       const result = normalizeInstallDir({ installDir: "~/my-project" });
-      expect(result).toBe(path.join(os.homedir(), "my-project", ".claude"));
+      expect(result).toBe(path.join(os.homedir(), "my-project"));
     });
 
     it("should resolve relative paths to absolute paths", () => {
       const result = normalizeInstallDir({ installDir: "./my-project" });
-      expect(result).toBe(path.join(process.cwd(), "my-project", ".claude"));
+      expect(result).toBe(path.join(process.cwd(), "my-project"));
     });
 
     it("should handle paths with trailing slashes", () => {
       const result = normalizeInstallDir({ installDir: "/custom/path/" });
-      expect(result).toBe("/custom/path/.claude");
+      expect(result).toBe("/custom/path");
     });
 
-    it("should handle paths ending with .claude already", () => {
+    it("should strip .claude suffix to return base directory", () => {
       const result = normalizeInstallDir({
         installDir: "/custom/path/.claude",
       });
-      expect(result).toBe("/custom/path/.claude");
+      expect(result).toBe("/custom/path");
     });
   });
 
   describe("edge cases", () => {
     it("should handle empty string by using cwd", () => {
       const result = normalizeInstallDir({ installDir: "" });
-      expect(result).toBe(path.join(process.cwd(), ".claude"));
+      expect(result).toBe(process.cwd());
     });
 
     it("should handle paths with spaces", () => {
       const result = normalizeInstallDir({
         installDir: "/path/with spaces/project",
       });
-      expect(result).toBe("/path/with spaces/project/.claude");
+      expect(result).toBe("/path/with spaces/project");
     });
 
     it("should normalize multiple slashes", () => {
       const result = normalizeInstallDir({
         installDir: "/custom//path///project",
       });
-      expect(result).toBe("/custom/path/project/.claude");
+      expect(result).toBe("/custom/path/project");
     });
   });
 });

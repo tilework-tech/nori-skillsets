@@ -45,7 +45,7 @@ describe("listProfiles", () => {
     }
 
     const { listProfiles } = await import("./profiles.js");
-    const profiles = await listProfiles();
+    const profiles = await listProfiles({ installDir: testClaudeDir });
 
     expect(profiles).toEqual(["amol", "senior-swe"]);
   });

@@ -51,7 +51,7 @@ describe("skillsLoader", () => {
 
     // Run profiles loader to populate ~/.claude/profiles/ directory with composed profiles
     // This is required since feature loaders now read from ~/.claude/profiles/
-    const config: Config = { installType: "free" };
+    const config: Config = { installType: "free", installDir: tempDir };
     await profilesLoader.run({ config });
   });
 
@@ -65,7 +65,7 @@ describe("skillsLoader", () => {
 
   describe("run", () => {
     it("should create skills directory", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
 
       await skillsLoader.run({ config });
 
@@ -79,7 +79,7 @@ describe("skillsLoader", () => {
     });
 
     it("should remove existing skills directory before installing", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
 
       // Create skills directory with existing files
       await fs.mkdir(skillsDir, { recursive: true });
@@ -97,7 +97,7 @@ describe("skillsLoader", () => {
     });
 
     it("should handle reinstallation (update scenario)", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
 
       // First installation
       await skillsLoader.run({ config });
@@ -121,7 +121,7 @@ describe("skillsLoader", () => {
 
   describe("uninstall", () => {
     it("should remove skills directory", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
 
       // Install first
       await skillsLoader.run({ config });
@@ -145,7 +145,7 @@ describe("skillsLoader", () => {
     });
 
     it("should handle missing skills directory gracefully", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
 
       // Uninstall without installing first
       await expect(skillsLoader.uninstall({ config })).resolves.not.toThrow();
@@ -162,7 +162,7 @@ describe("skillsLoader", () => {
 
   describe("validate", () => {
     it("should return valid for properly installed skills", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
 
       // Install
       await skillsLoader.run({ config });
@@ -180,7 +180,7 @@ describe("skillsLoader", () => {
     });
 
     it("should return invalid when skills directory does not exist", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
 
       // Validate without installing
       if (skillsLoader.validate == null) {
@@ -198,7 +198,7 @@ describe("skillsLoader", () => {
 
   describe("updating-noridocs skill", () => {
     it("should include updating-noridocs skill", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
 
       await skillsLoader.run({ config });
 
@@ -229,6 +229,7 @@ describe("skillsLoader", () => {
           password: "test",
           organizationUrl: "https://test.com",
         },
+        installDir: tempDir,
       };
 
       // Recompose profiles with paid mixin
@@ -254,7 +255,7 @@ describe("skillsLoader", () => {
     });
 
     it("should not install paid-prefixed skills for free tier", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
 
       await skillsLoader.run({ config });
 
@@ -282,6 +283,7 @@ describe("skillsLoader", () => {
           password: "test",
           organizationUrl: "https://test.com",
         },
+        installDir: tempDir,
       };
 
       // Recompose profiles with paid mixin
@@ -307,6 +309,7 @@ describe("skillsLoader", () => {
           password: "test",
           organizationUrl: "https://test.com",
         },
+        installDir: tempDir,
       };
 
       // Recompose profiles with paid mixin
@@ -332,6 +335,7 @@ describe("skillsLoader", () => {
           password: "test",
           organizationUrl: "https://test.com",
         },
+        installDir: tempDir,
       };
 
       // Recompose profiles with paid mixin
@@ -357,6 +361,7 @@ describe("skillsLoader", () => {
           password: "test",
           organizationUrl: "https://test.com",
         },
+        installDir: tempDir,
       };
 
       // Recompose profiles with paid mixin
@@ -375,7 +380,7 @@ describe("skillsLoader", () => {
     });
 
     it("should not install any paid skills for free tier", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
 
       await skillsLoader.run({ config });
 
@@ -400,7 +405,7 @@ describe("skillsLoader", () => {
 
   describe("permissions configuration", () => {
     it("should configure permissions.additionalDirectories in settings.json", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
       const settingsPath = path.join(claudeDir, "settings.json");
 
       await skillsLoader.run({ config });
@@ -422,7 +427,7 @@ describe("skillsLoader", () => {
     });
 
     it("should preserve existing settings when adding permissions", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
       const settingsPath = path.join(claudeDir, "settings.json");
 
       // Create settings.json with existing configuration
@@ -451,7 +456,7 @@ describe("skillsLoader", () => {
     });
 
     it("should not duplicate skills directory in additionalDirectories", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
       const settingsPath = path.join(claudeDir, "settings.json");
 
       // First installation
@@ -472,7 +477,7 @@ describe("skillsLoader", () => {
     });
 
     it("should preserve existing additionalDirectories when adding skills directory", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
       const settingsPath = path.join(claudeDir, "settings.json");
 
       // Create settings.json with existing additionalDirectories
@@ -507,7 +512,7 @@ describe("skillsLoader", () => {
     });
 
     it("should remove permissions on uninstall", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
       const settingsPath = path.join(claudeDir, "settings.json");
 
       // Install first
@@ -531,7 +536,7 @@ describe("skillsLoader", () => {
     });
 
     it("should preserve other additionalDirectories on uninstall", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
       const settingsPath = path.join(claudeDir, "settings.json");
 
       // Create settings.json with existing additionalDirectories
@@ -572,14 +577,14 @@ describe("skillsLoader", () => {
     });
 
     it("should handle missing settings.json on uninstall gracefully", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
 
       // Uninstall without settings.json
       await expect(skillsLoader.uninstall({ config })).resolves.not.toThrow();
     });
 
     it("should validate permissions configuration", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
 
       // Install
       await skillsLoader.run({ config });
@@ -596,7 +601,7 @@ describe("skillsLoader", () => {
     });
 
     it("should return invalid when permissions are not configured", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
       const settingsPath = path.join(claudeDir, "settings.json");
 
       // Install skills but manually remove permissions

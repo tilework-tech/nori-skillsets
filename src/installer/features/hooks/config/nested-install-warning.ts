@@ -40,9 +40,10 @@ export const main = async (args?: {
   try {
     let installDir = args?.installDir;
 
-    // If no installDir provided, load from config
+    // If no installDir provided, load from config using cwd
     if (installDir == null) {
-      const diskConfig = await loadDiskConfig();
+      const cwd = process.cwd();
+      const diskConfig = await loadDiskConfig({ installDir: cwd });
       installDir = diskConfig?.installDir
         ? normalizeInstallDir({ installDir: diskConfig.installDir })
         : null;

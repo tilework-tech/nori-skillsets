@@ -24,6 +24,7 @@ describe("summarize-notification hook", () => {
     // Mock config with enabled transcripts
     vi.mocked(loadDiskConfig).mockResolvedValue({
       sendSessionTranscript: "enabled",
+      installDir: process.cwd(),
     });
 
     // Import and run the hook (dynamic import to ensure fresh module)
@@ -42,6 +43,7 @@ describe("summarize-notification hook", () => {
     // Mock config with disabled transcripts
     vi.mocked(loadDiskConfig).mockResolvedValue({
       sendSessionTranscript: "disabled",
+      installDir: process.cwd(),
     });
 
     // Import and run the hook
@@ -59,7 +61,9 @@ describe("summarize-notification hook", () => {
 
   it("should default to enabled behavior when config is missing", async () => {
     // Mock config with no sendSessionTranscript field (backward compatibility)
-    vi.mocked(loadDiskConfig).mockResolvedValue({});
+    vi.mocked(loadDiskConfig).mockResolvedValue({
+      installDir: process.cwd(),
+    });
 
     // Import and run the hook
     const { main } = await import("./summarize-notification.js");

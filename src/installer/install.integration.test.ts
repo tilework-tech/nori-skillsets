@@ -64,13 +64,19 @@ vi.mock("./env.js", () => {
   const testClaudeDir = "/tmp/install-integration-test-claude";
   return {
     MCP_ROOT: testRoot,
-    getClaudeDir: () => testClaudeDir,
-    getClaudeSettingsFile: () => `${testClaudeDir}/settings.json`,
-    getClaudeAgentsDir: () => `${testClaudeDir}/agents`,
-    getClaudeCommandsDir: () => `${testClaudeDir}/commands`,
-    getClaudeMdFile: () => `${testClaudeDir}/CLAUDE.md`,
-    getClaudeSkillsDir: () => `${testClaudeDir}/skills`,
-    getClaudeProfilesDir: () => `${testClaudeDir}/profiles`,
+    getClaudeDir: (_args: { installDir: string }) => testClaudeDir,
+    getClaudeSettingsFile: (_args: { installDir: string }) =>
+      `${testClaudeDir}/settings.json`,
+    getClaudeAgentsDir: (_args: { installDir: string }) =>
+      `${testClaudeDir}/agents`,
+    getClaudeCommandsDir: (_args: { installDir: string }) =>
+      `${testClaudeDir}/commands`,
+    getClaudeMdFile: (_args: { installDir: string }) =>
+      `${testClaudeDir}/CLAUDE.md`,
+    getClaudeSkillsDir: (_args: { installDir: string }) =>
+      `${testClaudeDir}/skills`,
+    getClaudeProfilesDir: (_args: { installDir: string }) =>
+      `${testClaudeDir}/profiles`,
   };
 });
 
@@ -158,7 +164,7 @@ describe("install integration test", () => {
     fs.writeFileSync(MARKER_FILE_PATH, "installed by v12.0.0");
 
     // Verify initial state
-    expect(getInstalledVersion()).toBe("12.0.0");
+    expect(getInstalledVersion({ installDir: tempDir })).toBe("12.0.0");
     expect(fs.existsSync(MARKER_FILE_PATH)).toBe(true);
 
     // STEP 2: Run installation (simulating upgrade to 13.0.0)
@@ -167,7 +173,7 @@ describe("install integration test", () => {
     // 2. Call uninstall with that version (which removes marker file)
     // 3. Install new version
     // 4. Save new version (13.0.0)
-    await installMain({ nonInteractive: true });
+    await installMain({ nonInteractive: true, installDir: tempDir });
 
     // STEP 3: Verify upgrade behavior
 
@@ -184,11 +190,11 @@ describe("install integration test", () => {
     expect(newVersion).toBe("13.0.0");
 
     // getInstalledVersion should now return the new version
-    expect(getInstalledVersion()).toBe("13.0.0");
+    expect(getInstalledVersion({ installDir: tempDir })).toBe("13.0.0");
   });
 
   it("should install paid features for paid users with auth credentials", async () => {
-    const CONFIG_PATH = getConfigPath();
+    const CONFIG_PATH = getConfigPath({ installDir: tempDir });
 
     // STEP 1: Create config with auth credentials (paid user)
     const paidConfig = {
@@ -202,7 +208,7 @@ describe("install integration test", () => {
     fs.writeFileSync(CONFIG_PATH, JSON.stringify(paidConfig, null, 2));
 
     // STEP 2: Run installation in non-interactive mode
-    await installMain({ nonInteractive: true });
+    await installMain({ nonInteractive: true, installDir: tempDir });
 
     // STEP 3: Verify paid features are installed
     // Check that paid skills exist in the profile (WITH 'paid-' prefix from mixin)
@@ -236,7 +242,7 @@ describe("install integration test", () => {
   });
 
   it("should NOT install paid features for free users without auth credentials", async () => {
-    const CONFIG_PATH = getConfigPath();
+    const CONFIG_PATH = getConfigPath({ installDir: tempDir });
 
     // STEP 1: Create config WITHOUT auth credentials (free user)
     const freeConfig = {
@@ -247,7 +253,7 @@ describe("install integration test", () => {
     fs.writeFileSync(CONFIG_PATH, JSON.stringify(freeConfig, null, 2));
 
     // STEP 2: Run installation in non-interactive mode
-    await installMain({ nonInteractive: true });
+    await installMain({ nonInteractive: true, installDir: tempDir });
 
     // STEP 3: Verify paid features are NOT installed
     const profileDir = path.join(TEST_CLAUDE_DIR, "profiles", "senior-swe");
@@ -284,13 +290,13 @@ describe("install integration test", () => {
   it("should skip uninstall for first-time installation", async () => {
     // Ensure no existing installation
     expect(fs.existsSync(VERSION_FILE_PATH)).toBe(false);
-    const CONFIG_PATH = getConfigPath();
+    const CONFIG_PATH = getConfigPath({ installDir: tempDir });
     try {
       fs.unlinkSync(CONFIG_PATH);
     } catch {}
 
     // Run installation
-    await installMain({ nonInteractive: true });
+    await installMain({ nonInteractive: true, installDir: tempDir });
 
     // Verify uninstall was NOT called
     expect(uninstallCalledWith).toBeNull();
@@ -307,11 +313,15 @@ describe("install integration test", () => {
     fs.writeFileSync(MARKER_FILE_PATH, "installed by v12.0.0");
 
     // Verify initial state
-    expect(getInstalledVersion()).toBe("12.0.0");
+    expect(getInstalledVersion({ installDir: tempDir })).toBe("12.0.0");
     expect(fs.existsSync(MARKER_FILE_PATH)).toBe(true);
 
     // STEP 2: Run installation with skipUninstall=true
-    await installMain({ nonInteractive: true, skipUninstall: true });
+    await installMain({
+      nonInteractive: true,
+      skipUninstall: true,
+      installDir: tempDir,
+    });
 
     // STEP 3: Verify uninstall was NOT called
     expect(uninstallCalledWith).toBeNull();
@@ -340,7 +350,7 @@ describe("install integration test", () => {
     }
 
     // Get the config path used by tests (should be in temp dir)
-    const testConfigPath = getConfigPath();
+    const testConfigPath = getConfigPath({ installDir: tempDir });
 
     // Verify that test config path is NOT the real config path
     // This proves cwd is mocked to a temp directory
@@ -365,7 +375,7 @@ describe("install integration test", () => {
   });
 
   it("should completely clean up all Nori files after uninstall", async () => {
-    const CONFIG_PATH = getConfigPath();
+    const CONFIG_PATH = getConfigPath({ installDir: tempDir });
 
     // Helper to recursively get all files/dirs in a directory
     const getDirectorySnapshot = (dir: string): Array<string> => {
@@ -402,7 +412,7 @@ describe("install integration test", () => {
     };
     fs.writeFileSync(CONFIG_PATH, JSON.stringify(paidConfig, null, 2));
 
-    await installMain({ nonInteractive: true });
+    await installMain({ nonInteractive: true, installDir: tempDir });
 
     // STEP 3: Verify installation actually created files
     const postInstallClaudeSnapshot = getDirectorySnapshot(TEST_CLAUDE_DIR);
@@ -435,7 +445,7 @@ describe("install integration test", () => {
     fs.writeFileSync(notificationsLog, "test notification log");
 
     // STEP 4: Run uninstall with removeConfig=true (user-initiated uninstall)
-    await runUninstall({ removeConfig: true });
+    await runUninstall({ removeConfig: true, installDir: tempDir });
 
     // STEP 5: Snapshot state AFTER uninstall
     const postUninstallClaudeSnapshot = getDirectorySnapshot(TEST_CLAUDE_DIR);

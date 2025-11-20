@@ -51,7 +51,7 @@ describe("claudeMdLoader", () => {
 
     // Run profiles loader to populate ~/.claude/profiles/ directory with composed profiles
     // This is required since feature loaders now read from ~/.claude/profiles/
-    const config: Config = { installType: "free" };
+    const config: Config = { installType: "free", installDir: tempDir };
     await profilesLoader.run({ config });
   });
 
@@ -65,7 +65,7 @@ describe("claudeMdLoader", () => {
 
   describe("run", () => {
     it("should create CLAUDE.md with managed block for free installation", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
 
       await claudeMdLoader.run({ config });
 
@@ -86,7 +86,7 @@ describe("claudeMdLoader", () => {
     });
 
     it("should create CLAUDE.md with managed block for paid installation", async () => {
-      const config: Config = { installType: "paid" };
+      const config: Config = { installType: "paid", installDir: tempDir };
 
       await claudeMdLoader.run({ config });
 
@@ -103,7 +103,7 @@ describe("claudeMdLoader", () => {
     });
 
     it("should append managed block to existing CLAUDE.md without destroying user content", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
 
       // Create existing CLAUDE.md with user content
       const userContent =
@@ -125,7 +125,7 @@ describe("claudeMdLoader", () => {
     });
 
     it("should update existing managed block without affecting user content", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
 
       // Create existing CLAUDE.md with managed block and user content
       const existingContent = `# User Content Before
@@ -169,6 +169,7 @@ More user instructions.
       const seniorSweConfig: Config = {
         installType: "free",
         profile: { baseProfile: "senior-swe" },
+        installDir: tempDir,
       };
       await claudeMdLoader.run({ config: seniorSweConfig });
 
@@ -181,6 +182,7 @@ More user instructions.
       const amolConfig: Config = {
         installType: "paid",
         profile: { baseProfile: "amol" },
+        installDir: tempDir,
       };
       await claudeMdLoader.run({ config: amolConfig });
 
@@ -197,7 +199,7 @@ More user instructions.
 
   describe("uninstall", () => {
     it("should remove managed block from CLAUDE.md", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
 
       // First install
       await claudeMdLoader.run({ config });
@@ -223,7 +225,7 @@ More user instructions.
     });
 
     it("should delete CLAUDE.md if empty after removing managed block", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
 
       // Install (creates CLAUDE.md with only managed block)
       await claudeMdLoader.run({ config });
@@ -241,7 +243,7 @@ More user instructions.
     });
 
     it("should handle missing CLAUDE.md gracefully", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
 
       // Uninstall without installing first (no CLAUDE.md exists)
       await expect(claudeMdLoader.uninstall({ config })).resolves.not.toThrow();
@@ -256,7 +258,7 @@ More user instructions.
     });
 
     it("should handle CLAUDE.md without managed block gracefully", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
 
       // Create CLAUDE.md without managed block
       const userContent = "# User Instructions\n\nNo nori content here.\n";
@@ -273,7 +275,7 @@ More user instructions.
 
   describe("validate", () => {
     it("should return valid for properly installed CLAUDE.md", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
 
       // Install
       await claudeMdLoader.run({ config });
@@ -291,7 +293,7 @@ More user instructions.
     });
 
     it("should return invalid when CLAUDE.md does not exist", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
 
       // Validate without installing
       if (claudeMdLoader.validate == null) {
@@ -308,7 +310,7 @@ More user instructions.
     });
 
     it("should return invalid when managed block is missing", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
 
       // Create CLAUDE.md without managed block
       const userContent = "# User Instructions\n\nNo nori content here.\n";
@@ -334,6 +336,7 @@ More user instructions.
       const config: Config = {
         installType: "free",
         profile: { baseProfile: "senior-swe" },
+        installDir: tempDir,
       };
 
       await claudeMdLoader.run({ config });
@@ -354,6 +357,7 @@ More user instructions.
       const config: Config = {
         installType: "paid",
         profile: { baseProfile: "amol" },
+        installDir: tempDir,
       };
 
       await claudeMdLoader.run({ config });
@@ -368,7 +372,7 @@ More user instructions.
     });
 
     it("should use default profile (senior-swe) when no profile specified", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
 
       await claudeMdLoader.run({ config });
 
@@ -386,6 +390,7 @@ More user instructions.
       const config: Config = {
         installType: "free",
         profile: { baseProfile: "senior-swe" },
+        installDir: tempDir,
       };
 
       await claudeMdLoader.run({ config });
@@ -408,6 +413,7 @@ More user instructions.
       const config: Config = {
         installType: "free",
         profile: { baseProfile: "senior-swe" },
+        installDir: tempDir,
       };
 
       await claudeMdLoader.run({ config });
@@ -430,6 +436,7 @@ More user instructions.
           organizationUrl: "https://test.com",
         },
         profile: { baseProfile: "senior-swe" },
+        installDir: tempDir,
       };
 
       // Recompose profiles with paid mixin
@@ -453,6 +460,7 @@ More user instructions.
       const config: Config = {
         installType: "free",
         profile: { baseProfile: "product-manager" },
+        installDir: tempDir,
       };
 
       await claudeMdLoader.run({ config });
@@ -471,6 +479,7 @@ More user instructions.
       const config: Config = {
         installType: "free",
         profile: { baseProfile: "senior-swe" },
+        installDir: tempDir,
       };
 
       await claudeMdLoader.run({ config });

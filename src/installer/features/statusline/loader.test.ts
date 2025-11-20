@@ -68,7 +68,7 @@ describe("statuslineLoader", () => {
 
   describe("run", () => {
     it("should create settings.json with statusLine configuration", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
 
       await statuslineLoader.run({ config });
 
@@ -92,7 +92,7 @@ describe("statuslineLoader", () => {
     });
 
     it("should preserve existing settings when adding statusLine", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
 
       // Create settings.json with existing content
       const existingSettings = {
@@ -121,7 +121,7 @@ describe("statuslineLoader", () => {
     });
 
     it("should update statusLine if already configured", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
 
       // First installation
       await statuslineLoader.run({ config });
@@ -141,7 +141,7 @@ describe("statuslineLoader", () => {
 
   describe("statusline script", () => {
     it("should include profile name in output when nori-config.json exists", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
 
       // Install statusline
       await statuslineLoader.run({ config });
@@ -185,7 +185,7 @@ describe("statuslineLoader", () => {
     });
 
     it("should not show profile when nori-config.json does not exist", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
 
       // Install statusline
       await statuslineLoader.run({ config });
@@ -228,7 +228,7 @@ describe("statuslineLoader", () => {
 
   describe("uninstall", () => {
     it("should remove statusLine from settings.json", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
 
       // Install first
       await statuslineLoader.run({ config });
@@ -248,7 +248,7 @@ describe("statuslineLoader", () => {
     });
 
     it("should preserve other settings when removing statusLine", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
 
       // Create settings with statusLine and other content
       await statuslineLoader.run({ config });
@@ -269,7 +269,7 @@ describe("statuslineLoader", () => {
     });
 
     it("should handle missing settings.json gracefully", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
 
       // Uninstall without installing first
       await expect(
@@ -278,7 +278,7 @@ describe("statuslineLoader", () => {
     });
 
     it("should handle settings.json without statusLine gracefully", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
 
       // Create settings.json without statusLine
       const settings = {

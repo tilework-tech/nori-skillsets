@@ -42,13 +42,15 @@ const showHelp = (): void => {
 
 /**
  * Run validation checks on Nori installation
+ * This is a CLI entry point that accepts optional installDir
  * @param args - Configuration arguments
- * @param args.installDir - Custom installation directory (optional)
+ * @param args.installDir - Custom installation directory (optional, defaults to cwd)
  */
 const checkMain = async (args?: {
   installDir?: string | null;
 }): Promise<void> => {
-  const { installDir } = args || {};
+  // Normalize installDir at entry point
+  const installDir = normalizeInstallDir({ installDir: args?.installDir });
 
   console.log("");
   info({ message: "Running Nori Profiles validation checks..." });
@@ -74,12 +76,7 @@ const checkMain = async (args?: {
 
   // Load config to determine install type
   const diskConfig = await loadDiskConfig({ installDir });
-  const config = generateConfig({ diskConfig });
-
-  // Add installDir to config
-  if (installDir != null) {
-    config.installDir = installDir;
-  }
+  const config = generateConfig({ diskConfig, installDir });
 
   // Check server connectivity (paid mode only)
   if (config.installType === "paid") {

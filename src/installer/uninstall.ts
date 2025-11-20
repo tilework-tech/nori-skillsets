@@ -25,20 +25,21 @@ import { LoaderRegistry } from "@/installer/features/loaderRegistry.js";
 import { error, success, info, warn } from "@/installer/logger.js";
 import { promptUser } from "@/installer/prompt.js";
 import { getVersionFilePath } from "@/installer/version.js";
+import { normalizeInstallDir } from "@/utils/path.js";
 
 /**
  * Prompt user for confirmation before uninstalling
  * @param args - Configuration arguments
- * @param args.installDir - Custom installation directory (optional)
+ * @param args.installDir - Installation directory
  *
  * @returns The configuration (paid or free) if user confirms, null to exit
  */
-const promptForUninstall = async (args?: {
-  installDir?: string | null;
+const promptForUninstall = async (args: {
+  installDir: string;
 }): Promise<{
   config: Config;
 } | null> => {
-  const { installDir } = args || {};
+  const { installDir } = args;
 
   info({ message: "Nori Profiles Uninstaller" });
   console.log();
@@ -87,13 +88,7 @@ const promptForUninstall = async (args?: {
 
   console.log();
 
-  const config = generateConfig({ diskConfig: existingDiskConfig });
-  // Add installDir from CLI or existing config
-  if (installDir != null) {
-    config.installDir = installDir;
-  } else if (existingDiskConfig?.installDir != null) {
-    config.installDir = existingDiskConfig.installDir;
-  }
+  const config = generateConfig({ diskConfig: existingDiskConfig, installDir });
 
   return { config };
 };
@@ -136,15 +131,13 @@ const cleanupEmptyDirectories = async (args: {
 /**
  * Remove the .nori-notifications.log file
  * @param args - Configuration arguments
- * @param args.installDir - Custom installation directory (optional)
+ * @param args.installDir - Installation directory
  */
-const cleanupNotificationsLog = async (args?: {
-  installDir?: string | null;
+const cleanupNotificationsLog = async (args: {
+  installDir: string;
 }): Promise<void> => {
-  const { installDir } = args || {};
-  const baseDir =
-    installDir != null && installDir !== "" ? installDir : process.cwd();
-  const logPath = path.join(baseDir, ".nori-notifications.log");
+  const { installDir } = args;
+  const logPath = path.join(installDir, ".nori-notifications.log");
 
   try {
     await fs.access(logPath);
@@ -158,12 +151,12 @@ const cleanupNotificationsLog = async (args?: {
 /**
  * Remove the nori-config.json file and .nori-installed-version file
  * @param args - Configuration arguments
- * @param args.installDir - Custom installation directory (optional)
+ * @param args.installDir - Installation directory
  */
-const removeConfigFile = async (args?: {
-  installDir?: string | null;
+const removeConfigFile = async (args: {
+  installDir: string;
 }): Promise<void> => {
-  const { installDir } = args || {};
+  const { installDir } = args;
   const configPath = getConfigPath({ installDir });
   const versionPath = getVersionFilePath({ installDir });
 
@@ -193,25 +186,18 @@ const removeConfigFile = async (args?: {
  * @param args - Configuration arguments
  * @param args.removeConfig - Whether to remove the config file (default: false)
  * @param args.installedVersion - Version being uninstalled (for logging)
- * @param args.installDir - Custom installation directory (optional)
+ * @param args.installDir - Installation directory
  */
-export const runUninstall = async (args?: {
+export const runUninstall = async (args: {
   removeConfig?: boolean | null;
   installedVersion?: string | null;
-  installDir?: string | null;
+  installDir: string;
 }): Promise<void> => {
-  const { removeConfig, installedVersion, installDir } = args || {};
+  const { removeConfig, installedVersion, installDir } = args;
 
   // Load config to determine install type (defaults to free if none exists)
   const existingDiskConfig = await loadDiskConfig({ installDir });
-  const config = generateConfig({ diskConfig: existingDiskConfig });
-
-  // Add installDir to config
-  if (installDir != null) {
-    config.installDir = installDir;
-  } else if (existingDiskConfig?.installDir != null) {
-    config.installDir = existingDiskConfig.installDir;
-  }
+  const config = generateConfig({ diskConfig: existingDiskConfig, installDir });
 
   // Log installed version for debugging
   if (installedVersion) {
@@ -266,15 +252,18 @@ export const runUninstall = async (args?: {
 
 /**
  * Main uninstaller entry point
+ * This is a CLI entry point that accepts optional installDir
  * @param args - Configuration arguments
  * @param args.nonInteractive - Whether to run in non-interactive mode (skips prompts, preserves config)
- * @param args.installDir - Custom installation directory (optional)
+ * @param args.installDir - Custom installation directory (optional, defaults to cwd)
  */
 export const main = async (args?: {
   nonInteractive?: boolean | null;
   installDir?: string | null;
 }): Promise<void> => {
-  const { nonInteractive, installDir } = args || {};
+  const { nonInteractive } = args || {};
+  // Normalize installDir at entry point
+  const installDir = normalizeInstallDir({ installDir: args?.installDir });
 
   try {
     // Initialize analytics

@@ -120,7 +120,7 @@ describe("version", () => {
       // Create a test version file
       fs.writeFileSync(VERSION_FILE_PATH, "13.5.2", "utf-8");
 
-      const version = getInstalledVersion();
+      const version = getInstalledVersion({ installDir: tempDir });
       expect(version).toBe("13.5.2");
     });
 
@@ -132,7 +132,7 @@ describe("version", () => {
         // Ignore if already doesn't exist
       }
 
-      const version = getInstalledVersion();
+      const version = getInstalledVersion({ installDir: tempDir });
       expect(version).toBe("12.1.0");
     });
 
@@ -140,7 +140,7 @@ describe("version", () => {
       // Create an empty version file
       fs.writeFileSync(VERSION_FILE_PATH, "", "utf-8");
 
-      const version = getInstalledVersion();
+      const version = getInstalledVersion({ installDir: tempDir });
       expect(version).toBe("12.1.0");
     });
 
@@ -148,7 +148,7 @@ describe("version", () => {
       // Create version file with whitespace
       fs.writeFileSync(VERSION_FILE_PATH, "  14.0.0  \n", "utf-8");
 
-      const version = getInstalledVersion();
+      const version = getInstalledVersion({ installDir: tempDir });
       expect(version).toBe("14.0.0");
     });
 
@@ -180,7 +180,7 @@ describe("version", () => {
 
       // Run all the test operations
       fs.writeFileSync(VERSION_FILE_PATH, "13.5.2", "utf-8");
-      getInstalledVersion();
+      getInstalledVersion({ installDir: tempDir });
 
       // Verify real version file still exists (if it existed before)
       if (existedBefore) {
@@ -230,7 +230,7 @@ describe("version", () => {
     });
 
     it("should save version to .nori-installed-version in cwd", () => {
-      saveInstalledVersion({ version: "15.0.0" });
+      saveInstalledVersion({ version: "15.0.0", installDir: tempDir });
 
       const savedVersion = fs.readFileSync(VERSION_FILE_PATH, "utf-8");
       expect(savedVersion).toBe("15.0.0");
@@ -241,7 +241,7 @@ describe("version", () => {
       fs.writeFileSync(VERSION_FILE_PATH, "10.0.0", "utf-8");
 
       // Overwrite with new version
-      saveInstalledVersion({ version: "11.0.0" });
+      saveInstalledVersion({ version: "11.0.0", installDir: tempDir });
 
       const savedVersion = fs.readFileSync(VERSION_FILE_PATH, "utf-8");
       expect(savedVersion).toBe("11.0.0");
@@ -274,7 +274,7 @@ describe("version", () => {
       expect(process.cwd()).toContain("version-test-saveInstalledVersion-");
 
       // Run all the test operations
-      saveInstalledVersion({ version: "15.0.0" });
+      saveInstalledVersion({ version: "15.0.0", installDir: tempDir });
 
       // Verify real version file still exists (if it existed before)
       if (existedBefore) {
@@ -308,7 +308,7 @@ describe("version", () => {
 
       // Now paths point to temp directory
       VERSION_FILE_PATH = path.join(tempDir, ".nori-installed-version");
-      CONFIG_PATH = getConfigPath();
+      CONFIG_PATH = getConfigPath({ installDir: tempDir });
 
       // Clean up any existing files in temp dir
       try {
@@ -330,23 +330,23 @@ describe("version", () => {
     });
 
     it("should return false when neither version file nor config exists", () => {
-      expect(hasExistingInstallation()).toBe(false);
+      expect(hasExistingInstallation({ installDir: tempDir })).toBe(false);
     });
 
     it("should return true when version file exists", () => {
       fs.writeFileSync(VERSION_FILE_PATH, "13.0.0");
-      expect(hasExistingInstallation()).toBe(true);
+      expect(hasExistingInstallation({ installDir: tempDir })).toBe(true);
     });
 
     it("should return true when config file exists", () => {
       fs.writeFileSync(CONFIG_PATH, "{}");
-      expect(hasExistingInstallation()).toBe(true);
+      expect(hasExistingInstallation({ installDir: tempDir })).toBe(true);
     });
 
     it("should return true when both version and config files exist", () => {
       fs.writeFileSync(VERSION_FILE_PATH, "13.0.0");
       fs.writeFileSync(CONFIG_PATH, "{}");
-      expect(hasExistingInstallation()).toBe(true);
+      expect(hasExistingInstallation({ installDir: tempDir })).toBe(true);
     });
 
     it("should never delete real user config file", () => {
@@ -376,7 +376,7 @@ describe("version", () => {
       } catch {}
 
       fs.writeFileSync(CONFIG_PATH, "{}");
-      hasExistingInstallation();
+      hasExistingInstallation({ installDir: tempDir });
 
       try {
         fs.unlinkSync(CONFIG_PATH);

@@ -61,8 +61,10 @@ Description:
  */
 export const main = async (): Promise<void> => {
   // 1. Check tier
-  const diskConfig = await loadDiskConfig();
-  const config = generateConfig({ diskConfig });
+  // Use cwd as installDir since skill scripts run from project directory
+  const installDir = process.cwd();
+  const diskConfig = await loadDiskConfig({ installDir });
+  const config = generateConfig({ diskConfig, installDir });
 
   if (config.installType !== "paid") {
     console.error("Error: This feature requires a paid Nori subscription.");

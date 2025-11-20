@@ -9,18 +9,19 @@ import * as path from "path";
 import { loadDiskConfig, saveDiskConfig } from "@/installer/config.js";
 import { getClaudeProfilesDir } from "@/installer/env.js";
 import { success, info } from "@/installer/logger.js";
+import { normalizeInstallDir } from "@/utils/path.js";
 
 /**
  * List all available profiles from ~/.claude/profiles/
  * @param args - Configuration arguments
- * @param args.installDir - Custom installation directory (optional)
+ * @param args.installDir - Installation directory
  *
  * @returns Array of profile names
  */
-export const listProfiles = async (args?: {
-  installDir?: string | null;
+export const listProfiles = async (args: {
+  installDir: string;
 }): Promise<Array<string>> => {
-  const { installDir } = args || {};
+  const { installDir } = args;
   const profilesDir = getClaudeProfilesDir({ installDir });
   const profiles: Array<string> = [];
 
@@ -57,15 +58,19 @@ export const listProfiles = async (args?: {
 /**
  * Switch to a profile by name
  * Preserves auth credentials, updates profile selection
+ * This is a CLI entry point that accepts optional installDir
  * @param args - Function arguments
  * @param args.profileName - Name of profile to switch to
- * @param args.installDir - Custom installation directory (optional)
+ * @param args.installDir - Custom installation directory (optional, defaults to cwd)
  */
 export const switchProfile = async (args: {
   profileName: string;
   installDir?: string | null;
 }): Promise<void> => {
-  const { profileName, installDir } = args;
+  const { profileName } = args;
+  // Normalize installDir at entry point
+  const installDir = normalizeInstallDir({ installDir: args.installDir });
+
   const profilesDir = getClaudeProfilesDir({ installDir });
 
   // 1. Verify profile exists by checking for CLAUDE.md in profile directory

@@ -282,6 +282,7 @@ describe("autoupdate", () => {
         profile: {
           baseProfile: "senior-swe",
         },
+        installDir: process.cwd(),
       });
 
       // Mock trackEvent
@@ -377,6 +378,7 @@ describe("autoupdate", () => {
         profile: {
           baseProfile: "senior-swe",
         },
+        installDir: process.cwd(),
       });
 
       // Mock trackEvent

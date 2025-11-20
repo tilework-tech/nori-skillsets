@@ -11,7 +11,7 @@ import * as path from "path";
  * @param args - Configuration arguments
  * @param args.installDir - The installation directory (optional)
  *
- * @returns Absolute path to the .claude directory
+ * @returns Absolute path to the base installation directory
  */
 export const normalizeInstallDir = (args: {
   installDir?: string | null;
@@ -20,7 +20,7 @@ export const normalizeInstallDir = (args: {
 
   // Use current working directory if no installDir provided or empty
   if (installDir == null || installDir === "") {
-    return path.join(process.cwd(), ".claude");
+    return process.cwd();
   }
 
   let normalizedPath = installDir;
@@ -37,16 +37,20 @@ export const normalizeInstallDir = (args: {
     normalizedPath = path.join(process.cwd(), normalizedPath);
   }
 
-  // Normalize the path (removes trailing slashes, resolves . and .., normalizes multiple slashes)
+  // Normalize the path (resolves . and .., normalizes multiple slashes)
   normalizedPath = path.normalize(normalizedPath);
 
-  // If path already ends with .claude, return as-is
-  if (path.basename(normalizedPath) === ".claude") {
-    return normalizedPath;
+  // Remove trailing slash if present (except for root)
+  if (normalizedPath.length > 1 && normalizedPath.endsWith("/")) {
+    normalizedPath = normalizedPath.slice(0, -1);
   }
 
-  // Append .claude to the path
-  return path.join(normalizedPath, ".claude");
+  // If path ends with .claude, strip it to get the base directory
+  if (path.basename(normalizedPath) === ".claude") {
+    return path.dirname(normalizedPath);
+  }
+
+  return normalizedPath;
 };
 
 /**

@@ -58,14 +58,14 @@ const __dirname = path.dirname(__filename);
 /**
  * Prompt user to select a profile
  * @param args - Configuration arguments
- * @param args.installDir - Custom installation directory (optional)
+ * @param args.installDir - Installation directory
  *
  * @returns Selected profile name
  */
-const promptForProfileSelection = async (args?: {
-  installDir?: string | null;
+const promptForProfileSelection = async (args: {
+  installDir: string;
 }): Promise<string> => {
-  const { installDir } = args || {};
+  const { installDir } = args;
 
   info({
     message: wrapText({
@@ -261,7 +261,7 @@ const promptForAuth = async (args: {
  * @param args - Configuration arguments
  * @param args.auth - Auth credentials (already determined)
  * @param args.existingProfile - Existing profile selection (if reusing config)
- * @param args.installDir - Custom installation directory (optional)
+ * @param args.installDir - Installation directory
  *
  * @returns The configuration and disk config to save
  */
@@ -272,7 +272,7 @@ const completeConfig = async (args: {
     organizationUrl: string;
   } | null;
   existingProfile: { baseProfile: string } | null;
-  installDir?: string | null;
+  installDir: string;
 }): Promise<{
   config: Config;
   diskConfigToSave: DiskConfig;
@@ -291,11 +291,12 @@ const completeConfig = async (args: {
     profile: {
       baseProfile: selectedProfileName,
     },
+    installDir,
   };
 
   return {
     config: {
-      ...generateConfig({ diskConfig }),
+      ...generateConfig({ diskConfig, installDir }),
     },
     diskConfigToSave: diskConfig,
   };
@@ -375,8 +376,13 @@ export const main = async (args?: {
     }
 
     // Check if there's an existing installation to clean up
-    if (!skipUninstall && hasExistingInstallation({ installDir })) {
-      const previousVersion = getInstalledVersion({ installDir });
+    if (
+      !skipUninstall &&
+      hasExistingInstallation({ installDir: normalizedInstallDir })
+    ) {
+      const previousVersion = getInstalledVersion({
+        installDir: normalizedInstallDir,
+      });
       info({
         message: `Cleaning up previous installation (v${previousVersion})...`,
       });
@@ -407,7 +413,9 @@ export const main = async (args?: {
     }
 
     // Load existing disk config (if any)
-    const existingDiskConfig = await loadDiskConfig({ installDir });
+    const existingDiskConfig = await loadDiskConfig({
+      installDir: normalizedInstallDir,
+    });
 
     let config: Config;
     let diskConfigToSave: DiskConfig | null = null;
@@ -416,16 +424,19 @@ export const main = async (args?: {
       // Non-interactive mode: use existing config or default to free
       if (existingDiskConfig?.auth) {
         config = {
-          ...generateConfig({ diskConfig: existingDiskConfig }),
+          ...generateConfig({
+            diskConfig: existingDiskConfig,
+            installDir: normalizedInstallDir,
+          }),
           nonInteractive: true,
-          installDir: installDir || existingDiskConfig?.installDir || null,
+          installDir: normalizedInstallDir,
         };
       } else {
         config = {
           installType: "free",
           nonInteractive: true,
           profile: { baseProfile: "senior-swe" },
-          installDir: installDir || null,
+          installDir: normalizedInstallDir,
         };
       }
 
@@ -449,13 +460,12 @@ export const main = async (args?: {
       const tempDiskConfig: DiskConfig = {
         auth: auth || undefined,
         profile: existingDiskConfig?.profile || null,
-        installDir: installDir || existingDiskConfig?.installDir || null,
+        installDir: normalizedInstallDir,
       };
-      config = generateConfig({ diskConfig: tempDiskConfig });
-      // Add installDir to config if provided via CLI
-      if (installDir != null) {
-        config.installDir = installDir;
-      }
+      config = generateConfig({
+        diskConfig: tempDiskConfig,
+        installDir: normalizedInstallDir,
+      });
 
       // 3. Run profile loader with CORRECT config (paid if auth exists)
       info({ message: "Loading available profiles..." });
@@ -467,17 +477,12 @@ export const main = async (args?: {
         const result = await completeConfig({
           auth,
           existingProfile: null, // Force new selection
-          installDir,
+          installDir: normalizedInstallDir,
         });
         config = result.config;
-        // Preserve installDir from CLI or existing config
-        config.installDir =
-          installDir || existingDiskConfig?.installDir || null;
         diskConfigToSave = result.diskConfigToSave;
       } else {
-        // Reusing existing config - no need to save, but ensure installDir is set
-        config.installDir =
-          installDir || existingDiskConfig?.installDir || null;
+        // Reusing existing config - no need to save
         diskConfigToSave = null;
       }
     }
@@ -508,10 +513,10 @@ export const main = async (args?: {
         password: diskConfigToSave.auth?.password || null,
         organizationUrl: diskConfigToSave.auth?.organizationUrl || null,
         profile: diskConfigToSave.profile || null,
-        installDir: installDir || null,
+        installDir: normalizedInstallDir,
       });
       success({
-        message: `Configuration saved to ${getConfigPath({ installDir })}`,
+        message: `Configuration saved to ${getConfigPath({ installDir: normalizedInstallDir })}`,
       });
       console.log();
     }
@@ -535,7 +540,10 @@ export const main = async (args?: {
     // Save installed version
     const finalVersion = getCurrentPackageVersion();
     if (finalVersion) {
-      saveInstalledVersion({ version: finalVersion, installDir });
+      saveInstalledVersion({
+        version: finalVersion,
+        installDir: normalizedInstallDir,
+      });
     }
 
     // Delete install-in-progress marker on successful completion

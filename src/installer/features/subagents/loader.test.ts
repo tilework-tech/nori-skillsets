@@ -52,7 +52,7 @@ describe("subagentsLoader", () => {
     // Install profiles first to set up composed profile structure
     // Run profiles loader to populate ~/.claude/profiles/ directory
     // This is required since feature loaders now read from ~/.claude/profiles/
-    const config: Config = { installType: "free" };
+    const config: Config = { installType: "free", installDir: tempDir };
     await profilesLoader.run({ config });
   });
 
@@ -66,7 +66,7 @@ describe("subagentsLoader", () => {
 
   describe("run", () => {
     it("should create agents directory and copy subagent files for free installation", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
 
       await subagentsLoader.run({ config });
 
@@ -98,6 +98,7 @@ describe("subagentsLoader", () => {
           password: "test",
           organizationUrl: "https://test.com",
         },
+        installDir: tempDir,
       };
 
       // Recompose profiles with paid mixin
@@ -126,7 +127,7 @@ describe("subagentsLoader", () => {
     });
 
     it("should copy more subagents for paid than free installation", async () => {
-      const freeConfig: Config = { installType: "free" };
+      const freeConfig: Config = { installType: "free", installDir: tempDir };
       const paidConfig: Config = {
         installType: "paid",
         auth: {
@@ -134,6 +135,7 @@ describe("subagentsLoader", () => {
           password: "test",
           organizationUrl: "https://test.com",
         },
+        installDir: tempDir,
       };
 
       // Free installation
@@ -156,7 +158,7 @@ describe("subagentsLoader", () => {
     });
 
     it("should handle reinstallation (update scenario)", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
 
       // First installation
       await subagentsLoader.run({ config });
@@ -174,7 +176,7 @@ describe("subagentsLoader", () => {
 
   describe("uninstall", () => {
     it("should remove subagent files for free installation", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
 
       // Install first
       await subagentsLoader.run({ config });
@@ -202,7 +204,7 @@ describe("subagentsLoader", () => {
     });
 
     it("should remove subagent files for paid installation", async () => {
-      const config: Config = { installType: "paid" };
+      const config: Config = { installType: "paid", installDir: tempDir };
 
       // Install first
       await subagentsLoader.run({ config });
@@ -232,7 +234,7 @@ describe("subagentsLoader", () => {
     });
 
     it("should handle missing agents directory gracefully", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
 
       // Uninstall without installing first
       await expect(
@@ -243,7 +245,7 @@ describe("subagentsLoader", () => {
 
   describe("validate", () => {
     it("should return valid for properly installed subagents", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
 
       // Install
       await subagentsLoader.run({ config });
@@ -261,7 +263,7 @@ describe("subagentsLoader", () => {
     });
 
     it("should return invalid when agents directory does not exist", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
 
       // Validate without installing
       if (subagentsLoader.validate == null) {
@@ -277,7 +279,7 @@ describe("subagentsLoader", () => {
     });
 
     it("should return invalid when subagent files are missing", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
 
       // Create agents directory but don't install subagents
       await fs.mkdir(agentsDir, { recursive: true });

@@ -2,7 +2,6 @@
  * Tests for environment path functions
  */
 
-import * as os from "os";
 import * as path from "path";
 
 import { describe, it, expect } from "vitest";
@@ -18,8 +17,8 @@ import {
 } from "./env.js";
 
 describe("getClaudeDir", () => {
-  it("should return process.cwd()/.claude when no installDir provided", () => {
-    const result = getClaudeDir({});
+  it("should return process.cwd()/.claude when installDir is cwd", () => {
+    const result = getClaudeDir({ installDir: process.cwd() });
     expect(result).toBe(path.join(process.cwd(), ".claude"));
   });
 
@@ -28,15 +27,15 @@ describe("getClaudeDir", () => {
     expect(result).toBe("/custom/path/.claude");
   });
 
-  it("should expand tilde in installDir", () => {
+  it("should preserve tilde in installDir (no expansion)", () => {
     const result = getClaudeDir({ installDir: "~/project" });
-    expect(result).toBe(path.join(os.homedir(), "project", ".claude"));
+    expect(result).toBe("~/project/.claude");
   });
 });
 
 describe("getClaudeSettingsFile", () => {
   it("should return settings.json in default claude dir", () => {
-    const result = getClaudeSettingsFile({});
+    const result = getClaudeSettingsFile({ installDir: process.cwd() });
     expect(result).toBe(path.join(process.cwd(), ".claude", "settings.json"));
   });
 
@@ -48,7 +47,7 @@ describe("getClaudeSettingsFile", () => {
 
 describe("getClaudeAgentsDir", () => {
   it("should return agents dir in default claude dir", () => {
-    const result = getClaudeAgentsDir({});
+    const result = getClaudeAgentsDir({ installDir: process.cwd() });
     expect(result).toBe(path.join(process.cwd(), ".claude", "agents"));
   });
 
@@ -60,7 +59,7 @@ describe("getClaudeAgentsDir", () => {
 
 describe("getClaudeCommandsDir", () => {
   it("should return commands dir in default claude dir", () => {
-    const result = getClaudeCommandsDir({});
+    const result = getClaudeCommandsDir({ installDir: process.cwd() });
     expect(result).toBe(path.join(process.cwd(), ".claude", "commands"));
   });
 
@@ -72,7 +71,7 @@ describe("getClaudeCommandsDir", () => {
 
 describe("getClaudeMdFile", () => {
   it("should return CLAUDE.md in default claude dir", () => {
-    const result = getClaudeMdFile({});
+    const result = getClaudeMdFile({ installDir: process.cwd() });
     expect(result).toBe(path.join(process.cwd(), ".claude", "CLAUDE.md"));
   });
 
@@ -84,7 +83,7 @@ describe("getClaudeMdFile", () => {
 
 describe("getClaudeSkillsDir", () => {
   it("should return skills dir in default claude dir", () => {
-    const result = getClaudeSkillsDir({});
+    const result = getClaudeSkillsDir({ installDir: process.cwd() });
     expect(result).toBe(path.join(process.cwd(), ".claude", "skills"));
   });
 
@@ -96,7 +95,7 @@ describe("getClaudeSkillsDir", () => {
 
 describe("getClaudeProfilesDir", () => {
   it("should return profiles dir in default claude dir", () => {
-    const result = getClaudeProfilesDir({});
+    const result = getClaudeProfilesDir({ installDir: process.cwd() });
     expect(result).toBe(path.join(process.cwd(), ".claude", "profiles"));
   });
 

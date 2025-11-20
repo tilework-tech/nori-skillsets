@@ -111,10 +111,12 @@ const main = async (): Promise<void> => {
   try {
     // Get installed version from file (not build constant) to ensure
     // we retry if previous install failed
-    const installedVersion = getInstalledVersion();
+    // Use cwd as installDir since hook is called from project directory
+    const installDir = process.cwd();
+    const installedVersion = getInstalledVersion({ installDir });
 
     // Load disk config to determine install_type
-    const diskConfig = await loadDiskConfig();
+    const diskConfig = await loadDiskConfig({ installDir });
     const installType = diskConfig?.auth ? "paid" : "free";
 
     // Check for updates

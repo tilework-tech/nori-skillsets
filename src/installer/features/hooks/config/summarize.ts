@@ -157,7 +157,9 @@ const summarizeConversation = async (args: {
   }
 
   // Check if session transcripts are enabled
-  const diskConfig = await loadDiskConfig();
+  // Use cwd as installDir since hook is called from project directory
+  const installDir = process.cwd();
+  const diskConfig = await loadDiskConfig({ installDir });
   if (diskConfig?.sendSessionTranscript === "disabled") {
     console.log(
       JSON.stringify({

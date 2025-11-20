@@ -52,7 +52,7 @@ describe("slashCommandsLoader", () => {
     // Install profiles first to set up composed profile structure
     // Run profiles loader to populate ~/.claude/profiles/ directory
     // This is required since feature loaders now read from ~/.claude/profiles/
-    const config: Config = { installType: "free" };
+    const config: Config = { installType: "free", installDir: tempDir };
     await profilesLoader.run({ config });
   });
 
@@ -66,7 +66,7 @@ describe("slashCommandsLoader", () => {
 
   describe("run", () => {
     it("should create commands directory and copy slash command files for free installation", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
 
       await slashCommandsLoader.run({ config });
 
@@ -84,7 +84,7 @@ describe("slashCommandsLoader", () => {
     });
 
     it("should create commands directory and copy slash command files for paid installation", async () => {
-      const config: Config = { installType: "paid" };
+      const config: Config = { installType: "paid", installDir: tempDir };
 
       await slashCommandsLoader.run({ config });
 
@@ -102,7 +102,7 @@ describe("slashCommandsLoader", () => {
     });
 
     it("should handle reinstallation (update scenario)", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
 
       // First installation
       await slashCommandsLoader.run({ config });
@@ -120,7 +120,7 @@ describe("slashCommandsLoader", () => {
 
   describe("uninstall", () => {
     it("should remove slash command files", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
 
       // Install first
       await slashCommandsLoader.run({ config });
@@ -149,7 +149,7 @@ describe("slashCommandsLoader", () => {
     });
 
     it("should handle missing commands directory gracefully", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
 
       // Uninstall without installing first
       await expect(
@@ -160,7 +160,7 @@ describe("slashCommandsLoader", () => {
 
   describe("validate", () => {
     it("should return valid for properly installed slash commands", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
 
       // Install
       await slashCommandsLoader.run({ config });
@@ -178,7 +178,7 @@ describe("slashCommandsLoader", () => {
     });
 
     it("should return invalid when commands directory does not exist", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
 
       // Validate without installing
       if (slashCommandsLoader.validate == null) {
@@ -194,7 +194,7 @@ describe("slashCommandsLoader", () => {
     });
 
     it("should return invalid when slash command files are missing", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
 
       // Create commands directory but don't install slash commands
       await fs.mkdir(commandsDir, { recursive: true });

@@ -8,7 +8,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { dirname, join } from "path";
 
-import { getConfigPath } from "@/installer/config.js";
 import { MCP_ROOT } from "@/installer/env.js";
 
 const DEFAULT_VERSION = "12.1.0";
@@ -17,40 +16,33 @@ const DEFAULT_VERSION = "12.1.0";
  * Get the path to the version file
  *
  * @param args - Configuration arguments
- * @param args.installDir - Custom installation directory (optional)
+ * @param args.installDir - Installation directory
  *
  * @returns The absolute path to .nori-installed-version
  */
-export const getVersionFilePath = (args?: {
-  installDir?: string | null;
-}): string => {
-  const { installDir } = args || {};
-
-  if (installDir != null && installDir !== "") {
-    return join(installDir, ".nori-installed-version");
-  }
-
-  // Default: use current working directory
-  return join(process.cwd(), ".nori-installed-version");
+export const getVersionFilePath = (args: { installDir: string }): string => {
+  const { installDir } = args;
+  return join(installDir, ".nori-installed-version");
 };
 
 /**
  * Check if there's an existing installation
  * An installation exists if:
- * - Version file exists at ~/.nori-installed-version
- * - OR config file exists at <installDir>/.nori-config.json (or cwd if not specified)
+ * - Version file exists at <installDir>/.nori-installed-version
+ * - OR config file exists at <installDir>/.nori-config.json
  *
  * @param args - Configuration arguments
- * @param args.installDir - Custom installation directory (optional)
+ * @param args.installDir - Installation directory
  *
  * @returns true if an installation exists, false otherwise
  */
-export const hasExistingInstallation = (args?: {
-  installDir?: string | null;
+export const hasExistingInstallation = (args: {
+  installDir: string;
 }): boolean => {
-  const { installDir } = args || {};
-  const versionFileExists = existsSync(getVersionFilePath());
-  const configFileExists = existsSync(getConfigPath({ installDir }));
+  const { installDir } = args;
+  const versionFileExists = existsSync(getVersionFilePath({ installDir }));
+  const configFilePath = join(installDir, ".nori-config.json");
+  const configFileExists = existsSync(configFilePath);
   return versionFileExists || configFileExists;
 };
 
@@ -78,14 +70,12 @@ export const getCurrentPackageVersion = (): string | null => {
  * Defaults to 12.1.0 if file does not exist (assumes existing installations are 12.1.0)
  *
  * @param args - Configuration arguments
- * @param args.installDir - Custom installation directory (optional)
+ * @param args.installDir - Installation directory
  *
  * @returns The installed version string
  */
-export const getInstalledVersion = (args?: {
-  installDir?: string | null;
-}): string => {
-  const { installDir } = args || {};
+export const getInstalledVersion = (args: { installDir: string }): string => {
+  const { installDir } = args;
   try {
     const version = readFileSync(
       getVersionFilePath({ installDir }),
@@ -105,11 +95,11 @@ export const getInstalledVersion = (args?: {
  * Save the installed version to .nori-installed-version
  * @param args - Configuration arguments
  * @param args.version - Version to save
- * @param args.installDir - Custom installation directory (optional)
+ * @param args.installDir - Installation directory
  */
 export const saveInstalledVersion = (args: {
   version: string;
-  installDir?: string | null;
+  installDir: string;
 }): void => {
   const { version, installDir } = args;
   const versionFilePath = getVersionFilePath({ installDir });

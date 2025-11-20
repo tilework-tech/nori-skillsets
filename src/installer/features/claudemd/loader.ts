@@ -31,13 +31,13 @@ const __dirname = path.dirname(__filename);
  *
  * @param args - Function arguments
  * @param args.profileName - Name of the profile to load CLAUDE.md from
- * @param args.installDir - Custom installation directory (optional)
+ * @param args.installDir - Installation directory
  *
  * @returns Path to the CLAUDE.md file for the profile
  */
 const getProfileClaudeMd = (args: {
   profileName: string;
-  installDir?: string | null;
+  installDir: string;
 }): string => {
   const { profileName, installDir } = args;
   const claudeDir = getClaudeDir({ installDir });
@@ -181,13 +181,13 @@ const formatSkillInfo = async (args: {
  *
  * @param args - Function arguments
  * @param args.profileName - Profile name to load skills from
- * @param args.installDir - Custom installation directory (optional)
+ * @param args.installDir - Installation directory
  *
  * @returns Formatted skills list markdown (empty string if skills cannot be found)
  */
 const generateSkillsList = async (args: {
   profileName: string;
-  installDir?: string | null;
+  installDir: string;
 }): Promise<string> => {
   const { profileName, installDir } = args;
 

@@ -15,7 +15,9 @@ import { loadDiskConfig } from "@/installer/config.js";
  */
 export const main = async (): Promise<void> => {
   // Load config to check if session transcripts are enabled
-  const diskConfig = await loadDiskConfig();
+  // Use cwd as installDir since hook is called from project directory
+  const installDir = process.cwd();
+  const diskConfig = await loadDiskConfig({ installDir });
 
   let output;
   if (diskConfig?.sendSessionTranscript === "disabled") {

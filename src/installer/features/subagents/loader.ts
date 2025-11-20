@@ -25,13 +25,13 @@ const __dirname = path.dirname(__filename);
  *
  * @param args - Configuration arguments
  * @param args.profileName - Name of the profile to load subagents from
- * @param args.installDir - Custom installation directory (optional)
+ * @param args.installDir - Installation directory
  *
  * @returns Path to the subagents config directory for the profile
  */
 const getConfigDir = (args: {
   profileName: string;
-  installDir?: string | null;
+  installDir: string;
 }): string => {
   const { profileName, installDir } = args;
   const claudeDir = getClaudeDir({ installDir });

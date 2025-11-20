@@ -104,9 +104,9 @@ describe("uninstall idempotency", () => {
 
   it("should be idempotent when called on fresh system (no files exist)", async () => {
     // Multiple calls should not throw even when nothing is installed
-    await expect(runUninstall()).resolves.not.toThrow();
-    await expect(runUninstall()).resolves.not.toThrow();
-    await expect(runUninstall()).resolves.not.toThrow();
+    await expect(runUninstall({ installDir: tempDir })).resolves.not.toThrow();
+    await expect(runUninstall({ installDir: tempDir })).resolves.not.toThrow();
+    await expect(runUninstall({ installDir: tempDir })).resolves.not.toThrow();
   });
 
   it("should be idempotent when called multiple times after install", async () => {
@@ -132,7 +132,7 @@ describe("uninstall idempotency", () => {
     );
 
     // First call - feature loaders clean up their files, preserves config
-    await expect(runUninstall()).resolves.not.toThrow();
+    await expect(runUninstall({ installDir: tempDir })).resolves.not.toThrow();
 
     // Verify config was preserved
     const configExists = await fs
@@ -142,8 +142,8 @@ describe("uninstall idempotency", () => {
     expect(configExists).toBe(true);
 
     // Second and third calls should not throw
-    await expect(runUninstall()).resolves.not.toThrow();
-    await expect(runUninstall()).resolves.not.toThrow();
+    await expect(runUninstall({ installDir: tempDir })).resolves.not.toThrow();
+    await expect(runUninstall({ installDir: tempDir })).resolves.not.toThrow();
   });
 
   it("should remove config when removeConfig is true", async () => {
@@ -168,7 +168,9 @@ describe("uninstall idempotency", () => {
     );
 
     // Call with removeConfig: true
-    await expect(runUninstall({ removeConfig: true })).resolves.not.toThrow();
+    await expect(
+      runUninstall({ removeConfig: true, installDir: tempDir }),
+    ).resolves.not.toThrow();
 
     // Verify config was removed
     const configExists = await fs
@@ -184,7 +186,7 @@ describe("uninstall idempotency", () => {
     await fs.writeFile(path.join(skillsDir, "test.txt"), "test");
 
     // First call - feature loaders clean up, config doesn't exist
-    await expect(runUninstall()).resolves.not.toThrow();
+    await expect(runUninstall({ installDir: tempDir })).resolves.not.toThrow();
 
     // Create only config file (no skills directory)
     mockLoadedConfig = {
@@ -204,10 +206,10 @@ describe("uninstall idempotency", () => {
     );
 
     // Second call - preserves config, skills don't exist
-    await expect(runUninstall()).resolves.not.toThrow();
+    await expect(runUninstall({ installDir: tempDir })).resolves.not.toThrow();
 
     // Third call - nothing new to clean
-    await expect(runUninstall()).resolves.not.toThrow();
+    await expect(runUninstall({ installDir: tempDir })).resolves.not.toThrow();
   });
 
   it("should preserve config when removeConfig is false (autoupdate scenario)", async () => {
@@ -251,7 +253,7 @@ describe("uninstall idempotency", () => {
 
     // Call uninstall with removeConfig: false (default behavior for non-interactive)
     // This simulates what happens during autoupdate
-    await runUninstall({ removeConfig: false });
+    await runUninstall({ removeConfig: false, installDir: tempDir });
 
     // Verify config was preserved
     const configExists = await fs
@@ -306,7 +308,7 @@ describe("uninstall idempotency", () => {
     await fs.writeFile(configPath, JSON.stringify(mockLoadedConfig));
 
     // Run uninstall with removeConfig: true (this SHOULD delete temp files, NOT real files)
-    await runUninstall({ removeConfig: true });
+    await runUninstall({ removeConfig: true, installDir: tempDir });
 
     // Check if real files exist AFTER test
     const realConfigExistsAfter = await fs

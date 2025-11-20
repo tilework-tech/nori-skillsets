@@ -38,3 +38,4 @@ __pycache__/
 
 # duh.
 .claude/
+.nori-installed-version

@@ -307,7 +307,10 @@ describe("configurable install directory integration", () => {
         installDir: customInstallDir,
       };
 
-      const config = generateConfig({ diskConfig });
+      const config = generateConfig({
+        diskConfig,
+        installDir: customInstallDir,
+      });
 
       expect(config.installDir).toBe(customInstallDir);
       expect(config.installType).toBe("free");

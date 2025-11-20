@@ -104,7 +104,7 @@ describe("uninstall cleanup", () => {
   describe("uninstall order", () => {
     it("should uninstall subagents before profiles removes profile directories", async () => {
       // Set up free config
-      const config = { installType: "free" as const };
+      const config = { installType: "free" as const, installDir: tempDir };
 
       // Install profiles first (creates ~/.claude/profiles/senior-swe/subagents/)
       await profilesLoader.run({ config });
@@ -117,7 +117,7 @@ describe("uninstall cleanup", () => {
       expect(agentFiles.length).toBeGreaterThan(0);
 
       // Run full uninstall
-      await runUninstall();
+      await runUninstall({ installDir: tempDir });
 
       // Verify all agent files are removed
       // The directory might still exist but should be empty or removed
@@ -135,7 +135,7 @@ describe("uninstall cleanup", () => {
 
     it("should uninstall slash commands before profiles removes profile directories", async () => {
       // Set up free config
-      const config = { installType: "free" as const };
+      const config = { installType: "free" as const, installDir: tempDir };
 
       // Install profiles first (creates ~/.claude/profiles/senior-swe/slashcommands/)
       await profilesLoader.run({ config });
@@ -148,7 +148,7 @@ describe("uninstall cleanup", () => {
       expect(commandFiles.length).toBeGreaterThan(0);
 
       // Run full uninstall
-      await runUninstall();
+      await runUninstall({ installDir: tempDir });
 
       // Verify all command files are removed
       const commandsDirExists = await fs
@@ -174,7 +174,7 @@ describe("uninstall cleanup", () => {
   describe("directory cleanup", () => {
     it("should remove empty agents directory after uninstall", async () => {
       // Set up free config
-      const config = { installType: "free" as const };
+      const config = { installType: "free" as const, installDir: tempDir };
 
       // Install profiles and subagents
       await profilesLoader.run({ config });
@@ -185,7 +185,7 @@ describe("uninstall cleanup", () => {
       expect(agentFiles.length).toBeGreaterThan(0);
 
       // Run full uninstall
-      await runUninstall();
+      await runUninstall({ installDir: tempDir });
 
       // Verify agents directory is removed (since it should be empty)
       const agentsDirExists = await fs
@@ -198,7 +198,7 @@ describe("uninstall cleanup", () => {
 
     it("should remove empty commands directory after uninstall", async () => {
       // Set up free config
-      const config = { installType: "free" as const };
+      const config = { installType: "free" as const, installDir: tempDir };
 
       // Install profiles and slash commands
       await profilesLoader.run({ config });
@@ -209,7 +209,7 @@ describe("uninstall cleanup", () => {
       expect(commandFiles.length).toBeGreaterThan(0);
 
       // Run full uninstall
-      await runUninstall();
+      await runUninstall({ installDir: tempDir });
 
       // Verify commands directory is removed (since it should be empty)
       const commandsDirExists = await fs
@@ -222,7 +222,7 @@ describe("uninstall cleanup", () => {
 
     it("should remove empty profiles directory after uninstall", async () => {
       // Set up free config
-      const config = { installType: "free" as const };
+      const config = { installType: "free" as const, installDir: tempDir };
 
       // Install profiles
       await profilesLoader.run({ config });
@@ -232,7 +232,7 @@ describe("uninstall cleanup", () => {
       expect(profileFiles.length).toBeGreaterThan(0);
 
       // Run full uninstall
-      await runUninstall();
+      await runUninstall({ installDir: tempDir });
 
       // Verify profiles directory is removed (since it should be empty)
       const profilesDirExists = await fs
@@ -245,7 +245,7 @@ describe("uninstall cleanup", () => {
 
     it("should preserve directories with user-created files", async () => {
       // Set up free config
-      const config = { installType: "free" as const };
+      const config = { installType: "free" as const, installDir: tempDir };
 
       // Install profiles and subagents
       await profilesLoader.run({ config });
@@ -256,7 +256,7 @@ describe("uninstall cleanup", () => {
       await fs.writeFile(userAgentFile, "# My Custom Agent");
 
       // Run full uninstall
-      await runUninstall();
+      await runUninstall({ installDir: tempDir });
 
       // Verify agents directory still exists (has user file)
       const agentsDirExists = await fs
@@ -290,7 +290,7 @@ describe("uninstall cleanup", () => {
       expect(logExistsBefore).toBe(true);
 
       // Run uninstall
-      await runUninstall();
+      await runUninstall({ installDir: tempDir });
 
       // Verify file is removed
       const logExistsAfter = await fs
@@ -305,7 +305,9 @@ describe("uninstall cleanup", () => {
       // Don't create the log file - it shouldn't exist
 
       // Run uninstall - should not throw
-      await expect(runUninstall()).resolves.not.toThrow();
+      await expect(
+        runUninstall({ installDir: tempDir }),
+      ).resolves.not.toThrow();
     });
   });
 });

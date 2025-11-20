@@ -58,7 +58,7 @@ describe("hooksLoader", () => {
 
   describe("run", () => {
     it("should configure hooks for paid installation", async () => {
-      const config: Config = { installType: "paid" };
+      const config: Config = { installType: "paid", installDir: tempDir };
 
       await hooksLoader.run({ config });
 
@@ -153,7 +153,7 @@ describe("hooksLoader", () => {
     });
 
     it("should configure hooks for free installation", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
 
       await hooksLoader.run({ config });
 
@@ -198,7 +198,7 @@ describe("hooksLoader", () => {
     });
 
     it("should preserve existing settings when adding hooks", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
 
       // Create settings.json with existing content
       const existingSettings = {
@@ -227,7 +227,7 @@ describe("hooksLoader", () => {
     });
 
     it("should update hooks if already configured", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
 
       // First installation
       await hooksLoader.run({ config });
@@ -246,7 +246,7 @@ describe("hooksLoader", () => {
 
     it("should handle switching from free to paid installation", async () => {
       // First install free version
-      const freeConfig: Config = { installType: "free" };
+      const freeConfig: Config = { installType: "free", installDir: tempDir };
       await hooksLoader.run({ config: freeConfig });
 
       let content = await fs.readFile(settingsPath, "utf-8");
@@ -256,7 +256,7 @@ describe("hooksLoader", () => {
       expect(settings.hooks.SessionEnd).toBeUndefined();
 
       // Then install paid version
-      const paidConfig: Config = { installType: "paid" };
+      const paidConfig: Config = { installType: "paid", installDir: tempDir };
       await hooksLoader.run({ config: paidConfig });
 
       content = await fs.readFile(settingsPath, "utf-8");
@@ -268,7 +268,7 @@ describe("hooksLoader", () => {
     });
 
     it("should configure UserPromptSubmit hook for quick profile switching (paid)", async () => {
-      const config: Config = { installType: "paid" };
+      const config: Config = { installType: "paid", installDir: tempDir };
 
       await hooksLoader.run({ config });
 
@@ -294,7 +294,7 @@ describe("hooksLoader", () => {
     });
 
     it("should configure UserPromptSubmit hook for quick profile switching (free)", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
 
       await hooksLoader.run({ config });
 
@@ -320,7 +320,7 @@ describe("hooksLoader", () => {
     });
 
     it("should configure nested-install-warning hook for paid installation", async () => {
-      const config: Config = { installType: "paid" };
+      const config: Config = { installType: "paid", installDir: tempDir };
 
       await hooksLoader.run({ config });
 
@@ -349,7 +349,7 @@ describe("hooksLoader", () => {
     });
 
     it("should configure nested-install-warning hook for free installation", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
 
       await hooksLoader.run({ config });
 
@@ -380,7 +380,7 @@ describe("hooksLoader", () => {
 
   describe("uninstall", () => {
     it("should remove hooks from settings.json", async () => {
-      const config: Config = { installType: "paid" };
+      const config: Config = { installType: "paid", installDir: tempDir };
 
       // Install first
       await hooksLoader.run({ config });
@@ -400,7 +400,7 @@ describe("hooksLoader", () => {
     });
 
     it("should preserve other settings when removing hooks", async () => {
-      const config: Config = { installType: "paid" };
+      const config: Config = { installType: "paid", installDir: tempDir };
 
       // Create settings with hooks and other content
       await hooksLoader.run({ config });
@@ -421,14 +421,14 @@ describe("hooksLoader", () => {
     });
 
     it("should handle missing settings.json gracefully", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
 
       // Uninstall without installing first
       await expect(hooksLoader.uninstall({ config })).resolves.not.toThrow();
     });
 
     it("should handle settings.json without hooks gracefully", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
 
       // Create settings.json without hooks
       const settings = {
@@ -450,7 +450,7 @@ describe("hooksLoader", () => {
 
   describe("validate", () => {
     it("should return valid for properly installed hooks (paid mode)", async () => {
-      const config: Config = { installType: "paid" };
+      const config: Config = { installType: "paid", installDir: tempDir };
 
       // Install
       await hooksLoader.run({ config });
@@ -468,7 +468,7 @@ describe("hooksLoader", () => {
     });
 
     it("should return valid for properly installed hooks (free mode)", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
 
       // Install
       await hooksLoader.run({ config });
@@ -486,7 +486,7 @@ describe("hooksLoader", () => {
     });
 
     it("should return invalid when settings.json does not exist", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
 
       // Validate without installing
       if (hooksLoader.validate == null) {
@@ -503,7 +503,7 @@ describe("hooksLoader", () => {
     });
 
     it("should return invalid when hooks are not configured", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
 
       // Create settings.json without hooks
       const settings = {
@@ -526,7 +526,7 @@ describe("hooksLoader", () => {
     });
 
     it("should return invalid when required hooks are missing (paid mode)", async () => {
-      const config: Config = { installType: "paid" };
+      const config: Config = { installType: "paid", installDir: tempDir };
 
       // Create settings.json with incomplete hooks
       const settings = {
@@ -552,7 +552,7 @@ describe("hooksLoader", () => {
     });
 
     it("should return invalid when SessionEnd hooks are incomplete (paid mode)", async () => {
-      const config: Config = { installType: "paid" };
+      const config: Config = { installType: "paid", installDir: tempDir };
 
       // Create settings.json with SessionEnd but missing required hooks
       const settings = {
@@ -595,7 +595,7 @@ describe("hooksLoader", () => {
     });
 
     it("should return invalid for free mode when SessionStart hook is missing", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
 
       // Create settings.json with hooks but missing SessionStart
       const settings = {
@@ -621,7 +621,7 @@ describe("hooksLoader", () => {
     });
 
     it("should handle invalid JSON in settings.json", async () => {
-      const config: Config = { installType: "free" };
+      const config: Config = { installType: "free", installDir: tempDir };
 
       // Create settings.json with invalid JSON
       await fs.writeFile(settingsPath, "not valid json");
