@@ -242,31 +242,34 @@ export const runUninstall = async (args: {
     },
   });
 
-  // Only remove hooks and statusline if explicitly requested (interactive mode)
-  if (removeHooksAndStatusline) {
-    // Load all feature loaders in reverse order for uninstall
-    // During install, profiles must run first to create profile directories.
-    // During uninstall, profiles must run last so other loaders can still
-    // read from profile directories to know what files to remove.
-    const registry = LoaderRegistry.getInstance();
-    const loaders = registry.getAllReversed();
+  // Load all feature loaders in reverse order for uninstall
+  // During install, profiles must run first to create profile directories.
+  // During uninstall, profiles must run last so other loaders can still
+  // read from profile directories to know what files to remove.
+  const registry = LoaderRegistry.getInstance();
+  const loaders = registry.getAllReversed();
 
-    // Execute uninstallers sequentially to avoid race conditions
-    // (hooks and statusline both read/write settings.json)
-    for (const loader of loaders) {
-      try {
-        await loader.uninstall({ config });
-      } catch (err: any) {
-        warn({
-          message: `Failed to uninstall ${loader.name}: ${err.message}`,
-        });
-      }
+  // Execute uninstallers sequentially to avoid race conditions
+  // (hooks and statusline both read/write settings.json)
+  for (const loader of loaders) {
+    // Skip hooks and statusline loaders if removeHooksAndStatusline is false
+    if (
+      !removeHooksAndStatusline &&
+      (loader.name === "hooks" || loader.name === "statusline")
+    ) {
+      info({
+        message: `Skipping ${loader.name} uninstall (preserving ~/.claude/settings.json)`,
+      });
+      continue;
     }
-  } else {
-    info({
-      message:
-        "Skipping removal of hooks and statusline from ~/.claude (non-interactive mode)",
-    });
+
+    try {
+      await loader.uninstall({ config });
+    } catch (err: any) {
+      warn({
+        message: `Failed to uninstall ${loader.name}: ${err.message}`,
+      });
+    }
   }
 
   // Clean up empty directories and standalone files
