@@ -23,7 +23,7 @@ const showHelp = (): void => {
   console.log("Usage: nori-ai [command] [options]");
   console.log("");
   console.log("Commands:");
-  console.log("  install              Install Nori Profiles (default)");
+  console.log("  install              Install Nori Profiles");
   console.log("  uninstall            Uninstall Nori Profiles");
   console.log(
     "  check                Validate Nori installation and configuration",
@@ -154,7 +154,7 @@ const parseInstallDir = (args: Array<string>): string | null => {
 
 const main = async (): Promise<void> => {
   const args = process.argv.slice(2);
-  const command = args[0] || "install";
+  const command = args[0] || "help";
 
   if (command === "help" || command === "--help" || command === "-h") {
     showHelp();

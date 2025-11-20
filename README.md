@@ -123,8 +123,8 @@ _Team documentation server that captures, organizes, and surfaces institutional 
 ## Commands
 
 ```bash
-npx nori-ai              # Install (default)
-npx nori-ai install      # Install (explicit)
+npx nori-ai              # Show help (default)
+npx nori-ai install      # Install Nori Profiles
 npx nori-ai uninstall    # Uninstall all features
 npx nori-ai help         # Show help message
 npx nori-ai check        # Run configuration validation
