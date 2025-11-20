@@ -6,20 +6,9 @@
 # Read JSON context from stdin
 INPUT=$(cat)
 
-# === DERIVE INSTALL DIRECTORY ===
-# First, try to get install directory from the cwd in the JSON input
-# This is more reliable as the cwd is where Claude Code is running
-CWD=$(echo "$INPUT" | jq -r '.cwd // empty')
-
-# If we have a cwd, use it as the install directory
-if [ -n "$CWD" ] && [ -d "$CWD" ]; then
-    INSTALL_DIR="$CWD"
-else
-    # Fall back to deriving from script location
-    # Script is at .claude/statusline/nori-statusline.sh, so go up two directories
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    INSTALL_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
-fi
+# === INSTALL DIRECTORY ===
+# Install directory is templated at installation time
+INSTALL_DIR="{{install_dir}}"
 
 # === CONFIG TIER ENRICHMENT ===
 # Get config tier from install directory config

@@ -31,21 +31,39 @@ const configureStatusLine = async (args: { config: Config }): Promise<void> => {
 
   info({ message: "Configuring status line..." });
 
-  // Script path (absolute path in build output)
-  const statuslineScript = path.join(__dirname, "config", "nori-statusline.sh");
+  // Source script path (in build output)
+  const sourceScript = path.join(__dirname, "config", "nori-statusline.sh");
 
-  // Verify statusline script exists
+  // Destination script path (in .claude directory)
+  const destScript = path.join(claudeDir, "nori-statusline.sh");
+
+  // Verify source script exists
   try {
-    await fs.access(statuslineScript);
+    await fs.access(sourceScript);
   } catch {
     warn({
-      message: `Status line script not found at ${statuslineScript}, skipping status line configuration`,
+      message: `Status line script not found at ${sourceScript}, skipping status line configuration`,
     });
     return;
   }
 
   // Create .claude directory if it doesn't exist
   await fs.mkdir(claudeDir, { recursive: true });
+
+  // Read source script and apply template substitution
+  // For bash scripts, we need absolute paths (not tilde notation) since ~ doesn't expand in variables
+  const scriptContent = await fs.readFile(sourceScript, "utf-8");
+  const installRoot = path.dirname(config.installDir);
+  const substitutedContent = scriptContent.replace(
+    /\{\{install_dir\}\}/g,
+    installRoot,
+  );
+
+  // Write substituted script to .claude directory
+  await fs.writeFile(destScript, substitutedContent);
+
+  // Make script executable
+  await fs.chmod(destScript, 0o755);
 
   // Initialize settings file if it doesn't exist
   let settings: any = {};
@@ -58,10 +76,10 @@ const configureStatusLine = async (args: { config: Config }): Promise<void> => {
     };
   }
 
-  // Add status line configuration with absolute path
+  // Add status line configuration pointing to copied script
   settings.statusLine = {
     type: "command",
-    command: statuslineScript,
+    command: destScript,
     padding: 0,
   };
 
@@ -74,15 +92,17 @@ const configureStatusLine = async (args: { config: Config }): Promise<void> => {
 };
 
 /**
- * Remove status line from settings.json
+ * Remove status line from settings.json and delete copied script
  * @param args - Configuration arguments
  * @param args.config - Runtime configuration
  */
 const removeStatusLine = async (args: { config: Config }): Promise<void> => {
   const { config } = args;
+  const claudeDir = getClaudeDir({ installDir: config.installDir });
   const claudeSettingsFile = getClaudeSettingsFile({
     installDir: config.installDir,
   });
+  const destScript = path.join(claudeDir, "nori-statusline.sh");
 
   info({ message: "Removing status line from Claude Code settings..." });
 
@@ -100,6 +120,16 @@ const removeStatusLine = async (args: { config: Config }): Promise<void> => {
   } catch (err) {
     warn({
       message: `Could not remove status line from settings.json: ${err}`,
+    });
+  }
+
+  // Remove copied script from .claude directory
+  try {
+    await fs.rm(destScript, { force: true });
+    success({ message: "✓ Status line script removed" });
+  } catch (err) {
+    warn({
+      message: `Could not remove status line script: ${err}`,
     });
   }
 };
