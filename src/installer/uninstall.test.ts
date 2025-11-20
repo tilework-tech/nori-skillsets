@@ -30,8 +30,38 @@ vi.mock("@/installer/config.js", async () => {
   const actual: any = await vi.importActual("@/installer/config.js");
   return {
     ...actual,
-    getConfigPath: () => mockConfigPath,
-    loadDiskConfig: async () => mockLoadedConfig,
+    getConfigPath: (args: { installDir: string }) => {
+      // For the first describe block tests, use mockConfigPath
+      // For ancestor tests, use real path
+      if (args.installDir.includes("uninstall-ancestor-")) {
+        return path.join(args.installDir, ".nori-config.json");
+      }
+      return mockConfigPath;
+    },
+    loadDiskConfig: async (args: { installDir: string }) => {
+      // For ancestor tests, load from real filesystem
+      if (args.installDir.includes("uninstall-ancestor-")) {
+        const configPath = path.join(args.installDir, ".nori-config.json");
+        try {
+          const content = await fs.readFile(configPath, "utf-8");
+          const config = JSON.parse(content);
+          return {
+            auth: config.username
+              ? {
+                  username: config.username,
+                  password: config.password,
+                  organizationUrl: config.organizationUrl,
+                }
+              : null,
+            installDir: args.installDir,
+          };
+        } catch {
+          return null;
+        }
+      }
+      // For old tests, use mock
+      return mockLoadedConfig;
+    },
   };
 });
 
@@ -56,7 +86,12 @@ vi.mock("@/installer/features/loaderRegistry.js", () => ({
 }));
 
 // Import after mocking
-import { runUninstall } from "./uninstall.js";
+import { promptUser } from "./prompt.js";
+import { runUninstall, main } from "./uninstall.js";
+
+vi.mock("@/installer/prompt.js", () => ({
+  promptUser: vi.fn(),
+}));
 
 describe("uninstall idempotency", () => {
   let tempDir: string;
@@ -331,5 +366,195 @@ describe("uninstall idempotency", () => {
     if (realVersionExistsBefore && !realVersionExistsAfter) {
       throw new Error("TEST BUG: Deleted real ~/.nori-installed-version file!");
     }
+  });
+});
+
+describe("uninstall with ancestor directory detection", () => {
+  let tempDir: string;
+  let parentDir: string;
+  let childDir: string;
+  let originalHome: string | undefined;
+  let processExitSpy: any;
+
+  beforeEach(async () => {
+    // Save original HOME
+    originalHome = process.env.HOME;
+
+    // Create temp directory structure
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "uninstall-ancestor-"));
+    parentDir = path.join(tempDir, "parent");
+    childDir = path.join(parentDir, "child");
+
+    await fs.mkdir(parentDir, { recursive: true });
+    await fs.mkdir(childDir, { recursive: true });
+
+    // Mock HOME to temp directory
+    process.env.HOME = tempDir;
+
+    // Mock process.exit to prevent tests from actually exiting
+    processExitSpy = vi.spyOn(process, "exit").mockImplementation((() => {
+      // Intentionally empty to prevent tests from exiting
+    }) as any);
+
+    // Clear mock calls
+    vi.clearAllMocks();
+  });
+
+  afterEach(async () => {
+    // Restore process.exit
+    processExitSpy.mockRestore();
+
+    // Restore original HOME
+    if (originalHome !== undefined) {
+      process.env.HOME = originalHome;
+    } else {
+      delete process.env.HOME;
+    }
+
+    // Clean up temp directory
+    await fs.rm(tempDir, { recursive: true, force: true });
+
+    // Clear all mocks
+    vi.clearAllMocks();
+  });
+
+  it("should detect one ancestor installation and prompt user to uninstall from it", async () => {
+    // Set up parent directory with Nori installation
+    const parentConfigPath = path.join(parentDir, ".nori-config.json");
+    await fs.writeFile(
+      parentConfigPath,
+      JSON.stringify({
+        username: "test@example.com",
+        password: "testpass",
+        organizationUrl: "http://localhost:3000",
+      }),
+    );
+
+    // Mock user confirmation (two calls: one for ancestor prompt, one for uninstall confirmation)
+    (promptUser as any).mockResolvedValueOnce("y"); // Accept ancestor uninstall
+    (promptUser as any).mockResolvedValueOnce("y"); // Confirm uninstall
+
+    // Run uninstall from child directory (no installation in child)
+    await main({ nonInteractive: false, installDir: childDir });
+
+    // Verify promptUser was called twice (once for ancestor, once for uninstall confirm)
+    expect(promptUser).toHaveBeenCalledTimes(2);
+
+    // Verify the first call asks about the ancestor directory
+    const firstCall = (promptUser as any).mock.calls[0][0];
+    expect(firstCall.prompt).toMatch(/ancestor/i);
+  });
+
+  it("should handle multiple ancestor installations and let user select", async () => {
+    // Set up grandparent and parent directories with Nori installations
+    const grandparentDir = path.join(tempDir, "grandparent");
+    const parentInGrandparent = path.join(grandparentDir, "parent");
+    const childInParent = path.join(parentInGrandparent, "child");
+
+    await fs.mkdir(grandparentDir, { recursive: true });
+    await fs.mkdir(parentInGrandparent, { recursive: true });
+    await fs.mkdir(childInParent, { recursive: true });
+
+    // Create installations in both grandparent and parent
+    await fs.writeFile(
+      path.join(grandparentDir, ".nori-config.json"),
+      JSON.stringify({
+        username: "test1",
+        password: "test1",
+        organizationUrl: "test1",
+      }),
+    );
+    await fs.writeFile(
+      path.join(parentInGrandparent, ".nori-config.json"),
+      JSON.stringify({
+        username: "test2",
+        password: "test2",
+        organizationUrl: "test2",
+      }),
+    );
+
+    // Mock user responses: select option 2, then confirm
+    (promptUser as any).mockResolvedValueOnce("2"); // Select second installation
+    (promptUser as any).mockResolvedValueOnce("y"); // Confirm uninstall
+
+    // Run from child directory
+    await main({ nonInteractive: false, installDir: childInParent });
+
+    // Verify promptUser was called twice
+    expect(promptUser).toHaveBeenCalledTimes(2);
+
+    // Verify first call asks for selection
+    const firstCall = (promptUser as any).mock.calls[0][0];
+    expect(firstCall.prompt).toMatch(/select.*installation/i);
+  });
+
+  it("should exit gracefully when no installation found anywhere", async () => {
+    // Create empty directory with no installations
+    const emptyDir = path.join(tempDir, "empty");
+    await fs.mkdir(emptyDir, { recursive: true });
+
+    // Run uninstall from empty directory
+    await main({ nonInteractive: false, installDir: emptyDir });
+
+    // Verify promptUser was never called (no installation to uninstall)
+    expect(promptUser).not.toHaveBeenCalled();
+  });
+
+  it("should cancel when user declines ancestor uninstall", async () => {
+    // Set up parent with installation
+    await fs.writeFile(
+      path.join(parentDir, ".nori-config.json"),
+      JSON.stringify({
+        username: "test",
+        password: "test",
+        organizationUrl: "test",
+      }),
+    );
+
+    // Mock user declining
+    (promptUser as any).mockResolvedValueOnce("n");
+
+    // Run from child directory
+    await main({ nonInteractive: false, installDir: childDir });
+
+    // Verify promptUser was only called once (for ancestor prompt, not uninstall)
+    expect(promptUser).toHaveBeenCalledTimes(1);
+  });
+
+  it("should handle invalid selection from multiple ancestors", async () => {
+    // Set up grandparent and parent with installations
+    const grandparentDir = path.join(tempDir, "gp2");
+    const parentInGrandparent = path.join(grandparentDir, "p2");
+    const childInParent = path.join(parentInGrandparent, "c2");
+
+    await fs.mkdir(grandparentDir, { recursive: true });
+    await fs.mkdir(parentInGrandparent, { recursive: true });
+    await fs.mkdir(childInParent, { recursive: true });
+
+    await fs.writeFile(
+      path.join(grandparentDir, ".nori-config.json"),
+      JSON.stringify({
+        username: "test1",
+        password: "test1",
+        organizationUrl: "test1",
+      }),
+    );
+    await fs.writeFile(
+      path.join(parentInGrandparent, ".nori-config.json"),
+      JSON.stringify({
+        username: "test2",
+        password: "test2",
+        organizationUrl: "test2",
+      }),
+    );
+
+    // Mock invalid selection
+    (promptUser as any).mockResolvedValueOnce("999");
+
+    // Run from child
+    await main({ nonInteractive: false, installDir: childInParent });
+
+    // Verify only one prompt (cancelled after invalid selection)
+    expect(promptUser).toHaveBeenCalledTimes(1);
   });
 });

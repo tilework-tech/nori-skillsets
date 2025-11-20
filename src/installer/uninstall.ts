@@ -25,7 +25,11 @@ import { LoaderRegistry } from "@/installer/features/loaderRegistry.js";
 import { error, success, info, warn } from "@/installer/logger.js";
 import { promptUser } from "@/installer/prompt.js";
 import { getVersionFilePath } from "@/installer/version.js";
-import { normalizeInstallDir } from "@/utils/path.js";
+import {
+  normalizeInstallDir,
+  hasNoriInstallation,
+  findAncestorInstallations,
+} from "@/utils/path.js";
 
 /**
  * Prompt user for confirmation before uninstalling
@@ -39,7 +43,75 @@ const promptForUninstall = async (args: {
 }): Promise<{
   config: Config;
 } | null> => {
-  const { installDir } = args;
+  let { installDir } = args;
+
+  // Check if there's a Nori installation in the current directory
+  const hasLocalInstall = hasNoriInstallation({ dir: installDir });
+
+  // If no local installation, check ancestors
+  if (!hasLocalInstall) {
+    const ancestors = findAncestorInstallations({ installDir });
+
+    if (ancestors.length === 0) {
+      // No installation found anywhere
+      info({
+        message:
+          "No Nori installation found in current or ancestor directories.",
+      });
+      return null;
+    }
+
+    if (ancestors.length === 1) {
+      // One ancestor found
+      info({ message: "No Nori installation found in current directory." });
+      info({
+        message: `Found installation in ancestor directory: ${ancestors[0]}`,
+      });
+      console.log();
+
+      const proceed = await promptUser({
+        prompt: "Uninstall from this ancestor location? (y/n): ",
+      });
+
+      if (!proceed.match(/^[Yy]$/)) {
+        info({ message: "Uninstallation cancelled." });
+        return null;
+      }
+
+      // Use ancestor directory for uninstall
+      installDir = ancestors[0];
+    } else {
+      // Multiple ancestors found
+      info({ message: "No Nori installation found in current directory." });
+      info({ message: "Found installations in ancestor directories:" });
+      for (let i = 0; i < ancestors.length; i++) {
+        info({ message: `  ${i + 1}. ${ancestors[i]}` });
+      }
+      console.log();
+
+      const selection = await promptUser({
+        prompt: `Select installation to uninstall (1-${ancestors.length}), or 'n' to cancel: `,
+      });
+
+      if (selection.match(/^[Nn]$/)) {
+        info({ message: "Uninstallation cancelled." });
+        return null;
+      }
+
+      const selectedIndex = parseInt(selection, 10) - 1;
+      if (
+        isNaN(selectedIndex) ||
+        selectedIndex < 0 ||
+        selectedIndex >= ancestors.length
+      ) {
+        info({ message: "Invalid selection. Uninstallation cancelled." });
+        return null;
+      }
+
+      // Use selected ancestor directory
+      installDir = ancestors[selectedIndex];
+    }
+  }
 
   info({ message: "Nori Profiles Uninstaller" });
   console.log();
