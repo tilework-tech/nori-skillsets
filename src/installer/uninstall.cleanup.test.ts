@@ -16,6 +16,8 @@ let mockConfigPath = "/tmp/test-config.json";
 vi.mock("@/installer/env.js", () => ({
   getClaudeDir: () => mockClaudeDir,
   getClaudeSettingsFile: () => path.join(mockClaudeDir, "settings.json"),
+  getClaudeHomeDir: () => mockClaudeDir,
+  getClaudeHomeSettingsFile: () => path.join(mockClaudeDir, "settings.json"),
   getClaudeAgentsDir: () => path.join(mockClaudeDir, "agents"),
   getClaudeCommandsDir: () => path.join(mockClaudeDir, "commands"),
   getClaudeMdFile: () => path.join(mockClaudeDir, "CLAUDE.md"),
@@ -117,7 +119,10 @@ describe("uninstall cleanup", () => {
       expect(agentFiles.length).toBeGreaterThan(0);
 
       // Run full uninstall
-      await runUninstall({ installDir: tempDir });
+      await runUninstall({
+        removeHooksAndStatusline: true,
+        installDir: tempDir,
+      });
 
       // Verify all agent files are removed
       // The directory might still exist but should be empty or removed
@@ -148,7 +153,10 @@ describe("uninstall cleanup", () => {
       expect(commandFiles.length).toBeGreaterThan(0);
 
       // Run full uninstall
-      await runUninstall({ installDir: tempDir });
+      await runUninstall({
+        removeHooksAndStatusline: true,
+        installDir: tempDir,
+      });
 
       // Verify all command files are removed
       const commandsDirExists = await fs
@@ -185,7 +193,10 @@ describe("uninstall cleanup", () => {
       expect(agentFiles.length).toBeGreaterThan(0);
 
       // Run full uninstall
-      await runUninstall({ installDir: tempDir });
+      await runUninstall({
+        removeHooksAndStatusline: true,
+        installDir: tempDir,
+      });
 
       // Verify agents directory is removed (since it should be empty)
       const agentsDirExists = await fs
@@ -209,7 +220,10 @@ describe("uninstall cleanup", () => {
       expect(commandFiles.length).toBeGreaterThan(0);
 
       // Run full uninstall
-      await runUninstall({ installDir: tempDir });
+      await runUninstall({
+        removeHooksAndStatusline: true,
+        installDir: tempDir,
+      });
 
       // Verify commands directory is removed (since it should be empty)
       const commandsDirExists = await fs
@@ -232,7 +246,10 @@ describe("uninstall cleanup", () => {
       expect(profileFiles.length).toBeGreaterThan(0);
 
       // Run full uninstall
-      await runUninstall({ installDir: tempDir });
+      await runUninstall({
+        removeHooksAndStatusline: true,
+        installDir: tempDir,
+      });
 
       // Verify profiles directory is removed (since it should be empty)
       const profilesDirExists = await fs
@@ -256,7 +273,10 @@ describe("uninstall cleanup", () => {
       await fs.writeFile(userAgentFile, "# My Custom Agent");
 
       // Run full uninstall
-      await runUninstall({ installDir: tempDir });
+      await runUninstall({
+        removeHooksAndStatusline: true,
+        installDir: tempDir,
+      });
 
       // Verify agents directory still exists (has user file)
       const agentsDirExists = await fs
@@ -290,7 +310,10 @@ describe("uninstall cleanup", () => {
       expect(logExistsBefore).toBe(true);
 
       // Run uninstall
-      await runUninstall({ installDir: tempDir });
+      await runUninstall({
+        removeHooksAndStatusline: true,
+        installDir: tempDir,
+      });
 
       // Verify file is removed
       const logExistsAfter = await fs
@@ -306,7 +329,7 @@ describe("uninstall cleanup", () => {
 
       // Run uninstall - should not throw
       await expect(
-        runUninstall({ installDir: tempDir }),
+        runUninstall({ removeHooksAndStatusline: true, installDir: tempDir }),
       ).resolves.not.toThrow();
     });
   });

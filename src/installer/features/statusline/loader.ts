@@ -7,7 +7,10 @@ import * as fs from "fs/promises";
 import * as path from "path";
 import { fileURLToPath } from "url";
 
-import { getClaudeDir, getClaudeSettingsFile } from "@/installer/env.js";
+import {
+  getClaudeHomeDir,
+  getClaudeHomeSettingsFile,
+} from "@/installer/env.js";
 import { success, info, warn } from "@/installer/logger.js";
 
 import type { Config } from "@/installer/config.js";
@@ -23,11 +26,9 @@ const __dirname = path.dirname(__filename);
  * @param args.config - Runtime configuration
  */
 const configureStatusLine = async (args: { config: Config }): Promise<void> => {
-  const { config } = args;
-  const claudeDir = getClaudeDir({ installDir: config.installDir });
-  const claudeSettingsFile = getClaudeSettingsFile({
-    installDir: config.installDir,
-  });
+  const { config: _config } = args;
+  const claudeDir = getClaudeHomeDir();
+  const claudeSettingsFile = getClaudeHomeSettingsFile();
 
   info({ message: "Configuring status line..." });
 
@@ -88,11 +89,9 @@ const configureStatusLine = async (args: { config: Config }): Promise<void> => {
  * @param args.config - Runtime configuration
  */
 const removeStatusLine = async (args: { config: Config }): Promise<void> => {
-  const { config } = args;
-  const claudeDir = getClaudeDir({ installDir: config.installDir });
-  const claudeSettingsFile = getClaudeSettingsFile({
-    installDir: config.installDir,
-  });
+  const { config: _config } = args;
+  const claudeDir = getClaudeHomeDir();
+  const claudeSettingsFile = getClaudeHomeSettingsFile();
   const destScript = path.join(claudeDir, "nori-statusline.sh");
 
   info({ message: "Removing status line from Claude Code settings..." });

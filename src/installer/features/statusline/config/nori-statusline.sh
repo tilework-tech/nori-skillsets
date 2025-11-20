@@ -45,11 +45,6 @@ CWD_FROM_JSON=$(echo "$INPUT" | jq -r '.cwd // empty')
 # Find install directory by searching upward from CWD
 if [ -n "$CWD_FROM_JSON" ] && [ -d "$CWD_FROM_JSON" ]; then
     INSTALL_DIR=$(find_install_dir "$CWD_FROM_JSON")
-else
-    # Fall back to deriving from script location if no CWD provided
-    # Script is at .claude/nori-statusline.sh, so parent is install dir
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    INSTALL_DIR="$(dirname "$SCRIPT_DIR")"
 fi
 
 # If we still don't have an install dir, use CWD as fallback

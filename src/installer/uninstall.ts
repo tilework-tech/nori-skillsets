@@ -36,12 +36,13 @@ import {
  * @param args - Configuration arguments
  * @param args.installDir - Installation directory
  *
- * @returns The configuration (paid or free) if user confirms, null to exit
+ * @returns The configuration and removeHooksAndStatusline flag if user confirms, null to exit
  */
 const promptForUninstall = async (args: {
   installDir: string;
 }): Promise<{
   config: Config;
+  removeHooksAndStatusline: boolean;
 } | null> => {
   let { installDir } = args;
 
@@ -116,7 +117,7 @@ const promptForUninstall = async (args: {
   info({ message: "Nori Profiles Uninstaller" });
   console.log();
   warn({
-    message: "This will remove all Nori Profiles features from your system.",
+    message: "This will remove Nori Profiles features from your system.",
   });
   console.log();
 
@@ -144,7 +145,8 @@ const promptForUninstall = async (args: {
     info({ message: "  - Automatic memorization hooks" });
   }
   info({ message: "  - Desktop notification hook" });
-  info({ message: "  - Status line configuration" });
+  info({ message: "  - Skills and profiles" });
+  info({ message: "  - Slash commands" });
   info({ message: "  - CLAUDE.md (with confirmation)" });
   info({ message: "  - Nori configuration file" });
   console.log();
@@ -160,9 +162,28 @@ const promptForUninstall = async (args: {
 
   console.log();
 
+  // Ask if user wants to remove hooks and statusline from ~/.claude
+  warn({
+    message:
+      "Hooks and statusline are installed in ~/.claude/settings.json and are shared across all Nori installations.",
+  });
+  info({
+    message: "If you have other Nori installations, you may want to keep them.",
+  });
+  console.log();
+
+  const removeHooks = await promptUser({
+    prompt:
+      "Do you want to remove hooks and statusline from ~/.claude/settings.json? (y/n): ",
+  });
+
+  const removeHooksAndStatusline = removeHooks.match(/^[Yy]$/) ? true : false;
+
+  console.log();
+
   const config = generateConfig({ diskConfig: existingDiskConfig, installDir });
 
-  return { config };
+  return { config, removeHooksAndStatusline };
 };
 
 /**
@@ -255,17 +276,26 @@ const removeConfigFile = async (args: {
 /**
  * Core uninstall logic (can be called programmatically)
  * Preserves config file by default (for upgrades). Only removes config when removeConfig=true.
+ * In non-interactive mode, hooks and statusline are NOT removed from ~/.claude to avoid
+ * breaking other Nori installations.
  * @param args - Configuration arguments
  * @param args.removeConfig - Whether to remove the config file (default: false)
+ * @param args.removeHooksAndStatusline - Whether to remove hooks and statusline from ~/.claude (default: false)
  * @param args.installedVersion - Version being uninstalled (for logging)
  * @param args.installDir - Installation directory
  */
 export const runUninstall = async (args: {
   removeConfig?: boolean | null;
+  removeHooksAndStatusline?: boolean | null;
   installedVersion?: string | null;
   installDir: string;
 }): Promise<void> => {
-  const { removeConfig, installedVersion, installDir } = args;
+  const {
+    removeConfig,
+    removeHooksAndStatusline,
+    installedVersion,
+    installDir,
+  } = args;
 
   // Load config to determine install type (defaults to free if none exists)
   const existingDiskConfig = await loadDiskConfig({ installDir });
@@ -294,6 +324,17 @@ export const runUninstall = async (args: {
   // Execute uninstallers sequentially to avoid race conditions
   // (hooks and statusline both read/write settings.json)
   for (const loader of loaders) {
+    // Skip hooks and statusline loaders if removeHooksAndStatusline is false
+    if (
+      !removeHooksAndStatusline &&
+      (loader.name === "hooks" || loader.name === "statusline")
+    ) {
+      info({
+        message: `Skipping ${loader.name} uninstall (preserving ~/.claude/settings.json)`,
+      });
+      continue;
+    }
+
     try {
       await loader.uninstall({ config });
     } catch (err: any) {
@@ -341,8 +382,13 @@ export const main = async (args?: {
     // Initialize analytics
 
     if (nonInteractive) {
-      // Non-interactive mode: preserve config (for upgrades/autoupdate)
-      await runUninstall({ removeConfig: false, installDir });
+      // Non-interactive mode: preserve config and do not remove hooks/statusline
+      // (for upgrades/autoupdate - avoid breaking other installations)
+      await runUninstall({
+        removeConfig: false,
+        removeHooksAndStatusline: false,
+        installDir,
+      });
     } else {
       // Interactive mode: prompt for confirmation and remove config
       const result = await promptForUninstall({ installDir });
@@ -351,8 +397,12 @@ export const main = async (args?: {
         process.exit(0);
       }
 
-      // Run uninstall and remove config (user-initiated uninstall)
-      await runUninstall({ removeConfig: true, installDir });
+      // Run uninstall, remove config, and conditionally remove hooks/statusline based on user choice
+      await runUninstall({
+        removeConfig: true,
+        removeHooksAndStatusline: result.removeHooksAndStatusline,
+        installDir,
+      });
     }
 
     // Uninstallation complete

@@ -16,6 +16,8 @@ let mockConfigPath = "/tmp/test-config.json";
 vi.mock("@/installer/env.js", () => ({
   getClaudeDir: () => mockClaudeDir,
   getClaudeSettingsFile: () => path.join(mockClaudeDir, "settings.json"),
+  getClaudeHomeDir: () => mockClaudeDir,
+  getClaudeHomeSettingsFile: () => path.join(mockClaudeDir, "settings.json"),
   getClaudeAgentsDir: () => path.join(mockClaudeDir, "agents"),
   getClaudeCommandsDir: () => path.join(mockClaudeDir, "commands"),
   getClaudeMdFile: () => path.join(mockClaudeDir, "CLAUDE.md"),
@@ -139,9 +141,15 @@ describe("uninstall idempotency", () => {
 
   it("should be idempotent when called on fresh system (no files exist)", async () => {
     // Multiple calls should not throw even when nothing is installed
-    await expect(runUninstall({ installDir: tempDir })).resolves.not.toThrow();
-    await expect(runUninstall({ installDir: tempDir })).resolves.not.toThrow();
-    await expect(runUninstall({ installDir: tempDir })).resolves.not.toThrow();
+    await expect(
+      runUninstall({ removeHooksAndStatusline: true, installDir: tempDir }),
+    ).resolves.not.toThrow();
+    await expect(
+      runUninstall({ removeHooksAndStatusline: true, installDir: tempDir }),
+    ).resolves.not.toThrow();
+    await expect(
+      runUninstall({ removeHooksAndStatusline: true, installDir: tempDir }),
+    ).resolves.not.toThrow();
   });
 
   it("should be idempotent when called multiple times after install", async () => {
@@ -167,7 +175,9 @@ describe("uninstall idempotency", () => {
     );
 
     // First call - feature loaders clean up their files, preserves config
-    await expect(runUninstall({ installDir: tempDir })).resolves.not.toThrow();
+    await expect(
+      runUninstall({ removeHooksAndStatusline: true, installDir: tempDir }),
+    ).resolves.not.toThrow();
 
     // Verify config was preserved
     const configExists = await fs
@@ -177,8 +187,12 @@ describe("uninstall idempotency", () => {
     expect(configExists).toBe(true);
 
     // Second and third calls should not throw
-    await expect(runUninstall({ installDir: tempDir })).resolves.not.toThrow();
-    await expect(runUninstall({ installDir: tempDir })).resolves.not.toThrow();
+    await expect(
+      runUninstall({ removeHooksAndStatusline: true, installDir: tempDir }),
+    ).resolves.not.toThrow();
+    await expect(
+      runUninstall({ removeHooksAndStatusline: true, installDir: tempDir }),
+    ).resolves.not.toThrow();
   });
 
   it("should remove config when removeConfig is true", async () => {
@@ -221,7 +235,9 @@ describe("uninstall idempotency", () => {
     await fs.writeFile(path.join(skillsDir, "test.txt"), "test");
 
     // First call - feature loaders clean up, config doesn't exist
-    await expect(runUninstall({ installDir: tempDir })).resolves.not.toThrow();
+    await expect(
+      runUninstall({ removeHooksAndStatusline: true, installDir: tempDir }),
+    ).resolves.not.toThrow();
 
     // Create only config file (no skills directory)
     mockLoadedConfig = {
@@ -241,10 +257,14 @@ describe("uninstall idempotency", () => {
     );
 
     // Second call - preserves config, skills don't exist
-    await expect(runUninstall({ installDir: tempDir })).resolves.not.toThrow();
+    await expect(
+      runUninstall({ removeHooksAndStatusline: true, installDir: tempDir }),
+    ).resolves.not.toThrow();
 
     // Third call - nothing new to clean
-    await expect(runUninstall({ installDir: tempDir })).resolves.not.toThrow();
+    await expect(
+      runUninstall({ removeHooksAndStatusline: true, installDir: tempDir }),
+    ).resolves.not.toThrow();
   });
 
   it("should preserve config when removeConfig is false (autoupdate scenario)", async () => {
@@ -430,15 +450,16 @@ describe("uninstall with ancestor directory detection", () => {
       }),
     );
 
-    // Mock user confirmation (two calls: one for ancestor prompt, one for uninstall confirmation)
+    // Mock user confirmation (three calls: ancestor prompt, uninstall confirmation, hooks/statusline removal)
     (promptUser as any).mockResolvedValueOnce("y"); // Accept ancestor uninstall
     (promptUser as any).mockResolvedValueOnce("y"); // Confirm uninstall
+    (promptUser as any).mockResolvedValueOnce("y"); // Remove hooks/statusline
 
     // Run uninstall from child directory (no installation in child)
     await main({ nonInteractive: false, installDir: childDir });
 
-    // Verify promptUser was called twice (once for ancestor, once for uninstall confirm)
-    expect(promptUser).toHaveBeenCalledTimes(2);
+    // Verify promptUser was called three times (ancestor, uninstall confirm, hooks/statusline)
+    expect(promptUser).toHaveBeenCalledTimes(3);
 
     // Verify the first call asks about the ancestor directory
     const firstCall = (promptUser as any).mock.calls[0][0];
@@ -473,15 +494,16 @@ describe("uninstall with ancestor directory detection", () => {
       }),
     );
 
-    // Mock user responses: select option 2, then confirm
+    // Mock user responses: select option 2, confirm, remove hooks/statusline
     (promptUser as any).mockResolvedValueOnce("2"); // Select second installation
     (promptUser as any).mockResolvedValueOnce("y"); // Confirm uninstall
+    (promptUser as any).mockResolvedValueOnce("y"); // Remove hooks/statusline
 
     // Run from child directory
     await main({ nonInteractive: false, installDir: childInParent });
 
-    // Verify promptUser was called twice
-    expect(promptUser).toHaveBeenCalledTimes(2);
+    // Verify promptUser was called three times
+    expect(promptUser).toHaveBeenCalledTimes(3);
 
     // Verify first call asks for selection
     const firstCall = (promptUser as any).mock.calls[0][0];

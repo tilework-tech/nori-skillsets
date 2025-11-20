@@ -14,6 +14,8 @@ import {
   getClaudeMdFile,
   getClaudeSkillsDir,
   getClaudeProfilesDir,
+  getClaudeHomeDir,
+  getClaudeHomeSettingsFile,
 } from "./env.js";
 
 describe("getClaudeDir", () => {
@@ -102,5 +104,39 @@ describe("getClaudeProfilesDir", () => {
   it("should return profiles dir in custom claude dir", () => {
     const result = getClaudeProfilesDir({ installDir: "/custom/path" });
     expect(result).toBe("/custom/path/.claude/profiles");
+  });
+});
+
+describe("getClaudeHomeDir", () => {
+  it("should return ~/.claude expanded to absolute path", () => {
+    const result = getClaudeHomeDir();
+    const expected = path.join(
+      process.env.HOME || process.env.USERPROFILE || "~",
+      ".claude",
+    );
+    expect(result).toBe(expected);
+  });
+
+  it("should not depend on any installDir parameter", () => {
+    const result = getClaudeHomeDir();
+    // Should always return home directory, not vary based on installDir
+    expect(result).toContain(".claude");
+    expect(path.isAbsolute(result)).toBe(true);
+  });
+});
+
+describe("getClaudeHomeSettingsFile", () => {
+  it("should return ~/.claude/settings.json", () => {
+    const result = getClaudeHomeSettingsFile();
+    const homeDir = process.env.HOME || process.env.USERPROFILE || "~";
+    const expected = path.join(homeDir, ".claude", "settings.json");
+    expect(result).toBe(expected);
+  });
+
+  it("should not depend on any installDir parameter", () => {
+    const result = getClaudeHomeSettingsFile();
+    expect(result).toContain(".claude");
+    expect(result).toContain("settings.json");
+    expect(path.isAbsolute(result)).toBe(true);
   });
 });

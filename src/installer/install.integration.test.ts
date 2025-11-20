@@ -67,6 +67,8 @@ vi.mock("./env.js", () => {
     getClaudeDir: (_args: { installDir: string }) => testClaudeDir,
     getClaudeSettingsFile: (_args: { installDir: string }) =>
       `${testClaudeDir}/settings.json`,
+    getClaudeHomeDir: () => testClaudeDir,
+    getClaudeHomeSettingsFile: () => `${testClaudeDir}/settings.json`,
     getClaudeAgentsDir: (_args: { installDir: string }) =>
       `${testClaudeDir}/agents`,
     getClaudeCommandsDir: (_args: { installDir: string }) =>
@@ -445,7 +447,11 @@ describe("install integration test", () => {
     fs.writeFileSync(notificationsLog, "test notification log");
 
     // STEP 4: Run uninstall with removeConfig=true (user-initiated uninstall)
-    await runUninstall({ removeConfig: true, installDir: tempDir });
+    await runUninstall({
+      removeConfig: true,
+      removeHooksAndStatusline: true,
+      installDir: tempDir,
+    });
 
     // STEP 5: Snapshot state AFTER uninstall
     const postUninstallClaudeSnapshot = getDirectorySnapshot(TEST_CLAUDE_DIR);

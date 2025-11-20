@@ -3,6 +3,7 @@
  * Centralized location for Claude-related paths
  */
 
+import * as os from "os";
 import * as path from "path";
 import { fileURLToPath } from "url";
 
@@ -89,4 +90,26 @@ export const getClaudeSkillsDir = (args: { installDir: string }): string => {
  */
 export const getClaudeProfilesDir = (args: { installDir: string }): string => {
   return path.join(getClaudeDir(args), "profiles");
+};
+
+/**
+ * Get the Claude home directory path (always ~/.claude)
+ * This is where Claude Code always looks for user-level settings,
+ * regardless of where Nori is installed.
+ *
+ * @returns Absolute path to ~/.claude
+ */
+export const getClaudeHomeDir = (): string => {
+  return path.join(os.homedir(), ".claude");
+};
+
+/**
+ * Get the Claude home settings file path (always ~/.claude/settings.json)
+ * This is where hooks and statusline configuration should be written
+ * to ensure Claude Code picks them up from any subdirectory.
+ *
+ * @returns Absolute path to ~/.claude/settings.json
+ */
+export const getClaudeHomeSettingsFile = (): string => {
+  return path.join(getClaudeHomeDir(), "settings.json");
 };

@@ -7,7 +7,10 @@ import * as fs from "fs/promises";
 import * as path from "path";
 import { fileURLToPath } from "url";
 
-import { getClaudeDir, getClaudeSettingsFile } from "@/installer/env.js";
+import {
+  getClaudeHomeDir,
+  getClaudeHomeSettingsFile,
+} from "@/installer/env.js";
 import { success, info, warn } from "@/installer/logger.js";
 
 import type { Config } from "@/installer/config.js";
@@ -235,11 +238,9 @@ const commitAuthorHook: HookInterface = {
  * @param args.config - Runtime configuration
  */
 const configurePaidHooks = async (args: { config: Config }): Promise<void> => {
-  const { config } = args;
-  const claudeDir = getClaudeDir({ installDir: config.installDir });
-  const claudeSettingsFile = getClaudeSettingsFile({
-    installDir: config.installDir,
-  });
+  const { config: _config } = args;
+  const claudeDir = getClaudeHomeDir();
+  const claudeSettingsFile = getClaudeHomeSettingsFile();
 
   info({
     message: "Configuring hooks for automatic conversation memorization...",
@@ -317,11 +318,9 @@ const configurePaidHooks = async (args: { config: Config }): Promise<void> => {
  * @param args.config - Runtime configuration
  */
 const configureFreeHooks = async (args: { config: Config }): Promise<void> => {
-  const { config } = args;
-  const claudeDir = getClaudeDir({ installDir: config.installDir });
-  const claudeSettingsFile = getClaudeSettingsFile({
-    installDir: config.installDir,
-  });
+  const { config: _config } = args;
+  const claudeDir = getClaudeHomeDir();
+  const claudeSettingsFile = getClaudeHomeSettingsFile();
 
   info({ message: "Configuring desktop notification hook..." });
 
@@ -389,10 +388,8 @@ const configureFreeHooks = async (args: { config: Config }): Promise<void> => {
  * @param args.config - Runtime configuration
  */
 const removeHooks = async (args: { config: Config }): Promise<void> => {
-  const { config } = args;
-  const claudeSettingsFile = getClaudeSettingsFile({
-    installDir: config.installDir,
-  });
+  const { config: _config } = args;
+  const claudeSettingsFile = getClaudeHomeSettingsFile();
 
   info({ message: "Removing hooks from Claude Code settings..." });
 
@@ -437,9 +434,7 @@ const validate = async (args: {
   config: Config;
 }): Promise<ValidationResult> => {
   const { config } = args;
-  const claudeSettingsFile = getClaudeSettingsFile({
-    installDir: config.installDir,
-  });
+  const claudeSettingsFile = getClaudeHomeSettingsFile();
   const errors: Array<string> = [];
 
   // Check if settings file exists
