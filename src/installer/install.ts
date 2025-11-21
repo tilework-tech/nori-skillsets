@@ -80,37 +80,29 @@ const getAvailableProfiles = async (args: {
   const profilesMap = new Map<string, { name: string; description: string }>();
 
   // Read from source profiles directory (available profiles in package)
-  try {
-    const sourceEntries = await fs.readdir(SOURCE_PROFILES_DIR, {
-      withFileTypes: true,
-    });
+  const sourceEntries = await fs.readdir(SOURCE_PROFILES_DIR, {
+    withFileTypes: true,
+  });
 
-    for (const entry of sourceEntries) {
-      // Skip internal directories and non-directories
-      if (!entry.isDirectory() || entry.name.startsWith("_")) {
-        continue;
-      }
-
-      const profileJsonPath = path.join(
-        SOURCE_PROFILES_DIR,
-        entry.name,
-        "profile.json",
-      );
-
-      try {
-        const content = await fs.readFile(profileJsonPath, "utf-8");
-        const profileData = JSON.parse(content);
-
-        profilesMap.set(entry.name, {
-          name: entry.name,
-          description: profileData.description || "No description available",
-        });
-      } catch {
-        // Skip if can't read profile.json
-      }
+  for (const entry of sourceEntries) {
+    // Skip internal directories and non-directories
+    if (!entry.isDirectory() || entry.name.startsWith("_")) {
+      continue;
     }
-  } catch {
-    // Source directory doesn't exist - shouldn't happen but handle gracefully
+
+    const profileJsonPath = path.join(
+      SOURCE_PROFILES_DIR,
+      entry.name,
+      "profile.json",
+    );
+
+    const content = await fs.readFile(profileJsonPath, "utf-8");
+    const profileData = JSON.parse(content);
+
+    profilesMap.set(entry.name, {
+      name: entry.name,
+      description: profileData.description || "No description available",
+    });
   }
 
   // Read from installed profiles directory (already installed profiles)
