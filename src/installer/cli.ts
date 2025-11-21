@@ -201,14 +201,9 @@ registerUninstallCommand({ program });
 registerCheckCommand({ program });
 registerSwitchProfileCommand({ program });
 
-// Default action when no command is provided
-program.action(async () => {
-  const opts = program.opts();
-  const { main: installMain } = await import("@/installer/install.js");
-  await installMain({
-    nonInteractive: opts.nonInteractive || null,
-    installDir: opts.installDir || null,
-  });
-});
-
 program.parse(process.argv);
+
+// Show help if no command provided
+if (process.argv.length < 3) {
+  program.help();
+}
