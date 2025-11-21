@@ -30,13 +30,15 @@
     "format:eslint": "eslint . --fix"
   },
   "dependencies": {
+    "@types/semver": "^7.7.1",
     "ajv": "^8.17.1",
     "commander": "^14.0.2",
     "firebase": "^12.3.0",
     "firebase-admin": "^13.5.0",
     "glob": "^11.0.3",
     "minimist": "^1.2.8",
-    "node-fetch": "^3.3.2"
+    "node-fetch": "^3.3.2",
+    "semver": "^7.7.3"
   },
   "devDependencies": {
     "@types/minimist": "^1.2.5",

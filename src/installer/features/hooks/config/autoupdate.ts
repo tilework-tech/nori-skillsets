@@ -11,6 +11,8 @@ import { execSync, spawn } from "child_process";
 import { appendFileSync, openSync, closeSync, existsSync } from "fs";
 import { join } from "path";
 
+import semver from "semver";
+
 import { trackEvent } from "@/installer/analytics.js";
 import { loadDiskConfig } from "@/installer/config.js";
 import { error } from "@/installer/logger.js";
@@ -162,7 +164,9 @@ const main = async (): Promise<void> => {
     // Check for updates
     const latestVersion = await getLatestVersion();
     const updateAvailable =
-      latestVersion != null && installedVersion !== latestVersion;
+      latestVersion != null &&
+      semver.valid(latestVersion) != null &&
+      semver.gt(latestVersion, installedVersion);
 
     // Track session start (fire and forget - non-blocking)
     trackEvent({
@@ -176,13 +180,9 @@ const main = async (): Promise<void> => {
       // Silent failure - never interrupt session startup for analytics
     });
 
-    if (!latestVersion) {
-      // Could not determine latest version, skip silently
-      return;
-    }
-
-    if (installedVersion === latestVersion) {
-      // Already on latest version
+    if (!updateAvailable) {
+      // No update needed (either no latest version found, invalid version,
+      // or installed version is already >= latest version)
       return;
     }
 

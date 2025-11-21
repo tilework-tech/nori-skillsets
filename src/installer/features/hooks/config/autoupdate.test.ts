@@ -757,5 +757,223 @@ describe("autoupdate", () => {
       consoleLogSpy.mockRestore();
       getInstallDirsSpy.mockRestore();
     });
+
+    it("should NOT trigger installation when installed version is greater than npm version", async () => {
+      // This test verifies downgrade prevention: if local has v14.2.0 and npm has v14.1.0,
+      // autoupdate should NOT install the older version.
+
+      // Mock getInstalledVersion to return newer version
+      const { getInstalledVersion } = await import("@/installer/version.js");
+      const mockGetInstalledVersion = vi.mocked(getInstalledVersion);
+      mockGetInstalledVersion.mockReturnValue("14.2.0");
+
+      // Mock npm to return older version
+      const mockExecSync = vi.mocked(execSync);
+      mockExecSync.mockReturnValue("14.1.0\n");
+
+      const mockSpawn = vi.mocked(spawn);
+
+      // Mock loadDiskConfig
+      const { loadDiskConfig } = await import("@/installer/config.js");
+      const mockLoadDiskConfig = vi.mocked(loadDiskConfig);
+      mockLoadDiskConfig.mockResolvedValue({
+        auth: null,
+        profile: null,
+        installDir: process.cwd(),
+      });
+
+      // Mock trackEvent
+      const { trackEvent } = await import("@/installer/analytics.js");
+      const mockTrackEvent = vi.mocked(trackEvent);
+      mockTrackEvent.mockResolvedValue();
+
+      const consoleLogSpy = vi
+        .spyOn(console, "log")
+        .mockImplementation(() => undefined);
+
+      const autoupdate = await import("./autoupdate.js");
+      await autoupdate.main();
+
+      // Verify version check happened
+      expect(mockExecSync).toHaveBeenCalled();
+
+      // Verify spawn was NOT called (no downgrade)
+      expect(mockSpawn).not.toHaveBeenCalled();
+
+      // Verify no notification
+      expect(consoleLogSpy).not.toHaveBeenCalled();
+
+      consoleLogSpy.mockRestore();
+    });
+
+    it("should NOT update when local nightly is newer than npm stable", async () => {
+      // This test verifies nightly build scenario: local v14.2.0-nightly.20250120 is
+      // semantically greater than npm v14.1.0, so no update should occur.
+
+      // Mock getInstalledVersion to return nightly build
+      const { getInstalledVersion } = await import("@/installer/version.js");
+      const mockGetInstalledVersion = vi.mocked(getInstalledVersion);
+      mockGetInstalledVersion.mockReturnValue("14.2.0-nightly.20250120");
+
+      // Mock npm to return stable version
+      const mockExecSync = vi.mocked(execSync);
+      mockExecSync.mockReturnValue("14.1.0\n");
+
+      const mockSpawn = vi.mocked(spawn);
+
+      // Mock loadDiskConfig
+      const { loadDiskConfig } = await import("@/installer/config.js");
+      const mockLoadDiskConfig = vi.mocked(loadDiskConfig);
+      mockLoadDiskConfig.mockResolvedValue({
+        auth: null,
+        profile: null,
+        installDir: process.cwd(),
+      });
+
+      // Mock trackEvent
+      const { trackEvent } = await import("@/installer/analytics.js");
+      const mockTrackEvent = vi.mocked(trackEvent);
+      mockTrackEvent.mockResolvedValue();
+
+      const consoleLogSpy = vi
+        .spyOn(console, "log")
+        .mockImplementation(() => undefined);
+
+      const autoupdate = await import("./autoupdate.js");
+      await autoupdate.main();
+
+      // Verify version check happened
+      expect(mockExecSync).toHaveBeenCalled();
+
+      // Verify spawn was NOT called (nightly is newer)
+      expect(mockSpawn).not.toHaveBeenCalled();
+
+      // Verify no notification
+      expect(consoleLogSpy).not.toHaveBeenCalled();
+
+      consoleLogSpy.mockRestore();
+    });
+
+    it("should update when npm stable is newer than local nightly", async () => {
+      // This test verifies upgrade from nightly: local v14.1.0-nightly.20250120 is
+      // semantically less than npm v14.1.0, so update should occur.
+
+      // Mock openSync to return fake file descriptor
+      const { openSync } = await import("fs");
+      const mockOpenSync = vi.mocked(openSync);
+      mockOpenSync.mockReturnValue(3 as any);
+
+      // Mock getInstalledVersion to return nightly build
+      const { getInstalledVersion } = await import("@/installer/version.js");
+      const mockGetInstalledVersion = vi.mocked(getInstalledVersion);
+      mockGetInstalledVersion.mockReturnValue("14.1.0-nightly.20250120");
+
+      // Mock npm to return stable version
+      const mockExecSync = vi.mocked(execSync);
+      mockExecSync.mockReturnValue("14.1.0\n");
+
+      // Mock spawn to capture the installation call
+      const mockSpawn = vi.mocked(spawn);
+      const mockChild = {
+        unref: vi.fn(),
+        on: vi.fn(),
+      };
+      mockSpawn.mockReturnValue(mockChild as any);
+
+      // Mock loadDiskConfig
+      const { loadDiskConfig } = await import("@/installer/config.js");
+      const mockLoadDiskConfig = vi.mocked(loadDiskConfig);
+      mockLoadDiskConfig.mockResolvedValue({
+        auth: null,
+        profile: null,
+        installDir: process.cwd(),
+      });
+
+      // Mock trackEvent
+      const { trackEvent } = await import("@/installer/analytics.js");
+      const mockTrackEvent = vi.mocked(trackEvent);
+      mockTrackEvent.mockResolvedValue();
+
+      const consoleLogSpy = vi
+        .spyOn(console, "log")
+        .mockImplementation(() => undefined);
+
+      const autoupdate = await import("./autoupdate.js");
+      await autoupdate.main();
+
+      // Verify version check happened
+      expect(mockExecSync).toHaveBeenCalled();
+
+      // Verify spawn WAS called to upgrade to stable
+      expect(mockSpawn).toHaveBeenCalledWith(
+        "npx",
+        expect.arrayContaining([
+          "nori-ai@14.1.0",
+          "install",
+          "--non-interactive",
+        ]),
+        {
+          detached: true,
+          stdio: ["ignore", 3, 3],
+        },
+      );
+
+      // Verify notification
+      expect(consoleLogSpy).toHaveBeenCalled();
+      const logOutput = consoleLogSpy.mock.calls[0][0];
+      const parsed = JSON.parse(logOutput);
+      expect(parsed.systemMessage).toContain("14.1.0-nightly.20250120");
+      expect(parsed.systemMessage).toContain("14.1.0");
+
+      consoleLogSpy.mockRestore();
+    });
+
+    it("should handle invalid version strings gracefully", async () => {
+      // This test verifies that malformed versions from npm are handled gracefully
+      // without crashing or triggering an update.
+
+      // Mock getInstalledVersion
+      const { getInstalledVersion } = await import("@/installer/version.js");
+      const mockGetInstalledVersion = vi.mocked(getInstalledVersion);
+      mockGetInstalledVersion.mockReturnValue("14.1.0");
+
+      // Mock npm to return invalid version
+      const mockExecSync = vi.mocked(execSync);
+      mockExecSync.mockReturnValue("not-a-valid-version\n");
+
+      const mockSpawn = vi.mocked(spawn);
+
+      // Mock loadDiskConfig
+      const { loadDiskConfig } = await import("@/installer/config.js");
+      const mockLoadDiskConfig = vi.mocked(loadDiskConfig);
+      mockLoadDiskConfig.mockResolvedValue({
+        auth: null,
+        profile: null,
+        installDir: process.cwd(),
+      });
+
+      // Mock trackEvent
+      const { trackEvent } = await import("@/installer/analytics.js");
+      const mockTrackEvent = vi.mocked(trackEvent);
+      mockTrackEvent.mockResolvedValue();
+
+      const consoleLogSpy = vi
+        .spyOn(console, "log")
+        .mockImplementation(() => undefined);
+
+      const autoupdate = await import("./autoupdate.js");
+      await autoupdate.main();
+
+      // Verify version check happened
+      expect(mockExecSync).toHaveBeenCalled();
+
+      // Verify spawn was NOT called (invalid version)
+      expect(mockSpawn).not.toHaveBeenCalled();
+
+      // Verify no notification
+      expect(consoleLogSpy).not.toHaveBeenCalled();
+
+      consoleLogSpy.mockRestore();
+    });
   });
 });
