@@ -733,7 +733,7 @@ export const registerInstallCommand = (args: { program: Command }): void => {
 
   program
     .command("install")
-    .description("Install Nori Profiles (default)")
+    .description("Install Nori Profiles")
     .action(async () => {
       // Get global options from parent
       const globalOpts = program.opts();
