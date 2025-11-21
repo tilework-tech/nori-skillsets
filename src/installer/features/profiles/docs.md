@@ -53,8 +53,8 @@ The profiles loader executes FIRST in both interactive and non-interactive insta
 **Mixin Categories**: Mixins use a two-tier naming convention: `{category}` for base features and `{category}-{tier}` for tier-specific features:
 
 - `_base`: Core infrastructure (using-skills, web-search-researcher, nori-debug/info/switch-profile commands)
-- `_docs`: Documentation workflows - free tier (updating-noridocs skill, nori-initial-documenter/nori-change-documenter subagents, initialize-noridocs command). All documentation workflows follow a consistent pattern: update local docs.md files, then sync to remote server using sync-noridocs skill in a single bulk operation.
-- `_docs-paid`: Documentation workflows - paid tier (paid-write-noridoc, paid-read-noridoc, paid-list-noridocs, paid-sync-noridocs skills, sync-noridocs slash command)
+- `_docs`: Documentation workflows - free tier (updating-noridocs skill, nori-initial-documenter/nori-change-documenter subagents, nori-init-docs command). All documentation workflows follow a consistent pattern: update local docs.md files, then sync to remote server using nori-sync-docs skill in a single bulk operation.
+- `_docs-paid`: Documentation workflows - paid tier (paid-write-noridoc, paid-read-noridoc, paid-list-noridocs, paid-sync-noridocs skills, nori-sync-docs slash command)
 - `_swe`: Software engineering - free tier (12 skills like TDD/debugging/git-worktrees/building-ui-ux, 3 codebase-analysis subagents)
 - `_swe-paid`: Software engineering - paid tier (reserved for future paid SWE features)
 - `_paid`: Cross-category premium features (paid-recall, paid-memorize, paid-prompt-analysis skills, knowledge-researcher subagent)

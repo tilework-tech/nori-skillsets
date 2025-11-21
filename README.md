@@ -104,7 +104,7 @@ _Enhances Claude Code with process enforcement and systematic workflows—no bac
 - **32+ engineering skills**: Step-by-step instructions for TDD, debugging, code review, git workflows, architecture decisions
 - **3 built-in profiles**: senior-swe, product-manager, documenter
 - **Real-time status line**: Git branch, active profile, token usage, conversation cost
-- **Slash commands**: Quick access to workflows (`/nori-info`, `/nori-debug`, `/initialize-noridocs`, `/switch-nori-profile`)
+- **Slash commands**: Quick access to workflows (`/nori-info`, `/nori-debug`, `/nori-init-docs`, `/switch-nori-profile`)
 - **Specialized subagents**: codebase-locator, codebase-analyzer, codebase-pattern-finder, web-search-researcher
 - **Local noridocs**: Automatic documentation with change-documenter and initial-documenter subagents
 
