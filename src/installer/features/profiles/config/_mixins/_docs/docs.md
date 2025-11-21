@@ -8,7 +8,7 @@ This directory contains mixin files for documentation workflows used by multiple
 
 ### How it fits into the larger codebase
 
-This directory is consumed by @/plugin/src/installer/features/profiles/ during profile installation. Profiles can reference mixins from this directory in their config to include documentation capabilities. The subagents defined here (particularly in @/plugin/src/installer/features/profiles/config/_mixins/_docs/subagents/) are copied to ~/.claude/agents/ during installation by @/plugin/src/installer/features/subagents/, allowing the main agent to delegate documentation tasks via the Task tool. The slash commands in @/plugin/src/installer/features/profiles/config/_mixins/_docs/slashcommands/ are copied to ~/.claude/slash_commands/ by @/plugin/src/installer/features/slashcommands/, enabling users to invoke documentation workflows with commands like /initialize-noridocs and /update-noridocs.
+This directory is consumed by @/plugin/src/installer/features/profiles/ during profile installation. Profiles can reference mixins from this directory in their config to include documentation capabilities. The subagents defined here (particularly in @/plugin/src/installer/features/profiles/config/_mixins/_docs/subagents/) are copied to ~/.claude/agents/ during installation by @/plugin/src/installer/features/subagents/, allowing the main agent to delegate documentation tasks via the Task tool. The slash commands in @/plugin/src/installer/features/profiles/config/_mixins/_docs/slashcommands/ are copied to ~/.claude/slash_commands/ by @/plugin/src/installer/features/slashcommands/, enabling users to invoke documentation workflows with commands like /nori-init-docs and /update-noridocs.
 
 ### Core Implementation
 

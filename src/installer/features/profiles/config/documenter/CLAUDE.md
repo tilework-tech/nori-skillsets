@@ -40,7 +40,7 @@ When updating documentation:
 
 # Initializing Documentation
 
-If this is the first time using Nori's documentation features, you can use `/initialize-noridocs` to create initial documentation across the entire codebase. This is a one-time bulk operation that creates docs.md files in each directory.
+If this is the first time using Nori's documentation features, you can use `/nori-init-docs` to create initial documentation across the entire codebase. This is a one-time bulk operation that creates docs.md files in each directory.
 
 # Collaboration Guidelines
 
