@@ -1,10 +1,10 @@
 import { readFileSync, existsSync } from "fs";
-import { homedir } from "os";
-import { join } from "path";
 
 import { signInWithEmailAndPassword } from "firebase/auth";
 
+import { getConfigPath } from "@/installer/config.js";
 import { getFirebase, configureFirebase } from "@/providers/firebase.js";
+import { getInstallDirs } from "@/utils/path.js";
 import { normalizeUrl } from "@/utils/url.js";
 
 export type NoriConfig = {
@@ -14,12 +14,34 @@ export type NoriConfig = {
 };
 
 export class ConfigManager {
-  private static readonly CONFIG_PATH = join(homedir(), "nori-config.json");
-
   static loadConfig = (): NoriConfig => {
     try {
-      if (existsSync(ConfigManager.CONFIG_PATH)) {
-        const content = readFileSync(ConfigManager.CONFIG_PATH, "utf8");
+      // Find installation directory using getInstallDirs
+      const allInstallations = getInstallDirs({ currentDir: process.cwd() });
+
+      if (allInstallations.length === 0) {
+        // Fail loudly when no installation found
+        throw new Error(
+          "No Nori installation found. Please install Nori or run from a directory with a Nori installation.",
+        );
+      }
+
+      const installDir = allInstallations[0]; // Use closest installation
+
+      // Log when multiple installations found
+      if (allInstallations.length > 1) {
+        console.error(
+          `Multiple Nori installations found. Using closest: ${installDir}`,
+        );
+        console.error(
+          `Other installations: ${allInstallations.slice(1).join(", ")}`,
+        );
+      }
+
+      const configPath = getConfigPath({ installDir });
+
+      if (existsSync(configPath)) {
+        const content = readFileSync(configPath, "utf8");
 
         // RACE CONDITION HANDLING:
         // During fresh installation, trackEvent() is called fire-and-forget (not awaited)
@@ -43,6 +65,7 @@ export class ConfigManager {
       }
     } catch (error) {
       console.error("Error loading config:", error);
+      throw error;
     }
     return {};
   };
@@ -73,7 +96,7 @@ class AuthManager {
 
     if (!config.organizationUrl || !config.username || !config.password) {
       throw new Error(
-        "Nori is not configured. Please set username, password, and organizationUrl in ~/nori-config.json",
+        "Nori is not configured. Please set username, password, and organizationUrl in .nori-config.json in your installation directory",
       );
     }
 

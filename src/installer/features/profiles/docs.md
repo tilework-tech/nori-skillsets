@@ -8,7 +8,7 @@ Profile system that provides complete, self-contained Nori configurations compos
 
 ### How it fits into the larger codebase
 
-The profiles loader executes FIRST in both interactive and non-interactive installation modes (see @/plugin/src/installer/install.ts) to populate `~/.claude/profiles/` before any other loaders run. In interactive mode, @/plugin/src/installer/install.ts prompts for profile selection by reading directories from @/plugin/src/installer/features/profiles/config/, then saves the selection to `~/nori-config.json` via @/plugin/src/installer/config.ts. All subsequent feature loaders (@/plugin/src/installer/features/claudemd/loader.ts, @/plugin/src/installer/features/skills/loader.ts, @/plugin/src/installer/features/subagents/loader.ts, @/plugin/src/installer/features/slashcommands/loader.ts) read from `~/.claude/profiles/{selectedProfile}/` to install their components. Profile switching is handled by @/plugin/src/installer/profiles.ts which updates `~/nori-config.json` while preserving auth credentials, then re-runs installation. The statusline (@/plugin/src/installer/features/statusline) displays the active profile name. The `/switch-nori-profile` slash command enables in-conversation profile switching.
+The profiles loader executes FIRST in both interactive and non-interactive installation modes (see @/plugin/src/installer/install.ts) to populate `~/.claude/profiles/` before any other loaders run. In interactive mode, @/plugin/src/installer/install.ts prompts for profile selection by reading directories from @/plugin/src/installer/features/profiles/config/, then saves the selection to `.nori-config.json` via @/plugin/src/installer/config.ts. All subsequent feature loaders (@/plugin/src/installer/features/claudemd/loader.ts, @/plugin/src/installer/features/skills/loader.ts, @/plugin/src/installer/features/subagents/loader.ts, @/plugin/src/installer/features/slashcommands/loader.ts) read from `~/.claude/profiles/{selectedProfile}/` to install their components. Profile switching is handled by @/plugin/src/installer/profiles.ts which updates `.nori-config.json` while preserving auth credentials, then re-runs installation. The statusline (@/plugin/src/installer/features/statusline) displays the active profile name. The `/switch-nori-profile` slash command enables in-conversation profile switching.
 
 ### Core Implementation
 
@@ -20,7 +20,7 @@ The profiles loader executes FIRST in both interactive and non-interactive insta
 
 **Installation Flow**: The `installProfiles()` function in @/plugin/src/installer/features/profiles/loader.ts reads profile directories from config/, loads profile.json metadata, dynamically injects the `paid` mixin if the user has auth credentials (via `injectPaidMixin()`), then composes the profile by merging content from all mixins in alphabetical order. Mixins are located in `config/_mixins/` with names like `_base`, `_docs`, `_swe`, `_paid`. Directories are merged (union of contents) while files use last-writer-wins. Profile-specific content (CLAUDE.md) is overlaid last. Built-in profiles are always overwritten during installation to receive updates. Custom profiles are preserved.
 
-**Profile Discovery**: @/plugin/src/installer/profiles.ts `listProfiles()` scans `~/.claude/profiles/` for directories containing CLAUDE.md. `switchProfile()` validates the profile exists, loads current config from `~/nori-config.json`, preserves auth credentials, updates `profile.baseProfile` field, saves back to disk, and prompts user to restart Claude Code.
+**Profile Discovery**: @/plugin/src/installer/profiles.ts `listProfiles()` scans `~/.claude/profiles/` for directories containing CLAUDE.md. `switchProfile()` validates the profile exists, loads current config from `.nori-config.json`, preserves auth credentials, updates `profile.baseProfile` field, saves back to disk, and prompts user to restart Claude Code.
 
 **Loader Ordering**: Critical fix in commit e832083 ensures profiles loader runs before all other loaders in non-interactive mode by explicitly calling `profilesLoader.run()` first in @/plugin/src/installer/install.ts, then filtering it from the remaining loaders array.
 
@@ -34,7 +34,7 @@ The profiles loader executes FIRST in both interactive and non-interactive insta
 
 **CLAUDE.md as validation marker**: A directory is only a valid profile if it contains CLAUDE.md. This allows config/ to contain other files without treating them as profiles.
 
-**Config separation**: Auth credentials and profile selection are separate fields in `~/nori-config.json`. The `auth` object contains username/password/organizationUrl, while `profile.baseProfile` contains the profile name. This separation allows profile switching without re-authentication.
+**Config separation**: Auth credentials and profile selection are separate fields in `.nori-config.json`. The `auth` object contains username/password/organizationUrl, while `profile.baseProfile` contains the profile name. This separation allows profile switching without re-authentication.
 
 **Template placeholders in profile files**: Source markdown files use placeholders like `{{skills_dir}}` instead of hardcoded paths like `~/.claude/skills/`. This enables configurable installation directories - the same source files work for both home directory installations (`~/.claude`) and project-specific installations at custom paths. Placeholders are replaced during installation with tilde notation for home installs or absolute paths for custom installs.
 
@@ -135,7 +135,7 @@ All feature loaders (claudemd, skills, slashcommands, subagents) read from `~/.c
 When you run `npx nori-ai@latest switch-profile <name>`:
 
 1. Validates profile exists in `~/.claude/profiles/`
-2. Saves profile name to `~/nori-config.json` (preserves auth credentials)
+2. Saves profile name to `.nori-config.json` (preserves auth credentials)
 3. Runs `installMain({ nonInteractive: true, skipUninstall: true })` to apply changes
    - The `skipUninstall: true` parameter prevents the installer from running uninstall first
    - This preserves custom user profiles that would otherwise be removed during the uninstall step
