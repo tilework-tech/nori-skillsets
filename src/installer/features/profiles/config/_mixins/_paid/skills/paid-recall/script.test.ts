@@ -53,6 +53,62 @@ describe("paid-recall script", () => {
     }
   });
 
+  describe("installDir resolution", () => {
+    it("should find config in parent directory when running from subdirectory", async () => {
+      // Create parent directory with config
+      const parentDir = path.join(os.tmpdir(), `recall-parent-${Date.now()}`);
+      const subDir = path.join(parentDir, "subdir", "nested");
+      await fs.mkdir(subDir, { recursive: true });
+
+      // Create config in parent with auth
+      const parentConfigPath = path.join(parentDir, ".nori-config.json");
+      await fs.writeFile(
+        parentConfigPath,
+        JSON.stringify({
+          username: "test@example.com",
+          password: "password",
+          organizationUrl: "https://test.nori.ai",
+        }),
+      );
+
+      // Mock cwd to be subdirectory
+      process.cwd = () => subDir;
+      process.argv = ["node", "script.js", "--query=test"];
+
+      // Note: This will fail when calling the API, but we're just testing that
+      // it finds the config and doesn't exit with tier check error
+      await expect(main()).rejects.toThrow();
+      // Should NOT have been called with tier check error
+      expect(consoleErrorSpy).not.toHaveBeenCalledWith(
+        "Error: This feature requires a paid Nori subscription.",
+      );
+
+      // Cleanup
+      await fs.rm(parentDir, { recursive: true, force: true });
+    });
+
+    it("should fail with clear error when no installation found", async () => {
+      // Create directory with NO config file
+      const noInstallDir = path.join(
+        os.tmpdir(),
+        `recall-no-install-${Date.now()}`,
+      );
+      await fs.mkdir(noInstallDir, { recursive: true });
+
+      process.cwd = () => noInstallDir;
+      process.argv = ["node", "script.js", "--query=test"];
+
+      await expect(main()).rejects.toThrow("process.exit(1)");
+      expect(processExitSpy).toHaveBeenCalledWith(1);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        "Error: No Nori installation found.",
+      );
+
+      // Cleanup
+      await fs.rm(noInstallDir, { recursive: true, force: true });
+    });
+  });
+
   describe("tier checking", () => {
     it("should fail when no config file exists", async () => {
       process.argv = ["node", "script.js", "--query=test"];
@@ -60,7 +116,7 @@ describe("paid-recall script", () => {
       await expect(main()).rejects.toThrow("process.exit(1)");
       expect(processExitSpy).toHaveBeenCalledWith(1);
       expect(consoleErrorSpy).toHaveBeenCalledWith(
-        "Error: This feature requires a paid Nori subscription.",
+        "Error: No Nori installation found.",
       );
     });
 

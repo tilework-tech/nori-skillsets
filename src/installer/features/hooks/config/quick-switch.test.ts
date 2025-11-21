@@ -353,5 +353,161 @@ describe("quick-switch hook", () => {
         await fs.rm(otherTestDir, { recursive: true, force: true });
       }
     });
+
+    it("should find profiles in parent directory when running from subdirectory", async () => {
+      const scriptPath = QUICK_SWITCH_SCRIPT;
+
+      // Create subdirectory within testDir
+      const subDir = path.join(testDir, "subdir", "nested");
+      await fs.mkdir(subDir, { recursive: true });
+
+      // Create .nori-config.json marker in testDir to make it detectable by getInstallDirs
+      await fs.writeFile(
+        configPath,
+        JSON.stringify({
+          profile: {
+            baseProfile: "senior-swe",
+          },
+        }),
+      );
+
+      const stdinData = JSON.stringify({
+        prompt: "/switch-nori-profile amol",
+        cwd: subDir, // Running from subdirectory
+        session_id: "test-session",
+        transcript_path: "",
+        permission_mode: "default",
+        hook_event_name: "UserPromptSubmit",
+      });
+
+      const result = await runHookScript({ scriptPath, stdinData });
+
+      // Should exit successfully and switch profile
+      expect(result.exitCode).toBe(0);
+      const output = JSON.parse(result.stdout);
+      expect(output.hookSpecificOutput).toBeDefined();
+      expect(output.hookSpecificOutput.additionalContext).toContain("amol");
+
+      // Verify profile was switched in the parent directory's config
+      const updatedConfig = JSON.parse(await fs.readFile(configPath, "utf-8"));
+      expect(updatedConfig.profile.baseProfile).toBe("amol");
+    });
+
+    it("should fail with clear error when no installation found", async () => {
+      const scriptPath = QUICK_SWITCH_SCRIPT;
+
+      // Create a directory with NO Nori installation markers
+      const noInstallDir = await fs.mkdtemp(
+        path.join(tmpdir(), "quick-switch-no-install-"),
+      );
+
+      try {
+        const stdinData = JSON.stringify({
+          prompt: "/switch-nori-profile amol",
+          cwd: noInstallDir,
+          session_id: "test-session",
+          transcript_path: "",
+          permission_mode: "default",
+          hook_event_name: "UserPromptSubmit",
+        });
+
+        const result = await runHookScript({ scriptPath, stdinData });
+
+        // Should exit successfully but with block decision
+        expect(result.exitCode).toBe(0);
+
+        const output = JSON.parse(result.stdout);
+        expect(output.decision).toBe("block");
+        expect(output.reason).toContain("No Nori installation found");
+      } finally {
+        await fs.rm(noInstallDir, { recursive: true, force: true });
+      }
+    });
+
+    it("should use closest installation when multiple exist", async () => {
+      const scriptPath = QUICK_SWITCH_SCRIPT;
+
+      // Create parent installation
+      const parentDir = await fs.mkdtemp(
+        path.join(tmpdir(), "quick-switch-parent-"),
+      );
+      const parentProfilesDir = path.join(parentDir, ".claude", "profiles");
+      await fs.mkdir(parentProfilesDir, { recursive: true });
+
+      // Create parent profile
+      const parentProfileDir = path.join(parentProfilesDir, "parent-profile");
+      await fs.mkdir(parentProfileDir, { recursive: true });
+      await fs.writeFile(
+        path.join(parentProfileDir, "CLAUDE.md"),
+        "# parent profile",
+      );
+
+      // Create parent config
+      const parentConfigPath = path.join(parentDir, ".nori-config.json");
+      await fs.writeFile(
+        parentConfigPath,
+        JSON.stringify({
+          profile: { baseProfile: "parent-profile" },
+        }),
+      );
+
+      // Create child installation (nested)
+      const childDir = path.join(parentDir, "project");
+      const childProfilesDir = path.join(childDir, ".claude", "profiles");
+      await fs.mkdir(childProfilesDir, { recursive: true });
+
+      // Create child profile
+      const childProfileDir = path.join(childProfilesDir, "child-profile");
+      await fs.mkdir(childProfileDir, { recursive: true });
+      await fs.writeFile(
+        path.join(childProfileDir, "CLAUDE.md"),
+        "# child profile",
+      );
+
+      // Create child config
+      const childConfigPath = path.join(childDir, ".nori-config.json");
+      await fs.writeFile(
+        childConfigPath,
+        JSON.stringify({
+          profile: { baseProfile: "child-profile" },
+        }),
+      );
+
+      // Create subdirectory of child
+      const subDir = path.join(childDir, "subdir");
+      await fs.mkdir(subDir, { recursive: true });
+
+      try {
+        const stdinData = JSON.stringify({
+          prompt: "/switch-nori-profile child-profile",
+          cwd: subDir, // Running from subdirectory of child
+          session_id: "test-session",
+          transcript_path: "",
+          permission_mode: "default",
+          hook_event_name: "UserPromptSubmit",
+        });
+
+        const result = await runHookScript({ scriptPath, stdinData });
+
+        // Should exit successfully
+        expect(result.exitCode).toBe(0);
+        const output = JSON.parse(result.stdout);
+        expect(output.hookSpecificOutput).toBeDefined();
+
+        // Verify profile was switched in the CHILD config (closest installation)
+        const updatedChildConfig = JSON.parse(
+          await fs.readFile(childConfigPath, "utf-8"),
+        );
+        expect(updatedChildConfig.profile.baseProfile).toBe("child-profile");
+
+        // Verify parent config was NOT modified
+        const parentConfig = JSON.parse(
+          await fs.readFile(parentConfigPath, "utf-8"),
+        );
+        expect(parentConfig.profile.baseProfile).toBe("parent-profile");
+      } finally {
+        await fs.rm(parentDir, { recursive: true, force: true });
+      }
+    });
   });
 });

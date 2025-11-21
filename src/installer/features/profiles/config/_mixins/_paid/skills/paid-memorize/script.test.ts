@@ -67,7 +67,7 @@ describe("paid-memorize script", () => {
 
       expect(processExitSpy).toHaveBeenCalledWith(1);
       expect(consoleErrorSpy).toHaveBeenCalledWith(
-        "Error: This feature requires a paid Nori subscription.",
+        "Error: No Nori installation found.",
       );
     });
 

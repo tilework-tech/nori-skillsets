@@ -13,6 +13,7 @@ import minimist from "minimist";
 
 import { apiClient } from "@/api/index.js";
 import { loadDiskConfig, generateConfig } from "@/installer/config.js";
+import { getInstallDirs } from "@/utils/path.js";
 
 /**
  * Show usage information
@@ -59,7 +60,16 @@ Description:
 export const main = async (): Promise<void> => {
   // 1. Check tier
   // Use cwd as installDir since skill scripts run from project directory
-  const installDir = process.cwd();
+  // ALWAYS use getInstallDirs to find installation directory
+  const allInstallations = getInstallDirs({ currentDir: process.cwd() });
+
+  if (allInstallations.length === 0) {
+    // Fail loudly - no silent fallback
+    console.error("Error: No Nori installation found.");
+    process.exit(1);
+  }
+
+  const installDir = allInstallations[0]; // Use closest installation
   const diskConfig = await loadDiskConfig({ installDir });
   const config = generateConfig({ diskConfig, installDir });
 
