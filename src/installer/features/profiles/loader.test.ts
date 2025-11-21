@@ -445,7 +445,7 @@ describe("profilesLoader", () => {
         JSON.stringify(profileJson, null, 2),
       );
 
-      const { readProfileMetadata } = await import("./types.js");
+      const { readProfileMetadata } = await import("./metadata.js");
       const result = await readProfileMetadata({ profileDir: profilePath });
 
       expect(result).toEqual(profileJson);

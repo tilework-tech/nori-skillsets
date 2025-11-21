@@ -305,7 +305,461 @@ const completeConfig = async (args: {
 };
 
 /**
+ * Generate prompt configuration by consolidating all prompt logic
+ * This function handles all user prompts and returns the complete configuration
+ * NOTE: Requires profiles to be populated first (call profilesLoader.run before this)
+ *
+ * @param args - Configuration arguments
+ * @param args.installDir - Installation directory
+ * @param args.existingDiskConfig - Existing disk configuration (if any)
+ *
+ * @returns Configuration and disk config to save, or null if user cancels
+ */
+export const generatePromptConfig = async (args: {
+  installDir: string;
+  existingDiskConfig: DiskConfig | null;
+}): Promise<{
+  config: Config;
+  diskConfigToSave: DiskConfig;
+} | null> => {
+  const { installDir, existingDiskConfig } = args;
+
+  // Prompt for auth credentials first
+  const { auth, useExistingConfig } = await promptForAuth({
+    existingDiskConfig,
+  });
+
+  // If user chose to reuse existing config, return it
+  if (useExistingConfig && existingDiskConfig) {
+    const config = generateConfig({
+      diskConfig: existingDiskConfig,
+      installDir,
+    });
+    return { config, diskConfigToSave: existingDiskConfig };
+  }
+
+  // Otherwise, complete the configuration by prompting for profile
+  const result = await completeConfig({
+    auth,
+    existingProfile: null, // Force new selection
+    installDir,
+  });
+
+  return result;
+};
+
+/**
+ * Interactive installation mode
+ * Prompts user for all configuration and performs installation
+ *
+ * @param args - Configuration arguments
+ * @param args.skipUninstall - Whether to skip uninstall step
+ * @param args.installDir - Installation directory (optional)
+ */
+export const interactive = async (args?: {
+  skipUninstall?: boolean | null;
+  installDir?: string | null;
+}): Promise<void> => {
+  const { skipUninstall, installDir } = args || {};
+  const normalizedInstallDir = normalizeInstallDir({ installDir });
+
+  // Check for ancestor installations
+  const ancestorInstallations = findAncestorInstallations({
+    installDir: normalizedInstallDir,
+  });
+
+  if (ancestorInstallations.length > 0) {
+    console.log();
+    warn({ message: "⚠️  Nori installation detected in ancestor directory!" });
+    console.log();
+    info({
+      message: "Claude Code loads CLAUDE.md files from all parent directories.",
+    });
+    info({
+      message:
+        "Having multiple Nori installations can cause duplicate or conflicting configurations.",
+    });
+    console.log();
+    info({ message: "Existing Nori installations found at:" });
+    for (const ancestorPath of ancestorInstallations) {
+      info({ message: `  • ${ancestorPath}` });
+    }
+    console.log();
+    info({ message: "To remove an existing installation, run:" });
+    for (const ancestorPath of ancestorInstallations) {
+      info({
+        message: `  cd ${ancestorPath} && npx nori-ai@latest uninstall`,
+      });
+    }
+    console.log();
+
+    const continueAnyway = await promptUser({
+      prompt: "Do you want to continue with the installation anyway? (y/n): ",
+    });
+
+    if (!continueAnyway.match(/^[Yy]$/)) {
+      info({ message: "Installation cancelled." });
+      process.exit(0);
+    }
+    console.log();
+  }
+
+  // Handle existing installation cleanup
+  if (
+    !skipUninstall &&
+    hasExistingInstallation({ installDir: normalizedInstallDir })
+  ) {
+    const previousVersion = getInstalledVersion({
+      installDir: normalizedInstallDir,
+    });
+    info({
+      message: `Cleaning up previous installation (v${previousVersion})...`,
+    });
+
+    try {
+      execSync(`npx nori-ai@${previousVersion} uninstall --non-interactive`, {
+        stdio: "inherit",
+      });
+    } catch (err: any) {
+      info({
+        message: `Note: Uninstall at v${previousVersion} failed (may not exist). Continuing with installation...`,
+      });
+    }
+  } else if (skipUninstall) {
+    info({
+      message: "Skipping uninstall step (preserving existing installation)...",
+    });
+  } else {
+    info({ message: "First-time installation detected. No cleanup needed." });
+  }
+
+  // Display banner
+  displayNoriBanner();
+  console.log();
+  info({ message: "Let's personalize Nori to your needs." });
+  console.log();
+
+  // Load existing config
+  const existingDiskConfig = await loadDiskConfig({
+    installDir: normalizedInstallDir,
+  });
+
+  // Prompt for auth
+  const { auth, useExistingConfig } = await promptForAuth({
+    existingDiskConfig,
+  });
+
+  // Build temporary config for profile loader
+  const tempDiskConfig: DiskConfig = {
+    auth: auth || undefined,
+    profile: existingDiskConfig?.profile || null,
+    installDir: normalizedInstallDir,
+  };
+  let config = generateConfig({
+    diskConfig: tempDiskConfig,
+    installDir: normalizedInstallDir,
+  });
+
+  // Run profile loader
+  info({ message: "Loading available profiles..." });
+  await profilesLoader.run({ config });
+  console.log();
+
+  // Prompt for profile selection if not reusing config
+  let diskConfigToSave: DiskConfig | null = null;
+  if (!useExistingConfig) {
+    const result = await completeConfig({
+      auth,
+      existingProfile: null,
+      installDir: normalizedInstallDir,
+    });
+    config = result.config;
+    diskConfigToSave = result.diskConfigToSave;
+  }
+
+  // Track installation start
+  trackEvent({
+    eventName: "plugin_install_started",
+    eventParams: {
+      install_type: config.installType,
+      non_interactive: false,
+    },
+  });
+
+  // Create progress marker
+  const currentVersion = getCurrentPackageVersion();
+  if (currentVersion) {
+    const markerPath = path.join(
+      process.env.HOME || "~",
+      ".nori-install-in-progress",
+    );
+    writeFileSync(markerPath, currentVersion, "utf-8");
+  }
+
+  // Save config if needed
+  if (diskConfigToSave != null) {
+    await saveDiskConfig({
+      username: diskConfigToSave.auth?.username || null,
+      password: diskConfigToSave.auth?.password || null,
+      organizationUrl: diskConfigToSave.auth?.organizationUrl || null,
+      profile: diskConfigToSave.profile || null,
+      installDir: normalizedInstallDir,
+    });
+    success({
+      message: `Configuration saved to ${getConfigPath({ installDir: normalizedInstallDir })}`,
+    });
+    console.log();
+  }
+
+  // Run remaining loaders
+  const registry = LoaderRegistry.getInstance();
+  const loaders = registry.getAll();
+
+  info({ message: "Installing features..." });
+  console.log();
+
+  const remainingLoaders = loaders.filter((l) => l.name !== "profiles");
+  for (const loader of remainingLoaders) {
+    await loader.run({ config });
+  }
+
+  console.log();
+
+  // Save version
+  const finalVersion = getCurrentPackageVersion();
+  if (finalVersion) {
+    saveInstalledVersion({
+      version: finalVersion,
+      installDir: normalizedInstallDir,
+    });
+  }
+
+  // Remove progress marker
+  const markerPath = path.join(
+    process.env.HOME || "~",
+    ".nori-install-in-progress",
+  );
+  if (existsSync(markerPath)) {
+    unlinkSync(markerPath);
+  }
+
+  // Track completion
+  trackEvent({
+    eventName: "plugin_install_completed",
+    eventParams: {
+      install_type: config.installType,
+      non_interactive: false,
+    },
+  });
+
+  displayWelcomeBanner();
+  success({
+    message:
+      "======================================================================",
+  });
+  success({
+    message:
+      "        Restart your Claude Code instances to get started           ",
+  });
+  success({
+    message:
+      "======================================================================",
+  });
+  console.log();
+  displaySeaweedBed();
+  console.log();
+};
+
+/**
+ * Non-interactive installation mode
+ * Uses existing config or defaults, no prompting
+ *
+ * @param args - Configuration arguments
+ * @param args.skipUninstall - Whether to skip uninstall step
+ * @param args.installDir - Installation directory (optional)
+ */
+export const noninteractive = async (args?: {
+  skipUninstall?: boolean | null;
+  installDir?: string | null;
+}): Promise<void> => {
+  const { skipUninstall, installDir } = args || {};
+  const normalizedInstallDir = normalizeInstallDir({ installDir });
+
+  // Check for ancestor installations (warn but continue)
+  const ancestorInstallations = findAncestorInstallations({
+    installDir: normalizedInstallDir,
+  });
+
+  if (ancestorInstallations.length > 0) {
+    console.log();
+    warn({ message: "⚠️  Nori installation detected in ancestor directory!" });
+    console.log();
+    info({
+      message: "Claude Code loads CLAUDE.md files from all parent directories.",
+    });
+    info({
+      message:
+        "Having multiple Nori installations can cause duplicate or conflicting configurations.",
+    });
+    console.log();
+    info({ message: "Existing Nori installations found at:" });
+    for (const ancestorPath of ancestorInstallations) {
+      info({ message: `  • ${ancestorPath}` });
+    }
+    console.log();
+    info({ message: "To remove an existing installation, run:" });
+    for (const ancestorPath of ancestorInstallations) {
+      info({
+        message: `  cd ${ancestorPath} && npx nori-ai@latest uninstall`,
+      });
+    }
+    console.log();
+    warn({
+      message:
+        "Continuing with installation in non-interactive mode despite ancestor installations...",
+    });
+    console.log();
+  }
+
+  // Handle existing installation cleanup
+  if (
+    !skipUninstall &&
+    hasExistingInstallation({ installDir: normalizedInstallDir })
+  ) {
+    const previousVersion = getInstalledVersion({
+      installDir: normalizedInstallDir,
+    });
+    info({
+      message: `Cleaning up previous installation (v${previousVersion})...`,
+    });
+
+    try {
+      execSync(`npx nori-ai@${previousVersion} uninstall --non-interactive`, {
+        stdio: "inherit",
+      });
+    } catch (err: any) {
+      info({
+        message: `Note: Uninstall at v${previousVersion} failed (may not exist). Continuing with installation...`,
+      });
+    }
+  } else if (skipUninstall) {
+    info({
+      message: "Skipping uninstall step (preserving existing installation)...",
+    });
+  } else {
+    info({ message: "First-time installation detected. No cleanup needed." });
+  }
+
+  // Load existing config or use defaults
+  const existingDiskConfig = await loadDiskConfig({
+    installDir: normalizedInstallDir,
+  });
+
+  let config: Config;
+  if (existingDiskConfig?.auth) {
+    config = {
+      ...generateConfig({
+        diskConfig: existingDiskConfig,
+        installDir: normalizedInstallDir,
+      }),
+      nonInteractive: true,
+      installDir: normalizedInstallDir,
+    };
+  } else {
+    config = {
+      installType: "free",
+      nonInteractive: true,
+      profile: { baseProfile: "senior-swe" },
+      installDir: normalizedInstallDir,
+    };
+  }
+
+  // Run profile loader
+  info({ message: "Loading available profiles..." });
+  await profilesLoader.run({ config });
+  console.log();
+
+  // Track installation start
+  trackEvent({
+    eventName: "plugin_install_started",
+    eventParams: {
+      install_type: config.installType,
+      non_interactive: true,
+    },
+  });
+
+  // Create progress marker
+  const currentVersion = getCurrentPackageVersion();
+  if (currentVersion) {
+    const markerPath = path.join(
+      process.env.HOME || "~",
+      ".nori-install-in-progress",
+    );
+    writeFileSync(markerPath, currentVersion, "utf-8");
+  }
+
+  // Run remaining loaders
+  const registry = LoaderRegistry.getInstance();
+  const loaders = registry.getAll();
+
+  info({ message: "Installing features..." });
+  console.log();
+
+  const remainingLoaders = loaders.filter((l) => l.name !== "profiles");
+  for (const loader of remainingLoaders) {
+    await loader.run({ config });
+  }
+
+  console.log();
+
+  // Save version
+  const finalVersion = getCurrentPackageVersion();
+  if (finalVersion) {
+    saveInstalledVersion({
+      version: finalVersion,
+      installDir: normalizedInstallDir,
+    });
+  }
+
+  // Remove progress marker
+  const markerPath = path.join(
+    process.env.HOME || "~",
+    ".nori-install-in-progress",
+  );
+  if (existsSync(markerPath)) {
+    unlinkSync(markerPath);
+  }
+
+  // Track completion
+  trackEvent({
+    eventName: "plugin_install_completed",
+    eventParams: {
+      install_type: config.installType,
+      non_interactive: true,
+    },
+  });
+
+  displayWelcomeBanner();
+  success({
+    message:
+      "======================================================================",
+  });
+  success({
+    message:
+      "        Restart your Claude Code instances to get started           ",
+  });
+  success({
+    message:
+      "======================================================================",
+  });
+  console.log();
+  displaySeaweedBed();
+  console.log();
+};
+
+/**
  * Main installer entry point
+ * Routes to interactive or non-interactive mode
  * @param args - Configuration arguments
  * @param args.nonInteractive - Whether to run in non-interactive mode
  * @param args.skipUninstall - Whether to skip uninstall step (useful for profile switching)
@@ -319,269 +773,11 @@ export const main = async (args?: {
   const { nonInteractive, skipUninstall, installDir } = args || {};
 
   try {
-    // Check for ancestor installations that might cause conflicts
-    const normalizedInstallDir = normalizeInstallDir({ installDir });
-    const ancestorInstallations = findAncestorInstallations({
-      installDir: normalizedInstallDir,
-    });
-
-    if (ancestorInstallations.length > 0) {
-      console.log(); // Add spacing
-      warn({
-        message: "⚠️  Nori installation detected in ancestor directory!",
-      });
-      console.log();
-      info({
-        message:
-          "Claude Code loads CLAUDE.md files from all parent directories.",
-      });
-      info({
-        message:
-          "Having multiple Nori installations can cause duplicate or conflicting configurations.",
-      });
-      console.log();
-      info({ message: "Existing Nori installations found at:" });
-      for (const ancestorPath of ancestorInstallations) {
-        info({ message: `  • ${ancestorPath}` });
-      }
-      console.log();
-      info({
-        message: "To remove an existing installation, run:",
-      });
-      for (const ancestorPath of ancestorInstallations) {
-        info({
-          message: `  cd ${ancestorPath} && npx nori-ai@latest uninstall`,
-        });
-      }
-      console.log();
-
-      // In interactive mode, prompt for confirmation
-      if (!nonInteractive) {
-        const continueAnyway = await promptUser({
-          prompt:
-            "Do you want to continue with the installation anyway? (y/n): ",
-        });
-
-        if (!continueAnyway.match(/^[Yy]$/)) {
-          info({ message: "Installation cancelled." });
-          process.exit(0);
-        }
-        console.log();
-      } else {
-        // In non-interactive mode, warn and continue
-        warn({
-          message:
-            "Continuing with installation in non-interactive mode despite ancestor installations...",
-        });
-        console.log();
-      }
-    }
-
-    // Check if there's an existing installation to clean up
-    if (
-      !skipUninstall &&
-      hasExistingInstallation({ installDir: normalizedInstallDir })
-    ) {
-      const previousVersion = getInstalledVersion({
-        installDir: normalizedInstallDir,
-      });
-      info({
-        message: `Cleaning up previous installation (v${previousVersion})...`,
-      });
-
-      // Call uninstall at the PREVIOUS version
-      try {
-        execSync(`npx nori-ai@${previousVersion} uninstall --non-interactive`, {
-          stdio: "inherit",
-        });
-      } catch (err: any) {
-        // If uninstall fails, log but continue with installation
-        // This handles cases where the previous version didn't have uninstall
-        info({
-          message: `Note: Uninstall at v${previousVersion} failed (may not exist). Continuing with installation...`,
-        });
-      }
-    } else if (skipUninstall) {
-      // Skipping uninstall explicitly (e.g., for profile switching)
-      info({
-        message:
-          "Skipping uninstall step (preserving existing installation)...",
-      });
-    } else {
-      // First-time installation - no cleanup needed
-      info({
-        message: "First-time installation detected. No cleanup needed.",
-      });
-    }
-
-    // Load existing disk config (if any)
-    const existingDiskConfig = await loadDiskConfig({
-      installDir: normalizedInstallDir,
-    });
-
-    let config: Config;
-    let diskConfigToSave: DiskConfig | null = null;
-
     if (nonInteractive) {
-      // Non-interactive mode: use existing config or default to free
-      if (existingDiskConfig?.auth) {
-        config = {
-          ...generateConfig({
-            diskConfig: existingDiskConfig,
-            installDir: normalizedInstallDir,
-          }),
-          nonInteractive: true,
-          installDir: normalizedInstallDir,
-        };
-      } else {
-        config = {
-          installType: "free",
-          nonInteractive: true,
-          profile: { baseProfile: "senior-swe" },
-          installDir: normalizedInstallDir,
-        };
-      }
-
-      // Run profile loader with the config
-      info({ message: "Loading available profiles..." });
-      await profilesLoader.run({ config });
-      console.log();
+      await noninteractive({ skipUninstall, installDir });
     } else {
-      // Interactive mode: show prompts
-      displayNoriBanner();
-      console.log();
-      info({ message: "Let's personalize Nori to your needs." });
-      console.log();
-
-      // 1. Prompt for auth credentials FIRST (or reuse existing)
-      const { auth, useExistingConfig } = await promptForAuth({
-        existingDiskConfig,
-      });
-
-      // 2. Build temporary config for profile loader
-      const tempDiskConfig: DiskConfig = {
-        auth: auth || undefined,
-        profile: existingDiskConfig?.profile || null,
-        installDir: normalizedInstallDir,
-      };
-      config = generateConfig({
-        diskConfig: tempDiskConfig,
-        installDir: normalizedInstallDir,
-      });
-
-      // 3. Run profile loader with CORRECT config (paid if auth exists)
-      info({ message: "Loading available profiles..." });
-      await profilesLoader.run({ config });
-      console.log();
-
-      // 4. If not reusing existing config, prompt for profile selection
-      if (!useExistingConfig) {
-        const result = await completeConfig({
-          auth,
-          existingProfile: null, // Force new selection
-          installDir: normalizedInstallDir,
-        });
-        config = result.config;
-        diskConfigToSave = result.diskConfigToSave;
-      } else {
-        // Reusing existing config - no need to save
-        diskConfigToSave = null;
-      }
+      await interactive({ skipUninstall, installDir });
     }
-
-    // Track installation start
-    trackEvent({
-      eventName: "plugin_install_started",
-      eventParams: {
-        install_type: config.installType,
-        non_interactive: config.nonInteractive || false,
-      },
-    });
-
-    // Create install-in-progress marker file for statusline tracking
-    const currentVersion = getCurrentPackageVersion();
-    if (currentVersion) {
-      const markerPath = path.join(
-        process.env.HOME || "~",
-        ".nori-install-in-progress",
-      );
-      writeFileSync(markerPath, currentVersion, "utf-8");
-    }
-
-    // Save disk config if needed
-    if (diskConfigToSave != null) {
-      await saveDiskConfig({
-        username: diskConfigToSave.auth?.username || null,
-        password: diskConfigToSave.auth?.password || null,
-        organizationUrl: diskConfigToSave.auth?.organizationUrl || null,
-        profile: diskConfigToSave.profile || null,
-        installDir: normalizedInstallDir,
-      });
-      success({
-        message: `Configuration saved to ${getConfigPath({ installDir: normalizedInstallDir })}`,
-      });
-      console.log();
-    }
-
-    // Load all feature loaders (excluding profiles, which already ran)
-    const registry = LoaderRegistry.getInstance();
-    const loaders = registry.getAll();
-
-    info({ message: "Installing features..." });
-    console.log();
-
-    // Execute all loaders except profiles (profiles already ran above)
-    const remainingLoaders = loaders.filter((l) => l.name !== "profiles");
-    for (const loader of remainingLoaders) {
-      await loader.run({ config });
-    }
-
-    // Installation complete
-    console.log();
-
-    // Save installed version
-    const finalVersion = getCurrentPackageVersion();
-    if (finalVersion) {
-      saveInstalledVersion({
-        version: finalVersion,
-        installDir: normalizedInstallDir,
-      });
-    }
-
-    // Delete install-in-progress marker on successful completion
-    const markerPath = path.join(
-      process.env.HOME || "~",
-      ".nori-install-in-progress",
-    );
-    if (existsSync(markerPath)) {
-      unlinkSync(markerPath);
-    }
-
-    // Track installation completion
-    trackEvent({
-      eventName: "plugin_install_completed",
-      eventParams: {
-        install_type: config.installType,
-        non_interactive: config.nonInteractive || false,
-      },
-    });
-
-    displayWelcomeBanner();
-    success({
-      message:
-        "======================================================================",
-    });
-    success({
-      message:
-        "        Restart your Claude Code instances to get started           ",
-    });
-    success({
-      message:
-        "======================================================================",
-    });
-    console.log();
-    displaySeaweedBed();
-    console.log();
   } catch (err: any) {
     error({ message: err.message });
     process.exit(1);

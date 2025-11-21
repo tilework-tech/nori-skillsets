@@ -24,7 +24,6 @@ import type {
   ValidationResult,
 } from "@/installer/features/loaderRegistry.js";
 
-
 // Get directory of this loader file
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -403,6 +402,17 @@ const uninstallProfiles = async (args: { config: Config }): Promise<void> => {
     }
   } catch {
     info({ message: "Profiles directory not found (may not be installed)" });
+  }
+
+  // Remove parent directory if empty
+  try {
+    const files = await fs.readdir(claudeProfilesDir);
+    if (files.length === 0) {
+      await fs.rmdir(claudeProfilesDir);
+      success({ message: `✓ Removed empty directory: ${claudeProfilesDir}` });
+    }
+  } catch {
+    // Directory doesn't exist or couldn't be removed, which is fine
   }
 
   // Remove permissions configuration
