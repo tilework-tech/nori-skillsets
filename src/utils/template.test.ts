@@ -69,12 +69,12 @@ describe("substituteTemplatePaths", () => {
 
   describe("commands_dir placeholder", () => {
     it("should replace {{commands_dir}} with absolute path for custom install", () => {
-      const content = "See `{{commands_dir}}/sync-noridocs.md`";
+      const content = "See `{{commands_dir}}/nori-sync-docs.md`";
       const result = substituteTemplatePaths({
         content,
         installDir: "/project/.claude",
       });
-      expect(result).toBe("See `/project/.claude/commands/sync-noridocs.md`");
+      expect(result).toBe("See `/project/.claude/commands/nori-sync-docs.md`");
     });
   });
 

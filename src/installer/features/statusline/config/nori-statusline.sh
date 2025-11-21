@@ -192,7 +192,7 @@ TIPS=(
     "Tip: Want to learn more about nori? Run /nori-info"
     "Tip: Use the building-ui-ux skill to speed up your UI/UX iteration process"
     "Tip: Nori can write PRs and get review using the github CLI"
-    "Tip: Run /initialize-noridocs to create docs. Nori keeps them updated."
+    "Tip: Run /nori-init-docs to create docs. Nori keeps them updated."
     "Tip: Want to skip the standard flow? Just tell Nori to skip the checklist"
     "Tip: Try running Nori in parallel with git worktrees and multiple sessions"
     "Tip: Leverage your whole team's knowledge with the paid Nori server"

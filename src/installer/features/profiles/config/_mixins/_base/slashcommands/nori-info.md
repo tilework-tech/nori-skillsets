@@ -157,7 +157,7 @@ An opinionated documentation system with docs.md files in each folder.
 - **Format:** Overview, How it fits, Core Implementation, Things to Know
 - **Updates:** Manual via updating-noridocs skill
 - **Storage:** Part of codebase, tracked in git
-- **Initialize:** `/initialize-noridocs` to generate throughout codebase
+- **Initialize:** `/nori-init-docs` to generate throughout codebase
 
 ### 6.2 Paid Tier (Server-side)
 
@@ -204,7 +204,7 @@ Custom commands available in Claude Code.
 - `/nori-info` - Display this information (you're using it now!)
 - `/nori-debug` - Validate Nori installation (`npx nori-ai check`)
 - `/switch-nori-profile` - Switch between profiles interactively
-- `/initialize-noridocs` - Generate documentation files throughout codebase
+- `/nori-init-docs` - Generate documentation files throughout codebase
 
 **Available in:** Free and Paid
 
