@@ -151,12 +151,4 @@ describe("paid-memorize script", () => {
       expect(errorCalls).toMatch(/Usage:/);
     });
   });
-
-  describe("output formatting", () => {
-    it("should output formatted artifact confirmation", async () => {
-      // This test will be completed after we can mock the API
-      // For now, we're verifying the test structure
-      expect(true).toBe(true);
-    });
-  });
 });

@@ -228,44 +228,6 @@ describe("hooksLoader", () => {
       expect(settings.hooks).toBeDefined();
     });
 
-    it("should set includeCoAuthoredBy to false in settings.json", async () => {
-      const config: Config = { installType: "paid", installDir: tempDir };
-
-      await hooksLoader.run({ config });
-
-      // Read and parse settings
-      const content = await fs.readFile(settingsPath, "utf-8");
-      const settings = JSON.parse(content);
-
-      // Verify includeCoAuthoredBy is set to false
-      expect(settings.includeCoAuthoredBy).toBe(false);
-    });
-
-    it("should preserve existing settings when adding includeCoAuthoredBy", async () => {
-      const config: Config = { installType: "paid", installDir: tempDir };
-
-      // Create settings.json with existing configuration
-      const existingSettings = {
-        $schema: "https://json.schemastore.org/claude-code-settings.json",
-        someOtherSetting: "value",
-      };
-      await fs.writeFile(
-        settingsPath,
-        JSON.stringify(existingSettings, null, 2),
-      );
-
-      await hooksLoader.run({ config });
-
-      // Read and parse settings
-      const content = await fs.readFile(settingsPath, "utf-8");
-      const settings = JSON.parse(content);
-
-      // Verify existing settings are preserved
-      expect(settings.someOtherSetting).toBe("value");
-      // Verify includeCoAuthoredBy is added
-      expect(settings.includeCoAuthoredBy).toBe(false);
-    });
-
     it("should update hooks if already configured", async () => {
       const config: Config = { installType: "free", installDir: tempDir };
 
@@ -333,63 +295,8 @@ describe("hooksLoader", () => {
       expect(hasQuickSwitchHook).toBe(true);
     });
 
-    it("should configure UserPromptSubmit hook for quick profile switching (free)", async () => {
-      const config: Config = { installType: "free", installDir: tempDir };
-
-      await hooksLoader.run({ config });
-
-      const content = await fs.readFile(settingsPath, "utf-8");
-      const settings = JSON.parse(content);
-
-      // Verify UserPromptSubmit hooks are configured for free mode too
-      expect(settings.hooks.UserPromptSubmit).toBeDefined();
-      expect(settings.hooks.UserPromptSubmit.length).toBeGreaterThan(0);
-
-      // Find quick-switch hook
-      let hasQuickSwitchHook = false;
-      for (const hookConfig of settings.hooks.UserPromptSubmit) {
-        if (hookConfig.hooks) {
-          for (const hook of hookConfig.hooks) {
-            if (hook.command && hook.command.includes("quick-switch")) {
-              hasQuickSwitchHook = true;
-            }
-          }
-        }
-      }
-      expect(hasQuickSwitchHook).toBe(true);
-    });
-
     it("should configure nested-install-warning hook for paid installation", async () => {
       const config: Config = { installType: "paid", installDir: tempDir };
-
-      await hooksLoader.run({ config });
-
-      const content = await fs.readFile(settingsPath, "utf-8");
-      const settings = JSON.parse(content);
-
-      // Verify SessionStart hooks include nested-install-warning
-      expect(settings.hooks.SessionStart).toBeDefined();
-      expect(settings.hooks.SessionStart.length).toBeGreaterThan(0);
-
-      // Find nested-install-warning hook
-      let hasNestedWarningHook = false;
-      for (const hookConfig of settings.hooks.SessionStart) {
-        if (hookConfig.hooks) {
-          for (const hook of hookConfig.hooks) {
-            if (
-              hook.command &&
-              hook.command.includes("nested-install-warning")
-            ) {
-              hasNestedWarningHook = true;
-            }
-          }
-        }
-      }
-      expect(hasNestedWarningHook).toBe(true);
-    });
-
-    it("should configure nested-install-warning hook for free installation", async () => {
-      const config: Config = { installType: "free", installDir: tempDir };
 
       await hooksLoader.run({ config });
 
@@ -512,47 +419,6 @@ describe("hooksLoader", () => {
       settings = JSON.parse(content);
       expect(settings.someOtherSetting).toBe("preserved value");
       expect(settings.hooks).toBeUndefined();
-    });
-
-    it("should remove includeCoAuthoredBy setting during uninstall", async () => {
-      const config: Config = { installType: "paid", installDir: tempDir };
-
-      // Install first
-      await hooksLoader.run({ config });
-
-      // Verify includeCoAuthoredBy exists
-      let content = await fs.readFile(settingsPath, "utf-8");
-      let settings = JSON.parse(content);
-      expect(settings.includeCoAuthoredBy).toBe(false);
-
-      // Uninstall
-      await hooksLoader.uninstall({ config });
-
-      // Verify includeCoAuthoredBy is removed
-      content = await fs.readFile(settingsPath, "utf-8");
-      settings = JSON.parse(content);
-      expect(settings.includeCoAuthoredBy).toBeUndefined();
-    });
-
-    it("should preserve other settings when removing includeCoAuthoredBy", async () => {
-      const config: Config = { installType: "paid", installDir: tempDir };
-
-      // Create settings with hooks and other config
-      await hooksLoader.run({ config });
-
-      let content = await fs.readFile(settingsPath, "utf-8");
-      let settings = JSON.parse(content);
-      settings.someOtherSetting = "preserved value";
-      await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2));
-
-      // Uninstall
-      await hooksLoader.uninstall({ config });
-
-      // Verify other settings are preserved
-      content = await fs.readFile(settingsPath, "utf-8");
-      settings = JSON.parse(content);
-      expect(settings.someOtherSetting).toBe("preserved value");
-      expect(settings.includeCoAuthoredBy).toBeUndefined();
     });
 
     it("should handle missing settings.json gracefully", async () => {

@@ -180,85 +180,63 @@ describe("uninstall cleanup", () => {
   });
 
   describe("directory cleanup", () => {
-    it("should remove empty agents directory after uninstall", async () => {
-      // Set up free config
-      const config = { installType: "free" as const, installDir: tempDir };
+    it.each([
+      {
+        dir: "agents",
+        dirPath: "agentsDir",
+        installFn: async (config: any) => {
+          await profilesLoader.run({ config });
+          await subagentsLoader.install({ config });
+        },
+      },
+      {
+        dir: "commands",
+        dirPath: "commandsDir",
+        installFn: async (config: any) => {
+          await profilesLoader.run({ config });
+          await slashCommandsLoader.install({ config });
+        },
+      },
+      {
+        dir: "profiles",
+        dirPath: "profilesDir",
+        installFn: async (config: any) => {
+          await profilesLoader.run({ config });
+        },
+      },
+    ])(
+      "should remove empty $dir directory after uninstall",
+      async ({ dirPath, installFn }) => {
+        const config = { installType: "free" as const, installDir: tempDir };
+        const targetDir =
+          dirPath === "agentsDir"
+            ? agentsDir
+            : dirPath === "commandsDir"
+              ? commandsDir
+              : profilesDir;
 
-      // Install profiles and subagents
-      await profilesLoader.run({ config });
-      await subagentsLoader.install({ config });
+        // Install
+        await installFn(config);
 
-      // Verify agents directory exists with files
-      const agentFiles = await fs.readdir(agentsDir);
-      expect(agentFiles.length).toBeGreaterThan(0);
+        // Verify directory exists with files
+        const files = await fs.readdir(targetDir);
+        expect(files.length).toBeGreaterThan(0);
 
-      // Run full uninstall
-      await runUninstall({
-        removeHooksAndStatusline: true,
-        installDir: tempDir,
-      });
+        // Run full uninstall
+        await runUninstall({
+          removeHooksAndStatusline: true,
+          installDir: tempDir,
+        });
 
-      // Verify agents directory is removed (since it should be empty)
-      const agentsDirExists = await fs
-        .access(agentsDir)
-        .then(() => true)
-        .catch(() => false);
+        // Verify directory is removed
+        const dirExists = await fs
+          .access(targetDir)
+          .then(() => true)
+          .catch(() => false);
 
-      expect(agentsDirExists).toBe(false);
-    });
-
-    it("should remove empty commands directory after uninstall", async () => {
-      // Set up free config
-      const config = { installType: "free" as const, installDir: tempDir };
-
-      // Install profiles and slash commands
-      await profilesLoader.run({ config });
-      await slashCommandsLoader.install({ config });
-
-      // Verify commands directory exists with files
-      const commandFiles = await fs.readdir(commandsDir);
-      expect(commandFiles.length).toBeGreaterThan(0);
-
-      // Run full uninstall
-      await runUninstall({
-        removeHooksAndStatusline: true,
-        installDir: tempDir,
-      });
-
-      // Verify commands directory is removed (since it should be empty)
-      const commandsDirExists = await fs
-        .access(commandsDir)
-        .then(() => true)
-        .catch(() => false);
-
-      expect(commandsDirExists).toBe(false);
-    });
-
-    it("should remove empty profiles directory after uninstall", async () => {
-      // Set up free config
-      const config = { installType: "free" as const, installDir: tempDir };
-
-      // Install profiles
-      await profilesLoader.run({ config });
-
-      // Verify profiles directory exists with files
-      const profileFiles = await fs.readdir(profilesDir);
-      expect(profileFiles.length).toBeGreaterThan(0);
-
-      // Run full uninstall
-      await runUninstall({
-        removeHooksAndStatusline: true,
-        installDir: tempDir,
-      });
-
-      // Verify profiles directory is removed (since it should be empty)
-      const profilesDirExists = await fs
-        .access(profilesDir)
-        .then(() => true)
-        .catch(() => false);
-
-      expect(profilesDirExists).toBe(false);
-    });
+        expect(dirExists).toBe(false);
+      },
+    );
 
     it("should preserve directories with user-created files", async () => {
       // Set up free config

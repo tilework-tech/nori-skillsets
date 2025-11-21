@@ -50,27 +50,6 @@ vi.mock("@/utils/path.js", () => ({
 vi.stubGlobal("__PACKAGE_VERSION__", "14.1.0");
 
 describe("autoupdate", () => {
-  describe("unit tests", () => {
-    it("should compile with __PACKAGE_VERSION__ declaration", () => {
-      // This test verifies that the TypeScript declaration is correct
-      // The actual value will be injected at build time by esbuild
-      // We can't test the runtime behavior here since it depends on bundling
-
-      // Type check - this will fail at compile time if declaration is wrong
-      const testVersion = "14.1.0";
-      expect(typeof testVersion).toBe("string");
-      expect(testVersion).toMatch(/^\d+\.\d+\.\d+$/);
-    });
-
-    it("should match semantic versioning format", () => {
-      // Verify the version format is valid semver
-      const semverPattern = /^\d+\.\d+\.\d+$/;
-      const testVersion = "14.1.0";
-
-      expect(testVersion).toMatch(semverPattern);
-    });
-  });
-
   describe("E2E integration tests", () => {
     beforeEach(async () => {
       vi.clearAllMocks();
