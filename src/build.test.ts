@@ -72,17 +72,23 @@ describe("build process", () => {
       // Run the installer pointing to our temp directory
       // Use the CLI entry point (cli.js) with --non-interactive flag
       // to skip prompts and default to free mode
+      // CRITICAL: Use --install-dir to ensure installation goes to temp directory
+      // Without this flag, installDir defaults to process.cwd() which creates
+      // .claude in the project root, breaking test containment
       // Note: We don't check install output - it's expected to succeed
       // The real validation happens with the check command below
-      execSync("node build/src/installer/cli.js install --non-interactive", {
-        cwd: pluginDir,
-        encoding: "utf-8",
-        env: {
-          ...process.env,
-          FORCE_COLOR: "0",
-          HOME: tempDir, // Installer uses HOME to find ~/.claude
+      execSync(
+        `node build/src/installer/cli.js install --non-interactive --install-dir "${tempDir}"`,
+        {
+          cwd: pluginDir,
+          encoding: "utf-8",
+          env: {
+            ...process.env,
+            FORCE_COLOR: "0",
+            HOME: tempDir, // Installer uses HOME to find ~/.claude
+          },
         },
-      });
+      );
 
       // Run the 'check' command to validate the installation
       // This is much more comprehensive than checking individual files
@@ -91,15 +97,18 @@ describe("build process", () => {
       // but we can still check that all features validated successfully
       let checkOutput = "";
       try {
-        checkOutput = execSync("node build/src/installer/cli.js check", {
-          cwd: pluginDir,
-          encoding: "utf-8",
-          env: {
-            ...process.env,
-            FORCE_COLOR: "0",
-            HOME: tempDir, // Use same temp directory
+        checkOutput = execSync(
+          `node build/src/installer/cli.js check --install-dir "${tempDir}"`,
+          {
+            cwd: pluginDir,
+            encoding: "utf-8",
+            env: {
+              ...process.env,
+              FORCE_COLOR: "0",
+              HOME: tempDir, // Use same temp directory
+            },
           },
-        });
+        );
       } catch (error: unknown) {
         // Check command exits with error due to missing config, but that's OK
         // We can still verify the feature installations from stdout
