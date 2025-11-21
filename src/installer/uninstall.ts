@@ -14,13 +14,7 @@ import {
   loadDiskConfig,
   generateConfig,
   getConfigPath,
-  type Config,
 } from "@/installer/config.js";
-import {
-  getClaudeAgentsDir,
-  getClaudeCommandsDir,
-  getClaudeProfilesDir,
-} from "@/installer/env.js";
 import { LoaderRegistry } from "@/installer/features/loaderRegistry.js";
 import { error, success, info, warn } from "@/installer/logger.js";
 import { promptUser } from "@/installer/prompt.js";
@@ -30,18 +24,23 @@ import { normalizeInstallDir, getInstallDirs } from "@/utils/path.js";
 import type { Command } from "commander";
 
 /**
+ * Type for prompt configuration returned by generatePromptConfig
+ */
+export type PromptConfig = {
+  installDir: string;
+  removeHooksAndStatusline: boolean;
+};
+
+/**
  * Prompt user for confirmation before uninstalling
  * @param args - Configuration arguments
  * @param args.installDir - Installation directory
  *
- * @returns The configuration and removeHooksAndStatusline flag if user confirms, null to exit
+ * @returns The prompt configuration if user confirms, null to exit
  */
-const promptForUninstall = async (args: {
+export const generatePromptConfig = async (args: {
   installDir: string;
-}): Promise<{
-  config: Config;
-  removeHooksAndStatusline: boolean;
-} | null> => {
+}): Promise<PromptConfig | null> => {
   let { installDir } = args;
 
   // Get all installations (current + ancestors)
@@ -182,44 +181,7 @@ const promptForUninstall = async (args: {
 
   console.log();
 
-  const config = generateConfig({ diskConfig: existingDiskConfig, installDir });
-
-  return { config, removeHooksAndStatusline };
-};
-
-/**
- * Remove empty directories that were created by Nori loaders
- * Only removes directories if they are empty (preserves user-created content)
- * @param args - Configuration arguments
- * @param args.config - Runtime configuration with installDir
- */
-const cleanupEmptyDirectories = async (args: {
-  config: Config;
-}): Promise<void> => {
-  const { config } = args;
-  info({ message: "Cleaning up empty directories..." });
-
-  const directoriesToCheck = [
-    getClaudeAgentsDir({ installDir: config.installDir }),
-    getClaudeCommandsDir({ installDir: config.installDir }),
-    getClaudeProfilesDir({ installDir: config.installDir }),
-  ];
-
-  for (const dir of directoriesToCheck) {
-    try {
-      const files = await fs.readdir(dir);
-      if (files.length === 0) {
-        await fs.rmdir(dir);
-        success({ message: `✓ Removed empty directory: ${dir}` });
-      } else {
-        info({
-          message: `Directory not empty, preserving: ${dir} (${files.length} files)`,
-        });
-      }
-    } catch {
-      // Directory doesn't exist, which is fine
-    }
-  }
+  return { installDir, removeHooksAndStatusline };
 };
 
 /**
@@ -353,8 +315,7 @@ export const runUninstall = async (args: {
     }
   }
 
-  // Clean up empty directories and standalone files
-  await cleanupEmptyDirectories({ config });
+  // Clean up standalone files
   await cleanupNotificationsLog({ installDir: config.installDir });
 
   // Remove config file only if explicitly requested (e.g., from user-initiated uninstall)
@@ -373,8 +334,105 @@ export const runUninstall = async (args: {
 };
 
 /**
+ * Interactive uninstallation mode
+ * Prompts user for confirmation and configuration choices
+ *
+ * @param args - Configuration arguments
+ * @param args.installDir - Installation directory (optional)
+ */
+export const interactive = async (args?: {
+  installDir?: string | null;
+}): Promise<void> => {
+  const installDir = normalizeInstallDir({ installDir: args?.installDir });
+
+  // Prompt for confirmation and configuration
+  const result = await generatePromptConfig({ installDir });
+
+  if (result == null) {
+    process.exit(0);
+  }
+
+  // Run uninstall with user's choices
+  await runUninstall({
+    removeConfig: true,
+    removeHooksAndStatusline: result.removeHooksAndStatusline,
+    installDir: result.installDir,
+  });
+
+  // Display completion message
+  console.log();
+  success({
+    message:
+      "======================================================================",
+  });
+  success({
+    message: "       Nori Profiles Uninstallation Complete!              ",
+  });
+  success({
+    message:
+      "======================================================================",
+  });
+  console.log();
+
+  info({ message: "All features have been removed." });
+  console.log();
+  warn({
+    message: "Note: You must restart Claude Code for changes to take effect!",
+  });
+  console.log();
+  info({
+    message: "To completely remove the package, run: npm uninstall -g nori-ai",
+  });
+};
+
+/**
+ * Non-interactive uninstallation mode
+ * Preserves config and hooks/statusline for safe upgrades
+ *
+ * @param args - Configuration arguments
+ * @param args.installDir - Installation directory (optional)
+ */
+export const noninteractive = async (args?: {
+  installDir?: string | null;
+}): Promise<void> => {
+  const installDir = normalizeInstallDir({ installDir: args?.installDir });
+
+  // Run uninstall, preserving config and hooks/statusline
+  await runUninstall({
+    removeConfig: false,
+    removeHooksAndStatusline: false,
+    installDir,
+  });
+
+  // Display completion message
+  console.log();
+  success({
+    message:
+      "======================================================================",
+  });
+  success({
+    message: "       Nori Profiles Uninstallation Complete!              ",
+  });
+  success({
+    message:
+      "======================================================================",
+  });
+  console.log();
+
+  info({ message: "All features have been removed." });
+  console.log();
+  warn({
+    message: "Note: You must restart Claude Code for changes to take effect!",
+  });
+  console.log();
+  info({
+    message: "To completely remove the package, run: npm uninstall -g nori-ai",
+  });
+};
+
+/**
  * Main uninstaller entry point
- * This is a CLI entry point that accepts optional installDir
+ * Routes to interactive or non-interactive mode
  * @param args - Configuration arguments
  * @param args.nonInteractive - Whether to run in non-interactive mode (skips prompts, preserves config)
  * @param args.installDir - Custom installation directory (optional, defaults to cwd)
@@ -383,62 +441,14 @@ export const main = async (args?: {
   nonInteractive?: boolean | null;
   installDir?: string | null;
 }): Promise<void> => {
-  const { nonInteractive } = args || {};
-  // Normalize installDir at entry point
-  const installDir = normalizeInstallDir({ installDir: args?.installDir });
+  const { nonInteractive, installDir } = args || {};
 
   try {
-    // Initialize analytics
-
     if (nonInteractive) {
-      // Non-interactive mode: preserve config and do not remove hooks/statusline
-      // (for upgrades/autoupdate - avoid breaking other installations)
-      await runUninstall({
-        removeConfig: false,
-        removeHooksAndStatusline: false,
-        installDir,
-      });
+      await noninteractive({ installDir });
     } else {
-      // Interactive mode: prompt for confirmation and remove config
-      const result = await promptForUninstall({ installDir });
-
-      if (result == null) {
-        process.exit(0);
-      }
-
-      // Run uninstall, remove config, and conditionally remove hooks/statusline based on user choice
-      await runUninstall({
-        removeConfig: true,
-        removeHooksAndStatusline: result.removeHooksAndStatusline,
-        installDir,
-      });
+      await interactive({ installDir });
     }
-
-    // Uninstallation complete
-    console.log();
-    success({
-      message:
-        "======================================================================",
-    });
-    success({
-      message: "       Nori Profiles Uninstallation Complete!              ",
-    });
-    success({
-      message:
-        "======================================================================",
-    });
-    console.log();
-
-    info({ message: "All features have been removed." });
-    console.log();
-    warn({
-      message: "Note: You must restart Claude Code for changes to take effect!",
-    });
-    console.log();
-    info({
-      message:
-        "To completely remove the package, run: npm uninstall -g nori-ai",
-    });
   } catch (err: any) {
     error({ message: err.message });
     process.exit(1);

@@ -160,6 +160,17 @@ const unregisterSlashCommands = async (args: {
       }`,
     });
   }
+
+  // Remove parent directory if empty
+  try {
+    const files = await fs.readdir(claudeCommandsDir);
+    if (files.length === 0) {
+      await fs.rmdir(claudeCommandsDir);
+      success({ message: `✓ Removed empty directory: ${claudeCommandsDir}` });
+    }
+  } catch {
+    // Directory doesn't exist or couldn't be removed, which is fine
+  }
 };
 
 /**

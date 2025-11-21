@@ -152,6 +152,17 @@ const unregisterSubagents = async (args: { config: Config }): Promise<void> => {
       }`,
     });
   }
+
+  // Remove parent directory if empty
+  try {
+    const files = await fs.readdir(claudeAgentsDir);
+    if (files.length === 0) {
+      await fs.rmdir(claudeAgentsDir);
+      success({ message: `✓ Removed empty directory: ${claudeAgentsDir}` });
+    }
+  } catch {
+    // Directory doesn't exist or couldn't be removed, which is fine
+  }
 };
 
 /**

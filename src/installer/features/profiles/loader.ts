@@ -404,6 +404,17 @@ const uninstallProfiles = async (args: { config: Config }): Promise<void> => {
     info({ message: "Profiles directory not found (may not be installed)" });
   }
 
+  // Remove parent directory if empty
+  try {
+    const files = await fs.readdir(claudeProfilesDir);
+    if (files.length === 0) {
+      await fs.rmdir(claudeProfilesDir);
+      success({ message: `✓ Removed empty directory: ${claudeProfilesDir}` });
+    }
+  } catch {
+    // Directory doesn't exist or couldn't be removed, which is fine
+  }
+
   // Remove permissions configuration
   await removeProfilesPermissions({ config });
 };
