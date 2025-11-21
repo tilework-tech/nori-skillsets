@@ -3,17 +3,33 @@
  * Manages the .nori-installed-version file lifecycle
  */
 
-import { unlinkSync, existsSync } from "fs";
+import { writeFileSync, unlinkSync, existsSync, mkdirSync } from "fs";
+import { readFileSync } from "fs";
+import { dirname, join } from "path";
 
+import { MCP_ROOT } from "@/installer/env.js";
 import { info, success } from "@/installer/logger.js";
-import {
-  getCurrentPackageVersion,
-  saveInstalledVersion,
-  getVersionFilePath,
-} from "@/installer/version.js";
 
 import type { Config } from "@/installer/config.js";
 import type { Loader } from "@/installer/features/loaderRegistry.js";
+
+/**
+ * Get the current package version by reading package.json
+ * @returns The current package version or null if not found
+ */
+const getCurrentPackageVersion = (): string | null => {
+  try {
+    const packageJsonPath = join(MCP_ROOT, "package.json");
+    const pkg = JSON.parse(readFileSync(packageJsonPath, "utf-8"));
+    // Verify it's the nori-ai package
+    if (pkg.name === "nori-ai") {
+      return pkg.version;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+};
 
 /**
  * Install version file - save current package version
@@ -31,13 +47,19 @@ const installVersion = async (args: { config: Config }): Promise<void> => {
     return;
   }
 
-  saveInstalledVersion({
-    version: currentVersion,
-    installDir: config.installDir,
-  });
+  // Inline saveInstalledVersion logic
+  const versionFilePath = join(config.installDir, ".nori-installed-version");
+
+  // Ensure the directory exists
+  const dir = dirname(versionFilePath);
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true });
+  }
+
+  writeFileSync(versionFilePath, currentVersion, "utf-8");
 
   success({
-    message: `✓ Version file created: ${getVersionFilePath({ installDir: config.installDir })}`,
+    message: `✓ Version file created: ${versionFilePath}`,
   });
 };
 
@@ -48,7 +70,7 @@ const installVersion = async (args: { config: Config }): Promise<void> => {
  */
 const uninstallVersion = async (args: { config: Config }): Promise<void> => {
   const { config } = args;
-  const versionFile = getVersionFilePath({ installDir: config.installDir });
+  const versionFile = join(config.installDir, ".nori-installed-version");
 
   if (existsSync(versionFile)) {
     unlinkSync(versionFile);
