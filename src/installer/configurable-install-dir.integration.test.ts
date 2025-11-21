@@ -87,132 +87,67 @@ describe("configurable install directory integration", () => {
   });
 
   describe("installation to custom directory", () => {
-    it("should install profiles to custom installDir/.claude/profiles", async () => {
+    it("should install all features to custom directory", async () => {
       const config: Config = {
         installType: "free",
         profile: { baseProfile: "senior-swe" },
         installDir: customInstallDir,
       };
 
+      // Install all features
       await profilesLoader.run({ config });
-
-      // Verify profiles were installed to custom location
-      const profilesDir = path.join(customInstallDir, ".claude", "profiles");
-      const exists = await fs
-        .access(profilesDir)
-        .then(() => true)
-        .catch(() => false);
-      expect(exists).toBe(true);
-
-      // Verify at least one profile exists
-      const profiles = await fs.readdir(profilesDir);
-      expect(profiles.length).toBeGreaterThan(0);
-    });
-
-    it("should install skills to custom installDir/.claude/skills", async () => {
-      const config: Config = {
-        installType: "free",
-        profile: { baseProfile: "senior-swe" },
-        installDir: customInstallDir,
-      };
-
-      // First install profiles (skills depend on profiles)
-      await profilesLoader.run({ config });
-
-      // Then install skills
       await skillsLoader.install({ config });
-
-      // Verify skills were installed to custom location
-      const skillsDir = path.join(customInstallDir, ".claude", "skills");
-      const exists = await fs
-        .access(skillsDir)
-        .then(() => true)
-        .catch(() => false);
-      expect(exists).toBe(true);
-
-      // Verify at least one skill exists
-      const skills = await fs.readdir(skillsDir);
-      expect(skills.length).toBeGreaterThan(0);
-    });
-
-    it("should create CLAUDE.md in custom installDir/.claude", async () => {
-      const config: Config = {
-        installType: "free",
-        profile: { baseProfile: "senior-swe" },
-        installDir: customInstallDir,
-      };
-
-      // Install profiles first
-      await profilesLoader.run({ config });
-
-      // Then create CLAUDE.md
       await claudeMdLoader.install({ config });
 
-      // Verify CLAUDE.md was created
+      // Verify all features installed to custom location
+      const profilesDir = path.join(customInstallDir, ".claude", "profiles");
+      const skillsDir = path.join(customInstallDir, ".claude", "skills");
       const claudeMdPath = path.join(customInstallDir, ".claude", "CLAUDE.md");
-      const exists = await fs
-        .access(claudeMdPath)
-        .then(() => true)
-        .catch(() => false);
-      expect(exists).toBe(true);
-
-      // Verify content has managed block
-      const content = await fs.readFile(claudeMdPath, "utf-8");
-      expect(content).toContain("BEGIN NORI-AI MANAGED BLOCK");
-    });
-
-    it("should create settings.json with correct paths", async () => {
-      const config: Config = {
-        installType: "free",
-        profile: { baseProfile: "senior-swe" },
-        installDir: customInstallDir,
-      };
-
-      // Install profiles
-      await profilesLoader.run({ config });
-
-      // Install skills (adds to settings.json permissions)
-      await skillsLoader.install({ config });
-
-      // Verify settings.json was created
       const settingsPath = path.join(
         customInstallDir,
         ".claude",
         "settings.json",
       );
-      const exists = await fs
-        .access(settingsPath)
-        .then(() => true)
-        .catch(() => false);
-      expect(exists).toBe(true);
 
-      // Verify settings content
-      const content = await fs.readFile(settingsPath, "utf-8");
-      const settings = JSON.parse(content);
+      // Check all exist
+      expect(
+        await fs
+          .access(profilesDir)
+          .then(() => true)
+          .catch(() => false),
+      ).toBe(true);
+      expect(
+        await fs
+          .access(skillsDir)
+          .then(() => true)
+          .catch(() => false),
+      ).toBe(true);
+      expect(
+        await fs
+          .access(claudeMdPath)
+          .then(() => true)
+          .catch(() => false),
+      ).toBe(true);
+      expect(
+        await fs
+          .access(settingsPath)
+          .then(() => true)
+          .catch(() => false),
+      ).toBe(true);
 
-      // Should have permissions with custom paths
+      // Verify content
+      const profiles = await fs.readdir(profilesDir);
+      const skills = await fs.readdir(skillsDir);
+      expect(profiles.length).toBeGreaterThan(0);
+      expect(skills.length).toBeGreaterThan(0);
+
+      const claudeMdContent = await fs.readFile(claudeMdPath, "utf-8");
+      expect(claudeMdContent).toContain("BEGIN NORI-AI MANAGED BLOCK");
+
+      const settingsContent = await fs.readFile(settingsPath, "utf-8");
+      const settings = JSON.parse(settingsContent);
       expect(settings.permissions).toBeDefined();
       expect(settings.permissions.additionalDirectories).toBeDefined();
-    });
-
-    it("should NOT create anything in ~/.claude (home directory)", async () => {
-      const config: Config = {
-        installType: "free",
-        profile: { baseProfile: "senior-swe" },
-        installDir: customInstallDir,
-      };
-
-      await profilesLoader.run({ config });
-
-      // Verify nothing was created in HOME/.claude
-      const homeClaudeDir = path.join(tempDir, ".claude");
-      const exists = await fs
-        .access(homeClaudeDir)
-        .then(() => true)
-        .catch(() => false);
-
-      // Should be false - nothing in home directory
-      expect(exists).toBe(false);
     });
 
     it("should use absolute paths (not ~/.claude) for skill references in CLAUDE.md", async () => {

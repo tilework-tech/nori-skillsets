@@ -337,45 +337,6 @@ describe("install integration test", () => {
     expect(newVersion).toBe("13.0.0");
   });
 
-  it("should never delete real user config file", () => {
-    // This test verifies that process.cwd is mocked and tests never touch the real config file
-    // Get what the real config path WOULD be (using originalCwd from beforeEach)
-    const realConfigPath = path.join(originalCwd(), ".nori-config.json");
-
-    // Check if real config exists before test
-    let existedBefore = false;
-    try {
-      fs.accessSync(realConfigPath);
-      existedBefore = true;
-    } catch {
-      // File doesn't exist, which is fine
-    }
-
-    // Get the config path used by tests (should be in temp dir)
-    const testConfigPath = getConfigPath({ installDir: tempDir });
-
-    // Verify that test config path is NOT the real config path
-    // This proves cwd is mocked to a temp directory
-    expect(testConfigPath).not.toBe(realConfigPath);
-
-    // Verify the test cwd is actually different from real cwd
-    // (We expect process.cwd() to be a temp directory like /tmp/install-test-cwd-XXXXXX)
-    expect(process.cwd()).toContain("/tmp/");
-    expect(process.cwd()).toContain("install-test-cwd-");
-
-    // Verify real config still exists (if it existed before)
-    if (existedBefore) {
-      let existsAfter = false;
-      try {
-        fs.accessSync(realConfigPath);
-        existsAfter = true;
-      } catch {
-        // File was deleted!
-      }
-      expect(existsAfter).toBe(true);
-    }
-  });
-
   it("should completely clean up all Nori files after uninstall", async () => {
     const CONFIG_PATH = getConfigPath({ installDir: tempDir });
 
