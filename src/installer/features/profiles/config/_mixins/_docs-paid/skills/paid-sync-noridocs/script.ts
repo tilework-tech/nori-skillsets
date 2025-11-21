@@ -17,6 +17,7 @@ import minimist from "minimist";
 
 import { apiClient } from "@/api/index.js";
 import { loadDiskConfig, generateConfig } from "@/installer/config.js";
+import { getInstallDirs } from "@/utils/path.js";
 
 /**
  * Interface for a found docs.md file
@@ -276,9 +277,19 @@ const syncFile = async (args: {
  * Main execution function
  */
 export const main = async (): Promise<void> => {
-  // 1. Check tier
-  // Use cwd as installDir since skill scripts run from project directory
-  const installDir = process.cwd();
+  // 1. Find installation directory
+  // ALWAYS use getInstallDirs to find installation directory
+  const allInstallations = getInstallDirs({ currentDir: process.cwd() });
+
+  if (allInstallations.length === 0) {
+    // Fail loudly - no silent fallback
+    console.error("Error: No Nori installation found.");
+    process.exit(1);
+  }
+
+  const installDir = allInstallations[0]; // Use closest installation
+
+  // 2. Check tier
   const diskConfig = await loadDiskConfig({ installDir });
   const config = generateConfig({ diskConfig, installDir });
 
@@ -288,7 +299,7 @@ export const main = async (): Promise<void> => {
     process.exit(1);
   }
 
-  // 2. Parse arguments
+  // 3. Parse arguments
   const args = minimist(process.argv.slice(2));
 
   if (args.help || args.h) {
@@ -307,7 +318,7 @@ export const main = async (): Promise<void> => {
     console.log(`Using Git repository: ${gitRepoUrl}\n`);
   }
 
-  // 3. Find all Git-tracked docs.md files
+  // 4. Find all Git-tracked docs.md files
   console.log("Searching for Git-tracked docs.md files...");
   const files = await findDocsFiles({ cwd });
 
@@ -318,7 +329,7 @@ export const main = async (): Promise<void> => {
     return;
   }
 
-  // 4. Sync each file with rate limiting
+  // 5. Sync each file with rate limiting
   const results: Array<SyncResult> = [];
 
   for (let i = 0; i < files.length; i++) {
@@ -344,7 +355,7 @@ export const main = async (): Promise<void> => {
     }
   }
 
-  // 5. Print summary
+  // 6. Print summary
   const successful = results.filter((r) => r.success).length;
   const failed = results.filter((r) => !r.success).length;
 

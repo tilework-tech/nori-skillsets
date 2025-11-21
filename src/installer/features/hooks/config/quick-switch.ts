@@ -7,6 +7,8 @@
 import * as fs from "fs/promises";
 import * as path from "path";
 
+import { getInstallDirs } from "@/utils/path.js";
+
 // Type for the stdin JSON from Claude Code
 type HookInput = {
   prompt: string;
@@ -25,18 +27,6 @@ type HookOutput = {
     hookEventName: string;
     additionalContext: string;
   };
-};
-
-/**
- * Get the profiles directory for a given cwd
- * @param args - Arguments object
- * @param args.cwd - Current working directory
- *
- * @returns The path to the profiles directory
- */
-const getProfilesDir = (args: { cwd: string }): string => {
-  const { cwd } = args;
-  return path.join(cwd, ".claude", "profiles");
 };
 
 /**
@@ -79,14 +69,14 @@ const listProfiles = async (args: {
  * @param args - Arguments object
  * @param args.profileName - Name of the profile to switch to
  * @param args.profilesDir - Path to the profiles directory
- * @param args.cwd - Current working directory
+ * @param args.installDir - Installation directory
  */
 const switchProfile = async (args: {
   profileName: string;
   profilesDir: string;
-  cwd: string;
+  installDir: string;
 }): Promise<void> => {
-  const { profileName, profilesDir, cwd } = args;
+  const { profileName, profilesDir, installDir } = args;
 
   // Verify profile exists
   const profileDir = path.join(profilesDir, profileName);
@@ -98,8 +88,8 @@ const switchProfile = async (args: {
     throw new Error(`Profile "${profileName}" not found`);
   }
 
-  // Config is always in the cwd (the install directory)
-  const configPath = path.join(cwd, ".nori-config.json");
+  // Config is always in the install directory
+  const configPath = path.join(installDir, ".nori-config.json");
 
   // Load current config to preserve auth
   let currentConfig: any = {};
@@ -166,8 +156,23 @@ const main = async (): Promise<void> => {
     process.exit(0);
   }
 
+  // ALWAYS use getInstallDirs to find installation directory
+  const allInstallations = getInstallDirs({ currentDir: cwd });
+
+  if (allInstallations.length === 0) {
+    // Fail loudly - no silent fallback
+    const output: HookOutput = {
+      decision: "block",
+      reason: `No Nori installation found.`,
+    };
+    console.log(JSON.stringify(output));
+    process.exit(0);
+  }
+
+  const installDir = allInstallations[0]; // Use closest installation
+
   // Get profiles directory
-  const profilesDir = getProfilesDir({ cwd });
+  const profilesDir = path.join(installDir, ".claude", "profiles");
 
   // List available profiles
   const profiles = await listProfiles({ profilesDir });
@@ -207,7 +212,7 @@ const main = async (): Promise<void> => {
 
   // Switch to the profile
   try {
-    await switchProfile({ profileName, profilesDir, cwd });
+    await switchProfile({ profileName, profilesDir, installDir });
 
     // Read profile description if available
     let profileDescription = "";

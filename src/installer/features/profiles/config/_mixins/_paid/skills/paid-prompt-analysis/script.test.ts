@@ -65,7 +65,7 @@ describe("paid-prompt-analysis script", () => {
       await expect(main()).rejects.toThrow("process.exit(1)");
       expect(processExitSpy).toHaveBeenCalledWith(1);
       expect(consoleErrorSpy).toHaveBeenCalledWith(
-        "Error: This feature requires a paid Nori subscription.",
+        "Error: No Nori installation found.",
       );
     });
 

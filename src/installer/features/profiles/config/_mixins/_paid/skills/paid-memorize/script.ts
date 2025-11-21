@@ -13,6 +13,7 @@ import minimist from "minimist";
 
 import { apiClient } from "@/api/index.js";
 import { loadDiskConfig, generateConfig } from "@/installer/config.js";
+import { getInstallDirs } from "@/utils/path.js";
 
 /**
  * Show usage information
@@ -78,9 +79,19 @@ ${name}
  * Main execution function
  */
 export const main = async (): Promise<void> => {
-  // 1. Check tier
-  // Use cwd as installDir since skill scripts run from project directory
-  const installDir = process.cwd();
+  // 1. Find installation directory
+  // ALWAYS use getInstallDirs to find installation directory
+  const allInstallations = getInstallDirs({ currentDir: process.cwd() });
+
+  if (allInstallations.length === 0) {
+    // Fail loudly - no silent fallback
+    console.error("Error: No Nori installation found.");
+    process.exit(1);
+  }
+
+  const installDir = allInstallations[0]; // Use closest installation
+
+  // 2. Check tier
   const diskConfig = await loadDiskConfig({ installDir });
   const config = generateConfig({ diskConfig, installDir });
 
@@ -90,7 +101,7 @@ export const main = async (): Promise<void> => {
     process.exit(1);
   }
 
-  // 2. Parse and validate arguments
+  // 3. Parse and validate arguments
   const args = minimist(process.argv.slice(2));
 
   if (args.name == null || args.content == null) {
@@ -105,14 +116,14 @@ export const main = async (): Promise<void> => {
     process.exit(1);
   }
 
-  // 3. Execute API call
+  // 4. Execute API call
   const result = await apiClient.artifacts.create({
     name: args.name,
     content: args.content,
     type: "memory",
   });
 
-  // 4. Format and display output
+  // 5. Format and display output
   console.log(
     formatArtifact({
       id: result.id,
