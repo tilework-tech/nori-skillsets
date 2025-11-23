@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 import { loadDiskConfig } from "@/installer/config.js";
+import * as pathUtils from "@/utils/path.js";
 
 // Mock the config module
 vi.mock("@/installer/config.js", () => ({
@@ -14,6 +15,9 @@ describe("summarize-notification hook", () => {
     consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {
       // Mock implementation
     });
+
+    // Mock getInstallDirs to return a valid installation directory
+    vi.spyOn(pathUtils, "getInstallDirs").mockReturnValue([process.cwd()]);
   });
 
   afterEach(() => {

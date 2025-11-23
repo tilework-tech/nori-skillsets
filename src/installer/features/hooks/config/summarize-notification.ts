@@ -9,14 +9,23 @@
  */
 
 import { loadDiskConfig } from "@/installer/config.js";
+import { getInstallDirs } from "@/utils/path.js";
 
 /**
  * Main entry point
  */
 export const main = async (): Promise<void> => {
   // Load config to check if session transcripts are enabled
-  // Use cwd as installDir since hook is called from project directory
-  const installDir = process.cwd();
+  // Find installation directory using getInstallDirs
+  const allInstallations = getInstallDirs({ currentDir: process.cwd() });
+
+  if (allInstallations.length === 0) {
+    // Silent failure - no installation found
+    // Don't show error to user, just skip notification
+    process.exit(0);
+  }
+
+  const installDir = allInstallations[0]; // Use closest installation
   const diskConfig = await loadDiskConfig({ installDir });
 
   let output;

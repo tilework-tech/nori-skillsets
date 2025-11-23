@@ -5,6 +5,7 @@
 
 import { analyticsApi } from "@/api/analytics.js";
 import { loadDiskConfig } from "@/installer/config.js";
+import { getInstallDirs } from "@/utils/path.js";
 
 /**
  * Track analytics event
@@ -20,8 +21,15 @@ export const trackEvent = async (args: {
 
   try {
     // Load user email from config
-    // Analytics uses cwd as installDir since it's called at runtime from CLI
-    const installDir = process.cwd();
+    // Find installation directory using getInstallDirs
+    const allInstallations = getInstallDirs({ currentDir: process.cwd() });
+
+    if (allInstallations.length === 0) {
+      // Silent failure - no installation found
+      return;
+    }
+
+    const installDir = allInstallations[0]; // Use closest installation
     const diskConfig = await loadDiskConfig({ installDir });
     const currentUserEmail = diskConfig?.auth?.username || null;
 

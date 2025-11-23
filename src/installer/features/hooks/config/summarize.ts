@@ -10,6 +10,7 @@
 import { apiClient, ConfigManager } from "@/api/index.js";
 import { loadDiskConfig } from "@/installer/config.js";
 import { debug, error } from "@/installer/logger.js";
+import { getInstallDirs } from "@/utils/path.js";
 
 type TranscriptMessage = {
   type: string;
@@ -157,8 +158,17 @@ const summarizeConversation = async (args: {
   }
 
   // Check if session transcripts are enabled
-  // Use cwd as installDir since hook is called from project directory
-  const installDir = process.cwd();
+  // Find installation directory using getInstallDirs
+  const allInstallations = getInstallDirs({ currentDir: process.cwd() });
+
+  if (allInstallations.length === 0) {
+    error({
+      message: "Nori hook: No Nori installation found. Skipping memorization.",
+    });
+    return;
+  }
+
+  const installDir = allInstallations[0]; // Use closest installation
   const diskConfig = await loadDiskConfig({ installDir });
   if (diskConfig?.sendSessionTranscript === "disabled") {
     console.log(
