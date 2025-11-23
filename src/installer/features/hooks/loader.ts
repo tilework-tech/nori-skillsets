@@ -187,7 +187,7 @@ const notifyHook: HookInterface = {
  */
 const quickSwitchHook: HookInterface = {
   name: "quick-switch",
-  description: "Instant profile switching via /switch-nori-profile command",
+  description: "Instant profile switching via /nori-switch-profile command",
   install: async () => {
     const scriptPath = path.join(HOOKS_CONFIG_DIR, "quick-switch.js");
     return [
@@ -199,7 +199,7 @@ const quickSwitchHook: HookInterface = {
             type: "command",
             command: `node ${scriptPath}`,
             description:
-              "Intercept /switch-nori-profile for instant profile switching",
+              "Intercept /nori-switch-profile for instant profile switching",
           },
         ],
       },

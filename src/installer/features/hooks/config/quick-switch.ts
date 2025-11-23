@@ -1,6 +1,6 @@
 /**
  * Quick-switch hook for instant profile switching
- * Intercepts /switch-nori-profile commands and executes them directly
+ * Intercepts /nori-switch-profile commands and executes them directly
  * without LLM inference overhead.
  */
 
@@ -142,13 +142,13 @@ const main = async (): Promise<void> => {
     process.exit(0);
   }
 
-  // Check if prompt matches /switch-nori-profile pattern
+  // Check if prompt matches /nori-switch-profile pattern
   const trimmedPrompt = prompt.trim();
   const matchWithProfile = trimmedPrompt.match(
-    /^\/switch-nori-profile\s+([a-z0-9-]+)\s*$/i,
+    /^\/nori-switch-profile\s+([a-z0-9-]+)\s*$/i,
   );
   const matchWithoutProfile = trimmedPrompt.match(
-    /^\/switch-nori-profile\s*$/i,
+    /^\/nori-switch-profile\s*$/i,
   );
 
   if (!matchWithProfile && !matchWithoutProfile) {
@@ -191,7 +191,7 @@ const main = async (): Promise<void> => {
     // List available profiles
     const output: HookOutput = {
       decision: "block",
-      reason: `Available profiles: ${profiles.join(", ")}\n\nUsage: /switch-nori-profile <profile-name>`,
+      reason: `Available profiles: ${profiles.join(", ")}\n\nUsage: /nori-switch-profile <profile-name>`,
     };
     console.log(JSON.stringify(output));
     process.exit(0);

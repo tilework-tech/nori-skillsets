@@ -1,6 +1,6 @@
 /**
  * Tests for quick-switch hook
- * This hook intercepts /switch-nori-profile commands for instant profile switching
+ * This hook intercepts /nori-switch-profile commands for instant profile switching
  */
 
 import { spawn } from "child_process";
@@ -110,11 +110,11 @@ describe("quick-switch hook", () => {
   });
 
   describe("pattern matching", () => {
-    it("should match /switch-nori-profile with profile name and switch profile", async () => {
+    it("should match /nori-switch-profile with profile name and switch profile", async () => {
       const scriptPath = QUICK_SWITCH_SCRIPT;
 
       const stdinData = JSON.stringify({
-        prompt: "/switch-nori-profile amol",
+        prompt: "/nori-switch-profile amol",
         cwd: testDir,
         session_id: "test-session",
         transcript_path: "",
@@ -143,7 +143,7 @@ describe("quick-switch hook", () => {
       const scriptPath = QUICK_SWITCH_SCRIPT;
 
       const stdinData = JSON.stringify({
-        prompt: "/switch-nori-profile",
+        prompt: "/nori-switch-profile",
         cwd: testDir,
         session_id: "test-session",
         transcript_path: "",
@@ -188,7 +188,7 @@ describe("quick-switch hook", () => {
       const scriptPath = QUICK_SWITCH_SCRIPT;
 
       const stdinData = JSON.stringify({
-        prompt: "  /switch-nori-profile   amol  ",
+        prompt: "  /nori-switch-profile   amol  ",
         cwd: testDir,
         session_id: "test-session",
         transcript_path: "",
@@ -214,7 +214,7 @@ describe("quick-switch hook", () => {
       const scriptPath = QUICK_SWITCH_SCRIPT;
 
       const stdinData = JSON.stringify({
-        prompt: "/switch-nori-profile nonexistent",
+        prompt: "/nori-switch-profile nonexistent",
         cwd: testDir,
         session_id: "test-session",
         transcript_path: "",
@@ -241,7 +241,7 @@ describe("quick-switch hook", () => {
       const scriptPath = QUICK_SWITCH_SCRIPT;
 
       const stdinData = JSON.stringify({
-        prompt: "/switch-nori-profile amol",
+        prompt: "/nori-switch-profile amol",
         cwd: testDir,
         session_id: "test-session",
         transcript_path: "",
@@ -326,7 +326,7 @@ describe("quick-switch hook", () => {
 
       try {
         const stdinData = JSON.stringify({
-          prompt: "/switch-nori-profile unique-profile",
+          prompt: "/nori-switch-profile unique-profile",
           cwd: otherTestDir,
           session_id: "test-session",
           transcript_path: "",
@@ -372,7 +372,7 @@ describe("quick-switch hook", () => {
       );
 
       const stdinData = JSON.stringify({
-        prompt: "/switch-nori-profile amol",
+        prompt: "/nori-switch-profile amol",
         cwd: subDir, // Running from subdirectory
         session_id: "test-session",
         transcript_path: "",
@@ -403,7 +403,7 @@ describe("quick-switch hook", () => {
 
       try {
         const stdinData = JSON.stringify({
-          prompt: "/switch-nori-profile amol",
+          prompt: "/nori-switch-profile amol",
           cwd: noInstallDir,
           session_id: "test-session",
           transcript_path: "",
@@ -479,7 +479,7 @@ describe("quick-switch hook", () => {
 
       try {
         const stdinData = JSON.stringify({
-          prompt: "/switch-nori-profile child-profile",
+          prompt: "/nori-switch-profile child-profile",
           cwd: subDir, // Running from subdirectory of child
           session_id: "test-session",
           transcript_path: "",

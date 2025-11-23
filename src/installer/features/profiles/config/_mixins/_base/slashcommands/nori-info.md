@@ -45,7 +45,7 @@ Profiles control Claude's behavior and autonomy level. Three built-in profiles a
 
 ### 1.4 Profile Management
 
-- **Switch profiles:** `/switch-nori-profile` or `npx nori-ai switch-profile`
+- **Switch profiles:** `/nori-switch-profile` or `npx nori-ai switch-profile`
 - **Custom profiles:** Create your own in `~/.claude/profiles/`
 - **Source of truth:** All profiles stored in `~/.claude/profiles/`
 
@@ -203,7 +203,7 @@ Custom commands available in Claude Code.
 
 - `/nori-info` - Display this information (you're using it now!)
 - `/nori-debug` - Validate Nori installation (`npx nori-ai check`)
-- `/switch-nori-profile` - Switch between profiles interactively
+- `/nori-switch-profile` - Switch between profiles interactively
 - `/nori-init-docs` - Generate documentation files throughout codebase
 
 **Available in:** Free and Paid
@@ -234,7 +234,7 @@ Provide your credentials when prompted.
 npx nori-ai switch-profile
 ```
 
-Or use the `/switch-nori-profile` slash command.
+Or use the `/nori-switch-profile` slash command.
 
 ## 11. Troubleshooting
 

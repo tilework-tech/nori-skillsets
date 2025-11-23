@@ -28,7 +28,7 @@ Switch profiles anytime:
 npx nori-ai@latest switch-profile <profile-name>
 ```
 
-Or use `/switch-nori-profile` during a conversation.
+Or use `/nori-switch-profile` during a conversation.
 
 ## Requirements
 
@@ -104,7 +104,7 @@ _Enhances Claude Code with process enforcement and systematic workflows—no bac
 - **32+ engineering skills**: Step-by-step instructions for TDD, debugging, code review, git workflows, architecture decisions
 - **3 built-in profiles**: senior-swe, product-manager, documenter
 - **Real-time status line**: Git branch, active profile, token usage, conversation cost
-- **Slash commands**: Quick access to workflows (`/nori-info`, `/nori-debug`, `/nori-init-docs`, `/switch-nori-profile`)
+- **Slash commands**: Quick access to workflows (`/nori-info`, `/nori-debug`, `/nori-init-docs`, `/nori-switch-profile`)
 - **Specialized subagents**: codebase-locator, codebase-analyzer, codebase-pattern-finder, web-search-researcher
 - **Local noridocs**: Automatic documentation with change-documenter and initial-documenter subagents
 

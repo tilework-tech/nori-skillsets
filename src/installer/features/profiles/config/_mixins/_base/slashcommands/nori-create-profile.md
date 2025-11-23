@@ -122,7 +122,7 @@ Your new profile includes:
 - <N> slash commands
 
 To use your new profile, run:
-  /switch-nori-profile
+  /nori-switch-profile
 
 Or:
   npx nori-ai switch-profile <new-profile-name>

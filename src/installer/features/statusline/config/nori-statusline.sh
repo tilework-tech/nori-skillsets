@@ -198,7 +198,7 @@ TIPS=(
     "Tip: Leverage your whole team's knowledge with the paid Nori server"
     "Tip: Keep an eye on your total context usage. Start new conversations regularly!"
     "Tip: Agents love tests! Use Nori's built-in Test Driven Development to never have a regression."
-    "Tip: Switch workflows with /switch-nori-profile - try documenter, senior-swe, or product-manager"
+    "Tip: Switch workflows with /nori-switch-profile - try documenter, senior-swe, or product-manager"
     "Tip: Use /sync-noridocs to bulk upload all your local docs.md files to the server (paid)"
     "Tip: The nori-change-documenter subagent automatically updates docs when you make code changes"
     "Tip: Use the systematic-debugging skill when bugs occur - it ensures root cause analysis"

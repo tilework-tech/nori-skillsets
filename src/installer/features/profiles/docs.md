@@ -8,7 +8,7 @@ Profile system that provides complete, self-contained Nori configurations compos
 
 ### How it fits into the larger codebase
 
-The profiles loader executes FIRST in both interactive and non-interactive installation modes (see @/plugin/src/installer/install.ts) to populate `~/.claude/profiles/` before any other loaders run. In interactive mode, @/plugin/src/installer/install.ts prompts for profile selection by reading directories from @/plugin/src/installer/features/profiles/config/, then saves the selection to `.nori-config.json` via @/plugin/src/installer/config.ts. All subsequent feature loaders (@/plugin/src/installer/features/claudemd/loader.ts, @/plugin/src/installer/features/skills/loader.ts, @/plugin/src/installer/features/subagents/loader.ts, @/plugin/src/installer/features/slashcommands/loader.ts) read from `~/.claude/profiles/{selectedProfile}/` to install their components. Profile switching is handled by @/plugin/src/installer/profiles.ts which updates `.nori-config.json` while preserving auth credentials, then re-runs installation. The statusline (@/plugin/src/installer/features/statusline) displays the active profile name. The `/switch-nori-profile` slash command enables in-conversation profile switching.
+The profiles loader executes FIRST in both interactive and non-interactive installation modes (see @/plugin/src/installer/install.ts) to populate `~/.claude/profiles/` before any other loaders run. In interactive mode, @/plugin/src/installer/install.ts prompts for profile selection by reading directories from @/plugin/src/installer/features/profiles/config/, then saves the selection to `.nori-config.json` via @/plugin/src/installer/config.ts. All subsequent feature loaders (@/plugin/src/installer/features/claudemd/loader.ts, @/plugin/src/installer/features/skills/loader.ts, @/plugin/src/installer/features/subagents/loader.ts, @/plugin/src/installer/features/slashcommands/loader.ts) read from `~/.claude/profiles/{selectedProfile}/` to install their components. Profile switching is handled by @/plugin/src/installer/profiles.ts which updates `.nori-config.json` while preserving auth credentials, then re-runs installation. The statusline (@/plugin/src/installer/features/statusline) displays the active profile name. The `/nori-switch-profile` slash command enables in-conversation profile switching.
 
 ### Core Implementation
 
@@ -38,6 +38,8 @@ The profiles loader executes FIRST in both interactive and non-interactive insta
 
 **Template placeholders in profile files**: Source markdown files use placeholders like `{{skills_dir}}` instead of hardcoded paths like `~/.claude/skills/`. This enables configurable installation directories - the same source files work for both home directory installations (`~/.claude`) and project-specific installations at custom paths. Placeholders are replaced during installation with tilde notation for home installs or absolute paths for custom installs.
 
+**Dynamic installation directory discovery**: Slash commands that need to access `.nori-config.json` use dynamic path discovery instead of hardcoded paths like `~/nori-config.json`. For bash-based slash commands (like nori-toggle-session-transcripts), this is implemented as a directory-walking script that checks the current directory first, then walks up parent directories looking for `.nori-config.json`. This follows the same pattern as getInstallDirs() from @/plugin/src/utils/path.ts, supporting custom installation directories and nested installations. See @/plugin/src/installer/features/profiles/config/_mixins/_paid/slashcommands/nori-toggle-session-transcripts.md for the bash implementation pattern.
+
 **Profile name display**: The statusline shows the active profile name (commit 5da74b7), but hides it when not explicitly set (commit ae5c085).
 
 **Mixin Composition**: Profiles specify mixins in profile.json as `{"mixins": {"base": {}, "docs": {}, "swe": {}}}`. The loader processes mixins in alphabetical order for deterministic precedence. When multiple mixins provide the same file, last writer wins. When multiple mixins provide the same directory, contents are merged (union). Conditional mixins are automatically injected based on user tier and profile categories (see @/plugin/src/installer/features/profiles/loader.ts:45-100).
@@ -52,7 +54,7 @@ The profiles loader executes FIRST in both interactive and non-interactive insta
 
 **Mixin Categories**: Mixins use a two-tier naming convention: `{category}` for base features and `{category}-{tier}` for tier-specific features:
 
-- `_base`: Core infrastructure (using-skills, web-search-researcher, nori-debug/info/switch-profile commands)
+- `_base`: Core infrastructure (using-skills, web-search-researcher, nori-debug/info/nori-switch-profile commands)
 - `_docs`: Documentation workflows - free tier (updating-noridocs skill, nori-initial-documenter/nori-change-documenter subagents, nori-init-docs command). All documentation workflows follow a consistent pattern: update local docs.md files, then sync to remote server using nori-sync-docs skill in a single bulk operation.
 - `_docs-paid`: Documentation workflows - paid tier (paid-write-noridoc, paid-read-noridoc, paid-list-noridocs, paid-sync-noridocs skills, nori-sync-docs slash command)
 - `_swe`: Software engineering - free tier (12 skills like TDD/debugging/git-worktrees/building-ui-ux, 3 codebase-analysis subagents)
@@ -96,7 +98,7 @@ npx nori-ai@latest switch-profile my-custom-profile
 
 ### Via Slash Command
 
-Use `/switch-nori-profile` in Claude Code to:
+Use `/nori-switch-profile` in Claude Code to:
 
 - List available profiles from `~/.claude/profiles/`
 - Switch to a specific profile
