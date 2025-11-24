@@ -1,8 +1,12 @@
-# Nori
+# Nori Profiles
 
-**Packaged customization for coding agents. Put Claude Code in hyperdrive.**
+**Codify your workflow. Stop repeating yourself.**
 
-Coding agents are magical, but they are general-purpose tools that need to be customized for your team. Otherwise, as you scale they will produce risky slop. Customizing agents is time-intensive and the landscape changes daily. Nori provides packaged customization that provides your engineering team the path to velocity and quality at scale.
+Coding agents excel at POCs but struggle to deliver in complex products where the details matter. This is a context issue, the agent does not have enough information in active context about your project, your git preferences, testing regime, product documentation, development standards, and so on. And it is impractical to expect an engineer to provide all that information at the start of every session, creating an information gap that we should not expect and agent to be able to cross.
+
+Nori Profiles lets you codify the repeating aspects of your workflow so you can spend your cognitive load on productive development.
+
+**The core insight:** 
 
 ![Console](https://raw.githubusercontent.com/tilework-tech/nori-plugin/refs/heads/main/Console.png)
 
@@ -35,64 +39,43 @@ Or use `/nori-switch-profile` during a conversation.
 - Node.js 22 or higher
 - Claude Code CLI installed
 
-## The Problem
+## The Problem: Repetition Kills Productivity
 
-Generic coding agents work great initially but degrade with scale:
+Every coding session with a general-purpose agent looks the same:
 
-- **Documentation debt compounds**: AI needs context. Without great docs, teams lose track of decisions, architecture, and the intention behind changes. When coding agents are doing most of the coding, docs cannot be an afterthought.
-- **Shortcuts accumulate**: Without enforced processes, agents skip TDD, take debugging shortcuts, and claim success without verification.
-- **Patterns diverge**: Different engineers get different patterns from the agent. No shared context means inconsistent outputs.
-- **Configuration burden**: Every team rebuilds the same customizations. Prompts, workflows, and guardrails require constant maintenance.
+- **Re-establishing context**: "Remember to use TDD. Don't skip tests. Update the docs. Follow our architecture patterns."
+- **Task-specific tuning**: Debugging needs different behavior than planning. Backend work needs different context than frontend. You manually adjust every time.
+- **Role mismatches**: Senior engineers want efficiency and minimal hand-holding. Product managers need technical guidance. Everyone uses the same generic agent.
+- **Workflow inconsistency**: Without codified processes, agents skip verification, take shortcuts, and claim success without proof.
 
-The result: **slop that accumulates faster than your ability to manage it.**
+The result: **You waste cognitive energy instructing instead of developing.** Your agent should already know how you work.
 
-## How Nori Fixes This
+## How Nori Profiles Solves This
 
-Nori provides three core capabilities that transform coding agents from generic assistants into team-aligned tools:
+Nori Profiles gives you three core capabilities that eliminate repetition:
 
-### 1. Documentation: Living Docs That Evolve With Your Code
+### 1. Creating Profiles: Codifying your workflow
 
-Automatically create and maintain `docs.md` files throughout your codebase.
-Nori configures AI agents to read and write documentation. Every change must
-come with a docs.md file update, and there must be a docs.md file in every
-folder in your codebase.
+Define precise scopes of behavior for your development tasks. Your preferences for git automation, PRs creation, testing, and planning, optimized for context using all the best configuration options - agent.md, skills, subagents, and tools.
 
-If you are using the Nori server (paid), Nori will additionally capture
-conversations from your entire team, and can be configured to ingest from
-across your team's knowledge sources (git/jira/linear/drive/etc). Nori-powered
-agents are required to query that database before making any changes.
+**Built-in profiles:**
+- `senior-swe`: High-confirmation co-pilot with extensive planning, assumes engineering expertise
+- `product-manager`: Full autonomy with frequent commits, provides technical guidance without hand-holding
+- `documenter`: Specialized workflows focused on documentation quality
+- `amol`: Personal profile fine-tuned for running multiple agents in parallel
 
-Your team's institutional memory becomes your coding agent's memory. No more repeated explanations.
+**Roll your own:** Copy an existing profile structure, write a CLAUDE.md, pull in the mixins you want. Launch different modes of work that instantly tune the agent for the task at hand.
 
-### 2. Tests: Process Enforcement That Prevents Shortcuts
+### 2. Documentation: Living Memory Across Sessions
 
-Coding agents act like junior engineers. They skip verification steps, take debugging shortcuts, and claim success without real proof.
+Automatically create and maintain `docs.md` files throughout your codebase. Nori configures agents to read and write documentation—every change must come with a docs.md update, and every folder must have one.
 
-Nori enforces Test Driven Development. All agents have to run red-green-refactor
-cycles for any changes. Before writing any code, agents have to write tests.
-This guarantees that your behavioral intent is captured while the coding agent
-is most 'lucid' (i.e. at the beginning of the context window).
+**With Nori server (paid):** Agents query a shared documentation database capturing conversations from your entire team and integrations (git/Jira/Linear/Drive). Your team's institutional memory becomes your agent's memory. No more repeated explanations.
 
-Nori comes with additional strategies for systematic debugging and root cause
-tracing to make debugging a breeze.
+### 3. Process Enforcement: Prevent Shortcuts Automatically
 
-Code quality stays high at scale. No shortcuts, no unverified claims, no technical debt from "tests later."
+Agents are naturally expeditious — they skip verification, take debugging shortcuts, claim success without proof. Nori enables to you enforce important development standards so that you can trust their work product.
 
-### 3. Profiles: Role-Based Customization Out of the Box
-
-Coding agents are being used by more and more contributors, not just senior engineers. This creates obvious risk as different team members have varying skills and knowledge of best practices. Senior engineers want efficiency, product managers need guidance.
-
-Nori comes with pre-built profiles, and a dead-simple profile switcher. Run with
-one of the existing profile sets:
-
-- `senior-swe`: High-confirmation co-pilot mode, extensive planning leaning on the knowledge of the engineer
-- `product-manager`: Full autonomy with frequent commits, technical guidance without hand-holding
-- `documenter`: Specialized behavior focused on documentation
-- `amol`: My personal profile. Fine tuned to run a half dozen agents in parallel.
-
-Or roll your own. Just copy one of the existing profile structures, write a CLAUDE.md, and pull in whatever mixins you want.
-
-Teams on Nori get role-appropriate behavior immediately. No configuration burden, no rebuilding common patterns.
 
 ## Features
 
@@ -115,10 +98,6 @@ _Team documentation server that captures, organizes, and surfaces institutional 
 - **Web UI**: Browse, search, and manage documentation artifacts with full markdown editing
 - **Living documentation system**: Automatically updates as your codebase evolves—docs.md files stay synchronized with code changes
 - **Automatic conversation capture**: Git-style hooks capture full conversation summaries with zero manual effort, preserving decisions and reasoning
-- **Recipe extraction**: Recipe-writer subagent identifies and documents reusable patterns from successful implementations
-- **Multi-strategy search**: Combines keyword, fuzzy, and vector search to surface relevant documentation automatically during conversations
-- **Memorize/Recall/UpdateMemory tools**: Claude can save and query team documentation during conversations, eliminating repeated explanations
-- **Usage analytics**: Track token usage, costs, and AI impact with daily LLM-generated reports
 
 ## Commands
 
