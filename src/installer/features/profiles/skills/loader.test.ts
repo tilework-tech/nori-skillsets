@@ -427,6 +427,52 @@ describe("skillsLoader", () => {
         expect(exists).toBe(false);
       }
     });
+
+    it("should install creating-skills skill from _base mixin for free tier", async () => {
+      const config: Config = { installType: "free", installDir: tempDir };
+
+      await skillsLoader.install({ config });
+
+      const skillPath = path.join(skillsDir, "creating-skills", "SKILL.md");
+
+      const skillExists = await fs
+        .access(skillPath)
+        .then(() => true)
+        .catch(() => false);
+
+      expect(skillExists).toBe(true);
+
+      // Verify frontmatter
+      const content = await fs.readFile(skillPath, "utf-8");
+      expect(content).toContain("name: Creating-Skills");
+      expect(content).toContain("description:");
+    });
+
+    it("should install creating-skills skill from _base mixin for paid tier", async () => {
+      const config: Config = {
+        installType: "paid",
+        auth: {
+          username: "test",
+          password: "test",
+          organizationUrl: "https://test.com",
+        },
+        installDir: tempDir,
+      };
+
+      // Recompose profiles with paid mixin
+      await profilesLoader.run({ config });
+
+      await skillsLoader.install({ config });
+
+      const skillPath = path.join(skillsDir, "creating-skills", "SKILL.md");
+
+      const skillExists = await fs
+        .access(skillPath)
+        .then(() => true)
+        .catch(() => false);
+
+      expect(skillExists).toBe(true);
+    });
   });
 
   describe("permissions configuration", () => {
