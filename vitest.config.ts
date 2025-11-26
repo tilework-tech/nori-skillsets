@@ -21,12 +21,6 @@ export default defineConfig({
     reporters: ["dot"],
     silent: true,
     exclude: ["node_modules", "dist", "build", ".worktrees/**"],
-    // Disable parallel test file execution to prevent race conditions.
-    // cli.test.ts runs `node build/src/installer/cli.js` as a subprocess to test CLI behavior.
-    // build.test.ts runs `npm run build` to verify the build process.
-    // If these run in parallel, cli.test.ts can catch cli.js mid-rebuild when tsc has
-    // written the file but tsc-alias hasn't resolved @/ imports yet.
-    fileParallelism: false,
   },
   resolve: {
     alias: {

@@ -1,8 +1,14 @@
 /**
- * Tests for build process verification
+ * Tests for build process and CLI verification
  *
- * This test ensures that the npm workspaces configuration is working correctly
- * by actually running the build command and verifying it succeeds.
+ * These tests verify that:
+ * 1. The build process completes successfully
+ * 2. Build artifacts are correctly generated
+ * 3. The CLI works correctly with the built artifacts
+ *
+ * IMPORTANT: All tests in this file run sequentially because they depend on
+ * build artifacts. The build test runs first, then subsequent tests use the
+ * generated build/ directory.
  */
 
 import { execSync } from "child_process";
@@ -10,7 +16,7 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 
 describe.sequential("build process", () => {
   it("should successfully run npm run build without errors", () => {
@@ -360,6 +366,86 @@ ${stderr || "(empty)"}`,
       // Should contain success message about bundling
       expect(stdout).toContain("Bundling Paid Skill Scripts and Hook Scripts");
       expect(stdout).toMatch(/Successfully bundled \d+ script\(s\)/);
+    });
+  });
+
+  // CLI behavior tests - these run after build tests to ensure build artifacts exist
+  describe("CLI behavior", () => {
+    let tempDir: string;
+    let originalHome: string | undefined;
+
+    beforeEach(() => {
+      // Create temp directory for test isolation
+      tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "cli-test-"));
+
+      // Mock HOME to prevent installation in real directories
+      originalHome = process.env.HOME;
+      process.env.HOME = tempDir;
+    });
+
+    afterEach(() => {
+      // Restore original HOME
+      if (originalHome !== undefined) {
+        process.env.HOME = originalHome;
+      } else {
+        delete process.env.HOME;
+      }
+
+      // Clean up temp directory
+      try {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+      } catch {
+        // Ignore cleanup errors
+      }
+    });
+
+    it("should show help when no arguments provided", () => {
+      // Run the CLI with no arguments
+      let output = "";
+
+      try {
+        output = execSync("node build/src/installer/cli.js", {
+          encoding: "utf-8",
+          stdio: "pipe",
+          env: { ...process.env, FORCE_COLOR: "0", HOME: tempDir },
+        });
+      } catch (error: unknown) {
+        // process.exit() will throw, capture the output
+        if (error && typeof error === "object") {
+          const execError = error as { stdout?: string; stderr?: string };
+          output = execError.stdout || execError.stderr || "";
+        }
+      }
+
+      // Verify that help text is shown
+      expect(output).toContain("Usage: nori-ai");
+      expect(output).toContain("Options:");
+      expect(output).toContain("Commands:");
+
+      // Verify it doesn't try to run install (install would show different output)
+      expect(output).not.toContain("Installing Nori Profiles");
+    });
+
+    it("should show install help when 'install --help' provided", () => {
+      // Just verify the CLI can parse the install command without crashing
+      let output = "";
+
+      try {
+        // Run with --help on the install command to avoid actual installation
+        output = execSync("node build/src/installer/cli.js install --help", {
+          encoding: "utf-8",
+          stdio: "pipe",
+          env: { ...process.env, FORCE_COLOR: "0", HOME: tempDir },
+        });
+      } catch (error: unknown) {
+        if (error && typeof error === "object") {
+          const execError = error as { stdout?: string; stderr?: string };
+          output = execError.stdout || execError.stderr || "";
+        }
+      }
+
+      // Verify the install command is recognized
+      expect(output).toContain("install");
     });
   });
 });
