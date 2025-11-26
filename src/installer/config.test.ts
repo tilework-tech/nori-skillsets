@@ -190,6 +190,50 @@ describe("config with profile-based system", () => {
 
       expect(loaded?.sendSessionTranscript).toBe("disabled");
     });
+
+    it("should load autoupdate when set to enabled", async () => {
+      await fs.writeFile(
+        mockConfigPath,
+        JSON.stringify({ autoupdate: "enabled" }),
+      );
+
+      const loaded = await loadDiskConfig({ installDir: tempDir });
+
+      expect(loaded?.autoupdate).toBe("enabled");
+    });
+
+    it("should load autoupdate when set to disabled", async () => {
+      await fs.writeFile(
+        mockConfigPath,
+        JSON.stringify({ autoupdate: "disabled" }),
+      );
+
+      const loaded = await loadDiskConfig({ installDir: tempDir });
+
+      expect(loaded?.autoupdate).toBe("disabled");
+    });
+
+    it("should default autoupdate to enabled when field is missing", async () => {
+      await fs.writeFile(mockConfigPath, JSON.stringify({}));
+
+      const loaded = await loadDiskConfig({ installDir: tempDir });
+
+      expect(loaded?.autoupdate).toBe("enabled");
+    });
+
+    it("should save and load autoupdate", async () => {
+      await saveDiskConfig({
+        username: null,
+        password: null,
+        organizationUrl: null,
+        autoupdate: "disabled",
+        installDir: tempDir,
+      });
+
+      const loaded = await loadDiskConfig({ installDir: tempDir });
+
+      expect(loaded?.autoupdate).toBe("disabled");
+    });
   });
 
   describe("generateConfig", () => {

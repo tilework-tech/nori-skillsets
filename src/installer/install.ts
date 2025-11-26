@@ -447,6 +447,8 @@ export const interactive = async (args?: {
     password: diskConfigToSave.auth?.password || null,
     organizationUrl: diskConfigToSave.auth?.organizationUrl || null,
     profile: diskConfigToSave.profile || null,
+    sendSessionTranscript: diskConfigToSave.sendSessionTranscript,
+    autoupdate: diskConfigToSave.autoupdate,
     installDir: normalizedInstallDir,
   });
   success({

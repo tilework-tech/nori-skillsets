@@ -975,5 +975,179 @@ describe("autoupdate", () => {
 
       consoleLogSpy.mockRestore();
     });
+
+    it("should NOT trigger installation when autoupdate config is disabled", async () => {
+      // Mock getInstalledVersion to return current version
+      const { getInstalledVersion } = await import("@/installer/version.js");
+      const mockGetInstalledVersion = vi.mocked(getInstalledVersion);
+      mockGetInstalledVersion.mockReturnValue("14.1.0");
+
+      // Mock execSync to return newer version available
+      const mockExecSync = vi.mocked(execSync);
+      mockExecSync.mockReturnValue("14.2.0\n");
+
+      const mockSpawn = vi.mocked(spawn);
+
+      // Mock loadDiskConfig with autoupdate disabled
+      const { loadDiskConfig } = await import("@/installer/config.js");
+      const mockLoadDiskConfig = vi.mocked(loadDiskConfig);
+      mockLoadDiskConfig.mockResolvedValue({
+        auth: null,
+        profile: null,
+        autoupdate: "disabled",
+        installDir: process.cwd(),
+      });
+
+      // Mock trackEvent
+      const { trackEvent } = await import("@/installer/analytics.js");
+      const mockTrackEvent = vi.mocked(trackEvent);
+      mockTrackEvent.mockResolvedValue();
+
+      const consoleLogSpy = vi
+        .spyOn(console, "log")
+        .mockImplementation(() => undefined);
+
+      const autoupdate = await import("./autoupdate.js");
+      await autoupdate.main();
+
+      // Verify version check happened
+      expect(mockExecSync).toHaveBeenCalled();
+
+      // Verify spawn was NOT called (autoupdate disabled)
+      expect(mockSpawn).not.toHaveBeenCalled();
+
+      // Verify user was notified about available update
+      expect(consoleLogSpy).toHaveBeenCalled();
+      const logOutput = consoleLogSpy.mock.calls[0][0];
+      const parsed = JSON.parse(logOutput);
+      expect(parsed.systemMessage).toContain("14.2.0"); // new version
+      expect(parsed.systemMessage).toContain("14.1.0"); // current version
+      expect(parsed.systemMessage).toContain("Autoupdate is disabled");
+
+      consoleLogSpy.mockRestore();
+    });
+
+    it("should trigger installation when autoupdate config is enabled", async () => {
+      // Mock openSync to return fake file descriptor
+      const { openSync } = await import("fs");
+      const mockOpenSync = vi.mocked(openSync);
+      mockOpenSync.mockReturnValue(3 as any);
+
+      // Mock getInstalledVersion to return current version
+      const { getInstalledVersion } = await import("@/installer/version.js");
+      const mockGetInstalledVersion = vi.mocked(getInstalledVersion);
+      mockGetInstalledVersion.mockReturnValue("14.1.0");
+
+      // Mock execSync to return newer version available
+      const mockExecSync = vi.mocked(execSync);
+      mockExecSync.mockReturnValue("14.2.0\n");
+
+      // Mock spawn to capture the installation call
+      const mockSpawn = vi.mocked(spawn);
+      const mockChild = {
+        unref: vi.fn(),
+        on: vi.fn(),
+      };
+      mockSpawn.mockReturnValue(mockChild as any);
+
+      // Mock loadDiskConfig with autoupdate enabled
+      const { loadDiskConfig } = await import("@/installer/config.js");
+      const mockLoadDiskConfig = vi.mocked(loadDiskConfig);
+      mockLoadDiskConfig.mockResolvedValue({
+        auth: null,
+        profile: null,
+        autoupdate: "enabled",
+        installDir: process.cwd(),
+      });
+
+      // Mock trackEvent
+      const { trackEvent } = await import("@/installer/analytics.js");
+      const mockTrackEvent = vi.mocked(trackEvent);
+      mockTrackEvent.mockResolvedValue();
+
+      const consoleLogSpy = vi
+        .spyOn(console, "log")
+        .mockImplementation(() => undefined);
+
+      const autoupdate = await import("./autoupdate.js");
+      await autoupdate.main();
+
+      // Verify spawn WAS called (autoupdate enabled)
+      expect(mockSpawn).toHaveBeenCalledWith(
+        "npx",
+        expect.arrayContaining([
+          "nori-ai@14.2.0",
+          "install",
+          "--non-interactive",
+        ]),
+        expect.any(Object),
+      );
+
+      // Verify notification was about installing, not just available
+      expect(consoleLogSpy).toHaveBeenCalled();
+      const logOutput = consoleLogSpy.mock.calls[0][0];
+      const parsed = JSON.parse(logOutput);
+      expect(parsed.systemMessage).toContain("Installing in background");
+
+      consoleLogSpy.mockRestore();
+    });
+
+    it("should trigger installation when autoupdate config is not set (defaults to enabled)", async () => {
+      // Mock openSync to return fake file descriptor
+      const { openSync } = await import("fs");
+      const mockOpenSync = vi.mocked(openSync);
+      mockOpenSync.mockReturnValue(3 as any);
+
+      // Mock getInstalledVersion to return current version
+      const { getInstalledVersion } = await import("@/installer/version.js");
+      const mockGetInstalledVersion = vi.mocked(getInstalledVersion);
+      mockGetInstalledVersion.mockReturnValue("14.1.0");
+
+      // Mock execSync to return newer version available
+      const mockExecSync = vi.mocked(execSync);
+      mockExecSync.mockReturnValue("14.2.0\n");
+
+      // Mock spawn to capture the installation call
+      const mockSpawn = vi.mocked(spawn);
+      const mockChild = {
+        unref: vi.fn(),
+        on: vi.fn(),
+      };
+      mockSpawn.mockReturnValue(mockChild as any);
+
+      // Mock loadDiskConfig WITHOUT autoupdate field (should default to enabled)
+      const { loadDiskConfig } = await import("@/installer/config.js");
+      const mockLoadDiskConfig = vi.mocked(loadDiskConfig);
+      mockLoadDiskConfig.mockResolvedValue({
+        auth: null,
+        profile: null,
+        installDir: process.cwd(),
+      });
+
+      // Mock trackEvent
+      const { trackEvent } = await import("@/installer/analytics.js");
+      const mockTrackEvent = vi.mocked(trackEvent);
+      mockTrackEvent.mockResolvedValue();
+
+      const consoleLogSpy = vi
+        .spyOn(console, "log")
+        .mockImplementation(() => undefined);
+
+      const autoupdate = await import("./autoupdate.js");
+      await autoupdate.main();
+
+      // Verify spawn WAS called (defaults to enabled)
+      expect(mockSpawn).toHaveBeenCalledWith(
+        "npx",
+        expect.arrayContaining([
+          "nori-ai@14.2.0",
+          "install",
+          "--non-interactive",
+        ]),
+        expect.any(Object),
+      );
+
+      consoleLogSpy.mockRestore();
+    });
   });
 });

@@ -3,16 +3,29 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, beforeAll } from "vitest";
 
 /**
  * CLI behavior tests
  *
  * These tests verify that the CLI shows help by default when no command is provided,
  * rather than automatically running the install command.
+ *
+ * Note: These tests run the compiled JavaScript directly from the build directory,
+ * so we ensure a fresh build before running tests to avoid stale/corrupt build artifacts.
  */
 
-describe("CLI default behavior", () => {
+describe.sequential("CLI default behavior", () => {
+  beforeAll(() => {
+    // Ensure build is fresh before running CLI tests
+    // This is necessary because these tests run the compiled JS directly
+    execSync("npm run build", {
+      encoding: "utf-8",
+      stdio: "pipe",
+      env: { ...process.env, FORCE_COLOR: "0" },
+    });
+  });
+
   let tempDir: string;
   let originalHome: string | undefined;
 
