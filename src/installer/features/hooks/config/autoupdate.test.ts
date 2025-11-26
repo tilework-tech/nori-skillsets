@@ -120,19 +120,18 @@ describe("autoupdate", () => {
         }),
       );
 
-      // Verify spawn was called with correct arguments to install new version
+      // Verify spawn was called with shell command to install globally then run install
       expect(mockSpawn).toHaveBeenCalledWith(
-        "npx",
-        expect.arrayContaining([
-          "nori-ai@14.2.0",
-          "install",
-          "--non-interactive",
-        ]),
+        "sh",
+        ["-c", expect.stringContaining("npm install -g nori-ai@14.2.0")],
         {
           detached: true,
           stdio: ["ignore", 3, 3],
         },
       );
+      // Also verify the command includes running nori-ai install
+      const spawnCall = mockSpawn.mock.calls[0];
+      expect(spawnCall[1][1]).toContain("nori-ai install --non-interactive");
 
       // Verify child.unref was called
       expect(mockChild.unref).toHaveBeenCalled();
@@ -483,17 +482,16 @@ describe("autoupdate", () => {
       // This proves we're comparing file version (14.0.0) vs npm (14.3.6),
       // not build constant (14.1.0) vs npm (14.3.6)
       expect(mockSpawn).toHaveBeenCalledWith(
-        "npx",
-        expect.arrayContaining([
-          "nori-ai@14.3.6",
-          "install",
-          "--non-interactive",
-        ]),
+        "sh",
+        ["-c", expect.stringContaining("npm install -g nori-ai@14.3.6")],
         {
           detached: true,
           stdio: ["ignore", 3, 3],
         },
       );
+      // Also verify the command includes running nori-ai install
+      const spawnCall = mockSpawn.mock.calls[0];
+      expect(spawnCall[1][1]).toContain("nori-ai install --non-interactive");
 
       // Verify notification shows correct version transition
       const logOutput = consoleLogSpy.mock.calls[0][0];
@@ -566,9 +564,8 @@ describe("autoupdate", () => {
       // Verify log content includes timestamp, version, and command
       expect(logContent).toContain("Nori Autoupdate");
       expect(logContent).toContain("14.3.6"); // version being installed
-      expect(logContent).toContain(
-        "npx nori-ai@14.3.6 install --non-interactive",
-      );
+      expect(logContent).toContain("npm install -g nori-ai@14.3.6");
+      expect(logContent).toContain("nori-ai install --non-interactive");
 
       // Verify openSync was called for append mode
       expect(mockOpenSync).toHaveBeenCalledWith(
@@ -578,12 +575,8 @@ describe("autoupdate", () => {
 
       // Verify spawn was called with stdio redirected to log file descriptor
       expect(mockSpawn).toHaveBeenCalledWith(
-        "npx",
-        expect.arrayContaining([
-          "nori-ai@14.3.6",
-          "install",
-          "--non-interactive",
-        ]),
+        "sh",
+        ["-c", expect.stringContaining("npm install -g nori-ai@14.3.6")],
         {
           detached: true,
           stdio: ["ignore", 3, 3],
@@ -647,12 +640,8 @@ describe("autoupdate", () => {
 
       // Verify spawn was called with file descriptor, not stream
       expect(mockSpawn).toHaveBeenCalledWith(
-        "npx",
-        expect.arrayContaining([
-          "nori-ai@14.3.6",
-          "install",
-          "--non-interactive",
-        ]),
+        "sh",
+        ["-c", expect.stringContaining("npm install -g nori-ai@14.3.6")],
         {
           detached: true,
           stdio: ["ignore", 3, 3],
@@ -738,13 +727,12 @@ describe("autoupdate", () => {
 
       // Verify spawn was called with correct installDir
       expect(mockSpawn).toHaveBeenCalledWith(
-        "npx",
+        "sh",
         [
-          "nori-ai@14.2.0",
-          "install",
-          "--non-interactive",
-          "--install-dir",
-          "/home/user/.claude",
+          "-c",
+          expect.stringMatching(
+            /npm install -g nori-ai@14\.2\.0 && nori-ai install --non-interactive --install-dir \/home\/user\/\.claude/,
+          ),
         ],
         {
           detached: true,
@@ -906,12 +894,8 @@ describe("autoupdate", () => {
 
       // Verify spawn WAS called to upgrade to stable
       expect(mockSpawn).toHaveBeenCalledWith(
-        "npx",
-        expect.arrayContaining([
-          "nori-ai@14.1.0",
-          "install",
-          "--non-interactive",
-        ]),
+        "sh",
+        ["-c", expect.stringContaining("npm install -g nori-ai@14.1.0")],
         {
           detached: true,
           stdio: ["ignore", 3, 3],
@@ -1072,16 +1056,18 @@ describe("autoupdate", () => {
       const autoupdate = await import("./autoupdate.js");
       await autoupdate.main();
 
-      // Verify spawn WAS called (autoupdate enabled)
+      // Verify spawn WAS called with shell command (autoupdate enabled)
       expect(mockSpawn).toHaveBeenCalledWith(
-        "npx",
-        expect.arrayContaining([
-          "nori-ai@14.2.0",
-          "install",
-          "--non-interactive",
-        ]),
-        expect.any(Object),
+        "sh",
+        ["-c", expect.stringContaining("npm install -g nori-ai@14.2.0")],
+        {
+          detached: true,
+          stdio: ["ignore", 3, 3],
+        },
       );
+      // Also verify the command includes running nori-ai install
+      const spawnCall = mockSpawn.mock.calls[0];
+      expect(spawnCall[1][1]).toContain("nori-ai install --non-interactive");
 
       // Verify notification was about installing, not just available
       expect(consoleLogSpy).toHaveBeenCalled();
@@ -1136,16 +1122,18 @@ describe("autoupdate", () => {
       const autoupdate = await import("./autoupdate.js");
       await autoupdate.main();
 
-      // Verify spawn WAS called (defaults to enabled)
+      // Verify spawn WAS called with shell command (defaults to enabled)
       expect(mockSpawn).toHaveBeenCalledWith(
-        "npx",
-        expect.arrayContaining([
-          "nori-ai@14.2.0",
-          "install",
-          "--non-interactive",
-        ]),
-        expect.any(Object),
+        "sh",
+        ["-c", expect.stringContaining("npm install -g nori-ai@14.2.0")],
+        {
+          detached: true,
+          stdio: ["ignore", 3, 3],
+        },
       );
+      // Also verify the command includes running nori-ai install
+      const spawnCall = mockSpawn.mock.calls[0];
+      expect(spawnCall[1][1]).toContain("nori-ai install --non-interactive");
 
       consoleLogSpy.mockRestore();
     });

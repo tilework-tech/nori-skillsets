@@ -181,7 +181,7 @@ const main = async (): Promise<void> => {
     // No profiles found
     const output: HookOutput = {
       decision: "block",
-      reason: `No profiles found in ${profilesDir}.\n\nRun 'npx nori-ai install' to install profiles.`,
+      reason: `No profiles found in ${profilesDir}.\n\nRun 'nori-ai install' to install profiles.`,
     };
     console.log(JSON.stringify(output));
     process.exit(0);

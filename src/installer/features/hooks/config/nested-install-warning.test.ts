@@ -89,7 +89,7 @@ describe("nested-install-warning hook", () => {
     expect(output.systemMessage).toContain("⚠️");
     expect(output.systemMessage).toContain(parentDir);
     expect(output.systemMessage).toContain(grandparentDir);
-    expect(output.systemMessage).toContain("npx nori-ai@latest uninstall");
+    expect(output.systemMessage).toContain("nori-ai uninstall");
   });
 
   it("should output nothing when no ancestor installation exists", async () => {

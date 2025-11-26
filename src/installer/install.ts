@@ -341,7 +341,7 @@ export const interactive = async (args?: {
     info({ message: "To remove an existing installation, run:" });
     for (const ancestorPath of ancestorInstallations) {
       info({
-        message: `  cd ${ancestorPath} && npx nori-ai@latest uninstall`,
+        message: `  cd ${ancestorPath} && nori-ai uninstall`,
       });
     }
     console.log();
@@ -370,7 +370,7 @@ export const interactive = async (args?: {
     });
 
     try {
-      execSync(`npx nori-ai@${previousVersion} uninstall --non-interactive`, {
+      execSync(`nori-ai uninstall --non-interactive`, {
         stdio: "inherit",
       });
     } catch (err: any) {
@@ -528,7 +528,7 @@ export const noninteractive = async (args?: {
     info({ message: "To remove an existing installation, run:" });
     for (const ancestorPath of ancestorInstallations) {
       info({
-        message: `  cd ${ancestorPath} && npx nori-ai@latest uninstall`,
+        message: `  cd ${ancestorPath} && nori-ai uninstall`,
       });
     }
     console.log();
@@ -552,7 +552,7 @@ export const noninteractive = async (args?: {
     });
 
     try {
-      execSync(`npx nori-ai@${previousVersion} uninstall --non-interactive`, {
+      execSync(`nori-ai uninstall --non-interactive`, {
         stdio: "inherit",
       });
     } catch (err: any) {

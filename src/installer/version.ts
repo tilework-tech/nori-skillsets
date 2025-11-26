@@ -27,7 +27,7 @@ export const getVersionFilePath = (args: { installDir: string }): string => {
 
 /**
  * Get the current package version by reading package.json
- * This works for any installation method (global npm, npx, local node_modules)
+ * This works for any installation method (global npm install, local node_modules)
  * @returns The current package version or null if not found
  */
 export const getCurrentPackageVersion = (): string | null => {

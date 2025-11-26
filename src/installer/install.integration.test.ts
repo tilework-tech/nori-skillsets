@@ -16,36 +16,30 @@ import { getInstalledVersion } from "./version.js";
 let consoleOutput: Array<string> = [];
 const originalConsoleLog = console.log;
 
-// Track which version of npx uninstall was called
-let uninstallCalledWith: string | null = null;
+// Track whether nori-ai uninstall was called
+let uninstallCalled = false;
 
-// Mock child_process to intercept npx calls
+// Mock child_process to intercept nori-ai calls
 vi.mock("child_process", async (importOriginal) => {
   const actual = await importOriginal<typeof childProcess>();
   return {
     ...actual,
     execSync: vi.fn((command: string, _options?: any) => {
-      // Parse the command to extract version - match both 'npx' and 'npm exec'
-      const match = command.match(
-        /(?:npx|npm exec) nori-ai@([\d.]+) uninstall/,
-      );
+      // Check if nori-ai uninstall was called (no longer version-specific)
+      const match = command.match(/nori-ai uninstall/);
       if (match) {
-        const version = match[1];
-        uninstallCalledWith = version;
+        uninstallCalled = true;
 
-        // Simulate version-specific uninstall behavior
-        // When uninstalling v12.0.0, remove the marker file
-        if (version === "12.0.0") {
-          try {
-            // Compute marker path using current cwd (which will be mocked in tests)
-            const markerPath = path.join(
-              process.cwd(),
-              ".nori-test-installation-marker",
-            );
-            fs.unlinkSync(markerPath);
-          } catch {
-            // Ignore if doesn't exist
-          }
+        // Simulate uninstall behavior - remove the marker file
+        try {
+          // Compute marker path using current cwd (which will be mocked in tests)
+          const markerPath = path.join(
+            process.cwd(),
+            ".nori-test-installation-marker",
+          );
+          fs.unlinkSync(markerPath);
+        } catch {
+          // Ignore if doesn't exist
         }
         return;
       }
@@ -112,7 +106,7 @@ describe("install integration test", () => {
     MARKER_FILE_PATH = path.join(tempDir, ".nori-test-installation-marker");
 
     // Reset tracking variable
-    uninstallCalledWith = null;
+    uninstallCalled = false;
 
     // Clean up any existing files in temp dir
     try {
@@ -179,9 +173,9 @@ describe("install integration test", () => {
 
     // STEP 3: Verify upgrade behavior
 
-    // CRITICAL: Verify that `npx nori-ai@12.0.0 uninstall` was called
-    // This is the core requirement - we must uninstall at the OLD version
-    expect(uninstallCalledWith).toBe("12.0.0");
+    // CRITICAL: Verify that `nori-ai uninstall` was called
+    // This ensures we clean up the previous installation before upgrading
+    expect(uninstallCalled).toBe(true);
 
     // Verify the marker file was removed by the version-specific uninstall
     expect(fs.existsSync(MARKER_FILE_PATH)).toBe(false);
@@ -309,7 +303,7 @@ describe("install integration test", () => {
     await installMain({ nonInteractive: true, installDir: tempDir });
 
     // Verify uninstall was NOT called
-    expect(uninstallCalledWith).toBeNull();
+    expect(uninstallCalled).toBe(false);
 
     // Verify installation completed and version was saved
     expect(fs.existsSync(VERSION_FILE_PATH)).toBe(true);
@@ -334,7 +328,7 @@ describe("install integration test", () => {
     });
 
     // STEP 3: Verify uninstall was NOT called
-    expect(uninstallCalledWith).toBeNull();
+    expect(uninstallCalled).toBe(false);
 
     // Verify the marker file still exists (wasn't removed by uninstall)
     expect(fs.existsSync(MARKER_FILE_PATH)).toBe(true);

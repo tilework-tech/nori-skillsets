@@ -58,7 +58,7 @@ export const main = async (args?: {
 
     message += "\n**To remove an installation, run:**\n";
     for (const installPath of allInstallations) {
-      message += `\`cd ${installPath} && npx nori-ai@latest uninstall\`\n`;
+      message += `\`cd ${installPath} && nori-ai uninstall\`\n`;
     }
 
     // Output to Claude session

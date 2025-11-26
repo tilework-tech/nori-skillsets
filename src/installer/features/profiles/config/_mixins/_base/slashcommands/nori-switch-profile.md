@@ -1,6 +1,6 @@
 ---
 description: Switch between Nori configuration profiles (amol, senior-swe, product-manager, documenter, none)
-allowed-tools: Bash(npx nori-ai@latest switch-profile:*), Bash(cat:*)
+allowed-tools: Bash(nori-ai switch-profile:*), Bash(cat:*)
 ---
 
 Switch to a different Nori configuration profile. This will update your CLAUDE.md and reinstall the plugin.

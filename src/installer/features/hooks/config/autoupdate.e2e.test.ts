@@ -62,19 +62,20 @@ describe("autoupdate E2E real spawn tests", () => {
     originalPath = process.env.PATH || "";
     originalHome = process.env.HOME;
 
-    // Mock environment - prepend temp bin to PATH so fake npx is found first
+    // Mock environment - prepend temp bin to PATH so fake sh is found first
     process.env.PATH = `${tempBinDir}${path.delimiter}${originalPath}`;
     process.env.HOME = tempHomeDir;
 
-    // Create fake npx executable that logs when called
-    const fakeNpxPath = path.join(tempBinDir, "npx");
-    const callLogPath = path.join(tempBinDir, "npx-calls.log");
-    const fakeNpxScript = `#!/bin/bash
-echo "npx called with: $@" >> "${callLogPath}"
+    // Create fake sh executable that logs when called
+    // This intercepts the `sh -c "npm install -g ... && nori-ai ..."` command
+    const fakeShPath = path.join(tempBinDir, "sh");
+    const callLogPath = path.join(tempBinDir, "sh-calls.log");
+    const fakeShScript = `#!/bin/bash
+echo "sh called with: $@" >> "${callLogPath}"
 exit 0
 `;
-    fs.writeFileSync(fakeNpxPath, fakeNpxScript);
-    fs.chmodSync(fakeNpxPath, 0o755); // Make executable
+    fs.writeFileSync(fakeShPath, fakeShScript);
+    fs.chmodSync(fakeShPath, 0o755); // Make executable
   });
 
   afterEach(async () => {
@@ -92,7 +93,7 @@ exit 0
     await fsPromises.rm(tempHomeDir, { recursive: true, force: true });
   });
 
-  it("should spawn real npx process when update available", async () => {
+  it("should spawn shell process with npm global install when update available", async () => {
     // Use real fs for this test
     const fs = await import("fs");
     const path = await import("path");
@@ -144,13 +145,13 @@ exit 0
     // Wait for spawned process to complete
     await new Promise((resolve) => setTimeout(resolve, 200));
 
-    // Verify: Check that fake npx was actually called
-    const callLogPath = path.join(tempBinDir, "npx-calls.log");
+    // Verify: Check that fake sh was called with the correct command
+    const callLogPath = path.join(tempBinDir, "sh-calls.log");
     const callLog = fs.readFileSync(callLogPath, "utf-8");
 
-    expect(callLog).toContain("nori-ai@14.2.0");
-    expect(callLog).toContain("install");
-    expect(callLog).toContain("--non-interactive");
+    // Verify the shell command contains npm install -g and nori-ai install
+    expect(callLog).toContain("npm install -g nori-ai@14.2.0");
+    expect(callLog).toContain("nori-ai install --non-interactive");
 
     consoleLogSpy.mockRestore();
   });
