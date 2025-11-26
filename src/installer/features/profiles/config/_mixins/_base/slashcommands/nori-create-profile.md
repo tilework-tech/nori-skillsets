@@ -125,7 +125,7 @@ To use your new profile, run:
   /nori-switch-profile
 
 Or:
-  npx nori-ai switch-profile <new-profile-name>
+  nori-ai switch-profile <new-profile-name>
 ```
 
 ## Important Notes

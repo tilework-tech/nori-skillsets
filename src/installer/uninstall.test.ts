@@ -270,8 +270,8 @@ describe("uninstall idempotency", () => {
   it("should preserve config when removeConfig is false (autoupdate scenario)", async () => {
     // This test simulates the autoupdate workflow:
     // 1. User has installed Nori with saved config
-    // 2. Autoupdate calls `npx nori-ai@newVersion install --non-interactive`
-    // 3. Install first calls `npx nori-ai@oldVersion uninstall --non-interactive`
+    // 2. Autoupdate runs `npm install -g nori-ai@newVersion && nori-ai install --non-interactive`
+    // 3. Install first calls `nori-ai uninstall --non-interactive`
     // 4. Config must be preserved so install can use it
 
     const configData = {

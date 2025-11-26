@@ -154,7 +154,7 @@ describe("slashCommandsLoader", () => {
       // Slash commands using !`command` syntax require allowed-tools frontmatter
       // to grant Claude Code permission to execute the command
       expect(content).toContain("allowed-tools:");
-      expect(content).toContain("Bash(npx nori-ai");
+      expect(content).toContain("Bash(nori-ai");
     });
 
     it("should include allowed-tools in nori-debug.md for auto-execute permission", async () => {
@@ -168,7 +168,7 @@ describe("slashCommandsLoader", () => {
       // Slash commands using !`command` syntax require allowed-tools frontmatter
       // to grant Claude Code permission to execute the command
       expect(content).toContain("allowed-tools:");
-      expect(content).toContain("Bash(npx nori-ai");
+      expect(content).toContain("Bash(nori-ai");
     });
   });
 

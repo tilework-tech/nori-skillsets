@@ -49,29 +49,28 @@ const installUpdate = (args: {
 }): void => {
   const { version, installDir } = args;
 
-  // Build command args
-  const cmdArgs = [
-    `${PACKAGE_NAME}@${version}`,
-    "install",
-    "--non-interactive",
-  ];
+  // Build command args for nori-ai install
+  const installArgs = ["install", "--non-interactive"];
   if (installDir != null && installDir !== "") {
-    cmdArgs.push("--install-dir", installDir);
+    installArgs.push("--install-dir", installDir);
   }
+
+  // Build full shell command: first update global package, then run install
+  const fullCommand = `npm install -g ${PACKAGE_NAME}@${version} && nori-ai ${installArgs.join(" ")}`;
 
   // Log to notifications file in the install directory
   const logDir =
     installDir != null && installDir !== "" ? installDir : process.cwd();
   const logPath = join(logDir, ".nori-notifications.log");
-  const logHeader = `\n=== Nori Autoupdate: ${new Date().toISOString()} ===\nInstalling v${version}...\nCommand: npx ${cmdArgs.join(" ")}\n`;
+  const logHeader = `\n=== Nori Autoupdate: ${new Date().toISOString()} ===\nInstalling v${version}...\nCommand: ${fullCommand}\n`;
   appendFileSync(logPath, logHeader);
 
   // Use openSync to get file descriptor for spawn stdio
   const logFd = openSync(logPath, "a");
 
   // Spawn background process with output redirected to log
-  // Use npx to install the new version AND run the install script non-interactively
-  const child = spawn("npx", cmdArgs, {
+  // Use shell to run npm install -g followed by nori-ai install
+  const child = spawn("sh", ["-c", fullCommand], {
     detached: true,
     stdio: ["ignore", logFd, logFd],
   });

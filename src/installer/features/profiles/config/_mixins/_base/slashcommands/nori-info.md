@@ -45,7 +45,7 @@ Profiles control Claude's behavior and autonomy level. Three built-in profiles a
 
 ### 1.4 Profile Management
 
-- **Switch profiles:** `/nori-switch-profile` or `npx nori-ai switch-profile`
+- **Switch profiles:** `/nori-switch-profile` or `nori-ai switch-profile`
 - **Custom profiles:** Create your own in `~/.claude/profiles/`
 - **Source of truth:** All profiles stored in `~/.claude/profiles/`
 
@@ -202,7 +202,7 @@ Profile-specific instructions that guide Claude's behavior.
 Custom commands available in Claude Code.
 
 - `/nori-info` - Display this information (you're using it now!)
-- `/nori-debug` - Validate Nori installation (`npx nori-ai check`)
+- `/nori-debug` - Validate Nori installation (`nori-ai check`)
 - `/nori-install-location` - Display Nori installation directories
 - `/nori-switch-profile` - Switch between profiles interactively
 - `/nori-init-docs` - Generate documentation files throughout codebase
@@ -214,7 +214,8 @@ Custom commands available in Claude Code.
 ### 10.1 Install (Free or Paid)
 
 ```bash
-npx nori-ai install
+npm install -g nori-ai
+nori-ai install
 ```
 
 During installation, you'll be prompted for credentials. Press Enter to skip for free tier, or provide credentials for paid tier.
@@ -224,7 +225,7 @@ During installation, you'll be prompted for credentials. Press Enter to skip for
 Visit [tilework.tech](https://tilework.tech) to get credentials, then reinstall:
 
 ```bash
-npx nori-ai install
+nori-ai install
 ```
 
 Provide your credentials when prompted.
@@ -232,7 +233,7 @@ Provide your credentials when prompted.
 ### 10.3 Switch Profiles
 
 ```bash
-npx nori-ai switch-profile
+nori-ai switch-profile
 ```
 
 Or use the `/nori-switch-profile` slash command.
@@ -250,7 +251,7 @@ This log contains detailed information about the installation process and any er
 For validation and debugging:
 
 ```bash
-npx nori-ai check
+nori-ai check
 ```
 
 Or use the `/nori-debug` slash command.

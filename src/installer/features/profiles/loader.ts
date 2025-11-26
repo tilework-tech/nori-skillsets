@@ -124,9 +124,9 @@ const getMixinPaths = (args: { metadata: ProfileMetadata }): Array<string> => {
  * Install profile templates to ~/.claude/profiles/
  * Handles profile composition by resolving inheritance from base profiles
  *
- * This function copies built-in profiles from the npx package to ~/.claude/profiles/.
+ * This function copies built-in profiles from the nori-ai package to ~/.claude/profiles/.
  * Built-in profiles are ALWAYS overwritten to ensure they stay up-to-date.
- * Custom profiles (those that don't exist in the npx package) are never touched.
+ * Custom profiles (those that don't exist in the nori-ai package) are never touched.
  *
  * @param args - Configuration arguments
  * @param args.config - Runtime configuration

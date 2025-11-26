@@ -1,8 +1,8 @@
 ---
 description: Display the current Nori installation directory
-allowed-tools: Bash(npx nori-ai:*)
+allowed-tools: Bash(nori-ai:*)
 ---
 
-!`npx nori-ai install-location`
+!`nori-ai install-location`
 
 This command displays all Nori installation directories found by searching upward from your current working directory.

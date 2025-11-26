@@ -17,7 +17,8 @@ Nori Profiles lets you codify the repeating aspects of your workflow so you can 
 ## Installation
 
 ```bash
-npx nori-ai@latest install
+npm install -g nori-ai
+nori-ai install
 ```
 
 Launch Claude Code from your terminal. Nori features activate automatically.
@@ -39,7 +40,7 @@ During installation, choose a sample profile to try out how Nori works.
 Switch profiles anytime:
 
 ```bash
-npx nori-ai@latest switch-profile <profile-name>
+nori-ai switch-profile <profile-name>
 ```
 
 Or use `/nori-switch-profile` during a conversation.
@@ -92,7 +93,7 @@ Claude will guide you through:
 
 4. Activate your profile:
    ```bash
-   npx nori-ai switch-profile my-profile
+   nori-ai switch-profile my-profile
    ```
 
    Or use `/nori-switch-profile` during a conversation.
@@ -131,11 +132,11 @@ _Team documentation server that captures, organizes, and surfaces institutional 
 ## Commands
 
 ```bash
-npx nori-ai              # Install (default)
-npx nori-ai install      # Install (explicit)
-npx nori-ai uninstall    # Uninstall all features
-npx nori-ai help         # Show help message
-npx nori-ai check        # Run configuration validation
+nori-ai              # Install (default)
+nori-ai install      # Install (explicit)
+nori-ai uninstall    # Uninstall all features
+nori-ai help         # Show help message
+nori-ai check        # Run configuration validation
 ```
 
 ## Special Thanks
