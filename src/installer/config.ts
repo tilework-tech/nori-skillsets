@@ -23,6 +23,7 @@ export type DiskConfig = {
     baseProfile: string;
   } | null;
   sendSessionTranscript?: "enabled" | "disabled" | null;
+  autoupdate?: "enabled" | "disabled" | null;
   installDir: string;
 };
 
@@ -133,6 +134,13 @@ export const loadDiskConfig = async (args: {
         result.sendSessionTranscript = "enabled"; // Default value
       }
 
+      // Check if autoupdate exists, default to 'enabled'
+      if (config.autoupdate === "enabled" || config.autoupdate === "disabled") {
+        result.autoupdate = config.autoupdate;
+      } else {
+        result.autoupdate = "enabled"; // Default value
+      }
+
       // Return result if we have at least auth, profile, or sendSessionTranscript
       if (
         result.auth != null ||
@@ -157,6 +165,7 @@ export const loadDiskConfig = async (args: {
  * @param args.organizationUrl - Organization URL (null to skip auth)
  * @param args.profile - Profile selection (null to skip profile)
  * @param args.sendSessionTranscript - Session transcript setting (null to skip)
+ * @param args.autoupdate - Autoupdate setting (null to skip)
  * @param args.installDir - Installation directory
  */
 export const saveDiskConfig = async (args: {
@@ -165,6 +174,7 @@ export const saveDiskConfig = async (args: {
   organizationUrl: string | null;
   profile?: { baseProfile: string } | null;
   sendSessionTranscript?: "enabled" | "disabled" | null;
+  autoupdate?: "enabled" | "disabled" | null;
   installDir: string;
 }): Promise<void> => {
   const {
@@ -173,6 +183,7 @@ export const saveDiskConfig = async (args: {
     organizationUrl,
     profile,
     sendSessionTranscript,
+    autoupdate,
     installDir,
   } = args;
   const configPath = getConfigPath({ installDir });
@@ -197,6 +208,11 @@ export const saveDiskConfig = async (args: {
   // Add sendSessionTranscript if provided
   if (sendSessionTranscript != null) {
     config.sendSessionTranscript = sendSessionTranscript;
+  }
+
+  // Add autoupdate if provided
+  if (autoupdate != null) {
+    config.autoupdate = autoupdate;
   }
 
   // Always save installDir
@@ -250,6 +266,10 @@ const configSchema = {
     password: { type: "string" },
     organizationUrl: { type: "string" },
     sendSessionTranscript: {
+      type: "string",
+      enum: ["enabled", "disabled"],
+    },
+    autoupdate: {
       type: "string",
       enum: ["enabled", "disabled"],
     },

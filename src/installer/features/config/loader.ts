@@ -5,7 +5,11 @@
 
 import { unlinkSync, existsSync } from "fs";
 
-import { getConfigPath, saveDiskConfig } from "@/installer/config.js";
+import {
+  getConfigPath,
+  loadDiskConfig,
+  saveDiskConfig,
+} from "@/installer/config.js";
 import { info, success } from "@/installer/logger.js";
 
 import type { Config } from "@/installer/config.js";
@@ -19,17 +23,24 @@ import type { Loader } from "@/installer/features/loaderRegistry.js";
 const installConfig = async (args: { config: Config }): Promise<void> => {
   const { config } = args;
 
+  // Load existing config to preserve user preferences (sendSessionTranscript, autoupdate)
+  const existingConfig = await loadDiskConfig({
+    installDir: config.installDir,
+  });
+
   // Extract auth credentials from config
   const username = config.auth?.username ?? null;
   const password = config.auth?.password ?? null;
   const organizationUrl = config.auth?.organizationUrl ?? null;
 
-  // Save config to disk
+  // Save config to disk, preserving existing user preferences
   await saveDiskConfig({
     username,
     password,
     organizationUrl,
     profile: config.profile ?? null,
+    sendSessionTranscript: existingConfig?.sendSessionTranscript,
+    autoupdate: existingConfig?.autoupdate,
     installDir: config.installDir,
   });
 
