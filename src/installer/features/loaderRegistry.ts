@@ -3,6 +3,7 @@
  * Singleton registry that manages all feature loaders
  */
 
+import { announcementsLoader } from "@/installer/features/announcements/loader.js";
 import { configLoader } from "@/installer/features/config/loader.js";
 import { hooksLoader } from "@/installer/features/hooks/loader.js";
 import { profilesLoader } from "@/installer/features/profiles/loader.js";
@@ -51,6 +52,7 @@ export class LoaderRegistry {
     this.loaders.set(profilesLoader.name, profilesLoader);
     this.loaders.set(hooksLoader.name, hooksLoader);
     this.loaders.set(statuslineLoader.name, statuslineLoader);
+    this.loaders.set(announcementsLoader.name, announcementsLoader);
   }
 
   /**
