@@ -11,9 +11,10 @@ import Ajv from "ajv";
 import { normalizeUrl } from "@/utils/url.js";
 
 /**
- * Configuration stored on disk containing authentication credentials and profile selection
+ * Unified configuration type for Nori Profiles
+ * Contains all persisted fields from disk plus required installDir
  */
-export type DiskConfig = {
+export type Config = {
   auth?: {
     username: string;
     password: string;
@@ -28,22 +29,9 @@ export type DiskConfig = {
 };
 
 /**
- * Runtime configuration derived from disk config
+ * @deprecated Use Config instead - types have been unified
  */
-export type Config = {
-  installType: "free" | "paid";
-  nonInteractive?: boolean | null;
-  auth?: {
-    username: string;
-    password: string;
-    organizationUrl: string;
-  } | null;
-  profile?: {
-    baseProfile: string;
-  } | null;
-  sendSessionTranscript?: "enabled" | "disabled" | null;
-  installDir: string;
-};
+export type DiskConfig = Config;
 
 /**
  * Get the path to the config file
@@ -68,15 +56,26 @@ export const getDefaultProfile = (): { baseProfile: string } => {
 };
 
 /**
+ * Check if config represents a paid installation
+ * @param args - Configuration arguments
+ * @param args.config - The config to check
+ *
+ * @returns True if the config has valid auth credentials (paid install)
+ */
+export const isPaidInstall = (args: { config: Config }): boolean => {
+  return args.config.auth != null;
+};
+
+/**
  * Load existing configuration from disk
  * @param args - Configuration arguments
  * @param args.installDir - Installation directory
  *
- * @returns The disk config if valid, null otherwise
+ * @returns The config if valid, null otherwise
  */
-export const loadDiskConfig = async (args: {
+export const loadConfig = async (args: {
   installDir: string;
-}): Promise<DiskConfig | null> => {
+}): Promise<Config | null> => {
   const { installDir } = args;
   const configPath = getConfigPath({ installDir });
 
@@ -87,7 +86,7 @@ export const loadDiskConfig = async (args: {
 
     // Validate that the config has the expected structure
     if (config && typeof config === "object") {
-      const result: DiskConfig = {
+      const result: Config = {
         auth: null,
         profile: null,
         // Use installDir from config file if present, otherwise use parameter
@@ -159,7 +158,12 @@ export const loadDiskConfig = async (args: {
 };
 
 /**
- * Save authentication credentials and profile to disk
+ * @deprecated Use loadConfig instead
+ */
+export const loadDiskConfig = loadConfig;
+
+/**
+ * Save configuration to disk
  * @param args - Configuration arguments
  * @param args.username - User's username (null to skip auth)
  * @param args.password - User's password (null to skip auth)
@@ -169,7 +173,7 @@ export const loadDiskConfig = async (args: {
  * @param args.autoupdate - Autoupdate setting (null to skip)
  * @param args.installDir - Installation directory
  */
-export const saveDiskConfig = async (args: {
+export const saveConfig = async (args: {
   username: string | null;
   password: string | null;
   organizationUrl: string | null;
@@ -223,37 +227,36 @@ export const saveDiskConfig = async (args: {
 };
 
 /**
- * Generate runtime config from disk config
- * @param args - Configuration arguments
- * @param args.diskConfig - The disk config to convert
- * @param args.installDir - Installation directory (required since diskConfig may be null)
+ * @deprecated Use saveConfig instead
+ */
+export const saveDiskConfig = saveConfig;
+
+/**
+ * Generate a config object from disk config with defaults applied
  *
- * @returns Runtime configuration
+ * @param args - Function arguments
+ * @param args.diskConfig - Config loaded from disk (or null if not found)
+ * @param args.installDir - Installation directory
+ *
+ * @returns Config object with defaults applied
+ *
+ * @deprecated No longer needed - use loadConfig directly and apply defaults manually if needed
+ * This function is kept for backwards compatibility during migration.
  */
 export const generateConfig = (args: {
-  diskConfig: DiskConfig | null;
+  diskConfig: Config | null;
   installDir: string;
 }): Config => {
   const { diskConfig, installDir } = args;
 
-  // If we have valid auth credentials, use paid installation
-  const installType = diskConfig?.auth ? "paid" : "free";
-
   // Use profile from diskConfig, or default if not present
   const profile = diskConfig?.profile || getDefaultProfile();
 
-  // For paid installs, default sendSessionTranscript to "enabled" if not set
-  // For free installs, set to null (won't be saved)
-  let sendSessionTranscript: "enabled" | "disabled" | null = null;
-  if (installType === "paid") {
-    sendSessionTranscript = diskConfig?.sendSessionTranscript ?? "enabled";
-  }
-
   return {
-    installType,
     auth: diskConfig?.auth || null,
     profile,
-    sendSessionTranscript,
+    sendSessionTranscript: diskConfig?.sendSessionTranscript ?? null,
+    autoupdate: diskConfig?.autoupdate ?? null,
     installDir,
   };
 };
@@ -287,13 +290,13 @@ const configSchema = {
 };
 
 /**
- * Validate disk configuration
+ * Validate configuration file
  * @param args - Configuration arguments
  * @param args.installDir - Installation directory
  *
  * @returns Validation result with details
  */
-export const validateDiskConfig = async (args: {
+export const validateConfig = async (args: {
   installDir: string;
 }): Promise<ConfigValidationResult> => {
   const { installDir } = args;
@@ -420,3 +423,8 @@ export const validateDiskConfig = async (args: {
     errors: null,
   };
 };
+
+/**
+ * @deprecated Use validateConfig instead
+ */
+export const validateDiskConfig = validateConfig;

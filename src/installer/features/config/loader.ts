@@ -7,8 +7,9 @@ import { unlinkSync, existsSync } from "fs";
 
 import {
   getConfigPath,
-  loadDiskConfig,
-  saveDiskConfig,
+  loadConfig,
+  saveConfig,
+  isPaidInstall,
 } from "@/installer/config.js";
 import { info, success } from "@/installer/logger.js";
 
@@ -24,7 +25,7 @@ const installConfig = async (args: { config: Config }): Promise<void> => {
   const { config } = args;
 
   // Load existing config to preserve user preferences (sendSessionTranscript, autoupdate)
-  const existingConfig = await loadDiskConfig({
+  const existingConfig = await loadConfig({
     installDir: config.installDir,
   });
 
@@ -33,13 +34,19 @@ const installConfig = async (args: { config: Config }): Promise<void> => {
   const password = config.auth?.password ?? null;
   const organizationUrl = config.auth?.organizationUrl ?? null;
 
+  // Only include sendSessionTranscript for paid users
+  // Free users should not have this field in their config
+  const sendSessionTranscript = isPaidInstall({ config })
+    ? (config.sendSessionTranscript ?? null)
+    : null;
+
   // Save config to disk, preserving existing user preferences
-  await saveDiskConfig({
+  await saveConfig({
     username,
     password,
     organizationUrl,
     profile: config.profile ?? null,
-    sendSessionTranscript: config.sendSessionTranscript ?? null,
+    sendSessionTranscript,
     autoupdate: existingConfig?.autoupdate,
     installDir: config.installDir,
   });

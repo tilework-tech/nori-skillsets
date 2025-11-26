@@ -14,7 +14,7 @@ import { join } from "path";
 import semver from "semver";
 
 import { trackEvent } from "@/installer/analytics.js";
-import { loadDiskConfig } from "@/installer/config.js";
+import { loadConfig } from "@/installer/config.js";
 import { error } from "@/installer/logger.js";
 import { getInstalledVersion } from "@/installer/version.js";
 import { getInstallDirs } from "@/utils/path.js";
@@ -132,8 +132,8 @@ const main = async (): Promise<void> => {
       return;
     }
 
-    // Load disk config from found directory
-    const diskConfig = await loadDiskConfig({ installDir: configDir });
+    // Load config from found directory
+    const diskConfig = await loadConfig({ installDir: configDir });
     const installType = diskConfig?.auth ? "paid" : "free";
 
     if (diskConfig?.installDir == null) {

@@ -7,13 +7,13 @@ import * as fs from "fs/promises";
 import * as path from "path";
 import { fileURLToPath } from "url";
 
+import { isPaidInstall, type Config } from "@/installer/config.js";
 import {
   getClaudeHomeDir,
   getClaudeHomeSettingsFile,
 } from "@/installer/env.js";
 import { success, info, warn } from "@/installer/logger.js";
 
-import type { Config } from "@/installer/config.js";
 import type {
   Loader,
   ValidationResult,
@@ -477,7 +477,7 @@ const validate = async (args: {
   }
 
   // Validate expected hooks for paid mode
-  if (config.installType === "paid") {
+  if (isPaidInstall({ config })) {
     const requiredEvents = ["SessionEnd", "PreCompact", "SessionStart"];
     for (const event of requiredEvents) {
       if (!settings.hooks[event]) {
@@ -551,7 +551,7 @@ export const hooksLoader: Loader = {
   run: async (args: { config: Config }) => {
     const { config } = args;
 
-    if (config.installType === "paid") {
+    if (isPaidInstall({ config })) {
       await configurePaidHooks({ config });
     } else {
       await configureFreeHooks({ config });

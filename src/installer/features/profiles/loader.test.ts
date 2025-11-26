@@ -56,7 +56,7 @@ describe("profilesLoader", () => {
 
   describe("run", () => {
     it("should create profiles directory and copy profile templates for free installation", async () => {
-      const config: Config = { installType: "free", installDir: tempDir };
+      const config: Config = { installDir: tempDir };
 
       await profilesLoader.run({ config });
 
@@ -79,7 +79,7 @@ describe("profilesLoader", () => {
     });
 
     it("should install none profile with only base mixin and empty CLAUDE.md", async () => {
-      const config: Config = { installType: "free", installDir: tempDir };
+      const config: Config = { installDir: tempDir };
 
       await profilesLoader.run({ config });
 
@@ -115,7 +115,14 @@ describe("profilesLoader", () => {
     });
 
     it("should create profiles directory and copy profile templates for paid installation", async () => {
-      const config: Config = { installType: "paid", installDir: tempDir };
+      const config: Config = {
+        installDir: tempDir,
+        auth: {
+          username: "test@example.com",
+          password: "testpass",
+          organizationUrl: "https://example.com",
+        },
+      };
 
       await profilesLoader.run({ config });
 
@@ -139,7 +146,6 @@ describe("profilesLoader", () => {
 
     it("should copy profile directories with complete structure", async () => {
       const config: Config = {
-        installType: "free",
         profile: { baseProfile: "senior-swe" },
         installDir: tempDir,
       };
@@ -203,7 +209,7 @@ describe("profilesLoader", () => {
     });
 
     it("should handle reinstallation (update scenario)", async () => {
-      const config: Config = { installType: "free", installDir: tempDir };
+      const config: Config = { installDir: tempDir };
 
       // First installation
       await profilesLoader.run({ config });
@@ -226,7 +232,7 @@ describe("profilesLoader", () => {
 
   describe("uninstall", () => {
     it("should remove built-in profiles for free installation", async () => {
-      const config: Config = { installType: "free", installDir: tempDir };
+      const config: Config = { installDir: tempDir };
 
       // First install profiles
       await profilesLoader.run({ config });
@@ -261,7 +267,14 @@ describe("profilesLoader", () => {
     });
 
     it("should remove built-in profiles for paid installation", async () => {
-      const config: Config = { installType: "paid", installDir: tempDir };
+      const config: Config = {
+        installDir: tempDir,
+        auth: {
+          username: "test@example.com",
+          password: "testpass",
+          organizationUrl: "https://example.com",
+        },
+      };
 
       // First install profiles
       await profilesLoader.run({ config });
@@ -296,14 +309,14 @@ describe("profilesLoader", () => {
     });
 
     it("should not throw if profiles directory does not exist", async () => {
-      const config: Config = { installType: "free", installDir: tempDir };
+      const config: Config = { installDir: tempDir };
 
       // Uninstall without installing first
       await expect(profilesLoader.uninstall({ config })).resolves.not.toThrow();
     });
 
     it("should preserve custom user profiles during uninstall", async () => {
-      const config: Config = { installType: "free", installDir: tempDir };
+      const config: Config = { installDir: tempDir };
 
       // Install built-in profiles
       await profilesLoader.run({ config });
@@ -364,7 +377,7 @@ describe("profilesLoader", () => {
 
   describe("validate", () => {
     it("should pass validation when all required profiles are installed", async () => {
-      const config: Config = { installType: "free", installDir: tempDir };
+      const config: Config = { installDir: tempDir };
 
       // Install profiles
       await profilesLoader.run({ config });
@@ -377,7 +390,7 @@ describe("profilesLoader", () => {
     });
 
     it("should fail validation when profiles directory does not exist", async () => {
-      const config: Config = { installType: "free", installDir: tempDir };
+      const config: Config = { installDir: tempDir };
 
       // Validate without installing
       const result = await profilesLoader.validate!({ config });
@@ -388,7 +401,7 @@ describe("profilesLoader", () => {
     });
 
     it("should fail validation when required profiles are missing", async () => {
-      const config: Config = { installType: "free", installDir: tempDir };
+      const config: Config = { installDir: tempDir };
 
       // Create profiles directory but don't copy profiles
       await fs.mkdir(profilesDir, { recursive: true });
@@ -402,7 +415,7 @@ describe("profilesLoader", () => {
     });
 
     it("should fail validation when only some required profiles are present", async () => {
-      const config: Config = { installType: "free", installDir: tempDir };
+      const config: Config = { installDir: tempDir };
 
       // Create profiles directory and only one profile (senior-swe)
       await fs.mkdir(profilesDir, { recursive: true });
@@ -456,7 +469,7 @@ describe("profilesLoader", () => {
 
   describe("permissions configuration", () => {
     it("should configure permissions.additionalDirectories in settings.json", async () => {
-      const config: Config = { installType: "free", installDir: tempDir };
+      const config: Config = { installDir: tempDir };
       const settingsPath = path.join(claudeDir, "settings.json");
 
       // Install profiles
@@ -479,7 +492,7 @@ describe("profilesLoader", () => {
     });
 
     it("should preserve existing settings when adding permissions", async () => {
-      const config: Config = { installType: "free", installDir: tempDir };
+      const config: Config = { installDir: tempDir };
       const settingsPath = path.join(claudeDir, "settings.json");
 
       // Create settings.json with existing fields
@@ -509,7 +522,7 @@ describe("profilesLoader", () => {
     });
 
     it("should not duplicate profiles directory in additionalDirectories", async () => {
-      const config: Config = { installType: "free", installDir: tempDir };
+      const config: Config = { installDir: tempDir };
       const settingsPath = path.join(claudeDir, "settings.json");
 
       // Install profiles twice
@@ -528,7 +541,7 @@ describe("profilesLoader", () => {
     });
 
     it("should preserve existing additionalDirectories when adding profiles directory", async () => {
-      const config: Config = { installType: "free", installDir: tempDir };
+      const config: Config = { installDir: tempDir };
       const settingsPath = path.join(claudeDir, "settings.json");
 
       // Create settings.json with existing additionalDirectories
@@ -565,7 +578,7 @@ describe("profilesLoader", () => {
     });
 
     it("should remove permissions on uninstall", async () => {
-      const config: Config = { installType: "free", installDir: tempDir };
+      const config: Config = { installDir: tempDir };
       const settingsPath = path.join(claudeDir, "settings.json");
 
       // Install first
@@ -589,7 +602,7 @@ describe("profilesLoader", () => {
     });
 
     it("should preserve other additionalDirectories on uninstall", async () => {
-      const config: Config = { installType: "free", installDir: tempDir };
+      const config: Config = { installDir: tempDir };
       const settingsPath = path.join(claudeDir, "settings.json");
 
       // Create settings.json with existing additionalDirectories
@@ -628,13 +641,13 @@ describe("profilesLoader", () => {
     });
 
     it("should handle missing settings.json on uninstall gracefully", async () => {
-      const config: Config = { installType: "free", installDir: tempDir };
+      const config: Config = { installDir: tempDir };
 
       await expect(profilesLoader.uninstall({ config })).resolves.not.toThrow();
     });
 
     it("should validate permissions configuration", async () => {
-      const config: Config = { installType: "free", installDir: tempDir };
+      const config: Config = { installDir: tempDir };
 
       // Install
       await profilesLoader.run({ config });
@@ -647,7 +660,7 @@ describe("profilesLoader", () => {
     });
 
     it("should return invalid when permissions are not configured", async () => {
-      const config: Config = { installType: "free", installDir: tempDir };
+      const config: Config = { installDir: tempDir };
       const settingsPath = path.join(claudeDir, "settings.json");
 
       // Install profiles but manually remove permissions
@@ -681,10 +694,9 @@ describe("profilesLoader", () => {
       const config: Config = {
         auth: {
           username: "test@example.com",
-          password: "password",
-          organizationUrl: "https://org.example.com",
+          password: "testpass",
+          organizationUrl: "https://example.com",
         },
-        installType: "paid",
         profile: {
           baseProfile: "test-profile",
         },
@@ -710,10 +722,9 @@ describe("profilesLoader", () => {
       const config: Config = {
         auth: {
           username: "test@example.com",
-          password: "password",
-          organizationUrl: "https://org.example.com",
+          password: "testpass",
+          organizationUrl: "https://example.com",
         },
-        installType: "paid",
         profile: {
           baseProfile: "test-profile",
         },
@@ -745,10 +756,9 @@ describe("profilesLoader", () => {
       const config: Config = {
         auth: {
           username: "test@example.com",
-          password: "password",
-          organizationUrl: "https://org.example.com",
+          password: "testpass",
+          organizationUrl: "https://example.com",
         },
-        installType: "paid",
         profile: {
           baseProfile: "test-profile",
         },
@@ -781,10 +791,9 @@ describe("profilesLoader", () => {
       const config: Config = {
         auth: {
           username: "test@example.com",
-          password: "password",
-          organizationUrl: "https://org.example.com",
+          password: "testpass",
+          organizationUrl: "https://example.com",
         },
-        installType: "paid",
         profile: {
           baseProfile: "test-profile",
         },
@@ -819,7 +828,6 @@ describe("profilesLoader", () => {
 
       const config: Config = {
         auth: null,
-        installType: "free",
         profile: {
           baseProfile: "test-profile",
         },
@@ -852,10 +860,9 @@ describe("profilesLoader", () => {
       const config: Config = {
         auth: {
           username: "test@example.com",
-          password: "password",
-          organizationUrl: "https://org.example.com",
+          password: "testpass",
+          organizationUrl: "https://example.com",
         },
-        installType: "paid",
         profile: {
           baseProfile: "test-profile",
         },
@@ -885,10 +892,9 @@ describe("profilesLoader", () => {
       const config: Config = {
         auth: {
           username: "test@example.com",
-          password: "password",
-          organizationUrl: "https://org.example.com",
+          password: "testpass",
+          organizationUrl: "https://example.com",
         },
-        installType: "paid",
         profile: {
           baseProfile: "test-profile",
         },

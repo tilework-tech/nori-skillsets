@@ -8,7 +8,7 @@
  */
 
 import { apiClient, ConfigManager } from "@/api/index.js";
-import { loadDiskConfig } from "@/installer/config.js";
+import { loadConfig } from "@/installer/config.js";
 import { debug, error } from "@/installer/logger.js";
 import { getInstallDirs } from "@/utils/path.js";
 
@@ -169,7 +169,7 @@ const summarizeConversation = async (args: {
   }
 
   const installDir = allInstallations[0]; // Use closest installation
-  const diskConfig = await loadDiskConfig({ installDir });
+  const diskConfig = await loadConfig({ installDir });
   if (diskConfig?.sendSessionTranscript === "disabled") {
     console.log(
       JSON.stringify({

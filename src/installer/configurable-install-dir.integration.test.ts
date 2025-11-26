@@ -9,7 +9,12 @@ import * as path from "path";
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
-import { loadDiskConfig, generateConfig, type Config } from "./config.js";
+import {
+  loadConfig,
+  generateConfig,
+  isPaidInstall,
+  type Config,
+} from "./config.js";
 import { claudeMdLoader } from "./features/profiles/claudemd/loader.js";
 import { profilesLoader } from "./features/profiles/loader.js";
 import { skillsLoader } from "./features/profiles/skills/loader.js";
@@ -89,7 +94,6 @@ describe("configurable install directory integration", () => {
   describe("installation to custom directory", () => {
     it("should install all features to custom directory", async () => {
       const config: Config = {
-        installType: "free",
         profile: { baseProfile: "senior-swe" },
         installDir: customInstallDir,
       };
@@ -152,7 +156,6 @@ describe("configurable install directory integration", () => {
 
     it("should use absolute paths (not ~/.claude) for skill references in CLAUDE.md", async () => {
       const config: Config = {
-        installType: "free",
         profile: { baseProfile: "senior-swe" },
         installDir: customInstallDir,
       };
@@ -224,7 +227,7 @@ describe("configurable install directory integration", () => {
         }),
       );
 
-      const loaded = await loadDiskConfig({ installDir: customInstallDir });
+      const loaded = await loadConfig({ installDir: customInstallDir });
 
       expect(loaded?.auth).toEqual({
         username: "test@example.com",
@@ -248,7 +251,7 @@ describe("configurable install directory integration", () => {
       });
 
       expect(config.installDir).toBe(customInstallDir);
-      expect(config.installType).toBe("free");
+      expect(isPaidInstall({ config: config }) ? "paid" : "free").toBe("free");
     });
   });
 
@@ -280,12 +283,12 @@ describe("configurable install directory integration", () => {
       });
 
       // Load and verify first config
-      const config1 = await loadDiskConfig({ installDir: install1Dir });
+      const config1 = await loadConfig({ installDir: install1Dir });
       expect(config1?.auth?.username).toBe("user1@example.com");
       expect(config1?.profile?.baseProfile).toBe("senior-swe");
 
       // Load and verify second config
-      const config2 = await loadDiskConfig({ installDir: install2Dir });
+      const config2 = await loadConfig({ installDir: install2Dir });
       expect(config2?.auth?.username).toBe("user2@example.com");
       expect(config2?.profile?.baseProfile).toBe("amol");
 

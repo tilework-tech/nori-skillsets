@@ -10,9 +10,10 @@ import { Command } from "commander";
 
 import { handshake } from "@/api/index.js";
 import {
-  loadDiskConfig,
-  generateConfig,
-  validateDiskConfig,
+  loadConfig,
+  validateConfig,
+  getDefaultProfile,
+  isPaidInstall,
 } from "@/installer/config.js";
 import { LoaderRegistry } from "@/installer/features/loaderRegistry.js";
 import { registerInstallCommand } from "@/installer/install.js";
@@ -41,7 +42,7 @@ const checkMain = async (args?: {
 
   // Check config
   info({ message: "Checking configuration..." });
-  const configResult = await validateDiskConfig({ installDir });
+  const configResult = await validateConfig({ installDir });
   if (configResult.valid) {
     success({ message: `   ✓ ${configResult.message}` });
   } else {
@@ -55,12 +56,15 @@ const checkMain = async (args?: {
   }
   console.log("");
 
-  // Load config to determine install type
-  const diskConfig = await loadDiskConfig({ installDir });
-  const config = generateConfig({ diskConfig, installDir });
+  // Load config
+  const existingConfig = await loadConfig({ installDir });
+  const config = existingConfig ?? {
+    profile: getDefaultProfile(),
+    installDir,
+  };
 
   // Check server connectivity (paid mode only)
-  if (config.installType === "paid") {
+  if (isPaidInstall({ config })) {
     info({ message: "Testing server connection..." });
     try {
       const response = await handshake();
@@ -112,7 +116,9 @@ const checkMain = async (args?: {
     process.exit(1);
   } else {
     success({ message: "All validation checks passed!" });
-    info({ message: `Installation mode: ${config.installType}` });
+    info({
+      message: `Installation mode: ${isPaidInstall({ config }) ? "paid" : "free"}`,
+    });
   }
 };
 

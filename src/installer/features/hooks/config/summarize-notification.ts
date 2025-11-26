@@ -8,7 +8,7 @@
  * is being saved to Nori Profiles (while the async summarize hook runs in background).
  */
 
-import { loadDiskConfig } from "@/installer/config.js";
+import { loadConfig } from "@/installer/config.js";
 import { getInstallDirs } from "@/utils/path.js";
 
 /**
@@ -26,7 +26,7 @@ export const main = async (): Promise<void> => {
   }
 
   const installDir = allInstallations[0]; // Use closest installation
-  const diskConfig = await loadDiskConfig({ installDir });
+  const diskConfig = await loadConfig({ installDir });
 
   let output;
   if (diskConfig?.sendSessionTranscript === "disabled") {

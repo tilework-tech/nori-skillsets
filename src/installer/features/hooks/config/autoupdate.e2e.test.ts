@@ -29,7 +29,7 @@ vi.mock("@/installer/analytics.js", () => ({
 
 // Mock config to provide install_type
 vi.mock("@/installer/config.js", () => ({
-  loadDiskConfig: vi.fn(),
+  loadConfig: vi.fn(),
 }));
 
 // Mock version utilities
@@ -118,10 +118,10 @@ exit 0
     const { getInstallDirs } = await import("@/utils/path.js");
     vi.mocked(getInstallDirs).mockReturnValue([tempHomeDir]);
 
-    // Mock loadDiskConfig
-    const { loadDiskConfig } = await import("@/installer/config.js");
-    const mockLoadDiskConfig = vi.mocked(loadDiskConfig);
-    mockLoadDiskConfig.mockResolvedValue({
+    // Mock loadConfig
+    const { loadConfig } = await import("@/installer/config.js");
+    const mockLoadConfig = vi.mocked(loadConfig);
+    mockLoadConfig.mockResolvedValue({
       auth: null,
       profile: null,
       installDir: tempHomeDir,

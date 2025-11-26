@@ -28,7 +28,6 @@ describe("configLoader", () => {
   describe("run", () => {
     it("should create config file", async () => {
       const config: Config = {
-        installType: "free",
         installDir: tempDir,
         profile: { baseProfile: "senior-swe" },
       };
@@ -46,7 +45,6 @@ describe("configLoader", () => {
 
     it("should include sendSessionTranscript: enabled for paid installation", async () => {
       const config: Config = {
-        installType: "paid",
         installDir: tempDir,
         profile: { baseProfile: "senior-swe" },
         auth: {
@@ -66,7 +64,6 @@ describe("configLoader", () => {
 
     it("should NOT include sendSessionTranscript for free installation", async () => {
       const config: Config = {
-        installType: "free",
         installDir: tempDir,
         profile: { baseProfile: "senior-swe" },
       };
@@ -80,7 +77,6 @@ describe("configLoader", () => {
 
     it("should preserve existing sendSessionTranscript preference for paid installation", async () => {
       const config: Config = {
-        installType: "paid",
         installDir: tempDir,
         profile: { baseProfile: "senior-swe" },
         auth: {
@@ -101,7 +97,7 @@ describe("configLoader", () => {
 
   describe("uninstall", () => {
     it("should remove config file", async () => {
-      const config: Config = { installType: "free", installDir: tempDir };
+      const config: Config = { installDir: tempDir };
       const configFile = getConfigPath({ installDir: tempDir });
 
       // Create config file
@@ -113,7 +109,7 @@ describe("configLoader", () => {
     });
 
     it("should handle missing config file gracefully", async () => {
-      const config: Config = { installType: "free", installDir: tempDir };
+      const config: Config = { installDir: tempDir };
 
       // Should not throw
       await expect(configLoader.uninstall({ config })).resolves.not.toThrow();

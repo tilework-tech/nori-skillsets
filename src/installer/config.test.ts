@@ -13,7 +13,9 @@ import {
   saveDiskConfig,
   generateConfig,
   getConfigPath,
+  isPaidInstall,
   type DiskConfig,
+  type Config,
 } from "./config.js";
 
 describe("getConfigPath", () => {
@@ -236,9 +238,9 @@ describe("config with profile-based system", () => {
     });
   });
 
-  describe("generateConfig", () => {
-    it("should generate paid config with profile from diskConfig", () => {
-      const diskConfig: DiskConfig = {
+  describe("generateConfig (deprecated)", () => {
+    it("should pass through profile from config", () => {
+      const diskConfig: Config = {
         auth: {
           username: "test@example.com",
           password: "password123",
@@ -252,31 +254,13 @@ describe("config with profile-based system", () => {
 
       const config = generateConfig({ diskConfig, installDir: tempDir });
 
-      expect(config.installType).toBe("paid");
       expect(config.profile).toEqual({
         baseProfile: "senior-swe",
       });
     });
 
-    it("should generate free config with profile from diskConfig", () => {
-      const diskConfig: DiskConfig = {
-        auth: null,
-        profile: {
-          baseProfile: "amol",
-        },
-        installDir: tempDir,
-      };
-
-      const config = generateConfig({ diskConfig, installDir: tempDir });
-
-      expect(config.installType).toBe("free");
-      expect(config.profile).toEqual({
-        baseProfile: "amol",
-      });
-    });
-
-    it("should use default profile (senior-swe) when diskConfig has no profile", () => {
-      const diskConfig: DiskConfig = {
+    it("should use default profile (senior-swe) when config has no profile", () => {
+      const diskConfig: Config = {
         auth: null,
         profile: null,
         installDir: tempDir,
@@ -284,39 +268,21 @@ describe("config with profile-based system", () => {
 
       const config = generateConfig({ diskConfig, installDir: tempDir });
 
-      expect(config.installType).toBe("free");
       expect(config.profile).toEqual({
         baseProfile: "senior-swe",
       });
     });
 
-    it("should use default profile (senior-swe) when diskConfig is null", () => {
+    it("should use default profile (senior-swe) when config is null", () => {
       const config = generateConfig({ diskConfig: null, installDir: tempDir });
 
-      expect(config.installType).toBe("free");
       expect(config.profile).toEqual({
         baseProfile: "senior-swe",
       });
     });
 
-    it("should set sendSessionTranscript to 'enabled' for paid users by default", () => {
-      const diskConfig: DiskConfig = {
-        auth: {
-          username: "test@example.com",
-          password: "password123",
-          organizationUrl: "https://example.com",
-        },
-        profile: { baseProfile: "senior-swe" },
-        installDir: tempDir,
-      };
-
-      const config = generateConfig({ diskConfig, installDir: tempDir });
-
-      expect(config.sendSessionTranscript).toBe("enabled");
-    });
-
-    it("should preserve existing sendSessionTranscript preference for paid users", () => {
-      const diskConfig: DiskConfig = {
+    it("should pass through sendSessionTranscript from config", () => {
+      const diskConfig: Config = {
         auth: {
           username: "test@example.com",
           password: "password123",
@@ -330,18 +296,6 @@ describe("config with profile-based system", () => {
       const config = generateConfig({ diskConfig, installDir: tempDir });
 
       expect(config.sendSessionTranscript).toBe("disabled");
-    });
-
-    it("should set sendSessionTranscript to null for free users", () => {
-      const diskConfig: DiskConfig = {
-        auth: null,
-        profile: { baseProfile: "senior-swe" },
-        installDir: tempDir,
-      };
-
-      const config = generateConfig({ diskConfig, installDir: tempDir });
-
-      expect(config.sendSessionTranscript).toBeNull();
     });
   });
 
@@ -456,5 +410,37 @@ describe("config with profile-based system", () => {
 
       expect(config.installDir).toBe(customDir);
     });
+  });
+});
+
+describe("isPaidInstall", () => {
+  it("should return true when config has auth with all fields", () => {
+    const config: Config = {
+      auth: {
+        username: "test@example.com",
+        password: "password123",
+        organizationUrl: "https://example.com",
+      },
+      installDir: "/test/dir",
+    };
+
+    expect(isPaidInstall({ config })).toBe(true);
+  });
+
+  it("should return false when config has no auth", () => {
+    const config: Config = {
+      installDir: "/test/dir",
+    };
+
+    expect(isPaidInstall({ config })).toBe(false);
+  });
+
+  it("should return false when config has auth set to null", () => {
+    const config: Config = {
+      auth: null,
+      installDir: "/test/dir",
+    };
+
+    expect(isPaidInstall({ config })).toBe(false);
   });
 });

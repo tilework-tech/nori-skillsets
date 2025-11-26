@@ -7,6 +7,7 @@ import * as fs from "fs/promises";
 import * as path from "path";
 import { fileURLToPath } from "url";
 
+import { isPaidInstall, type Config } from "@/installer/config.js";
 import {
   getClaudeProfilesDir,
   getClaudeSettingsFile,
@@ -18,7 +19,6 @@ import {
 import { ProfileLoaderRegistry } from "@/installer/features/profiles/profileLoaderRegistry.js";
 import { success, info, warn } from "@/installer/logger.js";
 
-import type { Config } from "@/installer/config.js";
 import type {
   Loader,
   ValidationResult,
@@ -39,11 +39,10 @@ const MIXINS_DIR = path.join(PROFILE_TEMPLATES_DIR, "_mixins");
  * @param args - Configuration arguments
  * @param args.config - Runtime configuration
  *
- * @returns True if user has auth credentials and paid install type
+ * @returns True if user has auth credentials (paid install)
  */
 const isPaidUser = (args: { config: Config }): boolean => {
-  const { config } = args;
-  return config.auth != null && config.installType === "paid";
+  return isPaidInstall(args);
 };
 
 /**

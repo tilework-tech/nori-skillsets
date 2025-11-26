@@ -18,7 +18,7 @@ The profiles loader executes FIRST in both interactive and non-interactive insta
 
 **Built-in Profiles**: Three profiles ship with the package at @/plugin/src/installer/features/profiles/config/: `senior-swe` (co-pilot with high confirmation), `amol` (full autonomy with frequent commits), and `product-manager` (full autonomy for non-technical users). The default profile is `senior-swe` (see @/plugin/src/installer/config.ts getDefaultProfile()).
 
-**Installation Flow**: The `installProfiles()` function in @/plugin/src/installer/features/profiles/loader.ts reads profile directories from config/, loads profile.json metadata, dynamically injects the `paid` mixin if the user has auth credentials (via `injectPaidMixin()`), then composes the profile by merging content from all mixins in alphabetical order. Mixins are located in `config/_mixins/` with names like `_base`, `_docs`, `_swe`, `_paid`. Directories are merged (union of contents) while files use last-writer-wins. Profile-specific content (CLAUDE.md) is overlaid last. Built-in profiles are always overwritten during installation to receive updates. Custom profiles are preserved.
+**Installation Flow**: The `installProfiles()` function in @/plugin/src/installer/features/profiles/loader.ts reads profile directories from config/, loads profile.json metadata, dynamically injects the `paid` mixin if the user has auth credentials (checked via `isPaidInstall({ config })` from @/plugin/src/installer/config.ts), then composes the profile by merging content from all mixins in alphabetical order. Mixins are located in `config/_mixins/` with names like `_base`, `_docs`, `_swe`, `_paid`. Directories are merged (union of contents) while files use last-writer-wins. Profile-specific content (CLAUDE.md) is overlaid last. Built-in profiles are always overwritten during installation to receive updates. Custom profiles are preserved.
 
 **Profile Discovery**: @/plugin/src/installer/profiles.ts `listProfiles()` scans `~/.claude/profiles/` for directories containing CLAUDE.md. `switchProfile()` validates the profile exists, loads current config from `.nori-config.json`, preserves auth credentials, updates `profile.baseProfile` field, saves back to disk, and prompts user to restart Claude Code.
 
@@ -73,7 +73,7 @@ To add features that require multiple criteria (e.g., paid AND docs):
 2. **Follow naming convention**: Use `{category}-{tier}` format (e.g., `_docs-paid`, `_swe-paid`)
 3. **Structure matches other mixins**: Include `skills/`, `subagents/`, `slashcommands/` as needed
 4. **Automatic injection**: No code changes needed - loader detects and injects based on:
-   - User has required tier credentials (checked by `isPaidUser()`)
+   - User has required tier credentials (checked by `isPaidInstall({ config })`)
    - Profile includes the base category mixin (e.g., `docs` in mixins)
 
 **Example**:

@@ -52,7 +52,7 @@ describe("slashCommandsLoader", () => {
     // Install profiles first to set up composed profile structure
     // Run profiles loader to populate ~/.claude/profiles/ directory
     // This is required since feature loaders now read from ~/.claude/profiles/
-    const config: Config = { installType: "free", installDir: tempDir };
+    const config: Config = { installDir: tempDir };
     await profilesLoader.run({ config });
   });
 
@@ -66,7 +66,7 @@ describe("slashCommandsLoader", () => {
 
   describe("run", () => {
     it("should create commands directory and copy slash command files for free installation", async () => {
-      const config: Config = { installType: "free", installDir: tempDir };
+      const config: Config = { installDir: tempDir };
 
       await slashCommandsLoader.install({ config });
 
@@ -84,7 +84,14 @@ describe("slashCommandsLoader", () => {
     });
 
     it("should create commands directory and copy slash command files for paid installation", async () => {
-      const config: Config = { installType: "paid", installDir: tempDir };
+      const config: Config = {
+        installDir: tempDir,
+        auth: {
+          username: "test@example.com",
+          password: "testpass",
+          organizationUrl: "https://example.com",
+        },
+      };
 
       await slashCommandsLoader.install({ config });
 
@@ -102,7 +109,7 @@ describe("slashCommandsLoader", () => {
     });
 
     it("should handle reinstallation (update scenario)", async () => {
-      const config: Config = { installType: "free", installDir: tempDir };
+      const config: Config = { installDir: tempDir };
 
       // First installation
       await slashCommandsLoader.install({ config });
@@ -118,7 +125,7 @@ describe("slashCommandsLoader", () => {
     });
 
     it("should install nori-install-location.md slash command", async () => {
-      const config: Config = { installType: "free", installDir: tempDir };
+      const config: Config = { installDir: tempDir };
 
       await slashCommandsLoader.install({ config });
 
@@ -141,7 +148,7 @@ describe("slashCommandsLoader", () => {
     });
 
     it("should include allowed-tools in nori-install-location.md for auto-execute permission", async () => {
-      const config: Config = { installType: "free", installDir: tempDir };
+      const config: Config = { installDir: tempDir };
 
       await slashCommandsLoader.install({ config });
 
@@ -158,7 +165,7 @@ describe("slashCommandsLoader", () => {
     });
 
     it("should include allowed-tools in nori-debug.md for auto-execute permission", async () => {
-      const config: Config = { installType: "free", installDir: tempDir };
+      const config: Config = { installDir: tempDir };
 
       await slashCommandsLoader.install({ config });
 
@@ -174,7 +181,7 @@ describe("slashCommandsLoader", () => {
 
   describe("uninstall", () => {
     it("should remove slash command files", async () => {
-      const config: Config = { installType: "free", installDir: tempDir };
+      const config: Config = { installDir: tempDir };
 
       // Install first
       await slashCommandsLoader.install({ config });
@@ -203,7 +210,7 @@ describe("slashCommandsLoader", () => {
     });
 
     it("should handle missing commands directory gracefully", async () => {
-      const config: Config = { installType: "free", installDir: tempDir };
+      const config: Config = { installDir: tempDir };
 
       // Uninstall without installing first
       await expect(

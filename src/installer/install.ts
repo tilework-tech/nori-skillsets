@@ -19,9 +19,9 @@ import {
   displaySeaweedBed,
 } from "@/installer/asciiArt.js";
 import {
-  loadDiskConfig,
-  generateConfig,
-  type DiskConfig,
+  loadConfig,
+  getDefaultProfile,
+  isPaidInstall,
   type Config,
 } from "@/installer/config.js";
 import { getClaudeDir } from "@/installer/env.js";
@@ -145,30 +145,30 @@ const getAvailableProfiles = async (args: {
  *
  * @param args - Configuration arguments
  * @param args.installDir - Installation directory
- * @param args.existingDiskConfig - Existing disk configuration (if any)
+ * @param args.existingConfig - Existing configuration (if any)
  *
  * @returns Runtime configuration, or null if user cancels
  */
 export const generatePromptConfig = async (args: {
   installDir: string;
-  existingDiskConfig: DiskConfig | null;
+  existingConfig: Config | null;
 }): Promise<Config | null> => {
-  const { installDir, existingDiskConfig } = args;
+  const { installDir, existingConfig } = args;
 
   // Check if user wants to reuse existing config
-  if (existingDiskConfig?.auth) {
+  if (existingConfig?.auth) {
     info({
       message:
         "I found an existing Nori configuration file. Do you want to keep it?",
     });
     console.log();
-    info({ message: `  Username: ${existingDiskConfig.auth.username}` });
+    info({ message: `  Username: ${existingConfig.auth.username}` });
     info({
-      message: `  Organization URL: ${existingDiskConfig.auth.organizationUrl}`,
+      message: `  Organization URL: ${existingConfig.auth.organizationUrl}`,
     });
-    if (existingDiskConfig.profile) {
+    if (existingConfig.profile) {
       info({
-        message: `  Profile: ${existingDiskConfig.profile.baseProfile}`,
+        message: `  Profile: ${existingConfig.profile.baseProfile}`,
       });
     }
     console.log();
@@ -179,10 +179,11 @@ export const generatePromptConfig = async (args: {
 
     if (useExisting.match(/^[Yy]$/)) {
       info({ message: "Using existing configuration..." });
-      return generateConfig({
-        diskConfig: existingDiskConfig,
+      return {
+        ...existingConfig,
+        profile: existingConfig.profile ?? getDefaultProfile(),
         installDir,
-      });
+      };
     }
 
     console.log();
@@ -286,16 +287,14 @@ export const generatePromptConfig = async (args: {
     console.log();
   }
 
-  // Build disk config
-  const diskConfig: DiskConfig = {
-    auth: auth || undefined,
+  // Build config directly
+  return {
+    auth: auth ?? null,
     profile: {
       baseProfile: selectedProfileName,
     },
     installDir,
   };
-
-  return generateConfig({ diskConfig, installDir });
 };
 
 /**
@@ -394,14 +393,14 @@ export const interactive = async (args?: {
   console.log();
 
   // Load existing config
-  const existingDiskConfig = await loadDiskConfig({
+  const existingConfig = await loadConfig({
     installDir: normalizedInstallDir,
   });
 
   // Generate configuration through prompts
   const config = await generatePromptConfig({
     installDir: normalizedInstallDir,
-    existingDiskConfig,
+    existingConfig,
   });
 
   if (config == null) {
@@ -413,7 +412,7 @@ export const interactive = async (args?: {
   trackEvent({
     eventName: "plugin_install_started",
     eventParams: {
-      install_type: config.installType,
+      install_type: isPaidInstall({ config }) ? "paid" : "free",
       non_interactive: false,
     },
   });
@@ -463,7 +462,7 @@ export const interactive = async (args?: {
   trackEvent({
     eventName: "plugin_install_completed",
     eventParams: {
-      install_type: config.installType,
+      install_type: isPaidInstall({ config }) ? "paid" : "free",
       non_interactive: false,
     },
   });
@@ -570,34 +569,20 @@ export const noninteractive = async (args?: {
   }
 
   // Load existing config or use defaults
-  const existingDiskConfig = await loadDiskConfig({
+  const existingConfig = await loadConfig({
     installDir: normalizedInstallDir,
   });
 
-  let config: Config;
-  if (existingDiskConfig?.auth) {
-    config = {
-      ...generateConfig({
-        diskConfig: existingDiskConfig,
-        installDir: normalizedInstallDir,
-      }),
-      nonInteractive: true,
-      installDir: normalizedInstallDir,
-    };
-  } else {
-    config = {
-      installType: "free",
-      nonInteractive: true,
-      profile: { baseProfile: "senior-swe" },
-      installDir: normalizedInstallDir,
-    };
-  }
+  const config: Config = existingConfig ?? {
+    profile: getDefaultProfile(),
+    installDir: normalizedInstallDir,
+  };
 
   // Track installation start
   trackEvent({
     eventName: "plugin_install_started",
     eventParams: {
-      install_type: config.installType,
+      install_type: isPaidInstall({ config }) ? "paid" : "free",
       non_interactive: true,
     },
   });
@@ -647,7 +632,7 @@ export const noninteractive = async (args?: {
   trackEvent({
     eventName: "plugin_install_completed",
     eventParams: {
-      install_type: config.installType,
+      install_type: isPaidInstall({ config }) ? "paid" : "free",
       non_interactive: true,
     },
   });

@@ -25,7 +25,7 @@ The path.ts module exports five functions: normalizeInstallDir, getInstallDirs, 
 - `.nori-installed-version` is stored (version tracking)
 - `.claude/` subdirectory is created (Claude Code configuration)
 
-The `installDir` parameter is required throughout all internal functions in the codebase. Only CLI entry points (@/plugin/src/installer/cli.ts:checkMain, @/plugin/src/installer/install.ts:main, @/plugin/src/installer/uninstall.ts:main, @/plugin/src/installer/profiles.ts:switchProfile) accept optional installDir and call normalizeInstallDir() at the top before passing the result to all downstream functions. All other functions (getConfigPath, loadDiskConfig, saveDiskConfig, getClaudeDir, getVersionFilePath, etc.) require `installDir: string` as a parameter.
+The `installDir` parameter is required throughout all internal functions in the codebase. Only CLI entry points (@/plugin/src/installer/cli.ts:checkMain, @/plugin/src/installer/install.ts:main, @/plugin/src/installer/uninstall.ts:main, @/plugin/src/installer/profiles.ts:switchProfile) accept optional installDir and call normalizeInstallDir() at the top before passing the result to all downstream functions. All other functions (getConfigPath, loadConfig, saveConfig, getClaudeDir, getVersionFilePath, etc.) require `installDir: string` as a parameter.
 
 The configuration path follows the same pattern - getConfigPath() in @/plugin/src/installer/config.ts requires { installDir: string } and returns `<installDir>/.nori-config.json`. Similarly, getClaudeDir() in @/plugin/src/installer/env.ts requires { installDir: string } and returns `<installDir>/.claude`. This ensures all paths are derived from the same base directory.
 

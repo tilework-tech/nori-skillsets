@@ -6,7 +6,7 @@
 import * as fs from "fs/promises";
 import * as path from "path";
 
-import { loadDiskConfig, saveDiskConfig } from "@/installer/config.js";
+import { loadConfig, saveConfig } from "@/installer/config.js";
 import { getClaudeProfilesDir } from "@/installer/env.js";
 import { success, info } from "@/installer/logger.js";
 import { normalizeInstallDir } from "@/utils/path.js";
@@ -82,11 +82,11 @@ export const switchProfile = async (args: {
     throw new Error(`Profile "${profileName}" not found in ${profilesDir}`);
   }
 
-  // 2. Load current disk config
-  const currentConfig = await loadDiskConfig({ installDir });
+  // 2. Load current config
+  const currentConfig = await loadConfig({ installDir });
 
   // 3. Preserve auth and other settings, update profile
-  await saveDiskConfig({
+  await saveConfig({
     username: currentConfig?.auth?.username || null,
     password: currentConfig?.auth?.password || null,
     organizationUrl: currentConfig?.auth?.organizationUrl || null,

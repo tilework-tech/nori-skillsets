@@ -12,7 +12,11 @@
 import minimist from "minimist";
 
 import { apiClient } from "@/api/index.js";
-import { loadDiskConfig, generateConfig } from "@/installer/config.js";
+import {
+  loadConfig,
+  getDefaultProfile,
+  isPaidInstall,
+} from "@/installer/config.js";
 import { getInstallDirs } from "@/utils/path.js";
 
 /**
@@ -73,10 +77,13 @@ export const main = async (): Promise<void> => {
   }
 
   const installDir = allInstallations[0]; // Use closest installation
-  const diskConfig = await loadDiskConfig({ installDir });
-  const config = generateConfig({ diskConfig, installDir });
+  const existingConfig = await loadConfig({ installDir });
+  const config = existingConfig ?? {
+    profile: getDefaultProfile(),
+    installDir,
+  };
 
-  if (config.installType !== "paid") {
+  if (!isPaidInstall({ config })) {
     console.error("Error: This feature requires a paid Nori subscription.");
     console.error("Please configure your credentials in ~/nori-config.json");
     process.exit(1);

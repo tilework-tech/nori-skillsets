@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-import { loadDiskConfig } from "@/installer/config.js";
+import { loadConfig } from "@/installer/config.js";
 import * as pathUtils from "@/utils/path.js";
 
 // Mock the config module
 vi.mock("@/installer/config.js", () => ({
-  loadDiskConfig: vi.fn(),
+  loadConfig: vi.fn(),
 }));
 
 describe("summarize-notification hook", () => {
@@ -26,7 +26,7 @@ describe("summarize-notification hook", () => {
 
   it('should output "Saving transcript to nori..." when sendSessionTranscript is enabled', async () => {
     // Mock config with enabled transcripts
-    vi.mocked(loadDiskConfig).mockResolvedValue({
+    vi.mocked(loadConfig).mockResolvedValue({
       sendSessionTranscript: "enabled",
       installDir: process.cwd(),
     });
@@ -45,7 +45,7 @@ describe("summarize-notification hook", () => {
 
   it("should output disabled message when sendSessionTranscript is disabled", async () => {
     // Mock config with disabled transcripts
-    vi.mocked(loadDiskConfig).mockResolvedValue({
+    vi.mocked(loadConfig).mockResolvedValue({
       sendSessionTranscript: "disabled",
       installDir: process.cwd(),
     });
@@ -65,7 +65,7 @@ describe("summarize-notification hook", () => {
 
   it("should default to enabled behavior when config is missing", async () => {
     // Mock config with no sendSessionTranscript field (backward compatibility)
-    vi.mocked(loadDiskConfig).mockResolvedValue({
+    vi.mocked(loadConfig).mockResolvedValue({
       installDir: process.cwd(),
     });
 

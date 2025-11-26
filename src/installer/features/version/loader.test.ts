@@ -55,7 +55,7 @@ describe("versionLoader", () => {
 
   describe("run", () => {
     it("should create version file with current package version", async () => {
-      const config: Config = { installType: "free", installDir: tempDir };
+      const config: Config = { installDir: tempDir };
 
       await versionLoader.run({ config });
 
@@ -68,7 +68,7 @@ describe("versionLoader", () => {
     });
 
     it("should overwrite existing version file", async () => {
-      const config: Config = { installType: "free", installDir: tempDir };
+      const config: Config = { installDir: tempDir };
       const versionFile = getVersionFilePath({ installDir: tempDir });
 
       // Create old version file
@@ -83,7 +83,7 @@ describe("versionLoader", () => {
 
   describe("uninstall", () => {
     it("should remove version file", async () => {
-      const config: Config = { installType: "free", installDir: tempDir };
+      const config: Config = { installDir: tempDir };
       const versionFile = getVersionFilePath({ installDir: tempDir });
 
       // Create version file
@@ -95,7 +95,7 @@ describe("versionLoader", () => {
     });
 
     it("should handle missing version file gracefully", async () => {
-      const config: Config = { installType: "free", installDir: tempDir };
+      const config: Config = { installDir: tempDir };
 
       // Should not throw
       await expect(versionLoader.uninstall({ config })).resolves.not.toThrow();

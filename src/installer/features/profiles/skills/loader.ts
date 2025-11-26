@@ -7,6 +7,7 @@ import * as fs from "fs/promises";
 import * as path from "path";
 import { fileURLToPath } from "url";
 
+import { isPaidInstall, type Config } from "@/installer/config.js";
 import {
   getClaudeDir,
   getClaudeSkillsDir,
@@ -15,7 +16,6 @@ import {
 import { success, info, warn } from "@/installer/logger.js";
 import { substituteTemplatePaths } from "@/utils/template.js";
 
-import type { Config } from "@/installer/config.js";
 import type { ValidationResult } from "@/installer/features/loaderRegistry.js";
 import type { ProfileLoader } from "@/installer/features/profiles/profileLoaderRegistry.js";
 
@@ -138,7 +138,7 @@ const installSkills = async (args: { config: Config }): Promise<void> => {
     // @see scripts/bundle-skills.ts - The bundler that creates standalone scripts
     // @see mcp/src/installer/features/skills/config/paid-recall/script.ts - Bundling docs
     if (entry.name.startsWith("paid-")) {
-      if (config.installType === "paid") {
+      if (isPaidInstall({ config })) {
         // Strip paid- prefix when copying
         const destName = entry.name.replace(/^paid-/, "");
         const destPath = path.join(claudeSkillsDir, destName);
@@ -336,7 +336,7 @@ const validate = async (args: {
 
     // For paid-prefixed skills, check if they exist without prefix (paid tier only)
     if (entry.name.startsWith("paid-")) {
-      if (config.installType === "paid") {
+      if (isPaidInstall({ config })) {
         const destName = entry.name.replace(/^paid-/, "");
         try {
           await fs.access(path.join(claudeSkillsDir, destName));

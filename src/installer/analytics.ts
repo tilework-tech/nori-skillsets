@@ -4,7 +4,7 @@
  */
 
 import { analyticsApi } from "@/api/analytics.js";
-import { loadDiskConfig } from "@/installer/config.js";
+import { loadConfig } from "@/installer/config.js";
 import { getInstallDirs } from "@/utils/path.js";
 
 /**
@@ -30,7 +30,7 @@ export const trackEvent = async (args: {
     }
 
     const installDir = allInstallations[0]; // Use closest installation
-    const diskConfig = await loadDiskConfig({ installDir });
+    const diskConfig = await loadConfig({ installDir });
     const currentUserEmail = diskConfig?.auth?.username || null;
 
     // Send to backend analytics proxy (fire and forget)

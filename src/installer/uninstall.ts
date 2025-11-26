@@ -11,9 +11,10 @@ import * as path from "path";
 
 import { trackEvent } from "@/installer/analytics.js";
 import {
-  loadDiskConfig,
-  generateConfig,
+  loadConfig,
   getConfigPath,
+  getDefaultProfile,
+  isPaidInstall,
 } from "@/installer/config.js";
 import { LoaderRegistry } from "@/installer/features/loaderRegistry.js";
 import { error, success, info, warn } from "@/installer/logger.js";
@@ -122,13 +123,13 @@ export const generatePromptConfig = async (args: {
   console.log();
 
   // Check for existing configuration
-  const existingDiskConfig = await loadDiskConfig({ installDir });
+  const existingConfig = await loadConfig({ installDir });
 
-  if (existingDiskConfig?.auth) {
+  if (existingConfig?.auth) {
     info({ message: "Found existing Nori configuration:" });
-    info({ message: `  Username: ${existingDiskConfig.auth.username}` });
+    info({ message: `  Username: ${existingConfig.auth.username}` });
     info({
-      message: `  Organization URL: ${existingDiskConfig.auth.organizationUrl}`,
+      message: `  Organization URL: ${existingConfig.auth.organizationUrl}`,
     });
     console.log();
   } else {
@@ -140,7 +141,7 @@ export const generatePromptConfig = async (args: {
   }
 
   info({ message: "The following will be removed:" });
-  if (existingDiskConfig?.auth) {
+  if (existingConfig?.auth) {
     info({ message: "  - nori-knowledge-researcher subagent" });
     info({ message: "  - Automatic memorization hooks" });
   }
@@ -260,9 +261,12 @@ export const runUninstall = async (args: {
     installDir,
   } = args;
 
-  // Load config to determine install type (defaults to free if none exists)
-  const existingDiskConfig = await loadDiskConfig({ installDir });
-  const config = generateConfig({ diskConfig: existingDiskConfig, installDir });
+  // Load config (defaults to free if none exists)
+  const existingConfig = await loadConfig({ installDir });
+  const config = existingConfig ?? {
+    profile: getDefaultProfile(),
+    installDir,
+  };
 
   // Log installed version for debugging
   if (installedVersion) {
@@ -273,7 +277,7 @@ export const runUninstall = async (args: {
   trackEvent({
     eventName: "plugin_uninstall_started",
     eventParams: {
-      install_type: config.installType,
+      install_type: isPaidInstall({ config }) ? "paid" : "free",
     },
   });
 
@@ -328,7 +332,7 @@ export const runUninstall = async (args: {
   trackEvent({
     eventName: "plugin_uninstall_completed",
     eventParams: {
-      install_type: config.installType,
+      install_type: isPaidInstall({ config }) ? "paid" : "free",
     },
   });
 };

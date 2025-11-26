@@ -52,7 +52,7 @@ describe("subagentsLoader", () => {
     // Install profiles first to set up composed profile structure
     // Run profiles loader to populate ~/.claude/profiles/ directory
     // This is required since feature loaders now read from ~/.claude/profiles/
-    const config: Config = { installType: "free", installDir: tempDir };
+    const config: Config = { installDir: tempDir };
     await profilesLoader.run({ config });
   });
 
@@ -66,7 +66,7 @@ describe("subagentsLoader", () => {
 
   describe("run", () => {
     it("should create agents directory and copy subagent files for free installation", async () => {
-      const config: Config = { installType: "free", installDir: tempDir };
+      const config: Config = { installDir: tempDir };
 
       await subagentsLoader.install({ config });
 
@@ -92,7 +92,6 @@ describe("subagentsLoader", () => {
 
     it("should create agents directory and copy subagent files for paid installation", async () => {
       const config: Config = {
-        installType: "paid",
         auth: {
           username: "test",
           password: "test",
@@ -127,9 +126,8 @@ describe("subagentsLoader", () => {
     });
 
     it("should copy more subagents for paid than free installation", async () => {
-      const freeConfig: Config = { installType: "free", installDir: tempDir };
+      const freeConfig: Config = { installDir: tempDir };
       const paidConfig: Config = {
-        installType: "paid",
         auth: {
           username: "test",
           password: "test",
@@ -158,7 +156,7 @@ describe("subagentsLoader", () => {
     });
 
     it("should handle reinstallation (update scenario)", async () => {
-      const config: Config = { installType: "free", installDir: tempDir };
+      const config: Config = { installDir: tempDir };
 
       // First installation
       await subagentsLoader.install({ config });
@@ -176,7 +174,7 @@ describe("subagentsLoader", () => {
 
   describe("uninstall", () => {
     it("should remove subagent files for free installation", async () => {
-      const config: Config = { installType: "free", installDir: tempDir };
+      const config: Config = { installDir: tempDir };
 
       // Install first
       await subagentsLoader.install({ config });
@@ -204,7 +202,14 @@ describe("subagentsLoader", () => {
     });
 
     it("should remove subagent files for paid installation", async () => {
-      const config: Config = { installType: "paid", installDir: tempDir };
+      const config: Config = {
+        installDir: tempDir,
+        auth: {
+          username: "test@example.com",
+          password: "testpass",
+          organizationUrl: "https://example.com",
+        },
+      };
 
       // Install first
       await subagentsLoader.install({ config });
@@ -234,7 +239,7 @@ describe("subagentsLoader", () => {
     });
 
     it("should handle missing agents directory gracefully", async () => {
-      const config: Config = { installType: "free", installDir: tempDir };
+      const config: Config = { installDir: tempDir };
 
       // Uninstall without installing first
       await expect(
