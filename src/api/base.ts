@@ -14,65 +14,62 @@ export type NoriConfig = {
 };
 
 export class ConfigManager {
-  static loadConfig = (): NoriConfig => {
-    try {
-      // Find installation directory using getInstallDirs
-      const allInstallations = getInstallDirs({ currentDir: process.cwd() });
+  static loadConfig = (): NoriConfig | null => {
+    // Find installation directory using getInstallDirs
+    const allInstallations = getInstallDirs({ currentDir: process.cwd() });
 
-      if (allInstallations.length === 0) {
-        // Fail loudly when no installation found
-        throw new Error(
-          "No Nori installation found. Please install Nori or run from a directory with a Nori installation.",
-        );
-      }
-
-      const installDir = allInstallations[0]; // Use closest installation
-
-      // Log when multiple installations found
-      if (allInstallations.length > 1) {
-        console.error(
-          `Multiple Nori installations found. Using closest: ${installDir}`,
-        );
-        console.error(
-          `Other installations: ${allInstallations.slice(1).join(", ")}`,
-        );
-      }
-
-      const configPath = getConfigPath({ installDir });
-
-      if (existsSync(configPath)) {
-        const content = readFileSync(configPath, "utf8");
-
-        // RACE CONDITION HANDLING:
-        // During fresh installation, trackEvent() is called fire-and-forget (not awaited)
-        // while config file creation happens immediately after. This creates a race where:
-        // 1. trackEvent() -> analyticsApi.trackEvent() -> apiRequest() -> loadConfig()
-        // 2. The config file might not exist yet, or exist but be empty/incomplete
-        // 3. Calling JSON.parse('') throws "Unexpected end of JSON input"
-        //
-        // By checking for empty/whitespace before JSON.parse(), we:
-        // - Avoid the error message that confuses users during fresh installs
-        // - Return {} gracefully (same as if file doesn't exist)
-        // - Still catch truly unexpected errors (malformed JSON, filesystem issues)
-        //
-        // This is an EXPECTED race condition by design (analytics shouldn't block install)
-        const trimmedContent = content.trim();
-        if (trimmedContent === "") {
-          return {};
-        }
-
-        return JSON.parse(trimmedContent);
-      }
-    } catch (error) {
-      console.error("Error loading config:", error);
-      throw error;
+    if (allInstallations.length === 0) {
+      return null;
     }
+
+    const installDir = allInstallations[0]; // Use closest installation
+
+    // Log when multiple installations found
+    if (allInstallations.length > 1) {
+      console.error(
+        `Multiple Nori installations found. Using closest: ${installDir}`,
+      );
+      console.error(
+        `Other installations: ${allInstallations.slice(1).join(", ")}`,
+      );
+    }
+
+    const configPath = getConfigPath({ installDir });
+
+    if (existsSync(configPath)) {
+      const content = readFileSync(configPath, "utf8");
+
+      // RACE CONDITION HANDLING:
+      // During fresh installation, trackEvent() is called fire-and-forget (not awaited)
+      // while config file creation happens immediately after. This creates a race where:
+      // 1. trackEvent() -> analyticsApi.trackEvent() -> apiRequest() -> loadConfig()
+      // 2. The config file might not exist yet, or exist but be empty/incomplete
+      // 3. Calling JSON.parse('') throws "Unexpected end of JSON input"
+      //
+      // By checking for empty/whitespace before JSON.parse(), we:
+      // - Avoid the error message that confuses users during fresh installs
+      // - Return {} gracefully (same as if file doesn't exist)
+      // - Still catch truly unexpected errors (malformed JSON, filesystem issues)
+      //
+      // This is an EXPECTED race condition by design (analytics shouldn't block install)
+      const trimmedContent = content.trim();
+      if (trimmedContent === "") {
+        return {};
+      }
+
+      try {
+        return JSON.parse(trimmedContent);
+      } catch {
+        return null;
+      }
+    }
+
     return {};
   };
 
   static isConfigured = (): boolean => {
     const config = ConfigManager.loadConfig();
-    return !!(config.username && config.password && config.organizationUrl);
+    return !!(config?.username && config?.password && config?.organizationUrl);
   };
 }
 
@@ -94,7 +91,12 @@ class AuthManager {
 
     const config = ConfigManager.loadConfig();
 
-    if (!config.organizationUrl || !config.username || !config.password) {
+    if (
+      config == null ||
+      !config.organizationUrl ||
+      !config.username ||
+      !config.password
+    ) {
       throw new Error(
         "Nori is not configured. Please set username, password, and organizationUrl in .nori-config.json in your installation directory",
       );
@@ -136,7 +138,7 @@ export const apiRequest = async <T>(args: {
 
   const config = ConfigManager.loadConfig();
 
-  if (!config.organizationUrl) {
+  if (config == null || !config.organizationUrl) {
     throw new Error("Organization URL not configured");
   }
 

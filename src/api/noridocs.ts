@@ -73,18 +73,6 @@ export const noridocsApi = {
     });
   },
 
-  read: async (args: { id: string }): Promise<Noridoc> => {
-    const { id } = args;
-
-    return apiRequest<Noridoc>({
-      path: `/noridocs/${id}`,
-      method: "GET",
-      queryParams: {
-        actor: "claude-code",
-      },
-    });
-  },
-
   readByPath: async (args: { filePath: string }): Promise<Noridoc> => {
     const { filePath } = args;
 
@@ -119,15 +107,6 @@ export const noridocsApi = {
         ...data,
         actor: "claude-code",
       },
-    });
-  },
-
-  delete: async (args: { id: string }): Promise<void> => {
-    const { id } = args;
-
-    await apiRequest<void>({
-      path: `/noridocs/${id}`,
-      method: "DELETE",
     });
   },
 
@@ -178,18 +157,6 @@ export const noridocsApi = {
       path: `/noridocs/${id}/versions`,
       method: "GET",
       queryParams,
-    });
-  },
-
-  readVersion: async (args: {
-    id: string;
-    version: number;
-  }): Promise<NoridocVersion> => {
-    const { id, version } = args;
-
-    return apiRequest<NoridocVersion>({
-      path: `/noridocs/${id}/versions/${version}`,
-      method: "GET",
     });
   },
 };

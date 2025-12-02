@@ -1,4 +1,8 @@
-import { apiRequest } from "./base.js";
+import { normalizeUrl } from "@/utils/url.js";
+
+import { ConfigManager } from "./base.js";
+
+const DEFAULT_ANALYTICS_URL = "https://demo.tilework.tech";
 
 export type GenerateDailyReportRequest = {
   date?: string | null;
@@ -35,31 +39,22 @@ export type TrackEventResponse = {
 };
 
 export const analyticsApi = {
-  generateDailyReport: async (
-    args?: GenerateDailyReportRequest | null,
-  ): Promise<GenerateDailyReportResponse> => {
-    return apiRequest<GenerateDailyReportResponse>({
-      path: "/analytics/daily-report",
-      method: "POST",
-      body: args || {},
-    });
-  },
-
-  generateUserReport: async (
-    args: GenerateUserReportRequest,
-  ): Promise<GenerateUserReportResponse> => {
-    return apiRequest<GenerateUserReportResponse>({
-      path: "/analytics/user-report",
-      method: "POST",
-      body: args,
-    });
-  },
-
   trackEvent: async (args: TrackEventRequest): Promise<TrackEventResponse> => {
-    return apiRequest<TrackEventResponse>({
-      path: "/analytics/track",
+    const config = ConfigManager.loadConfig();
+    const baseUrl = config?.organizationUrl ?? DEFAULT_ANALYTICS_URL;
+
+    const url = normalizeUrl({ baseUrl, path: "/api/analytics/track" });
+
+    const response = await fetch(url, {
       method: "POST",
-      body: args,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(args),
     });
+
+    if (!response.ok) {
+      return { success: false };
+    }
+
+    return (await response.json()) as TrackEventResponse;
   },
 };

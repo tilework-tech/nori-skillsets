@@ -30,12 +30,6 @@ export type CreateArtifactRequest = {
   type?: ArtifactType | null;
 };
 
-export type ReplaceInArtifactRequest = {
-  id: string;
-  old_string: string;
-  new_string: string;
-};
-
 export const artifactsApi = {
   create: async (args: CreateArtifactRequest): Promise<Artifact> => {
     const { name, content, sourceUrl, type } = args;
@@ -61,36 +55,5 @@ export const artifactsApi = {
       method: "GET",
       queryParams: { actor: "claude-code" },
     });
-  },
-
-  replace: async (args: ReplaceInArtifactRequest): Promise<Artifact> => {
-    const { id, old_string, new_string } = args;
-
-    return apiRequest<Artifact>({
-      path: `/artifacts/${id}/replace`,
-      method: "POST",
-      body: {
-        old_string,
-        new_string,
-        actor: "claude-code", // MCP always acts as claude-code
-      },
-    });
-  },
-
-  getDistinctColumnValues: async (args: {
-    columnName: string;
-  }): Promise<Array<string>> => {
-    const { columnName } = args;
-    const response = await apiRequest<{ values: Array<string> }>({
-      path: "/artifacts/distinct-column-values",
-      method: "GET",
-      queryParams: { column: columnName },
-    });
-    return response.values;
-  },
-
-  // Convenience method for backward compatibility
-  getDistinctUserEmails: async (): Promise<Array<string>> => {
-    return artifactsApi.getDistinctColumnValues({ columnName: "userEmail" });
   },
 };

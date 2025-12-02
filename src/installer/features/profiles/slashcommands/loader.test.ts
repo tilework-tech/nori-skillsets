@@ -220,4 +220,89 @@ describe("slashCommandsLoader", () => {
   });
 
   // Validate tests removed - validation is now handled at profilesLoader level
+
+  describe("template substitution", () => {
+    it("should apply template substitution to slash command markdown files for custom install", async () => {
+      // Create a custom install directory (not under home)
+      const customInstallDir = path.join(tempDir, "custom-install", ".claude");
+      await fs.mkdir(customInstallDir, { recursive: true });
+
+      // Update mock paths for custom install
+      mockClaudeDir = customInstallDir;
+      mockClaudeCommandsDir = path.join(customInstallDir, "commands");
+
+      const config: Config = {
+        installDir: path.join(tempDir, "custom-install"),
+      };
+
+      // Run profiles loader for custom install (to set up composed profile)
+      await profilesLoader.run({ config });
+      await slashCommandsLoader.install({ config });
+
+      // Check a slash command that uses {{profiles_dir}} placeholder
+      // nori-create-profile.md should have placeholders substituted
+      const createProfilePath = path.join(
+        customInstallDir,
+        "commands",
+        "nori-create-profile.md",
+      );
+      const content = await fs.readFile(createProfilePath, "utf-8");
+
+      // Should have template placeholders substituted with absolute paths
+      expect(content).not.toContain("{{profiles_dir}}");
+      expect(content).not.toContain("{{skills_dir}}");
+
+      // For custom install, paths should be absolute (not tilde)
+      // The profiles directory should NOT use tilde notation
+      expect(content).not.toContain("~/.claude/profiles/");
+      expect(content).toContain(
+        path.join(tempDir, "custom-install", ".claude", "profiles"),
+      );
+    });
+
+    it("should apply template substitution to slash command frontmatter allowed-tools", async () => {
+      // Create a custom install directory (not under home)
+      const customInstallDir = path.join(
+        tempDir,
+        "custom-install-2",
+        ".claude",
+      );
+      await fs.mkdir(customInstallDir, { recursive: true });
+
+      // Update mock paths for custom install
+      mockClaudeDir = customInstallDir;
+      mockClaudeCommandsDir = path.join(customInstallDir, "commands");
+
+      const config: Config = {
+        installDir: path.join(tempDir, "custom-install-2"),
+      };
+
+      // Run profiles loader for custom install
+      await profilesLoader.run({ config });
+      await slashCommandsLoader.install({ config });
+
+      // Check nori-create-profile.md allowed-tools frontmatter
+      const createProfilePath = path.join(
+        customInstallDir,
+        "commands",
+        "nori-create-profile.md",
+      );
+      const content = await fs.readFile(createProfilePath, "utf-8");
+
+      // The allowed-tools frontmatter should have absolute paths, not tilde
+      // Extract the frontmatter (between --- markers)
+      const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
+      expect(frontmatterMatch).not.toBeNull();
+
+      const frontmatter = frontmatterMatch![1];
+
+      // Should NOT have tilde paths in frontmatter for custom install
+      expect(frontmatter).not.toContain("~/.claude/profiles/");
+
+      // Should have absolute path in frontmatter
+      expect(frontmatter).toContain(
+        path.join(tempDir, "custom-install-2", ".claude", "profiles"),
+      );
+    });
+  });
 });
