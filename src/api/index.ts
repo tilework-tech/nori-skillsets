@@ -5,6 +5,7 @@ import { conversationApi } from "@/api/conversation.js";
 import { noridocsApi } from "@/api/noridocs.js";
 import { promptAnalysisApi } from "@/api/promptAnalysis.js";
 import { queryApi } from "@/api/query.js";
+import { registrarApi } from "@/api/registrar.js";
 
 /**
  * Response from handshake endpoint
@@ -33,6 +34,7 @@ export const apiClient = {
   noridocs: noridocsApi,
   promptAnalysis: promptAnalysisApi,
   query: queryApi,
+  registrar: registrarApi,
   handshake,
 };
 
@@ -56,3 +58,10 @@ export type {
   ListVersionsRequest,
 } from "@/api/noridocs.js";
 export { ConfigManager } from "@/api/base.js";
+export type {
+  Package,
+  Packument,
+  SearchPackagesRequest,
+  GetPackumentRequest,
+  DownloadTarballRequest,
+} from "@/api/registrar.js";

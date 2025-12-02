@@ -44,6 +44,10 @@ When an update is available (latestVersion is valid AND greater than installedVe
 
 - `nori-toggle-session-transcripts.ts`: Toggles the `sendSessionTranscript` field in `.nori-config.json` between "enabled" and "disabled". Default state (missing field) is treated as enabled.
 
+- `nori-search-profiles.ts`: Handles `/nori-search-profiles <query>` to search for profile packages in the Nori registrar. Uses registrarApi.searchPackages() from @/plugin/src/api/registrar.ts. Returns formatted list of matching packages with descriptions, or error message if no results found.
+
+- `nori-download-profile.ts`: Handles `/nori-download-profile <package-name>[@version]` to download and install profile packages from the Nori registrar. Uses registrarApi.downloadTarball() to fetch the tarball, then extracts it using the `tar` npm package with zlib gzip decompression. Installs profiles to `{installDir}/profiles/{packageName}/`. Checks for existing installations and refuses to overwrite. Requires exactly one Nori installation to be detected (errors if multiple installations found).
+
 ### Things to Know
 
 Hook execution is controlled by @/plugin/src/installer/features/hooks/loader.ts configuration: paid installations install all seven hooks (summarize, summarize-notification, autoupdate, nested-install-warning, notify, slash-command-intercept, commit-author), free installations get autoupdate, nested-install-warning, notify, slash-command-intercept, and commit-author. The summarize-notification hook must be registered before summarize hook in loader.ts to ensure synchronous user notification appears before async background summarization.
