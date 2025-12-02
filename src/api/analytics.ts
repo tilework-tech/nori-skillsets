@@ -1,4 +1,8 @@
-import { apiRequest } from "./base.js";
+import { normalizeUrl } from "@/utils/url.js";
+
+import { apiRequest, ConfigManager } from "./base.js";
+
+const DEFAULT_ANALYTICS_URL = "https://demo.tilework.tech";
 
 export type GenerateDailyReportRequest = {
   date?: string | null;
@@ -56,10 +60,29 @@ export const analyticsApi = {
   },
 
   trackEvent: async (args: TrackEventRequest): Promise<TrackEventResponse> => {
-    return apiRequest<TrackEventResponse>({
-      path: "/analytics/track",
+    // Get base URL from config, falling back to default analytics endpoint
+    let baseUrl = DEFAULT_ANALYTICS_URL;
+    try {
+      const config = ConfigManager.loadConfig();
+      if (config.organizationUrl) {
+        baseUrl = config.organizationUrl;
+      }
+    } catch {
+      // Config not available, use default
+    }
+
+    const url = normalizeUrl({ baseUrl, path: "/api/analytics/track" });
+
+    const response = await fetch(url, {
       method: "POST",
-      body: args,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(args),
     });
+
+    if (!response.ok) {
+      return { success: false };
+    }
+
+    return (await response.json()) as TrackEventResponse;
   },
 };
