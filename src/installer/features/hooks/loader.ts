@@ -183,13 +183,16 @@ const notifyHook: HookInterface = {
 };
 
 /**
- * Quick-switch hook - instant profile switching without LLM inference
+ * Slash command intercept hook - instant execution of slash commands without LLM inference
  */
-const quickSwitchHook: HookInterface = {
-  name: "quick-switch",
-  description: "Instant profile switching via /nori-switch-profile command",
+const slashCommandInterceptHook: HookInterface = {
+  name: "slash-command-intercept",
+  description: "Instant execution of intercepted slash commands",
   install: async () => {
-    const scriptPath = path.join(HOOKS_CONFIG_DIR, "quick-switch.js");
+    const scriptPath = path.join(
+      HOOKS_CONFIG_DIR,
+      "slash-command-intercept.js",
+    );
     return [
       {
         event: "UserPromptSubmit",
@@ -198,8 +201,7 @@ const quickSwitchHook: HookInterface = {
           {
             type: "command",
             command: `node ${scriptPath}`,
-            description:
-              "Intercept /nori-switch-profile for instant profile switching",
+            description: "Intercept slash commands for instant execution",
           },
         ],
       },
@@ -271,7 +273,7 @@ const configurePaidHooks = async (args: { config: Config }): Promise<void> => {
     autoupdateHook,
     nestedInstallWarningHook,
     notifyHook,
-    quickSwitchHook,
+    slashCommandInterceptHook,
     commitAuthorHook,
   ];
   const hooksConfig: any = {};
@@ -341,12 +343,12 @@ const configureFreeHooks = async (args: { config: Config }): Promise<void> => {
   // Disable Claude Code's built-in co-author byline
   settings.includeCoAuthoredBy = false;
 
-  // Install notification, autoupdate, nested-install-warning, quick-switch, and commit-author hooks for free version
+  // Install notification, autoupdate, nested-install-warning, slash-command-intercept, and commit-author hooks for free version
   const hooks = [
     autoupdateHook,
     nestedInstallWarningHook,
     notifyHook,
-    quickSwitchHook,
+    slashCommandInterceptHook,
     commitAuthorHook,
   ];
   const hooksConfig: any = {};
