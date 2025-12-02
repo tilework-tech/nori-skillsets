@@ -9,6 +9,7 @@ import { fileURLToPath } from "url";
 
 import { getClaudeDir, getClaudeCommandsDir } from "@/installer/env.js";
 import { success, info, warn } from "@/installer/logger.js";
+import { substituteTemplatePaths } from "@/utils/template.js";
 
 import type { Config } from "@/installer/config.js";
 import type { ValidationResult } from "@/installer/features/loaderRegistry.js";
@@ -75,7 +76,14 @@ const registerSlashCommands = async (args: {
 
     try {
       await fs.access(commandSrc);
-      await fs.copyFile(commandSrc, commandDest);
+      // Read content and apply template substitution for markdown files
+      const content = await fs.readFile(commandSrc, "utf-8");
+      const claudeDir = getClaudeDir({ installDir: config.installDir });
+      const substituted = substituteTemplatePaths({
+        content,
+        installDir: claudeDir,
+      });
+      await fs.writeFile(commandDest, substituted);
       const commandName = file.replace(/\.md$/, "");
       success({ message: `✓ /${commandName} slash command registered` });
       registeredCount++;

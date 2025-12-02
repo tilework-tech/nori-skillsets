@@ -1,6 +1,6 @@
 import { normalizeUrl } from "@/utils/url.js";
 
-import { apiRequest, ConfigManager } from "./base.js";
+import { ConfigManager } from "./base.js";
 
 const DEFAULT_ANALYTICS_URL = "https://demo.tilework.tech";
 
