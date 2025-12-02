@@ -1,6 +1,6 @@
 ---
 description: Create a new custom profile by cloning an existing profile
-allowed-tools: Bash(cat:*), Bash(ls:*), Bash(cp:*), Bash(mkdir:*), Read(~/.claude/profiles/**), Write(~/.claude/profiles/**/profile.json:*)
+allowed-tools: Bash(cat:*), Bash(ls:*), Bash(cp:*), Bash(mkdir:*), Read({{profiles_dir}}/**), Write({{profiles_dir}}/**/profile.json:*)
 ---
 
 Create a new custom Nori profile by cloning an existing profile and customizing it.
@@ -13,7 +13,7 @@ git worktree or git branch just to manipulate profiles.</system-reminder>
 
 First, let me show you all available profiles you can clone from:
 
-!`cat ~/.claude/profiles/*/profile.json`
+!`cat {{profiles_dir}}/*/profile.json`
 
 Parse the JSON output above and display each profile in a clear, readable format showing:
 - Profile name
@@ -29,7 +29,7 @@ Ask the user for the name of the new profile.
 
 **Important validation rules:**
 - Name must be lowercase alphanumeric with hyphens only (no spaces, no special characters except hyphen)
-- Name must not be an existing profile (check `~/.claude/profiles/` directory)
+- Name must not be an existing profile (check `{{profiles_dir}}/` directory)
 - Suggest a format like: `my-custom-profile` or `team-name-profile`
 
 If the name is invalid, explain why and ask again.
@@ -39,8 +39,8 @@ If the name is invalid, explain why and ask again.
 Once you have a valid profile name, clone the selected profile:
 
 ```bash
-mkdir -p ~/.claude/profiles/<new-profile-name>
-cp -r ~/.claude/profiles/<source-profile>/* ~/.claude/profiles/<new-profile-name>/
+mkdir -p {{profiles_dir}}/<new-profile-name>
+cp -r {{profiles_dir}}/<source-profile>/* {{profiles_dir}}/<new-profile-name>/
 ```
 
 ## Step 5: Create profile.json
@@ -49,7 +49,7 @@ Create a new `profile.json` file for the profile with the user's custom informat
 
 Ask the user: "What description do you want for this profile?"
 
-Then write the new `~/.claude/profiles/<new-profile-name>/profile.json` with:
+Then write the new `{{profiles_dir}}/<new-profile-name>/profile.json` with:
 
 ```json
 {
@@ -70,7 +70,7 @@ Copy the mixins object exactly from the source profile's profile.json.
 
 Ask: "Would you like to customize the CLAUDE.md file for your new profile?"
 
-If yes, ask what changes they want to make and apply them to `~/.claude/profiles/<new-profile-name>/CLAUDE.md`.
+If yes, ask what changes they want to make and apply them to `{{profiles_dir}}/<new-profile-name>/CLAUDE.md`.
 
 **Documentation:** For more information about CLAUDE.md configuration, see: https://docs.claude.com/en/docs/claude-code/settings
 
@@ -79,7 +79,7 @@ If yes, ask what changes they want to make and apply them to `~/.claude/profiles
 Ask: "Would you like to add or remove any skills from your new profile?"
 
 If yes:
-- Show the current skills in `~/.claude/profiles/<new-profile-name>/skills/`
+- Show the current skills in `{{profiles_dir}}/<new-profile-name>/skills/`
 - Ask what changes they want (add new skills, remove existing skills)
 - Help them make the changes
 
@@ -90,7 +90,7 @@ If yes:
 Ask: "Would you like to add or remove any subagents from your new profile?"
 
 If yes:
-- Show the current subagents in `~/.claude/profiles/<new-profile-name>/subagents/`
+- Show the current subagents in `{{profiles_dir}}/<new-profile-name>/subagents/`
 - Ask what changes they want (add new subagents, remove existing subagents)
 - Help them make the changes
 
@@ -101,7 +101,7 @@ If yes:
 Ask: "Would you like to add or remove any slash commands from your new profile?"
 
 If yes:
-- Show the current slash commands in `~/.claude/profiles/<new-profile-name>/slashcommands/`
+- Show the current slash commands in `{{profiles_dir}}/<new-profile-name>/slashcommands/`
 - Ask what changes they want (add new commands, remove existing commands)
 - Help them make the changes
 
@@ -113,7 +113,7 @@ Once complete, display a summary:
 
 ```
 ✓ Profile "<new-profile-name>" created successfully!
-✓ Location: ~/.claude/profiles/<new-profile-name>/
+✓ Location: {{profiles_dir}}/<new-profile-name>/
 
 Your new profile includes:
 - CLAUDE.md configuration
@@ -130,7 +130,7 @@ Or:
 
 ## Important Notes
 
-- All profiles are stored in `~/.claude/profiles/` which is the source of truth
+- All profiles are stored in `{{profiles_dir}}/` which is the source of truth
 - After switching to your new profile, you'll need to restart Claude Code to load the new configuration
-- You can always edit your profile later by modifying files in `~/.claude/profiles/<new-profile-name>/`
+- You can always edit your profile later by modifying files in `{{profiles_dir}}/<new-profile-name>/`
 - Custom profiles (builtin: false) are preserved during Nori upgrades

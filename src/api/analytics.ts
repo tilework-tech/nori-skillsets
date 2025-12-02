@@ -40,16 +40,8 @@ export type TrackEventResponse = {
 
 export const analyticsApi = {
   trackEvent: async (args: TrackEventRequest): Promise<TrackEventResponse> => {
-    // Get base URL from config, falling back to default analytics endpoint
-    let baseUrl = DEFAULT_ANALYTICS_URL;
-    try {
-      const config = ConfigManager.loadConfig();
-      if (config.organizationUrl) {
-        baseUrl = config.organizationUrl;
-      }
-    } catch {
-      // Config not available, use default
-    }
+    const config = ConfigManager.loadConfig();
+    const baseUrl = config?.organizationUrl ?? DEFAULT_ANALYTICS_URL;
 
     const url = normalizeUrl({ baseUrl, path: "/api/analytics/track" });
 

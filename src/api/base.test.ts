@@ -75,7 +75,7 @@ describe("ConfigManager", () => {
       expect(result).toEqual(configData);
     });
 
-    it("should throw error when no installation found", () => {
+    it("should return null when no installation found", () => {
       // Setup: Create empty directory with no config
       const emptyDir = path.join(tempDir, "empty");
       fs.mkdirSync(emptyDir, { recursive: true });
@@ -84,9 +84,8 @@ describe("ConfigManager", () => {
       process.chdir(emptyDir);
 
       // Execute & Verify
-      expect(() => ConfigManager.loadConfig()).toThrow(
-        "No Nori installation found",
-      );
+      const result = ConfigManager.loadConfig();
+      expect(result).toBeNull();
     });
 
     it("should handle empty config file gracefully (race condition)", () => {

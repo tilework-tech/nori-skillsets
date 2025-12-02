@@ -11,8 +11,7 @@ import { ConfigManager } from "./base.js";
 const mockFetch = vi.fn();
 vi.stubGlobal("fetch", mockFetch);
 
-// Mock base.js - we need ConfigManager for the new implementation
-// and apiRequest for the current implementation (which we want to stop using)
+// Mock base.js - we need ConfigManager for analytics
 vi.mock("./base.js", async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
   return {
@@ -20,7 +19,6 @@ vi.mock("./base.js", async (importOriginal) => {
     ConfigManager: {
       loadConfig: vi.fn(),
     },
-    apiRequest: vi.fn(),
   };
 });
 
@@ -168,11 +166,9 @@ describe("analyticsApi.trackEvent", () => {
     );
   });
 
-  it("falls back to default URL when ConfigManager.loadConfig throws", async () => {
-    // Setup: loadConfig throws (no installation found)
-    vi.mocked(ConfigManager.loadConfig).mockImplementation(() => {
-      throw new Error("No Nori installation found");
-    });
+  it("falls back to default URL when ConfigManager.loadConfig returns null", async () => {
+    // Setup: loadConfig returns null (no installation found)
+    vi.mocked(ConfigManager.loadConfig).mockReturnValue(null);
 
     // Execute
     await analyticsApi.trackEvent({
