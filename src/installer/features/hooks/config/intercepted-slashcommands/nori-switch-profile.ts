@@ -107,22 +107,12 @@ const run = async (args: { input: HookInput }): Promise<HookOutput | null> => {
   const { input } = args;
   const { prompt, cwd } = input;
 
-  if (!prompt || !cwd) {
-    return null;
-  }
-
-  // Check if prompt matches /nori-switch-profile pattern
+  // Extract profile name if provided (matcher already validated the pattern)
   const trimmedPrompt = prompt.trim();
-  const matchWithProfile = trimmedPrompt.match(
-    /^\/nori-switch-profile\s+([a-z0-9-]+)\s*$/i,
+  const profileMatch = trimmedPrompt.match(
+    /^\/nori-switch-profile(?:\s+([a-z0-9-]+))?\s*$/i,
   );
-  const matchWithoutProfile = trimmedPrompt.match(
-    /^\/nori-switch-profile\s*$/i,
-  );
-
-  if (!matchWithProfile && !matchWithoutProfile) {
-    return null;
-  }
+  const profileName = profileMatch?.[1] ?? null;
 
   // Find installation directory
   const allInstallations = getInstallDirs({ currentDir: cwd });
@@ -147,15 +137,13 @@ const run = async (args: { input: HookInput }): Promise<HookOutput | null> => {
     };
   }
 
-  if (matchWithoutProfile) {
+  // If no profile name provided, show available profiles
+  if (profileName == null) {
     return {
       decision: "block",
       reason: `Available profiles: ${profiles.join(", ")}\n\nUsage: /nori-switch-profile <profile-name>`,
     };
   }
-
-  // Extract profile name
-  const profileName = matchWithProfile![1];
 
   // Check if profile exists
   if (!profiles.includes(profileName)) {

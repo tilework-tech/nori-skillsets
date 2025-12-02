@@ -23,17 +23,7 @@ import type {
  */
 const run = async (args: { input: HookInput }): Promise<HookOutput | null> => {
   const { input } = args;
-  const { prompt, cwd } = input;
-
-  if (!prompt || !cwd) {
-    return null;
-  }
-
-  // Check if prompt matches /nori-toggle-session-transcripts pattern
-  const trimmedPrompt = prompt.trim();
-  if (!trimmedPrompt.match(/^\/nori-toggle-session-transcripts\s*$/i)) {
-    return null;
-  }
+  const { cwd } = input;
 
   // Find installation directory
   const allInstallations = getInstallDirs({ currentDir: cwd });

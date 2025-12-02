@@ -20,17 +20,7 @@ import type {
  */
 const run = async (args: { input: HookInput }): Promise<HookOutput | null> => {
   const { input } = args;
-  const { prompt, cwd } = input;
-
-  if (!prompt || !cwd) {
-    return null;
-  }
-
-  // Check if prompt matches /nori-install-location pattern
-  const trimmedPrompt = prompt.trim();
-  if (!trimmedPrompt.match(/^\/nori-install-location\s*$/i)) {
-    return null;
-  }
+  const { cwd } = input;
 
   // Find all installation directories
   const allInstallations = getInstallDirs({ currentDir: cwd });

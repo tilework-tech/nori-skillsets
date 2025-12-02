@@ -90,8 +90,8 @@ describe("nori-switch-profile", () => {
     });
   });
 
-  describe("pattern matching", () => {
-    it("should match /nori-switch-profile with profile name and switch profile", async () => {
+  describe("run function", () => {
+    it("should switch profile when profile name provided", async () => {
       const input = createInput({ prompt: "/nori-switch-profile amol" });
       const result = await noriSwitchProfile.run({ input });
 
@@ -114,25 +114,6 @@ describe("nori-switch-profile", () => {
       expect(result!.reason).toContain("amol");
       expect(result!.reason).toContain("senior-swe");
       expect(result!.reason).toContain("product-manager");
-    });
-
-    it("should return null for non-matching prompts", async () => {
-      const input = createInput({ prompt: "What is the weather today?" });
-      const result = await noriSwitchProfile.run({ input });
-
-      expect(result).toBeNull();
-    });
-
-    it("should handle prompt with extra whitespace", async () => {
-      const input = createInput({ prompt: "  /nori-switch-profile   amol  " });
-      const result = await noriSwitchProfile.run({ input });
-
-      expect(result).not.toBeNull();
-      expect(result!.decision).toBe("block");
-
-      // Verify profile was switched
-      const updatedConfig = JSON.parse(await fs.readFile(configPath, "utf-8"));
-      expect(updatedConfig.profile.baseProfile).toBe("amol");
     });
   });
 

@@ -66,35 +66,14 @@ describe("nori-install-location", () => {
     });
   });
 
-  describe("pattern matching", () => {
-    it("should match /nori-install-location exactly", async () => {
+  describe("run function", () => {
+    it("should return block decision with installation location", async () => {
       const input = createInput({ prompt: "/nori-install-location" });
       const result = await noriInstallLocation.run({ input });
 
       expect(result).not.toBeNull();
       expect(result!.decision).toBe("block");
-    });
-
-    it("should match with trailing whitespace", async () => {
-      const input = createInput({ prompt: "/nori-install-location  " });
-      const result = await noriInstallLocation.run({ input });
-
-      expect(result).not.toBeNull();
-      expect(result!.decision).toBe("block");
-    });
-
-    it("should return null for non-matching prompts", async () => {
-      const input = createInput({ prompt: "What is the weather today?" });
-      const result = await noriInstallLocation.run({ input });
-
-      expect(result).toBeNull();
-    });
-
-    it("should return null for partial match", async () => {
-      const input = createInput({ prompt: "/nori-install-location extra" });
-      const result = await noriInstallLocation.run({ input });
-
-      expect(result).toBeNull();
+      expect(result!.reason).toContain(testDir);
     });
   });
 
