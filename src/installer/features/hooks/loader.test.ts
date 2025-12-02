@@ -283,7 +283,7 @@ describe("hooksLoader", () => {
       expect(settings.hooks.PreCompact).toBeDefined();
     });
 
-    it("should configure UserPromptSubmit hook for quick profile switching (paid)", async () => {
+    it("should configure UserPromptSubmit hook for slash command interception (paid)", async () => {
       const config: Config = {
         installDir: tempDir,
         auth: {
@@ -302,18 +302,21 @@ describe("hooksLoader", () => {
       expect(settings.hooks.UserPromptSubmit).toBeDefined();
       expect(settings.hooks.UserPromptSubmit.length).toBeGreaterThan(0);
 
-      // Find quick-switch hook
-      let hasQuickSwitchHook = false;
+      // Find slash-command-intercept hook
+      let hasSlashCommandInterceptHook = false;
       for (const hookConfig of settings.hooks.UserPromptSubmit) {
         if (hookConfig.hooks) {
           for (const hook of hookConfig.hooks) {
-            if (hook.command && hook.command.includes("quick-switch")) {
-              hasQuickSwitchHook = true;
+            if (
+              hook.command &&
+              hook.command.includes("slash-command-intercept")
+            ) {
+              hasSlashCommandInterceptHook = true;
             }
           }
         }
       }
-      expect(hasQuickSwitchHook).toBe(true);
+      expect(hasSlashCommandInterceptHook).toBe(true);
     });
 
     it("should configure nested-install-warning hook for paid installation", async () => {

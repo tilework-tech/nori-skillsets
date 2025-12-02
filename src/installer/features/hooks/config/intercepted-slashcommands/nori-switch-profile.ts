@@ -1,7 +1,6 @@
 /**
- * Quick-switch hook for instant profile switching
- * Intercepts /nori-switch-profile commands and executes them directly
- * without LLM inference overhead.
+ * Intercepted slash command for switching profiles
+ * Handles /nori-switch-profile commands for instant profile switching
  */
 
 import * as fs from "fs/promises";
@@ -9,29 +8,15 @@ import * as path from "path";
 
 import { getInstallDirs } from "@/utils/path.js";
 
-// Type for the stdin JSON from Claude Code
-type HookInput = {
-  prompt: string;
-  cwd: string;
-  session_id: string;
-  transcript_path: string;
-  permission_mode: string;
-  hook_event_name: string;
-};
-
-// Type for hook output
-type HookOutput = {
-  decision?: "block";
-  reason?: string;
-  hookSpecificOutput?: {
-    hookEventName: string;
-    additionalContext: string;
-  };
-};
+import type {
+  HookInput,
+  HookOutput,
+  InterceptedSlashCommand,
+} from "./types.js";
 
 /**
  * List available profiles in a directory
- * @param args - Arguments object
+ * @param args - The function arguments
  * @param args.profilesDir - Path to the profiles directory
  *
  * @returns Array of profile names
@@ -66,10 +51,10 @@ const listProfiles = async (args: {
 
 /**
  * Switch to a profile
- * @param args - Arguments object
+ * @param args - The function arguments
  * @param args.profileName - Name of the profile to switch to
  * @param args.profilesDir - Path to the profiles directory
- * @param args.installDir - Installation directory
+ * @param args.installDir - Path to the installation directory
  */
 const switchProfile = async (args: {
   profileName: string;
@@ -92,7 +77,7 @@ const switchProfile = async (args: {
   const configPath = path.join(installDir, ".nori-config.json");
 
   // Load current config to preserve auth
-  let currentConfig: any = {};
+  let currentConfig: Record<string, unknown> = {};
   try {
     const content = await fs.readFile(configPath, "utf-8");
     currentConfig = JSON.parse(content);
@@ -112,34 +97,18 @@ const switchProfile = async (args: {
 };
 
 /**
- * Main hook function
+ * Run the nori-switch-profile command
+ * @param args - The function arguments
+ * @param args.input - The hook input containing prompt and cwd
+ *
+ * @returns The hook output with switch result, or null if not matched
  */
-const main = async (): Promise<void> => {
-  // Read stdin
-  const chunks: Array<Buffer> = [];
-  for await (const chunk of process.stdin) {
-    chunks.push(chunk);
-  }
-  const inputStr = Buffer.concat(chunks).toString("utf-8");
-
-  // Parse input JSON
-  let input: HookInput;
-  try {
-    if (!inputStr.trim()) {
-      // Empty stdin - pass through
-      process.exit(0);
-    }
-    input = JSON.parse(inputStr);
-  } catch {
-    // Invalid JSON - pass through
-    process.exit(0);
-  }
-
+const run = async (args: { input: HookInput }): Promise<HookOutput | null> => {
+  const { input } = args;
   const { prompt, cwd } = input;
 
   if (!prompt || !cwd) {
-    // Missing required fields - pass through
-    process.exit(0);
+    return null;
   }
 
   // Check if prompt matches /nori-switch-profile pattern
@@ -152,49 +121,37 @@ const main = async (): Promise<void> => {
   );
 
   if (!matchWithProfile && !matchWithoutProfile) {
-    // Not a switch command - pass through
-    process.exit(0);
+    return null;
   }
 
-  // ALWAYS use getInstallDirs to find installation directory
+  // Find installation directory
   const allInstallations = getInstallDirs({ currentDir: cwd });
 
   if (allInstallations.length === 0) {
-    // Fail loudly - no silent fallback
-    const output: HookOutput = {
+    return {
       decision: "block",
       reason: `No Nori installation found.`,
     };
-    console.log(JSON.stringify(output));
-    process.exit(0);
   }
 
   const installDir = allInstallations[0]; // Use closest installation
-
-  // Get profiles directory
   const profilesDir = path.join(installDir, ".claude", "profiles");
 
   // List available profiles
   const profiles = await listProfiles({ profilesDir });
 
   if (profiles.length === 0) {
-    // No profiles found
-    const output: HookOutput = {
+    return {
       decision: "block",
       reason: `No profiles found in ${profilesDir}.\n\nRun 'nori-ai install' to install profiles.`,
     };
-    console.log(JSON.stringify(output));
-    process.exit(0);
   }
 
   if (matchWithoutProfile) {
-    // List available profiles
-    const output: HookOutput = {
+    return {
       decision: "block",
       reason: `Available profiles: ${profiles.join(", ")}\n\nUsage: /nori-switch-profile <profile-name>`,
     };
-    console.log(JSON.stringify(output));
-    process.exit(0);
   }
 
   // Extract profile name
@@ -202,12 +159,10 @@ const main = async (): Promise<void> => {
 
   // Check if profile exists
   if (!profiles.includes(profileName)) {
-    const output: HookOutput = {
+    return {
       decision: "block",
       reason: `Profile "${profileName}" not found.\n\nAvailable profiles: ${profiles.join(", ")}`,
     };
-    console.log(JSON.stringify(output));
-    process.exit(0);
   }
 
   // Switch to the profile
@@ -232,27 +187,26 @@ const main = async (): Promise<void> => {
       // No profile.json or no description
     }
 
-    // Return context for Claude to describe the profile
-    const output: HookOutput = {
-      hookSpecificOutput: {
-        hookEventName: "UserPromptSubmit",
-        additionalContext: `Profile switched to "${profileName}"${profileDescription ? `: ${profileDescription}` : ""}.\n\nDescribe this profile to the user and tell them to restart Claude Code to apply the changes.`,
-      },
+    return {
+      decision: "block",
+      reason: `Profile switched to "${profileName}"${profileDescription ? `: ${profileDescription}` : ""}.\n\nRestart Claude Code to apply the changes.`,
     };
-    console.log(JSON.stringify(output));
-    process.exit(0);
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
-    const output: HookOutput = {
+    return {
       decision: "block",
       reason: `Failed to switch profile: ${errorMessage}`,
     };
-    console.log(JSON.stringify(output));
-    process.exit(0);
   }
 };
 
-main().catch(() => {
-  // Unexpected error - pass through silently
-  process.exit(0);
-});
+/**
+ * nori-switch-profile intercepted slash command
+ */
+export const noriSwitchProfile: InterceptedSlashCommand = {
+  matchers: [
+    "^\\/nori-switch-profile\\s*$",
+    "^\\/nori-switch-profile\\s+[a-z0-9-]+\\s*$",
+  ],
+  run,
+};
