@@ -12,6 +12,8 @@ import type {
   InterceptedSlashCommand,
 } from "./types.js";
 
+import { formatError, formatSuccess } from "./format.js";
+
 /**
  * Parse search query from prompt
  * @param prompt - The user prompt to parse
@@ -44,7 +46,9 @@ const run = async (args: { input: HookInput }): Promise<HookOutput | null> => {
   if (query == null) {
     return {
       decision: "block",
-      reason: `Search for profile packages in the Nori registrar.\n\nUsage: /nori-search-profiles <query>\n\nExamples:\n  /nori-search-profiles typescript\n  /nori-search-profiles react developer`,
+      reason: formatSuccess({
+        message: `Search for profile packages in the Nori registrar.\n\nUsage: /nori-search-profiles <query>\n\nExamples:\n  /nori-search-profiles typescript\n  /nori-search-profiles react developer`,
+      }),
     };
   }
 
@@ -54,7 +58,9 @@ const run = async (args: { input: HookInput }): Promise<HookOutput | null> => {
   if (allInstallations.length === 0) {
     return {
       decision: "block",
-      reason: `No Nori installation found.\n\nRun 'npx nori-ai install' to install Nori Profiles.`,
+      reason: formatError({
+        message: `No Nori installation found.\n\nRun 'npx nori-ai install' to install Nori Profiles.`,
+      }),
     };
   }
 
@@ -65,7 +71,9 @@ const run = async (args: { input: HookInput }): Promise<HookOutput | null> => {
     if (packages.length === 0) {
       return {
         decision: "block",
-        reason: `No profiles found matching "${query}".\n\nTry a different search term or browse the registrar at https://registrar.tilework.tech`,
+        reason: formatSuccess({
+          message: `No profiles found matching "${query}".\n\nTry a different search term or browse the registrar at https://registrar.tilework.tech`,
+        }),
       };
     }
 
@@ -77,13 +85,17 @@ const run = async (args: { input: HookInput }): Promise<HookOutput | null> => {
 
     return {
       decision: "block",
-      reason: `Found ${packages.length} profile(s) matching "${query}":\n\n${resultLines.join("\n\n")}\n\nTo install a profile, use: /nori-download-profile <package-name>`,
+      reason: formatSuccess({
+        message: `Found ${packages.length} profile(s) matching "${query}":\n\n${resultLines.join("\n\n")}\n\nTo install a profile, use: /nori-download-profile <package-name>`,
+      }),
     };
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
     return {
       decision: "block",
-      reason: `Failed to search profiles:\n${errorMessage}`,
+      reason: formatError({
+        message: `Failed to search profiles:\n${errorMessage}`,
+      }),
     };
   }
 };
