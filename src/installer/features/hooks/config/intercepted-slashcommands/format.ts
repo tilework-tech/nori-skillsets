@@ -2,58 +2,68 @@
  * Formatting utilities for intercepted slash command output
  */
 
-import wrapAnsi from "wrap-ansi";
-
 // ANSI color codes
 const GREEN = "\x1b[0;32m";
 const RED = "\x1b[0;31m";
 const NC = "\x1b[0m"; // No Color / Reset
 
-// Default terminal width for pre-wrapping
-// Using 80 as a conservative default that works for most terminals
-const DEFAULT_TERMINAL_WIDTH = 80;
-
 /**
- * Get the terminal width for text wrapping
- * Uses process.stdout.columns if available, otherwise falls back to default
+ * Color each word in a line individually
+ * This ensures colors persist when the terminal re-wraps at any width
  *
- * @returns The terminal width in columns
+ * @param args - The function arguments
+ * @param args.line - The line to color
+ * @param args.color - The ANSI color code to apply
+ *
+ * @returns The line with each word colored individually
  */
-const getTerminalWidth = (): number => {
-  return process.stdout.columns ?? DEFAULT_TERMINAL_WIDTH;
+const colorLineWords = (args: { line: string; color: string }): string => {
+  const { line, color } = args;
+
+  if (line.length === 0) {
+    return "";
+  }
+
+  // Use regex to split while preserving whitespace structure
+  // This matches sequences of non-space characters (words) or sequences of spaces
+  const tokens = line.match(/\S+|\s+/g) ?? [];
+
+  return tokens
+    .map((token) => {
+      // Only color non-whitespace tokens (words)
+      if (/^\s+$/.test(token)) {
+        return token;
+      }
+      return `${color}${token}${NC}`;
+    })
+    .join("");
 };
 
 /**
- * Format a message with color, handling both explicit newlines and soft terminal wraps
- * 1. Pre-wraps text at terminal width (converting soft wraps to hard newlines)
- * 2. Wraps each resulting line with color codes
- * This ensures colors persist across all line breaks
+ * Format a message with color, coloring each word individually
+ * This approach ensures colors persist regardless of terminal width,
+ * since each word has its own color codes that survive re-wrapping
+ *
  * @param args - The function arguments
  * @param args.message - The message to format
  * @param args.color - The ANSI color code to apply
  *
- * @returns The message with colors that persist across line wraps
+ * @returns The message with colors that persist across any terminal width
  */
 const formatWithColor = (args: { message: string; color: string }): string => {
   const { message, color } = args;
-  const terminalWidth = getTerminalWidth();
 
-  // First, pre-wrap the plain text at terminal width
-  // This converts soft wraps into explicit newlines
-  const wrappedText = wrapAnsi(message, terminalWidth, { hard: true });
-
-  // Then wrap each line with color codes
-  // This ensures colors persist across both explicit and soft-wrapped lines
-  return wrappedText
+  // Split by explicit newlines, color each line's words, rejoin
+  return message
     .split("\n")
-    .map((line) => `${color}${line}${NC}`)
+    .map((line) => colorLineWords({ line, color }))
     .join("\n");
 };
 
 /**
  * Format a success message with green color
- * Pre-wraps text at terminal width and applies color per line to ensure
- * colors persist across both explicit newlines and soft terminal wraps
+ * Colors each word individually to ensure colors persist across terminal re-wrapping
+ *
  * @param args - The function arguments
  * @param args.message - The message to format
  *
@@ -66,8 +76,8 @@ export const formatSuccess = (args: { message: string }): string => {
 
 /**
  * Format an error message with red color
- * Pre-wraps text at terminal width and applies color per line to ensure
- * colors persist across both explicit newlines and soft terminal wraps
+ * Colors each word individually to ensure colors persist across terminal re-wrapping
+ *
  * @param args - The function arguments
  * @param args.message - The message to format
  *

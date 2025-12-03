@@ -36,7 +36,7 @@ When an update is available (latestVersion is valid AND greater than installedVe
 
 - `registry.ts`: Exports `interceptedSlashCommands` array containing all registered commands. Commands are checked in order, first match wins. All matchers should be unique across commands.
 
-- `format.ts`: Provides `formatSuccess()` and `formatError()` utility functions for consistent ANSI colored output across all intercepted slash commands. Uses green for success/help messages and red for error messages. The implementation uses a two-step approach: (1) pre-wraps plain text at terminal width using `wrap-ansi` to convert soft wraps into explicit newlines, (2) wraps each resulting line individually with color codes. This ensures colors persist correctly across both explicit newlines AND soft terminal wraps (when text exceeds terminal width), as some terminals reset ANSI attributes at line boundaries. Terminal width is detected via `process.stdout.columns` with a fallback to 80 columns.
+- `format.ts`: Provides `formatSuccess()` and `formatError()` utility functions for consistent ANSI colored output across all intercepted slash commands. Uses green for success/help messages and red for error messages. The implementation uses per-word coloring: each non-whitespace token is individually wrapped with color codes (e.g., `\x1b[0;32mword\x1b[0m`), while whitespace is preserved uncolored. This ensures colors persist correctly across terminal soft wraps at any terminal width, as color codes reset at each word boundary rather than depending on pre-calculated line breaks.
 
 - `nori-install-location.ts`: Returns the Nori installation directory (or directories if multiple found). Uses getInstallDirs() to locate installations from cwd upward.
 

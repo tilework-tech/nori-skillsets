@@ -11,6 +11,18 @@ import { fileURLToPath } from "url";
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 
+/**
+ * Strip ANSI escape codes from a string for plain text comparison
+ *
+ * @param str - The string containing ANSI codes
+ *
+ * @returns The string with ANSI codes removed
+ */
+const stripAnsi = (str: string): string => {
+  // eslint-disable-next-line no-control-regex
+  return str.replace(/\x1b\[[0-9;]*m/g, "");
+};
+
 // Get directory of this test file
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -155,10 +167,11 @@ describe("slash-command-intercept hook", () => {
 
       const output = JSON.parse(result.stdout);
       expect(output.decision).toBe("block");
-      expect(output.reason).toContain("Available profiles:");
-      expect(output.reason).toContain("amol");
-      expect(output.reason).toContain("senior-swe");
-      expect(output.reason).toContain("product-manager");
+      const plainReason = stripAnsi(output.reason!);
+      expect(plainReason).toContain("Available profiles:");
+      expect(plainReason).toContain("amol");
+      expect(plainReason).toContain("senior-swe");
+      expect(plainReason).toContain("product-manager");
     });
   });
 
@@ -327,7 +340,9 @@ describe("slash-command-intercept hook", () => {
 
         const output = JSON.parse(result.stdout);
         expect(output.decision).toBe("block");
-        expect(output.reason).toContain("No Nori installation found");
+        expect(stripAnsi(output.reason!)).toContain(
+          "No Nori installation found",
+        );
       } finally {
         await fs.rm(noInstallDir, { recursive: true, force: true });
       }

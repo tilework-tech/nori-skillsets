@@ -12,6 +12,18 @@ import type { HookInput } from "./types.js";
 
 import { noriSwitchProfile } from "./nori-switch-profile.js";
 
+/**
+ * Strip ANSI escape codes from a string for plain text comparison
+ *
+ * @param str - The string containing ANSI codes
+ *
+ * @returns The string with ANSI codes removed
+ */
+const stripAnsi = (str: string): string => {
+  // eslint-disable-next-line no-control-regex
+  return str.replace(/\x1b\[[0-9;]*m/g, "");
+};
+
 describe("nori-switch-profile", () => {
   let testDir: string;
   let profilesDir: string;
@@ -110,10 +122,11 @@ describe("nori-switch-profile", () => {
 
       expect(result).not.toBeNull();
       expect(result!.decision).toBe("block");
-      expect(result!.reason).toContain("Available profiles:");
-      expect(result!.reason).toContain("amol");
-      expect(result!.reason).toContain("senior-swe");
-      expect(result!.reason).toContain("product-manager");
+      const plainReason = stripAnsi(result!.reason!);
+      expect(plainReason).toContain("Available profiles:");
+      expect(plainReason).toContain("amol");
+      expect(plainReason).toContain("senior-swe");
+      expect(plainReason).toContain("product-manager");
     });
   });
 
@@ -124,8 +137,9 @@ describe("nori-switch-profile", () => {
 
       expect(result).not.toBeNull();
       expect(result!.decision).toBe("block");
-      expect(result!.reason).toContain("not found");
-      expect(result!.reason).toContain("Available profiles:");
+      const plainReason = stripAnsi(result!.reason!);
+      expect(plainReason).toContain("not found");
+      expect(plainReason).toContain("Available profiles:");
     });
 
     it("should return error when no profiles directory found", async () => {
@@ -137,7 +151,7 @@ describe("nori-switch-profile", () => {
 
       expect(result).not.toBeNull();
       expect(result!.decision).toBe("block");
-      expect(result!.reason).toContain("No profiles found");
+      expect(stripAnsi(result!.reason!)).toContain("No profiles found");
     });
   });
 
@@ -176,7 +190,9 @@ describe("nori-switch-profile", () => {
 
         expect(result).not.toBeNull();
         expect(result!.decision).toBe("block");
-        expect(result!.reason).toContain("No Nori installation found");
+        expect(stripAnsi(result!.reason!)).toContain(
+          "No Nori installation found",
+        );
       } finally {
         await fs.rm(noInstallDir, { recursive: true, force: true });
       }

@@ -12,6 +12,18 @@ import type { HookInput } from "./types.js";
 
 import { noriToggleSessionTranscripts } from "./nori-toggle-session-transcripts.js";
 
+/**
+ * Strip ANSI escape codes from a string for plain text comparison
+ *
+ * @param str - The string containing ANSI codes
+ *
+ * @returns The string with ANSI codes removed
+ */
+const stripAnsi = (str: string): string => {
+  // eslint-disable-next-line no-control-regex
+  return str.replace(/\x1b\[[0-9;]*m/g, "");
+};
+
 describe("nori-toggle-session-transcripts", () => {
   let testDir: string;
   let configPath: string;
@@ -169,7 +181,9 @@ describe("nori-toggle-session-transcripts", () => {
 
         expect(result).not.toBeNull();
         expect(result!.decision).toBe("block");
-        expect(result!.reason).toContain("No Nori installation found");
+        expect(stripAnsi(result!.reason!)).toContain(
+          "No Nori installation found",
+        );
       } finally {
         await fs.rm(noInstallDir, { recursive: true, force: true });
       }

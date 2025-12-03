@@ -12,6 +12,18 @@ import type { HookInput } from "./types.js";
 
 import { noriInstallLocation } from "./nori-install-location.js";
 
+/**
+ * Strip ANSI escape codes from a string for plain text comparison
+ *
+ * @param str - The string containing ANSI codes
+ *
+ * @returns The string with ANSI codes removed
+ */
+const stripAnsi = (str: string): string => {
+  // eslint-disable-next-line no-control-regex
+  return str.replace(/\x1b\[[0-9;]*m/g, "");
+};
+
 describe("nori-install-location", () => {
   let testDir: string;
   let configPath: string;
@@ -84,8 +96,9 @@ describe("nori-install-location", () => {
 
       expect(result).not.toBeNull();
       expect(result!.decision).toBe("block");
-      expect(result!.reason).toContain(testDir);
-      expect(result!.reason).toContain("Nori installation");
+      const plainReason = stripAnsi(result!.reason!);
+      expect(plainReason).toContain(testDir);
+      expect(plainReason).toContain("Nori installation");
     });
 
     it("should find installation from subdirectory", async () => {
@@ -153,7 +166,9 @@ describe("nori-install-location", () => {
 
         expect(result).not.toBeNull();
         expect(result!.decision).toBe("block");
-        expect(result!.reason).toContain("No Nori installation found");
+        expect(stripAnsi(result!.reason!)).toContain(
+          "No Nori installation found",
+        );
       } finally {
         await fs.rm(noInstallDir, { recursive: true, force: true });
       }
