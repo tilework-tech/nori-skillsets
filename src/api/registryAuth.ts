@@ -8,15 +8,15 @@ import { getAuth, signInWithEmailAndPassword, type Auth } from "firebase/auth";
 
 import type { RegistryAuth } from "@/installer/config.js";
 
-// Firebase config (same as main app)
+// Firebase config (shared with nori-registrar)
 const firebaseConfig = {
-  apiKey: "AIzaSyC54HqlGrkyANVFKGDQi3LobO5moDOuafk",
-  authDomain: "tilework-e18c5.firebaseapp.com",
-  projectId: "tilework-e18c5",
-  storageBucket: "tilework-e18c5.firebasestorage.app",
-  messagingSenderId: "199991289749",
-  appId: "1:199991289749:web:d7ac38af24e1f29251f89c",
-  measurementId: "G-3YXYKJK38T",
+  apiKey: "AIzaSyBsAQjR01pv3eUWIIJY_qtYLJYF5BioKWs",
+  authDomain: "nori-registrar.firebaseapp.com",
+  projectId: "nori-registrar",
+  storageBucket: "nori-registrar.firebasestorage.app",
+  messagingSenderId: "987303113576",
+  appId: "1:987303113576:web:7144e5c24b740f4148dcdd",
+  measurementId: "G-2KKCKDGTKL",
 };
 
 // Cache for auth tokens per registry URL

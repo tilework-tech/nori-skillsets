@@ -33,6 +33,18 @@ const GREEN = "\x1b[0;32m";
 const RED = "\x1b[0;31m";
 const NC = "\x1b[0m"; // No Color / Reset
 
+/**
+ * Strip ANSI escape codes from a string for plain text comparison
+ *
+ * @param str - The string containing ANSI codes
+ *
+ * @returns The string with ANSI codes removed
+ */
+const stripAnsi = (str: string): string => {
+  // eslint-disable-next-line no-control-regex
+  return str.replace(/\x1b\[[0-9;]*m/g, "");
+};
+
 describe("nori-registry-upload", () => {
   let testDir: string;
   let configPath: string;
@@ -159,8 +171,9 @@ describe("nori-registry-upload", () => {
 
       expect(result).not.toBeNull();
       expect(result!.decision).toBe("block");
-      expect(result!.reason).toContain("Usage:");
-      expect(result!.reason).toContain("/nori-registry-upload <profile-name>");
+      const plainReason = stripAnsi(result!.reason!);
+      expect(plainReason).toContain("Usage:");
+      expect(plainReason).toContain("/nori-registry-upload <profile-name>");
     });
 
     it("should return error when no installation found", async () => {
@@ -177,7 +190,9 @@ describe("nori-registry-upload", () => {
 
         expect(result).not.toBeNull();
         expect(result!.decision).toBe("block");
-        expect(result!.reason).toContain("No Nori installation found");
+        expect(stripAnsi(result!.reason!)).toContain(
+          "No Nori installation found",
+        );
       } finally {
         await fs.rm(noInstallDir, { recursive: true, force: true });
       }
@@ -194,8 +209,9 @@ describe("nori-registry-upload", () => {
 
       expect(result).not.toBeNull();
       expect(result!.decision).toBe("block");
-      expect(result!.reason).toContain("No registry authentication");
-      expect(result!.reason).toContain("registryAuths");
+      const plainReason = stripAnsi(result!.reason!);
+      expect(plainReason).toContain("No registry authentication");
+      expect(plainReason).toContain("registryAuths");
     });
 
     it("should return error when profile does not exist", async () => {
@@ -208,8 +224,9 @@ describe("nori-registry-upload", () => {
 
       expect(result).not.toBeNull();
       expect(result!.decision).toBe("block");
-      expect(result!.reason).toContain("not found");
-      expect(result!.reason).toContain("nonexistent-profile");
+      const plainReason = stripAnsi(result!.reason!);
+      expect(plainReason).toContain("not found");
+      expect(plainReason).toContain("nonexistent-profile");
     });
 
     it("should upload profile successfully with default version", async () => {
@@ -231,8 +248,9 @@ describe("nori-registry-upload", () => {
 
       expect(result).not.toBeNull();
       expect(result!.decision).toBe("block");
-      expect(result!.reason).toContain("Successfully uploaded");
-      expect(result!.reason).toContain("test-profile@1.0.0");
+      const plainReason = stripAnsi(result!.reason!);
+      expect(plainReason).toContain("Successfully uploaded");
+      expect(plainReason).toContain("test-profile@1.0.0");
 
       // Verify API was called with default version
       expect(registrarApi.uploadProfile).toHaveBeenCalledWith(
@@ -263,7 +281,7 @@ describe("nori-registry-upload", () => {
 
       expect(result).not.toBeNull();
       expect(result!.decision).toBe("block");
-      expect(result!.reason).toContain("test-profile@2.0.0");
+      expect(stripAnsi(result!.reason!)).toContain("test-profile@2.0.0");
 
       // Verify API was called with specified version
       expect(registrarApi.uploadProfile).toHaveBeenCalledWith(
@@ -289,7 +307,7 @@ describe("nori-registry-upload", () => {
 
       expect(result).not.toBeNull();
       expect(result!.decision).toBe("block");
-      expect(result!.reason).toContain("Authentication failed");
+      expect(stripAnsi(result!.reason!)).toContain("Authentication failed");
     });
 
     it("should handle upload API errors", async () => {
@@ -308,8 +326,9 @@ describe("nori-registry-upload", () => {
 
       expect(result).not.toBeNull();
       expect(result!.decision).toBe("block");
-      expect(result!.reason).toContain("Upload failed");
-      expect(result!.reason).toContain("Version already exists");
+      const plainReason = stripAnsi(result!.reason!);
+      expect(plainReason).toContain("Upload failed");
+      expect(plainReason).toContain("Version already exists");
     });
 
     it("should handle version conflict (409) from server", async () => {
@@ -328,7 +347,7 @@ describe("nori-registry-upload", () => {
 
       expect(result).not.toBeNull();
       expect(result!.decision).toBe("block");
-      expect(result!.reason).toContain("already exists");
+      expect(stripAnsi(result!.reason!)).toContain("already exists");
     });
   });
 
