@@ -33,6 +33,12 @@ const SLASH_COMMAND_INTERCEPT_SCRIPT = path.resolve(
   "../../../../../build/src/installer/features/hooks/config/slash-command-intercept.js",
 );
 
+// Path to the nori-install-location script (for debugging)
+const NORI_INSTALL_LOCATION_SCRIPT = path.resolve(
+  __dirname,
+  "../../../../../build/src/installer/features/hooks/config/intercepted-slashcommands/nori-install-location.js",
+);
+
 // Helper to run the hook script with mock stdin
 const runHookScript = async (args: {
   scriptPath: string;
@@ -74,6 +80,42 @@ describe("slash-command-intercept hook", () => {
   let testDir: string;
   let profilesDir: string;
   let configPath: string;
+
+  // Debug: Log the first 10 lines of the nori-install-location.js file to see if @/ imports are resolved
+  it("DEBUG: should show nori-install-location.js content", async () => {
+    const exists = await fs
+      .stat(NORI_INSTALL_LOCATION_SCRIPT)
+      .catch(() => null);
+    process.stderr.write(
+      `\nDEBUG: Script path: ${NORI_INSTALL_LOCATION_SCRIPT}\n`,
+    );
+    process.stderr.write(`DEBUG: Script exists: ${!!exists}\n`);
+    if (exists) {
+      const content = await fs.readFile(NORI_INSTALL_LOCATION_SCRIPT, "utf-8");
+      const lines = content.split("\n").slice(0, 15);
+      process.stderr.write(
+        "DEBUG: First 15 lines of nori-install-location.js:\n",
+      );
+      lines.forEach((line, i) => process.stderr.write(`  ${i + 1}: ${line}\n`));
+
+      // Check for unresolved @/ imports
+      const hasUnresolvedImports =
+        content.includes('from "@/') || content.includes("from '@/");
+      process.stderr.write(
+        `DEBUG: Has unresolved @/ imports: ${hasUnresolvedImports}\n`,
+      );
+
+      // Fail if there are unresolved imports - include details in the assertion message
+      expect(
+        hasUnresolvedImports,
+        `nori-install-location.js has unresolved @/ imports!\n\nFirst 15 lines:\n${lines.join("\n")}`,
+      ).toBe(false);
+    } else {
+      throw new Error(
+        `Script file does not exist: ${NORI_INSTALL_LOCATION_SCRIPT}`,
+      );
+    }
+  });
 
   beforeEach(async () => {
     // Create test directory structure
