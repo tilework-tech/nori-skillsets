@@ -86,6 +86,48 @@ describe("registrarApi", () => {
       );
     });
 
+    it("should use custom registryUrl when provided", async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve([]),
+      });
+
+      await registrarApi.searchPackages({
+        query: "test",
+        registryUrl: "https://private-registry.example.com",
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "https://private-registry.example.com/api/packages/search?q=test",
+        expect.objectContaining({
+          method: "GET",
+        }),
+      );
+    });
+
+    it("should include auth token header when provided", async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve([]),
+      });
+
+      await registrarApi.searchPackages({
+        query: "test",
+        registryUrl: "https://private-registry.example.com",
+        authToken: "test-auth-token",
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "https://private-registry.example.com/api/packages/search?q=test",
+        expect.objectContaining({
+          method: "GET",
+          headers: expect.objectContaining({
+            Authorization: "Bearer test-auth-token",
+          }),
+        }),
+      );
+    });
+
     it("should throw error on non-OK response", async () => {
       mockFetch.mockResolvedValue({
         ok: false,
@@ -144,6 +186,64 @@ describe("registrarApi", () => {
       await expect(
         registrarApi.getPackument({ packageName: "nonexistent" }),
       ).rejects.toThrow("Package not found");
+    });
+
+    it("should use custom registryUrl when provided", async () => {
+      const mockPackument = {
+        name: "test-profile",
+        "dist-tags": { latest: "1.0.0" },
+        versions: {
+          "1.0.0": { name: "test-profile", version: "1.0.0" },
+        },
+      };
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(mockPackument),
+      });
+
+      await registrarApi.getPackument({
+        packageName: "test-profile",
+        registryUrl: "https://private-registry.example.com",
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "https://private-registry.example.com/api/packages/test-profile",
+        expect.objectContaining({
+          method: "GET",
+        }),
+      );
+    });
+
+    it("should include auth token header when provided", async () => {
+      const mockPackument = {
+        name: "test-profile",
+        "dist-tags": { latest: "1.0.0" },
+        versions: {
+          "1.0.0": { name: "test-profile", version: "1.0.0" },
+        },
+      };
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(mockPackument),
+      });
+
+      await registrarApi.getPackument({
+        packageName: "test-profile",
+        registryUrl: "https://private-registry.example.com",
+        authToken: "test-auth-token",
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "https://private-registry.example.com/api/packages/test-profile",
+        expect.objectContaining({
+          method: "GET",
+          headers: expect.objectContaining({
+            Authorization: "Bearer test-auth-token",
+          }),
+        }),
+      );
     });
   });
 
@@ -229,6 +329,106 @@ describe("registrarApi", () => {
         "https://registrar.tilework.tech/api/packages/test-profile/tarball/test-profile-2.0.0.tgz",
         expect.objectContaining({
           method: "GET",
+        }),
+      );
+    });
+
+    it("should use custom registryUrl when provided", async () => {
+      const mockTarballData = new ArrayBuffer(100);
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        arrayBuffer: () => Promise.resolve(mockTarballData),
+      });
+
+      await registrarApi.downloadTarball({
+        packageName: "test-profile",
+        version: "1.0.0",
+        registryUrl: "https://private-registry.example.com",
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "https://private-registry.example.com/api/packages/test-profile/tarball/test-profile-1.0.0.tgz",
+        expect.objectContaining({
+          method: "GET",
+        }),
+      );
+    });
+
+    it("should include auth token header when provided", async () => {
+      const mockTarballData = new ArrayBuffer(100);
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        arrayBuffer: () => Promise.resolve(mockTarballData),
+      });
+
+      await registrarApi.downloadTarball({
+        packageName: "test-profile",
+        version: "1.0.0",
+        registryUrl: "https://private-registry.example.com",
+        authToken: "test-auth-token",
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "https://private-registry.example.com/api/packages/test-profile/tarball/test-profile-1.0.0.tgz",
+        expect.objectContaining({
+          method: "GET",
+          headers: expect.objectContaining({
+            Authorization: "Bearer test-auth-token",
+          }),
+        }),
+      );
+    });
+
+    it("should pass registryUrl and authToken when resolving latest version", async () => {
+      const mockPackument = {
+        name: "test-profile",
+        "dist-tags": { latest: "2.0.0" },
+        versions: {
+          "2.0.0": { name: "test-profile", version: "2.0.0" },
+        },
+      };
+
+      const mockTarballData = new ArrayBuffer(100);
+
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve(mockPackument),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          arrayBuffer: () => Promise.resolve(mockTarballData),
+        });
+
+      await registrarApi.downloadTarball({
+        packageName: "test-profile",
+        registryUrl: "https://private-registry.example.com",
+        authToken: "test-auth-token",
+      });
+
+      // First call should be to get packument with auth
+      expect(mockFetch).toHaveBeenNthCalledWith(
+        1,
+        "https://private-registry.example.com/api/packages/test-profile",
+        expect.objectContaining({
+          method: "GET",
+          headers: expect.objectContaining({
+            Authorization: "Bearer test-auth-token",
+          }),
+        }),
+      );
+
+      // Second call should be to download tarball with auth
+      expect(mockFetch).toHaveBeenNthCalledWith(
+        2,
+        "https://private-registry.example.com/api/packages/test-profile/tarball/test-profile-2.0.0.tgz",
+        expect.objectContaining({
+          method: "GET",
+          headers: expect.objectContaining({
+            Authorization: "Bearer test-auth-token",
+          }),
         }),
       );
     });

@@ -11,13 +11,27 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 // Mock the registrar API
 vi.mock("@/api/registrar.js", () => ({
+  REGISTRAR_URL: "https://registrar.tilework.tech",
   registrarApi: {
     getPackument: vi.fn(),
     downloadTarball: vi.fn(),
   },
 }));
 
-import { registrarApi } from "@/api/registrar.js";
+// Mock the config module
+vi.mock("@/installer/config.js", () => ({
+  loadConfig: vi.fn(),
+  getRegistryAuth: vi.fn(),
+}));
+
+// Mock the registryAuth module
+vi.mock("@/api/registryAuth.js", () => ({
+  getRegistryAuthToken: vi.fn(),
+}));
+
+import { registrarApi, REGISTRAR_URL } from "@/api/registrar.js";
+import { getRegistryAuthToken } from "@/api/registryAuth.js";
+import { loadConfig, getRegistryAuth } from "@/installer/config.js";
 
 import type { HookInput } from "./types.js";
 
@@ -224,10 +238,12 @@ describe("nori-registry-download", () => {
       expect(stripAnsi(result!.reason!)).toContain("test-profile");
 
       // Verify API was called
-      expect(registrarApi.downloadTarball).toHaveBeenCalledWith({
-        packageName: "test-profile",
-        version: undefined,
-      });
+      expect(registrarApi.downloadTarball).toHaveBeenCalledWith(
+        expect.objectContaining({
+          packageName: "test-profile",
+          version: undefined,
+        }),
+      );
     });
 
     it("should download and extract gzipped tarball on success", async () => {
@@ -256,10 +272,12 @@ describe("nori-registry-download", () => {
       const result = await noriRegistryDownload.run({ input });
 
       expect(result).not.toBeNull();
-      expect(registrarApi.downloadTarball).toHaveBeenCalledWith({
-        packageName: "test-profile",
-        version: "2.0.0",
-      });
+      expect(registrarApi.downloadTarball).toHaveBeenCalledWith(
+        expect.objectContaining({
+          packageName: "test-profile",
+          version: "2.0.0",
+        }),
+      );
     });
 
     it("should handle network errors gracefully", async () => {
@@ -372,6 +390,342 @@ describe("nori-registry-download", () => {
       expect(result).not.toBeNull();
       expect(result!.reason).toContain(GREEN);
       expect(result!.reason).toContain(NC);
+    });
+  });
+
+  describe("multi-registry support", () => {
+    it("should match command with registry URL", () => {
+      const hasMatch = noriRegistryDownload.matchers.some((m) => {
+        const regex = new RegExp(m, "i");
+        return regex.test(
+          "/nori-registry-download my-profile https://private-registry.com",
+        );
+      });
+      expect(hasMatch).toBe(true);
+    });
+
+    it("should match command with version and registry URL", () => {
+      const hasMatch = noriRegistryDownload.matchers.some((m) => {
+        const regex = new RegExp(m, "i");
+        return regex.test(
+          "/nori-registry-download my-profile@1.0.0 https://private-registry.com",
+        );
+      });
+      expect(hasMatch).toBe(true);
+    });
+
+    it("should download from public registry when package found only there", async () => {
+      const mockTarball = await createMockTarball();
+
+      // Config with no private registries
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        profile: { baseProfile: "senior-swe" },
+        registryAuths: null,
+      });
+
+      // Package found in public registry
+      vi.mocked(registrarApi.getPackument).mockResolvedValue({
+        name: "test-profile",
+        "dist-tags": { latest: "1.0.0" },
+        versions: {
+          "1.0.0": { name: "test-profile", version: "1.0.0" },
+        },
+      });
+      vi.mocked(registrarApi.downloadTarball).mockResolvedValue(mockTarball);
+
+      const input = createInput({
+        prompt: "/nori-registry-download test-profile",
+      });
+      const result = await noriRegistryDownload.run({ input });
+
+      expect(result).not.toBeNull();
+      expect(result!.decision).toBe("block");
+      const plainReason = stripAnsi(result!.reason!);
+      expect(plainReason).toContain("Downloaded");
+      expect(plainReason).toContain(REGISTRAR_URL);
+    });
+
+    it("should download from private registry when package found only there", async () => {
+      const mockTarball = await createMockTarball();
+
+      // Config with private registry
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        profile: { baseProfile: "senior-swe" },
+        registryAuths: [
+          {
+            username: "test@example.com",
+            password: "password",
+            registryUrl: "https://private-registry.com",
+          },
+        ],
+      });
+
+      vi.mocked(getRegistryAuth).mockReturnValue({
+        username: "test@example.com",
+        password: "password",
+        registryUrl: "https://private-registry.com",
+      });
+
+      vi.mocked(getRegistryAuthToken).mockResolvedValue("test-auth-token");
+
+      // Package not found in public registry (404)
+      vi.mocked(registrarApi.getPackument)
+        .mockRejectedValueOnce(new Error("Package not found"))
+        .mockResolvedValueOnce({
+          name: "test-profile",
+          description: "A private profile",
+          "dist-tags": { latest: "1.0.0" },
+          versions: {
+            "1.0.0": { name: "test-profile", version: "1.0.0" },
+          },
+        });
+
+      vi.mocked(registrarApi.downloadTarball).mockResolvedValue(mockTarball);
+
+      const input = createInput({
+        prompt: "/nori-registry-download test-profile",
+      });
+      const result = await noriRegistryDownload.run({ input });
+
+      expect(result).not.toBeNull();
+      expect(result!.decision).toBe("block");
+      const plainReason = stripAnsi(result!.reason!);
+      expect(plainReason).toContain("Downloaded");
+      expect(plainReason).toContain("https://private-registry.com");
+    });
+
+    it("should return error with options when package found in multiple registries", async () => {
+      // Config with private registry
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        profile: { baseProfile: "senior-swe" },
+        registryAuths: [
+          {
+            username: "test@example.com",
+            password: "password",
+            registryUrl: "https://private-registry.com",
+          },
+        ],
+      });
+
+      vi.mocked(getRegistryAuth).mockReturnValue({
+        username: "test@example.com",
+        password: "password",
+        registryUrl: "https://private-registry.com",
+      });
+
+      vi.mocked(getRegistryAuthToken).mockResolvedValue("test-auth-token");
+
+      // Package found in both registries
+      vi.mocked(registrarApi.getPackument)
+        .mockResolvedValueOnce({
+          name: "test-profile",
+          description: "Public profile",
+          "dist-tags": { latest: "1.0.0" },
+          versions: {
+            "1.0.0": { name: "test-profile", version: "1.0.0" },
+          },
+        })
+        .mockResolvedValueOnce({
+          name: "test-profile",
+          description: "Private profile",
+          "dist-tags": { latest: "2.0.0" },
+          versions: {
+            "2.0.0": { name: "test-profile", version: "2.0.0" },
+          },
+        });
+
+      const input = createInput({
+        prompt: "/nori-registry-download test-profile",
+      });
+      const result = await noriRegistryDownload.run({ input });
+
+      expect(result).not.toBeNull();
+      expect(result!.decision).toBe("block");
+      const plainReason = stripAnsi(result!.reason!);
+      expect(plainReason).toContain("Multiple packages");
+      expect(plainReason).toContain(REGISTRAR_URL);
+      expect(plainReason).toContain("https://private-registry.com");
+      expect(plainReason).toContain("test-profile@1.0.0");
+      expect(plainReason).toContain("test-profile@2.0.0");
+      expect(plainReason).toContain("/nori-registry-download test-profile");
+    });
+
+    it("should download from specific registry when URL is provided", async () => {
+      const mockTarball = await createMockTarball();
+
+      // Config with private registry
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        profile: { baseProfile: "senior-swe" },
+        registryAuths: [
+          {
+            username: "test@example.com",
+            password: "password",
+            registryUrl: "https://private-registry.com",
+          },
+        ],
+      });
+
+      vi.mocked(getRegistryAuth).mockReturnValue({
+        username: "test@example.com",
+        password: "password",
+        registryUrl: "https://private-registry.com",
+      });
+
+      vi.mocked(getRegistryAuthToken).mockResolvedValue("test-auth-token");
+
+      vi.mocked(registrarApi.getPackument).mockResolvedValue({
+        name: "test-profile",
+        "dist-tags": { latest: "1.0.0" },
+        versions: {
+          "1.0.0": { name: "test-profile", version: "1.0.0" },
+        },
+      });
+
+      vi.mocked(registrarApi.downloadTarball).mockResolvedValue(mockTarball);
+
+      const input = createInput({
+        prompt:
+          "/nori-registry-download test-profile https://private-registry.com",
+      });
+      const result = await noriRegistryDownload.run({ input });
+
+      expect(result).not.toBeNull();
+      expect(result!.decision).toBe("block");
+      const plainReason = stripAnsi(result!.reason!);
+      expect(plainReason).toContain("Downloaded");
+
+      // Should only call getPackument once (for the specified registry)
+      expect(registrarApi.getPackument).toHaveBeenCalledTimes(1);
+      expect(registrarApi.getPackument).toHaveBeenCalledWith(
+        expect.objectContaining({
+          packageName: "test-profile",
+          registryUrl: "https://private-registry.com",
+        }),
+      );
+    });
+
+    it("should return error when package not found in any registry", async () => {
+      // Config with private registry
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        profile: { baseProfile: "senior-swe" },
+        registryAuths: [
+          {
+            username: "test@example.com",
+            password: "password",
+            registryUrl: "https://private-registry.com",
+          },
+        ],
+      });
+
+      vi.mocked(getRegistryAuth).mockReturnValue({
+        username: "test@example.com",
+        password: "password",
+        registryUrl: "https://private-registry.com",
+      });
+
+      vi.mocked(getRegistryAuthToken).mockResolvedValue("test-auth-token");
+
+      // Package not found in any registry
+      vi.mocked(registrarApi.getPackument).mockRejectedValue(
+        new Error("Package not found"),
+      );
+
+      const input = createInput({
+        prompt: "/nori-registry-download nonexistent-profile",
+      });
+      const result = await noriRegistryDownload.run({ input });
+
+      expect(result).not.toBeNull();
+      expect(result!.decision).toBe("block");
+      const plainReason = stripAnsi(result!.reason!);
+      expect(plainReason).toContain("not found");
+    });
+
+    it("should continue searching other registries when one fails with auth error", async () => {
+      const mockTarball = await createMockTarball();
+
+      // Config with two private registries
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        profile: { baseProfile: "senior-swe" },
+        registryAuths: [
+          {
+            username: "test@example.com",
+            password: "password",
+            registryUrl: "https://private-registry-1.com",
+          },
+          {
+            username: "test@example.com",
+            password: "password",
+            registryUrl: "https://private-registry-2.com",
+          },
+        ],
+      });
+
+      vi.mocked(getRegistryAuth).mockImplementation((args) => {
+        if (args.registryUrl === "https://private-registry-1.com") {
+          return {
+            username: "test@example.com",
+            password: "password",
+            registryUrl: "https://private-registry-1.com",
+          };
+        }
+        if (args.registryUrl === "https://private-registry-2.com") {
+          return {
+            username: "test@example.com",
+            password: "password",
+            registryUrl: "https://private-registry-2.com",
+          };
+        }
+        return null;
+      });
+
+      // Auth fails for first private registry
+      vi.mocked(getRegistryAuthToken)
+        .mockRejectedValueOnce(new Error("Auth failed"))
+        .mockResolvedValueOnce("test-auth-token");
+
+      // Package not in public, not in first private (auth failed), found in second private
+      vi.mocked(registrarApi.getPackument)
+        .mockRejectedValueOnce(new Error("Package not found")) // public
+        .mockResolvedValueOnce({
+          // second private (first is skipped due to auth failure)
+          name: "test-profile",
+          description: "Found in second private",
+          "dist-tags": { latest: "1.0.0" },
+          versions: {
+            "1.0.0": { name: "test-profile", version: "1.0.0" },
+          },
+        });
+
+      vi.mocked(registrarApi.downloadTarball).mockResolvedValue(mockTarball);
+
+      const input = createInput({
+        prompt: "/nori-registry-download test-profile",
+      });
+      const result = await noriRegistryDownload.run({ input });
+
+      expect(result).not.toBeNull();
+      expect(result!.decision).toBe("block");
+      const plainReason = stripAnsi(result!.reason!);
+      expect(plainReason).toContain("Downloaded");
+      expect(plainReason).toContain("https://private-registry-2.com");
+    });
+
+    it("should update help message to show registry URL option", async () => {
+      const input = createInput({
+        prompt: "/nori-registry-download",
+      });
+      const result = await noriRegistryDownload.run({ input });
+
+      expect(result).not.toBeNull();
+      const plainReason = stripAnsi(result!.reason!);
+      expect(plainReason).toContain("registry-url");
     });
   });
 });
