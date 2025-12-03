@@ -137,7 +137,10 @@ describe("slash-command-intercept hook", () => {
 
       const result = await runHookScript({ scriptPath, stdinData });
 
-      expect(result.exitCode).toBe(0);
+      expect(
+        result.exitCode,
+        `Expected exit code 0, got ${result.exitCode}. stderr: ${result.stderr}, stdout: ${result.stdout}`,
+      ).toBe(0);
 
       const output = JSON.parse(result.stdout);
       expect(output.decision).toBe("block");
@@ -163,7 +166,10 @@ describe("slash-command-intercept hook", () => {
 
       const result = await runHookScript({ scriptPath, stdinData });
 
-      expect(result.exitCode).toBe(0);
+      expect(
+        result.exitCode,
+        `Expected exit code 0, got ${result.exitCode}. stderr: ${result.stderr}, stdout: ${result.stdout}`,
+      ).toBe(0);
 
       const output = JSON.parse(result.stdout);
       expect(output.decision).toBe("block");
@@ -199,7 +205,10 @@ describe("slash-command-intercept hook", () => {
 
       const result = await runHookScript({ scriptPath, stdinData });
 
-      expect(result.exitCode).toBe(0);
+      expect(
+        result.exitCode,
+        `Expected exit code 0, got ${result.exitCode}. stderr: ${result.stderr}, stdout: ${result.stdout}`,
+      ).toBe(0);
 
       const output = JSON.parse(result.stdout);
       expect(output.decision).toBe("block");
