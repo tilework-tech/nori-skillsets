@@ -233,4 +233,152 @@ describe("registrarApi", () => {
       );
     });
   });
+
+  describe("uploadProfile", () => {
+    it("should upload profile with multipart form data", async () => {
+      const mockResponse = {
+        name: "test-profile",
+        version: "1.0.0",
+        description: "Test description",
+        tarballSha: "sha512-abc123",
+        createdAt: "2024-01-01T00:00:00.000Z",
+      };
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(mockResponse),
+      });
+
+      const archiveData = new ArrayBuffer(100);
+      const result = await registrarApi.uploadProfile({
+        packageName: "test-profile",
+        version: "1.0.0",
+        archiveData,
+        authToken: "test-token",
+      });
+
+      expect(result).toEqual(mockResponse);
+      expect(mockFetch).toHaveBeenCalledWith(
+        "https://registrar.tilework.tech/api/packages/test-profile/profile",
+        expect.objectContaining({
+          method: "PUT",
+          headers: expect.objectContaining({
+            Authorization: "Bearer test-token",
+          }),
+        }),
+      );
+
+      // Verify the body is FormData
+      const callArgs = mockFetch.mock.calls[0];
+      expect(callArgs[1].body).toBeInstanceOf(FormData);
+    });
+
+    it("should include description in form data when provided", async () => {
+      const mockResponse = {
+        name: "test-profile",
+        version: "1.0.0",
+        description: "Custom description",
+        tarballSha: "sha512-abc123",
+        createdAt: "2024-01-01T00:00:00.000Z",
+      };
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(mockResponse),
+      });
+
+      const archiveData = new ArrayBuffer(100);
+      await registrarApi.uploadProfile({
+        packageName: "test-profile",
+        version: "1.0.0",
+        archiveData,
+        description: "Custom description",
+        authToken: "test-token",
+      });
+
+      // Verify FormData includes description
+      const callArgs = mockFetch.mock.calls[0];
+      const formData = callArgs[1].body as FormData;
+      expect(formData.get("description")).toBe("Custom description");
+    });
+
+    it("should throw error on unauthorized (401)", async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 401,
+        json: () => Promise.resolve({ error: "Unauthorized" }),
+      });
+
+      const archiveData = new ArrayBuffer(100);
+      await expect(
+        registrarApi.uploadProfile({
+          packageName: "test-profile",
+          version: "1.0.0",
+          archiveData,
+          authToken: "invalid-token",
+        }),
+      ).rejects.toThrow("Unauthorized");
+    });
+
+    it("should throw error on forbidden (403)", async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 403,
+        json: () =>
+          Promise.resolve({
+            error: "You are not a maintainer of package test-profile",
+          }),
+      });
+
+      const archiveData = new ArrayBuffer(100);
+      await expect(
+        registrarApi.uploadProfile({
+          packageName: "test-profile",
+          version: "1.0.0",
+          archiveData,
+          authToken: "test-token",
+        }),
+      ).rejects.toThrow("You are not a maintainer");
+    });
+
+    it("should throw error on version conflict (409)", async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 409,
+        json: () =>
+          Promise.resolve({
+            error: "Version 1.0.0 already exists for package test-profile",
+          }),
+      });
+
+      const archiveData = new ArrayBuffer(100);
+      await expect(
+        registrarApi.uploadProfile({
+          packageName: "test-profile",
+          version: "1.0.0",
+          archiveData,
+          authToken: "test-token",
+        }),
+      ).rejects.toThrow("already exists");
+    });
+
+    it("should throw error on validation failure (400)", async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 400,
+        json: () =>
+          Promise.resolve({ error: "Profile must contain CLAUDE.md" }),
+      });
+
+      const archiveData = new ArrayBuffer(100);
+      await expect(
+        registrarApi.uploadProfile({
+          packageName: "test-profile",
+          version: "1.0.0",
+          archiveData,
+          authToken: "test-token",
+        }),
+      ).rejects.toThrow("CLAUDE.md");
+    });
+  });
 });

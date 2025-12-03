@@ -11,6 +11,15 @@ import Ajv from "ajv";
 import { normalizeUrl } from "@/utils/url.js";
 
 /**
+ * Registry authentication credentials
+ */
+export type RegistryAuth = {
+  username: string;
+  password: string;
+  registryUrl: string;
+};
+
+/**
  * Unified configuration type for Nori Profiles
  * Contains all persisted fields from disk plus required installDir
  */
@@ -26,6 +35,7 @@ export type Config = {
   sendSessionTranscript?: "enabled" | "disabled" | null;
   autoupdate?: "enabled" | "disabled" | null;
   installDir: string;
+  registryAuths?: Array<RegistryAuth> | null;
 };
 
 /**
@@ -59,6 +69,31 @@ export const getDefaultProfile = (): { baseProfile: string } => {
  */
 export const isPaidInstall = (args: { config: Config }): boolean => {
   return args.config.auth != null;
+};
+
+/**
+ * Get registry authentication for a specific registry URL
+ * @param args - Configuration arguments
+ * @param args.config - The config to search
+ * @param args.registryUrl - The registry URL to find auth for
+ *
+ * @returns The matching RegistryAuth or null if not found
+ */
+export const getRegistryAuth = (args: {
+  config: Config;
+  registryUrl: string;
+}): RegistryAuth | null => {
+  const { config, registryUrl } = args;
+  if (config.registryAuths == null) {
+    return null;
+  }
+  const normalizedSearchUrl = normalizeUrl({ baseUrl: registryUrl });
+  return (
+    config.registryAuths.find(
+      (auth) =>
+        normalizeUrl({ baseUrl: auth.registryUrl }) === normalizedSearchUrl,
+    ) ?? null
+  );
 };
 
 /**
@@ -136,6 +171,21 @@ export const loadConfig = async (args: {
         result.autoupdate = "enabled"; // Default value
       }
 
+      // Check if registryAuths exists and is valid array
+      if (Array.isArray(config.registryAuths)) {
+        const validAuths = config.registryAuths.filter(
+          (auth: any) =>
+            auth &&
+            typeof auth === "object" &&
+            typeof auth.username === "string" &&
+            typeof auth.password === "string" &&
+            typeof auth.registryUrl === "string",
+        );
+        if (validAuths.length > 0) {
+          result.registryAuths = validAuths;
+        }
+      }
+
       // Return result if we have at least auth, profile, or sendSessionTranscript
       if (
         result.auth != null ||
@@ -162,6 +212,7 @@ export const loadConfig = async (args: {
  * @param args.sendSessionTranscript - Session transcript setting (null to skip)
  * @param args.autoupdate - Autoupdate setting (null to skip)
  * @param args.installDir - Installation directory
+ * @param args.registryAuths - Array of registry authentication credentials (null to skip)
  */
 export const saveConfig = async (args: {
   username: string | null;
@@ -170,6 +221,7 @@ export const saveConfig = async (args: {
   profile?: { baseProfile: string } | null;
   sendSessionTranscript?: "enabled" | "disabled" | null;
   autoupdate?: "enabled" | "disabled" | null;
+  registryAuths?: Array<RegistryAuth> | null;
   installDir: string;
 }): Promise<void> => {
   const {
@@ -179,6 +231,7 @@ export const saveConfig = async (args: {
     profile,
     sendSessionTranscript,
     autoupdate,
+    registryAuths,
     installDir,
   } = args;
   const configPath = getConfigPath({ installDir });
@@ -210,6 +263,11 @@ export const saveConfig = async (args: {
     config.autoupdate = autoupdate;
   }
 
+  // Add registryAuths if provided and not empty
+  if (registryAuths != null && registryAuths.length > 0) {
+    config.registryAuths = registryAuths;
+  }
+
   // Always save installDir
   config.installDir = installDir;
 
@@ -239,6 +297,25 @@ const configSchema = {
     autoupdate: {
       type: "string",
       enum: ["enabled", "disabled"],
+    },
+    profile: {
+      type: "object",
+      properties: {
+        baseProfile: { type: "string" },
+      },
+    },
+    installDir: { type: "string" },
+    registryAuths: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          username: { type: "string" },
+          password: { type: "string" },
+          registryUrl: { type: "string" },
+        },
+        required: ["username", "password", "registryUrl"],
+      },
     },
   },
   additionalProperties: false,

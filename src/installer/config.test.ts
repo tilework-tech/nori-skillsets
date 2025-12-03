@@ -368,3 +368,311 @@ describe("isPaidInstall", () => {
     expect(isPaidInstall({ config })).toBe(false);
   });
 });
+
+describe("registryAuths", () => {
+  let tempDir: string;
+  let mockConfigPath: string;
+
+  beforeEach(async () => {
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "config-registry-test-"));
+    mockConfigPath = path.join(tempDir, ".nori-config.json");
+  });
+
+  afterEach(async () => {
+    await fs.rm(tempDir, { recursive: true, force: true });
+  });
+
+  describe("loadConfig with registryAuths", () => {
+    it("should load registryAuths when present and valid", async () => {
+      await fs.writeFile(
+        mockConfigPath,
+        JSON.stringify({
+          profile: { baseProfile: "senior-swe" },
+          registryAuths: [
+            {
+              username: "test@example.com",
+              password: "password123",
+              registryUrl: "https://registrar.tilework.tech",
+            },
+          ],
+        }),
+      );
+
+      const loaded = await loadConfig({ installDir: tempDir });
+
+      expect(loaded?.registryAuths).toEqual([
+        {
+          username: "test@example.com",
+          password: "password123",
+          registryUrl: "https://registrar.tilework.tech",
+        },
+      ]);
+    });
+
+    it("should load multiple registryAuths", async () => {
+      await fs.writeFile(
+        mockConfigPath,
+        JSON.stringify({
+          profile: { baseProfile: "senior-swe" },
+          registryAuths: [
+            {
+              username: "user1@example.com",
+              password: "pass1",
+              registryUrl: "https://registry1.example.com",
+            },
+            {
+              username: "user2@example.com",
+              password: "pass2",
+              registryUrl: "https://registry2.example.com",
+            },
+          ],
+        }),
+      );
+
+      const loaded = await loadConfig({ installDir: tempDir });
+
+      expect(loaded?.registryAuths).toHaveLength(2);
+      expect(loaded?.registryAuths?.[0].registryUrl).toBe(
+        "https://registry1.example.com",
+      );
+      expect(loaded?.registryAuths?.[1].registryUrl).toBe(
+        "https://registry2.example.com",
+      );
+    });
+
+    it("should filter out invalid registryAuths entries", async () => {
+      await fs.writeFile(
+        mockConfigPath,
+        JSON.stringify({
+          profile: { baseProfile: "senior-swe" },
+          registryAuths: [
+            {
+              username: "valid@example.com",
+              password: "validpass",
+              registryUrl: "https://valid.example.com",
+            },
+            {
+              // Missing password
+              username: "invalid@example.com",
+              registryUrl: "https://invalid.example.com",
+            },
+            {
+              // Missing username
+              password: "pass",
+              registryUrl: "https://invalid2.example.com",
+            },
+            {
+              // Missing registryUrl
+              username: "user@example.com",
+              password: "pass",
+            },
+            "not an object",
+            null,
+          ],
+        }),
+      );
+
+      const loaded = await loadConfig({ installDir: tempDir });
+
+      expect(loaded?.registryAuths).toHaveLength(1);
+      expect(loaded?.registryAuths?.[0].username).toBe("valid@example.com");
+    });
+
+    it("should return null registryAuths when array is empty after filtering", async () => {
+      await fs.writeFile(
+        mockConfigPath,
+        JSON.stringify({
+          profile: { baseProfile: "senior-swe" },
+          registryAuths: [
+            { username: "incomplete" }, // Invalid - missing fields
+          ],
+        }),
+      );
+
+      const loaded = await loadConfig({ installDir: tempDir });
+
+      expect(loaded?.registryAuths).toBeUndefined();
+    });
+
+    it("should handle non-array registryAuths gracefully", async () => {
+      await fs.writeFile(
+        mockConfigPath,
+        JSON.stringify({
+          profile: { baseProfile: "senior-swe" },
+          registryAuths: "not an array",
+        }),
+      );
+
+      const loaded = await loadConfig({ installDir: tempDir });
+
+      expect(loaded?.registryAuths).toBeUndefined();
+    });
+  });
+
+  describe("saveConfig with registryAuths", () => {
+    it("should save registryAuths to config file", async () => {
+      await saveConfig({
+        username: null,
+        password: null,
+        organizationUrl: null,
+        profile: { baseProfile: "senior-swe" },
+        registryAuths: [
+          {
+            username: "test@example.com",
+            password: "testpass",
+            registryUrl: "https://registrar.tilework.tech",
+          },
+        ],
+        installDir: tempDir,
+      });
+
+      const content = await fs.readFile(mockConfigPath, "utf-8");
+      const config = JSON.parse(content);
+
+      expect(config.registryAuths).toEqual([
+        {
+          username: "test@example.com",
+          password: "testpass",
+          registryUrl: "https://registrar.tilework.tech",
+        },
+      ]);
+    });
+
+    it("should not save registryAuths when null", async () => {
+      await saveConfig({
+        username: null,
+        password: null,
+        organizationUrl: null,
+        profile: { baseProfile: "senior-swe" },
+        registryAuths: null,
+        installDir: tempDir,
+      });
+
+      const content = await fs.readFile(mockConfigPath, "utf-8");
+      const config = JSON.parse(content);
+
+      expect(config.registryAuths).toBeUndefined();
+    });
+
+    it("should not save registryAuths when empty array", async () => {
+      await saveConfig({
+        username: null,
+        password: null,
+        organizationUrl: null,
+        profile: { baseProfile: "senior-swe" },
+        registryAuths: [],
+        installDir: tempDir,
+      });
+
+      const content = await fs.readFile(mockConfigPath, "utf-8");
+      const config = JSON.parse(content);
+
+      expect(config.registryAuths).toBeUndefined();
+    });
+  });
+
+  describe("getRegistryAuth", () => {
+    it("should find auth for matching registryUrl", async () => {
+      const { getRegistryAuth } = await import("./config.js");
+
+      const config: Config = {
+        installDir: "/test",
+        registryAuths: [
+          {
+            username: "test@example.com",
+            password: "testpass",
+            registryUrl: "https://registrar.tilework.tech",
+          },
+        ],
+      };
+
+      const auth = getRegistryAuth({
+        config,
+        registryUrl: "https://registrar.tilework.tech",
+      });
+
+      expect(auth).toEqual({
+        username: "test@example.com",
+        password: "testpass",
+        registryUrl: "https://registrar.tilework.tech",
+      });
+    });
+
+    it("should return null when no matching registryUrl", async () => {
+      const { getRegistryAuth } = await import("./config.js");
+
+      const config: Config = {
+        installDir: "/test",
+        registryAuths: [
+          {
+            username: "test@example.com",
+            password: "testpass",
+            registryUrl: "https://other-registry.example.com",
+          },
+        ],
+      };
+
+      const auth = getRegistryAuth({
+        config,
+        registryUrl: "https://registrar.tilework.tech",
+      });
+
+      expect(auth).toBeNull();
+    });
+
+    it("should return null when registryAuths is null", async () => {
+      const { getRegistryAuth } = await import("./config.js");
+
+      const config: Config = {
+        installDir: "/test",
+        registryAuths: null,
+      };
+
+      const auth = getRegistryAuth({
+        config,
+        registryUrl: "https://registrar.tilework.tech",
+      });
+
+      expect(auth).toBeNull();
+    });
+
+    it("should return null when registryAuths is undefined", async () => {
+      const { getRegistryAuth } = await import("./config.js");
+
+      const config: Config = {
+        installDir: "/test",
+      };
+
+      const auth = getRegistryAuth({
+        config,
+        registryUrl: "https://registrar.tilework.tech",
+      });
+
+      expect(auth).toBeNull();
+    });
+
+    it("should match registryUrl with trailing slash normalization", async () => {
+      const { getRegistryAuth } = await import("./config.js");
+
+      const config: Config = {
+        installDir: "/test",
+        registryAuths: [
+          {
+            username: "test@example.com",
+            password: "testpass",
+            registryUrl: "https://registrar.tilework.tech/",
+          },
+        ],
+      };
+
+      // Search without trailing slash should find auth with trailing slash
+      const auth = getRegistryAuth({
+        config,
+        registryUrl: "https://registrar.tilework.tech",
+      });
+
+      expect(auth).not.toBeNull();
+      expect(auth?.username).toBe("test@example.com");
+    });
+  });
+});
