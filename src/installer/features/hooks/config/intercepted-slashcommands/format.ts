@@ -20,7 +20,7 @@ const DEFAULT_TERMINAL_WIDTH = 80;
  * @returns The terminal width in columns
  */
 const getTerminalWidth = (): number => {
-  return process.stdout.columns || DEFAULT_TERMINAL_WIDTH;
+  return process.stdout.columns ?? DEFAULT_TERMINAL_WIDTH;
 };
 
 /**
