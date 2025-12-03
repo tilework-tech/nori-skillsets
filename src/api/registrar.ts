@@ -77,6 +77,7 @@ export type UploadProfileRequest = {
   archiveData: ArrayBuffer;
   description?: string | null;
   authToken: string;
+  registryUrl?: string | null;
 };
 
 export type UploadProfileResponse = {
@@ -264,7 +265,15 @@ export const registrarApi = {
   uploadProfile: async (
     args: UploadProfileRequest,
   ): Promise<UploadProfileResponse> => {
-    const { packageName, version, archiveData, description, authToken } = args;
+    const {
+      packageName,
+      version,
+      archiveData,
+      description,
+      authToken,
+      registryUrl,
+    } = args;
+    const baseUrl = registryUrl ?? REGISTRAR_URL;
 
     const formData = new FormData();
     formData.append("archive", new Blob([archiveData]), `${packageName}.tgz`);
@@ -273,7 +282,7 @@ export const registrarApi = {
       formData.append("description", description);
     }
 
-    const url = `${REGISTRAR_URL}/api/packages/${packageName}/profile`;
+    const url = `${baseUrl}/api/packages/${packageName}/profile`;
 
     const response = await fetch(url, {
       method: "PUT",

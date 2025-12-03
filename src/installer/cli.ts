@@ -14,6 +14,7 @@ import { error, success, info } from "@/installer/logger.js";
 import { switchProfile } from "@/installer/profiles.js";
 import { registerRegistryDownloadCommand } from "@/installer/registryDownload.js";
 import { registerRegistrySearchCommand } from "@/installer/registrySearch.js";
+import { registerRegistryUploadCommand } from "@/installer/registryUpload.js";
 import { registerUninstallCommand } from "@/installer/uninstall.js";
 import { getCurrentPackageVersion } from "@/installer/version.js";
 import { normalizeInstallDir, getInstallDirs } from "@/utils/path.js";
@@ -132,6 +133,8 @@ Examples:
   $ nori-ai registry-search typescript
   $ nori-ai registry-download my-profile
   $ nori-ai registry-download my-profile@1.0.0
+  $ nori-ai registry-upload my-profile
+  $ nori-ai registry-upload my-profile@1.0.0 --registry https://registry.example.com
   $ nori-ai --non-interactive install
 `,
   );
@@ -144,6 +147,7 @@ registerSwitchProfileCommand({ program });
 registerInstallLocationCommand({ program });
 registerRegistrySearchCommand({ program });
 registerRegistryDownloadCommand({ program });
+registerRegistryUploadCommand({ program });
 
 program.parse(process.argv);
 

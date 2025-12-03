@@ -687,5 +687,65 @@ describe("registrarApi", () => {
         }),
       ).rejects.toThrow("CLAUDE.md");
     });
+
+    it("should use custom registryUrl when provided", async () => {
+      const mockResponse = {
+        name: "test-profile",
+        version: "1.0.0",
+        tarballSha: "sha512-abc123",
+        createdAt: "2024-01-01T00:00:00.000Z",
+      };
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(mockResponse),
+      });
+
+      const archiveData = new ArrayBuffer(100);
+      await registrarApi.uploadProfile({
+        packageName: "test-profile",
+        version: "1.0.0",
+        archiveData,
+        authToken: "test-token",
+        registryUrl: "https://private-registry.example.com",
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "https://private-registry.example.com/api/packages/test-profile/profile",
+        expect.objectContaining({
+          method: "PUT",
+          headers: expect.objectContaining({
+            Authorization: "Bearer test-token",
+          }),
+        }),
+      );
+    });
+
+    it("should default to REGISTRAR_URL when registryUrl not provided", async () => {
+      const mockResponse = {
+        name: "test-profile",
+        version: "1.0.0",
+        tarballSha: "sha512-abc123",
+        createdAt: "2024-01-01T00:00:00.000Z",
+      };
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(mockResponse),
+      });
+
+      const archiveData = new ArrayBuffer(100);
+      await registrarApi.uploadProfile({
+        packageName: "test-profile",
+        version: "1.0.0",
+        archiveData,
+        authToken: "test-token",
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "https://registrar.tilework.tech/api/packages/test-profile/profile",
+        expect.anything(),
+      );
+    });
   });
 });

@@ -1,6 +1,6 @@
 /**
  * Intercepted slash command for uploading profiles to the registry
- * Handles /nori-registry-upload <profile-name> [version] command
+ * Handles /nori-registry-upload <profile-name> [version] [registry-url] command
  */
 
 import * as fs from "fs/promises";
@@ -8,7 +8,7 @@ import * as path from "path";
 
 import * as tar from "tar";
 
-import { registrarApi, REGISTRAR_URL } from "@/api/registrar.js";
+import { registrarApi } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
 import { loadConfig, getRegistryAuth } from "@/installer/config.js";
 import { getInstallDirs } from "@/utils/path.js";
@@ -18,22 +18,33 @@ import type {
   HookOutput,
   InterceptedSlashCommand,
 } from "./types.js";
+import type { Config, RegistryAuth } from "@/installer/config.js";
 
 import { formatError, formatSuccess } from "./format.js";
 
 /**
- * Parse profile name and optional version from prompt
- * Supports formats: "profile-name" or "profile-name version"
+ * Parse profile name, optional version, and optional registry URL from prompt
+ * Supports formats:
+ *   - "profile-name"
+ *   - "profile-name version"
+ *   - "profile-name registry-url"
+ *   - "profile-name version registry-url"
  * @param prompt - The user prompt to parse
  *
  * @returns Parsed upload args or null if invalid
  */
 const parseUploadArgs = (
   prompt: string,
-): { profileName: string; version?: string | null } | null => {
+): {
+  profileName: string;
+  version?: string | null;
+  registryUrl?: string | null;
+} | null => {
   const match = prompt
     .trim()
-    .match(/^\/nori-registry-upload\s+([a-z0-9-]+)(?:\s+(\d+\.\d+\.\d+.*))?$/i);
+    .match(
+      /^\/nori-registry-upload\s+([a-z0-9-]+)(?:\s+(\d+\.\d+\.\d+[^\s]*))?(?:\s+(https?:\/\/\S+))?$/i,
+    );
 
   if (!match) {
     return null;
@@ -42,7 +53,58 @@ const parseUploadArgs = (
   return {
     profileName: match[1],
     version: match[2] ?? null,
+    registryUrl: match[3] ?? null,
   };
+};
+
+/**
+ * Get list of registries the user can upload to
+ * @param args - The function arguments
+ * @param args.config - The Nori configuration
+ *
+ * @returns Array of registry URLs with auth configured
+ */
+const getAvailableUploadRegistries = (args: {
+  config: Config;
+}): Array<RegistryAuth> => {
+  const { config } = args;
+
+  if (config.registryAuths == null || config.registryAuths.length === 0) {
+    return [];
+  }
+
+  return config.registryAuths;
+};
+
+/**
+ * Format error message when multiple registries are available
+ * @param args - The function arguments
+ * @param args.profileName - The profile name to upload
+ * @param args.registries - The available registries
+ *
+ * @returns Formatted error message
+ */
+const formatMultipleRegistriesError = (args: {
+  profileName: string;
+  registries: Array<RegistryAuth>;
+}): string => {
+  const { profileName, registries } = args;
+
+  const lines = [
+    "Multiple registries configured. Please specify which registry to upload to.\n",
+    "Available registries:",
+  ];
+
+  for (const registry of registries) {
+    lines.push(`  -> ${registry.registryUrl}`);
+  }
+
+  lines.push("\nTo upload, include the registry URL:");
+  for (const registry of registries) {
+    lines.push(`/nori-registry-upload ${profileName} ${registry.registryUrl}`);
+  }
+
+  return lines.join("\n");
 };
 
 /**
@@ -113,12 +175,12 @@ const run = async (args: { input: HookInput }): Promise<HookOutput | null> => {
     return {
       decision: "block",
       reason: formatSuccess({
-        message: `Upload a profile to the Nori registry.\n\nUsage: /nori-registry-upload <profile-name> [version]\n\nExamples:\n  /nori-registry-upload my-profile\n  /nori-registry-upload my-profile 1.0.0\n\nRequires registry authentication in .nori-config.json`,
+        message: `Upload a profile to the Nori registry.\n\nUsage: /nori-registry-upload <profile-name> [version] [registry-url]\n\nExamples:\n  /nori-registry-upload my-profile\n  /nori-registry-upload my-profile 1.0.0\n  /nori-registry-upload my-profile https://registry.example.com\n  /nori-registry-upload my-profile 1.0.0 https://registry.example.com\n\nRequires registry authentication in .nori-config.json`,
       }),
     };
   }
 
-  const { profileName, version } = uploadArgs;
+  const { profileName, version, registryUrl } = uploadArgs;
   const uploadVersion = version ?? "1.0.0"; // Default to 1.0.0
 
   // Find installation directory
@@ -159,17 +221,47 @@ const run = async (args: { input: HookInput }): Promise<HookOutput | null> => {
     };
   }
 
-  // Check for registry auth
-  const registryAuth = getRegistryAuth({
-    config,
-    registryUrl: REGISTRAR_URL,
-  });
+  // Get available registries
+  const availableRegistries = getAvailableUploadRegistries({ config });
 
-  if (registryAuth == null) {
+  if (availableRegistries.length === 0) {
     return {
       decision: "block",
       reason: formatError({
-        message: `No registry authentication configured for ${REGISTRAR_URL}.\n\nAdd registry credentials to .nori-config.json:\n{\n  "registryAuths": [{\n    "username": "your-email@example.com",\n    "password": "your-password",\n    "registryUrl": "${REGISTRAR_URL}"\n  }]\n}`,
+        message: `No registry authentication configured.\n\nAdd registry credentials to .nori-config.json:\n{\n  "registryAuths": [{\n    "username": "your-email@example.com",\n    "password": "your-password",\n    "registryUrl": "https://registry.example.com"\n  }]\n}`,
+      }),
+    };
+  }
+
+  // Determine target registry
+  let targetRegistryUrl: string;
+  let registryAuth: RegistryAuth | null;
+
+  if (registryUrl != null) {
+    // User specified a registry URL - validate it exists in config
+    registryAuth = getRegistryAuth({ config, registryUrl });
+    if (registryAuth == null) {
+      return {
+        decision: "block",
+        reason: formatError({
+          message: `No registry authentication configured for ${registryUrl}.\n\nAdd credentials to .nori-config.json or use one of the configured registries.`,
+        }),
+      };
+    }
+    targetRegistryUrl = registryUrl;
+  } else if (availableRegistries.length === 1) {
+    // Single registry - use it
+    registryAuth = availableRegistries[0];
+    targetRegistryUrl = registryAuth.registryUrl;
+  } else {
+    // Multiple registries - require explicit selection
+    return {
+      decision: "block",
+      reason: formatError({
+        message: formatMultipleRegistriesError({
+          profileName,
+          registries: availableRegistries,
+        }),
       }),
     };
   }
@@ -211,12 +303,13 @@ const run = async (args: { input: HookInput }): Promise<HookOutput | null> => {
       version: uploadVersion,
       archiveData,
       authToken,
+      registryUrl: targetRegistryUrl,
     });
 
     return {
       decision: "block",
       reason: formatSuccess({
-        message: `Successfully uploaded "${profileName}@${result.version}" to the Nori registry.\n\nOthers can install it with:\n/nori-download-profile ${profileName}`,
+        message: `Successfully uploaded "${profileName}@${result.version}" to ${targetRegistryUrl}.\n\nOthers can install it with:\n/nori-registry-download ${profileName}`,
       }),
     };
   } catch (err) {
@@ -235,7 +328,8 @@ const run = async (args: { input: HookInput }): Promise<HookOutput | null> => {
 export const noriRegistryUpload: InterceptedSlashCommand = {
   matchers: [
     "^\\/nori-registry-upload\\s*$", // Bare command - shows help
-    "^\\/nori-registry-upload\\s+[a-z0-9-]+(?:\\s+\\d+\\.\\d+\\.\\d+.*)?\\s*$", // With args
+    "^\\/nori-registry-upload\\s+[a-z0-9-]+(?:\\s+\\d+\\.\\d+\\.\\d+[^\\s]*)?(?:\\s+https?:\\/\\/\\S+)?\\s*$", // With args (profile, optional version, optional registry)
+    "^\\/nori-registry-upload\\s+[a-z0-9-]+\\s+https?:\\/\\/\\S+\\s*$", // With profile and registry URL (no version)
   ],
   run,
 };

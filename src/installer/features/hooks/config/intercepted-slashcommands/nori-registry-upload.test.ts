@@ -351,6 +351,203 @@ describe("nori-registry-upload", () => {
     });
   });
 
+  describe("multi-registry support", () => {
+    const createConfigWithMultipleRegistries = async (): Promise<void> => {
+      await fs.writeFile(
+        configPath,
+        JSON.stringify({
+          profile: { baseProfile: "senior-swe" },
+          registryAuths: [
+            {
+              username: "test@example.com",
+              password: "test-password",
+              registryUrl: "https://registrar.tilework.tech",
+            },
+            {
+              username: "private@example.com",
+              password: "private-password",
+              registryUrl: "https://private-registry.example.com",
+            },
+          ],
+        }),
+      );
+    };
+
+    it("should match /nori-registry-upload with registry URL", () => {
+      const hasMatch = noriRegistryUpload.matchers.some((m) => {
+        const regex = new RegExp(m, "i");
+        return regex.test(
+          "/nori-registry-upload my-profile https://private-registry.example.com",
+        );
+      });
+      expect(hasMatch).toBe(true);
+    });
+
+    it("should match /nori-registry-upload with version and registry URL", () => {
+      const hasMatch = noriRegistryUpload.matchers.some((m) => {
+        const regex = new RegExp(m, "i");
+        return regex.test(
+          "/nori-registry-upload my-profile 1.0.0 https://private-registry.example.com",
+        );
+      });
+      expect(hasMatch).toBe(true);
+    });
+
+    it("should upload to single configured registry without requiring URL", async () => {
+      await createConfigWithRegistryAuth();
+      await createTestProfile({ name: "test-profile" });
+
+      vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
+      vi.mocked(registrarApi.uploadProfile).mockResolvedValue({
+        name: "test-profile",
+        version: "1.0.0",
+        tarballSha: "sha512-abc123",
+        createdAt: "2024-01-01T00:00:00.000Z",
+      });
+
+      const input = createInput({
+        prompt: "/nori-registry-upload test-profile",
+      });
+      const result = await noriRegistryUpload.run({ input });
+
+      expect(result).not.toBeNull();
+      expect(result!.decision).toBe("block");
+      const plainReason = stripAnsi(result!.reason!);
+      expect(plainReason).toContain("Successfully uploaded");
+
+      // Verify API was called with the single configured registry
+      expect(registrarApi.uploadProfile).toHaveBeenCalledWith(
+        expect.objectContaining({
+          packageName: "test-profile",
+          registryUrl: "https://registrar.tilework.tech",
+        }),
+      );
+    });
+
+    it("should error when multiple registries configured and no URL provided", async () => {
+      await createConfigWithMultipleRegistries();
+      await createTestProfile({ name: "test-profile" });
+
+      const input = createInput({
+        prompt: "/nori-registry-upload test-profile",
+      });
+      const result = await noriRegistryUpload.run({ input });
+
+      expect(result).not.toBeNull();
+      expect(result!.decision).toBe("block");
+      const plainReason = stripAnsi(result!.reason!);
+
+      // Should list multiple registries
+      expect(plainReason).toContain("Multiple registries");
+      expect(plainReason).toContain("https://registrar.tilework.tech");
+      expect(plainReason).toContain("https://private-registry.example.com");
+
+      // Should show example commands
+      expect(plainReason).toContain(
+        "/nori-registry-upload test-profile https://registrar.tilework.tech",
+      );
+      expect(plainReason).toContain(
+        "/nori-registry-upload test-profile https://private-registry.example.com",
+      );
+    });
+
+    it("should upload to specified registry when multiple are configured", async () => {
+      await createConfigWithMultipleRegistries();
+      await createTestProfile({ name: "test-profile" });
+
+      vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-private-token");
+      vi.mocked(registrarApi.uploadProfile).mockResolvedValue({
+        name: "test-profile",
+        version: "1.0.0",
+        tarballSha: "sha512-abc123",
+        createdAt: "2024-01-01T00:00:00.000Z",
+      });
+
+      const input = createInput({
+        prompt:
+          "/nori-registry-upload test-profile https://private-registry.example.com",
+      });
+      const result = await noriRegistryUpload.run({ input });
+
+      expect(result).not.toBeNull();
+      expect(result!.decision).toBe("block");
+      const plainReason = stripAnsi(result!.reason!);
+      expect(plainReason).toContain("Successfully uploaded");
+
+      // Verify API was called with the specified registry
+      expect(registrarApi.uploadProfile).toHaveBeenCalledWith(
+        expect.objectContaining({
+          packageName: "test-profile",
+          registryUrl: "https://private-registry.example.com",
+        }),
+      );
+    });
+
+    it("should upload with version and registry URL", async () => {
+      await createConfigWithMultipleRegistries();
+      await createTestProfile({ name: "test-profile" });
+
+      vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
+      vi.mocked(registrarApi.uploadProfile).mockResolvedValue({
+        name: "test-profile",
+        version: "2.0.0",
+        tarballSha: "sha512-abc123",
+        createdAt: "2024-01-01T00:00:00.000Z",
+      });
+
+      const input = createInput({
+        prompt:
+          "/nori-registry-upload test-profile 2.0.0 https://registrar.tilework.tech",
+      });
+      const result = await noriRegistryUpload.run({ input });
+
+      expect(result).not.toBeNull();
+      expect(result!.decision).toBe("block");
+      const plainReason = stripAnsi(result!.reason!);
+      expect(plainReason).toContain("Successfully uploaded");
+      expect(plainReason).toContain("test-profile@2.0.0");
+
+      // Verify API was called with correct version and registry
+      expect(registrarApi.uploadProfile).toHaveBeenCalledWith(
+        expect.objectContaining({
+          packageName: "test-profile",
+          version: "2.0.0",
+          registryUrl: "https://registrar.tilework.tech",
+        }),
+      );
+    });
+
+    it("should error when specified registry URL not in config", async () => {
+      await createConfigWithRegistryAuth();
+      await createTestProfile({ name: "test-profile" });
+
+      const input = createInput({
+        prompt:
+          "/nori-registry-upload test-profile https://unknown-registry.example.com",
+      });
+      const result = await noriRegistryUpload.run({ input });
+
+      expect(result).not.toBeNull();
+      expect(result!.decision).toBe("block");
+      const plainReason = stripAnsi(result!.reason!);
+      expect(plainReason).toContain("No registry authentication");
+      expect(plainReason).toContain("https://unknown-registry.example.com");
+    });
+
+    it("should show registry URL in help message", async () => {
+      await createConfigWithRegistryAuth();
+
+      const input = createInput({
+        prompt: "/nori-registry-upload",
+      });
+      const result = await noriRegistryUpload.run({ input });
+
+      expect(result).not.toBeNull();
+      const plainReason = stripAnsi(result!.reason!);
+      expect(plainReason).toContain("[registry-url]");
+    });
+  });
+
   describe("ANSI color formatting", () => {
     it("should format success upload with green color codes", async () => {
       await createConfigWithRegistryAuth();
