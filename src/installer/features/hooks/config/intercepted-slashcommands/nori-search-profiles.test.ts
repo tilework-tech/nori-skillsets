@@ -21,6 +21,11 @@ import type { HookInput } from "./types.js";
 
 import { noriSearchProfiles } from "./nori-search-profiles.js";
 
+// ANSI color codes for verification
+const GREEN = "\x1b[0;32m";
+const RED = "\x1b[0;31m";
+const NC = "\x1b[0m"; // No Color / Reset
+
 describe("nori-search-profiles", () => {
   let testDir: string;
   let configPath: string;
@@ -213,6 +218,91 @@ describe("nori-search-profiles", () => {
       expect(registrarApi.searchPackages).toHaveBeenCalledWith({
         query: "typescript react developer",
       });
+    });
+  });
+
+  describe("ANSI color formatting", () => {
+    it("should format success results with green color codes", async () => {
+      const mockPackages = [
+        {
+          id: "pkg-1",
+          name: "test-profile",
+          description: "A test profile",
+          authorEmail: "test@example.com",
+          createdAt: "2024-01-01T00:00:00.000Z",
+          updatedAt: "2024-01-01T00:00:00.000Z",
+        },
+      ];
+
+      vi.mocked(registrarApi.searchPackages).mockResolvedValue(mockPackages);
+
+      const input = createInput({
+        prompt: "/nori-search-profiles test",
+      });
+      const result = await noriSearchProfiles.run({ input });
+
+      expect(result).not.toBeNull();
+      expect(result!.reason).toContain(GREEN);
+      expect(result!.reason).toContain(NC);
+    });
+
+    it("should format no results message with green color codes", async () => {
+      vi.mocked(registrarApi.searchPackages).mockResolvedValue([]);
+
+      const input = createInput({
+        prompt: "/nori-search-profiles nonexistent",
+      });
+      const result = await noriSearchProfiles.run({ input });
+
+      expect(result).not.toBeNull();
+      expect(result!.reason).toContain(GREEN);
+      expect(result!.reason).toContain(NC);
+    });
+
+    it("should format error messages with red color codes", async () => {
+      vi.mocked(registrarApi.searchPackages).mockRejectedValue(
+        new Error("Network error"),
+      );
+
+      const input = createInput({
+        prompt: "/nori-search-profiles test",
+      });
+      const result = await noriSearchProfiles.run({ input });
+
+      expect(result).not.toBeNull();
+      expect(result!.reason).toContain(RED);
+      expect(result!.reason).toContain(NC);
+    });
+
+    it("should format no installation error with red color codes", async () => {
+      const noInstallDir = await fs.mkdtemp(
+        path.join(tmpdir(), "nori-search-no-install-"),
+      );
+
+      try {
+        const input = createInput({
+          prompt: "/nori-search-profiles test",
+          cwd: noInstallDir,
+        });
+        const result = await noriSearchProfiles.run({ input });
+
+        expect(result).not.toBeNull();
+        expect(result!.reason).toContain(RED);
+        expect(result!.reason).toContain(NC);
+      } finally {
+        await fs.rm(noInstallDir, { recursive: true, force: true });
+      }
+    });
+
+    it("should format help message with green color codes", async () => {
+      const input = createInput({
+        prompt: "/nori-search-profiles",
+      });
+      const result = await noriSearchProfiles.run({ input });
+
+      expect(result).not.toBeNull();
+      expect(result!.reason).toContain(GREEN);
+      expect(result!.reason).toContain(NC);
     });
   });
 });

@@ -36,6 +36,8 @@ When an update is available (latestVersion is valid AND greater than installedVe
 
 - `registry.ts`: Exports `interceptedSlashCommands` array containing all registered commands. Commands are checked in order, first match wins. All matchers should be unique across commands.
 
+- `format.ts`: Provides `formatSuccess()` and `formatError()` utility functions for consistent ANSI colored output across all intercepted slash commands. Uses green for success/help messages and red for error messages. The implementation uses a two-step approach: (1) pre-wraps plain text at terminal width using `wrap-ansi` to convert soft wraps into explicit newlines, (2) wraps each resulting line individually with color codes. This ensures colors persist correctly across both explicit newlines AND soft terminal wraps (when text exceeds terminal width), as some terminals reset ANSI attributes at line boundaries. Terminal width is detected via `process.stdout.columns` with a fallback to 80 columns.
+
 - `nori-install-location.ts`: Returns the Nori installation directory (or directories if multiple found). Uses getInstallDirs() to locate installations from cwd upward.
 
 - `nori-switch-profile.ts`: Handles `/nori-switch-profile` with or without profile name argument. Uses getInstallDirs({ currentDir: cwd }) to locate the Nori installation directory. Locates profiles at `{installDir}/.claude/profiles/` and config at `{installDir}/.nori-config.json`. Without profile name, lists available profiles. With profile name, writes selection to config and prompts user to restart. Profile descriptions are read from `profile.json` if available.
@@ -47,6 +49,8 @@ When an update is available (latestVersion is valid AND greater than installedVe
 - `nori-search-profiles.ts`: Handles `/nori-search-profiles <query>` to search for profile packages in the Nori registrar. Uses registrarApi.searchPackages() from @/plugin/src/api/registrar.ts. Returns formatted list of matching packages with descriptions, or error message if no results found.
 
 - `nori-download-profile.ts`: Handles `/nori-download-profile <package-name>[@version]` to download and install profile packages from the Nori registrar. Uses registrarApi.downloadTarball() to fetch the tarball, then extracts it using the `tar` npm package with zlib gzip decompression. Installs profiles to `{installDir}/.claude/profiles/{packageName}/`. Checks for existing installations and refuses to overwrite. Requires exactly one Nori installation to be detected (errors if multiple installations found).
+
+All intercepted slash commands use `formatSuccess()` and `formatError()` from format.ts to wrap their `reason` output strings, ensuring consistent colored terminal output.
 
 **Slash Command Markdown Structure for Hook-Intercepted Commands**: Hook-intercepted slash commands still have corresponding `.md` files in the profiles slashcommands directories (e.g., `nori-switch-profile.md`, `nori-toggle-autoupdate.md`). These markdown files serve two purposes: (1) the frontmatter `description` appears in Claude Code's command palette, (2) the body provides user-facing documentation. Critically, these files do NOT need `allowed-tools` frontmatter because the hook intercepts and executes the command directly - the LLM never processes the slash command body. Only non-intercepted slash commands (like `nori-debug.md`) that use the `!command` syntax need `allowed-tools` to grant Claude Code permission to execute commands.
 
