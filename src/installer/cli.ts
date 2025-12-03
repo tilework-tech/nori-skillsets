@@ -12,6 +12,8 @@ import { checkMain } from "@/installer/check.js";
 import { registerInstallCommand } from "@/installer/install.js";
 import { error, success, info } from "@/installer/logger.js";
 import { switchProfile } from "@/installer/profiles.js";
+import { registerRegistryDownloadCommand } from "@/installer/registryDownload.js";
+import { registerRegistrySearchCommand } from "@/installer/registrySearch.js";
 import { registerUninstallCommand } from "@/installer/uninstall.js";
 import { getCurrentPackageVersion } from "@/installer/version.js";
 import { normalizeInstallDir, getInstallDirs } from "@/utils/path.js";
@@ -127,6 +129,9 @@ Examples:
   $ nori-ai check
   $ nori-ai install-location
   $ nori-ai switch-profile senior-swe
+  $ nori-ai registry-search typescript
+  $ nori-ai registry-download my-profile
+  $ nori-ai registry-download my-profile@1.0.0
   $ nori-ai --non-interactive install
 `,
   );
@@ -137,6 +142,8 @@ registerUninstallCommand({ program });
 registerCheckCommand({ program });
 registerSwitchProfileCommand({ program });
 registerInstallLocationCommand({ program });
+registerRegistrySearchCommand({ program });
+registerRegistryDownloadCommand({ program });
 
 program.parse(process.argv);
 

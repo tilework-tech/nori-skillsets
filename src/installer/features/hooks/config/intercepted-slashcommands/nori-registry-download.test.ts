@@ -23,6 +23,11 @@ import type { HookInput } from "./types.js";
 
 import { noriRegistryDownload } from "./nori-registry-download.js";
 
+// ANSI color codes for verification
+const GREEN = "\x1b[0;32m";
+const RED = "\x1b[0;31m";
+const NC = "\x1b[0m"; // No Color / Reset
+
 describe("nori-registry-download", () => {
   let testDir: string;
   let configPath: string;
@@ -257,6 +262,103 @@ describe("nori-registry-download", () => {
       expect(result).not.toBeNull();
       expect(result!.decision).toBe("block");
       expect(result!.reason).toContain("Failed");
+    });
+  });
+
+  describe("ANSI color formatting", () => {
+    it("should format success download with green color codes", async () => {
+      const mockTarball = await createMockTarball();
+      vi.mocked(registrarApi.downloadTarball).mockResolvedValue(mockTarball);
+
+      const input = createInput({
+        prompt: "/nori-registry-download test-profile",
+      });
+      const result = await noriRegistryDownload.run({ input });
+
+      expect(result).not.toBeNull();
+      expect(result!.reason).toContain(GREEN);
+      expect(result!.reason).toContain(NC);
+    });
+
+    it("should format no installation error with red color codes", async () => {
+      const noInstallDir = await fs.mkdtemp(
+        path.join(tmpdir(), "nori-download-no-install-"),
+      );
+
+      try {
+        const input = createInput({
+          prompt: "/nori-registry-download test-profile",
+          cwd: noInstallDir,
+        });
+        const result = await noriRegistryDownload.run({ input });
+
+        expect(result).not.toBeNull();
+        expect(result!.reason).toContain(RED);
+        expect(result!.reason).toContain(NC);
+      } finally {
+        await fs.rm(noInstallDir, { recursive: true, force: true });
+      }
+    });
+
+    it("should format multiple installations error with red color codes", async () => {
+      // Create a nested installation
+      const nestedDir = path.join(testDir, "nested");
+      await fs.mkdir(nestedDir, { recursive: true });
+      await fs.writeFile(
+        path.join(nestedDir, ".nori-config.json"),
+        JSON.stringify({ profile: { baseProfile: "test" } }),
+      );
+
+      const input = createInput({
+        prompt: "/nori-registry-download test-profile",
+        cwd: nestedDir,
+      });
+      const result = await noriRegistryDownload.run({ input });
+
+      expect(result).not.toBeNull();
+      expect(result!.reason).toContain(RED);
+      expect(result!.reason).toContain(NC);
+    });
+
+    it("should format profile already exists error with red color codes", async () => {
+      // Create existing profile directory
+      const existingProfileDir = path.join(profilesDir, "test-profile");
+      await fs.mkdir(existingProfileDir, { recursive: true });
+
+      const input = createInput({
+        prompt: "/nori-registry-download test-profile",
+      });
+      const result = await noriRegistryDownload.run({ input });
+
+      expect(result).not.toBeNull();
+      expect(result!.reason).toContain(RED);
+      expect(result!.reason).toContain(NC);
+    });
+
+    it("should format network error with red color codes", async () => {
+      vi.mocked(registrarApi.downloadTarball).mockRejectedValue(
+        new Error("Network error"),
+      );
+
+      const input = createInput({
+        prompt: "/nori-registry-download test-profile",
+      });
+      const result = await noriRegistryDownload.run({ input });
+
+      expect(result).not.toBeNull();
+      expect(result!.reason).toContain(RED);
+      expect(result!.reason).toContain(NC);
+    });
+
+    it("should format help message with green color codes", async () => {
+      const input = createInput({
+        prompt: "/nori-registry-download",
+      });
+      const result = await noriRegistryDownload.run({ input });
+
+      expect(result).not.toBeNull();
+      expect(result!.reason).toContain(GREEN);
+      expect(result!.reason).toContain(NC);
     });
   });
 });
