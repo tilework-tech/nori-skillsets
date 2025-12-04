@@ -1,16 +1,15 @@
 # Nori Profiles
 
-**Codify your workflow. Stop repeating yourself.**
+**Create custom coding agents that are fit for purpose.**
 
-Coding agents excel at POCs but struggle to deliver in complex products where the details matter. This is a context issue. Agents do not have enough information in active context about your project, your git preferences, testing regime, product documentation, development standards, and so on. Engineers can't provide all that information at the start of every session. The result is an information gap about your code that agents struggle to cross.
+As projects grow in complexity and specificity, off the shelf agents become less effective. Nori Profiles is a tool for building custom coding agents that are encoded with your development patterns, design standards, and engineering workflows.
 
-- **Re-establishing context**: "Remember to use TDD. Don't skip tests. Update the docs. Follow our architecture patterns."
-- **Role mismatches**: Senior engineers want efficiency and minimal hand-holding. Product managers need technical guidance. Everyone uses the same generic agent.
-- **Workflow inconsistency**: Without codified processes, agents skip verification, take shortcuts, and claim success without proof.
+Nori lets you precisely define how you want your coding agent to reliably behave for engineering tasks:
+- Define consistent agent behavior for areas of development, tasks, or team roles
+- Automate repeated steps of your workflow to offload your cognitive load, such as git workflows, file references, and testing
+- Launch custom agents instantly without repeating setup or context
 
-The result: **You waste energy instructing instead of developing.**
-
-Nori Profiles lets you codify the repeating aspects of your workflow so you can focus your attention on productive development.
+Under the hood, Nori wraps Claude Code with a config management system that automatically defines desired behavior in agent configuration and context layers like Claude.md, Skills, Subagents.
 
 ![Console](https://raw.githubusercontent.com/tilework-tech/nori-plugin/refs/heads/main/Console.png)
 
@@ -32,6 +31,8 @@ Launch Claude Code from your terminal. Nori features activate automatically.
 ### Start by testing a profile
 
 During installation, choose a sample profile to try out how Nori works.
+
+Examples:
 
 - **senior-swe**: High-confirmation co-pilot mode
 - **product-manager**: Autonomous execution with technical guidance
@@ -102,16 +103,16 @@ Claude will guide you through:
 
 Profiles live in `~/.claude/profiles/` and contain:
 - `CLAUDE.md`: Your custom instructions and workflow preferences
-- Mixins: Linked configurations for engineering, PM, or documentation workflows
+- Mixins: Linked configuration options
 - Custom skills and slash commands (optional)
 
 Each profile represents a distinct mode of work, letting you instantly tune the agent for different tasks.
 
 ## Additional Features
 
-### Free Tier: Local MCP Package
+### Nori-profiles
 
-_Enhances Claude Code with process enforcement and systematic workflows—no backend required._
+_Enhances Claude Code with improved visibility and automations._
 
 - **6-checkpoint development workflow**: Setup verification → research → plan approval → TDD cycle → implementation → verification
 - **32+ engineering skills**: Step-by-step instructions for TDD, debugging, code review, git workflows, architecture decisions
@@ -121,13 +122,11 @@ _Enhances Claude Code with process enforcement and systematic workflows—no bac
 - **Specialized subagents**: codebase-locator, codebase-analyzer, codebase-pattern-finder, web-search-researcher
 - **Local noridocs**: Automatic documentation with change-documenter and initial-documenter subagents
 
-### Paid Tier: + Shared Documentation Server
+### Nori-registry (Paid)
 
-_Team documentation server that captures, organizes, and surfaces institutional knowledge automatically._
+_Web app for uploading, discovering, and downloading custom coding agents across a team._
 
-- **Web UI**: Browse, search, and manage documentation artifacts with full markdown editing
-- **Living documentation**: Automatically updates as your codebase evolves—docs.md files stay synchronized with code changes
-- **Automatic conversation capture**: Git-style hooks capture full conversation summaries with zero manual effort, preserving decisions and reasoning
+Upload your custom agents to a shared registry where your team can discover and download them. Search by name, tags, or description. Download agents instantly with a single command. Makes it easy to share specialized agents across your organization.
 
 ## Commands
 
