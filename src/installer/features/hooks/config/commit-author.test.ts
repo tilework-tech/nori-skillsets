@@ -309,4 +309,47 @@ EOF
       "This is a longer commit message that spans multiple lines.",
     );
   });
+
+  it("should handle git commit with -C flag for specifying directory", async () => {
+    const commitMessage = `git -C /home/user/project/.worktrees/feature-branch commit -m "\$(cat <<'EOF'
+Add new feature
+
+This commit adds a new feature to the project.
+EOF
+)"`;
+
+    const input: HookInput = {
+      session_id: "test-session",
+      transcript_path: "/tmp/test.jsonl",
+      cwd: "/tmp",
+      permission_mode: "default",
+      hook_event_name: "PreToolUse",
+      tool_name: "Bash",
+      tool_input: {
+        command: commitMessage,
+      },
+      tool_use_id: "toolu_123",
+    };
+
+    const { output, exitCode } = await runHook({ input });
+
+    expect(exitCode).toBe(0);
+    expect(output).not.toBeNull();
+    const modifiedCommand =
+      output?.hookSpecificOutput?.updatedInput?.command || "";
+
+    // Should add Nori attribution
+    expect(modifiedCommand).toContain(
+      "Co-Authored-By: Nori <contact@tilework.tech>",
+    );
+    expect(modifiedCommand).toContain(
+      "🤖 Generated with [Nori](https://nori.ai)",
+    );
+
+    // Should preserve original message
+    expect(modifiedCommand).toContain("Add new feature");
+    expect(modifiedCommand).toContain(
+      "This commit adds a new feature to the project.",
+    );
+  });
 });

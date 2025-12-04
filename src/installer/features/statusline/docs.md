@@ -20,6 +20,8 @@ This feature loader (loader.ts) is registered with @/plugin/src/installer/featur
 
 ### Things to Know
 
+**jq Dependency:** The script requires jq for JSON parsing (used extensively throughout). If jq is not installed, the script displays a warning message with installation instructions for both macOS (`brew install jq`) and Linux (`apt install jq`), shows Nori branding, and exits with code 0 to avoid Claude Code errors. Unlike notify-hook.sh which has fallback JSON parsers (python3, node, sed), statusline requires jq due to its extensive JSON manipulation throughout the script.
+
 **Subdirectory Detection Fix:** The install directory is templated into the bash script at installation time ({{install_dir}} → absolute path), not derived at runtime. This solves the subdirectory detection bug where the script would incorrectly detect account tier when Claude Code ran from a subdirectory (e.g., Nori installed in ~, running from ~/projects/foo). The old approach tried to derive install directory from CWD at runtime, causing it to look for .nori-config.json in the subdirectory instead of the install root.
 
 **Template vs Runtime Search:** This fix uses template substitution (similar to skills installation), unlike the autoupdate hook which uses TypeScript utility functions for upward search. Template substitution is simpler for bash scripts since it eliminates runtime directory traversal complexity. The install directory is baked into the script when it's copied to ~/.claude/nori-statusline.sh during installation.

@@ -369,6 +369,58 @@ describe("statuslineLoader", () => {
         // (No cleanup needed as we're in test environment)
       }
     });
+
+    it("should display jq missing warning when jq is not available", async () => {
+      const config: Config = { installDir: claudeDir };
+
+      // Install statusline
+      await statuslineLoader.run({ config });
+
+      // Read the statusline script content
+      const copiedScriptPath = path.join(claudeDir, "nori-statusline.sh");
+      const scriptContent = await fs.readFile(copiedScriptPath, "utf-8");
+
+      // Create a wrapper script that makes jq unavailable by redefining command
+      // We use a function override since PATH manipulation may not be reliable in all environments
+      const wrapperScript = `#!/bin/bash
+# Override 'command' builtin to make jq appear unavailable
+command() {
+  if [ "\$1" = "-v" ] && [ "\$2" = "jq" ]; then
+    return 1
+  fi
+  builtin command "\$@"
+}
+
+${scriptContent}
+`;
+      const wrapperPath = path.join(tempDir, "test-no-jq.sh");
+      await fs.writeFile(wrapperPath, wrapperScript);
+      await fs.chmod(wrapperPath, 0o755);
+
+      // Execute wrapper script
+      const { execSync } = await import("child_process");
+      const mockInput = JSON.stringify({
+        cwd: tempDir,
+        cost: {
+          total_cost_usd: 0,
+          total_lines_added: 0,
+          total_lines_removed: 0,
+        },
+        transcript_path: "",
+      });
+
+      const output = execSync(`bash ${wrapperPath}`, {
+        input: mockInput,
+        encoding: "utf-8",
+      });
+
+      // Verify the specific warning message content
+      expect(output).toContain("Nori statusline requires jq");
+      expect(output).toContain("brew install jq");
+      expect(output).toContain("apt install jq");
+      // Should still show Nori branding
+      expect(output).toContain("Augmented with Nori");
+    });
   });
 
   describe("uninstall", () => {

@@ -6,6 +6,17 @@
 # Read JSON context from stdin
 INPUT=$(cat)
 
+# === CHECK FOR JQ DEPENDENCY ===
+if ! command -v jq >/dev/null 2>&1; then
+    # ANSI color codes
+    YELLOW='\033[0;33m'
+    NC='\033[0m'
+
+    echo -e "${YELLOW}⚠️  Nori statusline requires jq. Install: brew install jq (macOS) or apt install jq (Linux)${NC}"
+    echo -e "${YELLOW}Augmented with Nori __VERSION__${NC}"
+    exit 0
+fi
+
 # === FIND INSTALL DIRECTORY ===
 # Search upward from CWD to find .nori-config.json
 find_install_dir() {

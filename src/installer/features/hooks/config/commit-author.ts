@@ -40,7 +40,8 @@ type HookOutput = {
  */
 const isGitCommitCommand = (args: { command: string }): boolean => {
   const { command } = args;
-  return /git\s+commit.*(-m|--message)/.test(command);
+  // Match git commit with optional flags before "commit" (e.g., git -C /path commit)
+  return /git\s+(?:.*\s+)?commit.*(-m|--message)/.test(command);
 };
 
 /**
