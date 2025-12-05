@@ -16,7 +16,7 @@ describe("profileRegistryApi", () => {
   });
 
   describe("searchProfiles", () => {
-    it("should return array of packages matching query", async () => {
+    it("should return array of profiles matching query", async () => {
       const mockPackages = [
         {
           id: "pkg-1",
@@ -142,8 +142,8 @@ describe("profileRegistryApi", () => {
   });
 
   describe("getProfileMetadata", () => {
-    it("should return packument for package name", async () => {
-      const mockPackument = {
+    it("should return profile metadata for package name", async () => {
+      const mockProfileMetadata = {
         name: "test-profile",
         description: "A test profile",
         "dist-tags": { latest: "1.0.0" },
@@ -160,14 +160,14 @@ describe("profileRegistryApi", () => {
 
       mockFetch.mockResolvedValue({
         ok: true,
-        json: () => Promise.resolve(mockPackument),
+        json: () => Promise.resolve(mockProfileMetadata),
       });
 
       const result = await profileRegistryApi.getProfileMetadata({
         profileName: "test-profile",
       });
 
-      expect(result).toEqual(mockPackument);
+      expect(result).toEqual(mockProfileMetadata);
       expect(mockFetch).toHaveBeenCalledWith(
         "https://registrar.tilework.tech/profiles/test-profile",
         expect.objectContaining({
@@ -189,7 +189,7 @@ describe("profileRegistryApi", () => {
     });
 
     it("should use custom registryUrl when provided", async () => {
-      const mockPackument = {
+      const mockProfileMetadata = {
         name: "test-profile",
         "dist-tags": { latest: "1.0.0" },
         versions: {
@@ -199,7 +199,7 @@ describe("profileRegistryApi", () => {
 
       mockFetch.mockResolvedValue({
         ok: true,
-        json: () => Promise.resolve(mockPackument),
+        json: () => Promise.resolve(mockProfileMetadata),
       });
 
       await profileRegistryApi.getProfileMetadata({
@@ -216,7 +216,7 @@ describe("profileRegistryApi", () => {
     });
 
     it("should include auth token header when provided", async () => {
-      const mockPackument = {
+      const mockProfileMetadata = {
         name: "test-profile",
         "dist-tags": { latest: "1.0.0" },
         versions: {
@@ -226,7 +226,7 @@ describe("profileRegistryApi", () => {
 
       mockFetch.mockResolvedValue({
         ok: true,
-        json: () => Promise.resolve(mockPackument),
+        json: () => Promise.resolve(mockProfileMetadata),
       });
 
       await profileRegistryApi.getProfileMetadata({
@@ -287,7 +287,7 @@ describe("profileRegistryApi", () => {
 
     it("should fetch latest version when no version specified", async () => {
       // First call to getProfileMetadata to resolve latest version
-      const mockPackument = {
+      const mockProfileMetadata = {
         name: "test-profile",
         "dist-tags": { latest: "2.0.0" },
         versions: {
@@ -301,7 +301,7 @@ describe("profileRegistryApi", () => {
       mockFetch
         .mockResolvedValueOnce({
           ok: true,
-          json: () => Promise.resolve(mockPackument),
+          json: () => Promise.resolve(mockProfileMetadata),
         })
         .mockResolvedValueOnce({
           ok: true,
@@ -382,7 +382,7 @@ describe("profileRegistryApi", () => {
     });
 
     it("should pass registryUrl and authToken when resolving latest version", async () => {
-      const mockPackument = {
+      const mockProfileMetadata = {
         name: "test-profile",
         "dist-tags": { latest: "2.0.0" },
         versions: {
@@ -395,7 +395,7 @@ describe("profileRegistryApi", () => {
       mockFetch
         .mockResolvedValueOnce({
           ok: true,
-          json: () => Promise.resolve(mockPackument),
+          json: () => Promise.resolve(mockProfileMetadata),
         })
         .mockResolvedValueOnce({
           ok: true,
@@ -435,7 +435,7 @@ describe("profileRegistryApi", () => {
   });
 
   describe("searchProfilesOnRegistry", () => {
-    it("should search packages on a custom registry URL without auth", async () => {
+    it("should search profiles on a custom registry URL without auth", async () => {
       const mockPackages = [
         {
           id: "pkg-1",
