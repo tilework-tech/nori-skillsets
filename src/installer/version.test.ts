@@ -174,8 +174,12 @@ describe("version", () => {
       expect(VERSION_FILE_PATH).not.toBe(realVersionPath);
 
       // Verify the test cwd is actually different from real cwd
-      // (We expect process.cwd() to be a temp directory like /tmp/version-test-getInstalledVersion-XXXXXX)
-      expect(process.cwd()).toContain("/tmp/");
+      // (We expect process.cwd() to be a temp directory created by os.tmpdir())
+      // Note: os.tmpdir() returns different paths on different platforms:
+      // - Linux: /tmp/
+      // - macOS: /var/folders/...
+      // - Windows: C:\Users\...\AppData\Local\Temp
+      expect(process.cwd()).toContain(os.tmpdir());
       expect(process.cwd()).toContain("version-test-getInstalledVersion-");
 
       // Run all the test operations
@@ -269,8 +273,12 @@ describe("version", () => {
       expect(VERSION_FILE_PATH).not.toBe(realVersionPath);
 
       // Verify the test cwd is actually different from real cwd
-      // (We expect process.cwd() to be a temp directory like /tmp/version-test-saveInstalledVersion-XXXXXX)
-      expect(process.cwd()).toContain("/tmp/");
+      // (We expect process.cwd() to be a temp directory created by os.tmpdir())
+      // Note: os.tmpdir() returns different paths on different platforms:
+      // - Linux: /tmp/
+      // - macOS: /var/folders/...
+      // - Windows: C:\Users\...\AppData\Local\Temp
+      expect(process.cwd()).toContain(os.tmpdir());
       expect(process.cwd()).toContain("version-test-saveInstalledVersion-");
 
       // Run all the test operations
