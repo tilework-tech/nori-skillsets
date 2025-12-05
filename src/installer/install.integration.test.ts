@@ -16,8 +16,9 @@ import { getInstalledVersion } from "./version.js";
 let consoleOutput: Array<string> = [];
 const originalConsoleLog = console.log;
 
-// Track whether nori-ai uninstall was called
+// Track whether nori-ai uninstall was called and the command used
 let uninstallCalled = false;
+let uninstallCommand = "";
 
 // Mock child_process to intercept nori-ai calls
 vi.mock("child_process", async (importOriginal) => {
@@ -29,6 +30,7 @@ vi.mock("child_process", async (importOriginal) => {
       const match = command.match(/nori-ai uninstall/);
       if (match) {
         uninstallCalled = true;
+        uninstallCommand = command;
 
         // Simulate uninstall behavior - remove the marker file
         try {
@@ -108,8 +110,9 @@ describe("install integration test", () => {
     VERSION_FILE_PATH = path.join(tempDir, ".nori-installed-version");
     MARKER_FILE_PATH = path.join(tempDir, ".nori-test-installation-marker");
 
-    // Reset tracking variable
+    // Reset tracking variables
     uninstallCalled = false;
+    uninstallCommand = "";
 
     // Clean up any existing files in temp dir
     try {
@@ -179,6 +182,11 @@ describe("install integration test", () => {
     // CRITICAL: Verify that `nori-ai uninstall` was called
     // This ensures we clean up the previous installation before upgrading
     expect(uninstallCalled).toBe(true);
+
+    // CRITICAL: Verify that --install-dir was passed to uninstall command
+    // This ensures uninstall runs in the correct directory, not process.cwd()
+    expect(uninstallCommand).toContain("--install-dir");
+    expect(uninstallCommand).toContain(tempDir);
 
     // Verify the marker file was removed by the version-specific uninstall
     expect(fs.existsSync(MARKER_FILE_PATH)).toBe(false);

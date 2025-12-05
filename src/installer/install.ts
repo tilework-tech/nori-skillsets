@@ -369,9 +369,12 @@ export const interactive = async (args?: {
     });
 
     try {
-      execSync(`nori-ai uninstall --non-interactive`, {
-        stdio: "inherit",
-      });
+      execSync(
+        `nori-ai uninstall --non-interactive --install-dir="${normalizedInstallDir}"`,
+        {
+          stdio: "inherit",
+        },
+      );
     } catch (err: any) {
       info({
         message: `Note: Uninstall at v${previousVersion} failed (may not exist). Continuing with installation...`,
@@ -551,9 +554,12 @@ export const noninteractive = async (args?: {
     });
 
     try {
-      execSync(`nori-ai uninstall --non-interactive`, {
-        stdio: "inherit",
-      });
+      execSync(
+        `nori-ai uninstall --non-interactive --install-dir="${normalizedInstallDir}"`,
+        {
+          stdio: "inherit",
+        },
+      );
     } catch (err: any) {
       info({
         message: `Note: Uninstall at v${previousVersion} failed (may not exist). Continuing with installation...`,
