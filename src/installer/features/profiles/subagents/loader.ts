@@ -7,7 +7,7 @@ import * as fs from "fs/promises";
 import * as path from "path";
 import { fileURLToPath } from "url";
 
-import { getClaudeDir, getClaudeAgentsDir } from "@/installer/env.js";
+import { getClaudeAgentsDir, getNoriProfilesDir } from "@/installer/env.js";
 import { success, info, warn } from "@/installer/logger.js";
 
 import type { Config } from "@/installer/config.js";
@@ -32,8 +32,8 @@ const getConfigDir = (args: {
   installDir: string;
 }): string => {
   const { profileName, installDir } = args;
-  const claudeDir = getClaudeDir({ installDir });
-  return path.join(claudeDir, "profiles", profileName, "subagents");
+  const noriProfilesDir = getNoriProfilesDir({ installDir });
+  return path.join(noriProfilesDir, profileName, "subagents");
 };
 
 /**

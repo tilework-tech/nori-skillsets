@@ -34,11 +34,11 @@ describe("nori-switch-profile", () => {
     testDir = await fs.mkdtemp(
       path.join(tmpdir(), "nori-switch-profile-test-"),
     );
-    const claudeDir = path.join(testDir, ".claude");
-    profilesDir = path.join(claudeDir, "profiles");
+    const noriDir = path.join(testDir, ".nori");
+    profilesDir = path.join(noriDir, "profiles");
     configPath = path.join(testDir, ".nori-config.json");
 
-    // Create profiles directory with test profiles
+    // Create profiles directory with test profiles (now at .nori/profiles)
     await fs.mkdir(profilesDir, { recursive: true });
 
     // Create test profiles
@@ -152,6 +152,52 @@ describe("nori-switch-profile", () => {
       expect(result).not.toBeNull();
       expect(result!.decision).toBe("block");
       expect(stripAnsi(result!.reason!)).toContain("No profiles found");
+    });
+  });
+
+  describe("legacy profiles migration warning", () => {
+    it("should warn when legacy .claude/profiles directory exists", async () => {
+      // Create legacy profiles directory at .claude/profiles
+      const legacyProfilesDir = path.join(testDir, ".claude", "profiles");
+      await fs.mkdir(legacyProfilesDir, { recursive: true });
+
+      // Create a legacy profile
+      const legacyProfileDir = path.join(legacyProfilesDir, "old-profile");
+      await fs.mkdir(legacyProfileDir, { recursive: true });
+      await fs.writeFile(
+        path.join(legacyProfileDir, "CLAUDE.md"),
+        "# Old profile",
+      );
+
+      // Create new profiles directory at .nori/profiles with profiles
+      const noriProfilesDir = path.join(testDir, ".nori", "profiles");
+      await fs.mkdir(noriProfilesDir, { recursive: true });
+      for (const profileName of ["amol", "senior-swe"]) {
+        const profileDir = path.join(noriProfilesDir, profileName);
+        await fs.mkdir(profileDir, { recursive: true });
+        await fs.writeFile(
+          path.join(profileDir, "CLAUDE.md"),
+          `# ${profileName} profile`,
+        );
+        await fs.writeFile(
+          path.join(profileDir, "profile.json"),
+          JSON.stringify({
+            name: profileName,
+            description: `Test ${profileName} profile`,
+            builtin: true,
+          }),
+        );
+      }
+
+      const input = createInput({ prompt: "/nori-switch-profile" });
+      const result = await noriSwitchProfile.run({ input });
+
+      expect(result).not.toBeNull();
+      expect(result!.decision).toBe("block");
+      const plainReason = stripAnsi(result!.reason!);
+      expect(plainReason).toContain("legacy");
+      expect(plainReason).toContain(".claude/profiles");
+      expect(plainReason).toContain("migrate");
     });
   });
 

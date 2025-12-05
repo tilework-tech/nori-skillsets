@@ -9,9 +9,9 @@ import { fileURLToPath } from "url";
 
 import { isPaidInstall, type Config } from "@/installer/config.js";
 import {
-  getClaudeDir,
   getClaudeSkillsDir,
   getClaudeSettingsFile,
+  getNoriProfilesDir,
 } from "@/installer/env.js";
 import { success, info, warn } from "@/installer/logger.js";
 import { substituteTemplatePaths } from "@/utils/template.js";
@@ -78,8 +78,8 @@ const getConfigDir = (args: {
   installDir: string;
 }): string => {
   const { profileName, installDir } = args;
-  const claudeDir = getClaudeDir({ installDir });
-  return path.join(claudeDir, "profiles", profileName, "skills");
+  const noriProfilesDir = getNoriProfilesDir({ installDir });
+  return path.join(noriProfilesDir, profileName, "skills");
 };
 
 /**

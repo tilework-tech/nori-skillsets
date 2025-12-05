@@ -29,9 +29,10 @@ export const detectNoriPollution = (cwdPath: string): Array<string> => {
   // Check for Nori installation structure in .claude directory
   const claudePath = path.join(cwdPath, ".claude");
   if (fs.existsSync(claudePath)) {
-    const noriDirs = ["profiles", "skills", "agents", "commands", "hooks"];
+    // skills, agents, commands, hooks go in .claude/
+    const claudeDirs = ["skills", "agents", "commands", "hooks"];
 
-    for (const dir of noriDirs) {
+    for (const dir of claudeDirs) {
       const dirPath = path.join(claudePath, dir);
       if (fs.existsSync(dirPath)) {
         pollutionMarkers.push(`.claude/${dir}`);
@@ -48,6 +49,20 @@ export const detectNoriPollution = (cwdPath: string): Array<string> => {
         }
       } catch {
         // Ignore read errors
+      }
+    }
+  }
+
+  // Check for Nori installation structure in .nori directory
+  const noriPath = path.join(cwdPath, ".nori");
+  if (fs.existsSync(noriPath)) {
+    // profiles go in .nori/
+    const noriDirs = ["profiles"];
+
+    for (const dir of noriDirs) {
+      const dirPath = path.join(noriPath, dir);
+      if (fs.existsSync(dirPath)) {
+        pollutionMarkers.push(`.nori/${dir}`);
       }
     }
   }

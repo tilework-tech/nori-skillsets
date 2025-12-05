@@ -65,6 +65,45 @@ export const formatInstallPath = (args: {
 };
 
 /**
+ * Format a path within the .nori directory with appropriate notation
+ * Used for paths that live under .nori instead of .claude (e.g., profiles)
+ * Uses tilde notation for home installs, absolute paths for custom installs
+ *
+ * @param args - Arguments object
+ * @param args.installDir - The installation directory (.claude path)
+ * @param args.subPath - The sub-path within the .nori directory
+ *
+ * @returns Formatted path string
+ */
+const formatNoriPath = (args: {
+  installDir: string;
+  subPath: string;
+}): string => {
+  const { installDir, subPath } = args;
+
+  // Clean the subPath (remove leading slash if present)
+  const cleanSubPath = subPath.startsWith("/") ? subPath.slice(1) : subPath;
+
+  // Get the install root (parent of .claude)
+  const installRoot = getInstallRoot({ installDir });
+
+  if (isHomeInstall({ installDir })) {
+    // Use tilde notation for home installs
+    if (cleanSubPath === "") {
+      return "~/.nori";
+    }
+    return `~/.nori/${cleanSubPath}`;
+  }
+
+  // Use absolute path for custom installs
+  const noriDir = path.join(installRoot, ".nori");
+  if (cleanSubPath === "") {
+    return noriDir;
+  }
+  return path.join(noriDir, cleanSubPath);
+};
+
+/**
  * Substitute template placeholders in content with actual paths
  *
  * Supported placeholders:
@@ -91,8 +130,8 @@ export const substituteTemplatePaths = (args: {
   const skillsPath = formatInstallPath({ installDir, subPath: "skills" });
   result = result.replace(/\{\{skills_dir\}\}/g, skillsPath);
 
-  // Replace {{profiles_dir}}
-  const profilesPath = formatInstallPath({ installDir, subPath: "profiles" });
+  // Replace {{profiles_dir}} - profiles are now in .nori/profiles
+  const profilesPath = formatNoriPath({ installDir, subPath: "profiles" });
   result = result.replace(/\{\{profiles_dir\}\}/g, profilesPath);
 
   // Replace {{commands_dir}}

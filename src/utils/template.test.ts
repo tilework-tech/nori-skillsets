@@ -53,7 +53,7 @@ describe("substituteTemplatePaths", () => {
         content,
         installDir: "/project/.claude",
       });
-      expect(result).toBe("Check `/project/.claude/profiles/amol/CLAUDE.md`");
+      expect(result).toBe("Check `/project/.nori/profiles/amol/CLAUDE.md`");
     });
 
     it("should replace {{profiles_dir}} with tilde notation for home install", () => {
@@ -63,7 +63,7 @@ describe("substituteTemplatePaths", () => {
         content,
         installDir: homeClaudeDir,
       });
-      expect(result).toBe("Check `~/.claude/profiles/amol/CLAUDE.md`");
+      expect(result).toBe("Check `~/.nori/profiles/amol/CLAUDE.md`");
     });
   });
 
@@ -111,7 +111,7 @@ Commands at {{commands_dir}}
         installDir: "/project/.claude",
       });
       expect(result).toContain("/project/.claude/skills/foo/SKILL.md");
-      expect(result).toContain("/project/.claude/profiles/bar");
+      expect(result).toContain("/project/.nori/profiles/bar");
       expect(result).toContain("/project/.claude/commands");
     });
   });

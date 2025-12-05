@@ -4,8 +4,11 @@ import * as path from "path";
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
-// Mock the CLAUDE_DIR before importing
+// Mock the directories before importing
+// testBaseDir is the install root, testClaudeDir is inside it
+let testBaseDir: string;
 let testClaudeDir: string;
+let testNoriDir: string;
 
 vi.mock("@/installer/env.js", () => ({
   getClaudeDir: () => testClaudeDir,
@@ -14,23 +17,28 @@ vi.mock("@/installer/env.js", () => ({
   getClaudeCommandsDir: () => path.join(testClaudeDir, "commands"),
   getClaudeMdFile: () => path.join(testClaudeDir, "CLAUDE.md"),
   getClaudeSkillsDir: () => path.join(testClaudeDir, "skills"),
-  getClaudeProfilesDir: () => path.join(testClaudeDir, "profiles"),
+  getNoriDir: () => testNoriDir,
+  getNoriProfilesDir: () => path.join(testNoriDir, "profiles"),
   MCP_ROOT: "/mock/mcp/root",
 }));
 
 describe("listProfiles", () => {
   beforeEach(async () => {
-    testClaudeDir = await fs.mkdtemp(path.join(tmpdir(), "profiles-test-"));
+    testBaseDir = await fs.mkdtemp(path.join(tmpdir(), "profiles-test-"));
+    testClaudeDir = path.join(testBaseDir, ".claude");
+    testNoriDir = path.join(testBaseDir, ".nori");
+    await fs.mkdir(testClaudeDir, { recursive: true });
+    await fs.mkdir(testNoriDir, { recursive: true });
   });
 
   afterEach(async () => {
-    if (testClaudeDir) {
-      await fs.rm(testClaudeDir, { recursive: true, force: true });
+    if (testBaseDir) {
+      await fs.rm(testBaseDir, { recursive: true, force: true });
     }
   });
 
   it("should list all installed profiles", async () => {
-    const profilesDir = path.join(testClaudeDir, "profiles");
+    const profilesDir = path.join(testNoriDir, "profiles");
     await fs.mkdir(profilesDir, { recursive: true });
 
     // Create user-facing profiles
@@ -45,7 +53,7 @@ describe("listProfiles", () => {
     }
 
     const { listProfiles } = await import("./profiles.js");
-    const profiles = await listProfiles({ installDir: testClaudeDir });
+    const profiles = await listProfiles({ installDir: testBaseDir });
 
     expect(profiles).toEqual(["amol", "senior-swe"]);
   });

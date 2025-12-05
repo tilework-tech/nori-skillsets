@@ -67,7 +67,7 @@ describe("nori-registry-download", () => {
       path.join(tmpdir(), "nori-registry-download-test-"),
     );
     configPath = path.join(testDir, ".nori-config.json");
-    profilesDir = path.join(testDir, ".claude", "profiles");
+    profilesDir = path.join(testDir, ".nori", "profiles");
 
     // Create initial config
     await fs.writeFile(

@@ -70,7 +70,7 @@ Claude will guide you through:
 
 1. Create the profile directory:
    ```bash
-   mkdir -p ~/.claude/profiles/my-profile
+   mkdir -p ~/.nori/profiles/my-profile
    ```
 
 2. Add a `CLAUDE.md` file with your custom instructions:
@@ -87,7 +87,7 @@ Claude will guide you through:
 3. Link to mixins (optional):
    ```bash
    # Link to the SWE mixin for engineering workflows
-   ln -s ~/.claude/_mixins/_swe ~/.claude/profiles/my-profile/_swe
+   ln -s ~/.nori/profiles/_mixins/_swe ~/.nori/profiles/my-profile/_swe
    ```
 
    Available mixins: `_swe` (engineering), `_pm` (product), `_doc` (documentation)
@@ -101,7 +101,7 @@ Claude will guide you through:
 
 **Profile structure:**
 
-Profiles live in `~/.claude/profiles/` and contain:
+Profiles live in `~/.nori/profiles/` and contain:
 - `CLAUDE.md`: Your custom instructions and workflow preferences
 - Mixins: Linked configuration options
 - Custom skills and slash commands (optional)

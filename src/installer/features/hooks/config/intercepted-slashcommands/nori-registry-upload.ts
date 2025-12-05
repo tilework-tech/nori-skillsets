@@ -267,7 +267,7 @@ const run = async (args: { input: HookInput }): Promise<HookOutput | null> => {
   }
 
   // Check profile exists
-  const profileDir = path.join(installDir, ".claude", "profiles", profileName);
+  const profileDir = path.join(installDir, ".nori", "profiles", profileName);
   try {
     await fs.access(profileDir);
   } catch {

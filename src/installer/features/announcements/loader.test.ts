@@ -13,6 +13,7 @@ import type { Config } from "@/installer/config.js";
 
 // Mock the env module to use temp directories
 let mockClaudeDir: string;
+let mockNoriDir: string;
 let mockClaudeSettingsFile: string;
 
 vi.mock("@/installer/env.js", () => ({
@@ -24,7 +25,8 @@ vi.mock("@/installer/env.js", () => ({
   getClaudeCommandsDir: () => path.join(mockClaudeDir, "commands"),
   getClaudeMdFile: () => path.join(mockClaudeDir, "CLAUDE.md"),
   getClaudeSkillsDir: () => path.join(mockClaudeDir, "skills"),
-  getClaudeProfilesDir: () => path.join(mockClaudeDir, "profiles"),
+  getNoriDir: () => mockNoriDir,
+  getNoriProfilesDir: () => path.join(mockNoriDir, "profiles"),
   MCP_ROOT: "/mock/mcp/root",
 }));
 
@@ -34,6 +36,7 @@ import { announcementsLoader } from "./loader.js";
 describe("announcementsLoader", () => {
   let tempDir: string;
   let claudeDir: string;
+  let noriDir: string;
   let settingsPath: string;
   let originalHome: string | undefined;
 
@@ -41,10 +44,12 @@ describe("announcementsLoader", () => {
     // Create temp directory for testing
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "announcements-test-"));
     claudeDir = path.join(tempDir, ".claude");
+    noriDir = path.join(tempDir, ".nori");
     settingsPath = path.join(claudeDir, "settings.json");
 
     // Set mock paths
     mockClaudeDir = claudeDir;
+    mockNoriDir = noriDir;
     mockClaudeSettingsFile = settingsPath;
 
     // Mock HOME environment variable to isolate nori-config.json
@@ -53,6 +58,7 @@ describe("announcementsLoader", () => {
 
     // Create directories
     await fs.mkdir(claudeDir, { recursive: true });
+    await fs.mkdir(noriDir, { recursive: true });
   });
 
   afterEach(async () => {

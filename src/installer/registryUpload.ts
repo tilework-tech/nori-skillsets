@@ -11,6 +11,7 @@ import * as tar from "tar";
 import { registrarApi } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
 import { loadConfig, getRegistryAuth } from "@/installer/config.js";
+import { getNoriProfilesDir } from "@/installer/env.js";
 import { error, success, info } from "@/installer/logger.js";
 import { getInstallDirs } from "@/utils/path.js";
 
@@ -177,7 +178,7 @@ export const registryUploadMain = async (args: {
     targetInstallDir = allInstallations[0];
   }
 
-  const profilesDir = path.join(targetInstallDir, ".claude", "profiles");
+  const profilesDir = getNoriProfilesDir({ installDir: targetInstallDir });
   const profileDir = path.join(profilesDir, profileName);
 
   // Check if profile exists

@@ -15,6 +15,7 @@ import type { Config } from "@/installer/config.js";
 
 // Mock the env module to use temp directories
 let mockClaudeDir: string;
+let mockNoriDir: string;
 let mockClaudeCommandsDir: string;
 
 vi.mock("@/installer/env.js", () => ({
@@ -24,8 +25,20 @@ vi.mock("@/installer/env.js", () => ({
   getClaudeCommandsDir: () => mockClaudeCommandsDir,
   getClaudeMdFile: () => path.join(mockClaudeDir, "CLAUDE.md"),
   getClaudeSkillsDir: () => path.join(mockClaudeDir, "skills"),
-  getClaudeProfilesDir: () => path.join(mockClaudeDir, "profiles"),
+  getNoriDir: () => mockNoriDir,
+  getNoriProfilesDir: () => path.join(mockNoriDir, "profiles"),
   MCP_ROOT: "/mock/mcp/root",
+}));
+
+// Capture logger warnings
+const warnCalls: Array<string> = [];
+vi.mock("@/installer/logger.js", () => ({
+  info: vi.fn(),
+  success: vi.fn(),
+  warn: vi.fn((args: { message: string }) => {
+    warnCalls.push(args.message);
+  }),
+  error: vi.fn(),
 }));
 
 // Import loaders after mocking env
@@ -34,24 +47,28 @@ import { slashCommandsLoader } from "./loader.js";
 describe("slashCommandsLoader", () => {
   let tempDir: string;
   let claudeDir: string;
+  let noriDir: string;
   let commandsDir: string;
 
   beforeEach(async () => {
     // Create temp directory for testing
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "slashcmd-test-"));
     claudeDir = path.join(tempDir, ".claude");
+    noriDir = path.join(tempDir, ".nori");
     commandsDir = path.join(claudeDir, "commands");
 
     // Set mock paths
     mockClaudeDir = claudeDir;
+    mockNoriDir = noriDir;
     mockClaudeCommandsDir = commandsDir;
 
     // Create directories
     await fs.mkdir(claudeDir, { recursive: true });
+    await fs.mkdir(noriDir, { recursive: true });
 
     // Install profiles first to set up composed profile structure
-    // Run profiles loader to populate ~/.claude/profiles/ directory
-    // This is required since feature loaders now read from ~/.claude/profiles/
+    // Run profiles loader to populate ~/.nori/profiles/ directory
+    // This is required since feature loaders now read from ~/.nori/profiles/
     const config: Config = { installDir: tempDir };
     await profilesLoader.run({ config });
   });
@@ -68,7 +85,55 @@ describe("slashCommandsLoader", () => {
     it("should create commands directory and copy slash command files for free installation", async () => {
       const config: Config = { installDir: tempDir };
 
+      // DEBUG: Check profile directory structure after beforeEach
+      const profilesPath = path.join(noriDir, "profiles");
+      const profilesExist = await fs
+        .access(profilesPath)
+        .then(() => true)
+        .catch(() => false);
+      expect(profilesExist).toBe(true); // This will show profilesPath in error
+
+      const profileDirs = await fs.readdir(profilesPath);
+      expect(profileDirs).toContain("senior-swe"); // Verify profiles exist
+
+      const slashcmdPath = path.join(
+        profilesPath,
+        "senior-swe",
+        "slashcommands",
+      );
+      const slashcmdExist = await fs
+        .access(slashcmdPath)
+        .then(() => true)
+        .catch(() => false);
+      expect(slashcmdExist).toBe(true); // This will show slashcmdPath in error
+
+      const slashcmdFiles = await fs.readdir(slashcmdPath);
+      expect(slashcmdFiles.length).toBeGreaterThan(0); // Verify slashcommands exist
+
+      // Verify one specific file really exists
+      const testFilePath = path.join(slashcmdPath, "nori-create-profile.md");
+      expect(
+        await fs
+          .access(testFilePath)
+          .then(() => true)
+          .catch(() => false),
+      ).toBe(true);
+      // Read its content to make sure it's accessible
+      const testContent = await fs.readFile(testFilePath, "utf-8");
+      expect(testContent.length).toBeGreaterThan(0);
+
+      // Check what the mock returns for getNoriProfilesDir
+      const { getNoriProfilesDir } = await import("@/installer/env.js");
+      const mockProfilesDir = getNoriProfilesDir({ installDir: tempDir });
+      expect(mockProfilesDir).toBe(profilesPath); // This should match!
+
+      // Clear warnCalls before running install
+      warnCalls.length = 0;
+
       await slashCommandsLoader.install({ config });
+
+      // Check for warnings from the install
+      expect(warnCalls).toEqual([]); // Should have no warnings - will show actual warnings in error
 
       // Verify commands directory exists
       const exists = await fs
@@ -254,9 +319,9 @@ describe("slashCommandsLoader", () => {
 
       // For custom install, paths should be absolute (not tilde)
       // The profiles directory should NOT use tilde notation
-      expect(content).not.toContain("~/.claude/profiles/");
+      expect(content).not.toContain("~/.nori/profiles/");
       expect(content).toContain(
-        path.join(tempDir, "custom-install", ".claude", "profiles"),
+        path.join(tempDir, "custom-install", ".nori", "profiles"),
       );
     });
 
@@ -297,11 +362,11 @@ describe("slashCommandsLoader", () => {
       const frontmatter = frontmatterMatch![1];
 
       // Should NOT have tilde paths in frontmatter for custom install
-      expect(frontmatter).not.toContain("~/.claude/profiles/");
+      expect(frontmatter).not.toContain("~/.nori/profiles/");
 
       // Should have absolute path in frontmatter
       expect(frontmatter).toContain(
-        path.join(tempDir, "custom-install-2", ".claude", "profiles"),
+        path.join(tempDir, "custom-install-2", ".nori", "profiles"),
       );
     });
   });

@@ -46,8 +46,8 @@ Profiles control Claude's behavior and autonomy level. Three built-in profiles a
 ### 1.4 Profile Management
 
 - **Switch profiles:** `/nori-switch-profile` or `nori-ai switch-profile`
-- **Custom profiles:** Create your own in `~/.claude/profiles/`
-- **Source of truth:** All profiles stored in `~/.claude/profiles/`
+- **Custom profiles:** Create your own in `~/.nori/profiles/`
+- **Source of truth:** All profiles stored in `~/.nori/profiles/`
 
 **Available in:** Free and Paid
 

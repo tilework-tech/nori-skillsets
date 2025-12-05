@@ -34,9 +34,13 @@ vi.mock("@/installer/env.js", async (importOriginal) => {
       const installDir = args?.installDir || mockInstallDir;
       return path.join(installDir, ".claude", "settings.json");
     },
-    getClaudeProfilesDir: (args?: { installDir?: string | null }) => {
+    getNoriDir: (args?: { installDir?: string | null }) => {
       const installDir = args?.installDir || mockInstallDir;
-      return path.join(installDir, ".claude", "profiles");
+      return path.join(installDir, ".nori");
+    },
+    getNoriProfilesDir: (args?: { installDir?: string | null }) => {
+      const installDir = args?.installDir || mockInstallDir;
+      return path.join(installDir, ".nori", "profiles");
     },
     getClaudeSkillsDir: (args?: { installDir?: string | null }) => {
       const installDir = args?.installDir || mockInstallDir;
@@ -104,7 +108,7 @@ describe("configurable install directory integration", () => {
       await claudeMdLoader.install({ config });
 
       // Verify all features installed to custom location
-      const profilesDir = path.join(customInstallDir, ".claude", "profiles");
+      const profilesDir = path.join(customInstallDir, ".nori", "profiles");
       const skillsDir = path.join(customInstallDir, ".claude", "skills");
       const claudeMdPath = path.join(customInstallDir, ".claude", "CLAUDE.md");
       const settingsPath = path.join(
