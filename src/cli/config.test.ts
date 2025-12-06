@@ -676,3 +676,164 @@ describe("registryAuths", () => {
     });
   });
 });
+
+describe("installedAgents", () => {
+  let tempDir: string;
+  let mockConfigPath: string;
+
+  beforeEach(async () => {
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "config-agents-test-"));
+    mockConfigPath = path.join(tempDir, ".nori-config.json");
+  });
+
+  afterEach(async () => {
+    await fs.rm(tempDir, { recursive: true, force: true });
+  });
+
+  describe("loadConfig with installedAgents", () => {
+    it("should load installedAgents when present and valid", async () => {
+      await fs.writeFile(
+        mockConfigPath,
+        JSON.stringify({
+          profile: { baseProfile: "senior-swe" },
+          installedAgents: ["claude-code"],
+        }),
+      );
+
+      const loaded = await loadConfig({ installDir: tempDir });
+
+      expect(loaded?.installedAgents).toEqual(["claude-code"]);
+    });
+
+    it("should load multiple installedAgents", async () => {
+      await fs.writeFile(
+        mockConfigPath,
+        JSON.stringify({
+          profile: { baseProfile: "senior-swe" },
+          installedAgents: ["claude-code", "cursor", "windsurf"],
+        }),
+      );
+
+      const loaded = await loadConfig({ installDir: tempDir });
+
+      expect(loaded?.installedAgents).toHaveLength(3);
+      expect(loaded?.installedAgents).toContain("claude-code");
+      expect(loaded?.installedAgents).toContain("cursor");
+      expect(loaded?.installedAgents).toContain("windsurf");
+    });
+
+    it("should filter out non-string entries from installedAgents", async () => {
+      await fs.writeFile(
+        mockConfigPath,
+        JSON.stringify({
+          profile: { baseProfile: "senior-swe" },
+          installedAgents: [
+            "claude-code",
+            123,
+            null,
+            { name: "invalid" },
+            "cursor",
+          ],
+        }),
+      );
+
+      const loaded = await loadConfig({ installDir: tempDir });
+
+      expect(loaded?.installedAgents).toEqual(["claude-code", "cursor"]);
+    });
+
+    it("should return undefined installedAgents when array is empty after filtering", async () => {
+      await fs.writeFile(
+        mockConfigPath,
+        JSON.stringify({
+          profile: { baseProfile: "senior-swe" },
+          installedAgents: [123, null],
+        }),
+      );
+
+      const loaded = await loadConfig({ installDir: tempDir });
+
+      expect(loaded?.installedAgents).toBeUndefined();
+    });
+
+    it("should handle non-array installedAgents gracefully", async () => {
+      await fs.writeFile(
+        mockConfigPath,
+        JSON.stringify({
+          profile: { baseProfile: "senior-swe" },
+          installedAgents: "not an array",
+        }),
+      );
+
+      const loaded = await loadConfig({ installDir: tempDir });
+
+      expect(loaded?.installedAgents).toBeUndefined();
+    });
+  });
+
+  describe("saveConfig with installedAgents", () => {
+    it("should save installedAgents to config file", async () => {
+      await saveConfig({
+        username: null,
+        password: null,
+        organizationUrl: null,
+        profile: { baseProfile: "senior-swe" },
+        installedAgents: ["claude-code"],
+        installDir: tempDir,
+      });
+
+      const content = await fs.readFile(mockConfigPath, "utf-8");
+      const config = JSON.parse(content);
+
+      expect(config.installedAgents).toEqual(["claude-code"]);
+    });
+
+    it("should save multiple installedAgents", async () => {
+      await saveConfig({
+        username: null,
+        password: null,
+        organizationUrl: null,
+        profile: { baseProfile: "senior-swe" },
+        installedAgents: ["claude-code", "cursor"],
+        installDir: tempDir,
+      });
+
+      const content = await fs.readFile(mockConfigPath, "utf-8");
+      const config = JSON.parse(content);
+
+      expect(config.installedAgents).toEqual(["claude-code", "cursor"]);
+    });
+
+    it("should not save installedAgents when null", async () => {
+      await saveConfig({
+        username: null,
+        password: null,
+        organizationUrl: null,
+        profile: { baseProfile: "senior-swe" },
+        installedAgents: null,
+        installDir: tempDir,
+      });
+
+      const content = await fs.readFile(mockConfigPath, "utf-8");
+      const config = JSON.parse(content);
+
+      expect(config.installedAgents).toBeUndefined();
+    });
+
+    it("should not save installedAgents when empty array", async () => {
+      await saveConfig({
+        username: null,
+        password: null,
+        organizationUrl: null,
+        profile: { baseProfile: "senior-swe" },
+        installedAgents: [],
+        installDir: tempDir,
+      });
+
+      const content = await fs.readFile(mockConfigPath, "utf-8");
+      const config = JSON.parse(content);
+
+      expect(config.installedAgents).toBeUndefined();
+    });
+  });
+});

@@ -8,6 +8,7 @@
 
 import { Command } from "commander";
 
+import { AgentRegistry } from "@/cli/agents/agentRegistry.js";
 import { registerCheckCommand } from "@/cli/commands/check/check.js";
 import { registerInstallCommand } from "@/cli/commands/install/install.js";
 import { registerInstallLocationCommand } from "@/cli/commands/install-location/installLocation.js";
@@ -21,6 +22,26 @@ import { normalizeInstallDir } from "@/utils/path.js";
 
 const program = new Command();
 const version = getCurrentPackageVersion() || "unknown";
+const agentRegistry = AgentRegistry.getInstance();
+const defaultAgentName = agentRegistry.getDefaultAgentName();
+
+/**
+ * Validate agent name and return it if valid
+ * @param agentName - The agent name to validate
+ *
+ * @throws Error if agent is not found, with list of valid agents
+ *
+ * @returns The validated agent name
+ */
+const validateAgent = (agentName: string): string => {
+  try {
+    agentRegistry.getAgent({ name: agentName });
+    return agentName;
+  } catch (error: any) {
+    // Re-throw with the helpful message from AgentRegistry
+    throw error;
+  }
+};
 
 program
   .name("nori-ai")
@@ -32,6 +53,12 @@ program
     (value) => normalizeInstallDir({ installDir: value }),
   )
   .option("-n, --non-interactive", "Run without interactive prompts")
+  .option(
+    "-a, --agent <name>",
+    `Target coding agent (default: ${defaultAgentName})`,
+    validateAgent,
+    defaultAgentName,
+  )
   .addHelpText(
     "after",
     `
@@ -47,6 +74,7 @@ Examples:
   $ nori-ai registry-upload my-profile
   $ nori-ai registry-upload my-profile@1.0.0 --registry https://registry.example.com
   $ nori-ai --non-interactive install
+  $ nori-ai --agent claude-code install
 `,
   );
 

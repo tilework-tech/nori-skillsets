@@ -84,12 +84,12 @@ chmod +x build/src/cli/commands/install/install.js
 chmod +x build/src/cli/commands/uninstall/uninstall.js
 
 # Hook scripts
-chmod +x build/src/cli/features/hooks/config/autoupdate.js
-chmod +x build/src/cli/features/hooks/config/summarize.js
-chmod +x build/src/cli/features/hooks/config/summarize-notification.js
+chmod +x build/src/cli/agents/claude/hooks/config/autoupdate.js
+chmod +x build/src/cli/agents/claude/hooks/config/summarize.js
+chmod +x build/src/cli/agents/claude/hooks/config/summarize-notification.js
 
 # Paid skill scripts (all script.js files in paid-* directories within profiles)
-find build/src/cli/features/profiles/config -path '*/skills/paid-*/script.js' -exec chmod +x {} \; 2>/dev/null || true
+find build/src/cli/agents/claude/profiles/config -path '*/skills/paid-*/script.js' -exec chmod +x {} \; 2>/dev/null || true
 
 echo -e "${GREEN}✓ File permissions set${NC}"
 echo ""
@@ -102,22 +102,20 @@ echo ""
 echo -e "${BLUE}[5/6] Copying configuration files...${NC}"
 
 # Create required directories
-mkdir -p build/src/cli/features/claudemd/config
-mkdir -p build/src/cli/features/hooks/config
-mkdir -p build/src/cli/features/statusline/config
-mkdir -p build/src/cli/features/profiles/config
+mkdir -p build/src/cli/agents/claude/hooks/config
+mkdir -p build/src/cli/agents/claude/statusline/config
+mkdir -p build/src/cli/agents/claude/profiles/config
 
 # Copy configuration files for specific features that still have config dirs
-cp src/cli/features/claudemd/config/*.md build/src/cli/features/claudemd/config/ 2>/dev/null || true
-cp src/cli/features/hooks/config/*.sh build/src/cli/features/hooks/config/ 2>/dev/null || true
-cp src/cli/features/statusline/config/*.sh build/src/cli/features/statusline/config/ 2>/dev/null || true
+cp src/cli/agents/claude/hooks/config/*.sh build/src/cli/agents/claude/hooks/config/ 2>/dev/null || true
+cp src/cli/agents/claude/statusline/config/*.sh build/src/cli/agents/claude/statusline/config/ 2>/dev/null || true
 
 # Copy entire profile directories (which contain skills, subagents, slashcommands, CLAUDE.md)
-cp -r src/cli/features/profiles/config/* build/src/cli/features/profiles/config/ 2>/dev/null || true
+cp -r src/cli/agents/claude/profiles/config/* build/src/cli/agents/claude/profiles/config/ 2>/dev/null || true
 
 # Make shell scripts executable
-chmod +x build/src/cli/features/hooks/config/*.sh 2>/dev/null || true
-chmod +x build/src/cli/features/statusline/config/*.sh 2>/dev/null || true
+chmod +x build/src/cli/agents/claude/hooks/config/*.sh 2>/dev/null || true
+chmod +x build/src/cli/agents/claude/statusline/config/*.sh 2>/dev/null || true
 
 echo -e "${GREEN}✓ Configuration files copied${NC}"
 echo ""
@@ -130,7 +128,7 @@ echo ""
 echo -e "${BLUE}[6/6] Substituting version strings...${NC}"
 
 VERSION=$(jq -r .version package.json)
-perl -pi -e "s/__VERSION__/v${VERSION}/g" build/src/cli/features/statusline/config/nori-statusline.sh
+perl -pi -e "s/__VERSION__/v${VERSION}/g" build/src/cli/agents/claude/statusline/config/nori-statusline.sh
 
 echo -e "${GREEN}✓ Version substituted (v${VERSION})${NC}"
 echo ""

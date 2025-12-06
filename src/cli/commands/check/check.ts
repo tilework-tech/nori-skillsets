@@ -5,13 +5,13 @@
  */
 
 import { handshake } from "@/api/index.js";
+import { LoaderRegistry } from "@/cli/agents/claude/loaderRegistry.js";
 import {
   loadConfig,
   validateConfig,
   getDefaultProfile,
   isPaidInstall,
 } from "@/cli/config.js";
-import { LoaderRegistry } from "@/cli/features/loaderRegistry.js";
 import { error, success, info } from "@/cli/logger.js";
 import { getInstallDirs } from "@/utils/path.js";
 

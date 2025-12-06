@@ -9,6 +9,7 @@
 import * as fs from "fs/promises";
 import * as path from "path";
 
+import { LoaderRegistry } from "@/cli/agents/claude/loaderRegistry.js";
 import { trackEvent } from "@/cli/analytics.js";
 import {
   loadConfig,
@@ -16,7 +17,6 @@ import {
   getDefaultProfile,
   isPaidInstall,
 } from "@/cli/config.js";
-import { LoaderRegistry } from "@/cli/features/loaderRegistry.js";
 import { error, success, info, warn } from "@/cli/logger.js";
 import { promptUser } from "@/cli/prompt.js";
 import { getVersionFilePath } from "@/cli/version.js";

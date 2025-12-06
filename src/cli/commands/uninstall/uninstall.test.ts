@@ -81,7 +81,7 @@ vi.mock("@/cli/logger.js", () => ({
   error: vi.fn(),
 }));
 
-vi.mock("@/cli/features/loaderRegistry.js", () => ({
+vi.mock("@/cli/agents/claude/loaderRegistry.js", () => ({
   LoaderRegistry: {
     getInstance: () => ({
       getAll: () => [],

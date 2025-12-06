@@ -9,15 +9,15 @@ import * as path from "path";
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
+import { claudeMdLoader } from "@/cli/agents/claude/profiles/claudemd/loader.js";
+import { profilesLoader } from "@/cli/agents/claude/profiles/loader.js";
+import { skillsLoader } from "@/cli/agents/claude/profiles/skills/loader.js";
 import {
   loadConfig,
   saveConfig,
   isPaidInstall,
   type Config,
 } from "@/cli/config.js";
-import { claudeMdLoader } from "@/cli/features/profiles/claudemd/loader.js";
-import { profilesLoader } from "@/cli/features/profiles/loader.js";
-import { skillsLoader } from "@/cli/features/profiles/skills/loader.js";
 
 // Mock env module to use test directories
 let mockInstallDir: string;

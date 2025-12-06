@@ -12,6 +12,7 @@ import * as fs from "fs/promises";
 import * as path from "path";
 import { fileURLToPath } from "url";
 
+import { LoaderRegistry } from "@/cli/agents/claude/loaderRegistry.js";
 import { trackEvent } from "@/cli/analytics.js";
 import {
   displayNoriBanner,
@@ -26,7 +27,6 @@ import {
   type Config,
 } from "@/cli/config.js";
 import { getClaudeDir } from "@/cli/env.js";
-import { LoaderRegistry } from "@/cli/features/loaderRegistry.js";
 import {
   error,
   success,
@@ -52,12 +52,13 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Source profiles directory (in the package)
-// From src/cli/commands/install/ go up to src/cli/features/profiles/config
+// From src/cli/commands/install/ go up to src/cli/agents/claude/profiles/config
 const SOURCE_PROFILES_DIR = path.join(
   __dirname,
   "..",
   "..",
-  "features",
+  "agents",
+  "claude",
   "profiles",
   "config",
 );

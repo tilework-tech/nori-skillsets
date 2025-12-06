@@ -53,7 +53,7 @@ export const registerXCommand = (args: { program: Command }): void => {
 };
 ```
 
-**Import Path Pattern:** Commands import from `@/cli/` for shared utilities and `@/cli/features/` for loaders. Within the install command, relative imports are used for command-specific utilities (e.g., `./asciiArt.js`, `./installState.js`).
+**Import Path Pattern:** Commands import from `@/cli/` for shared utilities and `@/cli/agents/claude/` for loaders (previously `@/cli/features/`). Within the install command, relative imports are used for command-specific utilities (e.g., `./asciiArt.js`, `./installState.js`).
 
 ### Things to Know
 
