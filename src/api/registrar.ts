@@ -109,7 +109,7 @@ export const registrarApi = {
       params.set("offset", offset.toString());
     }
 
-    const url = `${baseUrl}/api/packages/search?${params.toString()}`;
+    const url = `${baseUrl}/api/profiles/search?${params.toString()}`;
 
     const headers: Record<string, string> = {};
     if (authToken != null) {
@@ -150,7 +150,7 @@ export const registrarApi = {
       params.set("offset", offset.toString());
     }
 
-    const url = `${registryUrl}/api/packages/search?${params.toString()}`;
+    const url = `${registryUrl}/api/profiles/search?${params.toString()}`;
 
     const headers: Record<string, string> = {};
     if (authToken != null) {
@@ -182,7 +182,7 @@ export const registrarApi = {
     const { packageName, registryUrl, authToken } = args;
     const baseUrl = registryUrl ?? REGISTRAR_URL;
 
-    const url = `${baseUrl}/api/packages/${packageName}`;
+    const url = `${baseUrl}/api/profiles/${packageName}`;
 
     const headers: Record<string, string> = {};
     if (authToken != null) {
@@ -234,7 +234,7 @@ export const registrarApi = {
     }
 
     const tarballFilename = `${packageName}-${version}.tgz`;
-    const url = `${baseUrl}/api/packages/${packageName}/tarball/${tarballFilename}`;
+    const url = `${baseUrl}/api/profiles/${packageName}/tarball/${tarballFilename}`;
 
     const headers: Record<string, string> = {};
     if (authToken != null) {
@@ -282,7 +282,7 @@ export const registrarApi = {
       formData.append("description", description);
     }
 
-    const url = `${baseUrl}/api/packages/${packageName}/profile`;
+    const url = `${baseUrl}/api/profiles/${packageName}/profile`;
 
     const response = await fetch(url, {
       method: "PUT",

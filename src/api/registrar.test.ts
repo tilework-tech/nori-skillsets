@@ -46,7 +46,7 @@ describe("registrarApi", () => {
       expect(result).toEqual(mockPackages);
       expect(mockFetch).toHaveBeenCalledTimes(1);
       expect(mockFetch).toHaveBeenCalledWith(
-        "https://registrar.tilework.tech/api/packages/search?q=test",
+        "https://registrar.tilework.tech/api/profiles/search?q=test",
         expect.objectContaining({
           method: "GET",
         }),
@@ -79,7 +79,7 @@ describe("registrarApi", () => {
       });
 
       expect(mockFetch).toHaveBeenCalledWith(
-        "https://registrar.tilework.tech/api/packages/search?q=test&limit=10&offset=20",
+        "https://registrar.tilework.tech/api/profiles/search?q=test&limit=10&offset=20",
         expect.objectContaining({
           method: "GET",
         }),
@@ -98,7 +98,7 @@ describe("registrarApi", () => {
       });
 
       expect(mockFetch).toHaveBeenCalledWith(
-        "https://private-registry.example.com/api/packages/search?q=test",
+        "https://private-registry.example.com/api/profiles/search?q=test",
         expect.objectContaining({
           method: "GET",
         }),
@@ -118,7 +118,7 @@ describe("registrarApi", () => {
       });
 
       expect(mockFetch).toHaveBeenCalledWith(
-        "https://private-registry.example.com/api/packages/search?q=test",
+        "https://private-registry.example.com/api/profiles/search?q=test",
         expect.objectContaining({
           method: "GET",
           headers: expect.objectContaining({
@@ -169,7 +169,7 @@ describe("registrarApi", () => {
 
       expect(result).toEqual(mockPackument);
       expect(mockFetch).toHaveBeenCalledWith(
-        "https://registrar.tilework.tech/api/packages/test-profile",
+        "https://registrar.tilework.tech/api/profiles/test-profile",
         expect.objectContaining({
           method: "GET",
         }),
@@ -208,7 +208,7 @@ describe("registrarApi", () => {
       });
 
       expect(mockFetch).toHaveBeenCalledWith(
-        "https://private-registry.example.com/api/packages/test-profile",
+        "https://private-registry.example.com/api/profiles/test-profile",
         expect.objectContaining({
           method: "GET",
         }),
@@ -236,7 +236,7 @@ describe("registrarApi", () => {
       });
 
       expect(mockFetch).toHaveBeenCalledWith(
-        "https://private-registry.example.com/api/packages/test-profile",
+        "https://private-registry.example.com/api/profiles/test-profile",
         expect.objectContaining({
           method: "GET",
           headers: expect.objectContaining({
@@ -263,7 +263,7 @@ describe("registrarApi", () => {
 
       expect(result).toBe(mockTarballData);
       expect(mockFetch).toHaveBeenCalledWith(
-        "https://registrar.tilework.tech/api/packages/test-profile/tarball/test-profile-1.0.0.tgz",
+        "https://registrar.tilework.tech/api/profiles/test-profile/tarball/test-profile-1.0.0.tgz",
         expect.objectContaining({
           method: "GET",
         }),
@@ -317,7 +317,7 @@ describe("registrarApi", () => {
       // First call should be to get packument
       expect(mockFetch).toHaveBeenNthCalledWith(
         1,
-        "https://registrar.tilework.tech/api/packages/test-profile",
+        "https://registrar.tilework.tech/api/profiles/test-profile",
         expect.objectContaining({
           method: "GET",
         }),
@@ -326,7 +326,7 @@ describe("registrarApi", () => {
       // Second call should be to download tarball with resolved version
       expect(mockFetch).toHaveBeenNthCalledWith(
         2,
-        "https://registrar.tilework.tech/api/packages/test-profile/tarball/test-profile-2.0.0.tgz",
+        "https://registrar.tilework.tech/api/profiles/test-profile/tarball/test-profile-2.0.0.tgz",
         expect.objectContaining({
           method: "GET",
         }),
@@ -348,7 +348,7 @@ describe("registrarApi", () => {
       });
 
       expect(mockFetch).toHaveBeenCalledWith(
-        "https://private-registry.example.com/api/packages/test-profile/tarball/test-profile-1.0.0.tgz",
+        "https://private-registry.example.com/api/profiles/test-profile/tarball/test-profile-1.0.0.tgz",
         expect.objectContaining({
           method: "GET",
         }),
@@ -371,7 +371,7 @@ describe("registrarApi", () => {
       });
 
       expect(mockFetch).toHaveBeenCalledWith(
-        "https://private-registry.example.com/api/packages/test-profile/tarball/test-profile-1.0.0.tgz",
+        "https://private-registry.example.com/api/profiles/test-profile/tarball/test-profile-1.0.0.tgz",
         expect.objectContaining({
           method: "GET",
           headers: expect.objectContaining({
@@ -411,7 +411,7 @@ describe("registrarApi", () => {
       // First call should be to get packument with auth
       expect(mockFetch).toHaveBeenNthCalledWith(
         1,
-        "https://private-registry.example.com/api/packages/test-profile",
+        "https://private-registry.example.com/api/profiles/test-profile",
         expect.objectContaining({
           method: "GET",
           headers: expect.objectContaining({
@@ -423,7 +423,7 @@ describe("registrarApi", () => {
       // Second call should be to download tarball with auth
       expect(mockFetch).toHaveBeenNthCalledWith(
         2,
-        "https://private-registry.example.com/api/packages/test-profile/tarball/test-profile-2.0.0.tgz",
+        "https://private-registry.example.com/api/profiles/test-profile/tarball/test-profile-2.0.0.tgz",
         expect.objectContaining({
           method: "GET",
           headers: expect.objectContaining({
@@ -459,7 +459,7 @@ describe("registrarApi", () => {
 
       expect(result).toEqual(mockPackages);
       expect(mockFetch).toHaveBeenCalledWith(
-        "https://custom.registry.com/api/packages/search?q=custom",
+        "https://custom.registry.com/api/profiles/search?q=custom",
         expect.objectContaining({
           method: "GET",
         }),
@@ -479,7 +479,7 @@ describe("registrarApi", () => {
       });
 
       expect(mockFetch).toHaveBeenCalledWith(
-        "https://private.registry.com/api/packages/search?q=test",
+        "https://private.registry.com/api/profiles/search?q=test",
         expect.objectContaining({
           method: "GET",
           headers: expect.objectContaining({
@@ -519,7 +519,7 @@ describe("registrarApi", () => {
       });
 
       expect(mockFetch).toHaveBeenCalledWith(
-        "https://custom.registry.com/api/packages/search?q=test&limit=5&offset=10",
+        "https://custom.registry.com/api/profiles/search?q=test&limit=5&offset=10",
         expect.anything(),
       );
     });
@@ -566,7 +566,7 @@ describe("registrarApi", () => {
 
       expect(result).toEqual(mockResponse);
       expect(mockFetch).toHaveBeenCalledWith(
-        "https://registrar.tilework.tech/api/packages/test-profile/profile",
+        "https://registrar.tilework.tech/api/profiles/test-profile/profile",
         expect.objectContaining({
           method: "PUT",
           headers: expect.objectContaining({
@@ -711,7 +711,7 @@ describe("registrarApi", () => {
       });
 
       expect(mockFetch).toHaveBeenCalledWith(
-        "https://private-registry.example.com/api/packages/test-profile/profile",
+        "https://private-registry.example.com/api/profiles/test-profile/profile",
         expect.objectContaining({
           method: "PUT",
           headers: expect.objectContaining({
@@ -743,7 +743,7 @@ describe("registrarApi", () => {
       });
 
       expect(mockFetch).toHaveBeenCalledWith(
-        "https://registrar.tilework.tech/api/packages/test-profile/profile",
+        "https://registrar.tilework.tech/api/profiles/test-profile/profile",
         expect.anything(),
       );
     });
