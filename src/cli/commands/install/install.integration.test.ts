@@ -5,12 +5,13 @@ import * as path from "path";
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
+import { runUninstall } from "@/cli/commands/uninstall/uninstall.js";
+import { getConfigPath } from "@/cli/config.js";
+import { getInstalledVersion } from "@/cli/version.js";
+
 import type * as childProcess from "child_process";
 
-import { getConfigPath } from "./config.js";
 import { main as installMain } from "./install.js";
-import { runUninstall } from "./uninstall.js";
-import { getInstalledVersion } from "./version.js";
 
 // Store console output for testing warnings
 let consoleOutput: Array<string> = [];
@@ -55,7 +56,7 @@ vi.mock("child_process", async (importOriginal) => {
 });
 
 // Mock env module to use test directory
-vi.mock("./env.js", () => {
+vi.mock("@/cli/env.js", () => {
   const testRoot = "/tmp/install-integration-test-mcp-root";
   const testClaudeDir = "/tmp/install-integration-test-claude";
   return {
@@ -79,7 +80,7 @@ vi.mock("./env.js", () => {
 });
 
 // Mock analytics to prevent tracking during tests
-vi.mock("./analytics.js", () => ({
+vi.mock("@/cli/analytics.js", () => ({
   initializeAnalytics: vi.fn(),
   trackEvent: vi.fn(),
 }));

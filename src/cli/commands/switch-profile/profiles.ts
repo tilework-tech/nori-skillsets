@@ -11,6 +11,45 @@ import { getClaudeProfilesDir } from "@/cli/env.js";
 import { success, info } from "@/cli/logger.js";
 import { normalizeInstallDir } from "@/utils/path.js";
 
+import type { Command } from "commander";
+
+/**
+ * Register the 'switch-profile' command with commander
+ * @param args - Configuration arguments
+ * @param args.program - Commander program instance
+ */
+export const registerSwitchProfileCommand = (args: {
+  program: Command;
+}): void => {
+  const { program } = args;
+
+  program
+    .command("switch-profile <name>")
+    .description("Switch to a different profile and reinstall")
+    .action(async (name: string) => {
+      // Get global options from parent
+      const globalOpts = program.opts();
+
+      // Switch to the profile
+      await switchProfile({
+        profileName: name,
+        installDir: globalOpts.installDir || null,
+      });
+
+      // Run install in non-interactive mode with skipUninstall
+      // This preserves custom user profiles during the profile switch
+      info({ message: "Applying profile configuration..." });
+      const { main: installMain } = await import(
+        "@/cli/commands/install/install.js"
+      );
+      await installMain({
+        nonInteractive: true,
+        skipUninstall: true,
+        installDir: globalOpts.installDir || null,
+      });
+    });
+};
+
 /**
  * List all available profiles from ~/.claude/profiles/
  * @param args - Configuration arguments

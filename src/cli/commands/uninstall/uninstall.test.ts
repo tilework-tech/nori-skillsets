@@ -91,7 +91,8 @@ vi.mock("@/cli/features/loaderRegistry.js", () => ({
 }));
 
 // Import after mocking
-import { promptUser } from "./prompt.js";
+import { promptUser } from "@/cli/prompt.js";
+
 import { runUninstall, main } from "./uninstall.js";
 
 vi.mock("@/cli/prompt.js", () => ({

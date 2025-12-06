@@ -14,10 +14,10 @@ import {
   saveConfig,
   isPaidInstall,
   type Config,
-} from "./config.js";
-import { claudeMdLoader } from "./features/profiles/claudemd/loader.js";
-import { profilesLoader } from "./features/profiles/loader.js";
-import { skillsLoader } from "./features/profiles/skills/loader.js";
+} from "@/cli/config.js";
+import { claudeMdLoader } from "@/cli/features/profiles/claudemd/loader.js";
+import { profilesLoader } from "@/cli/features/profiles/loader.js";
+import { skillsLoader } from "@/cli/features/profiles/skills/loader.js";
 
 // Mock env module to use test directories
 let mockInstallDir: string;

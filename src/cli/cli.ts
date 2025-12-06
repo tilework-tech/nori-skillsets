@@ -8,105 +8,16 @@
 
 import { Command } from "commander";
 
-import { checkMain } from "@/cli/check.js";
-import { registerInstallCommand } from "@/cli/install.js";
-import { error, success, info } from "@/cli/logger.js";
-import { switchProfile } from "@/cli/profiles.js";
-import { registerRegistryDownloadCommand } from "@/cli/registryDownload.js";
-import { registerRegistrySearchCommand } from "@/cli/registrySearch.js";
-import { registerRegistryUploadCommand } from "@/cli/registryUpload.js";
-import { registerUninstallCommand } from "@/cli/uninstall.js";
+import { registerCheckCommand } from "@/cli/commands/check/check.js";
+import { registerInstallCommand } from "@/cli/commands/install/install.js";
+import { registerInstallLocationCommand } from "@/cli/commands/install-location/installLocation.js";
+import { registerRegistryDownloadCommand } from "@/cli/commands/registry-download/registryDownload.js";
+import { registerRegistrySearchCommand } from "@/cli/commands/registry-search/registrySearch.js";
+import { registerRegistryUploadCommand } from "@/cli/commands/registry-upload/registryUpload.js";
+import { registerSwitchProfileCommand } from "@/cli/commands/switch-profile/profiles.js";
+import { registerUninstallCommand } from "@/cli/commands/uninstall/uninstall.js";
 import { getCurrentPackageVersion } from "@/cli/version.js";
-import { normalizeInstallDir, getInstallDirs } from "@/utils/path.js";
-
-/**
- * Register the 'check' command with commander
- * @param args - Configuration arguments
- * @param args.program - Commander program instance
- */
-const registerCheckCommand = (args: { program: Command }): void => {
-  const { program } = args;
-
-  program
-    .command("check")
-    .description("Validate Nori installation and configuration")
-    .action(async () => {
-      // Get global options from parent
-      const globalOpts = program.opts();
-
-      await checkMain({
-        installDir: globalOpts.installDir || null,
-      });
-    });
-};
-
-/**
- * Register the 'switch-profile' command with commander
- * @param args - Configuration arguments
- * @param args.program - Commander program instance
- */
-const registerSwitchProfileCommand = (args: { program: Command }): void => {
-  const { program } = args;
-
-  program
-    .command("switch-profile <name>")
-    .description("Switch to a different profile and reinstall")
-    .action(async (name: string) => {
-      // Get global options from parent
-      const globalOpts = program.opts();
-
-      // Switch to the profile
-      await switchProfile({
-        profileName: name,
-        installDir: globalOpts.installDir || null,
-      });
-
-      // Run install in non-interactive mode with skipUninstall
-      // This preserves custom user profiles during the profile switch
-      info({ message: "Applying profile configuration..." });
-      const { main: installMain } = await import("@/cli/install.js");
-      await installMain({
-        nonInteractive: true,
-        skipUninstall: true,
-        installDir: globalOpts.installDir || null,
-      });
-    });
-};
-
-/**
- * Register the 'install-location' command with commander
- * @param args - Configuration arguments
- * @param args.program - Commander program instance
- */
-const registerInstallLocationCommand = (args: { program: Command }): void => {
-  const { program } = args;
-
-  program
-    .command("install-location")
-    .description("Display Nori installation directories")
-    .action(async () => {
-      const currentDir = process.cwd();
-      const installDirs = getInstallDirs({ currentDir });
-
-      if (installDirs.length === 0) {
-        error({
-          message:
-            "No Nori installations found in current directory or parent directories",
-        });
-        process.exit(1);
-      }
-
-      console.log("");
-      info({ message: "Nori installation directories:" });
-      console.log("");
-
-      for (const dir of installDirs) {
-        success({ message: `  ${dir}` });
-      }
-
-      console.log("");
-    });
-};
+import { normalizeInstallDir } from "@/utils/path.js";
 
 const program = new Command();
 const version = getCurrentPackageVersion() || "unknown";

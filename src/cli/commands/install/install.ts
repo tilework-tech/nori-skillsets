@@ -17,7 +17,8 @@ import {
   displayNoriBanner,
   displayWelcomeBanner,
   displaySeaweedBed,
-} from "@/cli/asciiArt.js";
+} from "@/cli/commands/install/asciiArt.js";
+import { hasExistingInstallation } from "@/cli/commands/install/installState.js";
 import {
   loadConfig,
   getDefaultProfile,
@@ -26,7 +27,6 @@ import {
 } from "@/cli/config.js";
 import { getClaudeDir } from "@/cli/env.js";
 import { LoaderRegistry } from "@/cli/features/loaderRegistry.js";
-import { hasExistingInstallation } from "@/cli/installState.js";
 import {
   error,
   success,
@@ -52,8 +52,11 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Source profiles directory (in the package)
+// From src/cli/commands/install/ go up to src/cli/features/profiles/config
 const SOURCE_PROFILES_DIR = path.join(
   __dirname,
+  "..",
+  "..",
   "features",
   "profiles",
   "config",

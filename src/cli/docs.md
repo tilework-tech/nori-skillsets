@@ -1,27 +1,52 @@
-# Noridoc: installer
+# Noridoc: cli
 
 Path: @/plugin/src/cli
 
 ### Overview
 
-CLI installer for Nori Profiles that prompts for configuration, installs features into Claude Code, manages credentials, and tracks installation analytics via Google Analytics, supporting both free (local-only) and paid (backend-integrated) installation modes with directory-based profile system. The CLI uses Commander.js for command routing, argument parsing, and help generation.
+CLI for Nori Profiles that prompts for configuration, installs features into Claude Code, manages credentials, and tracks installation analytics via Google Analytics, supporting both free (local-only) and paid (backend-integrated) installation modes with directory-based profile system. The CLI uses Commander.js for command routing, argument parsing, and help generation.
 
 ### How it fits into the larger codebase
 
-**CLI Architecture:** The nori-ai CLI command (defined in @/plugin/package.json bin) routes to @/plugin/src/cli/cli.ts, which uses Commander.js for command routing, argument parsing, validation, and help generation. The CLI defines global options (`--install-dir`, `--non-interactive`) on the main program. Each installer file (install.ts, uninstall.ts, check.ts, registrySearch.ts, registryDownload.ts) exports either a `registerXCommand({ program })` function or a main function that cli.ts wraps with a register function. Commands access global options via `program.opts()`. The CLI provides automatic `--help`, `--version`, and unknown command detection. Running `nori-ai` with no command shows help. The CLI layer is responsible ONLY for parsing and routing - all business logic remains in the main/runUninstall/checkMain functions.
+**CLI Architecture:** The nori-ai CLI command (defined in @/plugin/package.json bin) routes to @/plugin/src/cli/cli.ts, which uses Commander.js for command routing, argument parsing, validation, and help generation. The CLI defines global options (`--install-dir`, `--non-interactive`) on the main program. Each command lives in its own subdirectory under @/plugin/src/cli/commands/ and exports a `registerXCommand({ program })` function that cli.ts imports and calls. Commands access global options via `program.opts()`. The CLI provides automatic `--help`, `--version`, and unknown command detection. Running `nori-ai` with no command shows help. The CLI layer (cli.ts) is responsible ONLY for parsing and routing - all business logic remains in the command modules.
+
+**CLI Directory Structure:**
+
+```
+src/cli/
+  cli.ts                 # Main entry point, command registration
+  config.ts              # Config type and persistence
+  env.ts                 # Environment detection utilities
+  logger.ts              # Console output formatting
+  prompt.ts              # User input prompting
+  version.ts             # Version tracking for upgrades
+  analytics.ts           # GA4 event tracking
+  features/              # Feature loaders (see @/plugin/src/cli/features/docs.md)
+  commands/              # Command implementations
+    install/             # Install command + asciiArt, installState utilities
+    uninstall/           # Uninstall command
+    check/               # Check/validation command
+    switch-profile/      # Profile switching command
+    install-location/    # Display installation directories
+    registry-search/     # Search Nori registrar
+    registry-download/   # Download from registrar
+    registry-upload/     # Upload to registrar
+```
 
 **CLI Commands:**
 
 | Command | Module | Description |
 |---------|--------|-------------|
-| `install` | install.ts | Install Nori Profiles with profile selection |
-| `uninstall` | uninstall.ts | Remove Nori installation |
-| `check` | check.ts | Validate installation and configuration |
-| `switch-profile` | cli.ts/profiles.ts | Switch to a different profile |
-| `install-location` | cli.ts | Display installation directories |
-| `registry-search` | registrySearch.ts | Search for profile packages in the Nori registrar |
-| `registry-download` | registryDownload.ts | Download and install a profile from the Nori registrar |
-| `registry-upload` | registryUpload.ts | Upload a profile package to the Nori registrar |
+| `install` | commands/install/install.ts | Install Nori Profiles with profile selection |
+| `uninstall` | commands/uninstall/uninstall.ts | Remove Nori installation |
+| `check` | commands/check/check.ts | Validate installation and configuration |
+| `switch-profile` | commands/switch-profile/profiles.ts | Switch to a different profile |
+| `install-location` | commands/install-location/installLocation.ts | Display installation directories |
+| `registry-search` | commands/registry-search/registrySearch.ts | Search for profile packages in the Nori registrar |
+| `registry-download` | commands/registry-download/registryDownload.ts | Download and install a profile from the Nori registrar |
+| `registry-upload` | commands/registry-upload/registryUpload.ts | Upload a profile package to the Nori registrar |
+
+Each command directory contains the command implementation, its tests, and any command-specific utilities (e.g., `install/` contains `asciiArt.ts` and `installState.ts`).
 
 **Installation Flow:** The installer (install.ts) orchestrates the installation process by prompting for credentials (prompt.ts), selecting a profile from available directories, loading/saving configuration (config.ts), and executing feature loaders from @/plugin/src/cli/features. It creates `<installDir>/.nori-config.json` containing auth credentials and selected profile name, and installs components into `<installDir>/.claude/`. By default, installDir is `process.cwd()`, so running `cd /project && npx nori-ai install` creates files in `/project/`. The profile selection determines which complete directory structure (CLAUDE.md, skills/, subagents/, slashcommands/) gets installed from @/plugin/src/cli/features/profiles/config/{profileName}/. Each profile is a self-contained directory with a CLAUDE.md file that defines the profile. Profiles are discovered dynamically by scanning for directories containing CLAUDE.md in @/plugin/src/cli/features/profiles/config/. The installer is also used by the uninstaller (uninstall.ts) which removes installed components. The analytics.ts module tracks installation events to Google Analytics using Firebase, providing visibility into installation patterns and user adoption. Profile switching is handled by profiles.ts (switchProfile, listProfiles) which preserves auth credentials while updating the selected profile.
 

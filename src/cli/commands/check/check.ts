@@ -15,6 +15,29 @@ import { LoaderRegistry } from "@/cli/features/loaderRegistry.js";
 import { error, success, info } from "@/cli/logger.js";
 import { getInstallDirs } from "@/utils/path.js";
 
+import type { Command } from "commander";
+
+/**
+ * Register the 'check' command with commander
+ * @param args - Configuration arguments
+ * @param args.program - Commander program instance
+ */
+export const registerCheckCommand = (args: { program: Command }): void => {
+  const { program } = args;
+
+  program
+    .command("check")
+    .description("Validate Nori installation and configuration")
+    .action(async () => {
+      // Get global options from parent
+      const globalOpts = program.opts();
+
+      await checkMain({
+        installDir: globalOpts.installDir || null,
+      });
+    });
+};
+
 /**
  * Run validation checks on Nori installation
  * @param args - Configuration arguments

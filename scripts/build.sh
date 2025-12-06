@@ -80,8 +80,8 @@ echo -e "${BLUE}[4/6] Setting file permissions...${NC}"
 
 # Core executables
 chmod +x build/src/cli/cli.js
-chmod +x build/src/cli/install.js
-chmod +x build/src/cli/uninstall.js
+chmod +x build/src/cli/commands/install/install.js
+chmod +x build/src/cli/commands/uninstall/uninstall.js
 
 # Hook scripts
 chmod +x build/src/cli/features/hooks/config/autoupdate.js

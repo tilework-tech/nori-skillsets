@@ -8,7 +8,7 @@ Profile system that provides complete, self-contained Nori configurations compos
 
 ### How it fits into the larger codebase
 
-The profiles loader executes FIRST in both interactive and non-interactive installation modes (see @/plugin/src/cli/install.ts) to populate `~/.claude/profiles/` before any other loaders run. In interactive mode, @/plugin/src/cli/install.ts prompts for profile selection by reading directories from @/plugin/src/cli/features/profiles/config/, then saves the selection to `.nori-config.json` via @/plugin/src/cli/config.ts. All subsequent feature loaders (@/plugin/src/cli/features/claudemd/loader.ts, @/plugin/src/cli/features/skills/loader.ts, @/plugin/src/cli/features/subagents/loader.ts, @/plugin/src/cli/features/slashcommands/loader.ts) read from `~/.claude/profiles/{selectedProfile}/` to install their components. Profile switching is handled by @/plugin/src/cli/profiles.ts which updates `.nori-config.json` while preserving auth credentials, then re-runs installation. The statusline (@/plugin/src/cli/features/statusline) displays the active profile name. The `/nori-switch-profile` slash command enables in-conversation profile switching.
+The profiles loader executes FIRST in both interactive and non-interactive installation modes (see @/plugin/src/cli/commands/install/install.ts) to populate `~/.claude/profiles/` before any other loaders run. In interactive mode, @/plugin/src/cli/commands/install/install.ts prompts for profile selection by reading directories from @/plugin/src/cli/features/profiles/config/, then saves the selection to `.nori-config.json` via @/plugin/src/cli/config.ts. All subsequent feature loaders (@/plugin/src/cli/features/claudemd/loader.ts, @/plugin/src/cli/features/skills/loader.ts, @/plugin/src/cli/features/subagents/loader.ts, @/plugin/src/cli/features/slashcommands/loader.ts) read from `~/.claude/profiles/{selectedProfile}/` to install their components. Profile switching is handled by @/plugin/src/cli/commands/switch-profile/profiles.ts which updates `.nori-config.json` while preserving auth credentials, then re-runs installation. The statusline (@/plugin/src/cli/features/statusline) displays the active profile name. The `/nori-switch-profile` slash command enables in-conversation profile switching.
 
 ### Core Implementation
 
@@ -20,9 +20,9 @@ The profiles loader executes FIRST in both interactive and non-interactive insta
 
 **Installation Flow**: The `installProfiles()` function in @/plugin/src/cli/features/profiles/loader.ts reads profile directories from config/, loads profile.json metadata, dynamically injects the `paid` mixin if the user has auth credentials (checked via `isPaidInstall({ config })` from @/plugin/src/cli/config.ts), then composes the profile by merging content from all mixins in alphabetical order. Mixins are located in `config/_mixins/` with names like `_base`, `_docs`, `_swe`, `_paid`. Directories are merged (union of contents) while files use last-writer-wins. Profile-specific content (CLAUDE.md) is overlaid last. Built-in profiles are always overwritten during installation to receive updates. Custom profiles are preserved.
 
-**Profile Discovery**: @/plugin/src/cli/profiles.ts `listProfiles()` scans `~/.claude/profiles/` for directories containing CLAUDE.md. `switchProfile()` validates the profile exists, loads current config from `.nori-config.json`, preserves auth credentials, updates `profile.baseProfile` field, saves back to disk, and prompts user to restart Claude Code.
+**Profile Discovery**: @/plugin/src/cli/commands/switch-profile/profiles.ts `listProfiles()` scans `~/.claude/profiles/` for directories containing CLAUDE.md. `switchProfile()` validates the profile exists, loads current config from `.nori-config.json`, preserves auth credentials, updates `profile.baseProfile` field, saves back to disk, and prompts user to restart Claude Code.
 
-**Loader Ordering**: Critical fix in commit e832083 ensures profiles loader runs before all other loaders in non-interactive mode by explicitly calling `profilesLoader.run()` first in @/plugin/src/cli/install.ts, then filtering it from the remaining loaders array.
+**Loader Ordering**: Critical fix in commit e832083 ensures profiles loader runs before all other loaders in non-interactive mode by explicitly calling `profilesLoader.run()` first in @/plugin/src/cli/commands/install/install.ts, then filtering it from the remaining loaders array.
 
 ### Things to Know
 
@@ -150,8 +150,8 @@ When you run `npx nori-ai@latest switch-profile <name>`:
 ### Key Files
 
 - `plugin/src/cli/features/profiles/loader.ts` - Copies profile templates
-- `plugin/src/cli/profiles.ts` - Profile switching logic
-- `plugin/src/cli/install.ts` - Install flow (runs profiles loader first)
+- `plugin/src/cli/commands/switch-profile/profiles.ts` - Profile switching logic
+- `plugin/src/cli/commands/install/install.ts` - Install flow (runs profiles loader first)
 - Feature loaders - Read from `~/.claude/profiles/${profileName}/`
 
 ## Validation
