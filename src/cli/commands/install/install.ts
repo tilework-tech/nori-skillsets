@@ -196,13 +196,13 @@ export const generatePromptConfig = async (args: {
   // Prompt for credentials
   info({
     message: wrapText({
-      text: "Do you have Nori credentials? You should have gotten an email from Josh or Amol if you are on the Nori paid plan. Type in your email address to set up Nori Paid, or hit enter to skip.",
+      text: "Nori Watchtower is our backend service that enables shared knowledge features - search and recall past solutions across your team, save learnings for future sessions, and server-side documentation with versioning. If you have Watchtower credentials (you should have received them from Josh or Amol), enter your email to enable these features. Otherwise, press enter to continue with local-only features.",
     }),
   });
   console.log();
 
   const username = await promptUser({
-    prompt: "Email address (paid tier) or hit enter to skip (free tier): ",
+    prompt: "Email address (Watchtower) or hit enter to skip: ",
   });
 
   let auth: {
