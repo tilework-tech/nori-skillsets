@@ -31,7 +31,7 @@ describe("promptRegistryAuths", () => {
     expect(result).toBeNull();
     expect(mockedPromptUser).toHaveBeenCalledTimes(1);
     expect(mockedPromptUser).toHaveBeenCalledWith({
-      prompt: expect.stringContaining("private registry"),
+      prompt: expect.stringContaining("registry authentication"),
     });
   });
 

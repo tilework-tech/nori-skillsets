@@ -60,8 +60,14 @@ export const promptRegistryAuths = async (args: {
   }
 
   // Ask if user wants to add registry auth
+  info({
+    message:
+      "Nori can download profiles and skills from private registries. If your organization hosts a private Nori registry, you can configure authentication now.",
+  });
+  console.log();
+
   const addRegistry = await promptUser({
-    prompt: "Do you need to configure private registry authentication? (y/n): ",
+    prompt: "Configure private registry authentication? (y/n): ",
   });
 
   if (!addRegistry.match(/^[Yy]$/)) {
