@@ -93,7 +93,7 @@ vi.mock("@/cli/features/loaderRegistry.js", () => ({
 // Import after mocking
 import { promptUser } from "@/cli/prompt.js";
 
-import { runUninstall, main } from "./uninstall.js";
+import { runUninstall, main, type PromptConfig } from "./uninstall.js";
 
 vi.mock("@/cli/prompt.js", () => ({
   promptUser: vi.fn(),
@@ -146,13 +146,13 @@ describe("uninstall idempotency", () => {
   it("should be idempotent when called on fresh system (no files exist)", async () => {
     // Multiple calls should not throw even when nothing is installed
     await expect(
-      runUninstall({ removeHooksAndStatusline: true, installDir: tempDir }),
+      runUninstall({ removeGlobalSettings: true, installDir: tempDir }),
     ).resolves.not.toThrow();
     await expect(
-      runUninstall({ removeHooksAndStatusline: true, installDir: tempDir }),
+      runUninstall({ removeGlobalSettings: true, installDir: tempDir }),
     ).resolves.not.toThrow();
     await expect(
-      runUninstall({ removeHooksAndStatusline: true, installDir: tempDir }),
+      runUninstall({ removeGlobalSettings: true, installDir: tempDir }),
     ).resolves.not.toThrow();
   });
 
@@ -180,7 +180,7 @@ describe("uninstall idempotency", () => {
 
     // First call - feature loaders clean up their files, preserves config
     await expect(
-      runUninstall({ removeHooksAndStatusline: true, installDir: tempDir }),
+      runUninstall({ removeGlobalSettings: true, installDir: tempDir }),
     ).resolves.not.toThrow();
 
     // Verify config was preserved
@@ -192,10 +192,10 @@ describe("uninstall idempotency", () => {
 
     // Second and third calls should not throw
     await expect(
-      runUninstall({ removeHooksAndStatusline: true, installDir: tempDir }),
+      runUninstall({ removeGlobalSettings: true, installDir: tempDir }),
     ).resolves.not.toThrow();
     await expect(
-      runUninstall({ removeHooksAndStatusline: true, installDir: tempDir }),
+      runUninstall({ removeGlobalSettings: true, installDir: tempDir }),
     ).resolves.not.toThrow();
   });
 
@@ -240,7 +240,7 @@ describe("uninstall idempotency", () => {
 
     // First call - feature loaders clean up, config doesn't exist
     await expect(
-      runUninstall({ removeHooksAndStatusline: true, installDir: tempDir }),
+      runUninstall({ removeGlobalSettings: true, installDir: tempDir }),
     ).resolves.not.toThrow();
 
     // Create only config file (no skills directory)
@@ -262,12 +262,12 @@ describe("uninstall idempotency", () => {
 
     // Second call - preserves config, skills don't exist
     await expect(
-      runUninstall({ removeHooksAndStatusline: true, installDir: tempDir }),
+      runUninstall({ removeGlobalSettings: true, installDir: tempDir }),
     ).resolves.not.toThrow();
 
     // Third call - nothing new to clean
     await expect(
-      runUninstall({ removeHooksAndStatusline: true, installDir: tempDir }),
+      runUninstall({ removeGlobalSettings: true, installDir: tempDir }),
     ).resolves.not.toThrow();
   });
 
@@ -390,6 +390,19 @@ describe("uninstall idempotency", () => {
     if (realVersionExistsBefore && !realVersionExistsAfter) {
       throw new Error("TEST BUG: Deleted real ~/.nori-installed-version file!");
     }
+  });
+
+  it("should have PromptConfig with removeGlobalSettings field (renamed from removeHooksAndStatusline)", () => {
+    // This test verifies that the PromptConfig type has been renamed
+    // from removeHooksAndStatusline to removeGlobalSettings
+    const config: PromptConfig = {
+      installDir: tempDir,
+      removeGlobalSettings: true,
+    };
+
+    // Verify the field exists on the type
+    expect(config.removeGlobalSettings).toBe(true);
+    expect(config.installDir).toBe(tempDir);
   });
 });
 

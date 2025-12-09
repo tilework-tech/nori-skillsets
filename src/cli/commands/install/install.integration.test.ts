@@ -421,7 +421,7 @@ describe("install integration test", () => {
     // STEP 4: Run uninstall with removeConfig=true (user-initiated uninstall)
     await runUninstall({
       removeConfig: true,
-      removeHooksAndStatusline: true,
+      removeGlobalSettings: true,
       installDir: tempDir,
     });
 

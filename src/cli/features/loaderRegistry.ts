@@ -7,6 +7,7 @@ import { announcementsLoader } from "@/cli/features/announcements/loader.js";
 import { configLoader } from "@/cli/features/config/loader.js";
 import { hooksLoader } from "@/cli/features/hooks/loader.js";
 import { profilesLoader } from "@/cli/features/profiles/loader.js";
+import { globalSlashCommandsLoader } from "@/cli/features/slashcommands/loader.js";
 import { statuslineLoader } from "@/cli/features/statusline/loader.js";
 import { versionLoader } from "@/cli/features/version/loader.js";
 
@@ -46,12 +47,14 @@ export class LoaderRegistry {
     // IMPORTANT: Order matters!
     // - version and config must run before profiles (profiles may depend on config)
     // - profilesLoader must run after version/config to compose profiles and install profile-dependent features
+    // - Global slashcommands run after statusline (profile-agnostic commands installed to ~/.claude/commands/)
     // - During uninstall, the order is reversed automatically
     this.loaders.set(versionLoader.name, versionLoader);
     this.loaders.set(configLoader.name, configLoader);
     this.loaders.set(profilesLoader.name, profilesLoader);
     this.loaders.set(hooksLoader.name, hooksLoader);
     this.loaders.set(statuslineLoader.name, statuslineLoader);
+    this.loaders.set(globalSlashCommandsLoader.name, globalSlashCommandsLoader);
     this.loaders.set(announcementsLoader.name, announcementsLoader);
   }
 

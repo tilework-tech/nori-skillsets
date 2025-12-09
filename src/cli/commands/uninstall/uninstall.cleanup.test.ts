@@ -120,7 +120,7 @@ describe("uninstall cleanup", () => {
 
       // Run full uninstall
       await runUninstall({
-        removeHooksAndStatusline: true,
+        removeGlobalSettings: true,
         installDir: tempDir,
       });
 
@@ -154,7 +154,7 @@ describe("uninstall cleanup", () => {
 
       // Run full uninstall
       await runUninstall({
-        removeHooksAndStatusline: true,
+        removeGlobalSettings: true,
         installDir: tempDir,
       });
 
@@ -224,7 +224,7 @@ describe("uninstall cleanup", () => {
 
         // Run full uninstall
         await runUninstall({
-          removeHooksAndStatusline: true,
+          removeGlobalSettings: true,
           installDir: tempDir,
         });
 
@@ -252,7 +252,7 @@ describe("uninstall cleanup", () => {
 
       // Run full uninstall
       await runUninstall({
-        removeHooksAndStatusline: true,
+        removeGlobalSettings: true,
         installDir: tempDir,
       });
 
@@ -289,7 +289,7 @@ describe("uninstall cleanup", () => {
 
       // Run uninstall
       await runUninstall({
-        removeHooksAndStatusline: true,
+        removeGlobalSettings: true,
         installDir: tempDir,
       });
 
@@ -307,7 +307,7 @@ describe("uninstall cleanup", () => {
 
       // Run uninstall - should not throw
       await expect(
-        runUninstall({ removeHooksAndStatusline: true, installDir: tempDir }),
+        runUninstall({ removeGlobalSettings: true, installDir: tempDir }),
       ).resolves.not.toThrow();
     });
   });

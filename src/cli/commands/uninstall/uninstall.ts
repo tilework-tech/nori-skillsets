@@ -29,7 +29,7 @@ import type { Command } from "commander";
  */
 export type PromptConfig = {
   installDir: string;
-  removeHooksAndStatusline: boolean;
+  removeGlobalSettings: boolean;
 };
 
 /**
@@ -163,26 +163,26 @@ export const generatePromptConfig = async (args: {
 
   console.log();
 
-  // Ask if user wants to remove hooks and statusline from ~/.claude
+  // Ask if user wants to remove global settings (hooks, statusline, and global slashcommands) from ~/.claude
   warn({
     message:
-      "Hooks and statusline are installed in ~/.claude/settings.json and are shared across all Nori installations.",
+      "Hooks, statusline, and global slash commands are installed in ~/.claude/ and are shared across all Nori installations.",
   });
   info({
     message: "If you have other Nori installations, you may want to keep them.",
   });
   console.log();
 
-  const removeHooks = await promptUser({
+  const removeGlobal = await promptUser({
     prompt:
-      "Do you want to remove hooks and statusline from ~/.claude/settings.json? (y/n): ",
+      "Do you want to remove hooks, statusline, and global slash commands from ~/.claude/? (y/n): ",
   });
 
-  const removeHooksAndStatusline = removeHooks.match(/^[Yy]$/) ? true : false;
+  const removeGlobalSettings = removeGlobal.match(/^[Yy]$/) ? true : false;
 
   console.log();
 
-  return { installDir, removeHooksAndStatusline };
+  return { installDir, removeGlobalSettings };
 };
 
 /**
@@ -240,26 +240,22 @@ const removeConfigFile = async (args: {
 /**
  * Core uninstall logic (can be called programmatically)
  * Preserves config file by default (for upgrades). Only removes config when removeConfig=true.
- * In non-interactive mode, hooks and statusline are NOT removed from ~/.claude to avoid
- * breaking other Nori installations.
+ * In non-interactive mode, global settings (hooks, statusline, and global slashcommands) are
+ * NOT removed from ~/.claude to avoid breaking other Nori installations.
  * @param args - Configuration arguments
  * @param args.removeConfig - Whether to remove the config file (default: false)
- * @param args.removeHooksAndStatusline - Whether to remove hooks and statusline from ~/.claude (default: false)
+ * @param args.removeGlobalSettings - Whether to remove hooks, statusline, and global slashcommands from ~/.claude (default: false)
  * @param args.installedVersion - Version being uninstalled (for logging)
  * @param args.installDir - Installation directory
  */
 export const runUninstall = async (args: {
   removeConfig?: boolean | null;
-  removeHooksAndStatusline?: boolean | null;
+  removeGlobalSettings?: boolean | null;
   installedVersion?: string | null;
   installDir: string;
 }): Promise<void> => {
-  const {
-    removeConfig,
-    removeHooksAndStatusline,
-    installedVersion,
-    installDir,
-  } = args;
+  const { removeConfig, removeGlobalSettings, installedVersion, installDir } =
+    args;
 
   // Load config (defaults to free if none exists)
   const existingConfig = await loadConfig({ installDir });
@@ -291,13 +287,15 @@ export const runUninstall = async (args: {
   // Execute uninstallers sequentially to avoid race conditions
   // (hooks and statusline both read/write settings.json)
   for (const loader of loaders) {
-    // Skip hooks and statusline loaders if removeHooksAndStatusline is false
+    // Skip hooks, statusline, and slashcommands loaders if removeGlobalSettings is false
     if (
-      !removeHooksAndStatusline &&
-      (loader.name === "hooks" || loader.name === "statusline")
+      !removeGlobalSettings &&
+      (loader.name === "hooks" ||
+        loader.name === "statusline" ||
+        loader.name === "slashcommands")
     ) {
       info({
-        message: `Skipping ${loader.name} uninstall (preserving ~/.claude/settings.json)`,
+        message: `Skipping ${loader.name} uninstall (preserving ~/.claude/)`,
       });
       continue;
     }
@@ -359,7 +357,7 @@ export const interactive = async (args?: {
   // Run uninstall with user's choices
   await runUninstall({
     removeConfig: true,
-    removeHooksAndStatusline: result.removeHooksAndStatusline,
+    removeGlobalSettings: result.removeGlobalSettings,
     installDir: result.installDir,
   });
 
@@ -401,10 +399,10 @@ export const noninteractive = async (args?: {
 }): Promise<void> => {
   const installDir = normalizeInstallDir({ installDir: args?.installDir });
 
-  // Run uninstall, preserving config and hooks/statusline
+  // Run uninstall, preserving config and global settings (hooks/statusline/slashcommands)
   await runUninstall({
     removeConfig: false,
-    removeHooksAndStatusline: false,
+    removeGlobalSettings: false,
     installDir,
   });
 
