@@ -134,6 +134,7 @@ export const switchProfile = async (args: {
     },
     sendSessionTranscript: currentConfig?.sendSessionTranscript ?? null,
     autoupdate: currentConfig?.autoupdate,
+    registryAuths: currentConfig?.registryAuths ?? null,
     installDir,
   });
 

@@ -89,7 +89,7 @@ describe("globalSlashCommandsLoader", () => {
       expect(mdFiles.length).toBeGreaterThan(0);
     });
 
-    it("should install all 11 global slash commands", async () => {
+    it("should install all 12 global slash commands", async () => {
       const config: Config = { installDir: tempDir };
 
       await globalSlashCommandsLoader.run({ config });
@@ -97,8 +97,8 @@ describe("globalSlashCommandsLoader", () => {
       const files = await fs.readdir(commandsDir);
       const mdFiles = files.filter((f) => f.endsWith(".md"));
 
-      // 10 from _base + 1 from _paid = 11 total
-      expect(mdFiles.length).toBe(11);
+      // 11 from _base + 1 from _paid = 12 total
+      expect(mdFiles.length).toBe(12);
     });
 
     it("should install nori-debug.md slash command", async () => {
@@ -202,6 +202,7 @@ describe("globalSlashCommandsLoader", () => {
           "nori-info.md",
           "nori-install-location.md",
           "nori-modify-registry-auth.md",
+          "nori-modify-watchtower-auth.md",
           "nori-registry-download.md",
           "nori-registry-search.md",
           "nori-registry-upload.md",

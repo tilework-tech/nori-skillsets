@@ -124,7 +124,7 @@ describe("slashCommandsLoader", () => {
       expect(secondFiles.length).toBeGreaterThan(0);
     });
 
-    // Note: Global slash commands (nori-install-location, nori-debug, nori-modify-registry-auth, etc.)
+    // Note: Global slash commands (nori-install-location, nori-debug, nori-modify-registry-auth, nori-modify-watchtower-auth, etc.)
     // are now handled by the global slashcommands loader at src/cli/features/slashcommands/
     // This loader only handles profile-specific slash commands like nori-init-docs and nori-sync-docs
   });

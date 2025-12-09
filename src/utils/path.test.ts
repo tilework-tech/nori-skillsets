@@ -195,4 +195,66 @@ describe("getInstallDirs", () => {
       expect(Array.isArray(result)).toBe(true);
     });
   });
+
+  describe("cwd inside .claude directory", () => {
+    it("should find installation in parent when cwd is inside .claude directory", () => {
+      // Setup: parent has .nori-config.json, we call from parent/.claude/
+      const parentDir = path.join(tempDir, "home");
+      const claudeDir = path.join(parentDir, ".claude");
+      fs.mkdirSync(claudeDir, { recursive: true });
+
+      // Create installation marker in parent
+      fs.writeFileSync(
+        path.join(parentDir, ".nori-config.json"),
+        JSON.stringify({ profile: { baseProfile: "test" } }),
+      );
+
+      // Call from inside .claude directory
+      const result = getInstallDirs({ currentDir: claudeDir });
+
+      // Should find the parent installation
+      expect(result).toHaveLength(1);
+      expect(result[0]).toBe(parentDir);
+    });
+
+    it("should find installation when cwd is inside .claude/profiles subdirectory", () => {
+      // Setup: parent has .nori-config.json, we call from parent/.claude/profiles/
+      const parentDir = path.join(tempDir, "home");
+      const profilesDir = path.join(parentDir, ".claude", "profiles");
+      fs.mkdirSync(profilesDir, { recursive: true });
+
+      // Create installation marker in parent
+      fs.writeFileSync(
+        path.join(parentDir, ".nori-config.json"),
+        JSON.stringify({ profile: { baseProfile: "test" } }),
+      );
+
+      // Call from inside .claude/profiles directory
+      const result = getInstallDirs({ currentDir: profilesDir });
+
+      // Should find the parent installation
+      expect(result).toHaveLength(1);
+      expect(result[0]).toBe(parentDir);
+    });
+
+    it("should find installation when cwd is deeply nested inside .claude directory", () => {
+      // Setup: parent has .nori-config.json, we call from parent/.claude/profiles/senior-swe/
+      const parentDir = path.join(tempDir, "home");
+      const deepDir = path.join(parentDir, ".claude", "profiles", "senior-swe");
+      fs.mkdirSync(deepDir, { recursive: true });
+
+      // Create installation marker in parent
+      fs.writeFileSync(
+        path.join(parentDir, ".nori-config.json"),
+        JSON.stringify({ profile: { baseProfile: "test" } }),
+      );
+
+      // Call from deeply nested directory
+      const result = getInstallDirs({ currentDir: deepDir });
+
+      // Should find the parent installation
+      expect(result).toHaveLength(1);
+      expect(result[0]).toBe(parentDir);
+    });
+  });
 });

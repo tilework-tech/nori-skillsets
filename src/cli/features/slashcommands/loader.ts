@@ -32,6 +32,7 @@ const GLOBAL_SLASH_COMMANDS = [
   "nori-info",
   "nori-install-location",
   "nori-modify-registry-auth",
+  "nori-modify-watchtower-auth",
   "nori-registry-download",
   "nori-registry-search",
   "nori-registry-upload",
