@@ -95,7 +95,9 @@ gh pr checks
 sleep 60 && gh pr checks
 ```
 
-- If CI did not pass, examine why. If the CI did not start, this is likely due to merge conflicts; merge main, fix conflicts, and try again.
+If CI did not pass, examine why.
+If the CI did not start, this is likely due to merge conflicts; merge main, fix conflicts, and try again.
+<system-reminder>Do not move forward without a ci status unless you have checked for merge conflicts</system-reminder>
 
 - Make changes as needed, push a new commit, and repeat the process.
 <system-reminder> It is *critical* that you fix any ci issues, EVEN IF YOU DID NOT CAUSE THEM. </system-reminder>

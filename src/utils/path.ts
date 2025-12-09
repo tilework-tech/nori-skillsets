@@ -102,17 +102,8 @@ export const getInstallDirs = (args?: {
     results.push(currentDir);
   }
 
-  // Inline findAncestorInstallations logic
-  // Get the parent directory of the .claude directory
-  // If currentDir is /foo/bar/.claude, we start checking from /foo (not /foo/bar)
+  // Walk up the directory tree starting from parent
   let checkDir = path.dirname(currentDir);
-
-  // If the currentDir ends with .claude, get the grandparent
-  if (path.basename(currentDir) === ".claude") {
-    checkDir = path.dirname(checkDir);
-  }
-
-  // Walk up the directory tree
   let previousDir = "";
   while (checkDir !== previousDir) {
     // Check for Nori installation in this ancestor directory
