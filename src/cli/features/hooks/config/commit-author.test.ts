@@ -2,354 +2,153 @@
  * Tests for commit-author PreToolUse hook
  */
 
-import { spawn } from "child_process";
-import * as path from "path";
-import { fileURLToPath } from "url";
-
 import { describe, it, expect } from "vitest";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-type HookInput = {
-  session_id: string;
-  transcript_path: string;
-  cwd: string;
-  permission_mode: string;
-  hook_event_name: string;
-  tool_name: string;
-  tool_input: {
-    command?: string;
-    [key: string]: any;
-  };
-  tool_use_id: string;
-};
-
-type HookOutput = {
-  hookSpecificOutput?: {
-    hookEventName: string;
-    permissionDecision: "allow" | "deny" | "ask";
-    permissionDecisionReason?: string;
-    updatedInput?: {
-      command?: string;
-      [key: string]: any;
-    };
-  };
-};
-
-/**
- * Run the hook script with given input
- * @param args - Arguments object
- * @param args.input - Hook input JSON
- *
- * @returns Hook output JSON and exit code
- */
-const runHook = async (args: {
-  input: HookInput;
-}): Promise<{
-  output: HookOutput | null;
-  exitCode: number;
-  stderr: string;
-}> => {
-  const { input } = args;
-
-  // Path to the compiled hook script in build directory
-  const hookScript = path.resolve(
-    __dirname,
-    "../../../../../build/src/cli/features/hooks/config/commit-author.js",
-  );
-
-  return new Promise((resolve) => {
-    const proc = spawn("node", [hookScript], {
-      stdio: ["pipe", "pipe", "pipe"],
-    });
-    let stdout = "";
-    let stderr = "";
-
-    proc.stdout.on("data", (data) => {
-      stdout += data.toString();
-    });
-
-    proc.stderr.on("data", (data) => {
-      stderr += data.toString();
-    });
-
-    proc.on("close", (code) => {
-      let output: HookOutput | null = null;
-      if (stdout.trim()) {
-        try {
-          output = JSON.parse(stdout);
-        } catch {
-          // Invalid JSON output
-        }
-      }
-      resolve({ output, exitCode: code ?? 0, stderr });
-    });
-
-    // Write input to stdin
-    proc.stdin.write(JSON.stringify(input));
-    proc.stdin.end();
-  });
-};
+import { isGitCommitCommand, replaceAttribution } from "./commit-author.js";
 
 describe("commit-author hook", () => {
-  it("should pass through non-Bash tools unchanged", async () => {
-    const input: HookInput = {
-      session_id: "test-session",
-      transcript_path: "/tmp/test.jsonl",
-      cwd: "/tmp",
-      permission_mode: "default",
-      hook_event_name: "PreToolUse",
-      tool_name: "Write",
-      tool_input: {
-        file_path: "/tmp/test.txt",
-        content: "test content",
-      },
-      tool_use_id: "toolu_123",
-    };
+  describe("isGitCommitCommand", () => {
+    it("should return false for non-git commands", () => {
+      expect(isGitCommitCommand({ command: "ls -la" })).toBe(false);
+    });
 
-    const { output, exitCode } = await runHook({ input });
+    it("should return false for git commands without commit", () => {
+      expect(isGitCommitCommand({ command: "git status" })).toBe(false);
+      expect(isGitCommitCommand({ command: "git push" })).toBe(false);
+      expect(isGitCommitCommand({ command: "git pull" })).toBe(false);
+    });
 
-    expect(exitCode).toBe(0);
-    expect(output).toBeNull();
+    it("should return false for git commit without -m flag", () => {
+      expect(isGitCommitCommand({ command: "git commit" })).toBe(false);
+    });
+
+    it("should return true for git commit with -m flag", () => {
+      expect(isGitCommitCommand({ command: 'git commit -m "fix: bug"' })).toBe(
+        true,
+      );
+    });
+
+    it("should return true for git commit with --message flag", () => {
+      expect(
+        isGitCommitCommand({ command: 'git commit --message "fix: bug"' }),
+      ).toBe(true);
+    });
+
+    it("should return true for git commit with -C flag before commit", () => {
+      expect(
+        isGitCommitCommand({
+          command:
+            'git -C /home/user/project/.worktrees/feature-branch commit -m "test"',
+        }),
+      ).toBe(true);
+    });
+
+    it("should return true for git commit with additional flags", () => {
+      expect(
+        isGitCommitCommand({ command: 'git commit -a -s -m "fix: bug"' }),
+      ).toBe(true);
+    });
   });
 
-  it("should pass through non-git-commit Bash commands unchanged", async () => {
-    const input: HookInput = {
-      session_id: "test-session",
-      transcript_path: "/tmp/test.jsonl",
-      cwd: "/tmp",
-      permission_mode: "default",
-      hook_event_name: "PreToolUse",
-      tool_name: "Bash",
-      tool_input: {
-        command: "ls -la",
-      },
-      tool_use_id: "toolu_123",
-    };
-
-    const { output, exitCode } = await runHook({ input });
-
-    expect(exitCode).toBe(0);
-    expect(output).toBeNull();
-  });
-
-  it("should detect git commit commands with -m flag", async () => {
-    const input: HookInput = {
-      session_id: "test-session",
-      transcript_path: "/tmp/test.jsonl",
-      cwd: "/tmp",
-      permission_mode: "default",
-      hook_event_name: "PreToolUse",
-      tool_name: "Bash",
-      tool_input: {
-        command: 'git commit -m "fix: bug"',
-      },
-      tool_use_id: "toolu_123",
-    };
-
-    const { output, exitCode } = await runHook({ input });
-
-    expect(exitCode).toBe(0);
-    expect(output).not.toBeNull();
-    expect(output?.hookSpecificOutput?.hookEventName).toBe("PreToolUse");
-    expect(output?.hookSpecificOutput?.permissionDecision).toBe("allow");
-  });
-
-  it("should modify commit message to include Nori attribution", async () => {
-    const input: HookInput = {
-      session_id: "test-session",
-      transcript_path: "/tmp/test.jsonl",
-      cwd: "/tmp",
-      permission_mode: "default",
-      hook_event_name: "PreToolUse",
-      tool_name: "Bash",
-      tool_input: {
-        command: 'git commit -m "fix: bug"',
-      },
-      tool_use_id: "toolu_123",
-    };
-
-    const { output, exitCode } = await runHook({ input });
-
-    expect(exitCode).toBe(0);
-    expect(output?.hookSpecificOutput?.updatedInput?.command).toContain(
-      "Co-Authored-By: Nori <contact@tilework.tech>",
-    );
-    expect(output?.hookSpecificOutput?.updatedInput?.command).toContain(
-      "🤖 Generated with [Nori](https://nori.ai)",
-    );
-  });
-
-  it("should preserve original commit message structure", async () => {
-    const input: HookInput = {
-      session_id: "test-session",
-      transcript_path: "/tmp/test.jsonl",
-      cwd: "/tmp",
-      permission_mode: "default",
-      hook_event_name: "PreToolUse",
-      tool_name: "Bash",
-      tool_input: {
-        command: 'git commit -m "fix: resolve authentication bug"',
-      },
-      tool_use_id: "toolu_123",
-    };
-
-    const { output, exitCode } = await runHook({ input });
-
-    expect(exitCode).toBe(0);
-    const modifiedCommand =
-      output?.hookSpecificOutput?.updatedInput?.command || "";
-
-    // Original message should be preserved
-    expect(modifiedCommand).toContain("fix: resolve authentication bug");
-
-    // Attribution should be added after the message
-    expect(
-      modifiedCommand.indexOf("fix: resolve authentication bug"),
-    ).toBeLessThan(modifiedCommand.indexOf("Co-Authored-By: Nori"));
-  });
-
-  it("should handle git commit commands with additional flags", async () => {
-    const input: HookInput = {
-      session_id: "test-session",
-      transcript_path: "/tmp/test.jsonl",
-      cwd: "/tmp",
-      permission_mode: "default",
-      hook_event_name: "PreToolUse",
-      tool_name: "Bash",
-      tool_input: {
-        command: 'git commit -a -s -m "fix: bug"',
-      },
-      tool_use_id: "toolu_123",
-    };
-
-    const { output, exitCode } = await runHook({ input });
-
-    expect(exitCode).toBe(0);
-    const modifiedCommand =
-      output?.hookSpecificOutput?.updatedInput?.command || "";
-
-    // Should preserve -a and -s flags
-    expect(modifiedCommand).toContain("-a");
-    expect(modifiedCommand).toContain("-s");
-
-    // Should still add Nori attribution
-    expect(modifiedCommand).toContain(
-      "Co-Authored-By: Nori <contact@tilework.tech>",
-    );
-  });
-
-  it("should handle single-quoted commit messages", async () => {
-    const input: HookInput = {
-      session_id: "test-session",
-      transcript_path: "/tmp/test.jsonl",
-      cwd: "/tmp",
-      permission_mode: "default",
-      hook_event_name: "PreToolUse",
-      tool_name: "Bash",
-      tool_input: {
-        command: "git commit -m 'fix: bug'",
-      },
-      tool_use_id: "toolu_123",
-    };
-
-    const { output, exitCode } = await runHook({ input });
-
-    expect(exitCode).toBe(0);
-    const modifiedCommand =
-      output?.hookSpecificOutput?.updatedInput?.command || "";
-
-    expect(modifiedCommand).toContain("fix: bug");
-    expect(modifiedCommand).toContain(
-      "Co-Authored-By: Nori <contact@tilework.tech>",
-    );
-  });
-
-  it("should handle commit messages with heredoc format", async () => {
-    const commitMessage = `git commit -m "\$(cat <<'EOF'
+  describe("replaceAttribution", () => {
+    it("should replace Claude attribution with Nori attribution", () => {
+      const input = `git commit -m "$(cat <<'EOF'
 feat: Add new feature
-
-This is a longer commit message that spans multiple lines.
 
 Co-Authored-By: Claude <noreply@anthropic.com>
 EOF
 )"`;
 
-    const input: HookInput = {
-      session_id: "test-session",
-      transcript_path: "/tmp/test.jsonl",
-      cwd: "/tmp",
-      permission_mode: "default",
-      hook_event_name: "PreToolUse",
-      tool_name: "Bash",
-      tool_input: {
-        command: commitMessage,
-      },
-      tool_use_id: "toolu_123",
-    };
+      const result = replaceAttribution({ command: input });
 
-    const { output, exitCode } = await runHook({ input });
+      expect(result).toContain("Co-Authored-By: Nori <contact@tilework.tech>");
+      expect(result).not.toContain("Co-Authored-By: Claude");
+    });
 
-    expect(exitCode).toBe(0);
-    const modifiedCommand =
-      output?.hookSpecificOutput?.updatedInput?.command || "";
+    it("should replace Claude Code URL with Nori URL", () => {
+      const input = `git commit -m "$(cat <<'EOF'
+feat: Add feature
 
-    // Should replace Claude attribution with Nori
-    expect(modifiedCommand).not.toContain(
-      "Co-Authored-By: Claude <noreply@anthropic.com>",
-    );
-    expect(modifiedCommand).toContain(
-      "Co-Authored-By: Nori <contact@tilework.tech>",
-    );
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+EOF
+)"`;
 
-    // Should preserve the original message
-    expect(modifiedCommand).toContain("feat: Add new feature");
-    expect(modifiedCommand).toContain(
-      "This is a longer commit message that spans multiple lines.",
-    );
-  });
+      const result = replaceAttribution({ command: input });
 
-  it("should handle git commit with -C flag for specifying directory", async () => {
-    const commitMessage = `git -C /home/user/project/.worktrees/feature-branch commit -m "\$(cat <<'EOF'
+      expect(result).toContain("🤖 Generated with [Nori](https://nori.ai)");
+      expect(result).not.toContain("Claude Code");
+    });
+
+    it("should add Nori attribution to simple commit message with double quotes", () => {
+      const result = replaceAttribution({
+        command: 'git commit -m "fix: bug"',
+      });
+
+      expect(result).toContain("fix: bug");
+      expect(result).toContain("Co-Authored-By: Nori <contact@tilework.tech>");
+      expect(result).toContain("🤖 Generated with [Nori](https://nori.ai)");
+    });
+
+    it("should add Nori attribution to simple commit message with single quotes", () => {
+      const result = replaceAttribution({
+        command: "git commit -m 'fix: bug'",
+      });
+
+      expect(result).toContain("fix: bug");
+      expect(result).toContain("Co-Authored-By: Nori <contact@tilework.tech>");
+    });
+
+    it("should add Nori attribution to heredoc format without existing attribution", () => {
+      const input = `git commit -m "$(cat <<'EOF'
+feat: Add new feature
+
+This is a longer commit message.
+EOF
+)"`;
+
+      const result = replaceAttribution({ command: input });
+
+      expect(result).toContain("feat: Add new feature");
+      expect(result).toContain("This is a longer commit message");
+      expect(result).toContain("Co-Authored-By: Nori <contact@tilework.tech>");
+      expect(result).toContain("🤖 Generated with [Nori](https://nori.ai)");
+    });
+
+    it("should preserve original commit message structure", () => {
+      const result = replaceAttribution({
+        command: 'git commit -m "fix: resolve authentication bug"',
+      });
+
+      // Original message should be preserved and come before attribution
+      expect(result).toContain("fix: resolve authentication bug");
+      const messageIndex = result.indexOf("fix: resolve authentication bug");
+      const attributionIndex = result.indexOf("Co-Authored-By: Nori");
+
+      expect(messageIndex).toBeLessThan(attributionIndex);
+    });
+
+    it("should preserve additional git flags", () => {
+      const result = replaceAttribution({
+        command: 'git commit -a -s -m "fix: bug"',
+      });
+
+      expect(result).toContain("-a");
+      expect(result).toContain("-s");
+      expect(result).toContain("-m");
+    });
+
+    it("should handle git commit with -C flag", () => {
+      const input = `git -C /home/user/project/.worktrees/feature-branch commit -m "$(cat <<'EOF'
 Add new feature
 
 This commit adds a new feature to the project.
 EOF
 )"`;
 
-    const input: HookInput = {
-      session_id: "test-session",
-      transcript_path: "/tmp/test.jsonl",
-      cwd: "/tmp",
-      permission_mode: "default",
-      hook_event_name: "PreToolUse",
-      tool_name: "Bash",
-      tool_input: {
-        command: commitMessage,
-      },
-      tool_use_id: "toolu_123",
-    };
+      const result = replaceAttribution({ command: input });
 
-    const { output, exitCode } = await runHook({ input });
-
-    expect(exitCode).toBe(0);
-    expect(output).not.toBeNull();
-    const modifiedCommand =
-      output?.hookSpecificOutput?.updatedInput?.command || "";
-
-    // Should add Nori attribution
-    expect(modifiedCommand).toContain(
-      "Co-Authored-By: Nori <contact@tilework.tech>",
-    );
-    expect(modifiedCommand).toContain(
-      "🤖 Generated with [Nori](https://nori.ai)",
-    );
-
-    // Should preserve original message
-    expect(modifiedCommand).toContain("Add new feature");
-    expect(modifiedCommand).toContain(
-      "This commit adds a new feature to the project.",
-    );
+      expect(result).toContain("Add new feature");
+      expect(result).toContain("Co-Authored-By: Nori <contact@tilework.tech>");
+    });
   });
 });
