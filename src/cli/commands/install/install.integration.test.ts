@@ -230,9 +230,6 @@ describe("install integration test", () => {
     expect(fs.existsSync(path.join(skillsDir, "paid-list-noridocs"))).toBe(
       true,
     );
-    expect(fs.existsSync(path.join(skillsDir, "paid-prompt-analysis"))).toBe(
-      true,
-    );
 
     // Check that paid subagents exist (as .md files)
     const subagentsDir = path.join(profileDir, "subagents");
@@ -278,9 +275,6 @@ describe("install integration test", () => {
       false,
     );
     expect(fs.existsSync(path.join(skillsDir, "paid-list-noridocs"))).toBe(
-      false,
-    );
-    expect(fs.existsSync(path.join(skillsDir, "paid-prompt-analysis"))).toBe(
       false,
     );
 

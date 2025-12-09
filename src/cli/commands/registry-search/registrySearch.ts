@@ -8,6 +8,7 @@ import { REGISTRAR_URL, registrarApi, type Package } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
 import { loadConfig } from "@/cli/config.js";
 import { error, info } from "@/cli/logger.js";
+import { getInstallDirs, normalizeInstallDir } from "@/utils/path.js";
 import { normalizeUrl } from "@/utils/url.js";
 
 import type { Command } from "commander";
@@ -148,8 +149,23 @@ export const registrySearchMain = async (args: {
 }): Promise<void> => {
   const { query, installDir } = args;
 
-  // Use provided installDir or default to ~/.claude
-  const effectiveInstallDir = installDir ?? `${process.env.HOME ?? ""}/.claude`;
+  // Determine effective install directory
+  let effectiveInstallDir: string;
+  if (installDir != null) {
+    // Use provided installDir (normalized)
+    effectiveInstallDir = normalizeInstallDir({ installDir });
+  } else {
+    // Auto-detect from current directory
+    const allInstallations = getInstallDirs({ currentDir: process.cwd() });
+    if (allInstallations.length === 0) {
+      error({
+        message:
+          "No Nori installation found.\n\nRun 'npx nori-ai install' to install Nori Profiles.",
+      });
+      return;
+    }
+    effectiveInstallDir = allInstallations[0];
+  }
 
   // Search all registries
   const results = await searchAllRegistries({

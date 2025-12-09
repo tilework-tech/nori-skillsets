@@ -38,7 +38,7 @@ type HookOutput = {
  *
  * @returns True if the command is a git commit command with -m flag
  */
-const isGitCommitCommand = (args: { command: string }): boolean => {
+export const isGitCommitCommand = (args: { command: string }): boolean => {
   const { command } = args;
   // Match git commit with optional flags before "commit" (e.g., git -C /path commit)
   return /git\s+(?:.*\s+)?commit.*(-m|--message)/.test(command);
@@ -51,7 +51,7 @@ const isGitCommitCommand = (args: { command: string }): boolean => {
  *
  * @returns Modified command with Nori attribution
  */
-const replaceAttribution = (args: { command: string }): string => {
+export const replaceAttribution = (args: { command: string }): string => {
   const { command } = args;
 
   // Pattern to match Claude attribution in heredoc format

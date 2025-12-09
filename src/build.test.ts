@@ -174,8 +174,8 @@ ${stderr || "(empty)"}`,
       // This test verifies that the bundle-skills.ts script correctly discovers
       // all paid skill script.js files in tier-specific mixin directories.
       //
-      // Expected: 7 total script files across tier-specific mixins
-      // - paid-recall, paid-memorize, paid-prompt-analysis (in _paid)
+      // Expected: 6 total script files across tier-specific mixins
+      // - paid-recall, paid-memorize (in _paid)
       // - paid-read-noridoc, paid-write-noridoc, paid-list-noridocs, paid-sync-noridocs (in _docs-paid)
 
       const pluginDir = process.cwd();
@@ -218,9 +218,9 @@ ${stderr || "(empty)"}`,
         }
       }
 
-      // Verify we found the expected number of scripts (3 in _paid + 4 in _docs-paid)
+      // Verify we found the expected number of scripts (2 in _paid + 4 in _docs-paid)
       expect(totalScripts).toBeGreaterThan(0);
-      expect(totalScripts).toBe(7); // 7 total paid skills across all tier-specific mixins
+      expect(totalScripts).toBe(6); // 6 total paid skills across all tier-specific mixins
 
       // Verify each script file exists
       for (const scriptPath of scriptPaths) {

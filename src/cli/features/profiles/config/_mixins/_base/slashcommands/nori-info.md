@@ -79,7 +79,7 @@ Skills are reusable workflows that guide Claude through complex tasks. Claude au
 - **using-screenshots** - Capture screen context
 - **webapp-testing** - Playwright-based web testing
 
-### 2.2 Paid Tier Additional Skills (6)
+### 2.2 Paid Tier Additional Skills (5)
 
 **Knowledge Base:**
 
@@ -91,10 +91,6 @@ Skills are reusable workflows that guide Claude through complex tasks. Claude au
 - **read-noridoc** - Read server-side documentation by file path
 - **write-noridoc** - Update server-side documentation
 - **list-noridocs** - List available noridocs
-
-**Optimization:**
-
-- **prompt-analysis** - Analyze prompts for optimization
 
 ## 3. Specialized Subagents
 

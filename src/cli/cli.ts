@@ -10,6 +10,7 @@ import { Command } from "commander";
 
 import { registerCheckCommand } from "@/cli/commands/check/check.js";
 import { registerInstallCommand } from "@/cli/commands/install/install.js";
+import { registerInstallCursorCommand } from "@/cli/commands/install-cursor/installCursor.js";
 import { registerInstallLocationCommand } from "@/cli/commands/install-location/installLocation.js";
 import { registerRegistryDownloadCommand } from "@/cli/commands/registry-download/registryDownload.js";
 import { registerRegistrySearchCommand } from "@/cli/commands/registry-search/registrySearch.js";
@@ -52,6 +53,7 @@ Examples:
 
 // Register all commands
 registerInstallCommand({ program });
+registerInstallCursorCommand({ program });
 registerUninstallCommand({ program });
 registerCheckCommand({ program });
 registerSwitchProfileCommand({ program });

@@ -3,7 +3,6 @@ import { artifactsApi } from "@/api/artifacts.js";
 import { apiRequest } from "@/api/base.js";
 import { conversationApi } from "@/api/conversation.js";
 import { noridocsApi } from "@/api/noridocs.js";
-import { promptAnalysisApi } from "@/api/promptAnalysis.js";
 import { queryApi } from "@/api/query.js";
 import { registrarApi } from "@/api/registrar.js";
 
@@ -32,7 +31,6 @@ export const apiClient = {
   artifacts: artifactsApi,
   conversation: conversationApi,
   noridocs: noridocsApi,
-  promptAnalysis: promptAnalysisApi,
   query: queryApi,
   registrar: registrarApi,
   handshake,
@@ -44,11 +42,6 @@ export type {
   SummarizeRequest,
   SummarizeResponse,
 } from "@/api/conversation.js";
-export type {
-  AnalyzePromptRequest,
-  AnalyzePromptResponse,
-  FeedbackItem,
-} from "@/api/promptAnalysis.js";
 export type {
   Noridoc,
   NoridocVersion,
