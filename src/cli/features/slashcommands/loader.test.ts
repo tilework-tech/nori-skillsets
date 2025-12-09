@@ -89,7 +89,7 @@ describe("globalSlashCommandsLoader", () => {
       expect(mdFiles.length).toBeGreaterThan(0);
     });
 
-    it("should install all 12 global slash commands", async () => {
+    it("should install all global slash commands from config directory", async () => {
       const config: Config = { installDir: tempDir };
 
       await globalSlashCommandsLoader.run({ config });
@@ -97,8 +97,10 @@ describe("globalSlashCommandsLoader", () => {
       const files = await fs.readdir(commandsDir);
       const mdFiles = files.filter((f) => f.endsWith(".md"));
 
-      // 11 from _base + 1 from _paid = 12 total
-      expect(mdFiles.length).toBe(12);
+      // Should install at least the known essential commands
+      expect(mdFiles.length).toBeGreaterThan(5);
+      expect(mdFiles).toContain("nori-debug.md");
+      expect(mdFiles).toContain("nori-switch-profile.md");
     });
 
     it("should install nori-debug.md slash command", async () => {
@@ -180,9 +182,10 @@ describe("globalSlashCommandsLoader", () => {
       // Install first
       await globalSlashCommandsLoader.run({ config });
 
-      // Verify files exist
-      let files = await fs.readdir(commandsDir);
-      expect(files.length).toBeGreaterThan(0);
+      // Get list of installed files
+      const installedFiles = await fs.readdir(commandsDir);
+      const installedMdFiles = installedFiles.filter((f) => f.endsWith(".md"));
+      expect(installedMdFiles.length).toBeGreaterThan(0);
 
       // Uninstall
       await globalSlashCommandsLoader.uninstall({ config });
@@ -194,24 +197,10 @@ describe("globalSlashCommandsLoader", () => {
         .catch(() => false);
 
       if (exists) {
-        files = await fs.readdir(commandsDir);
-        // All global slash commands should be removed
-        const globalCommands = [
-          "nori-create-profile.md",
-          "nori-debug.md",
-          "nori-info.md",
-          "nori-install-location.md",
-          "nori-modify-registry-auth.md",
-          "nori-modify-watchtower-auth.md",
-          "nori-registry-download.md",
-          "nori-registry-search.md",
-          "nori-registry-upload.md",
-          "nori-switch-profile.md",
-          "nori-toggle-autoupdate.md",
-          "nori-toggle-session-transcripts.md",
-        ];
-        for (const cmd of globalCommands) {
-          expect(files).not.toContain(cmd);
+        const remainingFiles = await fs.readdir(commandsDir);
+        // All installed global slash commands should be removed
+        for (const cmd of installedMdFiles) {
+          expect(remainingFiles).not.toContain(cmd);
         }
       }
     });

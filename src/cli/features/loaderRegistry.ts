@@ -47,7 +47,6 @@ export class LoaderRegistry {
     // IMPORTANT: Order matters!
     // - version and config must run before profiles (profiles may depend on config)
     // - profilesLoader must run after version/config to compose profiles and install profile-dependent features
-    // - Global slashcommands run after statusline (profile-agnostic commands installed to ~/.claude/commands/)
     // - During uninstall, the order is reversed automatically
     this.loaders.set(versionLoader.name, versionLoader);
     this.loaders.set(configLoader.name, configLoader);

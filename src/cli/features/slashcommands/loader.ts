@@ -9,7 +9,7 @@ import * as path from "path";
 import { fileURLToPath } from "url";
 
 import { getClaudeDir, getClaudeCommandsDir } from "@/cli/env.js";
-import { success, info, warn } from "@/cli/logger.js";
+import { success, info } from "@/cli/logger.js";
 import { substituteTemplatePaths } from "@/utils/template.js";
 
 import type { Config } from "@/cli/config.js";
@@ -25,21 +25,17 @@ const __dirname = path.dirname(__filename);
 // Config directory containing global slash command markdown files
 const CONFIG_DIR = path.join(__dirname, "config");
 
-// List of global slash commands (filenames without .md extension)
-const GLOBAL_SLASH_COMMANDS = [
-  "nori-create-profile",
-  "nori-debug",
-  "nori-info",
-  "nori-install-location",
-  "nori-modify-registry-auth",
-  "nori-modify-watchtower-auth",
-  "nori-registry-download",
-  "nori-registry-search",
-  "nori-registry-upload",
-  "nori-switch-profile",
-  "nori-toggle-autoupdate",
-  "nori-toggle-session-transcripts",
-];
+/**
+ * Get list of global slash commands by reading the config directory
+ * @returns Array of command names (without .md extension)
+ */
+const getGlobalSlashCommands = async (): Promise<Array<string>> => {
+  const files = await fs.readdir(CONFIG_DIR);
+  return files
+    .filter((f) => f.endsWith(".md"))
+    .map((f) => f.replace(/\.md$/, ""))
+    .sort();
+};
 
 /**
  * Register all global slash commands
@@ -59,32 +55,24 @@ const registerSlashCommands = async (args: {
   // Create commands directory if it doesn't exist
   await fs.mkdir(claudeCommandsDir, { recursive: true });
 
+  const commands = await getGlobalSlashCommands();
   let registeredCount = 0;
-  let skippedCount = 0;
 
-  for (const commandName of GLOBAL_SLASH_COMMANDS) {
+  for (const commandName of commands) {
     const fileName = `${commandName}.md`;
     const commandSrc = path.join(CONFIG_DIR, fileName);
     const commandDest = path.join(claudeCommandsDir, fileName);
 
-    try {
-      await fs.access(commandSrc);
-      // Read content and apply template substitution
-      const content = await fs.readFile(commandSrc, "utf-8");
-      const claudeDir = getClaudeDir({ installDir: config.installDir });
-      const substituted = substituteTemplatePaths({
-        content,
-        installDir: claudeDir,
-      });
-      await fs.writeFile(commandDest, substituted);
-      success({ message: `✓ /${commandName} slash command registered` });
-      registeredCount++;
-    } catch {
-      warn({
-        message: `Global slash command definition not found at ${commandSrc}, skipping`,
-      });
-      skippedCount++;
-    }
+    // Read content and apply template substitution
+    const content = await fs.readFile(commandSrc, "utf-8");
+    const claudeDir = getClaudeDir({ installDir: config.installDir });
+    const substituted = substituteTemplatePaths({
+      content,
+      installDir: claudeDir,
+    });
+    await fs.writeFile(commandDest, substituted);
+    success({ message: `✓ /${commandName} slash command registered` });
+    registeredCount++;
   }
 
   if (registeredCount > 0) {
@@ -92,13 +80,6 @@ const registerSlashCommands = async (args: {
       message: `Successfully registered ${registeredCount} global slash command${
         registeredCount === 1 ? "" : "s"
       }`,
-    });
-  }
-  if (skippedCount > 0) {
-    warn({
-      message: `Skipped ${skippedCount} global slash command${
-        skippedCount === 1 ? "" : "s"
-      } (not found)`,
     });
   }
 };
@@ -120,7 +101,9 @@ const unregisterSlashCommands = async (args: {
     installDir: config.installDir,
   });
 
-  for (const commandName of GLOBAL_SLASH_COMMANDS) {
+  const commands = await getGlobalSlashCommands();
+
+  for (const commandName of commands) {
     const fileName = `${commandName}.md`;
     const commandPath = path.join(claudeCommandsDir, fileName);
 
@@ -185,9 +168,10 @@ const validate = async (args: {
   }
 
   // Check if all expected global slash commands are present
+  const commands = await getGlobalSlashCommands();
   const missingCommands: Array<string> = [];
 
-  for (const commandName of GLOBAL_SLASH_COMMANDS) {
+  for (const commandName of commands) {
     const fileName = `${commandName}.md`;
     const commandPath = path.join(claudeCommandsDir, fileName);
 
@@ -212,7 +196,7 @@ const validate = async (args: {
 
   return {
     valid: true,
-    message: `All ${GLOBAL_SLASH_COMMANDS.length} global slash commands are properly installed`,
+    message: `All ${commands.length} global slash commands are properly installed`,
     errors: null,
   };
 };
