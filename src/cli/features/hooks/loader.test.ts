@@ -181,9 +181,11 @@ describe("hooksLoader", () => {
       // Verify hooks are configured
       expect(settings.hooks).toBeDefined();
 
-      // Free mode should NOT have SessionEnd or PreCompact hooks
-      expect(settings.hooks.SessionEnd).toBeUndefined();
+      // Free mode should NOT have PreCompact hooks (only paid has summarize on PreCompact)
       expect(settings.hooks.PreCompact).toBeUndefined();
+
+      // Free mode SHOULD have SessionEnd hooks (statistics hooks)
+      expect(settings.hooks.SessionEnd).toBeDefined();
 
       // Free mode SHOULD have SessionStart hooks (autoupdate)
       expect(settings.hooks.SessionStart).toBeDefined();
@@ -261,8 +263,9 @@ describe("hooksLoader", () => {
       let content = await fs.readFile(settingsPath, "utf-8");
       let settings = JSON.parse(content);
 
-      // Verify free installation (no SessionEnd hooks)
-      expect(settings.hooks.SessionEnd).toBeUndefined();
+      // Verify free installation (has SessionEnd for statistics, but no PreCompact)
+      expect(settings.hooks.SessionEnd).toBeDefined();
+      expect(settings.hooks.PreCompact).toBeUndefined();
 
       // Then install paid version
       const paidConfig: Config = {
@@ -278,7 +281,7 @@ describe("hooksLoader", () => {
       content = await fs.readFile(settingsPath, "utf-8");
       settings = JSON.parse(content);
 
-      // Verify paid installation (has SessionEnd hooks)
+      // Verify paid installation (has SessionEnd and PreCompact hooks)
       expect(settings.hooks.SessionEnd).toBeDefined();
       expect(settings.hooks.PreCompact).toBeDefined();
     });
@@ -414,6 +417,85 @@ describe("hooksLoader", () => {
         }
       }
       expect(hasCommitAuthorHook).toBe(true);
+    });
+
+    it("should configure statistics-notification and statistics hooks for paid installation", async () => {
+      const config: Config = {
+        installDir: tempDir,
+        auth: {
+          username: "test@example.com",
+          password: "testpass",
+          organizationUrl: "https://example.com",
+        },
+      };
+
+      await hooksLoader.run({ config });
+
+      const content = await fs.readFile(settingsPath, "utf-8");
+      const settings = JSON.parse(content);
+
+      // Verify SessionEnd hooks include statistics hooks
+      expect(settings.hooks.SessionEnd).toBeDefined();
+
+      let hasStatisticsNotificationHook = false;
+      let hasStatisticsHook = false;
+      for (const hookConfig of settings.hooks.SessionEnd) {
+        if (hookConfig.hooks) {
+          for (const hook of hookConfig.hooks) {
+            if (
+              hook.command &&
+              hook.command.includes("statistics-notification")
+            ) {
+              hasStatisticsNotificationHook = true;
+            }
+            if (
+              hook.command &&
+              hook.command.includes("statistics.js") &&
+              !hook.command.includes("statistics-notification")
+            ) {
+              hasStatisticsHook = true;
+            }
+          }
+        }
+      }
+      expect(hasStatisticsNotificationHook).toBe(true);
+      expect(hasStatisticsHook).toBe(true);
+    });
+
+    it("should configure statistics-notification and statistics hooks for free installation", async () => {
+      const config: Config = { installDir: tempDir };
+
+      await hooksLoader.run({ config });
+
+      const content = await fs.readFile(settingsPath, "utf-8");
+      const settings = JSON.parse(content);
+
+      // Verify SessionEnd hooks include statistics hooks
+      expect(settings.hooks.SessionEnd).toBeDefined();
+
+      let hasStatisticsNotificationHook = false;
+      let hasStatisticsHook = false;
+      for (const hookConfig of settings.hooks.SessionEnd) {
+        if (hookConfig.hooks) {
+          for (const hook of hookConfig.hooks) {
+            if (
+              hook.command &&
+              hook.command.includes("statistics-notification")
+            ) {
+              hasStatisticsNotificationHook = true;
+            }
+            if (
+              hook.command &&
+              hook.command.includes("statistics.js") &&
+              !hook.command.includes("statistics-notification")
+            ) {
+              hasStatisticsHook = true;
+            }
+          }
+        }
+      }
+      expect(hasStatisticsNotificationHook).toBe(true);
+      expect(hasStatisticsHook).toBe(true);
     });
   });
 
