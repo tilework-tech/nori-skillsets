@@ -66,7 +66,11 @@ The `install/` directory contains command-specific utilities:
 
 The `install-location/` command was extracted from inline definition in cli.ts to follow the same pattern as other commands.
 
-The `install-cursor/` command installs Nori profiles to Cursor IDE (`~/.cursor/profiles/`). It uses CursorLoaderRegistry instead of LoaderRegistry and executes Cursor-specific loaders that write to Cursor paths. The command always installs to the user's home directory (os.homedir()) and does not support the `--install-dir` option.
+The `install-cursor/` command installs Nori components to Cursor IDE. It uses CursorLoaderRegistry instead of LoaderRegistry and executes Cursor-specific loaders that write to Cursor paths:
+- Profiles installed to `~/.cursor/profiles/`
+- Slash commands installed to `~/.cursor/commands/`
+
+The command always installs to the user's home directory (os.homedir()) and does not support the `--install-dir` option.
 
 The `cursor-switch-profile/` command switches the active Cursor profile. It updates `config.cursorProfile.baseProfile` in the config file, then runs `install-cursor` to reinstall only the selected profile. Like `install-cursor`, it always uses `os.homedir()` and does not support `--install-dir`. The command verifies the profile exists in `~/.cursor/profiles/` before switching by checking for a CLAUDE.md file.
 
