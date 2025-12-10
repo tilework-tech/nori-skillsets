@@ -21,6 +21,8 @@ import {
   getCursorProfilesDir,
   getCursorHomeDir,
   getCursorHomeSettingsFile,
+  getCursorHooksFile,
+  getCursorHomeHooksFile,
 } from "./env.js";
 
 describe("getClaudeDir", () => {
@@ -219,6 +221,34 @@ describe("getCursorHomeSettingsFile", () => {
     const result = getCursorHomeSettingsFile();
     expect(result).toContain(".cursor");
     expect(result).toContain("settings.json");
+    expect(path.isAbsolute(result)).toBe(true);
+  });
+});
+
+describe("getCursorHooksFile", () => {
+  it("should return {installDir}/.cursor/hooks.json for cwd", () => {
+    const result = getCursorHooksFile({ installDir: process.cwd() });
+    expect(result).toBe(path.join(process.cwd(), ".cursor", "hooks.json"));
+  });
+
+  it("should return {installDir}/.cursor/hooks.json for custom path", () => {
+    const result = getCursorHooksFile({ installDir: "/custom/path" });
+    expect(result).toBe("/custom/path/.cursor/hooks.json");
+  });
+});
+
+describe("getCursorHomeHooksFile", () => {
+  it("should return ~/.cursor/hooks.json", () => {
+    const result = getCursorHomeHooksFile();
+    const homeDir = process.env.HOME || process.env.USERPROFILE || "~";
+    const expected = path.join(homeDir, ".cursor", "hooks.json");
+    expect(result).toBe(expected);
+  });
+
+  it("should not depend on any installDir parameter", () => {
+    const result = getCursorHomeHooksFile();
+    expect(result).toContain(".cursor");
+    expect(result).toContain("hooks.json");
     expect(path.isAbsolute(result)).toBe(true);
   });
 });

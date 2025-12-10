@@ -168,3 +168,23 @@ export const getCursorHomeDir = (): string => {
 export const getCursorHomeSettingsFile = (): string => {
   return path.join(getCursorHomeDir(), "settings.json");
 };
+
+/**
+ * Get the Cursor hooks file path
+ * @param args - Configuration arguments
+ * @param args.installDir - Installation directory
+ *
+ * @returns Absolute path to hooks.json
+ */
+export const getCursorHooksFile = (args: { installDir: string }): string => {
+  return path.join(getCursorDir(args), "hooks.json");
+};
+
+/**
+ * Get the Cursor home hooks file path (always ~/.cursor/hooks.json)
+ *
+ * @returns Absolute path to ~/.cursor/hooks.json
+ */
+export const getCursorHomeHooksFile = (): string => {
+  return path.join(getCursorHomeDir(), "hooks.json");
+};

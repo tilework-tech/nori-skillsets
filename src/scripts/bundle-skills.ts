@@ -92,12 +92,31 @@ const main = async (): Promise<void> => {
     absolute: true,
   });
 
+  // Find all Cursor hook script files in the build output
+  // Pattern: build/src/cli/features/cursor/hooks/config/*.js (excluding test files)
+  const cursorHookFiles = await glob(
+    "build/src/cli/features/cursor/hooks/config/*.js",
+    {
+      cwd: process.cwd(),
+      absolute: true,
+    },
+  );
+
   // Filter out test files from hooks
   const filteredHookFiles = hookFiles.filter(
     (file: string) => !file.endsWith(".test.js"),
   );
 
-  const allFiles = [...skillFiles, ...filteredHookFiles];
+  // Filter out test files from Cursor hooks
+  const filteredCursorHookFiles = cursorHookFiles.filter(
+    (file: string) => !file.endsWith(".test.js"),
+  );
+
+  const allFiles = [
+    ...skillFiles,
+    ...filteredHookFiles,
+    ...filteredCursorHookFiles,
+  ];
 
   if (allFiles.length === 0) {
     console.warn("⚠ No scripts found to bundle");
@@ -117,6 +136,9 @@ const main = async (): Promise<void> => {
 
   console.log(`Found ${skillFiles.length} skill script(s) to bundle`);
   console.log(`Found ${filteredHookFiles.length} hook script(s) to bundle`);
+  console.log(
+    `Found ${filteredCursorHookFiles.length} Cursor hook script(s) to bundle`,
+  );
   console.log(`Total: ${allFiles.length} script(s)\n`);
 
   // Bundle each script
