@@ -189,11 +189,11 @@ ${stderr || "(empty)"}`,
       const mixinDirs = [
         path.join(
           buildDir,
-          "src/cli/features/profiles/config/_mixins/_paid/skills",
+          "src/cli/features/claude-code/profiles/config/_mixins/_paid/skills",
         ),
         path.join(
           buildDir,
-          "src/cli/features/profiles/config/_mixins/_docs-paid/skills",
+          "src/cli/features/claude-code/profiles/config/_mixins/_docs-paid/skills",
         ),
       ];
 
@@ -239,7 +239,7 @@ ${stderr || "(empty)"}`,
       // Find all paid skill script.js files in the _mixins/_paid directory
       const paidSkillsDir = path.join(
         buildDir,
-        "src/cli/features/profiles/config/_mixins/_paid/skills",
+        "src/cli/features/claude-code/profiles/config/_mixins/_paid/skills",
       );
 
       const scriptPaths: Array<string> = [];
@@ -299,7 +299,7 @@ ${stderr || "(empty)"}`,
       // Find all paid skill script.js files in the _mixins/_paid directory
       const paidSkillsDir = path.join(
         buildDir,
-        "src/cli/features/profiles/config/_mixins/_paid/skills",
+        "src/cli/features/claude-code/profiles/config/_mixins/_paid/skills",
       );
 
       const scriptPaths: Array<string> = [];

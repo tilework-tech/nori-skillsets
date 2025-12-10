@@ -689,12 +689,13 @@ const createMockTarball = async (args?: {
     );
     await fs.writeFile(path.join(tempDir, "AGENT.md"), "# Test Profile Agent");
 
-    // Create the tarball
-    await tar.create(
+    // Create the tarball synchronously to avoid race condition
+    tar.create(
       {
         gzip,
         file: tarballPath,
         cwd: tempDir,
+        sync: true,
       },
       ["package.json", "AGENT.md"],
     );

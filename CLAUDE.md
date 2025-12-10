@@ -7,16 +7,16 @@ tools that may behave differently on different systems.
 
 **IMPORTANT:** When discussing "Claude" or "Claude Code configuration":
 
-- **Almost always** means modifying files in `src/cli/features/` (the Nori Plugin package)
+- **Almost always** means modifying files in `src/cli/features/claude-code/` (the Nori Plugin package)
 - **Rarely** means modifying `~/.claude/` (the installed user configuration)
 
-**Default assumption:** Unless explicitly stated otherwise, "modify Claude configuration", "update skills", "change hooks", etc. refers to modifying the Plugin package source files at `src/cli/features/`, NOT the installed configuration at `~/.claude/`.
+**Default assumption:** Unless explicitly stated otherwise, "modify Claude configuration", "update skills", "change hooks", etc. refers to modifying the Plugin package source files at `src/cli/features/claude-code/`, NOT the installed configuration at `~/.claude/`.
 
 **Examples:**
 
-- "Update the writing-skills skill" → Modify `src/cli/features/skills/config/{free,paid}/meta/writing-skills/SKILL.md`
-- "Change the status line" → Modify `src/cli/features/statusline/`
-- "Add a new slash command" → Modify `src/cli/features/slashcommands/config/`
+- "Update the writing-plans skill" → Modify `src/cli/features/claude-code/profiles/config/_mixins/_swe/skills/writing-plans/SKILL.md`
+- "Change the status line" → Modify `src/cli/features/claude-code/statusline/`
+- "Add a new global slash command" → Modify `src/cli/features/claude-code/slashcommands/config/`
 
 **Only modify `~/.claude/` when:**
 
@@ -25,7 +25,7 @@ tools that may behave differently on different systems.
 
 # Skills documentation.
 
-Skills in src/cli/features/skills/ are self-explanatory. Do not create docs.md files in skill directories unless the skill is particularly complex and requires additional context files.
+Skills in src/cli/features/claude-code/profiles/config/ are self-explanatory. Do not create docs.md files in skill directories unless the skill is particularly complex and requires additional context files.
 
 # Style guide.
 

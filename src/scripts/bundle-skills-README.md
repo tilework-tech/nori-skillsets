@@ -30,8 +30,8 @@ This script uses esbuild to create standalone bundles that:
 
 ## Output Structure
 
-- **Input**: `build/src/cli/features/skills/config/paid-recall/script.js`
-- **Output**: `build/src/cli/features/skills/config/paid-recall/script.js` (replaced with bundle)
+- **Input**: `build/src/cli/features/claude-code/profiles/config/_mixins/_paid/skills/paid-recall/script.js`
+- **Output**: `build/src/cli/features/claude-code/profiles/config/_mixins/_paid/skills/paid-recall/script.js` (replaced with bundle)
 
 The bundled version **REPLACES** the tsc output, so the installer workflow remains unchanged.
 
@@ -45,5 +45,5 @@ The bundled version **REPLACES** the tsc output, so the installer workflow remai
 ## Integration Points
 
 - `package.json:build` - Build pipeline integration
-- `src/cli/features/skills/loader.ts` - Installation process
-- `src/cli/features/skills/config/paid-recall/script.ts` - Example paid skill with bundling comments
+- `src/cli/features/claude-code/profiles/skills/loader.ts` - Installation process
+- `src/cli/features/claude-code/profiles/config/_mixins/_paid/skills/paid-recall/script.ts` - Example paid skill with bundling comments

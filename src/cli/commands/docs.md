@@ -1,6 +1,6 @@
 # Noridoc: commands
 
-Path: @/plugin/src/cli/commands
+Path: @/src/cli/commands
 
 ### Overview
 
@@ -8,7 +8,7 @@ Contains all CLI command implementations for the nori-ai CLI. Each command lives
 
 ### How it fits into the larger codebase
 
-The main CLI entry point (@/plugin/src/cli/cli.ts) imports `registerXCommand` functions from each command subdirectory and calls them to register commands with the Commander.js program. Each command module exports a register function that accepts `{ program: Command }` and adds its command definition. Commands access global options (`--install-dir`, `--non-interactive`) via `program.opts()`. Business logic is encapsulated within each command directory - cli.ts only handles routing.
+The main CLI entry point (@/src/cli/cli.ts) imports `registerXCommand` functions from each command subdirectory and calls them to register commands with the Commander.js program. Each command module exports a register function that accepts `{ program: Command }` and adds its command definition. Commands access global options (`--install-dir`, `--non-interactive`) via `program.opts()`. Business logic is encapsulated within each command directory - cli.ts only handles routing.
 
 ```
 cli.ts
@@ -24,14 +24,14 @@ cli.ts
   +-- registerRegistryUploadCommand({ program })--> commands/registry-upload/registryUpload.ts
 ```
 
-Commands use shared utilities from the parent @/plugin/src/cli/ directory:
+Commands use shared utilities from the parent @/src/cli/ directory:
 - `config.ts` - Config type and persistence
 - `logger.ts` - Console output formatting (error, success, info, warn)
 - `prompt.ts` - User input prompting
 - `version.ts` - Version tracking for upgrades
 - `analytics.ts` - GA4 event tracking
 
-Commands also use feature loaders from @/plugin/src/cli/features/ via the LoaderRegistry for installation/uninstallation operations.
+Commands also use feature loaders from @/src/cli/features/claude-code/ via the LoaderRegistry for installation/uninstallation operations.
 
 ### Core Implementation
 
@@ -54,7 +54,7 @@ export const registerXCommand = (args: { program: Command }): void => {
 };
 ```
 
-**Import Path Pattern:** Commands import from `@/cli/` for shared utilities and `@/cli/features/` for loaders. Within the install command, relative imports are used for command-specific utilities (e.g., `./asciiArt.js`, `./installState.js`).
+**Import Path Pattern:** Commands import from `@/cli/` for shared utilities and `@/cli/features/claude-code/` for loaders. Within the install command, relative imports are used for command-specific utilities (e.g., `./asciiArt.js`, `./installState.js`).
 
 ### Things to Know
 

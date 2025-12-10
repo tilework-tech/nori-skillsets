@@ -49,9 +49,9 @@ vi.mock("@/cli/logger.js", () => ({
 }));
 
 // Import after mocking
-import { profilesLoader } from "@/cli/features/profiles/loader.js";
-import { slashCommandsLoader } from "@/cli/features/profiles/slashcommands/loader.js";
-import { subagentsLoader } from "@/cli/features/profiles/subagents/loader.js";
+import { profilesLoader } from "@/cli/features/claude-code/profiles/loader.js";
+import { slashCommandsLoader } from "@/cli/features/claude-code/profiles/slashcommands/loader.js";
+import { subagentsLoader } from "@/cli/features/claude-code/profiles/subagents/loader.js";
 
 import { runUninstall } from "./uninstall.js";
 

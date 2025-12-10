@@ -16,7 +16,7 @@ import {
   getDefaultProfile,
   isPaidInstall,
 } from "@/cli/config.js";
-import { LoaderRegistry } from "@/cli/features/loaderRegistry.js";
+import { LoaderRegistry } from "@/cli/features/claude-code/loaderRegistry.js";
 import { error, success, info, warn } from "@/cli/logger.js";
 import { promptUser } from "@/cli/prompt.js";
 import { getVersionFilePath } from "@/cli/version.js";
