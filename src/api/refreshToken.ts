@@ -1,13 +1,18 @@
 /**
  * Refresh token exchange functionality
  * Uses Firebase REST API to exchange refresh tokens for ID tokens
- * and to sign in with email/password to get initial refresh tokens
+ *
+ * Note: The Firebase SDK doesn't expose a direct "exchange refresh token" method
+ * for stateless CLI use. The SDK handles this internally via user.getIdToken(),
+ * but that requires an active User session. For CLI tools that store refresh tokens
+ * and need to exchange them on cold start, we use the REST API directly.
+ *
+ * Sign-in with email/password uses the Firebase SDK (see loader.ts).
  */
 
 // Firebase API key from tilework-e18c5 project
 const FIREBASE_API_KEY = "AIzaSyC54HqlGrkyANVFKGDQi3LobO5moDOuafk";
 const TOKEN_ENDPOINT = `https://securetoken.googleapis.com/v1/token?key=${FIREBASE_API_KEY}`;
-const SIGN_IN_ENDPOINT = `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_API_KEY}`;
 
 // Token cache: refreshToken -> { idToken, expiry }
 const tokenCache = new Map<string, { idToken: string; expiry: number }>();
@@ -104,72 +109,4 @@ export const exchangeRefreshToken = async (args: {
  */
 export const clearRefreshTokenCache = (): void => {
   tokenCache.clear();
-};
-
-/**
- * Result from signing in with email/password
- */
-export type SignInResult = {
-  idToken: string;
-  refreshToken: string;
-  email: string;
-  expiresIn: number;
-};
-
-/**
- * Sign in response from Firebase REST API
- */
-type FirebaseSignInResponse = {
-  idToken: string;
-  email: string;
-  refreshToken: string;
-  expiresIn: string;
-  localId: string;
-  registered: boolean;
-};
-
-/**
- * Sign in with email and password to get a refresh token
- * This is used during initial login to obtain a refresh token that can be stored
- * instead of the password.
- *
- * @param args - The sign-in parameters
- * @param args.email - The user's email address
- * @param args.password - The user's password
- *
- * @returns The refresh token and other authentication data
- */
-export const signInWithPassword = async (args: {
-  email: string;
-  password: string;
-}): Promise<SignInResult> => {
-  const { email, password } = args;
-
-  const response = await fetch(SIGN_IN_ENDPOINT, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      email,
-      password,
-      returnSecureToken: true,
-    }),
-  });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    const errorData = data as FirebaseErrorResponse;
-    throw new Error(errorData.error?.message || "Sign in failed");
-  }
-
-  const signInData = data as FirebaseSignInResponse;
-
-  return {
-    idToken: signInData.idToken,
-    refreshToken: signInData.refreshToken,
-    email: signInData.email,
-    expiresIn: parseInt(signInData.expiresIn, 10),
-  };
 };

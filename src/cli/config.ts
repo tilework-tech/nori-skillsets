@@ -69,6 +69,26 @@ export const getConfigPath = (args: { installDir: string }): string => {
   const { installDir } = args;
   return path.join(installDir, ".nori-config.json");
 };
+
+/**
+ * Get default profile
+ * @returns Default profile (senior-swe)
+ */
+export const getDefaultProfile = (): { baseProfile: string } => {
+  return {
+    baseProfile: "senior-swe",
+  };
+};
+
+/**
+ * Check if config represents a paid installation
+ * @param args - Configuration arguments
+ * @param args.config - The config to check
+ *
+ * @returns True if the config has valid auth credentials (paid install)
+ */
+export const isPaidInstall = (args: { config: Config }): boolean => {
+  return args.config.auth != null;
 };
 
 /**
@@ -113,6 +133,37 @@ export const getRegistryAuth = (args: {
 };
 
 /**
+ * Get the profile for a specific agent
+ * @param args - Configuration arguments
+ * @param args.config - The config to search
+ * @param args.agentName - The agent name to get profile for
+ *
+ * @returns The agent's profile or null if not found
+ */
+export const getAgentProfile = (args: {
+  config: Config;
+  agentName: string;
+}): { baseProfile: string } | null => {
+  const { config, agentName } = args;
+
+  // First check the agents field (new format)
+  if (config.agents != null) {
+    const agentConfig = config.agents[agentName];
+    if (agentConfig?.profile != null) {
+      return agentConfig.profile;
+    }
+    return null;
+  }
+
+  // Fallback to legacy profile field for claude-code only
+  if (agentName === "claude-code" && config.profile != null) {
+    return config.profile;
+  }
+
+  return null;
+};
+
+/**
  * Load existing configuration from disk
  * @param args - Configuration arguments
  * @param args.installDir - Installation directory
@@ -144,26 +195,27 @@ export const loadConfig = async (args: {
 
       // Check if auth credentials exist and are valid
       // Support both token-based auth (refreshToken) and legacy password-based auth
-      if (
-        config.username &&
-        config.organizationUrl &&
-        typeof config.username === "string" &&
-        typeof config.organizationUrl === "string"
-      ) {
-        const hasRefreshToken =
-          config.refreshToken && typeof config.refreshToken === "string";
-        const hasPassword =
-          config.password && typeof config.password === "string";
+      const hasUsername =
+        config.username && typeof config.username === "string";
+      const hasOrganizationUrl =
+        config.organizationUrl && typeof config.organizationUrl === "string";
+      const hasRefreshToken =
+        config.refreshToken && typeof config.refreshToken === "string";
+      const hasPassword =
+        config.password && typeof config.password === "string";
 
-        // Require either refreshToken or password
-        if (hasRefreshToken || hasPassword) {
-          result.auth = {
-            username: config.username,
-            organizationUrl: config.organizationUrl,
-            refreshToken: hasRefreshToken ? config.refreshToken : null,
-            password: hasPassword ? config.password : null,
-          };
-        }
+      // Require either refreshToken or password
+      if (
+        hasUsername &&
+        hasOrganizationUrl &&
+        (hasRefreshToken || hasPassword)
+      ) {
+        result.auth = {
+          username: config.username,
+          organizationUrl: config.organizationUrl,
+          refreshToken: hasRefreshToken ? config.refreshToken : null,
+          password: hasPassword ? config.password : null,
+        };
       }
 
       // Check if profile exists
@@ -188,11 +240,11 @@ export const loadConfig = async (args: {
         result.sendSessionTranscript = "enabled"; // Default value
       }
 
-      // Check if autoupdate exists, default to 'enabled'
+      // Check if autoupdate exists, default to 'disabled'
       if (config.autoupdate === "enabled" || config.autoupdate === "disabled") {
         result.autoupdate = config.autoupdate;
       } else {
-        result.autoupdate = "enabled"; // Default value
+        result.autoupdate = "disabled"; // Default value
       }
 
       // Check if registryAuths exists and is valid array
@@ -210,11 +262,35 @@ export const loadConfig = async (args: {
         }
       }
 
-      // Return result if we have at least auth, profile, or sendSessionTranscript
+      // Check if agents field exists (new multi-agent config format)
+      if (config.agents && typeof config.agents === "object") {
+        result.agents = config.agents;
+      } else if (result.profile != null) {
+        // Backwards compatibility: if only legacy profile exists, mirror it to agents.claude-code
+        result.agents = {
+          "claude-code": {
+            profile: result.profile,
+          },
+        };
+      }
+
+      // Check if installedAgents exists and is valid array of strings
+      if (Array.isArray(config.installedAgents)) {
+        const validAgents = config.installedAgents.filter(
+          (agent: unknown) => typeof agent === "string",
+        );
+        if (validAgents.length > 0) {
+          result.installedAgents = validAgents;
+        }
+      }
+
+      // Return result if we have at least auth, profile, agents, sendSessionTranscript, or installedAgents
       if (
         result.auth != null ||
         result.profile != null ||
-        result.sendSessionTranscript != null
+        result.agents != null ||
+        result.sendSessionTranscript != null ||
+        result.installedAgents != null
       ) {
         return result;
       }
@@ -233,11 +309,13 @@ export const loadConfig = async (args: {
  * @param args.password - User's password (deprecated, use refreshToken instead)
  * @param args.refreshToken - Firebase refresh token (preferred over password)
  * @param args.organizationUrl - Organization URL (null to skip auth)
- * @param args.profile - Profile selection (null to skip profile)
+ * @param args.profile - Profile selection (null to skip profile) - deprecated, use agents instead
  * @param args.sendSessionTranscript - Session transcript setting (null to skip)
  * @param args.autoupdate - Autoupdate setting (null to skip)
  * @param args.installDir - Installation directory
  * @param args.registryAuths - Array of registry authentication credentials (null to skip)
+ * @param args.agents - Per-agent configuration settings (null to skip)
+ * @param args.installedAgents - List of installed AI agents (null to skip)
  */
 export const saveConfig = async (args: {
   username: string | null;
@@ -248,6 +326,8 @@ export const saveConfig = async (args: {
   sendSessionTranscript?: "enabled" | "disabled" | null;
   autoupdate?: "enabled" | "disabled" | null;
   registryAuths?: Array<RegistryAuth> | null;
+  agents?: Record<string, AgentConfig> | null;
+  installedAgents?: Array<string> | null;
   installDir: string;
 }): Promise<void> => {
   const {
@@ -259,6 +339,8 @@ export const saveConfig = async (args: {
     sendSessionTranscript,
     autoupdate,
     registryAuths,
+    agents,
+    installedAgents,
     installDir,
   } = args;
   const configPath = getConfigPath({ installDir });
@@ -279,13 +361,22 @@ export const saveConfig = async (args: {
       config.refreshToken = refreshToken;
       // Explicitly do NOT save password when refreshToken is present
     } else if (password != null) {
-      // Legacy: only save password if no refreshToken provided
+      // Legacy: only save password if no refreshToken
       config.password = password;
     }
   }
 
-  // Add profile if provided
-  if (profile != null) {
+  // Add agents if provided (new multi-agent format)
+  if (agents != null) {
+    config.agents = agents;
+
+    // For backwards compatibility, also write legacy profile field if claude-code has a profile
+    const claudeCodeProfile = agents["claude-code"]?.profile;
+    if (claudeCodeProfile != null) {
+      config.profile = claudeCodeProfile;
+    }
+  } else if (profile != null) {
+    // Legacy: Add profile if provided (when agents is not used)
     config.profile = profile;
   }
 
@@ -302,6 +393,11 @@ export const saveConfig = async (args: {
   // Add registryAuths if provided and not empty
   if (registryAuths != null && registryAuths.length > 0) {
     config.registryAuths = registryAuths;
+  }
+
+  // Add installedAgents if provided and not empty
+  if (installedAgents != null && installedAgents.length > 0) {
+    config.installedAgents = installedAgents;
   }
 
   // Always save installDir
@@ -353,6 +449,24 @@ const configSchema = {
         },
         required: ["username", "password", "registryUrl"],
       },
+    },
+    agents: {
+      type: "object",
+      additionalProperties: {
+        type: "object",
+        properties: {
+          profile: {
+            type: "object",
+            properties: {
+              baseProfile: { type: "string" },
+            },
+          },
+        },
+      },
+    },
+    installedAgents: {
+      type: "array",
+      items: { type: "string" },
     },
   },
   additionalProperties: false,
@@ -413,28 +527,23 @@ export const validateConfig = async (args: {
   // Check if all required fields are present for paid mode
   const hasUsername = config.username && typeof config.username === "string";
   const hasPassword = config.password && typeof config.password === "string";
-  const hasRefreshToken =
-    config.refreshToken && typeof config.refreshToken === "string";
   const hasOrgUrl =
     config.organizationUrl && typeof config.organizationUrl === "string";
 
-  // Need either password OR refreshToken (not both required)
-  const hasAuth = hasPassword || hasRefreshToken;
+  const credentialsProvided = [hasUsername, hasPassword, hasOrgUrl];
+  const someProvided = credentialsProvided.some((v) => v);
+  const allProvided = credentialsProvided.every((v) => v);
 
-  const coreCredentialsProvided = [hasUsername, hasOrgUrl];
-  const someCoreProvided = coreCredentialsProvided.some((v) => v);
-  const allCoreProvided = coreCredentialsProvided.every((v) => v);
-
-  // If some credentials are provided but not all required ones, that's an error
-  if (someCoreProvided && (!allCoreProvided || !hasAuth)) {
+  // If some credentials are provided but not all, that's an error
+  if (someProvided && !allProvided) {
     if (!hasUsername) {
       errors.push(
         'Missing "username" field (required when credentials are provided)',
       );
     }
-    if (!hasAuth) {
+    if (!hasPassword) {
       errors.push(
-        'Missing "refreshToken" or "password" field (one is required when credentials are provided)',
+        'Missing "password" field (required when credentials are provided)',
       );
     }
     if (!hasOrgUrl) {
@@ -450,7 +559,7 @@ export const validateConfig = async (args: {
   }
 
   // If no credentials provided, it's free mode
-  if (!someCoreProvided && !hasAuth) {
+  if (!someProvided) {
     return {
       valid: true,
       message: "Config is valid for free mode (no credentials provided)",
