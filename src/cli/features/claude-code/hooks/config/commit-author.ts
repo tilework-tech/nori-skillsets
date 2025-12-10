@@ -4,7 +4,7 @@
  */
 
 // Type for the stdin JSON from Claude Code
-type HookInput = {
+export type HookInput = {
   session_id: string;
   transcript_path: string;
   cwd: string;
@@ -19,7 +19,7 @@ type HookInput = {
 };
 
 // Type for hook output
-type HookOutput = {
+export type HookOutput = {
   hookSpecificOutput: {
     hookEventName: string;
     permissionDecision: "allow" | "deny" | "ask";
@@ -107,7 +107,55 @@ export const replaceAttribution = (args: { command: string }): string => {
 };
 
 /**
- * Main hook function
+ * Process hook input and return output
+ * Exported for testing
+ * @param args - Arguments object
+ * @param args.input - The hook input to process
+ *
+ * @returns Hook output or null if the input should be passed through
+ */
+export const processInput = (args: { input: HookInput }): HookOutput | null => {
+  const { input } = args;
+  const { tool_name, tool_input } = input;
+
+  // Only process Bash tool calls
+  if (tool_name !== "Bash") {
+    return null;
+  }
+
+  const command = tool_input.command;
+
+  if (!command) {
+    // No command - pass through
+    return null;
+  }
+
+  // Check if this is a git commit command
+  if (!isGitCommitCommand({ command })) {
+    // Not a git commit - pass through
+    return null;
+  }
+
+  // Replace attribution
+  const modifiedCommand = replaceAttribution({ command });
+
+  // Return modified command
+  return {
+    hookSpecificOutput: {
+      hookEventName: "PreToolUse",
+      permissionDecision: "allow",
+      permissionDecisionReason:
+        "Automatically replacing Claude Code attribution with Nori attribution",
+      updatedInput: {
+        ...tool_input,
+        command: modifiedCommand,
+      },
+    },
+  };
+};
+
+/**
+ * Main hook function - entry point for CLI execution
  */
 const main = async (): Promise<void> => {
   // Read stdin
@@ -130,42 +178,13 @@ const main = async (): Promise<void> => {
     process.exit(0);
   }
 
-  const { tool_name, tool_input } = input;
+  // Process the input using the exported function
+  const output = processInput({ input });
 
-  // Only process Bash tool calls
-  if (tool_name !== "Bash") {
+  // If null, pass through (exit silently)
+  if (output == null) {
     process.exit(0);
   }
-
-  const command = tool_input.command;
-
-  if (!command) {
-    // No command - pass through
-    process.exit(0);
-  }
-
-  // Check if this is a git commit command
-  if (!isGitCommitCommand({ command })) {
-    // Not a git commit - pass through
-    process.exit(0);
-  }
-
-  // Replace attribution
-  const modifiedCommand = replaceAttribution({ command });
-
-  // Return modified command
-  const output: HookOutput = {
-    hookSpecificOutput: {
-      hookEventName: "PreToolUse",
-      permissionDecision: "allow",
-      permissionDecisionReason:
-        "Automatically replacing Claude Code attribution with Nori attribution",
-      updatedInput: {
-        ...tool_input,
-        command: modifiedCommand,
-      },
-    },
-  };
 
   console.log(JSON.stringify(output));
   process.exit(0);

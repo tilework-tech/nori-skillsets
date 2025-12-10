@@ -91,6 +91,16 @@ vi.mock("@/cli/analytics.js", () => ({
   trackEvent: vi.fn(),
 }));
 
+// Mock the signInWithPassword function to avoid hitting real Firebase API
+vi.mock("@/api/refreshToken.js", () => ({
+  signInWithPassword: vi.fn().mockResolvedValue({
+    idToken: "mock-id-token",
+    refreshToken: "mock-refresh-token",
+    email: "test@example.com",
+    expiresIn: 3600,
+  }),
+}));
+
 describe("install integration test", () => {
   let tempDir: string;
   let originalCwd: () => string;

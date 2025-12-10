@@ -230,6 +230,7 @@ describe("configurable install directory integration", () => {
       expect(loaded?.auth).toEqual({
         username: "test@example.com",
         password: "testpass",
+        refreshToken: null,
         organizationUrl: "https://test.com",
       });
       expect(loaded?.profile).toEqual({ baseProfile: "amol" });

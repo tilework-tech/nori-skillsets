@@ -2,6 +2,7 @@ import { readFileSync, existsSync } from "fs";
 
 import { signInWithEmailAndPassword } from "firebase/auth";
 
+import { exchangeRefreshToken } from "@/api/refreshToken.js";
 import { getConfigPath } from "@/cli/config.js";
 import { getFirebase, configureFirebase } from "@/providers/firebase.js";
 import { getInstallDirs } from "@/utils/path.js";
@@ -10,6 +11,7 @@ import { normalizeUrl } from "@/utils/url.js";
 export type NoriConfig = {
   username?: string | null;
   password?: string | null;
+  refreshToken?: string | null;
   organizationUrl?: string | null;
 };
 
@@ -69,7 +71,9 @@ export class ConfigManager {
 
   static isConfigured = (): boolean => {
     const config = ConfigManager.loadConfig();
-    return !!(config?.username && config?.password && config?.organizationUrl);
+    // Support both token-based auth (refreshToken) and legacy password-based auth
+    const hasAuth = !!(config?.refreshToken || config?.password);
+    return !!(config?.username && hasAuth && config?.organizationUrl);
   };
 }
 
@@ -91,14 +95,27 @@ class AuthManager {
 
     const config = ConfigManager.loadConfig();
 
-    if (
-      config == null ||
-      !config.organizationUrl ||
-      !config.username ||
-      !config.password
-    ) {
+    if (config == null || !config.organizationUrl || !config.username) {
       throw new Error(
-        "Nori is not configured. Please set username, password, and organizationUrl in .nori-config.json in your installation directory",
+        "Nori is not configured. Please set username and organizationUrl in .nori-config.json in your installation directory",
+      );
+    }
+
+    // Prefer refresh token-based auth (more secure, no password stored)
+    if (config.refreshToken) {
+      const result = await exchangeRefreshToken({
+        refreshToken: config.refreshToken,
+      });
+      AuthManager.authToken = result.idToken;
+      // Set token expiry to 55 minutes from now (Firebase tokens last 1 hour, refresh before expiry)
+      AuthManager.tokenExpiry = Date.now() + 55 * 60 * 1000;
+      return AuthManager.authToken;
+    }
+
+    // Fall back to legacy password-based auth
+    if (!config.password) {
+      throw new Error(
+        "Nori is not configured. Please set refreshToken or password in .nori-config.json in your installation directory",
       );
     }
 

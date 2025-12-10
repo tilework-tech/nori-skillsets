@@ -12,7 +12,9 @@ This folder contains the API client used by paid skills in @/src/cli/features/cl
 
 ### Core Implementation
 
-The base.ts module exports ConfigManager (loads credentials from `.nori-config.json` using directory resolution) and apiRequest (makes authenticated HTTP requests). ConfigManager.loadConfig() uses getInstallDirs() from @/src/utils/path.ts to locate Nori installations by walking up the directory tree from process.cwd(), supporting subdirectory execution (e.g., running from `~/project/src` when Nori is installed at `~/project`). The function returns an array of installation paths ordered from closest to furthest, using the first (closest) installation. When multiple installations exist, it logs a warning. When no installation is found, loadConfig() returns `null` rather than throwing, enabling callers to use null coalescing operators (`?.`, `??`) for cleaner error handling. JSON parse errors also return `null` for graceful degradation. The config path is resolved via getConfigPath({ installDir }) from @/src/cli/config.ts, which returns `<installDir>/.nori-config.json`. The loadConfig() function handles a race condition where trackEvent() may be called during installation before the config file is fully written - it checks for empty file content and returns {} instead of attempting JSON.parse() on empty strings. AuthManager internally handles Firebase authentication by calling signInWithEmailAndPassword with credentials from ConfigManager, caching tokens for 55 minutes, and automatically refreshing on 401 responses. All apiRequest calls include the Firebase ID token in Authorization: Bearer {token} headers.
+The base.ts module exports ConfigManager (loads credentials from `.nori-config.json` using directory resolution) and apiRequest (makes authenticated HTTP requests). The `NoriConfig` type contains: `username`, `password` (legacy), `refreshToken` (preferred), and `organizationUrl`. ConfigManager.loadConfig() uses getInstallDirs() from @/src/utils/path.ts to locate Nori installations by walking up the directory tree from process.cwd(), supporting subdirectory execution (e.g., running from `~/project/src` when Nori is installed at `~/project`). The function returns an array of installation paths ordered from closest to furthest, using the first (closest) installation. When multiple installations exist, it logs a warning. When no installation is found, loadConfig() returns `null` rather than throwing, enabling callers to use null coalescing operators (`?.`, `??`) for cleaner error handling. JSON parse errors also return `null` for graceful degradation. The config path is resolved via getConfigPath({ installDir }) from @/src/cli/config.ts, which returns `<installDir>/.nori-config.json`. The loadConfig() function handles a race condition where trackEvent() may be called during installation before the config file is fully written - it checks for empty file content and returns {} instead of attempting JSON.parse() on empty strings. ConfigManager.isConfigured() checks for either `refreshToken` or `password` (plus username and organizationUrl) to support both auth methods. AuthManager.getAuthToken() prefers refresh token auth (via exchangeRefreshToken from refreshToken.ts) when available, falling back to legacy password auth via Firebase SDK. All apiRequest calls include the Firebase ID token in Authorization: Bearer {token} headers.
+
+**Refresh Token Module:** The refreshToken.ts module exchanges Firebase refresh tokens for ID tokens via REST API. `exchangeRefreshToken({ refreshToken })` sends POST to `https://securetoken.googleapis.com/v1/token` using the tilework-e18c5 Firebase project API key. ID tokens are cached in a Map keyed by refresh token, with expiry set to 5 minutes before actual expiry. The `clearRefreshTokenCache()` function is exported for testing. Note: The Firebase SDK doesn't expose refresh token exchange for stateless CLI use (it handles this internally via `user.getIdToken()`), so we use the REST API directly. Sign-in with email/password uses the Firebase SDK directly (see claude-code/config/loader.ts).
 
 **API Modules:** Each module in this folder corresponds to a specific domain: artifacts (memory/recall), analytics (event tracking), noridocs (documentation management), conversation (summarization), query (semantic search), and registrar (package registry). The index.ts aggregates all APIs into a single apiClient export and provides a handshake() function for auth testing. Each module provides typed methods that map to @/server/src/endpoints.
 
@@ -24,7 +26,30 @@ The base.ts module exports ConfigManager (loads credentials from `.nori-config.j
 
 ### Things to Know
 
-**Authentication Architecture:** The system uses Firebase Authentication client-side. The AuthManager in base.ts uses the FirebaseProvider from @/src/providers/firebase.ts and calls signInWithEmailAndPassword to obtain Firebase ID tokens, caches them with 55-minute expiry (5 minutes before the 1-hour Firebase token expiry), and automatically refreshes tokens on 401 responses with exponential backoff retry logic (up to 3 retries by default). This matches the UI authentication flow but operates in a Node.js environment rather than browser.
+**Authentication Architecture:** The system supports two authentication methods:
+
+1. **Token-based auth (preferred):** Uses Firebase refresh tokens stored in `.nori-config.json`. The `exchangeRefreshToken()` function in refreshToken.ts exchanges refresh tokens for ID tokens via Firebase REST API (`https://securetoken.googleapis.com/v1/token`). ID tokens are cached with 5-minute buffer before expiry. During installation, the Firebase SDK's `signInWithEmailAndPassword()` authenticates with email/password to obtain the initial refresh token, which is then stored instead of the password. This is a hard cutover: new installs use tokens immediately, passwords are never stored on disk.
+
+2. **Legacy password-based auth (deprecated):** Existing configurations with `password` field continue to work for backward compatibility. AuthManager in base.ts uses FirebaseProvider from @/src/providers/firebase.ts and calls `signInWithEmailAndPassword` to obtain Firebase ID tokens. These configs will be migrated to tokens in future phases.
+
+AuthManager in base.ts prefers refresh token auth via `exchangeRefreshToken()` when `config.refreshToken` is present, falling back to legacy password auth via Firebase SDK when only `config.password` is available. Both methods cache tokens with 55-minute expiry and automatically refresh on 401 responses with exponential backoff retry logic (up to 3 retries by default).
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    Authentication Flow                          │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  Installation (new):                                            │
+│    email/password → signInWithEmailAndPassword() → refreshToken │
+│                                                                 │
+│  Runtime (token-based):                                         │
+│    refreshToken → exchangeRefreshToken() → idToken (cached)     │
+│                                                                 │
+│  Runtime (legacy):                                              │
+│    password → signInWithEmailAndPassword() → idToken (cached)   │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
 
 **Analytics Exception:** The trackEvent() method in analytics.ts is the sole exception to the apiRequest() pattern - it makes direct fetch() calls without authentication. This is intentional: analytics must work for all users (including free-tier without organizationUrl configured). The method falls back to DEFAULT_ANALYTICS_URL when no organizationUrl is present, ensuring analytics are never silently dropped. The generateDailyReport() and generateUserReport() methods continue to use apiRequest() with authentication since they are privileged operations.
 

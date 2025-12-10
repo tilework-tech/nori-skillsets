@@ -70,7 +70,8 @@ CONFIG_FILE="$INSTALL_DIR/.nori-config.json"
 
 if [ -f "$CONFIG_FILE" ]; then
     # Check if auth credentials exist in config
-    HAS_AUTH=$(jq -r 'select(.username != null and .password != null and .organizationUrl != null) | "true"' "$CONFIG_FILE" 2>/dev/null)
+    # Support both token-based auth (refreshToken) and legacy password-based auth
+    HAS_AUTH=$(jq -r 'select(.username != null and (.password != null or .refreshToken != null) and .organizationUrl != null) | "true"' "$CONFIG_FILE" 2>/dev/null)
 
     if [ "$HAS_AUTH" = "true" ]; then
         CONFIG_TIER="paid"

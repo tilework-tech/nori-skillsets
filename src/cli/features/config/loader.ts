@@ -5,6 +5,8 @@
 
 import { unlinkSync, existsSync } from "fs";
 
+import { signInWithEmailAndPassword } from "firebase/auth";
+
 import {
   getConfigPath,
   loadConfig,
@@ -12,6 +14,7 @@ import {
   isPaidInstall,
 } from "@/cli/config.js";
 import { info, success } from "@/cli/logger.js";
+import { configureFirebase, getFirebase } from "@/providers/firebase.js";
 
 import type { Config } from "@/cli/config.js";
 import type { Loader } from "@/cli/features/agentRegistry.js";
@@ -32,6 +35,7 @@ const installConfig = async (args: { config: Config }): Promise<void> => {
   // Extract auth credentials from config
   const username = config.auth?.username ?? null;
   const password = config.auth?.password ?? null;
+  const refreshToken = config.auth?.refreshToken ?? null;
   const organizationUrl = config.auth?.organizationUrl ?? null;
 
   // Only include sendSessionTranscript for paid users
@@ -45,10 +49,26 @@ const installConfig = async (args: { config: Config }): Promise<void> => {
   const newAgents = config.installedAgents ?? [];
   const mergedAgents = [...new Set([...existingAgents, ...newAgents])];
 
-  // Save config to disk, preserving existing user preferences
+  // If we have password but no refresh token, authenticate to get a refresh token
+  // This converts password-based login to token-based storage
+  let tokenToSave = refreshToken;
+  if (password && !refreshToken && username) {
+    info({ message: "Authenticating to obtain secure token..." });
+    configureFirebase();
+    const userCredential = await signInWithEmailAndPassword(
+      getFirebase().auth,
+      username,
+      password,
+    );
+    tokenToSave = userCredential.user.refreshToken;
+    success({ message: "✓ Authentication successful" });
+  }
+
+  // Save config to disk with refresh token (not password)
+  // This ensures we never store passwords, only secure tokens
   await saveConfig({
     username,
-    password,
+    refreshToken: tokenToSave,
     organizationUrl,
     profile: config.profile ?? null,
     sendSessionTranscript,
@@ -105,7 +125,7 @@ const uninstallConfig = async (args: { config: Config }): Promise<void> => {
   // Otherwise, update the config with remaining agents
   await saveConfig({
     username: existingConfig.auth?.username ?? null,
-    password: existingConfig.auth?.password ?? null,
+    refreshToken: existingConfig.auth?.refreshToken ?? null,
     organizationUrl: existingConfig.auth?.organizationUrl ?? null,
     profile: existingConfig.profile ?? null,
     sendSessionTranscript: existingConfig.sendSessionTranscript ?? null,

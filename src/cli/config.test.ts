@@ -90,6 +90,7 @@ describe("config with profile-based system", () => {
       expect(loaded?.auth).toEqual({
         username: "test@example.com",
         password: "password123",
+        refreshToken: null,
         organizationUrl: "https://example.com",
       });
       expect(loaded?.profile).toEqual({
@@ -111,6 +112,7 @@ describe("config with profile-based system", () => {
       expect(loaded?.auth).toEqual({
         username: "test@example.com",
         password: "password123",
+        refreshToken: null,
         organizationUrl: "https://example.com",
       });
       expect(loaded?.profile).toBeNull();
@@ -285,6 +287,7 @@ describe("config with profile-based system", () => {
       expect(loaded?.auth).toEqual({
         username: "custom@example.com",
         password: "custompass",
+        refreshToken: null,
         organizationUrl: "https://custom.com",
       });
     });
@@ -1128,6 +1131,137 @@ describe("registryAuths", () => {
 
       expect(auth).not.toBeNull();
       expect(auth?.username).toBe("test@example.com");
+    });
+  });
+});
+
+describe("token-based auth", () => {
+  let tempDir: string;
+  let mockConfigPath: string;
+
+  beforeEach(async () => {
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "config-token-test-"));
+    mockConfigPath = path.join(tempDir, ".nori-config.json");
+  });
+
+  afterEach(async () => {
+    await fs.rm(tempDir, { recursive: true, force: true });
+  });
+
+  describe("saveConfig with refreshToken", () => {
+    it("should save refreshToken instead of password", async () => {
+      await saveConfig({
+        username: "test@example.com",
+        password: null,
+        organizationUrl: "https://example.com",
+        refreshToken: "firebase-refresh-token-123",
+        installDir: tempDir,
+      });
+
+      const content = await fs.readFile(mockConfigPath, "utf-8");
+      const config = JSON.parse(content);
+
+      expect(config.refreshToken).toBe("firebase-refresh-token-123");
+      expect(config.username).toBe("test@example.com");
+      expect(config.password).toBeUndefined();
+    });
+
+    it("should not save password when refreshToken is provided", async () => {
+      await saveConfig({
+        username: "test@example.com",
+        password: "should-be-ignored",
+        organizationUrl: "https://example.com",
+        refreshToken: "firebase-refresh-token-123",
+        installDir: tempDir,
+      });
+
+      const content = await fs.readFile(mockConfigPath, "utf-8");
+      const config = JSON.parse(content);
+
+      expect(config.refreshToken).toBe("firebase-refresh-token-123");
+      expect(config.password).toBeUndefined();
+    });
+  });
+
+  describe("loadConfig with refreshToken", () => {
+    it("should load refreshToken from config", async () => {
+      await fs.writeFile(
+        mockConfigPath,
+        JSON.stringify({
+          username: "test@example.com",
+          refreshToken: "stored-refresh-token",
+          organizationUrl: "https://example.com",
+        }),
+      );
+
+      const loaded = await loadConfig({ installDir: tempDir });
+
+      expect(loaded?.auth?.refreshToken).toBe("stored-refresh-token");
+      expect(loaded?.auth?.username).toBe("test@example.com");
+    });
+
+    it("should detect legacy config with password but no refreshToken", async () => {
+      const { isLegacyPasswordConfig } = await import("./config.js");
+
+      await fs.writeFile(
+        mockConfigPath,
+        JSON.stringify({
+          username: "test@example.com",
+          password: "old-password",
+          organizationUrl: "https://example.com",
+        }),
+      );
+
+      const loaded = await loadConfig({ installDir: tempDir });
+      const isLegacy = isLegacyPasswordConfig({ config: loaded! });
+
+      expect(isLegacy).toBe(true);
+    });
+
+    it("should not detect token-based config as legacy", async () => {
+      const { isLegacyPasswordConfig } = await import("./config.js");
+
+      await fs.writeFile(
+        mockConfigPath,
+        JSON.stringify({
+          username: "test@example.com",
+          refreshToken: "new-token",
+          organizationUrl: "https://example.com",
+        }),
+      );
+
+      const loaded = await loadConfig({ installDir: tempDir });
+      const isLegacy = isLegacyPasswordConfig({ config: loaded! });
+
+      expect(isLegacy).toBe(false);
+    });
+  });
+
+  describe("isPaidInstall with token-based auth", () => {
+    it("should return true when config has auth with refreshToken", () => {
+      const config: Config = {
+        auth: {
+          username: "test@example.com",
+          refreshToken: "firebase-refresh-token",
+          organizationUrl: "https://example.com",
+        },
+        installDir: "/test/dir",
+      };
+
+      expect(isPaidInstall({ config })).toBe(true);
+    });
+
+    it("should return true for legacy password-based auth", () => {
+      const config: Config = {
+        auth: {
+          username: "test@example.com",
+          password: "password123",
+          organizationUrl: "https://example.com",
+        },
+        installDir: "/test/dir",
+      };
+
+      expect(isPaidInstall({ config })).toBe(true);
     });
   });
 });

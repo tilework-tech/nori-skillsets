@@ -6,13 +6,25 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 import { getConfigPath } from "@/cli/config.js";
 
 import type { Config } from "@/cli/config.js";
 
 import { configLoader } from "./loader.js";
+
+// Mock Firebase SDK to avoid hitting real Firebase API
+vi.mock("firebase/auth", () => ({
+  signInWithEmailAndPassword: vi.fn().mockResolvedValue({
+    user: { refreshToken: "mock-refresh-token" },
+  }),
+}));
+
+vi.mock("@/providers/firebase.js", () => ({
+  configureFirebase: vi.fn(),
+  getFirebase: vi.fn().mockReturnValue({ auth: {} }),
+}));
 
 describe("configLoader", () => {
   let tempDir: string;
@@ -23,6 +35,7 @@ describe("configLoader", () => {
 
   afterEach(() => {
     fs.rmSync(tempDir, { recursive: true, force: true });
+    vi.clearAllMocks();
   });
 
   describe("run", () => {
@@ -223,6 +236,49 @@ describe("configLoader", () => {
 
       const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
       expect(fileContents.installedAgents).toEqual(["claude-code"]);
+    });
+
+    it("should convert password to refresh token when password is provided", async () => {
+      const config: Config = {
+        installDir: tempDir,
+        profile: { baseProfile: "senior-swe" },
+        auth: {
+          username: "test@example.com",
+          password: "testpass",
+          organizationUrl: "https://example.com",
+        },
+      };
+
+      await configLoader.run({ config });
+
+      const configFile = getConfigPath({ installDir: tempDir });
+      const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
+
+      // Should have refreshToken, not password
+      expect(fileContents.refreshToken).toBe("mock-refresh-token");
+      expect(fileContents.password).toBeUndefined();
+      expect(fileContents.username).toBe("test@example.com");
+    });
+
+    it("should use existing refresh token when provided instead of password", async () => {
+      const config: Config = {
+        installDir: tempDir,
+        profile: { baseProfile: "senior-swe" },
+        auth: {
+          username: "test@example.com",
+          refreshToken: "existing-refresh-token",
+          organizationUrl: "https://example.com",
+        },
+      };
+
+      await configLoader.run({ config });
+
+      const configFile = getConfigPath({ installDir: tempDir });
+      const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
+
+      // Should preserve existing refreshToken
+      expect(fileContents.refreshToken).toBe("existing-refresh-token");
+      expect(fileContents.password).toBeUndefined();
     });
   });
 
