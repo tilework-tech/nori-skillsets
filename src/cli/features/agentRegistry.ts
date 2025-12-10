@@ -5,7 +5,32 @@
 
 import { claudeCodeAgent } from "@/cli/features/claude-code/agent.js";
 
-import type { Agent } from "@/cli/features/types.js";
+import type { LoaderRegistry } from "@/cli/features/claude-code/loaderRegistry.js";
+
+/**
+ * Environment paths exposed by agents for CLI use
+ * Only includes paths actually needed by CLI commands
+ */
+export type AgentEnvPaths = {
+  /** Profiles directory */
+  profilesDir: string;
+  /** Instructions file name, e.g., "CLAUDE.md" or "AGENTS.md" */
+  instructionsFile: string;
+};
+
+/**
+ * Agent interface that each agent implementation must satisfy
+ */
+export type Agent = {
+  /** Unique identifier, e.g., "claude-code" */
+  name: string;
+  /** Human-readable name, e.g., "Claude Code" */
+  displayName: string;
+  /** Get the LoaderRegistry for this agent */
+  getLoaderRegistry: () => LoaderRegistry;
+  /** Get environment paths for this agent */
+  getEnvPaths: (args: { installDir: string }) => AgentEnvPaths;
+};
 
 /**
  * Registry singleton for managing agent implementations
@@ -16,17 +41,7 @@ export class AgentRegistry {
 
   private constructor() {
     this.agents = new Map();
-
-    // Register all agents
-    this.register(claudeCodeAgent);
-  }
-
-  /**
-   * Register an agent implementation
-   * @param agent The agent to register
-   */
-  private register(agent: Agent): void {
-    this.agents.set(agent.name, agent);
+    this.agents.set(claudeCodeAgent.name, claudeCodeAgent);
   }
 
   /**
@@ -68,14 +83,6 @@ export class AgentRegistry {
     }
 
     return agent;
-  }
-
-  /**
-   * Get the default agent (claude-code)
-   * @returns The default agent implementation
-   */
-  public getDefault(): Agent {
-    return this.get({ name: "claude-code" });
   }
 
   /**

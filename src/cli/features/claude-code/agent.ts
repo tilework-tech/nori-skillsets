@@ -7,7 +7,7 @@ import * as path from "path";
 
 import { LoaderRegistry } from "@/cli/features/claude-code/loaderRegistry.js";
 
-import type { Agent, AgentEnvPaths } from "@/cli/features/types.js";
+import type { Agent, AgentEnvPaths } from "@/cli/features/agentRegistry.js";
 
 /**
  * Claude Code agent implementation
@@ -25,12 +25,8 @@ export const claudeCodeAgent: Agent = {
     const configDir = path.join(installDir, ".claude");
 
     return {
-      configDir,
-      instructionsFile: path.join(configDir, "CLAUDE.md"),
-      settingsFile: path.join(configDir, "settings.json"),
-      commandsDir: path.join(configDir, "commands"),
-      skillsDir: path.join(configDir, "skills"),
       profilesDir: path.join(configDir, "profiles"),
+      instructionsFile: path.join(configDir, "CLAUDE.md"),
     };
   },
 };

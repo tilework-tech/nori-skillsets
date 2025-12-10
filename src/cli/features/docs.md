@@ -25,26 +25,23 @@ The `--agent` global CLI option (default: "claude-code") determines which agent 
 
 ### Core Implementation
 
-**Agent Interface** (types.ts):
+**Agent Interface** (agentRegistry.ts):
 - `name`: Unique identifier (e.g., "claude-code")
 - `displayName`: Human-readable name (e.g., "Claude Code")
 - `getLoaderRegistry()`: Returns the agent's LoaderRegistry
-- `getEnvPaths({ installDir })`: Returns AgentEnvPaths with agent-specific directories
+- `getEnvPaths({ installDir })`: Returns AgentEnvPaths for CLI operations
 
-**AgentEnvPaths Type** (types.ts):
+**AgentEnvPaths Type** (agentRegistry.ts):
 | Field | Description | Example (Claude Code) |
 |-------|-------------|----------------------|
-| configDir | Agent config directory | ".claude" |
-| instructionsFile | Main instructions file | "CLAUDE.md" |
-| settingsFile | Settings JSON | "settings.json" |
-| commandsDir | Slash commands | "commands" |
-| skillsDir | Skills directory | "skills" |
-| profilesDir | Profiles directory | "profiles" |
+| profilesDir | Profiles directory | ".claude/profiles" |
+| instructionsFile | Main instructions file | ".claude/CLAUDE.md" |
+
+Note: Only paths actually needed by CLI commands are exposed. Agent implementations may use additional internal paths.
 
 **AgentRegistry** (agentRegistry.ts):
 - Singleton pattern with `getInstance()`
 - `get({ name })`: Look up agent by name, throws if not found
-- `getDefault()`: Returns claude-code agent
 - `list()`: Returns array of registered agent names
 - `resetInstance()`: For test isolation
 

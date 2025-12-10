@@ -49,15 +49,6 @@ describe("AgentRegistry", () => {
     });
   });
 
-  describe("getDefault", () => {
-    test("returns claude-code agent", () => {
-      const registry = AgentRegistry.getInstance();
-      const agent = registry.getDefault();
-
-      expect(agent.name).toBe("claude-code");
-    });
-  });
-
   describe("list", () => {
     test("returns array of agent names", () => {
       const registry = AgentRegistry.getInstance();
@@ -88,12 +79,8 @@ describe("AgentRegistry", () => {
       const agent = registry.get({ name: "claude-code" });
       const paths = agent.getEnvPaths({ installDir: "/test/install" });
 
-      expect(paths.configDir).toBe("/test/install/.claude");
-      expect(paths.instructionsFile).toBe("/test/install/.claude/CLAUDE.md");
-      expect(paths.settingsFile).toBe("/test/install/.claude/settings.json");
-      expect(paths.commandsDir).toBe("/test/install/.claude/commands");
-      expect(paths.skillsDir).toBe("/test/install/.claude/skills");
       expect(paths.profilesDir).toBe("/test/install/.claude/profiles");
+      expect(paths.instructionsFile).toBe("/test/install/.claude/CLAUDE.md");
     });
   });
 });
