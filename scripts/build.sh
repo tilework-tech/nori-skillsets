@@ -111,14 +111,12 @@ echo ""
 echo -e "${BLUE}[6/7] Copying configuration files...${NC}"
 
 # Create required directories
-mkdir -p build/src/cli/features/claudemd/config
 mkdir -p build/src/cli/features/hooks/config
 mkdir -p build/src/cli/features/statusline/config
 mkdir -p build/src/cli/features/profiles/config
 mkdir -p build/src/cli/features/slashcommands/config
 
 # Copy configuration files for specific features that still have config dirs
-cp src/cli/features/claudemd/config/*.md build/src/cli/features/claudemd/config/ 2>/dev/null || true
 cp src/cli/features/hooks/config/*.sh build/src/cli/features/hooks/config/ 2>/dev/null || true
 cp src/cli/features/statusline/config/*.sh build/src/cli/features/statusline/config/ 2>/dev/null || true
 cp src/cli/features/slashcommands/config/*.md build/src/cli/features/slashcommands/config/ 2>/dev/null || true
