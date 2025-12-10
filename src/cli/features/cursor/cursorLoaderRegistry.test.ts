@@ -51,6 +51,16 @@ describe("CursorLoaderRegistry", () => {
       expect(hasProfilesLoader).toBe(true);
     });
 
+    it("should include cursorSlashCommandsLoader", () => {
+      const registry = CursorLoaderRegistry.getInstance();
+      const loaders = registry.getAll();
+
+      const hasSlashCommandsLoader = loaders.some(
+        (loader) => loader.name === "cursor-slashcommands",
+      );
+      expect(hasSlashCommandsLoader).toBe(true);
+    });
+
     it("should return loaders with required interface properties", () => {
       const registry = CursorLoaderRegistry.getInstance();
       const loaders = registry.getAll();

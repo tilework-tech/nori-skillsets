@@ -4,6 +4,7 @@
  */
 
 import { cursorProfilesLoader } from "@/cli/features/cursor/profiles/loader.js";
+import { cursorSlashCommandsLoader } from "@/cli/features/cursor/slashcommands/loader.js";
 
 import type { Loader } from "@/cli/features/loaderRegistry.js";
 
@@ -18,9 +19,8 @@ export class CursorLoaderRegistry {
     this.loaders = new Map();
 
     // Register all Cursor loaders
-    // For now, only profiles loader is registered
-    // Additional loaders can be added here as needed
     this.loaders.set(cursorProfilesLoader.name, cursorProfilesLoader);
+    this.loaders.set(cursorSlashCommandsLoader.name, cursorSlashCommandsLoader);
   }
 
   /**

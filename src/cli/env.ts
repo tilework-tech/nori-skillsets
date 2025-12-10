@@ -151,6 +151,17 @@ export const getCursorProfilesDir = (args: { installDir: string }): string => {
 };
 
 /**
+ * Get the Cursor commands directory path
+ * @param args - Configuration arguments
+ * @param args.installDir - Installation directory
+ *
+ * @returns Absolute path to the commands directory
+ */
+export const getCursorCommandsDir = (args: { installDir: string }): string => {
+  return path.join(getCursorDir(args), "commands");
+};
+
+/**
  * Get the Cursor home directory path (always ~/.cursor)
  * This is where Cursor stores user-level configuration.
  *
