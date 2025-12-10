@@ -676,3 +676,114 @@ describe("registryAuths", () => {
     });
   });
 });
+
+describe("cursorProfile", () => {
+  let tempDir: string;
+  let mockConfigPath: string;
+
+  beforeEach(async () => {
+    tempDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), "config-cursor-profile-test-"),
+    );
+    mockConfigPath = path.join(tempDir, ".nori-config.json");
+  });
+
+  afterEach(async () => {
+    await fs.rm(tempDir, { recursive: true, force: true });
+  });
+
+  describe("loadConfig with cursorProfile", () => {
+    it("should load cursorProfile when present and valid", async () => {
+      await fs.writeFile(
+        mockConfigPath,
+        JSON.stringify({
+          profile: { baseProfile: "senior-swe" },
+          cursorProfile: { baseProfile: "amol" },
+        }),
+      );
+
+      const loaded = await loadConfig({ installDir: tempDir });
+
+      expect(loaded?.cursorProfile).toEqual({ baseProfile: "amol" });
+    });
+
+    it("should return null cursorProfile when not present", async () => {
+      await fs.writeFile(
+        mockConfigPath,
+        JSON.stringify({
+          profile: { baseProfile: "senior-swe" },
+        }),
+      );
+
+      const loaded = await loadConfig({ installDir: tempDir });
+
+      expect(loaded?.cursorProfile).toBeNull();
+    });
+
+    it("should handle cursorProfile alongside profile", async () => {
+      await fs.writeFile(
+        mockConfigPath,
+        JSON.stringify({
+          profile: { baseProfile: "senior-swe" },
+          cursorProfile: { baseProfile: "documenter" },
+        }),
+      );
+
+      const loaded = await loadConfig({ installDir: tempDir });
+
+      expect(loaded?.profile?.baseProfile).toBe("senior-swe");
+      expect(loaded?.cursorProfile?.baseProfile).toBe("documenter");
+    });
+  });
+
+  describe("saveConfig with cursorProfile", () => {
+    it("should save cursorProfile to config file", async () => {
+      await saveConfig({
+        username: null,
+        password: null,
+        organizationUrl: null,
+        profile: { baseProfile: "senior-swe" },
+        cursorProfile: { baseProfile: "amol" },
+        installDir: tempDir,
+      });
+
+      const content = await fs.readFile(mockConfigPath, "utf-8");
+      const config = JSON.parse(content);
+
+      expect(config.cursorProfile).toEqual({ baseProfile: "amol" });
+    });
+
+    it("should not save cursorProfile when null", async () => {
+      await saveConfig({
+        username: null,
+        password: null,
+        organizationUrl: null,
+        profile: { baseProfile: "senior-swe" },
+        cursorProfile: null,
+        installDir: tempDir,
+      });
+
+      const content = await fs.readFile(mockConfigPath, "utf-8");
+      const config = JSON.parse(content);
+
+      expect(config.cursorProfile).toBeUndefined();
+    });
+
+    it("should save cursorProfile independently of profile", async () => {
+      await saveConfig({
+        username: null,
+        password: null,
+        organizationUrl: null,
+        profile: null,
+        cursorProfile: { baseProfile: "documenter" },
+        installDir: tempDir,
+      });
+
+      const content = await fs.readFile(mockConfigPath, "utf-8");
+      const config = JSON.parse(content);
+
+      expect(config.profile).toBeUndefined();
+      expect(config.cursorProfile).toEqual({ baseProfile: "documenter" });
+    });
+  });
+});

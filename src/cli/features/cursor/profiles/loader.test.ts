@@ -225,5 +225,86 @@ describe("cursorProfilesLoader", () => {
       expect(result.errors).toBeDefined();
       expect(result.errors!.length).toBeGreaterThan(0);
     });
+
+    it("should return valid when only selected profile is installed", async () => {
+      const config: Config = {
+        installDir: tempDir,
+        cursorProfile: { baseProfile: "senior-swe" },
+      };
+
+      // First install only senior-swe
+      await cursorProfilesLoader.run({ config });
+
+      // Verify only one profile installed
+      const files = await fs.readdir(profilesDir);
+      expect(files).toContain("senior-swe");
+      expect(files).not.toContain("amol");
+
+      // Then validate - should pass with only selected profile
+      const result = await cursorProfilesLoader.validate!({ config });
+
+      expect(result.valid).toBe(true);
+    });
+  });
+
+  describe("cursorProfile selection", () => {
+    it("should install only selected profile when cursorProfile.baseProfile is set", async () => {
+      const config: Config = {
+        installDir: tempDir,
+        cursorProfile: { baseProfile: "senior-swe" },
+      };
+
+      await cursorProfilesLoader.run({ config });
+
+      // Verify only senior-swe profile is installed
+      const files = await fs.readdir(profilesDir);
+      expect(files).toContain("senior-swe");
+      expect(files).not.toContain("amol");
+      expect(files).not.toContain("product-manager");
+      expect(files).not.toContain("documenter");
+    });
+
+    it("should install all profiles when cursorProfile is not set", async () => {
+      const config: Config = { installDir: tempDir };
+
+      await cursorProfilesLoader.run({ config });
+
+      // Verify all profiles are installed
+      const files = await fs.readdir(profilesDir);
+      expect(files).toContain("senior-swe");
+      expect(files).toContain("amol");
+      expect(files).toContain("product-manager");
+      expect(files).toContain("none");
+    });
+
+    it("should install all profiles when cursorProfile is null", async () => {
+      const config: Config = {
+        installDir: tempDir,
+        cursorProfile: null,
+      };
+
+      await cursorProfilesLoader.run({ config });
+
+      // Verify all profiles are installed
+      const files = await fs.readdir(profilesDir);
+      expect(files).toContain("senior-swe");
+      expect(files).toContain("amol");
+    });
+
+    it("should configure permissions for selected profile directory", async () => {
+      const config: Config = {
+        installDir: tempDir,
+        cursorProfile: { baseProfile: "amol" },
+      };
+
+      await cursorProfilesLoader.run({ config });
+
+      // Verify settings.json has permissions for profiles directory
+      const settingsPath = path.join(cursorDir, "settings.json");
+      const settings = JSON.parse(await fs.readFile(settingsPath, "utf-8"));
+      expect(settings.permissions?.additionalDirectories).toContain(
+        profilesDir,
+      );
+    });
   });
 });

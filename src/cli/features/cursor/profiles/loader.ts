@@ -125,8 +125,16 @@ const installProfiles = async (args: { config: Config }): Promise<void> => {
     withFileTypes: true,
   });
 
+  // Check if a specific cursor profile is selected
+  const selectedProfile = config.cursorProfile?.baseProfile;
+
   for (const entry of entries) {
     if (!entry.isDirectory() || entry.name.startsWith("_")) {
+      continue;
+    }
+
+    // If a specific profile is selected, only install that one
+    if (selectedProfile != null && entry.name !== selectedProfile) {
       continue;
     }
 
@@ -444,13 +452,12 @@ const validate = async (args: {
     };
   }
 
-  const requiredProfiles = [
-    "senior-swe",
-    "amol",
-    "product-manager",
-    "documenter",
-    "none",
-  ];
+  // When a specific profile is selected, only validate that one
+  const selectedProfile = config.cursorProfile?.baseProfile;
+  const requiredProfiles =
+    selectedProfile != null
+      ? [selectedProfile]
+      : ["senior-swe", "amol", "product-manager", "documenter", "none"];
   const missingProfiles: Array<string> = [];
 
   for (const profile of requiredProfiles) {

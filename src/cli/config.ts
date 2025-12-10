@@ -32,6 +32,9 @@ export type Config = {
   profile?: {
     baseProfile: string;
   } | null;
+  cursorProfile?: {
+    baseProfile: string;
+  } | null;
   sendSessionTranscript?: "enabled" | "disabled" | null;
   autoupdate?: "enabled" | "disabled" | null;
   installDir: string;
@@ -119,6 +122,7 @@ export const loadConfig = async (args: {
       const result: Config = {
         auth: null,
         profile: null,
+        cursorProfile: null,
         // Use installDir from config file if present, otherwise use parameter
         installDir:
           typeof config.installDir === "string"
@@ -150,6 +154,18 @@ export const loadConfig = async (args: {
         ) {
           result.profile = {
             baseProfile: config.profile.baseProfile,
+          };
+        }
+      }
+
+      // Check if cursorProfile exists
+      if (config.cursorProfile && typeof config.cursorProfile === "object") {
+        if (
+          config.cursorProfile.baseProfile &&
+          typeof config.cursorProfile.baseProfile === "string"
+        ) {
+          result.cursorProfile = {
+            baseProfile: config.cursorProfile.baseProfile,
           };
         }
       }
@@ -186,10 +202,11 @@ export const loadConfig = async (args: {
         }
       }
 
-      // Return result if we have at least auth, profile, or sendSessionTranscript
+      // Return result if we have at least auth, profile, cursorProfile, or sendSessionTranscript
       if (
         result.auth != null ||
         result.profile != null ||
+        result.cursorProfile != null ||
         result.sendSessionTranscript != null
       ) {
         return result;
@@ -209,6 +226,7 @@ export const loadConfig = async (args: {
  * @param args.password - User's password (null to skip auth)
  * @param args.organizationUrl - Organization URL (null to skip auth)
  * @param args.profile - Profile selection (null to skip profile)
+ * @param args.cursorProfile - Cursor profile selection (null to skip)
  * @param args.sendSessionTranscript - Session transcript setting (null to skip)
  * @param args.autoupdate - Autoupdate setting (null to skip)
  * @param args.installDir - Installation directory
@@ -219,6 +237,7 @@ export const saveConfig = async (args: {
   password: string | null;
   organizationUrl: string | null;
   profile?: { baseProfile: string } | null;
+  cursorProfile?: { baseProfile: string } | null;
   sendSessionTranscript?: "enabled" | "disabled" | null;
   autoupdate?: "enabled" | "disabled" | null;
   registryAuths?: Array<RegistryAuth> | null;
@@ -229,6 +248,7 @@ export const saveConfig = async (args: {
     password,
     organizationUrl,
     profile,
+    cursorProfile,
     sendSessionTranscript,
     autoupdate,
     registryAuths,
@@ -251,6 +271,11 @@ export const saveConfig = async (args: {
   // Add profile if provided
   if (profile != null) {
     config.profile = profile;
+  }
+
+  // Add cursorProfile if provided
+  if (cursorProfile != null) {
+    config.cursorProfile = cursorProfile;
   }
 
   // Add sendSessionTranscript if provided
@@ -299,6 +324,12 @@ const configSchema = {
       enum: ["enabled", "disabled"],
     },
     profile: {
+      type: "object",
+      properties: {
+        baseProfile: { type: "string" },
+      },
+    },
+    cursorProfile: {
       type: "object",
       properties: {
         baseProfile: { type: "string" },

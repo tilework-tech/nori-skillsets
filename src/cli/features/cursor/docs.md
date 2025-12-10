@@ -26,7 +26,7 @@ This directory provides Cursor IDE support parallel to the main Claude Code inst
     - hooks/
 ```
 
-The `install-cursor` command (@/src/cli/commands/install-cursor/installCursor.ts) uses CursorLoaderRegistry to execute all registered Cursor loaders. The cursor profiles loader reuses the same profile template source files from @/src/cli/features/profiles/config/ but writes to `~/.cursor/profiles/` via Cursor-specific path helpers in @/src/cli/env.ts.
+The `install-cursor` command (@/src/cli/commands/install-cursor/installCursor.ts) uses CursorLoaderRegistry to execute all registered Cursor loaders. The cursor profiles loader reuses the same profile template source files from @/src/cli/features/profiles/config/ but writes to `~/.cursor/profiles/` via Cursor-specific path helpers in @/src/cli/env.ts. The `cursor-switch-profile` command (@/src/cli/commands/cursor-switch-profile/cursorSwitchProfile.ts) updates `config.cursorProfile.baseProfile` and then invokes `install-cursor` to reinstall with only the selected profile.
 
 Cursor environment path helpers (getCursorDir, getCursorSettingsFile, getCursorProfilesDir, getCursorCommandsDir, getCursorHomeDir, getCursorHomeSettingsFile) in @/src/cli/env.ts parallel the existing Claude path helpers.
 
@@ -39,6 +39,7 @@ Cursor environment path helpers (getCursorDir, getCursorSettingsFile, getCursorP
 - Applies mixin composition logic identical to the Claude profiles loader
 - Configures permissions by updating `~/.cursor/settings.json` with additionalDirectories
 - Validates installation by checking required profiles and permissions configuration
+- When `config.cursorProfile.baseProfile` is set, installs only that profile instead of all profiles
 
 **Cursor Slash Commands Loader** (slashcommands/loader.ts): Installs slash command markdown files to `~/.cursor/commands/`. Key behaviors:
 - Reuses command markdown files from @/src/cli/features/slashcommands/config/ (shared with Claude loader)
