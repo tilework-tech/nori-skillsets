@@ -4,7 +4,7 @@ alwaysApply: false
 ---
 
 <required>
-*CRITICAL* Add the following steps to your Todo list using TodoWrite:
+*CRITICAL* Add the following steps to your Todo list using `todo_write`:
 
 <system-reminder>From this point on, ignore any existing tests until you have a working example validated through a new playwright file.</system-reminder>
 1. Install playwright. Use the SDK that best matches the codebase. Default to python.

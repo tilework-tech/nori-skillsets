@@ -4,9 +4,9 @@ alwaysApply: false
 ---
 
 <required>
-*CRITICAL* Add the following steps to your Todo list using TodoWrite:
+*CRITICAL* Add the following steps to your Todo list using `todo_write`:
 
-1. Use the Task tool to verify tests by using the project's test suite.
+1. Verify tests pass by using the project's test suite.
 
 ```bash
 # Run project's test suite
@@ -25,7 +25,7 @@ Cannot proceed until tests pass.
 
 2. Confirm that there is some formatting/lint/typechecking in the project. If NONE of these exist, ask me if there was something that you missed.
 
-3. Use the Task tool to run any formatters and fix issues in a subagent.
+3. Run any formatters and fix issues.
 
 ```bash
 # Node.js/JavaScript/TypeScript
@@ -41,7 +41,7 @@ ls .flake8 pyproject.toml setup.cfg 2>/dev/null
 ls .golangci.yml .golangci.yaml 2>/dev/null
 ```
 
-4. Use the Task tool to run any linters and fix issues in a subagent.
+4. Run any linters and fix issues.
 
 ```bash
 # Node.js - check package.json scripts
@@ -58,9 +58,9 @@ ruff check --fix .
 golangci-lint run --fix
 ```
 
-5. Use the Task tool to run type checking and fix issues in a subagent.
+5. Run type checking and fix issues.
 
-6. Use the nori-code-reviewer subagent to do a self review. You do *NOT* have to follow the subagent's suggestions. This is merely a way to get a fresh pair of eyes on the code.
+6. Do a self-review of your code. You do *NOT* have to follow every suggestion. This is merely a way to get a fresh perspective on the code.
 
 7. Confirm that you are not on the main branch. If you are, ask me before proceeding. NEVER push to main without permission.
 

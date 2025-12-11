@@ -4,11 +4,11 @@ alwaysApply: false
 ---
 
 <required>
-**CRITICAL**: Whenever you are using a rule, add the following to your Todo list using TodoWrite:
+**CRITICAL**: Whenever you are using a rule, add the following to your Todo list using `todo_write`:
 
-1. Use Read tool to read the rule.
+1. Use `read_file` to read the rule.
 2. If the rule is relevant, announce you are using the rule.
-3. Create TodoWrite todos for checklists.
+3. Create `todo_write` todos for checklists.
 </required>
 
 # Common Failure Modes: AVOID
@@ -32,16 +32,16 @@ alwaysApply: false
 "I know I saw the rule in session-start, but that was just a description. I will read the full thing."
 </good-example>
 
-2. Do not skip using TodoWrite. Always create TodoWrite todos for checklists.
+2. Do not skip using `todo_write`. Always create `todo_write` todos for checklists.
 
 <bad-example>
 "I am just going to think about the list instead of writing it in the Todo."
 </bad-example>
 <bad-example>
-"This is a quick task so I do not need to use the TodoWrite"
+"This is a quick task so I do not need to use `todo_write`"
 </bad-example>
 <bad-example>
-"TodoWrite(Do foo, bar, and baz in one todo step)"
+"`todo_write`(Do foo, bar, and baz in one todo step)"
 </bad-example>
 <bad-example>
 "I basically did this step so I can mark it off without explicitly confirming"
@@ -51,9 +51,9 @@ alwaysApply: false
 "I will add this task to the todolist even though there is just one step"
 </good-example>
 <good-example>
-TodoWrite(Do foo)
-TodoWrite(Do bar)
-TodoWrite(Do baz)
+`todo_write`(Do foo)
+`todo_write`(Do bar)
+`todo_write`(Do baz)
 </good-example>
 <good-example>
 "I confirmed this step is done with tests, so I can mark it complete"
@@ -74,7 +74,7 @@ Following Nori workflow...
 
 # Announcing Rule Usage
 
-After you've read a rule with Read tool, announce you're using it:
+After you've read a rule with `read_file`, announce you're using it:
 
 "I've read the [Rule Name] rule and I'm using it to [what you're doing]."
 

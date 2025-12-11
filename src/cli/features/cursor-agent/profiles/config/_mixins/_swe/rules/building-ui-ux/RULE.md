@@ -4,7 +4,7 @@ alwaysApply: false
 ---
 
 <required>
-*CRITICAL* Add the following steps to your Todo list using TodoWrite:
+*CRITICAL* Add the following steps to your Todo list using `todo_write`:
 
 1. Ask user if they want to experiment with multiple UI variations or see a single design
 2. If user wants multiple variations, ask what kinds of variations to try
