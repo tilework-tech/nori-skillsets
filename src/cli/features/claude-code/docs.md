@@ -12,7 +12,8 @@ This `claude-code/` subdirectory implements the Agent interface defined in @/src
 - `name`: "claude-code"
 - `displayName`: "Claude Code"
 - `getLoaderRegistry()`: Returns the LoaderRegistry singleton with all Claude Code loaders
-- `listProfiles({ installDir })`: Scans `.claude/profiles/` for directories containing `CLAUDE.md`
+- `listProfiles({ installDir })`: Scans installed `.claude/profiles/` for directories containing `CLAUDE.md`
+- `listSourceProfiles()`: Scans package's `profiles/config/` for directories with `profile.json`, returns `SourceProfile[]` with name and description
 - `switchProfile({ installDir, profileName })`: Validates profile exists, updates config, logs success message
 
 The AgentRegistry (@/src/cli/features/agentRegistry.ts) registers this agent and provides lookup by name. CLI commands use `AgentRegistry.getInstance().get({ name: "claude-code" })` to obtain the agent implementation and access its loaders.

@@ -30,7 +30,8 @@ The cursor-agent follows the same architectural pattern as claude-code. The `cur
 - `name`: "cursor-agent"
 - `displayName`: "Cursor Agent"
 - `getLoaderRegistry()`: Returns the CursorLoaderRegistry singleton
-- `listProfiles({ installDir })`: Scans `.cursor/profiles/` for directories containing `AGENTS.md`
+- `listProfiles({ installDir })`: Scans installed `.cursor/profiles/` for directories containing `AGENTS.md`
+- `listSourceProfiles()`: Scans package's `profiles/config/` for directories with `profile.json`, returns `SourceProfile[]` with name and description
 - `switchProfile({ installDir, profileName })`: Validates profile exists, updates config's `agents["cursor-agent"]` field, logs success message
 
 The AgentRegistry (@/src/cli/features/agentRegistry.ts) registers this agent alongside claude-code. CLI commands use `--agent cursor-agent` to target Cursor installation.
