@@ -68,7 +68,9 @@ The AgentRegistry (@/src/cli/features/agentRegistry.ts) registers this agent alo
 
 ### Things to Know
 
-**Path Helpers (paths.ts):** All Cursor-specific path functions live in @/src/cli/features/cursor-agent/paths.ts:
+**Path Helpers (paths.ts):** All Cursor-specific path functions live in @/src/cli/features/cursor-agent/paths.ts. There are two categories:
+
+**Project-relative paths** (take `installDir` param) - for profile-specific features:
 
 | Function | Returns |
 |----------|---------|
@@ -79,6 +81,16 @@ The AgentRegistry (@/src/cli/features/agentRegistry.ts) registers this agent alo
 | `getCursorHooksFile({ installDir })` | `{installDir}/.cursor/hooks.json` |
 | `getCursorCommandsDir({ installDir })` | `{installDir}/.cursor/commands` |
 | `getCursorSubagentsDir({ installDir })` | `{installDir}/.cursor/subagents` |
+
+**Home-based paths** (no params, always use `os.homedir()`) - for global features that must be accessible from any project:
+
+| Function | Returns |
+|----------|---------|
+| `getCursorHomeDir()` | `~/.cursor` |
+| `getCursorHomeHooksFile()` | `~/.cursor/hooks.json` |
+| `getCursorHomeCommandsDir()` | `~/.cursor/commands` |
+
+Global features (hooks, global slash commands) use home-based paths because Cursor looks for these in the user's home directory regardless of the current working directory.
 
 **Key differences from claude-code:**
 - Uses AGENTS.md instead of CLAUDE.md for instructions

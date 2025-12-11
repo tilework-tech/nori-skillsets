@@ -19,6 +19,7 @@ import {
   getClaudeProfilesDir,
   getClaudeHomeDir,
   getClaudeHomeSettingsFile,
+  getClaudeHomeCommandsDir,
 } from "./paths.js";
 
 // Mock os.homedir for consistent test results
@@ -154,6 +155,14 @@ describe("Claude Code Paths", () => {
       test("returns settings.json inside home .claude directory", () => {
         expect(getClaudeHomeSettingsFile()).toBe(
           path.join("/mock/home", ".claude", "settings.json"),
+        );
+      });
+    });
+
+    describe("getClaudeHomeCommandsDir", () => {
+      test("returns commands directory inside home .claude directory", () => {
+        expect(getClaudeHomeCommandsDir()).toBe(
+          path.join("/mock/home", ".claude", "commands"),
         );
       });
     });

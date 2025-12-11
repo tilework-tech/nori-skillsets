@@ -9,8 +9,8 @@ import * as path from "path";
 import { fileURLToPath } from "url";
 
 import {
-  getClaudeDir,
-  getClaudeCommandsDir,
+  getClaudeHomeDir,
+  getClaudeHomeCommandsDir,
 } from "@/cli/features/claude-code/paths.js";
 import { substituteTemplatePaths } from "@/cli/features/claude-code/template.js";
 import { success, info } from "@/cli/logger.js";
@@ -45,12 +45,10 @@ const getGlobalSlashCommands = async (): Promise<Array<string>> => {
 const registerSlashCommands = async (args: {
   config: Config;
 }): Promise<void> => {
-  const { config } = args;
+  const { config: _config } = args;
   info({ message: "Registering global Nori slash commands..." });
 
-  const claudeCommandsDir = getClaudeCommandsDir({
-    installDir: config.installDir,
-  });
+  const claudeCommandsDir = getClaudeHomeCommandsDir();
 
   // Create commands directory if it doesn't exist
   await fs.mkdir(claudeCommandsDir, { recursive: true });
@@ -65,7 +63,7 @@ const registerSlashCommands = async (args: {
 
     // Read content and apply template substitution
     const content = await fs.readFile(commandSrc, "utf-8");
-    const claudeDir = getClaudeDir({ installDir: config.installDir });
+    const claudeDir = getClaudeHomeDir();
     const substituted = substituteTemplatePaths({
       content,
       installDir: claudeDir,
@@ -92,14 +90,12 @@ const registerSlashCommands = async (args: {
 const unregisterSlashCommands = async (args: {
   config: Config;
 }): Promise<void> => {
-  const { config } = args;
+  const { config: _config } = args;
   info({ message: "Removing global Nori slash commands..." });
 
   let removedCount = 0;
 
-  const claudeCommandsDir = getClaudeCommandsDir({
-    installDir: config.installDir,
-  });
+  const claudeCommandsDir = getClaudeHomeCommandsDir();
 
   const commands = await getGlobalSlashCommands();
 
@@ -147,12 +143,10 @@ const unregisterSlashCommands = async (args: {
 const validate = async (args: {
   config: Config;
 }): Promise<ValidationResult> => {
-  const { config } = args;
+  const { config: _config } = args;
   const errors: Array<string> = [];
 
-  const claudeCommandsDir = getClaudeCommandsDir({
-    installDir: config.installDir,
-  });
+  const claudeCommandsDir = getClaudeHomeCommandsDir();
 
   // Check if commands directory exists
   try {

@@ -37,7 +37,7 @@ Profile-agnostic slash commands installed directly to `~/.claude/commands/` inde
 - **Loader interface**: Implements the standard `Loader` interface with `run()`, `uninstall()`, and `validate()` methods
 - **Static command list**: Commands are defined in `GLOBAL_SLASH_COMMANDS` array in @/src/cli/features/claude-code/slashcommands/loader.ts - this list must be updated when adding/removing global commands
 - **Source files**: Markdown command definitions stored in @/src/cli/features/claude-code/slashcommands/config/
-- **Installation target**: Commands are copied to `~/.claude/commands/` (or `{installDir}/.claude/commands/` for custom installs)
+- **Installation target**: Commands are always copied to `~/.claude/commands/` using `getClaudeHomeCommandsDir()` from @/src/cli/features/claude-code/paths.ts. This ensures global slash commands are available from any project directory.
 - **Validation**: Checks that all expected global commands exist in the commands directory
 
 ### Things to Know

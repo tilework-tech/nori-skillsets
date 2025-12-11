@@ -9,8 +9,8 @@ import * as path from "path";
 import { fileURLToPath } from "url";
 
 import {
-  getCursorDir,
-  getCursorCommandsDir,
+  getCursorHomeDir,
+  getCursorHomeCommandsDir,
 } from "@/cli/features/cursor-agent/paths.js";
 import { substituteTemplatePaths } from "@/cli/features/cursor-agent/template.js";
 import { success, info } from "@/cli/logger.js";
@@ -45,12 +45,10 @@ const getSlashCommands = async (): Promise<Array<string>> => {
 const registerSlashCommands = async (args: {
   config: Config;
 }): Promise<void> => {
-  const { config } = args;
+  const { config: _config } = args;
   info({ message: "Registering Cursor slash commands..." });
 
-  const cursorCommandsDir = getCursorCommandsDir({
-    installDir: config.installDir,
-  });
+  const cursorCommandsDir = getCursorHomeCommandsDir();
 
   // Create commands directory if it doesn't exist
   await fs.mkdir(cursorCommandsDir, { recursive: true });
@@ -65,7 +63,7 @@ const registerSlashCommands = async (args: {
 
     // Read content and apply template substitution
     const content = await fs.readFile(commandSrc, "utf-8");
-    const cursorDir = getCursorDir({ installDir: config.installDir });
+    const cursorDir = getCursorHomeDir();
     const substituted = substituteTemplatePaths({
       content,
       installDir: cursorDir,
@@ -92,14 +90,12 @@ const registerSlashCommands = async (args: {
 const unregisterSlashCommands = async (args: {
   config: Config;
 }): Promise<void> => {
-  const { config } = args;
+  const { config: _config } = args;
   info({ message: "Removing Cursor slash commands..." });
 
   let removedCount = 0;
 
-  const cursorCommandsDir = getCursorCommandsDir({
-    installDir: config.installDir,
-  });
+  const cursorCommandsDir = getCursorHomeCommandsDir();
 
   const commands = await getSlashCommands();
 
@@ -147,12 +143,10 @@ const unregisterSlashCommands = async (args: {
 const validate = async (args: {
   config: Config;
 }): Promise<ValidationResult> => {
-  const { config } = args;
+  const { config: _config } = args;
   const errors: Array<string> = [];
 
-  const cursorCommandsDir = getCursorCommandsDir({
-    installDir: config.installDir,
-  });
+  const cursorCommandsDir = getCursorHomeCommandsDir();
 
   // Check if commands directory exists
   try {

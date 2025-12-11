@@ -65,6 +65,7 @@ vi.mock("@/cli/features/claude-code/paths.js", () => {
       `${testClaudeDir}/settings.json`,
     getClaudeHomeDir: () => testClaudeDir,
     getClaudeHomeSettingsFile: () => `${testClaudeDir}/settings.json`,
+    getClaudeHomeCommandsDir: () => `${testClaudeDir}/commands`,
     getClaudeAgentsDir: (_args: { installDir: string }) =>
       `${testClaudeDir}/agents`,
     getClaudeCommandsDir: (_args: { installDir: string }) =>

@@ -12,18 +12,25 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import type { Config } from "@/cli/config.js";
 
 // Mock the paths module to use temp directories
-let mockCursorDir: string;
-let mockCursorHooksFile: string;
+// These represent the HOME directory paths (global)
+let mockCursorHomeDir: string;
+let mockCursorHomeHooksFile: string;
 
 vi.mock("@/cli/features/cursor-agent/paths.js", () => ({
-  getCursorDir: (_args: { installDir: string }) => mockCursorDir,
-  getCursorHooksFile: (_args: { installDir: string }) => mockCursorHooksFile,
-  getCursorProfilesDir: (_args: { installDir: string }) =>
-    path.join(mockCursorDir, "profiles"),
-  getCursorRulesDir: (_args: { installDir: string }) =>
-    path.join(mockCursorDir, "rules"),
+  // Project-relative paths (not used by hooks loader after fix)
+  getCursorDir: (args: { installDir: string }) =>
+    path.join(args.installDir, ".cursor"),
+  getCursorHooksFile: (args: { installDir: string }) =>
+    path.join(args.installDir, ".cursor", "hooks.json"),
+  getCursorProfilesDir: (args: { installDir: string }) =>
+    path.join(args.installDir, ".cursor", "profiles"),
+  getCursorRulesDir: (args: { installDir: string }) =>
+    path.join(args.installDir, ".cursor", "rules"),
   getCursorAgentsMdFile: (args: { installDir: string }) =>
     path.join(args.installDir, "AGENTS.md"),
+  // Home-based paths (used by hooks loader after fix)
+  getCursorHomeDir: () => mockCursorHomeDir,
+  getCursorHomeHooksFile: () => mockCursorHomeHooksFile,
 }));
 
 // Import loader after mocking paths
@@ -31,7 +38,8 @@ import { hooksLoader } from "./loader.js";
 
 describe("cursor-agent hooksLoader", () => {
   let tempDir: string;
-  let cursorDir: string;
+  let homeDir: string;
+  let cursorHomeDir: string;
   let hooksFilePath: string;
 
   beforeEach(async () => {
@@ -39,15 +47,17 @@ describe("cursor-agent hooksLoader", () => {
     tempDir = await fs.mkdtemp(
       path.join(os.tmpdir(), "cursor-agent-hooks-test-"),
     );
-    cursorDir = path.join(tempDir, ".cursor");
-    hooksFilePath = path.join(cursorDir, "hooks.json");
+    // Simulate home directory (separate from installDir)
+    homeDir = path.join(tempDir, "home");
+    cursorHomeDir = path.join(homeDir, ".cursor");
+    hooksFilePath = path.join(cursorHomeDir, "hooks.json");
 
-    // Set mock paths
-    mockCursorDir = cursorDir;
-    mockCursorHooksFile = hooksFilePath;
+    // Set mock paths - hooks go to HOME directory, not installDir
+    mockCursorHomeDir = cursorHomeDir;
+    mockCursorHomeHooksFile = hooksFilePath;
 
     // Create directories
-    await fs.mkdir(cursorDir, { recursive: true });
+    await fs.mkdir(cursorHomeDir, { recursive: true });
   });
 
   afterEach(async () => {
@@ -181,17 +191,17 @@ describe("cursor-agent hooksLoader", () => {
       expect(hasNotifyHook).toBe(true);
     });
 
-    it("should create .cursor directory if it does not exist", async () => {
+    it("should create .cursor directory in home if it does not exist", async () => {
       const config: Config = { installDir: tempDir };
 
-      // Remove the .cursor directory
-      await fs.rm(cursorDir, { recursive: true, force: true });
+      // Remove the .cursor directory from home
+      await fs.rm(cursorHomeDir, { recursive: true, force: true });
 
       await hooksLoader.run({ config });
 
-      // Verify .cursor directory was created
+      // Verify .cursor directory was created in home
       const exists = await fs
-        .access(cursorDir)
+        .access(cursorHomeDir)
         .then(() => true)
         .catch(() => false);
 

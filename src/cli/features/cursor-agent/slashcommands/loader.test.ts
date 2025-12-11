@@ -12,15 +12,25 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import type { Config } from "@/cli/config.js";
 
 // Mock the paths module to use temp directories
-let mockCursorDir: string;
-let mockCursorCommandsDir: string;
+// These represent the HOME directory paths (global)
+let mockCursorHomeDir: string;
+let mockCursorHomeCommandsDir: string;
 
 vi.mock("@/cli/features/cursor-agent/paths.js", () => ({
-  getCursorDir: () => mockCursorDir,
-  getCursorCommandsDir: () => mockCursorCommandsDir,
-  getCursorProfilesDir: () => path.join(mockCursorDir, "profiles"),
-  getCursorRulesDir: () => path.join(mockCursorDir, "rules"),
-  getCursorAgentsMdFile: () => path.join(mockCursorDir, "AGENTS.md"),
+  // Project-relative paths (not used by slash commands loader after fix)
+  getCursorDir: (args: { installDir: string }) =>
+    path.join(args.installDir, ".cursor"),
+  getCursorCommandsDir: (args: { installDir: string }) =>
+    path.join(args.installDir, ".cursor", "commands"),
+  getCursorProfilesDir: (args: { installDir: string }) =>
+    path.join(args.installDir, ".cursor", "profiles"),
+  getCursorRulesDir: (args: { installDir: string }) =>
+    path.join(args.installDir, ".cursor", "rules"),
+  getCursorAgentsMdFile: (args: { installDir: string }) =>
+    path.join(args.installDir, "AGENTS.md"),
+  // Home-based paths (used by slash commands loader after fix)
+  getCursorHomeDir: () => mockCursorHomeDir,
+  getCursorHomeCommandsDir: () => mockCursorHomeCommandsDir,
 }));
 
 // Import loader after mocking
@@ -28,21 +38,24 @@ import { cursorSlashCommandsLoader } from "./loader.js";
 
 describe("cursorSlashCommandsLoader", () => {
   let tempDir: string;
-  let cursorDir: string;
+  let homeDir: string;
+  let cursorHomeDir: string;
   let commandsDir: string;
 
   beforeEach(async () => {
     // Create temp directory for testing
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "cursor-slashcmd-test-"));
-    cursorDir = path.join(tempDir, ".cursor");
-    commandsDir = path.join(cursorDir, "commands");
+    // Simulate home directory (separate from installDir)
+    homeDir = path.join(tempDir, "home");
+    cursorHomeDir = path.join(homeDir, ".cursor");
+    commandsDir = path.join(cursorHomeDir, "commands");
 
-    // Set mock paths
-    mockCursorDir = cursorDir;
-    mockCursorCommandsDir = commandsDir;
+    // Set mock paths - commands go to HOME directory, not installDir
+    mockCursorHomeDir = cursorHomeDir;
+    mockCursorHomeCommandsDir = commandsDir;
 
     // Create directories
-    await fs.mkdir(cursorDir, { recursive: true });
+    await fs.mkdir(cursorHomeDir, { recursive: true });
   });
 
   afterEach(async () => {
