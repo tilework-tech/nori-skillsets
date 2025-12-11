@@ -1,5 +1,9 @@
 {
   "name": "amol",
   "description": "Amol's preferred settings for Cursor.",
-  "builtin": true
+  "builtin": true,
+  "mixins": {
+    "base": {},
+    "swe": {}
+  }
 }

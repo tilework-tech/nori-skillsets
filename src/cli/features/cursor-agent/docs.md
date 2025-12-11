@@ -39,9 +39,13 @@ The AgentRegistry (@/src/cli/features/agentRegistry.ts) registers this agent alo
 
 **CursorLoaderRegistry** (loaderRegistry.ts): Singleton registry managing top-level loaders. Currently registers only `profilesLoader`. Provides `getAll()` and `getAllReversed()` for install/uninstall ordering.
 
-**profilesLoader** (profiles/loader.ts): Orchestrates profile installation by:
-1. Copying profile templates from `profiles/config/` to `~/.cursor/profiles/`
-2. Invoking sub-loaders via CursorProfileLoaderRegistry in order: rules, agentsmd
+**profilesLoader** (profiles/loader.ts): Orchestrates profile installation with mixin composition:
+1. Reading profile.json metadata to get mixins configuration
+2. Injecting conditional mixins for paid users (`paid`, `{category}-paid`)
+3. Composing profile by merging mixin content in alphabetical order (directories merge, files use last-writer-wins)
+4. Overlaying profile-specific content (AGENTS.md, profile.json)
+5. Copying composed profiles to `~/.cursor/profiles/`
+6. Invoking sub-loaders via CursorProfileLoaderRegistry in order: rules, agentsmd
 
 **CursorProfileLoaderRegistry** (profiles/profileLoaderRegistry.ts): Singleton registry for profile-dependent sub-loaders. Registration order matters: rules before agentsmd.
 
@@ -65,12 +69,13 @@ The AgentRegistry (@/src/cli/features/agentRegistry.ts) registers this agent alo
 - Uses rules/ directory with RULE.md files instead of skills/ with SKILL.md
 - Target directory is ~/.cursor instead of ~/.claude
 - No hooks, statusline, or slash commands loaders (yet)
-- No mixin composition system (yet) - profiles are currently standalone
+
+**Mixin composition system**: Profiles specify mixins in profile.json as `{"mixins": {"base": {}, "swe": {}}}`. The loader processes mixins in alphabetical order for deterministic precedence. When multiple mixins provide the same file, last writer wins. When multiple mixins provide the same directory, contents are merged. Conditional mixins are automatically injected based on user tier (see @/src/cli/features/cursor-agent/profiles/loader.ts).
 
 **Profile structure:** Each profile directory in `profiles/config/` contains:
 - `AGENTS.md`: Instructions file (required for profile to be listed)
-- `profile.json`: Profile metadata
-- `rules/`: Directory containing rule subdirectories, each with a RULE.md
+- `profile.json`: Profile metadata with `mixins` field specifying which mixins to compose
+- `rules/`: Directory containing rule subdirectories, each with a RULE.md (typically inherited from mixins)
 
 **Managed block pattern:** AGENTS.md uses the same managed block pattern as claude-code's CLAUDE.md, allowing users to add custom content outside the `# BEGIN NORI-AI MANAGED BLOCK` / `# END NORI-AI MANAGED BLOCK` markers without losing it during reinstalls.
 
