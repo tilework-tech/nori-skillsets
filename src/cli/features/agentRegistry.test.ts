@@ -78,6 +78,46 @@ describe("AgentRegistry", () => {
   });
 
   describe("agent interface", () => {
+    test("claude-code agent returns global feature names", () => {
+      const registry = AgentRegistry.getInstance();
+      const agent = registry.get({ name: "claude-code" });
+
+      const globalFeatures = agent.getGlobalFeatureNames();
+
+      expect(globalFeatures).toEqual([
+        "hooks",
+        "statusline",
+        "global slash commands",
+      ]);
+    });
+
+    test("cursor-agent returns global feature names (hooks and slash commands, no statusline)", () => {
+      const registry = AgentRegistry.getInstance();
+      const agent = registry.get({ name: "cursor-agent" });
+
+      const globalFeatures = agent.getGlobalFeatureNames();
+
+      expect(globalFeatures).toEqual(["hooks", "slash commands"]);
+    });
+
+    test("claude-code agent returns global loader names", () => {
+      const registry = AgentRegistry.getInstance();
+      const agent = registry.get({ name: "claude-code" });
+
+      const globalLoaders = agent.getGlobalLoaderNames();
+
+      expect(globalLoaders).toEqual(["hooks", "statusline", "slashcommands"]);
+    });
+
+    test("cursor-agent returns global loader names (hooks and slashcommands, no statusline)", () => {
+      const registry = AgentRegistry.getInstance();
+      const agent = registry.get({ name: "cursor-agent" });
+
+      const globalLoaders = agent.getGlobalLoaderNames();
+
+      expect(globalLoaders).toEqual(["hooks", "slashcommands"]);
+    });
+
     test("claude-code agent provides LoaderRegistry", () => {
       const registry = AgentRegistry.getInstance();
       const agent = registry.get({ name: "claude-code" });

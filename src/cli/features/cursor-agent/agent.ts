@@ -46,6 +46,14 @@ export const cursorAgent: Agent = {
     return CursorLoaderRegistry.getInstance();
   },
 
+  getGlobalFeatureNames: () => {
+    return ["hooks", "slash commands"];
+  },
+
+  getGlobalLoaderNames: () => {
+    return ["hooks", "slashcommands"];
+  },
+
   listProfiles: async (args: {
     installDir: string;
   }): Promise<Array<string>> => {

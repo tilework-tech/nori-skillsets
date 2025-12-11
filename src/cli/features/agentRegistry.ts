@@ -71,6 +71,10 @@ export type Agent = {
     installDir: string;
     profileName: string;
   }) => Promise<void>;
+  /** Get human-readable names of global features (installed to home directory) */
+  getGlobalFeatureNames: () => Array<string>;
+  /** Get loader names for global features (for skipping during partial uninstall) */
+  getGlobalLoaderNames: () => Array<string>;
 };
 
 /**

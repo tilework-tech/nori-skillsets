@@ -37,6 +37,22 @@ describe("cursorAgent", () => {
     });
   });
 
+  describe("getGlobalFeatureNames", () => {
+    test("returns hooks and slash commands (no statusline)", () => {
+      const globalFeatures = cursorAgent.getGlobalFeatureNames();
+
+      expect(globalFeatures).toEqual(["hooks", "slash commands"]);
+    });
+  });
+
+  describe("getGlobalLoaderNames", () => {
+    test("returns hooks and slashcommands loader names", () => {
+      const globalLoaders = cursorAgent.getGlobalLoaderNames();
+
+      expect(globalLoaders).toEqual(["hooks", "slashcommands"]);
+    });
+  });
+
   describe("listProfiles", () => {
     let testInstallDir: string;
 
