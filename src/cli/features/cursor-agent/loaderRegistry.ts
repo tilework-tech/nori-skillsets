@@ -4,6 +4,7 @@
  */
 
 import { profilesLoader } from "@/cli/features/cursor-agent/profiles/loader.js";
+import { cursorSlashCommandsLoader } from "@/cli/features/cursor-agent/slashcommands/loader.js";
 
 import type { Config } from "@/cli/config.js";
 
@@ -39,6 +40,7 @@ export class CursorLoaderRegistry {
 
     // Register all loaders
     this.loaders.set(profilesLoader.name, profilesLoader);
+    this.loaders.set(cursorSlashCommandsLoader.name, cursorSlashCommandsLoader);
   }
 
   /**

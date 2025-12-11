@@ -60,4 +60,6 @@ The `switchProfile` method validates the profile exists, updates the config, and
 
 Agent implementations manage their own internal paths (config directories, instruction file names, etc.) without exposing them through the public interface. This keeps the abstraction clean and allows each agent to have different directory structures. For example, Claude Code's path helpers (getClaudeDir, getClaudeSkillsDir, etc.) live in @/src/cli/features/claude-code/paths.ts rather than in the CLI-level @/src/cli/env.ts. The env.ts file re-exports these functions for backward compatibility, but new code within agent directories should import from the agent's own paths module.
 
+Template substitution utilities are agent-specific. Each agent has its own template.ts that replaces agent-appropriate placeholders in content files. Claude Code (@/src/cli/features/claude-code/template.ts) uses `{{skills_dir}}` while Cursor (@/src/cli/features/cursor-agent/template.ts) uses `{{rules_dir}}`. Both support common placeholders: `{{profiles_dir}}`, `{{commands_dir}}`, and `{{install_dir}}`.
+
 Created and maintained by Nori.

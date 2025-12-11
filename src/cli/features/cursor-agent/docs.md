@@ -18,9 +18,11 @@ CLI Commands (install, uninstall, check, switch-profile)
         +-- getLoaderRegistry() --> CursorLoaderRegistry
         |       |
         |       +-- profilesLoader --> CursorProfileLoaderRegistry
-        |               |
-        |               +-- rulesLoader
-        |               +-- agentsMdLoader
+        |       |       |
+        |       |       +-- rulesLoader
+        |       |       +-- agentsMdLoader
+        |       |
+        |       +-- slashCommandsLoader
         |
         +-- listProfiles({ installDir }) --> scans ~/.cursor/profiles/
         +-- switchProfile({ installDir, profileName })
@@ -38,7 +40,7 @@ The AgentRegistry (@/src/cli/features/agentRegistry.ts) registers this agent alo
 
 ### Core Implementation
 
-**CursorLoaderRegistry** (loaderRegistry.ts): Singleton registry managing top-level loaders. Currently registers only `profilesLoader`. Provides `getAll()` and `getAllReversed()` for install/uninstall ordering.
+**CursorLoaderRegistry** (loaderRegistry.ts): Singleton registry managing top-level loaders. Registers `profilesLoader` and `slashCommandsLoader`. Provides `getAll()` and `getAllReversed()` for install/uninstall ordering.
 
 **profilesLoader** (profiles/loader.ts): Orchestrates profile installation by:
 1. Copying profile templates from `profiles/config/` to `~/.cursor/profiles/`
@@ -50,6 +52,8 @@ The AgentRegistry (@/src/cli/features/agentRegistry.ts) registers this agent alo
 
 **agentsMdLoader** (profiles/agentsmd/loader.ts): Manages the `~/.cursor/AGENTS.md` file using a managed block pattern (BEGIN/END NORI-AI MANAGED BLOCK). Reads AGENTS.md content from the selected profile and inserts/updates it within the managed block, preserving any user content outside the block.
 
+**slashCommandsLoader** (slashcommands/loader.ts): Installs Nori slash commands to `~/.cursor/commands/`. Reads `.md` files from the `slashcommands/config/` directory, applies template substitution via @/src/cli/features/cursor-agent/template.ts, and writes them to the target directory. Uninstall removes installed commands and cleans up the commands directory if empty.
+
 ### Things to Know
 
 **Path Helpers (paths.ts):** All Cursor-specific path functions live in @/src/cli/features/cursor-agent/paths.ts:
@@ -60,13 +64,16 @@ The AgentRegistry (@/src/cli/features/agentRegistry.ts) registers this agent alo
 | `getCursorProfilesDir({ installDir })` | `{installDir}/.cursor/profiles` |
 | `getCursorRulesDir({ installDir })` | `{installDir}/.cursor/rules` |
 | `getCursorAgentsMdFile({ installDir })` | `{installDir}/.cursor/AGENTS.md` |
+| `getCursorCommandsDir({ installDir })` | `{installDir}/.cursor/commands` |
 
 **Key differences from claude-code:**
 - Uses AGENTS.md instead of CLAUDE.md for instructions
 - Uses rules/ directory with RULE.md files instead of skills/ with SKILL.md
 - Target directory is ~/.cursor instead of ~/.claude
-- No hooks, statusline, or slash commands loaders (yet)
+- No hooks or statusline loaders (yet)
 - No mixin composition system (yet) - profiles are currently standalone
+
+**Template substitution (template.ts):** Cursor-specific placeholders for content files. Replaces `{{rules_dir}}`, `{{profiles_dir}}`, `{{commands_dir}}`, and `{{install_dir}}` with absolute paths. This is distinct from claude-code's template.ts which uses `{{skills_dir}}` instead of `{{rules_dir}}`.
 
 **Profile structure:** Each profile directory in `profiles/config/` contains:
 - `AGENTS.md`: Instructions file (required for profile to be listed)

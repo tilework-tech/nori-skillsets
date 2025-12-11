@@ -1,7 +1,7 @@
 /**
- * Global slash commands feature loader
- * Registers profile-agnostic Nori slash commands with Claude Code
- * These commands are installed to ~/.claude/commands/ independent of profiles
+ * Cursor Agent slash commands feature loader
+ * Registers Nori slash commands with Cursor
+ * These commands are installed to ~/.cursor/commands/
  */
 
 import * as fs from "fs/promises";
@@ -9,30 +9,30 @@ import * as path from "path";
 import { fileURLToPath } from "url";
 
 import {
-  getClaudeDir,
-  getClaudeCommandsDir,
-} from "@/cli/features/claude-code/paths.js";
-import { substituteTemplatePaths } from "@/cli/features/claude-code/template.js";
+  getCursorDir,
+  getCursorCommandsDir,
+} from "@/cli/features/cursor-agent/paths.js";
+import { substituteTemplatePaths } from "@/cli/features/cursor-agent/template.js";
 import { success, info } from "@/cli/logger.js";
 
 import type { Config } from "@/cli/config.js";
 import type {
-  Loader,
+  CursorLoader,
   ValidationResult,
-} from "@/cli/features/claude-code/loaderRegistry.js";
+} from "@/cli/features/cursor-agent/loaderRegistry.js";
 
 // Get directory of this loader file
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Config directory containing global slash command markdown files
+// Config directory containing slash command markdown files
 const CONFIG_DIR = path.join(__dirname, "config");
 
 /**
- * Get list of global slash commands by reading the config directory
+ * Get list of slash commands by reading the config directory
  * @returns Array of command names (without .md extension)
  */
-const getGlobalSlashCommands = async (): Promise<Array<string>> => {
+const getSlashCommands = async (): Promise<Array<string>> => {
   const files = await fs.readdir(CONFIG_DIR);
   return files
     .filter((f) => f.endsWith(".md"))
@@ -41,7 +41,7 @@ const getGlobalSlashCommands = async (): Promise<Array<string>> => {
 };
 
 /**
- * Register all global slash commands
+ * Register all slash commands
  * @param args - Configuration arguments
  * @param args.config - Runtime configuration
  */
@@ -49,29 +49,29 @@ const registerSlashCommands = async (args: {
   config: Config;
 }): Promise<void> => {
   const { config } = args;
-  info({ message: "Registering global Nori slash commands..." });
+  info({ message: "Registering Cursor slash commands..." });
 
-  const claudeCommandsDir = getClaudeCommandsDir({
+  const cursorCommandsDir = getCursorCommandsDir({
     installDir: config.installDir,
   });
 
   // Create commands directory if it doesn't exist
-  await fs.mkdir(claudeCommandsDir, { recursive: true });
+  await fs.mkdir(cursorCommandsDir, { recursive: true });
 
-  const commands = await getGlobalSlashCommands();
+  const commands = await getSlashCommands();
   let registeredCount = 0;
 
   for (const commandName of commands) {
     const fileName = `${commandName}.md`;
     const commandSrc = path.join(CONFIG_DIR, fileName);
-    const commandDest = path.join(claudeCommandsDir, fileName);
+    const commandDest = path.join(cursorCommandsDir, fileName);
 
     // Read content and apply template substitution
     const content = await fs.readFile(commandSrc, "utf-8");
-    const claudeDir = getClaudeDir({ installDir: config.installDir });
+    const cursorDir = getCursorDir({ installDir: config.installDir });
     const substituted = substituteTemplatePaths({
       content,
-      installDir: claudeDir,
+      installDir: cursorDir,
     });
     await fs.writeFile(commandDest, substituted);
     success({ message: `✓ /${commandName} slash command registered` });
@@ -80,7 +80,7 @@ const registerSlashCommands = async (args: {
 
   if (registeredCount > 0) {
     success({
-      message: `Successfully registered ${registeredCount} global slash command${
+      message: `Successfully registered ${registeredCount} Cursor slash command${
         registeredCount === 1 ? "" : "s"
       }`,
     });
@@ -88,7 +88,7 @@ const registerSlashCommands = async (args: {
 };
 
 /**
- * Unregister all global slash commands
+ * Unregister all slash commands
  * @param args - Configuration arguments
  * @param args.config - Runtime configuration
  */
@@ -96,19 +96,19 @@ const unregisterSlashCommands = async (args: {
   config: Config;
 }): Promise<void> => {
   const { config } = args;
-  info({ message: "Removing global Nori slash commands..." });
+  info({ message: "Removing Cursor slash commands..." });
 
   let removedCount = 0;
 
-  const claudeCommandsDir = getClaudeCommandsDir({
+  const cursorCommandsDir = getCursorCommandsDir({
     installDir: config.installDir,
   });
 
-  const commands = await getGlobalSlashCommands();
+  const commands = await getSlashCommands();
 
   for (const commandName of commands) {
     const fileName = `${commandName}.md`;
-    const commandPath = path.join(claudeCommandsDir, fileName);
+    const commandPath = path.join(cursorCommandsDir, fileName);
 
     try {
       await fs.access(commandPath);
@@ -122,7 +122,7 @@ const unregisterSlashCommands = async (args: {
 
   if (removedCount > 0) {
     success({
-      message: `Successfully removed ${removedCount} global slash command${
+      message: `Successfully removed ${removedCount} Cursor slash command${
         removedCount === 1 ? "" : "s"
       }`,
     });
@@ -130,10 +130,10 @@ const unregisterSlashCommands = async (args: {
 
   // Remove commands directory if empty
   try {
-    const files = await fs.readdir(claudeCommandsDir);
+    const files = await fs.readdir(cursorCommandsDir);
     if (files.length === 0) {
-      await fs.rmdir(claudeCommandsDir);
-      success({ message: `✓ Removed empty directory: ${claudeCommandsDir}` });
+      await fs.rmdir(cursorCommandsDir);
+      success({ message: `✓ Removed empty directory: ${cursorCommandsDir}` });
     }
   } catch {
     // Directory doesn't exist or couldn't be removed, which is fine
@@ -141,7 +141,7 @@ const unregisterSlashCommands = async (args: {
 };
 
 /**
- * Validate global slash commands installation
+ * Validate slash commands installation
  * @param args - Configuration arguments
  * @param args.config - Runtime configuration
  *
@@ -153,16 +153,18 @@ const validate = async (args: {
   const { config } = args;
   const errors: Array<string> = [];
 
-  const claudeCommandsDir = getClaudeCommandsDir({
+  const cursorCommandsDir = getCursorCommandsDir({
     installDir: config.installDir,
   });
 
   // Check if commands directory exists
   try {
-    await fs.access(claudeCommandsDir);
+    await fs.access(cursorCommandsDir);
   } catch {
-    errors.push(`Commands directory not found at ${claudeCommandsDir}`);
-    errors.push('Run "nori-ai install" to create the commands directory');
+    errors.push(`Commands directory not found at ${cursorCommandsDir}`);
+    errors.push(
+      'Run "nori-ai install --agent cursor-agent" to create the commands directory',
+    );
     return {
       valid: false,
       message: "Commands directory not found",
@@ -170,13 +172,13 @@ const validate = async (args: {
     };
   }
 
-  // Check if all expected global slash commands are present
-  const commands = await getGlobalSlashCommands();
+  // Check if all expected slash commands are present
+  const commands = await getSlashCommands();
   const missingCommands: Array<string> = [];
 
   for (const commandName of commands) {
     const fileName = `${commandName}.md`;
-    const commandPath = path.join(claudeCommandsDir, fileName);
+    const commandPath = path.join(cursorCommandsDir, fileName);
 
     try {
       await fs.access(commandPath);
@@ -187,29 +189,31 @@ const validate = async (args: {
 
   if (missingCommands.length > 0) {
     errors.push(
-      `Missing ${missingCommands.length} global slash command(s): ${missingCommands.join(", ")}`,
+      `Missing ${missingCommands.length} slash command(s): ${missingCommands.join(", ")}`,
     );
-    errors.push('Run "nori-ai install" to register missing commands');
+    errors.push(
+      'Run "nori-ai install --agent cursor-agent" to register missing commands',
+    );
     return {
       valid: false,
-      message: "Some global slash commands are missing",
+      message: "Some slash commands are missing",
       errors,
     };
   }
 
   return {
     valid: true,
-    message: `All ${commands.length} global slash commands are properly installed`,
+    message: `All ${commands.length} Cursor slash commands are properly installed`,
     errors: null,
   };
 };
 
 /**
- * Global slash commands feature loader
+ * Cursor slash commands feature loader
  */
-export const globalSlashCommandsLoader: Loader = {
+export const cursorSlashCommandsLoader: CursorLoader = {
   name: "slashcommands",
-  description: "Register profile-agnostic Nori slash commands with Claude Code",
+  description: "Register Nori slash commands with Cursor",
   run: async (args: { config: Config }) => {
     const { config } = args;
     await registerSlashCommands({ config });

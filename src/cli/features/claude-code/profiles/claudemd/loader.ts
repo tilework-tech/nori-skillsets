@@ -13,11 +13,8 @@ import {
   getClaudeDir,
   getClaudeMdFile,
 } from "@/cli/features/claude-code/paths.js";
+import { substituteTemplatePaths } from "@/cli/features/claude-code/template.js";
 import { success, info } from "@/cli/logger.js";
-import {
-  formatInstallPath,
-  substituteTemplatePaths,
-} from "@/utils/template.js";
 
 import type { Config } from "@/cli/config.js";
 import type { ValidationResult } from "@/cli/features/claude-code/loaderRegistry.js";
@@ -154,10 +151,12 @@ const formatSkillInfo = async (args: {
     skillName = skillName.replace(/^paid-/, "");
 
     // Format the installed path based on install directory
-    const installedPath = formatInstallPath({
+    const installedPath = path.join(
       installDir,
-      subPath: `skills/${skillName}/SKILL.md`,
-    });
+      "skills",
+      skillName,
+      "SKILL.md",
+    );
 
     let output = `\n${installedPath}`;
 
@@ -221,10 +220,12 @@ const generateSkillsList = async (args: {
     }
 
     // Build skills list message with correct path for the install directory
-    const usingSkillsPath = formatInstallPath({
-      installDir: claudeDir,
-      subPath: "skills/using-skills/SKILL.md",
-    });
+    const usingSkillsPath = path.join(
+      claudeDir,
+      "skills",
+      "using-skills",
+      "SKILL.md",
+    );
 
     const contextMessage = `
 # Nori Skills System

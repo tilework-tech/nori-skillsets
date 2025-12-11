@@ -39,6 +39,14 @@ describe("CursorLoaderRegistry", () => {
 
       expect(names).toContain("profiles");
     });
+
+    test("includes slashcommands loader", () => {
+      const registry = CursorLoaderRegistry.getInstance();
+      const loaders = registry.getAll();
+      const names = loaders.map((l) => l.name);
+
+      expect(names).toContain("slashcommands");
+    });
   });
 
   describe("getAllReversed", () => {

@@ -11,8 +11,8 @@ import {
   getClaudeDir,
   getClaudeCommandsDir,
 } from "@/cli/features/claude-code/paths.js";
+import { substituteTemplatePaths } from "@/cli/features/claude-code/template.js";
 import { success, info, warn } from "@/cli/logger.js";
-import { substituteTemplatePaths } from "@/utils/template.js";
 
 import type { Config } from "@/cli/config.js";
 import type { ValidationResult } from "@/cli/features/claude-code/loaderRegistry.js";
