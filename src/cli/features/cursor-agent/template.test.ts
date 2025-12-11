@@ -66,12 +66,26 @@ describe("substituteTemplatePaths", () => {
     });
   });
 
+  describe("subagents_dir placeholder", () => {
+    it("should replace {{subagents_dir}} with absolute path", () => {
+      const content = "See `{{subagents_dir}}/nori-web-search-researcher.md`";
+      const result = substituteTemplatePaths({
+        content,
+        installDir: "/project/.cursor",
+      });
+      expect(result).toBe(
+        "See `/project/.cursor/subagents/nori-web-search-researcher.md`",
+      );
+    });
+  });
+
   describe("mixed placeholders", () => {
     it("should replace all placeholders in one pass", () => {
       const content = `
 Read {{rules_dir}}/foo/RULE.md
 Check {{profiles_dir}}/bar
 Commands at {{commands_dir}}
+Subagents at {{subagents_dir}}
 Install root: {{install_dir}}
 `;
       const result = substituteTemplatePaths({
@@ -81,6 +95,7 @@ Install root: {{install_dir}}
       expect(result).toContain("/project/.cursor/rules/foo/RULE.md");
       expect(result).toContain("/project/.cursor/profiles/bar");
       expect(result).toContain("/project/.cursor/commands");
+      expect(result).toContain("/project/.cursor/subagents");
       expect(result).toContain("Install root: /project");
     });
   });

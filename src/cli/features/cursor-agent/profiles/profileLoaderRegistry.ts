@@ -5,6 +5,7 @@
 
 import { agentsMdLoader } from "@/cli/features/cursor-agent/profiles/agentsmd/loader.js";
 import { rulesLoader } from "@/cli/features/cursor-agent/profiles/rules/loader.js";
+import { subagentsLoader } from "@/cli/features/cursor-agent/profiles/subagents/loader.js";
 
 import type { Config } from "@/cli/config.js";
 import type { ValidationResult } from "@/cli/features/agentRegistry.js";
@@ -32,8 +33,9 @@ export class CursorProfileLoaderRegistry {
     this.loaders = new Map();
 
     // Register all profile loaders
-    // Order matters: rules must be installed before agentsmd
+    // Order matters: rules, subagents, then agentsmd (which references them)
     this.loaders.set(rulesLoader.name, rulesLoader);
+    this.loaders.set(subagentsLoader.name, subagentsLoader);
     this.loaders.set(agentsMdLoader.name, agentsMdLoader);
   }
 

@@ -15,6 +15,7 @@ vi.mock("@/cli/features/cursor-agent/paths.js", () => ({
   getCursorDir: () => mockCursorDir,
   getCursorProfilesDir: () => path.join(mockCursorDir, "profiles"),
   getCursorRulesDir: () => path.join(mockCursorDir, "rules"),
+  getCursorSubagentsDir: () => path.join(mockCursorDir, "subagents"),
   getCursorAgentsMdFile: () => path.join(mockCursorDir, "AGENTS.md"),
 }));
 

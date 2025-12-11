@@ -5,7 +5,7 @@
   - If yes: Automatically create a new branch. Derive the branch name from my request.
 - Research how to best solve my question WITHOUT making code changes.
   - Search for relevant rules using Glob/Grep in `{{rules_dir}}/`
-  - Use nori-knowledge-researcher subagent at least once. You can run many in parallel.
+  - Use subagents for web research. Read `{{rules_dir}}/using-subagents/RULE.md` for invocation instructions.
 - Read and follow `{{rules_dir}}/writing-plans/RULE.md`
 <system-reminder>You are working with a product manager. Adjust your plan accordingly. Focus on product specification, design, and user behavior rather than technical implementation.</system-reminder>
 - Present plan to me and ask for feedback.

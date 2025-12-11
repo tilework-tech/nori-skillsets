@@ -81,3 +81,15 @@ export const getCursorCommandsDir = (args: { installDir: string }): string => {
   const { installDir } = args;
   return path.join(getCursorDir({ installDir }), "commands");
 };
+
+/**
+ * Get the subagents directory path for Cursor
+ * @param args - Configuration arguments
+ * @param args.installDir - Installation directory
+ *
+ * @returns Path to the subagents directory
+ */
+export const getCursorSubagentsDir = (args: { installDir: string }): string => {
+  const { installDir } = args;
+  return path.join(getCursorDir({ installDir }), "subagents");
+};

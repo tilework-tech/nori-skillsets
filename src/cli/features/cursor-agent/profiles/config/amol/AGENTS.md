@@ -8,7 +8,7 @@
 <system-reminder>You are now in a new working directory. Do NOT leave this directory.</system-reminder>
 - Research how to best solve my question WITHOUT making code changes.
   - Search for relevant rules using Glob/Grep in `{{rules_dir}}/`
-  - Use nori-knowledge-researcher subagent at least once. You can run many in parallel.
+  - Use subagents for web research. Read `{{rules_dir}}/using-subagents/RULE.md` for invocation instructions.
 - Read and follow `{{rules_dir}}/writing-plans/RULE.md`
 - Present plan to me and ask for feedback.
   - If I have feedback, modify the plan. Repeat until I approve.

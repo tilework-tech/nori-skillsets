@@ -3,13 +3,15 @@ description: Use this rule to split large plans into smaller chunks. This rule m
 alwaysApply: false
 ---
 
+**Prerequisites:** Read `{{rules_dir}}/using-subagents/RULE.md` to understand how to invoke subagents.
+
 <required>
 *CRITICAL* Add the following steps to your Todo list using TodoWrite:
 
 - Announce that you are creating subagents.
 - Construct a plan for each subagent.
 - Write a test for each subagent based on what you expect the subagent to do.
-- Start each subagent using the Task tool with instructions to make the test pass.
+- Start each subagent using `cursor-agent -p` with instructions to make the test pass. See `{{rules_dir}}/using-subagents/RULE.md` for invocation details.
   - Subagents may come back and ask questions or present plans. Review and provide feedback.
   - You may have to restart subagents. If that happens, simply pass in the previous produced plan.
 - Evaluate the code the subagent produces. Give feedback. Iterate until tests pass AND the code fits.

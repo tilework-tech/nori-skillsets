@@ -13,7 +13,7 @@ The profiles loader is the top-level loader registered with CursorLoaderRegistry
 1. Reads profile directories from `config/` (ignoring internal `_mixins` directory)
 2. Composes each profile by merging mixin content in alphabetical order
 3. Copies composed profiles to `~/.cursor/profiles/`
-4. Invokes sub-loaders via CursorProfileLoaderRegistry for rules and AGENTS.md installation
+4. Invokes sub-loaders via CursorProfileLoaderRegistry for rules, subagents, and AGENTS.md installation
 
 The architecture mirrors claude-code's profile system (@/src/cli/features/claude-code/profiles/), using the same mixin composition pattern. Both systems use alphabetical ordering for deterministic precedence and support conditional tier-based mixin injection for paid users.
 
@@ -28,6 +28,7 @@ profilesLoader (loader.ts)
     +-- CursorProfileLoaderRegistry (profileLoaderRegistry.ts)
             |
             +-- rulesLoader (@/src/cli/features/cursor-agent/profiles/rules/loader.ts)
+            +-- subagentsLoader (@/src/cli/features/cursor-agent/profiles/subagents/loader.ts)
             +-- agentsMdLoader (@/src/cli/features/cursor-agent/profiles/agentsmd/loader.ts)
 ```
 
@@ -73,14 +74,16 @@ alwaysApply: false
 ```
 Rules use "Apply Intelligently" mode (no `globs` field) where Cursor's agent decides when to apply based on the description. The `{{rules_dir}}` template variable is used for cross-rule references.
 
+**Subagents system**: Subagents provide Task tool-like functionality for Cursor, which lacks a built-in Task tool. The subagentsLoader copies `.md` files from the profile's `subagents/` directory to `~/.cursor/subagents/`. Each subagent is invoked via the `cursor-agent` CLI in headless mode: `cursor-agent -p "$(cat {{subagents_dir}}/subagent-name.md)\n---\nUSER REQUEST:\nYour prompt" --force`. The `using-subagents` rule in the `_base` mixin documents this invocation pattern. The `{{subagents_dir}}` template variable resolves to `~/.cursor/subagents/`.
+
 **Parallel to claude-code**: This implementation mirrors the claude-code mixin system in @/src/cli/features/claude-code/profiles/loader.ts. Key differences:
 
 | Aspect | cursor-agent | claude-code |
 |--------|--------------|-------------|
 | Instructions file | AGENTS.md | CLAUDE.md |
-| Feature directories | `rules/` | `skills/`, `subagents/`, `slashcommands/` |
+| Feature directories | `rules/`, `subagents/` | `skills/`, `subagents/`, `slashcommands/` |
 | Target directory | `~/.cursor/` | `~/.claude/` |
-| Sub-loaders | rules, agentsmd | claudemd, skills, subagents, slashcommands |
+| Sub-loaders | rules, subagents, agentsmd | claudemd, skills, subagents, slashcommands |
 
 **_testing export**: Internal functions (`isPaidUser`, `injectConditionalMixins`, `getMixinPaths`) are exported via `_testing` for unit test access.
 
@@ -94,6 +97,10 @@ profiles/
         rules/
           using-rules/           # Rule usage guidance
             RULE.md
+          using-subagents/       # Subagent invocation documentation
+            RULE.md
+        subagents/               # Subagent prompt files
+          nori-web-search-researcher.md
       _swe/
         rules/                   # Software engineering rules (mirrors claude-code skills)
           test-driven-development/
@@ -116,6 +123,8 @@ profiles/
   rules/
     loader.ts          # Copies rules to ~/.cursor/rules/
     rules.test.ts      # Validates YAML frontmatter and profile structure
+  subagents/
+    loader.ts          # Copies subagents to ~/.cursor/subagents/
   loader.ts            # Profile composition and installation
   loader.test.ts       # Tests for mixin composition
   metadata.ts          # ProfileMetadata type and reader

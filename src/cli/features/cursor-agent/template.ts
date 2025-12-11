@@ -12,6 +12,7 @@ import * as path from "path";
  * - {{rules_dir}} - Path to rules directory
  * - {{profiles_dir}} - Path to profiles directory
  * - {{commands_dir}} - Path to commands directory
+ * - {{subagents_dir}} - Path to subagents directory
  * - {{install_dir}} - Path to install root (parent of .cursor)
  *
  * @param args - Arguments object
@@ -30,5 +31,6 @@ export const substituteTemplatePaths = (args: {
     .replace(/\{\{rules_dir\}\}/g, path.join(installDir, "rules"))
     .replace(/\{\{profiles_dir\}\}/g, path.join(installDir, "profiles"))
     .replace(/\{\{commands_dir\}\}/g, path.join(installDir, "commands"))
+    .replace(/\{\{subagents_dir\}\}/g, path.join(installDir, "subagents"))
     .replace(/\{\{install_dir\}\}/g, path.dirname(installDir));
 };

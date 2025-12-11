@@ -11,6 +11,7 @@ import {
   getCursorAgentsMdFile,
   getCursorHooksFile,
   getCursorCommandsDir,
+  getCursorSubagentsDir,
 } from "@/cli/features/cursor-agent/paths.js";
 
 describe("cursor-agent paths", () => {
@@ -58,6 +59,13 @@ describe("cursor-agent paths", () => {
     test("returns commands directory under .cursor", () => {
       const result = getCursorCommandsDir({ installDir: "/home/user" });
       expect(result).toBe("/home/user/.cursor/commands");
+    });
+  });
+
+  describe("getCursorSubagentsDir", () => {
+    test("returns subagents directory under .cursor", () => {
+      const result = getCursorSubagentsDir({ installDir: "/home/user" });
+      expect(result).toBe("/home/user/.cursor/subagents");
     });
   });
 });
