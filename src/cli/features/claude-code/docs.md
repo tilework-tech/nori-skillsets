@@ -15,6 +15,8 @@ This `claude-code/` subdirectory implements the Agent interface defined in @/src
 - `listProfiles({ installDir })`: Scans installed `.claude/profiles/` for directories containing `CLAUDE.md`
 - `listSourceProfiles()`: Scans package's `profiles/config/` for directories with `profile.json`, returns `SourceProfile[]` with name and description
 - `switchProfile({ installDir, profileName })`: Validates profile exists, updates config, logs success message
+- `getGlobalFeatureNames()`: Returns `["hooks", "statusline", "global slash commands"]` - human-readable names used by the uninstall command to generate agent-specific prompts
+- `getGlobalLoaderNames()`: Returns `["hooks", "statusline", "slashcommands"]` - loader names used by uninstall to skip global loaders when `removeGlobalSettings` is false
 
 The AgentRegistry (@/src/cli/features/agentRegistry.ts) registers this agent and provides lookup by name. CLI commands use `AgentRegistry.getInstance().get({ name: "claude-code" })` to obtain the agent implementation and access its loaders.
 

@@ -46,6 +46,14 @@ export const claudeCodeAgent: Agent = {
     return LoaderRegistry.getInstance();
   },
 
+  getGlobalLoaders: () => {
+    return [
+      { name: "hooks", humanReadableName: "hooks" },
+      { name: "statusline", humanReadableName: "statusline" },
+      { name: "slashcommands", humanReadableName: "global slash commands" },
+    ];
+  },
+
   listProfiles: async (args: {
     installDir: string;
   }): Promise<Array<string>> => {

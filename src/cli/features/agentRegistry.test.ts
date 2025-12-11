@@ -78,6 +78,31 @@ describe("AgentRegistry", () => {
   });
 
   describe("agent interface", () => {
+    test("claude-code agent returns global loaders with human-readable names", () => {
+      const registry = AgentRegistry.getInstance();
+      const agent = registry.get({ name: "claude-code" });
+
+      const globalLoaders = agent.getGlobalLoaders();
+
+      expect(globalLoaders).toEqual([
+        { name: "hooks", humanReadableName: "hooks" },
+        { name: "statusline", humanReadableName: "statusline" },
+        { name: "slashcommands", humanReadableName: "global slash commands" },
+      ]);
+    });
+
+    test("cursor-agent returns global loaders (hooks and slashcommands, no statusline)", () => {
+      const registry = AgentRegistry.getInstance();
+      const agent = registry.get({ name: "cursor-agent" });
+
+      const globalLoaders = agent.getGlobalLoaders();
+
+      expect(globalLoaders).toEqual([
+        { name: "hooks", humanReadableName: "hooks" },
+        { name: "slashcommands", humanReadableName: "slash commands" },
+      ]);
+    });
+
     test("claude-code agent provides LoaderRegistry", () => {
       const registry = AgentRegistry.getInstance();
       const agent = registry.get({ name: "claude-code" });

@@ -46,6 +46,8 @@ The `--agent` global CLI option (default: "claude-code") determines which agent 
 - `listProfiles({ installDir })`: Returns array of installed profile names from `~/.{agent}/profiles/`
 - `listSourceProfiles()`: Returns array of `SourceProfile` objects from the package's source directory (for install UI profile selection)
 - `switchProfile({ installDir, profileName })`: Validates profile exists and updates config
+- `getGlobalFeatureNames()`: Returns human-readable names of features installed to the user's home directory for display in prompts (e.g., `["hooks", "statusline", "global slash commands"]` for claude-code)
+- `getGlobalLoaderNames()`: Returns loader names for global features, used by uninstall to skip loaders when preserving global settings (e.g., `["hooks", "statusline", "slashcommands"]` for claude-code)
 
 **SourceProfile Type** (agentRegistry.ts):
 - `name`: Profile identifier (e.g., "senior-swe")
@@ -69,7 +71,9 @@ The `--agent` global CLI option (default: "claude-code") determines which agent 
 The AgentRegistry auto-registers all agents in its constructor. Currently claude-code and cursor-agent are registered. Adding new agents follows this pattern:
 1. Create a new directory (e.g., `new-agent/`) with an agent implementation satisfying the Agent interface
 2. Create a LoaderRegistry class implementing the `LoaderRegistry` interface, including the shared `configLoader`
-3. Import and register it in AgentRegistry's constructor
+3. Implement `getGlobalFeatureNames()` to declare which features are installed globally (for display in prompts)
+4. Implement `getGlobalLoaderNames()` to declare which loaders correspond to global features (for uninstall skipping)
+5. Import and register it in AgentRegistry's constructor
 
 Commands that use loaders should obtain them via the agent rather than importing LoaderRegistry directly. This ensures the correct agent's loaders are used when `--agent` is specified.
 
