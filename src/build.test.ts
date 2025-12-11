@@ -374,6 +374,30 @@ ${stderr || "(empty)"}`,
     });
   });
 
+  it("should copy cursor-agent slashcommands config files to build", () => {
+    // This test verifies that the build script copies cursor-agent slash command
+    // markdown files to the build directory. Without this, running
+    // `nori-ai install --agent cursor-agent` fails with ENOENT error when
+    // the loader tries to read from the config directory.
+
+    const pluginDir = process.cwd();
+    const configDir = path.join(
+      pluginDir,
+      "build/src/cli/features/cursor-agent/slashcommands/config",
+    );
+
+    // Check that the config directory exists
+    expect(fs.existsSync(configDir)).toBe(true);
+
+    // Check that at least one .md file exists
+    const files = fs.readdirSync(configDir);
+    const mdFiles = files.filter((f) => f.endsWith(".md"));
+    expect(mdFiles.length).toBeGreaterThan(0);
+
+    // Specifically check for nori-info.md which should always be present
+    expect(mdFiles).toContain("nori-info.md");
+  });
+
   // CLI behavior tests - these run after build tests to ensure build artifacts exist
   describe("CLI behavior", () => {
     let tempDir: string;
