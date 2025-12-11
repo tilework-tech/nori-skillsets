@@ -12,6 +12,13 @@ The main CLI entry point (@/src/cli/cli.ts) imports `registerXCommand` functions
 
 Commands that interact with agent-specific features (install, uninstall, check, switch-profile) use the AgentRegistry (@/src/cli/features/agentRegistry.ts) to look up the agent implementation by name. The agent provides access to its LoaderRegistry, environment paths, and global feature declarations. Commands pass the `--agent` option through their call chain to ensure consistent agent context.
 
+**switch-profile Agent Resolution:** The switch-profile command (@/src/cli/commands/switch-profile/profiles.ts) defines `--agent` as both a global option AND a local subcommand option, allowing `nori-ai switch-profile senior-swe --agent cursor-agent` syntax (local option takes precedence). The `resolveAgent()` function determines which agent to use:
+- If `--agent` is explicitly provided: use that agent
+- If no agents installed: default to `claude-code`
+- If exactly one agent installed: auto-select it
+- If multiple agents installed (interactive mode): prompt user to select from numbered list
+- If multiple agents installed (non-interactive mode): throw error with helpful message listing installed agents
+
 The uninstall command uses two agent methods for global features:
 - `agent.getGlobalFeatureNames()`: Human-readable names for displaying in prompts (e.g., "hooks, statusline, and global slash commands")
 - `agent.getGlobalLoaderNames()`: Loader names for determining which loaders to skip when preserving global settings (e.g., `["hooks", "statusline", "slashcommands"]`)

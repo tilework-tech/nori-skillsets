@@ -3,11 +3,81 @@
  * Handles profile listing, loading, and switching
  */
 
+import { loadConfig } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { error, info } from "@/cli/logger.js";
+import { promptUser } from "@/cli/prompt.js";
 import { normalizeInstallDir } from "@/utils/path.js";
 
 import type { Command } from "commander";
+
+/**
+ * Determine which agent to use for switch-profile command
+ * @param args - Configuration arguments
+ * @param args.explicitAgent - Agent explicitly specified via --agent flag (null if not provided)
+ * @param args.installDir - Installation directory
+ * @param args.nonInteractive - Whether running in non-interactive mode
+ *
+ * @throws Error if in non-interactive mode with multiple agents and no explicit agent
+ *
+ * @returns The agent name to use
+ */
+const resolveAgent = async (args: {
+  explicitAgent: string | null;
+  installDir: string;
+  nonInteractive: boolean;
+}): Promise<string> => {
+  const { explicitAgent, installDir, nonInteractive } = args;
+
+  // If agent explicitly specified, use it
+  if (explicitAgent != null) {
+    return explicitAgent;
+  }
+
+  // Load config to check installed agents
+  const config = await loadConfig({ installDir });
+  const installedAgents = config?.installedAgents ?? [];
+
+  // No agents installed - default to claude-code
+  if (installedAgents.length === 0) {
+    return "claude-code";
+  }
+
+  // Single agent installed - use it
+  if (installedAgents.length === 1) {
+    return installedAgents[0];
+  }
+
+  // Multiple agents installed
+  if (nonInteractive) {
+    throw new Error(
+      `Multiple agents installed (${installedAgents.join(", ")}). ` +
+        `Please specify which agent to switch with --agent <name>.`,
+    );
+  }
+
+  // Interactive mode - prompt user to select agent
+  info({ message: "\nMultiple agents are installed:" });
+  installedAgents.forEach((agent, index) => {
+    const agentImpl = AgentRegistry.getInstance().get({ name: agent });
+    info({ message: `  ${index + 1}. ${agentImpl.displayName} (${agent})` });
+  });
+
+  const selection = await promptUser({
+    prompt: `Select agent to switch profile (1-${installedAgents.length}): `,
+  });
+
+  const selectedIndex = parseInt(selection, 10) - 1;
+  if (
+    isNaN(selectedIndex) ||
+    selectedIndex < 0 ||
+    selectedIndex >= installedAgents.length
+  ) {
+    throw new Error("Invalid selection. Profile switch cancelled.");
+  }
+
+  return installedAgents[selectedIndex];
+};
 
 /**
  * Register the 'switch-profile' command with commander
@@ -22,13 +92,27 @@ export const registerSwitchProfileCommand = (args: {
   program
     .command("switch-profile <name>")
     .description("Switch to a different profile and reinstall")
-    .action(async (name: string) => {
+    .option("-a, --agent <name>", "AI agent to switch profile for")
+    .action(async (name: string, options: { agent?: string }) => {
       // Get global options from parent
       const globalOpts = program.opts();
       const installDir = normalizeInstallDir({
         installDir: globalOpts.installDir || null,
       });
-      const agentName = globalOpts.agent || "claude-code";
+      const nonInteractive = globalOpts.nonInteractive ?? false;
+
+      // Only use local --agent option for explicit agent selection
+      // We don't use globalOpts.agent because it has a default value ("claude-code")
+      // which would prevent auto-detection from working
+      const explicitAgent = options.agent ?? null;
+
+      // Resolve which agent to use
+      const agentName = await resolveAgent({
+        explicitAgent,
+        installDir,
+        nonInteractive,
+      });
+
       const agent = AgentRegistry.getInstance().get({ name: agentName });
 
       try {
@@ -52,7 +136,7 @@ export const registerSwitchProfileCommand = (args: {
         nonInteractive: true,
         skipUninstall: true,
         installDir: globalOpts.installDir || null,
-        agent: globalOpts.agent || null,
+        agent: agentName,
       });
     });
 };
