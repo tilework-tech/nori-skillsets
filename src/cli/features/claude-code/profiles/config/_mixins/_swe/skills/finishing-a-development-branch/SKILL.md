@@ -87,6 +87,10 @@ EOF
 
 9. Merge main and resolve conflicts if necessary.
 
+```bash
+git fetch && git merge main
+```
+
 10. Make sure the PR branch CI succeeds.
 
 ```bash
@@ -102,5 +106,5 @@ If CI did not pass, examine why and fix the issue.
 - Make changes as needed, push a new commit, and repeat the process.
 <system-reminder> It is *critical* that you fix any ci issues, EVEN IF YOU DID NOT CAUSE THEM. </system-reminder>
 
-9. Tell me: "I can automatically get review comments, just let me know when to do so."
+11. Tell me: "I can automatically get review comments, just let me know when to do so."
 </required>

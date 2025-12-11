@@ -14,7 +14,7 @@ import {
 import { success, info } from "@/cli/logger.js";
 
 import type { Config } from "@/cli/config.js";
-import type { ValidationResult } from "@/cli/features/claude-code/loaderRegistry.js";
+import type { ValidationResult } from "@/cli/features/agentRegistry.js";
 import type { CursorProfileLoader } from "@/cli/features/cursor-agent/profiles/profileLoaderRegistry.js";
 
 /**

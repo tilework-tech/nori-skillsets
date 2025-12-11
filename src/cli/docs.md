@@ -32,10 +32,10 @@ src/cli/
   version.ts             # Version tracking for upgrades
   analytics.ts           # GA4 event tracking
   features/              # Multi-agent abstraction layer (see @/src/cli/features/docs.md)
-    types.ts             # Agent interface and AgentEnvPaths type
-    agentRegistry.ts     # AgentRegistry singleton for agent lookup
+    agentRegistry.ts     # AgentRegistry singleton + shared Loader/LoaderRegistry types
+    config/              # Shared config loader (used by all agents)
     claude-code/         # Claude Code agent implementation (see @/src/cli/features/claude-code/docs.md)
-      paths.ts           # Claude-specific path helpers (getClaudeDir, etc.)
+    cursor-agent/        # Cursor agent implementation (see @/src/cli/features/cursor-agent/docs.md)
   commands/              # Command implementations
     install/             # Install command + asciiArt, installState utilities
     uninstall/           # Uninstall command

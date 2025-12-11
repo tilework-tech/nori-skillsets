@@ -69,3 +69,15 @@ export const getCursorHooksFile = (args: { installDir: string }): string => {
   const { installDir } = args;
   return path.join(getCursorDir({ installDir }), "hooks.json");
 };
+
+/**
+ * Get the commands directory path for Cursor
+ * @param args - Configuration arguments
+ * @param args.installDir - Installation directory
+ *
+ * @returns Path to the commands directory
+ */
+export const getCursorCommandsDir = (args: { installDir: string }): string => {
+  const { installDir } = args;
+  return path.join(getCursorDir({ installDir }), "commands");
+};

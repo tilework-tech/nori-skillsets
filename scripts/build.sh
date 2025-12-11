@@ -128,6 +128,10 @@ cp -r src/cli/features/claude-code/profiles/config/* build/src/cli/features/clau
 mkdir -p build/src/cli/features/cursor-agent/profiles/config
 cp -r src/cli/features/cursor-agent/profiles/config/* build/src/cli/features/cursor-agent/profiles/config/ 2>/dev/null || true
 
+# Copy cursor-agent slashcommands config
+mkdir -p build/src/cli/features/cursor-agent/slashcommands/config
+cp src/cli/features/cursor-agent/slashcommands/config/*.md build/src/cli/features/cursor-agent/slashcommands/config/ 2>/dev/null || true
+
 # Make shell scripts executable
 chmod +x build/src/cli/features/claude-code/hooks/config/*.sh 2>/dev/null || true
 chmod +x build/src/cli/features/claude-code/statusline/config/*.sh 2>/dev/null || true

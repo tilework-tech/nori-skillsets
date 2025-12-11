@@ -14,10 +14,7 @@ import {
 } from "@/cli/features/claude-code/paths.js";
 import { success, info, warn } from "@/cli/logger.js";
 
-import type {
-  Loader,
-  ValidationResult,
-} from "@/cli/features/claude-code/loaderRegistry.js";
+import type { Loader, ValidationResult } from "@/cli/features/agentRegistry.js";
 
 // Get directory of this loader file
 const __filename = fileURLToPath(import.meta.url);

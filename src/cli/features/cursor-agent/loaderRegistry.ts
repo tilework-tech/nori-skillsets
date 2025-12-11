@@ -3,44 +3,29 @@
  * Singleton registry that manages all cursor-agent feature loaders
  */
 
+import { configLoader } from "@/cli/features/config/loader.js";
 import { hooksLoader } from "@/cli/features/cursor-agent/hooks/loader.js";
 import { profilesLoader } from "@/cli/features/cursor-agent/profiles/loader.js";
+import { cursorSlashCommandsLoader } from "@/cli/features/cursor-agent/slashcommands/loader.js";
 
-import type { Config } from "@/cli/config.js";
-
-/**
- * Result of validation check
- */
-export type ValidationResult = {
-  valid: boolean;
-  message: string;
-  errors?: Array<string> | null;
-};
-
-/**
- * Loader interface for feature installation
- */
-export type CursorLoader = {
-  name: string;
-  description: string;
-  run: (args: { config: Config }) => Promise<void>;
-  uninstall: (args: { config: Config }) => Promise<void>;
-  validate?: (args: { config: Config }) => Promise<ValidationResult>;
-};
+import type { Loader } from "@/cli/features/agentRegistry.js";
 
 /**
  * Registry singleton for managing cursor-agent feature loaders
  */
 export class CursorLoaderRegistry {
   private static instance: CursorLoaderRegistry | null = null;
-  private loaders: Map<string, CursorLoader>;
+  private loaders: Map<string, Loader>;
 
   private constructor() {
     this.loaders = new Map();
 
     // Register all loaders
+    // IMPORTANT: config loader must be included - it manages the shared .nori-config.json
+    this.loaders.set(configLoader.name, configLoader);
     this.loaders.set(profilesLoader.name, profilesLoader);
     this.loaders.set(hooksLoader.name, hooksLoader);
+    this.loaders.set(cursorSlashCommandsLoader.name, cursorSlashCommandsLoader);
   }
 
   /**
@@ -65,7 +50,7 @@ export class CursorLoaderRegistry {
    * Get all registered loaders
    * @returns Array of all loaders
    */
-  public getAll(): Array<CursorLoader> {
+  public getAll(): Array<Loader> {
     return Array.from(this.loaders.values());
   }
 
@@ -73,7 +58,7 @@ export class CursorLoaderRegistry {
    * Get all registered loaders in reverse order (for uninstall)
    * @returns Array of all loaders in reverse order
    */
-  public getAllReversed(): Array<CursorLoader> {
+  public getAllReversed(): Array<Loader> {
     return Array.from(this.loaders.values()).reverse();
   }
 }

@@ -64,6 +64,15 @@ profilesLoader (loader.ts)
 
 **AGENTS.md as validation marker**: A directory is only treated as a valid profile if it contains AGENTS.md. Directories without AGENTS.md are skipped.
 
+**Rule file format**: Each RULE.md file uses Cursor's YAML frontmatter format:
+```yaml
+---
+description: Use when [trigger condition] - [what it does]
+alwaysApply: false
+---
+```
+Rules use "Apply Intelligently" mode (no `globs` field) where Cursor's agent decides when to apply based on the description. The `{{rules_dir}}` template variable is used for cross-rule references.
+
 **Parallel to claude-code**: This implementation mirrors the claude-code mixin system in @/src/cli/features/claude-code/profiles/loader.ts. Key differences:
 
 | Aspect | cursor-agent | claude-code |
@@ -81,16 +90,23 @@ profilesLoader (loader.ts)
 profiles/
   config/
     _mixins/
-      _base/           # Base mixin (placeholder)
-      _swe/
+      _base/
         rules/
-          using-git-worktrees/
+          using-rules/           # Rule usage guidance
             RULE.md
+      _swe/
+        rules/                   # Software engineering rules (mirrors claude-code skills)
+          test-driven-development/
+          systematic-debugging/
+          brainstorming/
+          ... (13 rules total)
     amol/
       AGENTS.md        # Required for profile recognition
       profile.json     # {"name": "amol", "mixins": {"base": {}, "swe": {}}}
   agentsmd/            # AGENTS.md loader
-  rules/               # Rules loader
+  rules/
+    loader.ts          # Copies rules to ~/.cursor/rules/
+    rules.test.ts      # Validates YAML frontmatter (description, alwaysApply: false, no globs)
   loader.ts            # Profile composition and installation
   loader.test.ts       # Tests for mixin composition
   metadata.ts          # ProfileMetadata type and reader

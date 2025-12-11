@@ -4,34 +4,14 @@
  */
 
 import { announcementsLoader } from "@/cli/features/claude-code/announcements/loader.js";
-import { configLoader } from "@/cli/features/claude-code/config/loader.js";
 import { hooksLoader } from "@/cli/features/claude-code/hooks/loader.js";
 import { profilesLoader } from "@/cli/features/claude-code/profiles/loader.js";
 import { globalSlashCommandsLoader } from "@/cli/features/claude-code/slashcommands/loader.js";
 import { statuslineLoader } from "@/cli/features/claude-code/statusline/loader.js";
 import { versionLoader } from "@/cli/features/claude-code/version/loader.js";
+import { configLoader } from "@/cli/features/config/loader.js";
 
-import type { Config } from "@/cli/config.js";
-
-/**
- * Result of validation check
- */
-export type ValidationResult = {
-  valid: boolean;
-  message: string;
-  errors?: Array<string> | null;
-};
-
-/**
- * Loader interface for feature installation
- */
-export type Loader = {
-  name: string;
-  description: string;
-  run: (args: { config: Config }) => Promise<void>;
-  uninstall: (args: { config: Config }) => Promise<void>;
-  validate?: (args: { config: Config }) => Promise<ValidationResult>;
-};
+import type { Loader } from "@/cli/features/agentRegistry.js";
 
 /**
  * Registry singleton for managing feature loaders

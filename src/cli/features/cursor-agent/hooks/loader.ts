@@ -14,10 +14,7 @@ import {
 import { success, info, warn } from "@/cli/logger.js";
 
 import type { Config } from "@/cli/config.js";
-import type {
-  CursorLoader,
-  ValidationResult,
-} from "@/cli/features/cursor-agent/loaderRegistry.js";
+import type { Loader, ValidationResult } from "@/cli/features/agentRegistry.js";
 
 // Get directory of this loader file
 const __filename = fileURLToPath(import.meta.url);
@@ -255,7 +252,7 @@ const validate = async (args: {
 /**
  * Hooks feature loader for cursor-agent
  */
-export const hooksLoader: CursorLoader = {
+export const hooksLoader: Loader = {
   name: "hooks",
   description: "Configure Cursor hooks for desktop notifications",
   run: async (args: { config: Config }) => {

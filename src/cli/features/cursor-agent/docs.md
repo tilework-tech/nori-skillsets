@@ -23,6 +23,7 @@ CLI Commands (install, uninstall, check, switch-profile)
         |       |       +-- agentsMdLoader
         |       |
         |       +-- hooksLoader --> configures ~/.cursor/hooks.json
+        |       +-- slashCommandsLoader
         |
         +-- listProfiles({ installDir }) --> scans ~/.cursor/profiles/
         +-- switchProfile({ installDir, profileName })
@@ -40,7 +41,7 @@ The AgentRegistry (@/src/cli/features/agentRegistry.ts) registers this agent alo
 
 ### Core Implementation
 
-**CursorLoaderRegistry** (loaderRegistry.ts): Singleton registry managing top-level loaders. Registers `profilesLoader` and `hooksLoader`. Provides `getAll()` and `getAllReversed()` for install/uninstall ordering.
+**CursorLoaderRegistry** (loaderRegistry.ts): Singleton registry implementing the shared `LoaderRegistry` interface from @/src/cli/features/agentRegistry.ts. Registers the shared `configLoader` (from @/src/cli/features/config/loader.ts), `profilesLoader`, `hooksLoader`, and `slashCommandsLoader`. Provides `getAll()` and `getAllReversed()` for install/uninstall ordering. The config loader must be included to manage the shared `.nori-config.json` file.
 
 **profilesLoader** (profiles/loader.ts): Orchestrates profile installation with mixin composition:
 1. Reading profile.json metadata to get mixins configuration
@@ -58,6 +59,8 @@ The AgentRegistry (@/src/cli/features/agentRegistry.ts) registers this agent alo
 
 **hooksLoader** (hooks/loader.ts): Configures Cursor IDE hooks for desktop notifications. Manages `~/.cursor/hooks.json` using Cursor's hooks schema (`{ version: 1, hooks: { stop: [...] } }`). Adds a notify-hook.sh script to the `stop` event, which fires when the Cursor agent loop completes. The loader handles idempotent installation (avoids duplicate hooks), clean uninstallation (removes only Nori hooks), and validation.
 
+**slashCommandsLoader** (slashcommands/loader.ts): Installs Nori slash commands to `~/.cursor/commands/`. Reads `.md` files from the `slashcommands/config/` directory, applies template substitution via @/src/cli/features/cursor-agent/template.ts, and writes them to the target directory. Uninstall removes installed commands and cleans up the commands directory if empty.
+
 ### Things to Know
 
 **Path Helpers (paths.ts):** All Cursor-specific path functions live in @/src/cli/features/cursor-agent/paths.ts:
@@ -69,22 +72,29 @@ The AgentRegistry (@/src/cli/features/agentRegistry.ts) registers this agent alo
 | `getCursorRulesDir({ installDir })` | `{installDir}/.cursor/rules` |
 | `getCursorAgentsMdFile({ installDir })` | `{installDir}/AGENTS.md` |
 | `getCursorHooksFile({ installDir })` | `{installDir}/.cursor/hooks.json` |
+| `getCursorCommandsDir({ installDir })` | `{installDir}/.cursor/commands` |
 
 **Key differences from claude-code:**
 - Uses AGENTS.md instead of CLAUDE.md for instructions
 - Uses rules/ directory with RULE.md files instead of skills/ with SKILL.md
+- Rules use Cursor's YAML frontmatter format with `description` and `alwaysApply: false` (no globs - uses "Apply Intelligently" mode)
 - Target directory is ~/.cursor instead of ~/.claude
 - Cursor hooks use a simpler event model (e.g., `stop`) compared to Claude Code's hooks (e.g., `SessionEnd`)
-- No statusline or slash commands loaders (yet)
 
 **Hooks architecture:** The hooks/ directory contains the hooksLoader and a config/ subdirectory with hook scripts. The notify-hook.sh script is a cross-platform bash script supporting Linux (notify-send), macOS (osascript/terminal-notifier), and Windows (PowerShell). Cursor's hooks.json format is `{ version: 1, hooks: { [event]: [{ command: "..." }] } }`. The loader identifies Nori hooks by checking if the command path contains "notify-hook.sh".
 
 **Mixin composition system**: Profiles specify mixins in profile.json as `{"mixins": {"base": {}, "swe": {}}}`. The loader processes mixins in alphabetical order for deterministic precedence. When multiple mixins provide the same file, last writer wins. When multiple mixins provide the same directory, contents are merged. Conditional mixins are automatically injected based on user tier (see @/src/cli/features/cursor-agent/profiles/loader.ts).
 
+**Template substitution (template.ts):** Cursor-specific placeholders for content files. Replaces `{{rules_dir}}`, `{{profiles_dir}}`, `{{commands_dir}}`, and `{{install_dir}}` with absolute paths. This is distinct from claude-code's template.ts which uses `{{skills_dir}}` instead of `{{rules_dir}}`.
+
 **Profile structure:** Each profile directory in `profiles/config/` contains:
 - `AGENTS.md`: Instructions file (required for profile to be listed)
 - `profile.json`: Profile metadata with `mixins` field specifying which mixins to compose
 - `rules/`: Directory containing rule subdirectories, each with a RULE.md (typically inherited from mixins)
+
+**Mixin content:**
+- `_base` mixin: Contains `using-rules` rule for rule usage guidance
+- `_swe` mixin: Contains software engineering rules mirroring claude-code skills (test-driven-development, systematic-debugging, brainstorming, etc.)
 
 **Managed block pattern:** AGENTS.md uses the same managed block pattern as claude-code's CLAUDE.md, allowing users to add custom content outside the `# BEGIN NORI-AI MANAGED BLOCK` / `# END NORI-AI MANAGED BLOCK` markers without losing it during reinstalls.
 

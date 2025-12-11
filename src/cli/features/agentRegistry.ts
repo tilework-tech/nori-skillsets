@@ -6,8 +6,43 @@
 import { claudeCodeAgent } from "@/cli/features/claude-code/agent.js";
 import { cursorAgent } from "@/cli/features/cursor-agent/agent.js";
 
-import type { LoaderRegistry } from "@/cli/features/claude-code/loaderRegistry.js";
-import type { CursorLoaderRegistry } from "@/cli/features/cursor-agent/loaderRegistry.js";
+import type { Config } from "@/cli/config.js";
+
+/**
+ * Result of validation check
+ */
+export type ValidationResult = {
+  valid: boolean;
+  message: string;
+  errors?: Array<string> | null;
+};
+
+/**
+ * Loader interface for feature installation
+ * Each loader handles installing/uninstalling a specific feature (config, profiles, hooks, etc.)
+ */
+export type Loader = {
+  name: string;
+  description: string;
+  run: (args: { config: Config }) => Promise<void>;
+  uninstall: (args: { config: Config }) => Promise<void>;
+  validate?: (args: { config: Config }) => Promise<ValidationResult>;
+};
+
+/**
+ * LoaderRegistry interface that agent-specific registries must implement.
+ * Each agent maintains its own singleton registry class that implements this interface.
+ *
+ * IMPORTANT: All agents MUST include the config loader in their registry.
+ * The config loader (from @/cli/features/config/loader.js) manages the shared
+ * .nori-config.json file and must be included for proper installation/uninstallation.
+ */
+export type LoaderRegistry = {
+  /** Get all registered loaders in installation order */
+  getAll: () => Array<Loader>;
+  /** Get all registered loaders in reverse order (for uninstall) */
+  getAllReversed: () => Array<Loader>;
+};
 
 /**
  * Profile metadata returned by listSourceProfiles
@@ -26,7 +61,7 @@ export type Agent = {
   /** Human-readable name, e.g., "Claude Code" */
   displayName: string;
   /** Get the LoaderRegistry for this agent */
-  getLoaderRegistry: () => LoaderRegistry | CursorLoaderRegistry;
+  getLoaderRegistry: () => LoaderRegistry;
   /** List installed profiles for this agent (from ~/.{agent}/profiles/) */
   listProfiles: (args: { installDir: string }) => Promise<Array<string>>;
   /** List profiles from package source directory (for install UI) */

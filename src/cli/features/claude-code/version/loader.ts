@@ -11,7 +11,7 @@ import { CLI_ROOT } from "@/cli/env.js";
 import { info, success } from "@/cli/logger.js";
 
 import type { Config } from "@/cli/config.js";
-import type { Loader } from "@/cli/features/claude-code/loaderRegistry.js";
+import type { Loader } from "@/cli/features/agentRegistry.js";
 
 /**
  * Get the current package version by reading package.json

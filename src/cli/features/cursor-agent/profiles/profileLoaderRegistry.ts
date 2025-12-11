@@ -7,7 +7,7 @@ import { agentsMdLoader } from "@/cli/features/cursor-agent/profiles/agentsmd/lo
 import { rulesLoader } from "@/cli/features/cursor-agent/profiles/rules/loader.js";
 
 import type { Config } from "@/cli/config.js";
-import type { ValidationResult } from "@/cli/features/claude-code/loaderRegistry.js";
+import type { ValidationResult } from "@/cli/features/agentRegistry.js";
 
 /**
  * Profile loader interface for profile-dependent feature installation

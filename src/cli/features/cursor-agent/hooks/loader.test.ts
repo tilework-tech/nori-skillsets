@@ -371,7 +371,7 @@ describe("cursor-agent hooksLoader", () => {
 
       expect(result.valid).toBe(false);
       expect(result.errors).not.toBeNull();
-      expect(result.errors?.some((e) => e.includes("stop"))).toBe(true);
+      expect(result.errors?.some((e: string) => e.includes("stop"))).toBe(true);
     });
 
     it("should return invalid when notify-hook is missing from stop event", async () => {
@@ -395,7 +395,9 @@ describe("cursor-agent hooksLoader", () => {
 
       expect(result.valid).toBe(false);
       expect(result.errors).not.toBeNull();
-      expect(result.errors?.some((e) => e.includes("notify-hook"))).toBe(true);
+      expect(
+        result.errors?.some((e: string) => e.includes("notify-hook")),
+      ).toBe(true);
     });
 
     it("should handle invalid JSON in hooks.json", async () => {

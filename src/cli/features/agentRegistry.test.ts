@@ -9,7 +9,12 @@ import * as path from "path";
 
 import { describe, test, expect, beforeEach, afterEach } from "vitest";
 
-import { AgentRegistry } from "@/cli/features/agentRegistry.js";
+import {
+  AgentRegistry,
+  type Loader,
+  type LoaderRegistry,
+  type ValidationResult,
+} from "@/cli/features/agentRegistry.js";
 
 describe("AgentRegistry", () => {
   // Reset singleton between tests
@@ -76,7 +81,7 @@ describe("AgentRegistry", () => {
     test("claude-code agent provides LoaderRegistry", () => {
       const registry = AgentRegistry.getInstance();
       const agent = registry.get({ name: "claude-code" });
-      const loaderRegistry = agent.getLoaderRegistry();
+      const loaderRegistry: LoaderRegistry = agent.getLoaderRegistry();
 
       // Verify it has the expected methods
       expect(loaderRegistry.getAll).toBeDefined();
@@ -90,7 +95,7 @@ describe("AgentRegistry", () => {
     test("cursor-agent provides LoaderRegistry", () => {
       const registry = AgentRegistry.getInstance();
       const agent = registry.get({ name: "cursor-agent" });
-      const loaderRegistry = agent.getLoaderRegistry();
+      const loaderRegistry: LoaderRegistry = agent.getLoaderRegistry();
 
       // Verify it has the expected methods
       expect(loaderRegistry.getAll).toBeDefined();
@@ -99,6 +104,67 @@ describe("AgentRegistry", () => {
       // Verify it returns loaders
       const loaders = loaderRegistry.getAll();
       expect(loaders.length).toBeGreaterThan(0);
+    });
+
+    test("loaders satisfy the Loader type with required properties", () => {
+      const registry = AgentRegistry.getInstance();
+      const agent = registry.get({ name: "claude-code" });
+      const loaderRegistry = agent.getLoaderRegistry();
+      const loaders: Array<Loader> = loaderRegistry.getAll();
+
+      for (const loader of loaders) {
+        expect(typeof loader.name).toBe("string");
+        expect(typeof loader.description).toBe("string");
+        expect(typeof loader.run).toBe("function");
+        expect(typeof loader.uninstall).toBe("function");
+        // validate is optional
+        if (loader.validate != null) {
+          expect(typeof loader.validate).toBe("function");
+        }
+      }
+    });
+
+    test("cursor-agent includes config loader", () => {
+      const registry = AgentRegistry.getInstance();
+      const agent = registry.get({ name: "cursor-agent" });
+      const loaderRegistry = agent.getLoaderRegistry();
+      const loaders = loaderRegistry.getAll();
+      const loaderNames = loaders.map((l) => l.name);
+
+      expect(loaderNames).toContain("config");
+    });
+
+    test("both agents include config loader", () => {
+      const registry = AgentRegistry.getInstance();
+
+      for (const agentName of ["claude-code", "cursor-agent"]) {
+        const agent = registry.get({ name: agentName });
+        const loaderRegistry = agent.getLoaderRegistry();
+        const loaders = loaderRegistry.getAll();
+        const loaderNames = loaders.map((l) => l.name);
+
+        expect(loaderNames).toContain("config");
+      }
+    });
+  });
+
+  describe("shared types", () => {
+    test("ValidationResult type has expected shape", () => {
+      // This test verifies the type exists and can be used
+      const validResult: ValidationResult = {
+        valid: true,
+        message: "All good",
+      };
+      expect(validResult.valid).toBe(true);
+      expect(validResult.message).toBe("All good");
+
+      const invalidResult: ValidationResult = {
+        valid: false,
+        message: "Error found",
+        errors: ["error 1", "error 2"],
+      };
+      expect(invalidResult.valid).toBe(false);
+      expect(invalidResult.errors).toHaveLength(2);
     });
   });
 

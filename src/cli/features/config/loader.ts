@@ -14,7 +14,7 @@ import {
 import { info, success } from "@/cli/logger.js";
 
 import type { Config } from "@/cli/config.js";
-import type { Loader } from "@/cli/features/claude-code/loaderRegistry.js";
+import type { Loader } from "@/cli/features/agentRegistry.js";
 
 /**
  * Install config file - save config to disk
