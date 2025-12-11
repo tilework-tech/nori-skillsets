@@ -36,6 +36,8 @@ The cursor-agent follows the same architectural pattern as claude-code. The `cur
 - `listProfiles({ installDir })`: Scans installed `.cursor/profiles/` for directories containing `AGENTS.md`
 - `listSourceProfiles()`: Scans package's `profiles/config/` for directories with `profile.json`, returns `SourceProfile[]` with name and description
 - `switchProfile({ installDir, profileName })`: Validates profile exists, updates config's `agents["cursor-agent"]` field, logs success message
+- `getGlobalFeatureNames()`: Returns `["hooks", "slash commands"]` - human-readable names for prompts (note: cursor-agent has no statusline feature unlike claude-code)
+- `getGlobalLoaderNames()`: Returns `["hooks", "slashcommands"]` - loader names used by uninstall to skip global loaders when `removeGlobalSettings` is false
 
 The AgentRegistry (@/src/cli/features/agentRegistry.ts) registers this agent alongside claude-code. CLI commands use `--agent cursor-agent` to target Cursor installation.
 
@@ -91,6 +93,17 @@ The AgentRegistry (@/src/cli/features/agentRegistry.ts) registers this agent alo
 - `AGENTS.md`: Instructions file (required for profile to be listed)
 - `profile.json`: Profile metadata with `mixins` field specifying which mixins to compose
 - `rules/`: Directory containing rule subdirectories, each with a RULE.md (typically inherited from mixins)
+
+**Available profiles:** cursor-agent provides four profiles that mirror claude-code profiles (minus documenter):
+
+| Profile | Mixins | Description |
+|---------|--------|-------------|
+| amol | base, swe | Opinionated workflow with TDD, structured planning, rule-based guidance |
+| senior-swe | base, swe | Dual-mode: "copilot" (interactive) or "full-send" (autonomous) |
+| product-manager | base, swe | High technical autonomy, product-focused questions, auto-creates PRs |
+| none | base | Minimal infrastructure only, no behavioral modifications |
+
+The documenter profile is not available because it relies on docs-specific features (updating-noridocs skill) that use SKILL.md files.
 
 **Mixin content:**
 - `_base` mixin: Contains `using-rules` rule for rule usage guidance

@@ -53,6 +53,16 @@ export type SourceProfile = {
 };
 
 /**
+ * Global loader metadata for uninstall prompts
+ */
+export type GlobalLoader = {
+  /** Loader name (matches Loader.name) */
+  name: string;
+  /** Human-readable name for display in prompts */
+  humanReadableName: string;
+};
+
+/**
  * Agent interface that each agent implementation must satisfy
  */
 export type Agent = {
@@ -71,6 +81,8 @@ export type Agent = {
     installDir: string;
     profileName: string;
   }) => Promise<void>;
+  /** Get global loaders (installed to home directory) with their human-readable names */
+  getGlobalLoaders: () => Array<GlobalLoader>;
 };
 
 /**
