@@ -460,6 +460,41 @@ describe("install integration test", () => {
     expect(postUninstallCwdSnapshot).toEqual(preInstallCwdSnapshot);
   });
 
+  it("should include installedAgents in config after installation", async () => {
+    const CONFIG_PATH = getConfigPath({ installDir: tempDir });
+
+    // STEP 1: Run installation in non-interactive mode
+    await installMain({ nonInteractive: true, installDir: tempDir });
+
+    // STEP 2: Verify installedAgents is set in the config
+    const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
+    expect(config.installedAgents).toEqual(["claude-code"]);
+  });
+
+  it("should accumulate installedAgents when installing multiple agents", async () => {
+    const CONFIG_PATH = getConfigPath({ installDir: tempDir });
+
+    // STEP 1: Create existing config with one agent
+    fs.writeFileSync(
+      CONFIG_PATH,
+      JSON.stringify({
+        profile: { baseProfile: "senior-swe" },
+        installedAgents: ["cursor-agent"],
+        installDir: tempDir,
+      }),
+    );
+
+    // STEP 2: Install claude-code (default agent)
+    await installMain({ nonInteractive: true, installDir: tempDir });
+
+    // STEP 3: Verify both agents are in installedAgents
+    const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
+    expect(config.installedAgents).toEqual(
+      expect.arrayContaining(["cursor-agent", "claude-code"]),
+    );
+    expect(config.installedAgents).toHaveLength(2);
+  });
+
   it("should warn when ancestor directory has nori installation", async () => {
     // Setup: Create a parent directory with a nori installation
     const parentDir = path.join(tempDir, "parent");

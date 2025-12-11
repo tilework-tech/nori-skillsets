@@ -91,6 +91,7 @@ const getAvailableProfiles = async (args: {
  * @param args.installDir - Installation directory
  * @param args.existingConfig - Existing configuration (if any)
  * @param args.agent - AI agent implementation
+ * @param args.agentName - Name of the agent being installed
  *
  * @returns Runtime configuration, or null if user cancels
  */
@@ -98,8 +99,9 @@ export const generatePromptConfig = async (args: {
   installDir: string;
   existingConfig: Config | null;
   agent: ReturnType<typeof AgentRegistry.prototype.get>;
+  agentName: string;
 }): Promise<Config | null> => {
-  const { installDir, existingConfig, agent } = args;
+  const { installDir, existingConfig, agent, agentName } = args;
 
   // Check if user wants to reuse existing config
   if (existingConfig?.auth) {
@@ -129,6 +131,7 @@ export const generatePromptConfig = async (args: {
         ...existingConfig,
         profile: existingConfig.profile ?? getDefaultProfile(),
         installDir,
+        installedAgents: [agentName],
       };
     }
 
@@ -247,6 +250,7 @@ export const generatePromptConfig = async (args: {
     },
     installDir,
     registryAuths: registryAuths ?? null,
+    installedAgents: [agentName],
   };
 };
 
@@ -364,6 +368,7 @@ export const interactive = async (args?: {
     installDir: normalizedInstallDir,
     existingConfig,
     agent: agentImpl,
+    agentName,
   });
 
   if (config == null) {
@@ -542,10 +547,16 @@ export const noninteractive = async (args?: {
     installDir: normalizedInstallDir,
   });
 
-  const config: Config = existingConfig ?? {
-    profile: getDefaultProfile(),
-    installDir: normalizedInstallDir,
-  };
+  const config: Config = existingConfig
+    ? {
+        ...existingConfig,
+        installedAgents: [agentName],
+      }
+    : {
+        profile: getDefaultProfile(),
+        installDir: normalizedInstallDir,
+        installedAgents: [agentName],
+      };
 
   // Track installation start
   trackEvent({

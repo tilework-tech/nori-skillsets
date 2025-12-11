@@ -30,19 +30,23 @@ import type { Command } from "commander";
 export type PromptConfig = {
   installDir: string;
   removeGlobalSettings: boolean;
+  selectedAgent: string;
 };
 
 /**
  * Prompt user for confirmation before uninstalling
  * @param args - Configuration arguments
  * @param args.installDir - Installation directory
+ * @param args.agent - Agent name (optional, will prompt if multiple agents installed)
  *
  * @returns The prompt configuration if user confirms, null to exit
  */
 export const generatePromptConfig = async (args: {
   installDir: string;
+  agent?: string | null;
 }): Promise<PromptConfig | null> => {
   let { installDir } = args;
+  const { agent } = args;
 
   // Get all installations (current + ancestors)
   const allInstallations = getInstallDirs({ currentDir: installDir });
@@ -125,6 +129,52 @@ export const generatePromptConfig = async (args: {
   // Check for existing configuration
   const existingConfig = await loadConfig({ installDir });
 
+  // Determine which agent to uninstall
+  let selectedAgent = agent ?? "claude-code";
+  const installedAgents = existingConfig?.installedAgents ?? [];
+
+  if (installedAgents.length > 0) {
+    info({
+      message: `Installed agents at this location: ${installedAgents.join(", ")}`,
+    });
+    console.log();
+
+    // If no agent specified and multiple agents are installed, prompt user
+    if (agent == null && installedAgents.length > 1) {
+      info({
+        message: "Multiple agents are installed. Select which to uninstall:",
+      });
+      for (let i = 0; i < installedAgents.length; i++) {
+        info({ message: `  ${i + 1}. ${installedAgents[i]}` });
+      }
+      console.log();
+
+      const selection = await promptUser({
+        prompt: `Select agent to uninstall (1-${installedAgents.length}), or 'n' to cancel: `,
+      });
+
+      if (selection.match(/^[Nn]$/)) {
+        info({ message: "Uninstallation cancelled." });
+        return null;
+      }
+
+      const selectedIndex = parseInt(selection, 10) - 1;
+      if (
+        isNaN(selectedIndex) ||
+        selectedIndex < 0 ||
+        selectedIndex >= installedAgents.length
+      ) {
+        info({ message: "Invalid selection. Uninstallation cancelled." });
+        return null;
+      }
+
+      selectedAgent = installedAgents[selectedIndex];
+    } else if (agent == null && installedAgents.length === 1) {
+      // Single agent installed, use it
+      selectedAgent = installedAgents[0];
+    }
+  }
+
   if (existingConfig?.auth) {
     info({ message: "Found existing Nori configuration:" });
     info({ message: `  Username: ${existingConfig.auth.username}` });
@@ -182,7 +232,7 @@ export const generatePromptConfig = async (args: {
 
   console.log();
 
-  return { installDir, removeGlobalSettings };
+  return { installDir, removeGlobalSettings, selectedAgent };
 };
 
 /**
@@ -272,6 +322,9 @@ export const runUninstall = async (args: {
     installDir,
   };
 
+  // Set the agent being uninstalled so config loader knows what to remove
+  config.installedAgents = [agentName];
+
   // Log installed version for debugging
   if (installedVersion) {
     info({ message: `Uninstalling version: ${installedVersion}` });
@@ -357,10 +410,9 @@ export const interactive = async (args?: {
   agent?: string | null;
 }): Promise<void> => {
   const installDir = normalizeInstallDir({ installDir: args?.installDir });
-  const agentName = args?.agent ?? "claude-code";
 
-  // Prompt for confirmation and configuration
-  const result = await generatePromptConfig({ installDir });
+  // Prompt for confirmation and configuration (including agent selection)
+  const result = await generatePromptConfig({ installDir, agent: args?.agent });
 
   if (result == null) {
     process.exit(0);
@@ -371,7 +423,7 @@ export const interactive = async (args?: {
     removeConfig: true,
     removeGlobalSettings: result.removeGlobalSettings,
     installDir: result.installDir,
-    agent: agentName,
+    agent: result.selectedAgent,
   });
 
   // Display completion message

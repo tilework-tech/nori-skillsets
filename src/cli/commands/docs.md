@@ -12,6 +12,8 @@ The main CLI entry point (@/src/cli/cli.ts) imports `registerXCommand` functions
 
 Commands that interact with agent-specific features (install, uninstall, check, switch-profile) use the AgentRegistry (@/src/cli/features/agentRegistry.ts) to look up the agent implementation by name. The agent provides access to its LoaderRegistry and environment paths. Commands pass the `--agent` option through their call chain to ensure consistent agent context.
 
+The install command sets `installedAgents: [agentName]` in the config, which the config loader merges with any existing agents. The uninstall command prompts the user to select which agent to uninstall when multiple agents are installed at a location (in interactive mode).
+
 ```
 cli.ts
   |

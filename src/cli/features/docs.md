@@ -60,7 +60,9 @@ The `--agent` global CLI option (default: "claude-code") determines which agent 
 **Config Loader** (config/loader.ts):
 - Shared loader that manages the `.nori-config.json` file lifecycle
 - All agents MUST include this loader in their registry
-- Handles saving/removing config with auth credentials, profile selection, and user preferences
+- Handles saving/removing config with auth credentials, profile selection, user preferences, and installedAgents tracking
+- During install: Merges and deduplicates `installedAgents` from existing and new config
+- During uninstall: Removes the uninstalled agent from `installedAgents`. Deletes config file if no agents remain; updates config with remaining agents otherwise
 
 ### Things to Know
 

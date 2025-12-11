@@ -401,11 +401,13 @@ describe("uninstall idempotency", () => {
     const config: PromptConfig = {
       installDir: tempDir,
       removeGlobalSettings: true,
+      selectedAgent: "claude-code",
     };
 
     // Verify the field exists on the type
     expect(config.removeGlobalSettings).toBe(true);
     expect(config.installDir).toBe(tempDir);
+    expect(config.selectedAgent).toBe("claude-code");
   });
 });
 

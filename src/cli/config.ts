@@ -46,6 +46,8 @@ export type Config = {
   registryAuths?: Array<RegistryAuth> | null;
   /** Per-agent configuration settings */
   agents?: Record<string, AgentConfig> | null;
+  /** List of AI agents installed at this installDir */
+  installedAgents?: Array<string> | null;
 };
 
 /**
@@ -239,12 +241,23 @@ export const loadConfig = async (args: {
         };
       }
 
-      // Return result if we have at least auth, profile, agents, or sendSessionTranscript
+      // Check if installedAgents exists and is valid array of strings
+      if (Array.isArray(config.installedAgents)) {
+        const validAgents = config.installedAgents.filter(
+          (agent: unknown) => typeof agent === "string",
+        );
+        if (validAgents.length > 0) {
+          result.installedAgents = validAgents;
+        }
+      }
+
+      // Return result if we have at least auth, profile, agents, sendSessionTranscript, or installedAgents
       if (
         result.auth != null ||
         result.profile != null ||
         result.agents != null ||
-        result.sendSessionTranscript != null
+        result.sendSessionTranscript != null ||
+        result.installedAgents != null
       ) {
         return result;
       }
@@ -268,6 +281,7 @@ export const loadConfig = async (args: {
  * @param args.installDir - Installation directory
  * @param args.registryAuths - Array of registry authentication credentials (null to skip)
  * @param args.agents - Per-agent configuration settings (null to skip)
+ * @param args.installedAgents - List of installed AI agents (null to skip)
  */
 export const saveConfig = async (args: {
   username: string | null;
@@ -278,6 +292,7 @@ export const saveConfig = async (args: {
   autoupdate?: "enabled" | "disabled" | null;
   registryAuths?: Array<RegistryAuth> | null;
   agents?: Record<string, AgentConfig> | null;
+  installedAgents?: Array<string> | null;
   installDir: string;
 }): Promise<void> => {
   const {
@@ -289,6 +304,7 @@ export const saveConfig = async (args: {
     autoupdate,
     registryAuths,
     agents,
+    installedAgents,
     installDir,
   } = args;
   const configPath = getConfigPath({ installDir });
@@ -332,6 +348,11 @@ export const saveConfig = async (args: {
   // Add registryAuths if provided and not empty
   if (registryAuths != null && registryAuths.length > 0) {
     config.registryAuths = registryAuths;
+  }
+
+  // Add installedAgents if provided and not empty
+  if (installedAgents != null && installedAgents.length > 0) {
+    config.installedAgents = installedAgents;
   }
 
   // Always save installDir
@@ -396,6 +417,10 @@ const configSchema = {
           },
         },
       },
+    },
+    installedAgents: {
+      type: "array",
+      items: { type: "string" },
     },
   },
   additionalProperties: false,

@@ -155,6 +155,75 @@ describe("configLoader", () => {
         },
       ]);
     });
+
+    it("should save installedAgents to config file", async () => {
+      const config: Config = {
+        installDir: tempDir,
+        profile: { baseProfile: "senior-swe" },
+        installedAgents: ["claude-code"],
+      };
+
+      await configLoader.run({ config });
+
+      const configFile = getConfigPath({ installDir: tempDir });
+      const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
+      expect(fileContents.installedAgents).toEqual(["claude-code"]);
+    });
+
+    it("should merge and dedupe installedAgents with existing config", async () => {
+      // Create existing config with installedAgents
+      const configFile = getConfigPath({ installDir: tempDir });
+      fs.writeFileSync(
+        configFile,
+        JSON.stringify({
+          installDir: tempDir,
+          profile: { baseProfile: "senior-swe" },
+          installedAgents: ["claude-code"],
+        }),
+        "utf-8",
+      );
+
+      // Install another agent
+      const config: Config = {
+        installDir: tempDir,
+        profile: { baseProfile: "senior-swe" },
+        installedAgents: ["cursor-agent"],
+      };
+
+      await configLoader.run({ config });
+
+      const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
+      expect(fileContents.installedAgents).toEqual([
+        "claude-code",
+        "cursor-agent",
+      ]);
+    });
+
+    it("should not add duplicate agents when re-installing", async () => {
+      // Create existing config with installedAgents
+      const configFile = getConfigPath({ installDir: tempDir });
+      fs.writeFileSync(
+        configFile,
+        JSON.stringify({
+          installDir: tempDir,
+          profile: { baseProfile: "senior-swe" },
+          installedAgents: ["claude-code"],
+        }),
+        "utf-8",
+      );
+
+      // Re-install same agent
+      const config: Config = {
+        installDir: tempDir,
+        profile: { baseProfile: "senior-swe" },
+        installedAgents: ["claude-code"],
+      };
+
+      await configLoader.run({ config });
+
+      const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
+      expect(fileContents.installedAgents).toEqual(["claude-code"]);
+    });
   });
 
   describe("uninstall", () => {
@@ -175,6 +244,78 @@ describe("configLoader", () => {
 
       // Should not throw
       await expect(configLoader.uninstall({ config })).resolves.not.toThrow();
+    });
+
+    it("should remove agent from installedAgents and keep config when other agents remain", async () => {
+      const configFile = getConfigPath({ installDir: tempDir });
+      fs.writeFileSync(
+        configFile,
+        JSON.stringify({
+          installDir: tempDir,
+          profile: { baseProfile: "senior-swe" },
+          installedAgents: ["claude-code", "cursor-agent"],
+        }),
+        "utf-8",
+      );
+
+      // Uninstall only cursor-agent
+      const config: Config = {
+        installDir: tempDir,
+        installedAgents: ["cursor-agent"], // Agent being uninstalled
+      };
+
+      await configLoader.uninstall({ config });
+
+      // Config file should still exist
+      expect(fs.existsSync(configFile)).toBe(true);
+
+      // Should only have claude-code remaining
+      const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
+      expect(fileContents.installedAgents).toEqual(["claude-code"]);
+    });
+
+    it("should delete config file when uninstalling last agent", async () => {
+      const configFile = getConfigPath({ installDir: tempDir });
+      fs.writeFileSync(
+        configFile,
+        JSON.stringify({
+          installDir: tempDir,
+          profile: { baseProfile: "senior-swe" },
+          installedAgents: ["claude-code"],
+        }),
+        "utf-8",
+      );
+
+      // Uninstall the only agent
+      const config: Config = {
+        installDir: tempDir,
+        installedAgents: ["claude-code"], // Agent being uninstalled
+      };
+
+      await configLoader.uninstall({ config });
+
+      // Config file should be deleted
+      expect(fs.existsSync(configFile)).toBe(false);
+    });
+
+    it("should delete config file when no installedAgents field exists (legacy behavior)", async () => {
+      const configFile = getConfigPath({ installDir: tempDir });
+      fs.writeFileSync(
+        configFile,
+        JSON.stringify({
+          installDir: tempDir,
+          profile: { baseProfile: "senior-swe" },
+          // No installedAgents field
+        }),
+        "utf-8",
+      );
+
+      const config: Config = { installDir: tempDir };
+
+      await configLoader.uninstall({ config });
+
+      // Config file should be deleted (legacy behavior)
+      expect(fs.existsSync(configFile)).toBe(false);
     });
   });
 });
