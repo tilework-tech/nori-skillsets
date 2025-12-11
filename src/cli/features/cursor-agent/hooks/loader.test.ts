@@ -429,4 +429,197 @@ describe("cursor-agent hooksLoader", () => {
       expect(hooksLoader.description.length).toBeGreaterThan(0);
     });
   });
+
+  describe("beforeSubmitPrompt hook (slash command intercept)", () => {
+    it("should create hooks.json with beforeSubmitPrompt event for slash command intercept", async () => {
+      const config: Config = { installDir: tempDir };
+
+      await hooksLoader.run({ config });
+
+      const content = await fs.readFile(hooksFilePath, "utf-8");
+      const hooksConfig = JSON.parse(content);
+
+      // Verify beforeSubmitPrompt hook is configured
+      expect(hooksConfig.hooks.beforeSubmitPrompt).toBeDefined();
+      expect(Array.isArray(hooksConfig.hooks.beforeSubmitPrompt)).toBe(true);
+      expect(hooksConfig.hooks.beforeSubmitPrompt.length).toBeGreaterThan(0);
+    });
+
+    it("should configure beforeSubmitPrompt hook with slash-command-intercept.js command", async () => {
+      const config: Config = { installDir: tempDir };
+
+      await hooksLoader.run({ config });
+
+      const content = await fs.readFile(hooksFilePath, "utf-8");
+      const hooksConfig = JSON.parse(content);
+
+      // Find slash command intercept hook
+      const hasSlashCommandInterceptHook =
+        hooksConfig.hooks.beforeSubmitPrompt.some((hook: { command: string }) =>
+          hook.command.includes("slash-command-intercept.js"),
+        );
+
+      expect(hasSlashCommandInterceptHook).toBe(true);
+    });
+
+    it("should pass NORI_INSTALL_DIR environment variable in beforeSubmitPrompt hook command", async () => {
+      const config: Config = { installDir: tempDir };
+
+      await hooksLoader.run({ config });
+
+      const content = await fs.readFile(hooksFilePath, "utf-8");
+      const hooksConfig = JSON.parse(content);
+
+      // Find slash command intercept hook
+      const slashCommandHook = hooksConfig.hooks.beforeSubmitPrompt.find(
+        (hook: { command: string }) =>
+          hook.command.includes("slash-command-intercept.js"),
+      );
+
+      expect(slashCommandHook.command).toContain(
+        `NORI_INSTALL_DIR="${tempDir}"`,
+      );
+    });
+
+    it("should preserve user's existing beforeSubmitPrompt hooks", async () => {
+      const config: Config = { installDir: tempDir };
+
+      // Create hooks.json with existing beforeSubmitPrompt hook
+      const existingHooks = {
+        version: 1,
+        hooks: {
+          beforeSubmitPrompt: [{ command: "./user-custom-hook.sh" }],
+        },
+      };
+      await fs.writeFile(hooksFilePath, JSON.stringify(existingHooks, null, 2));
+
+      await hooksLoader.run({ config });
+
+      const content = await fs.readFile(hooksFilePath, "utf-8");
+      const hooksConfig = JSON.parse(content);
+
+      // Verify user's hook is preserved
+      const hasUserHook = hooksConfig.hooks.beforeSubmitPrompt.some(
+        (hook: { command: string }) => hook.command === "./user-custom-hook.sh",
+      );
+      expect(hasUserHook).toBe(true);
+
+      // Verify slash command intercept hook is added
+      const hasSlashCommandInterceptHook =
+        hooksConfig.hooks.beforeSubmitPrompt.some((hook: { command: string }) =>
+          hook.command.includes("slash-command-intercept.js"),
+        );
+      expect(hasSlashCommandInterceptHook).toBe(true);
+    });
+
+    it("should not duplicate slash command intercept hook on repeated installs", async () => {
+      const config: Config = { installDir: tempDir };
+
+      // Run install twice
+      await hooksLoader.run({ config });
+      await hooksLoader.run({ config });
+
+      const content = await fs.readFile(hooksFilePath, "utf-8");
+      const hooksConfig = JSON.parse(content);
+
+      // Count slash command intercept hooks
+      const hookCount = hooksConfig.hooks.beforeSubmitPrompt.filter(
+        (hook: { command: string }) =>
+          hook.command.includes("slash-command-intercept.js"),
+      ).length;
+
+      expect(hookCount).toBe(1);
+    });
+
+    it("should remove slash command intercept hook on uninstall", async () => {
+      const config: Config = { installDir: tempDir };
+
+      // Install first
+      await hooksLoader.run({ config });
+
+      // Verify hook exists
+      let content = await fs.readFile(hooksFilePath, "utf-8");
+      let hooksConfig = JSON.parse(content);
+      expect(hooksConfig.hooks.beforeSubmitPrompt).toBeDefined();
+
+      // Uninstall
+      await hooksLoader.uninstall({ config });
+
+      // Verify slash command intercept hook is removed
+      content = await fs.readFile(hooksFilePath, "utf-8");
+      hooksConfig = JSON.parse(content);
+
+      const hasSlashCommandInterceptHook =
+        hooksConfig.hooks.beforeSubmitPrompt?.some(
+          (hook: { command: string }) =>
+            hook.command.includes("slash-command-intercept.js"),
+        ) ?? false;
+      expect(hasSlashCommandInterceptHook).toBe(false);
+    });
+
+    it("should preserve user's beforeSubmitPrompt hooks when uninstalling", async () => {
+      const config: Config = { installDir: tempDir };
+
+      // Create hooks.json with both user hook and nori hook
+      const mixedHooks = {
+        version: 1,
+        hooks: {
+          beforeSubmitPrompt: [
+            { command: "./user-custom-hook.sh" },
+            { command: "node /path/to/slash-command-intercept.js" },
+          ],
+        },
+      };
+      await fs.writeFile(hooksFilePath, JSON.stringify(mixedHooks, null, 2));
+
+      // Uninstall
+      await hooksLoader.uninstall({ config });
+
+      const content = await fs.readFile(hooksFilePath, "utf-8");
+      const hooksConfig = JSON.parse(content);
+
+      // Verify user's hook is preserved
+      const hasUserHook = hooksConfig.hooks.beforeSubmitPrompt?.some(
+        (hook: { command: string }) => hook.command === "./user-custom-hook.sh",
+      );
+      expect(hasUserHook).toBe(true);
+
+      // Verify nori hook is removed
+      const hasSlashCommandInterceptHook =
+        hooksConfig.hooks.beforeSubmitPrompt?.some(
+          (hook: { command: string }) =>
+            hook.command.includes("slash-command-intercept.js"),
+        ) ?? false;
+      expect(hasSlashCommandInterceptHook).toBe(false);
+    });
+
+    it("should validate beforeSubmitPrompt hook presence", async () => {
+      const config: Config = { installDir: tempDir };
+
+      // Create hooks.json with stop hook but no beforeSubmitPrompt
+      const hooksConfig = {
+        version: 1,
+        hooks: {
+          stop: [{ command: "/path/to/notify-hook.sh" }],
+        },
+      };
+      await fs.writeFile(hooksFilePath, JSON.stringify(hooksConfig, null, 2));
+
+      if (hooksLoader.validate == null) {
+        throw new Error("validate method not implemented");
+      }
+
+      const result = await hooksLoader.validate({ config });
+
+      // Should be invalid because beforeSubmitPrompt hook is missing
+      expect(result.valid).toBe(false);
+      expect(result.errors).not.toBeNull();
+      expect(
+        result.errors?.some(
+          (e: string) =>
+            e.includes("beforeSubmitPrompt") || e.includes("slash-command"),
+        ),
+      ).toBe(true);
+    });
+  });
 });

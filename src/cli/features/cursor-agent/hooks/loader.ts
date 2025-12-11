@@ -45,6 +45,15 @@ const getNotifyHookScriptPath = (): string => {
 };
 
 /**
+ * Get the slash command intercept hook script path
+ *
+ * @returns Path to the slash-command-intercept.js script
+ */
+const getSlashCommandInterceptScriptPath = (): string => {
+  return path.join(HOOKS_CONFIG_DIR, "slash-command-intercept.js");
+};
+
+/**
  * Check if a hook command is a nori notify hook
  *
  * @param args - Arguments
@@ -58,6 +67,21 @@ const isNoriNotifyHook = (args: { command: string }): boolean => {
 };
 
 /**
+ * Check if a hook command is a nori slash command intercept hook
+ *
+ * @param args - Arguments
+ * @param args.command - Hook command string
+ *
+ * @returns True if the command is a nori slash command intercept hook
+ */
+const isNoriSlashCommandInterceptHook = (args: {
+  command: string;
+}): boolean => {
+  const { command } = args;
+  return command.includes("slash-command-intercept.js");
+};
+
+/**
  * Configure hooks for Cursor IDE
  *
  * @param args - Configuration arguments
@@ -68,7 +92,7 @@ const configureHooks = async (args: { config: Config }): Promise<void> => {
   const cursorDir = getCursorDir({ installDir: config.installDir });
   const hooksFile = getCursorHooksFile({ installDir: config.installDir });
 
-  info({ message: "Configuring Cursor hooks for desktop notifications..." });
+  info({ message: "Configuring Cursor hooks..." });
 
   // Create .cursor directory if it doesn't exist
   await fs.mkdir(cursorDir, { recursive: true });
@@ -91,10 +115,11 @@ const configureHooks = async (args: { config: Config }): Promise<void> => {
     // File doesn't exist or is invalid, use default
   }
 
-  // Get the notify hook script path
+  // Get hook script paths
   const notifyScriptPath = getNotifyHookScriptPath();
+  const slashCommandInterceptScriptPath = getSlashCommandInterceptScriptPath();
 
-  // Initialize stop hooks array if not present
+  // === Configure stop hooks (desktop notifications) ===
   if (!hooksConfig.hooks.stop) {
     hooksConfig.hooks.stop = [];
   }
@@ -112,12 +137,33 @@ const configureHooks = async (args: { config: Config }): Promise<void> => {
     });
   }
 
+  // === Configure beforeSubmitPrompt hooks (slash command intercept) ===
+  if (!hooksConfig.hooks.beforeSubmitPrompt) {
+    hooksConfig.hooks.beforeSubmitPrompt = [];
+  }
+
+  // Check if slash command intercept hook already exists (avoid duplicates)
+  const hasExistingSlashCommandHook = hooksConfig.hooks.beforeSubmitPrompt.some(
+    (hook) => isNoriSlashCommandInterceptHook({ command: hook.command }),
+  );
+
+  if (!hasExistingSlashCommandHook) {
+    // Add slash command intercept hook for beforeSubmitPrompt event
+    // Pass NORI_INSTALL_DIR so the script knows where to find installation
+    hooksConfig.hooks.beforeSubmitPrompt.push({
+      command: `NORI_INSTALL_DIR="${config.installDir}" node ${slashCommandInterceptScriptPath}`,
+    });
+  }
+
   // Write hooks.json
   await fs.writeFile(hooksFile, JSON.stringify(hooksConfig, null, 2));
   success({ message: `✓ Hooks configured in ${hooksFile}` });
   info({
     message:
       "Desktop notifications will appear when Cursor agent completes (stop event)",
+  });
+  info({
+    message: "Slash command interception enabled (beforeSubmitPrompt event)",
   });
 };
 
@@ -153,6 +199,24 @@ const removeHooks = async (args: { config: Config }): Promise<void> => {
       // Clean up empty stop array
       if (hooksConfig.hooks.stop.length === 0) {
         delete hooksConfig.hooks.stop;
+      }
+    }
+
+    // Remove nori slash command intercept hooks from beforeSubmitPrompt event
+    if (hooksConfig.hooks.beforeSubmitPrompt) {
+      const originalLength = hooksConfig.hooks.beforeSubmitPrompt.length;
+      hooksConfig.hooks.beforeSubmitPrompt =
+        hooksConfig.hooks.beforeSubmitPrompt.filter(
+          (hook) => !isNoriSlashCommandInterceptHook({ command: hook.command }),
+        );
+
+      if (hooksConfig.hooks.beforeSubmitPrompt.length !== originalLength) {
+        modified = true;
+      }
+
+      // Clean up empty beforeSubmitPrompt array
+      if (hooksConfig.hooks.beforeSubmitPrompt.length === 0) {
+        delete hooksConfig.hooks.beforeSubmitPrompt;
       }
     }
 
@@ -242,6 +306,42 @@ const validate = async (args: {
     };
   }
 
+  // Check if beforeSubmitPrompt hooks are configured
+  if (
+    !hooksConfig.hooks?.beforeSubmitPrompt ||
+    hooksConfig.hooks.beforeSubmitPrompt.length === 0
+  ) {
+    errors.push("No beforeSubmitPrompt hooks configured in hooks.json");
+    errors.push(
+      'Run "nori-ai install --agent cursor-agent" to configure hooks',
+    );
+    return {
+      valid: false,
+      message: "beforeSubmitPrompt hooks not configured",
+      errors,
+    };
+  }
+
+  // Check if slash-command-intercept hook is present
+  const hasSlashCommandInterceptHook =
+    hooksConfig.hooks.beforeSubmitPrompt.some((hook) =>
+      isNoriSlashCommandInterceptHook({ command: hook.command }),
+    );
+
+  if (!hasSlashCommandInterceptHook) {
+    errors.push(
+      "Missing slash-command-intercept hook in beforeSubmitPrompt event",
+    );
+    errors.push(
+      'Run "nori-ai install --agent cursor-agent" to configure hooks',
+    );
+    return {
+      valid: false,
+      message: "slash-command-intercept hook not configured",
+      errors,
+    };
+  }
+
   return {
     valid: true,
     message: "Hooks are properly configured",
@@ -254,7 +354,8 @@ const validate = async (args: {
  */
 export const hooksLoader: Loader = {
   name: "hooks",
-  description: "Configure Cursor hooks for desktop notifications",
+  description:
+    "Configure Cursor hooks for desktop notifications and slash command interception",
   run: async (args: { config: Config }) => {
     await configureHooks(args);
   },

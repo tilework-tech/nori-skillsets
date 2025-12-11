@@ -62,7 +62,11 @@ The AgentRegistry (@/src/cli/features/agentRegistry.ts) registers this agent alo
 
 **agentsMdLoader** (profiles/agentsmd/loader.ts): Manages the `AGENTS.md` file at project root using a managed block pattern (BEGIN/END NORI-AI MANAGED BLOCK). Reads AGENTS.md content from the selected profile and inserts/updates it within the managed block, preserving any user content outside the block.
 
-**hooksLoader** (hooks/loader.ts): Configures Cursor IDE hooks for desktop notifications. Manages `~/.cursor/hooks.json` using Cursor's hooks schema (`{ version: 1, hooks: { stop: [...] } }`). Adds a notify-hook.sh script to the `stop` event, which fires when the Cursor agent loop completes. The loader handles idempotent installation (avoids duplicate hooks), clean uninstallation (removes only Nori hooks), and validation.
+**hooksLoader** (hooks/loader.ts): Configures Cursor IDE hooks for desktop notifications and slash command interception. Manages `~/.cursor/hooks.json` using Cursor's hooks schema (`{ version: 1, hooks: { [event]: [...] } }`). Configures two hook events:
+- `stop`: notify-hook.sh script for desktop notifications when agent completes
+- `beforeSubmitPrompt`: slash-command-intercept.js for intercepting slash commands before LLM inference
+
+The loader handles idempotent installation (avoids duplicate hooks), clean uninstallation (removes only Nori hooks), and validation for both hook types.
 
 **slashCommandsLoader** (slashcommands/loader.ts): Installs Nori slash commands to `~/.cursor/commands/`. Reads `.md` files from the `slashcommands/config/` directory, applies template substitution via @/src/cli/features/cursor-agent/template.ts, and writes them to the target directory. Uninstall removes installed commands and cleans up the commands directory if empty.
 
@@ -87,7 +91,31 @@ The AgentRegistry (@/src/cli/features/agentRegistry.ts) registers this agent alo
 - Target directory is ~/.cursor instead of ~/.claude
 - Cursor hooks use a simpler event model (e.g., `stop`) compared to Claude Code's hooks (e.g., `SessionEnd`)
 
-**Hooks architecture:** The hooks/ directory contains the hooksLoader and a config/ subdirectory with hook scripts. The notify-hook.sh script is a cross-platform bash script supporting Linux (notify-send), macOS (osascript/terminal-notifier), and Windows (PowerShell). Cursor's hooks.json format is `{ version: 1, hooks: { [event]: [{ command: "..." }] } }`. The loader identifies Nori hooks by checking if the command path contains "notify-hook.sh".
+**Hooks architecture:** The hooks/ directory contains the hooksLoader and a config/ subdirectory with hook scripts and intercepted slash commands:
+
+```
+hooks/
+├── loader.ts              # Configures ~/.cursor/hooks.json
+└── config/
+    ├── notify-hook.sh     # Desktop notifications (stop event)
+    ├── slash-command-intercept.ts  # Slash command interception (beforeSubmitPrompt event)
+    └── intercepted-slashcommands/  # Command implementations
+        ├── types.ts       # CursorHookInput/Output, HookInput/Output, InterceptedSlashCommand
+        ├── format.ts      # ANSI color formatting (formatSuccess, formatError)
+        ├── registry.ts    # Array of InterceptedSlashCommand (first match wins)
+        └── nori-switch-profile.ts  # Profile switching implementation
+```
+
+The notify-hook.sh script is a cross-platform bash script supporting Linux (notify-send), macOS (osascript/terminal-notifier), and Windows (PowerShell). The slash-command-intercept.ts is a Node.js script that reads Cursor's hook input from stdin, matches against registered commands, and outputs Cursor's expected response format. Cursor's hooks.json format is `{ version: 1, hooks: { [event]: [{ command: "..." }] } }`. The loader identifies Nori hooks by checking if the command path contains "notify-hook.sh" or "slash-command-intercept.js".
+
+**Intercepted slash commands:** Slash commands registered in `intercepted-slashcommands/registry.ts` are executed directly without LLM inference overhead. This enables instant operations like profile switching. The architecture translates between Cursor's hook format (`CursorHookInput`/`CursorHookOutput`) and an internal format (`HookInput`/`HookOutput`):
+
+| Cursor Format | Internal Format | Translation |
+|---------------|-----------------|-------------|
+| `{ continue: boolean, user_message?: string }` | `{ decision?: "block", reason?: string }` | `decision: "block"` maps to `continue: false` |
+| `prompt`, `workspace_roots[0]` | `prompt`, `cwd` | First workspace_root becomes cwd |
+
+Commands use regex matchers in `InterceptedSlashCommand.matchers`. The `/nori-switch-profile` command lists available profiles or switches to a specified profile, running `nori-ai install` to apply changes.
 
 **Mixin composition system**: Profiles specify mixins in profile.json as `{"mixins": {"base": {}, "swe": {}}}`. The loader processes mixins in alphabetical order for deterministic precedence. When multiple mixins provide the same file, last writer wins. When multiple mixins provide the same directory, contents are merged. Conditional mixins are automatically injected based on user tier (see @/src/cli/features/cursor-agent/profiles/loader.ts).
 
