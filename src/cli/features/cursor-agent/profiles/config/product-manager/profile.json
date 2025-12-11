@@ -4,6 +4,7 @@
   "builtin": true,
   "mixins": {
     "base": {},
+    "docs": {},
     "swe": {}
   }
 }

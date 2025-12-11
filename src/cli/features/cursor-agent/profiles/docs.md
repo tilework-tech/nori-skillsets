@@ -49,9 +49,9 @@ profilesLoader (loader.ts)
 
 ### Things to Know
 
-**Mixin naming convention**: Mixins use underscore prefix in the filesystem (`_base`, `_swe`) but are referenced without prefix in `profile.json` (`base`, `swe`). The loader prepends the underscore when resolving paths.
+**Mixin naming convention**: Mixins use underscore prefix in the filesystem (`_base`, `_docs`, `_swe`) but are referenced without prefix in `profile.json` (`base`, `docs`, `swe`). The loader prepends the underscore when resolving paths.
 
-**Composition order**: Mixins are composed in alphabetical order for deterministic precedence. For a profile with `{"mixins": {"base": {}, "swe": {}}}`, the order is: `_base` then `_swe`. Profile-specific content (AGENTS.md) is always overlaid last.
+**Composition order**: Mixins are composed in alphabetical order for deterministic precedence. For a profile with `{"mixins": {"base": {}, "docs": {}, "swe": {}}}`, the order is: `_base` -> `_docs` -> `_swe`. Profile-specific content (AGENTS.md) is always overlaid last.
 
 **Paid user detection**: Uses `isPaidInstall({ config })` from @/src/cli/config.ts to check for auth credentials. Paid users automatically receive additional mixins without explicit profile.json changes.
 
@@ -74,7 +74,7 @@ alwaysApply: false
 ```
 Rules use "Apply Intelligently" mode (no `globs` field) where Cursor's agent decides when to apply based on the description. The `{{rules_dir}}` template variable is used for cross-rule references.
 
-**Subagents system**: Subagents provide Task tool-like functionality for Cursor, which lacks a built-in Task tool. The subagentsLoader copies `.md` files from the profile's `subagents/` directory to `~/.cursor/subagents/`. Each subagent is invoked via the `cursor-agent` CLI in headless mode: `cursor-agent -p "$(cat {{subagents_dir}}/subagent-name.md)\n---\nUSER REQUEST:\nYour prompt" --force`. The `using-subagents` rule in the `_base` mixin documents this invocation pattern. The `{{subagents_dir}}` template variable resolves to `~/.cursor/subagents/`.
+**Subagents system**: Subagents provide Task tool-like functionality for Cursor, which lacks a built-in Task tool. The subagentsLoader copies `.md` files from the profile's `subagents/` directory to `~/.cursor/subagents/`. Each subagent is invoked via the `cursor-agent` CLI in headless mode: `cursor-agent -p "$(cat {{subagents_dir}}/subagent-name.md)\n---\nUSER REQUEST:\nYour prompt" --force`. The `using-subagents` rule in the `_base` mixin documents this invocation pattern. The `{{subagents_dir}}` template variable resolves to `~/.cursor/subagents/`. Subagents are contributed by multiple mixins (e.g., `_base` provides `nori-web-search-researcher`, `_docs` provides `nori-initial-documenter` and `nori-change-documenter`).
 
 **Parallel to claude-code**: This implementation mirrors the claude-code mixin system in @/src/cli/features/claude-code/profiles/loader.ts. Key differences:
 
@@ -101,6 +101,13 @@ profiles/
             RULE.md
         subagents/               # Subagent prompt files
           nori-web-search-researcher.md
+      _docs/
+        rules/
+          updating-noridocs/     # Documentation workflow rule
+            RULE.md
+        subagents/               # Documentation subagent prompt files
+          nori-initial-documenter.md
+          nori-change-documenter.md
       _swe/
         rules/                   # Software engineering rules (mirrors claude-code skills)
           test-driven-development/
@@ -108,14 +115,14 @@ profiles/
           brainstorming/
           ...
     amol/
-      AGENTS.md        # Full workflow instructions (base+swe)
-      profile.json     # {"name": "amol", "mixins": {"base": {}, "swe": {}}}
+      AGENTS.md        # Full workflow instructions (base+docs+swe)
+      profile.json     # {"name": "amol", "mixins": {"base": {}, "docs": {}, "swe": {}}}
     senior-swe/
       AGENTS.md        # Dual-mode: copilot (interactive) or full-send (autonomous)
-      profile.json     # {"name": "senior-swe", "mixins": {"base": {}, "swe": {}}}
+      profile.json     # {"name": "senior-swe", "mixins": {"base": {}, "docs": {}, "swe": {}}}
     product-manager/
       AGENTS.md        # PM-focused: technical autonomy, product questions
-      profile.json     # {"name": "product-manager", "mixins": {"base": {}, "swe": {}}}
+      profile.json     # {"name": "product-manager", "mixins": {"base": {}, "docs": {}, "swe": {}}}
     none/
       AGENTS.md        # Minimal (empty/nearly-empty)
       profile.json     # {"name": "none", "mixins": {"base": {}}} (base only)
@@ -135,11 +142,17 @@ profiles/
 
 | Profile | Mixins | Description |
 |---------|--------|-------------|
-| amol | base, swe | Opinionated workflow with TDD, structured planning, rule-based guidance |
-| senior-swe | base, swe | Dual-mode: "copilot" (interactive pair programming) or "full-send" (autonomous) |
-| product-manager | base, swe | High technical autonomy, product-focused questions, auto-creates PRs |
+| amol | base, docs, swe | Opinionated workflow with TDD, structured planning, rule-based guidance |
+| senior-swe | base, docs, swe | Dual-mode: "copilot" (interactive pair programming) or "full-send" (autonomous) |
+| product-manager | base, docs, swe | High technical autonomy, product-focused questions, auto-creates PRs |
 | none | base | Minimal infrastructure only, no behavioral modifications |
 
-**Note:** The documenter profile from claude-code is not available in cursor-agent because it relies on docs-specific features that use SKILL.md files.
+### Available Mixins
+
+| Mixin | Contents | Description |
+|-------|----------|-------------|
+| `_base` | `using-rules` rule, `using-subagents` rule, `nori-web-search-researcher` subagent | Core infrastructure for rules and subagents |
+| `_docs` | `updating-noridocs` rule, `nori-initial-documenter` subagent, `nori-change-documenter` subagent | Documentation workflows for creating and updating docs.md files |
+| `_swe` | Software engineering rules (TDD, debugging, brainstorming, etc.) | Rule-based guidance mirroring claude-code skills |
 
 Created and maintained by Nori.

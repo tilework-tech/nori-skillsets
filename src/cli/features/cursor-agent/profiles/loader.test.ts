@@ -262,5 +262,89 @@ describe("cursor-agent profiles loader", () => {
       expect(result[0]).toContain("_base");
       expect(result[0]).not.toContain("__base"); // Not double underscore
     });
+
+    test("should include docs mixin path when docs is in mixins", () => {
+      const metadata = {
+        name: "test-profile",
+        description: "Test profile",
+        mixins: {
+          base: {},
+          docs: {},
+          swe: {},
+        },
+      };
+
+      const result = _testing.getMixinPaths({ metadata });
+
+      // Should be sorted alphabetically: base, docs, swe
+      expect(result[0]).toContain("_base");
+      expect(result[1]).toContain("_docs");
+      expect(result[2]).toContain("_swe");
+    });
+  });
+
+  describe("_docs mixin", () => {
+    test("should compose profile with docs mixin subagents", async () => {
+      const config = createConfig();
+
+      await profilesLoader.run({ config });
+
+      // amol profile should have docs mixin which includes subagents
+      const subagentsDir = path.join(profilesDir, "amol", "subagents");
+      const subagentsExists = await fs
+        .access(subagentsDir)
+        .then(() => true)
+        .catch(() => false);
+      expect(subagentsExists).toBe(true);
+
+      // Should have nori-initial-documenter subagent
+      const initialDocumenter = path.join(
+        subagentsDir,
+        "nori-initial-documenter.md",
+      );
+      const initialDocumenterExists = await fs
+        .access(initialDocumenter)
+        .then(() => true)
+        .catch(() => false);
+      expect(initialDocumenterExists).toBe(true);
+
+      // Should have nori-change-documenter subagent
+      const changeDocumenter = path.join(
+        subagentsDir,
+        "nori-change-documenter.md",
+      );
+      const changeDocumenterExists = await fs
+        .access(changeDocumenter)
+        .then(() => true)
+        .catch(() => false);
+      expect(changeDocumenterExists).toBe(true);
+    });
+
+    test("should compose profile with docs mixin rules", async () => {
+      const config = createConfig();
+
+      await profilesLoader.run({ config });
+
+      // amol profile should have docs mixin which includes updating-noridocs rule
+      const updatingNoridocsRule = path.join(
+        profilesDir,
+        "amol",
+        "rules",
+        "updating-noridocs",
+      );
+      const ruleExists = await fs
+        .access(updatingNoridocsRule)
+        .then(() => true)
+        .catch(() => false);
+      expect(ruleExists).toBe(true);
+
+      // Should have RULE.md file
+      const ruleMdPath = path.join(updatingNoridocsRule, "RULE.md");
+      const ruleMdExists = await fs
+        .access(ruleMdPath)
+        .then(() => true)
+        .catch(() => false);
+      expect(ruleMdExists).toBe(true);
+    });
   });
 });
