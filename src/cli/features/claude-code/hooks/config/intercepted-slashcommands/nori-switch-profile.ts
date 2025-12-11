@@ -85,6 +85,17 @@ const run = async (args: { input: HookInput }): Promise<HookOutput | null> => {
   try {
     await agent.switchProfile({ installDir, profileName });
 
+    // Run install in non-interactive mode with skipUninstall to apply profile changes
+    // This is the same pattern used by the CLI `nori-ai switch-profile` command
+    const { main: installMain } =
+      await import("@/cli/commands/install/install.js");
+    await installMain({
+      nonInteractive: true,
+      skipUninstall: true,
+      installDir,
+      agent: "claude-code",
+    });
+
     // Read profile description if available
     let profileDescription = "";
     try {

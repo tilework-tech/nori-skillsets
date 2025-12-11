@@ -6,7 +6,7 @@ import * as fs from "fs/promises";
 import { tmpdir } from "os";
 import * as path from "path";
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 import type { HookInput } from "./types.js";
 
@@ -196,6 +196,55 @@ describe("nori-switch-profile", () => {
       } finally {
         await fs.rm(noInstallDir, { recursive: true, force: true });
       }
+    });
+  });
+
+  describe("profile application", () => {
+    it("should run install loaders after switching profile to apply changes", async () => {
+      // This test verifies that /nori-switch-profile actually applies the profile,
+      // not just updates the config file. The bug was that only the config was
+      // updated, but the install loaders were never run.
+
+      // Track if installMain was called
+      let installMainCalled = false;
+      let installMainArgs: {
+        nonInteractive?: boolean | null;
+        skipUninstall?: boolean | null;
+        installDir?: string | null;
+        agent?: string | null;
+      } | null = null;
+
+      // Mock the install module
+      vi.doMock("@/cli/commands/install/install.js", () => ({
+        main: vi.fn(async (args) => {
+          installMainCalled = true;
+          installMainArgs = args;
+        }),
+      }));
+
+      // Re-import the module to pick up the mock
+      // Note: We need to reset the module cache for this mock to take effect
+      vi.resetModules();
+      const { noriSwitchProfile: mockedNoriSwitchProfile } =
+        await import("./nori-switch-profile.js");
+
+      const input = createInput({ prompt: "/nori-switch-profile amol" });
+      const result = await mockedNoriSwitchProfile.run({ input });
+
+      expect(result).not.toBeNull();
+      expect(result!.decision).toBe("block");
+
+      // Verify install main was called with correct args
+      expect(installMainCalled).toBe(true);
+      expect(installMainArgs).not.toBeNull();
+      expect(installMainArgs!.nonInteractive).toBe(true);
+      expect(installMainArgs!.skipUninstall).toBe(true);
+      expect(installMainArgs!.installDir).toBe(testDir);
+      expect(installMainArgs!.agent).toBe("claude-code");
+
+      // Restore mocks
+      vi.doUnmock("@/cli/commands/install/install.js");
+      vi.resetModules();
     });
   });
 });
