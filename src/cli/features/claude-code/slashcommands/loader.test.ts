@@ -12,19 +12,31 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import type { Config } from "@/cli/config.js";
 
 // Mock the env module to use temp directories
-let mockClaudeDir: string;
-let mockClaudeCommandsDir: string;
+// These represent the HOME directory paths (global)
+let mockClaudeHomeDir: string;
+let mockClaudeHomeCommandsDir: string;
 
 vi.mock("@/cli/features/claude-code/paths.js", () => ({
-  getClaudeDir: () => mockClaudeDir,
-  getClaudeSettingsFile: () => path.join(mockClaudeDir, "settings.json"),
-  getClaudeHomeDir: () => mockClaudeDir,
-  getClaudeHomeSettingsFile: () => path.join(mockClaudeDir, "settings.json"),
-  getClaudeAgentsDir: () => path.join(mockClaudeDir, "agents"),
-  getClaudeCommandsDir: () => mockClaudeCommandsDir,
-  getClaudeMdFile: () => path.join(mockClaudeDir, "CLAUDE.md"),
-  getClaudeSkillsDir: () => path.join(mockClaudeDir, "skills"),
-  getClaudeProfilesDir: () => path.join(mockClaudeDir, "profiles"),
+  // Project-relative paths (not used by global slash commands loader after fix)
+  getClaudeDir: (args: { installDir: string }) =>
+    path.join(args.installDir, ".claude"),
+  getClaudeSettingsFile: (args: { installDir: string }) =>
+    path.join(args.installDir, ".claude", "settings.json"),
+  getClaudeAgentsDir: (args: { installDir: string }) =>
+    path.join(args.installDir, ".claude", "agents"),
+  getClaudeCommandsDir: (args: { installDir: string }) =>
+    path.join(args.installDir, ".claude", "commands"),
+  getClaudeMdFile: (args: { installDir: string }) =>
+    path.join(args.installDir, ".claude", "CLAUDE.md"),
+  getClaudeSkillsDir: (args: { installDir: string }) =>
+    path.join(args.installDir, ".claude", "skills"),
+  getClaudeProfilesDir: (args: { installDir: string }) =>
+    path.join(args.installDir, ".claude", "profiles"),
+  // Home-based paths (used by global slash commands loader after fix)
+  getClaudeHomeDir: () => mockClaudeHomeDir,
+  getClaudeHomeSettingsFile: () =>
+    path.join(mockClaudeHomeDir, "settings.json"),
+  getClaudeHomeCommandsDir: () => mockClaudeHomeCommandsDir,
 }));
 
 // Import loader after mocking env
@@ -32,21 +44,24 @@ import { globalSlashCommandsLoader } from "./loader.js";
 
 describe("globalSlashCommandsLoader", () => {
   let tempDir: string;
-  let claudeDir: string;
+  let homeDir: string;
+  let claudeHomeDir: string;
   let commandsDir: string;
 
   beforeEach(async () => {
     // Create temp directory for testing
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "global-slashcmd-test-"));
-    claudeDir = path.join(tempDir, ".claude");
-    commandsDir = path.join(claudeDir, "commands");
+    // Simulate home directory (separate from installDir)
+    homeDir = path.join(tempDir, "home");
+    claudeHomeDir = path.join(homeDir, ".claude");
+    commandsDir = path.join(claudeHomeDir, "commands");
 
-    // Set mock paths
-    mockClaudeDir = claudeDir;
-    mockClaudeCommandsDir = commandsDir;
+    // Set mock paths - commands go to HOME directory, not installDir
+    mockClaudeHomeDir = claudeHomeDir;
+    mockClaudeHomeCommandsDir = commandsDir;
 
     // Create directories
-    await fs.mkdir(claudeDir, { recursive: true });
+    await fs.mkdir(claudeHomeDir, { recursive: true });
   });
 
   afterEach(async () => {

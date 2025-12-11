@@ -105,3 +105,14 @@ export const getClaudeHomeDir = (): string => {
 export const getClaudeHomeSettingsFile = (): string => {
   return path.join(getClaudeHomeDir(), "settings.json");
 };
+
+/**
+ * Get the Claude home commands directory path (always ~/.claude/commands)
+ * This is where global slash commands should be installed
+ * to ensure Claude Code picks them up from any subdirectory.
+ *
+ * @returns Absolute path to ~/.claude/commands
+ */
+export const getClaudeHomeCommandsDir = (): string => {
+  return path.join(getClaudeHomeDir(), "commands");
+};
