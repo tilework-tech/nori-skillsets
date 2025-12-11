@@ -141,6 +141,7 @@ export const generatePromptConfig = async (args: {
   }
 
   info({ message: "Nori Profiles Uninstaller" });
+  info({ message: `Uninstalling from: ${installDir}` });
   console.log();
   warn({
     message: "This will remove Nori Profiles features from your system.",

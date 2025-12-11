@@ -715,3 +715,96 @@ describe("uninstall with ancestor directory detection", () => {
     expect(promptUser).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("uninstall location display", () => {
+  let tempDir: string;
+  let originalHome: string | undefined;
+  let processExitSpy: any;
+
+  beforeEach(async () => {
+    originalHome = process.env.HOME;
+    // Use 'uninstall-ancestor-' prefix so the mock loads config from filesystem
+    tempDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), "uninstall-ancestor-location-"),
+    );
+    process.env.HOME = tempDir;
+
+    processExitSpy = vi.spyOn(process, "exit").mockImplementation((() => {
+      // Intentionally empty
+    }) as any);
+
+    vi.clearAllMocks();
+  });
+
+  afterEach(async () => {
+    processExitSpy.mockRestore();
+    if (originalHome !== undefined) {
+      process.env.HOME = originalHome;
+    } else {
+      delete process.env.HOME;
+    }
+    await fs.rm(tempDir, { recursive: true, force: true });
+    vi.clearAllMocks();
+  });
+
+  it("should display installation location at the top of uninstall output before other details", async () => {
+    // Create a Nori installation
+    const configPath = path.join(tempDir, ".nori-config.json");
+    await fs.writeFile(
+      configPath,
+      JSON.stringify({
+        username: "test@example.com",
+        password: "testpass",
+        organizationUrl: "http://localhost:3000",
+      }),
+    );
+
+    // Mock user confirming uninstall and global settings removal
+    (promptUser as any).mockResolvedValueOnce("y"); // Confirm uninstall
+    (promptUser as any).mockResolvedValueOnce("y"); // Remove global settings
+
+    // Import the mocked logger to check calls
+    const { info } = await import("@/cli/logger.js");
+
+    // Run uninstall
+    await main({ nonInteractive: false, installDir: tempDir });
+
+    // Get all info() calls
+    const infoCalls = (info as any).mock.calls.map(
+      (call: any) => call[0].message,
+    );
+
+    // Find the index of the "Nori Profiles Uninstaller" header
+    const headerIndex = infoCalls.findIndex(
+      (msg: string) => msg === "Nori Profiles Uninstaller",
+    );
+
+    // Find the index of the "Found existing Nori configuration" message
+    // This is displayed in generatePromptConfig after auth check
+    const configInfoIndex = infoCalls.findIndex(
+      (msg: string) => msg === "Found existing Nori configuration:",
+    );
+
+    // Find the FIRST occurrence of location message
+    // It should appear BEFORE the config info (in generatePromptConfig, not after user confirms)
+    const locationIndex = infoCalls.findIndex((msg: string) =>
+      msg.startsWith("Uninstalling from:"),
+    );
+
+    // Verify the config info was shown (proves we have proper config with auth)
+    expect(configInfoIndex).toBeGreaterThan(-1);
+
+    // Verify the location message exists
+    expect(locationIndex).toBeGreaterThan(-1);
+
+    // Verify the location message contains the install directory
+    expect(infoCalls[locationIndex]).toContain(tempDir);
+
+    // Verify the location message appears after the header
+    expect(locationIndex).toBeGreaterThan(headerIndex);
+
+    // CRITICAL: Verify the location message appears BEFORE the config info
+    // This ensures location is shown at the top during the prompt phase
+    expect(locationIndex).toBeLessThan(configInfoIndex);
+  });
+});
