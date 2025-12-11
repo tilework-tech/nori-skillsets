@@ -213,12 +213,12 @@ describe("config with profile-based system", () => {
       expect(loaded?.autoupdate).toBe("disabled");
     });
 
-    it("should default autoupdate to enabled when field is missing", async () => {
+    it("should default autoupdate to disabled when field is missing", async () => {
       await fs.writeFile(mockConfigPath, JSON.stringify({}));
 
       const loaded = await loadConfig({ installDir: tempDir });
 
-      expect(loaded?.autoupdate).toBe("enabled");
+      expect(loaded?.autoupdate).toBe("disabled");
     });
 
     it("should save and load autoupdate", async () => {

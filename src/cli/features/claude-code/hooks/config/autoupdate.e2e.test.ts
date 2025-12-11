@@ -125,12 +125,13 @@ exit 0
     const { getInstallDirs } = await import("@/utils/path.js");
     vi.mocked(getInstallDirs).mockReturnValue([tempHomeDir]);
 
-    // Mock loadConfig
+    // Mock loadConfig with autoupdate explicitly enabled
     const { loadConfig } = await import("@/cli/config.js");
     const mockLoadConfig = vi.mocked(loadConfig);
     mockLoadConfig.mockResolvedValue({
       auth: null,
       profile: null,
+      autoupdate: "enabled",
       installDir: tempHomeDir,
     });
 

@@ -187,9 +187,9 @@ const main = async (): Promise<void> => {
       return;
     }
 
-    // Check if autoupdate is disabled in config
-    if (diskConfig?.autoupdate === "disabled") {
-      // Notify user that update is available but autoupdate is disabled
+    // Check if autoupdate is explicitly enabled in config (default is disabled)
+    if (diskConfig?.autoupdate !== "enabled") {
+      // Notify user that update is available but autoupdate is not enabled
       logToClaudeSession({
         message: `🔔 Nori Profiles v${latestVersion} available (current: v${installedVersion}). Autoupdate is disabled. Run 'npx nori-ai install' to update manually.`,
       });

@@ -50,10 +50,10 @@ const run = async (args: { input: HookInput }): Promise<HookOutput | null> => {
   }
 
   // Toggle autoupdate field
-  // If field doesn't exist or is "enabled", set to "disabled"
-  // If field is "disabled", set to "enabled"
+  // If field doesn't exist or is "disabled", set to "enabled" (since default is disabled)
+  // If field is "enabled", set to "disabled"
   const currentValue = currentConfig.autoupdate as string | undefined;
-  const newValue = currentValue === "disabled" ? "enabled" : "disabled";
+  const newValue = currentValue === "enabled" ? "disabled" : "enabled";
 
   const newConfig = {
     ...currentConfig,

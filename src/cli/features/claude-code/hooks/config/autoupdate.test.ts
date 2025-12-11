@@ -89,12 +89,13 @@ describe("autoupdate", () => {
       };
       mockSpawn.mockReturnValue(mockChild as any);
 
-      // Mock loadConfig
+      // Mock loadConfig with autoupdate explicitly enabled
       const { loadConfig } = await import("@/cli/config.js");
       const mockLoadConfig = vi.mocked(loadConfig);
       mockLoadConfig.mockResolvedValue({
         auth: null,
         profile: null,
+        autoupdate: "enabled",
         installDir: process.cwd(),
       });
 
@@ -452,12 +453,13 @@ describe("autoupdate", () => {
       };
       mockSpawn.mockReturnValue(mockChild as any);
 
-      // Mock loadConfig
+      // Mock loadConfig with autoupdate explicitly enabled
       const { loadConfig } = await import("@/cli/config.js");
       const mockLoadConfig = vi.mocked(loadConfig);
       mockLoadConfig.mockResolvedValue({
         auth: null,
         profile: null,
+        autoupdate: "enabled",
         installDir: process.cwd(),
       });
 
@@ -529,12 +531,13 @@ describe("autoupdate", () => {
       };
       mockSpawn.mockReturnValue(mockChild as any);
 
-      // Mock loadConfig
+      // Mock loadConfig with autoupdate explicitly enabled
       const { loadConfig } = await import("@/cli/config.js");
       const mockLoadConfig = vi.mocked(loadConfig);
       mockLoadConfig.mockResolvedValue({
         auth: null,
         profile: null,
+        autoupdate: "enabled",
         installDir: process.cwd(),
       });
 
@@ -609,12 +612,13 @@ describe("autoupdate", () => {
       };
       mockSpawn.mockReturnValue(mockChild as any);
 
-      // Mock loadConfig
+      // Mock loadConfig with autoupdate explicitly enabled
       const { loadConfig } = await import("@/cli/config.js");
       const mockLoadConfig = vi.mocked(loadConfig);
       mockLoadConfig.mockResolvedValue({
         auth: null,
         profile: null,
+        autoupdate: "enabled",
         installDir: process.cwd(),
       });
 
@@ -670,12 +674,13 @@ describe("autoupdate", () => {
       // (cwd has no installation, but parent does)
       getInstallDirsSpy.mockReturnValue(["/home/user"]);
 
-      // Mock loadConfig to return config with installDir
+      // Mock loadConfig to return config with installDir and autoupdate enabled
       const { loadConfig } = await import("@/cli/config.js");
       const mockLoadConfig = vi.mocked(loadConfig);
       mockLoadConfig.mockResolvedValue({
         auth: null,
         profile: null,
+        autoupdate: "enabled",
         installDir: "/home/user/.claude",
       });
 
@@ -868,12 +873,13 @@ describe("autoupdate", () => {
       };
       mockSpawn.mockReturnValue(mockChild as any);
 
-      // Mock loadConfig
+      // Mock loadConfig with autoupdate explicitly enabled
       const { loadConfig } = await import("@/cli/config.js");
       const mockLoadConfig = vi.mocked(loadConfig);
       mockLoadConfig.mockResolvedValue({
         auth: null,
         profile: null,
+        autoupdate: "enabled",
         installDir: process.cwd(),
       });
 
@@ -1078,12 +1084,7 @@ describe("autoupdate", () => {
       consoleLogSpy.mockRestore();
     });
 
-    it("should trigger installation when autoupdate config is not set (defaults to enabled)", async () => {
-      // Mock openSync to return fake file descriptor
-      const { openSync } = await import("fs");
-      const mockOpenSync = vi.mocked(openSync);
-      mockOpenSync.mockReturnValue(3 as any);
-
+    it("should NOT trigger installation when autoupdate config is not set (defaults to disabled)", async () => {
       // Mock getInstalledVersion to return current version
       const { getInstalledVersion } = await import("@/cli/version.js");
       const mockGetInstalledVersion = vi.mocked(getInstalledVersion);
@@ -1093,15 +1094,9 @@ describe("autoupdate", () => {
       const mockExecSync = vi.mocked(execSync);
       mockExecSync.mockReturnValue("14.2.0\n");
 
-      // Mock spawn to capture the installation call
       const mockSpawn = vi.mocked(spawn);
-      const mockChild = {
-        unref: vi.fn(),
-        on: vi.fn(),
-      };
-      mockSpawn.mockReturnValue(mockChild as any);
 
-      // Mock loadConfig WITHOUT autoupdate field (should default to enabled)
+      // Mock loadConfig WITHOUT autoupdate field (should default to disabled)
       const { loadConfig } = await import("@/cli/config.js");
       const mockLoadConfig = vi.mocked(loadConfig);
       mockLoadConfig.mockResolvedValue({
@@ -1122,18 +1117,19 @@ describe("autoupdate", () => {
       const autoupdate = await import("./autoupdate.js");
       await autoupdate.main();
 
-      // Verify spawn WAS called with shell command (defaults to enabled)
-      expect(mockSpawn).toHaveBeenCalledWith(
-        "sh",
-        ["-c", expect.stringContaining("npm install -g nori-ai@14.2.0")],
-        {
-          detached: true,
-          stdio: ["ignore", 3, 3],
-        },
-      );
-      // Also verify the command includes running nori-ai install
-      const spawnCall = mockSpawn.mock.calls[0];
-      expect(spawnCall[1][1]).toContain("nori-ai install --non-interactive");
+      // Verify version check happened
+      expect(mockExecSync).toHaveBeenCalled();
+
+      // Verify spawn was NOT called (autoupdate defaults to disabled)
+      expect(mockSpawn).not.toHaveBeenCalled();
+
+      // Verify user was notified about available update
+      expect(consoleLogSpy).toHaveBeenCalled();
+      const logOutput = consoleLogSpy.mock.calls[0][0];
+      const parsed = JSON.parse(logOutput);
+      expect(parsed.systemMessage).toContain("14.2.0"); // new version
+      expect(parsed.systemMessage).toContain("14.1.0"); // current version
+      expect(parsed.systemMessage).toContain("Autoupdate is disabled");
 
       consoleLogSpy.mockRestore();
     });

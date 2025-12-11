@@ -205,11 +205,11 @@ export const loadConfig = async (args: {
         result.sendSessionTranscript = "enabled"; // Default value
       }
 
-      // Check if autoupdate exists, default to 'enabled'
+      // Check if autoupdate exists, default to 'disabled'
       if (config.autoupdate === "enabled" || config.autoupdate === "disabled") {
         result.autoupdate = config.autoupdate;
       } else {
-        result.autoupdate = "enabled"; // Default value
+        result.autoupdate = "disabled"; // Default value
       }
 
       // Check if registryAuths exists and is valid array

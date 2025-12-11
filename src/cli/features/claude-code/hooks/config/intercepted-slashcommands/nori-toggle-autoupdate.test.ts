@@ -89,16 +89,16 @@ describe("nori-toggle-autoupdate", () => {
   });
 
   describe("toggling behavior", () => {
-    it("should add disabled when field does not exist (since default is enabled)", async () => {
+    it("should add enabled when field does not exist (since default is disabled)", async () => {
       const input = createInput({ prompt: "/nori-toggle-autoupdate" });
       const result = await noriToggleAutoupdate.run({ input });
 
       expect(result).not.toBeNull();
       expect(result!.decision).toBe("block");
-      expect(result!.reason).toContain("DISABLED");
+      expect(result!.reason).toContain("ENABLED");
 
       const updatedConfig = JSON.parse(await fs.readFile(configPath, "utf-8"));
-      expect(updatedConfig.autoupdate).toBe("disabled");
+      expect(updatedConfig.autoupdate).toBe("enabled");
     });
 
     it("should toggle from enabled to disabled", async () => {
@@ -201,11 +201,11 @@ describe("nori-toggle-autoupdate", () => {
 
       expect(result).not.toBeNull();
       expect(result!.decision).toBe("block");
-      expect(result!.reason).toContain("DISABLED");
+      expect(result!.reason).toContain("ENABLED");
 
-      // Config should have autoupdate field added
+      // Config should have autoupdate field added (toggled from default disabled to enabled)
       const updatedConfig = JSON.parse(await fs.readFile(configPath, "utf-8"));
-      expect(updatedConfig.autoupdate).toBe("disabled");
+      expect(updatedConfig.autoupdate).toBe("enabled");
       expect(updatedConfig.profile.baseProfile).toBe("senior-swe");
     });
   });
