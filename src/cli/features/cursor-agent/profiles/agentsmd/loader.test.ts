@@ -58,7 +58,7 @@ describe("cursor-agent agentsmd loader", () => {
 
       await agentsMdLoader.install({ config });
 
-      const agentsMdPath = path.join(testInstallDir, ".cursor", "AGENTS.md");
+      const agentsMdPath = path.join(testInstallDir, "AGENTS.md");
       await expect(fs.access(agentsMdPath)).resolves.toBeUndefined();
     });
 
@@ -67,7 +67,7 @@ describe("cursor-agent agentsmd loader", () => {
 
       await agentsMdLoader.install({ config });
 
-      const agentsMdPath = path.join(testInstallDir, ".cursor", "AGENTS.md");
+      const agentsMdPath = path.join(testInstallDir, "AGENTS.md");
       const content = await fs.readFile(agentsMdPath, "utf-8");
 
       expect(content).toContain("# BEGIN NORI-AI MANAGED BLOCK");
@@ -79,7 +79,7 @@ describe("cursor-agent agentsmd loader", () => {
 
       await agentsMdLoader.install({ config });
 
-      const agentsMdPath = path.join(testInstallDir, ".cursor", "AGENTS.md");
+      const agentsMdPath = path.join(testInstallDir, "AGENTS.md");
       const content = await fs.readFile(agentsMdPath, "utf-8");
 
       expect(content).toContain("Amol Profile");
@@ -89,16 +89,14 @@ describe("cursor-agent agentsmd loader", () => {
       const config = createConfig();
 
       // Create pre-existing AGENTS.md with user content
-      const cursorDir = path.join(testInstallDir, ".cursor");
-      await fs.mkdir(cursorDir, { recursive: true });
       await fs.writeFile(
-        path.join(cursorDir, "AGENTS.md"),
+        path.join(testInstallDir, "AGENTS.md"),
         "# My Custom Content\n\nThis should be preserved.\n",
       );
 
       await agentsMdLoader.install({ config });
 
-      const agentsMdPath = path.join(testInstallDir, ".cursor", "AGENTS.md");
+      const agentsMdPath = path.join(testInstallDir, "AGENTS.md");
       const content = await fs.readFile(agentsMdPath, "utf-8");
 
       expect(content).toContain("My Custom Content");
@@ -127,7 +125,7 @@ describe("cursor-agent agentsmd loader", () => {
       // Reinstall
       await agentsMdLoader.install({ config });
 
-      const agentsMdPath = path.join(testInstallDir, ".cursor", "AGENTS.md");
+      const agentsMdPath = path.join(testInstallDir, "AGENTS.md");
       const content = await fs.readFile(agentsMdPath, "utf-8");
 
       expect(content).toContain("Updated Amol Profile");
@@ -149,7 +147,7 @@ describe("cursor-agent agentsmd loader", () => {
       // Then uninstall
       await agentsMdLoader.uninstall({ config });
 
-      const agentsMdPath = path.join(testInstallDir, ".cursor", "AGENTS.md");
+      const agentsMdPath = path.join(testInstallDir, "AGENTS.md");
 
       // File should either not exist or not contain managed block
       try {
@@ -165,10 +163,8 @@ describe("cursor-agent agentsmd loader", () => {
       const config = createConfig();
 
       // Create pre-existing AGENTS.md with user content
-      const cursorDir = path.join(testInstallDir, ".cursor");
-      await fs.mkdir(cursorDir, { recursive: true });
       await fs.writeFile(
-        path.join(cursorDir, "AGENTS.md"),
+        path.join(testInstallDir, "AGENTS.md"),
         "# My Custom Content\n\nThis should be preserved.\n",
       );
 
@@ -178,7 +174,7 @@ describe("cursor-agent agentsmd loader", () => {
       // Uninstall (removes managed block)
       await agentsMdLoader.uninstall({ config });
 
-      const agentsMdPath = path.join(testInstallDir, ".cursor", "AGENTS.md");
+      const agentsMdPath = path.join(testInstallDir, "AGENTS.md");
       const content = await fs.readFile(agentsMdPath, "utf-8");
 
       expect(content).toContain("My Custom Content");
@@ -208,10 +204,8 @@ describe("cursor-agent agentsmd loader", () => {
       const config = createConfig();
 
       // Create AGENTS.md without managed block
-      const cursorDir = path.join(testInstallDir, ".cursor");
-      await fs.mkdir(cursorDir, { recursive: true });
       await fs.writeFile(
-        path.join(cursorDir, "AGENTS.md"),
+        path.join(testInstallDir, "AGENTS.md"),
         "# Some content without managed block",
       );
 

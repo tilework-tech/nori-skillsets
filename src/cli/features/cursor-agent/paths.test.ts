@@ -39,9 +39,9 @@ describe("cursor-agent paths", () => {
   });
 
   describe("getCursorAgentsMdFile", () => {
-    test("returns AGENTS.md file path under .cursor", () => {
+    test("returns AGENTS.md file path at installDir root", () => {
       const result = getCursorAgentsMdFile({ installDir: "/home/user" });
-      expect(result).toBe("/home/user/.cursor/AGENTS.md");
+      expect(result).toBe("/home/user/AGENTS.md");
     });
   });
 });

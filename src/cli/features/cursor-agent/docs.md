@@ -48,7 +48,7 @@ The AgentRegistry (@/src/cli/features/agentRegistry.ts) registers this agent alo
 
 **rulesLoader** (profiles/rules/loader.ts): Copies rule files from the selected profile's `rules/` directory to `~/.cursor/rules/`. Each rule is a directory containing `RULE.md`.
 
-**agentsMdLoader** (profiles/agentsmd/loader.ts): Manages the `~/.cursor/AGENTS.md` file using a managed block pattern (BEGIN/END NORI-AI MANAGED BLOCK). Reads AGENTS.md content from the selected profile and inserts/updates it within the managed block, preserving any user content outside the block.
+**agentsMdLoader** (profiles/agentsmd/loader.ts): Manages the `AGENTS.md` file at project root using a managed block pattern (BEGIN/END NORI-AI MANAGED BLOCK). Reads AGENTS.md content from the selected profile and inserts/updates it within the managed block, preserving any user content outside the block.
 
 ### Things to Know
 
@@ -59,7 +59,7 @@ The AgentRegistry (@/src/cli/features/agentRegistry.ts) registers this agent alo
 | `getCursorDir({ installDir })` | `{installDir}/.cursor` |
 | `getCursorProfilesDir({ installDir })` | `{installDir}/.cursor/profiles` |
 | `getCursorRulesDir({ installDir })` | `{installDir}/.cursor/rules` |
-| `getCursorAgentsMdFile({ installDir })` | `{installDir}/.cursor/AGENTS.md` |
+| `getCursorAgentsMdFile({ installDir })` | `{installDir}/AGENTS.md` |
 
 **Key differences from claude-code:**
 - Uses AGENTS.md instead of CLAUDE.md for instructions
