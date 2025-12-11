@@ -8,9 +8,7 @@
 
 import { execSync } from "child_process";
 import { writeFileSync, unlinkSync, existsSync } from "fs";
-import * as fs from "fs/promises";
 import * as path from "path";
-import { fileURLToPath } from "url";
 
 import { trackEvent } from "@/cli/analytics.js";
 import {
@@ -27,7 +25,6 @@ import {
   type Config,
 } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
-import { getClaudeProfilesDir } from "@/cli/features/claude-code/paths.js";
 import {
   error,
   success,
@@ -48,100 +45,39 @@ import { normalizeInstallDir, getInstallDirs } from "@/utils/path.js";
 
 import type { Command } from "commander";
 
-// Get directory of this installer file for profile loading
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Source profiles directory (in the package)
-// From src/cli/commands/install/ go up to src/cli/features/claude-code/profiles/config
-const SOURCE_PROFILES_DIR = path.join(
-  __dirname,
-  "..",
-  "..",
-  "features",
-  "claude-code",
-  "profiles",
-  "config",
-);
-
 /**
  * Get available profiles from both source and installed locations
  * Creates a superset of all available profiles
  *
  * @param args - Configuration arguments
  * @param args.installDir - Installation directory
- * @param args.agent - AI agent to use (defaults to claude-code)
+ * @param args.agent - AI agent implementation
  *
  * @returns Array of available profiles with names and descriptions
  */
 const getAvailableProfiles = async (args: {
   installDir: string;
-  agent?: string | null;
+  agent: ReturnType<typeof AgentRegistry.prototype.get>;
 }): Promise<Array<{ name: string; description: string }>> => {
-  const { installDir } = args;
-  // Note: agent parameter is currently unused but kept for future multi-agent support
+  const { installDir, agent } = args;
   const profilesMap = new Map<string, { name: string; description: string }>();
 
-  // Read from source profiles directory (available profiles in package)
-  const sourceEntries = await fs.readdir(SOURCE_PROFILES_DIR, {
-    withFileTypes: true,
-  });
-
-  for (const entry of sourceEntries) {
-    // Skip internal directories and non-directories
-    if (!entry.isDirectory() || entry.name.startsWith("_")) {
-      continue;
-    }
-
-    const profileJsonPath = path.join(
-      SOURCE_PROFILES_DIR,
-      entry.name,
-      "profile.json",
-    );
-
-    const content = await fs.readFile(profileJsonPath, "utf-8");
-    const profileData = JSON.parse(content);
-
-    profilesMap.set(entry.name, {
-      name: entry.name,
-      description: profileData.description || "No description available",
-    });
+  // Get profiles from package source directory
+  const sourceProfiles = await agent.listSourceProfiles();
+  for (const profile of sourceProfiles) {
+    profilesMap.set(profile.name, profile);
   }
 
-  // Read from installed profiles directory (already installed profiles)
-  // Note: This is Claude Code specific - for other agents, this would need to be generalized
-  try {
-    const installedProfilesDir = getClaudeProfilesDir({ installDir });
-    const installedEntries = await fs.readdir(installedProfilesDir, {
-      withFileTypes: true,
-    });
-
-    for (const entry of installedEntries) {
-      if (!entry.isDirectory()) {
-        continue;
-      }
-
-      const profileJsonPath = path.join(
-        installedProfilesDir,
-        entry.name,
-        "profile.json",
-      );
-
-      try {
-        const content = await fs.readFile(profileJsonPath, "utf-8");
-        const profileData = JSON.parse(content);
-
-        // Add to map (will override source if same name exists)
-        profilesMap.set(entry.name, {
-          name: entry.name,
-          description: profileData.description || "No description available",
-        });
-      } catch {
-        // Skip if can't read profile.json
-      }
+  // Get installed profiles (may include user-added profiles)
+  const installedProfileNames = await agent.listProfiles({ installDir });
+  for (const name of installedProfileNames) {
+    // Only add if not already in source profiles (source takes precedence for description)
+    if (!profilesMap.has(name)) {
+      profilesMap.set(name, {
+        name,
+        description: "User-installed profile",
+      });
     }
-  } catch {
-    // Installed profiles directory doesn't exist yet - that's fine
   }
 
   return Array.from(profilesMap.values());
@@ -154,14 +90,16 @@ const getAvailableProfiles = async (args: {
  * @param args - Configuration arguments
  * @param args.installDir - Installation directory
  * @param args.existingConfig - Existing configuration (if any)
+ * @param args.agent - AI agent implementation
  *
  * @returns Runtime configuration, or null if user cancels
  */
 export const generatePromptConfig = async (args: {
   installDir: string;
   existingConfig: Config | null;
+  agent: ReturnType<typeof AgentRegistry.prototype.get>;
 }): Promise<Config | null> => {
-  const { installDir, existingConfig } = args;
+  const { installDir, existingConfig, agent } = args;
 
   // Check if user wants to reuse existing config
   if (existingConfig?.auth) {
@@ -248,7 +186,7 @@ export const generatePromptConfig = async (args: {
   }
 
   // Get available profiles from both source and installed locations
-  const profiles = await getAvailableProfiles({ installDir });
+  const profiles = await getAvailableProfiles({ installDir, agent });
 
   if (profiles.length === 0) {
     error({ message: "No profiles found. This should not happen." });
@@ -407,6 +345,9 @@ export const interactive = async (args?: {
     info({ message: "First-time installation detected. No cleanup needed." });
   }
 
+  // Get the agent implementation
+  const agentImpl = AgentRegistry.getInstance().get({ name: agentName });
+
   // Display banner
   displayNoriBanner();
   console.log();
@@ -422,6 +363,7 @@ export const interactive = async (args?: {
   const config = await generatePromptConfig({
     installDir: normalizedInstallDir,
     existingConfig,
+    agent: agentImpl,
   });
 
   if (config == null) {
@@ -449,7 +391,6 @@ export const interactive = async (args?: {
   }
 
   // Run all loaders (including profiles)
-  const agentImpl = AgentRegistry.getInstance().get({ name: agentName });
   const registry = agentImpl.getLoaderRegistry();
   const loaders = registry.getAll();
 

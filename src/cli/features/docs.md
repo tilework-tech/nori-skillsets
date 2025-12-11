@@ -30,8 +30,13 @@ The `--agent` global CLI option (default: "claude-code") determines which agent 
 - `name`: Unique identifier (e.g., "claude-code")
 - `displayName`: Human-readable name (e.g., "Claude Code")
 - `getLoaderRegistry()`: Returns the agent's LoaderRegistry
-- `listProfiles({ installDir })`: Returns array of available profile names for this agent
+- `listProfiles({ installDir })`: Returns array of installed profile names from `~/.{agent}/profiles/`
+- `listSourceProfiles()`: Returns array of `SourceProfile` objects from the package's source directory (for install UI profile selection)
 - `switchProfile({ installDir, profileName })`: Validates profile exists and updates config
+
+**SourceProfile Type** (agentRegistry.ts):
+- `name`: Profile identifier (e.g., "senior-swe")
+- `description`: Human-readable description from profile.json
 
 **AgentRegistry** (agentRegistry.ts):
 - Singleton pattern with `getInstance()`
@@ -47,7 +52,11 @@ The AgentRegistry auto-registers all agents in its constructor. Currently claude
 
 Commands that use loaders should obtain them via the agent rather than importing LoaderRegistry directly. This ensures the correct agent's loaders are used when `--agent` is specified.
 
-Profile management is owned by the Agent interface. The `listProfiles` method scans the agent's profiles directory for valid profiles (directories containing the agent's instruction file). The `switchProfile` method validates the profile exists, updates the config, and logs success/restart messages. CLI commands add additional behavior on top (e.g., applying changes immediately via reinstall).
+Profile management is owned by the Agent interface. Two separate methods handle different profile use cases:
+- `listProfiles({ installDir })`: Scans the agent's installed profiles directory (`~/.{agent}/profiles/`) for valid profiles (directories containing the agent's instruction file). Used when switching profiles after installation.
+- `listSourceProfiles()`: Scans the package's source profiles directory (`profiles/config/`) and returns profiles with metadata. Used by the install command to present profile options to the user.
+
+The `switchProfile` method validates the profile exists, updates the config, and logs success/restart messages. CLI commands add additional behavior on top (e.g., applying changes immediately via reinstall).
 
 Agent implementations manage their own internal paths (config directories, instruction file names, etc.) without exposing them through the public interface. This keeps the abstraction clean and allows each agent to have different directory structures. For example, Claude Code's path helpers (getClaudeDir, getClaudeSkillsDir, etc.) live in @/src/cli/features/claude-code/paths.ts rather than in the CLI-level @/src/cli/env.ts. The env.ts file re-exports these functions for backward compatibility, but new code within agent directories should import from the agent's own paths module.
 

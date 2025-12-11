@@ -10,6 +10,14 @@ import type { LoaderRegistry } from "@/cli/features/claude-code/loaderRegistry.j
 import type { CursorLoaderRegistry } from "@/cli/features/cursor-agent/loaderRegistry.js";
 
 /**
+ * Profile metadata returned by listSourceProfiles
+ */
+export type SourceProfile = {
+  name: string;
+  description: string;
+};
+
+/**
  * Agent interface that each agent implementation must satisfy
  */
 export type Agent = {
@@ -19,8 +27,10 @@ export type Agent = {
   displayName: string;
   /** Get the LoaderRegistry for this agent */
   getLoaderRegistry: () => LoaderRegistry | CursorLoaderRegistry;
-  /** List available profiles for this agent */
+  /** List installed profiles for this agent (from ~/.{agent}/profiles/) */
   listProfiles: (args: { installDir: string }) => Promise<Array<string>>;
+  /** List profiles from package source directory (for install UI) */
+  listSourceProfiles: () => Promise<Array<SourceProfile>>;
   /** Switch to a profile (validates and updates config) */
   switchProfile: (args: {
     installDir: string;
