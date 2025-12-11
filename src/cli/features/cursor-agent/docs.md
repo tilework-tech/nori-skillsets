@@ -94,6 +94,17 @@ The AgentRegistry (@/src/cli/features/agentRegistry.ts) registers this agent alo
 - `profile.json`: Profile metadata with `mixins` field specifying which mixins to compose
 - `rules/`: Directory containing rule subdirectories, each with a RULE.md (typically inherited from mixins)
 
+**Available profiles:** cursor-agent provides four profiles that mirror claude-code profiles (minus documenter):
+
+| Profile | Mixins | Description |
+|---------|--------|-------------|
+| amol | base, swe | Opinionated workflow with TDD, structured planning, rule-based guidance |
+| senior-swe | base, swe | Dual-mode: "copilot" (interactive) or "full-send" (autonomous) |
+| product-manager | base, swe | High technical autonomy, product-focused questions, auto-creates PRs |
+| none | base | Minimal infrastructure only, no behavioral modifications |
+
+The documenter profile is not available because it relies on docs-specific features (updating-noridocs skill) that use SKILL.md files.
+
 **Mixin content:**
 - `_base` mixin: Contains `using-rules` rule for rule usage guidance
 - `_swe` mixin: Contains software engineering rules mirroring claude-code skills (test-driven-development, systematic-debugging, brainstorming, etc.)

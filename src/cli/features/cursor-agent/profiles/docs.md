@@ -99,18 +99,38 @@ profiles/
           test-driven-development/
           systematic-debugging/
           brainstorming/
-          ... (13 rules total)
+          ...
     amol/
-      AGENTS.md        # Required for profile recognition
+      AGENTS.md        # Full workflow instructions (base+swe)
       profile.json     # {"name": "amol", "mixins": {"base": {}, "swe": {}}}
+    senior-swe/
+      AGENTS.md        # Dual-mode: copilot (interactive) or full-send (autonomous)
+      profile.json     # {"name": "senior-swe", "mixins": {"base": {}, "swe": {}}}
+    product-manager/
+      AGENTS.md        # PM-focused: technical autonomy, product questions
+      profile.json     # {"name": "product-manager", "mixins": {"base": {}, "swe": {}}}
+    none/
+      AGENTS.md        # Minimal (empty/nearly-empty)
+      profile.json     # {"name": "none", "mixins": {"base": {}}} (base only)
   agentsmd/            # AGENTS.md loader
   rules/
     loader.ts          # Copies rules to ~/.cursor/rules/
-    rules.test.ts      # Validates YAML frontmatter (description, alwaysApply: false, no globs)
+    rules.test.ts      # Validates YAML frontmatter and profile structure
   loader.ts            # Profile composition and installation
   loader.test.ts       # Tests for mixin composition
   metadata.ts          # ProfileMetadata type and reader
   profileLoaderRegistry.ts  # Sub-loader registry
 ```
+
+### Available Profiles
+
+| Profile | Mixins | Description |
+|---------|--------|-------------|
+| amol | base, swe | Opinionated workflow with TDD, structured planning, rule-based guidance |
+| senior-swe | base, swe | Dual-mode: "copilot" (interactive pair programming) or "full-send" (autonomous) |
+| product-manager | base, swe | High technical autonomy, product-focused questions, auto-creates PRs |
+| none | base | Minimal infrastructure only, no behavioral modifications |
+
+**Note:** The documenter profile from claude-code is not available in cursor-agent because it relies on docs-specific features that use SKILL.md files.
 
 Created and maintained by Nori.

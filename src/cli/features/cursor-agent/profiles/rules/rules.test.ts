@@ -250,3 +250,131 @@ describe("cursor-agent rules content", () => {
     });
   });
 });
+
+describe("cursor-agent profiles content", () => {
+  const PROFILES_DIR = path.join(__dirname, "..", "config");
+
+  // All expected profiles (excluding documenter which relies on docs mixin)
+  const expectedProfiles = ["amol", "senior-swe", "product-manager", "none"];
+
+  describe("profile directories", () => {
+    test.each(expectedProfiles)(
+      "%s profile directory exists",
+      async (profileName) => {
+        const profileDir = path.join(PROFILES_DIR, profileName);
+        const exists = await fs
+          .access(profileDir)
+          .then(() => true)
+          .catch(() => false);
+        expect(exists).toBe(true);
+      },
+    );
+
+    test.each(expectedProfiles)(
+      "%s profile has AGENTS.md file",
+      async (profileName) => {
+        const agentsMdPath = path.join(PROFILES_DIR, profileName, "AGENTS.md");
+        const exists = await fs
+          .access(agentsMdPath)
+          .then(() => true)
+          .catch(() => false);
+        expect(exists).toBe(true);
+      },
+    );
+
+    test.each(expectedProfiles)(
+      "%s profile has profile.json file",
+      async (profileName) => {
+        const profileJsonPath = path.join(
+          PROFILES_DIR,
+          profileName,
+          "profile.json",
+        );
+        const exists = await fs
+          .access(profileJsonPath)
+          .then(() => true)
+          .catch(() => false);
+        expect(exists).toBe(true);
+      },
+    );
+  });
+
+  describe("profile.json content", () => {
+    test.each(expectedProfiles)(
+      "%s profile.json has required fields",
+      async (profileName) => {
+        const profileJsonPath = path.join(
+          PROFILES_DIR,
+          profileName,
+          "profile.json",
+        );
+        const content = await fs.readFile(profileJsonPath, "utf-8");
+        const json = JSON.parse(content);
+
+        expect(json.name).toBe(profileName);
+        expect(json.description).toBeDefined();
+        expect(typeof json.description).toBe("string");
+        expect(json.description.length).toBeGreaterThan(0);
+        expect(json.builtin).toBe(true);
+        expect(json.mixins).toBeDefined();
+        expect(typeof json.mixins).toBe("object");
+      },
+    );
+
+    test.each(expectedProfiles)(
+      "%s profile.json has base mixin",
+      async (profileName) => {
+        const profileJsonPath = path.join(
+          PROFILES_DIR,
+          profileName,
+          "profile.json",
+        );
+        const content = await fs.readFile(profileJsonPath, "utf-8");
+        const json = JSON.parse(content);
+
+        expect(json.mixins.base).toBeDefined();
+      },
+    );
+  });
+
+  describe("AGENTS.md content", () => {
+    test.each(expectedProfiles)(
+      "%s AGENTS.md is not a placeholder (has substantial content)",
+      async (profileName) => {
+        const agentsMdPath = path.join(PROFILES_DIR, profileName, "AGENTS.md");
+        const content = await fs.readFile(agentsMdPath, "utf-8");
+        const lines = content.split("\n");
+
+        // All profiles except 'none' should have substantial content (>20 lines)
+        // 'none' is minimal but should still have some content
+        if (profileName === "none") {
+          expect(lines.length).toBeGreaterThan(0);
+        } else {
+          expect(lines.length).toBeGreaterThan(20);
+        }
+      },
+    );
+
+    test.each(expectedProfiles)(
+      "%s AGENTS.md uses {{rules_dir}} not {{skills_dir}}",
+      async (profileName) => {
+        const agentsMdPath = path.join(PROFILES_DIR, profileName, "AGENTS.md");
+        const content = await fs.readFile(agentsMdPath, "utf-8");
+
+        // Should not contain skills_dir
+        expect(content).not.toContain("{{skills_dir}}");
+      },
+    );
+
+    test.each(expectedProfiles)(
+      "%s AGENTS.md references RULE.md not SKILL.md",
+      async (profileName) => {
+        const agentsMdPath = path.join(PROFILES_DIR, profileName, "AGENTS.md");
+        const content = await fs.readFile(agentsMdPath, "utf-8");
+
+        // Should not reference SKILL.md
+        expect(content).not.toContain("SKILL.md");
+      },
+    );
+  });
+});
