@@ -7,7 +7,7 @@ alwaysApply: false
 
 ## Overview
 
-You CAN take screenshots by combining the Bash tool with platform-specific screenshot commands. Screenshots are saved as image files, then loaded into your context using the Read tool for visual analysis.
+You CAN take screenshots by combining `run_terminal_cmd` with platform-specific screenshot commands. Screenshots are saved as image files, then loaded into your context using `read_file` for visual analysis.
 
 ## When to Use
 
@@ -31,7 +31,7 @@ Use this rule when I ask you to:
 1. Detect platform with `uname -s`
 2. Check for available screenshot tool
 3. Capture to `/tmp/screenshot_$(date +%s).png`
-4. Use Read tool with the file path
+4. Use `read_file` with the file path
 5. Analyze the image
 6. Optionally clean up temp file
 
@@ -103,10 +103,10 @@ import /tmp/screenshot_$(date +%s).png
 ### 4. Load Image into Context
 
 ```bash
-Read tool: file_path="/tmp/screenshot_12345.png"
+`read_file`: file_path="/tmp/screenshot_12345.png"
 ```
 
-The Read tool displays images visually. You'll see the screenshot and can analyze it.
+The `read_file` tool displays images visually. You'll see the screenshot and can analyze it.
 
 ### 5. Analyze the Image
 
@@ -144,15 +144,15 @@ If no screenshot tool is available on Linux:
 
 ### ❌ Saying "I cannot take screenshots"
 
-**Reality**: You CAN via Bash + screenshot CLI tools
+**Reality**: You CAN via `run_terminal_cmd` + screenshot CLI tools
 
-### ❌ Forgetting to use Read tool after capture
+### ❌ Forgetting to use `read_file` after capture
 
-**Reality**: The screenshot file must be loaded with Read tool to see it
+**Reality**: The screenshot file must be loaded with `read_file` to see it
 
 ### ❌ Using relative paths
 
-**Reality**: Always use absolute paths (`/tmp/...`) for Read tool
+**Reality**: Always use absolute paths (`/tmp/...`) for `read_file`
 
 ### ❌ Not checking for available tools on Linux
 

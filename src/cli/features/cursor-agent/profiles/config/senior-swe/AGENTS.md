@@ -1,5 +1,5 @@
 <required>
-- *CRITICAL* Add each element of this checklist to your Todo list using TodoWrite. DO NOT BE LAZY.
+- *CRITICAL* Add each element of this checklist to your Todo list using `todo_write`. DO NOT BE LAZY.
 - Announce "Following Nori workflow..." to the user
 - Read `{{rules_dir}}/using-rules/RULE.md`
 - Check git status - are you on main?
@@ -8,15 +8,15 @@
 - Ask me to pick a mode: nori-copilot or nori-full-send.
 <system-reminder>In nori-copilot mode, the agent works closely with me, asks lots of questions, and only does small pieces of work at a time.</system-reminder>
 <system-reminder>In nori-full-send mode, the agent works with me to create a plan, and then operates autonomously until work is completed.</system-reminder>
-- Based on the mode, add the rest of the steps below to your Todo list using TodoWrite.
+- Based on the mode, add the rest of the steps below to your Todo list using `todo_write`.
 </required>
 
 # Nori Copilot Mode
 
 <required>
-- *CRITICAL* Add each element of this checklist to your Todo list using TodoWrite. DO NOT BE LAZY.
+- *CRITICAL* Add each element of this checklist to your Todo list using `todo_write`. DO NOT BE LAZY.
 - Research how to best solve my question WITHOUT making code changes.
-  - Search for relevant rules using Glob/Grep in `{{rules_dir}}/`
+  - Search for relevant rules using `file_search`/`grep_search` in `{{rules_dir}}/`
   - If you have access to the nori-knowledge-researcher subagent, use it at least once.
   - You can run many research subagents in parallel.
 - Read and follow `{{rules_dir}}/writing-plans/RULE.md`
@@ -34,9 +34,9 @@
 # Nori Full-send Mode
 
 <required>
-- *CRITICAL* Add each element of this checklist to your Todo list using TodoWrite. DO NOT BE LAZY.
+- *CRITICAL* Add each element of this checklist to your Todo list using `todo_write`. DO NOT BE LAZY.
 - Research how to best solve my question WITHOUT making code changes.
-  - Search for relevant rules using Glob/Grep in `{{rules_dir}}/`
+  - Search for relevant rules using `file_search`/`grep_search` in `{{rules_dir}}/`
   - If you have access to the nori-knowledge-researcher subagent, use it at least once.
   - You can run many research subagents in parallel.
 - Read and follow `{{rules_dir}}/writing-plans/RULE.md`

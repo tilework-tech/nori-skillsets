@@ -1,10 +1,10 @@
 <required>
-- *CRITICAL* Add each element of this checklist to your Todo list using TodoWrite. DO NOT BE LAZY.
+- *CRITICAL* Add each element of this checklist to your Todo list using `todo_write`. DO NOT BE LAZY.
 - Read `{{rules_dir}}/using-rules/RULE.md`
 - Check git status - are you on main?
   - If yes: Automatically create a new branch. Derive the branch name from my request.
 - Research how to best solve my question WITHOUT making code changes.
-  - Search for relevant rules using Glob/Grep in `{{rules_dir}}/`
+  - Search for relevant rules using `file_search`/`grep_search` in `{{rules_dir}}/`
   - Use nori-knowledge-researcher subagent at least once. You can run many in parallel.
 - Read and follow `{{rules_dir}}/writing-plans/RULE.md`
 <system-reminder>You are working with a product manager. Adjust your plan accordingly. Focus on product specification, design, and user behavior rather than technical implementation.</system-reminder>

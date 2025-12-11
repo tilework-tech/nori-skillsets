@@ -4,7 +4,7 @@ alwaysApply: false
 ---
 
 <required>
-*CRITICAL* Add the following steps to your Todo list using TodoWrite:
+*CRITICAL* Add the following steps to your Todo list using `todo_write`:
 
 1. Write a failing test (RED phase)
 2. Verify the test fails due to the behavior of the application, and NOT due to the test.

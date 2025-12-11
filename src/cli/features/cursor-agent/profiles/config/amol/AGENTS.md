@@ -1,5 +1,5 @@
 <required>
-- *CRITICAL* Add each element of this checklist to your Todo list using TodoWrite. The last element should be 'Finish development with final checks...' DO NOT BE LAZY.
+- *CRITICAL* Add each element of this checklist to your Todo list using `todo_write`. The last element should be 'Finish development with final checks...' DO NOT BE LAZY.
 - Announce "Following Nori workflow..." to the user
 <system-reminder>Do not skip any steps. Do not rationalize. Do not avoid reading rules. Even if you think you know what is in them, you MUST read the rule files.</system-reminder>
 - Read `{{rules_dir}}/using-rules/RULE.md`
@@ -7,7 +7,7 @@
   - If yes: Read and follow `{{rules_dir}}/using-git-worktrees/RULE.md` to automatically create a worktree. Derive the branch name from my request.
 <system-reminder>You are now in a new working directory. Do NOT leave this directory.</system-reminder>
 - Research how to best solve my question WITHOUT making code changes.
-  - Search for relevant rules using Glob/Grep in `{{rules_dir}}/`
+  - Search for relevant rules using `file_search`/`grep_search` in `{{rules_dir}}/`
   - Use nori-knowledge-researcher subagent at least once. You can run many in parallel.
 - Read and follow `{{rules_dir}}/writing-plans/RULE.md`
 - Present plan to me and ask for feedback.

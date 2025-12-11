@@ -4,15 +4,15 @@ alwaysApply: false
 ---
 
 <required>
-*CRITICAL* Add the following steps to your Todo list using TodoWrite:
+*CRITICAL* Add the following steps to your Todo list using `todo_write`:
 
 1. Find the worktrees directory.
 
-- Check existing directories using the Bash tool: `ls -d .worktrees 2>/dev/null`
+- Check existing directories using `run_terminal_cmd`: `ls -d .worktrees 2>/dev/null`
 - If not found, ask me for permission to create a .worktrees directory
 - If given permission, create `.worktrees`.
 
-2. Verify .gitignore before creating a worktree using the Bash tool:
+2. Verify .gitignore before creating a worktree using `run_terminal_cmd`:
 
 ```bash
 # Check if directory pattern in .gitignore
@@ -24,8 +24,8 @@ grep -q "^\.worktrees/$" .gitignore || grep -q "^worktrees/$" .gitignore
 3. Create the worktree
 
 - Come up with a good branch name based on the request.
-- Create the worktree with the Bash tool: `git worktree add ".worktrees/$BRANCH_NAME" -b "$BRANCH_NAME"
-- cd into the newly created path with the Bash tool: `cd $path`
+- Create the worktree with `run_terminal_cmd`: `git worktree add ".worktrees/$BRANCH_NAME" -b "$BRANCH_NAME"
+- cd into the newly created path with `run_terminal_cmd`: `cd $path`
 
 4. Auto-detect and run project setup.
 
@@ -68,7 +68,7 @@ Tests passing (<N> tests, 0 failures)
 All commands and tools will now refer to: <full-path>
 ```
 
-7. Understand that you are now in a new working directory. Your Bash tool instructions from here on out should refer to the worktree directory, NOT your original directory. This is ABSOLUTELY CRITICAL.
+7. Understand that you are now in a new working directory. Your `run_terminal_cmd` instructions from here on out should refer to the worktree directory, NOT your original directory. This is ABSOLUTELY CRITICAL.
 
 </required>
 

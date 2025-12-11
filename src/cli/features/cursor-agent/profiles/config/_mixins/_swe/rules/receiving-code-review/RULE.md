@@ -17,7 +17,7 @@ Code review requires technical evaluation, not emotional performance.
 
 ### Step 0: Create Todo List
 
-**For multi-item feedback, use TodoWrite:**
+**For multi-item feedback, use `todo_write`:**
 
 ```
 - [ ] Fetch and read all PR comments
@@ -132,7 +132,7 @@ Which would you like?"
 
 ## Quick Reference Checklist
 
-- [ ] Create TodoWrite for all feedback items
+- [ ] Create `todo_write` for all feedback items
 - [ ] Fetch PR comments (`gh pr view --comments`)
 - [ ] Clarify ALL unclear items before implementing ANY
 - [ ] Implement in order: blocking → simple → complex
@@ -180,7 +180,7 @@ Which would you like?"
 
 **Never:**
 
-- Skip creating TodoWrite for multi-item feedback
+- Skip creating `todo_write` for multi-item feedback
 - Implement without verifying against codebase
 - Proceed with unclear feedback
 - Skip tests/linting/formatting before pushing
