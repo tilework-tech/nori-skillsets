@@ -519,6 +519,26 @@ describe("install integration test", () => {
     expect(config.installedAgents).toHaveLength(2);
   });
 
+  it("should include agents field with agent-specific profile in config after installation", async () => {
+    const CONFIG_PATH = getConfigPath({ installDir: tempDir });
+
+    // STEP 1: Run installation in non-interactive mode (uses default profile senior-swe)
+    await installMain({ nonInteractive: true, installDir: tempDir });
+
+    // STEP 2: Verify agents field is set with agent-specific profile
+    const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
+
+    // The agents field should exist and contain the claude-code agent's profile
+    expect(config.agents).toBeDefined();
+    expect(config.agents["claude-code"]).toBeDefined();
+    expect(config.agents["claude-code"].profile).toEqual({
+      baseProfile: "senior-swe",
+    });
+
+    // Legacy profile field should also be set for backwards compatibility
+    expect(config.profile).toEqual({ baseProfile: "senior-swe" });
+  });
+
   it("should warn when ancestor directory has nori installation", async () => {
     // Setup: Create a parent directory with a nori installation
     const parentDir = path.join(tempDir, "parent");

@@ -126,11 +126,19 @@ export const generatePromptConfig = async (args: {
 
     if (useExisting.match(/^[Yy]$/)) {
       info({ message: "Using existing configuration..." });
+      const profile = existingConfig.profile ?? getDefaultProfile();
+      const existingInstalledAgents = existingConfig.installedAgents ?? [];
       return {
         ...existingConfig,
-        profile: existingConfig.profile ?? getDefaultProfile(),
+        profile,
+        agents: {
+          ...(existingConfig.agents ?? {}),
+          [agent.name]: { profile },
+        },
         installDir,
-        installedAgents: [agent.name],
+        installedAgents: existingInstalledAgents.includes(agent.name)
+          ? existingInstalledAgents
+          : [...existingInstalledAgents, agent.name],
       };
     }
 
@@ -242,14 +250,20 @@ export const generatePromptConfig = async (args: {
   });
 
   // Build config directly
+  const profile = { baseProfile: selectedProfileName };
+  const existingInstalledAgents = existingConfig?.installedAgents ?? [];
   return {
     auth: auth ?? null,
-    profile: {
-      baseProfile: selectedProfileName,
+    profile,
+    agents: {
+      ...(existingConfig?.agents ?? {}),
+      [agent.name]: { profile },
     },
     installDir,
     registryAuths: registryAuths ?? null,
-    installedAgents: [agent.name],
+    installedAgents: existingInstalledAgents.includes(agent.name)
+      ? existingInstalledAgents
+      : [...existingInstalledAgents, agent.name],
   };
 };
 
@@ -546,13 +560,25 @@ export const noninteractive = async (args?: {
     installDir: normalizedInstallDir,
   });
 
+  const existingInstalledAgents = existingConfig?.installedAgents ?? [];
   const config: Config = existingConfig
     ? {
         ...existingConfig,
-        installedAgents: [agentImpl.name],
+        agents: {
+          ...(existingConfig.agents ?? {}),
+          [agentImpl.name]: {
+            profile: existingConfig.profile ?? getDefaultProfile(),
+          },
+        },
+        installedAgents: existingInstalledAgents.includes(agentImpl.name)
+          ? existingInstalledAgents
+          : [...existingInstalledAgents, agentImpl.name],
       }
     : {
         profile: getDefaultProfile(),
+        agents: {
+          [agentImpl.name]: { profile: getDefaultProfile() },
+        },
         installDir: normalizedInstallDir,
         installedAgents: [agentImpl.name],
       };
