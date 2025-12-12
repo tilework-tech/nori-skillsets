@@ -37,10 +37,13 @@ import type { HookInput } from "./types.js";
 
 import { noriRegistryUpdate } from "./nori-registry-update.js";
 
-// ANSI color codes for verification
-const GREEN = "\x1b[0;32m";
-const RED = "\x1b[0;31m";
-const NC = "\x1b[0m"; // No Color / Reset
+// Unicode symbols for cursor-agent output (no ANSI codes)
+const SUCCESS_SYMBOL = "\u2713"; // ✓
+const ERROR_SYMBOL = "\u2717"; // ✗
+
+// ANSI pattern to verify output contains no escape codes
+// eslint-disable-next-line no-control-regex
+const ANSI_PATTERN = /\x1b\[[0-9;]*m/;
 
 /**
  * Strip ANSI escape codes from a string for plain text comparison
@@ -496,8 +499,8 @@ describe("nori-registry-update", () => {
     });
   });
 
-  describe("ANSI color formatting", () => {
-    it("should format successful update with green color codes", async () => {
+  describe("output formatting (no ANSI codes)", () => {
+    it("should format successful update with success symbol and no ANSI codes", async () => {
       const profileDir = path.join(profilesDir, "test-profile");
       await fs.mkdir(profileDir, { recursive: true });
       await fs.writeFile(
@@ -531,11 +534,11 @@ describe("nori-registry-update", () => {
       const result = await noriRegistryUpdate.run({ input });
 
       expect(result).not.toBeNull();
-      expect(result!.reason).toContain(GREEN);
-      expect(result!.reason).toContain(NC);
+      expect(result!.reason).toContain(SUCCESS_SYMBOL);
+      expect(result!.reason).not.toMatch(ANSI_PATTERN);
     });
 
-    it("should format no installation error with red color codes", async () => {
+    it("should format no installation error with error symbol and no ANSI codes", async () => {
       const noInstallDir = await fs.mkdtemp(
         path.join(tmpdir(), "nori-update-no-install-"),
       );
@@ -548,14 +551,14 @@ describe("nori-registry-update", () => {
         const result = await noriRegistryUpdate.run({ input });
 
         expect(result).not.toBeNull();
-        expect(result!.reason).toContain(RED);
-        expect(result!.reason).toContain(NC);
+        expect(result!.reason).toContain(ERROR_SYMBOL);
+        expect(result!.reason).not.toMatch(ANSI_PATTERN);
       } finally {
         await fs.rm(noInstallDir, { recursive: true, force: true });
       }
     });
 
-    it("should format already at latest with green color codes", async () => {
+    it("should format already at latest with success symbol and no ANSI codes", async () => {
       const profileDir = path.join(profilesDir, "test-profile");
       await fs.mkdir(profileDir, { recursive: true });
       await fs.writeFile(
@@ -586,8 +589,8 @@ describe("nori-registry-update", () => {
       const result = await noriRegistryUpdate.run({ input });
 
       expect(result).not.toBeNull();
-      expect(result!.reason).toContain(GREEN);
-      expect(result!.reason).toContain(NC);
+      expect(result!.reason).toContain(SUCCESS_SYMBOL);
+      expect(result!.reason).not.toMatch(ANSI_PATTERN);
     });
   });
 

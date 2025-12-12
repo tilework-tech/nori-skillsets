@@ -29,17 +29,22 @@ import type { HookInput } from "./types.js";
 
 import { noriRegistrySearch } from "./nori-registry-search.js";
 
-// ANSI color codes for verification
-const GREEN = "\x1b[0;32m";
-const RED = "\x1b[0;31m";
-const NC = "\x1b[0m"; // No Color / Reset
+// Unicode symbols for cursor-agent output (no ANSI codes)
+const SUCCESS_SYMBOL = "\u2713"; // ✓
+const ERROR_SYMBOL = "\u2717"; // ✗
+
+// ANSI pattern to verify output contains no escape codes
+// eslint-disable-next-line no-control-regex
+const ANSI_PATTERN = /\x1b\[[0-9;]*m/;
 
 /**
  * Strip ANSI escape codes from a string for plain text comparison
+ * Note: cursor-agent output no longer contains ANSI codes, but this
+ * function is kept for backwards compatibility with existing tests.
  *
- * @param str - The string containing ANSI codes
+ * @param str - The string to process
  *
- * @returns The string with ANSI codes removed
+ * @returns The string with any ANSI codes removed
  */
 const stripAnsi = (str: string): string => {
   // eslint-disable-next-line no-control-regex
@@ -250,8 +255,8 @@ describe("nori-registry-search", () => {
     });
   });
 
-  describe("ANSI color formatting", () => {
-    it("should format success results with green color codes", async () => {
+  describe("output formatting (no ANSI codes)", () => {
+    it("should format success results with success symbol and no ANSI codes", async () => {
       const mockPackages = [
         {
           id: "pkg-1",
@@ -273,11 +278,11 @@ describe("nori-registry-search", () => {
       const result = await noriRegistrySearch.run({ input });
 
       expect(result).not.toBeNull();
-      expect(result!.reason).toContain(GREEN);
-      expect(result!.reason).toContain(NC);
+      expect(result!.reason).toContain(SUCCESS_SYMBOL);
+      expect(result!.reason).not.toMatch(ANSI_PATTERN);
     });
 
-    it("should format no results message with green color codes", async () => {
+    it("should format no results message with success symbol and no ANSI codes", async () => {
       vi.mocked(registrarApi.searchPackagesOnRegistry).mockResolvedValue([]);
 
       const input = createInput({
@@ -286,11 +291,11 @@ describe("nori-registry-search", () => {
       const result = await noriRegistrySearch.run({ input });
 
       expect(result).not.toBeNull();
-      expect(result!.reason).toContain(GREEN);
-      expect(result!.reason).toContain(NC);
+      expect(result!.reason).toContain(SUCCESS_SYMBOL);
+      expect(result!.reason).not.toMatch(ANSI_PATTERN);
     });
 
-    it("should format error messages with red color codes", async () => {
+    it("should format error messages with error symbol and no ANSI codes", async () => {
       vi.mocked(registrarApi.searchPackagesOnRegistry).mockRejectedValue(
         new Error("Network error"),
       );
@@ -301,11 +306,11 @@ describe("nori-registry-search", () => {
       const result = await noriRegistrySearch.run({ input });
 
       expect(result).not.toBeNull();
-      expect(result!.reason).toContain(RED);
-      expect(result!.reason).toContain(NC);
+      expect(result!.reason).toContain(ERROR_SYMBOL);
+      expect(result!.reason).not.toMatch(ANSI_PATTERN);
     });
 
-    it("should format no installation error with red color codes", async () => {
+    it("should format no installation error with error symbol and no ANSI codes", async () => {
       const noInstallDir = await fs.mkdtemp(
         path.join(tmpdir(), "nori-search-no-install-"),
       );
@@ -318,22 +323,22 @@ describe("nori-registry-search", () => {
         const result = await noriRegistrySearch.run({ input });
 
         expect(result).not.toBeNull();
-        expect(result!.reason).toContain(RED);
-        expect(result!.reason).toContain(NC);
+        expect(result!.reason).toContain(ERROR_SYMBOL);
+        expect(result!.reason).not.toMatch(ANSI_PATTERN);
       } finally {
         await fs.rm(noInstallDir, { recursive: true, force: true });
       }
     });
 
-    it("should format help message with green color codes", async () => {
+    it("should format help message with success symbol and no ANSI codes", async () => {
       const input = createInput({
         prompt: "/nori-registry-search",
       });
       const result = await noriRegistrySearch.run({ input });
 
       expect(result).not.toBeNull();
-      expect(result!.reason).toContain(GREEN);
-      expect(result!.reason).toContain(NC);
+      expect(result!.reason).toContain(SUCCESS_SYMBOL);
+      expect(result!.reason).not.toMatch(ANSI_PATTERN);
     });
   });
 

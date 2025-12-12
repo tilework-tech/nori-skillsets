@@ -113,10 +113,12 @@ hooks/
     ├── slash-command-intercept.ts  # Slash command interception (beforeSubmitPrompt event)
     └── intercepted-slashcommands/  # Command implementations
         ├── types.ts       # CursorHookInput/Output, HookInput/Output, InterceptedSlashCommand
-        ├── format.ts      # ANSI color formatting (formatSuccess, formatError)
+        ├── format.ts      # Plain text formatting with Unicode symbols (✓/✗)
         ├── registry.ts    # Array of InterceptedSlashCommand (first match wins)
         └── nori-switch-profile.ts  # Profile switching implementation
 ```
+
+**format.ts uses plain text (not ANSI codes):** Unlike claude-code which runs in a terminal and can use ANSI escape codes for colored output, cursor-agent's hook output is displayed in Cursor IDE's web-based chat UI which renders ANSI codes as raw escape sequences (e.g., `\u001b[0;32m`). Therefore, cursor-agent's format.ts uses Unicode symbols (✓ for success, ✗ for error) as visual prefixes instead of colors.
 
 The notify-hook.sh script is a cross-platform bash script supporting Linux (notify-send), macOS (osascript/terminal-notifier), and Windows (PowerShell). The slash-command-intercept.ts is a Node.js script that reads Cursor's hook input from stdin, matches against registered commands, and outputs Cursor's expected response format. Cursor's hooks.json format is `{ version: 1, hooks: { [event]: [{ command: "..." }] } }`. The loader identifies Nori hooks by checking if the command path contains "notify-hook.sh" or "slash-command-intercept.js".
 
