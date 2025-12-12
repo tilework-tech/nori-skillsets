@@ -70,14 +70,12 @@ If any verification fails, write to status file:
 
 ---
 
-## Step 3: Clone nori-profiles Repository and Build New Version
+## Step 3: Build New Version from Source
 
-Clone the nori-profiles repository and build it from source.
+The nori-profiles code is already present in the current working directory. Build it from source.
 
 ```bash
-cd /tmp
-git clone https://github.com/nori-ai/nori-profiles.git
-cd nori-profiles
+pwd  # Should show the nori-profiles repository root
 npm install
 npm run build
 ```
@@ -107,7 +105,6 @@ If build fails, write to status file:
 Install the newly built version, which should trigger an upgrade flow.
 
 ```bash
-cd /tmp/nori-profiles
 node build/src/cli/cli.js install --agent=claude-code --profile=senior-swe
 ```
 
@@ -184,10 +181,11 @@ If profile switch failed, write to status file:
 
 ## Step 6: Create Alias for New CLI
 
-Create an alias so we can use the newly built CLI as `nori-ai`.
+Create an alias so we can use the newly built CLI as `nori-ai`. Get the current working directory first.
 
 ```bash
-alias nori-ai='node /tmp/nori-profiles/build/src/cli/cli.js'
+REPO_ROOT=$(pwd)
+alias nori-ai="node ${REPO_ROOT}/build/src/cli/cli.js"
 ```
 
 **Verify alias works:**
@@ -196,7 +194,7 @@ nori-ai --version
 ```
 
 Expected output:
-- Version should match the version in `/tmp/nori-profiles/package.json`
+- Version should match the version in `package.json` in the current directory
 
 If alias doesn't work, write to status file:
 ```json
@@ -409,7 +407,6 @@ Clean up the test environment.
 ```bash
 cd /tmp
 rm -rf test-project-1
-rm -rf nori-profiles
 
 # Optionally uninstall claude-code too
 cd ~
