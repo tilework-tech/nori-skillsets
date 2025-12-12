@@ -19,6 +19,14 @@ Commands that interact with agent-specific features (install, uninstall, check, 
 - If multiple agents installed (interactive mode): prompt user to select from numbered list
 - If multiple agents installed (non-interactive mode): throw error with helpful message listing installed agents
 
+**switch-profile Confirmation:** After agent resolution, the switch-profile command prompts the user to confirm before proceeding. The `confirmSwitchProfile()` function displays:
+- Install directory being operated on
+- Agent display name and ID (e.g., "Claude Code (claude-code)")
+- Current profile (read from agent-specific config or legacy format, or "(none)" if not set)
+- New profile being switched to
+
+The user must enter "y" or "Y" to proceed; any other input cancels the operation. In non-interactive mode (`--non-interactive`), confirmation is skipped to allow automated/scripted usage.
+
 The uninstall command uses two agent methods for global features:
 - `agent.getGlobalFeatureNames()`: Human-readable names for displaying in prompts (e.g., "hooks, statusline, and global slash commands")
 - `agent.getGlobalLoaderNames()`: Loader names for determining which loaders to skip when preserving global settings (e.g., `["hooks", "statusline", "slashcommands"]`)

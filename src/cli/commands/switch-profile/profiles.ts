@@ -3,7 +3,7 @@
  * Handles profile listing, loading, and switching
  */
 
-import { loadConfig } from "@/cli/config.js";
+import { loadConfig, getAgentProfile } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { error, info } from "@/cli/logger.js";
 import { promptUser } from "@/cli/prompt.js";
@@ -73,6 +73,53 @@ const resolveAgent = async (args: {
 };
 
 /**
+ * Prompt user to confirm profile switch
+ * @param args - Configuration arguments
+ * @param args.installDir - Installation directory
+ * @param args.profileName - New profile name to switch to
+ * @param args.agentName - Agent name
+ * @param args.nonInteractive - Whether running in non-interactive mode
+ *
+ * @returns True if user confirms, false otherwise
+ */
+const confirmSwitchProfile = async (args: {
+  installDir: string;
+  profileName: string;
+  agentName: string;
+  nonInteractive: boolean;
+}): Promise<boolean> => {
+  const { installDir, profileName, agentName, nonInteractive } = args;
+
+  // Skip confirmation in non-interactive mode
+  if (nonInteractive) {
+    return true;
+  }
+
+  // Load config to get current profile
+  const config = await loadConfig({ installDir });
+  const agentProfile =
+    config != null ? getAgentProfile({ config, agentName }) : null;
+  const currentProfile = agentProfile?.baseProfile ?? "(none)";
+
+  // Get agent display info
+  const agent = AgentRegistry.getInstance().get({ name: agentName });
+
+  // Display confirmation info
+  info({ message: "\nSwitching profile configuration:" });
+  info({ message: `  Install directory: ${installDir}` });
+  info({ message: `  Agent: ${agent.displayName} (${agentName})` });
+  info({ message: `  Current profile: ${currentProfile}` });
+  info({ message: `  New profile: ${profileName}` });
+  console.log();
+
+  const proceed = await promptUser({
+    prompt: "Proceed with profile switch? (y/n): ",
+  });
+
+  return proceed.match(/^[Yy]$/) != null;
+};
+
+/**
  * Register the 'switch-profile' command with commander
  * @param args - Configuration arguments
  * @param args.program - Commander program instance
@@ -101,6 +148,19 @@ export const registerSwitchProfileCommand = (args: {
         options.agent ?? (await resolveAgent({ installDir, nonInteractive }));
 
       const agent = AgentRegistry.getInstance().get({ name: agentName });
+
+      // Confirm before proceeding
+      const confirmed = await confirmSwitchProfile({
+        installDir,
+        profileName: name,
+        agentName,
+        nonInteractive,
+      });
+
+      if (!confirmed) {
+        info({ message: "Profile switch cancelled." });
+        return;
+      }
 
       try {
         // Delegate to agent's switchProfile method
