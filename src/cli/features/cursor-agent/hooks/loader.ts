@@ -45,6 +45,42 @@ const getNotifyHookScriptPath = (): string => {
 };
 
 /**
+ * Get the slash command intercept hook script path
+ *
+ * @returns Path to the slash-command-intercept.js script
+ */
+const getSlashCommandInterceptScriptPath = (): string => {
+  return path.join(HOOKS_CONFIG_DIR, "slash-command-intercept.js");
+};
+
+/**
+ * Get the autoupdate hook script path
+ *
+ * @returns Path to the autoupdate.js script
+ */
+const getAutoupdateScriptPath = (): string => {
+  return path.join(HOOKS_CONFIG_DIR, "autoupdate.js");
+};
+
+/**
+ * Get the nested-install-warning hook script path
+ *
+ * @returns Path to the nested-install-warning.js script
+ */
+const getNestedInstallWarningScriptPath = (): string => {
+  return path.join(HOOKS_CONFIG_DIR, "nested-install-warning.js");
+};
+
+/**
+ * Get the migration-instructions hook script path
+ *
+ * @returns Path to the migration-instructions.js script
+ */
+const getMigrationInstructionsScriptPath = (): string => {
+  return path.join(HOOKS_CONFIG_DIR, "migration-instructions.js");
+};
+
+/**
  * Check if a hook command is a nori notify hook
  *
  * @param args - Arguments
@@ -58,6 +94,62 @@ const isNoriNotifyHook = (args: { command: string }): boolean => {
 };
 
 /**
+ * Check if a hook command is a nori slash command intercept hook
+ *
+ * @param args - Arguments
+ * @param args.command - Hook command string
+ *
+ * @returns True if the command is a nori slash command intercept hook
+ */
+const isNoriSlashCommandInterceptHook = (args: {
+  command: string;
+}): boolean => {
+  const { command } = args;
+  return command.includes("slash-command-intercept.js");
+};
+
+/**
+ * Check if a hook command is a nori autoupdate hook
+ *
+ * @param args - Arguments
+ * @param args.command - Hook command string
+ *
+ * @returns True if the command is a nori autoupdate hook
+ */
+const isNoriAutoupdateHook = (args: { command: string }): boolean => {
+  const { command } = args;
+  return command.includes("autoupdate.js");
+};
+
+/**
+ * Check if a hook command is a nori nested-install-warning hook
+ *
+ * @param args - Arguments
+ * @param args.command - Hook command string
+ *
+ * @returns True if the command is a nori nested-install-warning hook
+ */
+const isNoriNestedInstallWarningHook = (args: { command: string }): boolean => {
+  const { command } = args;
+  return command.includes("nested-install-warning.js");
+};
+
+/**
+ * Check if a hook command is a nori migration-instructions hook
+ *
+ * @param args - Arguments
+ * @param args.command - Hook command string
+ *
+ * @returns True if the command is a nori migration-instructions hook
+ */
+const isNoriMigrationInstructionsHook = (args: {
+  command: string;
+}): boolean => {
+  const { command } = args;
+  return command.includes("migration-instructions.js");
+};
+
+/**
  * Configure hooks for Cursor IDE
  *
  * @param args - Configuration arguments
@@ -68,7 +160,7 @@ const configureHooks = async (args: { config: Config }): Promise<void> => {
   const cursorDir = getCursorDir({ installDir: config.installDir });
   const hooksFile = getCursorHooksFile({ installDir: config.installDir });
 
-  info({ message: "Configuring Cursor hooks for desktop notifications..." });
+  info({ message: "Configuring Cursor hooks..." });
 
   // Create .cursor directory if it doesn't exist
   await fs.mkdir(cursorDir, { recursive: true });
@@ -91,10 +183,14 @@ const configureHooks = async (args: { config: Config }): Promise<void> => {
     // File doesn't exist or is invalid, use default
   }
 
-  // Get the notify hook script path
+  // Get hook script paths
   const notifyScriptPath = getNotifyHookScriptPath();
+  const slashCommandInterceptScriptPath = getSlashCommandInterceptScriptPath();
+  const autoupdateScriptPath = getAutoupdateScriptPath();
+  const nestedInstallWarningScriptPath = getNestedInstallWarningScriptPath();
+  const migrationInstructionsScriptPath = getMigrationInstructionsScriptPath();
 
-  // Initialize stop hooks array if not present
+  // === Configure stop hooks (desktop notifications) ===
   if (!hooksConfig.hooks.stop) {
     hooksConfig.hooks.stop = [];
   }
@@ -112,12 +208,72 @@ const configureHooks = async (args: { config: Config }): Promise<void> => {
     });
   }
 
+  // === Configure beforeSubmitPrompt hooks (slash command intercept) ===
+  if (!hooksConfig.hooks.beforeSubmitPrompt) {
+    hooksConfig.hooks.beforeSubmitPrompt = [];
+  }
+
+  // Check if slash command intercept hook already exists (avoid duplicates)
+  const hasExistingSlashCommandHook = hooksConfig.hooks.beforeSubmitPrompt.some(
+    (hook) => isNoriSlashCommandInterceptHook({ command: hook.command }),
+  );
+
+  if (!hasExistingSlashCommandHook) {
+    // Add slash command intercept hook for beforeSubmitPrompt event
+    // Pass NORI_INSTALL_DIR so the script knows where to find installation
+    hooksConfig.hooks.beforeSubmitPrompt.push({
+      command: `NORI_INSTALL_DIR="${config.installDir}" node ${slashCommandInterceptScriptPath}`,
+    });
+  }
+
+  // === Configure SessionStart-equivalent hooks (run on first prompt) ===
+  // Check if autoupdate hook already exists (avoid duplicates)
+  const hasExistingAutoupdateHook = hooksConfig.hooks.beforeSubmitPrompt.some(
+    (hook) => isNoriAutoupdateHook({ command: hook.command }),
+  );
+
+  if (!hasExistingAutoupdateHook) {
+    hooksConfig.hooks.beforeSubmitPrompt.push({
+      command: `NORI_INSTALL_DIR="${config.installDir}" node ${autoupdateScriptPath}`,
+    });
+  }
+
+  // Check if nested-install-warning hook already exists (avoid duplicates)
+  const hasExistingNestedWarningHook =
+    hooksConfig.hooks.beforeSubmitPrompt.some((hook) =>
+      isNoriNestedInstallWarningHook({ command: hook.command }),
+    );
+
+  if (!hasExistingNestedWarningHook) {
+    hooksConfig.hooks.beforeSubmitPrompt.push({
+      command: `NORI_INSTALL_DIR="${config.installDir}" node ${nestedInstallWarningScriptPath}`,
+    });
+  }
+
+  // Check if migration-instructions hook already exists (avoid duplicates)
+  const hasExistingMigrationHook = hooksConfig.hooks.beforeSubmitPrompt.some(
+    (hook) => isNoriMigrationInstructionsHook({ command: hook.command }),
+  );
+
+  if (!hasExistingMigrationHook) {
+    hooksConfig.hooks.beforeSubmitPrompt.push({
+      command: `NORI_INSTALL_DIR="${config.installDir}" node ${migrationInstructionsScriptPath}`,
+    });
+  }
+
   // Write hooks.json
   await fs.writeFile(hooksFile, JSON.stringify(hooksConfig, null, 2));
   success({ message: `✓ Hooks configured in ${hooksFile}` });
   info({
     message:
       "Desktop notifications will appear when Cursor agent completes (stop event)",
+  });
+  info({
+    message: "Slash command interception enabled (beforeSubmitPrompt event)",
+  });
+  info({
+    message:
+      "SessionStart hooks (autoupdate, warnings, migrations) enabled on first prompt",
   });
 };
 
@@ -153,6 +309,28 @@ const removeHooks = async (args: { config: Config }): Promise<void> => {
       // Clean up empty stop array
       if (hooksConfig.hooks.stop.length === 0) {
         delete hooksConfig.hooks.stop;
+      }
+    }
+
+    // Remove all nori hooks from beforeSubmitPrompt event
+    if (hooksConfig.hooks.beforeSubmitPrompt) {
+      const originalLength = hooksConfig.hooks.beforeSubmitPrompt.length;
+      hooksConfig.hooks.beforeSubmitPrompt =
+        hooksConfig.hooks.beforeSubmitPrompt.filter(
+          (hook) =>
+            !isNoriSlashCommandInterceptHook({ command: hook.command }) &&
+            !isNoriAutoupdateHook({ command: hook.command }) &&
+            !isNoriNestedInstallWarningHook({ command: hook.command }) &&
+            !isNoriMigrationInstructionsHook({ command: hook.command }),
+        );
+
+      if (hooksConfig.hooks.beforeSubmitPrompt.length !== originalLength) {
+        modified = true;
+      }
+
+      // Clean up empty beforeSubmitPrompt array
+      if (hooksConfig.hooks.beforeSubmitPrompt.length === 0) {
+        delete hooksConfig.hooks.beforeSubmitPrompt;
       }
     }
 
@@ -242,6 +420,42 @@ const validate = async (args: {
     };
   }
 
+  // Check if beforeSubmitPrompt hooks are configured
+  if (
+    !hooksConfig.hooks?.beforeSubmitPrompt ||
+    hooksConfig.hooks.beforeSubmitPrompt.length === 0
+  ) {
+    errors.push("No beforeSubmitPrompt hooks configured in hooks.json");
+    errors.push(
+      'Run "nori-ai install --agent cursor-agent" to configure hooks',
+    );
+    return {
+      valid: false,
+      message: "beforeSubmitPrompt hooks not configured",
+      errors,
+    };
+  }
+
+  // Check if slash-command-intercept hook is present
+  const hasSlashCommandInterceptHook =
+    hooksConfig.hooks.beforeSubmitPrompt.some((hook) =>
+      isNoriSlashCommandInterceptHook({ command: hook.command }),
+    );
+
+  if (!hasSlashCommandInterceptHook) {
+    errors.push(
+      "Missing slash-command-intercept hook in beforeSubmitPrompt event",
+    );
+    errors.push(
+      'Run "nori-ai install --agent cursor-agent" to configure hooks',
+    );
+    return {
+      valid: false,
+      message: "slash-command-intercept hook not configured",
+      errors,
+    };
+  }
+
   return {
     valid: true,
     message: "Hooks are properly configured",
@@ -254,7 +468,8 @@ const validate = async (args: {
  */
 export const hooksLoader: Loader = {
   name: "hooks",
-  description: "Configure Cursor hooks for desktop notifications",
+  description:
+    "Configure Cursor hooks for notifications, slash commands, and startup warnings",
   run: async (args: { config: Config }) => {
     await configureHooks(args);
   },
