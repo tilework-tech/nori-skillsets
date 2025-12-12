@@ -117,6 +117,7 @@ const installConfig = async (args: { config: Config }): Promise<void> => {
     refreshToken: tokenToSave,
     organizationUrl,
     profile: config.profile ?? null,
+    agents: config.agents ?? existingConfig?.agents ?? null,
     sendSessionTranscript,
     autoupdate: existingConfig?.autoupdate,
     registryAuths:

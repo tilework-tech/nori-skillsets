@@ -246,6 +246,66 @@ describe("configLoader", () => {
       expect(fileContents.installedAgents).toEqual(["claude-code"]);
     });
 
+    it("should save agents field to config file", async () => {
+      const config: Config = {
+        installDir: tempDir,
+        profile: { baseProfile: "senior-swe" },
+        agents: {
+          "cursor-agent": {
+            profile: { baseProfile: "none" },
+          },
+        },
+        installedAgents: ["cursor-agent"],
+      };
+
+      await configLoader.run({ config });
+
+      const configFile = getConfigPath({ installDir: tempDir });
+      const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
+      expect(fileContents.agents).toEqual({
+        "cursor-agent": {
+          profile: { baseProfile: "none" },
+        },
+      });
+    });
+
+    it("should preserve agents field from existing config when not provided in new config", async () => {
+      // Create existing config with agents field (e.g., from switchProfile)
+      const configFile = getConfigPath({ installDir: tempDir });
+      fs.writeFileSync(
+        configFile,
+        JSON.stringify({
+          installDir: tempDir,
+          profile: { baseProfile: "amol" },
+          agents: {
+            "cursor-agent": {
+              profile: { baseProfile: "none" },
+            },
+          },
+          installedAgents: ["cursor-agent"],
+        }),
+        "utf-8",
+      );
+
+      // Run configLoader with config that doesn't explicitly set agents
+      // (simulating what noninteractive install does after switchProfile)
+      const config: Config = {
+        installDir: tempDir,
+        profile: { baseProfile: "amol" },
+        installedAgents: ["cursor-agent"],
+      };
+
+      await configLoader.run({ config });
+
+      const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
+      // agents field should be preserved from existing config
+      expect(fileContents.agents).toEqual({
+        "cursor-agent": {
+          profile: { baseProfile: "none" },
+        },
+      });
+    });
+
     it("should convert password to refresh token when password is provided", async () => {
       const config: Config = {
         installDir: tempDir,
