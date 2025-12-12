@@ -1,5 +1,5 @@
 /**
- * Formatting utilities for intercepted slash command output
+ * Formatting utilities for cursor-agent intercepted slash command output
  */
 
 // ANSI color codes

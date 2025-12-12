@@ -98,10 +98,10 @@ describe("nori-registry-download", () => {
     return {
       prompt,
       cwd: cwd ?? testDir,
-      session_id: "test-session",
-      transcript_path: "",
-      permission_mode: "default",
-      hook_event_name: "UserPromptSubmit",
+      
+      
+      
+      hook_event_name: "beforeSubmitPrompt",
     };
   };
 
