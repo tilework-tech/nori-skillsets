@@ -44,7 +44,7 @@ cli.ts
 
 Commands use shared utilities from the parent @/src/cli/ directory:
 - `config.ts` - Config type and persistence (with per-agent profile support)
-- `logger.ts` - Console output formatting (error, success, info, warn)
+- `logger.ts` - Console output formatting (error, success, info, warn) with silent mode support via `setSilentMode()` and `isSilentMode()`
 - `prompt.ts` - User input prompting
 - `version.ts` - Version tracking for upgrades and CLI flag compatibility checking
 - `analytics.ts` - GA4 event tracking
@@ -85,9 +85,11 @@ export const registerXCommand = (args: { program: Command }): void => {
 ### Things to Know
 
 The `install/` directory contains command-specific utilities:
-- `asciiArt.ts` - ASCII banners displayed during installation
+- `asciiArt.ts` - ASCII banners displayed during installation. All display functions (displayNoriBanner, displayWelcomeBanner, displaySeaweedBed) check `isSilentMode()` and return early without output when silent mode is enabled.
 - `installState.ts` - Helper to check for existing installations (wraps version.ts)
 - `registryAuthPrompt.ts` - Prompts for private registry authentication during interactive install. Collects registry URL, username, and password (hidden input). Supports preserving existing registryAuths from config and adding multiple registries. Uses `RegistryAuth` type from `@/cli/config.js`.
+
+**Install Command Silent Mode:** The `main()` function in install.ts accepts a `silent` parameter. When `silent: true`, the function calls `setSilentMode({ silent: true })` before execution and restores it to false in a `finally` block to prevent state leakage. Silent mode implies non-interactive mode. This is used by intercepted slash commands (e.g., `/nori-switch-profile` in both claude-code and cursor-agent) that call `installMain()` and need clean stdout to return JSON responses without corruption from installation messages like ASCII art banners.
 
 The install command uses `agent.listSourceProfiles()` to get available profiles from the package source directory, combined with `agent.listProfiles({ installDir })` to include any user-installed profiles. This ensures each agent displays its own profiles (claude-code shows amol, senior-swe, etc.; cursor-agent shows its own profiles).
 

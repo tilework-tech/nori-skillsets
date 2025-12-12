@@ -234,6 +234,7 @@ describe("cursor-agent nori-switch-profile", () => {
         skipUninstall?: boolean | null;
         installDir?: string | null;
         agent?: string | null;
+        silent?: boolean | null;
       } | null = null;
 
       // Mock the install module
@@ -262,6 +263,9 @@ describe("cursor-agent nori-switch-profile", () => {
       expect(installMainArgs!.skipUninstall).toBe(true);
       expect(installMainArgs!.installDir).toBe(testDir);
       expect(installMainArgs!.agent).toBe("cursor-agent");
+      // CRITICAL: Install must be silent to prevent stdout pollution
+      // during hook execution (JSON response corruption)
+      expect(installMainArgs!.silent).toBe(true);
 
       // Restore mocks
       vi.doUnmock("@/cli/commands/install/install.js");
