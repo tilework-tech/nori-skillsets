@@ -65,6 +65,13 @@ profilesLoader (loader.ts)
 
 **AGENTS.md as validation marker**: A directory is only treated as a valid profile if it contains AGENTS.md. Directories without AGENTS.md are skipped.
 
+**Template substitution in profile loaders**: All profile sub-loaders apply template substitution to `.md` files during the final copy stage (when copying from `~/.cursor/profiles/` to final destinations). This replaces placeholders like `{{rules_dir}}`, `{{subagents_dir}}` with actual paths. Substitution is applied by:
+- **rulesLoader** - Uses `copyDirWithTemplateSubstitution()` when copying to `~/.cursor/rules/`
+- **subagentsLoader** - Uses `copyDirWithTemplateSubstitution()` when copying to `~/.cursor/subagents/`
+- **agentsMdLoader** - Uses `substituteTemplatePaths()` on AGENTS.md content before writing to project root
+
+The key architectural insight: substitution happens at the final copy stage, not during intermediate staging to `~/.cursor/profiles/`. This ensures source files in profiles remain portable with placeholders intact.
+
 **Rule file format**: Each RULE.md file uses Cursor's YAML frontmatter format:
 ```yaml
 ---

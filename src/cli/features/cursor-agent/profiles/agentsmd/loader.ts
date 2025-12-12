@@ -11,6 +11,7 @@ import {
   getCursorDir,
   getCursorAgentsMdFile,
 } from "@/cli/features/cursor-agent/paths.js";
+import { substituteTemplatePaths } from "@/cli/features/cursor-agent/template.js";
 import { success, info } from "@/cli/logger.js";
 
 import type { Config } from "@/cli/config.js";
@@ -62,7 +63,13 @@ const insertAgentsMd = async (args: { config: Config }): Promise<void> => {
     profileName,
     installDir: config.installDir,
   });
-  const instructions = await fs.readFile(profileAgentsMdPath, "utf-8");
+  let instructions = await fs.readFile(profileAgentsMdPath, "utf-8");
+
+  // Apply template substitution to replace placeholders with actual paths
+  instructions = substituteTemplatePaths({
+    content: instructions,
+    installDir: cursorDir,
+  });
 
   // Create .cursor directory if it doesn't exist
   await fs.mkdir(cursorDir, { recursive: true });

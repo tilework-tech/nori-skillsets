@@ -135,6 +135,33 @@ describe("cursor-agent agentsmd loader", () => {
       ).length;
       expect(beginMarkerCount).toBe(1);
     });
+
+    test("substitutes template placeholders in AGENTS.md", async () => {
+      const config = createConfig();
+
+      // Update profile AGENTS.md to include template placeholder
+      const profileAgentsMd = path.join(
+        testInstallDir,
+        ".cursor",
+        "profiles",
+        "amol",
+        "AGENTS.md",
+      );
+      await fs.writeFile(
+        profileAgentsMd,
+        "Read `{{rules_dir}}/using-git-worktrees/RULE.md`",
+      );
+
+      await agentsMdLoader.install({ config });
+
+      const agentsMdPath = path.join(testInstallDir, "AGENTS.md");
+      const content = await fs.readFile(agentsMdPath, "utf-8");
+
+      // Should have substituted {{rules_dir}} with actual path
+      const expectedRulesDir = path.join(testInstallDir, ".cursor", "rules");
+      expect(content).toContain(expectedRulesDir);
+      expect(content).not.toContain("{{rules_dir}}");
+    });
   });
 
   describe("uninstall", () => {

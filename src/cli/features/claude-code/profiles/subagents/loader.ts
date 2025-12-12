@@ -11,6 +11,7 @@ import {
   getClaudeDir,
   getClaudeAgentsDir,
 } from "@/cli/features/claude-code/paths.js";
+import { substituteTemplatePaths } from "@/cli/features/claude-code/template.js";
 import { success, info, warn } from "@/cli/logger.js";
 
 import type { Config } from "@/cli/config.js";
@@ -74,7 +75,14 @@ const registerSubagents = async (args: { config: Config }): Promise<void> => {
 
     try {
       await fs.access(subagentSrc);
-      await fs.copyFile(subagentSrc, subagentDest);
+      // Read, apply template substitution, then write
+      const content = await fs.readFile(subagentSrc, "utf-8");
+      const claudeDir = getClaudeDir({ installDir: config.installDir });
+      const substituted = substituteTemplatePaths({
+        content,
+        installDir: claudeDir,
+      });
+      await fs.writeFile(subagentDest, substituted);
       const subagentName = file.replace(/\.md$/, "");
       success({ message: `✓ ${subagentName} subagent registered` });
       registeredCount++;

@@ -11,6 +11,7 @@ import {
   getCursorDir,
   getCursorRulesDir,
 } from "@/cli/features/cursor-agent/paths.js";
+import { copyDirWithTemplateSubstitution } from "@/cli/features/cursor-agent/template.js";
 import { success, info } from "@/cli/logger.js";
 
 import type { Config } from "@/cli/config.js";
@@ -59,9 +60,14 @@ const installRules = async (args: { config: Config }): Promise<void> => {
   // Create rules directory
   await fs.mkdir(cursorRulesDir, { recursive: true });
 
-  // Copy all rules from config directory
+  // Copy all rules from config directory with template substitution
   try {
-    await fs.cp(configDir, cursorRulesDir, { recursive: true });
+    const cursorDir = getCursorDir({ installDir: config.installDir });
+    await copyDirWithTemplateSubstitution({
+      src: configDir,
+      dest: cursorRulesDir,
+      installDir: cursorDir,
+    });
     success({ message: "✓ Installed rules" });
   } catch {
     info({ message: "No rules found in profile" });

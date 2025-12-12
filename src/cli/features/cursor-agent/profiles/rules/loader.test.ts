@@ -101,6 +101,41 @@ describe("cursor-agent rules loader", () => {
       const content = await fs.readFile(rulePath, "utf-8");
       expect(content).toContain("Using Git Worktrees");
     });
+
+    test("substitutes template placeholders in rule files", async () => {
+      const config = createConfig();
+
+      // Update rule file to include template placeholder
+      const profileRulePath = path.join(
+        testInstallDir,
+        ".cursor",
+        "profiles",
+        "amol",
+        "rules",
+        "using-git-worktrees",
+        "RULE.md",
+      );
+      await fs.writeFile(
+        profileRulePath,
+        "See also: `{{rules_dir}}/other-rule/RULE.md`",
+      );
+
+      await rulesLoader.install({ config });
+
+      const rulePath = path.join(
+        testInstallDir,
+        ".cursor",
+        "rules",
+        "using-git-worktrees",
+        "RULE.md",
+      );
+      const content = await fs.readFile(rulePath, "utf-8");
+
+      // Should have substituted {{rules_dir}} with actual path
+      const expectedRulesDir = path.join(testInstallDir, ".cursor", "rules");
+      expect(content).toContain(expectedRulesDir);
+      expect(content).not.toContain("{{rules_dir}}");
+    });
   });
 
   describe("uninstall", () => {

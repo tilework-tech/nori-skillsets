@@ -120,6 +120,39 @@ describe("cursor-agent subagents loader", () => {
         subagentsLoader.install({ config }),
       ).resolves.toBeUndefined();
     });
+
+    test("substitutes template placeholders in subagent files", async () => {
+      const config = createConfig();
+
+      // Update subagent file to include template placeholder
+      const profileSubagentPath = path.join(
+        testInstallDir,
+        ".cursor",
+        "profiles",
+        "amol",
+        "subagents",
+        "nori-web-search-researcher.md",
+      );
+      await fs.writeFile(
+        profileSubagentPath,
+        "Read: `{{rules_dir}}/some-rule/RULE.md`",
+      );
+
+      await subagentsLoader.install({ config });
+
+      const subagentPath = path.join(
+        testInstallDir,
+        ".cursor",
+        "subagents",
+        "nori-web-search-researcher.md",
+      );
+      const content = await fs.readFile(subagentPath, "utf-8");
+
+      // Should have substituted {{rules_dir}} with actual path
+      const expectedRulesDir = path.join(testInstallDir, ".cursor", "rules");
+      expect(content).toContain(expectedRulesDir);
+      expect(content).not.toContain("{{rules_dir}}");
+    });
   });
 
   describe("uninstall", () => {

@@ -133,7 +133,11 @@ Commands use regex matchers in `InterceptedSlashCommand.matchers`. The `/nori-sw
 
 **Mixin composition system**: Profiles specify mixins in profile.json as `{"mixins": {"base": {}, "swe": {}}}`. The loader processes mixins in alphabetical order for deterministic precedence. When multiple mixins provide the same file, last writer wins. When multiple mixins provide the same directory, contents are merged. Conditional mixins are automatically injected based on user tier (see @/src/cli/features/cursor-agent/profiles/loader.ts).
 
-**Template substitution (template.ts):** Cursor-specific placeholders for content files. Replaces `{{rules_dir}}`, `{{profiles_dir}}`, `{{commands_dir}}`, `{{subagents_dir}}`, and `{{install_dir}}` with absolute paths. This is distinct from claude-code's template.ts which uses `{{skills_dir}}` instead of `{{rules_dir}}`.
+**Template substitution (template.ts):** Cursor-specific placeholders for content files. Replaces `{{rules_dir}}`, `{{profiles_dir}}`, `{{commands_dir}}`, `{{subagents_dir}}`, and `{{install_dir}}` with absolute paths. This is distinct from claude-code's template.ts which uses `{{skills_dir}}` instead of `{{rules_dir}}`. Template substitution is applied during the final copy stage by these loaders:
+- **agentsMdLoader** - Substitutes placeholders in AGENTS.md content before writing to project root
+- **rulesLoader** - Uses `copyDirWithTemplateSubstitution()` to apply substitution when copying rule .md files to `~/.cursor/rules/`
+- **subagentsLoader** - Uses `copyDirWithTemplateSubstitution()` to apply substitution when copying subagent .md files to `~/.cursor/subagents/`
+- **slashCommandsLoader** - Applies substitution when copying slash command .md files to `~/.cursor/commands/`
 
 **Profile structure:** Each profile directory in `profiles/config/` contains:
 - `AGENTS.md`: Instructions file (required for profile to be listed)

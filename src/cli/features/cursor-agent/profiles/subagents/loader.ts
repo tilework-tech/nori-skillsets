@@ -11,6 +11,7 @@ import {
   getCursorDir,
   getCursorSubagentsDir,
 } from "@/cli/features/cursor-agent/paths.js";
+import { copyDirWithTemplateSubstitution } from "@/cli/features/cursor-agent/template.js";
 import { success, info } from "@/cli/logger.js";
 
 import type { Config } from "@/cli/config.js";
@@ -69,9 +70,14 @@ const installSubagents = async (args: { config: Config }): Promise<void> => {
   // Create subagents directory
   await fs.mkdir(cursorSubagentsDir, { recursive: true });
 
-  // Copy all subagents from config directory
+  // Copy all subagents from config directory with template substitution
   try {
-    await fs.cp(configDir, cursorSubagentsDir, { recursive: true });
+    const cursorDir = getCursorDir({ installDir: config.installDir });
+    await copyDirWithTemplateSubstitution({
+      src: configDir,
+      dest: cursorSubagentsDir,
+      installDir: cursorDir,
+    });
     success({ message: "✓ Installed subagents" });
   } catch {
     info({ message: "No subagents found in profile" });

@@ -247,5 +247,44 @@ describe("subagentsLoader", () => {
     });
   });
 
+  describe("template substitution", () => {
+    it("should substitute template placeholders in subagent files", async () => {
+      const config: Config = { installDir: tempDir };
+
+      // Get a subagent file from the profile directory and add a template placeholder
+      const profileSubagentsDir = path.join(
+        claudeDir,
+        "profiles",
+        "senior-swe",
+        "subagents",
+      );
+      const files = await fs.readdir(profileSubagentsDir);
+      const mdFile = files.find((f) => f.endsWith(".md") && f !== "docs.md");
+
+      // Ensure we actually have a subagent file to test with
+      expect(mdFile).toBeDefined();
+
+      if (mdFile) {
+        // Add template placeholder to the file
+        const subagentPath = path.join(profileSubagentsDir, mdFile);
+        await fs.writeFile(
+          subagentPath,
+          "Read: `{{skills_dir}}/some-skill/SKILL.md`",
+        );
+
+        await subagentsLoader.install({ config });
+
+        // Check the installed file
+        const installedPath = path.join(agentsDir, mdFile);
+        const content = await fs.readFile(installedPath, "utf-8");
+
+        // Should have substituted {{skills_dir}} with actual path
+        const expectedSkillsDir = path.join(claudeDir, "skills");
+        expect(content).toContain(expectedSkillsDir);
+        expect(content).not.toContain("{{skills_dir}}");
+      }
+    });
+  });
+
   // Validate tests removed - validation is now handled at profilesLoader level
 });
