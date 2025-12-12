@@ -2,7 +2,7 @@ import { apiRequest } from "@/api/base.js";
 
 export type SummarizeRequest = {
   content: string;
-  actor?: "claude-code";
+  actor?: "claude-code" | "cursor-agent";
 };
 
 export type SummarizeResponse = {
@@ -14,14 +14,14 @@ export type SummarizeResponse = {
 
 export const conversationApi = {
   summarize: async (args: SummarizeRequest): Promise<SummarizeResponse> => {
-    const { content } = args;
+    const { content, actor } = args;
 
     return apiRequest<SummarizeResponse>({
       path: "/conversation/summarize",
       method: "POST",
       body: {
         content,
-        actor: "claude-code", // MCP always acts as claude-code
+        actor: actor ?? "claude-code",
       },
     });
   },
