@@ -35,6 +35,8 @@ Each agent declares its own global features (e.g., claude-code has hooks, status
 
 The install command sets `agents: { [agentName]: { profile } }` in the config, where the keys of the `agents` object indicate which agents are installed. The config loader merges `agents` objects with any existing config. The uninstall command prompts the user to select which agent to uninstall when multiple agents are installed at a location (in interactive mode).
 
+**Install Non-Interactive Profile Requirement:** Non-interactive installs require either an existing configuration with a profile OR the `--profile` flag. When no existing config is found, the install command errors with a helpful message listing available profiles and example usage. This prevents silent assignment of default profiles - users must explicitly choose. Profile is resolved by checking (in order): agent-specific profile (`config.agents[agentName].profile`), then top-level profile (`config.profile`), then the explicit `--profile` flag. The first non-null value is used. Example: `nori-ai install --non-interactive --profile senior-swe`.
+
 **Install Agent-Specific Uninstall Logic:** The install command only runs uninstall cleanup when reinstalling the SAME agent (upgrade scenario). When installing a different agent (e.g., cursor-agent when claude-code is already installed), it skips uninstall to preserve the existing agent's installation. The logic:
 1. Reads config at start to get installed agents via `getInstalledAgents({ config })` (keys of `agents` object)
 2. For backwards compatibility: if no agents are installed but an installation exists (detected via version file), assumes `["claude-code"]` (old installs didn't track agents)

@@ -169,11 +169,15 @@ describe("install integration test", () => {
 
   it("should track version across installation upgrade flow", async () => {
     // STEP 1: Simulate existing installation at version 12.0.0
-    // Write config with old version
+    // Write config with old version and profile
     const CONFIG_PATH = getConfigPath({ installDir: tempDir });
     fs.writeFileSync(
       CONFIG_PATH,
-      JSON.stringify({ version: "12.0.0", installedAgents: ["claude-code"] }),
+      JSON.stringify({
+        version: "12.0.0",
+        installedAgents: ["claude-code"],
+        profile: { baseProfile: "senior-swe" },
+      }),
     );
     // Create a marker file that simulates something from the old installation
     fs.writeFileSync(MARKER_FILE_PATH, "installed by v12.0.0");
@@ -317,8 +321,12 @@ describe("install integration test", () => {
     } catch {}
     expect(fs.existsSync(CONFIG_PATH)).toBe(false);
 
-    // Run installation
-    await installMain({ nonInteractive: true, installDir: tempDir });
+    // Run installation with explicit profile (required for non-interactive without existing config)
+    await installMain({
+      nonInteractive: true,
+      installDir: tempDir,
+      profile: "senior-swe",
+    });
 
     // Verify uninstall was NOT called
     expect(uninstallCalled).toBe(false);
@@ -334,7 +342,11 @@ describe("install integration test", () => {
     const CONFIG_PATH = getConfigPath({ installDir: tempDir });
     fs.writeFileSync(
       CONFIG_PATH,
-      JSON.stringify({ version: "12.0.0", installedAgents: ["claude-code"] }),
+      JSON.stringify({
+        version: "12.0.0",
+        installedAgents: ["claude-code"],
+        profile: { baseProfile: "senior-swe" },
+      }),
     );
     fs.writeFileSync(MARKER_FILE_PATH, "installed by v12.0.0");
 
@@ -476,8 +488,12 @@ describe("install integration test", () => {
   it("should include agent in config after installation", async () => {
     const CONFIG_PATH = getConfigPath({ installDir: tempDir });
 
-    // STEP 1: Run installation in non-interactive mode
-    await installMain({ nonInteractive: true, installDir: tempDir });
+    // STEP 1: Run installation in non-interactive mode with explicit profile
+    await installMain({
+      nonInteractive: true,
+      installDir: tempDir,
+      profile: "senior-swe",
+    });
 
     // STEP 2: Verify agent is set in the config via agents object
     const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
@@ -592,8 +608,12 @@ describe("install integration test", () => {
   it("should include agents field with agent-specific profile in config after installation", async () => {
     const CONFIG_PATH = getConfigPath({ installDir: tempDir });
 
-    // STEP 1: Run installation in non-interactive mode (uses default profile senior-swe)
-    await installMain({ nonInteractive: true, installDir: tempDir });
+    // STEP 1: Run installation in non-interactive mode with explicit profile
+    await installMain({
+      nonInteractive: true,
+      installDir: tempDir,
+      profile: "senior-swe",
+    });
 
     // STEP 2: Verify agents field is set with agent-specific profile
     const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
@@ -607,6 +627,59 @@ describe("install integration test", () => {
 
     // Legacy profile field should also be set for backwards compatibility
     expect(config.profile).toEqual({ baseProfile: "senior-swe" });
+  });
+
+  it("should require --profile flag for non-interactive install without existing config", async () => {
+    const CONFIG_PATH = getConfigPath({ installDir: tempDir });
+
+    // Ensure no existing config
+    try {
+      fs.unlinkSync(CONFIG_PATH);
+    } catch {}
+    expect(fs.existsSync(CONFIG_PATH)).toBe(false);
+
+    // Mock process.exit to capture exit code
+    const processExitSpy = vi
+      .spyOn(process, "exit")
+      .mockImplementation((code?: string | number | null) => {
+        throw new Error(`process.exit(${code})`);
+      }) as any;
+
+    try {
+      // Run installation without --profile flag - should fail
+      await expect(
+        installMain({ nonInteractive: true, installDir: tempDir }),
+      ).rejects.toThrow("process.exit(1)");
+
+      // Verify no config was created
+      expect(fs.existsSync(CONFIG_PATH)).toBe(false);
+    } finally {
+      processExitSpy.mockRestore();
+    }
+  });
+
+  it("should succeed with --profile flag for non-interactive install without existing config", async () => {
+    const CONFIG_PATH = getConfigPath({ installDir: tempDir });
+
+    // Ensure no existing config
+    try {
+      fs.unlinkSync(CONFIG_PATH);
+    } catch {}
+    expect(fs.existsSync(CONFIG_PATH)).toBe(false);
+
+    // Run installation WITH --profile flag
+    await installMain({
+      nonInteractive: true,
+      installDir: tempDir,
+      profile: "senior-swe",
+    });
+
+    // Verify config was created with correct profile
+    expect(fs.existsSync(CONFIG_PATH)).toBe(true);
+    const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
+    expect(config.agents["claude-code"].profile).toEqual({
+      baseProfile: "senior-swe",
+    });
   });
 
   it("should preserve agent-specific profile in noninteractive mode (switch-profile scenario)", async () => {
@@ -672,10 +745,11 @@ describe("install integration test", () => {
     };
 
     try {
-      // Run installation in the child directory
+      // Run installation in the child directory with explicit profile
       await installMain({
         nonInteractive: true,
         installDir: path.join(childDir, ".claude"),
+        profile: "senior-swe",
       });
 
       // Verify warning was displayed about ancestor installation

@@ -145,5 +145,29 @@ describe("check command", () => {
       const logCalls = consoleLogSpy.mock.calls.flat().join("\n");
       expect(logCalls).toContain("Running Nori Profiles validation checks");
     });
+
+    it("should error when config file is corrupted (invalid JSON)", async () => {
+      // Create a config file with invalid JSON (corrupted)
+      // This makes hasExistingInstallation return true (file exists)
+      // but loadConfig returns null (invalid JSON)
+      await fs.writeFile(
+        path.join(tempDir, ".nori-config.json"),
+        "{ invalid json syntax",
+      );
+
+      // Mock cwd to return the temp directory
+      process.cwd = () => tempDir;
+
+      // Run check - should fail because config is corrupted
+      await expect(checkMain({})).rejects.toThrow("process.exit(1)");
+
+      // Verify error message mentions config issue AND we exit early
+      // (should NOT run loader validations with fake config)
+      const errorCalls = consoleErrorSpy.mock.calls.flat().join("\n");
+      expect(errorCalls).toContain("missing or corrupted");
+
+      // Should NOT contain loader validation errors (we should exit before that)
+      expect(errorCalls).not.toContain("Profiles directory not found");
+    });
   });
 });
