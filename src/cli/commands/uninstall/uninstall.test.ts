@@ -9,6 +9,7 @@ import * as path from "path";
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
+import { configLoader } from "@/cli/features/config/loader.js";
 import { promptUser } from "@/cli/prompt.js";
 
 import type { AgentName } from "@/cli/features/agentRegistry.js";
@@ -88,11 +89,16 @@ vi.mock("@/cli/logger.js", () => ({
   error: vi.fn(),
 }));
 
+// Import config loader before mocking so we can use it in tests that need real config behavior
+
+// Default mock returns empty loaders, but tests can override mockLoaders to include config loader
+let mockLoaders: Array<any> = [];
+
 vi.mock("@/cli/features/claude-code/loaderRegistry.js", () => ({
   LoaderRegistry: {
     getInstance: () => ({
-      getAll: () => [],
-      getAllReversed: () => [],
+      getAll: () => mockLoaders,
+      getAllReversed: () => [...mockLoaders].reverse(),
     }),
   },
 }));
@@ -135,8 +141,9 @@ describe("uninstall idempotency", () => {
     mockClaudeDir = claudeDir;
     mockConfigPath = configPath;
 
-    // Reset mock config
+    // Reset mock config and loaders
     mockLoadedConfig = null;
+    mockLoaders = [];
   });
 
   afterEach(async () => {
@@ -211,7 +218,10 @@ describe("uninstall idempotency", () => {
   });
 
   it("should remove config when removeConfig is true", async () => {
-    // Set up mock config
+    // Include config loader so it can delete files
+    mockLoaders = [configLoader];
+
+    // Set up mock config - no installedAgents means legacy behavior (delete file)
     mockLoadedConfig = {
       auth: {
         username: "test@example.com",
@@ -820,5 +830,156 @@ describe("uninstall agent detection from config", () => {
     // Should default to claude-code when there are multiple agents
     // (can't auto-detect which one to uninstall)
     expect(agentRegistryGetSpy).toHaveBeenCalledWith({ name: "claude-code" });
+  });
+});
+
+describe("uninstall multi-agent config preservation", () => {
+  let tempDir: string;
+  let configPath: string;
+  let originalHome: string | undefined;
+
+  beforeEach(async () => {
+    originalHome = process.env.HOME;
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "uninstall-multiagent-"));
+    process.env.HOME = tempDir;
+
+    configPath = path.join(tempDir, ".nori-config.json");
+
+    // Set mock paths for this test
+    mockClaudeDir = path.join(tempDir, ".claude");
+    mockConfigPath = configPath;
+
+    // Include config loader so it can handle file operations
+    mockLoaders = [configLoader];
+
+    vi.clearAllMocks();
+  });
+
+  afterEach(async () => {
+    if (originalHome !== undefined) {
+      process.env.HOME = originalHome;
+    } else {
+      delete process.env.HOME;
+    }
+    await fs.rm(tempDir, { recursive: true, force: true });
+    vi.clearAllMocks();
+  });
+
+  it("should preserve config file when uninstalling one of multiple agents with removeConfig=true", async () => {
+    // Create config with multiple agents installed (version is now in config)
+    const initialConfig = {
+      installDir: tempDir,
+      agents: {
+        "claude-code": { profile: { baseProfile: "senior-swe" } },
+        "cursor-agent": { profile: { baseProfile: "senior-swe" } },
+      },
+      version: "19.0.0",
+    };
+    await fs.writeFile(configPath, JSON.stringify(initialConfig));
+
+    // Mock loadConfig to return our multi-agent config
+    mockLoadedConfig = {
+      ...initialConfig,
+    };
+
+    // Run uninstall with removeConfig=true for cursor-agent
+    await runUninstall({
+      removeConfig: true,
+      removeGlobalSettings: false,
+      installDir: tempDir,
+      agent: "cursor-agent",
+    });
+
+    // Config file should still exist because claude-code is still installed
+    const configExists = await fs
+      .access(configPath)
+      .then(() => true)
+      .catch(() => false);
+    expect(configExists).toBe(true);
+
+    // Version should be preserved in config
+    const config = JSON.parse(await fs.readFile(configPath, "utf-8"));
+    expect(config.version).toBe("19.0.0");
+  });
+
+  it("should delete config when uninstalling last agent with removeConfig=true", async () => {
+    // Create config with single agent (version is now in config)
+    const initialConfig = {
+      installDir: tempDir,
+      agents: {
+        "claude-code": { profile: { baseProfile: "senior-swe" } },
+      },
+      version: "19.0.0",
+    };
+    await fs.writeFile(configPath, JSON.stringify(initialConfig));
+
+    // Mock loadConfig to return single-agent config
+    mockLoadedConfig = {
+      ...initialConfig,
+    };
+
+    // Run uninstall with removeConfig=true for the only agent
+    await runUninstall({
+      removeConfig: true,
+      removeGlobalSettings: false,
+      installDir: tempDir,
+      agent: "claude-code",
+    });
+
+    // Config file should be deleted since no agents remain (version is in config)
+    const configExists = await fs
+      .access(configPath)
+      .then(() => true)
+      .catch(() => false);
+    expect(configExists).toBe(false);
+  });
+
+  it("should show remaining agents message when uninstalling one of multiple agents", async () => {
+    // Create config with multiple agents installed (version is now in config)
+    const initialConfig = {
+      installDir: tempDir,
+      agents: {
+        "claude-code": { profile: { baseProfile: "senior-swe" } },
+        "cursor-agent": { profile: { baseProfile: "senior-swe" } },
+      },
+      version: "19.0.0",
+    };
+    await fs.writeFile(configPath, JSON.stringify(initialConfig));
+
+    // Mock loadConfig to return our multi-agent config
+    mockLoadedConfig = {
+      ...initialConfig,
+    };
+
+    // Import logger to check messages
+    const { info } = await import("@/cli/logger.js");
+
+    // Run uninstall with removeConfig=true for cursor-agent
+    await runUninstall({
+      removeConfig: true,
+      removeGlobalSettings: false,
+      installDir: tempDir,
+      agent: "cursor-agent",
+    });
+
+    // Check that info was called with message about remaining agents
+    const infoCalls = (info as any).mock.calls;
+    const messages = infoCalls.map((call: any) => call[0]?.message || "");
+
+    // Should mention remaining agent(s)
+    const hasRemainingAgentMessage = messages.some(
+      (msg: string) =>
+        msg.includes("remaining") ||
+        msg.includes("claude-code") ||
+        msg.includes("still installed"),
+    );
+    expect(hasRemainingAgentMessage).toBe(true);
+
+    // Should show command to uninstall remaining agents
+    const hasUninstallCommand = messages.some(
+      (msg: string) =>
+        msg.includes("nori-ai uninstall") && msg.includes("--agent"),
+    );
+    expect(hasUninstallCommand).toBe(true);
   });
 });

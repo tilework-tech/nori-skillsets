@@ -7,13 +7,11 @@
 import { existsSync } from "fs";
 
 import { getConfigPath } from "@/cli/config.js";
-import { getVersionFilePath } from "@/cli/version.js";
 
 /**
  * Check if there's an existing installation
  * An installation exists if:
- * - Version file exists at <installDir>/.nori-installed-version
- * - OR config file exists at <installDir>/.nori-config.json
+ * - Config file exists at <installDir>/.nori-config.json
  *
  * @param args - Configuration arguments
  * @param args.installDir - Installation directory
@@ -24,7 +22,5 @@ export const hasExistingInstallation = (args: {
   installDir: string;
 }): boolean => {
   const { installDir } = args;
-  const versionFileExists = existsSync(getVersionFilePath({ installDir }));
-  const configFileExists = existsSync(getConfigPath({ installDir }));
-  return versionFileExists || configFileExists;
+  return existsSync(getConfigPath({ installDir }));
 };

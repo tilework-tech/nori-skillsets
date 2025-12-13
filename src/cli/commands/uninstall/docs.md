@@ -58,4 +58,8 @@ In interactive mode, the feature list ("The following will be removed:") is buil
 
 - **agents field:** The config loader uses the `agents` object to know which agent is being uninstalled. If other agents remain after uninstall, the config file is preserved with the remaining agents in the `agents` object.
 
+- **Remaining agents messaging:** When uninstalling one agent while others remain, the uninstall command displays a message listing the remaining agents and provides the command to uninstall them (e.g., `nori-ai uninstall --agent cursor-agent`).
+
+- **Config loader is the single source of truth:** The config loader manages the `.nori-config.json` file lifecycle (version is now stored in the config file's `version` field). The uninstall command delegates all config file operations to the config loader rather than handling file deletion directly.
+
 Created and maintained by Nori.

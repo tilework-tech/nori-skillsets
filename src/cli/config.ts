@@ -57,6 +57,8 @@ export type Config = {
   registryAuths?: Array<RegistryAuth> | null;
   /** Per-agent configuration settings. Keys indicate which agents are installed. */
   agents?: Record<string, AgentConfig> | null;
+  /** Installed version of Nori */
+  version?: string | null;
 };
 
 /**
@@ -288,6 +290,11 @@ export const loadConfig = async (args: {
         };
       }
 
+      // Check if version exists and is valid string
+      if (config.version && typeof config.version === "string") {
+        result.version = config.version;
+      }
+
       // Return result if we have at least auth, profile, agents, or sendSessionTranscript
       if (
         result.auth != null ||
@@ -318,6 +325,7 @@ export const loadConfig = async (args: {
  * @param args.installDir - Installation directory
  * @param args.registryAuths - Array of registry authentication credentials (null to skip)
  * @param args.agents - Per-agent configuration settings (null to skip). Keys indicate installed agents.
+ * @param args.version - Installed version of Nori (null to skip)
  */
 export const saveConfig = async (args: {
   username: string | null;
@@ -329,6 +337,7 @@ export const saveConfig = async (args: {
   autoupdate?: "enabled" | "disabled" | null;
   registryAuths?: Array<RegistryAuth> | null;
   agents?: Record<string, AgentConfig> | null;
+  version?: string | null;
   installDir: string;
 }): Promise<void> => {
   const {
@@ -341,6 +350,7 @@ export const saveConfig = async (args: {
     autoupdate,
     registryAuths,
     agents,
+    version,
     installDir,
   } = args;
   const configPath = getConfigPath({ installDir });
@@ -393,6 +403,11 @@ export const saveConfig = async (args: {
   // Add registryAuths if provided and not empty
   if (registryAuths != null && registryAuths.length > 0) {
     config.registryAuths = registryAuths;
+  }
+
+  // Add version if provided
+  if (version != null) {
+    config.version = version;
   }
 
   // Always save installDir
@@ -459,6 +474,7 @@ const configSchema = {
         },
       },
     },
+    version: { type: "string" },
   },
   additionalProperties: false,
 };

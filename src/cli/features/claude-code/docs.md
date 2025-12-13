@@ -4,7 +4,7 @@ Path: @/src/cli/features/claude-code
 
 ### Overview
 
-Claude Code agent implementation that satisfies the Agent interface from @/src/cli/features/agentRegistry.ts. Contains feature loaders and configurations for installing Nori components into Anthropic's Claude Code CLI tool. Uses a directory-based profile system where each profile contains complete configurations for CLAUDE.md, skills, subagents, and slash commands. Contains loaders for: version, config, profiles, hooks, statusline, global slashcommands, and announcements. Claude-specific path helpers are encapsulated in paths.ts within this directory.
+Claude Code agent implementation that satisfies the Agent interface from @/src/cli/features/agentRegistry.ts. Contains feature loaders and configurations for installing Nori components into Anthropic's Claude Code CLI tool. Uses a directory-based profile system where each profile contains complete configurations for CLAUDE.md, skills, subagents, and slash commands. Contains loaders for: config, profiles, hooks, statusline, global slashcommands, and announcements. Claude-specific path helpers are encapsulated in paths.ts within this directory.
 
 ### How it fits into the larger codebase
 
@@ -22,7 +22,7 @@ The AgentRegistry (@/src/cli/features/agentRegistry.ts) registers this agent and
 
 This architecture enables future support for additional AI agents (e.g., Cursor IDE) by creating new agent implementations in sibling directories that satisfy the same Agent interface.
 
-The `LoaderRegistry` class (@/src/cli/features/claude-code/loaderRegistry.ts) implements the shared `LoaderRegistry` interface from @/src/cli/features/agentRegistry.ts. It manages all Claude Code feature loaders and executes them sequentially during installation. Loaders execute in order: version, config, profiles, hooks, statusline, slashcommands, announcements. During uninstall, the order is reversed.
+The `LoaderRegistry` class (@/src/cli/features/claude-code/loaderRegistry.ts) implements the shared `LoaderRegistry` interface from @/src/cli/features/agentRegistry.ts. It manages all Claude Code feature loaders and executes them sequentially during installation. Loaders execute in order: config, profiles, hooks, statusline, slashcommands, announcements. During uninstall, the order is reversed. The config loader handles both `.nori-config.json` and version tracking (version is stored as a field in the config file).
 
 Each loader implements the `Loader` interface (from @/src/cli/features/agentRegistry.ts) with `run()`, `uninstall()`, and optional `validate()` methods. The shared `configLoader` (@/src/cli/features/config/loader.ts) is included in the registry and serves as the single point of config persistence during installation - it saves the Config to `.nori-config.json` including auth credentials, profile selection, and user preferences.
 

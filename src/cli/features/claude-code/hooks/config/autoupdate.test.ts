@@ -35,11 +35,6 @@ vi.mock("@/cli/config.js", () => ({
   loadConfig: vi.fn(),
 }));
 
-// Mock version utilities
-vi.mock("@/cli/version.js", () => ({
-  getInstalledVersion: vi.fn(),
-}));
-
 // Mock path utilities
 vi.mock("@/utils/path.js", () => ({
   getInstallDirs: vi.fn(),
@@ -72,10 +67,7 @@ describe("autoupdate", () => {
       const mockOpenSync = vi.mocked(openSync);
       mockOpenSync.mockReturnValue(3 as any);
 
-      // Mock getInstalledVersion to return current version
-      const { getInstalledVersion } = await import("@/cli/version.js");
-      const mockGetInstalledVersion = vi.mocked(getInstalledVersion);
-      mockGetInstalledVersion.mockReturnValue("14.1.0");
+      // Version is now read from config (set below in mockLoadConfig)
 
       // Mock execSync to return latest version from npm
       const mockExecSync = vi.mocked(execSync);
@@ -89,12 +81,13 @@ describe("autoupdate", () => {
       };
       mockSpawn.mockReturnValue(mockChild as any);
 
-      // Mock loadConfig with autoupdate explicitly enabled
+      // Mock loadConfig with version and autoupdate explicitly enabled
       const { loadConfig } = await import("@/cli/config.js");
       const mockLoadConfig = vi.mocked(loadConfig);
       mockLoadConfig.mockResolvedValue({
         auth: null,
         profile: null,
+        version: "14.1.0",
         autoupdate: "enabled",
         installDir: process.cwd(),
       });
@@ -149,23 +142,19 @@ describe("autoupdate", () => {
     });
 
     it("should not trigger installation when already on latest version", async () => {
-      // Mock getInstalledVersion to return current version
-      const { getInstalledVersion } = await import("@/cli/version.js");
-      const mockGetInstalledVersion = vi.mocked(getInstalledVersion);
-      mockGetInstalledVersion.mockReturnValue("14.1.0");
-
       // Mock npm to return same version
       const mockExecSync = vi.mocked(execSync);
       mockExecSync.mockReturnValue("14.1.0\n");
 
       const mockSpawn = vi.mocked(spawn);
 
-      // Mock loadConfig
+      // Mock loadConfig with version
       const { loadConfig } = await import("@/cli/config.js");
       const mockLoadConfig = vi.mocked(loadConfig);
       mockLoadConfig.mockResolvedValue({
         auth: null,
         profile: null,
+        version: "14.1.0",
         installDir: process.cwd(),
       });
 
@@ -194,11 +183,6 @@ describe("autoupdate", () => {
     });
 
     it("should handle missing latest version gracefully", async () => {
-      // Mock getInstalledVersion
-      const { getInstalledVersion } = await import("@/cli/version.js");
-      const mockGetInstalledVersion = vi.mocked(getInstalledVersion);
-      mockGetInstalledVersion.mockReturnValue("14.1.0");
-
       // Mock execSync to throw (network error)
       const mockExecSync = vi.mocked(execSync);
       mockExecSync.mockImplementation(() => {
@@ -207,12 +191,13 @@ describe("autoupdate", () => {
 
       const mockSpawn = vi.mocked(spawn);
 
-      // Mock loadConfig
+      // Mock loadConfig with version
       const { loadConfig } = await import("@/cli/config.js");
       const mockLoadConfig = vi.mocked(loadConfig);
       mockLoadConfig.mockResolvedValue({
         auth: null,
         profile: null,
+        version: "14.1.0",
         installDir: process.cwd(),
       });
 
@@ -236,23 +221,19 @@ describe("autoupdate", () => {
     });
 
     it("should handle npm returning empty version gracefully", async () => {
-      // Mock getInstalledVersion
-      const { getInstalledVersion } = await import("@/cli/version.js");
-      const mockGetInstalledVersion = vi.mocked(getInstalledVersion);
-      mockGetInstalledVersion.mockReturnValue("14.1.0");
-
       // Mock execSync to return empty string
       const mockExecSync = vi.mocked(execSync);
       mockExecSync.mockReturnValue("");
 
       const mockSpawn = vi.mocked(spawn);
 
-      // Mock loadConfig
+      // Mock loadConfig with version
       const { loadConfig } = await import("@/cli/config.js");
       const mockLoadConfig = vi.mocked(loadConfig);
       mockLoadConfig.mockResolvedValue({
         auth: null,
         profile: null,
+        version: "14.1.0",
         installDir: process.cwd(),
       });
 
@@ -276,16 +257,11 @@ describe("autoupdate", () => {
     });
 
     it("should track session start event on every run", async () => {
-      // Mock getInstalledVersion
-      const { getInstalledVersion } = await import("@/cli/version.js");
-      const mockGetInstalledVersion = vi.mocked(getInstalledVersion);
-      mockGetInstalledVersion.mockReturnValue("14.1.0");
-
       // Mock execSync to return same version (no update needed)
       const mockExecSync = vi.mocked(execSync);
       mockExecSync.mockReturnValue("14.1.0\n");
 
-      // Mock loadConfig to return paid config
+      // Mock loadConfig to return paid config with version
       const { loadConfig } = await import("@/cli/config.js");
       const mockLoadConfig = vi.mocked(loadConfig);
       mockLoadConfig.mockResolvedValue({
@@ -297,6 +273,7 @@ describe("autoupdate", () => {
         profile: {
           baseProfile: "senior-swe",
         },
+        version: "14.1.0",
         installDir: process.cwd(),
       });
 
@@ -321,11 +298,6 @@ describe("autoupdate", () => {
     });
 
     it("should track session start with update_available=true when update exists", async () => {
-      // Mock getInstalledVersion
-      const { getInstalledVersion } = await import("@/cli/version.js");
-      const mockGetInstalledVersion = vi.mocked(getInstalledVersion);
-      mockGetInstalledVersion.mockReturnValue("14.1.0");
-
       // Mock execSync to return newer version
       const mockExecSync = vi.mocked(execSync);
       mockExecSync.mockReturnValue("14.2.0\n");
@@ -337,12 +309,13 @@ describe("autoupdate", () => {
       };
       mockSpawn.mockReturnValue(mockChild as any);
 
-      // Mock loadConfig to return free config
+      // Mock loadConfig to return free config with version
       const { loadConfig } = await import("@/cli/config.js");
       const mockLoadConfig = vi.mocked(loadConfig);
       mockLoadConfig.mockResolvedValue({
         auth: null,
         profile: null,
+        version: "14.1.0",
         installDir: process.cwd(),
       });
 
@@ -374,18 +347,13 @@ describe("autoupdate", () => {
     });
 
     it("should track session start even when npm check fails", async () => {
-      // Mock getInstalledVersion
-      const { getInstalledVersion } = await import("@/cli/version.js");
-      const mockGetInstalledVersion = vi.mocked(getInstalledVersion);
-      mockGetInstalledVersion.mockReturnValue("14.1.0");
-
       // Mock execSync to throw
       const mockExecSync = vi.mocked(execSync);
       mockExecSync.mockImplementation(() => {
         throw new Error("Network error");
       });
 
-      // Mock loadConfig to return paid config
+      // Mock loadConfig to return paid config with version
       const { loadConfig } = await import("@/cli/config.js");
       const mockLoadConfig = vi.mocked(loadConfig);
       mockLoadConfig.mockResolvedValue({
@@ -397,6 +365,7 @@ describe("autoupdate", () => {
         profile: {
           baseProfile: "senior-swe",
         },
+        version: "14.1.0",
         installDir: process.cwd(),
       });
 
@@ -421,25 +390,19 @@ describe("autoupdate", () => {
       });
     });
 
-    it("should check installed version from file not build constant", async () => {
+    it("should check installed version from config not build constant", async () => {
       // This test verifies the core fix: autoupdate should read version from
-      // ~/.nori-installed-version (via getInstalledVersion) instead of using
-      // the build-time __PACKAGE_VERSION__ constant.
+      // config.version instead of using the build-time __PACKAGE_VERSION__ constant.
       //
       // Scenario: Hook file is v14.3.6 but install failed previously,
-      // so .nori-installed-version still says "14.0.0"
-      // Expected: Autoupdate should trigger for 14.3.6 (file version vs npm)
+      // so config.version still says "14.0.0"
+      // Expected: Autoupdate should trigger for 14.3.6 (config version vs npm)
       // not compare 14.3.6 vs 14.3.6 (build constant vs npm)
 
       // Mock openSync to return fake file descriptor
       const { openSync } = await import("fs");
       const mockOpenSync = vi.mocked(openSync);
       mockOpenSync.mockReturnValue(3 as any);
-
-      // Mock getInstalledVersion to return old version from file
-      const { getInstalledVersion } = await import("@/cli/version.js");
-      const mockGetInstalledVersion = vi.mocked(getInstalledVersion);
-      mockGetInstalledVersion.mockReturnValue("14.0.0");
 
       // Mock execSync to return latest version
       const mockExecSync = vi.mocked(execSync);
@@ -453,12 +416,13 @@ describe("autoupdate", () => {
       };
       mockSpawn.mockReturnValue(mockChild as any);
 
-      // Mock loadConfig with autoupdate explicitly enabled
+      // Mock loadConfig with old version 14.0.0 and autoupdate explicitly enabled
       const { loadConfig } = await import("@/cli/config.js");
       const mockLoadConfig = vi.mocked(loadConfig);
       mockLoadConfig.mockResolvedValue({
         auth: null,
         profile: null,
+        version: "14.0.0",
         autoupdate: "enabled",
         installDir: process.cwd(),
       });
@@ -476,9 +440,6 @@ describe("autoupdate", () => {
       // Import and run main function
       const autoupdate = await import("./autoupdate.js");
       await autoupdate.main();
-
-      // Verify getInstalledVersion was called
-      expect(mockGetInstalledVersion).toHaveBeenCalled();
 
       // Verify spawn was called to install v14.3.6
       // This proves we're comparing file version (14.0.0) vs npm (14.3.6),
@@ -514,10 +475,7 @@ describe("autoupdate", () => {
       const mockOpenSync = vi.mocked(openSync);
       mockOpenSync.mockReturnValue(3 as any);
 
-      // Mock getInstalledVersion
-      const { getInstalledVersion } = await import("@/cli/version.js");
-      const mockGetInstalledVersion = vi.mocked(getInstalledVersion);
-      mockGetInstalledVersion.mockReturnValue("14.0.0");
+      // Version "14.0.0" is read from config
 
       // Mock execSync to return newer version
       const mockExecSync = vi.mocked(execSync);
@@ -531,12 +489,13 @@ describe("autoupdate", () => {
       };
       mockSpawn.mockReturnValue(mockChild as any);
 
-      // Mock loadConfig with autoupdate explicitly enabled
+      // Mock loadConfig with version and autoupdate explicitly enabled
       const { loadConfig } = await import("@/cli/config.js");
       const mockLoadConfig = vi.mocked(loadConfig);
       mockLoadConfig.mockResolvedValue({
         auth: null,
         profile: null,
+        version: "14.0.0",
         autoupdate: "enabled",
         installDir: process.cwd(),
       });
@@ -595,11 +554,6 @@ describe("autoupdate", () => {
       const mockOpenSync = vi.mocked(openSync);
       mockOpenSync.mockReturnValue(3 as any);
 
-      // Mock getInstalledVersion
-      const { getInstalledVersion } = await import("@/cli/version.js");
-      const mockGetInstalledVersion = vi.mocked(getInstalledVersion);
-      mockGetInstalledVersion.mockReturnValue("14.0.0");
-
       // Mock execSync to return newer version
       const mockExecSync = vi.mocked(execSync);
       mockExecSync.mockReturnValue("14.3.6\n");
@@ -612,12 +566,13 @@ describe("autoupdate", () => {
       };
       mockSpawn.mockReturnValue(mockChild as any);
 
-      // Mock loadConfig with autoupdate explicitly enabled
+      // Mock loadConfig with version and autoupdate explicitly enabled
       const { loadConfig } = await import("@/cli/config.js");
       const mockLoadConfig = vi.mocked(loadConfig);
       mockLoadConfig.mockResolvedValue({
         auth: null,
         profile: null,
+        version: "14.0.0",
         autoupdate: "enabled",
         installDir: process.cwd(),
       });
@@ -674,20 +629,16 @@ describe("autoupdate", () => {
       // (cwd has no installation, but parent does)
       getInstallDirsSpy.mockReturnValue(["/home/user"]);
 
-      // Mock loadConfig to return config with installDir and autoupdate enabled
+      // Mock loadConfig to return config with installDir, version and autoupdate enabled
       const { loadConfig } = await import("@/cli/config.js");
       const mockLoadConfig = vi.mocked(loadConfig);
       mockLoadConfig.mockResolvedValue({
         auth: null,
         profile: null,
+        version: "14.1.0",
         autoupdate: "enabled",
         installDir: "/home/user/.claude",
       });
-
-      // Mock getInstalledVersion
-      const { getInstalledVersion } = await import("@/cli/version.js");
-      const mockGetInstalledVersion = vi.mocked(getInstalledVersion);
-      mockGetInstalledVersion.mockReturnValue("14.1.0");
 
       // Mock execSync to return newer version
       const mockExecSync = vi.mocked(execSync);
@@ -725,10 +676,7 @@ describe("autoupdate", () => {
         installDir: "/home/user",
       });
 
-      // Verify getInstalledVersion was called with the installDir from config
-      expect(mockGetInstalledVersion).toHaveBeenCalledWith({
-        installDir: "/home/user/.claude",
-      });
+      // Verify version was read from config (no separate getInstalledVersion call needed)
 
       // Verify spawn was called with correct installDir
       expect(mockSpawn).toHaveBeenCalledWith(
@@ -755,23 +703,19 @@ describe("autoupdate", () => {
       // This test verifies downgrade prevention: if local has v14.2.0 and npm has v14.1.0,
       // autoupdate should NOT install the older version.
 
-      // Mock getInstalledVersion to return newer version
-      const { getInstalledVersion } = await import("@/cli/version.js");
-      const mockGetInstalledVersion = vi.mocked(getInstalledVersion);
-      mockGetInstalledVersion.mockReturnValue("14.2.0");
-
       // Mock npm to return older version
       const mockExecSync = vi.mocked(execSync);
       mockExecSync.mockReturnValue("14.1.0\n");
 
       const mockSpawn = vi.mocked(spawn);
 
-      // Mock loadConfig
+      // Mock loadConfig with newer version
       const { loadConfig } = await import("@/cli/config.js");
       const mockLoadConfig = vi.mocked(loadConfig);
       mockLoadConfig.mockResolvedValue({
         auth: null,
         profile: null,
+        version: "14.2.0",
         installDir: process.cwd(),
       });
 
@@ -803,10 +747,7 @@ describe("autoupdate", () => {
       // This test verifies nightly build scenario: local v14.2.0-nightly.20250120 is
       // semantically greater than npm v14.1.0, so no update should occur.
 
-      // Mock getInstalledVersion to return nightly build
-      const { getInstalledVersion } = await import("@/cli/version.js");
-      const mockGetInstalledVersion = vi.mocked(getInstalledVersion);
-      mockGetInstalledVersion.mockReturnValue("14.2.0-nightly.20250120");
+      // Version "14.2.0-nightly.20250120" is read from config
 
       // Mock npm to return stable version
       const mockExecSync = vi.mocked(execSync);
@@ -814,12 +755,13 @@ describe("autoupdate", () => {
 
       const mockSpawn = vi.mocked(spawn);
 
-      // Mock loadConfig
+      // Mock loadConfig with nightly version that is newer than npm stable
       const { loadConfig } = await import("@/cli/config.js");
       const mockLoadConfig = vi.mocked(loadConfig);
       mockLoadConfig.mockResolvedValue({
         auth: null,
         profile: null,
+        version: "14.2.0-nightly.20250120",
         installDir: process.cwd(),
       });
 
@@ -856,10 +798,7 @@ describe("autoupdate", () => {
       const mockOpenSync = vi.mocked(openSync);
       mockOpenSync.mockReturnValue(3 as any);
 
-      // Mock getInstalledVersion to return nightly build
-      const { getInstalledVersion } = await import("@/cli/version.js");
-      const mockGetInstalledVersion = vi.mocked(getInstalledVersion);
-      mockGetInstalledVersion.mockReturnValue("14.1.0-nightly.20250120");
+      // Version "14.1.0-nightly.20250120" is read from config
 
       // Mock npm to return stable version
       const mockExecSync = vi.mocked(execSync);
@@ -873,12 +812,13 @@ describe("autoupdate", () => {
       };
       mockSpawn.mockReturnValue(mockChild as any);
 
-      // Mock loadConfig with autoupdate explicitly enabled
+      // Mock loadConfig with nightly version that is older than npm stable, autoupdate explicitly enabled
       const { loadConfig } = await import("@/cli/config.js");
       const mockLoadConfig = vi.mocked(loadConfig);
       mockLoadConfig.mockResolvedValue({
         auth: null,
         profile: null,
+        version: "14.1.0-nightly.20250120",
         autoupdate: "enabled",
         installDir: process.cwd(),
       });
@@ -922,10 +862,7 @@ describe("autoupdate", () => {
       // This test verifies that malformed versions from npm are handled gracefully
       // without crashing or triggering an update.
 
-      // Mock getInstalledVersion
-      const { getInstalledVersion } = await import("@/cli/version.js");
-      const mockGetInstalledVersion = vi.mocked(getInstalledVersion);
-      mockGetInstalledVersion.mockReturnValue("14.1.0");
+      // Version is now read from config (set below in mockLoadConfig)
 
       // Mock npm to return invalid version
       const mockExecSync = vi.mocked(execSync);
@@ -939,6 +876,7 @@ describe("autoupdate", () => {
       mockLoadConfig.mockResolvedValue({
         auth: null,
         profile: null,
+        version: "14.1.0",
         installDir: process.cwd(),
       });
 
@@ -967,10 +905,7 @@ describe("autoupdate", () => {
     });
 
     it("should NOT trigger installation when autoupdate config is disabled", async () => {
-      // Mock getInstalledVersion to return current version
-      const { getInstalledVersion } = await import("@/cli/version.js");
-      const mockGetInstalledVersion = vi.mocked(getInstalledVersion);
-      mockGetInstalledVersion.mockReturnValue("14.1.0");
+      // Version is now read from config (set below in mockLoadConfig)
 
       // Mock execSync to return newer version available
       const mockExecSync = vi.mocked(execSync);
@@ -984,6 +919,7 @@ describe("autoupdate", () => {
       mockLoadConfig.mockResolvedValue({
         auth: null,
         profile: null,
+        version: "14.1.0",
         autoupdate: "disabled",
         installDir: process.cwd(),
       });
@@ -1023,10 +959,7 @@ describe("autoupdate", () => {
       const mockOpenSync = vi.mocked(openSync);
       mockOpenSync.mockReturnValue(3 as any);
 
-      // Mock getInstalledVersion to return current version
-      const { getInstalledVersion } = await import("@/cli/version.js");
-      const mockGetInstalledVersion = vi.mocked(getInstalledVersion);
-      mockGetInstalledVersion.mockReturnValue("14.1.0");
+      // Version is now read from config (set below in mockLoadConfig)
 
       // Mock execSync to return newer version available
       const mockExecSync = vi.mocked(execSync);
@@ -1046,6 +979,7 @@ describe("autoupdate", () => {
       mockLoadConfig.mockResolvedValue({
         auth: null,
         profile: null,
+        version: "14.1.0",
         autoupdate: "enabled",
         installDir: process.cwd(),
       });
@@ -1085,10 +1019,7 @@ describe("autoupdate", () => {
     });
 
     it("should NOT trigger installation when autoupdate config is not set (defaults to disabled)", async () => {
-      // Mock getInstalledVersion to return current version
-      const { getInstalledVersion } = await import("@/cli/version.js");
-      const mockGetInstalledVersion = vi.mocked(getInstalledVersion);
-      mockGetInstalledVersion.mockReturnValue("14.1.0");
+      // Version is now read from config (set below in mockLoadConfig)
 
       // Mock execSync to return newer version available
       const mockExecSync = vi.mocked(execSync);
@@ -1102,6 +1033,7 @@ describe("autoupdate", () => {
       mockLoadConfig.mockResolvedValue({
         auth: null,
         profile: null,
+        version: "14.1.0",
         installDir: process.cwd(),
       });
 

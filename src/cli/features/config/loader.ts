@@ -15,6 +15,7 @@ import {
   getInstalledAgents,
 } from "@/cli/config.js";
 import { info, success, error, debug } from "@/cli/logger.js";
+import { getCurrentPackageVersion } from "@/cli/version.js";
 import { configureFirebase, getFirebase } from "@/providers/firebase.js";
 
 import type { Config, AgentConfig } from "@/cli/config.js";
@@ -113,6 +114,9 @@ const installConfig = async (args: { config: Config }): Promise<void> => {
     }
   }
 
+  // Get current package version to save in config
+  const currentVersion = getCurrentPackageVersion();
+
   // Save config to disk with refresh token (not password)
   // This ensures we never store passwords, only secure tokens
   await saveConfig({
@@ -125,11 +129,15 @@ const installConfig = async (args: { config: Config }): Promise<void> => {
     autoupdate: existingConfig?.autoupdate,
     registryAuths:
       config.registryAuths ?? existingConfig?.registryAuths ?? null,
+    version: currentVersion,
     installDir: config.installDir,
   });
 
   const configPath = getConfigPath({ installDir: config.installDir });
   success({ message: `✓ Config file created: ${configPath}` });
+  if (currentVersion != null) {
+    success({ message: `✓ Version ${currentVersion} saved to config` });
+  }
 };
 
 /**
@@ -183,7 +191,7 @@ const uninstallConfig = async (args: { config: Config }): Promise<void> => {
     return;
   }
 
-  // Otherwise, update the config with remaining agents
+  // Otherwise, update the config with remaining agents (preserve version)
   await saveConfig({
     username: existingConfig?.auth?.username ?? null,
     refreshToken: existingConfig?.auth?.refreshToken ?? null,
@@ -193,6 +201,7 @@ const uninstallConfig = async (args: { config: Config }): Promise<void> => {
     autoupdate: existingConfig?.autoupdate ?? null,
     registryAuths: existingConfig?.registryAuths ?? null,
     agents: remainingAgentsObj,
+    version: existingConfig?.version ?? null,
     installDir: config.installDir,
   });
 

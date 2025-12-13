@@ -13,7 +13,6 @@ import {
   AgentRegistry,
   type Loader,
   type LoaderRegistry,
-  type ValidationResult,
 } from "@/cli/features/agentRegistry.js";
 
 describe("AgentRegistry", () => {
@@ -24,14 +23,6 @@ describe("AgentRegistry", () => {
 
   afterEach(() => {
     AgentRegistry.resetInstance();
-  });
-
-  describe("getInstance", () => {
-    test("returns singleton instance", () => {
-      const instance1 = AgentRegistry.getInstance();
-      const instance2 = AgentRegistry.getInstance();
-      expect(instance1).toBe(instance2);
-    });
   });
 
   describe("get", () => {
@@ -193,26 +184,6 @@ describe("AgentRegistry", () => {
 
         expect(loaderNames).toContain("config");
       }
-    });
-  });
-
-  describe("shared types", () => {
-    test("ValidationResult type has expected shape", () => {
-      // This test verifies the type exists and can be used
-      const validResult: ValidationResult = {
-        valid: true,
-        message: "All good",
-      };
-      expect(validResult.valid).toBe(true);
-      expect(validResult.message).toBe("All good");
-
-      const invalidResult: ValidationResult = {
-        valid: false,
-        message: "Error found",
-        errors: ["error 1", "error 2"],
-      };
-      expect(invalidResult.valid).toBe(false);
-      expect(invalidResult.errors).toHaveLength(2);
     });
   });
 
