@@ -14,6 +14,11 @@ import {
   isPaidInstall,
 } from "@/cli/config.js";
 import { info, success, error, debug } from "@/cli/logger.js";
+import {
+  getVersionFilePath,
+  saveInstalledVersion,
+  getCurrentPackageVersion,
+} from "@/cli/version.js";
 import { configureFirebase, getFirebase } from "@/providers/firebase.js";
 
 import type { Config } from "@/cli/config.js";
@@ -128,6 +133,38 @@ const installConfig = async (args: { config: Config }): Promise<void> => {
 
   const configPath = getConfigPath({ installDir: config.installDir });
   success({ message: `✓ Config file created: ${configPath}` });
+
+  // Create version file to track installed version
+  const currentVersion = getCurrentPackageVersion();
+  if (currentVersion != null) {
+    saveInstalledVersion({
+      version: currentVersion,
+      installDir: config.installDir,
+    });
+    const versionFilePath = getVersionFilePath({
+      installDir: config.installDir,
+    });
+    success({ message: `✓ Version file created: ${versionFilePath}` });
+  } else {
+    info({
+      message: "Could not determine package version, skipping version file",
+    });
+  }
+};
+
+/**
+ * Remove the version file if it exists
+ * @param args - Configuration arguments
+ * @param args.installDir - Installation directory
+ */
+const removeVersionFile = (args: { installDir: string }): void => {
+  const { installDir } = args;
+  const versionFile = getVersionFilePath({ installDir });
+
+  if (existsSync(versionFile)) {
+    unlinkSync(versionFile);
+    success({ message: `✓ Version file removed: ${versionFile}` });
+  }
 };
 
 /**
@@ -153,6 +190,7 @@ const uninstallConfig = async (args: { config: Config }): Promise<void> => {
   if (existingConfig?.installedAgents == null) {
     unlinkSync(configFile);
     success({ message: `✓ Config file removed: ${configFile}` });
+    removeVersionFile({ installDir: config.installDir });
     return;
   }
 
@@ -162,19 +200,21 @@ const uninstallConfig = async (args: { config: Config }): Promise<void> => {
     (agent) => !agentsToRemove.includes(agent),
   );
 
-  // If no agents remain, delete the config file
+  // If no agents remain, delete the config file and version file
   if (remainingAgents.length === 0) {
     unlinkSync(configFile);
     success({ message: `✓ Config file removed: ${configFile}` });
+    removeVersionFile({ installDir: config.installDir });
     return;
   }
 
-  // Otherwise, update the config with remaining agents
+  // Otherwise, update the config with remaining agents (preserve version file)
   await saveConfig({
     username: existingConfig.auth?.username ?? null,
     refreshToken: existingConfig.auth?.refreshToken ?? null,
     organizationUrl: existingConfig.auth?.organizationUrl ?? null,
     profile: existingConfig.profile ?? null,
+    agents: existingConfig.agents ?? null,
     sendSessionTranscript: existingConfig.sendSessionTranscript ?? null,
     autoupdate: existingConfig.autoupdate ?? null,
     registryAuths: existingConfig.registryAuths ?? null,

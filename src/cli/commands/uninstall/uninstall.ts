@@ -10,16 +10,10 @@ import * as fs from "fs/promises";
 import * as path from "path";
 
 import { trackEvent } from "@/cli/analytics.js";
-import {
-  loadConfig,
-  getConfigPath,
-  getDefaultProfile,
-  isPaidInstall,
-} from "@/cli/config.js";
+import { loadConfig, getDefaultProfile, isPaidInstall } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { error, success, info, warn } from "@/cli/logger.js";
 import { promptUser } from "@/cli/prompt.js";
-import { getVersionFilePath } from "@/cli/version.js";
 import { normalizeInstallDir, getInstallDirs } from "@/utils/path.js";
 
 import type { Command } from "commander";
@@ -280,38 +274,6 @@ const cleanupNotificationsLog = async (args: {
 };
 
 /**
- * Remove the nori-config.json file and .nori-installed-version file
- * @param args - Configuration arguments
- * @param args.installDir - Installation directory
- */
-const removeConfigFile = async (args: {
-  installDir: string;
-}): Promise<void> => {
-  const { installDir } = args;
-  const configPath = getConfigPath({ installDir });
-  const versionPath = getVersionFilePath({ installDir });
-
-  info({ message: "Removing Nori configuration files..." });
-
-  try {
-    await fs.access(configPath);
-    await fs.unlink(configPath);
-    success({ message: `✓ Configuration file removed: ${configPath}` });
-  } catch {
-    info({ message: "Configuration file not found (may not exist)" });
-  }
-
-  // Also remove version file
-  try {
-    await fs.access(versionPath);
-    await fs.unlink(versionPath);
-    success({ message: `✓ Version file removed: ${versionPath}` });
-  } catch {
-    info({ message: "Version file not found (may not exist)" });
-  }
-};
-
-/**
  * Core uninstall logic (can be called programmatically)
  * Preserves config file by default (for upgrades). Only removes config when removeConfig=true.
  * In non-interactive mode, global settings (hooks, statusline, and global slashcommands) are
@@ -404,10 +366,22 @@ export const runUninstall = async (args: {
   // Clean up standalone files
   await cleanupNotificationsLog({ installDir: config.installDir });
 
-  // Remove config file only if explicitly requested (e.g., from user-initiated uninstall)
+  // Check if there are remaining agents and notify user
   if (removeConfig) {
-    console.log();
-    await removeConfigFile({ installDir: config.installDir });
+    const updatedConfig = await loadConfig({ installDir: config.installDir });
+    const remainingAgents = updatedConfig?.installedAgents ?? [];
+    if (remainingAgents.length > 0) {
+      console.log();
+      info({
+        message: `Other agents are still installed: ${remainingAgents.join(", ")}`,
+      });
+      info({
+        message: "Configuration files have been preserved for these agents.",
+      });
+      info({
+        message: `To uninstall remaining agents, run: nori-ai uninstall --agent ${remainingAgents[0]}`,
+      });
+    }
   }
 
   // Track uninstallation completion

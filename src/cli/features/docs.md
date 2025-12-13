@@ -61,11 +61,11 @@ The `--agent` global CLI option (default: "claude-code") determines which agent 
 - `resetInstance()`: For test isolation
 
 **Config Loader** (config/loader.ts):
-- Shared loader that manages the `.nori-config.json` file lifecycle
+- Shared loader that manages the `.nori-config.json` and `.nori-installed-version` file lifecycle (single source of truth for both files)
 - All agents MUST include this loader in their registry
 - Handles saving/removing config with auth credentials, profile selection, user preferences, and installedAgents tracking
-- During install: Merges and deduplicates `installedAgents` from existing and new config. Preserves the `agents` field from existing config when not explicitly provided in the new config (ensures per-agent profiles set by `switchProfile` survive reinstallation)
-- During uninstall: Removes the uninstalled agent from `installedAgents`. Deletes config file if no agents remain; updates config with remaining agents otherwise
+- During install: Creates/updates config file with merged `installedAgents`. Creates `.nori-installed-version` with current package version. Preserves the `agents` field from existing config when not explicitly provided in the new config (ensures per-agent profiles set by `switchProfile` survive reinstallation)
+- During uninstall: Removes the uninstalled agent from `installedAgents`. If no agents remain, deletes both `.nori-config.json` and `.nori-installed-version`. If agents remain, updates config with remaining agents and preserves both files (including the `agents` field for per-agent profile settings)
 
 ### Things to Know
 

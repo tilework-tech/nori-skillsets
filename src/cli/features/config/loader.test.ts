@@ -9,6 +9,7 @@ import * as path from "path";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 import { getConfigPath } from "@/cli/config.js";
+import { getVersionFilePath } from "@/cli/version.js";
 
 import type { Config } from "@/cli/config.js";
 import type * as firebaseAuth from "firebase/auth";
@@ -440,6 +441,135 @@ describe("configLoader", () => {
 
       // Config file should be deleted (legacy behavior)
       expect(fs.existsSync(configFile)).toBe(false);
+    });
+
+    it("should delete version file when uninstalling last agent", async () => {
+      const configFile = getConfigPath({ installDir: tempDir });
+      const versionFile = getVersionFilePath({ installDir: tempDir });
+
+      // Create config and version files
+      fs.writeFileSync(
+        configFile,
+        JSON.stringify({
+          installDir: tempDir,
+          profile: { baseProfile: "senior-swe" },
+          installedAgents: ["claude-code"],
+        }),
+        "utf-8",
+      );
+      fs.writeFileSync(versionFile, "19.0.0", "utf-8");
+
+      // Uninstall the only agent
+      const config: Config = {
+        installDir: tempDir,
+        installedAgents: ["claude-code"],
+      };
+
+      await configLoader.uninstall({ config });
+
+      // Both config and version files should be deleted
+      expect(fs.existsSync(configFile)).toBe(false);
+      expect(fs.existsSync(versionFile)).toBe(false);
+    });
+
+    it("should preserve version file when other agents remain", async () => {
+      const configFile = getConfigPath({ installDir: tempDir });
+      const versionFile = getVersionFilePath({ installDir: tempDir });
+
+      // Create config and version files with multiple agents
+      fs.writeFileSync(
+        configFile,
+        JSON.stringify({
+          installDir: tempDir,
+          profile: { baseProfile: "senior-swe" },
+          installedAgents: ["claude-code", "cursor-agent"],
+        }),
+        "utf-8",
+      );
+      fs.writeFileSync(versionFile, "19.0.0", "utf-8");
+
+      // Uninstall only cursor-agent
+      const config: Config = {
+        installDir: tempDir,
+        installedAgents: ["cursor-agent"],
+      };
+
+      await configLoader.uninstall({ config });
+
+      // Config file should still exist with remaining agent
+      expect(fs.existsSync(configFile)).toBe(true);
+      const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
+      expect(fileContents.installedAgents).toEqual(["claude-code"]);
+
+      // Version file should be preserved
+      expect(fs.existsSync(versionFile)).toBe(true);
+      expect(fs.readFileSync(versionFile, "utf-8")).toBe("19.0.0");
+    });
+
+    it("should delete version file when no installedAgents field exists (legacy behavior)", async () => {
+      const configFile = getConfigPath({ installDir: tempDir });
+      const versionFile = getVersionFilePath({ installDir: tempDir });
+
+      // Create config and version files (legacy config without installedAgents)
+      fs.writeFileSync(
+        configFile,
+        JSON.stringify({
+          installDir: tempDir,
+          profile: { baseProfile: "senior-swe" },
+          // No installedAgents field
+        }),
+        "utf-8",
+      );
+      fs.writeFileSync(versionFile, "18.0.0", "utf-8");
+
+      const config: Config = { installDir: tempDir };
+
+      await configLoader.uninstall({ config });
+
+      // Both config and version files should be deleted (legacy behavior)
+      expect(fs.existsSync(configFile)).toBe(false);
+      expect(fs.existsSync(versionFile)).toBe(false);
+    });
+
+    it("should preserve agents field when uninstalling one of multiple agents", async () => {
+      const configFile = getConfigPath({ installDir: tempDir });
+
+      // Create config with multiple agents and per-agent profile settings
+      fs.writeFileSync(
+        configFile,
+        JSON.stringify({
+          installDir: tempDir,
+          profile: { baseProfile: "senior-swe" },
+          agents: {
+            "claude-code": { profile: { baseProfile: "senior-swe" } },
+            "cursor-agent": { profile: { baseProfile: "none" } },
+          },
+          installedAgents: ["claude-code", "cursor-agent"],
+        }),
+        "utf-8",
+      );
+
+      // Uninstall cursor-agent, leaving claude-code
+      const config: Config = {
+        installDir: tempDir,
+        installedAgents: ["cursor-agent"],
+      };
+
+      await configLoader.uninstall({ config });
+
+      // Config file should still exist
+      expect(fs.existsSync(configFile)).toBe(true);
+
+      const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
+
+      // installedAgents should only have claude-code
+      expect(fileContents.installedAgents).toEqual(["claude-code"]);
+
+      // agents field should be preserved (per-agent profile settings)
+      expect(fileContents.agents).toEqual({
+        "claude-code": { profile: { baseProfile: "senior-swe" } },
+        "cursor-agent": { profile: { baseProfile: "none" } },
+      });
     });
   });
 });
