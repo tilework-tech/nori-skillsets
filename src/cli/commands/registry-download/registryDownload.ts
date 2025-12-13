@@ -15,7 +15,7 @@ import * as tar from "tar";
 import { registrarApi, REGISTRAR_URL } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
 import { loadConfig, getRegistryAuth } from "@/cli/config.js";
-import { error, success, info } from "@/cli/logger.js";
+import { error, success, info, newline, raw } from "@/cli/logger.js";
 import { getInstallDirs } from "@/utils/path.js";
 
 import type { Packument } from "@/api/registrar.js";
@@ -450,13 +450,13 @@ export const registryDownloadMain = async (args: {
 
   // If --list-versions flag is set, show versions and exit
   if (listVersions) {
-    console.log(
-      formatVersionList({
+    raw({
+      message: formatVersionList({
         packageName,
         packument: selectedRegistry.packument,
         registryUrl: selectedRegistry.registryUrl,
       }),
-    );
+    });
     return;
   }
 
@@ -579,7 +579,7 @@ export const registryDownloadMain = async (args: {
     );
 
     const versionStr = version ? `@${version}` : " (latest)";
-    console.log("");
+    newline();
     if (profileExists) {
       success({
         message: `Updated profile "${packageName}" to ${targetVersion}`,
@@ -590,7 +590,7 @@ export const registryDownloadMain = async (args: {
       });
     }
     info({ message: `Installed to: ${targetDir}` });
-    console.log("");
+    newline();
     info({
       message: `You can now use this profile with 'nori-ai switch-profile ${packageName}'.`,
     });

@@ -12,7 +12,7 @@ import {
   isPaidInstall,
 } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
-import { error, success, info } from "@/cli/logger.js";
+import { error, success, info, newline, raw } from "@/cli/logger.js";
 import { getInstallDirs } from "@/utils/path.js";
 
 import type { Command } from "commander";
@@ -73,9 +73,9 @@ export const checkMain = async (args?: {
     installDir = installations[0]; // Use closest installation
   }
 
-  console.log("");
+  newline();
   info({ message: "Running Nori Profiles validation checks..." });
-  console.log("");
+  newline();
 
   let hasErrors = false;
 
@@ -93,7 +93,7 @@ export const checkMain = async (args?: {
     }
     hasErrors = true;
   }
-  console.log("");
+  newline();
 
   // Load config
   const existingConfig = await loadConfig({ installDir });
@@ -115,7 +115,7 @@ export const checkMain = async (args?: {
       info({ message: `     - ${err.message}` });
       hasErrors = true;
     }
-    console.log("");
+    newline();
   }
 
   // Run validation for all loaders
@@ -148,8 +148,8 @@ export const checkMain = async (args?: {
     }
   }
 
-  console.log("");
-  console.log("=".repeat(70));
+  newline();
+  raw({ message: "=".repeat(70) });
 
   if (hasErrors) {
     error({ message: "Validation completed with errors" });

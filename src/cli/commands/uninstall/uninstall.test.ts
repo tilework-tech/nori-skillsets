@@ -87,6 +87,7 @@ vi.mock("@/cli/logger.js", () => ({
   success: vi.fn(),
   warn: vi.fn(),
   error: vi.fn(),
+  newline: vi.fn(),
 }));
 
 // Import config loader before mocking so we can use it in tests that need real config behavior

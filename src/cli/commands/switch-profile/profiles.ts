@@ -9,7 +9,7 @@ import {
   getInstalledAgents,
 } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
-import { error, info, success } from "@/cli/logger.js";
+import { error, info, success, newline } from "@/cli/logger.js";
 import { promptUser } from "@/cli/prompt.js";
 import { normalizeInstallDir } from "@/utils/path.js";
 
@@ -114,7 +114,7 @@ const confirmSwitchProfile = async (args: {
   info({ message: `  Agent: ${agent.displayName} (${agentName})` });
   info({ message: `  Current profile: ${currentProfile}` });
   info({ message: `  New profile: ${profileName}` });
-  console.log();
+  newline();
 
   const proceed = await promptUser({
     prompt: "Proceed with profile switch? (y/n): ",

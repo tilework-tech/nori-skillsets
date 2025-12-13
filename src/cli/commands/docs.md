@@ -58,7 +58,7 @@ cli.ts
 
 Commands use shared utilities from the parent @/src/cli/ directory:
 - `config.ts` - Config type and persistence (with per-agent profile support)
-- `logger.ts` - Console output formatting (error, success, info, warn) with silent mode support via `setSilentMode()` and `isSilentMode()`
+- `logger.ts` - Unified logging via Winston. All console output uses these functions: `error()`, `success()`, `info()`, `warn()` for formatted messages; `newline()` for blank line spacing; `raw({ message })` for pre-formatted output (ASCII art, separators). Silent mode via `setSilentMode()`/`isSilentMode()` suppresses all console output while file logging to `/tmp/nori.log` continues. The `debug({ message })` function writes to file only (no console).
 - `prompt.ts` - User input prompting
 - `version.ts` - Version tracking for upgrades and CLI flag compatibility checking
 - `analytics.ts` - GA4 event tracking

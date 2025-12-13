@@ -13,11 +13,8 @@ export const detectNoriPollution = (cwdPath: string): Array<string> => {
   const pollutionMarkers: Array<string> = [];
 
   // Check for Nori-specific files in CWD
-  const noriFiles = [
-    ".nori-config.json",
-    ".nori-installed-version",
-    ".nori-notifications.log",
-  ];
+  // Note: .nori-notifications.log removed - logs now go to /tmp/nori.log
+  const noriFiles = [".nori-config.json", ".nori-installed-version"];
 
   for (const file of noriFiles) {
     const filePath = path.join(cwdPath, file);

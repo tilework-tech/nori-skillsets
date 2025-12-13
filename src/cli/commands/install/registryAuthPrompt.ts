@@ -3,7 +3,7 @@
  * Collects private registry credentials during install
  */
 
-import { info, error, gray } from "@/cli/logger.js";
+import { info, error, gray, newline } from "@/cli/logger.js";
 import { promptUser } from "@/cli/prompt.js";
 import { normalizeUrl } from "@/utils/url.js";
 
@@ -43,12 +43,12 @@ export const promptRegistryAuths = async (args: {
     info({
       message: "I found existing private registry authentication:",
     });
-    console.log();
+    newline();
     for (const auth of existingRegistryAuths) {
       info({ message: `  Registry: ${auth.registryUrl}` });
       info({ message: `  Username: ${auth.username}` });
     }
-    console.log();
+    newline();
 
     const keepExisting = await promptUser({
       prompt: "Keep existing registry configuration? (y/n): ",
@@ -64,7 +64,7 @@ export const promptRegistryAuths = async (args: {
     message:
       "Nori can download profiles and skills from private registries. If your organization hosts a private Nori registry, you can configure authentication now.",
   });
-  console.log();
+  newline();
 
   const addRegistry = await promptUser({
     prompt: "Configure private registry authentication? (y/n): ",
@@ -79,7 +79,7 @@ export const promptRegistryAuths = async (args: {
   // Loop to collect registry entries
   let addMore = true;
   while (addMore) {
-    console.log();
+    newline();
 
     // Collect registry URL with validation
     let registryUrl: string;
@@ -116,7 +116,7 @@ export const promptRegistryAuths = async (args: {
     });
 
     info({ message: gray({ text: `Added registry: ${registryUrl}` }) });
-    console.log();
+    newline();
 
     // Ask if user wants to add another
     const another = await promptUser({

@@ -239,9 +239,9 @@ if [ -f "$INSTALL_MARKER" ]; then
     fi
 
     if [ "$MARKER_AGE_HOURS" -gt 24 ]; then
-        INSTALL_MESSAGE="⚠️  Nori install v${FAILED_VERSION} did not complete (marker is ${MARKER_AGE_HOURS}h old). Check ${INSTALL_DIR}/.nori-notifications.log or remove marker: rm ${INSTALL_MARKER}"
+        INSTALL_MESSAGE="⚠️  Nori install v${FAILED_VERSION} did not complete (marker is ${MARKER_AGE_HOURS}h old). Check /tmp/nori.log or remove marker: rm ${INSTALL_MARKER}"
     else
-        INSTALL_MESSAGE="⚠️  Nori install v${FAILED_VERSION} did not complete. Check ${INSTALL_DIR}/.nori-notifications.log for details."
+        INSTALL_MESSAGE="⚠️  Nori install v${FAILED_VERSION} did not complete. Check /tmp/nori.log for details."
     fi
     STATUS_TIP="${INSTALL_MESSAGE}"
 else

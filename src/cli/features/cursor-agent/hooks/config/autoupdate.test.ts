@@ -14,7 +14,6 @@ vi.mock("child_process", () => ({
 
 // Mock filesystem
 vi.mock("fs", () => ({
-  appendFileSync: vi.fn(),
   openSync: vi.fn(),
   closeSync: vi.fn(),
   existsSync: vi.fn(),
@@ -22,7 +21,9 @@ vi.mock("fs", () => ({
 
 // Mock logger to suppress output
 vi.mock("@/cli/logger.js", () => ({
+  debug: vi.fn(),
   error: vi.fn(),
+  LOG_FILE: "/tmp/nori.log",
 }));
 
 // Mock analytics
@@ -464,13 +465,12 @@ describe("autoupdate", () => {
       consoleLogSpy.mockRestore();
     });
 
-    it("should append install output to notifications log", async () => {
-      // This test verifies that background install output is logged to
-      // ~/.nori-notifications.log for debugging
+    it("should log install output via Winston debug", async () => {
+      // This test verifies that background install output is logged via
+      // Winston debug() for debugging
 
       // Mock filesystem functions
-      const { appendFileSync, openSync } = await import("fs");
-      const mockAppendFileSync = vi.mocked(appendFileSync);
+      const { openSync } = await import("fs");
       const mockOpenSync = vi.mocked(openSync);
       mockOpenSync.mockReturnValue(3 as any);
 
@@ -510,14 +510,12 @@ describe("autoupdate", () => {
       const autoupdate = await import("./autoupdate.js");
       await autoupdate.main();
 
-      // Verify appendFileSync was called to write log header
-      expect(mockAppendFileSync).toHaveBeenCalled();
-      const appendCall = mockAppendFileSync.mock.calls[0];
-      const logPath = appendCall[0];
-      const logContent = appendCall[1] as string;
-
-      // Verify log path is correct
-      expect(logPath).toContain(".nori-notifications.log");
+      // Verify debug() was called to write log header
+      const { debug } = await import("@/cli/logger.js");
+      const mockDebug = vi.mocked(debug);
+      expect(mockDebug).toHaveBeenCalled();
+      const debugCall = mockDebug.mock.calls[0];
+      const logContent = debugCall[0].message;
 
       // Verify log content includes timestamp, version, and command
       expect(logContent).toContain("Nori Autoupdate");
@@ -525,11 +523,8 @@ describe("autoupdate", () => {
       expect(logContent).toContain("npm install -g nori-ai@14.3.6");
       expect(logContent).toContain("nori-ai install --non-interactive");
 
-      // Verify openSync was called for append mode
-      expect(mockOpenSync).toHaveBeenCalledWith(
-        expect.stringContaining(".nori-notifications.log"),
-        "a",
-      );
+      // Verify openSync was called for append mode (still needed for spawn stdio)
+      expect(mockOpenSync).toHaveBeenCalledWith("/tmp/nori.log", "a");
 
       // Verify spawn was called with stdio redirected to log file descriptor
       expect(mockSpawn).toHaveBeenCalledWith(
@@ -587,10 +582,7 @@ describe("autoupdate", () => {
       await autoupdate.main();
 
       // Verify openSync was called with append flag
-      expect(mockOpenSync).toHaveBeenCalledWith(
-        expect.stringContaining(".nori-notifications.log"),
-        "a",
-      );
+      expect(mockOpenSync).toHaveBeenCalledWith("/tmp/nori.log", "a");
 
       // Verify spawn was called with file descriptor, not stream
       expect(mockSpawn).toHaveBeenCalledWith(

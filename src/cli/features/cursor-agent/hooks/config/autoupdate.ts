@@ -8,14 +8,13 @@
  */
 
 import { execSync, spawn } from "child_process";
-import { appendFileSync, openSync, closeSync, existsSync } from "fs";
-import { join } from "path";
+import { openSync, closeSync, existsSync } from "fs";
 
 import semver from "semver";
 
 import { trackEvent } from "@/cli/analytics.js";
 import { loadConfig } from "@/cli/config.js";
-import { error } from "@/cli/logger.js";
+import { debug, error, LOG_FILE } from "@/cli/logger.js";
 import { getInstallDirs } from "@/utils/path.js";
 
 const DEFAULT_VERSION = "12.1.0";
@@ -59,15 +58,12 @@ const installUpdate = (args: {
   // Build full shell command: first update global package, then run install
   const fullCommand = `npm install -g ${PACKAGE_NAME}@${version} && nori-ai ${installArgs.join(" ")}`;
 
-  // Log to notifications file in the install directory
-  const logDir =
-    installDir != null && installDir !== "" ? installDir : process.cwd();
-  const logPath = join(logDir, ".nori-notifications.log");
-  const logHeader = `\n=== Nori Autoupdate: ${new Date().toISOString()} ===\nInstalling v${version}...\nCommand: ${fullCommand}\n`;
-  appendFileSync(logPath, logHeader);
+  // Log to consolidated log file using Winston
+  const logHeader = `=== Nori Autoupdate: ${new Date().toISOString()} ===\nInstalling v${version}...\nCommand: ${fullCommand}`;
+  debug({ message: logHeader });
 
   // Use openSync to get file descriptor for spawn stdio
-  const logFd = openSync(logPath, "a");
+  const logFd = openSync(LOG_FILE, "a");
 
   // Spawn background process with output redirected to log
   // Use shell to run npm install -g followed by nori-ai install
@@ -78,7 +74,7 @@ const installUpdate = (args: {
 
   // Listen for spawn errors
   child.on("error", (err) => {
-    appendFileSync(logPath, `\nSpawn error: ${err.message}\n`);
+    debug({ message: `Spawn error: ${err.message}` });
     error({ message: `Autoupdate spawn failed: ${err.message}` });
   });
 
@@ -121,14 +117,13 @@ const main = async (): Promise<void> => {
     const configDir = allInstallations.length > 0 ? allInstallations[0] : null;
 
     if (configDir == null) {
-      // No config found - log to notifications and exit
-      const logPath = join(cwd, ".nori-notifications.log");
-      appendFileSync(
-        logPath,
-        `\n=== Nori Autoupdate Error: ${new Date().toISOString()} ===\n` +
+      // No config found - log to consolidated log file and exit
+      debug({
+        message:
+          `=== Nori Autoupdate Error: ${new Date().toISOString()} ===\n` +
           `Could not find .nori-config.json in current directory or any parent directory.\n` +
-          `Searched from: ${cwd}\n`,
-      );
+          `Searched from: ${cwd}`,
+      });
       return;
     }
 
@@ -138,12 +133,11 @@ const main = async (): Promise<void> => {
 
     if (diskConfig?.installDir == null) {
       // Config exists but has no installDir - log error and exit
-      const logPath = join(cwd, ".nori-notifications.log");
-      appendFileSync(
-        logPath,
-        `\n=== Nori Autoupdate Error: ${new Date().toISOString()} ===\n` +
-          `Config file exists at ${configDir} but has no installDir field.\n`,
-      );
+      debug({
+        message:
+          `=== Nori Autoupdate Error: ${new Date().toISOString()} ===\n` +
+          `Config file exists at ${configDir} but has no installDir field.`,
+      });
       return;
     }
 
@@ -151,12 +145,11 @@ const main = async (): Promise<void> => {
 
     // Validate that installDir exists
     if (!existsSync(installDir)) {
-      const logPath = join(cwd, ".nori-notifications.log");
-      appendFileSync(
-        logPath,
-        `\n=== Nori Autoupdate Error: ${new Date().toISOString()} ===\n` +
-          `Config specifies installDir: ${installDir} but directory does not exist.\n`,
-      );
+      debug({
+        message:
+          `=== Nori Autoupdate Error: ${new Date().toISOString()} ===\n` +
+          `Config specifies installDir: ${installDir} but directory does not exist.`,
+      });
       return;
     }
 

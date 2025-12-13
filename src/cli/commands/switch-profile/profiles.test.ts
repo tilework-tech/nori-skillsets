@@ -450,6 +450,7 @@ describe("registerSwitchProfileCommand", () => {
         "--non-interactive",
         "--install-dir",
         testInstallDir,
+        "--non-interactive",
       ]);
     } catch {
       // May throw due to exit

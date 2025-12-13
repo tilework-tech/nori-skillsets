@@ -49,6 +49,7 @@ vi.mock("@/cli/logger.js", () => ({
   success: vi.fn(),
   warn: vi.fn(),
   error: vi.fn(),
+  newline: vi.fn(),
 }));
 
 // Import after mocking
@@ -277,9 +278,9 @@ describe("uninstall cleanup", () => {
     });
   });
 
-  describe("notifications log cleanup", () => {
-    it("should remove .nori-notifications.log file during uninstall", async () => {
-      // Create notifications log file
+  describe("legacy notifications log cleanup", () => {
+    it("should remove legacy .nori-notifications.log file during uninstall", async () => {
+      // Create legacy notifications log file (from older versions)
       const logPath = path.join(tempDir, ".nori-notifications.log");
       await fs.writeFile(logPath, "test notification log content");
 

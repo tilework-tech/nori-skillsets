@@ -4,7 +4,7 @@
  * Displays Nori installation directories found in the current directory and parent directories.
  */
 
-import { error, success, info } from "@/cli/logger.js";
+import { error, success, info, newline } from "@/cli/logger.js";
 import { getInstallDirs } from "@/utils/path.js";
 
 import type { Command } from "commander";
@@ -34,14 +34,14 @@ export const registerInstallLocationCommand = (args: {
         process.exit(1);
       }
 
-      console.log("");
+      newline();
       info({ message: "Nori installation directories:" });
-      console.log("");
+      newline();
 
       for (const dir of installDirs) {
         success({ message: `  ${dir}` });
       }
 
-      console.log("");
+      newline();
     });
 };
