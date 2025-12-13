@@ -15,11 +15,6 @@ import { promptUser } from "@/cli/prompt.js";
 
 import { registerSwitchProfileCommand } from "./profiles.js";
 
-// Mock the env module
-vi.mock("@/cli/env.js", () => ({
-  CLI_ROOT: "/mock/cli/root",
-}));
-
 // Mock install to avoid side effects - track calls for verification
 const mockInstallMain = vi.fn().mockResolvedValue(undefined);
 vi.mock("@/cli/commands/install/install.js", () => ({
