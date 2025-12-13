@@ -9,6 +9,7 @@ import { runUninstall } from "@/cli/commands/uninstall/uninstall.js";
 import { getConfigPath } from "@/cli/config.js";
 import { getInstalledVersion } from "@/cli/version.js";
 
+import type * as versionModule from "@/cli/version.js";
 import type * as childProcess from "child_process";
 import type * as firebaseAuth from "firebase/auth";
 
@@ -79,11 +80,12 @@ vi.mock("@/cli/features/claude-code/paths.js", () => {
   };
 });
 
-// Mock env module for CLI_ROOT
-vi.mock("@/cli/env.js", () => {
-  const testRoot = "/tmp/install-integration-test-cli-root";
+// Mock getCurrentPackageVersion to return a controlled version for tests
+vi.mock("@/cli/version.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof versionModule>();
   return {
-    CLI_ROOT: testRoot,
+    ...actual,
+    getCurrentPackageVersion: vi.fn().mockReturnValue("13.0.0"),
   };
 });
 
@@ -120,7 +122,6 @@ describe("install integration test", () => {
   let originalCwd: () => string;
   let MARKER_FILE_PATH: string;
 
-  const TEST_CLI_ROOT = "/tmp/install-integration-test-cli-root";
   const TEST_CLAUDE_DIR = "/tmp/install-integration-test-claude";
 
   beforeEach(async () => {
@@ -145,22 +146,10 @@ describe("install integration test", () => {
       fs.unlinkSync(MARKER_FILE_PATH);
     } catch {}
 
-    // Create test directories
-    if (!fs.existsSync(TEST_CLI_ROOT)) {
-      fs.mkdirSync(TEST_CLI_ROOT, { recursive: true });
-    }
+    // Create test claude directory
     if (!fs.existsSync(TEST_CLAUDE_DIR)) {
       fs.mkdirSync(TEST_CLAUDE_DIR, { recursive: true });
     }
-
-    // Create mock package.json for getCurrentPackageVersion
-    fs.writeFileSync(
-      path.join(TEST_CLI_ROOT, "package.json"),
-      JSON.stringify({
-        name: "nori-ai",
-        version: "13.0.0",
-      }),
-    );
   });
 
   afterEach(async () => {
@@ -173,9 +162,6 @@ describe("install integration test", () => {
     } catch {}
 
     // Clean up test directories
-    try {
-      fs.rmSync(TEST_CLI_ROOT, { recursive: true, force: true });
-    } catch {}
     try {
       fs.rmSync(TEST_CLAUDE_DIR, { recursive: true, force: true });
     } catch {}
