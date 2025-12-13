@@ -169,18 +169,6 @@ describe("paid-recall script", () => {
       const errorCalls = consoleErrorSpy.mock.calls.flat().join("\n");
       expect(errorCalls).toMatch(/Usage:/);
     });
-
-    it("should use default limit when not provided", async () => {
-      // This test structure is set up for when API mocking is available
-      expect(true).toBe(true);
-    });
-  });
-
-  describe("output formatting", () => {
-    it("should output formatted search results", async () => {
-      // Test structure for API mock integration
-      expect(true).toBe(true);
-    });
   });
 
   describe("--id parameter", () => {

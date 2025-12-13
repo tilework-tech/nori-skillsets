@@ -4,7 +4,7 @@ Path: @/src/cli/features
 
 ### Overview
 
-Multi-agent abstraction layer that defines the Agent interface and registry for supporting multiple AI agents through a unified CLI interface. Currently supports Claude Code and Cursor. Contains shared types (`Loader`, `ValidationResult`, `LoaderRegistry`) that all agents implement, plus the shared config loader that all agents must include.
+Multi-agent abstraction layer that defines the Agent interface and registry for supporting multiple AI agents through a unified CLI interface. Currently supports Claude Code and Cursor. Contains shared types (`Loader`, `ValidationResult`, `LoaderRegistry`) that all agents implement, plus the shared config loader that all agents must include. Also contains shared test utilities (@/src/cli/features/test-utils/) used across agent and command tests.
 
 ### How it fits into the larger codebase
 
@@ -25,6 +25,7 @@ Shared Resources (@/src/cli/features/)
     |
     +-- agentRegistry.ts: AgentName, Agent, Loader, ValidationResult, LoaderRegistry types
     +-- config/loader.ts: configLoader (shared across all agents)
+    +-- test-utils/: Shared test utilities (stripAnsi, pathExists, createTempTestContext)
 ```
 
 The `--agent` global CLI option (default: "claude-code") determines which agent implementation is used. Per-agent profile configuration is stored in the Config `agents` field.

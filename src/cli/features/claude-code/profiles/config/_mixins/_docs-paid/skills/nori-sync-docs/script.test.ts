@@ -112,18 +112,6 @@ describe("nori-sync-docs script", () => {
     });
   });
 
-  describe("argument parsing", () => {
-    it("should accept optional --delay parameter", async () => {
-      // Test structure for API mock integration
-      expect(true).toBe(true);
-    });
-
-    it("should accept optional --gitRepoUrl parameter", async () => {
-      // Test structure for API mock integration
-      expect(true).toBe(true);
-    });
-  });
-
   describe("error logging", () => {
     it("should serialize Error objects with message", () => {
       const result = serializeError({ error: new Error("Connection failed") });

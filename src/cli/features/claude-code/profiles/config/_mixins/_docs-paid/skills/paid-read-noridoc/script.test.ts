@@ -114,11 +114,4 @@ describe("paid-read-noridoc script", () => {
       expect(errorCalls).toMatch(/Usage:/);
     });
   });
-
-  describe("output formatting", () => {
-    it("should output formatted noridoc", async () => {
-      // Test structure for API mock integration
-      expect(true).toBe(true);
-    });
-  });
 });
