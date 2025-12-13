@@ -8,6 +8,8 @@ import * as path from "path";
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
+import { stripAnsi } from "@/cli/features/test-utils/index.js";
+
 import type { HookInput } from "./types.js";
 
 // Mock the paths module to prevent tests from writing to real ~/.claude/settings.json
@@ -29,18 +31,6 @@ vi.mock("@/cli/features/claude-code/paths.js", async (importOriginal) => {
 
 // Import after mocking
 import { noriSwitchProfile } from "./nori-switch-profile.js";
-
-/**
- * Strip ANSI escape codes from a string for plain text comparison
- *
- * @param str - The string containing ANSI codes
- *
- * @returns The string with ANSI codes removed
- */
-const stripAnsi = (str: string): string => {
-  // eslint-disable-next-line no-control-regex
-  return str.replace(/\x1b\[[0-9;]*m/g, "");
-};
 
 describe("nori-switch-profile", () => {
   let testDir: string;
