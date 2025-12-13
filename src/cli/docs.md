@@ -110,6 +110,25 @@ The `isLegacyPasswordConfig({ config })` helper identifies configs that have pas
 
 The getConfigPath() function requires { installDir: string } and returns `<installDir>/.nori-config.json`. All config operations (loadConfig, saveConfig, validateConfig) require installDir as a parameter, ensuring consistent path resolution throughout the codebase. The `loadConfig()` function validates auth by checking for either refreshToken OR password (plus username and organizationUrl). The `saveConfig()` function prefers refreshToken over password - if both are provided, only refreshToken is saved. User preference fields (sendSessionTranscript, autoupdate) use the 'enabled' | 'disabled' type. The `sendSessionTranscript` field defaults to 'enabled' when not present. The `autoupdate` field defaults to 'disabled' when not present, requiring users to explicitly opt-in to automatic updates. These fields are loaded by loadConfig() with default fallback, persisted by saveConfig() when provided, and validated by the JSON schema. The config.ts module is used by both the installer (for managing installation settings) and hooks (for reading user preferences like session transcript opt-out or autoupdate disable).
 
+**JSON Schema Validation Architecture:** The config.ts module uses JSON schema (via Ajv with ajv-formats) as the single source of truth for configuration validation. The schema defines:
+- Field types and allowed values (enum constraints for sendSessionTranscript/autoupdate)
+- Default values (sendSessionTranscript: "enabled", autoupdate: "disabled")
+- URI format validation for organizationUrl
+- Object structure for nested types (profile, agents, registryAuths)
+- `additionalProperties: false` to strip unknown fields
+
+The Ajv instance is configured with `useDefaults: true` (applies default values), `removeAdditional: true` (strips unknown properties), and ajv-formats for URI validation. A single compiled validator (`validateConfigSchema`) is used by both `loadConfig()` and `validateConfig()`.
+
+**loadConfig() Validation Flow:**
+1. Read and parse JSON from disk
+2. Filter invalid registryAuths entries via `filterRegistryAuths()` (warns if entries are filtered)
+3. Deep clone the config to avoid mutation during validation
+4. Run JSON schema validation (applies defaults, strips unknown properties)
+5. Transform validated data into the `Config` type with proper null handling
+6. Return null if schema validation fails (e.g., invalid enum values)
+
+The `RawDiskConfig` type represents the JSON structure on disk after schema validation but before transformation to `Config`. This intermediate type provides type safety for the transformation logic.
+
 **Registry Authentication:** The `registryAuths` field in Config is an array of `RegistryAuth` objects, each containing `username`, `password`, and `registryUrl`. This enables authentication for package registry operations like profile uploads. The `getRegistryAuth({ config, registryUrl })` helper function looks up credentials for a specific registry URL with trailing slash normalization. Registry auth is separate from the main Nori backend auth (`auth` field) - they use different Firebase projects and serve different purposes (registry operations vs. backend API access). The loadConfig() function validates registryAuths entries, filtering out any with missing required fields.
 
 **Installed Agents Tracking:** Installed agents are derived from the keys of the `agents` object (e.g., `{"claude-code": {...}, "cursor-agent": {...}}` means both agents are installed). This enables multi-agent installations at the same location. Use `getInstalledAgents({ config })` helper to get the list. Key behaviors:

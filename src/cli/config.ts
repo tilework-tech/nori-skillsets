@@ -7,7 +7,9 @@ import * as fs from "fs/promises";
 import * as path from "path";
 
 import Ajv from "ajv";
+import addFormats from "ajv-formats";
 
+import { warn } from "@/cli/logger.js";
 import { normalizeUrl } from "@/utils/url.js";
 
 /**
@@ -58,6 +60,24 @@ export type Config = {
   /** Per-agent configuration settings. Keys indicate which agents are installed. */
   agents?: Record<string, AgentConfig> | null;
   /** Installed version of Nori */
+  version?: string | null;
+};
+
+/**
+ * Raw disk config type - represents the JSON structure on disk before transformation
+ * This is what JSON schema validates against
+ */
+type RawDiskConfig = {
+  username?: string | null;
+  password?: string | null;
+  refreshToken?: string | null;
+  organizationUrl?: string | null;
+  sendSessionTranscript?: "enabled" | "disabled" | null;
+  autoupdate?: "enabled" | "disabled" | null;
+  profile?: { baseProfile?: string | null } | null;
+  installDir?: string | null;
+  registryAuths?: Array<RegistryAuth> | null;
+  agents?: Record<string, AgentConfig> | null;
   version?: string | null;
 };
 
@@ -182,7 +202,41 @@ export const getAgentProfile = (args: {
 };
 
 /**
+ * Filter invalid registryAuths entries and warn if any were filtered
+ * @param rawAuths - Raw registryAuths array from config file
+ *
+ * @returns Filtered array of valid registryAuths or undefined if empty
+ */
+const filterRegistryAuths = (
+  rawAuths: unknown,
+): Array<RegistryAuth> | undefined => {
+  if (!Array.isArray(rawAuths)) {
+    return undefined;
+  }
+
+  const originalCount = rawAuths.length;
+  const validAuths = rawAuths.filter(
+    (auth: unknown): auth is RegistryAuth =>
+      auth != null &&
+      typeof auth === "object" &&
+      typeof (auth as Record<string, unknown>).username === "string" &&
+      typeof (auth as Record<string, unknown>).password === "string" &&
+      typeof (auth as Record<string, unknown>).registryUrl === "string",
+  );
+
+  const filteredCount = originalCount - validAuths.length;
+  if (filteredCount > 0) {
+    warn({
+      message: `Filtered ${filteredCount} invalid registryAuths entries (missing required fields)`,
+    });
+  }
+
+  return validAuths.length > 0 ? validAuths : undefined;
+};
+
+/**
  * Load existing configuration from disk
+ * Uses JSON schema validation for strict type checking.
  * @param args - Configuration arguments
  * @param args.installDir - Installation directory
  *
@@ -197,118 +251,115 @@ export const loadConfig = async (args: {
   try {
     await fs.access(configPath);
     const content = await fs.readFile(configPath, "utf-8");
-    const config = JSON.parse(content);
+    const rawConfig = JSON.parse(content);
 
-    // Validate that the config has the expected structure
-    if (config && typeof config === "object") {
-      const result: Config = {
-        auth: null,
-        profile: null,
-        // Use installDir from config file if present, otherwise use parameter
-        installDir:
-          typeof config.installDir === "string"
-            ? config.installDir
-            : installDir,
+    if (rawConfig == null || typeof rawConfig !== "object") {
+      return null;
+    }
+
+    // Filter invalid registryAuths entries before schema validation (with warning)
+    // Schema validation would reject entire config for invalid items, but we want
+    // lenient behavior: filter invalid entries and warn
+    const filteredRegistryAuths = filterRegistryAuths(rawConfig.registryAuths);
+    const configToValidate = {
+      ...rawConfig,
+      registryAuths: filteredRegistryAuths,
+    };
+
+    // Deep clone to avoid mutating the original during validation
+    const configClone = JSON.parse(JSON.stringify(configToValidate)) as Record<
+      string,
+      unknown
+    >;
+
+    // Validate with schema - this applies defaults and removes unknown properties
+    const isValid = validateConfigSchema(configClone);
+    if (!isValid) {
+      // Schema validation failed (e.g., invalid enum values)
+      return null;
+    }
+
+    // After validation, configClone conforms to RawDiskConfig
+    const validated = configClone as unknown as RawDiskConfig;
+
+    // Build the Config result from validated data
+    const result: Config = {
+      auth: null,
+      profile: null,
+      installDir:
+        typeof validated.installDir === "string"
+          ? validated.installDir
+          : installDir,
+      sendSessionTranscript: validated.sendSessionTranscript,
+      autoupdate: validated.autoupdate,
+    };
+
+    // Check if auth credentials exist and are valid
+    const hasUsername =
+      validated.username != null && typeof validated.username === "string";
+    const hasOrganizationUrl =
+      validated.organizationUrl != null &&
+      typeof validated.organizationUrl === "string";
+    const hasRefreshToken =
+      validated.refreshToken != null &&
+      typeof validated.refreshToken === "string";
+    const hasPassword =
+      validated.password != null && typeof validated.password === "string";
+
+    if (hasUsername && hasOrganizationUrl && (hasRefreshToken || hasPassword)) {
+      result.auth = {
+        username: validated.username!,
+        organizationUrl: validated.organizationUrl!,
+        refreshToken: hasRefreshToken ? validated.refreshToken! : null,
+        password: hasPassword ? validated.password! : null,
       };
+    }
 
-      // Check if auth credentials exist and are valid
-      // Support both token-based auth (refreshToken) and legacy password-based auth
-      const hasUsername =
-        config.username && typeof config.username === "string";
-      const hasOrganizationUrl =
-        config.organizationUrl && typeof config.organizationUrl === "string";
-      const hasRefreshToken =
-        config.refreshToken && typeof config.refreshToken === "string";
-      const hasPassword =
-        config.password && typeof config.password === "string";
+    // Check if profile exists with valid baseProfile
+    if (
+      validated.profile != null &&
+      typeof validated.profile === "object" &&
+      validated.profile.baseProfile != null &&
+      typeof validated.profile.baseProfile === "string"
+    ) {
+      result.profile = {
+        baseProfile: validated.profile.baseProfile,
+      };
+    }
 
-      // Require either refreshToken or password
-      if (
-        hasUsername &&
-        hasOrganizationUrl &&
-        (hasRefreshToken || hasPassword)
-      ) {
-        result.auth = {
-          username: config.username,
-          organizationUrl: config.organizationUrl,
-          refreshToken: hasRefreshToken ? config.refreshToken : null,
-          password: hasPassword ? config.password : null,
-        };
-      }
+    // Set registryAuths from filtered array
+    if (filteredRegistryAuths != null && filteredRegistryAuths.length > 0) {
+      result.registryAuths = filteredRegistryAuths;
+    }
 
-      // Check if profile exists
-      if (config.profile && typeof config.profile === "object") {
-        if (
-          config.profile.baseProfile &&
-          typeof config.profile.baseProfile === "string"
-        ) {
-          result.profile = {
-            baseProfile: config.profile.baseProfile,
-          };
-        }
-      }
+    // Check if agents field exists (new multi-agent config format)
+    if (validated.agents != null && typeof validated.agents === "object") {
+      result.agents = validated.agents;
+    } else if (result.profile != null) {
+      // Backwards compatibility: if only legacy profile exists, mirror it to agents.claude-code
+      result.agents = {
+        "claude-code": {
+          profile: result.profile,
+        },
+      };
+    }
 
-      // Check if sendSessionTranscript exists, default to 'enabled'
-      if (
-        config.sendSessionTranscript === "enabled" ||
-        config.sendSessionTranscript === "disabled"
-      ) {
-        result.sendSessionTranscript = config.sendSessionTranscript;
-      } else {
-        result.sendSessionTranscript = "enabled"; // Default value
-      }
+    // Check if version exists
+    if (validated.version != null && typeof validated.version === "string") {
+      result.version = validated.version;
+    }
 
-      // Check if autoupdate exists, default to 'disabled'
-      if (config.autoupdate === "enabled" || config.autoupdate === "disabled") {
-        result.autoupdate = config.autoupdate;
-      } else {
-        result.autoupdate = "disabled"; // Default value
-      }
-
-      // Check if registryAuths exists and is valid array
-      if (Array.isArray(config.registryAuths)) {
-        const validAuths = config.registryAuths.filter(
-          (auth: any) =>
-            auth &&
-            typeof auth === "object" &&
-            typeof auth.username === "string" &&
-            typeof auth.password === "string" &&
-            typeof auth.registryUrl === "string",
-        );
-        if (validAuths.length > 0) {
-          result.registryAuths = validAuths;
-        }
-      }
-
-      // Check if agents field exists (new multi-agent config format)
-      if (config.agents && typeof config.agents === "object") {
-        result.agents = config.agents;
-      } else if (result.profile != null) {
-        // Backwards compatibility: if only legacy profile exists, mirror it to agents.claude-code
-        result.agents = {
-          "claude-code": {
-            profile: result.profile,
-          },
-        };
-      }
-
-      // Check if version exists and is valid string
-      if (config.version && typeof config.version === "string") {
-        result.version = config.version;
-      }
-
-      // Return result if we have at least auth, profile, agents, or sendSessionTranscript
-      if (
-        result.auth != null ||
-        result.profile != null ||
-        result.agents != null ||
-        result.sendSessionTranscript != null
-      ) {
-        return result;
-      }
+    // Return result if we have at least auth, profile, agents, or sendSessionTranscript
+    if (
+      result.auth != null ||
+      result.profile != null ||
+      result.agents != null ||
+      result.sendSessionTranscript != null
+    ) {
+      return result;
     }
   } catch {
-    // File doesn't exist or is invalid
+    // File doesn't exist or is invalid JSON
   }
 
   return null;
@@ -427,24 +478,26 @@ export type ConfigValidationResult = {
   errors?: Array<string> | null;
 };
 
-// JSON schema for nori-config.json
+// JSON schema for nori-config.json - single source of truth for validation
 const configSchema = {
   type: "object",
   properties: {
     username: { type: "string" },
     password: { type: "string" },
     refreshToken: { type: "string" },
-    organizationUrl: { type: "string" },
+    organizationUrl: { type: "string", format: "uri" },
     sendSessionTranscript: {
       type: "string",
       enum: ["enabled", "disabled"],
+      default: "enabled",
     },
     autoupdate: {
       type: "string",
       enum: ["enabled", "disabled"],
+      default: "disabled",
     },
     profile: {
-      type: "object",
+      type: ["object", "null"],
       properties: {
         baseProfile: { type: "string" },
       },
@@ -468,7 +521,7 @@ const configSchema = {
         type: "object",
         properties: {
           profile: {
-            type: "object",
+            type: ["object", "null"],
             properties: {
               baseProfile: { type: "string" },
             },
@@ -480,6 +533,17 @@ const configSchema = {
   },
   additionalProperties: false,
 };
+
+// Configured Ajv instance for schema validation
+const ajv = new Ajv({
+  allErrors: true,
+  useDefaults: true,
+  removeAdditional: true,
+});
+addFormats(ajv);
+
+// Compiled validator for config schema
+const validateConfigSchema = ajv.compile(configSchema);
 
 /**
  * Validate configuration file
@@ -577,28 +641,17 @@ export const validateConfig = async (args: {
   }
 
   // All credentials provided - validate with JSON schema
-  const ajv = new Ajv({ allErrors: true });
-  const validate = ajv.compile(configSchema);
-  const valid = validate(config);
+  // Use shared validator with formats support (format: "uri" validates organizationUrl)
+  const configClone = JSON.parse(JSON.stringify(config));
+  const valid = validateConfigSchema(configClone);
 
   // If schema validation failed, collect errors
-  if (!valid && validate.errors) {
-    errors.push(
-      `~/nori-config.json Validation Error: ${JSON.stringify(
-        validate.errors,
-        null,
-        2,
-      )}`,
-    );
-  }
-
-  // Additional URL format validation
-  try {
-    new URL(config.organizationUrl);
-  } catch {
-    errors.push(
-      `Invalid URL format for organizationUrl: ${config.organizationUrl}`,
-    );
+  if (!valid && validateConfigSchema.errors) {
+    for (const error of validateConfigSchema.errors) {
+      const path = error.instancePath || "(root)";
+      const message = error.message || "unknown error";
+      errors.push(`Config validation error at ${path}: ${message}`);
+    }
   }
 
   if (errors.length > 0) {
