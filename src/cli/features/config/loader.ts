@@ -12,12 +12,13 @@ import {
   loadConfig,
   saveConfig,
   isPaidInstall,
+  getInstalledAgents,
 } from "@/cli/config.js";
 import { info, success, error, debug } from "@/cli/logger.js";
 import { getCurrentPackageVersion } from "@/cli/version.js";
 import { configureFirebase, getFirebase } from "@/providers/firebase.js";
 
-import type { Config } from "@/cli/config.js";
+import type { Config, AgentConfig } from "@/cli/config.js";
 import type { Loader } from "@/cli/features/agentRegistry.js";
 import type { AuthError } from "firebase/auth";
 
@@ -46,10 +47,12 @@ const installConfig = async (args: { config: Config }): Promise<void> => {
     ? (config.sendSessionTranscript ?? null)
     : null;
 
-  // Merge and dedupe installedAgents from existing config and new config
-  const existingAgents = existingConfig?.installedAgents ?? [];
-  const newAgents = config.installedAgents ?? [];
-  const mergedAgents = [...new Set([...existingAgents, ...newAgents])];
+  // Merge agents from existing config and new config
+  // The keys of the agents object indicate which agents are installed
+  const mergedAgents: Record<string, AgentConfig> = {
+    ...(existingConfig?.agents ?? {}),
+    ...(config.agents ?? {}),
+  };
 
   // If we have password but no refresh token, authenticate to get a refresh token
   // This converts password-based login to token-based storage
@@ -121,12 +124,11 @@ const installConfig = async (args: { config: Config }): Promise<void> => {
     refreshToken: tokenToSave,
     organizationUrl,
     profile: config.profile ?? null,
-    agents: config.agents ?? existingConfig?.agents ?? null,
+    agents: Object.keys(mergedAgents).length > 0 ? mergedAgents : null,
     sendSessionTranscript,
     autoupdate: existingConfig?.autoupdate,
     registryAuths:
       config.registryAuths ?? existingConfig?.registryAuths ?? null,
-    installedAgents: mergedAgents.length > 0 ? mergedAgents : null,
     version: currentVersion,
     installDir: config.installDir,
   });
@@ -139,9 +141,9 @@ const installConfig = async (args: { config: Config }): Promise<void> => {
 };
 
 /**
- * Uninstall config file - remove agent from installedAgents or delete file
+ * Uninstall config file - remove agent from agents object or delete file
  * @param args - Configuration arguments
- * @param args.config - Runtime configuration (installedAgents contains agents being uninstalled)
+ * @param args.config - Runtime configuration (agents contains agents being uninstalled)
  */
 const uninstallConfig = async (args: { config: Config }): Promise<void> => {
   const { config } = args;
@@ -152,26 +154,38 @@ const uninstallConfig = async (args: { config: Config }): Promise<void> => {
     return;
   }
 
-  // Load existing config to check installedAgents
+  // Load existing config to check agents
   const existingConfig = await loadConfig({
     installDir: config.installDir,
   });
 
-  // If no installedAgents field in existing config (legacy), delete the entire file
-  if (existingConfig?.installedAgents == null) {
+  // Get installed agents from the agents object
+  const installedAgents = existingConfig
+    ? getInstalledAgents({ config: existingConfig })
+    : [];
+
+  // If no agents in existing config, delete the entire file
+  if (installedAgents.length === 0) {
     unlinkSync(configFile);
     success({ message: `✓ Config file removed: ${configFile}` });
     return;
   }
 
-  // Remove the agents being uninstalled from the list
-  const agentsToRemove = config.installedAgents ?? [];
-  const remainingAgents = existingConfig.installedAgents.filter(
-    (agent) => !agentsToRemove.includes(agent),
-  );
+  // Determine which agents are being uninstalled
+  const agentsToRemove = config.agents ? Object.keys(config.agents) : [];
+
+  // Create new agents object without the agents being uninstalled
+  const remainingAgentsObj: Record<string, AgentConfig> = {};
+  for (const agentName of installedAgents) {
+    if (!agentsToRemove.includes(agentName) && existingConfig?.agents) {
+      remainingAgentsObj[agentName] = existingConfig.agents[agentName];
+    }
+  }
+
+  const remainingAgentNames = Object.keys(remainingAgentsObj);
 
   // If no agents remain, delete the config file
-  if (remainingAgents.length === 0) {
+  if (remainingAgentNames.length === 0) {
     unlinkSync(configFile);
     success({ message: `✓ Config file removed: ${configFile}` });
     return;
@@ -179,21 +193,20 @@ const uninstallConfig = async (args: { config: Config }): Promise<void> => {
 
   // Otherwise, update the config with remaining agents (preserve version)
   await saveConfig({
-    username: existingConfig.auth?.username ?? null,
-    refreshToken: existingConfig.auth?.refreshToken ?? null,
-    organizationUrl: existingConfig.auth?.organizationUrl ?? null,
-    profile: existingConfig.profile ?? null,
-    agents: existingConfig.agents ?? null,
-    sendSessionTranscript: existingConfig.sendSessionTranscript ?? null,
-    autoupdate: existingConfig.autoupdate ?? null,
-    registryAuths: existingConfig.registryAuths ?? null,
-    installedAgents: remainingAgents,
-    version: existingConfig.version ?? null,
+    username: existingConfig?.auth?.username ?? null,
+    refreshToken: existingConfig?.auth?.refreshToken ?? null,
+    organizationUrl: existingConfig?.auth?.organizationUrl ?? null,
+    profile: existingConfig?.profile ?? null,
+    sendSessionTranscript: existingConfig?.sendSessionTranscript ?? null,
+    autoupdate: existingConfig?.autoupdate ?? null,
+    registryAuths: existingConfig?.registryAuths ?? null,
+    agents: remainingAgentsObj,
+    version: existingConfig?.version ?? null,
     installDir: config.installDir,
   });
 
   success({
-    message: `✓ Agent removed from config. Remaining agents: ${remainingAgents.join(", ")}`,
+    message: `✓ Agent removed from config. Remaining agents: ${remainingAgentNames.join(", ")}`,
   });
 };
 

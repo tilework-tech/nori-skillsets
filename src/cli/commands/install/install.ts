@@ -22,6 +22,7 @@ import {
   loadConfig,
   getDefaultProfile,
   isPaidInstall,
+  getInstalledAgents,
   type Config,
 } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
@@ -129,7 +130,6 @@ export const generatePromptConfig = async (args: {
     if (useExisting.match(/^[Yy]$/)) {
       info({ message: "Using existing configuration..." });
       const profile = existingConfig.profile ?? getDefaultProfile();
-      const existingInstalledAgents = existingConfig.installedAgents ?? [];
       return {
         ...existingConfig,
         profile,
@@ -138,9 +138,6 @@ export const generatePromptConfig = async (args: {
           [agent.name]: { profile },
         },
         installDir,
-        installedAgents: existingInstalledAgents.includes(agent.name)
-          ? existingInstalledAgents
-          : [...existingInstalledAgents, agent.name],
       };
     }
 
@@ -253,7 +250,6 @@ export const generatePromptConfig = async (args: {
 
   // Build config directly
   const profile = { baseProfile: selectedProfileName };
-  const existingInstalledAgents = existingConfig?.installedAgents ?? [];
   return {
     auth: auth ?? null,
     profile,
@@ -263,9 +259,6 @@ export const generatePromptConfig = async (args: {
     },
     installDir,
     registryAuths: registryAuths ?? null,
-    installedAgents: existingInstalledAgents.includes(agent.name)
-      ? existingInstalledAgents
-      : [...existingInstalledAgents, agent.name],
   };
 };
 
@@ -344,10 +337,12 @@ export const interactive = async (args?: {
     installDir: normalizedInstallDir,
   });
 
-  // Determine which agents are installed
-  // For backwards compatibility: if no installedAgents but existing installation exists,
+  // Determine which agents are installed using agents object keys
+  // For backwards compatibility: if no agents but existing installation exists,
   // assume claude-code is installed (old installations didn't track agents)
-  let installedAgents = existingConfig?.installedAgents ?? [];
+  let installedAgents = existingConfig
+    ? getInstalledAgents({ config: existingConfig })
+    : [];
   const existingInstall = hasExistingInstallation({
     installDir: normalizedInstallDir,
   });
@@ -540,10 +535,12 @@ export const noninteractive = async (args?: {
     installDir: normalizedInstallDir,
   });
 
-  // Determine which agents are installed
-  // For backwards compatibility: if no installedAgents but existing installation exists,
+  // Determine which agents are installed using agents object keys
+  // For backwards compatibility: if no agents but existing installation exists,
   // assume claude-code is installed (old installations didn't track agents)
-  let installedAgents = existingConfig?.installedAgents ?? [];
+  let installedAgents = existingConfig
+    ? getInstalledAgents({ config: existingConfig })
+    : [];
   const existingInstall = hasExistingInstallation({
     installDir: normalizedInstallDir,
   });
@@ -581,7 +578,6 @@ export const noninteractive = async (args?: {
     info({ message: "First-time installation detected. No cleanup needed." });
   }
 
-  const existingInstalledAgents = existingConfig?.installedAgents ?? [];
   const config: Config = existingConfig
     ? {
         ...existingConfig,
@@ -591,9 +587,6 @@ export const noninteractive = async (args?: {
             profile: existingConfig.profile ?? getDefaultProfile(),
           },
         },
-        installedAgents: existingInstalledAgents.includes(agentImpl.name)
-          ? existingInstalledAgents
-          : [...existingInstalledAgents, agentImpl.name],
       }
     : {
         profile: getDefaultProfile(),
@@ -601,7 +594,6 @@ export const noninteractive = async (args?: {
           [agentImpl.name]: { profile: getDefaultProfile() },
         },
         installDir: normalizedInstallDir,
-        installedAgents: [agentImpl.name],
       };
 
   // Track installation start

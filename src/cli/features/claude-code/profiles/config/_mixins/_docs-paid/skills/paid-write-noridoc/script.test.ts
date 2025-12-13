@@ -144,11 +144,4 @@ describe("paid-write-noridoc script", () => {
       expect(errorCalls).toMatch(/Usage:/);
     });
   });
-
-  describe("output formatting", () => {
-    it("should output confirmation message", async () => {
-      // Test structure for API mock integration
-      expect(true).toBe(true);
-    });
-  });
 });

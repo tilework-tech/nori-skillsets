@@ -10,7 +10,12 @@ import * as fs from "fs/promises";
 import * as path from "path";
 
 import { trackEvent } from "@/cli/analytics.js";
-import { loadConfig, getDefaultProfile, isPaidInstall } from "@/cli/config.js";
+import {
+  loadConfig,
+  getDefaultProfile,
+  isPaidInstall,
+  getInstalledAgents,
+} from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { error, success, info, warn, newline } from "@/cli/logger.js";
 import { promptUser } from "@/cli/prompt.js";
@@ -147,7 +152,9 @@ export const generatePromptConfig = async (args: {
 
   // Determine which agent to uninstall
   let selectedAgent = agent ?? "claude-code";
-  const installedAgents = existingConfig?.installedAgents ?? [];
+  const installedAgents = existingConfig
+    ? getInstalledAgents({ config: existingConfig })
+    : [];
 
   if (installedAgents.length > 0) {
     info({
@@ -311,7 +318,8 @@ export const runUninstall = async (args: {
   };
 
   // Set the agent being uninstalled so config loader knows what to remove
-  config.installedAgents = [agentName];
+  // The keys of config.agents indicate which agents to uninstall
+  config.agents = { [agentName]: {} };
 
   // Log installed version for debugging
   if (installedVersion) {
@@ -371,7 +379,9 @@ export const runUninstall = async (args: {
   // Check if there are remaining agents and notify user
   if (removeConfig) {
     const updatedConfig = await loadConfig({ installDir: config.installDir });
-    const remainingAgents = updatedConfig?.installedAgents ?? [];
+    const remainingAgents = updatedConfig
+      ? getInstalledAgents({ config: updatedConfig })
+      : [];
     if (remainingAgents.length > 0) {
       newline();
       info({
@@ -473,7 +483,9 @@ export const noninteractive = async (args?: {
   let agentName = args?.agent ?? null;
   if (agentName == null) {
     const existingConfig = await loadConfig({ installDir });
-    const installedAgents = existingConfig?.installedAgents ?? [];
+    const installedAgents = existingConfig
+      ? getInstalledAgents({ config: existingConfig })
+      : [];
     if (installedAgents.length === 1) {
       // Single agent installed - use it
       agentName = installedAgents[0];

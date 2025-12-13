@@ -768,14 +768,14 @@ describe("uninstall agent detection from config", () => {
   });
 
   it("should detect cursor-agent from config in non-interactive mode", async () => {
-    // Create config with cursor-agent installed
+    // Create config with cursor-agent installed (via agents object)
     mockLoadedConfig = {
-      installedAgents: ["cursor-agent"],
+      agents: { "cursor-agent": {} },
       installDir: tempDir,
     };
     await fs.writeFile(
       mockConfigPath,
-      JSON.stringify({ installedAgents: ["cursor-agent"] }),
+      JSON.stringify({ agents: { "cursor-agent": {} } }),
     );
 
     // Run non-interactive uninstall WITHOUT --agent flag
@@ -786,8 +786,8 @@ describe("uninstall agent detection from config", () => {
     expect(agentRegistryGetSpy).toHaveBeenCalledWith({ name: "cursor-agent" });
   });
 
-  it("should default to claude-code when no installedAgents in config", async () => {
-    // Create config without installedAgents
+  it("should default to claude-code when no agents in config", async () => {
+    // Create config without agents
     mockLoadedConfig = {
       installDir: tempDir,
     };
@@ -812,14 +812,17 @@ describe("uninstall agent detection from config", () => {
   });
 
   it("should default to claude-code when multiple agents are installed", async () => {
-    // Create config with multiple agents installed
+    // Create config with multiple agents installed (via agents object)
     mockLoadedConfig = {
-      installedAgents: ["claude-code", "cursor-agent"],
+      agents: {
+        "claude-code": {},
+        "cursor-agent": {},
+      },
       installDir: tempDir,
     };
     await fs.writeFile(
       mockConfigPath,
-      JSON.stringify({ installedAgents: ["claude-code", "cursor-agent"] }),
+      JSON.stringify({ agents: { "claude-code": {}, "cursor-agent": {} } }),
     );
 
     // Run non-interactive uninstall WITHOUT --agent flag
@@ -867,8 +870,10 @@ describe("uninstall multi-agent config preservation", () => {
     // Create config with multiple agents installed (version is now in config)
     const initialConfig = {
       installDir: tempDir,
-      profile: { baseProfile: "senior-swe" },
-      installedAgents: ["claude-code", "cursor-agent"],
+      agents: {
+        "claude-code": { profile: { baseProfile: "senior-swe" } },
+        "cursor-agent": { profile: { baseProfile: "senior-swe" } },
+      },
       version: "19.0.0",
     };
     await fs.writeFile(configPath, JSON.stringify(initialConfig));
@@ -876,7 +881,6 @@ describe("uninstall multi-agent config preservation", () => {
     // Mock loadConfig to return our multi-agent config
     mockLoadedConfig = {
       ...initialConfig,
-      installedAgents: ["claude-code", "cursor-agent"],
     };
 
     // Run uninstall with removeConfig=true for cursor-agent
@@ -903,8 +907,9 @@ describe("uninstall multi-agent config preservation", () => {
     // Create config with single agent (version is now in config)
     const initialConfig = {
       installDir: tempDir,
-      profile: { baseProfile: "senior-swe" },
-      installedAgents: ["claude-code"],
+      agents: {
+        "claude-code": { profile: { baseProfile: "senior-swe" } },
+      },
       version: "19.0.0",
     };
     await fs.writeFile(configPath, JSON.stringify(initialConfig));
@@ -912,7 +917,6 @@ describe("uninstall multi-agent config preservation", () => {
     // Mock loadConfig to return single-agent config
     mockLoadedConfig = {
       ...initialConfig,
-      installedAgents: ["claude-code"],
     };
 
     // Run uninstall with removeConfig=true for the only agent
@@ -935,8 +939,10 @@ describe("uninstall multi-agent config preservation", () => {
     // Create config with multiple agents installed (version is now in config)
     const initialConfig = {
       installDir: tempDir,
-      profile: { baseProfile: "senior-swe" },
-      installedAgents: ["claude-code", "cursor-agent"],
+      agents: {
+        "claude-code": { profile: { baseProfile: "senior-swe" } },
+        "cursor-agent": { profile: { baseProfile: "senior-swe" } },
+      },
       version: "19.0.0",
     };
     await fs.writeFile(configPath, JSON.stringify(initialConfig));
@@ -944,7 +950,6 @@ describe("uninstall multi-agent config preservation", () => {
     // Mock loadConfig to return our multi-agent config
     mockLoadedConfig = {
       ...initialConfig,
-      installedAgents: ["claude-code", "cursor-agent"],
     };
 
     // Import logger to check messages

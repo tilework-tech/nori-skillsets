@@ -487,18 +487,18 @@ describe("install integration test", () => {
     expect(postUninstallCwdSnapshot).toEqual(preInstallCwdSnapshot);
   });
 
-  it("should include installedAgents in config after installation", async () => {
+  it("should include agent in config after installation", async () => {
     const CONFIG_PATH = getConfigPath({ installDir: tempDir });
 
     // STEP 1: Run installation in non-interactive mode
     await installMain({ nonInteractive: true, installDir: tempDir });
 
-    // STEP 2: Verify installedAgents is set in the config
+    // STEP 2: Verify agent is set in the config via agents object
     const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
-    expect(config.installedAgents).toEqual(["claude-code"]);
+    expect(Object.keys(config.agents)).toEqual(["claude-code"]);
   });
 
-  it("should accumulate installedAgents when installing multiple agents", async () => {
+  it("should accumulate agents when installing multiple agents", async () => {
     const CONFIG_PATH = getConfigPath({ installDir: tempDir });
 
     // STEP 1: Create existing config with one agent
@@ -506,7 +506,9 @@ describe("install integration test", () => {
       CONFIG_PATH,
       JSON.stringify({
         profile: { baseProfile: "senior-swe" },
-        installedAgents: ["cursor-agent"],
+        agents: {
+          "cursor-agent": { profile: { baseProfile: "senior-swe" } },
+        },
         installDir: tempDir,
       }),
     );
@@ -514,12 +516,13 @@ describe("install integration test", () => {
     // STEP 2: Install claude-code (default agent)
     await installMain({ nonInteractive: true, installDir: tempDir });
 
-    // STEP 3: Verify both agents are in installedAgents
+    // STEP 3: Verify both agents are in agents object
     const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
-    expect(config.installedAgents).toEqual(
-      expect.arrayContaining(["cursor-agent", "claude-code"]),
-    );
-    expect(config.installedAgents).toHaveLength(2);
+    expect(Object.keys(config.agents).sort()).toEqual([
+      "claude-code",
+      "cursor-agent",
+    ]);
+    expect(Object.keys(config.agents)).toHaveLength(2);
   });
 
   it("should NOT run uninstall when installing a different agent than what is already installed", async () => {
