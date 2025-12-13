@@ -679,7 +679,7 @@ describe("getInstalledAgents", () => {
     expect(installedAgents).toHaveLength(2);
   });
 
-  it("should return empty array when agents is null", () => {
+  it("should return claude-code by default when agents is null (backwards compatibility)", () => {
     const config: Config = {
       installDir: "/test",
       agents: null,
@@ -687,20 +687,20 @@ describe("getInstalledAgents", () => {
 
     const installedAgents = getInstalledAgents({ config });
 
-    expect(installedAgents).toEqual([]);
+    expect(installedAgents).toEqual(["claude-code"]);
   });
 
-  it("should return empty array when agents is undefined", () => {
+  it("should return claude-code by default when agents is undefined (backwards compatibility)", () => {
     const config: Config = {
       installDir: "/test",
     };
 
     const installedAgents = getInstalledAgents({ config });
 
-    expect(installedAgents).toEqual([]);
+    expect(installedAgents).toEqual(["claude-code"]);
   });
 
-  it("should return empty array when agents is empty object", () => {
+  it("should return claude-code by default when agents is empty object (backwards compatibility)", () => {
     const config: Config = {
       installDir: "/test",
       agents: {},
@@ -708,7 +708,7 @@ describe("getInstalledAgents", () => {
 
     const installedAgents = getInstalledAgents({ config });
 
-    expect(installedAgents).toEqual([]);
+    expect(installedAgents).toEqual(["claude-code"]);
   });
 
   it("should return single agent when only one is configured", () => {

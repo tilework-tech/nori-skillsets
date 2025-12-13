@@ -138,6 +138,7 @@ export const getRegistryAuth = (args: {
 /**
  * Get list of installed agents from config
  * Derives installed agents from the keys of the agents object
+ * Returns ['claude-code'] by default for backwards compatibility with older configs
  * @param args - Configuration arguments
  * @param args.config - The config to check
  *
@@ -145,7 +146,8 @@ export const getRegistryAuth = (args: {
  */
 export const getInstalledAgents = (args: { config: Config }): Array<string> => {
   const { config } = args;
-  return Object.keys(config.agents ?? {});
+  const agents = Object.keys(config.agents ?? {});
+  return agents.length > 0 ? agents : ["claude-code"];
 };
 
 /**
