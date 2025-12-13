@@ -23,6 +23,7 @@ vi.mock("fs", () => ({
 // Mock logger to suppress output
 vi.mock("@/cli/logger.js", () => ({
   error: vi.fn(),
+  LOG_FILE: "/tmp/nori.log",
 }));
 
 // Mock analytics
@@ -504,9 +505,9 @@ describe("autoupdate", () => {
       consoleLogSpy.mockRestore();
     });
 
-    it("should append install output to notifications log", async () => {
+    it("should append install output to consolidated log file", async () => {
       // This test verifies that background install output is logged to
-      // ~/.nori-notifications.log for debugging
+      // /tmp/nori.log for debugging
 
       // Mock filesystem functions
       const { appendFileSync, openSync } = await import("fs");
@@ -562,7 +563,7 @@ describe("autoupdate", () => {
       const logContent = appendCall[1] as string;
 
       // Verify log path is correct
-      expect(logPath).toContain(".nori-notifications.log");
+      expect(logPath).toBe("/tmp/nori.log");
 
       // Verify log content includes timestamp, version, and command
       expect(logContent).toContain("Nori Autoupdate");
@@ -571,10 +572,7 @@ describe("autoupdate", () => {
       expect(logContent).toContain("nori-ai install --non-interactive");
 
       // Verify openSync was called for append mode
-      expect(mockOpenSync).toHaveBeenCalledWith(
-        expect.stringContaining(".nori-notifications.log"),
-        "a",
-      );
+      expect(mockOpenSync).toHaveBeenCalledWith("/tmp/nori.log", "a");
 
       // Verify spawn was called with stdio redirected to log file descriptor
       expect(mockSpawn).toHaveBeenCalledWith(
@@ -637,10 +635,7 @@ describe("autoupdate", () => {
       await autoupdate.main();
 
       // Verify openSync was called with append flag
-      expect(mockOpenSync).toHaveBeenCalledWith(
-        expect.stringContaining(".nori-notifications.log"),
-        "a",
-      );
+      expect(mockOpenSync).toHaveBeenCalledWith("/tmp/nori.log", "a");
 
       // Verify spawn was called with file descriptor, not stream
       expect(mockSpawn).toHaveBeenCalledWith(

@@ -260,7 +260,9 @@ export const generatePromptConfig = async (args: {
 };
 
 /**
- * Remove the .nori-notifications.log file
+ * Remove legacy .nori-notifications.log file (for upgrades from older versions)
+ * Note: Current versions use /tmp/nori.log which is not cleaned up on uninstall
+ * as it's a shared system temp file.
  * @param args - Configuration arguments
  * @param args.installDir - Installation directory
  */
@@ -273,7 +275,7 @@ const cleanupNotificationsLog = async (args: {
   try {
     await fs.access(logPath);
     await fs.unlink(logPath);
-    success({ message: `✓ Removed notifications log: ${logPath}` });
+    success({ message: `✓ Removed legacy notifications log: ${logPath}` });
   } catch {
     // File doesn't exist, which is fine
   }

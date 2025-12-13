@@ -438,7 +438,7 @@ describe("install integration test", () => {
       true,
     );
 
-    // Create notifications log to test cleanup
+    // Create legacy notifications log to test cleanup (from older versions)
     const notificationsLog = path.join(tempDir, ".nori-notifications.log");
     fs.writeFileSync(notificationsLog, "test notification log");
 

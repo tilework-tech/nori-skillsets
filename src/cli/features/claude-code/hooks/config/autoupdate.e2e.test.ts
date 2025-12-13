@@ -20,6 +20,7 @@ vi.mock("child_process", async (importOriginal) => {
 // Mock logger to suppress output
 vi.mock("@/cli/logger.js", () => ({
   error: vi.fn(),
+  LOG_FILE: "/tmp/nori.log",
 }));
 
 // Mock analytics
@@ -102,8 +103,8 @@ exit 0
     const versionFilePath = path.join(tempHomeDir, ".nori-installed-version");
     fs.writeFileSync(versionFilePath, "1.0.0", "utf-8");
 
-    // Setup: Create notifications log file
-    const logPath = path.join(tempHomeDir, ".nori-notifications.log");
+    // Setup: Clear the consolidated log file before running test
+    const logPath = "/tmp/nori.log";
     fs.writeFileSync(logPath, "", "utf-8");
 
     // Create the sh-calls.log file upfront so we can check if it was modified
@@ -152,7 +153,7 @@ exit 0
     // Wait for spawned process to complete
     await new Promise((resolve) => setTimeout(resolve, 500));
 
-    // Verify: Check the notifications log to confirm spawn was triggered
+    // Verify: Check the consolidated log file to confirm spawn was triggered
     // This log is written by autoupdate.ts before spawning
     const notificationsLog = fs.readFileSync(logPath, "utf-8");
     expect(notificationsLog).toContain("Nori Autoupdate");

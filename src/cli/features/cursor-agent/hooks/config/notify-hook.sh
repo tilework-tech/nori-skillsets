@@ -13,8 +13,8 @@ else
     INSTALL_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
 fi
 
-# Configuration
-readonly LOG_FILE="$INSTALL_DIR/.nori-notifications.log"
+# Configuration - Use consolidated log file
+readonly LOG_FILE="/tmp/nori.log"
 readonly NOTIFICATION_TITLE="Nori-Notification"
 readonly DEFAULT_MESSAGE="Cursor agent has completed"
 readonly NOTIFICATION_TIMEOUT=5000
