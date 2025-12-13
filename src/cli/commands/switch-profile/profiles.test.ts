@@ -20,9 +20,10 @@ vi.mock("@/cli/env.js", () => ({
   CLI_ROOT: "/mock/cli/root",
 }));
 
-// Mock install to avoid side effects
+// Mock install to avoid side effects - track calls for verification
+const mockInstallMain = vi.fn().mockResolvedValue(undefined);
 vi.mock("@/cli/commands/install/install.js", () => ({
-  main: vi.fn().mockResolvedValue(undefined),
+  main: mockInstallMain,
 }));
 
 // Mock promptUser for interactive tests
@@ -406,6 +407,62 @@ describe("registerSwitchProfileCommand", () => {
       errorMessage.includes("--agent") ||
         thrownError?.message.includes("agent"),
     ).toBe(true);
+  });
+
+  it("should call installMain with silent: true", async () => {
+    // Create config with claude-code installed
+    const configPath = path.join(testInstallDir, ".nori-config.json");
+    await fs.writeFile(
+      configPath,
+      JSON.stringify({
+        installedAgents: ["claude-code"],
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
+        installDir: testInstallDir,
+      }),
+    );
+
+    const program = new Command();
+    program.exitOverride();
+    program.configureOutput({ writeErr: () => undefined });
+    program
+      .option("-d, --install-dir <path>", "Custom installation directory")
+      .option("-n, --non-interactive", "Run without interactive prompts")
+      .option("-a, --agent <name>", "AI agent to use");
+
+    registerSwitchProfileCommand({ program });
+
+    // Reset mock to track this specific call
+    mockInstallMain.mockClear();
+
+    // Mock claude-code's switchProfile
+    const claudeAgent = AgentRegistry.getInstance().get({
+      name: "claude-code",
+    });
+    vi.spyOn(claudeAgent, "switchProfile").mockResolvedValue(undefined);
+
+    try {
+      await program.parseAsync([
+        "node",
+        "nori-ai",
+        "switch-profile",
+        "senior-swe",
+        "--install-dir",
+        testInstallDir,
+      ]);
+    } catch {
+      // May throw due to exit
+    }
+
+    // Verify installMain was called with silent: true
+    expect(mockInstallMain).toHaveBeenCalledWith(
+      expect.objectContaining({
+        silent: true,
+        nonInteractive: true,
+        skipUninstall: true,
+      }),
+    );
   });
 
   it("should prompt user to select agent when multiple agents installed in interactive mode", async () => {

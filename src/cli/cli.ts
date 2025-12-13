@@ -33,6 +33,7 @@ program
     (value) => normalizeInstallDir({ installDir: value }),
   )
   .option("-n, --non-interactive", "Run without interactive prompts")
+  .option("-s, --silent", "Suppress all output (implies --non-interactive)")
   .option(
     "-a, --agent <name>",
     "AI agent to use (auto-detected from config, or claude-code)",
@@ -55,6 +56,7 @@ Examples:
   $ nori-ai registry-upload my-profile
   $ nori-ai registry-upload my-profile@1.0.0 --registry https://registry.example.com
   $ nori-ai --non-interactive install
+  $ nori-ai --silent install
 `,
   );
 

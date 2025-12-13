@@ -3,6 +3,29 @@
  * Provides colorized console output functions and file logging
  */
 
+// Silent mode flag - when true, all console output is suppressed
+let silentMode = false;
+
+/**
+ * Enable or disable silent mode
+ * When silent mode is enabled, all console output is suppressed
+ *
+ * @param args - Configuration arguments
+ * @param args.silent - Whether to enable silent mode
+ */
+export const setSilentMode = (args: { silent: boolean }): void => {
+  silentMode = args.silent;
+};
+
+/**
+ * Check if silent mode is enabled
+ *
+ * @returns Whether silent mode is currently enabled
+ */
+export const isSilentMode = (): boolean => {
+  return silentMode;
+};
+
 // ANSI color codes for output
 const colors = {
   RED: "\x1b[0;31m",
@@ -51,7 +74,9 @@ const appendToLogFile = async (args: {
  */
 export const error = (args: { message: string }): void => {
   const { message } = args;
-  console.error(`${colors.RED}Error: ${message}${colors.NC}`);
+  if (!silentMode) {
+    console.error(`${colors.RED}Error: ${message}${colors.NC}`);
+  }
   // Log to file asynchronously (don't await)
   appendToLogFile({ message, level: "ERROR" });
 };
@@ -63,7 +88,9 @@ export const error = (args: { message: string }): void => {
  */
 export const success = (args: { message: string }): void => {
   const { message } = args;
-  console.log(`${colors.GREEN}${message}${colors.NC}`);
+  if (!silentMode) {
+    console.log(`${colors.GREEN}${message}${colors.NC}`);
+  }
   // Log to file asynchronously (don't await)
   appendToLogFile({ message, level: "SUCCESS" });
 };
@@ -75,7 +102,9 @@ export const success = (args: { message: string }): void => {
  */
 export const info = (args: { message: string }): void => {
   const { message } = args;
-  console.log(`${colors.BLUE}${message}${colors.NC}`);
+  if (!silentMode) {
+    console.log(`${colors.BLUE}${message}${colors.NC}`);
+  }
   // Log to file asynchronously (don't await)
   appendToLogFile({ message, level: "INFO" });
 };
@@ -87,7 +116,9 @@ export const info = (args: { message: string }): void => {
  */
 export const warn = (args: { message: string }): void => {
   const { message } = args;
-  console.log(`${colors.YELLOW}Warning: ${message}${colors.NC}`);
+  if (!silentMode) {
+    console.log(`${colors.YELLOW}Warning: ${message}${colors.NC}`);
+  }
   // Log to file asynchronously (don't await)
   appendToLogFile({ message, level: "WARN" });
 };

@@ -5,7 +5,7 @@
 
 import { loadConfig, getAgentProfile } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
-import { error, info } from "@/cli/logger.js";
+import { error, info, success } from "@/cli/logger.js";
 import { promptUser } from "@/cli/prompt.js";
 import { normalizeInstallDir } from "@/utils/path.js";
 
@@ -174,9 +174,8 @@ export const registerSwitchProfileCommand = (args: {
         throw err;
       }
 
-      // Run install in non-interactive mode with skipUninstall
+      // Run install in silent mode with skipUninstall
       // This preserves custom user profiles during the profile switch
-      info({ message: "Applying profile configuration..." });
       const { main: installMain } =
         await import("@/cli/commands/install/install.js");
       await installMain({
@@ -184,6 +183,9 @@ export const registerSwitchProfileCommand = (args: {
         skipUninstall: true,
         installDir: globalOpts.installDir || null,
         agent: agentName,
+        silent: true,
       });
+
+      success({ message: `Switched to profile: ${name}` });
     });
 };

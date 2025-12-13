@@ -113,9 +113,10 @@ const main = async (): Promise<void> => {
   const input = processInput({ input: cursorInput });
 
   // Try each registered command
+  const trimmedPrompt = prompt.trim();
+
   for (const command of interceptedSlashCommands) {
     // Check if any matcher matches the prompt
-    const trimmedPrompt = prompt.trim();
     let matched = false;
 
     for (const matcher of command.matchers) {

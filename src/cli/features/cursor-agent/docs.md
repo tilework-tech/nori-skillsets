@@ -129,7 +129,7 @@ The notify-hook.sh script is a cross-platform bash script supporting Linux (noti
 | `{ continue: boolean, user_message?: string }` | `{ decision?: "block", reason?: string }` | `decision: "block"` maps to `continue: false` |
 | `prompt`, `workspace_roots[0]` | `prompt`, `cwd` | First workspace_root becomes cwd |
 
-Commands use regex matchers in `InterceptedSlashCommand.matchers`. The `/nori-switch-profile` command lists available profiles or switches to a specified profile, running `nori-ai install` to apply changes.
+Commands use regex matchers in `InterceptedSlashCommand.matchers`. The `/nori-switch-profile` command lists available profiles or switches to a specified profile, calling `installMain({ nonInteractive: true, skipUninstall: true, installDir, agent: "cursor-agent", silent: true })` to apply changes. The `silent: true` parameter is critical - it suppresses all console output (ASCII art banners, success messages, etc.) that would otherwise corrupt the JSON response returned to Cursor IDE.
 
 **Mixin composition system**: Profiles specify mixins in profile.json as `{"mixins": {"base": {}, "swe": {}}}`. The loader processes mixins in alphabetical order for deterministic precedence. When multiple mixins provide the same file, last writer wins. When multiple mixins provide the same directory, contents are merged. Conditional mixins are automatically injected based on user tier (see @/src/cli/features/cursor-agent/profiles/loader.ts).
 

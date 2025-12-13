@@ -34,6 +34,7 @@ import {
   brightCyan,
   boldWhite,
   gray,
+  setSilentMode,
 } from "@/cli/logger.js";
 import { promptUser } from "@/cli/prompt.js";
 import {
@@ -694,17 +695,28 @@ export const noninteractive = async (args?: {
  * @param args.skipUninstall - Whether to skip uninstall step (useful for profile switching)
  * @param args.installDir - Custom installation directory (optional)
  * @param args.agent - AI agent to use (defaults to claude-code)
+ * @param args.silent - Whether to suppress all output (implies nonInteractive)
  */
 export const main = async (args?: {
   nonInteractive?: boolean | null;
   skipUninstall?: boolean | null;
   installDir?: string | null;
   agent?: string | null;
+  silent?: boolean | null;
 }): Promise<void> => {
-  const { nonInteractive, skipUninstall, installDir, agent } = args || {};
+  const { nonInteractive, skipUninstall, installDir, agent, silent } =
+    args || {};
+
+  // Save original console.log and suppress all output if silent mode requested
+  const originalConsoleLog = console.log;
+  if (silent) {
+    setSilentMode({ silent: true });
+    console.log = () => undefined;
+  }
 
   try {
-    if (nonInteractive) {
+    // Silent mode implies non-interactive
+    if (nonInteractive || silent) {
       await noninteractive({ skipUninstall, installDir, agent });
     } else {
       await interactive({ skipUninstall, installDir, agent });
@@ -712,6 +724,12 @@ export const main = async (args?: {
   } catch (err: any) {
     error({ message: err.message });
     process.exit(1);
+  } finally {
+    // Always restore console.log and silent mode when done
+    if (silent) {
+      console.log = originalConsoleLog;
+      setSilentMode({ silent: false });
+    }
   }
 };
 
@@ -734,6 +752,7 @@ export const registerInstallCommand = (args: { program: Command }): void => {
         nonInteractive: globalOpts.nonInteractive || null,
         installDir: globalOpts.installDir || null,
         agent: globalOpts.agent || null,
+        silent: globalOpts.silent || null,
       });
     });
 };

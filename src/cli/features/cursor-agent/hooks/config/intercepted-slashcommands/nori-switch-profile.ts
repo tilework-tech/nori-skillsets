@@ -87,6 +87,8 @@ const run = async (args: { input: HookInput }): Promise<HookOutput | null> => {
 
     // Run install in non-interactive mode with skipUninstall to apply profile changes
     // This is the same pattern used by the CLI `nori-ai switch-profile` command
+    // CRITICAL: Use silent mode to prevent stdout pollution during hook execution
+    // (JSON response corruption - installMain outputs ASCII art and messages)
     const { main: installMain } =
       await import("@/cli/commands/install/install.js");
     await installMain({
@@ -94,6 +96,7 @@ const run = async (args: { input: HookInput }): Promise<HookOutput | null> => {
       skipUninstall: true,
       installDir,
       agent: "cursor-agent",
+      silent: true,
     });
 
     // Read profile description if available
