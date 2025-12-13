@@ -16,13 +16,12 @@ vi.mock("./env.js", () => {
 
 import { hasExistingInstallation } from "@/cli/commands/install/installState.js";
 
-import { getConfigPath } from "./config.js";
+import { getConfigPath, saveConfig } from "./config.js";
 import { CLI_ROOT } from "./env.js";
 import {
   buildUninstallCommand,
   getCurrentPackageVersion,
   getInstalledVersion,
-  saveInstalledVersion,
   supportsAgentFlag,
 } from "./version.js";
 
@@ -89,7 +88,6 @@ describe("version", () => {
   describe("getInstalledVersion", () => {
     let tempDir: string;
     let originalCwd: () => string;
-    let VERSION_FILE_PATH: string;
 
     beforeEach(async () => {
       // Create temp directory for testing
@@ -102,9 +100,6 @@ describe("version", () => {
 
       // Mock cwd to temp directory
       process.cwd = () => tempDir;
-
-      // NOW compute path - it will use the mocked cwd
-      VERSION_FILE_PATH = path.join(tempDir, ".nori-installed-version");
     });
 
     afterEach(async () => {
@@ -119,179 +114,70 @@ describe("version", () => {
       }
     });
 
-    it("should return version from .nori-installed-version in cwd", () => {
-      // Create a test version file
-      fs.writeFileSync(VERSION_FILE_PATH, "13.5.2", "utf-8");
+    it("should return version from config file", async () => {
+      // Create a test config file with version
+      await saveConfig({
+        username: null,
+        organizationUrl: null,
+        agents: { "claude-code": {} },
+        version: "13.5.2",
+        installDir: tempDir,
+      });
 
-      const version = getInstalledVersion({ installDir: tempDir });
+      const version = await getInstalledVersion({ installDir: tempDir });
       expect(version).toBe("13.5.2");
     });
 
-    it("should return 12.1.0 if version file does not exist", () => {
-      // Ensure file doesn't exist
-      try {
-        fs.unlinkSync(VERSION_FILE_PATH);
-      } catch {
-        // Ignore if already doesn't exist
-      }
-
-      const version = getInstalledVersion({ installDir: tempDir });
+    it("should return 12.1.0 if config file does not exist", async () => {
+      const version = await getInstalledVersion({ installDir: tempDir });
       expect(version).toBe("12.1.0");
     });
 
-    it("should return 12.1.0 if version file is invalid", () => {
-      // Create an empty version file
-      fs.writeFileSync(VERSION_FILE_PATH, "", "utf-8");
+    it("should return 12.1.0 if config has no version field", async () => {
+      // Create config without version field
+      await saveConfig({
+        username: null,
+        organizationUrl: null,
+        agents: { "claude-code": {} },
+        installDir: tempDir,
+      });
 
-      const version = getInstalledVersion({ installDir: tempDir });
+      const version = await getInstalledVersion({ installDir: tempDir });
       expect(version).toBe("12.1.0");
     });
 
-    it("should trim whitespace from version file", () => {
-      // Create version file with whitespace
-      fs.writeFileSync(VERSION_FILE_PATH, "  14.0.0  \n", "utf-8");
+    it("should never delete real user config file", async () => {
+      // This test verifies that process.cwd is mocked and tests never touch the real config file
+      const realConfigPath = path.join(originalCwd(), ".nori-config.json");
 
-      const version = getInstalledVersion({ installDir: tempDir });
-      expect(version).toBe("14.0.0");
-    });
-
-    it("should never delete real user version file", () => {
-      // This test verifies that process.cwd is mocked and tests never touch the real version file
-      // Get what the real version path WOULD be (using originalCwd from beforeEach)
-      const realVersionPath = path.join(
-        originalCwd(),
-        ".nori-installed-version",
-      );
-
-      // Check if real version file exists before test
+      // Check if real config file exists before test
       let existedBefore = false;
       try {
-        fs.accessSync(realVersionPath);
+        fs.accessSync(realConfigPath);
         existedBefore = true;
       } catch {
         // File doesn't exist, which is fine
       }
 
-      // Verify that VERSION_FILE_PATH used by tests is NOT the real version path
-      // This proves cwd is mocked
-      expect(VERSION_FILE_PATH).not.toBe(realVersionPath);
-
       // Verify the test cwd is actually different from real cwd
-      // (We expect process.cwd() to be a temp directory created by os.tmpdir())
-      // Note: os.tmpdir() returns different paths on different platforms:
-      // - Linux: /tmp/
-      // - macOS: /var/folders/...
-      // - Windows: C:\Users\...\AppData\Local\Temp
       expect(process.cwd()).toContain(os.tmpdir());
       expect(process.cwd()).toContain("version-test-getInstalledVersion-");
 
       // Run all the test operations
-      fs.writeFileSync(VERSION_FILE_PATH, "13.5.2", "utf-8");
-      getInstalledVersion({ installDir: tempDir });
+      await saveConfig({
+        username: null,
+        organizationUrl: null,
+        agents: { "claude-code": {} },
+        version: "13.5.2",
+        installDir: tempDir,
+      });
+      await getInstalledVersion({ installDir: tempDir });
 
-      // Verify real version file still exists (if it existed before)
+      // Verify real config file still exists (if it existed before)
       if (existedBefore) {
         let existsAfter = false;
         try {
-          fs.accessSync(realVersionPath);
-          existsAfter = true;
-        } catch {
-          // File was deleted!
-        }
-        expect(existsAfter).toBe(true);
-      }
-    });
-  });
-
-  describe("saveInstalledVersion", () => {
-    let tempDir: string;
-    let originalCwd: () => string;
-    let VERSION_FILE_PATH: string;
-
-    beforeEach(async () => {
-      // Create temp directory for testing
-      tempDir = await fsPromises.mkdtemp(
-        path.join(os.tmpdir(), "version-test-saveInstalledVersion-"),
-      );
-
-      // Save original cwd
-      originalCwd = process.cwd;
-
-      // Mock cwd to temp directory
-      process.cwd = () => tempDir;
-
-      // NOW compute path - it will use the mocked cwd
-      VERSION_FILE_PATH = path.join(tempDir, ".nori-installed-version");
-    });
-
-    afterEach(async () => {
-      // Restore cwd
-      process.cwd = originalCwd;
-
-      // Clean up temp directory
-      try {
-        await fsPromises.rm(tempDir, { recursive: true, force: true });
-      } catch {
-        // Ignore if cleanup fails
-      }
-    });
-
-    it("should save version to .nori-installed-version in cwd", () => {
-      saveInstalledVersion({ version: "15.0.0", installDir: tempDir });
-
-      const savedVersion = fs.readFileSync(VERSION_FILE_PATH, "utf-8");
-      expect(savedVersion).toBe("15.0.0");
-    });
-
-    it("should overwrite existing version file", () => {
-      // Create initial version file
-      fs.writeFileSync(VERSION_FILE_PATH, "10.0.0", "utf-8");
-
-      // Overwrite with new version
-      saveInstalledVersion({ version: "11.0.0", installDir: tempDir });
-
-      const savedVersion = fs.readFileSync(VERSION_FILE_PATH, "utf-8");
-      expect(savedVersion).toBe("11.0.0");
-    });
-
-    it("should never delete real user version file", () => {
-      // This test verifies that process.cwd is mocked and tests never touch the real version file
-      // Get what the real version path WOULD be (using originalCwd from beforeEach)
-      const realVersionPath = path.join(
-        originalCwd(),
-        ".nori-installed-version",
-      );
-
-      // Check if real version file exists before test
-      let existedBefore = false;
-      try {
-        fs.accessSync(realVersionPath);
-        existedBefore = true;
-      } catch {
-        // File doesn't exist, which is fine
-      }
-
-      // Verify that VERSION_FILE_PATH used by tests is NOT the real version path
-      // This proves cwd is mocked
-      expect(VERSION_FILE_PATH).not.toBe(realVersionPath);
-
-      // Verify the test cwd is actually different from real cwd
-      // (We expect process.cwd() to be a temp directory created by os.tmpdir())
-      // Note: os.tmpdir() returns different paths on different platforms:
-      // - Linux: /tmp/
-      // - macOS: /var/folders/...
-      // - Windows: C:\Users\...\AppData\Local\Temp
-      expect(process.cwd()).toContain(os.tmpdir());
-      expect(process.cwd()).toContain("version-test-saveInstalledVersion-");
-
-      // Run all the test operations
-      saveInstalledVersion({ version: "15.0.0", installDir: tempDir });
-
-      // Verify real version file still exists (if it existed before)
-      if (existedBefore) {
-        let existsAfter = false;
-        try {
-          fs.accessSync(realVersionPath);
+          fs.accessSync(realConfigPath);
           existsAfter = true;
         } catch {
           // File was deleted!
@@ -386,7 +272,6 @@ describe("version", () => {
   describe("hasExistingInstallation", () => {
     let tempDir: string;
     let originalCwd: () => string;
-    let VERSION_FILE_PATH: string;
     let CONFIG_PATH: string;
 
     beforeEach(async () => {
@@ -400,13 +285,9 @@ describe("version", () => {
       process.cwd = () => tempDir;
 
       // Now paths point to temp directory
-      VERSION_FILE_PATH = path.join(tempDir, ".nori-installed-version");
       CONFIG_PATH = getConfigPath({ installDir: tempDir });
 
       // Clean up any existing files in temp dir
-      try {
-        fs.unlinkSync(VERSION_FILE_PATH);
-      } catch {}
       try {
         fs.unlinkSync(CONFIG_PATH);
       } catch {}
@@ -422,22 +303,11 @@ describe("version", () => {
       } catch {}
     });
 
-    it("should return false when neither version file nor config exists", () => {
+    it("should return false when config does not exist", () => {
       expect(hasExistingInstallation({ installDir: tempDir })).toBe(false);
     });
 
-    it("should return true when version file exists", () => {
-      fs.writeFileSync(VERSION_FILE_PATH, "13.0.0");
-      expect(hasExistingInstallation({ installDir: tempDir })).toBe(true);
-    });
-
     it("should return true when config file exists", () => {
-      fs.writeFileSync(CONFIG_PATH, "{}");
-      expect(hasExistingInstallation({ installDir: tempDir })).toBe(true);
-    });
-
-    it("should return true when both version and config files exist", () => {
-      fs.writeFileSync(VERSION_FILE_PATH, "13.0.0");
       fs.writeFileSync(CONFIG_PATH, "{}");
       expect(hasExistingInstallation({ installDir: tempDir })).toBe(true);
     });
@@ -461,9 +331,6 @@ describe("version", () => {
       expect(CONFIG_PATH).not.toBe(realConfigPath);
 
       // Run all the test operations
-      try {
-        fs.unlinkSync(VERSION_FILE_PATH);
-      } catch {}
       try {
         fs.unlinkSync(CONFIG_PATH);
       } catch {}

@@ -118,7 +118,6 @@ vi.mock("@/providers/firebase.js", () => ({
 describe("install integration test", () => {
   let tempDir: string;
   let originalCwd: () => string;
-  let VERSION_FILE_PATH: string;
   let MARKER_FILE_PATH: string;
 
   const TEST_CLI_ROOT = "/tmp/install-integration-test-cli-root";
@@ -135,7 +134,6 @@ describe("install integration test", () => {
     process.cwd = () => tempDir;
 
     // Now paths point to temp dir (via cwd)
-    VERSION_FILE_PATH = path.join(tempDir, ".nori-installed-version");
     MARKER_FILE_PATH = path.join(tempDir, ".nori-test-installation-marker");
 
     // Reset tracking variables
@@ -143,9 +141,6 @@ describe("install integration test", () => {
     uninstallCommand = "";
 
     // Clean up any existing files in temp dir
-    try {
-      fs.unlinkSync(VERSION_FILE_PATH);
-    } catch {}
     try {
       fs.unlinkSync(MARKER_FILE_PATH);
     } catch {}
@@ -188,13 +183,17 @@ describe("install integration test", () => {
 
   it("should track version across installation upgrade flow", async () => {
     // STEP 1: Simulate existing installation at version 12.0.0
-    // Write old version file
-    fs.writeFileSync(VERSION_FILE_PATH, "12.0.0");
+    // Write config with old version
+    const CONFIG_PATH = getConfigPath({ installDir: tempDir });
+    fs.writeFileSync(
+      CONFIG_PATH,
+      JSON.stringify({ version: "12.0.0", installedAgents: ["claude-code"] }),
+    );
     // Create a marker file that simulates something from the old installation
     fs.writeFileSync(MARKER_FILE_PATH, "installed by v12.0.0");
 
     // Verify initial state
-    expect(getInstalledVersion({ installDir: tempDir })).toBe("12.0.0");
+    expect(await getInstalledVersion({ installDir: tempDir })).toBe("12.0.0");
     expect(fs.existsSync(MARKER_FILE_PATH)).toBe(true);
 
     // STEP 2: Run installation (simulating upgrade to 13.0.0)
@@ -219,13 +218,13 @@ describe("install integration test", () => {
     // Verify the marker file was removed by the version-specific uninstall
     expect(fs.existsSync(MARKER_FILE_PATH)).toBe(false);
 
-    // Version file should be updated to new version
-    expect(fs.existsSync(VERSION_FILE_PATH)).toBe(true);
-    const newVersion = fs.readFileSync(VERSION_FILE_PATH, "utf-8");
-    expect(newVersion).toBe("13.0.0");
+    // Version should be updated to new version in config
+    expect(fs.existsSync(CONFIG_PATH)).toBe(true);
+    const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
+    expect(config.version).toBe("13.0.0");
 
     // getInstalledVersion should now return the new version
-    expect(getInstalledVersion({ installDir: tempDir })).toBe("13.0.0");
+    expect(await getInstalledVersion({ installDir: tempDir })).toBe("13.0.0");
   });
 
   it("should install paid features for paid users with auth credentials", async () => {
@@ -326,11 +325,11 @@ describe("install integration test", () => {
 
   it("should skip uninstall for first-time installation", async () => {
     // Ensure no existing installation
-    expect(fs.existsSync(VERSION_FILE_PATH)).toBe(false);
     const CONFIG_PATH = getConfigPath({ installDir: tempDir });
     try {
       fs.unlinkSync(CONFIG_PATH);
     } catch {}
+    expect(fs.existsSync(CONFIG_PATH)).toBe(false);
 
     // Run installation
     await installMain({ nonInteractive: true, installDir: tempDir });
@@ -338,19 +337,23 @@ describe("install integration test", () => {
     // Verify uninstall was NOT called
     expect(uninstallCalled).toBe(false);
 
-    // Verify installation completed and version was saved
-    expect(fs.existsSync(VERSION_FILE_PATH)).toBe(true);
-    const version = fs.readFileSync(VERSION_FILE_PATH, "utf-8");
-    expect(version).toBe("13.0.0");
+    // Verify installation completed and version was saved in config
+    expect(fs.existsSync(CONFIG_PATH)).toBe(true);
+    const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
+    expect(config.version).toBe("13.0.0");
   });
 
   it("should skip uninstall when skipUninstall is true", async () => {
     // STEP 1: Simulate existing installation at version 12.0.0
-    fs.writeFileSync(VERSION_FILE_PATH, "12.0.0");
+    const CONFIG_PATH = getConfigPath({ installDir: tempDir });
+    fs.writeFileSync(
+      CONFIG_PATH,
+      JSON.stringify({ version: "12.0.0", installedAgents: ["claude-code"] }),
+    );
     fs.writeFileSync(MARKER_FILE_PATH, "installed by v12.0.0");
 
     // Verify initial state
-    expect(getInstalledVersion({ installDir: tempDir })).toBe("12.0.0");
+    expect(await getInstalledVersion({ installDir: tempDir })).toBe("12.0.0");
     expect(fs.existsSync(MARKER_FILE_PATH)).toBe(true);
 
     // STEP 2: Run installation with skipUninstall=true
@@ -366,10 +369,10 @@ describe("install integration test", () => {
     // Verify the marker file still exists (wasn't removed by uninstall)
     expect(fs.existsSync(MARKER_FILE_PATH)).toBe(true);
 
-    // Version file should be updated to new version
-    expect(fs.existsSync(VERSION_FILE_PATH)).toBe(true);
-    const newVersion = fs.readFileSync(VERSION_FILE_PATH, "utf-8");
-    expect(newVersion).toBe("13.0.0");
+    // Version should be updated to new version in config
+    expect(fs.existsSync(CONFIG_PATH)).toBe(true);
+    const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
+    expect(config.version).toBe("13.0.0");
   });
 
   it("should completely clean up all Nori files after uninstall", async () => {
@@ -438,7 +441,7 @@ describe("install integration test", () => {
       true,
     );
 
-    // Create notifications log to test cleanup
+    // Create legacy notifications log to test cleanup (from older versions)
     const notificationsLog = path.join(tempDir, ".nori-notifications.log");
     fs.writeFileSync(notificationsLog, "test notification log");
 
@@ -484,18 +487,18 @@ describe("install integration test", () => {
     expect(postUninstallCwdSnapshot).toEqual(preInstallCwdSnapshot);
   });
 
-  it("should include installedAgents in config after installation", async () => {
+  it("should include agent in config after installation", async () => {
     const CONFIG_PATH = getConfigPath({ installDir: tempDir });
 
     // STEP 1: Run installation in non-interactive mode
     await installMain({ nonInteractive: true, installDir: tempDir });
 
-    // STEP 2: Verify installedAgents is set in the config
+    // STEP 2: Verify agent is set in the config via agents object
     const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
-    expect(config.installedAgents).toEqual(["claude-code"]);
+    expect(Object.keys(config.agents)).toEqual(["claude-code"]);
   });
 
-  it("should accumulate installedAgents when installing multiple agents", async () => {
+  it("should accumulate agents when installing multiple agents", async () => {
     const CONFIG_PATH = getConfigPath({ installDir: tempDir });
 
     // STEP 1: Create existing config with one agent
@@ -503,7 +506,9 @@ describe("install integration test", () => {
       CONFIG_PATH,
       JSON.stringify({
         profile: { baseProfile: "senior-swe" },
-        installedAgents: ["cursor-agent"],
+        agents: {
+          "cursor-agent": { profile: { baseProfile: "senior-swe" } },
+        },
         installDir: tempDir,
       }),
     );
@@ -511,19 +516,19 @@ describe("install integration test", () => {
     // STEP 2: Install claude-code (default agent)
     await installMain({ nonInteractive: true, installDir: tempDir });
 
-    // STEP 3: Verify both agents are in installedAgents
+    // STEP 3: Verify both agents are in agents object
     const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
-    expect(config.installedAgents).toEqual(
-      expect.arrayContaining(["cursor-agent", "claude-code"]),
-    );
-    expect(config.installedAgents).toHaveLength(2);
+    expect(Object.keys(config.agents).sort()).toEqual([
+      "claude-code",
+      "cursor-agent",
+    ]);
+    expect(Object.keys(config.agents)).toHaveLength(2);
   });
 
   it("should NOT run uninstall when installing a different agent than what is already installed", async () => {
     const CONFIG_PATH = getConfigPath({ installDir: tempDir });
 
-    // STEP 1: Create existing installation with claude-code
-    fs.writeFileSync(VERSION_FILE_PATH, "12.0.0");
+    // STEP 1: Create existing installation with claude-code (version is in config)
     fs.writeFileSync(MARKER_FILE_PATH, "installed by v12.0.0");
     fs.writeFileSync(
       CONFIG_PATH,
@@ -531,6 +536,7 @@ describe("install integration test", () => {
         profile: { baseProfile: "senior-swe" },
         installedAgents: ["claude-code"],
         installDir: tempDir,
+        version: "12.0.0",
       }),
     );
 
@@ -551,17 +557,16 @@ describe("install integration test", () => {
     // Verify the marker file still exists (wasn't removed by uninstall)
     expect(fs.existsSync(MARKER_FILE_PATH)).toBe(true);
 
-    // Verify version file is updated
-    const newVersion = fs.readFileSync(VERSION_FILE_PATH, "utf-8");
-    expect(newVersion).toBe("13.0.0");
+    // Verify version is updated in config
+    const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
+    expect(config.version).toBe("13.0.0");
   });
 
   it("should run uninstall when reinstalling the same agent (upgrade scenario)", async () => {
     const CONFIG_PATH = getConfigPath({ installDir: tempDir });
 
     // STEP 1: Create existing installation with claude-code
-    // Use version 19.0.0+ to ensure --agent flag is supported
-    fs.writeFileSync(VERSION_FILE_PATH, "19.0.0");
+    // Use version 19.0.0+ to ensure --agent flag is supported (version is in config)
     fs.writeFileSync(MARKER_FILE_PATH, "installed by v19.0.0");
     fs.writeFileSync(
       CONFIG_PATH,
@@ -569,6 +574,7 @@ describe("install integration test", () => {
         profile: { baseProfile: "senior-swe" },
         installedAgents: ["claude-code"],
         installDir: tempDir,
+        version: "19.0.0",
       }),
     );
 
@@ -592,9 +598,9 @@ describe("install integration test", () => {
     // Verify the marker file was removed by uninstall
     expect(fs.existsSync(MARKER_FILE_PATH)).toBe(false);
 
-    // Verify version file is updated
-    const newVersion = fs.readFileSync(VERSION_FILE_PATH, "utf-8");
-    expect(newVersion).toBe("13.0.0");
+    // Verify version is updated in config
+    const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
+    expect(config.version).toBe("13.0.0");
   });
 
   it("should include agents field with agent-specific profile in config after installation", async () => {

@@ -8,21 +8,11 @@ import * as path from "path";
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 
+import { stripAnsi } from "@/cli/features/test-utils/index.js";
+
 import type { HookInput } from "./types.js";
 
 import { noriToggleAutoupdate } from "./nori-toggle-autoupdate.js";
-
-/**
- * Strip ANSI escape codes from a string for plain text comparison
- *
- * @param str - The string containing ANSI codes
- *
- * @returns The string with ANSI codes removed
- */
-const stripAnsi = (str: string): string => {
-  // eslint-disable-next-line no-control-regex
-  return str.replace(/\x1b\[[0-9;]*m/g, "");
-};
 
 describe("nori-toggle-autoupdate", () => {
   let testDir: string;

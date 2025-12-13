@@ -39,7 +39,6 @@ describe("detectNoriPollution", () => {
       path.join(tempDir, ".nori-config.json"),
       JSON.stringify({}),
     );
-    fs.writeFileSync(path.join(tempDir, ".nori-notifications.log"), "logs");
 
     // Create Nori directories
     const claudeDir = path.join(tempDir, ".claude");
@@ -55,7 +54,6 @@ describe("detectNoriPollution", () => {
 
     const pollution = detectNoriPollution(tempDir);
     expect(pollution).toContain(".nori-config.json");
-    expect(pollution).toContain(".nori-notifications.log");
     expect(pollution).toContain(".claude/skills");
     expect(pollution).toContain(".claude/profiles");
     expect(pollution).toContain(".claude/CLAUDE.md");

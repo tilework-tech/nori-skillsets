@@ -2,6 +2,8 @@
  * ASCII art utilities for installer branding
  */
 
+import { newline, raw } from "@/cli/logger.js";
+
 // ANSI color codes
 const BLUE = "\x1b[0;34m";
 const NC = "\x1b[0m"; // No Color
@@ -16,14 +18,26 @@ export const displayNoriBanner = (args?: { color?: string | null }): void => {
   const colorPrefix = color ?? "";
   const colorSuffix = color ? NC : "";
 
-  console.log("\n");
-  console.log(`${colorPrefix}███╗   ██╗ ██████╗ ██████╗ ██╗${colorSuffix}`);
-  console.log(`${colorPrefix}████╗  ██║██╔═══██╗██╔══██╗██║${colorSuffix}`);
-  console.log(`${colorPrefix}██╔██╗ ██║██║   ██║██████╔╝██║${colorSuffix}`);
-  console.log(`${colorPrefix}██║╚██╗██║██║   ██║██╔══██╗██║${colorSuffix}`);
-  console.log(`${colorPrefix}██║ ╚████║╚██████╔╝██║  ██║██║${colorSuffix}`);
-  console.log(`${colorPrefix}╚═╝  ╚═══╝ ╚═════╝ ╚═╝  ╚═╝╚═╝${colorSuffix}`);
-  console.log("\n");
+  newline();
+  raw({
+    message: `${colorPrefix}███╗   ██╗ ██████╗ ██████╗ ██╗${colorSuffix}`,
+  });
+  raw({
+    message: `${colorPrefix}████╗  ██║██╔═══██╗██╔══██╗██║${colorSuffix}`,
+  });
+  raw({
+    message: `${colorPrefix}██╔██╗ ██║██║   ██║██████╔╝██║${colorSuffix}`,
+  });
+  raw({
+    message: `${colorPrefix}██║╚██╗██║██║   ██║██╔══██╗██║${colorSuffix}`,
+  });
+  raw({
+    message: `${colorPrefix}██║ ╚████║╚██████╔╝██║  ██║██║${colorSuffix}`,
+  });
+  raw({
+    message: `${colorPrefix}╚═╝  ╚═══╝ ╚═════╝ ╚═╝  ╚═╝╚═╝${colorSuffix}`,
+  });
+  newline();
 };
 
 /**
@@ -39,45 +53,45 @@ export const displayWelcomeBanner = (args?: {
   const colorPrefix = color ?? "";
   const colorSuffix = color ? NC : "";
 
-  console.log("\n");
-  console.log(
-    `${colorPrefix}██╗    ██╗███████╗██╗      ██████╗ ██████╗ ███╗   ███╗███████╗${colorSuffix}`,
-  );
-  console.log(
-    `${colorPrefix}██║    ██║██╔════╝██║     ██╔════╝██╔═══██╗████╗ ████║██╔════╝${colorSuffix}`,
-  );
-  console.log(
-    `${colorPrefix}██║ █╗ ██║█████╗  ██║     ██║     ██║   ██║██╔████╔██║█████╗  ${colorSuffix}`,
-  );
-  console.log(
-    `${colorPrefix}██║███╗██║██╔══╝  ██║     ██║     ██║   ██║██║╚██╔╝██║██╔══╝  ${colorSuffix}`,
-  );
-  console.log(
-    `${colorPrefix}╚███╔███╔╝███████╗███████╗╚██████╗╚██████╔╝██║ ╚═╝ ██║███████╗${colorSuffix}`,
-  );
-  console.log(
-    `${colorPrefix} ╚══╝╚══╝ ╚══════╝╚══════╝ ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚══════╝${colorSuffix}`,
-  );
-  console.log("\n");
-  console.log(
-    `${colorPrefix}████████╗ ██████╗     ███╗   ██╗ ██████╗ ██████╗ ██╗${colorSuffix}`,
-  );
-  console.log(
-    `${colorPrefix}╚══██╔══╝██╔═══██╗    ████╗  ██║██╔═══██╗██╔══██╗██║${colorSuffix}`,
-  );
-  console.log(
-    `${colorPrefix}   ██║   ██║   ██║    ██╔██╗ ██║██║   ██║██████╔╝██║${colorSuffix}`,
-  );
-  console.log(
-    `${colorPrefix}   ██║   ██║   ██║    ██║╚██╗██║██║   ██║██╔══██╗██║${colorSuffix}`,
-  );
-  console.log(
-    `${colorPrefix}   ██║   ╚██████╔╝    ██║ ╚████║╚██████╔╝██║  ██║██║${colorSuffix}`,
-  );
-  console.log(
-    `${colorPrefix}   ╚═╝    ╚═════╝     ╚═╝  ╚═══╝ ╚═════╝ ╚═╝  ╚═╝╚═╝${colorSuffix}`,
-  );
-  console.log("\n");
+  newline();
+  raw({
+    message: `${colorPrefix}██╗    ██╗███████╗██╗      ██████╗ ██████╗ ███╗   ███╗███████╗${colorSuffix}`,
+  });
+  raw({
+    message: `${colorPrefix}██║    ██║██╔════╝██║     ██╔════╝██╔═══██╗████╗ ████║██╔════╝${colorSuffix}`,
+  });
+  raw({
+    message: `${colorPrefix}██║ █╗ ██║█████╗  ██║     ██║     ██║   ██║██╔████╔██║█████╗  ${colorSuffix}`,
+  });
+  raw({
+    message: `${colorPrefix}██║███╗██║██╔══╝  ██║     ██║     ██║   ██║██║╚██╔╝██║██╔══╝  ${colorSuffix}`,
+  });
+  raw({
+    message: `${colorPrefix}╚███╔███╔╝███████╗███████╗╚██████╗╚██████╔╝██║ ╚═╝ ██║███████╗${colorSuffix}`,
+  });
+  raw({
+    message: `${colorPrefix} ╚══╝╚══╝ ╚══════╝╚══════╝ ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚══════╝${colorSuffix}`,
+  });
+  newline();
+  raw({
+    message: `${colorPrefix}████████╗ ██████╗     ███╗   ██╗ ██████╗ ██████╗ ██╗${colorSuffix}`,
+  });
+  raw({
+    message: `${colorPrefix}╚══██╔══╝██╔═══██╗    ████╗  ██║██╔═══██╗██╔══██╗██║${colorSuffix}`,
+  });
+  raw({
+    message: `${colorPrefix}   ██║   ██║   ██║    ██╔██╗ ██║██║   ██║██████╔╝██║${colorSuffix}`,
+  });
+  raw({
+    message: `${colorPrefix}   ██║   ██║   ██║    ██║╚██╗██║██║   ██║██╔══██╗██║${colorSuffix}`,
+  });
+  raw({
+    message: `${colorPrefix}   ██║   ╚██████╔╝    ██║ ╚████║╚██████╔╝██║  ██║██║${colorSuffix}`,
+  });
+  raw({
+    message: `${colorPrefix}   ╚═╝    ╚═════╝     ╚═╝  ╚═══╝ ╚═════╝ ╚═╝  ╚═╝╚═╝${colorSuffix}`,
+  });
+  newline();
 };
 
 /**
@@ -106,8 +120,8 @@ export const displaySeaweedBed = (args?: { color?: string | null }): void => {
     const seaweedLine = pattern.repeat(
       Math.ceil(terminalWidth / pattern.length),
     );
-    console.log(
-      `${colorPrefix}${seaweedLine.substring(0, terminalWidth)}${colorSuffix}`,
-    );
+    raw({
+      message: `${colorPrefix}${seaweedLine.substring(0, terminalWidth)}${colorSuffix}`,
+    });
   });
 };

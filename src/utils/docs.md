@@ -19,11 +19,10 @@ The url.ts module exports a single normalizeUrl function that accepts { baseUrl:
 The path.ts module exports five functions: normalizeInstallDir, getInstallDirs, hasNoriInstallation, findAncestorInstallations, and findAllInstallations.
 
 **normalizeInstallDir Architecture:** This function accepts { installDir?: string | null } and returns the BASE installation directory (without `.claude` suffix), handling tilde expansion (`~/` becomes home directory), relative path resolution, and path normalization. If no installDir is provided, it defaults to `process.cwd()`. If a path ending with `.claude` is provided, it strips the suffix and returns the parent directory. This clarifies that `installDir` represents the base directory where:
-- `.nori-config.json` is stored (config file)
-- `.nori-installed-version` is stored (version tracking)
+- `.nori-config.json` is stored (config file with version tracking in the `version` field)
 - `.claude/` subdirectory is created (Claude Code configuration)
 
-The `installDir` parameter is required throughout all internal functions in the codebase. Only CLI entry points (commands/check/check.ts:checkMain, commands/install/install.ts:main, commands/uninstall/uninstall.ts:main, commands/switch-profile/profiles.ts:switchProfile) accept optional installDir and call normalizeInstallDir() at the top before passing the result to all downstream functions. All other functions (getConfigPath, loadConfig, saveConfig, getClaudeDir, getVersionFilePath, etc.) require `installDir: string` as a parameter.
+The `installDir` parameter is required throughout all internal functions in the codebase. Only CLI entry points (commands/check/check.ts:checkMain, commands/install/install.ts:main, commands/uninstall/uninstall.ts:main, commands/switch-profile/profiles.ts:switchProfile) accept optional installDir and call normalizeInstallDir() at the top before passing the result to all downstream functions. All other functions (getConfigPath, loadConfig, saveConfig, getClaudeDir, etc.) require `installDir: string` as a parameter.
 
 The configuration path follows the same pattern - getConfigPath() in @/src/cli/config.ts requires { installDir: string } and returns `<installDir>/.nori-config.json`. Similarly, getClaudeDir() in @/src/cli/env.ts requires { installDir: string } and returns `<installDir>/.claude`. This ensures all paths are derived from the same base directory.
 

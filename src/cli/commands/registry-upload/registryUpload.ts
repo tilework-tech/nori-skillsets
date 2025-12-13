@@ -12,7 +12,7 @@ import * as tar from "tar";
 import { registrarApi } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
 import { loadConfig, getRegistryAuth } from "@/cli/config.js";
-import { error, success, info } from "@/cli/logger.js";
+import { error, success, info, newline } from "@/cli/logger.js";
 import { getInstallDirs } from "@/utils/path.js";
 
 import type { RegistryAuth } from "@/cli/config.js";
@@ -318,11 +318,11 @@ export const registryUploadMain = async (args: {
       registryUrl: targetRegistryUrl,
     });
 
-    console.log("");
+    newline();
     success({
       message: `Successfully uploaded "${profileName}@${result.version}" to ${targetRegistryUrl}`,
     });
-    console.log("");
+    newline();
     info({
       message: `Others can install it with 'nori-ai registry-download ${profileName}'.`,
     });

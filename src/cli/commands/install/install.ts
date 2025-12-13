@@ -23,6 +23,7 @@ import {
   getDefaultProfile,
   getAgentProfile,
   isPaidInstall,
+  getInstalledAgents,
   type Config,
 } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
@@ -31,6 +32,8 @@ import {
   success,
   info,
   warn,
+  newline,
+  raw,
   wrapText,
   brightCyan,
   boldWhite,
@@ -42,7 +45,6 @@ import {
   buildUninstallCommand,
   getCurrentPackageVersion,
   getInstalledVersion,
-  saveInstalledVersion,
 } from "@/cli/version.js";
 import { normalizeInstallDir, getInstallDirs } from "@/utils/path.js";
 
@@ -110,7 +112,7 @@ export const generatePromptConfig = async (args: {
       message:
         "I found an existing Nori configuration file. Do you want to keep it?",
     });
-    console.log();
+    newline();
     info({ message: `  Username: ${existingConfig.auth.username}` });
     info({
       message: `  Organization URL: ${existingConfig.auth.organizationUrl}`,
@@ -124,7 +126,7 @@ export const generatePromptConfig = async (args: {
         message: `  Profile: ${existingProfile.baseProfile}`,
       });
     }
-    console.log();
+    newline();
 
     const useExisting = await promptUser({
       prompt: "Keep existing configuration? (y/n): ",
@@ -137,7 +139,6 @@ export const generatePromptConfig = async (args: {
         getAgentProfile({ config: existingConfig, agentName: agent.name }) ??
         existingConfig.profile ??
         getDefaultProfile();
-      const existingInstalledAgents = existingConfig.installedAgents ?? [];
       return {
         ...existingConfig,
         profile,
@@ -146,13 +147,10 @@ export const generatePromptConfig = async (args: {
           [agent.name]: { profile },
         },
         installDir,
-        installedAgents: existingInstalledAgents.includes(agent.name)
-          ? existingInstalledAgents
-          : [...existingInstalledAgents, agent.name],
       };
     }
 
-    console.log();
+    newline();
   }
 
   // Prompt for credentials
@@ -161,7 +159,7 @@ export const generatePromptConfig = async (args: {
       text: "Nori Watchtower is our backend service that enables shared knowledge features - search and recall past solutions across your team, save learnings for future sessions, and server-side documentation with versioning. If you have Watchtower credentials (you should have received them from Josh or Amol), enter your email to enable these features. Otherwise, press enter to continue with local-only features.",
     }),
   });
-  console.log();
+  newline();
 
   const username = await promptUser({
     prompt: "Email address (Watchtower) or hit enter to skip: ",
@@ -199,10 +197,10 @@ export const generatePromptConfig = async (args: {
     };
 
     info({ message: "Installing with backend support..." });
-    console.log();
+    newline();
   } else {
     info({ message: "Great. Let's move on to selecting your profile." });
-    console.log();
+    newline();
   }
 
   // Get available profiles from both source and installed locations
@@ -219,16 +217,16 @@ export const generatePromptConfig = async (args: {
       text: "Please select a profile. Each profile contains a complete configuration with skills, subagents, and commands tailored for different use cases.",
     }),
   });
-  console.log();
+  newline();
 
   profiles.forEach((p, i) => {
     const number = brightCyan({ text: `${i + 1}.` });
     const name = boldWhite({ text: p.name });
     const description = gray({ text: p.description });
 
-    console.log(`${number} ${name}`);
-    console.log(`   ${description}`);
-    console.log();
+    raw({ message: `${number} ${name}` });
+    raw({ message: `   ${description}` });
+    newline();
   });
 
   // Loop until valid selection
@@ -250,18 +248,17 @@ export const generatePromptConfig = async (args: {
     error({
       message: `Invalid selection "${response}". Please enter a number between 1 and ${profiles.length}.`,
     });
-    console.log();
+    newline();
   }
 
   // Prompt for private registry authentication
-  console.log();
+  newline();
   const registryAuths = await promptRegistryAuths({
     existingRegistryAuths: existingConfig?.registryAuths ?? null,
   });
 
   // Build config directly
   const profile = { baseProfile: selectedProfileName };
-  const existingInstalledAgents = existingConfig?.installedAgents ?? [];
   return {
     auth: auth ?? null,
     profile,
@@ -271,9 +268,6 @@ export const generatePromptConfig = async (args: {
     },
     installDir,
     registryAuths: registryAuths ?? null,
-    installedAgents: existingInstalledAgents.includes(agent.name)
-      ? existingInstalledAgents
-      : [...existingInstalledAgents, agent.name],
   };
 };
 
@@ -307,9 +301,9 @@ export const interactive = async (args?: {
   );
 
   if (ancestorInstallations.length > 0) {
-    console.log();
+    newline();
     warn({ message: "⚠️  Nori installation detected in ancestor directory!" });
-    console.log();
+    newline();
     info({
       message: "Claude Code loads CLAUDE.md files from all parent directories.",
     });
@@ -317,19 +311,19 @@ export const interactive = async (args?: {
       message:
         "Having multiple Nori installations can cause duplicate or conflicting configurations.",
     });
-    console.log();
+    newline();
     info({ message: "Existing Nori installations found at:" });
     for (const ancestorPath of ancestorInstallations) {
       info({ message: `  • ${ancestorPath}` });
     }
-    console.log();
+    newline();
     info({ message: "To remove an existing installation, run:" });
     for (const ancestorPath of ancestorInstallations) {
       info({
         message: `  cd ${ancestorPath} && nori-ai uninstall`,
       });
     }
-    console.log();
+    newline();
 
     const continueAnyway = await promptUser({
       prompt: "Do you want to continue with the installation anyway? (y/n): ",
@@ -339,7 +333,7 @@ export const interactive = async (args?: {
       info({ message: "Installation cancelled." });
       process.exit(0);
     }
-    console.log();
+    newline();
   }
 
   // Handle existing installation cleanup
@@ -347,14 +341,17 @@ export const interactive = async (args?: {
   const existingConfig = await loadConfig({
     installDir: normalizedInstallDir,
   });
-  const previousVersion = getInstalledVersion({
+  // Get version from config (async getInstalledVersion reads from config)
+  const previousVersion = await getInstalledVersion({
     installDir: normalizedInstallDir,
   });
 
-  // Determine which agents are installed
-  // For backwards compatibility: if no installedAgents but existing installation exists,
+  // Determine which agents are installed using agents object keys
+  // For backwards compatibility: if no agents but existing installation exists,
   // assume claude-code is installed (old installations didn't track agents)
-  let installedAgents = existingConfig?.installedAgents ?? [];
+  let installedAgents = existingConfig
+    ? getInstalledAgents({ config: existingConfig })
+    : [];
   const existingInstall = hasExistingInstallation({
     installDir: normalizedInstallDir,
   });
@@ -394,9 +391,9 @@ export const interactive = async (args?: {
 
   // Display banner
   displayNoriBanner();
-  console.log();
+  newline();
   info({ message: "Let's personalize Nori to your needs." });
-  console.log();
+  newline();
 
   // Generate configuration through prompts
   const config = await generatePromptConfig({
@@ -434,22 +431,13 @@ export const interactive = async (args?: {
   const loaders = registry.getAll();
 
   info({ message: "Installing features..." });
-  console.log();
+  newline();
 
   for (const loader of loaders) {
     await loader.run({ config });
   }
 
-  console.log();
-
-  // Save version
-  const finalVersion = getCurrentPackageVersion();
-  if (finalVersion) {
-    saveInstalledVersion({
-      version: finalVersion,
-      installDir: normalizedInstallDir,
-    });
-  }
+  newline();
 
   // Remove progress marker
   const markerPath = path.join(
@@ -482,9 +470,9 @@ export const interactive = async (args?: {
     message:
       "======================================================================",
   });
-  console.log();
+  newline();
   displaySeaweedBed();
-  console.log();
+  newline();
 };
 
 /**
@@ -516,9 +504,9 @@ export const noninteractive = async (args?: {
   );
 
   if (ancestorInstallations.length > 0) {
-    console.log();
+    newline();
     warn({ message: "⚠️  Nori installation detected in ancestor directory!" });
-    console.log();
+    newline();
     info({
       message: "Claude Code loads CLAUDE.md files from all parent directories.",
     });
@@ -526,24 +514,24 @@ export const noninteractive = async (args?: {
       message:
         "Having multiple Nori installations can cause duplicate or conflicting configurations.",
     });
-    console.log();
+    newline();
     info({ message: "Existing Nori installations found at:" });
     for (const ancestorPath of ancestorInstallations) {
       info({ message: `  • ${ancestorPath}` });
     }
-    console.log();
+    newline();
     info({ message: "To remove an existing installation, run:" });
     for (const ancestorPath of ancestorInstallations) {
       info({
         message: `  cd ${ancestorPath} && nori-ai uninstall`,
       });
     }
-    console.log();
+    newline();
     warn({
       message:
         "Continuing with installation in non-interactive mode despite ancestor installations...",
     });
-    console.log();
+    newline();
   }
 
   // Handle existing installation cleanup
@@ -551,14 +539,17 @@ export const noninteractive = async (args?: {
   const existingConfig = await loadConfig({
     installDir: normalizedInstallDir,
   });
-  const previousVersion = getInstalledVersion({
+  // Get version from config (async getInstalledVersion reads from config)
+  const previousVersion = await getInstalledVersion({
     installDir: normalizedInstallDir,
   });
 
-  // Determine which agents are installed
-  // For backwards compatibility: if no installedAgents but existing installation exists,
+  // Determine which agents are installed using agents object keys
+  // For backwards compatibility: if no agents but existing installation exists,
   // assume claude-code is installed (old installations didn't track agents)
-  let installedAgents = existingConfig?.installedAgents ?? [];
+  let installedAgents = existingConfig
+    ? getInstalledAgents({ config: existingConfig })
+    : [];
   const existingInstall = hasExistingInstallation({
     installDir: normalizedInstallDir,
   });
@@ -596,7 +587,6 @@ export const noninteractive = async (args?: {
     info({ message: "First-time installation detected. No cleanup needed." });
   }
 
-  const existingInstalledAgents = existingConfig?.installedAgents ?? [];
   const config: Config = existingConfig
     ? {
         ...existingConfig,
@@ -613,9 +603,6 @@ export const noninteractive = async (args?: {
               getDefaultProfile(),
           },
         },
-        installedAgents: existingInstalledAgents.includes(agentImpl.name)
-          ? existingInstalledAgents
-          : [...existingInstalledAgents, agentImpl.name],
       }
     : {
         profile: getDefaultProfile(),
@@ -623,7 +610,6 @@ export const noninteractive = async (args?: {
           [agentImpl.name]: { profile: getDefaultProfile() },
         },
         installDir: normalizedInstallDir,
-        installedAgents: [agentImpl.name],
       };
 
   // Track installation start
@@ -650,22 +636,13 @@ export const noninteractive = async (args?: {
   const loaders = registry.getAll();
 
   info({ message: "Installing features..." });
-  console.log();
+  newline();
 
   for (const loader of loaders) {
     await loader.run({ config });
   }
 
-  console.log();
-
-  // Save version
-  const finalVersion = getCurrentPackageVersion();
-  if (finalVersion) {
-    saveInstalledVersion({
-      version: finalVersion,
-      installDir: normalizedInstallDir,
-    });
-  }
+  newline();
 
   // Remove progress marker
   const markerPath = path.join(
@@ -698,9 +675,9 @@ export const noninteractive = async (args?: {
     message:
       "======================================================================",
   });
-  console.log();
+  newline();
   displaySeaweedBed();
-  console.log();
+  newline();
 };
 
 /**

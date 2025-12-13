@@ -118,7 +118,7 @@ cat ~/.claude/CLAUDE.md | grep -A 5 "BEGIN NORI-AI MANAGED BLOCK"
 
 Expected results:
 - `~/.claude/.nori-version` exists and contains the new version number
-- `~/.claude/.nori-config.json` contains `"installedAgents": ["claude-code"]`
+- `~/.claude/.nori-config.json` contains `"agents": {"claude-code": {...}}`
 - Skills directory is intact with expected skills
 - CLAUDE.md has the managed block with updated content
 - **Previous version files are removed** (no duplicates or old artifacts)
@@ -247,7 +247,7 @@ cat ~/.cursor/.cursorrules
 
 Expected results:
 - `.nori/` directory exists in `/tmp/test-project-1/nested-project/`
-- `.nori/.nori-config.json` shows `"installedAgents": ["cursor-agent"]`
+- `.nori/.nori-config.json` shows `"agents": {"cursor-agent": {...}}`
 - `.nori/.nori-version` shows the version
 - `~/.cursor/.cursorrules` exists and contains cursor-agent configuration
 - **Warning was displayed** about multiple installation locations
@@ -274,17 +274,17 @@ Expected structure:
 ```json
 {
   "installDir": "/tmp/test-project-1/nested-project/.nori",
-  "profile": "senior-swe",
-  "installedAgents": ["cursor-agent"],
-  "version": "19.0.0",
+  "agents": {
+    "cursor-agent": { "profile": { "baseProfile": "senior-swe" } }
+  },
   ...
 }
 ```
 
 Verify:
 - `installDir` points to the current directory's `.nori` folder
-- `installedAgents` contains `"cursor-agent"`
-- `profile` is `"senior-swe"`
+- `agents` object contains `"cursor-agent"` key
+- Agent profile is `"senior-swe"`
 
 If config structure is wrong, write to status file:
 ```json

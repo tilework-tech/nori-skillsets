@@ -250,21 +250,21 @@ describe("cursorAgent", () => {
       );
     });
 
-    test("does not add config for agents not in installedAgents", async () => {
+    test("only updates cursor-agent, does not add other agents", async () => {
       // Create profile directory
       const profilesDir = path.join(testInstallDir, ".cursor", "profiles");
       const profileDir = path.join(profilesDir, "new-profile");
       await fs.mkdir(profileDir, { recursive: true });
       await fs.writeFile(path.join(profileDir, "AGENTS.md"), "# New Profile");
 
-      // Create config with legacy profile field (no agents field) and only cursor-agent installed
-      // When loadConfig runs, backwards compat creates agents.claude-code from profile
+      // Create config with only cursor-agent
       const configPath = path.join(testInstallDir, ".nori-config.json");
       await fs.writeFile(
         configPath,
         JSON.stringify({
-          profile: { baseProfile: "amol" },
-          installedAgents: ["cursor-agent"],
+          agents: {
+            "cursor-agent": { profile: { baseProfile: "amol" } },
+          },
           installDir: testInstallDir,
         }),
       );
@@ -281,7 +281,7 @@ describe("cursorAgent", () => {
         "new-profile",
       );
 
-      // Verify claude-code is NOT in agents (it was only in backwards compat, not installed)
+      // Verify claude-code is NOT added (it wasn't in agents)
       expect(updatedConfig.agents?.["claude-code"]).toBeUndefined();
     });
 
@@ -292,7 +292,7 @@ describe("cursorAgent", () => {
       await fs.mkdir(profileDir, { recursive: true });
       await fs.writeFile(path.join(profileDir, "AGENTS.md"), "# New Profile");
 
-      // Create config with both agents installed and configured
+      // Create config with both agents in agents object (keys = installed agents)
       const configPath = path.join(testInstallDir, ".nori-config.json");
       await fs.writeFile(
         configPath,
@@ -301,7 +301,6 @@ describe("cursorAgent", () => {
             "claude-code": { profile: { baseProfile: "senior-swe" } },
             "cursor-agent": { profile: { baseProfile: "amol" } },
           },
-          installedAgents: ["claude-code", "cursor-agent"],
           installDir: testInstallDir,
         }),
       );
@@ -318,20 +317,20 @@ describe("cursorAgent", () => {
         "new-profile",
       );
 
-      // Verify claude-code is preserved (it IS installed)
+      // Verify claude-code is preserved (it's in the agents object)
       expect(updatedConfig.agents?.["claude-code"]?.profile?.baseProfile).toBe(
         "senior-swe",
       );
     });
 
-    test("preserves installedAgents field", async () => {
+    test("preserves agents object structure", async () => {
       // Create profile directory
       const profilesDir = path.join(testInstallDir, ".cursor", "profiles");
       const profileDir = path.join(profilesDir, "new-profile");
       await fs.mkdir(profileDir, { recursive: true });
       await fs.writeFile(path.join(profileDir, "AGENTS.md"), "# New Profile");
 
-      // Create config with installedAgents
+      // Create config with agents (agents keys = installed agents)
       const configPath = path.join(testInstallDir, ".nori-config.json");
       await fs.writeFile(
         configPath,
@@ -339,7 +338,6 @@ describe("cursorAgent", () => {
           agents: {
             "cursor-agent": { profile: { baseProfile: "amol" } },
           },
-          installedAgents: ["cursor-agent"],
           installDir: testInstallDir,
         }),
       );
@@ -351,8 +349,8 @@ describe("cursorAgent", () => {
 
       const updatedConfig = JSON.parse(await fs.readFile(configPath, "utf-8"));
 
-      // Verify installedAgents is preserved
-      expect(updatedConfig.installedAgents).toEqual(["cursor-agent"]);
+      // Verify agents structure is preserved (keys indicate installed agents)
+      expect(Object.keys(updatedConfig.agents)).toEqual(["cursor-agent"]);
     });
   });
 });

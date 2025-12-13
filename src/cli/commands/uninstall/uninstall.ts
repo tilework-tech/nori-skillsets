@@ -12,14 +12,13 @@ import * as path from "path";
 import { trackEvent } from "@/cli/analytics.js";
 import {
   loadConfig,
-  getConfigPath,
   getDefaultProfile,
   isPaidInstall,
+  getInstalledAgents,
 } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
-import { error, success, info, warn } from "@/cli/logger.js";
+import { error, success, info, warn, newline } from "@/cli/logger.js";
 import { promptUser } from "@/cli/prompt.js";
-import { getVersionFilePath } from "@/cli/version.js";
 import { normalizeInstallDir, getInstallDirs } from "@/utils/path.js";
 
 import type { Command } from "commander";
@@ -94,7 +93,7 @@ export const generatePromptConfig = async (args: {
       info({
         message: `Found installation in ancestor directory: ${ancestors[0]}`,
       });
-      console.log();
+      newline();
 
       const proceed = await promptUser({
         prompt: "Uninstall from this ancestor location? (y/n): ",
@@ -114,7 +113,7 @@ export const generatePromptConfig = async (args: {
       for (let i = 0; i < ancestors.length; i++) {
         info({ message: `  ${i + 1}. ${ancestors[i]}` });
       }
-      console.log();
+      newline();
 
       const selection = await promptUser({
         prompt: `Select installation to uninstall (1-${ancestors.length}), or 'n' to cancel: `,
@@ -142,24 +141,26 @@ export const generatePromptConfig = async (args: {
 
   info({ message: "Nori Profiles Uninstaller" });
   info({ message: `Uninstalling from: ${installDir}` });
-  console.log();
+  newline();
   warn({
     message: "This will remove Nori Profiles features from your system.",
   });
-  console.log();
+  newline();
 
   // Check for existing configuration
   const existingConfig = await loadConfig({ installDir });
 
   // Determine which agent to uninstall
   let selectedAgent = agent ?? "claude-code";
-  const installedAgents = existingConfig?.installedAgents ?? [];
+  const installedAgents = existingConfig
+    ? getInstalledAgents({ config: existingConfig })
+    : [];
 
   if (installedAgents.length > 0) {
     info({
       message: `Installed agents at this location: ${installedAgents.join(", ")}`,
     });
-    console.log();
+    newline();
 
     // If no agent specified and multiple agents are installed, prompt user
     if (agent == null && installedAgents.length > 1) {
@@ -169,7 +170,7 @@ export const generatePromptConfig = async (args: {
       for (let i = 0; i < installedAgents.length; i++) {
         info({ message: `  ${i + 1}. ${installedAgents[i]}` });
       }
-      console.log();
+      newline();
 
       const selection = await promptUser({
         prompt: `Select agent to uninstall (1-${installedAgents.length}), or 'n' to cancel: `,
@@ -203,7 +204,7 @@ export const generatePromptConfig = async (args: {
     info({
       message: `  Organization URL: ${existingConfig.auth.organizationUrl}`,
     });
-    console.log();
+    newline();
   }
 
   // Get the agent's loaders to show what will be removed
@@ -215,7 +216,7 @@ export const generatePromptConfig = async (args: {
   for (const loader of loaders) {
     info({ message: `  - ${loader.description}` });
   }
-  console.log();
+  newline();
 
   const proceed = await promptUser({
     prompt: "Do you want to proceed with uninstallation? (y/n): ",
@@ -226,7 +227,7 @@ export const generatePromptConfig = async (args: {
     return null;
   }
 
-  console.log();
+  newline();
 
   // Get the agent's global loaders (reusing agentImpl from above)
   const globalLoaders = agentImpl.getGlobalLoaders();
@@ -246,7 +247,7 @@ export const generatePromptConfig = async (args: {
   info({
     message: "If you have other Nori installations, you may want to keep them.",
   });
-  console.log();
+  newline();
 
   const removeGlobal = await promptUser({
     prompt: `Do you want to remove ${featureList}? (y/n): `,
@@ -254,13 +255,15 @@ export const generatePromptConfig = async (args: {
 
   const removeGlobalSettings = removeGlobal.match(/^[Yy]$/) ? true : false;
 
-  console.log();
+  newline();
 
   return { installDir, removeGlobalSettings, selectedAgent };
 };
 
 /**
- * Remove the .nori-notifications.log file
+ * Remove legacy .nori-notifications.log file (for upgrades from older versions)
+ * Note: Current versions use /tmp/nori.log which is not cleaned up on uninstall
+ * as it's a shared system temp file.
  * @param args - Configuration arguments
  * @param args.installDir - Installation directory
  */
@@ -273,41 +276,9 @@ const cleanupNotificationsLog = async (args: {
   try {
     await fs.access(logPath);
     await fs.unlink(logPath);
-    success({ message: `✓ Removed notifications log: ${logPath}` });
+    success({ message: `✓ Removed legacy notifications log: ${logPath}` });
   } catch {
     // File doesn't exist, which is fine
-  }
-};
-
-/**
- * Remove the nori-config.json file and .nori-installed-version file
- * @param args - Configuration arguments
- * @param args.installDir - Installation directory
- */
-const removeConfigFile = async (args: {
-  installDir: string;
-}): Promise<void> => {
-  const { installDir } = args;
-  const configPath = getConfigPath({ installDir });
-  const versionPath = getVersionFilePath({ installDir });
-
-  info({ message: "Removing Nori configuration files..." });
-
-  try {
-    await fs.access(configPath);
-    await fs.unlink(configPath);
-    success({ message: `✓ Configuration file removed: ${configPath}` });
-  } catch {
-    info({ message: "Configuration file not found (may not exist)" });
-  }
-
-  // Also remove version file
-  try {
-    await fs.access(versionPath);
-    await fs.unlink(versionPath);
-    success({ message: `✓ Version file removed: ${versionPath}` });
-  } catch {
-    info({ message: "Version file not found (may not exist)" });
   }
 };
 
@@ -347,7 +318,8 @@ export const runUninstall = async (args: {
   };
 
   // Set the agent being uninstalled so config loader knows what to remove
-  config.installedAgents = [agentName];
+  // The keys of config.agents indicate which agents to uninstall
+  config.agents = { [agentName]: {} };
 
   // Log installed version for debugging
   if (installedVersion) {
@@ -404,10 +376,24 @@ export const runUninstall = async (args: {
   // Clean up standalone files
   await cleanupNotificationsLog({ installDir: config.installDir });
 
-  // Remove config file only if explicitly requested (e.g., from user-initiated uninstall)
+  // Check if there are remaining agents and notify user
   if (removeConfig) {
-    console.log();
-    await removeConfigFile({ installDir: config.installDir });
+    const updatedConfig = await loadConfig({ installDir: config.installDir });
+    const remainingAgents = updatedConfig
+      ? getInstalledAgents({ config: updatedConfig })
+      : [];
+    if (remainingAgents.length > 0) {
+      newline();
+      info({
+        message: `Other agents are still installed: ${remainingAgents.join(", ")}`,
+      });
+      info({
+        message: "Configuration files have been preserved for these agents.",
+      });
+      info({
+        message: `To uninstall remaining agents, run: nori-ai uninstall --agent ${remainingAgents[0]}`,
+      });
+    }
   }
 
   // Track uninstallation completion
@@ -442,7 +428,7 @@ export const interactive = async (args?: {
 
   // Show directory being uninstalled from
   info({ message: `Uninstalling from: ${result.installDir}` });
-  console.log();
+  newline();
 
   // Run uninstall with user's choices
   await runUninstall({
@@ -453,7 +439,7 @@ export const interactive = async (args?: {
   });
 
   // Display completion message
-  console.log();
+  newline();
   success({
     message:
       "======================================================================",
@@ -465,15 +451,15 @@ export const interactive = async (args?: {
     message:
       "======================================================================",
   });
-  console.log();
+  newline();
 
   info({ message: `Uninstalled from: ${result.installDir}` });
   info({ message: "All features have been removed." });
-  console.log();
+  newline();
   warn({
     message: "Note: You must restart Claude Code for changes to take effect!",
   });
-  console.log();
+  newline();
   info({
     message: "To completely remove the package, run: npm uninstall -g nori-ai",
   });
@@ -497,7 +483,9 @@ export const noninteractive = async (args?: {
   let agentName = args?.agent ?? null;
   if (agentName == null) {
     const existingConfig = await loadConfig({ installDir });
-    const installedAgents = existingConfig?.installedAgents ?? [];
+    const installedAgents = existingConfig
+      ? getInstalledAgents({ config: existingConfig })
+      : [];
     if (installedAgents.length === 1) {
       // Single agent installed - use it
       agentName = installedAgents[0];
@@ -509,7 +497,7 @@ export const noninteractive = async (args?: {
 
   // Show directory being uninstalled from
   info({ message: `Uninstalling from: ${installDir}` });
-  console.log();
+  newline();
 
   // Run uninstall, preserving config and global settings (hooks/statusline/slashcommands)
   await runUninstall({
@@ -520,7 +508,7 @@ export const noninteractive = async (args?: {
   });
 
   // Display completion message
-  console.log();
+  newline();
   success({
     message:
       "======================================================================",
@@ -532,15 +520,15 @@ export const noninteractive = async (args?: {
     message:
       "======================================================================",
   });
-  console.log();
+  newline();
 
   info({ message: `Uninstalled from: ${installDir}` });
   info({ message: "All features have been removed." });
-  console.log();
+  newline();
   warn({
     message: "Note: You must restart Claude Code for changes to take effect!",
   });
-  console.log();
+  newline();
   info({
     message: "To completely remove the package, run: npm uninstall -g nori-ai",
   });

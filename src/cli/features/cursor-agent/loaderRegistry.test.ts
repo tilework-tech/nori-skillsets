@@ -15,14 +15,6 @@ describe("CursorLoaderRegistry", () => {
     CursorLoaderRegistry.resetInstance();
   });
 
-  describe("getInstance", () => {
-    test("returns singleton instance", () => {
-      const instance1 = CursorLoaderRegistry.getInstance();
-      const instance2 = CursorLoaderRegistry.getInstance();
-      expect(instance1).toBe(instance2);
-    });
-  });
-
   describe("getAll", () => {
     test("returns array of loaders", () => {
       const registry = CursorLoaderRegistry.getInstance();

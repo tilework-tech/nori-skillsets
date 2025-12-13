@@ -5,11 +5,12 @@
  * before installing new versions.
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
-import { dirname, join } from "path";
+import { readFileSync } from "fs";
+import { join } from "path";
 
 import semver from "semver";
 
+import { loadConfig } from "@/cli/config.js";
 import { CLI_ROOT } from "@/cli/env.js";
 
 const DEFAULT_VERSION = "12.1.0";
@@ -19,19 +20,6 @@ const DEFAULT_VERSION = "12.1.0";
  * The --agent flag was introduced in 19.0.0 with multi-agent support.
  */
 const MIN_AGENT_FLAG_VERSION = "19.0.0";
-
-/**
- * Get the path to the version file
- *
- * @param args - Configuration arguments
- * @param args.installDir - Installation directory
- *
- * @returns The absolute path to .nori-installed-version
- */
-export const getVersionFilePath = (args: { installDir: string }): string => {
-  const { installDir } = args;
-  return join(installDir, ".nori-installed-version");
-};
 
 /**
  * Get the current package version by reading package.json
@@ -53,51 +41,29 @@ export const getCurrentPackageVersion = (): string | null => {
 };
 
 /**
- * Get the installed version from .nori-installed-version
- * Defaults to 12.1.0 if file does not exist (assumes existing installations are 12.1.0)
+ * Get the installed version from .nori-config.json
+ * Defaults to 12.1.0 if config does not exist or has no version
+ * (assumes existing installations without version field are 12.1.0)
  *
  * @param args - Configuration arguments
  * @param args.installDir - Installation directory
  *
  * @returns The installed version string
  */
-export const getInstalledVersion = (args: { installDir: string }): string => {
+export const getInstalledVersion = async (args: {
+  installDir: string;
+}): Promise<string> => {
   const { installDir } = args;
   try {
-    const version = readFileSync(
-      getVersionFilePath({ installDir }),
-      "utf-8",
-    ).trim();
-    if (version) {
-      return version;
+    const config = await loadConfig({ installDir });
+    if (config?.version) {
+      return config.version;
     }
     return DEFAULT_VERSION;
   } catch {
-    // File doesn't exist or can't be read - default to 12.1.0
+    // Config doesn't exist or can't be read - default to 12.1.0
     return DEFAULT_VERSION;
   }
-};
-
-/**
- * Save the installed version to .nori-installed-version
- * @param args - Configuration arguments
- * @param args.version - Version to save
- * @param args.installDir - Installation directory
- */
-export const saveInstalledVersion = (args: {
-  version: string;
-  installDir: string;
-}): void => {
-  const { version, installDir } = args;
-  const versionFilePath = getVersionFilePath({ installDir });
-
-  // Ensure the directory exists
-  const dir = dirname(versionFilePath);
-  if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true });
-  }
-
-  writeFileSync(versionFilePath, version, "utf-8");
 };
 
 /**

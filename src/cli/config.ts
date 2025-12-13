@@ -41,6 +41,9 @@ export type AgentConfig = {
 /**
  * Unified configuration type for Nori Profiles
  * Contains all persisted fields from disk plus required installDir
+ *
+ * Note: Installed agents are derived from the keys of the `agents` object.
+ * Use `getInstalledAgents({ config })` to get the list of installed agents.
  */
 export type Config = {
   auth?: AuthCredentials | null;
@@ -52,10 +55,10 @@ export type Config = {
   autoupdate?: "enabled" | "disabled" | null;
   installDir: string;
   registryAuths?: Array<RegistryAuth> | null;
-  /** Per-agent configuration settings */
+  /** Per-agent configuration settings. Keys indicate which agents are installed. */
   agents?: Record<string, AgentConfig> | null;
-  /** List of AI agents installed at this installDir */
-  installedAgents?: Array<string> | null;
+  /** Installed version of Nori */
+  version?: string | null;
 };
 
 /**
@@ -130,6 +133,21 @@ export const getRegistryAuth = (args: {
         normalizeUrl({ baseUrl: auth.registryUrl }) === normalizedSearchUrl,
     ) ?? null
   );
+};
+
+/**
+ * Get list of installed agents from config
+ * Derives installed agents from the keys of the agents object
+ * Returns ['claude-code'] by default for backwards compatibility with older configs
+ * @param args - Configuration arguments
+ * @param args.config - The config to check
+ *
+ * @returns Array of installed agent names
+ */
+export const getInstalledAgents = (args: { config: Config }): Array<string> => {
+  const { config } = args;
+  const agents = Object.keys(config.agents ?? {});
+  return agents.length > 0 ? agents : ["claude-code"];
 };
 
 /**
@@ -274,23 +292,17 @@ export const loadConfig = async (args: {
         };
       }
 
-      // Check if installedAgents exists and is valid array of strings
-      if (Array.isArray(config.installedAgents)) {
-        const validAgents = config.installedAgents.filter(
-          (agent: unknown) => typeof agent === "string",
-        );
-        if (validAgents.length > 0) {
-          result.installedAgents = validAgents;
-        }
+      // Check if version exists and is valid string
+      if (config.version && typeof config.version === "string") {
+        result.version = config.version;
       }
 
-      // Return result if we have at least auth, profile, agents, sendSessionTranscript, or installedAgents
+      // Return result if we have at least auth, profile, agents, or sendSessionTranscript
       if (
         result.auth != null ||
         result.profile != null ||
         result.agents != null ||
-        result.sendSessionTranscript != null ||
-        result.installedAgents != null
+        result.sendSessionTranscript != null
       ) {
         return result;
       }
@@ -314,8 +326,8 @@ export const loadConfig = async (args: {
  * @param args.autoupdate - Autoupdate setting (null to skip)
  * @param args.installDir - Installation directory
  * @param args.registryAuths - Array of registry authentication credentials (null to skip)
- * @param args.agents - Per-agent configuration settings (null to skip)
- * @param args.installedAgents - List of installed AI agents (null to skip)
+ * @param args.agents - Per-agent configuration settings (null to skip). Keys indicate installed agents.
+ * @param args.version - Installed version of Nori (null to skip)
  */
 export const saveConfig = async (args: {
   username: string | null;
@@ -327,7 +339,7 @@ export const saveConfig = async (args: {
   autoupdate?: "enabled" | "disabled" | null;
   registryAuths?: Array<RegistryAuth> | null;
   agents?: Record<string, AgentConfig> | null;
-  installedAgents?: Array<string> | null;
+  version?: string | null;
   installDir: string;
 }): Promise<void> => {
   const {
@@ -340,7 +352,7 @@ export const saveConfig = async (args: {
     autoupdate,
     registryAuths,
     agents,
-    installedAgents,
+    version,
     installDir,
   } = args;
   const configPath = getConfigPath({ installDir });
@@ -395,9 +407,9 @@ export const saveConfig = async (args: {
     config.registryAuths = registryAuths;
   }
 
-  // Add installedAgents if provided and not empty
-  if (installedAgents != null && installedAgents.length > 0) {
-    config.installedAgents = installedAgents;
+  // Add version if provided
+  if (version != null) {
+    config.version = version;
   }
 
   // Always save installDir
@@ -464,10 +476,7 @@ const configSchema = {
         },
       },
     },
-    installedAgents: {
-      type: "array",
-      items: { type: "string" },
-    },
+    version: { type: "string" },
   },
   additionalProperties: false,
 };

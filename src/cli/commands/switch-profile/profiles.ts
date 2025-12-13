@@ -3,9 +3,13 @@
  * Handles profile listing, loading, and switching
  */
 
-import { loadConfig, getAgentProfile } from "@/cli/config.js";
+import {
+  loadConfig,
+  getAgentProfile,
+  getInstalledAgents,
+} from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
-import { error, info, success } from "@/cli/logger.js";
+import { error, info, success, newline } from "@/cli/logger.js";
 import { promptUser } from "@/cli/prompt.js";
 import { normalizeInstallDir } from "@/utils/path.js";
 
@@ -29,7 +33,7 @@ const resolveAgent = async (args: {
 
   // Load config to check installed agents
   const config = await loadConfig({ installDir });
-  const installedAgents = config?.installedAgents ?? [];
+  const installedAgents = config ? getInstalledAgents({ config }) : [];
 
   // No agents installed - default to claude-code
   if (installedAgents.length === 0) {
@@ -110,7 +114,7 @@ const confirmSwitchProfile = async (args: {
   info({ message: `  Agent: ${agent.displayName} (${agentName})` });
   info({ message: `  Current profile: ${currentProfile}` });
   info({ message: `  New profile: ${profileName}` });
-  console.log();
+  newline();
 
   const proceed = await promptUser({
     prompt: "Proceed with profile switch? (y/n): ",

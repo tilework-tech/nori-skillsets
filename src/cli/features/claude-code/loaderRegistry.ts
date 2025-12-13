@@ -8,7 +8,6 @@ import { hooksLoader } from "@/cli/features/claude-code/hooks/loader.js";
 import { profilesLoader } from "@/cli/features/claude-code/profiles/loader.js";
 import { globalSlashCommandsLoader } from "@/cli/features/claude-code/slashcommands/loader.js";
 import { statuslineLoader } from "@/cli/features/claude-code/statusline/loader.js";
-import { versionLoader } from "@/cli/features/claude-code/version/loader.js";
 import { configLoader } from "@/cli/features/config/loader.js";
 
 import type { Loader } from "@/cli/features/agentRegistry.js";
@@ -25,10 +24,10 @@ export class LoaderRegistry {
 
     // Register all loaders
     // IMPORTANT: Order matters!
-    // - version and config must run before profiles (profiles may depend on config)
-    // - profilesLoader must run after version/config to compose profiles and install profile-dependent features
+    // - config must run before profiles (profiles may depend on config)
+    // - configLoader also handles the version file lifecycle
+    // - profilesLoader must run after config to compose profiles and install profile-dependent features
     // - During uninstall, the order is reversed automatically
-    this.loaders.set(versionLoader.name, versionLoader);
     this.loaders.set(configLoader.name, configLoader);
     this.loaders.set(profilesLoader.name, profilesLoader);
     this.loaders.set(hooksLoader.name, hooksLoader);

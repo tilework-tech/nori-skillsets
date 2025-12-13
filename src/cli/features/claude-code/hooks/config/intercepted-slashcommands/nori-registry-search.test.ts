@@ -24,6 +24,7 @@ vi.mock("@/api/registryAuth.js", () => ({
 
 import { registrarApi, REGISTRAR_URL } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
+import { stripAnsi } from "@/cli/features/test-utils/index.js";
 
 import type { HookInput } from "./types.js";
 
@@ -33,18 +34,6 @@ import { noriRegistrySearch } from "./nori-registry-search.js";
 const GREEN = "\x1b[0;32m";
 const RED = "\x1b[0;31m";
 const NC = "\x1b[0m"; // No Color / Reset
-
-/**
- * Strip ANSI escape codes from a string for plain text comparison
- *
- * @param str - The string containing ANSI codes
- *
- * @returns The string with ANSI codes removed
- */
-const stripAnsi = (str: string): string => {
-  // eslint-disable-next-line no-control-regex
-  return str.replace(/\x1b\[[0-9;]*m/g, "");
-};
 
 describe("nori-registry-search", () => {
   let testDir: string;

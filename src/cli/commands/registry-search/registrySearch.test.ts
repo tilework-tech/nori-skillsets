@@ -38,20 +38,9 @@ const mockConsoleError = vi
 import { registrarApi, REGISTRAR_URL } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
 import { loadConfig } from "@/cli/config.js";
+import { stripAnsi } from "@/cli/features/test-utils/index.js";
 
 import { registrySearchMain } from "./registrySearch.js";
-
-/**
- * Strip ANSI escape codes from a string for plain text comparison
- *
- * @param str - The string containing ANSI codes
- *
- * @returns The string with ANSI codes removed
- */
-const stripAnsi = (str: string): string => {
-  // eslint-disable-next-line no-control-regex
-  return str.replace(/\x1b\[[0-9;]*m/g, "");
-};
 
 /**
  * Get all console output as a single string with ANSI codes stripped

@@ -1,37 +1,29 @@
 /**
  * Shared logging utilities for installer
- * Provides colorized console output functions and file logging
+ * Provides colorized console output functions and file logging using Winston
  */
 
-// Silent mode flag - when true, all console output is suppressed
-let silentMode = false;
+import winston from "winston";
+import Transport from "winston-transport";
 
-/**
- * Enable or disable silent mode
- * When silent mode is enabled, all console output is suppressed
- *
- * @param args - Configuration arguments
- * @param args.silent - Whether to enable silent mode
- */
-export const setSilentMode = (args: { silent: boolean }): void => {
-  silentMode = args.silent;
+// Log file path - exported for testing
+export const LOG_FILE = "/tmp/nori.log";
+
+// Custom log levels matching current behavior
+const levels = {
+  error: 0,
+  warn: 1,
+  success: 2,
+  info: 3,
+  debug: 4,
 };
 
-/**
- * Check if silent mode is enabled
- *
- * @returns Whether silent mode is currently enabled
- */
-export const isSilentMode = (): boolean => {
-  return silentMode;
-};
-
-// ANSI color codes for output
+// ANSI color codes for console output
 const colors = {
   RED: "\x1b[0;31m",
   GREEN: "\x1b[0;32m",
   YELLOW: "\x1b[1;33m",
-  BLUE: "\x1b[36m",
+  CYAN: "\x1b[36m",
   NC: "\x1b[0m", // No Color
 };
 
@@ -44,41 +36,107 @@ const formatColors = {
   DIM: "\x1b[2m",
 };
 
-// Log file path for installer debugging
-const LOG_FILE = "/tmp/nori-installer.log";
+/**
+ * Custom console transport that uses console.log/console.error
+ * This maintains compatibility with code that spies on console methods
+ */
+class ConsoleTransport extends Transport {
+  log(logInfo: { level: string; message: string }, callback: () => void): void {
+    const { level, message } = logInfo;
+
+    // Check silent mode (inherited from Transport)
+    if (this.silent) {
+      callback();
+      return;
+    }
+
+    // Don't output debug to console
+    if (level === "debug") {
+      callback();
+      return;
+    }
+
+    // Format message with colors and prefixes
+    let formattedMessage: string;
+    switch (level) {
+      case "error":
+        formattedMessage = `${colors.RED}Error: ${message}${colors.NC}`;
+        console.error(formattedMessage);
+        break;
+      case "warn":
+        formattedMessage = `${colors.YELLOW}Warning: ${message}${colors.NC}`;
+        console.log(formattedMessage);
+        break;
+      case "success":
+        formattedMessage = `${colors.GREEN}${message}${colors.NC}`;
+        console.log(formattedMessage);
+        break;
+      case "info":
+        formattedMessage = `${colors.CYAN}${message}${colors.NC}`;
+        console.log(formattedMessage);
+        break;
+      default:
+        console.log(String(message));
+    }
+
+    callback();
+  }
+}
+
+// File format with timestamp and level
+const fileFormat = winston.format.printf((logInfo) => {
+  const { level, message } = logInfo;
+  const timestamp = new Date().toISOString();
+  return `[${timestamp}] [${level.toUpperCase()}] ${message}`;
+});
+
+// Create custom console transport
+const consoleTransport = new ConsoleTransport({
+  level: "info", // Don't output debug to console
+});
+
+// Create file transport
+const fileTransport = new winston.transports.File({
+  filename: LOG_FILE,
+  format: fileFormat,
+  level: "debug", // Log everything to file
+});
+
+// Create the logger
+const logger = winston.createLogger({
+  levels,
+  transports: [consoleTransport, fileTransport],
+});
 
 /**
- * Append message to log file
+ * Enable or disable silent mode
+ * When silent mode is enabled, all console output is suppressed
+ * but file logging continues
+ *
  * @param args - Configuration arguments
- * @param args.message - Message to log
- * @param args.level - Log level (error, success, info, warn, debug)
+ * @param args.silent - Whether to enable silent mode
  */
-const appendToLogFile = async (args: {
-  message: string;
-  level: string;
-}): Promise<void> => {
-  const { message, level } = args;
-  try {
-    const fs = await import("fs/promises");
-    const timestamp = new Date().toISOString();
-    await fs.appendFile(LOG_FILE, `[${timestamp}] [${level}] ${message}\n`);
-  } catch {
-    // Silently fail on logging errors - don't break installer
-  }
+export const setSilentMode = (args: { silent: boolean }): void => {
+  consoleTransport.silent = args.silent;
 };
 
 /**
- * Print error message in red
+ * Check if silent mode is enabled
+ *
+ * @returns Whether silent mode is currently enabled
+ */
+export const isSilentMode = (): boolean => {
+  return consoleTransport.silent ?? false;
+};
+
+/**
+ * Print error message in red with "Error: " prefix
  * @param args - Configuration arguments
  * @param args.message - Error message to display
  */
 export const error = (args: { message: string }): void => {
   const { message } = args;
-  if (!silentMode) {
-    console.error(`${colors.RED}Error: ${message}${colors.NC}`);
-  }
-  // Log to file asynchronously (don't await)
-  appendToLogFile({ message, level: "ERROR" });
+  logger.error(message);
 };
 
 /**
@@ -88,39 +146,67 @@ export const error = (args: { message: string }): void => {
  */
 export const success = (args: { message: string }): void => {
   const { message } = args;
-  if (!silentMode) {
-    console.log(`${colors.GREEN}${message}${colors.NC}`);
-  }
-  // Log to file asynchronously (don't await)
-  appendToLogFile({ message, level: "SUCCESS" });
+  logger.log("success", message);
 };
 
 /**
- * Print info message in blue
+ * Print info message in cyan
  * @param args - Configuration arguments
  * @param args.message - Info message to display
  */
 export const info = (args: { message: string }): void => {
   const { message } = args;
-  if (!silentMode) {
-    console.log(`${colors.BLUE}${message}${colors.NC}`);
-  }
-  // Log to file asynchronously (don't await)
-  appendToLogFile({ message, level: "INFO" });
+  logger.info(message);
 };
 
 /**
- * Print warning message in yellow
+ * Print warning message in yellow with "Warning: " prefix
  * @param args - Configuration arguments
  * @param args.message - Warning message to display
  */
 export const warn = (args: { message: string }): void => {
   const { message } = args;
-  if (!silentMode) {
-    console.log(`${colors.YELLOW}Warning: ${message}${colors.NC}`);
+  logger.warn(message);
+};
+
+/**
+ * Log debug message to file only (no console output)
+ * @param args - Configuration arguments
+ * @param args.message - Debug message to log
+ */
+export const debug = (args: { message: string }): void => {
+  const { message } = args;
+  logger.debug(message);
+};
+
+/**
+ * Output a blank line to console for spacing
+ * File logging is skipped for blank lines
+ */
+export const newline = (): void => {
+  if (!consoleTransport.silent) {
+    console.log();
   }
-  // Log to file asynchronously (don't await)
-  appendToLogFile({ message, level: "WARN" });
+};
+
+/**
+ * Output raw text without any color formatting
+ * Used for pre-formatted output like ASCII art
+ * @param args - Configuration arguments
+ * @param args.message - Raw message to display
+ */
+export const raw = (args: { message: string }): void => {
+  const { message } = args;
+  // Log to file as info level
+  fileTransport.log?.(
+    { level: "info", message, [Symbol.for("level")]: "info" },
+    // eslint-disable-next-line @typescript-eslint/no-empty-function
+    () => {},
+  );
+  // Output to console without formatting
+  if (!consoleTransport.silent) {
+    console.log(message);
+  }
 };
 
 /**
@@ -157,17 +243,6 @@ export const boldWhite = (args: { text: string }): string => {
 export const gray = (args: { text: string }): string => {
   const { text } = args;
   return `${formatColors.GRAY}${text}${colors.NC}`;
-};
-
-/**
- * Log debug message to file only (no console output)
- * @param args - Configuration arguments
- * @param args.message - Debug message to log
- */
-export const debug = (args: { message: string }): void => {
-  const { message } = args;
-  // Only log to file, no console output
-  appendToLogFile({ message, level: "DEBUG" });
 };
 
 /**

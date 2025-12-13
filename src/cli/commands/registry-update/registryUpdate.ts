@@ -15,7 +15,7 @@ import * as tar from "tar";
 import { registrarApi, REGISTRAR_URL } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
 import { loadConfig, getRegistryAuth } from "@/cli/config.js";
-import { error, success, info } from "@/cli/logger.js";
+import { error, success, info, newline } from "@/cli/logger.js";
 import { getInstallDirs } from "@/utils/path.js";
 
 import type { Command } from "commander";
@@ -286,7 +286,7 @@ export const registryUpdateMain = async (args: {
       },
     });
 
-    console.log("");
+    newline();
     success({
       message: `Updated "${profileName}" from ${installedVersion} to ${latestVersion} from ${targetRegistryUrl}.`,
     });

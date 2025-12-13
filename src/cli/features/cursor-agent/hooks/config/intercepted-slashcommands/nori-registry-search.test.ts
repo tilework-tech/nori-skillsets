@@ -24,6 +24,7 @@ vi.mock("@/api/registryAuth.js", () => ({
 
 import { registrarApi, REGISTRAR_URL } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
+import { stripAnsi } from "@/cli/features/test-utils/index.js";
 
 import type { HookInput } from "./types.js";
 
@@ -36,20 +37,6 @@ const ERROR_SYMBOL = "\u2717"; // ✗
 // ANSI pattern to verify output contains no escape codes
 // eslint-disable-next-line no-control-regex
 const ANSI_PATTERN = /\x1b\[[0-9;]*m/;
-
-/**
- * Strip ANSI escape codes from a string for plain text comparison
- * Note: cursor-agent output no longer contains ANSI codes, but this
- * function is kept for backwards compatibility with existing tests.
- *
- * @param str - The string to process
- *
- * @returns The string with any ANSI codes removed
- */
-const stripAnsi = (str: string): string => {
-  // eslint-disable-next-line no-control-regex
-  return str.replace(/\x1b\[[0-9;]*m/g, "");
-};
 
 describe("nori-registry-search", () => {
   let testDir: string;

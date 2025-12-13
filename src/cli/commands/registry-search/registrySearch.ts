@@ -7,7 +7,7 @@
 import { REGISTRAR_URL, registrarApi, type Package } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
 import { loadConfig } from "@/cli/config.js";
-import { error, info } from "@/cli/logger.js";
+import { error, info, newline, raw } from "@/cli/logger.js";
 import { getInstallDirs, normalizeInstallDir } from "@/utils/path.js";
 import { normalizeUrl } from "@/utils/url.js";
 
@@ -197,9 +197,9 @@ export const registrySearchMain = async (args: {
 
   const formattedResults = formatSearchResults({ results });
 
-  console.log("");
-  console.log(formattedResults);
-  console.log("");
+  newline();
+  raw({ message: formattedResults });
+  newline();
   info({
     message:
       "To install a profile, run: nori-ai registry-download <package-name>",

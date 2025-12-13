@@ -74,23 +74,4 @@ describe("paid-list-noridocs script", () => {
       expect(processExitSpy).toHaveBeenCalledWith(1);
     });
   });
-
-  describe("argument parsing", () => {
-    it("should use defaults when optional args not provided", async () => {
-      // Test structure for API mock integration
-      expect(true).toBe(true);
-    });
-
-    it("should accept pathPrefix filter", async () => {
-      // Test structure for API mock integration
-      expect(true).toBe(true);
-    });
-  });
-
-  describe("output formatting", () => {
-    it("should output formatted list", async () => {
-      // Test structure for API mock integration
-      expect(true).toBe(true);
-    });
-  });
 });
