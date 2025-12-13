@@ -319,7 +319,9 @@ export const runUninstall = async (args: {
 
   // Set the agent being uninstalled so config loader knows what to remove
   // The keys of config.agents indicate which agents to uninstall
-  config.agents = { [agentName]: {} };
+  // Preserve existing profile info from the loaded config
+  const existingAgentConfig = existingConfig?.agents?.[agentName] ?? {};
+  config.agents = { [agentName]: existingAgentConfig };
 
   // Log installed version for debugging
   if (installedVersion) {

@@ -51,7 +51,12 @@ describe("slashCommandsLoader", () => {
     // Install profiles first to set up composed profile structure
     // Run profiles loader to populate ~/.claude/profiles/ directory
     // This is required since feature loaders now read from ~/.claude/profiles/
-    const config: Config = { installDir: tempDir };
+    const config: Config = {
+      installDir: tempDir,
+      agents: {
+        "claude-code": { profile: { baseProfile: "senior-swe" } },
+      },
+    };
     await profilesLoader.run({ config });
   });
 
@@ -65,7 +70,12 @@ describe("slashCommandsLoader", () => {
 
   describe("run", () => {
     it("should create commands directory and copy slash command files for free installation", async () => {
-      const config: Config = { installDir: tempDir };
+      const config: Config = {
+        installDir: tempDir,
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
+      };
 
       await slashCommandsLoader.install({ config });
 
@@ -90,6 +100,9 @@ describe("slashCommandsLoader", () => {
           password: "testpass",
           organizationUrl: "https://example.com",
         },
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
       };
 
       await slashCommandsLoader.install({ config });
@@ -108,7 +121,12 @@ describe("slashCommandsLoader", () => {
     });
 
     it("should handle reinstallation (update scenario)", async () => {
-      const config: Config = { installDir: tempDir };
+      const config: Config = {
+        installDir: tempDir,
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
+      };
 
       // First installation
       await slashCommandsLoader.install({ config });
@@ -126,7 +144,12 @@ describe("slashCommandsLoader", () => {
 
   describe("uninstall", () => {
     it("should remove slash command files", async () => {
-      const config: Config = { installDir: tempDir };
+      const config: Config = {
+        installDir: tempDir,
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
+      };
 
       // Install first
       await slashCommandsLoader.install({ config });
@@ -155,7 +178,12 @@ describe("slashCommandsLoader", () => {
     });
 
     it("should handle missing commands directory gracefully", async () => {
-      const config: Config = { installDir: tempDir };
+      const config: Config = {
+        installDir: tempDir,
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
+      };
 
       // Uninstall without installing first
       await expect(

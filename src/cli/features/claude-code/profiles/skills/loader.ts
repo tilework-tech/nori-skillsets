@@ -7,7 +7,7 @@ import * as fs from "fs/promises";
 import * as path from "path";
 import { fileURLToPath } from "url";
 
-import { isPaidInstall, type Config } from "@/cli/config.js";
+import { isPaidInstall, getAgentProfile, type Config } from "@/cli/config.js";
 import {
   getClaudeDir,
   getClaudeSkillsDir,
@@ -91,8 +91,16 @@ const installSkills = async (args: { config: Config }): Promise<void> => {
   const { config } = args;
   info({ message: "Installing Nori skills..." });
 
-  // Get profile name from config (default to senior-swe)
-  const profileName = config.profile?.baseProfile || "senior-swe";
+  // Get profile name from config - error if not configured
+  const profileName = getAgentProfile({
+    config,
+    agentName: "claude-code",
+  })?.baseProfile;
+  if (profileName == null) {
+    throw new Error(
+      "No profile configured for claude-code. Run 'nori-ai install' to configure a profile.",
+    );
+  }
   const configDir = getConfigDir({
     profileName,
     installDir: config.installDir,
@@ -322,7 +330,19 @@ const validate = async (args: {
   }
 
   // Verify expected skills exist based on tier
-  const profileName = config.profile?.baseProfile || "senior-swe";
+  const profileName = getAgentProfile({
+    config,
+    agentName: "claude-code",
+  })?.baseProfile;
+  if (profileName == null) {
+    errors.push("No profile configured for claude-code");
+    errors.push("Run 'nori-ai install' to configure a profile");
+    return {
+      valid: false,
+      message: "No profile configured",
+      errors,
+    };
+  }
   const configDir = getConfigDir({
     profileName,
     installDir: config.installDir,

@@ -108,6 +108,13 @@ The `isLegacyPasswordConfig({ config })` helper identifies configs that have pas
 - `saveConfig()` writes both `agents` and legacy `profile` (for claude-code) to maintain compatibility with older versions
 - `getAgentProfile({ config, agentName })` retrieves the profile for a specific agent, falling back to legacy `profile` for claude-code
 
+**Profile Lookup Pattern (CRITICAL):** Code that needs to read a profile MUST use `getAgentProfile({ config, agentName })` - never read `config.profile` directly. The function implements the correct lookup order:
+1. First check `config.agents[agentName].profile` (agent-specific)
+2. Fall back to `config.profile` (legacy field, only for claude-code)
+3. Return null if neither exists
+
+Direct access to `config.profile` is incorrect because it bypasses agent-specific profiles. This caused a bug where switch-profile would fail for non-claude-code agents (the top-level `profile` field is only written for claude-code by `saveConfig()` for backwards compatibility).
+
 The getConfigPath() function requires { installDir: string } and returns `<installDir>/.nori-config.json`. All config operations (loadConfig, saveConfig, validateConfig) require installDir as a parameter, ensuring consistent path resolution throughout the codebase. The `loadConfig()` function validates auth by checking for either refreshToken OR password (plus username and organizationUrl). The `saveConfig()` function prefers refreshToken over password - if both are provided, only refreshToken is saved. User preference fields (sendSessionTranscript, autoupdate) use the 'enabled' | 'disabled' type. The `sendSessionTranscript` field defaults to 'enabled' when not present. The `autoupdate` field defaults to 'disabled' when not present, requiring users to explicitly opt-in to automatic updates. These fields are loaded by loadConfig() with default fallback, persisted by saveConfig() when provided, and validated by the JSON schema. The config.ts module is used by both the installer (for managing installation settings) and hooks (for reading user preferences like session transcript opt-out or autoupdate disable).
 
 **JSON Schema Validation Architecture:** The config.ts module uses JSON schema (via Ajv with ajv-formats) as the single source of truth for configuration validation. The schema defines:

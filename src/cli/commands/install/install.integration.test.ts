@@ -623,6 +623,49 @@ describe("install integration test", () => {
     expect(config.profile).toEqual({ baseProfile: "senior-swe" });
   });
 
+  it("should preserve agent-specific profile in noninteractive mode (switch-profile scenario)", async () => {
+    const CONFIG_PATH = getConfigPath({ installDir: tempDir });
+
+    // STEP 1: Create config that simulates what happens after switch-profile:
+    // - agents.claude-code.profile is set to the NEW profile ("amol")
+    // - The top-level 'profile' field may be stale or absent (cursor-agent doesn't write it)
+    //
+    // This is the exact scenario that caused the bug: switch-profile sets the agent's
+    // profile but the top-level 'profile' field is not updated (for non-claude-code agents).
+    // Then noninteractive() was using existingConfig.profile ?? getDefaultProfile()
+    // which would return the default instead of the agent-specific profile.
+    fs.writeFileSync(
+      CONFIG_PATH,
+      JSON.stringify({
+        // Agent-specific profile is set correctly (this is what switch-profile sets)
+        // Using "amol" since it's a real profile that exists (not the default "senior-swe")
+        agents: {
+          "claude-code": { profile: { baseProfile: "amol" } },
+        },
+        // Top-level profile is ABSENT - this is the bug trigger
+        // (For cursor-agent, saveConfig doesn't write top-level profile)
+        installedAgents: ["claude-code"],
+        installDir: tempDir,
+      }),
+    );
+
+    // STEP 2: Run installation in non-interactive mode with skipUninstall
+    // This mimics what switch-profile does after setting the agent's profile
+    await installMain({
+      nonInteractive: true,
+      skipUninstall: true,
+      installDir: tempDir,
+    });
+
+    // STEP 3: Verify the agent-specific profile was preserved, NOT overwritten with default
+    const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
+
+    // BUG: Before the fix, this would be "senior-swe" (the default)
+    // because noninteractive() used existingConfig.profile ?? getDefaultProfile()
+    // which fell back to the default since top-level profile was absent
+    expect(config.agents["claude-code"].profile.baseProfile).toBe("amol");
+  });
+
   it("should warn when ancestor directory has nori installation", async () => {
     // Setup: Create a parent directory with a nori installation
     const parentDir = path.join(tempDir, "parent");
