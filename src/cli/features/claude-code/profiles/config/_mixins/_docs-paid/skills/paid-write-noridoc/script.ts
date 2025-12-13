@@ -70,11 +70,9 @@ export const main = async (): Promise<void> => {
   }
 
   const installDir = allInstallations[0]; // Use closest installation
-  // Only need installDir - isPaidInstall only checks config.auth
-  const existingConfig = await loadConfig({ installDir });
-  const config = existingConfig ?? { installDir };
-
-  if (!isPaidInstall({ config })) {
+  // Check tier
+  const config = await loadConfig({ installDir });
+  if (config == null || !isPaidInstall({ config })) {
     console.error("Error: This feature requires a paid Nori subscription.");
     console.error("Please configure your credentials in ~/nori-config.json");
     process.exit(1);
