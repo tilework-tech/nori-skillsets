@@ -119,7 +119,7 @@ describe("version", () => {
       await saveConfig({
         username: null,
         organizationUrl: null,
-        installedAgents: ["claude-code"],
+        agents: { "claude-code": {} },
         version: "13.5.2",
         installDir: tempDir,
       });
@@ -138,7 +138,7 @@ describe("version", () => {
       await saveConfig({
         username: null,
         organizationUrl: null,
-        installedAgents: ["claude-code"],
+        agents: { "claude-code": {} },
         installDir: tempDir,
       });
 
@@ -167,7 +167,7 @@ describe("version", () => {
       await saveConfig({
         username: null,
         organizationUrl: null,
-        installedAgents: ["claude-code"],
+        agents: { "claude-code": {} },
         version: "13.5.2",
         installDir: tempDir,
       });

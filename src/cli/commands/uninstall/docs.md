@@ -14,7 +14,7 @@ Path: @/src/cli/commands/uninstall
 - Uses `AgentRegistry` (@/src/cli/features/agentRegistry.ts) to get agent-specific loaders
 - Executes loaders in REVERSE order via `registry.getAllReversed()` - critical because profiles must be removed LAST (other loaders need profile directories to know what to remove)
 - Called by the install command during upgrades to clean up the previous version before installing the new one
-- Reads `installedAgents` from config (@/src/cli/config.ts) to detect which agents are installed at a location
+- Uses `getInstalledAgents({ config })` from @/src/cli/config.ts to detect which agents are installed at a location (derived from `agents` object keys)
 
 ### Core Implementation
 
@@ -28,8 +28,8 @@ Path: @/src/cli/commands/uninstall
 
 **Agent Detection in Non-Interactive Mode:**
 
-When `--agent` is not explicitly provided, `noninteractive()` reads the config and:
-- If exactly one agent in `installedAgents` → uses that agent
+When `--agent` is not explicitly provided, `noninteractive()` reads the config and uses `getInstalledAgents({ config })` to determine installed agents:
+- If exactly one agent installed → uses that agent
 - If zero agents or multiple agents → defaults to `claude-code`
 
 This ensures that during autoupdate/upgrade scenarios, the correct agent is uninstalled without requiring explicit `--agent` flags.
@@ -42,7 +42,7 @@ This ensures that during autoupdate/upgrade scenarios, the correct agent is unin
 
 **Loader Execution:**
 
-Loaders execute in reverse order from install. Each loader's `uninstall({ config })` is called with the config containing `installedAgents: [agentName]` so the loader knows which agent is being removed. Global loaders (hooks, statusline, slashcommands) can be skipped via `removeGlobalSettings: false`.
+Loaders execute in reverse order from install. Each loader's `uninstall({ config })` is called with the config containing `agents: { [agentName]: {...} }` so the loader knows which agent is being removed. Global loaders (hooks, statusline, slashcommands) can be skipped via `removeGlobalSettings: false`.
 
 **Feature List Display:**
 
@@ -56,7 +56,7 @@ In interactive mode, the feature list ("The following will be removed:") is buil
 
 - **Global settings are shared:** Global features (hooks, statusline, global slash commands) are installed in `~/.claude/` and shared across all Nori installations. Interactive mode prompts about removing them; non-interactive mode always preserves them.
 
-- **installedAgents field:** The config loader uses `config.installedAgents` to know which agent is being uninstalled. If other agents remain after uninstall, the config file is preserved with updated `installedAgents` list.
+- **agents field:** The config loader uses the `agents` object to know which agent is being uninstalled. If other agents remain after uninstall, the config file is preserved with the remaining agents in the `agents` object.
 
 - **Remaining agents messaging:** When uninstalling one agent while others remain, the uninstall command displays a message listing the remaining agents and provides the command to uninstall them (e.g., `nori-ai uninstall --agent cursor-agent`).
 

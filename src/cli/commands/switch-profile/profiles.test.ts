@@ -224,7 +224,6 @@ describe("registerSwitchProfileCommand", () => {
     await fs.writeFile(
       configPath,
       JSON.stringify({
-        installedAgents: ["cursor-agent"],
         agents: {
           "cursor-agent": { profile: { baseProfile: "senior-swe" } },
         },
@@ -296,7 +295,6 @@ describe("registerSwitchProfileCommand", () => {
     await fs.writeFile(
       configPath,
       JSON.stringify({
-        installedAgents: ["cursor-agent"],
         agents: {
           "cursor-agent": { profile: { baseProfile: "senior-swe" } },
         },
@@ -361,7 +359,6 @@ describe("registerSwitchProfileCommand", () => {
     await fs.writeFile(
       configPath,
       JSON.stringify({
-        installedAgents: ["claude-code", "cursor-agent"],
         agents: {
           "claude-code": { profile: { baseProfile: "senior-swe" } },
           "cursor-agent": { profile: { baseProfile: "senior-swe" } },
@@ -415,7 +412,6 @@ describe("registerSwitchProfileCommand", () => {
     await fs.writeFile(
       configPath,
       JSON.stringify({
-        installedAgents: ["claude-code"],
         agents: {
           "claude-code": { profile: { baseProfile: "senior-swe" } },
         },
@@ -475,7 +471,6 @@ describe("registerSwitchProfileCommand", () => {
     await fs.writeFile(
       configPath,
       JSON.stringify({
-        installedAgents: ["claude-code", "cursor-agent"],
         agents: {
           "claude-code": { profile: { baseProfile: "senior-swe" } },
           "cursor-agent": { profile: { baseProfile: "senior-swe" } },
@@ -578,7 +573,6 @@ describe("switch-profile confirmation", () => {
     await fs.writeFile(
       configPath,
       JSON.stringify({
-        installedAgents: ["claude-code"],
         agents: {
           "claude-code": { profile: { baseProfile: "senior-swe" } },
         },
@@ -639,7 +633,6 @@ describe("switch-profile confirmation", () => {
     await fs.writeFile(
       configPath,
       JSON.stringify({
-        installedAgents: ["claude-code"],
         agents: {
           "claude-code": { profile: { baseProfile: "senior-swe" } },
         },
@@ -690,7 +683,6 @@ describe("switch-profile confirmation", () => {
     await fs.writeFile(
       configPath,
       JSON.stringify({
-        installedAgents: ["claude-code"],
         agents: {
           "claude-code": { profile: { baseProfile: "senior-swe" } },
         },
@@ -755,7 +747,6 @@ describe("switch-profile confirmation", () => {
     await fs.writeFile(
       configPath,
       JSON.stringify({
-        installedAgents: ["cursor-agent"],
         agents: {
           "cursor-agent": { profile: { baseProfile: "senior-swe" } },
         },

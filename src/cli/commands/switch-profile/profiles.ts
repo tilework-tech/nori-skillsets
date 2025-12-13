@@ -3,7 +3,11 @@
  * Handles profile listing, loading, and switching
  */
 
-import { loadConfig, getAgentProfile } from "@/cli/config.js";
+import {
+  loadConfig,
+  getAgentProfile,
+  getInstalledAgents,
+} from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { error, info, success } from "@/cli/logger.js";
 import { promptUser } from "@/cli/prompt.js";
@@ -29,7 +33,7 @@ const resolveAgent = async (args: {
 
   // Load config to check installed agents
   const config = await loadConfig({ installDir });
-  const installedAgents = config?.installedAgents ?? [];
+  const installedAgents = config ? getInstalledAgents({ config }) : [];
 
   // No agents installed - default to claude-code
   if (installedAgents.length === 0) {
