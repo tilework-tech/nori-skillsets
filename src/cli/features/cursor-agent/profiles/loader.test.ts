@@ -55,7 +55,7 @@ describe("cursor-agent profiles loader", () => {
 
   const createConfig = (overrides: Partial<Config> = {}): Config => ({
     installDir: tempDir,
-    profile: { baseProfile: "amol" },
+    agents: { "cursor-agent": { profile: { baseProfile: "amol" } } },
     ...overrides,
   });
 

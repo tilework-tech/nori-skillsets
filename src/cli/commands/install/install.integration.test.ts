@@ -226,10 +226,7 @@ describe("install integration test", () => {
       username: "test@example.com",
       password: "testpass",
       organizationUrl: "http://localhost:3000",
-      profile: {
-        baseProfile: "senior-swe",
-      },
-      agents: { "claude-code": {} },
+      agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
     };
     fs.writeFileSync(CONFIG_PATH, JSON.stringify(paidConfig, null, 2));
 
@@ -274,10 +271,7 @@ describe("install integration test", () => {
     // STEP 1: Create config WITHOUT auth credentials (free user)
     const freeConfig = {
       version: "18.0.0",
-      profile: {
-        baseProfile: "senior-swe",
-      },
-      agents: { "claude-code": {} },
+      agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
     };
     fs.writeFileSync(CONFIG_PATH, JSON.stringify(freeConfig, null, 2));
 
@@ -348,8 +342,7 @@ describe("install integration test", () => {
       CONFIG_PATH,
       JSON.stringify({
         version: "12.0.0",
-        installedAgents: ["claude-code"],
-        profile: { baseProfile: "senior-swe" },
+        agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
       }),
     );
     fs.writeFileSync(MARKER_FILE_PATH, "installed by v12.0.0");
@@ -410,10 +403,7 @@ describe("install integration test", () => {
       username: "test@example.com",
       password: "testpass",
       organizationUrl: "http://localhost:3000",
-      profile: {
-        baseProfile: "senior-swe",
-      },
-      agents: { "claude-code": {} },
+      agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
     };
     fs.writeFileSync(CONFIG_PATH, JSON.stringify(paidConfig, null, 2));
 
@@ -514,7 +504,6 @@ describe("install integration test", () => {
       CONFIG_PATH,
       JSON.stringify({
         version: "19.0.0",
-        profile: { baseProfile: "senior-swe" },
         agents: {
           "cursor-agent": { profile: { baseProfile: "senior-swe" } },
         },
@@ -523,7 +512,12 @@ describe("install integration test", () => {
     );
 
     // STEP 2: Install claude-code (default agent)
-    await installMain({ nonInteractive: true, installDir: tempDir });
+    // Need to pass profile since this agent doesn't have existing config
+    await installMain({
+      nonInteractive: true,
+      installDir: tempDir,
+      profile: "senior-swe",
+    });
 
     // STEP 3: Verify both agents are in agents object
     const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
@@ -542,8 +536,7 @@ describe("install integration test", () => {
     fs.writeFileSync(
       CONFIG_PATH,
       JSON.stringify({
-        profile: { baseProfile: "senior-swe" },
-        installedAgents: ["claude-code"],
+        agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
         installDir: tempDir,
         version: "12.0.0",
       }),
@@ -553,10 +546,12 @@ describe("install integration test", () => {
     expect(fs.existsSync(MARKER_FILE_PATH)).toBe(true);
 
     // STEP 2: Install cursor-agent (different agent)
+    // Need to pass profile since this agent doesn't have existing config
     await installMain({
       nonInteractive: true,
       installDir: tempDir,
       agent: "cursor-agent",
+      profile: "senior-swe",
     });
 
     // STEP 3: Verify uninstall was NOT called
@@ -632,8 +627,8 @@ describe("install integration test", () => {
       baseProfile: "senior-swe",
     });
 
-    // Legacy profile field should also be set for backwards compatibility
-    expect(config.profile).toEqual({ baseProfile: "senior-swe" });
+    // Legacy profile field should NOT be written (removed in v19.0.0)
+    expect(config.profile).toBeUndefined();
   });
 
   it("should require --profile flag for non-interactive install without existing config", async () => {
@@ -837,8 +832,13 @@ describe("install integration test", () => {
       expect(config.password).toBeUndefined();
       expect(config.organizationUrl).toBeUndefined();
 
-      // Other fields should be preserved
-      expect(config.profile).toEqual({ baseProfile: "senior-swe" });
+      // Legacy profile field should NOT be written (removed in v19.0.0)
+      expect(config.profile).toBeUndefined();
+
+      // Profile should be in agents.claude-code
+      expect(config.agents["claude-code"].profile).toEqual({
+        baseProfile: "senior-swe",
+      });
     });
 
     it("should fail install if config exists but has no version field", async () => {

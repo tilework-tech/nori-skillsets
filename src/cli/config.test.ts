@@ -75,13 +75,13 @@ describe("config with profile-based system", () => {
   });
 
   describe("saveConfig and loadConfig", () => {
-    it("should save and load profile along with auth", async () => {
+    it("should save and load agents with auth", async () => {
       await saveConfig({
         username: "test@example.com",
         password: "password123",
         organizationUrl: "https://example.com",
-        profile: {
-          baseProfile: "senior-swe",
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
         },
         installDir: tempDir,
       });
@@ -94,17 +94,16 @@ describe("config with profile-based system", () => {
         refreshToken: null,
         organizationUrl: "https://example.com",
       });
-      expect(loaded?.profile).toEqual({
-        baseProfile: "senior-swe",
+      expect(loaded?.agents).toEqual({
+        "claude-code": { profile: { baseProfile: "senior-swe" } },
       });
     });
 
-    it("should save and load auth without profile", async () => {
+    it("should save and load auth without agents", async () => {
       await saveConfig({
         username: "test@example.com",
         password: "password123",
         organizationUrl: "https://example.com",
-        profile: null,
         installDir: tempDir,
       });
 
@@ -116,16 +115,16 @@ describe("config with profile-based system", () => {
         refreshToken: null,
         organizationUrl: "https://example.com",
       });
-      expect(loaded?.profile).toBeNull();
+      expect(loaded?.agents).toBeUndefined();
     });
 
-    it("should save and load profile without auth", async () => {
+    it("should save and load agents without auth", async () => {
       await saveConfig({
         username: null,
         password: null,
         organizationUrl: null,
-        profile: {
-          baseProfile: "amol",
+        agents: {
+          "claude-code": { profile: { baseProfile: "amol" } },
         },
         installDir: tempDir,
       });
@@ -133,8 +132,8 @@ describe("config with profile-based system", () => {
       const loaded = await loadConfig({ installDir: tempDir });
 
       expect(loaded?.auth).toBeNull();
-      expect(loaded?.profile).toEqual({
-        baseProfile: "amol",
+      expect(loaded?.agents).toEqual({
+        "claude-code": { profile: { baseProfile: "amol" } },
       });
     });
 
@@ -309,7 +308,9 @@ describe("config with profile-based system", () => {
         username: null,
         password: null,
         organizationUrl: null,
-        profile: { baseProfile: "senior-swe" },
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
         installDir: customDir,
       });
 
@@ -330,7 +331,9 @@ describe("config with profile-based system", () => {
       await fs.writeFile(
         configPath,
         JSON.stringify({
-          profile: { baseProfile: "senior-swe" },
+          agents: {
+            "claude-code": { profile: { baseProfile: "senior-swe" } },
+          },
           installDir: customDir,
         }),
       );
@@ -433,8 +436,10 @@ describe("agent-specific profiles", () => {
       );
     });
 
-    it("should populate agents from legacy profile field for backwards compat", async () => {
+    it("should migrate legacy profile field to agents.claude-code during load", async () => {
       // Legacy config with only 'profile' field (no 'agents')
+      // Note: This tests the backwards compatibility during loadConfig -
+      // legacy profile is converted to agents structure
       await fs.writeFile(
         mockConfigPath,
         JSON.stringify({
@@ -444,15 +449,13 @@ describe("agent-specific profiles", () => {
 
       const loaded = await loadConfig({ installDir: tempDir });
 
-      // Legacy profile should be mirrored to agents.claude-code.profile
+      // Legacy profile should be converted to agents.claude-code.profile
       expect(loaded?.agents?.["claude-code"]?.profile?.baseProfile).toBe(
         "amol",
       );
-      // Legacy profile should still be accessible
-      expect(loaded?.profile?.baseProfile).toBe("amol");
     });
 
-    it("should prefer agents field over legacy profile when both present", async () => {
+    it("should prefer agents field over legacy profile when both present during load", async () => {
       await fs.writeFile(
         mockConfigPath,
         JSON.stringify({
@@ -530,7 +533,7 @@ describe("agent-specific profiles", () => {
       });
     });
 
-    it("should write both agents and legacy profile for backwards compat", async () => {
+    it("should not write legacy profile field (only agents)", async () => {
       await saveConfig({
         username: null,
         password: null,
@@ -546,19 +549,22 @@ describe("agent-specific profiles", () => {
       const content = await fs.readFile(mockConfigPath, "utf-8");
       const config = JSON.parse(content);
 
-      // Should write both for backwards compat
+      // Should only write agents, not legacy profile
       expect(config.agents["claude-code"].profile.baseProfile).toBe(
         "senior-swe",
       );
-      expect(config.profile.baseProfile).toBe("senior-swe");
+      expect(config.profile).toBeUndefined();
     });
 
-    it("should not write legacy profile if no claude-code agent profile", async () => {
+    it("should save multiple agents without legacy profile", async () => {
       await saveConfig({
         username: null,
         password: null,
         organizationUrl: null,
         agents: {
+          "claude-code": {
+            profile: { baseProfile: "senior-swe" },
+          },
           cursor: {
             profile: { baseProfile: "documenter" },
           },
@@ -569,6 +575,9 @@ describe("agent-specific profiles", () => {
       const content = await fs.readFile(mockConfigPath, "utf-8");
       const config = JSON.parse(content);
 
+      expect(config.agents["claude-code"].profile.baseProfile).toBe(
+        "senior-swe",
+      );
       expect(config.agents.cursor.profile.baseProfile).toBe("documenter");
       expect(config.profile).toBeUndefined();
     });
@@ -600,29 +609,15 @@ describe("agent-specific profiles", () => {
       expect(cursorProfile?.baseProfile).toBe("documenter");
     });
 
-    it("should fall back to legacy profile for claude-code when agents field missing", async () => {
+    it("should return null when agents field is missing", async () => {
       const { getAgentProfile } = await import("./config.js");
 
       const config: Config = {
         installDir: "/test",
-        profile: { baseProfile: "legacy-profile" },
         // No agents field
       };
 
       const profile = getAgentProfile({ config, agentName: "claude-code" });
-
-      expect(profile?.baseProfile).toBe("legacy-profile");
-    });
-
-    it("should return null for unknown agent when agents field missing", async () => {
-      const { getAgentProfile } = await import("./config.js");
-
-      const config: Config = {
-        installDir: "/test",
-        profile: { baseProfile: "legacy-profile" },
-      };
-
-      const profile = getAgentProfile({ config, agentName: "cursor" });
 
       expect(profile).toBeNull();
     });
@@ -806,7 +801,9 @@ describe("registryAuths", () => {
       await fs.writeFile(
         mockConfigPath,
         JSON.stringify({
-          profile: { baseProfile: "senior-swe" },
+          agents: {
+            "claude-code": { profile: { baseProfile: "senior-swe" } },
+          },
           registryAuths: [
             {
               username: "test@example.com",
@@ -832,7 +829,9 @@ describe("registryAuths", () => {
       await fs.writeFile(
         mockConfigPath,
         JSON.stringify({
-          profile: { baseProfile: "senior-swe" },
+          agents: {
+            "claude-code": { profile: { baseProfile: "senior-swe" } },
+          },
           registryAuths: [
             {
               username: "user1@example.com",
@@ -863,7 +862,9 @@ describe("registryAuths", () => {
       await fs.writeFile(
         mockConfigPath,
         JSON.stringify({
-          profile: { baseProfile: "senior-swe" },
+          agents: {
+            "claude-code": { profile: { baseProfile: "senior-swe" } },
+          },
           registryAuths: [
             {
               username: "valid@example.com",
@@ -901,7 +902,9 @@ describe("registryAuths", () => {
       await fs.writeFile(
         mockConfigPath,
         JSON.stringify({
-          profile: { baseProfile: "senior-swe" },
+          agents: {
+            "claude-code": { profile: { baseProfile: "senior-swe" } },
+          },
           registryAuths: [
             { username: "incomplete" }, // Invalid - missing fields
           ],
@@ -917,7 +920,9 @@ describe("registryAuths", () => {
       await fs.writeFile(
         mockConfigPath,
         JSON.stringify({
-          profile: { baseProfile: "senior-swe" },
+          agents: {
+            "claude-code": { profile: { baseProfile: "senior-swe" } },
+          },
           registryAuths: "not an array",
         }),
       );
@@ -934,7 +939,9 @@ describe("registryAuths", () => {
         username: null,
         password: null,
         organizationUrl: null,
-        profile: { baseProfile: "senior-swe" },
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
         registryAuths: [
           {
             username: "test@example.com",
@@ -962,7 +969,9 @@ describe("registryAuths", () => {
         username: null,
         password: null,
         organizationUrl: null,
-        profile: { baseProfile: "senior-swe" },
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
         registryAuths: null,
         installDir: tempDir,
       });
@@ -978,7 +987,9 @@ describe("registryAuths", () => {
         username: null,
         password: null,
         organizationUrl: null,
-        profile: { baseProfile: "senior-swe" },
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
         registryAuths: [],
         installDir: tempDir,
       });
@@ -1248,7 +1259,9 @@ describe("schema validation", () => {
         mockConfigPath,
         JSON.stringify({
           sendSessionTranscript: "invalid-value",
-          profile: { baseProfile: "senior-swe" },
+          agents: {
+            "claude-code": { profile: { baseProfile: "senior-swe" } },
+          },
         }),
       );
 
@@ -1263,7 +1276,9 @@ describe("schema validation", () => {
         mockConfigPath,
         JSON.stringify({
           autoupdate: "maybe",
-          profile: { baseProfile: "senior-swe" },
+          agents: {
+            "claude-code": { profile: { baseProfile: "senior-swe" } },
+          },
         }),
       );
 
@@ -1302,7 +1317,9 @@ describe("schema validation", () => {
       await fs.writeFile(
         mockConfigPath,
         JSON.stringify({
-          profile: { baseProfile: "senior-swe" },
+          agents: {
+            "claude-code": { profile: { baseProfile: "senior-swe" } },
+          },
           unknownField: "should be removed",
           anotherUnknown: { nested: "value" },
         }),
@@ -1311,7 +1328,9 @@ describe("schema validation", () => {
       const loaded = await loadConfig({ installDir: tempDir });
 
       expect(loaded).not.toBeNull();
-      expect(loaded?.profile?.baseProfile).toBe("senior-swe");
+      expect(loaded?.agents?.["claude-code"]?.profile?.baseProfile).toBe(
+        "senior-swe",
+      );
       // Unknown properties should be stripped
       expect((loaded as any).unknownField).toBeUndefined();
       expect((loaded as any).anotherUnknown).toBeUndefined();
@@ -1328,7 +1347,9 @@ describe("schema validation", () => {
       await fs.writeFile(
         mockConfigPath,
         JSON.stringify({
-          profile: { baseProfile: "senior-swe" },
+          agents: {
+            "claude-code": { profile: { baseProfile: "senior-swe" } },
+          },
           registryAuths: [
             {
               username: "valid@example.com",

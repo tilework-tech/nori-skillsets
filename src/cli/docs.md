@@ -101,7 +101,7 @@ The logger.ts module provides console output formatting with ANSI color codes, p
 
 The promptForProfileSelection function in install.ts uses these formatters to display profile options with brightCyan numbers, boldWhite names, and gray indented descriptions, separated by blank lines for improved scannability. The promptForCredentials function displays a wrapped prompt asking users to enter credentials or skip for free tier.
 
-The config.ts module provides a unified `Config` type for both disk persistence and runtime use. The `Config` type contains: auth credentials via `AuthCredentials` type (username, organizationUrl, refreshToken, password), profile selection (profile.baseProfile - deprecated), agents (per-agent configuration - keys indicate installed agents), user preferences (sendSessionTranscript, autoupdate), registry authentication (registryAuths array), and the required installDir field.
+The config.ts module provides a unified `Config` type for both disk persistence and runtime use. The `Config` type contains: auth credentials via `AuthCredentials` type (username, organizationUrl, refreshToken, password), agents (per-agent configuration - keys indicate installed agents, each with their own profile), user preferences (sendSessionTranscript, autoupdate), registry authentication (registryAuths array), and the required installDir field.
 
 **AuthCredentials Type:** Supports both token-based and legacy password-based authentication:
 - `username` and `organizationUrl` - required for all paid installs
@@ -110,18 +110,13 @@ The config.ts module provides a unified `Config` type for both disk persistence 
 
 The `isLegacyPasswordConfig({ config })` helper identifies configs that have password but no refreshToken (candidates for migration).
 
-**Multi-Agent Config Structure:** The config supports per-agent profiles via the `agents` field, a `Record<string, AgentConfig>` where each agent has its own profile. The keys of the `agents` object serve as the source of truth for which agents are installed (replacing the former `installedAgents` array). Use `getInstalledAgents({ config })` helper to get the list of installed agents. For backwards compatibility:
-- The legacy `profile` field is deprecated but still read/written for claude-code
-- `loadConfig()` mirrors legacy `profile` to `agents.claude-code` if `agents` is not present
-- `saveConfig()` writes both `agents` and legacy `profile` (for claude-code) to maintain compatibility with older versions
-- `getAgentProfile({ config, agentName })` retrieves the profile for a specific agent, falling back to legacy `profile` for claude-code
+**Multi-Agent Config Structure:** The config supports per-agent profiles via the `agents` field, a `Record<string, AgentConfig>` where each agent has its own profile. The keys of the `agents` object serve as the source of truth for which agents are installed (replacing the former `installedAgents` array). Use `getInstalledAgents({ config })` helper to get the list of installed agents. For backwards compatibility during config loading:
+- `loadConfig()` converts legacy `profile` field to `agents.claude-code.profile` if `agents` is not present
+- The migration system (v19.0.0) transforms `profile` → `agents["claude-code"].profile` during install
+- `saveConfig()` only writes the `agents` field (the legacy `profile` field is no longer written)
+- `getAgentProfile({ config, agentName })` retrieves the profile for a specific agent from `agents[agentName].profile`
 
-**Profile Lookup Pattern (CRITICAL):** Code that needs to read a profile MUST use `getAgentProfile({ config, agentName })` - never read `config.profile` directly. The function implements the correct lookup order:
-1. First check `config.agents[agentName].profile` (agent-specific)
-2. Fall back to `config.profile` (legacy field, only for claude-code)
-3. Return null if neither exists
-
-Direct access to `config.profile` is incorrect because it bypasses agent-specific profiles. This caused a bug where switch-profile would fail for non-claude-code agents (the top-level `profile` field is only written for claude-code by `saveConfig()` for backwards compatibility).
+**Profile Lookup Pattern (CRITICAL):** Code that needs to read a profile MUST use `getAgentProfile({ config, agentName })` - never access agent profiles directly. The function returns the profile from `config.agents[agentName].profile` or null if not found.
 
 The getConfigPath() function requires { installDir: string } and returns `<installDir>/.nori-config.json`. All config operations (loadConfig, saveConfig, validateConfig) require installDir as a parameter, ensuring consistent path resolution throughout the codebase. The `loadConfig()` function validates auth by checking for either refreshToken OR password (plus username and organizationUrl). The `saveConfig()` function prefers refreshToken over password - if both are provided, only refreshToken is saved. User preference fields (sendSessionTranscript, autoupdate) use the 'enabled' | 'disabled' type. The `sendSessionTranscript` field defaults to 'enabled' when not present. The `autoupdate` field defaults to 'disabled' when not present, requiring users to explicitly opt-in to automatic updates. These fields are loaded by loadConfig() with default fallback, persisted by saveConfig() when provided, and validated by the JSON schema. The config.ts module is used by both the installer (for managing installation settings) and hooks (for reading user preferences like session transcript opt-out or autoupdate disable).
 
@@ -144,7 +139,7 @@ The Ajv instance is configured with `useDefaults: true` (applies default values)
 6. Build auth from either nested format (`auth: {...}`) or legacy flat format (fields at root)
 7. Return null if schema validation fails (e.g., invalid enum values)
 
-The `RawDiskConfig` type represents the JSON structure on disk after schema validation but before transformation to `Config`. This intermediate type provides type safety for the transformation logic. It includes both legacy flat auth fields (username/password/refreshToken/organizationUrl at root) and the new nested `auth` property for dual-format support.
+The `RawDiskConfig` type represents the JSON structure on disk after schema validation but before transformation to `Config`. This intermediate type provides type safety for the transformation logic. It includes both legacy flat auth fields (username/password/refreshToken/organizationUrl at root) and the new nested `auth` property for dual-format support. It also includes the legacy `profile` field for reading old configs, though this field is no longer written by `saveConfig()`.
 
 **Auth Format (Nested vs Flat):** The canonical auth format uses a nested `auth` object:
 ```json
@@ -162,7 +157,7 @@ When reading legacy flat format, `loadConfig()` constructs the nested auth struc
 - During install: The config loader merges `agents` objects from both existing config and new config, so installing cursor-agent when claude-code is already installed results in both keys present
 - During uninstall: The agent being uninstalled is removed from the `agents` object. If no agents remain, the config file is deleted. If other agents remain, the config is updated with the remaining agents
 - Re-installing the same agent updates its config but does not create duplicates
-- Legacy configs with only `profile` field (no `agents`) are migrated - `loadConfig()` mirrors legacy `profile` to `agents.claude-code`
+- Legacy configs with only `profile` field (no `agents`) are converted by `loadConfig()` to `agents.claude-code.profile`, and the migration system transforms them during install
 
 **Determining Paid vs Free Installation:** The `isPaidInstall({ config })` helper function determines whether a config represents a paid installation by checking if `config.auth != null`. Paid status is derived from the presence of auth credentials.
 

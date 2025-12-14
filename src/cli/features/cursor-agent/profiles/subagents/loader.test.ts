@@ -44,7 +44,7 @@ describe("cursor-agent subagents loader", () => {
 
   const createConfig = (overrides: Partial<Config> = {}): Config => ({
     installDir: testInstallDir,
-    profile: { baseProfile: "amol" },
+    agents: { "cursor-agent": { profile: { baseProfile: "amol" } } },
     ...overrides,
   });
 
@@ -113,7 +113,9 @@ describe("cursor-agent subagents loader", () => {
         "# Minimal profile",
       );
 
-      const config = createConfig({ profile: { baseProfile: "none" } });
+      const config = createConfig({
+        agents: { "cursor-agent": { profile: { baseProfile: "none" } } },
+      });
 
       // Should not throw
       await expect(

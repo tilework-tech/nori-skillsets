@@ -50,7 +50,7 @@ describe("configLoader", () => {
     it("should create config file", async () => {
       const config: Config = {
         installDir: tempDir,
-        profile: { baseProfile: "senior-swe" },
+        agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
       };
 
       await configLoader.run({ config });
@@ -61,13 +61,15 @@ describe("configLoader", () => {
       // Verify file contents
       const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
       expect(fileContents.installDir).toBe(tempDir);
-      expect(fileContents.profile).toEqual({ baseProfile: "senior-swe" });
+      expect(fileContents.agents["claude-code"].profile).toEqual({
+        baseProfile: "senior-swe",
+      });
     });
 
     it("should include sendSessionTranscript: enabled for paid installation", async () => {
       const config: Config = {
         installDir: tempDir,
-        profile: { baseProfile: "senior-swe" },
+        agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
         auth: {
           username: "test@example.com",
           password: "testpass",
@@ -86,7 +88,7 @@ describe("configLoader", () => {
     it("should NOT include sendSessionTranscript for free installation", async () => {
       const config: Config = {
         installDir: tempDir,
-        profile: { baseProfile: "senior-swe" },
+        agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
       };
 
       await configLoader.run({ config });
@@ -99,7 +101,7 @@ describe("configLoader", () => {
     it("should preserve existing sendSessionTranscript preference for paid installation", async () => {
       const config: Config = {
         installDir: tempDir,
-        profile: { baseProfile: "senior-swe" },
+        agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
         auth: {
           username: "test@example.com",
           password: "testpass",
@@ -118,7 +120,7 @@ describe("configLoader", () => {
     it("should save registryAuths to config file", async () => {
       const config: Config = {
         installDir: tempDir,
-        profile: { baseProfile: "senior-swe" },
+        agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
         registryAuths: [
           {
             registryUrl: "https://registry.example.com",
@@ -162,7 +164,7 @@ describe("configLoader", () => {
       // Run with config that doesn't include registryAuths
       const config: Config = {
         installDir: tempDir,
-        profile: { baseProfile: "senior-swe" },
+        agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
       };
 
       await configLoader.run({ config });
@@ -180,7 +182,6 @@ describe("configLoader", () => {
     it("should save agents to config file", async () => {
       const config: Config = {
         installDir: tempDir,
-        profile: { baseProfile: "senior-swe" },
         agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
       };
 
@@ -192,13 +193,12 @@ describe("configLoader", () => {
     });
 
     it("should merge agents with existing config", async () => {
-      // Create existing config with agents
+      // Create existing config with agents (simulating old disk format)
       const configFile = getConfigPath({ installDir: tempDir });
       fs.writeFileSync(
         configFile,
         JSON.stringify({
           installDir: tempDir,
-          profile: { baseProfile: "senior-swe" },
           agents: {
             "claude-code": { profile: { baseProfile: "senior-swe" } },
           },
@@ -209,7 +209,6 @@ describe("configLoader", () => {
       // Install another agent
       const config: Config = {
         installDir: tempDir,
-        profile: { baseProfile: "senior-swe" },
         agents: {
           "cursor-agent": { profile: { baseProfile: "senior-swe" } },
         },
@@ -231,7 +230,6 @@ describe("configLoader", () => {
         configFile,
         JSON.stringify({
           installDir: tempDir,
-          profile: { baseProfile: "senior-swe" },
           agents: {
             "claude-code": { profile: { baseProfile: "senior-swe" } },
           },
@@ -242,7 +240,6 @@ describe("configLoader", () => {
       // Re-install same agent
       const config: Config = {
         installDir: tempDir,
-        profile: { baseProfile: "senior-swe" },
         agents: {
           "claude-code": { profile: { baseProfile: "senior-swe" } },
         },
@@ -257,7 +254,6 @@ describe("configLoader", () => {
     it("should save agents field with profile to config file", async () => {
       const config: Config = {
         installDir: tempDir,
-        profile: { baseProfile: "senior-swe" },
         agents: {
           "cursor-agent": {
             profile: { baseProfile: "none" },
@@ -283,7 +279,6 @@ describe("configLoader", () => {
         configFile,
         JSON.stringify({
           installDir: tempDir,
-          profile: { baseProfile: "amol" },
           agents: {
             "cursor-agent": {
               profile: { baseProfile: "none" },
@@ -297,7 +292,6 @@ describe("configLoader", () => {
       // (simulating what noninteractive install does after switchProfile)
       const config: Config = {
         installDir: tempDir,
-        profile: { baseProfile: "amol" },
         agents: {
           "cursor-agent": {},
         },
@@ -313,7 +307,7 @@ describe("configLoader", () => {
     it("should convert password to refresh token when password is provided", async () => {
       const config: Config = {
         installDir: tempDir,
-        profile: { baseProfile: "senior-swe" },
+        agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
         auth: {
           username: "test@example.com",
           password: "testpass",
@@ -335,7 +329,7 @@ describe("configLoader", () => {
     it("should use existing refresh token when provided instead of password", async () => {
       const config: Config = {
         installDir: tempDir,
-        profile: { baseProfile: "senior-swe" },
+        agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
         auth: {
           username: "test@example.com",
           refreshToken: "existing-refresh-token",
@@ -380,7 +374,6 @@ describe("configLoader", () => {
         configFile,
         JSON.stringify({
           installDir: tempDir,
-          profile: { baseProfile: "senior-swe" },
           agents: {
             "claude-code": { profile: { baseProfile: "senior-swe" } },
             "cursor-agent": { profile: { baseProfile: "senior-swe" } },
@@ -411,7 +404,6 @@ describe("configLoader", () => {
         configFile,
         JSON.stringify({
           installDir: tempDir,
-          profile: { baseProfile: "senior-swe" },
           agents: {
             "claude-code": { profile: { baseProfile: "senior-swe" } },
           },
@@ -458,7 +450,6 @@ describe("configLoader", () => {
         configFile,
         JSON.stringify({
           installDir: tempDir,
-          profile: { baseProfile: "senior-swe" },
           agents: {
             "claude-code": { profile: { baseProfile: "senior-swe" } },
           },
@@ -487,7 +478,6 @@ describe("configLoader", () => {
         configFile,
         JSON.stringify({
           installDir: tempDir,
-          profile: { baseProfile: "senior-swe" },
           agents: {
             "claude-code": { profile: { baseProfile: "senior-swe" } },
             "cursor-agent": { profile: { baseProfile: "senior-swe" } },
@@ -544,7 +534,6 @@ describe("configLoader", () => {
         configFile,
         JSON.stringify({
           installDir: tempDir,
-          profile: { baseProfile: "senior-swe" },
           agents: {
             "claude-code": { profile: { baseProfile: "senior-swe" } },
             "cursor-agent": { profile: { baseProfile: "none" } },

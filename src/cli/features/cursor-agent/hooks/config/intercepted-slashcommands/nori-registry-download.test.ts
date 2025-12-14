@@ -65,8 +65,8 @@ describe("nori-registry-download", () => {
     await fs.writeFile(
       configPath,
       JSON.stringify({
-        profile: {
-          baseProfile: "senior-swe",
+        agents: {
+          "cursor-agent": { profile: { baseProfile: "senior-swe" } },
         },
       }),
     );
@@ -172,7 +172,9 @@ describe("nori-registry-download", () => {
       await fs.mkdir(nestedDir, { recursive: true });
       await fs.writeFile(
         path.join(nestedDir, ".nori-config.json"),
-        JSON.stringify({ profile: { baseProfile: "test" } }),
+        JSON.stringify({
+          agents: { "cursor-agent": { profile: { baseProfile: "test" } } },
+        }),
       );
 
       const input = createInput({
@@ -394,7 +396,9 @@ describe("nori-registry-download", () => {
       await fs.mkdir(nestedDir, { recursive: true });
       await fs.writeFile(
         path.join(nestedDir, ".nori-config.json"),
-        JSON.stringify({ profile: { baseProfile: "test" } }),
+        JSON.stringify({
+          agents: { "cursor-agent": { profile: { baseProfile: "test" } } },
+        }),
       );
 
       const input = createInput({
@@ -477,7 +481,7 @@ describe("nori-registry-download", () => {
       // Config with no private registries
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        profile: { baseProfile: "senior-swe" },
+        agents: { "cursor-agent": { profile: { baseProfile: "senior-swe" } } },
         registryAuths: null,
       });
 
@@ -509,7 +513,7 @@ describe("nori-registry-download", () => {
       // Config with private registry
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        profile: { baseProfile: "senior-swe" },
+        agents: { "cursor-agent": { profile: { baseProfile: "senior-swe" } } },
         registryAuths: [
           {
             username: "test@example.com",
@@ -557,7 +561,7 @@ describe("nori-registry-download", () => {
       // Config with private registry
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        profile: { baseProfile: "senior-swe" },
+        agents: { "cursor-agent": { profile: { baseProfile: "senior-swe" } } },
         registryAuths: [
           {
             username: "test@example.com",
@@ -616,7 +620,7 @@ describe("nori-registry-download", () => {
       // Config with private registry
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        profile: { baseProfile: "senior-swe" },
+        agents: { "cursor-agent": { profile: { baseProfile: "senior-swe" } } },
         registryAuths: [
           {
             username: "test@example.com",
@@ -669,7 +673,7 @@ describe("nori-registry-download", () => {
       // Config with private registry
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        profile: { baseProfile: "senior-swe" },
+        agents: { "cursor-agent": { profile: { baseProfile: "senior-swe" } } },
         registryAuths: [
           {
             username: "test@example.com",
@@ -709,7 +713,7 @@ describe("nori-registry-download", () => {
       // Config with two private registries
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        profile: { baseProfile: "senior-swe" },
+        agents: { "cursor-agent": { profile: { baseProfile: "senior-swe" } } },
         registryAuths: [
           {
             username: "test@example.com",
@@ -799,7 +803,7 @@ describe("nori-registry-download", () => {
       // Config with no private registries
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        profile: { baseProfile: "senior-swe" },
+        agents: { "cursor-agent": { profile: { baseProfile: "senior-swe" } } },
         registryAuths: null,
       });
 
@@ -848,7 +852,7 @@ describe("nori-registry-download", () => {
       // Config with private registry
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        profile: { baseProfile: "senior-swe" },
+        agents: { "cursor-agent": { profile: { baseProfile: "senior-swe" } } },
         registryAuths: [
           {
             username: "test@example.com",
@@ -891,7 +895,7 @@ describe("nori-registry-download", () => {
     it("should return error when package not found with --list-versions", async () => {
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        profile: { baseProfile: "senior-swe" },
+        agents: { "cursor-agent": { profile: { baseProfile: "senior-swe" } } },
         registryAuths: null,
       });
 

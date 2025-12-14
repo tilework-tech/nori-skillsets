@@ -90,8 +90,8 @@ INPUT=$(echo "$INPUT" | jq --arg tier "$CONFIG_TIER" '. + {config_tier: $tier}')
 PROFILE_NAME=""  # default to empty (don't show if not set)
 
 if [ -f "$CONFIG_FILE" ]; then
-    # Read profile.baseProfile from config, use empty string if not set
-    PROFILE_NAME=$(jq -r '.profile.baseProfile // ""' "$CONFIG_FILE" 2>/dev/null)
+    # Read profile from agents.claude-code first (new format), fall back to legacy profile
+    PROFILE_NAME=$(jq -r '.agents["claude-code"].profile.baseProfile // .profile.baseProfile // ""' "$CONFIG_FILE" 2>/dev/null)
 fi
 
 # Inject profile into the JSON (can be empty string)

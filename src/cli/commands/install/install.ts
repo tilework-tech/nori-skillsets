@@ -176,14 +176,12 @@ export const generatePromptConfig = async (args: {
 
     if (useExisting.match(/^[Yy]$/)) {
       info({ message: "Using existing configuration..." });
-      // Use agent-specific profile first, fall back to legacy top-level profile, then default
+      // Use agent-specific profile first, fall back to default
       const profile =
         getAgentProfile({ config: existingConfig, agentName: agent.name }) ??
-        existingConfig.profile ??
         getDefaultProfile();
       return {
         ...existingConfig,
-        profile,
         agents: {
           ...(existingConfig.agents ?? {}),
           [agent.name]: { profile },
@@ -303,7 +301,6 @@ export const generatePromptConfig = async (args: {
   const profile = { baseProfile: selectedProfileName };
   return {
     auth: auth ?? null,
-    profile,
     agents: {
       ...(existingConfig?.agents ?? {}),
       [agent.name]: { profile },
@@ -636,12 +633,10 @@ export const noninteractive = async (args?: {
   }
 
   // Determine profile to use
-  // Priority: agent-specific profile > top-level profile > explicit --profile flag
+  // Priority: agent-specific profile > explicit --profile flag
   const agentProfile = existingConfig?.agents?.[agentImpl.name]?.profile;
   const profileToUse =
-    agentProfile ??
-    existingConfig?.profile ??
-    (profile ? { baseProfile: profile } : null);
+    agentProfile ?? (profile ? { baseProfile: profile } : null);
 
   // Require explicit --profile flag if no existing config with profile
   if (profileToUse == null) {
@@ -670,7 +665,6 @@ export const noninteractive = async (args?: {
         },
       }
     : {
-        profile: profileToUse,
         agents: {
           [agentImpl.name]: { profile: profileToUse },
         },
