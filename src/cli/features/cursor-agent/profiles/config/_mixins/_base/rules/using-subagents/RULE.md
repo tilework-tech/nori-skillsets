@@ -4,7 +4,7 @@ alwaysApply: false
 ---
 
 <required>
-**CRITICAL**: Whenever you are using a rule, add the following to your Todo list using `todo_write`:
+**CRITICAL**: Add the following to your Todo list using `todo_write`:
 
 1. Look for the requested subagent in `{{subagents_dir}}/`
 2. Make sure the cursor-agent is installed using `cursor-agent --version`.
