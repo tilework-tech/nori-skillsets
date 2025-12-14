@@ -5,7 +5,12 @@
  */
 
 import { handshake } from "@/api/index.js";
-import { loadConfig, validateConfig, isPaidInstall } from "@/cli/config.js";
+import {
+  loadConfig,
+  validateConfig,
+  isPaidInstall,
+  getInstalledAgents,
+} from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { error, success, info, newline, raw } from "@/cli/logger.js";
 import { getInstallDirs } from "@/utils/path.js";
@@ -38,13 +43,12 @@ export const registerCheckCommand = (args: { program: Command }): void => {
  * Run validation checks on Nori installation
  * @param args - Configuration arguments
  * @param args.installDir - Custom installation directory (optional)
- * @param args.agent - AI agent to use (defaults to claude-code)
+ * @param args.agent - AI agent to use (auto-detected from config if not provided)
  */
 export const checkMain = async (args?: {
   installDir?: string | null;
   agent?: string | null;
 }): Promise<void> => {
-  const agentName = args?.agent ?? "claude-code";
   // Determine installation directory
   let installDir: string;
 
@@ -96,6 +100,29 @@ export const checkMain = async (args?: {
     error({ message: "Configuration file is missing or corrupted" });
     info({ message: "Run 'nori-ai install' to create a new configuration" });
     process.exit(1);
+  }
+
+  // Determine which agent to validate
+  let agentName: string;
+  if (args?.agent != null) {
+    // Explicit --agent provided - use it
+    agentName = args.agent;
+  } else {
+    // Auto-detect from config
+    const installedAgents = getInstalledAgents({ config });
+    if (installedAgents.length === 1) {
+      // Single agent installed - auto-select it
+      agentName = installedAgents[0];
+    } else if (installedAgents.length > 1) {
+      // Multiple agents installed - require explicit selection
+      error({
+        message: `Multiple agents installed (${installedAgents.join(", ")}). Please specify which agent to check with --agent <name>.`,
+      });
+      process.exit(1);
+    } else {
+      // No agents (shouldn't happen due to getInstalledAgents fallback, but handle it)
+      agentName = "claude-code";
+    }
   }
 
   // Check server connectivity (paid mode only)
