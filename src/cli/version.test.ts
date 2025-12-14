@@ -3,21 +3,11 @@ import * as fsPromises from "fs/promises";
 import * as os from "os";
 import * as path from "path";
 
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-
-// Mock env module before importing version
-vi.mock("./env.js", () => {
-  // Create a temporary directory for test package.json
-  const testRoot = "/tmp/version-test-cli-root";
-  return {
-    CLI_ROOT: testRoot,
-  };
-});
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 
 import { hasExistingInstallation } from "@/cli/commands/install/installState.js";
 
 import { getConfigPath, saveConfig } from "./config.js";
-import { CLI_ROOT } from "./env.js";
 import {
   buildUninstallCommand,
   getCurrentPackageVersion,
@@ -27,21 +17,21 @@ import {
 
 describe("version", () => {
   describe("getCurrentPackageVersion", () => {
-    const testPackageJsonPath = path.join(CLI_ROOT, "package.json");
+    let testRoot: string;
+    let testPackageJsonPath: string;
 
     beforeEach(() => {
-      // Ensure test directory exists
-      if (!fs.existsSync(CLI_ROOT)) {
-        fs.mkdirSync(CLI_ROOT, { recursive: true });
-      }
+      // Create a temporary directory for test package.json
+      testRoot = fs.mkdtempSync(path.join(os.tmpdir(), "version-test-"));
+      testPackageJsonPath = path.join(testRoot, "package.json");
     });
 
     afterEach(() => {
-      // Clean up test package.json
+      // Clean up temp directory
       try {
-        fs.unlinkSync(testPackageJsonPath);
+        fs.rmSync(testRoot, { recursive: true, force: true });
       } catch {
-        // Ignore if doesn't exist
+        // Ignore if cleanup fails
       }
     });
 
@@ -53,7 +43,8 @@ describe("version", () => {
       };
       fs.writeFileSync(testPackageJsonPath, JSON.stringify(testPackage));
 
-      const version = getCurrentPackageVersion();
+      // Pass startDir to control where the function looks for package.json
+      const version = getCurrentPackageVersion({ startDir: testRoot });
 
       expect(version).toBe("13.5.2");
     });
@@ -66,22 +57,44 @@ describe("version", () => {
       };
       fs.writeFileSync(testPackageJsonPath, JSON.stringify(testPackage));
 
-      const version = getCurrentPackageVersion();
+      const version = getCurrentPackageVersion({ startDir: testRoot });
 
       expect(version).toBeNull();
     });
 
     it("should return null if package.json does not exist", () => {
-      // Ensure no package.json exists
-      try {
-        fs.unlinkSync(testPackageJsonPath);
-      } catch {
-        // Already doesn't exist
-      }
-
-      const version = getCurrentPackageVersion();
+      // Don't create package.json - directory is empty
+      const version = getCurrentPackageVersion({ startDir: testRoot });
 
       expect(version).toBeNull();
+    });
+
+    it("should find package.json in parent directory", () => {
+      // Create nested directory structure
+      const childDir = path.join(testRoot, "child", "grandchild");
+      fs.mkdirSync(childDir, { recursive: true });
+
+      // Put package.json in root, start search from grandchild
+      const testPackage = {
+        name: "nori-ai",
+        version: "14.0.0",
+      };
+      fs.writeFileSync(testPackageJsonPath, JSON.stringify(testPackage));
+
+      const version = getCurrentPackageVersion({ startDir: childDir });
+
+      expect(version).toBe("14.0.0");
+    });
+
+    it("should use import.meta.url location when startDir not provided", () => {
+      // When called without startDir, it should find the real nori-ai package.json
+      // This verifies the default behavior works
+      const version = getCurrentPackageVersion();
+
+      // Should return the actual package version (not null)
+      expect(version).not.toBeNull();
+      // Should be a valid semver string
+      expect(version).toMatch(/^\d+\.\d+\.\d+/);
     });
   });
 
