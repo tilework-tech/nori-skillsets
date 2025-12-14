@@ -760,12 +760,17 @@ export const registerInstallCommand = (args: { program: Command }): void => {
       "-p, --profile <name>",
       "Profile to install (required for non-interactive install without existing config)",
     )
+    .option(
+      "--skip-uninstall",
+      "Skip uninstall step (useful for profile switching to preserve user customizations)",
+    )
     .action(async (options) => {
       // Get global options from parent
       const globalOpts = program.opts();
 
       await main({
         nonInteractive: globalOpts.nonInteractive || null,
+        skipUninstall: options.skipUninstall || null,
         installDir: globalOpts.installDir || null,
         agent: globalOpts.agent || null,
         silent: globalOpts.silent || null,

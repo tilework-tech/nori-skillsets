@@ -3,6 +3,7 @@
  * Handles /nori-switch-profile commands for instant profile switching
  */
 
+import { execSync } from "child_process";
 import * as fs from "fs/promises";
 import * as path from "path";
 
@@ -85,19 +86,19 @@ const run = async (args: { input: HookInput }): Promise<HookOutput | null> => {
   try {
     await agent.switchProfile({ installDir, profileName });
 
-    // Run install in non-interactive mode with skipUninstall to apply profile changes
-    // This is the same pattern used by the CLI `nori-ai switch-profile` command
-    // CRITICAL: Use silent mode to prevent stdout pollution during hook execution
-    // (JSON response corruption - installMain outputs ASCII art and messages)
-    const { main: installMain } =
-      await import("@/cli/commands/install/install.js");
-    await installMain({
-      nonInteractive: true,
-      skipUninstall: true,
-      installDir,
-      agent: "cursor-agent",
-      silent: true,
-    });
+    // Run install to apply profile changes via subprocess.
+    //
+    // IMPORTANT: We use subprocess (execSync) instead of dynamic import because
+    // this hook script is bundled by esbuild. When bundled, __dirname resolves
+    // to the bundled script location (hooks/config/) instead of the original
+    // loader locations, breaking path resolution in installMain's loaders.
+    // Spawning nori-ai as a subprocess runs the CLI from its installed location
+    // where paths resolve correctly.
+    // See: https://github.com/evanw/esbuild/issues/1921
+    execSync(
+      `nori-ai install --non-interactive --silent --skip-uninstall --install-dir "${installDir}" --agent cursor-agent`,
+      { stdio: ["ignore", "ignore", "ignore"] },
+    );
 
     // Read profile description if available
     let profileDescription = "";
