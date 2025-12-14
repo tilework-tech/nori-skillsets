@@ -30,6 +30,10 @@ profilesLoader (loader.ts)
             +-- rulesLoader (@/src/cli/features/cursor-agent/profiles/rules/loader.ts)
             +-- subagentsLoader (@/src/cli/features/cursor-agent/profiles/subagents/loader.ts)
             +-- agentsMdLoader (@/src/cli/features/cursor-agent/profiles/agentsmd/loader.ts)
+                    |
+                    +-- Applies template substitution
+                    +-- Generates "# Nori Rules System" section (scans ~/.cursor/rules/ for RULE.md files)
+                    +-- Writes final AGENTS.md to project root
 ```
 
 ### Core Implementation
@@ -68,9 +72,11 @@ profilesLoader (loader.ts)
 **Template substitution in profile loaders**: All profile sub-loaders apply template substitution to `.md` files during the final copy stage (when copying from `~/.cursor/profiles/` to final destinations). This replaces placeholders like `{{rules_dir}}`, `{{subagents_dir}}` with actual paths. Substitution is applied by:
 - **rulesLoader** - Uses `copyDirWithTemplateSubstitution()` when copying to `~/.cursor/rules/`
 - **subagentsLoader** - Uses `copyDirWithTemplateSubstitution()` when copying to `~/.cursor/subagents/`
-- **agentsMdLoader** - Uses `substituteTemplatePaths()` on AGENTS.md content before writing to project root
+- **agentsMdLoader** - Uses `substituteTemplatePaths()` on AGENTS.md content, then generates and appends the "# Nori Rules System" section before writing to project root
 
 The key architectural insight: substitution happens at the final copy stage, not during intermediate staging to `~/.cursor/profiles/`. This ensures source files in profiles remain portable with placeholders intact.
+
+**Dynamic rules list generation**: The agentsMdLoader scans `~/.cursor/rules/` for `RULE.md` files, extracts the `description` field from each file's YAML frontmatter, and generates a formatted "# Nori Rules System" section listing all available rules. This mirrors claude-code's `generateSkillsList()` functionality in the claudeMdLoader, providing parity between the two systems.
 
 **Rule file format**: Each RULE.md file uses Cursor's YAML frontmatter format:
 ```yaml
@@ -104,6 +110,7 @@ The shared `subagent-prompt.txt` instructs subagents to keep work tightly scoped
 | Feature directories | `rules/`, `subagents/` | `skills/`, `subagents/`, `slashcommands/` |
 | Target directory | `~/.cursor/` | `~/.claude/` |
 | Sub-loaders | rules, subagents, agentsmd | claudemd, skills, subagents, slashcommands |
+| Dynamic list generation | "# Nori Rules System" (scans RULE.md) | "# Nori Skills System" (scans SKILL.md) |
 
 **_testing export**: Internal functions (`isPaidUser`, `injectConditionalMixins`, `getMixinPaths`) are exported via `_testing` for unit test access.
 

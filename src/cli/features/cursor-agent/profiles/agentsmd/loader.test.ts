@@ -241,4 +241,163 @@ describe("cursor-agent agentsmd loader", () => {
       expect(result.errors).toBeDefined();
     });
   });
+
+  describe("rules list generation", () => {
+    test("includes Nori Rules System section when rules exist", async () => {
+      const config = createConfig();
+
+      // Create rules directory with a rule
+      const rulesDir = path.join(testInstallDir, ".cursor", "rules");
+      const ruleDir = path.join(rulesDir, "test-rule");
+      await fs.mkdir(ruleDir, { recursive: true });
+      await fs.writeFile(
+        path.join(ruleDir, "RULE.md"),
+        "---\ndescription: A test rule for testing\nalwaysApply: false\n---\n\n# Test Rule\n\nContent here.",
+      );
+
+      await agentsMdLoader.install({ config });
+
+      const agentsMdPath = path.join(testInstallDir, "AGENTS.md");
+      const content = await fs.readFile(agentsMdPath, "utf-8");
+
+      expect(content).toContain("# Nori Rules System");
+      expect(content).toContain("## Available Rules");
+    });
+
+    test("includes rule count in rules list", async () => {
+      const config = createConfig();
+
+      // Create rules directory with two rules
+      const rulesDir = path.join(testInstallDir, ".cursor", "rules");
+
+      const rule1Dir = path.join(rulesDir, "rule-one");
+      await fs.mkdir(rule1Dir, { recursive: true });
+      await fs.writeFile(
+        path.join(rule1Dir, "RULE.md"),
+        "---\ndescription: First rule\nalwaysApply: false\n---\n\n# Rule One",
+      );
+
+      const rule2Dir = path.join(rulesDir, "rule-two");
+      await fs.mkdir(rule2Dir, { recursive: true });
+      await fs.writeFile(
+        path.join(rule2Dir, "RULE.md"),
+        "---\ndescription: Second rule\nalwaysApply: false\n---\n\n# Rule Two",
+      );
+
+      await agentsMdLoader.install({ config });
+
+      const agentsMdPath = path.join(testInstallDir, "AGENTS.md");
+      const content = await fs.readFile(agentsMdPath, "utf-8");
+
+      expect(content).toContain("Found 2 rules:");
+    });
+
+    test("includes rule paths and descriptions", async () => {
+      const config = createConfig();
+
+      // Create rules directory with a rule
+      const rulesDir = path.join(testInstallDir, ".cursor", "rules");
+      const ruleDir = path.join(rulesDir, "my-awesome-rule");
+      await fs.mkdir(ruleDir, { recursive: true });
+      await fs.writeFile(
+        path.join(ruleDir, "RULE.md"),
+        "---\ndescription: This is an awesome rule for awesome things\nalwaysApply: false\n---\n\n# My Awesome Rule",
+      );
+
+      await agentsMdLoader.install({ config });
+
+      const agentsMdPath = path.join(testInstallDir, "AGENTS.md");
+      const content = await fs.readFile(agentsMdPath, "utf-8");
+
+      // Should include the rule path
+      expect(content).toContain("my-awesome-rule/RULE.md");
+      // Should include the description
+      expect(content).toContain("This is an awesome rule for awesome things");
+    });
+
+    test("includes reference to using-rules intro file", async () => {
+      const config = createConfig();
+
+      // Create rules directory with using-rules and another rule
+      const rulesDir = path.join(testInstallDir, ".cursor", "rules");
+
+      const usingRulesDir = path.join(rulesDir, "using-rules");
+      await fs.mkdir(usingRulesDir, { recursive: true });
+      await fs.writeFile(
+        path.join(usingRulesDir, "RULE.md"),
+        "---\ndescription: How to use rules\nalwaysApply: false\n---\n\n# Using Rules",
+      );
+
+      const otherRuleDir = path.join(rulesDir, "other-rule");
+      await fs.mkdir(otherRuleDir, { recursive: true });
+      await fs.writeFile(
+        path.join(otherRuleDir, "RULE.md"),
+        "---\ndescription: Other rule\nalwaysApply: false\n---\n\n# Other",
+      );
+
+      await agentsMdLoader.install({ config });
+
+      const agentsMdPath = path.join(testInstallDir, "AGENTS.md");
+      const content = await fs.readFile(agentsMdPath, "utf-8");
+
+      // Should reference the using-rules intro file
+      expect(content).toContain("using-rules/RULE.md");
+    });
+
+    test("handles missing rules directory gracefully", async () => {
+      const config = createConfig();
+
+      // Don't create any rules directory
+
+      await agentsMdLoader.install({ config });
+
+      const agentsMdPath = path.join(testInstallDir, "AGENTS.md");
+      const content = await fs.readFile(agentsMdPath, "utf-8");
+
+      // Should still create AGENTS.md with profile content
+      expect(content).toContain("Amol Profile");
+      // Should not have rules system section
+      expect(content).not.toContain("# Nori Rules System");
+    });
+
+    test("handles empty rules directory gracefully", async () => {
+      const config = createConfig();
+
+      // Create empty rules directory
+      const rulesDir = path.join(testInstallDir, ".cursor", "rules");
+      await fs.mkdir(rulesDir, { recursive: true });
+
+      await agentsMdLoader.install({ config });
+
+      const agentsMdPath = path.join(testInstallDir, "AGENTS.md");
+      const content = await fs.readFile(agentsMdPath, "utf-8");
+
+      // Should still create AGENTS.md with profile content
+      expect(content).toContain("Amol Profile");
+      // Should not have rules system section when no rules exist
+      expect(content).not.toContain("# Nori Rules System");
+    });
+
+    test("handles rule without front matter", async () => {
+      const config = createConfig();
+
+      // Create rules directory with a rule that has no front matter
+      const rulesDir = path.join(testInstallDir, ".cursor", "rules");
+      const ruleDir = path.join(rulesDir, "no-frontmatter-rule");
+      await fs.mkdir(ruleDir, { recursive: true });
+      await fs.writeFile(
+        path.join(ruleDir, "RULE.md"),
+        "# Rule Without Frontmatter\n\nJust content, no YAML.",
+      );
+
+      await agentsMdLoader.install({ config });
+
+      const agentsMdPath = path.join(testInstallDir, "AGENTS.md");
+      const content = await fs.readFile(agentsMdPath, "utf-8");
+
+      // Should still include the rule (path at minimum)
+      expect(content).toContain("# Nori Rules System");
+      expect(content).toContain("no-frontmatter-rule/RULE.md");
+    });
+  });
 });

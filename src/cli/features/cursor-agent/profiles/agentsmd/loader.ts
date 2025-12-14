@@ -6,6 +6,8 @@
 import * as fs from "fs/promises";
 import * as path from "path";
 
+import { glob } from "glob";
+
 import { getAgentProfile } from "@/cli/config.js";
 import {
   getCursorDir,
@@ -41,6 +43,195 @@ const BEGIN_MARKER = "# BEGIN NORI-AI MANAGED BLOCK";
 const END_MARKER = "# END NORI-AI MANAGED BLOCK";
 
 /**
+ * Extract front matter from markdown file content
+ * @param args - Function arguments
+ * @param args.content - Markdown file content
+ *
+ * @returns Front matter object or null
+ */
+const extractFrontMatter = (args: {
+  content: string;
+}): Record<string, string> | null => {
+  const { content } = args;
+
+  const frontMatterRegex = /^---\n([\s\S]*?)\n---/;
+  const match = content.match(frontMatterRegex);
+
+  if (match == null) {
+    return null;
+  }
+
+  const frontMatter: Record<string, string> = {};
+
+  if (match[1].trim() === "") {
+    return frontMatter;
+  }
+
+  const lines = match[1].split("\n");
+
+  for (const line of lines) {
+    const colonIndex = line.indexOf(":");
+    if (colonIndex === -1) {
+      continue;
+    }
+
+    const key = line.substring(0, colonIndex).trim();
+    let value = line.substring(colonIndex + 1).trim();
+
+    // Remove quotes if present
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.substring(1, value.length - 1);
+    }
+
+    frontMatter[key] = value;
+  }
+
+  return frontMatter;
+};
+
+/**
+ * Find all RULE.md files in a directory using glob pattern
+ *
+ * INVARIANT: All rule files MUST be named "RULE.md"
+ * If this naming convention changes, this function must be updated.
+ *
+ * @param args - Function arguments
+ * @param args.dir - Directory to search
+ *
+ * @returns Array of rule file paths
+ */
+const findRuleFiles = async (args: { dir: string }): Promise<Array<string>> => {
+  const { dir } = args;
+
+  // Use glob to find all RULE.md files recursively
+  const files = await glob("**/RULE.md", {
+    cwd: dir,
+    absolute: true,
+    nodir: true,
+  });
+
+  return files;
+};
+
+/**
+ * Format rule information for display in AGENTS.md
+ * @param args - Function arguments
+ * @param args.rulePath - Path to RULE.md file in installed rules directory
+ * @param args.installDir - Custom installation directory (.cursor path)
+ *
+ * @returns Formatted rule information or null if path doesn't match expected format
+ */
+const formatRuleInfo = async (args: {
+  rulePath: string;
+  installDir: string;
+}): Promise<string | null> => {
+  const { rulePath, installDir } = args;
+
+  try {
+    const content = await fs.readFile(rulePath, "utf-8");
+    const frontMatter = extractFrontMatter({ content });
+
+    // Extract the rule name from the path
+    // Path format: .../rules/{rule-name}/RULE.md
+    // The rulePath is an absolute path, so we need to extract just the rule directory name
+    const pathParts = rulePath.split(path.sep);
+    const ruleMdIndex = pathParts.lastIndexOf("RULE.md");
+    if (ruleMdIndex === -1 || ruleMdIndex === 0) {
+      return null;
+    }
+
+    // The rule name is the directory containing RULE.md
+    const ruleName = pathParts[ruleMdIndex - 1];
+
+    // Format the installed path based on install directory
+    const installedPath = path.join(installDir, "rules", ruleName, "RULE.md");
+
+    let output = `\n${installedPath}`;
+
+    if (frontMatter != null && frontMatter.description != null) {
+      output += `\n  Description: ${frontMatter.description}`;
+    }
+
+    return output;
+  } catch {
+    // If we can't read or parse the rule file, skip it
+    return null;
+  }
+};
+
+/**
+ * Generate rules list content to embed in AGENTS.md
+ *
+ * @param args - Function arguments
+ * @param args.installDir - Installation directory
+ *
+ * @returns Formatted rules list markdown (empty string if rules cannot be found)
+ */
+const generateRulesList = async (args: {
+  installDir: string;
+}): Promise<string> => {
+  const { installDir } = args;
+
+  try {
+    // Get rules directory from installed location
+    const cursorDir = getCursorDir({ installDir });
+    const rulesDir = path.join(cursorDir, "rules");
+
+    // Find all rule files
+    const ruleFiles = await findRuleFiles({ dir: rulesDir });
+
+    if (ruleFiles.length === 0) {
+      return "";
+    }
+
+    // Format all rules
+    const formattedRules: Array<string> = [];
+    for (const file of ruleFiles) {
+      const formatted = await formatRuleInfo({
+        rulePath: file,
+        installDir: cursorDir,
+      });
+      if (formatted != null) {
+        formattedRules.push(formatted);
+      }
+    }
+
+    if (formattedRules.length === 0) {
+      return "";
+    }
+
+    // Build rules list message with correct path for the install directory
+    const usingRulesPath = path.join(
+      cursorDir,
+      "rules",
+      "using-rules",
+      "RULE.md",
+    );
+
+    const contextMessage = `
+# Nori Rules System
+
+You have access to the Nori rules system. Read the full instructions at: ${usingRulesPath}
+
+## Available Rules
+
+Found ${formattedRules.length} rules:${formattedRules.join("")}
+
+Check if any of these rules are relevant to the user's task. If relevant, use read_file to load the rule before proceeding.
+`;
+
+    return contextMessage;
+  } catch {
+    // If we can't find or read rules, silently return empty string
+    // Installation will continue without rules list
+    return "";
+  }
+};
+
+/**
  * Insert or update AGENTS.md with nori instructions in a managed block
  * @param args - Configuration arguments
  * @param args.config - Full configuration including profile
@@ -70,6 +261,14 @@ const insertAgentsMd = async (args: { config: Config }): Promise<void> => {
     content: instructions,
     installDir: cursorDir,
   });
+
+  // Generate and append rules list
+  const rulesList = await generateRulesList({
+    installDir: config.installDir,
+  });
+  if (rulesList.length > 0) {
+    instructions = instructions + rulesList;
+  }
 
   // Create .cursor directory if it doesn't exist
   await fs.mkdir(cursorDir, { recursive: true });
