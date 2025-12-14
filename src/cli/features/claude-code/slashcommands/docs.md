@@ -49,7 +49,7 @@ Profile-agnostic slash commands installed directly to `~/.claude/commands/` inde
 | Global | @/src/cli/features/claude-code/slashcommands/config/ | globalSlashCommandsLoader | nori-debug, nori-switch-profile, nori-info |
 | Profile | @/src/cli/features/claude-code/profiles/config/_mixins/*/slashcommands/ | slashCommandsLoader (profiles) | nori-init-docs, nori-sync-docs |
 
-**Hook-intercepted commands**: Several global commands (`nori-switch-profile`, `nori-toggle-autoupdate`, `nori-toggle-session-transcripts`, `nori-install-location`) are intercepted by the slash-command-intercept hook and executed directly by TypeScript code rather than by Claude. The markdown files still provide the `description` frontmatter for Claude Code's command palette.
+**Hook-intercepted commands**: Several global commands (`nori-switch-profile`, `nori-toggle-autoupdate`, `nori-toggle-session-transcripts`, `nori-install-location`, `nori-prune-context`) are intercepted by the slash-command-intercept hook and executed directly by TypeScript code rather than by Claude. The markdown files still provide the `description` frontmatter for Claude Code's command palette.
 
 **Uninstall behavior**: When uninstalling, the loader only removes files matching the `GLOBAL_SLASH_COMMANDS` list. Custom user commands in `~/.claude/commands/` are preserved. The commands directory is only removed if empty after cleanup.
 

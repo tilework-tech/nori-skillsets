@@ -156,6 +156,31 @@ const nestedInstallWarningHook: HookInterface = {
 };
 
 /**
+ * Context usage warning hook - warns about excessive permissions context usage
+ */
+const contextUsageWarningHook: HookInterface = {
+  name: "context-usage-warning",
+  description: "Warn about excessive context usage from permissions",
+  install: async () => {
+    const scriptPath = path.join(HOOKS_CONFIG_DIR, "context-usage-warning.js");
+    return [
+      {
+        event: "SessionStart",
+        matcher: "startup",
+        hooks: [
+          {
+            type: "command",
+            command: `node ${scriptPath}`,
+            description:
+              "Warn about excessive context usage from permissions on session start",
+          },
+        ],
+      },
+    ];
+  },
+};
+
+/**
  * Notification hook - sends desktop notifications
  */
 const notifyHook: HookInterface = {
@@ -322,6 +347,7 @@ const configurePaidHooks = async (args: { config: Config }): Promise<void> => {
     statisticsHook,
     autoupdateHook,
     nestedInstallWarningHook,
+    contextUsageWarningHook,
     notifyHook,
     slashCommandInterceptHook,
     commitAuthorHook,
@@ -399,6 +425,7 @@ const configureFreeHooks = async (args: { config: Config }): Promise<void> => {
     statisticsHook,
     autoupdateHook,
     nestedInstallWarningHook,
+    contextUsageWarningHook,
     notifyHook,
     slashCommandInterceptHook,
     commitAuthorHook,
