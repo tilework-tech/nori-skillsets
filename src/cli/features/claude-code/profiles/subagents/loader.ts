@@ -72,7 +72,13 @@ const registerSubagents = async (args: { config: Config }): Promise<void> => {
   let skippedCount = 0;
 
   // Read all .md files from the profile's subagents directory
-  const files = await fs.readdir(configDir);
+  let files: Array<string>;
+  try {
+    files = await fs.readdir(configDir);
+  } catch {
+    info({ message: "Profile subagents directory not found, skipping" });
+    return;
+  }
   const mdFiles = files.filter(
     (file) => file.endsWith(".md") && file !== "docs.md",
   );
@@ -262,11 +268,11 @@ const validate = async (args: {
       }
     }
   } catch {
-    errors.push(`Profile subagents directory not found at ${configDir}`);
+    // Profile subagents directory not found - this is valid (0 subagents expected)
     return {
-      valid: false,
-      message: "Profile subagents directory not found",
-      errors,
+      valid: true,
+      message: "No subagents configured for this profile",
+      errors: null,
     };
   }
 

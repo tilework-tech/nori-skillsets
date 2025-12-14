@@ -331,4 +331,62 @@ describe("subagentsLoader", () => {
   });
 
   // Validate tests removed - validation is now handled at profilesLoader level
+
+  describe("missing profile subagents directory", () => {
+    it("should handle missing subagents directory gracefully during install", async () => {
+      const config: Config = {
+        installDir: tempDir,
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
+      };
+
+      // Remove the subagents directory from the installed profile
+      const profileSubagentsDir = path.join(
+        claudeDir,
+        "profiles",
+        "senior-swe",
+        "subagents",
+      );
+      await fs.rm(profileSubagentsDir, { recursive: true, force: true });
+
+      // Install should not throw
+      await expect(subagentsLoader.install({ config })).resolves.not.toThrow();
+
+      // Agents directory should still be created
+      const exists = await fs
+        .access(agentsDir)
+        .then(() => true)
+        .catch(() => false);
+      expect(exists).toBe(true);
+    });
+
+    it("should return valid when profile subagents directory is missing during validate", async () => {
+      const config: Config = {
+        installDir: tempDir,
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
+      };
+
+      // First install to create agents directory
+      await subagentsLoader.install({ config });
+
+      // Remove the subagents directory from the installed profile
+      const profileSubagentsDir = path.join(
+        claudeDir,
+        "profiles",
+        "senior-swe",
+        "subagents",
+      );
+      await fs.rm(profileSubagentsDir, { recursive: true, force: true });
+
+      // Validate should return valid:true (0 subagents expected)
+      if (subagentsLoader.validate == null) {
+        throw new Error("validate method not implemented");
+      }
+      const result = await subagentsLoader.validate({ config });
+      expect(result.valid).toBe(true);
+    });
+  });
 });

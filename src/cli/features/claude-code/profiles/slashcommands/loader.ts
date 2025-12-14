@@ -76,7 +76,13 @@ const registerSlashCommands = async (args: {
   let skippedCount = 0;
 
   // Read all .md files from the profile's slashcommands directory
-  const files = await fs.readdir(configDir);
+  let files: Array<string>;
+  try {
+    files = await fs.readdir(configDir);
+  } catch {
+    info({ message: "Profile slashcommands directory not found, skipping" });
+    return;
+  }
   const mdFiles = files.filter(
     (file) => file.endsWith(".md") && file !== "docs.md",
   );
@@ -272,11 +278,11 @@ const validate = async (args: {
       }
     }
   } catch {
-    errors.push(`Profile slashcommands directory not found at ${configDir}`);
+    // Profile slashcommands directory not found - this is valid (0 commands expected)
     return {
-      valid: false,
-      message: "Profile slashcommands directory not found",
-      errors,
+      valid: true,
+      message: "No slash commands configured for this profile",
+      errors: null,
     };
   }
 

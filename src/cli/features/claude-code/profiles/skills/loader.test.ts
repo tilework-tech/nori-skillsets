@@ -788,6 +788,62 @@ describe("skillsLoader", () => {
       await expect(skillsLoader.uninstall({ config })).resolves.not.toThrow();
     });
 
+    it("should handle missing profile skills directory gracefully during install", async () => {
+      const config: Config = {
+        installDir: tempDir,
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
+      };
+
+      // Remove the skills directory from the installed profile
+      const profileSkillsDir = path.join(
+        claudeDir,
+        "profiles",
+        "senior-swe",
+        "skills",
+      );
+      await fs.rm(profileSkillsDir, { recursive: true, force: true });
+
+      // Install should not throw
+      await expect(skillsLoader.install({ config })).resolves.not.toThrow();
+
+      // Skills directory should still be created (empty)
+      const exists = await fs
+        .access(skillsDir)
+        .then(() => true)
+        .catch(() => false);
+      expect(exists).toBe(true);
+    });
+
+    it("should return valid when profile skills directory is missing during validate", async () => {
+      const config: Config = {
+        installDir: tempDir,
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
+      };
+
+      // First install to create skills directory and settings.json
+      await skillsLoader.install({ config });
+
+      // Remove the skills directory from the installed profile
+      const profileSkillsDir = path.join(
+        claudeDir,
+        "profiles",
+        "senior-swe",
+        "skills",
+      );
+      await fs.rm(profileSkillsDir, { recursive: true, force: true });
+
+      // Validate should return valid:true (0 skills expected)
+      if (skillsLoader.validate == null) {
+        throw new Error("validate method not implemented");
+      }
+      const result = await skillsLoader.validate({ config });
+      expect(result.valid).toBe(true);
+    });
+
     it("should validate permissions configuration", async () => {
       const config: Config = {
         installDir: tempDir,

@@ -197,4 +197,64 @@ describe("slashCommandsLoader", () => {
   // Note: Template substitution tests for global commands (like nori-create-profile.md)
   // have been moved to src/cli/features/claude-code/slashcommands/loader.test.ts
   // Profile-specific slash commands (nori-init-docs, nori-sync-docs) may not use template substitution
+
+  describe("missing profile slashcommands directory", () => {
+    it("should handle missing slashcommands directory gracefully during install", async () => {
+      const config: Config = {
+        installDir: tempDir,
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
+      };
+
+      // Remove the slashcommands directory from the installed profile
+      const profileSlashCommandsDir = path.join(
+        claudeDir,
+        "profiles",
+        "senior-swe",
+        "slashcommands",
+      );
+      await fs.rm(profileSlashCommandsDir, { recursive: true, force: true });
+
+      // Install should not throw
+      await expect(
+        slashCommandsLoader.install({ config }),
+      ).resolves.not.toThrow();
+
+      // Commands directory should still be created
+      const exists = await fs
+        .access(commandsDir)
+        .then(() => true)
+        .catch(() => false);
+      expect(exists).toBe(true);
+    });
+
+    it("should return valid when profile slashcommands directory is missing during validate", async () => {
+      const config: Config = {
+        installDir: tempDir,
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
+      };
+
+      // First install to create commands directory
+      await slashCommandsLoader.install({ config });
+
+      // Remove the slashcommands directory from the installed profile
+      const profileSlashCommandsDir = path.join(
+        claudeDir,
+        "profiles",
+        "senior-swe",
+        "slashcommands",
+      );
+      await fs.rm(profileSlashCommandsDir, { recursive: true, force: true });
+
+      // Validate should return valid:true (0 commands expected)
+      if (slashCommandsLoader.validate == null) {
+        throw new Error("validate method not implemented");
+      }
+      const result = await slashCommandsLoader.validate({ config });
+      expect(result.valid).toBe(true);
+    });
+  });
 });

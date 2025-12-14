@@ -18,6 +18,7 @@ import { success, info, warn } from "@/cli/logger.js";
 
 import type { ValidationResult } from "@/cli/features/agentRegistry.js";
 import type { ProfileLoader } from "@/cli/features/claude-code/profiles/profileLoaderRegistry.js";
+import type { Dirent } from "fs";
 
 // Get directory of this loader file
 const __filename = fileURLToPath(import.meta.url);
@@ -114,7 +115,15 @@ const installSkills = async (args: { config: Config }): Promise<void> => {
   await fs.mkdir(claudeSkillsDir, { recursive: true });
 
   // Read all entries from config directory
-  const entries = await fs.readdir(configDir, { withFileTypes: true });
+  let entries: Array<Dirent>;
+  try {
+    entries = await fs.readdir(configDir, { withFileTypes: true });
+  } catch {
+    info({ message: "Profile skills directory not found, skipping" });
+    // Still configure permissions for the empty skills directory
+    await configureSkillsPermissions({ config });
+    return;
+  }
 
   for (const entry of entries) {
     const sourcePath = path.join(configDir, entry.name);
@@ -347,40 +356,47 @@ const validate = async (args: {
     profileName,
     installDir: config.installDir,
   });
-  const sourceEntries = await fs.readdir(configDir, { withFileTypes: true });
 
-  for (const entry of sourceEntries) {
-    if (!entry.isDirectory()) {
-      continue;
-    }
+  // Check expected skills from profile config (if directory exists)
+  try {
+    const sourceEntries = await fs.readdir(configDir, { withFileTypes: true });
 
-    // For paid-prefixed skills, check if they exist without prefix (paid tier only)
-    if (entry.name.startsWith("paid-")) {
-      if (isPaidInstall({ config })) {
-        const destName = entry.name.replace(/^paid-/, "");
+    for (const entry of sourceEntries) {
+      if (!entry.isDirectory()) {
+        continue;
+      }
+
+      // For paid-prefixed skills, check if they exist without prefix (paid tier only)
+      if (entry.name.startsWith("paid-")) {
+        if (isPaidInstall({ config })) {
+          const destName = entry.name.replace(/^paid-/, "");
+          try {
+            await fs.access(path.join(claudeSkillsDir, destName));
+          } catch {
+            errors.push(`Expected skill '${destName}' not found (paid tier)`);
+          }
+        }
+      } else {
+        // Non-paid skills should exist for all tiers
         try {
-          await fs.access(path.join(claudeSkillsDir, destName));
+          await fs.access(path.join(claudeSkillsDir, entry.name));
         } catch {
-          errors.push(`Expected skill '${destName}' not found (paid tier)`);
+          errors.push(`Expected skill '${entry.name}' not found`);
         }
       }
-    } else {
-      // Non-paid skills should exist for all tiers
-      try {
-        await fs.access(path.join(claudeSkillsDir, entry.name));
-      } catch {
-        errors.push(`Expected skill '${entry.name}' not found`);
-      }
     }
-  }
 
-  if (errors.length > 0) {
-    errors.push('Run "nori-ai install" to reinstall skills');
-    return {
-      valid: false,
-      message: "Skills directory incomplete",
-      errors,
-    };
+    if (errors.length > 0) {
+      errors.push('Run "nori-ai install" to reinstall skills');
+      return {
+        valid: false,
+        message: "Skills directory incomplete",
+        errors,
+      };
+    }
+  } catch {
+    // Profile skills directory not found - this is valid (0 skills expected)
+    // Continue to check permissions
   }
 
   // Check if permissions are configured in settings.json
