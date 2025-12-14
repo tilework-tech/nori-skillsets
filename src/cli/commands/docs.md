@@ -46,6 +46,12 @@ The install command sets `agents: { [agentName]: { profile } }` in the config, w
 
 **Uninstall Agent Detection:** In non-interactive mode (used during upgrades), the uninstall command auto-detects the agent from config when `--agent` is not explicitly provided. It uses `getInstalledAgents({ config })` to determine installed agents from the `agents` object keys. If exactly one agent is installed, it uses that agent; otherwise it defaults to `claude-code`. This ensures the correct agent is uninstalled during autoupdate scenarios without requiring explicit `--agent` flags in older installed versions.
 
+**Check Agent Detection:** The check command auto-detects the agent from config when `--agent` is not explicitly provided. Agent resolution occurs AFTER config loading (since the config is needed for detection). Logic:
+- If `--agent` explicitly provided: use that agent
+- If exactly one agent installed: auto-select it
+- If multiple agents installed: error with "Multiple agents installed (X, Y). Please specify which agent to check with --agent <name>."
+- If no agents in config (legacy fallback): default to `claude-code`
+
 ```
 cli.ts
   |
