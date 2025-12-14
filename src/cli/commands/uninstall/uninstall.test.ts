@@ -30,10 +30,6 @@ vi.mock("@/cli/features/claude-code/paths.js", () => ({
   getClaudeProfilesDir: () => path.join(mockClaudeDir, "profiles"),
 }));
 
-vi.mock("@/cli/env.js", () => ({
-  CLI_ROOT: "/mock/cli/root",
-}));
-
 let mockLoadedConfig: any = null;
 
 vi.mock("@/cli/config.js", async () => {

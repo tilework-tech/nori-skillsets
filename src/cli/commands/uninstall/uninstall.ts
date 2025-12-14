@@ -10,12 +10,7 @@ import * as fs from "fs/promises";
 import * as path from "path";
 
 import { trackEvent } from "@/cli/analytics.js";
-import {
-  loadConfig,
-  getDefaultProfile,
-  isPaidInstall,
-  getInstalledAgents,
-} from "@/cli/config.js";
+import { loadConfig, isPaidInstall, getInstalledAgents } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { error, success, info, warn, newline } from "@/cli/logger.js";
 import { promptUser } from "@/cli/prompt.js";
@@ -310,10 +305,10 @@ export const runUninstall = async (args: {
   } = args;
   const agentName = agent ?? "claude-code";
 
-  // Load config (defaults to free if none exists)
+  // Load config (defaults to minimal config if none exists)
+  // Note: profile is not required for uninstall - only installDir is mandatory
   const existingConfig = await loadConfig({ installDir });
   const config = existingConfig ?? {
-    profile: getDefaultProfile(),
     installDir,
   };
 

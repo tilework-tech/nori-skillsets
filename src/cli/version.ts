@@ -5,13 +5,16 @@
  * before installing new versions.
  */
 
-import { readFileSync } from "fs";
-import { join } from "path";
+import { existsSync, readFileSync } from "fs";
+import { dirname, join, parse, resolve } from "path";
+import { fileURLToPath } from "url";
 
 import semver from "semver";
 
 import { loadConfig } from "@/cli/config.js";
-import { CLI_ROOT } from "@/cli/env.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const DEFAULT_VERSION = "12.1.0";
 
@@ -22,13 +25,61 @@ const DEFAULT_VERSION = "12.1.0";
 const MIN_AGENT_FLAG_VERSION = "19.0.0";
 
 /**
+ * Find the package root by walking up from the start directory
+ * looking for package.json with name "nori-ai"
+ *
+ * @param args - Configuration arguments
+ * @param args.startDir - Directory to start searching from
+ *
+ * @returns The path to the package root directory or null if not found
+ */
+const findPackageRoot = (args: { startDir: string }): string | null => {
+  const { startDir } = args;
+  let currentDir = resolve(startDir);
+  const root = parse(currentDir).root;
+  const maxDepth = 10;
+  let depth = 0;
+
+  while (currentDir !== root && depth < maxDepth) {
+    const packageJsonPath = join(currentDir, "package.json");
+    if (existsSync(packageJsonPath)) {
+      try {
+        const pkg = JSON.parse(readFileSync(packageJsonPath, "utf-8"));
+        if (pkg.name === "nori-ai") {
+          return currentDir;
+        }
+      } catch {
+        // Invalid JSON, continue searching
+      }
+    }
+    currentDir = dirname(currentDir);
+    depth++;
+  }
+
+  return null;
+};
+
+/**
  * Get the current package version by reading package.json
  * This works for any installation method (global npm install, local node_modules)
+ *
+ * @param args - Optional configuration arguments
+ * @param args.startDir - Directory to start searching from (defaults to current file's directory)
+ *
  * @returns The current package version or null if not found
  */
-export const getCurrentPackageVersion = (): string | null => {
+export const getCurrentPackageVersion = (args?: {
+  startDir?: string | null;
+}): string | null => {
+  const startDir = args?.startDir ?? __dirname;
+
+  const packageRoot = findPackageRoot({ startDir });
+  if (packageRoot == null) {
+    return null;
+  }
+
   try {
-    const packageJsonPath = join(CLI_ROOT, "package.json");
+    const packageJsonPath = join(packageRoot, "package.json");
     const pkg = JSON.parse(readFileSync(packageJsonPath, "utf-8"));
     // Verify it's the nori-ai package
     if (pkg.name === "nori-ai") {
