@@ -1,7 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 import { loadConfig } from "@/cli/config.js";
+import { LOG_FILE } from "@/cli/logger.js";
 import * as pathUtils from "@/utils/path.js";
+
+import {
+  formatSuccess,
+  formatError,
+} from "./intercepted-slashcommands/format.js";
 
 // Mock the config module
 vi.mock("@/cli/config.js", () => ({
@@ -9,10 +15,10 @@ vi.mock("@/cli/config.js", () => ({
 }));
 
 describe("summarize-notification hook", () => {
-  let consoleLogSpy: ReturnType<typeof vi.spyOn>;
+  let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
-    consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {
+    consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {
       // Mock implementation
     });
 
@@ -24,7 +30,7 @@ describe("summarize-notification hook", () => {
     vi.restoreAllMocks();
   });
 
-  it('should output "Saving transcript to nori..." when sendSessionTranscript is enabled', async () => {
+  it("should output green-colored message to stderr when sendSessionTranscript is enabled", async () => {
     // Mock config with enabled transcripts
     vi.mocked(loadConfig).mockResolvedValue({
       sendSessionTranscript: "enabled",
@@ -35,15 +41,14 @@ describe("summarize-notification hook", () => {
     const { main } = await import("./summarize-notification.js");
     await main();
 
-    // Verify output
-    expect(consoleLogSpy).toHaveBeenCalledWith(
-      JSON.stringify({
-        systemMessage: "Saving transcript to nori...\n\n",
-      }),
-    );
+    // Verify output goes to stderr with green ANSI formatting
+    const expectedMessage = formatSuccess({
+      message: "Saving transcript to nori...\n\n",
+    });
+    expect(consoleErrorSpy).toHaveBeenCalledWith(expectedMessage);
   });
 
-  it("should output disabled message when sendSessionTranscript is disabled", async () => {
+  it("should output green disabled message when sendSessionTranscript is disabled", async () => {
     // Mock config with disabled transcripts
     vi.mocked(loadConfig).mockResolvedValue({
       sendSessionTranscript: "disabled",
@@ -54,16 +59,15 @@ describe("summarize-notification hook", () => {
     const { main } = await import("./summarize-notification.js");
     await main();
 
-    // Verify output shows disabled message with re-enable hint
-    expect(consoleLogSpy).toHaveBeenCalledWith(
-      JSON.stringify({
-        systemMessage:
-          "Session transcripts disabled. Use /nori-toggle-session-transcripts to enable...\n\n",
-      }),
-    );
+    // Verify output shows disabled message with green formatting
+    const expectedMessage = formatSuccess({
+      message:
+        "Session transcripts disabled. Use /nori-toggle-session-transcripts to enable...\n\n",
+    });
+    expect(consoleErrorSpy).toHaveBeenCalledWith(expectedMessage);
   });
 
-  it("should default to enabled behavior when config is missing", async () => {
+  it("should default to enabled behavior when config is missing sendSessionTranscript", async () => {
     // Mock config with no sendSessionTranscript field (backward compatibility)
     vi.mocked(loadConfig).mockResolvedValue({
       installDir: process.cwd(),
@@ -73,11 +77,38 @@ describe("summarize-notification hook", () => {
     const { main } = await import("./summarize-notification.js");
     await main();
 
-    // Verify output defaults to enabled message
-    expect(consoleLogSpy).toHaveBeenCalledWith(
-      JSON.stringify({
-        systemMessage: "Saving transcript to nori...\n\n",
-      }),
-    );
+    // Verify output defaults to enabled message with green formatting
+    const expectedMessage = formatSuccess({
+      message: "Saving transcript to nori...\n\n",
+    });
+    expect(consoleErrorSpy).toHaveBeenCalledWith(expectedMessage);
+  });
+
+  it("should output red error message when no installation found", async () => {
+    // Mock no installations found
+    vi.spyOn(pathUtils, "getInstallDirs").mockReturnValue([]);
+
+    const { main } = await import("./summarize-notification.js");
+    await main();
+
+    // Should output red error message about Watchtower with log file reference
+    const expectedMessage = formatError({
+      message: `Error saving to Nori Watchtower. Check ${LOG_FILE} for details.\n\n`,
+    });
+    expect(consoleErrorSpy).toHaveBeenCalledWith(expectedMessage);
+  });
+
+  it("should output red error message when config loading fails", async () => {
+    // Mock config loading failure
+    vi.mocked(loadConfig).mockRejectedValue(new Error("Config load failed"));
+
+    const { main } = await import("./summarize-notification.js");
+    await main();
+
+    // Should output red error message about Watchtower with log file reference
+    const expectedMessage = formatError({
+      message: `Error saving to Nori Watchtower. Check ${LOG_FILE} for details.\n\n`,
+    });
+    expect(consoleErrorSpy).toHaveBeenCalledWith(expectedMessage);
   });
 });

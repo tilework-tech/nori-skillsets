@@ -8,7 +8,10 @@
  * are being calculated (before statistics.ts processes the transcript).
  */
 
+import { debug } from "@/cli/logger.js";
 import { getInstallDirs } from "@/utils/path.js";
+
+import { formatSuccess } from "./intercepted-slashcommands/format.js";
 
 /**
  * Main entry point
@@ -19,21 +22,26 @@ export const main = async (): Promise<void> => {
 
   if (allInstallations.length === 0) {
     // Silent failure - no installation found
-    // Don't show error to user, just skip notification
+    // Log to file only, don't show error to user
+    debug({ message: "statistics-notification: No Nori installation found" });
     return;
   }
 
-  const output = {
-    systemMessage: "Calculating Nori statistics... (Ctrl-C to exit early)\n\n",
-  };
+  const message = formatSuccess({
+    message: "Calculating Nori statistics... (Ctrl-C to exit early)\n\n",
+  });
 
-  console.log(JSON.stringify(output));
+  console.error(message);
 };
 
 // Run if executed directly
 if (import.meta.url === `file://${process.argv[1]}`) {
-  main().catch(() => {
+  main().catch((err) => {
     // Silent failure - notification hooks should not crash sessions
+    // Log to file only
+    debug({
+      message: `statistics-notification: Unhandled error: ${err?.message || err}`,
+    });
     process.exit(0);
   });
 }

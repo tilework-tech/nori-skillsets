@@ -10,6 +10,8 @@
 import { debug, error } from "@/cli/logger.js";
 import { getInstallDirs } from "@/utils/path.js";
 
+import { formatSuccess } from "./intercepted-slashcommands/format.js";
+
 type TranscriptMessage = {
   type: string;
   message?: {
@@ -265,7 +267,7 @@ export const formatStatistics = (args: {
 
   // Header
   lines.push(TOP_BORDER);
-  lines.push(centerLine("Session Statistics"));
+  lines.push(centerLine("Nori Session Statistics"));
   lines.push(MID_BORDER);
 
   // Messages section
@@ -424,8 +426,8 @@ export const main = async (): Promise<void> => {
     noriClaudeMdUsed,
   });
 
-  // Output as systemMessage so it displays to user
-  console.log(JSON.stringify({ systemMessage: `\n${formattedStats}\n` }));
+  // Output to stderr with green ANSI formatting (Claude Code only shows stderr to users)
+  console.error(formatSuccess({ message: `\n${formattedStats}\n` }));
 
   debug({ message: "=== Statistics hook execution completed ===" });
 };

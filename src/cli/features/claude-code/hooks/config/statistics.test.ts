@@ -213,7 +213,7 @@ describe("countToolUsage", () => {
 });
 
 describe("formatStatistics", () => {
-  it("should format complete statistics as ASCII table", () => {
+  it("should format complete statistics as ASCII table with Nori branding", () => {
     const result = formatStatistics({
       messages: { user: 12, assistant: 45 },
       tools: { Read: 23, Bash: 15, Edit: 8 },
@@ -222,8 +222,9 @@ describe("formatStatistics", () => {
       noriClaudeMdUsed: true,
     });
 
+    // Should contain Nori-branded title
+    expect(result).toContain("Nori Session Statistics");
     // Should contain key sections
-    expect(result).toContain("Session Statistics");
     expect(result).toContain("Messages");
     expect(result).toContain("User: 12");
     expect(result).toContain("Assistant: 45");
@@ -262,17 +263,17 @@ describe("formatStatistics", () => {
       noriClaudeMdUsed: false,
     });
 
-    expect(result).toContain("Session Statistics");
+    expect(result).toContain("Nori Session Statistics");
     expect(result).toContain("User: 0");
   });
 });
 
 describe("statistics hook script behavior", () => {
-  let consoleLogSpy: ReturnType<typeof vi.spyOn>;
+  let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
   let originalStdin: typeof process.stdin;
 
   beforeEach(() => {
-    consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {
+    consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {
       // Mock implementation
     });
 
@@ -284,15 +285,7 @@ describe("statistics hook script behavior", () => {
     vi.restoreAllMocks();
   });
 
-  it("should NOT output async:true - hook must run synchronously", async () => {
-    // This test verifies the fix for the statistics exit card not showing.
-    // The bug was: hook outputs { async: true } first, then systemMessage later.
-    // Claude Code stops reading stdout after seeing { async: true }, so
-    // the systemMessage was lost.
-    //
-    // The fix: Remove { async: true } so the hook runs synchronously and
-    // the systemMessage is the only output.
-
+  it("should output statistics to stderr with green ANSI formatting", async () => {
     // Import the main function from statistics
     const { main } = await import("./statistics.js");
 
@@ -320,19 +313,17 @@ describe("statistics hook script behavior", () => {
     try {
       await main();
 
-      // Verify that { async: true } was NOT output
-      const allCalls = consoleLogSpy.mock.calls;
-      for (const call of allCalls) {
-        const output = call[0];
-        if (typeof output === "string") {
-          try {
-            const parsed = JSON.parse(output);
-            expect(parsed).not.toHaveProperty("async");
-          } catch {
-            // Not JSON, skip
-          }
-        }
-      }
+      // Verify that stderr was called with statistics containing green ANSI
+      expect(consoleErrorSpy).toHaveBeenCalled();
+      const output = consoleErrorSpy.mock.calls[0][0];
+
+      // Should contain green ANSI color codes
+      expect(output).toContain("\x1b[0;32m"); // GREEN
+
+      // Should contain Nori Session Statistics text (each word wrapped with ANSI codes)
+      expect(output).toContain("Nori");
+      expect(output).toContain("Session");
+      expect(output).toContain("Statistics");
     } finally {
       // Restore stdin
       Object.defineProperty(process, "stdin", {
@@ -343,7 +334,7 @@ describe("statistics hook script behavior", () => {
     }
   });
 
-  it("should output systemMessage with statistics for valid session", async () => {
+  it("should output statistics with Nori branding for valid session", async () => {
     const { main } = await import("./statistics.js");
 
     // Create mock stdin with a transcript containing user messages
@@ -369,26 +360,14 @@ describe("statistics hook script behavior", () => {
     try {
       await main();
 
-      // Verify that systemMessage was output with Session Statistics
-      const allCalls = consoleLogSpy.mock.calls;
-      let foundSystemMessage = false;
+      // Verify that statistics were output to stderr with Nori branding
+      expect(consoleErrorSpy).toHaveBeenCalled();
+      const output = consoleErrorSpy.mock.calls[0][0];
 
-      for (const call of allCalls) {
-        const output = call[0];
-        if (typeof output === "string") {
-          try {
-            const parsed = JSON.parse(output);
-            if (parsed.systemMessage) {
-              foundSystemMessage = true;
-              expect(parsed.systemMessage).toContain("Session Statistics");
-            }
-          } catch {
-            // Not JSON, skip
-          }
-        }
-      }
-
-      expect(foundSystemMessage).toBe(true);
+      // Should contain Nori Session Statistics (each word wrapped with ANSI codes)
+      expect(output).toContain("Nori");
+      expect(output).toContain("Session");
+      expect(output).toContain("Statistics");
     } finally {
       Object.defineProperty(process, "stdin", {
         value: originalStdin,
