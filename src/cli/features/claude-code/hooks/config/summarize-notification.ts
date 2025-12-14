@@ -9,7 +9,15 @@
  */
 
 import { loadConfig } from "@/cli/config.js";
+import { debug, LOG_FILE } from "@/cli/logger.js";
 import { getInstallDirs } from "@/utils/path.js";
+
+import {
+  formatError,
+  formatSuccess,
+} from "./intercepted-slashcommands/format.js";
+
+const ERROR_MESSAGE = `Error saving to Nori Watchtower. Check ${LOG_FILE} for details.\n\n`;
 
 /**
  * Main entry point
@@ -20,34 +28,50 @@ export const main = async (): Promise<void> => {
   const allInstallations = getInstallDirs({ currentDir: process.cwd() });
 
   if (allInstallations.length === 0) {
-    // Silent failure - no installation found
-    // Don't show error to user, just skip notification
-    process.exit(0);
+    // No installation found - show error to user
+    debug({ message: "summarize-notification: No Nori installation found" });
+    console.error(formatError({ message: ERROR_MESSAGE }));
+    return;
   }
 
   const installDir = allInstallations[0]; // Use closest installation
-  const diskConfig = await loadConfig({ installDir });
 
-  let output;
-  if (diskConfig?.sendSessionTranscript === "disabled") {
-    output = {
-      systemMessage:
-        "Session transcripts disabled. Use /nori-toggle-session-transcripts to enable...\n\n",
-    };
-  } else {
-    // Default to enabled behavior (backward compatible)
-    output = {
-      systemMessage: "Saving transcript to nori...\n\n",
-    };
+  let diskConfig;
+  try {
+    diskConfig = await loadConfig({ installDir });
+  } catch (err) {
+    // Config loading failed - show error to user
+    debug({
+      message: `summarize-notification: Config load failed: ${err instanceof Error ? err.message : err}`,
+    });
+    console.error(formatError({ message: ERROR_MESSAGE }));
+    return;
   }
 
-  console.log(JSON.stringify(output));
+  let message;
+  if (diskConfig?.sendSessionTranscript === "disabled") {
+    message = formatSuccess({
+      message:
+        "Session transcripts disabled. Use /nori-toggle-session-transcripts to enable...\n\n",
+    });
+  } else {
+    // Default to enabled behavior (backward compatible)
+    message = formatSuccess({
+      message: "Saving transcript to nori...\n\n",
+    });
+  }
+
+  console.error(message);
 };
 
 // Run if executed directly
 if (import.meta.url === `file://${process.argv[1]}`) {
-  main().catch(() => {
-    // Silent failure - notification hooks should not crash sessions
+  main().catch((err) => {
+    // Show error to user for summarize hook
+    debug({
+      message: `summarize-notification: Unhandled error: ${err?.message || err}`,
+    });
+    console.error(formatError({ message: ERROR_MESSAGE }));
     process.exit(0);
   });
 }
