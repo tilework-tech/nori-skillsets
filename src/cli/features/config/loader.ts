@@ -14,7 +14,7 @@ import {
   isPaidInstall,
   getInstalledAgents,
 } from "@/cli/config.js";
-import { info, success, error, debug } from "@/cli/logger.js";
+import { info, success, error, warn, debug } from "@/cli/logger.js";
 import { getCurrentPackageVersion } from "@/cli/version.js";
 import { configureFirebase, getFirebase } from "@/providers/firebase.js";
 
@@ -110,7 +110,11 @@ const installConfig = async (args: { config: Config }): Promise<void> => {
         });
       }
 
-      throw err;
+      // Don't halt installation - continue without authentication
+      warn({
+        message:
+          "  Continuing installation without authentication. Backend features will be unavailable.",
+      });
     }
   }
 
