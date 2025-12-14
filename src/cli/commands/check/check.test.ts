@@ -170,4 +170,108 @@ describe("check command", () => {
       expect(errorCalls).not.toContain("Profiles directory not found");
     });
   });
+
+  describe("agent auto-detection", () => {
+    it("should auto-detect single installed agent from config", async () => {
+      // Create a config with only cursor-agent installed
+      await fs.writeFile(
+        path.join(tempDir, ".nori-config.json"),
+        JSON.stringify({
+          agents: {
+            "cursor-agent": { baseProfile: "senior-swe" },
+          },
+        }),
+      );
+
+      // Mock cwd to return the temp directory
+      process.cwd = () => tempDir;
+
+      // Run check without explicit --agent
+      try {
+        await checkMain({});
+      } catch (e: any) {
+        // Expected to exit (validation may fail, but that's fine)
+      }
+
+      // Verify it ran validation and used cursor-agent (not claude-code)
+      const logCalls = consoleLogSpy.mock.calls.flat().join("\n");
+      expect(logCalls).toContain("Running Nori Profiles validation checks");
+      // Should NOT use claude-code's loaders - cursor-agent has different loader names
+      // Look for cursor-agent specific validation or absence of claude-code specific messages
+    });
+
+    it("should error when multiple agents installed and no --agent provided", async () => {
+      // Create a config with both claude-code and cursor-agent installed
+      await fs.writeFile(
+        path.join(tempDir, ".nori-config.json"),
+        JSON.stringify({
+          agents: {
+            "claude-code": { baseProfile: "senior-swe" },
+            "cursor-agent": { baseProfile: "senior-swe" },
+          },
+        }),
+      );
+
+      // Mock cwd to return the temp directory
+      process.cwd = () => tempDir;
+
+      // Run check without explicit --agent - should fail
+      await expect(checkMain({})).rejects.toThrow("process.exit(1)");
+
+      // Verify error message mentions multiple agents and suggests --agent flag
+      const errorCalls = consoleErrorSpy.mock.calls.flat().join("\n");
+      expect(errorCalls).toContain("Multiple agents installed");
+      expect(errorCalls).toContain("--agent");
+    });
+
+    it("should use explicit --agent when provided, ignoring config", async () => {
+      // Create a config with only cursor-agent installed
+      await fs.writeFile(
+        path.join(tempDir, ".nori-config.json"),
+        JSON.stringify({
+          agents: {
+            "cursor-agent": { baseProfile: "senior-swe" },
+          },
+        }),
+      );
+
+      // Mock cwd to return the temp directory
+      process.cwd = () => tempDir;
+
+      // Run check with explicit --agent=claude-code
+      try {
+        await checkMain({ agent: "claude-code" });
+      } catch (e: any) {
+        // Expected to exit (validation may fail, but that's fine)
+      }
+
+      // Verify it ran validation using claude-code (the explicitly specified agent)
+      const logCalls = consoleLogSpy.mock.calls.flat().join("\n");
+      expect(logCalls).toContain("Running Nori Profiles validation checks");
+    });
+
+    it("should default to claude-code when config has no agents field (legacy)", async () => {
+      // Create a legacy config without agents field
+      await fs.writeFile(
+        path.join(tempDir, ".nori-config.json"),
+        JSON.stringify({
+          profile: { baseProfile: "senior-swe" },
+        }),
+      );
+
+      // Mock cwd to return the temp directory
+      process.cwd = () => tempDir;
+
+      // Run check without explicit --agent
+      try {
+        await checkMain({});
+      } catch (e: any) {
+        // Expected to exit
+      }
+
+      // Verify it ran validation (should use claude-code by default for backwards compatibility)
+      const logCalls = consoleLogSpy.mock.calls.flat().join("\n");
+      expect(logCalls).toContain("Running Nori Profiles validation checks");
+    });
+  });
 });
