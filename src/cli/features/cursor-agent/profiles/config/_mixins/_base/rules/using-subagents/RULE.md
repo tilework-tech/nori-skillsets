@@ -9,10 +9,12 @@ alwaysApply: false
 1. Look for the requested subagent in `{{subagents_dir}}/`
 2. Make sure the cursor-agent is installed using `cursor-agent --version`.
   - If it is not, ask the user for permission to install. Then run: `curl https://cursor.com/install -fsS | bash`
-3. Call `cursor-agent` using the Bash tool in headless mode with the content of the subagent file and the user request.
+3. Call `cursor-agent` using the Bash tool in headless mode. **You MUST include the shared subagent prompt at the very top of every subagent call** by cat-ing `{{rules_dir}}/using-subagents/subagent-prompt.txt` before the subagent-specific content:
 
 ```bash
-cursor-agent -p "$(cat {{subagents_dir}}/nori-web-search-researcher.md)
+cursor-agent -p "$(cat {{rules_dir}}/using-subagents/subagent-prompt.txt)
+
+$(cat {{subagents_dir}}/nori-web-search-researcher.md)
 
 ---
 USER REQUEST:
@@ -20,7 +22,7 @@ Research how to implement OAuth 2.0 PKCE flow in a Next.js application.
 " --force --model auto
 ```
 
-<system-reminder>You should set the model to auto to avoid issues with api keys!<system-reminder>
+<system-reminder>You should set the model to auto to avoid issues with api keys!</system-reminder>
 
 4. Parse the subagent behavior and choose how to respond.
 </required>
@@ -51,10 +53,12 @@ cursor-agent -p "Research the latest best practices for React Server Components 
 
 ### Example: With Subagent Prompt
 
-To use a predefined subagent, pass its instructions as context:
+To use a predefined subagent, **always include the shared subagent prompt first**, then pass its instructions as context:
 
 ```bash
-cursor-agent -p "$(cat {{subagents_dir}}/nori-web-search-researcher.md)
+cursor-agent -p "$(cat {{rules_dir}}/using-subagents/subagent-prompt.txt)
+
+$(cat {{subagents_dir}}/nori-web-search-researcher.md)
 
 ---
 USER REQUEST:

@@ -26,15 +26,17 @@ Noridocs are docs.md files throughout the codebase that document each folder's p
 
 ### Step 2: Dispatch nori-change-documenter Subagent
 
-**Use the nori-change-documenter subagent via cursor-agent CLI:**
+**Use the nori-change-documenter subagent via cursor-agent CLI. Always include the shared subagent prompt first:**
 
 ```bash
-cursor-agent -p "$(cat {{subagents_dir}}/nori-change-documenter.md)
+cursor-agent -p "$(cat {{rules_dir}}/using-subagents/subagent-prompt.txt)
+
+$(cat {{subagents_dir}}/nori-change-documenter.md)
 
 ---
 USER REQUEST:
 [Describe what changed and why here]
-" --force
+" --force --model auto
 ```
 
 **In the prompt, provide:**

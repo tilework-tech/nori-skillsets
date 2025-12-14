@@ -5,12 +5,16 @@
 import * as fs from "fs/promises";
 import { tmpdir } from "os";
 import * as path from "path";
+import { fileURLToPath } from "url";
 
 import { describe, test, expect, beforeEach, afterEach } from "vitest";
 
 import { rulesLoader } from "@/cli/features/cursor-agent/profiles/rules/loader.js";
 
 import type { Config } from "@/cli/config.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 describe("cursor-agent rules loader", () => {
   let testInstallDir: string;
@@ -170,5 +174,26 @@ describe("cursor-agent rules loader", () => {
       expect(result.valid).toBe(false);
       expect(result.errors).toBeDefined();
     });
+  });
+});
+
+describe("using-subagents rule source files", () => {
+  const usingSubagentsDir = path.resolve(
+    __dirname,
+    "../config/_mixins/_base/rules/using-subagents",
+  );
+
+  test("subagent-prompt.txt exists", async () => {
+    const promptPath = path.join(usingSubagentsDir, "subagent-prompt.txt");
+    await expect(fs.access(promptPath)).resolves.toBeUndefined();
+  });
+
+  test("subagent-prompt.txt contains expected content", async () => {
+    const promptPath = path.join(usingSubagentsDir, "subagent-prompt.txt");
+    const content = await fs.readFile(promptPath, "utf-8");
+
+    expect(content).toContain("You are a subagent");
+    expect(content).toContain("tightly scoped");
+    expect(content).toContain("25 iterations");
   });
 });

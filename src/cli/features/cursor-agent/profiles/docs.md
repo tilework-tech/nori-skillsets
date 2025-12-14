@@ -81,7 +81,20 @@ alwaysApply: false
 ```
 Rules use "Apply Intelligently" mode (no `globs` field) where Cursor's agent decides when to apply based on the description. The `{{rules_dir}}` template variable is used for cross-rule references.
 
-**Subagents system**: Subagents provide Task tool-like functionality for Cursor, which lacks a built-in Task tool. The subagentsLoader copies `.md` files from the profile's `subagents/` directory to `~/.cursor/subagents/`. Each subagent is invoked via the `cursor-agent` CLI in headless mode: `cursor-agent -p "$(cat {{subagents_dir}}/subagent-name.md)\n---\nUSER REQUEST:\nYour prompt" --force`. The `using-subagents` rule in the `_base` mixin documents this invocation pattern. The `{{subagents_dir}}` template variable resolves to `~/.cursor/subagents/`. Subagents are contributed by multiple mixins (e.g., `_base` provides `nori-web-search-researcher`, `_docs` provides `nori-initial-documenter` and `nori-change-documenter`).
+**Subagents system**: Subagents provide Task tool-like functionality for Cursor, which lacks a built-in Task tool. The subagentsLoader copies `.md` files from the profile's `subagents/` directory to `~/.cursor/subagents/`. Each subagent is invoked via the `cursor-agent` CLI in headless mode, with a **shared subagent prompt** prepended to ensure consistent behavior:
+
+```bash
+cursor-agent -p "$(cat {{rules_dir}}/using-subagents/subagent-prompt.txt)
+
+$(cat {{subagents_dir}}/subagent-name.md)
+
+---
+USER REQUEST:
+Your prompt
+" --force --model auto
+```
+
+The shared `subagent-prompt.txt` instructs subagents to keep work tightly scoped and terminate after 25 iterations with a summary. The `using-subagents` rule in the `_base` mixin documents this invocation pattern. The `{{subagents_dir}}` template variable resolves to `~/.cursor/subagents/`. Subagents are contributed by multiple mixins (e.g., `_base` provides `nori-web-search-researcher`, `_docs` provides `nori-initial-documenter` and `nori-change-documenter`).
 
 **Parallel to claude-code**: This implementation mirrors the claude-code mixin system in @/src/cli/features/claude-code/profiles/loader.ts. Key differences:
 
@@ -106,6 +119,7 @@ profiles/
             RULE.md
           using-subagents/       # Subagent invocation documentation
             RULE.md
+            subagent-prompt.txt  # Shared prompt prepended to all subagent calls
         subagents/               # Subagent prompt files
           nori-web-search-researcher.md
       _docs/
