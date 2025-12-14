@@ -7,6 +7,7 @@ import * as fs from "fs/promises";
 import * as path from "path";
 import { fileURLToPath } from "url";
 
+import { getAgentProfile, type Config } from "@/cli/config.js";
 import {
   getClaudeDir,
   getClaudeAgentsDir,
@@ -14,7 +15,6 @@ import {
 import { substituteTemplatePaths } from "@/cli/features/claude-code/template.js";
 import { success, info, warn } from "@/cli/logger.js";
 
-import type { Config } from "@/cli/config.js";
 import type { ValidationResult } from "@/cli/features/agentRegistry.js";
 import type { ProfileLoader } from "@/cli/features/claude-code/profiles/profileLoaderRegistry.js";
 
@@ -49,8 +49,16 @@ const registerSubagents = async (args: { config: Config }): Promise<void> => {
   const { config } = args;
   info({ message: "Registering Nori subagents..." });
 
-  // Get profile name from config (default to senior-swe)
-  const profileName = config.profile?.baseProfile || "senior-swe";
+  // Get profile name from config - error if not configured
+  const profileName = getAgentProfile({
+    config,
+    agentName: "claude-code",
+  })?.baseProfile;
+  if (profileName == null) {
+    throw new Error(
+      "No profile configured for claude-code. Run 'nori-ai install' to configure a profile.",
+    );
+  }
   const configDir = getConfigDir({
     profileName,
     installDir: config.installDir,
@@ -121,8 +129,19 @@ const unregisterSubagents = async (args: { config: Config }): Promise<void> => {
 
   let removedCount = 0;
 
-  // Get profile name from config (default to senior-swe)
-  const profileName = config.profile?.baseProfile || "senior-swe";
+  // Get profile name from config - skip gracefully if not configured
+  // (uninstall should be permissive and clean up whatever is possible)
+  const profileName = getAgentProfile({
+    config,
+    agentName: "claude-code",
+  })?.baseProfile;
+  if (profileName == null) {
+    info({
+      message:
+        "No profile configured for claude-code, skipping subagents cleanup",
+    });
+    return;
+  }
   const configDir = getConfigDir({
     profileName,
     installDir: config.installDir,
@@ -204,8 +223,20 @@ const validate = async (args: {
     };
   }
 
-  // Get profile name from config (default to senior-swe)
-  const profileName = config.profile?.baseProfile || "senior-swe";
+  // Get profile name from config - error if not configured
+  const profileName = getAgentProfile({
+    config,
+    agentName: "claude-code",
+  })?.baseProfile;
+  if (profileName == null) {
+    errors.push("No profile configured for claude-code");
+    errors.push("Run 'nori-ai install' to configure a profile");
+    return {
+      valid: false,
+      message: "No profile configured",
+      errors,
+    };
+  }
   const configDir = getConfigDir({
     profileName,
     installDir: config.installDir,

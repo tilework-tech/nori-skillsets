@@ -29,10 +29,9 @@ The `--agent` option enables support for multiple AI agents. Commands use the Ag
 src/cli/
   cli.ts                 # Main entry point, command registration
   config.ts              # Config type and persistence (supports per-agent profiles)
-  env.ts                 # CLI_ROOT constant (package root directory)
-  logger.ts              # Console output formatting
+  logger.ts              # Console output formatting via Winston
   prompt.ts              # User input prompting
-  version.ts             # Version tracking for upgrades
+  version.ts             # Version tracking for upgrades + package root discovery
   analytics.ts           # GA4 event tracking
   features/              # Multi-agent abstraction layer (see @/src/cli/features/docs.md)
     agentRegistry.ts     # AgentRegistry singleton + shared Loader/LoaderRegistry types
@@ -83,13 +82,13 @@ Non-interactive mode bypasses ancestor detection and multi-agent selection, oper
 
 The check.ts module validates a Nori installation's configuration and feature installations. The checkMain() entry point auto-detects installations using `getInstallDirs({ currentDir: process.cwd() })` from @/utils/path.ts - the same discovery mechanism used by `install-location` and `uninstall`. If no `--install-dir` is explicitly provided, it uses the closest installation found (first element of the installations array). If no installation is found, it displays an error message suggesting to run `nori-ai install` or use `--install-dir`, and exits with code 1. The validation process checks: (1) configuration validity via validateConfig(), (2) server connectivity for paid installations via handshake(), (3) all feature loader validations via LoaderRegistry. Each check displays success (✓) or failure (✗) with detailed error messages.
 
-The version.ts module manages version tracking for installation upgrades and CLI flag compatibility. Version is now stored as a `version` field in `.nori-config.json` rather than in a separate `.nori-installed-version` file. The `getInstalledVersion()` function is async and reads from the config file via `loadConfig()`, defaulting to "12.1.0" for backwards compatibility with existing installations that don't have a version field. The `getCurrentPackageVersion()` function reads the version from the nori-ai package.json.
+The version.ts module manages version tracking for installation upgrades and CLI flag compatibility. Version is now stored as a `version` field in `.nori-config.json` rather than in a separate `.nori-installed-version` file. The `getInstalledVersion()` function is async and reads from the config file via `loadConfig()`, defaulting to "12.1.0" for backwards compatibility with existing installations that don't have a version field. The `getCurrentPackageVersion()` function reads the version from the nori-ai package.json by using `findPackageRoot()` to walk up from the current file's directory looking for a package.json with `name: "nori-ai"`. The function accepts an optional `startDir` parameter (defaults to `__dirname`) to control where the search begins, which is useful for testing.
 
 **Version Compatibility Checking:** The version.ts module provides CLI flag compatibility checking via `supportsAgentFlag({ version })` and `buildUninstallCommand({ installDir, agentName, installedVersion })`. The `--agent` flag was introduced in version 19.0.0 with multi-agent support. When the install command needs to clean up a previous installation, it calls the *installed* `nori-ai` binary (not the new version being installed). If the installed version is older than 19.0.0, passing `--agent` causes an "unknown option" error. The `buildUninstallCommand()` helper constructs the uninstall command string, conditionally including `--agent` only when the installed version supports it (>= 19.0.0). For older versions, omitting the flag is safe because the uninstall defaults to claude-code anyway. This pattern can be extended for future CLI flag compatibility issues.
 
 The logger.ts module provides console output formatting with ANSI color codes, powered by the Winston logging library. Standard logging functions (error, success, info, warn, debug) use colors.RED, colors.GREEN, colors.CYAN, colors.YELLOW respectively. Additional formatting helpers (brightCyan, boldWhite, gray) use formatColors for enhanced visual hierarchy in CLI output - these return strings with ANSI codes applied. The logger uses a custom ConsoleTransport for console output (using console.log/console.error for test spy compatibility) and Winston's File transport for persistent logging. All log output is appended to `/tmp/nori.log` for debugging. This consolidated log file replaces the previous split logging approach (which used `/tmp/nori-installer.log` for CLI and `{installDir}/.nori-notifications.log` for hooks).
 
-**Silent Mode:** The logger module provides `setSilentMode({ silent: boolean })` and `isSilentMode()` functions for controlling console output globally. When silent mode is enabled, all logging functions (error, success, info, warn) check `isSilentMode()` before outputting to console - if silent, they skip console output but still append to the log file. The `asciiArt.ts` display functions (displayNoriBanner, displayWelcomeBanner, displaySeaweedBed) also check `isSilentMode()` and return early without output. Silent mode is global state (module-level variable) that is set/restored in a `finally` block by the install command's `main()` function to prevent state leakage.
+**Silent Mode:** The logger module provides `setSilentMode({ silent: boolean })` and `isSilentMode()` functions for controlling console output globally. When silent mode is enabled via `consoleTransport.silent = true`, the custom ConsoleTransport skips all console output while Winston's File transport continues logging to `/tmp/nori.log`. The `newline()` and `raw()` functions also check the transport's silent property. Silent mode is set/restored in a `finally` block by the install command's `main()` function to prevent state leakage.
 
 The promptForProfileSelection function in install.ts uses these formatters to display profile options with brightCyan numbers, boldWhite names, and gray indented descriptions, separated by blank lines for improved scannability. The promptForCredentials function displays a wrapped prompt asking users to enter credentials or skip for free tier.
 
@@ -108,7 +107,33 @@ The `isLegacyPasswordConfig({ config })` helper identifies configs that have pas
 - `saveConfig()` writes both `agents` and legacy `profile` (for claude-code) to maintain compatibility with older versions
 - `getAgentProfile({ config, agentName })` retrieves the profile for a specific agent, falling back to legacy `profile` for claude-code
 
+**Profile Lookup Pattern (CRITICAL):** Code that needs to read a profile MUST use `getAgentProfile({ config, agentName })` - never read `config.profile` directly. The function implements the correct lookup order:
+1. First check `config.agents[agentName].profile` (agent-specific)
+2. Fall back to `config.profile` (legacy field, only for claude-code)
+3. Return null if neither exists
+
+Direct access to `config.profile` is incorrect because it bypasses agent-specific profiles. This caused a bug where switch-profile would fail for non-claude-code agents (the top-level `profile` field is only written for claude-code by `saveConfig()` for backwards compatibility).
+
 The getConfigPath() function requires { installDir: string } and returns `<installDir>/.nori-config.json`. All config operations (loadConfig, saveConfig, validateConfig) require installDir as a parameter, ensuring consistent path resolution throughout the codebase. The `loadConfig()` function validates auth by checking for either refreshToken OR password (plus username and organizationUrl). The `saveConfig()` function prefers refreshToken over password - if both are provided, only refreshToken is saved. User preference fields (sendSessionTranscript, autoupdate) use the 'enabled' | 'disabled' type. The `sendSessionTranscript` field defaults to 'enabled' when not present. The `autoupdate` field defaults to 'disabled' when not present, requiring users to explicitly opt-in to automatic updates. These fields are loaded by loadConfig() with default fallback, persisted by saveConfig() when provided, and validated by the JSON schema. The config.ts module is used by both the installer (for managing installation settings) and hooks (for reading user preferences like session transcript opt-out or autoupdate disable).
+
+**JSON Schema Validation Architecture:** The config.ts module uses JSON schema (via Ajv with ajv-formats) as the single source of truth for configuration validation. The schema defines:
+- Field types and allowed values (enum constraints for sendSessionTranscript/autoupdate)
+- Default values (sendSessionTranscript: "enabled", autoupdate: "disabled")
+- URI format validation for organizationUrl
+- Object structure for nested types (profile, agents, registryAuths)
+- `additionalProperties: false` to strip unknown fields
+
+The Ajv instance is configured with `useDefaults: true` (applies default values), `removeAdditional: true` (strips unknown properties), and ajv-formats for URI validation. A single compiled validator (`validateConfigSchema`) is used by both `loadConfig()` and `validateConfig()`.
+
+**loadConfig() Validation Flow:**
+1. Read and parse JSON from disk
+2. Filter invalid registryAuths entries via `filterRegistryAuths()` (warns if entries are filtered)
+3. Deep clone the config to avoid mutation during validation
+4. Run JSON schema validation (applies defaults, strips unknown properties)
+5. Transform validated data into the `Config` type with proper null handling
+6. Return null if schema validation fails (e.g., invalid enum values)
+
+The `RawDiskConfig` type represents the JSON structure on disk after schema validation but before transformation to `Config`. This intermediate type provides type safety for the transformation logic.
 
 **Registry Authentication:** The `registryAuths` field in Config is an array of `RegistryAuth` objects, each containing `username`, `password`, and `registryUrl`. This enables authentication for package registry operations like profile uploads. The `getRegistryAuth({ config, registryUrl })` helper function looks up credentials for a specific registry URL with trailing slash normalization. Registry auth is separate from the main Nori backend auth (`auth` field) - they use different Firebase projects and serve different purposes (registry operations vs. backend API access). The loadConfig() function validates registryAuths entries, filtering out any with missing required fields.
 

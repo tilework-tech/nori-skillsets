@@ -50,7 +50,12 @@ describe("claudeMdLoader", () => {
 
     // Run profiles loader to populate ~/.claude/profiles/ directory with composed profiles
     // This is required since feature loaders now read from ~/.claude/profiles/
-    const config: Config = { installDir: tempDir };
+    const config: Config = {
+      installDir: tempDir,
+      agents: {
+        "claude-code": { profile: { baseProfile: "senior-swe" } },
+      },
+    };
     await profilesLoader.run({ config });
   });
 
@@ -64,7 +69,12 @@ describe("claudeMdLoader", () => {
 
   describe("run", () => {
     it("should create CLAUDE.md with managed block for free installation", async () => {
-      const config: Config = { installDir: tempDir };
+      const config: Config = {
+        installDir: tempDir,
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
+      };
 
       await claudeMdLoader.install({ config });
 
@@ -92,6 +102,9 @@ describe("claudeMdLoader", () => {
           password: "testpass",
           organizationUrl: "https://example.com",
         },
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
       };
 
       await claudeMdLoader.install({ config });
@@ -109,7 +122,12 @@ describe("claudeMdLoader", () => {
     });
 
     it("should append managed block to existing CLAUDE.md without destroying user content", async () => {
-      const config: Config = { installDir: tempDir };
+      const config: Config = {
+        installDir: tempDir,
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
+      };
 
       // Create existing CLAUDE.md with user content
       const userContent =
@@ -131,7 +149,12 @@ describe("claudeMdLoader", () => {
     });
 
     it("should update existing managed block without affecting user content", async () => {
-      const config: Config = { installDir: tempDir };
+      const config: Config = {
+        installDir: tempDir,
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
+      };
 
       // Create existing CLAUDE.md with managed block and user content
       const existingContent = `# User Content Before
@@ -208,7 +231,12 @@ More user instructions.
 
   describe("uninstall", () => {
     it("should remove managed block from CLAUDE.md", async () => {
-      const config: Config = { installDir: tempDir };
+      const config: Config = {
+        installDir: tempDir,
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
+      };
 
       // First install
       await claudeMdLoader.install({ config });
@@ -234,7 +262,12 @@ More user instructions.
     });
 
     it("should delete CLAUDE.md if empty after removing managed block", async () => {
-      const config: Config = { installDir: tempDir };
+      const config: Config = {
+        installDir: tempDir,
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
+      };
 
       // Install (creates CLAUDE.md with only managed block)
       await claudeMdLoader.install({ config });
@@ -252,7 +285,12 @@ More user instructions.
     });
 
     it("should handle missing CLAUDE.md gracefully", async () => {
-      const config: Config = { installDir: tempDir };
+      const config: Config = {
+        installDir: tempDir,
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
+      };
 
       // Uninstall without installing first (no CLAUDE.md exists)
       await expect(claudeMdLoader.uninstall({ config })).resolves.not.toThrow();
@@ -267,7 +305,12 @@ More user instructions.
     });
 
     it("should handle CLAUDE.md without managed block gracefully", async () => {
-      const config: Config = { installDir: tempDir };
+      const config: Config = {
+        installDir: tempDir,
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
+      };
 
       // Create CLAUDE.md without managed block
       const userContent = "# User Instructions\n\nNo nori content here.\n";
@@ -328,7 +371,12 @@ More user instructions.
     });
 
     it("should use default profile (senior-swe) when no profile specified", async () => {
-      const config: Config = { installDir: tempDir };
+      const config: Config = {
+        installDir: tempDir,
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
+      };
 
       await claudeMdLoader.install({ config });
 

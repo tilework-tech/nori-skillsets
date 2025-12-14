@@ -1226,3 +1226,130 @@ describe("token-based auth", () => {
     });
   });
 });
+
+describe("schema validation", () => {
+  let tempDir: string;
+  let mockConfigPath: string;
+
+  beforeEach(async () => {
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "config-schema-test-"));
+    mockConfigPath = path.join(tempDir, ".nori-config.json");
+  });
+
+  afterEach(async () => {
+    await fs.rm(tempDir, { recursive: true, force: true });
+  });
+
+  describe("enum validation", () => {
+    it("should reject config with invalid sendSessionTranscript value", async () => {
+      await fs.writeFile(
+        mockConfigPath,
+        JSON.stringify({
+          sendSessionTranscript: "invalid-value",
+          profile: { baseProfile: "senior-swe" },
+        }),
+      );
+
+      const loaded = await loadConfig({ installDir: tempDir });
+
+      // Invalid enum value should cause config to be rejected
+      expect(loaded).toBeNull();
+    });
+
+    it("should reject config with invalid autoupdate value", async () => {
+      await fs.writeFile(
+        mockConfigPath,
+        JSON.stringify({
+          autoupdate: "maybe",
+          profile: { baseProfile: "senior-swe" },
+        }),
+      );
+
+      const loaded = await loadConfig({ installDir: tempDir });
+
+      // Invalid enum value should cause config to be rejected
+      expect(loaded).toBeNull();
+    });
+  });
+
+  describe("URL format validation", () => {
+    it("should reject config with malformed organizationUrl", async () => {
+      const { validateConfig } = await import("./config.js");
+
+      await fs.writeFile(
+        mockConfigPath,
+        JSON.stringify({
+          username: "test@example.com",
+          password: "password123",
+          organizationUrl: "not-a-valid-url",
+        }),
+      );
+
+      const result = await validateConfig({ installDir: tempDir });
+
+      expect(result.valid).toBe(false);
+      expect(result.errors).toBeDefined();
+      expect(result.errors?.some((e) => e.includes("organizationUrl"))).toBe(
+        true,
+      );
+    });
+  });
+
+  describe("unknown properties", () => {
+    it("should strip unknown properties from loaded config", async () => {
+      await fs.writeFile(
+        mockConfigPath,
+        JSON.stringify({
+          profile: { baseProfile: "senior-swe" },
+          unknownField: "should be removed",
+          anotherUnknown: { nested: "value" },
+        }),
+      );
+
+      const loaded = await loadConfig({ installDir: tempDir });
+
+      expect(loaded).not.toBeNull();
+      expect(loaded?.profile?.baseProfile).toBe("senior-swe");
+      // Unknown properties should be stripped
+      expect((loaded as any).unknownField).toBeUndefined();
+      expect((loaded as any).anotherUnknown).toBeUndefined();
+    });
+  });
+
+  describe("registryAuths filtering warning", () => {
+    it("should warn when invalid registryAuths entries are filtered", async () => {
+      // Logger's warn uses console.log (not console.warn)
+      const logSpy = vi
+        .spyOn(console, "log")
+        .mockImplementation(() => undefined);
+
+      await fs.writeFile(
+        mockConfigPath,
+        JSON.stringify({
+          profile: { baseProfile: "senior-swe" },
+          registryAuths: [
+            {
+              username: "valid@example.com",
+              password: "validpass",
+              registryUrl: "https://valid.example.com",
+            },
+            {
+              // Missing password - invalid
+              username: "invalid@example.com",
+              registryUrl: "https://invalid.example.com",
+            },
+          ],
+        }),
+      );
+
+      const loaded = await loadConfig({ installDir: tempDir });
+
+      expect(loaded?.registryAuths).toHaveLength(1);
+      expect(logSpy).toHaveBeenCalledWith(
+        expect.stringContaining("registryAuths"),
+      );
+
+      logSpy.mockRestore();
+    });
+  });
+});

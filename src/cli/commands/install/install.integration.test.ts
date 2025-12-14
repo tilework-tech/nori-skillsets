@@ -9,6 +9,7 @@ import { runUninstall } from "@/cli/commands/uninstall/uninstall.js";
 import { getConfigPath } from "@/cli/config.js";
 import { getInstalledVersion } from "@/cli/version.js";
 
+import type * as versionModule from "@/cli/version.js";
 import type * as childProcess from "child_process";
 import type * as firebaseAuth from "firebase/auth";
 
@@ -79,11 +80,12 @@ vi.mock("@/cli/features/claude-code/paths.js", () => {
   };
 });
 
-// Mock env module for CLI_ROOT
-vi.mock("@/cli/env.js", () => {
-  const testRoot = "/tmp/install-integration-test-cli-root";
+// Mock getCurrentPackageVersion to return a controlled version for tests
+vi.mock("@/cli/version.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof versionModule>();
   return {
-    CLI_ROOT: testRoot,
+    ...actual,
+    getCurrentPackageVersion: vi.fn().mockReturnValue("13.0.0"),
   };
 });
 
@@ -120,7 +122,6 @@ describe("install integration test", () => {
   let originalCwd: () => string;
   let MARKER_FILE_PATH: string;
 
-  const TEST_CLI_ROOT = "/tmp/install-integration-test-cli-root";
   const TEST_CLAUDE_DIR = "/tmp/install-integration-test-claude";
 
   beforeEach(async () => {
@@ -145,22 +146,10 @@ describe("install integration test", () => {
       fs.unlinkSync(MARKER_FILE_PATH);
     } catch {}
 
-    // Create test directories
-    if (!fs.existsSync(TEST_CLI_ROOT)) {
-      fs.mkdirSync(TEST_CLI_ROOT, { recursive: true });
-    }
+    // Create test claude directory
     if (!fs.existsSync(TEST_CLAUDE_DIR)) {
       fs.mkdirSync(TEST_CLAUDE_DIR, { recursive: true });
     }
-
-    // Create mock package.json for getCurrentPackageVersion
-    fs.writeFileSync(
-      path.join(TEST_CLI_ROOT, "package.json"),
-      JSON.stringify({
-        name: "nori-ai",
-        version: "13.0.0",
-      }),
-    );
   });
 
   afterEach(async () => {
@@ -174,20 +163,21 @@ describe("install integration test", () => {
 
     // Clean up test directories
     try {
-      fs.rmSync(TEST_CLI_ROOT, { recursive: true, force: true });
-    } catch {}
-    try {
       fs.rmSync(TEST_CLAUDE_DIR, { recursive: true, force: true });
     } catch {}
   });
 
   it("should track version across installation upgrade flow", async () => {
     // STEP 1: Simulate existing installation at version 12.0.0
-    // Write config with old version
+    // Write config with old version and profile
     const CONFIG_PATH = getConfigPath({ installDir: tempDir });
     fs.writeFileSync(
       CONFIG_PATH,
-      JSON.stringify({ version: "12.0.0", installedAgents: ["claude-code"] }),
+      JSON.stringify({
+        version: "12.0.0",
+        installedAgents: ["claude-code"],
+        profile: { baseProfile: "senior-swe" },
+      }),
     );
     // Create a marker file that simulates something from the old installation
     fs.writeFileSync(MARKER_FILE_PATH, "installed by v12.0.0");
@@ -331,8 +321,12 @@ describe("install integration test", () => {
     } catch {}
     expect(fs.existsSync(CONFIG_PATH)).toBe(false);
 
-    // Run installation
-    await installMain({ nonInteractive: true, installDir: tempDir });
+    // Run installation with explicit profile (required for non-interactive without existing config)
+    await installMain({
+      nonInteractive: true,
+      installDir: tempDir,
+      profile: "senior-swe",
+    });
 
     // Verify uninstall was NOT called
     expect(uninstallCalled).toBe(false);
@@ -348,7 +342,11 @@ describe("install integration test", () => {
     const CONFIG_PATH = getConfigPath({ installDir: tempDir });
     fs.writeFileSync(
       CONFIG_PATH,
-      JSON.stringify({ version: "12.0.0", installedAgents: ["claude-code"] }),
+      JSON.stringify({
+        version: "12.0.0",
+        installedAgents: ["claude-code"],
+        profile: { baseProfile: "senior-swe" },
+      }),
     );
     fs.writeFileSync(MARKER_FILE_PATH, "installed by v12.0.0");
 
@@ -490,8 +488,12 @@ describe("install integration test", () => {
   it("should include agent in config after installation", async () => {
     const CONFIG_PATH = getConfigPath({ installDir: tempDir });
 
-    // STEP 1: Run installation in non-interactive mode
-    await installMain({ nonInteractive: true, installDir: tempDir });
+    // STEP 1: Run installation in non-interactive mode with explicit profile
+    await installMain({
+      nonInteractive: true,
+      installDir: tempDir,
+      profile: "senior-swe",
+    });
 
     // STEP 2: Verify agent is set in the config via agents object
     const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
@@ -606,8 +608,12 @@ describe("install integration test", () => {
   it("should include agents field with agent-specific profile in config after installation", async () => {
     const CONFIG_PATH = getConfigPath({ installDir: tempDir });
 
-    // STEP 1: Run installation in non-interactive mode (uses default profile senior-swe)
-    await installMain({ nonInteractive: true, installDir: tempDir });
+    // STEP 1: Run installation in non-interactive mode with explicit profile
+    await installMain({
+      nonInteractive: true,
+      installDir: tempDir,
+      profile: "senior-swe",
+    });
 
     // STEP 2: Verify agents field is set with agent-specific profile
     const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
@@ -621,6 +627,102 @@ describe("install integration test", () => {
 
     // Legacy profile field should also be set for backwards compatibility
     expect(config.profile).toEqual({ baseProfile: "senior-swe" });
+  });
+
+  it("should require --profile flag for non-interactive install without existing config", async () => {
+    const CONFIG_PATH = getConfigPath({ installDir: tempDir });
+
+    // Ensure no existing config
+    try {
+      fs.unlinkSync(CONFIG_PATH);
+    } catch {}
+    expect(fs.existsSync(CONFIG_PATH)).toBe(false);
+
+    // Mock process.exit to capture exit code
+    const processExitSpy = vi
+      .spyOn(process, "exit")
+      .mockImplementation((code?: string | number | null) => {
+        throw new Error(`process.exit(${code})`);
+      }) as any;
+
+    try {
+      // Run installation without --profile flag - should fail
+      await expect(
+        installMain({ nonInteractive: true, installDir: tempDir }),
+      ).rejects.toThrow("process.exit(1)");
+
+      // Verify no config was created
+      expect(fs.existsSync(CONFIG_PATH)).toBe(false);
+    } finally {
+      processExitSpy.mockRestore();
+    }
+  });
+
+  it("should succeed with --profile flag for non-interactive install without existing config", async () => {
+    const CONFIG_PATH = getConfigPath({ installDir: tempDir });
+
+    // Ensure no existing config
+    try {
+      fs.unlinkSync(CONFIG_PATH);
+    } catch {}
+    expect(fs.existsSync(CONFIG_PATH)).toBe(false);
+
+    // Run installation WITH --profile flag
+    await installMain({
+      nonInteractive: true,
+      installDir: tempDir,
+      profile: "senior-swe",
+    });
+
+    // Verify config was created with correct profile
+    expect(fs.existsSync(CONFIG_PATH)).toBe(true);
+    const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
+    expect(config.agents["claude-code"].profile).toEqual({
+      baseProfile: "senior-swe",
+    });
+  });
+
+  it("should preserve agent-specific profile in noninteractive mode (switch-profile scenario)", async () => {
+    const CONFIG_PATH = getConfigPath({ installDir: tempDir });
+
+    // STEP 1: Create config that simulates what happens after switch-profile:
+    // - agents.claude-code.profile is set to the NEW profile ("amol")
+    // - The top-level 'profile' field may be stale or absent (cursor-agent doesn't write it)
+    //
+    // This is the exact scenario that caused the bug: switch-profile sets the agent's
+    // profile but the top-level 'profile' field is not updated (for non-claude-code agents).
+    // Then noninteractive() was using existingConfig.profile ?? getDefaultProfile()
+    // which would return the default instead of the agent-specific profile.
+    fs.writeFileSync(
+      CONFIG_PATH,
+      JSON.stringify({
+        // Agent-specific profile is set correctly (this is what switch-profile sets)
+        // Using "amol" since it's a real profile that exists (not the default "senior-swe")
+        agents: {
+          "claude-code": { profile: { baseProfile: "amol" } },
+        },
+        // Top-level profile is ABSENT - this is the bug trigger
+        // (For cursor-agent, saveConfig doesn't write top-level profile)
+        installedAgents: ["claude-code"],
+        installDir: tempDir,
+      }),
+    );
+
+    // STEP 2: Run installation in non-interactive mode with skipUninstall
+    // This mimics what switch-profile does after setting the agent's profile
+    await installMain({
+      nonInteractive: true,
+      skipUninstall: true,
+      installDir: tempDir,
+    });
+
+    // STEP 3: Verify the agent-specific profile was preserved, NOT overwritten with default
+    const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
+
+    // BUG: Before the fix, this would be "senior-swe" (the default)
+    // because noninteractive() used existingConfig.profile ?? getDefaultProfile()
+    // which fell back to the default since top-level profile was absent
+    expect(config.agents["claude-code"].profile.baseProfile).toBe("amol");
   });
 
   it("should warn when ancestor directory has nori installation", async () => {
@@ -643,10 +745,11 @@ describe("install integration test", () => {
     };
 
     try {
-      // Run installation in the child directory
+      // Run installation in the child directory with explicit profile
       await installMain({
         nonInteractive: true,
         installDir: path.join(childDir, ".claude"),
+        profile: "senior-swe",
       });
 
       // Verify warning was displayed about ancestor installation

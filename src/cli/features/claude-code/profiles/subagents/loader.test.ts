@@ -51,7 +51,12 @@ describe("subagentsLoader", () => {
     // Install profiles first to set up composed profile structure
     // Run profiles loader to populate ~/.claude/profiles/ directory
     // This is required since feature loaders now read from ~/.claude/profiles/
-    const config: Config = { installDir: tempDir };
+    const config: Config = {
+      installDir: tempDir,
+      agents: {
+        "claude-code": { profile: { baseProfile: "senior-swe" } },
+      },
+    };
     await profilesLoader.run({ config });
   });
 
@@ -65,7 +70,12 @@ describe("subagentsLoader", () => {
 
   describe("run", () => {
     it("should create agents directory and copy subagent files for free installation", async () => {
-      const config: Config = { installDir: tempDir };
+      const config: Config = {
+        installDir: tempDir,
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
+      };
 
       await subagentsLoader.install({ config });
 
@@ -97,6 +107,9 @@ describe("subagentsLoader", () => {
           organizationUrl: "https://test.com",
         },
         installDir: tempDir,
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
       };
 
       // Recompose profiles with paid mixin
@@ -125,7 +138,12 @@ describe("subagentsLoader", () => {
     });
 
     it("should copy more subagents for paid than free installation", async () => {
-      const freeConfig: Config = { installDir: tempDir };
+      const freeConfig: Config = {
+        installDir: tempDir,
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
+      };
       const paidConfig: Config = {
         auth: {
           username: "test",
@@ -133,6 +151,9 @@ describe("subagentsLoader", () => {
           organizationUrl: "https://test.com",
         },
         installDir: tempDir,
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
       };
 
       // Free installation
@@ -155,7 +176,12 @@ describe("subagentsLoader", () => {
     });
 
     it("should handle reinstallation (update scenario)", async () => {
-      const config: Config = { installDir: tempDir };
+      const config: Config = {
+        installDir: tempDir,
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
+      };
 
       // First installation
       await subagentsLoader.install({ config });
@@ -173,7 +199,12 @@ describe("subagentsLoader", () => {
 
   describe("uninstall", () => {
     it("should remove subagent files for free installation", async () => {
-      const config: Config = { installDir: tempDir };
+      const config: Config = {
+        installDir: tempDir,
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
+      };
 
       // Install first
       await subagentsLoader.install({ config });
@@ -208,6 +239,9 @@ describe("subagentsLoader", () => {
           password: "testpass",
           organizationUrl: "https://example.com",
         },
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
       };
 
       // Install first
@@ -238,7 +272,12 @@ describe("subagentsLoader", () => {
     });
 
     it("should handle missing agents directory gracefully", async () => {
-      const config: Config = { installDir: tempDir };
+      const config: Config = {
+        installDir: tempDir,
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
+      };
 
       // Uninstall without installing first
       await expect(
@@ -249,7 +288,12 @@ describe("subagentsLoader", () => {
 
   describe("template substitution", () => {
     it("should substitute template placeholders in subagent files", async () => {
-      const config: Config = { installDir: tempDir };
+      const config: Config = {
+        installDir: tempDir,
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
+      };
 
       // Get a subagent file from the profile directory and add a template placeholder
       const profileSubagentsDir = path.join(

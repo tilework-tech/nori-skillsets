@@ -5,12 +5,7 @@
  */
 
 import { handshake } from "@/api/index.js";
-import {
-  loadConfig,
-  validateConfig,
-  getDefaultProfile,
-  isPaidInstall,
-} from "@/cli/config.js";
+import { loadConfig, validateConfig, isPaidInstall } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { error, success, info, newline, raw } from "@/cli/logger.js";
 import { getInstallDirs } from "@/utils/path.js";
@@ -95,12 +90,13 @@ export const checkMain = async (args?: {
   }
   newline();
 
-  // Load config
-  const existingConfig = await loadConfig({ installDir });
-  const config = existingConfig ?? {
-    profile: getDefaultProfile(),
-    installDir,
-  };
+  // Load config - exit early if missing or corrupted
+  const config = await loadConfig({ installDir });
+  if (config == null) {
+    error({ message: "Configuration file is missing or corrupted" });
+    info({ message: "Run 'nori-ai install' to create a new configuration" });
+    process.exit(1);
+  }
 
   // Check server connectivity (paid mode only)
   if (isPaidInstall({ config })) {

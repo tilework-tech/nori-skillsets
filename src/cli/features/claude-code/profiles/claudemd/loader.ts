@@ -9,6 +9,7 @@ import { fileURLToPath } from "url";
 
 import { glob } from "glob";
 
+import { getAgentProfile, type Config } from "@/cli/config.js";
 import {
   getClaudeDir,
   getClaudeMdFile,
@@ -16,7 +17,6 @@ import {
 import { substituteTemplatePaths } from "@/cli/features/claude-code/template.js";
 import { success, info } from "@/cli/logger.js";
 
-import type { Config } from "@/cli/config.js";
 import type { ValidationResult } from "@/cli/features/agentRegistry.js";
 import type { ProfileLoader } from "@/cli/features/claude-code/profiles/profileLoaderRegistry.js";
 
@@ -261,8 +261,16 @@ const insertClaudeMd = async (args: { config: Config }): Promise<void> => {
 
   info({ message: "Configuring CLAUDE.md with coding task instructions..." });
 
-  // Get profile name from config (default to senior-swe)
-  const profileName = config.profile?.baseProfile || "senior-swe";
+  // Get profile name from config - error if not configured
+  const profileName = getAgentProfile({
+    config,
+    agentName: "claude-code",
+  })?.baseProfile;
+  if (profileName == null) {
+    throw new Error(
+      "No profile configured for claude-code. Run 'nori-ai install' to configure a profile.",
+    );
+  }
 
   // Get paths using installDir
   const claudeDir = getClaudeDir({ installDir: config.installDir });

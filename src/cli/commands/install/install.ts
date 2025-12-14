@@ -21,6 +21,7 @@ import { promptRegistryAuths } from "@/cli/commands/install/registryAuthPrompt.j
 import {
   loadConfig,
   getDefaultProfile,
+  getAgentProfile,
   isPaidInstall,
   getInstalledAgents,
   type Config,
@@ -116,9 +117,13 @@ export const generatePromptConfig = async (args: {
     info({
       message: `  Organization URL: ${existingConfig.auth.organizationUrl}`,
     });
-    if (existingConfig.profile) {
+    const existingProfile = getAgentProfile({
+      config: existingConfig,
+      agentName: agent.name,
+    });
+    if (existingProfile) {
       info({
-        message: `  Profile: ${existingConfig.profile.baseProfile}`,
+        message: `  Profile: ${existingProfile.baseProfile}`,
       });
     }
     newline();
@@ -129,7 +134,11 @@ export const generatePromptConfig = async (args: {
 
     if (useExisting.match(/^[Yy]$/)) {
       info({ message: "Using existing configuration..." });
-      const profile = existingConfig.profile ?? getDefaultProfile();
+      // Use agent-specific profile first, fall back to legacy top-level profile, then default
+      const profile =
+        getAgentProfile({ config: existingConfig, agentName: agent.name }) ??
+        existingConfig.profile ??
+        getDefaultProfile();
       return {
         ...existingConfig,
         profile,
@@ -468,19 +477,21 @@ export const interactive = async (args?: {
 
 /**
  * Non-interactive installation mode
- * Uses existing config or defaults, no prompting
+ * Uses existing config or requires explicit profile, no prompting
  *
  * @param args - Configuration arguments
  * @param args.skipUninstall - Whether to skip uninstall step
  * @param args.installDir - Installation directory (optional)
  * @param args.agent - AI agent to use (defaults to claude-code)
+ * @param args.profile - Profile to use (required if no existing config)
  */
 export const noninteractive = async (args?: {
   skipUninstall?: boolean | null;
   installDir?: string | null;
   agent?: string | null;
+  profile?: string | null;
 }): Promise<void> => {
-  const { skipUninstall, installDir, agent } = args || {};
+  const { skipUninstall, installDir, agent, profile } = args || {};
   const normalizedInstallDir = normalizeInstallDir({ installDir });
   const agentImpl = AgentRegistry.getInstance().get({
     name: agent ?? "claude-code",
@@ -578,20 +589,44 @@ export const noninteractive = async (args?: {
     info({ message: "First-time installation detected. No cleanup needed." });
   }
 
+  // Determine profile to use
+  // Priority: agent-specific profile > top-level profile > explicit --profile flag
+  const agentProfile = existingConfig?.agents?.[agentImpl.name]?.profile;
+  const profileToUse =
+    agentProfile ??
+    existingConfig?.profile ??
+    (profile ? { baseProfile: profile } : null);
+
+  // Require explicit --profile flag if no existing config with profile
+  if (profileToUse == null) {
+    error({
+      message:
+        "Non-interactive install requires --profile flag when no existing configuration",
+    });
+    info({
+      message: "Available profiles: senior-swe, amol, product-manager",
+    });
+    info({
+      message:
+        "Example: nori-ai install --non-interactive --profile senior-swe",
+    });
+    process.exit(1);
+  }
+
   const config: Config = existingConfig
     ? {
         ...existingConfig,
         agents: {
           ...(existingConfig.agents ?? {}),
           [agentImpl.name]: {
-            profile: existingConfig.profile ?? getDefaultProfile(),
+            profile: profileToUse,
           },
         },
       }
     : {
-        profile: getDefaultProfile(),
+        profile: profileToUse,
         agents: {
-          [agentImpl.name]: { profile: getDefaultProfile() },
+          [agentImpl.name]: { profile: profileToUse },
         },
         installDir: normalizedInstallDir,
       };
@@ -673,6 +708,7 @@ export const noninteractive = async (args?: {
  * @param args.installDir - Custom installation directory (optional)
  * @param args.agent - AI agent to use (defaults to claude-code)
  * @param args.silent - Whether to suppress all output (implies nonInteractive)
+ * @param args.profile - Profile to use for non-interactive install (required if no existing config)
  */
 export const main = async (args?: {
   nonInteractive?: boolean | null;
@@ -680,8 +716,9 @@ export const main = async (args?: {
   installDir?: string | null;
   agent?: string | null;
   silent?: boolean | null;
+  profile?: string | null;
 }): Promise<void> => {
-  const { nonInteractive, skipUninstall, installDir, agent, silent } =
+  const { nonInteractive, skipUninstall, installDir, agent, silent, profile } =
     args || {};
 
   // Save original console.log and suppress all output if silent mode requested
@@ -694,7 +731,7 @@ export const main = async (args?: {
   try {
     // Silent mode implies non-interactive
     if (nonInteractive || silent) {
-      await noninteractive({ skipUninstall, installDir, agent });
+      await noninteractive({ skipUninstall, installDir, agent, profile });
     } else {
       await interactive({ skipUninstall, installDir, agent });
     }
@@ -721,7 +758,11 @@ export const registerInstallCommand = (args: { program: Command }): void => {
   program
     .command("install")
     .description("Install Nori Profiles")
-    .action(async () => {
+    .option(
+      "-p, --profile <name>",
+      "Profile to install (required for non-interactive install without existing config)",
+    )
+    .action(async (options) => {
       // Get global options from parent
       const globalOpts = program.opts();
 
@@ -730,6 +771,7 @@ export const registerInstallCommand = (args: { program: Command }): void => {
         installDir: globalOpts.installDir || null,
         agent: globalOpts.agent || null,
         silent: globalOpts.silent || null,
+        profile: options.profile || null,
       });
     });
 };

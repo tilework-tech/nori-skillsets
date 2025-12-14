@@ -88,7 +88,7 @@ describe.sequential("build process", () => {
       // Note: We don't check install output - it's expected to succeed
       // The real validation happens with the check command below
       execSync(
-        `node build/src/cli/cli.js install --non-interactive --install-dir "${tempDir}"`,
+        `node build/src/cli/cli.js install --non-interactive --install-dir "${tempDir}" --profile senior-swe`,
         {
           cwd: pluginDir,
           encoding: "utf-8",
