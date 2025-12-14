@@ -29,6 +29,13 @@ vi.mock("@/cli/features/claude-code/paths.js", async (importOriginal) => {
   };
 });
 
+// Mock installMain to prevent real install execution in tests
+vi.mock("@/cli/commands/install/install.js", () => ({
+  main: vi.fn(async () => {
+    // Empty mock - just prevents real install execution
+  }),
+}));
+
 // Import after mocking
 import { noriSwitchProfile } from "./nori-switch-profile.js";
 
@@ -76,8 +83,16 @@ describe("nori-switch-profile", () => {
     await fs.writeFile(
       configPath,
       JSON.stringify({
+        version: "19.0.0",
         profile: {
           baseProfile: "senior-swe",
+        },
+        agents: {
+          "claude-code": {
+            profile: {
+              baseProfile: "senior-swe",
+            },
+          },
         },
       }),
     );

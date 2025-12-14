@@ -8,11 +8,19 @@ import * as path from "path";
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
+import { main as installMain } from "@/cli/commands/install/install.js";
 import { stripAnsi } from "@/cli/features/test-utils/index.js";
 
 import type { HookInput } from "./types.js";
 
 import { noriSwitchProfile } from "./nori-switch-profile.js";
+
+// Mock installMain to prevent real install execution in tests
+vi.mock("@/cli/commands/install/install.js", () => ({
+  main: vi.fn(async () => {
+    // Empty mock - just prevents real install execution
+  }),
+}));
 
 describe("cursor-agent nori-switch-profile", () => {
   let testDir: string;
@@ -53,6 +61,7 @@ describe("cursor-agent nori-switch-profile", () => {
     await fs.writeFile(
       configPath,
       JSON.stringify({
+        version: "19.0.0",
         agents: {
           "cursor-agent": {
             profile: {
@@ -217,49 +226,25 @@ describe("cursor-agent nori-switch-profile", () => {
 
   describe("profile application", () => {
     it("should run install loaders after switching profile to apply changes", async () => {
-      // Track if installMain was called with cursor-agent
-      let installMainCalled = false;
-      let installMainArgs: {
-        nonInteractive?: boolean | null;
-        skipUninstall?: boolean | null;
-        installDir?: string | null;
-        agent?: string | null;
-        silent?: boolean | null;
-      } | null = null;
-
-      // Mock the install module
-      vi.doMock("@/cli/commands/install/install.js", () => ({
-        main: vi.fn(async (args) => {
-          installMainCalled = true;
-          installMainArgs = args;
-        }),
-      }));
-
-      // Re-import the module to pick up the mock
-      vi.resetModules();
-      const { noriSwitchProfile: mockedNoriSwitchProfile } =
-        await import("./nori-switch-profile.js");
+      // Clear any previous calls
+      vi.mocked(installMain).mockClear();
 
       const input = createInput({ prompt: "/nori-switch-profile amol" });
-      const result = await mockedNoriSwitchProfile.run({ input });
+      const result = await noriSwitchProfile.run({ input });
 
       expect(result).not.toBeNull();
       expect(result!.decision).toBe("block");
 
       // Verify install main was called with cursor-agent (not claude-code)
-      expect(installMainCalled).toBe(true);
-      expect(installMainArgs).not.toBeNull();
-      expect(installMainArgs!.nonInteractive).toBe(true);
-      expect(installMainArgs!.skipUninstall).toBe(true);
-      expect(installMainArgs!.installDir).toBe(testDir);
-      expect(installMainArgs!.agent).toBe("cursor-agent");
+      expect(installMain).toHaveBeenCalledTimes(1);
+      const callArgs = vi.mocked(installMain).mock.calls[0][0];
+      expect(callArgs?.nonInteractive).toBe(true);
+      expect(callArgs?.skipUninstall).toBe(true);
+      expect(callArgs?.installDir).toBe(testDir);
+      expect(callArgs?.agent).toBe("cursor-agent");
       // CRITICAL: Install must be silent to prevent stdout pollution
       // during hook execution (JSON response corruption)
-      expect(installMainArgs!.silent).toBe(true);
-
-      // Restore mocks
-      vi.doUnmock("@/cli/commands/install/install.js");
-      vi.resetModules();
+      expect(callArgs?.silent).toBe(true);
     });
   });
 });

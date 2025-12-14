@@ -234,10 +234,12 @@ describe("cursorAgent", () => {
 
       const updatedConfig = JSON.parse(await fs.readFile(configPath, "utf-8"));
 
-      // Verify other fields preserved
-      expect(updatedConfig.username).toBe("test@example.com");
-      expect(updatedConfig.password).toBe("secret");
-      expect(updatedConfig.organizationUrl).toBe("https://org.example.com");
+      // Verify other fields preserved (auth is now in nested format after save)
+      expect(updatedConfig.auth.username).toBe("test@example.com");
+      expect(updatedConfig.auth.password).toBe("secret");
+      expect(updatedConfig.auth.organizationUrl).toBe(
+        "https://org.example.com",
+      );
 
       // Verify claude-code agent config preserved
       expect(updatedConfig.agents?.["claude-code"]?.profile?.baseProfile).toBe(

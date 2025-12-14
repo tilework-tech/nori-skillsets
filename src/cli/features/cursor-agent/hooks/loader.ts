@@ -81,15 +81,6 @@ const getNestedInstallWarningScriptPath = (): string => {
 };
 
 /**
- * Get the migration-instructions hook script path
- *
- * @returns Path to the migration-instructions.js script
- */
-const getMigrationInstructionsScriptPath = (): string => {
-  return path.join(HOOKS_CONFIG_DIR, "migration-instructions.js");
-};
-
-/**
  * Check if a hook command is a nori notify hook
  *
  * @param args - Arguments
@@ -157,21 +148,6 @@ const isNoriNestedInstallWarningHook = (args: { command: string }): boolean => {
 };
 
 /**
- * Check if a hook command is a nori migration-instructions hook
- *
- * @param args - Arguments
- * @param args.command - Hook command string
- *
- * @returns True if the command is a nori migration-instructions hook
- */
-const isNoriMigrationInstructionsHook = (args: {
-  command: string;
-}): boolean => {
-  const { command } = args;
-  return command.includes("migration-instructions.js");
-};
-
-/**
  * Configure hooks for Cursor IDE
  *
  * @param args - Configuration arguments
@@ -211,7 +187,6 @@ const configureHooks = async (args: { config: Config }): Promise<void> => {
   const cursorChatExportScriptPath = getCursorChatExportScriptPath();
   const autoupdateScriptPath = getAutoupdateScriptPath();
   const nestedInstallWarningScriptPath = getNestedInstallWarningScriptPath();
-  const migrationInstructionsScriptPath = getMigrationInstructionsScriptPath();
 
   // === Configure stop hooks (desktop notifications) ===
   if (!hooksConfig.hooks.stop) {
@@ -286,17 +261,6 @@ const configureHooks = async (args: { config: Config }): Promise<void> => {
     });
   }
 
-  // Check if migration-instructions hook already exists (avoid duplicates)
-  const hasExistingMigrationHook = hooksConfig.hooks.beforeSubmitPrompt.some(
-    (hook) => isNoriMigrationInstructionsHook({ command: hook.command }),
-  );
-
-  if (!hasExistingMigrationHook) {
-    hooksConfig.hooks.beforeSubmitPrompt.push({
-      command: `NORI_INSTALL_DIR="${config.installDir}" node ${migrationInstructionsScriptPath}`,
-    });
-  }
-
   // Write hooks.json
   await fs.writeFile(hooksFile, JSON.stringify(hooksConfig, null, 2));
   success({ message: `✓ Hooks configured in ${hooksFile}` });
@@ -309,7 +273,7 @@ const configureHooks = async (args: { config: Config }): Promise<void> => {
   });
   info({
     message:
-      "SessionStart hooks (autoupdate, warnings, migrations) enabled on first prompt",
+      "SessionStart hooks (autoupdate, warnings) enabled on first prompt",
   });
 };
 
@@ -358,8 +322,7 @@ const removeHooks = async (args: { config: Config }): Promise<void> => {
           (hook) =>
             !isNoriSlashCommandInterceptHook({ command: hook.command }) &&
             !isNoriAutoupdateHook({ command: hook.command }) &&
-            !isNoriNestedInstallWarningHook({ command: hook.command }) &&
-            !isNoriMigrationInstructionsHook({ command: hook.command }),
+            !isNoriNestedInstallWarningHook({ command: hook.command }),
         );
 
       if (hooksConfig.hooks.beforeSubmitPrompt.length !== originalLength) {

@@ -27,6 +27,7 @@ import {
   type Config,
 } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
+import { migrate } from "@/cli/features/migration.js";
 import {
   error,
   success,
@@ -44,7 +45,6 @@ import { promptUser } from "@/cli/prompt.js";
 import {
   buildUninstallCommand,
   getCurrentPackageVersion,
-  getInstalledVersion,
 } from "@/cli/version.js";
 import { normalizeInstallDir, getInstallDirs } from "@/utils/path.js";
 
@@ -86,6 +86,47 @@ const getAvailableProfiles = async (args: {
   }
 
   return Array.from(profilesMap.values());
+};
+
+/**
+ * Load existing config and run migrations if needed
+ *
+ * @param args - Configuration arguments
+ * @param args.installDir - Installation directory
+ *
+ * @throws Error if config exists but has no version field
+ *
+ * @returns Migrated config, or null if no existing config
+ */
+const loadAndMigrateConfig = async (args: {
+  installDir: string;
+}): Promise<Config | null> => {
+  const { installDir } = args;
+
+  // Load existing config
+  const existingConfig = await loadConfig({ installDir });
+
+  // If no config, this is a first-time install - skip migration
+  if (existingConfig == null) {
+    return null;
+  }
+
+  // If config exists but has no version, fail
+  // This catches very old installs that need manual intervention
+  if (existingConfig.version == null) {
+    throw new Error(
+      "Existing config has no version field. Please run 'nori-ai uninstall' first, then reinstall.",
+    );
+  }
+
+  // Run migrations
+  const migratedConfig = await migrate({
+    previousVersion: existingConfig.version,
+    config: existingConfig as unknown as Record<string, unknown>,
+    installDir,
+  });
+
+  return migratedConfig;
 };
 
 /**
@@ -338,13 +379,12 @@ export const interactive = async (args?: {
 
   // Handle existing installation cleanup
   // Only uninstall if THIS SPECIFIC agent is already installed
-  const existingConfig = await loadConfig({
+  // Load config and run any necessary migrations
+  const existingConfig = await loadAndMigrateConfig({
     installDir: normalizedInstallDir,
   });
-  // Get version from config (async getInstalledVersion reads from config)
-  const previousVersion = await getInstalledVersion({
-    installDir: normalizedInstallDir,
-  });
+  // Get version from config (after migration, version should be current)
+  const previousVersion = existingConfig?.version ?? null;
 
   // Determine which agents are installed using agents object keys
   // For backwards compatibility: if no agents but existing installation exists,
@@ -360,7 +400,7 @@ export const interactive = async (args?: {
   }
   const agentAlreadyInstalled = installedAgents.includes(agentImpl.name);
 
-  if (!skipUninstall && agentAlreadyInstalled) {
+  if (!skipUninstall && agentAlreadyInstalled && previousVersion != null) {
     info({
       message: `Cleaning up previous installation (v${previousVersion})...`,
     });
@@ -538,13 +578,12 @@ export const noninteractive = async (args?: {
 
   // Handle existing installation cleanup
   // Only uninstall if THIS SPECIFIC agent is already installed
-  const existingConfig = await loadConfig({
+  // Load config and run any necessary migrations
+  const existingConfig = await loadAndMigrateConfig({
     installDir: normalizedInstallDir,
   });
-  // Get version from config (async getInstalledVersion reads from config)
-  const previousVersion = await getInstalledVersion({
-    installDir: normalizedInstallDir,
-  });
+  // Get version from config (after migration, version should be current)
+  const previousVersion = existingConfig?.version ?? null;
 
   // Determine which agents are installed using agents object keys
   // For backwards compatibility: if no agents but existing installation exists,
@@ -560,7 +599,7 @@ export const noninteractive = async (args?: {
   }
   const agentAlreadyInstalled = installedAgents.includes(agentImpl.name);
 
-  if (!skipUninstall && agentAlreadyInstalled) {
+  if (!skipUninstall && agentAlreadyInstalled && previousVersion != null) {
     info({
       message: `Cleaning up previous installation (v${previousVersion})...`,
     });

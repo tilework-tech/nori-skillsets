@@ -1110,7 +1110,7 @@ describe("token-based auth", () => {
   });
 
   describe("saveConfig with refreshToken", () => {
-    it("should save refreshToken instead of password", async () => {
+    it("should save refreshToken in nested auth structure", async () => {
       await saveConfig({
         username: "test@example.com",
         password: null,
@@ -1122,9 +1122,10 @@ describe("token-based auth", () => {
       const content = await fs.readFile(mockConfigPath, "utf-8");
       const config = JSON.parse(content);
 
-      expect(config.refreshToken).toBe("firebase-refresh-token-123");
-      expect(config.username).toBe("test@example.com");
-      expect(config.password).toBeUndefined();
+      // Auth should be nested structure
+      expect(config.auth.refreshToken).toBe("firebase-refresh-token-123");
+      expect(config.auth.username).toBe("test@example.com");
+      expect(config.auth.password).toBeNull();
     });
 
     it("should not save password when refreshToken is provided", async () => {
@@ -1139,8 +1140,9 @@ describe("token-based auth", () => {
       const content = await fs.readFile(mockConfigPath, "utf-8");
       const config = JSON.parse(content);
 
-      expect(config.refreshToken).toBe("firebase-refresh-token-123");
-      expect(config.password).toBeUndefined();
+      // Nested auth should have refreshToken but password should be null
+      expect(config.auth.refreshToken).toBe("firebase-refresh-token-123");
+      expect(config.auth.password).toBeNull();
     });
   });
 

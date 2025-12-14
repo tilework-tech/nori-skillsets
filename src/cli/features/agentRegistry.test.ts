@@ -411,11 +411,13 @@ describe("AgentRegistry", () => {
         profileName: "new-profile",
       });
 
-      // Verify all fields preserved
+      // Verify all fields preserved (auth is now in nested format after save)
       const updatedConfig = JSON.parse(await fs.readFile(configPath, "utf-8"));
-      expect(updatedConfig.username).toBe("test@example.com");
-      expect(updatedConfig.password).toBe("secret");
-      expect(updatedConfig.organizationUrl).toBe("https://org.example.com");
+      expect(updatedConfig.auth.username).toBe("test@example.com");
+      expect(updatedConfig.auth.password).toBe("secret");
+      expect(updatedConfig.auth.organizationUrl).toBe(
+        "https://org.example.com",
+      );
       expect(updatedConfig.sendSessionTranscript).toBe("enabled");
       expect(updatedConfig.registryAuths).toEqual([
         {

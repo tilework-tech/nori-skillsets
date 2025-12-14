@@ -66,12 +66,22 @@ export type Config = {
 /**
  * Raw disk config type - represents the JSON structure on disk before transformation
  * This is what JSON schema validates against
+ * Includes both legacy flat format (username/password at root) and new nested format (auth: {...})
  */
 type RawDiskConfig = {
+  // Legacy flat format (pre-v19.0.0)
   username?: string | null;
   password?: string | null;
   refreshToken?: string | null;
   organizationUrl?: string | null;
+  // New nested format (v19.0.0+)
+  auth?: {
+    username?: string | null;
+    password?: string | null;
+    refreshToken?: string | null;
+    organizationUrl?: string | null;
+  } | null;
+  // Common fields
   sendSessionTranscript?: "enabled" | "disabled" | null;
   autoupdate?: "enabled" | "disabled" | null;
   profile?: { baseProfile?: string | null } | null;
@@ -294,12 +304,25 @@ export const loadConfig = async (args: {
       version: validated.version,
     };
 
-    // Build auth if we have username + organizationUrl + (refreshToken or password)
+    // Build auth - handle both nested format (v19+) and flat format (legacy)
     if (
+      validated.auth != null &&
+      validated.auth.username != null &&
+      validated.auth.organizationUrl != null
+    ) {
+      // New nested format: auth: { username, organizationUrl, refreshToken, password }
+      result.auth = {
+        username: validated.auth.username,
+        organizationUrl: validated.auth.organizationUrl,
+        refreshToken: validated.auth.refreshToken ?? null,
+        password: validated.auth.password ?? null,
+      };
+    } else if (
       validated.username != null &&
       validated.organizationUrl != null &&
       (validated.refreshToken != null || validated.password != null)
     ) {
+      // Legacy flat format: username, organizationUrl, refreshToken, password at top level
       result.auth = {
         username: validated.username,
         organizationUrl: validated.organizationUrl,
@@ -381,23 +404,20 @@ export const saveConfig = async (args: {
 
   const config: any = {};
 
-  // Add auth credentials if provided
+  // Add auth credentials in nested format if provided
   // Prefer refreshToken over password (token-based auth is more secure)
   if (username != null && organizationUrl != null) {
     // Normalize organization URL to remove trailing slashes
     const normalizedUrl = normalizeUrl({ baseUrl: organizationUrl });
 
-    config.username = username;
-    config.organizationUrl = normalizedUrl;
-
-    // If refreshToken is provided, use it and don't store password
-    if (refreshToken != null) {
-      config.refreshToken = refreshToken;
-      // Explicitly do NOT save password when refreshToken is present
-    } else if (password != null) {
-      // Legacy: only save password if no refreshToken
-      config.password = password;
-    }
+    config.auth = {
+      username,
+      organizationUrl: normalizedUrl,
+      // If refreshToken is provided, use it and don't store password
+      refreshToken: refreshToken ?? null,
+      // Only save password if no refreshToken (legacy support)
+      password: refreshToken != null ? null : (password ?? null),
+    };
   }
 
   // Add agents if provided (new multi-agent format)
@@ -453,6 +473,18 @@ export type ConfigValidationResult = {
 const configSchema = {
   type: "object",
   properties: {
+    // New nested auth format (v19+)
+    auth: {
+      type: ["object", "null"],
+      properties: {
+        username: { type: "string" },
+        password: { type: ["string", "null"] },
+        refreshToken: { type: ["string", "null"] },
+        organizationUrl: { type: "string", format: "uri" },
+      },
+      required: ["username", "organizationUrl"],
+    },
+    // Legacy flat auth fields (deprecated, kept for backwards compatibility)
     username: { type: "string" },
     password: { type: "string" },
     refreshToken: { type: "string" },

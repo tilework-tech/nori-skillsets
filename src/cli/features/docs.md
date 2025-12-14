@@ -68,6 +68,14 @@ The `--agent` global CLI option (default: "claude-code") determines which agent 
 - During install: Merges `agents` objects from existing and new config, saves current package version in the `version` field. Preserves existing agent profiles (ensures per-agent profiles set by `switchProfile` survive reinstallation)
 - During uninstall: Removes the uninstalled agent from the `agents` object. If no agents remain, deletes `.nori-config.json`. If agents remain, updates config with remaining agents and preserves the file (including the `version` field)
 
+**Migration System** (migration.ts):
+- Versioned migration system for transforming config between formats during installation
+- The `migrate()` function applies all migrations newer than `previousVersion` in semver order
+- Migrations are defined as `Migration` objects with `version`, `name`, and `migrate()` function
+- The `migrate()` function throws if `previousVersion` is null/empty/invalid - configs without a version field require manual intervention
+- Current migrations:
+  - **v19.0.0 (consolidate-auth-structure)**: Transforms flat auth fields (username/password/refreshToken/organizationUrl at root) into nested `auth: {...}` structure. Removes flat fields regardless of migration outcome to clean up partial data.
+
 ### Things to Know
 
 **`AgentName` is the canonical UID for agents.** The `AgentName` type (`"claude-code" | "cursor-agent"`) is the source of truth for valid agent identifiers. `Agent.name` is typed as `AgentName`, which ensures type safety. CLI entry points parse the `--agent` option string, look up the `Agent` object once via `AgentRegistry.get({ name })`, then pass the `Agent` object around. Functions that need the agent identifier access `agent.name` rather than receiving a separate string parameter. This pattern makes it impossible for the agent name and agent object to get out of sync.

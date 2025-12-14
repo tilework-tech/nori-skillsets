@@ -156,30 +156,6 @@ const nestedInstallWarningHook: HookInterface = {
 };
 
 /**
- * Migration instructions hook - warns about pending migrations
- */
-const migrationInstructionsHook: HookInterface = {
-  name: "migration-instructions",
-  description: "Check for pending migrations on session start",
-  install: async () => {
-    const scriptPath = path.join(HOOKS_CONFIG_DIR, "migration-instructions.js");
-    return [
-      {
-        event: "SessionStart",
-        matcher: "startup",
-        hooks: [
-          {
-            type: "command",
-            command: `node ${scriptPath}`,
-            description: "Check for pending migrations on session start",
-          },
-        ],
-      },
-    ];
-  },
-};
-
-/**
  * Notification hook - sends desktop notifications
  */
 const notifyHook: HookInterface = {
@@ -346,7 +322,6 @@ const configurePaidHooks = async (args: { config: Config }): Promise<void> => {
     statisticsHook,
     autoupdateHook,
     nestedInstallWarningHook,
-    migrationInstructionsHook,
     notifyHook,
     slashCommandInterceptHook,
     commitAuthorHook,
@@ -424,7 +399,6 @@ const configureFreeHooks = async (args: { config: Config }): Promise<void> => {
     statisticsHook,
     autoupdateHook,
     nestedInstallWarningHook,
-    migrationInstructionsHook,
     notifyHook,
     slashCommandInterceptHook,
     commitAuthorHook,

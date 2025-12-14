@@ -326,10 +326,10 @@ describe("configLoader", () => {
       const configFile = getConfigPath({ installDir: tempDir });
       const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
 
-      // Should have refreshToken, not password
-      expect(fileContents.refreshToken).toBe("mock-refresh-token");
-      expect(fileContents.password).toBeUndefined();
-      expect(fileContents.username).toBe("test@example.com");
+      // Should have refreshToken in nested auth, not password
+      expect(fileContents.auth.refreshToken).toBe("mock-refresh-token");
+      expect(fileContents.auth.password).toBeNull();
+      expect(fileContents.auth.username).toBe("test@example.com");
     });
 
     it("should use existing refresh token when provided instead of password", async () => {
@@ -348,9 +348,9 @@ describe("configLoader", () => {
       const configFile = getConfigPath({ installDir: tempDir });
       const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
 
-      // Should preserve existing refreshToken
-      expect(fileContents.refreshToken).toBe("existing-refresh-token");
-      expect(fileContents.password).toBeUndefined();
+      // Should preserve existing refreshToken in nested auth
+      expect(fileContents.auth.refreshToken).toBe("existing-refresh-token");
+      expect(fileContents.auth.password).toBeNull();
     });
   });
 

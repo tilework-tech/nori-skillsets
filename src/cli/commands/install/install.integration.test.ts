@@ -222,6 +222,7 @@ describe("install integration test", () => {
 
     // STEP 1: Create config with auth credentials (paid user)
     const paidConfig = {
+      version: "18.0.0",
       username: "test@example.com",
       password: "testpass",
       organizationUrl: "http://localhost:3000",
@@ -271,6 +272,7 @@ describe("install integration test", () => {
 
     // STEP 1: Create config WITHOUT auth credentials (free user)
     const freeConfig = {
+      version: "19.0.0",
       profile: {
         baseProfile: "senior-swe",
       },
@@ -402,6 +404,7 @@ describe("install integration test", () => {
 
     // STEP 2: Install with paid config to get all features
     const paidConfig = {
+      version: "18.0.0",
       username: "test@example.com",
       password: "testpass",
       organizationUrl: "http://localhost:3000",
@@ -507,6 +510,7 @@ describe("install integration test", () => {
     fs.writeFileSync(
       CONFIG_PATH,
       JSON.stringify({
+        version: "19.0.0",
         profile: { baseProfile: "senior-swe" },
         agents: {
           "cursor-agent": { profile: { baseProfile: "senior-swe" } },
@@ -696,6 +700,7 @@ describe("install integration test", () => {
     fs.writeFileSync(
       CONFIG_PATH,
       JSON.stringify({
+        version: "19.0.0",
         // Agent-specific profile is set correctly (this is what switch-profile sets)
         // Using "amol" since it's a real profile that exists (not the default "senior-swe")
         agents: {
@@ -785,5 +790,107 @@ describe("install integration test", () => {
       // Restore console
       console.log = originalConsoleLog;
     }
+  });
+
+  describe("config migration during install", () => {
+    it("should migrate old flat auth config to nested auth structure", async () => {
+      const CONFIG_PATH = getConfigPath({ installDir: tempDir });
+
+      // STEP 1: Create old-format config with flat auth fields (pre-19.0.0)
+      fs.writeFileSync(
+        CONFIG_PATH,
+        JSON.stringify({
+          version: "18.3.1",
+          username: "test@example.com",
+          password: "password123",
+          organizationUrl: "https://example.com",
+          profile: { baseProfile: "senior-swe" },
+          agents: {
+            "claude-code": { profile: { baseProfile: "senior-swe" } },
+          },
+        }),
+      );
+
+      // STEP 2: Run installation (triggers migration)
+      await installMain({
+        nonInteractive: true,
+        installDir: tempDir,
+      });
+
+      // STEP 3: Verify config was migrated to nested auth format
+      const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
+
+      // Auth should be nested
+      // Note: Password gets exchanged for refresh token during install (Firebase auth)
+      expect(config.auth).toEqual({
+        username: "test@example.com",
+        password: null,
+        organizationUrl: "https://example.com",
+        refreshToken: "mock-refresh-token",
+      });
+
+      // Flat auth fields should be removed
+      expect(config.username).toBeUndefined();
+      expect(config.password).toBeUndefined();
+      expect(config.organizationUrl).toBeUndefined();
+
+      // Other fields should be preserved
+      expect(config.profile).toEqual({ baseProfile: "senior-swe" });
+    });
+
+    it("should fail install if config exists but has no version field", async () => {
+      const CONFIG_PATH = getConfigPath({ installDir: tempDir });
+
+      // Create config WITHOUT version field (simulates very old install)
+      fs.writeFileSync(
+        CONFIG_PATH,
+        JSON.stringify({
+          profile: { baseProfile: "senior-swe" },
+          agents: {
+            "claude-code": { profile: { baseProfile: "senior-swe" } },
+          },
+        }),
+      );
+
+      // Mock process.exit to capture exit code
+      const processExitSpy = vi
+        .spyOn(process, "exit")
+        .mockImplementation((code?: string | number | null) => {
+          throw new Error(`process.exit(${code})`);
+        }) as any;
+
+      try {
+        // Run installation - should fail due to missing version
+        await expect(
+          installMain({ nonInteractive: true, installDir: tempDir }),
+        ).rejects.toThrow();
+      } finally {
+        processExitSpy.mockRestore();
+      }
+    });
+
+    it("should skip migration for first-time install (no existing config)", async () => {
+      const CONFIG_PATH = getConfigPath({ installDir: tempDir });
+
+      // Ensure no existing config
+      try {
+        fs.unlinkSync(CONFIG_PATH);
+      } catch {}
+      expect(fs.existsSync(CONFIG_PATH)).toBe(false);
+
+      // Run installation with profile (first-time install)
+      await installMain({
+        nonInteractive: true,
+        installDir: tempDir,
+        profile: "senior-swe",
+      });
+
+      // Config should be created with new format from the start
+      const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
+      expect(config.version).toBeDefined();
+      expect(config.agents["claude-code"].profile).toEqual({
+        baseProfile: "senior-swe",
+      });
+    });
   });
 });
