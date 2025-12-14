@@ -292,4 +292,71 @@ describe("nori-switch-profile", () => {
       expect(plainReason).toContain("nori-ai not found");
     });
   });
+
+  describe("stdout cleanliness", () => {
+    it("should not pollute stdout with console messages during profile switch", async () => {
+      // This test verifies that the hook does not output anything to stdout/stderr
+      // except the JSON result. agent.switchProfile() internally calls success()
+      // and info() which would pollute stdout if not suppressed.
+      //
+      // Claude Code expects ONLY valid JSON on stdout from hooks. Any other
+      // output causes JSON parsing to fail and the command falls through to LLM.
+
+      // Capture all console output
+      const consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {
+        // Suppress output
+      });
+      const consoleErrorSpy = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {
+          // Suppress output
+        });
+
+      const input = createInput({ prompt: "/nori-switch-profile amol" });
+      const result = await noriSwitchProfile.run({ input });
+
+      // The result should be valid JSON-serializable
+      expect(result).not.toBeNull();
+      expect(() => JSON.stringify(result)).not.toThrow();
+
+      // Verify no console.log or console.error was called during the operation
+      // (the logger internally uses console.log/console.error)
+      expect(consoleLogSpy).not.toHaveBeenCalled();
+      expect(consoleErrorSpy).not.toHaveBeenCalled();
+
+      consoleLogSpy.mockRestore();
+      consoleErrorSpy.mockRestore();
+    });
+
+    it("should not pollute stdout even when subprocess errors occur", async () => {
+      // Mock execSync to throw an error
+      vi.mocked(childProcess.execSync).mockImplementation(() => {
+        throw new Error("Command failed: nori-ai not found");
+      });
+
+      // Capture all console output
+      const consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {
+        // Suppress output
+      });
+      const consoleErrorSpy = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {
+          // Suppress output
+        });
+
+      const input = createInput({ prompt: "/nori-switch-profile amol" });
+      const result = await noriSwitchProfile.run({ input });
+
+      // Should still return valid result
+      expect(result).not.toBeNull();
+      expect(result!.decision).toBe("block");
+
+      // Verify no console pollution even during error handling
+      expect(consoleLogSpy).not.toHaveBeenCalled();
+      expect(consoleErrorSpy).not.toHaveBeenCalled();
+
+      consoleLogSpy.mockRestore();
+      consoleErrorSpy.mockRestore();
+    });
+  });
 });

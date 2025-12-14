@@ -8,6 +8,7 @@ import * as fs from "fs/promises";
 import * as path from "path";
 
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
+import { setSilentMode } from "@/cli/logger.js";
 import { getInstallDirs } from "@/utils/path.js";
 
 import type {
@@ -83,6 +84,9 @@ const run = async (args: { input: HookInput }): Promise<HookOutput | null> => {
   }
 
   // Switch to the profile using agent method
+  // Enable silent mode to prevent console output from corrupting JSON response.
+  // agent.switchProfile() calls success() and info() which would pollute stdout.
+  setSilentMode({ silent: true });
   try {
     await agent.switchProfile({ installDir, profileName });
 
@@ -133,6 +137,9 @@ const run = async (args: { input: HookInput }): Promise<HookOutput | null> => {
         message: `Failed to switch profile: ${errorMessage}`,
       }),
     };
+  } finally {
+    // Always restore logging
+    setSilentMode({ silent: false });
   }
 };
 
