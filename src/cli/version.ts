@@ -91,12 +91,13 @@ export const getCurrentPackageVersion = (args?: {
 
 /**
  * Get the installed version from .nori-config.json
- * Throws an error if config does not exist or has no version field.
+ * Falls back to reading from deprecated .nori-installed-version file if config has no version.
+ * Throws an error if version cannot be detected from either source.
  *
  * @param args - Configuration arguments
  * @param args.installDir - Installation directory
  *
- * @throws Error if version cannot be detected
+ * @throws Error if version cannot be detected from config or fallback file
  *
  * @returns The installed version string
  */
@@ -105,12 +106,24 @@ export const getInstalledVersion = async (args: {
 }): Promise<string> => {
   const { installDir } = args;
   const config = await loadConfig({ installDir });
-  if (config?.version == null) {
-    throw new Error(
-      "Installation out of date: no version field found in .nori-config.json file.",
-    );
+
+  // If config has version, use it
+  if (config?.version != null) {
+    return config.version;
   }
-  return config.version;
+
+  // Try fallback to deprecated .nori-installed-version file
+  const versionFilePath = join(installDir, ".nori-installed-version");
+  if (existsSync(versionFilePath)) {
+    const fileContent = readFileSync(versionFilePath, "utf-8").trim();
+    if (semver.valid(fileContent) != null) {
+      return fileContent;
+    }
+  }
+
+  throw new Error(
+    "Installation out of date: no version field found in .nori-config.json file.",
+  );
 };
 
 /**

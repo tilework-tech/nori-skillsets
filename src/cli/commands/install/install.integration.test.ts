@@ -841,8 +841,9 @@ describe("install integration test", () => {
       expect(config.profile).toEqual({ baseProfile: "senior-swe" });
     });
 
-    it("should fail install if config exists but has no version field", async () => {
+    it("should fail install if config exists but has no version field and no .nori-installed-version fallback", async () => {
       const CONFIG_PATH = getConfigPath({ installDir: tempDir });
+      const VERSION_FILE_PATH = path.join(tempDir, ".nori-installed-version");
 
       // Create config WITHOUT version field (simulates very old install)
       fs.writeFileSync(
@@ -855,6 +856,13 @@ describe("install integration test", () => {
         }),
       );
 
+      // Ensure .nori-installed-version does NOT exist
+      try {
+        fs.unlinkSync(VERSION_FILE_PATH);
+      } catch {
+        // File doesn't exist, which is what we want
+      }
+
       // Mock process.exit to capture exit code
       const processExitSpy = vi
         .spyOn(process, "exit")
@@ -863,13 +871,44 @@ describe("install integration test", () => {
         }) as any;
 
       try {
-        // Run installation - should fail due to missing version
+        // Run installation - should fail due to missing version from both sources
         await expect(
           installMain({ nonInteractive: true, installDir: tempDir }),
         ).rejects.toThrow();
       } finally {
         processExitSpy.mockRestore();
       }
+    });
+
+    it("should use .nori-installed-version as fallback when config has no version field", async () => {
+      const CONFIG_PATH = getConfigPath({ installDir: tempDir });
+      const VERSION_FILE_PATH = path.join(tempDir, ".nori-installed-version");
+
+      // Create config WITHOUT version field (simulates very old install)
+      fs.writeFileSync(
+        CONFIG_PATH,
+        JSON.stringify({
+          profile: { baseProfile: "senior-swe" },
+          agents: {
+            "claude-code": { profile: { baseProfile: "senior-swe" } },
+          },
+        }),
+      );
+
+      // Create .nori-installed-version with a valid version (fallback source)
+      fs.writeFileSync(VERSION_FILE_PATH, "18.0.0");
+
+      // Run installation - should succeed using fallback version
+      await installMain({
+        nonInteractive: true,
+        installDir: tempDir,
+      });
+
+      // Verify config was migrated and now has version field
+      const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
+      expect(config.version).toBeDefined();
+      // Version should be updated to current version after migration
+      expect(config.profile).toEqual({ baseProfile: "senior-swe" });
     });
 
     it("should skip migration for first-time install (no existing config)", async () => {

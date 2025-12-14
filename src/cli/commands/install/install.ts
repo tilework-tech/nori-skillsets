@@ -7,8 +7,10 @@
  */
 
 import { execSync } from "child_process";
-import { writeFileSync, unlinkSync, existsSync } from "fs";
+import { writeFileSync, unlinkSync, existsSync, readFileSync } from "fs";
 import * as path from "path";
+
+import semver from "semver";
 
 import { trackEvent } from "@/cli/analytics.js";
 import {
@@ -112,12 +114,26 @@ const loadAndMigrateConfig = async (args: {
     return null;
   }
 
-  // If config exists but has no version, fail
-  // This catches very old installs that need manual intervention
+  // If config exists but has no version, try to read from deprecated .nori-installed-version file
   if (existingConfig.version == null) {
-    throw new Error(
-      "Existing config has no version field. Please run 'nori-ai uninstall' first, then reinstall.",
-    );
+    const versionFilePath = path.join(installDir, ".nori-installed-version");
+    let fallbackVersion: string | null = null;
+
+    if (existsSync(versionFilePath)) {
+      const fileContent = readFileSync(versionFilePath, "utf-8").trim();
+      if (semver.valid(fileContent) != null) {
+        fallbackVersion = fileContent;
+      }
+    }
+
+    if (fallbackVersion == null) {
+      throw new Error(
+        "Existing config has no version field. Please run 'nori-ai uninstall' first, then reinstall.",
+      );
+    }
+
+    // Use the fallback version for migration
+    existingConfig.version = fallbackVersion;
   }
 
   // Run migrations
