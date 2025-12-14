@@ -94,7 +94,7 @@ describe("configurable install directory integration", () => {
   describe("installation to custom directory", () => {
     it("should install all features to custom directory", async () => {
       const config: Config = {
-        profile: { baseProfile: "senior-swe" },
+        agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
         installDir: customInstallDir,
       };
 
@@ -156,7 +156,7 @@ describe("configurable install directory integration", () => {
 
     it("should use absolute paths (not ~/.claude) for skill references in CLAUDE.md", async () => {
       const config: Config = {
-        profile: { baseProfile: "senior-swe" },
+        agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
         installDir: customInstallDir,
       };
 
@@ -190,7 +190,7 @@ describe("configurable install directory integration", () => {
         username: null,
         password: null,
         organizationUrl: null,
-        profile: { baseProfile: "senior-swe" },
+        agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
         installDir: customInstallDir,
       });
 
@@ -212,7 +212,7 @@ describe("configurable install directory integration", () => {
     });
 
     it("should load config from installDir/.nori-config.json", async () => {
-      // Write config to custom location
+      // Write config to custom location (using new agents format)
       const configPath = path.join(customInstallDir, ".nori-config.json");
       await fs.writeFile(
         configPath,
@@ -220,7 +220,7 @@ describe("configurable install directory integration", () => {
           username: "test@example.com",
           password: "testpass",
           organizationUrl: "https://test.com",
-          profile: { baseProfile: "amol" },
+          agents: { "claude-code": { profile: { baseProfile: "amol" } } },
           installDir: customInstallDir,
         }),
       );
@@ -233,14 +233,16 @@ describe("configurable install directory integration", () => {
         refreshToken: null,
         organizationUrl: "https://test.com",
       });
-      expect(loaded?.profile).toEqual({ baseProfile: "amol" });
+      expect(loaded?.agents?.["claude-code"]?.profile).toEqual({
+        baseProfile: "amol",
+      });
       expect(loaded?.installDir).toBe(customInstallDir);
     });
 
     it("should correctly identify free install with installDir", async () => {
       const config: Config = {
         auth: null,
-        profile: { baseProfile: "senior-swe" },
+        agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
         installDir: customInstallDir,
       };
 
@@ -261,7 +263,9 @@ describe("configurable install directory integration", () => {
         username: "user1@example.com",
         password: "pass1",
         organizationUrl: "https://org1.com",
-        profile: { baseProfile: "senior-swe" },
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
         installDir: install1Dir,
       });
 
@@ -270,19 +274,23 @@ describe("configurable install directory integration", () => {
         username: "user2@example.com",
         password: "pass2",
         organizationUrl: "https://org2.com",
-        profile: { baseProfile: "amol" },
+        agents: { "claude-code": { profile: { baseProfile: "amol" } } },
         installDir: install2Dir,
       });
 
       // Load and verify first config
       const config1 = await loadConfig({ installDir: install1Dir });
       expect(config1?.auth?.username).toBe("user1@example.com");
-      expect(config1?.profile?.baseProfile).toBe("senior-swe");
+      expect(config1?.agents?.["claude-code"]?.profile?.baseProfile).toBe(
+        "senior-swe",
+      );
 
       // Load and verify second config
       const config2 = await loadConfig({ installDir: install2Dir });
       expect(config2?.auth?.username).toBe("user2@example.com");
-      expect(config2?.profile?.baseProfile).toBe("amol");
+      expect(config2?.agents?.["claude-code"]?.profile?.baseProfile).toBe(
+        "amol",
+      );
 
       // Verify they are completely separate
       expect(config1?.auth?.username).not.toBe(config2?.auth?.username);

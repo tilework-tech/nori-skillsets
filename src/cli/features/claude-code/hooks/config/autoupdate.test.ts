@@ -87,7 +87,7 @@ describe("autoupdate", () => {
       const mockLoadConfig = vi.mocked(loadConfig);
       mockLoadConfig.mockResolvedValue({
         auth: null,
-        profile: null,
+        agents: null,
         version: "14.1.0",
         autoupdate: "enabled",
         installDir: process.cwd(),
@@ -154,7 +154,7 @@ describe("autoupdate", () => {
       const mockLoadConfig = vi.mocked(loadConfig);
       mockLoadConfig.mockResolvedValue({
         auth: null,
-        profile: null,
+        agents: null,
         version: "14.1.0",
         installDir: process.cwd(),
       });
@@ -197,7 +197,7 @@ describe("autoupdate", () => {
       const mockLoadConfig = vi.mocked(loadConfig);
       mockLoadConfig.mockResolvedValue({
         auth: null,
-        profile: null,
+        agents: null,
         version: "14.1.0",
         installDir: process.cwd(),
       });
@@ -233,7 +233,7 @@ describe("autoupdate", () => {
       const mockLoadConfig = vi.mocked(loadConfig);
       mockLoadConfig.mockResolvedValue({
         auth: null,
-        profile: null,
+        agents: null,
         version: "14.1.0",
         installDir: process.cwd(),
       });
@@ -271,8 +271,8 @@ describe("autoupdate", () => {
           password: "test123",
           organizationUrl: "http://localhost:3000",
         },
-        profile: {
-          baseProfile: "senior-swe",
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
         },
         version: "14.1.0",
         installDir: process.cwd(),
@@ -315,7 +315,7 @@ describe("autoupdate", () => {
       const mockLoadConfig = vi.mocked(loadConfig);
       mockLoadConfig.mockResolvedValue({
         auth: null,
-        profile: null,
+        agents: null,
         version: "14.1.0",
         installDir: process.cwd(),
       });
@@ -363,8 +363,8 @@ describe("autoupdate", () => {
           password: "test123",
           organizationUrl: "http://localhost:3000",
         },
-        profile: {
-          baseProfile: "senior-swe",
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
         },
         version: "14.1.0",
         installDir: process.cwd(),
@@ -422,7 +422,7 @@ describe("autoupdate", () => {
       const mockLoadConfig = vi.mocked(loadConfig);
       mockLoadConfig.mockResolvedValue({
         auth: null,
-        profile: null,
+        agents: null,
         version: "14.0.0",
         autoupdate: "enabled",
         installDir: process.cwd(),
@@ -494,7 +494,7 @@ describe("autoupdate", () => {
       const mockLoadConfig = vi.mocked(loadConfig);
       mockLoadConfig.mockResolvedValue({
         auth: null,
-        profile: null,
+        agents: null,
         version: "14.0.0",
         autoupdate: "enabled",
         installDir: process.cwd(),
@@ -566,7 +566,7 @@ describe("autoupdate", () => {
       const mockLoadConfig = vi.mocked(loadConfig);
       mockLoadConfig.mockResolvedValue({
         auth: null,
-        profile: null,
+        agents: null,
         version: "14.0.0",
         autoupdate: "enabled",
         installDir: process.cwd(),
@@ -626,7 +626,7 @@ describe("autoupdate", () => {
       const mockLoadConfig = vi.mocked(loadConfig);
       mockLoadConfig.mockResolvedValue({
         auth: null,
-        profile: null,
+        agents: null,
         version: "14.1.0",
         autoupdate: "enabled",
         installDir: "/home/user/.claude",
@@ -706,7 +706,7 @@ describe("autoupdate", () => {
       const mockLoadConfig = vi.mocked(loadConfig);
       mockLoadConfig.mockResolvedValue({
         auth: null,
-        profile: null,
+        agents: null,
         version: "14.2.0",
         installDir: process.cwd(),
       });
@@ -752,7 +752,7 @@ describe("autoupdate", () => {
       const mockLoadConfig = vi.mocked(loadConfig);
       mockLoadConfig.mockResolvedValue({
         auth: null,
-        profile: null,
+        agents: null,
         version: "14.2.0-nightly.20250120",
         installDir: process.cwd(),
       });
@@ -809,7 +809,7 @@ describe("autoupdate", () => {
       const mockLoadConfig = vi.mocked(loadConfig);
       mockLoadConfig.mockResolvedValue({
         auth: null,
-        profile: null,
+        agents: null,
         version: "14.1.0-nightly.20250120",
         autoupdate: "enabled",
         installDir: process.cwd(),
@@ -867,7 +867,7 @@ describe("autoupdate", () => {
       const mockLoadConfig = vi.mocked(loadConfig);
       mockLoadConfig.mockResolvedValue({
         auth: null,
-        profile: null,
+        agents: null,
         version: "14.1.0",
         installDir: process.cwd(),
       });
@@ -910,7 +910,7 @@ describe("autoupdate", () => {
       const mockLoadConfig = vi.mocked(loadConfig);
       mockLoadConfig.mockResolvedValue({
         auth: null,
-        profile: null,
+        agents: null,
         version: "14.1.0",
         autoupdate: "disabled",
         installDir: process.cwd(),
@@ -970,7 +970,7 @@ describe("autoupdate", () => {
       const mockLoadConfig = vi.mocked(loadConfig);
       mockLoadConfig.mockResolvedValue({
         auth: null,
-        profile: null,
+        agents: null,
         version: "14.1.0",
         autoupdate: "enabled",
         installDir: process.cwd(),
@@ -1024,7 +1024,7 @@ describe("autoupdate", () => {
       const mockLoadConfig = vi.mocked(loadConfig);
       mockLoadConfig.mockResolvedValue({
         auth: null,
-        profile: null,
+        agents: null,
         version: "14.1.0",
         installDir: process.cwd(),
       });

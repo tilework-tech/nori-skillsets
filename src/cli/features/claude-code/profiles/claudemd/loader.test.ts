@@ -196,7 +196,9 @@ More user instructions.
     it("should handle switching from free to paid installation", async () => {
       // First install with senior-swe profile
       const seniorSweConfig: Config = {
-        profile: { baseProfile: "senior-swe" },
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
         installDir: tempDir,
       };
       await claudeMdLoader.install({ config: seniorSweConfig });
@@ -213,7 +215,9 @@ More user instructions.
           password: "testpass",
           organizationUrl: "https://example.com",
         },
-        profile: { baseProfile: "amol" },
+        agents: {
+          "claude-code": { profile: { baseProfile: "amol" } },
+        },
         installDir: tempDir,
       };
       await claudeMdLoader.install({ config: amolConfig });
@@ -330,7 +334,9 @@ More user instructions.
   describe("profile-based CLAUDE.md loading", () => {
     it("should load CLAUDE.md from selected profile", async () => {
       const config: Config = {
-        profile: { baseProfile: "senior-swe" },
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
         installDir: tempDir,
       };
 
@@ -355,7 +361,9 @@ More user instructions.
           password: "testpass",
           organizationUrl: "https://example.com",
         },
-        profile: { baseProfile: "amol" },
+        agents: {
+          "claude-code": { profile: { baseProfile: "amol" } },
+        },
         installDir: tempDir,
       };
 
@@ -392,7 +400,9 @@ More user instructions.
   describe("skills list generation", () => {
     it("should include skills list in installed CLAUDE.md", async () => {
       const config: Config = {
-        profile: { baseProfile: "senior-swe" },
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
         installDir: tempDir,
       };
 
@@ -414,7 +424,9 @@ More user instructions.
 
     it("should include skill name and description from frontmatter", async () => {
       const config: Config = {
-        profile: { baseProfile: "senior-swe" },
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
         installDir: tempDir,
       };
 
@@ -436,7 +448,9 @@ More user instructions.
           password: "test",
           organizationUrl: "https://test.com",
         },
-        profile: { baseProfile: "senior-swe" },
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
         installDir: tempDir,
       };
 
@@ -459,7 +473,9 @@ More user instructions.
 
     it("should handle profiles with no skills gracefully", async () => {
       const config: Config = {
-        profile: { baseProfile: "product-manager" },
+        agents: {
+          "claude-code": { profile: { baseProfile: "product-manager" } },
+        },
         installDir: tempDir,
       };
 
@@ -477,7 +493,9 @@ More user instructions.
 
     it("should handle skills with missing frontmatter gracefully", async () => {
       const config: Config = {
-        profile: { baseProfile: "senior-swe" },
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
         installDir: tempDir,
       };
 

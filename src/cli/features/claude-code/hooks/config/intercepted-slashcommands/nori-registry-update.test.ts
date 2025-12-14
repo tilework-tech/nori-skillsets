@@ -62,8 +62,8 @@ describe("nori-registry-update", () => {
     await fs.writeFile(
       configPath,
       JSON.stringify({
-        profile: {
-          baseProfile: "senior-swe",
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
         },
       }),
     );
@@ -210,7 +210,9 @@ describe("nori-registry-update", () => {
       // Mock packument with same version
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        profile: { baseProfile: "senior-swe" },
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
         registryAuths: null,
       });
 
@@ -253,7 +255,9 @@ describe("nori-registry-update", () => {
       // Mock packument with newer version
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        profile: { baseProfile: "senior-swe" },
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
         registryAuths: null,
       });
 
@@ -313,7 +317,9 @@ describe("nori-registry-update", () => {
       // Mock config with private registry auth
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        profile: { baseProfile: "senior-swe" },
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
         registryAuths: [
           {
             username: "test@example.com",
@@ -367,7 +373,9 @@ describe("nori-registry-update", () => {
 
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        profile: { baseProfile: "senior-swe" },
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
         registryAuths: [
           {
             username: "test@example.com",
@@ -428,7 +436,9 @@ describe("nori-registry-update", () => {
 
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        profile: { baseProfile: "senior-swe" },
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
         registryAuths: null,
       });
 
@@ -460,7 +470,9 @@ describe("nori-registry-update", () => {
 
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        profile: { baseProfile: "senior-swe" },
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
         registryAuths: null,
       });
 
@@ -501,7 +513,9 @@ describe("nori-registry-update", () => {
 
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        profile: { baseProfile: "senior-swe" },
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
         registryAuths: null,
       });
 
@@ -559,7 +573,9 @@ describe("nori-registry-update", () => {
 
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        profile: { baseProfile: "senior-swe" },
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
         registryAuths: null,
       });
 
@@ -596,7 +612,9 @@ describe("nori-registry-update", () => {
 
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        profile: { baseProfile: "senior-swe" },
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
         registryAuths: null,
       });
 
@@ -635,7 +653,9 @@ describe("nori-registry-update", () => {
 
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        profile: { baseProfile: "senior-swe" },
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
         registryAuths: null,
       });
 
@@ -674,7 +694,9 @@ describe("nori-registry-update", () => {
 
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        profile: { baseProfile: "senior-swe" },
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
         registryAuths: null,
       });
 
@@ -710,7 +732,9 @@ describe("nori-registry-update", () => {
 
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        profile: { baseProfile: "senior-swe" },
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
         registryAuths: null,
       });
 

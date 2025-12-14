@@ -148,7 +148,7 @@ describe("version", () => {
       );
     });
 
-    it("should throw error if config has no version field", async () => {
+    it("should throw error if config has no version field and no fallback file", async () => {
       // Create config without version field
       await saveConfig({
         username: null,
@@ -156,6 +156,52 @@ describe("version", () => {
         agents: { "claude-code": {} },
         installDir: tempDir,
       });
+
+      // Ensure no fallback file exists
+      const fallbackPath = path.join(tempDir, ".nori-installed-version");
+      try {
+        fs.unlinkSync(fallbackPath);
+      } catch {
+        // File doesn't exist, which is fine
+      }
+
+      await expect(
+        getInstalledVersion({ installDir: tempDir }),
+      ).rejects.toThrow(
+        "Installation out of date: no version field found in .nori-config.json file.",
+      );
+    });
+
+    it("should return version from .nori-installed-version fallback when config has no version", async () => {
+      // Create config without version field
+      await saveConfig({
+        username: null,
+        organizationUrl: null,
+        agents: { "claude-code": {} },
+        installDir: tempDir,
+      });
+
+      // Create fallback file with valid version
+      fs.writeFileSync(path.join(tempDir, ".nori-installed-version"), "18.0.0");
+
+      const version = await getInstalledVersion({ installDir: tempDir });
+      expect(version).toBe("18.0.0");
+    });
+
+    it("should throw error if config has no version and fallback file has invalid semver", async () => {
+      // Create config without version field
+      await saveConfig({
+        username: null,
+        organizationUrl: null,
+        agents: { "claude-code": {} },
+        installDir: tempDir,
+      });
+
+      // Create fallback file with invalid version
+      fs.writeFileSync(
+        path.join(tempDir, ".nori-installed-version"),
+        "not-a-version",
+      );
 
       await expect(
         getInstalledVersion({ installDir: tempDir }),

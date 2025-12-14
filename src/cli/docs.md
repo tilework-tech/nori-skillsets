@@ -77,7 +77,7 @@ The install.ts main function first normalizes installDir via `const normalizedIn
 **Config Migration During Install:** Both interactive and non-interactive modes use the `loadAndMigrateConfig({ installDir })` helper early in the flow. This helper:
 1. Loads the existing config via `loadConfig()`
 2. If no config exists (first-time install), returns null and skips migration
-3. If config exists but has no `version` field, throws an error requiring manual `nori-ai uninstall` before reinstall
+3. If config exists but has no `version` field, attempts fallback to deprecated `.nori-installed-version` file. If that file exists and contains valid semver, uses it as the version for migration. If no fallback is available, throws an error requiring manual `nori-ai uninstall` before reinstall
 4. Calls `migrate()` from @/src/cli/features/migration.ts to apply any necessary migrations based on the config's version
 5. Returns the migrated config for use in the installation flow
 
@@ -91,7 +91,7 @@ Non-interactive mode bypasses ancestor detection and multi-agent selection, oper
 
 The check.ts module validates a Nori installation's configuration and feature installations. The checkMain() entry point auto-detects installations using `getInstallDirs({ currentDir: process.cwd() })` from @/utils/path.ts - the same discovery mechanism used by `install-location` and `uninstall`. If no `--install-dir` is explicitly provided, it uses the closest installation found (first element of the installations array). If no installation is found, it displays an error message suggesting to run `nori-ai install` or use `--install-dir`, and exits with code 1. The validation process checks: (1) configuration validity via validateConfig(), (2) server connectivity for paid installations via handshake(), (3) all feature loader validations via LoaderRegistry. Each check displays success (✓) or failure (✗) with detailed error messages.
 
-The version.ts module manages version tracking for installation upgrades and CLI flag compatibility. Version is now stored as a `version` field in `.nori-config.json` rather than in a separate `.nori-installed-version` file. The `getInstalledVersion()` function is async and reads from the config file via `loadConfig()`. If the config does not exist or has no `version` field, the function throws an error with message "Installation out of date: no version field found in .nori-config.json file." - callers must handle this error or only call the function when an installation is known to exist. The `getCurrentPackageVersion()` function reads the version from the nori-ai package.json by using `findPackageRoot()` to walk up from the current file's directory looking for a package.json with `name: "nori-ai"`. The function accepts an optional `startDir` parameter (defaults to `__dirname`) to control where the search begins, which is useful for testing.
+The version.ts module manages version tracking for installation upgrades and CLI flag compatibility. Version is now stored as a `version` field in `.nori-config.json` rather than in a separate `.nori-installed-version` file. The `getInstalledVersion()` function is async and reads from the config file via `loadConfig()`. If the config has a `version` field, it returns that value. If the config exists but has no `version` field, the function falls back to reading from the deprecated `.nori-installed-version` file - if that file exists and contains valid semver, it returns that version. If neither source provides a version, the function throws an error with message "Installation out of date: no version field found in .nori-config.json file." - callers must handle this error or only call the function when an installation is known to exist. This fallback enables upgrades from old installations that have `.nori-config.json` without a `version` field. The `getCurrentPackageVersion()` function reads the version from the nori-ai package.json by using `findPackageRoot()` to walk up from the current file's directory looking for a package.json with `name: "nori-ai"`. The function accepts an optional `startDir` parameter (defaults to `__dirname`) to control where the search begins, which is useful for testing.
 
 **Version Compatibility Checking:** The version.ts module provides CLI flag compatibility checking via `supportsAgentFlag({ version })`. The `--agent` flag was introduced in version 19.0.0 with multi-agent support. When the install command needs to clean up a previous installation, it calls the *installed* `nori-ai` binary (not the new version being installed). If the installed version is older than 19.0.0, passing `--agent` causes an "unknown option" error. The install.ts module builds the uninstall command string inline, conditionally including `--agent` only when the installed version supports it (>= 19.0.0) via `supportsAgentFlag()`. For older versions, omitting the flag is safe because the uninstall defaults to claude-code anyway. This pattern can be extended for future CLI flag compatibility issues.
 
@@ -101,7 +101,7 @@ The logger.ts module provides console output formatting with ANSI color codes, p
 
 The promptForProfileSelection function in install.ts uses these formatters to display profile options with brightCyan numbers, boldWhite names, and gray indented descriptions, separated by blank lines for improved scannability. The promptForCredentials function displays a wrapped prompt asking users to enter credentials or skip for free tier.
 
-The config.ts module provides a unified `Config` type for both disk persistence and runtime use. The `Config` type contains: auth credentials via `AuthCredentials` type (username, organizationUrl, refreshToken, password), profile selection (profile.baseProfile - deprecated), agents (per-agent configuration - keys indicate installed agents), user preferences (sendSessionTranscript, autoupdate), registry authentication (registryAuths array), and the required installDir field.
+The config.ts module provides a unified `Config` type for both disk persistence and runtime use. The `Config` type contains: auth credentials via `AuthCredentials` type (username, organizationUrl, refreshToken, password), agents (per-agent configuration - keys indicate installed agents, each with their own profile), user preferences (sendSessionTranscript, autoupdate), registry authentication (registryAuths array), and the required installDir field.
 
 **AuthCredentials Type:** Supports both token-based and legacy password-based authentication:
 - `username` and `organizationUrl` - required for all paid installs
@@ -110,18 +110,13 @@ The config.ts module provides a unified `Config` type for both disk persistence 
 
 The `isLegacyPasswordConfig({ config })` helper identifies configs that have password but no refreshToken (candidates for migration).
 
-**Multi-Agent Config Structure:** The config supports per-agent profiles via the `agents` field, a `Record<string, AgentConfig>` where each agent has its own profile. The keys of the `agents` object serve as the source of truth for which agents are installed (replacing the former `installedAgents` array). Use `getInstalledAgents({ config })` helper to get the list of installed agents. For backwards compatibility:
-- The legacy `profile` field is deprecated but still read/written for claude-code
-- `loadConfig()` mirrors legacy `profile` to `agents.claude-code` if `agents` is not present
-- `saveConfig()` writes both `agents` and legacy `profile` (for claude-code) to maintain compatibility with older versions
-- `getAgentProfile({ config, agentName })` retrieves the profile for a specific agent, falling back to legacy `profile` for claude-code
+**Multi-Agent Config Structure:** The config supports per-agent profiles via the `agents` field, a `Record<string, AgentConfig>` where each agent has its own profile. The keys of the `agents` object serve as the source of truth for which agents are installed (replacing the former `installedAgents` array). Use `getInstalledAgents({ config })` helper to get the list of installed agents. For backwards compatibility during config loading:
+- `loadConfig()` converts legacy `profile` field to `agents.claude-code.profile` if `agents` is not present
+- The migration system (v19.0.0) transforms `profile` → `agents["claude-code"].profile` during install
+- `saveConfig()` only writes the `agents` field (the legacy `profile` field is no longer written)
+- `getAgentProfile({ config, agentName })` retrieves the profile for a specific agent from `agents[agentName].profile`
 
-**Profile Lookup Pattern (CRITICAL):** Code that needs to read a profile MUST use `getAgentProfile({ config, agentName })` - never read `config.profile` directly. The function implements the correct lookup order:
-1. First check `config.agents[agentName].profile` (agent-specific)
-2. Fall back to `config.profile` (legacy field, only for claude-code)
-3. Return null if neither exists
-
-Direct access to `config.profile` is incorrect because it bypasses agent-specific profiles. This caused a bug where switch-profile would fail for non-claude-code agents (the top-level `profile` field is only written for claude-code by `saveConfig()` for backwards compatibility).
+**Profile Lookup Pattern (CRITICAL):** Code that needs to read a profile MUST use `getAgentProfile({ config, agentName })` - never access agent profiles directly. The function returns the profile from `config.agents[agentName].profile` or null if not found.
 
 The getConfigPath() function requires { installDir: string } and returns `<installDir>/.nori-config.json`. All config operations (loadConfig, saveConfig, validateConfig) require installDir as a parameter, ensuring consistent path resolution throughout the codebase. The `loadConfig()` function validates auth by checking for either refreshToken OR password (plus username and organizationUrl). The `saveConfig()` function prefers refreshToken over password - if both are provided, only refreshToken is saved. User preference fields (sendSessionTranscript, autoupdate) use the 'enabled' | 'disabled' type. The `sendSessionTranscript` field defaults to 'enabled' when not present. The `autoupdate` field defaults to 'disabled' when not present, requiring users to explicitly opt-in to automatic updates. These fields are loaded by loadConfig() with default fallback, persisted by saveConfig() when provided, and validated by the JSON schema. The config.ts module is used by both the installer (for managing installation settings) and hooks (for reading user preferences like session transcript opt-out or autoupdate disable).
 
@@ -144,7 +139,7 @@ The Ajv instance is configured with `useDefaults: true` (applies default values)
 6. Build auth from either nested format (`auth: {...}`) or legacy flat format (fields at root)
 7. Return null if schema validation fails (e.g., invalid enum values)
 
-The `RawDiskConfig` type represents the JSON structure on disk after schema validation but before transformation to `Config`. This intermediate type provides type safety for the transformation logic. It includes both legacy flat auth fields (username/password/refreshToken/organizationUrl at root) and the new nested `auth` property for dual-format support.
+The `RawDiskConfig` type represents the JSON structure on disk after schema validation but before transformation to `Config`. This intermediate type provides type safety for the transformation logic. It includes both legacy flat auth fields (username/password/refreshToken/organizationUrl at root) and the new nested `auth` property for dual-format support. It also includes the legacy `profile` field for reading old configs, though this field is no longer written by `saveConfig()`.
 
 **Auth Format (Nested vs Flat):** The canonical auth format uses a nested `auth` object:
 ```json
@@ -162,7 +157,7 @@ When reading legacy flat format, `loadConfig()` constructs the nested auth struc
 - During install: The config loader merges `agents` objects from both existing config and new config, so installing cursor-agent when claude-code is already installed results in both keys present
 - During uninstall: The agent being uninstalled is removed from the `agents` object. If no agents remain, the config file is deleted. If other agents remain, the config is updated with the remaining agents
 - Re-installing the same agent updates its config but does not create duplicates
-- Legacy configs with only `profile` field (no `agents`) are migrated - `loadConfig()` mirrors legacy `profile` to `agents.claude-code`
+- Legacy configs with only `profile` field (no `agents`) are converted by `loadConfig()` to `agents.claude-code.profile`, and the migration system transforms them during install
 
 **Determining Paid vs Free Installation:** The `isPaidInstall({ config })` helper function determines whether a config represents a paid installation by checking if `config.auth != null`. Paid status is derived from the presence of auth credentials.
 

@@ -158,7 +158,9 @@ describe("profilesLoader", () => {
 
     it("should copy profile directories with complete structure", async () => {
       const config: Config = {
-        profile: { baseProfile: "senior-swe" },
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
         installDir: tempDir,
       };
 
@@ -797,8 +799,8 @@ describe("profilesLoader", () => {
           password: "testpass",
           organizationUrl: "https://example.com",
         },
-        profile: {
-          baseProfile: "test-profile",
+        agents: {
+          "claude-code": { profile: { baseProfile: "test-profile" } },
         },
         installDir: tempDir,
       };
@@ -825,8 +827,8 @@ describe("profilesLoader", () => {
           password: "testpass",
           organizationUrl: "https://example.com",
         },
-        profile: {
-          baseProfile: "test-profile",
+        agents: {
+          "claude-code": { profile: { baseProfile: "test-profile" } },
         },
         installDir: tempDir,
       };
@@ -859,8 +861,8 @@ describe("profilesLoader", () => {
           password: "testpass",
           organizationUrl: "https://example.com",
         },
-        profile: {
-          baseProfile: "test-profile",
+        agents: {
+          "claude-code": { profile: { baseProfile: "test-profile" } },
         },
         installDir: tempDir,
       };
@@ -894,8 +896,8 @@ describe("profilesLoader", () => {
           password: "testpass",
           organizationUrl: "https://example.com",
         },
-        profile: {
-          baseProfile: "test-profile",
+        agents: {
+          "claude-code": { profile: { baseProfile: "test-profile" } },
         },
         installDir: tempDir,
       };
@@ -928,8 +930,8 @@ describe("profilesLoader", () => {
 
       const config: Config = {
         auth: null,
-        profile: {
-          baseProfile: "test-profile",
+        agents: {
+          "claude-code": { profile: { baseProfile: "test-profile" } },
         },
         installDir: tempDir,
       };
@@ -963,8 +965,8 @@ describe("profilesLoader", () => {
           password: "testpass",
           organizationUrl: "https://example.com",
         },
-        profile: {
-          baseProfile: "test-profile",
+        agents: {
+          "claude-code": { profile: { baseProfile: "test-profile" } },
         },
         installDir: tempDir,
       };
@@ -995,8 +997,8 @@ describe("profilesLoader", () => {
           password: "testpass",
           organizationUrl: "https://example.com",
         },
-        profile: {
-          baseProfile: "test-profile",
+        agents: {
+          "claude-code": { profile: { baseProfile: "test-profile" } },
         },
         installDir: tempDir,
       };

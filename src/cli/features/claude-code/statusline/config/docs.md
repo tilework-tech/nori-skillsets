@@ -14,7 +14,7 @@ This folder contains the nori-statusline.sh source script with {{install_dir}} t
 
 **Template Variables:** The source script contains INSTALL_DIR="{{install_dir}}" which is replaced during installation with the absolute path to the install root. This templated value is used to locate $INSTALL_DIR/.nori-config.json for reading configuration.
 
-**Enrichment Phases:** The script performs two enrichment phases before displaying output: (1) Config tier enrichment - reads $INSTALL_DIR/.nori-config.json to determine if auth credentials exist (free vs paid tier), and (2) Profile enrichment - reads profile.baseProfile from $INSTALL_DIR/.nori-config.json (defaults to empty string if not set).
+**Enrichment Phases:** The script performs two enrichment phases before displaying output: (1) Config tier enrichment - reads $INSTALL_DIR/.nori-config.json to determine if auth credentials exist (free vs paid tier), checking both the nested `auth` object format (v19+) and legacy flat format for backwards compatibility, and (2) Profile enrichment - reads profile.baseProfile from $INSTALL_DIR/.nori-config.json (defaults to empty string if not set).
 
 **Metrics and Display:** After enrichment, the script extracts git branch info from the conversation's cwd, parses the transcript file to calculate token usage (input tokens, cache creation tokens, cache read tokens, output tokens, and context length from the most recent main chain entry), and formats cost estimates. The script outputs three lines: Line 1 shows metrics (git branch, profile if set, cost, tokens, context, lines changed), Line 2 shows branding with an upgrade link for free tier users, and Line 3 shows a rotating tip selected deterministically based on day_of_year * 24 + hour.
 
@@ -29,5 +29,7 @@ This folder contains the nori-statusline.sh source script with {{install_dir}} t
 **Why Template Not Runtime:** Template substitution was chosen over runtime upward search (like the autoupdate hook) because it's simpler in bash. The install directory never changes after installation, so baking it in avoids complex directory traversal logic.
 
 **Profile Display:** The profile name enrichment allows users to see which behavioral preset is active - this is conditionally displayed only when profile.baseProfile exists in $INSTALL_DIR/.nori-config.json (not ~/nori-config.json).
+
+**Auth Config Format Detection:** The tier detection logic supports two config formats: the nested `auth` object format introduced in v19.0.0 (`{ "auth": { "username": ..., "refreshToken": ..., "organizationUrl": ... } }`) and the legacy flat format (`{ "username": ..., "password": ..., "organizationUrl": ... }`). The script checks the nested format first, then falls back to the legacy format, ensuring backwards compatibility across versions.
 
 **Performance and Format:** The script must be executable and return formatted text quickly to avoid UI lag. Token usage is calculated by parsing the transcript file. The script uses OSC 8 hyperlink format for the "upgrade" link in free tier branding. Version string __VERSION__ is replaced during build with the actual package version from package.json.

@@ -124,7 +124,7 @@ exit 0
     const mockLoadConfig = vi.mocked(loadConfig);
     mockLoadConfig.mockResolvedValue({
       auth: null,
-      profile: null,
+      agents: null,
       version: "1.0.0",
       autoupdate: "enabled",
       installDir: tempHomeDir,

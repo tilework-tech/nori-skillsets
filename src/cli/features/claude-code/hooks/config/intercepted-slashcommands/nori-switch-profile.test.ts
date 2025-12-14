@@ -150,7 +150,9 @@ describe("nori-switch-profile", () => {
 
       // Verify profile was actually switched in config
       const updatedConfig = JSON.parse(await fs.readFile(configPath, "utf-8"));
-      expect(updatedConfig.profile.baseProfile).toBe("amol");
+      expect(updatedConfig.agents["claude-code"].profile.baseProfile).toBe(
+        "amol",
+      );
     });
 
     it("should list available profiles when no profile name provided", async () => {
@@ -209,7 +211,9 @@ describe("nori-switch-profile", () => {
 
       // Verify profile was switched in the parent directory's config
       const updatedConfig = JSON.parse(await fs.readFile(configPath, "utf-8"));
-      expect(updatedConfig.profile.baseProfile).toBe("amol");
+      expect(updatedConfig.agents["claude-code"].profile.baseProfile).toBe(
+        "amol",
+      );
     });
 
     it("should return error when no installation found", async () => {

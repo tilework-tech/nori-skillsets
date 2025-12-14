@@ -49,10 +49,6 @@ export type AgentConfig = {
  */
 export type Config = {
   auth?: AuthCredentials | null;
-  /** @deprecated Use agents.claude-code.profile instead */
-  profile?: {
-    baseProfile: string;
-  } | null;
   sendSessionTranscript?: "enabled" | "disabled" | null;
   autoupdate?: "enabled" | "disabled" | null;
   installDir: string;
@@ -84,6 +80,7 @@ type RawDiskConfig = {
   // Common fields
   sendSessionTranscript?: "enabled" | "disabled" | null;
   autoupdate?: "enabled" | "disabled" | null;
+  // Legacy profile field - kept for reading old configs (not written anymore)
   profile?: { baseProfile?: string | null } | null;
   installDir?: string | null;
   registryAuths?: Array<RegistryAuth> | null;
@@ -194,18 +191,13 @@ export const getAgentProfile = (args: {
 }): { baseProfile: string } | null => {
   const { config, agentName } = args;
 
-  // First check the agents field (new format)
-  if (config.agents != null) {
-    const agentConfig = config.agents[agentName];
-    if (agentConfig?.profile != null) {
-      return agentConfig.profile;
-    }
+  if (config.agents == null) {
     return null;
   }
 
-  // Fallback to legacy profile field for claude-code only
-  if (agentName === "claude-code" && config.profile != null) {
-    return config.profile;
+  const agentConfig = config.agents[agentName];
+  if (agentConfig?.profile != null) {
+    return agentConfig.profile;
   }
 
   return null;
@@ -296,7 +288,6 @@ export const loadConfig = async (args: {
     // After schema validation, types are guaranteed - only need null checks
     const result: Config = {
       auth: null,
-      profile: null,
       installDir: validated.installDir ?? installDir,
       sendSessionTranscript: validated.sendSessionTranscript,
       autoupdate: validated.autoupdate,
@@ -331,22 +322,21 @@ export const loadConfig = async (args: {
       };
     }
 
-    // Set profile if it has a baseProfile
-    if (validated.profile?.baseProfile != null) {
-      result.profile = { baseProfile: validated.profile.baseProfile };
-    }
-
-    // Set agents, or mirror legacy profile to agents.claude-code for backwards compat
+    // Set agents if present, or convert legacy profile to agents.claude-code
     if (validated.agents != null) {
       result.agents = validated.agents;
-    } else if (result.profile != null) {
-      result.agents = { "claude-code": { profile: result.profile } };
+    } else if (validated.profile?.baseProfile != null) {
+      // Convert legacy profile to agents.claude-code for backwards compat
+      result.agents = {
+        "claude-code": {
+          profile: { baseProfile: validated.profile.baseProfile },
+        },
+      };
     }
 
     // Return result if we have meaningful config data
     if (
       result.auth != null ||
-      result.profile != null ||
       result.agents != null ||
       result.sendSessionTranscript != null
     ) {
@@ -366,7 +356,6 @@ export const loadConfig = async (args: {
  * @param args.password - User's password (deprecated, use refreshToken instead)
  * @param args.refreshToken - Firebase refresh token (preferred over password)
  * @param args.organizationUrl - Organization URL (null to skip auth)
- * @param args.profile - Profile selection (null to skip profile) - deprecated, use agents instead
  * @param args.sendSessionTranscript - Session transcript setting (null to skip)
  * @param args.autoupdate - Autoupdate setting (null to skip)
  * @param args.installDir - Installation directory
@@ -379,7 +368,6 @@ export const saveConfig = async (args: {
   password?: string | null;
   refreshToken?: string | null;
   organizationUrl: string | null;
-  profile?: { baseProfile: string } | null;
   sendSessionTranscript?: "enabled" | "disabled" | null;
   autoupdate?: "enabled" | "disabled" | null;
   registryAuths?: Array<RegistryAuth> | null;
@@ -392,7 +380,6 @@ export const saveConfig = async (args: {
     password,
     refreshToken,
     organizationUrl,
-    profile,
     sendSessionTranscript,
     autoupdate,
     registryAuths,
@@ -420,18 +407,9 @@ export const saveConfig = async (args: {
     };
   }
 
-  // Add agents if provided (new multi-agent format)
+  // Add agents if provided
   if (agents != null) {
     config.agents = agents;
-
-    // For backwards compatibility, also write legacy profile field if claude-code has a profile
-    const claudeCodeProfile = agents["claude-code"]?.profile;
-    if (claudeCodeProfile != null) {
-      config.profile = claudeCodeProfile;
-    }
-  } else if (profile != null) {
-    // Legacy: Add profile if provided (when agents is not used)
-    config.profile = profile;
   }
 
   // Add sendSessionTranscript if provided
@@ -499,6 +477,7 @@ const configSchema = {
       enum: ["enabled", "disabled"],
       default: "disabled",
     },
+    // Legacy profile field - kept for reading old configs (not written anymore)
     profile: {
       type: ["object", "null"],
       properties: {

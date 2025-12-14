@@ -74,7 +74,7 @@ The `--agent` global CLI option (default: "claude-code") determines which agent 
 - Migrations are defined as `Migration` objects with `version`, `name`, and `migrate()` function
 - The `migrate()` function throws if `previousVersion` is null/empty/invalid - configs without a version field require manual intervention
 - Current migrations:
-  - **v19.0.0 (consolidate-auth-structure)**: Transforms flat auth fields (username/password/refreshToken/organizationUrl at root) into nested `auth: {...}` structure. Removes flat fields regardless of migration outcome to clean up partial data.
+  - **v19.0.0 (consolidate-auth-and-profile-structure)**: Two transformations: (1) Flat auth fields (username/password/refreshToken/organizationUrl at root) → nested `auth: {...}` structure, removing flat fields regardless of outcome. (2) Legacy `profile` field → `agents["claude-code"].profile`, preserving existing agents config if present. Both transformations are idempotent.
 
 ### Things to Know
 

@@ -77,13 +77,17 @@ describe("registry-search", () => {
     // Create .nori-config.json to mark as Nori installation
     await fs.writeFile(
       path.join(testDir, ".nori-config.json"),
-      JSON.stringify({ profile: { baseProfile: "senior-swe" } }),
+      JSON.stringify({
+        agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
+      }),
     );
 
     // Default mock for loadConfig - no private registries
     vi.mocked(loadConfig).mockResolvedValue({
       installDir: testDir,
-      profile: { baseProfile: "senior-swe" },
+      agents: {
+        "claude-code": { profile: { baseProfile: "senior-swe" } },
+      },
     });
   });
 
@@ -143,7 +147,9 @@ describe("registry-search", () => {
       // Mock config with private registry
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        profile: { baseProfile: "senior-swe" },
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
         registryAuths: [
           {
             username: "user@example.com",
@@ -210,7 +216,9 @@ describe("registry-search", () => {
       // Mock config with registryAuth that matches public registry
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        profile: { baseProfile: "senior-swe" },
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
         registryAuths: [
           {
             username: "user@example.com",
@@ -245,7 +253,9 @@ describe("registry-search", () => {
       // Mock config with two private registries
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        profile: { baseProfile: "senior-swe" },
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
         registryAuths: [
           {
             username: "user@example.com",
@@ -307,7 +317,9 @@ describe("registry-search", () => {
       // Mock config with private registry
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        profile: { baseProfile: "senior-swe" },
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
         registryAuths: [
           {
             username: "user@example.com",
@@ -350,7 +362,9 @@ describe("registry-search", () => {
       // Mock config with private registry
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        profile: { baseProfile: "senior-swe" },
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
         registryAuths: [
           {
             username: "user@example.com",
@@ -438,7 +452,9 @@ describe("registry-search", () => {
       // Mock config with private registry
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        profile: { baseProfile: "senior-swe" },
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
         registryAuths: [
           {
             username: "user@example.com",

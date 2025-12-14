@@ -281,6 +281,126 @@ describe("statuslineLoader", () => {
         await fs.rm(noriConfigPath, { force: true });
       }
     });
+
+    it("should detect paid tier with nested auth format using refreshToken (v19+)", async () => {
+      const config: Config = {
+        installDir: claudeDir,
+        auth: {
+          username: "test@example.com",
+          refreshToken: "test-refresh-token",
+          organizationUrl: "https://example.com",
+        },
+      };
+
+      // Install statusline
+      await statuslineLoader.run({ config });
+
+      // Create mock .nori-config.json with nested auth format (v19+)
+      const noriConfigPath = path.join(tempDir, ".nori-config.json");
+      const noriConfigContent = JSON.stringify({
+        auth: {
+          username: "test",
+          refreshToken: "test-refresh-token",
+          organizationUrl: "https://test.com",
+        },
+      });
+      await fs.writeFile(noriConfigPath, noriConfigContent);
+
+      // Create subdirectory
+      const subdir = path.join(tempDir, "foo", "bar");
+      await fs.mkdir(subdir, { recursive: true });
+
+      try {
+        // Read settings to get the statusLine command
+        const content = await fs.readFile(settingsPath, "utf-8");
+        const settings = JSON.parse(content);
+        const statusLineCommand = settings.statusLine.command;
+
+        // Execute the statusline script with cwd pointing to subdirectory
+        const { execSync } = await import("child_process");
+        const mockInput = JSON.stringify({
+          cwd: subdir,
+          cost: {
+            total_cost_usd: 1.5,
+            total_lines_added: 10,
+            total_lines_removed: 5,
+          },
+          transcript_path: "",
+        });
+
+        const output = execSync(statusLineCommand, {
+          input: mockInput,
+          encoding: "utf-8",
+        });
+
+        // Verify output contains paid tier branding (no upgrade link)
+        expect(output).toContain("Augmented with Nori");
+        expect(output).not.toContain("upgrade");
+      } finally {
+        // Clean up
+        await fs.rm(noriConfigPath, { force: true });
+      }
+    });
+
+    it("should detect paid tier with nested auth format using password (v19+)", async () => {
+      const config: Config = {
+        installDir: claudeDir,
+        auth: {
+          username: "test@example.com",
+          password: "test-password",
+          organizationUrl: "https://example.com",
+        },
+      };
+
+      // Install statusline
+      await statuslineLoader.run({ config });
+
+      // Create mock .nori-config.json with nested auth format using password
+      const noriConfigPath = path.join(tempDir, ".nori-config.json");
+      const noriConfigContent = JSON.stringify({
+        auth: {
+          username: "test",
+          password: "test-password",
+          organizationUrl: "https://test.com",
+        },
+      });
+      await fs.writeFile(noriConfigPath, noriConfigContent);
+
+      // Create subdirectory
+      const subdir = path.join(tempDir, "foo", "bar");
+      await fs.mkdir(subdir, { recursive: true });
+
+      try {
+        // Read settings to get the statusLine command
+        const content = await fs.readFile(settingsPath, "utf-8");
+        const settings = JSON.parse(content);
+        const statusLineCommand = settings.statusLine.command;
+
+        // Execute the statusline script with cwd pointing to subdirectory
+        const { execSync } = await import("child_process");
+        const mockInput = JSON.stringify({
+          cwd: subdir,
+          cost: {
+            total_cost_usd: 1.5,
+            total_lines_added: 10,
+            total_lines_removed: 5,
+          },
+          transcript_path: "",
+        });
+
+        const output = execSync(statusLineCommand, {
+          input: mockInput,
+          encoding: "utf-8",
+        });
+
+        // Verify output contains paid tier branding (no upgrade link)
+        expect(output).toContain("Augmented with Nori");
+        expect(output).not.toContain("upgrade");
+      } finally {
+        // Clean up
+        await fs.rm(noriConfigPath, { force: true });
+      }
+    });
   });
 
   describe("statusline script", () => {

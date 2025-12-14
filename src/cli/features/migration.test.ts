@@ -280,7 +280,6 @@ describe("migration 19.0.0 - consolidate auth structure", () => {
       username: "test@example.com",
       password: "password123",
       organizationUrl: "https://example.com",
-      profile: { baseProfile: "senior-swe" },
       agents: {
         "claude-code": { profile: { baseProfile: "senior-swe" } },
       },
@@ -301,7 +300,8 @@ describe("migration 19.0.0 - consolidate auth structure", () => {
       installDir: tempDir,
     });
 
-    expect(result.profile).toEqual({ baseProfile: "senior-swe" });
+    // Legacy profile field should not exist after migration
+    expect((result as any).profile).toBeUndefined();
     expect(result.agents).toEqual({
       "claude-code": { profile: { baseProfile: "senior-swe" } },
     });
@@ -319,7 +319,9 @@ describe("migration 19.0.0 - consolidate auth structure", () => {
   it("should handle config with no auth fields", async () => {
     const config = {
       installDir: tempDir,
-      profile: { baseProfile: "senior-swe" },
+      agents: {
+        "claude-code": { profile: { baseProfile: "senior-swe" } },
+      },
     };
 
     const result = await migrate({
@@ -330,7 +332,11 @@ describe("migration 19.0.0 - consolidate auth structure", () => {
 
     // Should not create auth if no auth fields present
     expect(result.auth).toBeUndefined();
-    expect(result.profile).toEqual({ baseProfile: "senior-swe" });
+    // Profile should be in agents, not top-level
+    expect((result as any).profile).toBeUndefined();
+    expect(result.agents).toEqual({
+      "claude-code": { profile: { baseProfile: "senior-swe" } },
+    });
     expect(result.version).toBe("19.0.0");
   });
 
@@ -352,5 +358,141 @@ describe("migration 19.0.0 - consolidate auth structure", () => {
     expect(result.auth).toBeUndefined();
     // Should still remove flat field
     expect((result as any).username).toBeUndefined();
+  });
+
+  describe("profile to agents migration", () => {
+    it("should transform legacy profile to agents.claude-code.profile", async () => {
+      const config = {
+        installDir: tempDir,
+        profile: { baseProfile: "senior-swe" },
+      } as any;
+
+      const result = await migrate({
+        previousVersion: "18.0.0",
+        config,
+        installDir: tempDir,
+      });
+
+      // Should have agents with claude-code profile
+      expect(result.agents).toEqual({
+        "claude-code": { profile: { baseProfile: "senior-swe" } },
+      });
+
+      // Legacy profile field should be removed
+      expect((result as any).profile).toBeUndefined();
+    });
+
+    it("should preserve existing agents and remove legacy profile", async () => {
+      const config = {
+        installDir: tempDir,
+        profile: { baseProfile: "old-profile" },
+        agents: {
+          "claude-code": { profile: { baseProfile: "new-profile" } },
+        },
+      } as any;
+
+      const result = await migrate({
+        previousVersion: "18.0.0",
+        config,
+        installDir: tempDir,
+      });
+
+      // Should keep agents unchanged
+      expect(result.agents).toEqual({
+        "claude-code": { profile: { baseProfile: "new-profile" } },
+      });
+
+      // Legacy profile field should be removed
+      expect((result as any).profile).toBeUndefined();
+    });
+
+    it("should handle config with only agents (no legacy profile)", async () => {
+      const config = {
+        installDir: tempDir,
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+          cursor: { profile: { baseProfile: "documenter" } },
+        },
+      };
+
+      const result = await migrate({
+        previousVersion: "18.0.0",
+        config,
+        installDir: tempDir,
+      });
+
+      // Should preserve agents unchanged
+      expect(result.agents).toEqual({
+        "claude-code": { profile: { baseProfile: "senior-swe" } },
+        cursor: { profile: { baseProfile: "documenter" } },
+      });
+
+      // No profile field should exist
+      expect((result as any).profile).toBeUndefined();
+    });
+
+    it("should merge legacy profile into existing agents for non-claude-code agent", async () => {
+      const config = {
+        installDir: tempDir,
+        profile: { baseProfile: "senior-swe" },
+        agents: {
+          cursor: { profile: { baseProfile: "documenter" } },
+        },
+      } as any;
+
+      const result = await migrate({
+        previousVersion: "18.0.0",
+        config,
+        installDir: tempDir,
+      });
+
+      // Should add claude-code with legacy profile while preserving cursor
+      expect(result.agents).toEqual({
+        cursor: { profile: { baseProfile: "documenter" } },
+        "claude-code": { profile: { baseProfile: "senior-swe" } },
+      });
+
+      // Legacy profile field should be removed
+      expect((result as any).profile).toBeUndefined();
+    });
+
+    it("should handle empty agents object with legacy profile", async () => {
+      const config = {
+        installDir: tempDir,
+        profile: { baseProfile: "amol" },
+        agents: {},
+      } as any;
+
+      const result = await migrate({
+        previousVersion: "18.0.0",
+        config,
+        installDir: tempDir,
+      });
+
+      // Should add claude-code profile to agents
+      expect(result.agents).toEqual({
+        "claude-code": { profile: { baseProfile: "amol" } },
+      });
+
+      // Legacy profile field should be removed
+      expect((result as any).profile).toBeUndefined();
+    });
+
+    it("should handle config with no profile and no agents", async () => {
+      const config = {
+        installDir: tempDir,
+        sendSessionTranscript: "enabled",
+      };
+
+      const result = await migrate({
+        previousVersion: "18.0.0",
+        config,
+        installDir: tempDir,
+      });
+
+      // Should not create agents if no profile
+      expect(result.agents).toBeUndefined();
+      expect((result as any).profile).toBeUndefined();
+    });
   });
 });
