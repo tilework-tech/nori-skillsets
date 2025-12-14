@@ -18,11 +18,19 @@ vi.mock("@/api/registrar.js", () => ({
   },
 }));
 
-// Mock the config module
-vi.mock("@/cli/config.js", () => ({
-  loadConfig: vi.fn(),
-  getRegistryAuth: vi.fn(),
-}));
+// Mock the config module - include getInstalledAgents with real implementation
+vi.mock("@/cli/config.js", async () => {
+  return {
+    loadConfig: vi.fn(),
+    getRegistryAuth: vi.fn(),
+    getInstalledAgents: (args: {
+      config: { agents?: Record<string, unknown> | null };
+    }) => {
+      const agents = Object.keys(args.config.agents ?? {});
+      return agents.length > 0 ? agents : ["claude-code"];
+    },
+  };
+});
 
 // Mock the registry auth module
 vi.mock("@/api/registryAuth.js", () => ({
@@ -423,6 +431,111 @@ describe("registry-update", () => {
         .join("\n");
       expect(allErrorOutput.toLowerCase()).toContain("fail");
       expect(allErrorOutput).toContain("Network error");
+    });
+  });
+
+  describe("cursor-agent validation", () => {
+    it("should fail when only cursor-agent is installed", async () => {
+      await createTestProfile({
+        name: "test-profile",
+        version: "1.0.0",
+        registryUrl: REGISTRAR_URL,
+      });
+
+      // Mock config with only cursor-agent installed
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        agents: { "cursor-agent": { profile: { baseProfile: "amol" } } },
+      });
+
+      await registryUpdateMain({
+        profileName: "test-profile",
+        cwd: testDir,
+      });
+
+      // Should not make any API calls
+      expect(registrarApi.getPackument).not.toHaveBeenCalled();
+      expect(registrarApi.downloadTarball).not.toHaveBeenCalled();
+
+      // Should display error message about cursor-agent not being supported
+      const allOutput = [
+        ...mockConsoleLog.mock.calls,
+        ...mockConsoleError.mock.calls,
+      ]
+        .map((call) => call.join(" "))
+        .join("\n");
+      expect(allOutput.toLowerCase()).toContain("not supported");
+      expect(allOutput.toLowerCase()).toContain("cursor");
+      expect(allOutput).toContain("claude-code");
+    });
+
+    it("should succeed when only claude-code is installed", async () => {
+      await createTestProfile({
+        name: "test-profile",
+        version: "1.0.0",
+        registryUrl: REGISTRAR_URL,
+      });
+
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
+      });
+
+      vi.mocked(registrarApi.getPackument).mockResolvedValue({
+        name: "test-profile",
+        "dist-tags": { latest: "2.0.0" },
+        versions: {
+          "1.0.0": { name: "test-profile", version: "1.0.0" },
+          "2.0.0": { name: "test-profile", version: "2.0.0" },
+        },
+      });
+
+      const mockTarball = await createMockTarball();
+      vi.mocked(registrarApi.downloadTarball).mockResolvedValue(mockTarball);
+
+      await registryUpdateMain({
+        profileName: "test-profile",
+        cwd: testDir,
+      });
+
+      // Should make API calls since claude-code is installed
+      expect(registrarApi.getPackument).toHaveBeenCalled();
+    });
+
+    it("should succeed when both agents are installed", async () => {
+      await createTestProfile({
+        name: "test-profile",
+        version: "1.0.0",
+        registryUrl: REGISTRAR_URL,
+      });
+
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+          "cursor-agent": { profile: { baseProfile: "amol" } },
+        },
+      });
+
+      vi.mocked(registrarApi.getPackument).mockResolvedValue({
+        name: "test-profile",
+        "dist-tags": { latest: "2.0.0" },
+        versions: {
+          "1.0.0": { name: "test-profile", version: "1.0.0" },
+          "2.0.0": { name: "test-profile", version: "2.0.0" },
+        },
+      });
+
+      const mockTarball = await createMockTarball();
+      vi.mocked(registrarApi.downloadTarball).mockResolvedValue(mockTarball);
+
+      await registryUpdateMain({
+        profileName: "test-profile",
+        cwd: testDir,
+      });
+
+      // Should make API calls since claude-code is also installed
+      expect(registrarApi.getPackument).toHaveBeenCalled();
     });
   });
 });

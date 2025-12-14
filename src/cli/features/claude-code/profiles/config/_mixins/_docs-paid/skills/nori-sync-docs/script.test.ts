@@ -35,11 +35,15 @@ describe("nori-sync-docs script", () => {
     tempConfigPath = path.join(tempProjectDir, ".nori-config.json");
 
     // Initialize git repo in temp project directory
-    execSync("git init -b main", { cwd: tempProjectDir });
-    execSync('git config user.email "test@example.com"', {
+    execSync("git init -b main", { cwd: tempProjectDir, stdio: "pipe" });
+    execSync('git config --local user.email "test@example.com"', {
       cwd: tempProjectDir,
+      stdio: "pipe",
     });
-    execSync('git config user.name "Test User"', { cwd: tempProjectDir });
+    execSync('git config --local user.name "Test User"', {
+      cwd: tempProjectDir,
+      stdio: "pipe",
+    });
 
     consoleErrorSpy = vi
       .spyOn(console, "error")

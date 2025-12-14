@@ -14,7 +14,11 @@ import * as tar from "tar";
 
 import { registrarApi, REGISTRAR_URL } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
-import { loadConfig, getRegistryAuth } from "@/cli/config.js";
+import {
+  checkRegistryAgentSupport,
+  showCursorAgentNotSupportedError,
+} from "@/cli/commands/registryAgentCheck.js";
+import { getRegistryAuth } from "@/cli/config.js";
 import { error, success, info, newline, raw } from "@/cli/logger.js";
 import { getInstallDirs } from "@/utils/path.js";
 
@@ -382,6 +386,18 @@ export const registryDownloadMain = async (args: {
     targetInstallDir = allInstallations[0];
   }
 
+  // Check if cursor-agent-only installation (not supported for registry commands)
+  const agentCheck = await checkRegistryAgentSupport({
+    installDir: targetInstallDir,
+  });
+  if (!agentCheck.supported) {
+    showCursorAgentNotSupportedError();
+    return;
+  }
+
+  // Use config from agentCheck (already loaded during support check)
+  const config = agentCheck.config;
+
   const profilesDir = path.join(targetInstallDir, ".claude", "profiles");
   const targetDir = path.join(profilesDir, packageName);
 
@@ -395,9 +411,6 @@ export const registryDownloadMain = async (args: {
   } catch {
     // Directory doesn't exist - continue
   }
-
-  // Load config to get registry authentication
-  const config = await loadConfig({ installDir: targetInstallDir });
 
   // Search for the package
   let searchResults: Array<RegistrySearchResult>;

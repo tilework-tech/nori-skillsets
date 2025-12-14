@@ -17,11 +17,19 @@ vi.mock("@/api/registrar.js", () => ({
   },
 }));
 
-// Mock the config module
-vi.mock("@/cli/config.js", () => ({
-  loadConfig: vi.fn(),
-  getRegistryAuth: vi.fn(),
-}));
+// Mock the config module - include getInstalledAgents with real implementation
+vi.mock("@/cli/config.js", async () => {
+  return {
+    loadConfig: vi.fn(),
+    getRegistryAuth: vi.fn(),
+    getInstalledAgents: (args: {
+      config: { agents?: Record<string, unknown> | null };
+    }) => {
+      const agents = Object.keys(args.config.agents ?? {});
+      return agents.length > 0 ? agents : ["claude-code"];
+    },
+  };
+});
 
 // Mock the registry auth module
 vi.mock("@/api/registryAuth.js", () => ({
@@ -611,6 +619,133 @@ describe("registry-upload", () => {
           version: "5.0.0",
         }),
       );
+    });
+  });
+
+  describe("cursor-agent validation", () => {
+    it("should fail when only cursor-agent is installed", async () => {
+      await createTestProfile({ name: "test-profile" });
+
+      // Mock config with only cursor-agent installed
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        agents: { "cursor-agent": { profile: { baseProfile: "amol" } } },
+        registryAuths: [
+          {
+            username: "test@example.com",
+            password: "test-password",
+            registryUrl: "https://registrar.tilework.tech",
+          },
+        ],
+      });
+
+      await registryUploadMain({
+        profileSpec: "test-profile",
+        cwd: testDir,
+      });
+
+      // Should not make any API calls
+      expect(registrarApi.uploadProfile).not.toHaveBeenCalled();
+
+      // Should display error message about cursor-agent not being supported
+      const allOutput = [
+        ...mockConsoleLog.mock.calls,
+        ...mockConsoleError.mock.calls,
+      ]
+        .map((call) => call.join(" "))
+        .join("\n");
+      expect(allOutput.toLowerCase()).toContain("not supported");
+      expect(allOutput.toLowerCase()).toContain("cursor");
+      expect(allOutput).toContain("claude-code");
+    });
+
+    it("should succeed when only claude-code is installed", async () => {
+      await createTestProfile({ name: "test-profile" });
+
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
+        registryAuths: [
+          {
+            username: "test@example.com",
+            password: "test-password",
+            registryUrl: "https://registrar.tilework.tech",
+          },
+        ],
+      });
+
+      vi.mocked(getRegistryAuth).mockReturnValue({
+        username: "test@example.com",
+        password: "test-password",
+        registryUrl: "https://registrar.tilework.tech",
+      });
+
+      vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
+
+      vi.mocked(registrarApi.getPackument).mockRejectedValue(
+        new Error("Package not found"),
+      );
+
+      vi.mocked(registrarApi.uploadProfile).mockResolvedValue({
+        name: "test-profile",
+        version: "1.0.0",
+        tarballSha: "sha512-abc123",
+        createdAt: "2024-01-01T00:00:00.000Z",
+      });
+
+      await registryUploadMain({
+        profileSpec: "test-profile",
+        cwd: testDir,
+      });
+
+      // Should make API call since claude-code is installed
+      expect(registrarApi.uploadProfile).toHaveBeenCalled();
+    });
+
+    it("should succeed when both agents are installed", async () => {
+      await createTestProfile({ name: "test-profile" });
+
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+          "cursor-agent": { profile: { baseProfile: "amol" } },
+        },
+        registryAuths: [
+          {
+            username: "test@example.com",
+            password: "test-password",
+            registryUrl: "https://registrar.tilework.tech",
+          },
+        ],
+      });
+
+      vi.mocked(getRegistryAuth).mockReturnValue({
+        username: "test@example.com",
+        password: "test-password",
+        registryUrl: "https://registrar.tilework.tech",
+      });
+
+      vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
+
+      vi.mocked(registrarApi.getPackument).mockRejectedValue(
+        new Error("Package not found"),
+      );
+
+      vi.mocked(registrarApi.uploadProfile).mockResolvedValue({
+        name: "test-profile",
+        version: "1.0.0",
+        tarballSha: "sha512-abc123",
+        createdAt: "2024-01-01T00:00:00.000Z",
+      });
+
+      await registryUploadMain({
+        profileSpec: "test-profile",
+        cwd: testDir,
+      });
+
+      // Should make API call since claude-code is also installed
+      expect(registrarApi.uploadProfile).toHaveBeenCalled();
     });
   });
 });

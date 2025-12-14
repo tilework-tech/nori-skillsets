@@ -22,10 +22,18 @@ vi.mock("@/api/registryAuth.js", () => ({
   getRegistryAuthToken: vi.fn(),
 }));
 
-// Mock the config module
-vi.mock("@/cli/config.js", () => ({
-  loadConfig: vi.fn(),
-}));
+// Mock the config module - include getInstalledAgents with real implementation
+vi.mock("@/cli/config.js", async () => {
+  return {
+    loadConfig: vi.fn(),
+    getInstalledAgents: (args: {
+      config: { agents?: Record<string, unknown> | null };
+    }) => {
+      const agents = Object.keys(args.config.agents ?? {});
+      return agents.length > 0 ? agents : ["claude-code"];
+    },
+  };
+});
 
 // Mock console methods to capture output
 const mockConsoleLog = vi
@@ -513,6 +521,76 @@ describe("registry-search", () => {
 
       const output = getAllOutput();
       expect(output).toContain("-> test-profile");
+    });
+  });
+
+  describe("cursor-agent validation", () => {
+    it("should fail when only cursor-agent is installed", async () => {
+      // Mock config with only cursor-agent installed
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        agents: { "cursor-agent": { profile: { baseProfile: "amol" } } },
+      });
+
+      await registrySearchMain({ query: "test", installDir: testDir });
+
+      // Should not make any API calls
+      expect(registrarApi.searchPackagesOnRegistry).not.toHaveBeenCalled();
+
+      // Should display error message about cursor-agent not being supported
+      const output = getAllOutput();
+      expect(output.toLowerCase()).toContain("not supported");
+      expect(output.toLowerCase()).toContain("cursor");
+      expect(output).toContain("claude-code");
+    });
+
+    it("should succeed when only claude-code is installed", async () => {
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
+      });
+
+      vi.mocked(registrarApi.searchPackagesOnRegistry).mockResolvedValue([
+        {
+          id: "1",
+          name: "test-profile",
+          description: "A test profile",
+          authorEmail: "test@example.com",
+          createdAt: "2024-01-01",
+          updatedAt: "2024-01-01",
+        },
+      ]);
+
+      await registrySearchMain({ query: "test", installDir: testDir });
+
+      // Should make API call since claude-code is installed
+      expect(registrarApi.searchPackagesOnRegistry).toHaveBeenCalled();
+    });
+
+    it("should succeed when both agents are installed", async () => {
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+          "cursor-agent": { profile: { baseProfile: "amol" } },
+        },
+      });
+
+      vi.mocked(registrarApi.searchPackagesOnRegistry).mockResolvedValue([
+        {
+          id: "1",
+          name: "test-profile",
+          description: "A test profile",
+          authorEmail: "test@example.com",
+          createdAt: "2024-01-01",
+          updatedAt: "2024-01-01",
+        },
+      ]);
+
+      await registrySearchMain({ query: "test", installDir: testDir });
+
+      // Should make API call since claude-code is also installed
+      expect(registrarApi.searchPackagesOnRegistry).toHaveBeenCalled();
     });
   });
 });

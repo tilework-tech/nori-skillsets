@@ -14,7 +14,11 @@ import * as tar from "tar";
 
 import { registrarApi, REGISTRAR_URL } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
-import { loadConfig, getRegistryAuth } from "@/cli/config.js";
+import {
+  checkRegistryAgentSupport,
+  showCursorAgentNotSupportedError,
+} from "@/cli/commands/registryAgentCheck.js";
+import { getRegistryAuth } from "@/cli/config.js";
 import { error, success, info, newline } from "@/cli/logger.js";
 import { getInstallDirs } from "@/utils/path.js";
 
@@ -151,6 +155,18 @@ export const registryUpdateMain = async (args: {
     targetInstallDir = allInstallations[0];
   }
 
+  // Check if cursor-agent-only installation (not supported for registry commands)
+  const agentCheck = await checkRegistryAgentSupport({
+    installDir: targetInstallDir,
+  });
+  if (!agentCheck.supported) {
+    showCursorAgentNotSupportedError();
+    return;
+  }
+
+  // Use config from agentCheck (already loaded during support check)
+  const config = agentCheck.config;
+
   const profilesDir = path.join(targetInstallDir, ".claude", "profiles");
   const profileDir = path.join(profilesDir, profileName);
 
@@ -176,9 +192,6 @@ export const registryUpdateMain = async (args: {
   const { version: installedVersion, registryUrl: storedRegistryUrl } =
     versionInfo;
   const targetRegistryUrl = overrideRegistryUrl ?? storedRegistryUrl;
-
-  // Load config to get registry authentication
-  const config = await loadConfig({ installDir: targetInstallDir });
 
   // Get auth token if needed for private registry
   let authToken: string | undefined;

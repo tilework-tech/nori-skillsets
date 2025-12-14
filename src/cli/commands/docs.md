@@ -52,6 +52,19 @@ The install command sets `agents: { [agentName]: { profile } }` in the config, w
 - If multiple agents installed: error with "Multiple agents installed (X, Y). Please specify which agent to check with --agent <name>."
 - If no agents in config (legacy fallback): default to `claude-code`
 
+**Registry Commands Agent Validation:** Registry commands (search, download, update, upload) require Claude Code to be installed because profiles are stored at `~/.claude/profiles/`. The shared `registryAgentCheck.ts` module provides validation:
+- `checkRegistryAgentSupport({ installDir })` - Returns `{ supported: boolean, config: Config | null }`. Rejects if config has cursor-agent but NOT claude-code; allows all other cases (backwards compatible with older installs that have no agents field)
+- `showCursorAgentNotSupportedError()` - Displays error message explaining registry requires Claude Code and how to install it
+
+All four registry commands call this validation early in their main function, after determining the install directory but before any registry API calls:
+```typescript
+const agentCheck = await checkRegistryAgentSupport({ installDir });
+if (!agentCheck.supported) {
+  showCursorAgentNotSupportedError();
+  return;
+}
+```
+
 ```
 cli.ts
   |
@@ -106,6 +119,9 @@ export const registerXCommand = (args: { program: Command }): void => {
 **Import Path Pattern:** Commands import from `@/cli/` for shared utilities and `@/cli/features/claude-code/` for loaders. Within the install command, relative imports are used for command-specific utilities (e.g., `./asciiArt.js`, `./installState.js`).
 
 ### Things to Know
+
+The commands directory contains shared utilities at the top level:
+- `registryAgentCheck.ts` - Shared validation for registry commands. Checks if the installation has only cursor-agent (no claude-code) and rejects with a helpful error message. Used by registry-search, registry-download, registry-update, and registry-upload commands.
 
 The `install/` directory contains command-specific utilities:
 - `asciiArt.ts` - ASCII banners displayed during installation. All display functions (displayNoriBanner, displayWelcomeBanner, displaySeaweedBed) check `isSilentMode()` and return early without output when silent mode is enabled.
