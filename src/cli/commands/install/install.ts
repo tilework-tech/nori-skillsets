@@ -50,6 +50,12 @@ import {
   supportsAgentFlag,
 } from "@/cli/version.js";
 import { normalizeInstallDir, getInstallDirs } from "@/utils/path.js";
+import {
+  isValidOrgId,
+  buildWatchtowerUrl,
+  normalizeUrl,
+  isValidUrl,
+} from "@/utils/url.js";
 
 import type { Command } from "commander";
 
@@ -233,15 +239,37 @@ export const generatePromptConfig = async (args: {
       hidden: true,
     });
 
-    const orgUrl = await promptUser({
-      prompt:
-        "Enter your organization URL (e.g., http://localhost:3000 for local dev): ",
-    });
+    // Prompt for org ID or URL with validation
+    let organizationUrl: string | null = null;
+    while (organizationUrl == null) {
+      const orgInput = await promptUser({
+        prompt:
+          "Organization ID (e.g., 'tilework') or full URL for local dev: ",
+      });
 
-    if (!password || !orgUrl) {
+      if (!orgInput) {
+        error({
+          message: "Organization ID is required for backend installation",
+        });
+        continue;
+      }
+
+      // Check if it's a valid URL (fallback for local dev)
+      if (isValidUrl({ input: orgInput })) {
+        organizationUrl = normalizeUrl({ baseUrl: orgInput });
+      } else if (isValidOrgId({ orgId: orgInput })) {
+        // Not a URL, check if it's a valid org ID
+        organizationUrl = buildWatchtowerUrl({ orgId: orgInput });
+      } else {
+        error({
+          message: `Invalid input: "${orgInput}". Enter a lowercase org ID (letters, numbers, hyphens) or a full URL.`,
+        });
+      }
+    }
+
+    if (!password) {
       error({
-        message:
-          "Password and organization URL are required for backend installation",
+        message: "Password is required for backend installation",
       });
       process.exit(1);
     }
@@ -249,7 +277,7 @@ export const generatePromptConfig = async (args: {
     auth = {
       username: username.trim(),
       password: password.trim(),
-      organizationUrl: orgUrl.trim(),
+      organizationUrl,
     };
 
     info({ message: "Installing with backend support..." });

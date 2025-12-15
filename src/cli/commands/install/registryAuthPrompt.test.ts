@@ -44,11 +44,11 @@ describe("promptRegistryAuths", () => {
     expect(result).toBeNull();
   });
 
-  it("should collect single registry auth when user adds one", async () => {
+  it("should collect single registry auth with org ID", async () => {
     // User answers "y" to add registry
     mockedPromptUser.mockResolvedValueOnce("y");
-    // Registry URL
-    mockedPromptUser.mockResolvedValueOnce("https://registry.example.com");
+    // Organization ID (not full URL)
+    mockedPromptUser.mockResolvedValueOnce("mycompany");
     // Username
     mockedPromptUser.mockResolvedValueOnce("user@example.com");
     // Password (hidden)
@@ -60,7 +60,7 @@ describe("promptRegistryAuths", () => {
 
     expect(result).toEqual([
       {
-        registryUrl: "https://registry.example.com",
+        registryUrl: "https://mycompany.nori-registry.ai",
         username: "user@example.com",
         password: "secret123",
       },
@@ -73,17 +73,65 @@ describe("promptRegistryAuths", () => {
     });
   });
 
-  it("should collect multiple registry auths when user adds more than one", async () => {
+  it("should accept full URL as fallback for local development", async () => {
     // User answers "y" to add registry
     mockedPromptUser.mockResolvedValueOnce("y");
-    // First registry
-    mockedPromptUser.mockResolvedValueOnce("https://registry1.example.com");
+    // Full URL (fallback for local dev)
+    mockedPromptUser.mockResolvedValueOnce("http://localhost:3000");
+    // Username
+    mockedPromptUser.mockResolvedValueOnce("user@example.com");
+    // Password (hidden)
+    mockedPromptUser.mockResolvedValueOnce("secret123");
+    // User answers "n" to add another
+    mockedPromptUser.mockResolvedValueOnce("n");
+
+    const result = await promptRegistryAuths({ existingRegistryAuths: null });
+
+    expect(result).toEqual([
+      {
+        registryUrl: "http://localhost:3000",
+        username: "user@example.com",
+        password: "secret123",
+      },
+    ]);
+  });
+
+  it("should accept https URL as fallback", async () => {
+    // User answers "y" to add registry
+    mockedPromptUser.mockResolvedValueOnce("y");
+    // Full HTTPS URL
+    mockedPromptUser.mockResolvedValueOnce(
+      "https://custom-registry.example.com",
+    );
+    // Username
+    mockedPromptUser.mockResolvedValueOnce("user@example.com");
+    // Password (hidden)
+    mockedPromptUser.mockResolvedValueOnce("secret123");
+    // User answers "n" to add another
+    mockedPromptUser.mockResolvedValueOnce("n");
+
+    const result = await promptRegistryAuths({ existingRegistryAuths: null });
+
+    expect(result).toEqual([
+      {
+        registryUrl: "https://custom-registry.example.com",
+        username: "user@example.com",
+        password: "secret123",
+      },
+    ]);
+  });
+
+  it("should collect multiple registry auths with org IDs", async () => {
+    // User answers "y" to add registry
+    mockedPromptUser.mockResolvedValueOnce("y");
+    // First registry - org ID
+    mockedPromptUser.mockResolvedValueOnce("company1");
     mockedPromptUser.mockResolvedValueOnce("user1@example.com");
     mockedPromptUser.mockResolvedValueOnce("password1");
     // User answers "y" to add another
     mockedPromptUser.mockResolvedValueOnce("y");
-    // Second registry
-    mockedPromptUser.mockResolvedValueOnce("https://registry2.example.com");
+    // Second registry - org ID with hyphen
+    mockedPromptUser.mockResolvedValueOnce("company-2");
     mockedPromptUser.mockResolvedValueOnce("user2@example.com");
     mockedPromptUser.mockResolvedValueOnce("password2");
     // User answers "n" to add another
@@ -93,12 +141,12 @@ describe("promptRegistryAuths", () => {
 
     expect(result).toEqual([
       {
-        registryUrl: "https://registry1.example.com",
+        registryUrl: "https://company1.nori-registry.ai",
         username: "user1@example.com",
         password: "password1",
       },
       {
-        registryUrl: "https://registry2.example.com",
+        registryUrl: "https://company-2.nori-registry.ai",
         username: "user2@example.com",
         password: "password2",
       },
@@ -108,7 +156,7 @@ describe("promptRegistryAuths", () => {
   it("should show existing registry auths and allow keeping them", async () => {
     const existingAuths: Array<RegistryAuth> = [
       {
-        registryUrl: "https://existing.example.com",
+        registryUrl: "https://existing.nori-registry.ai",
         username: "existing@example.com",
         password: "existingpass",
       },
@@ -130,7 +178,7 @@ describe("promptRegistryAuths", () => {
   it("should allow reconfiguring when user declines to keep existing", async () => {
     const existingAuths: Array<RegistryAuth> = [
       {
-        registryUrl: "https://existing.example.com",
+        registryUrl: "https://existing.nori-registry.ai",
         username: "existing@example.com",
         password: "existingpass",
       },
@@ -140,8 +188,8 @@ describe("promptRegistryAuths", () => {
     mockedPromptUser.mockResolvedValueOnce("n");
     // User answers "y" to add new registry
     mockedPromptUser.mockResolvedValueOnce("y");
-    // New registry
-    mockedPromptUser.mockResolvedValueOnce("https://new.example.com");
+    // New registry - org ID
+    mockedPromptUser.mockResolvedValueOnce("neworg");
     mockedPromptUser.mockResolvedValueOnce("new@example.com");
     mockedPromptUser.mockResolvedValueOnce("newpass");
     // User answers "n" to add another
@@ -153,20 +201,20 @@ describe("promptRegistryAuths", () => {
 
     expect(result).toEqual([
       {
-        registryUrl: "https://new.example.com",
+        registryUrl: "https://neworg.nori-registry.ai",
         username: "new@example.com",
         password: "newpass",
       },
     ]);
   });
 
-  it("should re-prompt for invalid URL format", async () => {
+  it("should re-prompt for invalid org ID format", async () => {
     // User answers "y" to add registry
     mockedPromptUser.mockResolvedValueOnce("y");
-    // Invalid URL first
-    mockedPromptUser.mockResolvedValueOnce("not-a-valid-url");
-    // Valid URL second attempt
-    mockedPromptUser.mockResolvedValueOnce("https://registry.example.com");
+    // Invalid org ID first (uppercase)
+    mockedPromptUser.mockResolvedValueOnce("MyCompany");
+    // Valid org ID second attempt
+    mockedPromptUser.mockResolvedValueOnce("mycompany");
     // Username
     mockedPromptUser.mockResolvedValueOnce("user@example.com");
     // Password
@@ -178,20 +226,20 @@ describe("promptRegistryAuths", () => {
 
     expect(result).toEqual([
       {
-        registryUrl: "https://registry.example.com",
+        registryUrl: "https://mycompany.nori-registry.ai",
         username: "user@example.com",
         password: "secret123",
       },
     ]);
 
-    // Should have prompted for URL twice (once invalid, once valid)
-    const urlPromptCalls = mockedPromptUser.mock.calls.filter((call) =>
-      call[0].prompt.toLowerCase().includes("registry url"),
+    // Should have prompted for org ID twice (once invalid, once valid)
+    const orgIdPromptCalls = mockedPromptUser.mock.calls.filter((call) =>
+      call[0].prompt.toLowerCase().includes("organization id"),
     );
-    expect(urlPromptCalls.length).toBe(2);
+    expect(orgIdPromptCalls.length).toBe(2);
   });
 
-  it("should normalize registry URL by removing trailing slash", async () => {
+  it("should normalize URL by removing trailing slash when using fallback URL", async () => {
     // User answers "y" to add registry
     mockedPromptUser.mockResolvedValueOnce("y");
     // URL with trailing slash

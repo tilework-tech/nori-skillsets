@@ -963,8 +963,9 @@ describe("switch-profile getInstallDirs auto-detection", () => {
 
   beforeEach(async () => {
     originalCwd = process.cwd();
-    testInstallDir = await fs.mkdtemp(
-      path.join(tmpdir(), "switch-profile-autodetect-test-"),
+    // Use realpath to resolve symlinks (macOS /var -> /private/var)
+    testInstallDir = await fs.realpath(
+      await fs.mkdtemp(path.join(tmpdir(), "switch-profile-autodetect-test-")),
     );
 
     // Create profiles directory with test profiles

@@ -24,27 +24,35 @@ git worktree or git branch just to manage Watchtower authentication.</system-rem
 
 1. Ask the user for their email address (username) for Watchtower.
 2. Ask for the password for Watchtower.
-3. Ask for the organization URL.
+3. Ask for the organization ID or URL.
 
-**Validation rules:**
-- URL must start with `http://` or `https://` (both allowed for local development)
+**Validation rules for organization input:**
+- **Organization ID format:** lowercase alphanumeric with optional hyphens (e.g., 'tilework', 'my-company', 'company123')
+  - Must not start or end with a hyphen
+  - Must not contain uppercase letters, underscores, or special characters
+- **URL fallback:** For local development, users can enter a full URL starting with `http://` or `https://`
 - URL should not have a trailing slash
-- If the URL doesn't start with `http://` or `https://`, explain that only HTTP/HTTPS URLs are supported and ask again
+
+**URL construction:**
+- If the user enters a valid org ID (e.g., 'tilework'): construct `https://{orgId}.tilework.tech`
+- If the user enters a full URL (e.g., 'http://localhost:3000'): use it as-is (remove trailing slash if present)
 
 4. Update the .nori-config.json file located at {{install_dir}}.
 
-The Watchtower auth credentials are stored at the root level of the config file:
+The Watchtower auth credentials are stored in the `auth` object of the config file:
 
 ```json
 {
-  "username": "your-email@example.com",
-  "password": "your-password",
-  "organizationUrl": "https://api.tilework.tech",
+  "auth": {
+    "username": "your-email@example.com",
+    "password": "your-password",
+    "organizationUrl": "https://tilework.tilework.tech"
+  },
   ...other fields...
 }
 ```
 
-**Important:** Preserve all other existing fields in the config file (like `profile`, `sendSessionTranscript`, `autoupdate`, `registryAuths`, `installDir`).
+**Important:** Preserve all other existing fields in the config file (like `agents`, `sendSessionTranscript`, `autoupdate`, `registryAuths`, `installDir`).
 
 5. Display a success message:
 
@@ -77,9 +85,9 @@ No Watchtower authentication configured.
 And end the wizard.
 
 2. Ask the user to confirm they want to remove their Watchtower credentials.
-3. Remove the `username`, `password`, and `organizationUrl` fields from the config file.
+3. Remove the `auth` object (or the `username`, `password`, and `organizationUrl` fields) from the config file.
 
-**Important:** Preserve all other existing fields in the config file (like `profile`, `sendSessionTranscript`, `autoupdate`, `registryAuths`, `installDir`).
+**Important:** Preserve all other existing fields in the config file (like `agents`, `sendSessionTranscript`, `autoupdate`, `registryAuths`, `installDir`).
 
 4. Display a success message:
 ```
@@ -113,5 +121,5 @@ Read the config file at `{{install_dir}}/.nori-config.json` and display the curr
 
 - Watchtower credentials are stored in `{{install_dir}}/.nori-config.json`
 - The password is stored in plain text in the config file - keep this file secure
-- You can use `http://localhost:3000` for local development
-- For production, use your organization's Watchtower URL (e.g., `https://api.tilework.tech`)
+- For most users, just enter your organization ID (e.g., 'tilework') and the URL will be constructed automatically
+- For local development, you can enter `http://localhost:3000` as the full URL

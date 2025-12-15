@@ -5,25 +5,38 @@
 
 import { info, error, gray, newline } from "@/cli/logger.js";
 import { promptUser } from "@/cli/prompt.js";
-import { normalizeUrl } from "@/utils/url.js";
+import {
+  normalizeUrl,
+  isValidOrgId,
+  buildRegistryUrl,
+  isValidUrl,
+} from "@/utils/url.js";
 
 import type { RegistryAuth } from "@/cli/config.js";
 
 /**
- * Validate that a string is a valid URL
+ * Parse org ID or URL input and return the registry URL
  * @param args - Configuration arguments
- * @param args.url - URL string to validate
+ * @param args.input - User input (org ID or full URL)
  *
- * @returns True if valid URL, false otherwise
+ * @returns Object with registryUrl and isValid flag, or null if invalid
  */
-const isValidUrl = (args: { url: string }): boolean => {
-  const { url } = args;
-  try {
-    new URL(url);
-    return true;
-  } catch {
-    return false;
+const parseOrgIdOrUrl = (args: {
+  input: string;
+}): { registryUrl: string; isValid: boolean } => {
+  const { input } = args;
+
+  // First check if it's a valid URL (fallback for local dev)
+  if (isValidUrl({ input })) {
+    return { registryUrl: normalizeUrl({ baseUrl: input }), isValid: true };
   }
+
+  // Otherwise check if it's a valid org ID
+  if (isValidOrgId({ orgId: input })) {
+    return { registryUrl: buildRegistryUrl({ orgId: input }), isValid: true };
+  }
+
+  return { registryUrl: "", isValid: false };
 };
 
 /**
@@ -81,20 +94,22 @@ export const promptRegistryAuths = async (args: {
   while (addMore) {
     newline();
 
-    // Collect registry URL with validation
+    // Collect organization ID or URL with validation
     let registryUrl: string;
     while (true) {
-      const urlInput = await promptUser({
-        prompt: "Registry URL (e.g., https://registry.example.com): ",
+      const input = await promptUser({
+        prompt:
+          "Organization ID (e.g., 'mycompany') or full URL for local dev: ",
       });
 
-      if (isValidUrl({ url: urlInput })) {
-        registryUrl = normalizeUrl({ baseUrl: urlInput });
+      const result = parseOrgIdOrUrl({ input });
+      if (result.isValid) {
+        registryUrl = result.registryUrl;
         break;
       }
 
       error({
-        message: `Invalid URL format: "${urlInput}". Please enter a valid URL.`,
+        message: `Invalid input: "${input}". Enter a lowercase org ID (letters, numbers, hyphens) or a full URL.`,
       });
     }
 

@@ -143,9 +143,11 @@ describe("session-state", () => {
       }
     });
 
-    it("should use /tmp directory", () => {
+    it("should use system temp directory", () => {
       const markerPath = getSessionMarkerPath({ cwd: testCwd });
-      expect(markerPath).toContain("/tmp");
+      // Use tmpdir() to get the platform-specific temp directory
+      // (macOS uses /var/folders/... not /tmp)
+      expect(markerPath).toContain(tmpdir());
       expect(markerPath).toContain("nori-cursor-session");
     });
   });

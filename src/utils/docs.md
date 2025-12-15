@@ -4,7 +4,7 @@ Path: @/src/utils
 
 ### Overview
 
-Shared utility functions for the plugin package, containing URL normalization helpers for consistent URL formatting and path utilities for installation directory management and ancestor installation detection.
+Shared utility functions for the plugin package, containing URL utilities for normalization and service URL construction, plus path utilities for installation directory management and ancestor installation detection.
 
 ### How it fits into the larger codebase
 
@@ -14,7 +14,17 @@ The path.ts module provides installation directory utilities used by both the in
 
 ### Core Implementation
 
-The url.ts module exports a single normalizeUrl function that accepts { baseUrl: string, path?: string | null } and returns a normalized URL. The function strips all trailing slashes from baseUrl using replace(/\/+$/, ''), handles optional path by ensuring it starts with exactly one leading slash, and concatenates them to prevent double slashes. Comprehensive test coverage in url.test.ts validates edge cases including multiple trailing slashes, empty paths, localhost URLs, and query parameters. The function follows the codebase style of named parameters and optional null types.
+The url.ts module exports four functions:
+
+**normalizeUrl:** Accepts { baseUrl: string, path?: string | null } and returns a normalized URL. The function strips all trailing slashes from baseUrl using replace(/\/+$/, ''), handles optional path by ensuring it starts with exactly one leading slash, and concatenates them to prevent double slashes.
+
+**isValidOrgId:** Accepts { orgId: string } and returns a boolean. Validates that the org ID is lowercase alphanumeric with optional hyphens, not starting or ending with a hyphen. Uses the regex pattern `/^[a-z0-9]+(-[a-z0-9]+)*$/`.
+
+**buildWatchtowerUrl:** Accepts { orgId: string } and returns the Watchtower URL as `https://{orgId}.tilework.tech`.
+
+**buildRegistryUrl:** Accepts { orgId: string } and returns the Registry URL as `https://{orgId}.nori-registry.ai`.
+
+These URL construction functions are used by the install command (@/src/cli/commands/install/install.ts) and registry auth prompt (@/src/cli/commands/install/registryAuthPrompt.ts) to convert user-provided org IDs into full service URLs. The stored config format remains unchanged (full URLs), so this is purely a UX improvement at the user input layer.
 
 The path.ts module exports five functions: normalizeInstallDir, getInstallDirs, hasNoriInstallation, findAncestorInstallations, and findAllInstallations.
 
