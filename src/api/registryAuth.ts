@@ -1,34 +1,19 @@
 /**
  * Registry authentication module
- * Handles Firebase authentication for registry operations
+ * Uses the same refresh token as Watchtower (unified Nori auth)
  */
 
-import { initializeApp, type FirebaseApp } from "firebase/app";
-import { getAuth, signInWithEmailAndPassword, type Auth } from "firebase/auth";
+import { exchangeRefreshToken } from "@/api/refreshToken.js";
 
 import type { RegistryAuth } from "@/cli/config.js";
-
-// Firebase config (shared with nori-registrar)
-const firebaseConfig = {
-  apiKey: "AIzaSyBsAQjR01pv3eUWIIJY_qtYLJYF5BioKWs",
-  authDomain: "nori-registrar.firebaseapp.com",
-  projectId: "nori-registrar",
-  storageBucket: "nori-registrar.firebasestorage.app",
-  messagingSenderId: "987303113576",
-  appId: "1:987303113576:web:7144e5c24b740f4148dcdd",
-  measurementId: "G-2KKCKDGTKL",
-};
 
 // Cache for auth tokens per registry URL
 const tokenCache = new Map<string, { token: string; expiry: number }>();
 
-// Cache for Firebase app instances per registry URL
-const appCache = new Map<string, { app: FirebaseApp; auth: Auth }>();
-
 /**
- * Get Firebase auth token for a registry
+ * Get auth token for a registry using the unified Nori refresh token
  * @param args - The authentication parameters
- * @param args.registryAuth - Registry authentication credentials
+ * @param args.registryAuth - Registry authentication credentials (must have refreshToken)
  *
  * @returns The Firebase ID token
  */
@@ -44,32 +29,23 @@ export const getRegistryAuthToken = async (args: {
     return cached.token;
   }
 
-  // Get or create Firebase app instance for this registry
-  let firebase = appCache.get(cacheKey);
-  if (firebase == null) {
-    const app = initializeApp(firebaseConfig, `registry-${cacheKey}`);
-    const auth = getAuth(app);
-    firebase = { app, auth };
-    appCache.set(cacheKey, firebase);
+  if (registryAuth.refreshToken == null) {
+    throw new Error(
+      "No refresh token available. Please log in with 'nori-ai install'.",
+    );
   }
 
-  // Sign in with Firebase Auth
-  const userCredential = await signInWithEmailAndPassword(
-    firebase.auth,
-    registryAuth.username,
-    registryAuth.password,
-  );
-
-  // Get the ID token
-  const token = await userCredential.user.getIdToken();
+  const result = await exchangeRefreshToken({
+    refreshToken: registryAuth.refreshToken,
+  });
 
   // Cache with 55 minute expiry (Firebase tokens last 1 hour)
   tokenCache.set(cacheKey, {
-    token,
+    token: result.idToken,
     expiry: Date.now() + 55 * 60 * 1000,
   });
 
-  return token;
+  return result.idToken;
 };
 
 /**
@@ -78,5 +54,4 @@ export const getRegistryAuthToken = async (args: {
  */
 export const clearRegistryAuthCache = (): void => {
   tokenCache.clear();
-  appCache.clear();
 };

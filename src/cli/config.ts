@@ -14,11 +14,15 @@ import { normalizeUrl, extractOrgId, buildRegistryUrl } from "@/utils/url.js";
 
 /**
  * Registry authentication credentials
+ * Supports both legacy password auth and new refresh token auth
  */
 export type RegistryAuth = {
   username: string;
-  password: string;
   registryUrl: string;
+  // Legacy password-based auth
+  password?: string | null;
+  // Token-based auth (preferred)
+  refreshToken?: string | null;
 };
 
 /**
