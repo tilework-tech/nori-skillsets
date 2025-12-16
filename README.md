@@ -26,7 +26,7 @@ Launch Claude Code from your terminal. Nori features activate automatically.
 
 - Node.js 22 or higher
 - Claude Code CLI installed
-
+- Mac or Linux operating system
 
 ### Start by testing a profile
 
