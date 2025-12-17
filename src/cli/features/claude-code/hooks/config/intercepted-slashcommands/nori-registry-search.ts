@@ -140,7 +140,7 @@ const run = async (args: { input: HookInput }): Promise<HookOutput | null> => {
     return {
       decision: "block",
       reason: formatError({
-        message: `No organization configured.\n\nRun 'npx nori-ai install' to set up your organization credentials.`,
+        message: `No organization configured.\n\nRun 'nori-ai install' to set up your organization credentials.`,
       }),
     };
   }
@@ -151,7 +151,7 @@ const run = async (args: { input: HookInput }): Promise<HookOutput | null> => {
     return {
       decision: "block",
       reason: formatError({
-        message: `Invalid organization URL in config.\n\nRun 'npx nori-ai install' to reconfigure your credentials.`,
+        message: `Invalid organization URL in config.\n\nRun 'nori-ai install' to reconfigure your credentials.`,
       }),
     };
   }

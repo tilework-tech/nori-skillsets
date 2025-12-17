@@ -143,7 +143,7 @@ export const registrySearchMain = async (args: {
   if (config?.auth == null || config.auth.organizationUrl == null) {
     error({
       message:
-        "No organization configured.\n\nRun 'npx nori-ai install' to set up your organization credentials.",
+        "No organization configured.\n\nRun 'nori-ai install' to set up your organization credentials.",
     });
     return;
   }
@@ -153,7 +153,7 @@ export const registrySearchMain = async (args: {
   if (orgId == null) {
     error({
       message:
-        "Invalid organization URL in config.\n\nRun 'npx nori-ai install' to reconfigure your credentials.",
+        "Invalid organization URL in config.\n\nRun 'nori-ai install' to reconfigure your credentials.",
     });
     return;
   }
