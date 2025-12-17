@@ -1,10 +1,10 @@
 /**
  * CLI command for searching profile packages in the Nori registrar
  * Handles: nori-ai registry-search <query>
- * Searches across all configured registries (public + private)
+ * Searches across all configured registries (public + org)
  */
 
-import { REGISTRAR_URL, registrarApi, type Package } from "@/api/registrar.js";
+import { registrarApi, type Package } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
 import {
   checkRegistryAgentSupport,
@@ -13,8 +13,9 @@ import {
 import { loadConfig } from "@/cli/config.js";
 import { error, info, newline, raw } from "@/cli/logger.js";
 import { getInstallDirs, normalizeInstallDir } from "@/utils/path.js";
-import { normalizeUrl } from "@/utils/url.js";
+import { normalizeUrl, extractOrgId, buildRegistryUrl } from "@/utils/url.js";
 
+import type { RegistryAuth } from "@/cli/config.js";
 import type { Command } from "commander";
 
 /**
@@ -44,37 +45,52 @@ const searchAllRegistries = async (args: {
   // Load config to get registry auths
   const config = await loadConfig({ installDir });
 
-  // Normalize public registry URL for comparison
-  const normalizedPublicUrl = normalizeUrl({ baseUrl: REGISTRAR_URL });
-
   // Track searched registries to avoid duplicates
   const searchedRegistries = new Set<string>();
 
-  // Always search public registry (no auth required)
-  try {
-    const packages = await registrarApi.searchPackagesOnRegistry({
-      query,
-      registryUrl: REGISTRAR_URL,
-    });
-    results.push({ registryUrl: REGISTRAR_URL, packages });
-    searchedRegistries.add(normalizedPublicUrl);
-  } catch (err) {
-    results.push({
-      registryUrl: REGISTRAR_URL,
-      packages: [],
-      error: err instanceof Error ? err.message : String(err),
-    });
-    searchedRegistries.add(normalizedPublicUrl);
+  // Search org registry first if org-based auth is configured
+  if (config?.auth != null && config.auth.organizationUrl != null) {
+    const orgId = extractOrgId({ url: config.auth.organizationUrl });
+    if (orgId != null) {
+      const orgRegistryUrl = buildRegistryUrl({ orgId });
+      const normalizedOrgUrl = normalizeUrl({ baseUrl: orgRegistryUrl });
+
+      if (!searchedRegistries.has(normalizedOrgUrl)) {
+        searchedRegistries.add(normalizedOrgUrl);
+
+        const registryAuth: RegistryAuth = {
+          registryUrl: orgRegistryUrl,
+          username: config.auth.username,
+          refreshToken: config.auth.refreshToken ?? null,
+        };
+
+        try {
+          const authToken = await getRegistryAuthToken({ registryAuth });
+          const packages = await registrarApi.searchPackagesOnRegistry({
+            query,
+            registryUrl: orgRegistryUrl,
+            authToken,
+          });
+          results.push({ registryUrl: orgRegistryUrl, packages });
+        } catch (err) {
+          results.push({
+            registryUrl: orgRegistryUrl,
+            packages: [],
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+    }
   }
 
-  // Search private registries if configured
+  // Also search legacy registryAuths if configured
   if (config?.registryAuths != null) {
     for (const registryAuth of config.registryAuths) {
       const normalizedRegistryUrl = normalizeUrl({
         baseUrl: registryAuth.registryUrl,
       });
 
-      // Skip if already searched (e.g., if private registry URL matches public)
+      // Skip if already searched
       if (searchedRegistries.has(normalizedRegistryUrl)) {
         continue;
       }
@@ -201,10 +217,6 @@ export const registrySearchMain = async (args: {
     }
 
     info({ message: `No profiles found matching "${query}".` });
-    info({
-      message:
-        "Try a different search term or browse the registrar at https://registrar.tilework.tech",
-    });
     return;
   }
 
@@ -231,7 +243,7 @@ export const registerRegistrySearchCommand = (args: {
 
   program
     .command("registry-search <query>")
-    .description("Search for profile packages in the Nori registrar")
+    .description("Search for profile packages in your org's registry")
     .action(async (query: string) => {
       // Get global options from parent
       const globalOpts = program.opts();

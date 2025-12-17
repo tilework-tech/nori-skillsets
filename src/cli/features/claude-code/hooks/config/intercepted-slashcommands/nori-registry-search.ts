@@ -1,20 +1,21 @@
 /**
  * Intercepted slash command for searching profile packages
  * Handles /nori-registry-search <query> command
- * Searches across all configured registries (public + private)
+ * Searches the user's org registry
  */
 
-import { REGISTRAR_URL, registrarApi, type Package } from "@/api/registrar.js";
+import { registrarApi, type Package } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
 import { loadConfig } from "@/cli/config.js";
 import { getInstallDirs } from "@/utils/path.js";
-import { normalizeUrl } from "@/utils/url.js";
+import { normalizeUrl, extractOrgId, buildRegistryUrl } from "@/utils/url.js";
 
 import type {
   HookInput,
   HookOutput,
   InterceptedSlashCommand,
 } from "./types.js";
+import type { RegistryAuth } from "@/cli/config.js";
 
 import { formatError, formatSuccess } from "./format.js";
 
@@ -61,37 +62,52 @@ const searchAllRegistries = async (args: {
   // Load config to get registry auths
   const config = await loadConfig({ installDir });
 
-  // Normalize public registry URL for comparison
-  const normalizedPublicUrl = normalizeUrl({ baseUrl: REGISTRAR_URL });
-
   // Track searched registries to avoid duplicates
   const searchedRegistries = new Set<string>();
 
-  // Always search public registry (no auth required)
-  try {
-    const packages = await registrarApi.searchPackagesOnRegistry({
-      query,
-      registryUrl: REGISTRAR_URL,
-    });
-    results.push({ registryUrl: REGISTRAR_URL, packages });
-    searchedRegistries.add(normalizedPublicUrl);
-  } catch (err) {
-    results.push({
-      registryUrl: REGISTRAR_URL,
-      packages: [],
-      error: err instanceof Error ? err.message : String(err),
-    });
-    searchedRegistries.add(normalizedPublicUrl);
+  // Search org registry first if org-based auth is configured
+  if (config?.auth != null && config.auth.organizationUrl != null) {
+    const orgId = extractOrgId({ url: config.auth.organizationUrl });
+    if (orgId != null) {
+      const orgRegistryUrl = buildRegistryUrl({ orgId });
+      const normalizedOrgUrl = normalizeUrl({ baseUrl: orgRegistryUrl });
+
+      if (!searchedRegistries.has(normalizedOrgUrl)) {
+        searchedRegistries.add(normalizedOrgUrl);
+
+        const registryAuth: RegistryAuth = {
+          registryUrl: orgRegistryUrl,
+          username: config.auth.username,
+          refreshToken: config.auth.refreshToken ?? null,
+        };
+
+        try {
+          const authToken = await getRegistryAuthToken({ registryAuth });
+          const packages = await registrarApi.searchPackagesOnRegistry({
+            query,
+            registryUrl: orgRegistryUrl,
+            authToken,
+          });
+          results.push({ registryUrl: orgRegistryUrl, packages });
+        } catch (err) {
+          results.push({
+            registryUrl: orgRegistryUrl,
+            packages: [],
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+    }
   }
 
-  // Search private registries if configured
+  // Also search legacy registryAuths if configured
   if (config?.registryAuths != null) {
     for (const registryAuth of config.registryAuths) {
       const normalizedRegistryUrl = normalizeUrl({
         baseUrl: registryAuth.registryUrl,
       });
 
-      // Skip if already searched (e.g., if private registry URL matches public)
+      // Skip if already searched
       if (searchedRegistries.has(normalizedRegistryUrl)) {
         continue;
       }
@@ -175,7 +191,7 @@ const run = async (args: { input: HookInput }): Promise<HookOutput | null> => {
     return {
       decision: "block",
       reason: formatSuccess({
-        message: `Search for profile packages across all configured registries.\n\nUsage: /nori-registry-search <query>\n\nExamples:\n  /nori-registry-search typescript\n  /nori-registry-search react developer`,
+        message: `Search for profile packages in your org's registry.\n\nUsage: /nori-registry-search <query>\n\nExamples:\n  /nori-registry-search typescript\n  /nori-registry-search react developer`,
       }),
     };
   }
@@ -217,7 +233,7 @@ const run = async (args: { input: HookInput }): Promise<HookOutput | null> => {
       return {
         decision: "block",
         reason: formatSuccess({
-          message: `No profiles found matching "${query}" in any registry.\n\nTry a different search term.`,
+          message: `No profiles found matching "${query}".\n\nTry a different search term.`,
         }),
       };
     }

@@ -1,8 +1,15 @@
 /**
  * Tests for registry authentication module
+ * Now uses refresh token exchange instead of email/password sign-in
  */
-import { signInWithEmailAndPassword } from "firebase/auth";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+
+// Mock the refresh token module
+vi.mock("@/api/refreshToken.js", () => ({
+  exchangeRefreshToken: vi.fn(),
+}));
+
+import { exchangeRefreshToken } from "@/api/refreshToken.js";
 
 import type { RegistryAuth } from "@/cli/config.js";
 
@@ -10,16 +17,6 @@ import {
   getRegistryAuthToken,
   clearRegistryAuthCache,
 } from "./registryAuth.js";
-
-// Mock Firebase - must be after imports for vitest hoisting
-vi.mock("firebase/app", () => ({
-  initializeApp: vi.fn(() => ({ name: "mock-app" })),
-}));
-
-vi.mock("firebase/auth", () => ({
-  getAuth: vi.fn(() => ({ name: "mock-auth" })),
-  signInWithEmailAndPassword: vi.fn(),
-}));
 
 describe("registryAuth", () => {
   beforeEach(() => {
@@ -33,49 +30,41 @@ describe("registryAuth", () => {
   });
 
   describe("getRegistryAuthToken", () => {
-    it("should sign in with Firebase and return ID token", async () => {
+    it("should exchange refresh token and return ID token", async () => {
       const mockIdToken = "mock-firebase-id-token";
-      const mockUserCredential = {
-        user: {
-          getIdToken: vi.fn().mockResolvedValue(mockIdToken),
-        },
-      };
 
-      vi.mocked(signInWithEmailAndPassword).mockResolvedValue(
-        mockUserCredential as any,
-      );
+      vi.mocked(exchangeRefreshToken).mockResolvedValue({
+        idToken: mockIdToken,
+        refreshToken: "new-refresh-token",
+        expiresIn: 3600,
+      });
 
       const registryAuth: RegistryAuth = {
         username: "test@example.com",
-        password: "testpassword",
+        refreshToken: "test-refresh-token",
         registryUrl: "https://registrar.tilework.tech",
       };
 
       const token = await getRegistryAuthToken({ registryAuth });
 
       expect(token).toBe(mockIdToken);
-      expect(signInWithEmailAndPassword).toHaveBeenCalledWith(
-        expect.anything(),
-        "test@example.com",
-        "testpassword",
-      );
+      expect(exchangeRefreshToken).toHaveBeenCalledWith({
+        refreshToken: "test-refresh-token",
+      });
     });
 
     it("should cache token and return cached value on subsequent calls", async () => {
       const mockIdToken = "mock-firebase-id-token";
-      const mockUserCredential = {
-        user: {
-          getIdToken: vi.fn().mockResolvedValue(mockIdToken),
-        },
-      };
 
-      vi.mocked(signInWithEmailAndPassword).mockResolvedValue(
-        mockUserCredential as any,
-      );
+      vi.mocked(exchangeRefreshToken).mockResolvedValue({
+        idToken: mockIdToken,
+        refreshToken: "new-refresh-token",
+        expiresIn: 3600,
+      });
 
       const registryAuth: RegistryAuth = {
         username: "test@example.com",
-        password: "testpassword",
+        refreshToken: "test-refresh-token",
         registryUrl: "https://registrar.tilework.tech",
       };
 
@@ -87,31 +76,35 @@ describe("registryAuth", () => {
       expect(token1).toBe(mockIdToken);
       expect(token2).toBe(mockIdToken);
 
-      // Should only sign in once due to caching
-      expect(signInWithEmailAndPassword).toHaveBeenCalledTimes(1);
+      // Should only exchange once due to caching
+      expect(exchangeRefreshToken).toHaveBeenCalledTimes(1);
     });
 
     it("should use different cache entries for different registries", async () => {
       const mockIdToken1 = "mock-token-1";
       const mockIdToken2 = "mock-token-2";
 
-      vi.mocked(signInWithEmailAndPassword)
+      vi.mocked(exchangeRefreshToken)
         .mockResolvedValueOnce({
-          user: { getIdToken: vi.fn().mockResolvedValue(mockIdToken1) },
-        } as any)
+          idToken: mockIdToken1,
+          refreshToken: "new-refresh-token-1",
+          expiresIn: 3600,
+        })
         .mockResolvedValueOnce({
-          user: { getIdToken: vi.fn().mockResolvedValue(mockIdToken2) },
-        } as any);
+          idToken: mockIdToken2,
+          refreshToken: "new-refresh-token-2",
+          expiresIn: 3600,
+        });
 
       const registryAuth1: RegistryAuth = {
         username: "user1@example.com",
-        password: "pass1",
+        refreshToken: "refresh-token-1",
         registryUrl: "https://registry1.example.com",
       };
 
       const registryAuth2: RegistryAuth = {
         username: "user2@example.com",
-        password: "pass2",
+        refreshToken: "refresh-token-2",
         registryUrl: "https://registry2.example.com",
       };
 
@@ -125,34 +118,48 @@ describe("registryAuth", () => {
       expect(token1).toBe(mockIdToken1);
       expect(token2).toBe(mockIdToken2);
 
-      // Should sign in twice (once per registry)
-      expect(signInWithEmailAndPassword).toHaveBeenCalledTimes(2);
+      // Should exchange twice (once per registry)
+      expect(exchangeRefreshToken).toHaveBeenCalledTimes(2);
     });
 
-    it("should throw error on invalid credentials", async () => {
-      vi.mocked(signInWithEmailAndPassword).mockRejectedValue(
-        new Error("auth/wrong-password"),
-      );
-
+    it("should throw error when refresh token is missing", async () => {
       const registryAuth: RegistryAuth = {
         username: "test@example.com",
-        password: "wrongpassword",
         registryUrl: "https://registrar.tilework.tech",
       };
 
       await expect(getRegistryAuthToken({ registryAuth })).rejects.toThrow(
-        "auth/wrong-password",
+        "No refresh token available",
+      );
+
+      // Should not attempt to exchange
+      expect(exchangeRefreshToken).not.toHaveBeenCalled();
+    });
+
+    it("should throw error on token exchange failure", async () => {
+      vi.mocked(exchangeRefreshToken).mockRejectedValue(
+        new Error("TOKEN_EXPIRED"),
+      );
+
+      const registryAuth: RegistryAuth = {
+        username: "test@example.com",
+        refreshToken: "expired-refresh-token",
+        registryUrl: "https://registrar.tilework.tech",
+      };
+
+      await expect(getRegistryAuthToken({ registryAuth })).rejects.toThrow(
+        "TOKEN_EXPIRED",
       );
     });
 
     it("should throw error on network failure", async () => {
-      vi.mocked(signInWithEmailAndPassword).mockRejectedValue(
+      vi.mocked(exchangeRefreshToken).mockRejectedValue(
         new Error("Network error"),
       );
 
       const registryAuth: RegistryAuth = {
         username: "test@example.com",
-        password: "testpassword",
+        refreshToken: "test-refresh-token",
         registryUrl: "https://registrar.tilework.tech",
       };
 
@@ -165,19 +172,16 @@ describe("registryAuth", () => {
   describe("clearRegistryAuthCache", () => {
     it("should clear cached tokens", async () => {
       const mockIdToken = "mock-firebase-id-token";
-      const mockUserCredential = {
-        user: {
-          getIdToken: vi.fn().mockResolvedValue(mockIdToken),
-        },
-      };
 
-      vi.mocked(signInWithEmailAndPassword).mockResolvedValue(
-        mockUserCredential as any,
-      );
+      vi.mocked(exchangeRefreshToken).mockResolvedValue({
+        idToken: mockIdToken,
+        refreshToken: "new-refresh-token",
+        expiresIn: 3600,
+      });
 
       const registryAuth: RegistryAuth = {
         username: "test@example.com",
-        password: "testpassword",
+        refreshToken: "test-refresh-token",
         registryUrl: "https://registrar.tilework.tech",
       };
 
@@ -187,10 +191,10 @@ describe("registryAuth", () => {
       // Clear cache
       clearRegistryAuthCache();
 
-      // Second call should sign in again
+      // Second call should exchange again
       await getRegistryAuthToken({ registryAuth });
 
-      expect(signInWithEmailAndPassword).toHaveBeenCalledTimes(2);
+      expect(exchangeRefreshToken).toHaveBeenCalledTimes(2);
     });
   });
 });
