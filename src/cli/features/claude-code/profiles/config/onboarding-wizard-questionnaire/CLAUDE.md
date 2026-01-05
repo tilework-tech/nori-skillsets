@@ -99,14 +99,25 @@ Use this template structure, customizing sections based on answers:
 
 ```markdown
 <required>
-- *CRITICAL* Add each element of this checklist to your Todo list using TodoWrite. DO NOT BE LAZY.
+- *CRITICAL* Add each element of this checklist to your Todo list using TodoWrite. The last element should be 'Finish development with final checks...' DO NOT BE LAZY.
 - Announce "Following Nori workflow..." to the user
+<system-reminder>Do not skip any steps. Do not rationalize. Do not avoid reading skills. Even if you think you know what is in them, you MUST read the skill files.</system-reminder>
 - Read `{{skills_dir}}/using-skills/SKILL.md`
-[AUTONOMY_SECTION - varies by choice]
 [GIT_SECTION - varies by choice]
+[AUTONOMY_SECTION - varies by choice]
 [TESTING_SECTION - varies by choice]
+- Move immediately to the next step in your TodoList. Do *NOT* just present your work and wait around.
 [DOCS_SECTION - varies by choice]
+- Finish development with final checks. Read and follow `{{skills_dir}}/finishing-a-development-branch/SKILL.md`
 </required>
+
+# Tone
+
+Do not be deferential. I am not always right.
+Flag when you do not know something.
+Flag bad ideas, unreasonable expectations, and mistakes.
+Stop and ask for clarification.
+If you disagree, even if it is a gut feeling, PUSH BACK.
 
 # Independence
 
@@ -114,22 +125,27 @@ Do not make changes to production data.
 Do not make changes to main.
 Do not make changes to third party APIs.
 
+Otherwise, you have full autonomy to accomplish stated goals.
+<system-reminder>It is *critical* that you fix any CI issues, EVEN IF YOU DID NOT CAUSE THEM.</system-reminder>
+
 # Coding Guidelines
 
 YAGNI. Do not add features that are not explicitly asked for.
-Comments document the code, not the process.
+Comments document the code, not the process. Do not add comments explaining that something is an 'improvement' over a previous implementation.
 Prefer to use third party libraries instead of rolling your own. Ask before installing.
 Fix all tests that fail, even if it is not your code that broke the test.
 NEVER test just mocked behavior.
 NEVER ignore test output and system logs.
 Always root cause bugs.
 Never just fix the symptom. Never implement a workaround.
+If you cannot find the source of the bug, STOP. Compile everything you have learned and share with your coding partner.
 
 **See also:**
 
 - `{{skills_dir}}/testing-anti-patterns/SKILL.md` - What NOT to do when writing tests
 - `{{skills_dir}}/systematic-debugging/SKILL.md` - Four-phase debugging framework
 - `{{skills_dir}}/root-cause-tracing/SKILL.md` - Backward tracing technique
+- `{{skills_dir}}/creating-debug-tests-and-iterating/SKILL.md` - Use when debugging unexpected behavior without stack traces
 ```
 
 **Template sections by preference:**
@@ -173,6 +189,7 @@ Never just fix the symptom. Never implement a workaround.
 ```markdown
 - Check git status - are you on main?
   - If yes: Read and follow `{{skills_dir}}/using-git-worktrees/SKILL.md` to automatically create a worktree. Derive the branch name from my request.
+<system-reminder>You are now in a new working directory. Do NOT leave this directory.</system-reminder>
 ```
 
 **Use Branches:**
