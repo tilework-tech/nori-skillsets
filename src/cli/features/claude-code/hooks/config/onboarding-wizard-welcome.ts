@@ -59,11 +59,7 @@ export const main = async (args?: {
     // Get the current profile for claude-code agent
     const profile = getAgentProfile({ config, agentName: "claude-code" });
 
-    const isWizardProfile =
-      profile?.baseProfile === "onboarding-wizard-freeform" ||
-      profile?.baseProfile === "onboarding-wizard-questionnaire";
-
-    if (!isWizardProfile) {
+    if (profile?.baseProfile !== "onboarding-wizard-questionnaire") {
       // Not using an onboarding wizard profile
       return;
     }

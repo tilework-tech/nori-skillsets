@@ -53,35 +53,6 @@ describe("onboarding-wizard-welcome hook", () => {
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
 
-  it("should output welcome message when profile is onboarding-wizard-freeform", async () => {
-    // Setup: Create installation with onboarding-wizard-freeform profile
-    const installDir = path.join(tempDir, "project");
-    fs.mkdirSync(installDir, { recursive: true });
-
-    fs.writeFileSync(
-      path.join(installDir, ".nori-config.json"),
-      JSON.stringify({
-        agents: {
-          "claude-code": {
-            profile: { baseProfile: "onboarding-wizard-freeform" },
-          },
-        },
-        installDir: path.join(installDir, ".claude"),
-      }),
-    );
-
-    // Run the hook
-    await main({ installDir });
-
-    // Verify JSON output with systemMessage
-    expect(consoleOutput).toHaveLength(1);
-    const output = JSON.parse(consoleOutput[0]);
-    expect(output).toHaveProperty("systemMessage");
-    expect(output.systemMessage).toContain("Welcome");
-    expect(output.systemMessage).toContain("Profile Setup Wizard");
-    expect(output.systemMessage).toContain("Just type anything");
-  });
-
   it("should output welcome message when profile is onboarding-wizard-questionnaire", async () => {
     // Setup: Create installation with onboarding-wizard-questionnaire profile
     const installDir = path.join(tempDir, "project");

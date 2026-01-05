@@ -88,42 +88,8 @@ describe("profilesLoader", () => {
       expect(files).toContain("amol");
       expect(files).toContain("product-manager");
       expect(files).toContain("none");
-      expect(files).toContain("onboarding-wizard-freeform");
       expect(files).toContain("onboarding-wizard-questionnaire");
       expect(files).not.toContain("_base"); // _base is never installed
-    });
-
-    it("should install onboarding-wizard-freeform profile with correct structure", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-      };
-
-      await profilesLoader.run({ config });
-
-      // Verify onboarding-wizard-freeform profile exists
-      const wizardPath = path.join(profilesDir, "onboarding-wizard-freeform");
-      const wizardExists = await fs
-        .access(wizardPath)
-        .then(() => true)
-        .catch(() => false);
-      expect(wizardExists).toBe(true);
-
-      // Verify profile.json exists and has correct metadata
-      const profileJsonPath = path.join(wizardPath, "profile.json");
-      const profileJson = JSON.parse(
-        await fs.readFile(profileJsonPath, "utf-8"),
-      );
-      expect(profileJson.name).toBe("onboarding-wizard-freeform");
-      expect(profileJson.builtin).toBe(true);
-      expect(profileJson.description).toContain("free-form");
-
-      // Verify CLAUDE.md exists and contains wizard instructions
-      const claudeMdPath = path.join(wizardPath, "CLAUDE.md");
-      const claudeMdContent = await fs.readFile(claudeMdPath, "utf-8");
-      expect(claudeMdContent).toContain("Onboarding Wizard (Freeform)");
     });
 
     it("should install onboarding-wizard-questionnaire profile with correct structure", async () => {
