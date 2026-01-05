@@ -178,12 +178,21 @@ All feature loaders (claudemd, skills, slashcommands, subagents) read from `~/.n
    - Overwrites built-in profiles to ensure they're up-to-date
    - Leaves custom profiles untouched
 
-2. **User selects profile**
+2. **First-time install detection** (see @/src/cli/commands/install/install.ts generatePromptConfig)
+
+   - If no existing `.nori-config.json` exists, this is a first-time install
+   - User is offered two choices:
+     - Option 1: Select a pre-built profile (continues to standard profile selection)
+     - Option 2: Create a personalized profile via the onboarding wizard
+   - If user chooses the wizard, the `onboarding-wizard` profile is automatically selected
+   - The wizard runs on next Claude Code session, asking questions and generating a custom profile
+
+3. **User selects profile** (for existing installs or if user chose "pre-built" in step 2)
 
    - Reads available profiles from `~/.nori/profiles/`
    - Shows both built-in and custom profiles
 
-3. **Feature loaders run**
+4. **Feature loaders run**
    - Read profile configuration from `~/.nori/profiles/${selectedProfile}/`
    - Install CLAUDE.md, skills, slashcommands, subagents to `~/.claude/` from that profile
 

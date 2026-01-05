@@ -294,6 +294,63 @@ export const generatePromptConfig = async (args: {
     newline();
   }
 
+  // First-time install: Ask if user wants pre-built profile or wizard
+  const isFirstTimeInstall = existingConfig == null;
+  if (isFirstTimeInstall) {
+    info({
+      message: "Would you like to:",
+    });
+    newline();
+
+    const number1 = brightCyan({ text: "1." });
+    const option1Name = boldWhite({ text: "Use a pre-built profile" });
+    const option1Desc = gray({
+      text: "Choose from senior-swe, amol, product-manager, and more",
+    });
+    raw({ message: `${number1} ${option1Name}` });
+    raw({ message: `   ${option1Desc}` });
+    newline();
+
+    const number2 = brightCyan({ text: "2." });
+    const option2Name = boldWhite({
+      text: "Create a personalized profile with our setup wizard",
+    });
+    const option2Desc = gray({
+      text: "Answer questions about your workflow to generate a custom profile",
+    });
+    raw({ message: `${number2} ${option2Name}` });
+    raw({ message: `   ${option2Desc}` });
+    newline();
+
+    const wizardChoice = await promptUser({
+      prompt: "Select an option (1-2): ",
+    });
+
+    if (wizardChoice === "2") {
+      info({ message: 'Loading "onboarding-wizard" profile...' });
+      newline();
+      info({
+        message: wrapText({
+          text: "After restarting Claude Code, the wizard will guide you through creating a personalized profile based on your workflow preferences.",
+        }),
+      });
+      newline();
+
+      const profile = { baseProfile: "onboarding-wizard" };
+      return {
+        auth: auth ?? null,
+        agents: {
+          [agent.name]: { profile },
+        },
+        installDir,
+        registryAuths: null,
+      };
+    }
+
+    // User chose pre-built, continue to profile selection
+    newline();
+  }
+
   // Get available profiles from both source and installed locations
   const profiles = await getAvailableProfiles({ installDir, agent });
 
