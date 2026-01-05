@@ -327,40 +327,7 @@ export const generatePromptConfig = async (args: {
     });
 
     if (wizardChoice === "2") {
-      // Ask which wizard approach they prefer
-      info({
-        message: "Which wizard approach would you prefer?",
-      });
-      newline();
-
-      const wizardNumber1 = brightCyan({ text: "1." });
-      const wizardOption1Name = boldWhite({ text: "Freeform" });
-      const wizardOption1Desc = gray({
-        text: "Describe how you like to work, and the wizard will infer your preferences",
-      });
-      raw({ message: `${wizardNumber1} ${wizardOption1Name}` });
-      raw({ message: `   ${wizardOption1Desc}` });
-      newline();
-
-      const wizardNumber2 = brightCyan({ text: "2." });
-      const wizardOption2Name = boldWhite({ text: "Questionnaire" });
-      const wizardOption2Desc = gray({
-        text: "Answer specific questions about autonomy, git, testing, and docs",
-      });
-      raw({ message: `${wizardNumber2} ${wizardOption2Name}` });
-      raw({ message: `   ${wizardOption2Desc}` });
-      newline();
-
-      const wizardTypeChoice = await promptUser({
-        prompt: "Select wizard type (1-2): ",
-      });
-
-      const wizardProfile =
-        wizardTypeChoice === "2"
-          ? "onboarding-wizard-questionnaire"
-          : "onboarding-wizard-freeform";
-
-      info({ message: `Loading "${wizardProfile}" profile...` });
+      info({ message: 'Loading "onboarding-wizard-questionnaire" profile...' });
       newline();
       info({
         message: wrapText({
@@ -369,7 +336,7 @@ export const generatePromptConfig = async (args: {
       });
       newline();
 
-      const profile = { baseProfile: wizardProfile };
+      const profile = { baseProfile: "onboarding-wizard-questionnaire" };
       return {
         auth: auth ?? null,
         agents: {
