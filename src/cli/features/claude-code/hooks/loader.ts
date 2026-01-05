@@ -308,6 +308,34 @@ const statisticsHook: HookInterface = {
 };
 
 /**
+ * Onboarding wizard welcome hook - welcomes users to the onboarding wizard
+ */
+const onboardingWizardWelcomeHook: HookInterface = {
+  name: "onboarding-wizard-welcome",
+  description: "Welcome users to the onboarding wizard profile",
+  install: async () => {
+    const scriptPath = path.join(
+      HOOKS_CONFIG_DIR,
+      "onboarding-wizard-welcome.js",
+    );
+    return [
+      {
+        event: "SessionStart",
+        matcher: "startup",
+        hooks: [
+          {
+            type: "command",
+            command: `node ${scriptPath}`,
+            description:
+              "Welcome users when onboarding-wizard profile is active",
+          },
+        ],
+      },
+    ];
+  },
+};
+
+/**
  * Configure hooks for automatic conversation memorization (paid version)
  * @param args - Configuration arguments
  * @param args.config - Runtime configuration
@@ -348,6 +376,7 @@ const configurePaidHooks = async (args: { config: Config }): Promise<void> => {
     autoupdateHook,
     nestedInstallWarningHook,
     contextUsageWarningHook,
+    onboardingWizardWelcomeHook,
     notifyHook,
     slashCommandInterceptHook,
     commitAuthorHook,
@@ -426,6 +455,7 @@ const configureFreeHooks = async (args: { config: Config }): Promise<void> => {
     autoupdateHook,
     nestedInstallWarningHook,
     contextUsageWarningHook,
+    onboardingWizardWelcomeHook,
     notifyHook,
     slashCommandInterceptHook,
     commitAuthorHook,
