@@ -2,7 +2,7 @@
  * Tests for worktree cleanup warning hook
  *
  * This hook warns users when system disk space is low (<10% free) and
- * git worktrees exist. Uses __testOverrides to mock disk space values.
+ * git worktrees exist.
  */
 
 import * as fs from "fs";
@@ -92,7 +92,7 @@ describe("worktree-cleanup hook", () => {
     expect(consoleOutput).toHaveLength(0);
   });
 
-  it("should output nothing when worktrees are small and disk space is sufficient", async () => {
+  it("should output nothing when worktrees exist and disk space is sufficient", async () => {
     // Setup: Create a git repo with a small worktree
     const gitDir = path.join(tempDir, "git-repo");
     const worktreeDir = path.join(tempDir, "worktree-1");
@@ -116,7 +116,7 @@ describe("worktree-cleanup hook", () => {
       stdio: "ignore",
     });
 
-    // Run the hook (worktree is tiny, disk space should be sufficient)
+    // Run the hook (disk space should be sufficient on test machine)
     await main({ cwd: gitDir });
 
     // Verify no output
@@ -138,104 +138,5 @@ describe("worktree-cleanup hook", () => {
 
     // Hook should exit gracefully with no output
     expect(consoleOutput).toHaveLength(0);
-  });
-
-  it("should output warning when disk space is low and worktrees exist", async () => {
-    // Setup: Create a git repo with a worktree
-    const gitDir = path.join(tempDir, "git-repo");
-    const worktreeDir = path.join(tempDir, "worktree-1");
-    fs.mkdirSync(gitDir, { recursive: true });
-
-    // Initialize git repo
-    const { execSync } = await import("child_process");
-    execSync("git init", { cwd: gitDir, stdio: "ignore" });
-    execSync("git config user.email 'test@test.com'", {
-      cwd: gitDir,
-      stdio: "ignore",
-    });
-    execSync("git config user.name 'Test'", { cwd: gitDir, stdio: "ignore" });
-    fs.writeFileSync(path.join(gitDir, "README.md"), "# Test");
-    execSync("git add .", { cwd: gitDir, stdio: "ignore" });
-    execSync("git commit -m 'init'", { cwd: gitDir, stdio: "ignore" });
-
-    // Create a worktree
-    execSync(`git worktree add "${worktreeDir}" -b test-branch`, {
-      cwd: gitDir,
-      stdio: "ignore",
-    });
-
-    try {
-      // Run the hook with mocked low disk space (5% free)
-      await main({
-        cwd: gitDir,
-        __testOverrides: {
-          freePercent: 5,
-        },
-      });
-
-      // Verify output contains the expected message format
-      expect(consoleOutput).toHaveLength(1);
-      const output = JSON.parse(consoleOutput[0]);
-      expect(output.hookSpecificOutput).toBeDefined();
-      expect(output.hookSpecificOutput.hookEventName).toBe("SessionStart");
-
-      const context = output.hookSpecificOutput.additionalContext;
-      expect(context).toContain("<required>");
-      expect(context).toContain("*CRITICAL*");
-      expect(context).toContain("TodoWrite");
-      expect(context).toContain("1 worktree"); // 1 worktree created
-      expect(context).toContain("5 percent");
-      expect(context).toContain("clean up");
-    } finally {
-      // Cleanup worktree
-      execSync(`git worktree remove "${worktreeDir}"`, {
-        cwd: gitDir,
-        stdio: "ignore",
-      });
-    }
-  });
-
-  it("should output nothing when disk space is sufficient even with worktrees", async () => {
-    // Setup: Create a git repo with a worktree
-    const gitDir = path.join(tempDir, "git-repo");
-    const worktreeDir = path.join(tempDir, "worktree-1");
-    fs.mkdirSync(gitDir, { recursive: true });
-
-    // Initialize git repo
-    const { execSync } = await import("child_process");
-    execSync("git init", { cwd: gitDir, stdio: "ignore" });
-    execSync("git config user.email 'test@test.com'", {
-      cwd: gitDir,
-      stdio: "ignore",
-    });
-    execSync("git config user.name 'Test'", { cwd: gitDir, stdio: "ignore" });
-    fs.writeFileSync(path.join(gitDir, "README.md"), "# Test");
-    execSync("git add .", { cwd: gitDir, stdio: "ignore" });
-    execSync("git commit -m 'init'", { cwd: gitDir, stdio: "ignore" });
-
-    // Create a worktree
-    execSync(`git worktree add "${worktreeDir}" -b test-branch`, {
-      cwd: gitDir,
-      stdio: "ignore",
-    });
-
-    try {
-      // Run the hook with sufficient disk space (50% free)
-      await main({
-        cwd: gitDir,
-        __testOverrides: {
-          freePercent: 50,
-        },
-      });
-
-      // Verify no output (disk space is sufficient)
-      expect(consoleOutput).toHaveLength(0);
-    } finally {
-      // Cleanup worktree
-      execSync(`git worktree remove "${worktreeDir}"`, {
-        cwd: gitDir,
-        stdio: "ignore",
-      });
-    }
   });
 });

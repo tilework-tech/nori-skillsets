@@ -181,25 +181,13 @@ const getDiskSpace = (args: { dirPath: string }): DiskSpaceInfo | null => {
 };
 
 /**
- * Test overrides for mocking disk space values
- */
-type TestOverrides = {
-  freePercent?: number | null;
-};
-
-/**
  * Main entry point
  * @param args - Configuration arguments
  * @param args.cwd - Current working directory (optional)
- * @param args.__testOverrides - Test overrides for mocking values (optional)
  */
-export const main = async (args?: {
-  cwd?: string | null;
-  __testOverrides?: TestOverrides | null;
-}): Promise<void> => {
+export const main = async (args?: { cwd?: string | null }): Promise<void> => {
   try {
     const cwd = args?.cwd ?? process.cwd();
-    const testOverrides = args?.__testOverrides;
 
     // Check if we're in a git repo
     if (!isInsideGitRepo({ cwd })) {
@@ -220,30 +208,19 @@ export const main = async (args?: {
       return;
     }
 
-    // Get disk space info (or use test override)
-    let freePercent: number;
-    if (testOverrides?.freePercent != null) {
-      freePercent = testOverrides.freePercent;
-    } else {
-      const diskSpace = getDiskSpace({ dirPath: gitRoot });
-      freePercent = diskSpace ? 100 - diskSpace.usedPercent : 100;
-    }
+    // Get disk space info
+    const diskSpace = getDiskSpace({ dirPath: gitRoot });
+    const freePercent = diskSpace ? 100 - diskSpace.usedPercent : 100;
 
-    // Check threshold - only warn when disk space is low
-    const diskSpaceLow = freePercent < DISK_SPACE_LOW_PERCENT;
-
-    // No warning needed
-    if (!diskSpaceLow) {
+    // No warning needed if disk space is sufficient
+    if (freePercent >= DISK_SPACE_LOW_PERCENT) {
       return;
     }
 
     // Build instructions for Claude
-    const worktreeCount = worktrees.length;
-    const worktreeText =
-      worktreeCount === 1 ? "1 worktree" : `${worktreeCount} worktrees`;
     const message = `<required>
 - *CRITICAL* Add each element of this checklist to your Todo list using TodoWrite. The last element should be 'Finish development with final checks...' DO NOT BE LAZY.
-- Report to the user that their git worktrees are taking up disk space. There are ${worktreeText}.
+- Report to the user that their git worktrees are taking up disk space. Number of worktrees: ${worktrees.length}
 - Report to the user that they have ${freePercent} percent of their disk space remaining.
 - Ask the user if they would like to clean up any of the worktrees.
 </required>`;
