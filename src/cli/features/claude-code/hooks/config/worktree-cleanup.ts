@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 
 /**
- * Hook handler for warning about excessive git worktree disk usage
+ * Hook handler for warning about low disk space when git worktrees exist
  *
  * This script is called by Claude Code SessionStart hook.
- * It checks if worktrees are consuming >50GB or if disk space is <10% free,
+ * It checks if disk space is <10% free and worktrees exist,
  * and prompts the user about cleanup.
  */
 
@@ -13,11 +13,7 @@ import { execSync } from "child_process";
 import { error } from "@/cli/logger.js";
 
 // Thresholds
-const WORKTREE_SIZE_THRESHOLD_GB = 50;
 const DISK_SPACE_LOW_PERCENT = 10;
-
-// Convert GB to bytes
-const GB_TO_BYTES = 1024 * 1024 * 1024;
 
 /**
  * Output hook result with additionalContext for SessionStart hooks
@@ -84,7 +80,6 @@ const getGitRoot = (args: { cwd: string }): string | null => {
 type WorktreeInfo = {
   path: string;
   branch: string | null;
-  sizeBytes: number;
 };
 
 /**
@@ -129,7 +124,6 @@ const listWorktrees = (args: { gitRoot: string }): Array<WorktreeInfo> => {
         worktrees.push({
           path: worktreePath,
           branch,
-          sizeBytes: 0, // Will be calculated later
         });
       }
     }
@@ -137,30 +131,6 @@ const listWorktrees = (args: { gitRoot: string }): Array<WorktreeInfo> => {
     return worktrees;
   } catch {
     return [];
-  }
-};
-
-/**
- * Get the size of a directory in bytes using du
- * @param args - Configuration arguments
- * @param args.dirPath - Path to the directory
- *
- * @returns Size in bytes
- */
-const getDirectorySize = (args: { dirPath: string }): number => {
-  const { dirPath } = args;
-
-  try {
-    // du -sk gives size in kilobytes, summarized
-    const output = execSync(`du -sk "${dirPath}"`, {
-      encoding: "utf-8",
-      stdio: ["pipe", "pipe", "ignore"], // suppress stderr
-    });
-
-    const sizeKb = parseInt(output.split("\t")[0], 10);
-    return sizeKb * 1024; // Convert to bytes
-  } catch {
-    return 0;
   }
 };
 
@@ -211,26 +181,6 @@ const getDiskSpace = (args: { dirPath: string }): DiskSpaceInfo | null => {
 };
 
 /**
- * Format bytes to human readable string
- * @param args - Configuration arguments
- * @param args.bytes - Number of bytes to format
- *
- * @returns Human readable string (e.g., "1.5 GB")
- */
-const formatBytes = (args: { bytes: number }): string => {
-  const { bytes } = args;
-
-  if (bytes >= GB_TO_BYTES) {
-    return `${(bytes / GB_TO_BYTES).toFixed(1)} GB`;
-  } else if (bytes >= 1024 * 1024) {
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  } else if (bytes >= 1024) {
-    return `${(bytes / 1024).toFixed(1)} KB`;
-  }
-  return `${bytes} bytes`;
-};
-
-/**
  * Main entry point
  * @param args - Configuration arguments
  * @param args.cwd - Current working directory (optional)
@@ -258,48 +208,22 @@ export const main = async (args?: { cwd?: string | null }): Promise<void> => {
       return;
     }
 
-    // Calculate sizes for each worktree
-    let totalWorktreeSize = 0;
-    for (const worktree of worktrees) {
-      worktree.sizeBytes = getDirectorySize({ dirPath: worktree.path });
-      totalWorktreeSize += worktree.sizeBytes;
-    }
-
     // Get disk space info
     const diskSpace = getDiskSpace({ dirPath: gitRoot });
     const freePercent = diskSpace ? 100 - diskSpace.usedPercent : 100;
-    const availableBytes = diskSpace?.availableBytes ?? 0;
 
-    // Check thresholds
-    const worktreeSizeExceeded =
-      totalWorktreeSize > WORKTREE_SIZE_THRESHOLD_GB * GB_TO_BYTES;
-    const diskSpaceLow = freePercent < DISK_SPACE_LOW_PERCENT;
-
-    // No warning needed
-    if (!worktreeSizeExceeded && !diskSpaceLow) {
+    // No warning needed if disk space is sufficient
+    if (freePercent >= DISK_SPACE_LOW_PERCENT) {
       return;
     }
 
     // Build instructions for Claude
-    let message =
-      "⚠️ **Git Worktree Disk Usage Warning** - You MUST ask the user about this before proceeding with their request.\n\n";
-
-    if (worktreeSizeExceeded) {
-      message += `The user's git worktrees are using **${formatBytes({ bytes: totalWorktreeSize })}** of disk space (threshold: ${WORKTREE_SIZE_THRESHOLD_GB} GB).\n\n`;
-    }
-
-    if (diskSpaceLow) {
-      message += `The user's disk space is running low: **${freePercent}%** remaining (${formatBytes({ bytes: availableBytes })} available).\n\n`;
-    }
-
-    message += "**Worktrees detected:**\n";
-    for (const worktree of worktrees) {
-      const branchInfo = worktree.branch ? ` (${worktree.branch})` : "";
-      message += `- ${worktree.path}${branchInfo}: ${formatBytes({ bytes: worktree.sizeBytes })}\n`;
-    }
-
-    message +=
-      "\n**ACTION REQUIRED:** Before proceeding with any other task, ask the user if they would like you to help clean up some of these worktrees to free up disk space. Use `git worktree remove <path>` to remove worktrees after confirming with the user.";
+    const message = `<required>
+- *CRITICAL* Add each element of this checklist to your Todo list using TodoWrite. The last element should be 'Finish development with final checks...' DO NOT BE LAZY.
+- Report to the user that their git worktrees are taking up disk space. Number of worktrees: ${worktrees.length}
+- Report to the user that they have ${freePercent} percent of their disk space remaining.
+- Ask the user if they would like to clean up any of the worktrees.
+</required>`;
 
     // Output to Claude session
     logToClaudeSession({ message });

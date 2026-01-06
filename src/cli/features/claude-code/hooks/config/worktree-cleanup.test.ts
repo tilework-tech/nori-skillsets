@@ -1,12 +1,8 @@
 /**
  * Tests for worktree cleanup warning hook
  *
- * This hook warns users when git worktrees are consuming excessive disk space
- * (>50GB) or when system disk space is low (<10% free).
- *
- * Note: Tests for threshold-triggered warnings are not included because they
- * would require either mocking internal functions or creating 50GB+ worktrees.
- * The threshold logic is straightforward and tested through manual verification.
+ * This hook warns users when system disk space is low (<10% free) and
+ * git worktrees exist.
  */
 
 import * as fs from "fs";
@@ -96,7 +92,7 @@ describe("worktree-cleanup hook", () => {
     expect(consoleOutput).toHaveLength(0);
   });
 
-  it("should output nothing when worktrees are small and disk space is sufficient", async () => {
+  it("should output nothing when worktrees exist and disk space is sufficient", async () => {
     // Setup: Create a git repo with a small worktree
     const gitDir = path.join(tempDir, "git-repo");
     const worktreeDir = path.join(tempDir, "worktree-1");
@@ -120,7 +116,7 @@ describe("worktree-cleanup hook", () => {
       stdio: "ignore",
     });
 
-    // Run the hook (worktree is tiny, disk space should be sufficient)
+    // Run the hook (disk space should be sufficient on test machine)
     await main({ cwd: gitDir });
 
     // Verify no output
