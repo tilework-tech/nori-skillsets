@@ -16,7 +16,7 @@
   "scripts": {
     "build": "./scripts/build.sh",
     "prepare": "npm run build",
-    "prepublishOnly": "claude -p 'Read and follow release-notes-update.md exactly.' --allowedTools 'Read,Edit,Write,Bash(git log:*),Bash(git diff:*),Bash(git add:*),Grep,Glob'",
+    "prepublishOnly": "./scripts/prepublish.sh",
     "watch": "tsc --watch",
     "dev": "tsc && tsc-alias && node build/index.js",
     "inspector": "npx @modelcontextprotocol/inspector build/index.js",
