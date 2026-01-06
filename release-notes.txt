@@ -1,0 +1,7 @@
+# Nori Profiles Release Notes
+
+This file is automatically updated before each npm publish.
+New releases are prepended below this header.
+
+---
+
