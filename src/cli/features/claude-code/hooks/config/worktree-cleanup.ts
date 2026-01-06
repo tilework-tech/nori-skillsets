@@ -20,15 +20,6 @@ const DISK_SPACE_LOW_PERCENT = 10;
 const GB_TO_BYTES = 1024 * 1024 * 1024;
 
 /**
- * Test overrides interface for mocking in tests
- */
-type TestOverrides = {
-  worktreeSizeBytes?: number | null;
-  diskSpacePercent?: number | null;
-  diskSpaceAvailableBytes?: number | null;
-};
-
-/**
  * Output hook result with additionalContext for SessionStart hooks
  * This injects context into the Claude session that the model can see
  * @param args - Configuration arguments
@@ -243,15 +234,10 @@ const formatBytes = (args: { bytes: number }): string => {
  * Main entry point
  * @param args - Configuration arguments
  * @param args.cwd - Current working directory (optional)
- * @param args.__testOverrides - Test overrides for mocking (optional)
  */
-export const main = async (args?: {
-  cwd?: string | null;
-  __testOverrides?: TestOverrides | null;
-}): Promise<void> => {
+export const main = async (args?: { cwd?: string | null }): Promise<void> => {
   try {
     const cwd = args?.cwd ?? process.cwd();
-    const testOverrides = args?.__testOverrides;
 
     // Check if we're in a git repo
     if (!isInsideGitRepo({ cwd })) {
@@ -279,31 +265,10 @@ export const main = async (args?: {
       totalWorktreeSize += worktree.sizeBytes;
     }
 
-    // Apply test overrides if provided
-    if (testOverrides?.worktreeSizeBytes != null) {
-      totalWorktreeSize = testOverrides.worktreeSizeBytes;
-      // Distribute evenly among worktrees for display
-      const perWorktree = Math.floor(
-        testOverrides.worktreeSizeBytes / worktrees.length,
-      );
-      for (const worktree of worktrees) {
-        worktree.sizeBytes = perWorktree;
-      }
-    }
-
     // Get disk space info
     const diskSpace = getDiskSpace({ dirPath: gitRoot });
-
-    // Calculate free percent (apply test override if provided)
-    let freePercent = diskSpace ? 100 - diskSpace.usedPercent : 100;
-    let availableBytes = diskSpace?.availableBytes ?? 0;
-
-    if (testOverrides?.diskSpacePercent != null) {
-      freePercent = testOverrides.diskSpacePercent;
-    }
-    if (testOverrides?.diskSpaceAvailableBytes != null) {
-      availableBytes = testOverrides.diskSpaceAvailableBytes;
-    }
+    const freePercent = diskSpace ? 100 - diskSpace.usedPercent : 100;
+    const availableBytes = diskSpace?.availableBytes ?? 0;
 
     // Check thresholds
     const worktreeSizeExceeded =
