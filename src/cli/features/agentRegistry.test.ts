@@ -98,10 +98,13 @@ describe("AgentRegistry", () => {
 
       const globalLoaders = agent.getGlobalLoaders();
 
+      // All loaders that write to ~/.claude/ (global config) must be included
+      // so they are preserved when uninstalling from subdirectories
       expect(globalLoaders).toEqual([
         { name: "hooks", humanReadableName: "hooks" },
         { name: "statusline", humanReadableName: "statusline" },
         { name: "slashcommands", humanReadableName: "global slash commands" },
+        { name: "announcements", humanReadableName: "announcements" },
       ]);
     });
 

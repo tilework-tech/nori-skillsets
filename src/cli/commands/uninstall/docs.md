@@ -54,7 +54,7 @@ In interactive mode, the feature list ("The following will be removed:") is buil
 
 - **Config preservation during upgrades:** Non-interactive mode (used by install command during upgrades) preserves the config file and global settings. Only user-initiated uninstalls remove the config.
 
-- **Global settings are shared:** Global features (hooks, statusline, global slash commands) are installed in `~/.claude/` and shared across all Nori installations. Interactive mode prompts about removing them; non-interactive mode always preserves them.
+- **Global settings are shared:** Global features (hooks, statusline, global slash commands, announcements) are installed in `~/.claude/` and shared across all Nori installations. Interactive mode prompts about removing them; non-interactive mode always preserves them.
 
 - **agents field:** The config loader uses the `agents` object to know which agent is being uninstalled. If other agents remain after uninstall, the config file is preserved with the remaining agents in the `agents` object.
 

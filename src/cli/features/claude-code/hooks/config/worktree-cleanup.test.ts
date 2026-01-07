@@ -22,6 +22,24 @@ vi.mock("@/cli/analytics.js", () => ({
   trackEvent: vi.fn().mockResolvedValue(undefined),
 }));
 
+// Mock child_process to control disk space output
+vi.mock("child_process", async (importOriginal) => {
+  // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+  const actual = await importOriginal<typeof import("child_process")>();
+  return {
+    ...actual,
+    execSync: vi.fn().mockImplementation((cmd: string, options?: object) => {
+      // Mock df command to return 50% disk usage (sufficient space)
+      if (typeof cmd === "string" && cmd.startsWith("df -Pk")) {
+        return `Filesystem     1K-blocks     Used Available Use% Mounted on
+/dev/sda1      500000000 250000000 250000000  50% /`;
+      }
+      // Pass through all other commands to actual execSync
+      return actual.execSync(cmd, options);
+    }),
+  };
+});
+
 describe("worktree-cleanup hook", () => {
   let tempDir: string;
   let originalHome: string | undefined;

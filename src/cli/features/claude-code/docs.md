@@ -15,8 +15,7 @@ This `claude-code/` subdirectory implements the Agent interface defined in @/src
 - `listProfiles({ installDir })`: Scans installed `.nori/profiles/` for directories containing `CLAUDE.md`
 - `listSourceProfiles()`: Scans package's `profiles/config/` for directories with `profile.json`, returns `SourceProfile[]` with name and description
 - `switchProfile({ installDir, profileName })`: Validates profile exists, filters out config entries for uninstalled agents, updates config with new profile, logs success message
-- `getGlobalFeatureNames()`: Returns `["hooks", "statusline", "global slash commands"]` - human-readable names used by the uninstall command to generate agent-specific prompts
-- `getGlobalLoaderNames()`: Returns `["hooks", "statusline", "slashcommands"]` - loader names used by uninstall to skip global loaders when `removeGlobalSettings` is false
+- `getGlobalLoaders()`: Returns `[{ name: "hooks", humanReadableName: "hooks" }, { name: "statusline", humanReadableName: "statusline" }, { name: "slashcommands", humanReadableName: "global slash commands" }, { name: "announcements", humanReadableName: "announcements" }]` - loaders that write to `~/.claude/` global config. The uninstall command uses this to skip global loaders when `removeGlobalSettings` is false, and to generate human-readable prompts about preserving global settings.
 
 The AgentRegistry (@/src/cli/features/agentRegistry.ts) registers this agent and provides lookup by name. CLI commands use `AgentRegistry.getInstance().get({ name: "claude-code" })` to obtain the agent implementation and access its loaders.
 
@@ -26,7 +25,7 @@ The `LoaderRegistry` class (@/src/cli/features/claude-code/loaderRegistry.ts) im
 
 Each loader implements the `Loader` interface (from @/src/cli/features/agentRegistry.ts) with `run()`, `uninstall()`, and optional `validate()` methods. The shared `configLoader` (@/src/cli/features/config/loader.ts) is included in the registry and serves as the single point of config persistence during installation - it saves the Config to `.nori-config.json` including auth credentials, profile selection, and user preferences.
 
-**Global settings** (hooks, statusline, slashcommands) install to `~/.claude/` and are shared across all Nori installations. During uninstall, these can be preserved or removed as a group via the `removeGlobalSettings` flag. Profile-dependent features (claudemd, skills, profile-specific slashcommands, subagents) are handled by sub-loaders within the profiles feature at @/src/cli/features/claude-code/profiles/.
+**Global settings** (hooks, statusline, slashcommands, announcements) install to `~/.claude/` and are shared across all Nori installations. During uninstall, these can be preserved or removed as a group via the `removeGlobalSettings` flag. Profile-dependent features (claudemd, skills, profile-specific slashcommands, subagents) are handled by sub-loaders within the profiles feature at @/src/cli/features/claude-code/profiles/.
 
 The global slashcommands loader (@/src/cli/features/claude-code/slashcommands/loader.ts) installs profile-agnostic commands (nori-debug, nori-switch-profile, nori-info, etc.) directly to `~/.claude/commands/`. Profile-specific slash commands (nori-init-docs, nori-sync-docs) remain in profile mixins and are handled by @/src/cli/features/claude-code/profiles/slashcommands/loader.ts.
 

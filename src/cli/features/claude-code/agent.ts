@@ -51,6 +51,7 @@ export const claudeCodeAgent: Agent = {
       { name: "hooks", humanReadableName: "hooks" },
       { name: "statusline", humanReadableName: "statusline" },
       { name: "slashcommands", humanReadableName: "global slash commands" },
+      { name: "announcements", humanReadableName: "announcements" },
     ];
   },
 
