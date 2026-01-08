@@ -74,7 +74,17 @@ After collecting all preferences, create the profile:
 mkdir -p {{profiles_dir}}/<profile-name>
 ```
 
-### 6b. Create profile.json
+### 6b. Copy Skills from senior-swe
+
+Copy the skills, subagents, and slashcommands from the senior-swe profile:
+
+```bash
+cp -r {{profiles_dir}}/senior-swe/skills {{profiles_dir}}/<profile-name>/
+cp -r {{profiles_dir}}/senior-swe/subagents {{profiles_dir}}/<profile-name>/
+cp -r {{profiles_dir}}/senior-swe/slashcommands {{profiles_dir}}/<profile-name>/
+```
+
+### 6c. Create profile.json
 
 Write `{{profiles_dir}}/<profile-name>/profile.json`:
 
@@ -91,7 +101,7 @@ Write `{{profiles_dir}}/<profile-name>/profile.json`:
 }
 ```
 
-### 6c. Generate CLAUDE.md
+### 6d. Generate CLAUDE.md
 
 Create `{{profiles_dir}}/<profile-name>/CLAUDE.md` based on the user's preferences.
 
@@ -159,6 +169,7 @@ If you cannot find the source of the bug, STOP. Compile everything you have lear
   - If you have access to the nori-knowledge-researcher subagent, use it at least once.
 - Read and follow `{{skills_dir}}/writing-plans/SKILL.md`
 - Present plan to me and ask for feedback. Once approved, proceed autonomously.
+<system-reminder>Do not stop here. Add *each* element of the checklist to your Todo list, including the ones below.</system-reminder>
 - Only stop for major blockers or decisions that significantly change scope.
 ```
 
@@ -170,6 +181,7 @@ If you cannot find the source of the bug, STOP. Compile everything you have lear
 - Read and follow `{{skills_dir}}/writing-plans/SKILL.md`
 - Present plan to me and ask for feedback.
   - If I have feedback, modify the plan. Repeat until I approve.
+<system-reminder>Do not stop here. Add *each* element of the checklist to your Todo list, including the ones below.</system-reminder>
 - Check in after completing major milestones.
 ```
 
@@ -180,6 +192,7 @@ If you cannot find the source of the bug, STOP. Compile everything you have lear
 - Read and follow `{{skills_dir}}/writing-plans/SKILL.md`
 - Present plan to me and ask for feedback.
   - If I have feedback, modify the plan. Repeat until I approve.
+<system-reminder>Do not stop here. Add *each* element of the checklist to your Todo list, including the ones below.</system-reminder>
 - After each step in the plan, check with me about progress before continuing.
 ```
 
@@ -210,6 +223,7 @@ If you cannot find the source of the bug, STOP. Compile everything you have lear
 ```markdown
 - Use test driven development. Read and follow `{{skills_dir}}/test-driven-development/SKILL.md`.
 <system-reminder>Tests MUST be written before implementation. No exceptions.</system-reminder>
+<system-reminder>Remember tests for all features first before writing any implementation.</system-reminder>
 ```
 
 **Testing Preferred:**
