@@ -20,12 +20,6 @@ import {
 } from "@/cli/commands/install/asciiArt.js";
 import { hasExistingInstallation } from "@/cli/commands/install/installState.js";
 import {
-  orderProfilesForDisplay,
-  KNOWN_PROFILES,
-  ADDITIONAL_PROFILES,
-  RECOMMENDED_PROFILE,
-} from "@/cli/commands/install/profileOrder.js";
-import {
   loadConfig,
   getDefaultProfile,
   getAgentProfile,
@@ -373,19 +367,24 @@ export const generatePromptConfig = async (args: {
   });
   newline();
 
-  // Order profiles for display (senior-swe first, then amol/product-manager, then custom)
-  // This ensures selection index maps to the correct profile
-  const displayOrderedProfiles = orderProfilesForDisplay({ profiles });
+  // Order profiles for display: known profiles first in fixed order, then custom
+  const knownProfileOrder = ["senior-swe", "amol", "product-manager"];
+  const customProfiles = profiles.filter(
+    (p) => !knownProfileOrder.includes(p.name),
+  );
+  const displayOrderedProfiles = [
+    ...knownProfileOrder
+      .map((name) => profiles.find((p) => p.name === name))
+      .filter((p) => p != null),
+    ...customProfiles,
+  ];
 
   // Categorize for display formatting
   const recommendedProfile = displayOrderedProfiles.find(
-    (p) => p.name === RECOMMENDED_PROFILE,
+    (p) => p.name === "senior-swe",
   );
   const additionalProfiles = displayOrderedProfiles.filter((p) =>
-    ADDITIONAL_PROFILES.includes(p.name),
-  );
-  const customProfiles = displayOrderedProfiles.filter(
-    (p) => !KNOWN_PROFILES.includes(p.name),
+    ["amol", "product-manager"].includes(p.name),
   );
 
   let profileIndex = 1;
