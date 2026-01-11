@@ -1,15 +1,17 @@
 # Nori Skillsets
 
-**Create custom coding agents that are fit for purpose.**
+(Previously Nori Profiles)
 
-As projects grow in complexity and specificity, off the shelf agents become less effective. Nori Skillsets is a tool for building custom coding agents that are encoded with your development patterns, design standards, and engineering workflows.
+**Create custom skillsets that are fit for purpose.**
 
-Nori lets you precisely define how you want your coding agent to reliably behave for engineering tasks:
-- Define consistent agent behavior for areas of development, tasks, or team roles
+As projects grow in complexity and specificity, off the shelf agents become less effective. Nori Skillsets is a tool for building and switching between sets of skills that are encoded with your development patterns, design standards, and engineering workflows.
+
+Nori lets you precisely define how you want your coding agent to reliably behave for a wide range of tasks:
+- Define consistent behavior for areas of development, tasks, or team roles
 - Automate repeated steps of your workflow to offload your cognitive load, such as git workflows, file references, and testing
-- Launch custom agents instantly without repeating setup or context
+- Switch between skillsets instantly without repeating setup or context
 
-Under the hood, Nori wraps Claude Code with a config management system that automatically defines desired behavior in agent configuration and context layers like Claude.md, Skills, Subagents.
+Under the hood, Nori wraps Claude Code with a config management system that automatically defines desired behavior in agent configuration and context layers like CLAUDE.md, SKILLs, Subagents, and more. It also hooks into the Claude Code CLI, providing small QoL improvements to improve the overall experience of agentic coding.
 
 ![Console](https://raw.githubusercontent.com/tilework-tech/nori-plugin/refs/heads/main/Console.png)
 
@@ -41,10 +43,10 @@ Examples:
 Switch skillsets anytime:
 
 ```bash
-nori-ai switch-profile <skillset-name>
+nori-ai switch-skillset <skillset-name>
 ```
 
-Or use `/nori-switch-profile` during a conversation.
+Or use `/nori-switch-skillset` during a conversation.
 
 
 ### How to create your own skillset
@@ -56,7 +58,7 @@ Define precise scopes of behavior for your development tasks. Your preferences f
 Run
 
 ```
-/nori-create-profile
+/nori-create-skillset
 ```
 
 Claude will guide you through:
@@ -84,20 +86,12 @@ Claude will guide you through:
    - Any repeating instructions
    ```
 
-3. Link to mixins (optional):
+3. Activate your skillset:
    ```bash
-   # Link to the SWE mixin for engineering workflows
-   ln -s ~/.claude/_mixins/_swe ~/.claude/profiles/my-skillset/_swe
+   nori-ai switch-skillset my-skillset
    ```
 
-   Available mixins: `_swe` (engineering), `_pm` (product), `_doc` (documentation)
-
-4. Activate your skillset:
-   ```bash
-   nori-ai switch-profile my-skillset
-   ```
-
-   Or use `/nori-switch-profile` during a conversation.
+   Or use `/nori-switch-skillset` during a conversation.
 
 **Skillset structure:**
 
@@ -122,11 +116,17 @@ _Enhances Claude Code with improved visibility and automations._
 - **Specialized subagents**: codebase-locator, codebase-analyzer, codebase-pattern-finder, web-search-researcher
 - **Local noridocs**: Automatic documentation with change-documenter and initial-documenter subagents
 
-### Nori-registry (Paid)
+### nori-registry (Paid)
 
-_Web app for uploading, discovering, and downloading custom coding agents across a team._
+_Package manager for uploading, discovering, and downloading custom coding agents across a team._
 
 Upload your custom agents to a shared registry where your team can discover and download them. Search by name, tags, or description. Download agents instantly with a single command. Makes it easy to share specialized agents across your organization.
+
+### nori-watchtower (Paid)
+
+_Transcript search server for providing institutional and organizational memory to agents across a team._
+
+Automatically store session transcripts from every engineer on your team. Make them searchable and accessible to your team, and your agents. Agents can use watchtower to source extra documentation and context that may not be present in the codebase. You can use watchtower to get insight into how your team is functioning.
 
 ## Commands
 

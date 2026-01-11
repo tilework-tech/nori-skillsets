@@ -5,3 +5,41 @@ New releases are prepended below this header.
 
 ---
 
+## v19.1.3 (2026-01-09)
+
+### Fixes
+- Profile selection uses display order instead of array index (98d5367)
+
+### Documentation
+- Update README.md (a1d1773, bc0ca71)
+
+---
+
+## v19.1.2 (2026-01-08)
+
+### Documentation
+- Update release notes for v19.1.1 (b334bc6)
+
+---
+
+## v19.1.1 (2026-01-08)
+
+### Features
+- Rebrand 'profiles' to 'skillsets' in user-facing content (77367f9)
+- Improve onboarding wizard with senior-swe assets and strict workflow reminders (0630254)
+- Add interactive prepublish script for release notes (f78b9b3)
+- Add automated release notes generation before npm publish (5195cb3)
+- Add worktree-cleanup SessionStart hook (19f4dca)
+- Add onboarding-wizard profile for first-time users (fcc0e67)
+- Move profiles to ~/.nori/profiles/ for cleaner separation (d553858)
+
+### Fixes
+- Preserve companyAnnouncements during subdirectory uninstall (a8496aa)
+- Update registry commands to use .nori/profiles instead of .claude/profiles (50cf618)
+- Improve worktree-cleanup hook performance by removing du calls (7520877)
+
+### Other
+- Update claude md to support dev branches (8a1f3ba)
+- Update README with OS requirement (d5aa597)
+- Improve installer flow messaging and profile organization (d1021f5)
+

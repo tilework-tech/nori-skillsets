@@ -367,14 +367,24 @@ export const generatePromptConfig = async (args: {
   });
   newline();
 
-  // Categorize profiles
-  const knownProfiles = ["senior-swe", "amol", "product-manager"];
-  const recommendedProfile = profiles.find((p) => p.name === "senior-swe");
-  const additionalProfiles = profiles.filter(
-    (p) => p.name === "amol" || p.name === "product-manager",
-  );
+  // Order profiles for display: known profiles first in fixed order, then custom
+  const knownProfileOrder = ["senior-swe", "amol", "product-manager"];
   const customProfiles = profiles.filter(
-    (p) => !knownProfiles.includes(p.name),
+    (p) => !knownProfileOrder.includes(p.name),
+  );
+  const displayOrderedProfiles = [
+    ...knownProfileOrder
+      .map((name) => profiles.find((p) => p.name === name))
+      .filter((p) => p != null),
+    ...customProfiles,
+  ];
+
+  // Categorize for display formatting
+  const recommendedProfile = displayOrderedProfiles.find(
+    (p) => p.name === "senior-swe",
+  );
+  const additionalProfiles = displayOrderedProfiles.filter((p) =>
+    ["amol", "product-manager"].includes(p.name),
   );
 
   let profileIndex = 1;
@@ -431,15 +441,16 @@ export const generatePromptConfig = async (args: {
   newline();
 
   // Loop until valid selection
+  // Use displayOrderedProfiles for selection to match the display order
   let selectedProfileName: string;
   while (true) {
     const response = await promptUser({
-      prompt: `Select a profile (1-${profiles.length}): `,
+      prompt: `Select a profile (1-${displayOrderedProfiles.length}): `,
     });
 
     const selectedIndex = parseInt(response) - 1;
-    if (selectedIndex >= 0 && selectedIndex < profiles.length) {
-      const selected = profiles[selectedIndex];
+    if (selectedIndex >= 0 && selectedIndex < displayOrderedProfiles.length) {
+      const selected = displayOrderedProfiles[selectedIndex];
       info({ message: `Loading "${selected.name}" profile...` });
       selectedProfileName = selected.name;
       break;
@@ -447,7 +458,7 @@ export const generatePromptConfig = async (args: {
 
     // Invalid selection - show error and loop
     error({
-      message: `Invalid selection "${response}". Please enter a number between 1 and ${profiles.length}.`,
+      message: `Invalid selection "${response}". Please enter a number between 1 and ${displayOrderedProfiles.length}.`,
     });
     newline();
   }
