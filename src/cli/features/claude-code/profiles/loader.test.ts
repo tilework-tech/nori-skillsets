@@ -293,10 +293,37 @@ describe("profilesLoader", () => {
       expect(files).toContain("amol");
       expect(files).toContain("product-manager");
     });
+
+    it("should skip existing profiles and preserve user modifications", async () => {
+      const config: Config = {
+        installDir: tempDir,
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
+      };
+
+      // First installation
+      await profilesLoader.run({ config });
+
+      // Modify a profile (simulate user customization)
+      const seniorSwePath = path.join(profilesDir, "senior-swe");
+      const customContent = "# My Custom CLAUDE.md\nThis is my customization.";
+      await fs.writeFile(path.join(seniorSwePath, "CLAUDE.md"), customContent);
+
+      // Second installation (should skip existing profiles)
+      await profilesLoader.run({ config });
+
+      // Verify user modification is preserved
+      const claudeMdContent = await fs.readFile(
+        path.join(seniorSwePath, "CLAUDE.md"),
+        "utf-8",
+      );
+      expect(claudeMdContent).toBe(customContent);
+    });
   });
 
   describe("uninstall", () => {
-    it("should remove built-in profiles for free installation", async () => {
+    it("should preserve all profiles during uninstall for free installation", async () => {
       const config: Config = {
         installDir: tempDir,
         agents: {
@@ -322,21 +349,21 @@ describe("profilesLoader", () => {
       // Uninstall profiles
       await profilesLoader.uninstall({ config });
 
-      // Verify built-in profiles were removed
+      // Verify all profiles are preserved (profiles are never deleted)
       const seniorSweExistsAfter = await fs
         .access(path.join(profilesDir, "senior-swe"))
         .then(() => true)
         .catch(() => false);
-      expect(seniorSweExistsAfter).toBe(false);
+      expect(seniorSweExistsAfter).toBe(true);
 
       const amolExistsAfter = await fs
         .access(path.join(profilesDir, "amol"))
         .then(() => true)
         .catch(() => false);
-      expect(amolExistsAfter).toBe(false);
+      expect(amolExistsAfter).toBe(true);
     });
 
-    it("should remove built-in profiles for paid installation", async () => {
+    it("should preserve all profiles during uninstall for paid installation", async () => {
       const config: Config = {
         installDir: tempDir,
         auth: {
@@ -367,18 +394,18 @@ describe("profilesLoader", () => {
       // Uninstall profiles
       await profilesLoader.uninstall({ config });
 
-      // Verify built-in profiles were removed
+      // Verify all profiles are preserved (profiles are never deleted)
       const seniorSweExistsAfter = await fs
         .access(path.join(profilesDir, "senior-swe"))
         .then(() => true)
         .catch(() => false);
-      expect(seniorSweExistsAfter).toBe(false);
+      expect(seniorSweExistsAfter).toBe(true);
 
       const amolExistsAfter = await fs
         .access(path.join(profilesDir, "amol"))
         .then(() => true)
         .catch(() => false);
-      expect(amolExistsAfter).toBe(false);
+      expect(amolExistsAfter).toBe(true);
     });
 
     it("should not throw if profiles directory does not exist", async () => {
@@ -393,7 +420,7 @@ describe("profilesLoader", () => {
       await expect(profilesLoader.uninstall({ config })).resolves.not.toThrow();
     });
 
-    it("should preserve custom user profiles during uninstall", async () => {
+    it("should preserve all profiles including custom ones during uninstall", async () => {
       const config: Config = {
         installDir: tempDir,
         agents: {
@@ -436,18 +463,18 @@ describe("profilesLoader", () => {
         .catch(() => false);
       expect(customExists).toBe(true);
 
-      // Verify built-in profiles are removed
+      // Verify built-in profiles are also preserved (profiles are never deleted)
       const seniorSweExists = await fs
         .access(path.join(profilesDir, "senior-swe"))
         .then(() => true)
         .catch(() => false);
-      expect(seniorSweExists).toBe(false);
+      expect(seniorSweExists).toBe(true);
 
       const amolExists = await fs
         .access(path.join(profilesDir, "amol"))
         .then(() => true)
         .catch(() => false);
-      expect(amolExists).toBe(false);
+      expect(amolExists).toBe(true);
 
       // Verify profiles directory itself still exists (not deleted)
       const profilesDirExists = await fs

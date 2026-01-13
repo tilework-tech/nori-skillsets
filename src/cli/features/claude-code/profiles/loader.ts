@@ -162,8 +162,18 @@ const installProfiles = async (args: { config: Config }): Promise<void> => {
       const claudeMdPath = path.join(profileSrcDir, "CLAUDE.md");
       await fs.access(claudeMdPath);
 
-      // Remove existing profile directory if it exists (ensures built-ins stay updated)
-      await fs.rm(profileDestDir, { recursive: true, force: true });
+      // Skip if profile already exists - never overwrite user profiles
+      // Users can update profiles via the registry if they want newer versions
+      try {
+        await fs.access(profileDestDir);
+        info({
+          message: `  ${entry.name} already exists, skipping (use registry to update)`,
+        });
+        skippedCount++;
+        continue;
+      } catch {
+        // Profile doesn't exist, proceed with installation
+      }
 
       // Read profile metadata and inject paid mixin if applicable
       const profileJsonPath = path.join(profileSrcDir, "profile.json");
@@ -329,87 +339,17 @@ const configureProfilesPermissions = async (args: {
 
 /**
  * Uninstall profiles directory
- * Only removes built-in profiles (those with "builtin": true in profile.json)
- * Custom user profiles are preserved
+ * Profiles are never deleted - users manage them via the registry
+ * Only removes permissions configuration from settings.json
  * @param args - Configuration arguments
  * @param args.config - Runtime configuration
  */
 const uninstallProfiles = async (args: { config: Config }): Promise<void> => {
   const { config } = args;
 
-  const noriProfilesDir = getNoriProfilesDir({
-    installDir: config.installDir,
-  });
-
-  info({ message: "Removing built-in Nori profiles..." });
-
-  try {
-    await fs.access(noriProfilesDir);
-
-    // Read all profile directories
-    const entries = await fs.readdir(noriProfilesDir, {
-      withFileTypes: true,
-    });
-
-    let removedCount = 0;
-    let preservedCount = 0;
-
-    // Remove only built-in profiles
-    for (const entry of entries) {
-      if (!entry.isDirectory()) {
-        continue;
-      }
-
-      const profileDir = path.join(noriProfilesDir, entry.name);
-      const profileJsonPath = path.join(profileDir, "profile.json");
-
-      try {
-        // Read profile.json to check if it's a built-in profile
-        const content = await fs.readFile(profileJsonPath, "utf-8");
-        const profileData = JSON.parse(content);
-
-        if (profileData.builtin === true) {
-          // Built-in profile - remove it
-          await fs.rm(profileDir, { recursive: true, force: true });
-          removedCount++;
-        } else {
-          // Custom profile - preserve it
-          preservedCount++;
-        }
-      } catch {
-        // If profile.json doesn't exist or can't be read, treat as custom (preserve it)
-        preservedCount++;
-      }
-    }
-
-    if (removedCount > 0) {
-      success({
-        message: `✓ Removed ${removedCount} built-in profile${
-          removedCount === 1 ? "" : "s"
-        }`,
-      });
-    }
-    if (preservedCount > 0) {
-      info({
-        message: `  Preserved ${preservedCount} custom profile${
-          preservedCount === 1 ? "" : "s"
-        }`,
-      });
-    }
-  } catch {
-    info({ message: "Profiles directory not found (may not be installed)" });
-  }
-
-  // Remove parent directory if empty
-  try {
-    const files = await fs.readdir(noriProfilesDir);
-    if (files.length === 0) {
-      await fs.rmdir(noriProfilesDir);
-      success({ message: `✓ Removed empty directory: ${noriProfilesDir}` });
-    }
-  } catch {
-    // Directory doesn't exist or couldn't be removed, which is fine
-  }
+  // Profiles are never deleted during uninstall
+  // Users manage their profiles via the registry and we preserve all customizations
+  info({ message: "Preserving Nori profiles (profiles are never deleted)" });
 
   // Remove permissions configuration
   await removeProfilesPermissions({ config });

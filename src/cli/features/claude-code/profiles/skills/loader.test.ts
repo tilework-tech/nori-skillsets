@@ -304,7 +304,10 @@ describe("skillsLoader", () => {
         },
       };
 
-      // Recompose profiles with paid mixin
+      // Delete existing profiles and recompose with paid mixin
+      // (profiles are only installed once and never overwritten)
+      const profilesDir = path.join(mockNoriDir, "profiles");
+      await fs.rm(profilesDir, { recursive: true, force: true });
       await profilesLoader.run({ config });
 
       await skillsLoader.install({ config });
@@ -365,7 +368,9 @@ describe("skillsLoader", () => {
         },
       };
 
-      // Recompose profiles with paid mixin
+      // Delete existing profiles and recompose with paid mixin
+      const profilesDir = path.join(mockNoriDir, "profiles");
+      await fs.rm(profilesDir, { recursive: true, force: true });
       await profilesLoader.run({ config });
 
       await skillsLoader.install({ config });
@@ -393,7 +398,9 @@ describe("skillsLoader", () => {
         },
       };
 
-      // Recompose profiles with paid mixin
+      // Delete existing profiles and recompose with paid mixin
+      const profilesDir = path.join(mockNoriDir, "profiles");
+      await fs.rm(profilesDir, { recursive: true, force: true });
       await profilesLoader.run({ config });
 
       await skillsLoader.install({ config });
@@ -421,7 +428,9 @@ describe("skillsLoader", () => {
         },
       };
 
-      // Recompose profiles with paid mixin
+      // Delete existing profiles and recompose with paid mixin
+      const profilesDir = path.join(mockNoriDir, "profiles");
+      await fs.rm(profilesDir, { recursive: true, force: true });
       await profilesLoader.run({ config });
 
       await skillsLoader.install({ config });
@@ -449,7 +458,9 @@ describe("skillsLoader", () => {
         },
       };
 
-      // Recompose profiles with paid mixin
+      // Delete existing profiles and recompose with paid mixin
+      const profilesDir = path.join(mockNoriDir, "profiles");
+      await fs.rm(profilesDir, { recursive: true, force: true });
       await profilesLoader.run({ config });
 
       await skillsLoader.install({ config });
@@ -477,7 +488,9 @@ describe("skillsLoader", () => {
         },
       };
 
-      // Recompose profiles with paid mixin
+      // Delete existing profiles and recompose with paid mixin
+      const profilesDir = path.join(mockNoriDir, "profiles");
+      await fs.rm(profilesDir, { recursive: true, force: true });
       await profilesLoader.run({ config });
 
       await skillsLoader.install({ config });
