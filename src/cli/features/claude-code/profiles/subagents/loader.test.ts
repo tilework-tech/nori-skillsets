@@ -122,7 +122,8 @@ describe("subagentsLoader", () => {
         },
       };
 
-      // Recompose profiles with paid mixin
+      // Delete existing profiles and recompose with paid mixin
+      await fs.rm(noriProfilesDir, { recursive: true, force: true });
       await profilesLoader.run({ config });
 
       await subagentsLoader.install({ config });

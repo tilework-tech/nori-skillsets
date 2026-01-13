@@ -220,13 +220,6 @@ describe("uninstall cleanup", () => {
           await slashCommandsLoader.install({ config });
         },
       },
-      {
-        dir: "noriProfiles",
-        dirPath: "noriProfilesDir",
-        installFn: async (config: any) => {
-          await profilesLoader.run({ config });
-        },
-      },
     ])(
       "should remove empty $dir directory after uninstall",
       async ({ dirPath, installFn }) => {
@@ -236,12 +229,7 @@ describe("uninstall cleanup", () => {
             "claude-code": { profile: { baseProfile: "senior-swe" } },
           },
         };
-        const targetDir =
-          dirPath === "agentsDir"
-            ? agentsDir
-            : dirPath === "commandsDir"
-              ? commandsDir
-              : noriProfilesDir;
+        const targetDir = dirPath === "agentsDir" ? agentsDir : commandsDir;
 
         // Install
         await installFn(config);
@@ -265,6 +253,40 @@ describe("uninstall cleanup", () => {
         expect(dirExists).toBe(false);
       },
     );
+
+    it("should preserve noriProfiles directory during uninstall", async () => {
+      const config = {
+        installDir: tempDir,
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
+      };
+
+      // Install profiles
+      await profilesLoader.run({ config });
+
+      // Verify directory exists with files
+      const files = await fs.readdir(noriProfilesDir);
+      expect(files.length).toBeGreaterThan(0);
+
+      // Run full uninstall
+      await runUninstall({
+        removeGlobalSettings: true,
+        installDir: tempDir,
+      });
+
+      // Verify profiles directory is preserved (profiles are never deleted)
+      const dirExists = await fs
+        .access(noriProfilesDir)
+        .then(() => true)
+        .catch(() => false);
+
+      expect(dirExists).toBe(true);
+
+      // Verify profiles are still there
+      const filesAfter = await fs.readdir(noriProfilesDir);
+      expect(filesAfter.length).toBeGreaterThan(0);
+    });
 
     it("should preserve directories with user-created files", async () => {
       // Set up free config

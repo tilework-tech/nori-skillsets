@@ -14,7 +14,7 @@ The profiles loader executes FIRST in both interactive and non-interactive insta
 
 **Profile Structure**: Each profile directory contains `CLAUDE.md` (behavioral instructions) and `profile.json` (metadata with mixins configuration and optional builtin field). Profile content is composed from mixins defined in `_mixins/` directory: `_base` (essential skills/commands), `_docs` (documentation workflows), `_swe` (software engineering skills), and `_paid` (premium features). The `paid` mixin is automatically injected when auth credentials are present. Markdown files in profiles (CLAUDE.md, SKILL.md, subagent .md, slash command .md) use template placeholders like `{{skills_dir}}`, `{{profiles_dir}}`, `{{commands_dir}}`, and `{{install_dir}}` which are substituted with actual paths during installation. Template substitution is applied by: @/src/cli/features/claude-code/profiles/claudemd/loader.ts (for CLAUDE.md), @/src/cli/features/claude-code/profiles/skills/loader.ts (for SKILL.md files), @/src/cli/features/claude-code/profiles/subagents/loader.ts (for subagent .md files), and @/src/cli/features/claude-code/profiles/slashcommands/loader.ts (for slash command .md files). All use substituteTemplatePaths() from @/src/cli/features/claude-code/template.ts.
 
-**Built-in Profile Metadata**: All built-in profiles include `"builtin": true` in their profile.json files. This field is used by the uninstall process (@/src/cli/features/claude-code/profiles/loader.ts uninstallProfiles function) to distinguish built-in profiles from custom user profiles. During uninstall, only profiles with `"builtin": true` are removed. Profiles without this field (or with `"builtin": false`) are treated as custom and preserved.
+**Built-in Profile Metadata**: All built-in profiles include `"builtin": true` in their profile.json files. This field is now informational only - it indicates which profiles shipped with Nori. Profiles are NEVER deleted during install or uninstall regardless of this field's value.
 
 **Built-in Profiles**: Several profiles ship with the package at @/src/cli/features/claude-code/profiles/config/:
 - `senior-swe` - Co-pilot with high confirmation, the default profile
@@ -35,7 +35,7 @@ The default profile fallback `senior-swe` (from @/src/cli/config.ts getDefaultPr
 
 After collecting preferences, it generates a customized profile in `~/.claude/profiles/<profile-name>/` with a tailored CLAUDE.md based on the user's answers. Uses the same mixins as `senior-swe` (base, docs, swe). After creating a custom profile, users switch to it using `/nori-switch-profile`.
 
-**Installation Flow**: The `installProfiles()` function in @/src/cli/features/claude-code/profiles/loader.ts reads profile directories from config/, loads profile.json metadata, dynamically injects the `paid` mixin if the user has auth credentials (checked via `isPaidInstall({ config })` from @/src/cli/config.ts), then composes the profile by merging content from all mixins in alphabetical order. Mixins are located in `config/_mixins/` with names like `_base`, `_docs`, `_swe`, `_paid`. Directories are merged (union of contents) while files use last-writer-wins. Profile-specific content (CLAUDE.md) is overlaid last. Built-in profiles are always overwritten during installation to receive updates. Custom profiles are preserved. The composed profiles are written to `~/.nori/profiles/`, then the profiles loader also configures permissions for this directory in `~/.claude/settings.json`.
+**Installation Flow**: The `installProfiles()` function in @/src/cli/features/claude-code/profiles/loader.ts reads profile directories from config/, checks if each profile already exists in `~/.nori/profiles/`, and skips any that do (logging "use registry to update"). For new profiles, it loads profile.json metadata, dynamically injects the `paid` mixin if the user has auth credentials (checked via `isPaidInstall({ config })` from @/src/cli/config.ts), then composes the profile by merging content from all mixins in alphabetical order. Mixins are located in `config/_mixins/` with names like `_base`, `_docs`, `_swe`, `_paid`. Directories are merged (union of contents) while files use last-writer-wins. Profile-specific content (CLAUDE.md) is overlaid last. Existing profiles are NEVER overwritten - users must use the registry to get newer profile versions. The composed profiles are written to `~/.nori/profiles/`, then the profiles loader also configures permissions for this directory in `~/.claude/settings.json`.
 
 **Profile Lookup in Loaders**: All feature loaders (claudemd, skills, slashcommands, subagents) use `getAgentProfile({ config, agentName: "claude-code" })` from @/src/cli/config.ts to determine the active profile name. This function returns the agent-specific profile from `config.agents["claude-code"].profile`, falling back to the legacy `config.profile` field for backwards compatibility. Direct access to `config.profile` is prohibited - it bypasses agent-specific profiles and causes bugs during switch-profile for non-claude-code agents.
 
@@ -58,7 +58,7 @@ After collecting preferences, it generates a customized profile in `~/.claude/pr
 
 **Directory-based vs JSON-based**: PR #197 replaced the JSON preference system with directory-based profiles, deleting 8,296 lines of code. PR #208 introduced profile composition with single inheritance via `extends` field. This PR replaces single inheritance with mixin composition, where profiles declare multiple mixins in profile.json and the loader composes them in alphabetical precedence order.
 
-**Custom profile preservation**: Built-in profiles are identified by the `"builtin": true` field in their profile.json files. During uninstall, the loader only removes profiles with `"builtin": true`, preserving any custom user profiles (those without the builtin field or with `"builtin": false`). This allows users to safely create custom profiles by copying built-in ones to `~/.nori/profiles/` and modifying them without losing their work during profile switches or upgrades.
+**Profile preservation**: Profiles are NEVER deleted during install or uninstall operations. During install, existing profile directories are skipped entirely (logging "use registry to update"). During uninstall, only permissions configuration in `~/.claude/settings.json` is removed - all profiles remain in `~/.nori/profiles/`. This ensures users never lose customizations, whether they modified built-in profiles or created entirely new ones. To get newer versions of built-in profiles, users must explicitly use the registry.
 
 **Skill installation testing**: Tests in @/src/cli/features/claude-code/profiles/skills/loader.test.ts verify that skills from all mixins are correctly installed. Each new skill in a mixin should have corresponding tests verifying: (1) the skill exists after installation for the appropriate tier (free/paid), (2) frontmatter is properly formatted with name and description fields, and (3) the skill is installed in the expected location. For example, the creating-skills skill has tests verifying it's installed for both free and paid tiers since it's in the _base mixin.
 
@@ -170,13 +170,14 @@ All feature loaders (claudemd, skills, slashcommands, subagents) read from `~/.n
 
 1. **Profiles loader runs FIRST** (before profile selection)
 
-   - Reads profile.json from each profile to get mixins configuration
+   - Checks if each profile already exists in `~/.nori/profiles/`
+   - Skips existing profiles entirely (logs "use registry to update")
+   - For new profiles only: reads profile.json for mixins configuration
    - Injects `paid` mixin dynamically if user has auth credentials
    - Composes profile by copying content from mixins in alphabetical order
    - Overlays profile-specific content (CLAUDE.md, profile.json)
    - Copies composed profiles to `~/.nori/profiles/`
-   - Overwrites built-in profiles to ensure they're up-to-date
-   - Leaves custom profiles untouched
+   - Never overwrites existing profiles - preserves all user modifications
 
 2. **First-time install detection** (see @/src/cli/commands/install/install.ts generatePromptConfig)
 
@@ -203,9 +204,8 @@ When you run `npx nori-ai@latest switch-profile <name>`:
 1. Validates profile exists in `~/.nori/profiles/`
 2. Saves profile name to `.nori-config.json` (preserves auth credentials)
 3. Runs `installMain({ nonInteractive: true, skipUninstall: true })` to apply changes
-   - The `skipUninstall: true` parameter prevents the installer from running uninstall first
-   - This preserves custom user profiles that would otherwise be removed during the uninstall step
-   - Built-in profiles are still updated to their latest versions during installation
+   - Re-installs feature artifacts (skills, subagents, commands, CLAUDE.md) from the selected profile
+   - Existing profiles are never modified during this process
 
 ### Key Files
 
@@ -224,4 +224,4 @@ The `validate()` function checks:
 
 ## Uninstallation
 
-During `npx nori-ai@latest uninstall`, only built-in profiles (those with `"builtin": true` in profile.json) are removed. Custom user profiles are preserved. The `~/.nori/profiles/` directory itself is not deleted, ensuring custom profiles survive uninstall operations.
+During `npx nori-ai@latest uninstall`, profiles are NEVER deleted. The `uninstallProfiles()` function only removes the profiles directory permissions from `~/.claude/settings.json`. All profiles in `~/.nori/profiles/` are preserved, including both built-in and custom profiles. This prevents users from losing customizations during upgrades or reinstalls.
