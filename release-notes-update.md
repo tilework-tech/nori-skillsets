@@ -15,14 +15,16 @@ npm view nori-ai version
 
 This returns the version string (e.g., "19.1.1").
 
-2. Find the commit where that version was set.
+2. Find the commit where that version was first set.
 
-Using the version from step 1, find when it was added to package.json:
+Using the version from step 1, find the **first** commit where it was added to package.json:
 ```bash
-git log -S '"version": "<version>"' --oneline -1 --format="%H" -- package.json
+git log -S '"version": "<version>"' --oneline --format="%H" --reverse -- package.json | head -1
 ```
 
-The `-S` flag (pickaxe search) finds the commit where this exact version string was added to package.json.
+The `-S` flag (pickaxe search) finds commits where this exact version string was added or removed from package.json. The `--reverse` flag orders results oldest-first, and `head -1` gets the first occurrence.
+
+**Why `--reverse | head -1`?** Without these flags, `-S` returns the *most recent* commit that touched the version string. If the version was set, then more commits were added, then another bump commit touched package.json (even if it kept the same version), the pickaxe would return the later bump commit—missing all the commits in between.
 
 3. Get all commits since the last version.
 
@@ -81,7 +83,7 @@ This ensures the release notes are included in the publish commit.
 
 ## Version Detection
 
-The last published version is retrieved from the npm registry using `npm view nori-ai version`. The commit where that version was set is found using git's pickaxe search (`-S` flag), which locates when the exact version string was added to package.json.
+The last published version is retrieved from the npm registry using `npm view nori-ai version`. The commit where that version was **first** set is found using git's pickaxe search (`-S` flag) with `--reverse | head -1` to get the earliest occurrence. This is important because subsequent commits may touch package.json without changing the version, and we need all commits since the version was originally set.
 
 ## Empty Releases
 
