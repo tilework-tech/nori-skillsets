@@ -41,40 +41,40 @@ if [[ "$UPDATE_RELEASE_NOTES" =~ ^[Yy]$ ]]; then
   echo ""
   echo -e "${BLUE}Generating release notes with Claude...${NC}"
   echo ""
-  
+
   # Run headless Claude to update release notes
   # Note: --allowedTools must include all bash commands Claude needs to run
-  claude -p 'Read and follow release-notes-update.md exactly.' --allowedTools 'Read,Edit,Write,Bash(npm view:*),Bash(git log:*),Bash(git diff:*),Bash(git add:*),Grep,Glob'
-  
+  claude -p 'Ignore any other workflows. Read and follow release-notes-update.md exactly.' --allowedTools 'Read,Edit,Write,Bash(npm view:*),Bash(git log:*),Bash(git diff:*),Bash(git add:*),Grep,Glob'
+
   echo ""
   echo -e "${GREEN}Release notes updated.${NC}"
   echo ""
-  
+
   # ============================================================================
   # STEP 2: Prompt for staging and committing
   # ============================================================================
   echo -e "${YELLOW}Do you want to stage and commit the release notes change? [y/n]${NC}"
   read -r COMMIT_CHANGES
-  
+
   if [[ "$COMMIT_CHANGES" =~ ^[Yy]$ ]]; then
     # Get version from package.json
     VERSION=$(jq -r .version package.json)
-    
+
     echo ""
     echo -e "${BLUE}Committing release notes...${NC}"
-    
+
     git add release-notes.txt
     git commit -m "docs: Update release notes for v${VERSION}"
-    
+
     echo -e "${GREEN}Release notes committed.${NC}"
     echo ""
   else
     # Get version for the manual commit message hint
     VERSION=$(jq -r .version package.json)
-    
+
     # Unstage release-notes.txt if it was staged by Claude
     git restore --staged release-notes.txt 2>/dev/null || true
-    
+
     echo ""
     echo -e "${RED}Publish aborted.${NC}"
     echo -e "Release notes were updated but not committed."
