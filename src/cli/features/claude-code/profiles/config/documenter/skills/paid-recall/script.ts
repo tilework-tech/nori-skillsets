@@ -6,7 +6,7 @@
  * IMPORTANT: This file is BUNDLED during the build process.
  *
  * Build Process:
- * 1. TypeScript compiles this file to build/src/cli/features/claude-code/profiles/config/_mixins/_paid/skills/paid-recall/script.js
+ * 1. TypeScript compiles this file to build/src/cli/features/claude-code/profiles/config/senior-swe/skills/paid-recall/script.js
  * 2. tsc-alias converts @ imports to relative paths
  * 3. scripts/bundle-skills.ts uses esbuild to create a standalone bundle
  * 4. The bundle REPLACES the compiled output at the same location

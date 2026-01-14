@@ -92,12 +92,7 @@ Write `{{profiles_dir}}/<profile-name>/profile.json`:
 {
   "name": "<profile-name>",
   "description": "<generated description based on preferences>",
-  "builtin": false,
-  "mixins": {
-    "base": {},
-    "docs": {},
-    "swe": {}
-  }
+  "builtin": false
 }
 ```
 

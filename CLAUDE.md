@@ -14,7 +14,7 @@ tools that may behave differently on different systems.
 
 **Examples:**
 
-- "Update the writing-plans skill" → Modify `src/cli/features/claude-code/profiles/config/_mixins/_swe/skills/writing-plans/SKILL.md`
+- "Update the writing-plans skill" → Modify `src/cli/features/claude-code/profiles/config/senior-swe/skills/writing-plans/SKILL.md` (and other profiles that include this skill)
 - "Change the status line" → Modify `src/cli/features/claude-code/statusline/`
 - "Add a new global slash command" → Modify `src/cli/features/claude-code/slashcommands/config/`
 

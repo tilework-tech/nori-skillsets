@@ -153,7 +153,7 @@ const installSkills = async (args: { config: Config }): Promise<void> => {
     // ~/.claude/skills/ without requiring the MCP package context.
     //
     // @see scripts/bundle-skills.ts - The bundler that creates standalone scripts
-    // @see src/cli/features/claude-code/profiles/config/_mixins/_paid/skills/paid-recall/script.ts - Bundling docs
+    // @see src/cli/features/claude-code/profiles/config/senior-swe/skills/paid-recall/script.ts - Bundling docs
     if (entry.name.startsWith("paid-")) {
       if (isPaidInstall({ config })) {
         // Strip paid- prefix when copying

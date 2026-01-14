@@ -6,7 +6,7 @@
  * IMPORTANT: This file is BUNDLED during the build process.
  *
  * @see scripts/bundle-skills.ts - Bundler that creates standalone executables
- * @see src/cli/features/claude-code/profiles/config/_mixins/_paid/skills/paid-recall/script.ts - Full bundling documentation
+ * @see src/cli/features/claude-code/profiles/config/senior-swe/skills/paid-recall/script.ts - Full bundling documentation
  */
 
 import minimist from "minimist";
