@@ -44,7 +44,7 @@ if [[ "$UPDATE_RELEASE_NOTES" =~ ^[Yy]$ ]]; then
 
   # Run headless Claude to update release notes
   # Note: --allowedTools must include all bash commands Claude needs to run
-  claude -p 'Ignore any other workflows. Read and follow release-notes-update.md exactly.' --allowedTools 'Read,Edit,Write,Bash(npm view:*),Bash(git log:*),Bash(git diff:*),Bash(git add:*),Grep,Glob'
+  claude -p 'Ignore any other workflows. Do NOT make a new branch or worktree. Read and follow release-notes-update.md exactly.' --allowedTools 'Read,Edit,Write,Bash(npm view:*),Bash(git log:*),Bash(git diff:*),Bash(git add:*),Grep,Glob'
 
   echo ""
   echo -e "${GREEN}Release notes updated.${NC}"
