@@ -88,6 +88,45 @@ export type UploadProfileResponse = {
   createdAt: string;
 };
 
+// Skill API types
+export type SearchSkillsRequest = {
+  query: string;
+  limit?: number | null;
+  offset?: number | null;
+  registryUrl?: string | null;
+  authToken?: string | null;
+};
+
+export type GetSkillPackumentRequest = {
+  skillName: string;
+  registryUrl?: string | null;
+  authToken?: string | null;
+};
+
+export type DownloadSkillTarballRequest = {
+  skillName: string;
+  version?: string | null;
+  registryUrl?: string | null;
+  authToken?: string | null;
+};
+
+export type UploadSkillRequest = {
+  skillName: string;
+  version: string;
+  archiveData: ArrayBuffer;
+  description?: string | null;
+  authToken: string;
+  registryUrl?: string | null;
+};
+
+export type UploadSkillResponse = {
+  name: string;
+  version: string;
+  description?: string | null;
+  tarballSha: string;
+  createdAt: string;
+};
+
 export const registrarApi = {
   /**
    * Search for packages in the registrar
@@ -300,5 +339,179 @@ export const registrarApi = {
     }
 
     return (await response.json()) as UploadProfileResponse;
+  },
+
+  // Skill API methods
+
+  /**
+   * Search for skills in the registrar
+   * @param args - The search parameters
+   *
+   * @returns Array of matching skills
+   */
+  searchSkills: async (args: SearchSkillsRequest): Promise<Array<Package>> => {
+    const { query, limit, offset, registryUrl, authToken } = args;
+    const baseUrl = registryUrl ?? REGISTRAR_URL;
+
+    const params = new URLSearchParams({ q: query });
+    if (limit != null) {
+      params.set("limit", limit.toString());
+    }
+    if (offset != null) {
+      params.set("offset", offset.toString());
+    }
+
+    const url = `${baseUrl}/api/skills/search?${params.toString()}`;
+
+    const headers: Record<string, string> = {};
+    if (authToken != null) {
+      headers.Authorization = `Bearer ${authToken}`;
+    }
+
+    const response = await fetch(url, {
+      method: "GET",
+      ...(Object.keys(headers).length > 0 ? { headers } : {}),
+    });
+
+    if (!response.ok) {
+      const errorData = (await response.json().catch(() => ({
+        error: `HTTP ${response.status}`,
+      }))) as { error?: string };
+      throw new Error(errorData.error ?? `HTTP ${response.status}`);
+    }
+
+    return (await response.json()) as Array<Package>;
+  },
+
+  /**
+   * Get the packument (package metadata) for a skill
+   * @param args - The request parameters
+   *
+   * @returns The skill packument
+   */
+  getSkillPackument: async (
+    args: GetSkillPackumentRequest,
+  ): Promise<Packument> => {
+    const { skillName, registryUrl, authToken } = args;
+    const baseUrl = registryUrl ?? REGISTRAR_URL;
+
+    const url = `${baseUrl}/api/skills/${skillName}`;
+
+    const headers: Record<string, string> = {};
+    if (authToken != null) {
+      headers.Authorization = `Bearer ${authToken}`;
+    }
+
+    const response = await fetch(url, {
+      method: "GET",
+      ...(Object.keys(headers).length > 0 ? { headers } : {}),
+    });
+
+    if (!response.ok) {
+      const errorData = (await response.json().catch(() => ({
+        error: `HTTP ${response.status}`,
+      }))) as { error?: string };
+      throw new Error(errorData.error ?? `HTTP ${response.status}`);
+    }
+
+    return (await response.json()) as Packument;
+  },
+
+  /**
+   * Download a tarball for a skill
+   *
+   * If no version is specified, the latest version is downloaded.
+   * @param args - The download parameters
+   *
+   * @returns The tarball data as ArrayBuffer
+   */
+  downloadSkillTarball: async (
+    args: DownloadSkillTarballRequest,
+  ): Promise<ArrayBuffer> => {
+    const { skillName, registryUrl, authToken } = args;
+    const baseUrl = registryUrl ?? REGISTRAR_URL;
+    let { version } = args;
+
+    // If no version specified, resolve latest from packument
+    if (version == null) {
+      const packument = await registrarApi.getSkillPackument({
+        skillName,
+        registryUrl,
+        authToken,
+      });
+      version = packument["dist-tags"].latest;
+
+      if (version == null) {
+        throw new Error(`No latest version found for skill: ${skillName}`);
+      }
+    }
+
+    const tarballFilename = `${skillName}-${version}.tgz`;
+    const url = `${baseUrl}/api/skills/${skillName}/tarball/${tarballFilename}`;
+
+    const headers: Record<string, string> = {};
+    if (authToken != null) {
+      headers.Authorization = `Bearer ${authToken}`;
+    }
+
+    const response = await fetch(url, {
+      method: "GET",
+      ...(Object.keys(headers).length > 0 ? { headers } : {}),
+    });
+
+    if (!response.ok) {
+      const errorData = (await response.json().catch(() => ({
+        error: `HTTP ${response.status}`,
+      }))) as { error?: string };
+      throw new Error(errorData.error ?? `HTTP ${response.status}`);
+    }
+
+    return await response.arrayBuffer();
+  },
+
+  /**
+   * Upload a skill to the registrar
+   * @param args - The upload parameters
+   *
+   * @returns The upload response with skill metadata
+   */
+  uploadSkill: async (
+    args: UploadSkillRequest,
+  ): Promise<UploadSkillResponse> => {
+    const {
+      skillName,
+      version,
+      archiveData,
+      description,
+      authToken,
+      registryUrl,
+    } = args;
+    const baseUrl = registryUrl ?? REGISTRAR_URL;
+
+    const formData = new FormData();
+    formData.append("archive", new Blob([archiveData]), `${skillName}.tgz`);
+    formData.append("version", version);
+    if (description != null) {
+      formData.append("description", description);
+    }
+
+    const url = `${baseUrl}/api/skills/${skillName}/skill`;
+
+    const response = await fetch(url, {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${authToken}`,
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorData = (await response.json().catch(() => ({
+        error: `HTTP ${response.status}`,
+      }))) as { error?: string };
+      throw new Error(errorData.error ?? `HTTP ${response.status}`);
+    }
+
+    return (await response.json()) as UploadSkillResponse;
   },
 };

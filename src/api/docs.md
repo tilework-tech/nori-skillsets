@@ -61,7 +61,19 @@ AuthManager in base.ts prefers refresh token auth via `exchangeRefreshToken()` w
 
 **Analytics Exception:** The trackEvent() method in analytics.ts is the sole exception to the apiRequest() pattern - it makes direct fetch() calls without authentication. This is intentional: analytics must work for all users (including free-tier without organizationUrl configured). The method falls back to DEFAULT_ANALYTICS_URL when no organizationUrl is present, ensuring analytics are never silently dropped. The generateDailyReport() and generateUserReport() methods continue to use apiRequest() with authentication since they are privileged operations.
 
-**Registrar API:** The registrar.ts module is a standalone API client for Nori package registries (npm-compatible). Unlike other API modules that use apiRequest() with Firebase authentication, the registrar uses direct fetch() calls. It supports searching packages, retrieving packument metadata, downloading tarballs, and uploading profiles. All functions support multi-registry configurations - read operations accept optional `registryUrl` and `authToken` parameters (defaulting to the public registry), while write operations require authentication. When targeting private registries, the authToken is sent as a Bearer token. The registrar API is consumed by the `nori-registry-*` intercepted slash commands and CLI commands.
+**Registrar API:** The registrar.ts module is a standalone API client for Nori package registries (npm-compatible). Unlike other API modules that use apiRequest() with Firebase authentication, the registrar uses direct fetch() calls. It supports both profiles and skills as first-class registry entities. All functions support multi-registry configurations - read operations accept optional `registryUrl` and `authToken` parameters (defaulting to the public registry), while write operations require authentication. When targeting private registries, the authToken is sent as a Bearer token. The registrar API is consumed by the `nori-registry-*` intercepted slash commands and CLI commands.
+
+**Profile API Methods:**
+- `searchPackages()` - Search for profiles in the registrar
+- `getPackument()` - Get profile metadata including versions
+- `downloadTarball()` - Download profile tarball (resolves latest if no version specified)
+- `uploadProfile()` - Upload profile to registrar (requires auth)
+
+**Skill API Methods:**
+- `searchSkills()` - Search for skills in the registrar
+- `getSkillPackument()` - Get skill metadata including versions
+- `downloadSkillTarball()` - Download skill tarball (resolves latest if no version specified)
+- `uploadSkill()` - Upload skill to registrar (requires auth)
 
 **Registry Authentication:** The registryAuth.ts module handles Firebase authentication for authenticated registry operations (profile uploads, org registry search). It exports `getRegistryAuthToken()` which accepts a `RegistryAuth` object (username, refreshToken, registryUrl) and exchanges the refresh token for a Firebase ID token via `exchangeRefreshToken()` from refreshToken.ts. Tokens are cached per registry URL with 55-minute expiry (5 minutes before Firebase's 1-hour token expiry). The module uses the unified Nori authentication (same refresh token as Watchtower) - the `config.auth` credentials are reused for registry operations. The `clearRegistryAuthCache()` function is exported for testing.
 

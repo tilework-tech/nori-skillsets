@@ -748,4 +748,267 @@ describe("registrarApi", () => {
       );
     });
   });
+
+  // Skill API tests
+  describe("searchSkills", () => {
+    it("should return array of skills matching query", async () => {
+      const mockSkills = [
+        {
+          id: "skill-1",
+          name: "writing-plans",
+          description: "A skill for writing plans",
+          authorEmail: "test@example.com",
+          createdAt: "2024-01-01T00:00:00.000Z",
+          updatedAt: "2024-01-01T00:00:00.000Z",
+        },
+      ];
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(mockSkills),
+      });
+
+      const result = await registrarApi.searchSkills({ query: "writing" });
+
+      expect(result).toEqual(mockSkills);
+      expect(mockFetch).toHaveBeenCalledWith(
+        "https://registrar.tilework.tech/api/skills/search?q=writing",
+        expect.objectContaining({
+          method: "GET",
+        }),
+      );
+    });
+
+    it("should use custom registryUrl when provided", async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve([]),
+      });
+
+      await registrarApi.searchSkills({
+        query: "test",
+        registryUrl: "https://private-registry.example.com",
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "https://private-registry.example.com/api/skills/search?q=test",
+        expect.objectContaining({
+          method: "GET",
+        }),
+      );
+    });
+
+    it("should include auth token header when provided", async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve([]),
+      });
+
+      await registrarApi.searchSkills({
+        query: "test",
+        authToken: "test-auth-token",
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Authorization: "Bearer test-auth-token",
+          }),
+        }),
+      );
+    });
+  });
+
+  describe("getSkillPackument", () => {
+    it("should return packument for skill name", async () => {
+      const mockPackument = {
+        name: "writing-plans",
+        description: "A skill for writing plans",
+        "dist-tags": { latest: "1.0.0" },
+        versions: {
+          "1.0.0": {
+            name: "writing-plans",
+            version: "1.0.0",
+            dist: {
+              tarball: "/skills/writing-plans/tarball/writing-plans-1.0.0.tgz",
+            },
+          },
+        },
+      };
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(mockPackument),
+      });
+
+      const result = await registrarApi.getSkillPackument({
+        skillName: "writing-plans",
+      });
+
+      expect(result).toEqual(mockPackument);
+      expect(mockFetch).toHaveBeenCalledWith(
+        "https://registrar.tilework.tech/api/skills/writing-plans",
+        expect.objectContaining({
+          method: "GET",
+        }),
+      );
+    });
+
+    it("should throw error when skill not found", async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 404,
+        json: () => Promise.resolve({ error: "Skill not found" }),
+      });
+
+      await expect(
+        registrarApi.getSkillPackument({ skillName: "nonexistent" }),
+      ).rejects.toThrow("Skill not found");
+    });
+  });
+
+  describe("downloadSkillTarball", () => {
+    it("should return ArrayBuffer on successful download", async () => {
+      const mockTarballData = new ArrayBuffer(100);
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        arrayBuffer: () => Promise.resolve(mockTarballData),
+      });
+
+      const result = await registrarApi.downloadSkillTarball({
+        skillName: "writing-plans",
+        version: "1.0.0",
+      });
+
+      expect(result).toBe(mockTarballData);
+      expect(mockFetch).toHaveBeenCalledWith(
+        "https://registrar.tilework.tech/api/skills/writing-plans/tarball/writing-plans-1.0.0.tgz",
+        expect.objectContaining({
+          method: "GET",
+        }),
+      );
+    });
+
+    it("should fetch latest version when no version specified", async () => {
+      const mockPackument = {
+        name: "writing-plans",
+        "dist-tags": { latest: "2.0.0" },
+        versions: {
+          "1.0.0": { name: "writing-plans", version: "1.0.0" },
+          "2.0.0": { name: "writing-plans", version: "2.0.0" },
+        },
+      };
+
+      const mockTarballData = new ArrayBuffer(100);
+
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve(mockPackument),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          arrayBuffer: () => Promise.resolve(mockTarballData),
+        });
+
+      const result = await registrarApi.downloadSkillTarball({
+        skillName: "writing-plans",
+      });
+
+      expect(result).toBe(mockTarballData);
+
+      // First call should be to get packument
+      expect(mockFetch).toHaveBeenNthCalledWith(
+        1,
+        "https://registrar.tilework.tech/api/skills/writing-plans",
+        expect.objectContaining({
+          method: "GET",
+        }),
+      );
+
+      // Second call should be to download tarball with resolved version
+      expect(mockFetch).toHaveBeenNthCalledWith(
+        2,
+        "https://registrar.tilework.tech/api/skills/writing-plans/tarball/writing-plans-2.0.0.tgz",
+        expect.objectContaining({
+          method: "GET",
+        }),
+      );
+    });
+
+    it("should throw error when tarball not found", async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 404,
+        json: () => Promise.resolve({ error: "Tarball not found" }),
+      });
+
+      await expect(
+        registrarApi.downloadSkillTarball({
+          skillName: "nonexistent",
+          version: "1.0.0",
+        }),
+      ).rejects.toThrow("Tarball not found");
+    });
+  });
+
+  describe("uploadSkill", () => {
+    it("should upload skill with multipart form data", async () => {
+      const mockResponse = {
+        name: "writing-plans",
+        version: "1.0.0",
+        description: "A skill for writing plans",
+        tarballSha: "sha512-abc123",
+        createdAt: "2024-01-01T00:00:00.000Z",
+      };
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(mockResponse),
+      });
+
+      const archiveData = new ArrayBuffer(100);
+      const result = await registrarApi.uploadSkill({
+        skillName: "writing-plans",
+        version: "1.0.0",
+        archiveData,
+        authToken: "test-token",
+      });
+
+      expect(result).toEqual(mockResponse);
+      expect(mockFetch).toHaveBeenCalledWith(
+        "https://registrar.tilework.tech/api/skills/writing-plans/skill",
+        expect.objectContaining({
+          method: "PUT",
+          headers: expect.objectContaining({
+            Authorization: "Bearer test-token",
+          }),
+        }),
+      );
+
+      // Verify the body is FormData
+      const callArgs = mockFetch.mock.calls[0];
+      expect(callArgs[1].body).toBeInstanceOf(FormData);
+    });
+
+    it("should throw error on unauthorized (401)", async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 401,
+        json: () => Promise.resolve({ error: "Unauthorized" }),
+      });
+
+      const archiveData = new ArrayBuffer(100);
+      await expect(
+        registrarApi.uploadSkill({
+          skillName: "writing-plans",
+          version: "1.0.0",
+          archiveData,
+          authToken: "invalid-token",
+        }),
+      ).rejects.toThrow("Unauthorized");
+    });
+  });
 });

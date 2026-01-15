@@ -29,6 +29,9 @@ vi.mock("@/cli/features/claude-code/paths.js", () => ({
   getNoriDir: () => mockNoriDir,
   getNoriProfilesDir: () => path.join(mockNoriDir, "profiles"),
   getNoriConfigFile: () => path.join(mockNoriDir, "config.json"),
+  getNoriSkillsDir: () => path.join(mockNoriDir, "skills"),
+  getNoriSkillDir: (args: { installDir: string; skillName: string }) =>
+    path.join(mockNoriDir, "skills", args.skillName),
 }));
 
 // Import loaders after mocking env
@@ -912,6 +915,150 @@ describe("skillsLoader", () => {
       expect(result.valid).toBe(false);
       expect(result.errors).not.toBeNull();
       expect(result.errors?.some((e) => e.includes("permissions"))).toBe(true);
+    });
+  });
+
+  describe("skills.json support (external skills)", () => {
+    it("should install skills from both inline folder and skills.json", async () => {
+      const config: Config = {
+        installDir: tempDir,
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
+      };
+
+      // Create a skills.json in the profile directory
+      const profileDir = path.join(mockNoriDir, "profiles", "senior-swe");
+      await fs.writeFile(
+        path.join(profileDir, "skills.json"),
+        JSON.stringify({
+          "external-skill": "^1.0.0",
+        }),
+      );
+
+      // Create the external skill in ~/.nori/skills/
+      const externalSkillDir = path.join(
+        mockNoriDir,
+        "skills",
+        "external-skill",
+      );
+      await fs.mkdir(externalSkillDir, { recursive: true });
+      await fs.writeFile(
+        path.join(externalSkillDir, "SKILL.md"),
+        "---\nname: External Skill\ndescription: An external skill\n---\n# External Skill\n",
+      );
+
+      await skillsLoader.install({ config });
+
+      // Should have inline skills
+      const inlineSkillExists = await fs
+        .access(path.join(skillsDir, "using-skills", "SKILL.md"))
+        .then(() => true)
+        .catch(() => false);
+      expect(inlineSkillExists).toBe(true);
+
+      // Should have external skill
+      const externalSkillExists = await fs
+        .access(path.join(skillsDir, "external-skill", "SKILL.md"))
+        .then(() => true)
+        .catch(() => false);
+      expect(externalSkillExists).toBe(true);
+    });
+
+    it("should prefer external skill over inline when same name exists", async () => {
+      const config: Config = {
+        installDir: tempDir,
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
+      };
+
+      // Create a skills.json that references a skill that also exists inline
+      const profileDir = path.join(mockNoriDir, "profiles", "senior-swe");
+      await fs.writeFile(
+        path.join(profileDir, "skills.json"),
+        JSON.stringify({
+          "using-skills": "^2.0.0",
+        }),
+      );
+
+      // Create the external version in ~/.nori/skills/
+      const externalSkillDir = path.join(mockNoriDir, "skills", "using-skills");
+      await fs.mkdir(externalSkillDir, { recursive: true });
+      await fs.writeFile(
+        path.join(externalSkillDir, "SKILL.md"),
+        "---\nname: Using Skills\ndescription: External version 2.0.0\n---\n# EXTERNAL VERSION\n",
+      );
+
+      await skillsLoader.install({ config });
+
+      // Should have the external version (contains "EXTERNAL VERSION")
+      const content = await fs.readFile(
+        path.join(skillsDir, "using-skills", "SKILL.md"),
+        "utf-8",
+      );
+      expect(content).toContain("EXTERNAL VERSION");
+    });
+
+    it("should work when profile has no skills.json", async () => {
+      const config: Config = {
+        installDir: tempDir,
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
+      };
+
+      // Ensure no skills.json exists
+      const profileDir = path.join(mockNoriDir, "profiles", "senior-swe");
+      await fs.rm(path.join(profileDir, "skills.json"), { force: true });
+
+      await skillsLoader.install({ config });
+
+      // Should still have inline skills
+      const inlineSkillExists = await fs
+        .access(path.join(skillsDir, "using-skills", "SKILL.md"))
+        .then(() => true)
+        .catch(() => false);
+      expect(inlineSkillExists).toBe(true);
+    });
+
+    it("should apply template substitution to external skills", async () => {
+      const config: Config = {
+        installDir: tempDir,
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
+      };
+
+      // Create a skills.json
+      const profileDir = path.join(mockNoriDir, "profiles", "senior-swe");
+      await fs.writeFile(
+        path.join(profileDir, "skills.json"),
+        JSON.stringify({
+          "templated-skill": "^1.0.0",
+        }),
+      );
+
+      // Create the external skill with template placeholders
+      const externalSkillDir = path.join(
+        mockNoriDir,
+        "skills",
+        "templated-skill",
+      );
+      await fs.mkdir(externalSkillDir, { recursive: true });
+      await fs.writeFile(
+        path.join(externalSkillDir, "SKILL.md"),
+        "---\nname: Templated Skill\ndescription: Test\n---\nSkills are at {{skills_dir}}\n",
+      );
+
+      await skillsLoader.install({ config });
+
+      // Template should be substituted
+      const content = await fs.readFile(
+        path.join(skillsDir, "templated-skill", "SKILL.md"),
+        "utf-8",
+      );
+      expect(content).not.toContain("{{skills_dir}}");
     });
   });
 });

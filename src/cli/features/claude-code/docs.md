@@ -59,6 +59,8 @@ The LoaderRegistry provides getAll() for install order and getAllReversed() for 
 | `getNoriDir({ installDir })` | `{installDir}/.nori` |
 | `getNoriProfilesDir({ installDir })` | `{installDir}/.nori/profiles` |
 | `getNoriConfigFile({ installDir })` | `{installDir}/.nori/config.json` |
+| `getNoriSkillsDir({ installDir })` | `{installDir}/.nori/skills` |
+| `getNoriSkillDir({ installDir, skillName })` | `{installDir}/.nori/skills/{skillName}` |
 
 **Claude home-based paths** (no params):
 

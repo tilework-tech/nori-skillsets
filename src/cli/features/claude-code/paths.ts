@@ -157,3 +157,33 @@ export const getNoriProfilesDir = (args: { installDir: string }): string => {
 export const getNoriConfigFile = (args: { installDir: string }): string => {
   return path.join(getNoriDir(args), "config.json");
 };
+
+/**
+ * Get the Nori skills directory path
+ * This is where downloaded skills are cached
+ *
+ * @param args - Configuration arguments
+ * @param args.installDir - Installation directory
+ *
+ * @returns Absolute path to the skills directory
+ */
+export const getNoriSkillsDir = (args: { installDir: string }): string => {
+  return path.join(getNoriDir(args), "skills");
+};
+
+/**
+ * Get the path to a specific skill in the Nori skills directory
+ *
+ * @param args - Configuration arguments
+ * @param args.installDir - Installation directory
+ * @param args.skillName - Name of the skill
+ *
+ * @returns Absolute path to the skill directory
+ */
+export const getNoriSkillDir = (args: {
+  installDir: string;
+  skillName: string;
+}): string => {
+  const { skillName } = args;
+  return path.join(getNoriSkillsDir(args), skillName);
+};

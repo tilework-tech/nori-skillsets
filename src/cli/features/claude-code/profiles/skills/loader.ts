@@ -12,7 +12,9 @@ import {
   getClaudeSkillsDir,
   getClaudeSettingsFile,
   getNoriDir,
+  getNoriSkillDir,
 } from "@/cli/features/claude-code/paths.js";
+import { readSkillsJson } from "@/cli/features/claude-code/profiles/skills/resolver.js";
 import { substituteTemplatePaths } from "@/cli/features/claude-code/template.js";
 import { success, info, warn } from "@/cli/logger.js";
 
@@ -66,6 +68,24 @@ const copyDirWithTemplateSubstitution = async (args: {
 };
 
 /**
+ * Get profile directory based on selected profile
+ *
+ * @param args - Configuration arguments
+ * @param args.profileName - Name of the profile
+ * @param args.installDir - Installation directory
+ *
+ * @returns Path to the profile directory
+ */
+const getProfileDir = (args: {
+  profileName: string;
+  installDir: string;
+}): string => {
+  const { profileName, installDir } = args;
+  const noriDir = getNoriDir({ installDir });
+  return path.join(noriDir, "profiles", profileName);
+};
+
+/**
  * Get config directory for skills based on selected profile
  *
  * @param args - Configuration arguments
@@ -79,8 +99,7 @@ const getConfigDir = (args: {
   installDir: string;
 }): string => {
   const { profileName, installDir } = args;
-  const noriDir = getNoriDir({ installDir });
-  return path.join(noriDir, "profiles", profileName, "skills");
+  return path.join(getProfileDir({ profileName, installDir }), "skills");
 };
 
 /**
@@ -114,66 +133,105 @@ const installSkills = async (args: { config: Config }): Promise<void> => {
   // Create skills directory
   await fs.mkdir(claudeSkillsDir, { recursive: true });
 
-  // Read all entries from config directory
+  // Step 1: Install inline skills from profile's skills/ folder
   let entries: Array<Dirent>;
   try {
     entries = await fs.readdir(configDir, { withFileTypes: true });
-  } catch {
-    info({ message: "Profile skills directory not found, skipping" });
-    // Still configure permissions for the empty skills directory
-    await configureSkillsPermissions({ config });
-    return;
-  }
 
-  for (const entry of entries) {
-    const sourcePath = path.join(configDir, entry.name);
+    for (const entry of entries) {
+      const sourcePath = path.join(configDir, entry.name);
 
-    if (!entry.isDirectory()) {
-      // Copy non-directory files (like docs.md) with template substitution if markdown
-      const destPath = path.join(claudeSkillsDir, entry.name);
-      if (entry.name.endsWith(".md")) {
-        const content = await fs.readFile(sourcePath, "utf-8");
-        const substituted = substituteTemplatePaths({
-          content,
-          installDir: config.installDir,
-        });
-        await fs.writeFile(destPath, substituted);
-      } else {
-        await fs.copyFile(sourcePath, destPath);
+      if (!entry.isDirectory()) {
+        // Copy non-directory files (like docs.md) with template substitution if markdown
+        const destPath = path.join(claudeSkillsDir, entry.name);
+        if (entry.name.endsWith(".md")) {
+          const content = await fs.readFile(sourcePath, "utf-8");
+          const substituted = substituteTemplatePaths({
+            content,
+            installDir: config.installDir,
+          });
+          await fs.writeFile(destPath, substituted);
+        } else {
+          await fs.copyFile(sourcePath, destPath);
+        }
+        continue;
       }
-      continue;
-    }
 
-    // Handle paid-prefixed skills
-    //
-    // IMPORTANT: Paid skill scripts are BUNDLED before installation.
-    // The script.js files we're copying here are standalone executables created
-    // by scripts/bundle-skills.ts during the build process. They contain all
-    // dependencies inlined by esbuild, making them portable and executable from
-    // ~/.claude/skills/ without requiring the MCP package context.
-    //
-    // @see scripts/bundle-skills.ts - The bundler that creates standalone scripts
-    // @see src/cli/features/claude-code/profiles/config/senior-swe/skills/paid-recall/script.ts - Bundling docs
-    if (entry.name.startsWith("paid-")) {
-      if (isPaidInstall({ config })) {
-        // Strip paid- prefix when copying
-        const destName = entry.name.replace(/^paid-/, "");
-        const destPath = path.join(claudeSkillsDir, destName);
+      // Handle paid-prefixed skills
+      //
+      // IMPORTANT: Paid skill scripts are BUNDLED before installation.
+      // The script.js files we're copying here are standalone executables created
+      // by scripts/bundle-skills.ts during the build process. They contain all
+      // dependencies inlined by esbuild, making them portable and executable from
+      // ~/.claude/skills/ without requiring the MCP package context.
+      //
+      // @see scripts/bundle-skills.ts - The bundler that creates standalone scripts
+      // @see src/cli/features/claude-code/profiles/config/senior-swe/skills/paid-recall/script.ts - Bundling docs
+      if (entry.name.startsWith("paid-")) {
+        if (isPaidInstall({ config })) {
+          // Strip paid- prefix when copying
+          const destName = entry.name.replace(/^paid-/, "");
+          const destPath = path.join(claudeSkillsDir, destName);
+          await copyDirWithTemplateSubstitution({
+            src: sourcePath,
+            dest: destPath,
+            installDir: config.installDir,
+          });
+        }
+        // Skip if free tier
+      } else {
+        // Copy non-paid skills for all tiers
+        const destPath = path.join(claudeSkillsDir, entry.name);
         await copyDirWithTemplateSubstitution({
           src: sourcePath,
           dest: destPath,
           installDir: config.installDir,
         });
       }
-      // Skip if free tier
-    } else {
-      // Copy non-paid skills for all tiers
-      const destPath = path.join(claudeSkillsDir, entry.name);
-      await copyDirWithTemplateSubstitution({
-        src: sourcePath,
-        dest: destPath,
+    }
+  } catch {
+    // Profile skills directory not found - continue to check skills.json
+    info({
+      message: "Profile skills directory not found, checking skills.json",
+    });
+  }
+
+  // Step 2: Install external skills from skills.json
+  // External skills take precedence over inline skills (copied second to overwrite)
+  const profileDir = getProfileDir({
+    profileName,
+    installDir: config.installDir,
+  });
+  const skillDependencies = await readSkillsJson({ profileDir });
+
+  if (skillDependencies != null && skillDependencies.length > 0) {
+    info({
+      message: `Installing ${skillDependencies.length} external skill(s) from skills.json...`,
+    });
+
+    for (const dep of skillDependencies) {
+      const externalSkillDir = getNoriSkillDir({
         installDir: config.installDir,
+        skillName: dep.name,
       });
+
+      // Check if external skill exists
+      try {
+        await fs.access(externalSkillDir);
+
+        // Copy external skill to claude skills dir (overwrites inline if exists)
+        const destPath = path.join(claudeSkillsDir, dep.name);
+        await copyDirWithTemplateSubstitution({
+          src: externalSkillDir,
+          dest: destPath,
+          installDir: config.installDir,
+        });
+        info({ message: `  Installed external skill: ${dep.name}` });
+      } catch {
+        warn({
+          message: `External skill '${dep.name}' not found at ${externalSkillDir}`,
+        });
+      }
     }
   }
 
@@ -395,8 +453,33 @@ const validate = async (args: {
       };
     }
   } catch {
-    // Profile skills directory not found - this is valid (0 skills expected)
-    // Continue to check permissions
+    // Profile skills directory not found - continue to check external skills
+  }
+
+  // Also validate external skills from skills.json
+  const profileDir = getProfileDir({
+    profileName,
+    installDir: config.installDir,
+  });
+  const skillDependencies = await readSkillsJson({ profileDir });
+
+  if (skillDependencies != null) {
+    for (const dep of skillDependencies) {
+      try {
+        await fs.access(path.join(claudeSkillsDir, dep.name));
+      } catch {
+        errors.push(`Expected external skill '${dep.name}' not found`);
+      }
+    }
+
+    if (errors.length > 0) {
+      errors.push('Run "nori-ai install" to reinstall skills');
+      return {
+        valid: false,
+        message: "Skills directory incomplete",
+        errors,
+      };
+    }
   }
 
   // Check if permissions are configured in settings.json

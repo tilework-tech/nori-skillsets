@@ -15,11 +15,26 @@ The profiles loader executes FIRST in both interactive and non-interactive insta
 **Profile Structure**: Each profile directory is self-contained with:
 - `CLAUDE.md` (behavioral instructions, required for profile to be valid)
 - `profile.json` (metadata with name, description, and builtin flag)
-- `skills/` (skill directories, each containing SKILL.md)
+- `skills/` (inline skill directories, each containing SKILL.md)
+- `skills.json` (optional external skill dependencies)
 - `subagents/` (subagent .md files)
 - `slashcommands/` (slash command .md files)
 
 Profiles are copied directly to `~/.nori/profiles/` without any composition or transformation. Markdown files use template placeholders like `{{skills_dir}}`, `{{profiles_dir}}`, `{{commands_dir}}`, and `{{install_dir}}` which are substituted with actual paths during installation by sub-loaders.
+
+**Skills as First-Class Citizens**: Skills can be declared in two ways:
+1. **Inline skills**: Stored in profile's `skills/` folder, bundled with the profile
+2. **External skills**: Declared in `skills.json` with semver version ranges, installed from `~/.nori/skills/`
+
+The `skills.json` format supports both simple version strings and object format:
+```json
+{
+  "writing-plans": "^1.0.0",
+  "systematic-debugging": { "version": "2.0.0" }
+}
+```
+
+External skills are resolved from `~/.nori/skills/` (the skill cache) and take precedence over inline skills when the same name exists. This enables skill reuse across profiles and independent versioning.
 
 **Paid Skills and Subagents**: Skills and subagents with a `paid-` prefix are tier-gated:
 - For paid users: the `paid-` prefix is stripped when copying (e.g., `paid-recall/` becomes `recall/`)
@@ -76,17 +91,22 @@ This logic is implemented in @/src/cli/features/claude-code/profiles/skills/load
 ```
 ~/.nori/
   profiles/
-    senior-swe/       # Self-contained profile
-      skills/
+    senior-swe/         # Self-contained profile
+      skills/           # Inline skills
+      skills.json       # External skill dependencies (optional)
       subagents/
       slashcommands/
       CLAUDE.md
       profile.json
     amol/
     ...
+  skills/               # External skill cache (downloaded skills)
+    writing-plans/
+    systematic-debugging/
+    ...
 
 ~/.claude/
-  skills/             # Copied from active profile
+  skills/             # Final installed skills (inline + external merged)
   agents/             # Copied from active profile
   commands/           # Copied from active profile + global commands
   CLAUDE.md           # Generated from active profile
@@ -108,6 +128,25 @@ This logic is implemented in @/src/cli/features/claude-code/profiles/skills/load
 3. **Feature loaders run**
    - Read profile configuration from `~/.nori/profiles/${selectedProfile}/`
    - Install CLAUDE.md, skills, slashcommands, subagents to `~/.claude/` from that profile
+
+### Skill Installation Flow
+
+The skills loader (@/src/cli/features/claude-code/profiles/skills/loader.ts) installs skills in two steps:
+
+1. **Install inline skills**: Copy skills from profile's `skills/` folder to `~/.claude/skills/`
+   - Paid-prefixed skills are handled based on tier (stripped prefix for paid, skipped for free)
+   - Template placeholders are substituted during copy
+
+2. **Install external skills**: Read `skills.json` and copy matching skills from `~/.nori/skills/`
+   - External skills overwrite inline skills with the same name
+   - Template placeholders are substituted during copy
+   - Missing external skills log a warning but don't fail installation
+
+The resolver module (@/src/cli/features/claude-code/profiles/skills/resolver.ts) provides:
+- `parseSkillsJson()` - Parse skills.json into dependency array
+- `readSkillsJson()` - Read and parse skills.json from profile directory
+- `resolveSkillVersion()` - Resolve semver version range to specific version
+- `isSkillInstalled()` - Check if skill exists in `~/.nori/skills/`
 
 ## Usage
 

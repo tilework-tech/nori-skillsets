@@ -19,6 +19,8 @@ import {
   getNoriDir,
   getNoriProfilesDir,
   getNoriConfigFile,
+  getNoriSkillsDir,
+  getNoriSkillDir,
 } from "./paths.js";
 
 describe("Claude Code paths", () => {
@@ -109,6 +111,37 @@ describe("Nori paths", () => {
       const homeDir = os.homedir();
       const result = getNoriConfigFile({ installDir: homeDir });
       expect(result).toBe(path.join(homeDir, ".nori", "config.json"));
+    });
+  });
+
+  describe("getNoriSkillsDir", () => {
+    it("should return skills directory under .nori for project-level installs", () => {
+      const result = getNoriSkillsDir({ installDir: "/projects/myapp" });
+      expect(result).toBe("/projects/myapp/.nori/skills");
+    });
+
+    it("should return ~/.nori/skills for home directory installs", () => {
+      const homeDir = os.homedir();
+      const result = getNoriSkillsDir({ installDir: homeDir });
+      expect(result).toBe(path.join(homeDir, ".nori", "skills"));
+    });
+  });
+
+  describe("getNoriSkillDir", () => {
+    it("should return skill directory under .nori/skills with skill name", () => {
+      const result = getNoriSkillDir({
+        installDir: "/projects/myapp",
+        skillName: "writing-plans",
+      });
+      expect(result).toBe("/projects/myapp/.nori/skills/writing-plans");
+    });
+
+    it("should handle skill names with special characters", () => {
+      const result = getNoriSkillDir({
+        installDir: "/projects/myapp",
+        skillName: "my-awesome-skill",
+      });
+      expect(result).toBe("/projects/myapp/.nori/skills/my-awesome-skill");
     });
   });
 });
