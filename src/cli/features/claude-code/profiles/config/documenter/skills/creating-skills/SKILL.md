@@ -6,7 +6,7 @@ description: Use when you need to create a new custom skill for a profile - guid
 <required>
 *CRITICAL* Add the following steps to your Todo list using TodoWrite:
 
-1. Sample a few example SKILLs in `{{skills_dir}}` for examples of how to write a SKILL.
+1. Read a few example SKILLs in `{{skills_dir}}` for examples of how to write a SKILL.
 2. Gather skill requirements from me
 3. Select target profile
 4. Create skill directory structure
