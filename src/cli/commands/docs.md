@@ -54,11 +54,11 @@ The install command sets `agents: { [agentName]: { profile } }` in the config, w
 - If multiple agents installed: error with "Multiple agents installed (X, Y). Please specify which agent to check with --agent <name>."
 - If no agents in config (legacy fallback): default to `claude-code`
 
-**Registry Commands Agent Validation:** Registry commands (search, download, update, upload) require Claude Code to be installed because profiles are stored at `~/.claude/profiles/`. The shared `registryAgentCheck.ts` module provides validation:
+**Registry Commands Agent Validation:** Registry and skill commands require Claude Code to be installed because profiles are stored at `~/.claude/profiles/` and skills at `~/.nori/skills/`. The shared `registryAgentCheck.ts` module provides validation:
 - `checkRegistryAgentSupport({ installDir })` - Returns `{ supported: boolean, config: Config | null }`. Rejects if config has cursor-agent but NOT claude-code; allows all other cases (backwards compatible with older installs that have no agents field)
 - `showCursorAgentNotSupportedError()` - Displays error message explaining registry requires Claude Code and how to install it
 
-All four registry commands call this validation early in their main function, after determining the install directory but before any registry API calls:
+All registry and skill commands call this validation early in their main function, after determining the install directory but before any API calls:
 ```typescript
 const agentCheck = await checkRegistryAgentSupport({ installDir });
 if (!agentCheck.supported) {
@@ -66,6 +66,13 @@ if (!agentCheck.supported) {
   return;
 }
 ```
+
+**Skill Commands:** Three commands manage skills as first-class registry entities (mirroring the profile registry commands):
+- `skill-search` - Search for skills in the user's org registry. Requires `config.auth` with `organizationUrl` to derive the registry URL via `extractOrgId()` and `buildRegistryUrl()`. Unlike profile search (which searches all registries), skill search only queries the org registry.
+- `skill-download` - Download and install skills to `~/.nori/skills/{skill-name}/`. Searches public registry first, then private registries. Creates `.nori-version` file for version tracking. Supports `--list-versions` flag and `--registry` option.
+- `skill-upload` - Upload skills from `~/.nori/skills/` to a registry. Auto-bumps patch version when no version specified. Extracts description from SKILL.md frontmatter. Supports both org-based auth (`config.auth`) and legacy `registryAuths`.
+
+Skills follow the same tarball-based upload/download pattern as profiles. Downloaded skills are stored at `~/.nori/skills/` (the skill cache), distinct from installed skills at `~/.claude/skills/`. Skills require a SKILL.md file (with optional YAML frontmatter containing name and description).
 
 ```
 cli.ts
@@ -78,6 +85,9 @@ cli.ts
   +-- registerRegistrySearchCommand({ program })--> commands/registry-search/registrySearch.ts
   +-- registerRegistryDownloadCommand({ program })--> commands/registry-download/registryDownload.ts
   +-- registerRegistryUploadCommand({ program })--> commands/registry-upload/registryUpload.ts
+  +-- registerSkillSearchCommand({ program })  --> commands/skill-search/skillSearch.ts
+  +-- registerSkillDownloadCommand({ program })--> commands/skill-download/skillDownload.ts
+  +-- registerSkillUploadCommand({ program })  --> commands/skill-upload/skillUpload.ts
 ```
 
 Commands use shared utilities from the parent @/src/cli/ directory:
@@ -123,7 +133,7 @@ export const registerXCommand = (args: { program: Command }): void => {
 ### Things to Know
 
 The commands directory contains shared utilities at the top level:
-- `registryAgentCheck.ts` - Shared validation for registry commands. Checks if the installation has only cursor-agent (no claude-code) and rejects with a helpful error message. Used by registry-search, registry-download, registry-update, and registry-upload commands.
+- `registryAgentCheck.ts` - Shared validation for registry commands. Checks if the installation has only cursor-agent (no claude-code) and rejects with a helpful error message. Used by registry-search, registry-download, registry-update, registry-upload, skill-search, skill-download, and skill-upload commands.
 
 The `install/` directory contains command-specific utilities:
 - `asciiArt.ts` - ASCII banners displayed during installation. All display functions (displayNoriBanner, displayWelcomeBanner, displaySeaweedBed) check `isSilentMode()` and return early without output when silent mode is enabled.

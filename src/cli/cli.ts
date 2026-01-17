@@ -15,6 +15,9 @@ import { registerRegistryDownloadCommand } from "@/cli/commands/registry-downloa
 import { registerRegistrySearchCommand } from "@/cli/commands/registry-search/registrySearch.js";
 import { registerRegistryUpdateCommand } from "@/cli/commands/registry-update/registryUpdate.js";
 import { registerRegistryUploadCommand } from "@/cli/commands/registry-upload/registryUpload.js";
+import { registerSkillDownloadCommand } from "@/cli/commands/skill-download/skillDownload.js";
+import { registerSkillSearchCommand } from "@/cli/commands/skill-search/skillSearch.js";
+import { registerSkillUploadCommand } from "@/cli/commands/skill-upload/skillUpload.js";
 import { registerSwitchProfileCommand } from "@/cli/commands/switch-profile/profiles.js";
 import { registerUninstallCommand } from "@/cli/commands/uninstall/uninstall.js";
 import { getCurrentPackageVersion } from "@/cli/version.js";
@@ -55,6 +58,12 @@ Examples:
   $ nori-ai registry-update my-profile
   $ nori-ai registry-upload my-profile
   $ nori-ai registry-upload my-profile@1.0.0 --registry https://registry.example.com
+  $ nori-ai skill-search debugging
+  $ nori-ai skill-download my-skill
+  $ nori-ai skill-download my-skill@1.0.0
+  $ nori-ai skill-download my-skill --list-versions
+  $ nori-ai skill-upload my-skill
+  $ nori-ai skill-upload my-skill@1.0.0 --registry https://registry.example.com
   $ nori-ai --non-interactive install
   $ nori-ai --silent install
 `,
@@ -70,6 +79,9 @@ registerRegistrySearchCommand({ program });
 registerRegistryDownloadCommand({ program });
 registerRegistryUpdateCommand({ program });
 registerRegistryUploadCommand({ program });
+registerSkillSearchCommand({ program });
+registerSkillDownloadCommand({ program });
+registerSkillUploadCommand({ program });
 
 program.parse(process.argv);
 
