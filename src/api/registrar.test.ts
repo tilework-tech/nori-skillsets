@@ -772,7 +772,7 @@ describe("registrarApi", () => {
 
       expect(result).toEqual(mockSkills);
       expect(mockFetch).toHaveBeenCalledWith(
-        "https://registrar.tilework.tech/api/skills/search?q=writing",
+        "https://noriskillsets.dev/api/skills/search?q=writing",
         expect.objectContaining({
           method: "GET",
         }),
@@ -848,7 +848,7 @@ describe("registrarApi", () => {
 
       expect(result).toEqual(mockPackument);
       expect(mockFetch).toHaveBeenCalledWith(
-        "https://registrar.tilework.tech/api/skills/writing-plans",
+        "https://noriskillsets.dev/api/skills/writing-plans",
         expect.objectContaining({
           method: "GET",
         }),
@@ -884,7 +884,7 @@ describe("registrarApi", () => {
 
       expect(result).toBe(mockTarballData);
       expect(mockFetch).toHaveBeenCalledWith(
-        "https://registrar.tilework.tech/api/skills/writing-plans/tarball/writing-plans-1.0.0.tgz",
+        "https://noriskillsets.dev/api/skills/writing-plans/tarball/writing-plans-1.0.0.tgz",
         expect.objectContaining({
           method: "GET",
         }),
@@ -922,7 +922,7 @@ describe("registrarApi", () => {
       // First call should be to get packument
       expect(mockFetch).toHaveBeenNthCalledWith(
         1,
-        "https://registrar.tilework.tech/api/skills/writing-plans",
+        "https://noriskillsets.dev/api/skills/writing-plans",
         expect.objectContaining({
           method: "GET",
         }),
@@ -931,7 +931,7 @@ describe("registrarApi", () => {
       // Second call should be to download tarball with resolved version
       expect(mockFetch).toHaveBeenNthCalledWith(
         2,
-        "https://registrar.tilework.tech/api/skills/writing-plans/tarball/writing-plans-2.0.0.tgz",
+        "https://noriskillsets.dev/api/skills/writing-plans/tarball/writing-plans-2.0.0.tgz",
         expect.objectContaining({
           method: "GET",
         }),
@@ -979,7 +979,7 @@ describe("registrarApi", () => {
 
       expect(result).toEqual(mockResponse);
       expect(mockFetch).toHaveBeenCalledWith(
-        "https://registrar.tilework.tech/api/skills/writing-plans/skill",
+        "https://noriskillsets.dev/api/skills/writing-plans/skill",
         expect.objectContaining({
           method: "PUT",
           headers: expect.objectContaining({
