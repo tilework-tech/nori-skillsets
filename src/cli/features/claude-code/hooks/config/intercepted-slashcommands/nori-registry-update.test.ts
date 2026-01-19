@@ -11,7 +11,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 // Mock the registrar API
 vi.mock("@/api/registrar.js", () => ({
-  REGISTRAR_URL: "https://registrar.tilework.tech",
+  REGISTRAR_URL: "https://public.nori-registry.ai",
   registrarApi: {
     getPackument: vi.fn(),
     downloadTarball: vi.fn(),

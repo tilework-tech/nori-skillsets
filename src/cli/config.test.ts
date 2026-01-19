@@ -808,7 +808,7 @@ describe("registryAuths", () => {
             {
               username: "test@example.com",
               password: "password123",
-              registryUrl: "https://registrar.tilework.tech",
+              registryUrl: "https://public.nori-registry.ai",
             },
           ],
         }),
@@ -820,7 +820,7 @@ describe("registryAuths", () => {
         {
           username: "test@example.com",
           password: "password123",
-          registryUrl: "https://registrar.tilework.tech",
+          registryUrl: "https://public.nori-registry.ai",
         },
       ]);
     });
@@ -946,7 +946,7 @@ describe("registryAuths", () => {
           {
             username: "test@example.com",
             password: "testpass",
-            registryUrl: "https://registrar.tilework.tech",
+            registryUrl: "https://public.nori-registry.ai",
           },
         ],
         installDir: tempDir,
@@ -959,7 +959,7 @@ describe("registryAuths", () => {
         {
           username: "test@example.com",
           password: "testpass",
-          registryUrl: "https://registrar.tilework.tech",
+          registryUrl: "https://public.nori-registry.ai",
         },
       ]);
     });
@@ -1011,20 +1011,20 @@ describe("registryAuths", () => {
           {
             username: "test@example.com",
             password: "testpass",
-            registryUrl: "https://registrar.tilework.tech",
+            registryUrl: "https://public.nori-registry.ai",
           },
         ],
       };
 
       const auth = getRegistryAuth({
         config,
-        registryUrl: "https://registrar.tilework.tech",
+        registryUrl: "https://public.nori-registry.ai",
       });
 
       expect(auth).toEqual({
         username: "test@example.com",
         password: "testpass",
-        registryUrl: "https://registrar.tilework.tech",
+        registryUrl: "https://public.nori-registry.ai",
       });
     });
 
@@ -1044,7 +1044,7 @@ describe("registryAuths", () => {
 
       const auth = getRegistryAuth({
         config,
-        registryUrl: "https://registrar.tilework.tech",
+        registryUrl: "https://public.nori-registry.ai",
       });
 
       expect(auth).toBeNull();
@@ -1060,7 +1060,7 @@ describe("registryAuths", () => {
 
       const auth = getRegistryAuth({
         config,
-        registryUrl: "https://registrar.tilework.tech",
+        registryUrl: "https://public.nori-registry.ai",
       });
 
       expect(auth).toBeNull();
@@ -1075,7 +1075,7 @@ describe("registryAuths", () => {
 
       const auth = getRegistryAuth({
         config,
-        registryUrl: "https://registrar.tilework.tech",
+        registryUrl: "https://public.nori-registry.ai",
       });
 
       expect(auth).toBeNull();
@@ -1090,7 +1090,7 @@ describe("registryAuths", () => {
           {
             username: "test@example.com",
             password: "testpass",
-            registryUrl: "https://registrar.tilework.tech/",
+            registryUrl: "https://public.nori-registry.ai/",
           },
         ],
       };
@@ -1098,7 +1098,7 @@ describe("registryAuths", () => {
       // Search without trailing slash should find auth with trailing slash
       const auth = getRegistryAuth({
         config,
-        registryUrl: "https://registrar.tilework.tech",
+        registryUrl: "https://public.nori-registry.ai",
       });
 
       expect(auth).not.toBeNull();

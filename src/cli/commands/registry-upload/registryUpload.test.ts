@@ -10,7 +10,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 // Mock the registrar API
 vi.mock("@/api/registrar.js", () => ({
-  REGISTRAR_URL: "https://registrar.tilework.tech",
+  REGISTRAR_URL: "https://public.nori-registry.ai",
   registrarApi: {
     uploadProfile: vi.fn(),
     getPackument: vi.fn(),
@@ -102,7 +102,7 @@ describe("registry-upload", () => {
           {
             username: "test@example.com",
             password: "test-password",
-            registryUrl: "https://registrar.tilework.tech",
+            registryUrl: "https://public.nori-registry.ai",
           },
         ],
       });
@@ -110,7 +110,7 @@ describe("registry-upload", () => {
       vi.mocked(getRegistryAuth).mockReturnValue({
         username: "test@example.com",
         password: "test-password",
-        registryUrl: "https://registrar.tilework.tech",
+        registryUrl: "https://public.nori-registry.ai",
       });
 
       vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
@@ -133,7 +133,7 @@ describe("registry-upload", () => {
           packageName: "test-profile",
           version: "1.0.0",
           authToken: "mock-auth-token",
-          registryUrl: "https://registrar.tilework.tech",
+          registryUrl: "https://public.nori-registry.ai",
         }),
       );
 
@@ -153,7 +153,7 @@ describe("registry-upload", () => {
           {
             username: "test@example.com",
             password: "test-password",
-            registryUrl: "https://registrar.tilework.tech",
+            registryUrl: "https://public.nori-registry.ai",
           },
         ],
       });
@@ -161,7 +161,7 @@ describe("registry-upload", () => {
       vi.mocked(getRegistryAuth).mockReturnValue({
         username: "test@example.com",
         password: "test-password",
-        registryUrl: "https://registrar.tilework.tech",
+        registryUrl: "https://public.nori-registry.ai",
       });
 
       vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
@@ -194,7 +194,7 @@ describe("registry-upload", () => {
           {
             username: "test@example.com",
             password: "test-password",
-            registryUrl: "https://registrar.tilework.tech",
+            registryUrl: "https://public.nori-registry.ai",
           },
         ],
       });
@@ -263,7 +263,7 @@ describe("registry-upload", () => {
           {
             username: "test@example.com",
             password: "test-password",
-            registryUrl: "https://registrar.tilework.tech",
+            registryUrl: "https://public.nori-registry.ai",
           },
         ],
       });
@@ -271,7 +271,7 @@ describe("registry-upload", () => {
       vi.mocked(getRegistryAuth).mockReturnValue({
         username: "test@example.com",
         password: "test-password",
-        registryUrl: "https://registrar.tilework.tech",
+        registryUrl: "https://public.nori-registry.ai",
       });
 
       vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
@@ -304,7 +304,7 @@ describe("registry-upload", () => {
           {
             username: "test@example.com",
             password: "test-password",
-            registryUrl: "https://registrar.tilework.tech",
+            registryUrl: "https://public.nori-registry.ai",
           },
           {
             username: "private@example.com",
@@ -324,7 +324,7 @@ describe("registry-upload", () => {
         .map((call) => call.join(" "))
         .join("\n");
       expect(allErrorOutput.toLowerCase()).toContain("multiple");
-      expect(allErrorOutput).toContain("https://registrar.tilework.tech");
+      expect(allErrorOutput).toContain("https://public.nori-registry.ai");
       expect(allErrorOutput).toContain("https://private-registry.example.com");
       expect(allErrorOutput).toContain("--registry");
 
@@ -343,7 +343,7 @@ describe("registry-upload", () => {
           {
             username: "test@example.com",
             password: "test-password",
-            registryUrl: "https://registrar.tilework.tech",
+            registryUrl: "https://public.nori-registry.ai",
           },
           {
             username: "private@example.com",
@@ -393,7 +393,7 @@ describe("registry-upload", () => {
           {
             username: "test@example.com",
             password: "test-password",
-            registryUrl: "https://registrar.tilework.tech",
+            registryUrl: "https://public.nori-registry.ai",
           },
         ],
       });
@@ -428,7 +428,7 @@ describe("registry-upload", () => {
           {
             username: "test@example.com",
             password: "test-password",
-            registryUrl: "https://registrar.tilework.tech",
+            registryUrl: "https://public.nori-registry.ai",
           },
           {
             username: "private@example.com",
@@ -480,7 +480,7 @@ describe("registry-upload", () => {
           {
             username: "test@example.com",
             password: "test-password",
-            registryUrl: "https://registrar.tilework.tech",
+            registryUrl: "https://public.nori-registry.ai",
           },
         ],
       });
@@ -488,7 +488,7 @@ describe("registry-upload", () => {
       vi.mocked(getRegistryAuth).mockReturnValue({
         username: "test@example.com",
         password: "test-password",
-        registryUrl: "https://registrar.tilework.tech",
+        registryUrl: "https://public.nori-registry.ai",
       });
 
       vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
@@ -530,7 +530,7 @@ describe("registry-upload", () => {
           {
             username: "test@example.com",
             password: "test-password",
-            registryUrl: "https://registrar.tilework.tech",
+            registryUrl: "https://public.nori-registry.ai",
           },
         ],
       });
@@ -538,7 +538,7 @@ describe("registry-upload", () => {
       vi.mocked(getRegistryAuth).mockReturnValue({
         username: "test@example.com",
         password: "test-password",
-        registryUrl: "https://registrar.tilework.tech",
+        registryUrl: "https://public.nori-registry.ai",
       });
 
       vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
@@ -578,7 +578,7 @@ describe("registry-upload", () => {
           {
             username: "test@example.com",
             password: "test-password",
-            registryUrl: "https://registrar.tilework.tech",
+            registryUrl: "https://public.nori-registry.ai",
           },
         ],
       });
@@ -586,7 +586,7 @@ describe("registry-upload", () => {
       vi.mocked(getRegistryAuth).mockReturnValue({
         username: "test@example.com",
         password: "test-password",
-        registryUrl: "https://registrar.tilework.tech",
+        registryUrl: "https://public.nori-registry.ai",
       });
 
       vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
@@ -635,7 +635,7 @@ describe("registry-upload", () => {
           {
             username: "test@example.com",
             password: "test-password",
-            registryUrl: "https://registrar.tilework.tech",
+            registryUrl: "https://public.nori-registry.ai",
           },
         ],
       });
@@ -670,7 +670,7 @@ describe("registry-upload", () => {
           {
             username: "test@example.com",
             password: "test-password",
-            registryUrl: "https://registrar.tilework.tech",
+            registryUrl: "https://public.nori-registry.ai",
           },
         ],
       });
@@ -678,7 +678,7 @@ describe("registry-upload", () => {
       vi.mocked(getRegistryAuth).mockReturnValue({
         username: "test@example.com",
         password: "test-password",
-        registryUrl: "https://registrar.tilework.tech",
+        registryUrl: "https://public.nori-registry.ai",
       });
 
       vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
@@ -716,7 +716,7 @@ describe("registry-upload", () => {
           {
             username: "test@example.com",
             password: "test-password",
-            registryUrl: "https://registrar.tilework.tech",
+            registryUrl: "https://public.nori-registry.ai",
           },
         ],
       });
@@ -724,7 +724,7 @@ describe("registry-upload", () => {
       vi.mocked(getRegistryAuth).mockReturnValue({
         username: "test@example.com",
         password: "test-password",
-        registryUrl: "https://registrar.tilework.tech",
+        registryUrl: "https://public.nori-registry.ai",
       });
 
       vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
