@@ -6,7 +6,7 @@
  * Write operations (upload) require authentication.
  */
 
-export const REGISTRAR_URL = "https://public.nori-registry.ai";
+export const REGISTRAR_URL = "https://noriskillsets.dev";
 
 /**
  * Package metadata from the registrar

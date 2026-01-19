@@ -46,7 +46,7 @@ describe("registrarApi", () => {
       expect(result).toEqual(mockPackages);
       expect(mockFetch).toHaveBeenCalledTimes(1);
       expect(mockFetch).toHaveBeenCalledWith(
-        "https://public.nori-registry.ai/api/profiles/search?q=test",
+        "https://noriskillsets.dev/api/profiles/search?q=test",
         expect.objectContaining({
           method: "GET",
         }),
@@ -79,7 +79,7 @@ describe("registrarApi", () => {
       });
 
       expect(mockFetch).toHaveBeenCalledWith(
-        "https://public.nori-registry.ai/api/profiles/search?q=test&limit=10&offset=20",
+        "https://noriskillsets.dev/api/profiles/search?q=test&limit=10&offset=20",
         expect.objectContaining({
           method: "GET",
         }),
@@ -169,7 +169,7 @@ describe("registrarApi", () => {
 
       expect(result).toEqual(mockPackument);
       expect(mockFetch).toHaveBeenCalledWith(
-        "https://public.nori-registry.ai/api/profiles/test-profile",
+        "https://noriskillsets.dev/api/profiles/test-profile",
         expect.objectContaining({
           method: "GET",
         }),
@@ -263,7 +263,7 @@ describe("registrarApi", () => {
 
       expect(result).toBe(mockTarballData);
       expect(mockFetch).toHaveBeenCalledWith(
-        "https://public.nori-registry.ai/api/profiles/test-profile/tarball/test-profile-1.0.0.tgz",
+        "https://noriskillsets.dev/api/profiles/test-profile/tarball/test-profile-1.0.0.tgz",
         expect.objectContaining({
           method: "GET",
         }),
@@ -317,7 +317,7 @@ describe("registrarApi", () => {
       // First call should be to get packument
       expect(mockFetch).toHaveBeenNthCalledWith(
         1,
-        "https://public.nori-registry.ai/api/profiles/test-profile",
+        "https://noriskillsets.dev/api/profiles/test-profile",
         expect.objectContaining({
           method: "GET",
         }),
@@ -326,7 +326,7 @@ describe("registrarApi", () => {
       // Second call should be to download tarball with resolved version
       expect(mockFetch).toHaveBeenNthCalledWith(
         2,
-        "https://public.nori-registry.ai/api/profiles/test-profile/tarball/test-profile-2.0.0.tgz",
+        "https://noriskillsets.dev/api/profiles/test-profile/tarball/test-profile-2.0.0.tgz",
         expect.objectContaining({
           method: "GET",
         }),
@@ -566,7 +566,7 @@ describe("registrarApi", () => {
 
       expect(result).toEqual(mockResponse);
       expect(mockFetch).toHaveBeenCalledWith(
-        "https://public.nori-registry.ai/api/profiles/test-profile/profile",
+        "https://noriskillsets.dev/api/profiles/test-profile/profile",
         expect.objectContaining({
           method: "PUT",
           headers: expect.objectContaining({
@@ -743,7 +743,7 @@ describe("registrarApi", () => {
       });
 
       expect(mockFetch).toHaveBeenCalledWith(
-        "https://public.nori-registry.ai/api/profiles/test-profile/profile",
+        "https://noriskillsets.dev/api/profiles/test-profile/profile",
         expect.anything(),
       );
     });
