@@ -2,6 +2,8 @@
  * Tests for registry-install CLI command
  */
 
+import * as fs from "fs/promises";
+
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("os", async () => {
@@ -55,8 +57,6 @@ vi.mock("@/cli/logger.js", () => ({
   warn: (args: { message: string }) => mockWarn(args),
   newline: () => mockNewline(),
 }));
-
-import * as fs from "fs/promises";
 
 import { REGISTRAR_URL } from "@/api/registrar.js";
 import { main as installMain } from "@/cli/commands/install/install.js";
