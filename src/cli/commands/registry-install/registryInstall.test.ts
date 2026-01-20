@@ -52,14 +52,22 @@ describe("registry-install", () => {
     vi.clearAllMocks();
   });
 
-  it("should run initial install, download profile, switch profile, and regenerate files when no existing installation", async () => {
+  it("should download profile first, then run install when no existing installation", async () => {
     await registryInstallMain({
       packageSpec: "senior-swe",
       cwd: "/repo",
     });
 
-    // Step 1: Initial install (no existing installation)
-    expect(installMain).toHaveBeenNthCalledWith(1, {
+    // Step 1: Download profile from registry first
+    expect(registryDownloadMain).toHaveBeenCalledWith({
+      packageSpec: "senior-swe",
+      installDir: "/repo",
+      registryUrl: REGISTRAR_URL,
+      listVersions: null,
+    });
+
+    // Step 2: Initial install with the downloaded profile
+    expect(installMain).toHaveBeenCalledWith({
       nonInteractive: true,
       installDir: "/repo",
       profile: "senior-swe",
@@ -67,7 +75,25 @@ describe("registry-install", () => {
       silent: null,
     });
 
-    // Step 2: Download profile from registry
+    // Should NOT call switchProfile or second install (initial install handles it)
+    expect(mockSwitchProfile).not.toHaveBeenCalled();
+    expect(installMain).toHaveBeenCalledTimes(1);
+    expect(registryDownloadMain).toHaveBeenCalledTimes(1);
+  });
+
+  it("should download profile, switch profile, and regenerate when existing installation detected", async () => {
+    vi.mocked(hasExistingInstallation).mockReturnValueOnce(true);
+
+    await registryInstallMain({
+      packageSpec: "senior-swe",
+      cwd: "/repo",
+    });
+
+    expect(hasExistingInstallation).toHaveBeenCalledWith({
+      installDir: "/repo",
+    });
+
+    // Step 1: Download profile from registry
     expect(registryDownloadMain).toHaveBeenCalledWith({
       packageSpec: "senior-swe",
       installDir: "/repo",
@@ -81,45 +107,7 @@ describe("registry-install", () => {
       profileName: "senior-swe",
     });
 
-    // Step 4: Regenerate files with new profile
-    expect(installMain).toHaveBeenNthCalledWith(2, {
-      nonInteractive: true,
-      skipUninstall: true,
-      installDir: "/repo",
-      agent: "claude-code",
-      silent: true,
-    });
-
-    expect(installMain).toHaveBeenCalledTimes(2);
-  });
-
-  it("should skip initial install but still download and switch profile when existing installation detected", async () => {
-    vi.mocked(hasExistingInstallation).mockReturnValueOnce(true);
-
-    await registryInstallMain({
-      packageSpec: "senior-swe",
-      cwd: "/repo",
-    });
-
-    expect(hasExistingInstallation).toHaveBeenCalledWith({
-      installDir: "/repo",
-    });
-
-    // Step 2: Download profile from registry (still happens)
-    expect(registryDownloadMain).toHaveBeenCalledWith({
-      packageSpec: "senior-swe",
-      installDir: "/repo",
-      registryUrl: REGISTRAR_URL,
-      listVersions: null,
-    });
-
-    // Step 3: Switch to downloaded profile (still happens)
-    expect(mockSwitchProfile).toHaveBeenCalledWith({
-      installDir: "/repo",
-      profileName: "senior-swe",
-    });
-
-    // Step 4: Regenerate files (still happens, but only once since initial install was skipped)
+    // Step 4: Regenerate files
     expect(installMain).toHaveBeenCalledTimes(1);
     expect(installMain).toHaveBeenCalledWith({
       nonInteractive: true,
@@ -128,6 +116,8 @@ describe("registry-install", () => {
       agent: "claude-code",
       silent: true,
     });
+
+    expect(registryDownloadMain).toHaveBeenCalledTimes(1);
   });
 
   it("should install to the user home directory when --user is set", async () => {
@@ -143,9 +133,12 @@ describe("registry-install", () => {
       listVersions: null,
     });
 
-    expect(mockSwitchProfile).toHaveBeenCalledWith({
+    expect(installMain).toHaveBeenCalledWith({
+      nonInteractive: true,
       installDir: "/mock-home",
-      profileName: "product-manager",
+      profile: "product-manager",
+      agent: "claude-code",
+      silent: null,
     });
   });
 
@@ -162,9 +155,12 @@ describe("registry-install", () => {
       listVersions: null,
     });
 
-    expect(mockSwitchProfile).toHaveBeenCalledWith({
+    expect(installMain).toHaveBeenCalledWith({
+      nonInteractive: true,
       installDir: "/repo",
-      profileName: "documenter",
+      profile: "documenter",
+      agent: "claude-code",
+      silent: null,
     });
   });
 });

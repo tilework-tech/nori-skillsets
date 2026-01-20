@@ -80,7 +80,15 @@ export const registryInstallMain = async (
   const profileName = parsePackageName({ packageSpec: resolvedPackageSpec });
   const agentName = agent ?? "claude-code";
 
-  // Step 1: Run initial install if no existing installation
+  // Step 1: Download the profile from registry first (so it's available for install)
+  await registryDownloadMain({
+    packageSpec: resolvedPackageSpec,
+    installDir: targetInstallDir,
+    registryUrl: REGISTRAR_URL,
+    listVersions: null,
+  });
+
+  // Step 2: Run initial install if no existing installation
   if (!hasExistingInstallation({ installDir: targetInstallDir })) {
     await installMain({
       nonInteractive: true,
@@ -89,17 +97,11 @@ export const registryInstallMain = async (
       agent: agentName,
       silent: silent ?? null,
     });
+    // Initial install already sets the profile, so we're done
+    return;
   }
 
-  // Step 2: Download the profile from registry
-  await registryDownloadMain({
-    packageSpec: resolvedPackageSpec,
-    installDir: targetInstallDir,
-    registryUrl: REGISTRAR_URL,
-    listVersions: null,
-  });
-
-  // Step 3: Switch to the downloaded profile
+  // Step 3 (existing installation): Switch to the downloaded profile
   const agentImpl = AgentRegistry.getInstance().get({ name: agentName });
   await agentImpl.switchProfile({
     installDir: targetInstallDir,
