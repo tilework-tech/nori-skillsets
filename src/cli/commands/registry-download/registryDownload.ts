@@ -335,6 +335,13 @@ const formatMultiplePackagesError = (args: {
 };
 
 /**
+ * Result of registry download operation
+ */
+export type RegistryDownloadResult = {
+  success: boolean;
+};
+
+/**
  * Download and install a profile from the registrar
  * @param args - The download parameters
  * @param args.packageSpec - Package name with optional version (e.g., "my-profile" or "my-profile@1.0.0")
@@ -342,6 +349,8 @@ const formatMultiplePackagesError = (args: {
  * @param args.installDir - Optional explicit install directory
  * @param args.registryUrl - Optional registry URL to download from
  * @param args.listVersions - If true, list available versions instead of downloading
+ *
+ * @returns Result indicating success or failure
  */
 export const registryDownloadMain = async (args: {
   packageSpec: string;
@@ -349,7 +358,7 @@ export const registryDownloadMain = async (args: {
   installDir?: string | null;
   registryUrl?: string | null;
   listVersions?: boolean | null;
-}): Promise<void> => {
+}): Promise<RegistryDownloadResult> => {
   const { packageSpec, installDir, registryUrl, listVersions } = args;
   const cwd = args.cwd ?? process.cwd();
 
@@ -370,7 +379,7 @@ export const registryDownloadMain = async (args: {
       info({
         message: "Run 'npx nori-ai install' to install Nori Profiles.",
       });
-      return;
+      return { success: false };
     }
 
     if (allInstallations.length > 1) {
@@ -381,7 +390,7 @@ export const registryDownloadMain = async (args: {
       error({
         message: `Found multiple Nori installations. Cannot determine which one to use.\n\nInstallations found:\n${installList}\n\nPlease use --install-dir to specify the target installation.`,
       });
-      return;
+      return { success: false };
     }
 
     targetInstallDir = allInstallations[0];
@@ -393,7 +402,7 @@ export const registryDownloadMain = async (args: {
   });
   if (!agentCheck.supported) {
     showCursorAgentNotSupportedError();
-    return;
+    return { success: false };
   }
 
   // Use config from agentCheck (already loaded during support check)
@@ -426,7 +435,7 @@ export const registryDownloadMain = async (args: {
         error({
           message: `No authentication configured for registry: ${registryUrl}\n\nAdd registry credentials to your .nori-config.json file.`,
         });
-        return;
+        return { success: false };
       }
     }
 
@@ -446,7 +455,7 @@ export const registryDownloadMain = async (args: {
     error({
       message: `Profile "${packageName}" not found in any registry.`,
     });
-    return;
+    return { success: false };
   }
 
   if (searchResults.length > 1) {
@@ -456,7 +465,7 @@ export const registryDownloadMain = async (args: {
         results: searchResults,
       }),
     });
-    return;
+    return { success: false };
   }
 
   // Single result - download from that registry
@@ -471,7 +480,7 @@ export const registryDownloadMain = async (args: {
         registryUrl: selectedRegistry.registryUrl,
       }),
     });
-    return;
+    return { success: true };
   }
 
   // Determine the target version
@@ -485,7 +494,7 @@ export const registryDownloadMain = async (args: {
       error({
         message: `Profile "${packageName}" already exists at:\n${targetDir}\n\nThis profile has no version information (.nori-version file).\nIt may have been installed manually or with an older version of Nori.\n\nTo reinstall:\n  rm -rf "${targetDir}"\n  nori-ai registry-download ${packageName}`,
       });
-      return;
+      return { success: false };
     }
 
     const installedVersion = existingVersionInfo.version;
@@ -506,7 +515,7 @@ export const registryDownloadMain = async (args: {
             message: `Profile "${packageName}" is already at version ${installedVersion} (requested ${targetVersion}).`,
           });
         }
-        return;
+        return { success: true };
       }
       // Newer version available - will proceed to update
       info({
@@ -517,7 +526,7 @@ export const registryDownloadMain = async (args: {
       success({
         message: `Profile "${packageName}" is already at version ${installedVersion}.`,
       });
-      return;
+      return { success: true };
     }
   }
 
@@ -608,11 +617,14 @@ export const registryDownloadMain = async (args: {
     info({
       message: `You can now use this profile with 'nori-ai switch-profile ${packageName}'.`,
     });
+
+    return { success: true };
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
     error({
       message: `Failed to download profile "${packageName}": ${errorMessage}`,
     });
+    return { success: false };
   }
 };
 
@@ -646,12 +658,16 @@ export const registerRegistryDownloadCommand = (args: {
       ) => {
         const globalOpts = program.opts();
 
-        await registryDownloadMain({
+        const result = await registryDownloadMain({
           packageSpec,
           installDir: globalOpts.installDir || null,
           registryUrl: options.registry || null,
           listVersions: options.listVersions || null,
         });
+
+        if (!result.success) {
+          process.exit(1);
+        }
       },
     );
 };

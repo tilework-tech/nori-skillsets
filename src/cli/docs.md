@@ -46,6 +46,7 @@ src/cli/
     install-location/    # Display installation directories
     registry-search/     # Search Nori registrar
     registry-download/   # Download from registrar
+    registry-install/    # Download + install + activate from public registrar
     registry-upload/     # Upload to registrar
 ```
 
@@ -60,6 +61,7 @@ src/cli/
 | `install-location` | commands/install-location/installLocation.ts | Display installation directories |
 | `registry-search` | commands/registry-search/registrySearch.ts | Search for profile packages in the Nori registrar |
 | `registry-download` | commands/registry-download/registryDownload.ts | Download and install a profile from the Nori registrar |
+| `registry-install` | commands/registry-install/registryInstall.ts | Download, install, and activate a profile from the public registrar in one step |
 | `registry-upload` | commands/registry-upload/registryUpload.ts | Upload a profile package to the Nori registrar |
 
 Each command directory contains the command implementation, its tests, and any command-specific utilities (e.g., `install/` contains `asciiArt.ts` and `installState.ts`).
