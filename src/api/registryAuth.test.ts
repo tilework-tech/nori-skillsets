@@ -42,7 +42,7 @@ describe("registryAuth", () => {
       const registryAuth: RegistryAuth = {
         username: "test@example.com",
         refreshToken: "test-refresh-token",
-        registryUrl: "https://registrar.tilework.tech",
+        registryUrl: "https://noriskillsets.dev",
       };
 
       const token = await getRegistryAuthToken({ registryAuth });
@@ -65,7 +65,7 @@ describe("registryAuth", () => {
       const registryAuth: RegistryAuth = {
         username: "test@example.com",
         refreshToken: "test-refresh-token",
-        registryUrl: "https://registrar.tilework.tech",
+        registryUrl: "https://noriskillsets.dev",
       };
 
       // First call
@@ -125,7 +125,7 @@ describe("registryAuth", () => {
     it("should throw error when refresh token is missing", async () => {
       const registryAuth: RegistryAuth = {
         username: "test@example.com",
-        registryUrl: "https://registrar.tilework.tech",
+        registryUrl: "https://noriskillsets.dev",
       };
 
       await expect(getRegistryAuthToken({ registryAuth })).rejects.toThrow(
@@ -144,7 +144,7 @@ describe("registryAuth", () => {
       const registryAuth: RegistryAuth = {
         username: "test@example.com",
         refreshToken: "expired-refresh-token",
-        registryUrl: "https://registrar.tilework.tech",
+        registryUrl: "https://noriskillsets.dev",
       };
 
       await expect(getRegistryAuthToken({ registryAuth })).rejects.toThrow(
@@ -160,7 +160,7 @@ describe("registryAuth", () => {
       const registryAuth: RegistryAuth = {
         username: "test@example.com",
         refreshToken: "test-refresh-token",
-        registryUrl: "https://registrar.tilework.tech",
+        registryUrl: "https://noriskillsets.dev",
       };
 
       await expect(getRegistryAuthToken({ registryAuth })).rejects.toThrow(
@@ -182,7 +182,7 @@ describe("registryAuth", () => {
       const registryAuth: RegistryAuth = {
         username: "test@example.com",
         refreshToken: "test-refresh-token",
-        registryUrl: "https://registrar.tilework.tech",
+        registryUrl: "https://noriskillsets.dev",
       };
 
       // First call

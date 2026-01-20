@@ -14,7 +14,7 @@ vi.mock("@/api/registrar.js", () => ({
     uploadProfile: vi.fn(),
     getPackument: vi.fn(),
   },
-  REGISTRAR_URL: "https://registrar.tilework.tech",
+  REGISTRAR_URL: "https://noriskillsets.dev",
 }));
 
 // Mock the registry auth module
@@ -100,7 +100,7 @@ describe("nori-registry-upload", () => {
           {
             username: "test@example.com",
             password: "test-password",
-            registryUrl: "https://registrar.tilework.tech",
+            registryUrl: "https://noriskillsets.dev",
           },
         ],
       }),
@@ -352,7 +352,7 @@ describe("nori-registry-upload", () => {
             {
               username: "test@example.com",
               password: "test-password",
-              registryUrl: "https://registrar.tilework.tech",
+              registryUrl: "https://noriskillsets.dev",
             },
             {
               username: "private@example.com",
@@ -410,7 +410,7 @@ describe("nori-registry-upload", () => {
       expect(registrarApi.uploadProfile).toHaveBeenCalledWith(
         expect.objectContaining({
           packageName: "test-profile",
-          registryUrl: "https://registrar.tilework.tech",
+          registryUrl: "https://noriskillsets.dev",
         }),
       );
     });
@@ -430,12 +430,12 @@ describe("nori-registry-upload", () => {
 
       // Should list multiple registries
       expect(plainReason).toContain("Multiple registries");
-      expect(plainReason).toContain("https://registrar.tilework.tech");
+      expect(plainReason).toContain("https://noriskillsets.dev");
       expect(plainReason).toContain("https://private-registry.example.com");
 
       // Should show example commands
       expect(plainReason).toContain(
-        "/nori-registry-upload test-profile https://registrar.tilework.tech",
+        "/nori-registry-upload test-profile https://noriskillsets.dev",
       );
       expect(plainReason).toContain(
         "/nori-registry-upload test-profile https://private-registry.example.com",
@@ -488,7 +488,7 @@ describe("nori-registry-upload", () => {
 
       const input = createInput({
         prompt:
-          "/nori-registry-upload test-profile 2.0.0 https://registrar.tilework.tech",
+          "/nori-registry-upload test-profile 2.0.0 https://noriskillsets.dev",
       });
       const result = await noriRegistryUpload.run({ input });
 
@@ -503,7 +503,7 @@ describe("nori-registry-upload", () => {
         expect.objectContaining({
           packageName: "test-profile",
           version: "2.0.0",
-          registryUrl: "https://registrar.tilework.tech",
+          registryUrl: "https://noriskillsets.dev",
         }),
       );
     });

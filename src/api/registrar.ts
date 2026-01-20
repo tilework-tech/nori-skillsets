@@ -6,7 +6,7 @@
  * Write operations (upload) require authentication.
  */
 
-export const REGISTRAR_URL = "https://registrar.tilework.tech";
+export const REGISTRAR_URL = "https://noriskillsets.dev";
 
 /**
  * Package metadata from the registrar

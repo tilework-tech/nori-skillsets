@@ -63,7 +63,7 @@ When an update is available (latestVersion is valid AND greater than installedVe
 
 - `nori-registry-search.ts`: Handles `/nori-registry-search <query>` to search for profile packages across all configured registries (public + private). The command always searches the public registrar at `REGISTRAR_URL`, then iterates through any private registries in `config.registryAuths` using `getRegistryAuthToken()` for authentication. Uses `registrarApi.searchPackagesOnRegistry()` from @/src/api/registrar.ts to search each registry with optional Bearer token. Deduplicates registries using `normalizeUrl()` to avoid searching the same registry twice (e.g., if a private registry URL matches the public one). Results are grouped by registry URL in the output format:
   ```
-  https://registrar.tilework.tech
+  https://noriskillsets.dev
     -> package-name: Description...
 
   https://private.registry.com
