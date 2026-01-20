@@ -16,6 +16,10 @@ vi.mock("@/api/registrar.js", () => ({
   REGISTRAR_URL: "https://registrar.tilework.tech",
 }));
 
+vi.mock("fs/promises", () => ({
+  access: vi.fn().mockRejectedValue(new Error("ENOENT")),
+}));
+
 vi.mock("@/cli/commands/registry-download/registryDownload.js", () => ({
   registryDownloadMain: vi.fn().mockResolvedValue({ success: true }),
 }));
@@ -42,13 +46,17 @@ vi.mock("@/cli/features/agentRegistry.js", () => ({
 
 const mockSuccess = vi.fn();
 const mockInfo = vi.fn();
+const mockWarn = vi.fn();
 const mockNewline = vi.fn();
 
 vi.mock("@/cli/logger.js", () => ({
   success: (args: { message: string }) => mockSuccess(args),
   info: (args: { message: string }) => mockInfo(args),
+  warn: (args: { message: string }) => mockWarn(args),
   newline: () => mockNewline(),
 }));
+
+import * as fs from "fs/promises";
 
 import { REGISTRAR_URL } from "@/api/registrar.js";
 import { main as installMain } from "@/cli/commands/install/install.js";
@@ -210,7 +218,7 @@ describe("registry-install", () => {
       message: expect.stringContaining("senior-swe"),
     });
     expect(mockInfo).toHaveBeenCalledWith({
-      message: expect.stringContaining("profile"),
+      message: expect.stringContaining("Restart"),
     });
   });
 
@@ -224,5 +232,55 @@ describe("registry-install", () => {
 
     // Should NOT display success message
     expect(mockSuccess).not.toHaveBeenCalled();
+  });
+
+  it("should fallback to local profile when download fails but profile exists locally", async () => {
+    // Download fails
+    vi.mocked(registryDownloadMain).mockResolvedValueOnce({ success: false });
+    // Local profile exists
+    vi.mocked(fs.access).mockResolvedValueOnce(undefined);
+    // Has existing installation
+    vi.mocked(hasExistingInstallation).mockReturnValueOnce(true);
+
+    const result = await registryInstallMain({
+      packageSpec: "senior-swe",
+      cwd: "/repo",
+    });
+
+    // Should warn about using local profile
+    expect(mockWarn).toHaveBeenCalledWith({
+      message: expect.stringContaining("senior-swe"),
+    });
+    expect(mockWarn).toHaveBeenCalledWith({
+      message: expect.stringContaining("local"),
+    });
+
+    // Should still switch profile and complete installation
+    expect(mockSwitchProfile).toHaveBeenCalledWith({
+      installDir: "/repo",
+      profileName: "senior-swe",
+    });
+
+    // Should return success
+    expect(result.success).toBe(true);
+  });
+
+  it("should fail when download fails and profile does not exist locally", async () => {
+    // Download fails
+    vi.mocked(registryDownloadMain).mockResolvedValueOnce({ success: false });
+    // Local profile does NOT exist
+    vi.mocked(fs.access).mockRejectedValueOnce(new Error("ENOENT"));
+
+    const result = await registryInstallMain({
+      packageSpec: "nonexistent-profile",
+      cwd: "/repo",
+    });
+
+    // Should NOT switch profile or install
+    expect(mockSwitchProfile).not.toHaveBeenCalled();
+    expect(installMain).not.toHaveBeenCalled();
+
+    // Should return failure
+    expect(result.success).toBe(false);
   });
 });

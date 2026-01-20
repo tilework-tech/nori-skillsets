@@ -3,14 +3,17 @@
  * Handles: nori-ai registry-install <package>[@version] [--user]
  */
 
+import * as fs from "fs/promises";
 import * as os from "os";
+import * as path from "path";
 
 import { REGISTRAR_URL } from "@/api/registrar.js";
 import { main as installMain } from "@/cli/commands/install/install.js";
 import { hasExistingInstallation } from "@/cli/commands/install/installState.js";
 import { registryDownloadMain } from "@/cli/commands/registry-download/registryDownload.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
-import { success, info, newline } from "@/cli/logger.js";
+import { getNoriProfilesDir } from "@/cli/features/claude-code/paths.js";
+import { success, info, warn, newline } from "@/cli/logger.js";
 import { normalizeInstallDir } from "@/utils/path.js";
 
 import type { Command } from "commander";
@@ -49,6 +52,30 @@ const resolveInstallDir = (args: {
 };
 
 /**
+ * Check if a profile exists locally in the profiles directory
+ * @param args - Function arguments
+ * @param args.installDir - Installation directory
+ * @param args.profileName - Name of the profile to check
+ *
+ * @returns True if the profile directory exists locally
+ */
+const checkLocalProfileExists = async (args: {
+  installDir: string;
+  profileName: string;
+}): Promise<boolean> => {
+  const { installDir, profileName } = args;
+  const profilesDir = getNoriProfilesDir({ installDir });
+  const profilePath = path.join(profilesDir, profileName);
+
+  try {
+    await fs.access(profilePath);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+/**
  * Result of registry install operation
  */
 export type RegistryInstallResult = {
@@ -63,8 +90,8 @@ export type RegistryInstallResult = {
 const displaySuccessMessage = (args: { profileName: string }): void => {
   const { profileName } = args;
   newline();
-  success({ message: `Successfully installed "${profileName}"` });
-  info({ message: "Nori is now configured to use this profile." });
+  success({ message: `Profile "${profileName}" is now active.` });
+  info({ message: "Restart Claude Code to apply the new profile." });
 };
 
 export const registryInstallMain = async (
@@ -89,9 +116,20 @@ export const registryInstallMain = async (
     listVersions: null,
   });
 
-  // If download failed, don't proceed with installation
+  // If download failed, check if profile exists locally as fallback
   if (!downloadResult.success) {
-    return { success: false };
+    const localExists = await checkLocalProfileExists({
+      installDir: targetInstallDir,
+      profileName,
+    });
+
+    if (!localExists) {
+      return { success: false };
+    }
+
+    warn({
+      message: `Profile "${profileName}" not found in registry. Using locally installed version.`,
+    });
   }
 
   // Step 2: Run initial install if no existing installation
