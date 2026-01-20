@@ -64,6 +64,8 @@ Format the new release notes section as:
 Use the version from package.json for the version number.
 Use today's date for the release date.
 
+Note that the description should actually explain what changed. If the commit title is too vague, you must go deeper and look at the full commit text or the code changes themselves.
+
 6. Update release-notes.txt with the new section.
 
 Prepend the new release notes section to the top of release-notes.txt, below the header.
