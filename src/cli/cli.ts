@@ -21,6 +21,7 @@ import { registerSkillSearchCommand } from "@/cli/commands/skill-search/skillSea
 import { registerSkillUploadCommand } from "@/cli/commands/skill-upload/skillUpload.js";
 import { registerSwitchProfileCommand } from "@/cli/commands/switch-profile/profiles.js";
 import { registerUninstallCommand } from "@/cli/commands/uninstall/uninstall.js";
+import { trackInstallLifecycle } from "@/cli/install-tracking.js";
 import { getCurrentPackageVersion } from "@/cli/version.js";
 import { normalizeInstallDir } from "@/utils/path.js";
 
@@ -88,6 +89,8 @@ registerSkillDownloadCommand({ program });
 registerSkillUploadCommand({ program });
 
 program.parse(process.argv);
+
+trackInstallLifecycle({ runningVersion: version }).catch(() => undefined);
 
 // Show help if no command provided
 if (process.argv.length < 3) {
