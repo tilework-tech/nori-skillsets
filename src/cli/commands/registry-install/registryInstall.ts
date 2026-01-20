@@ -1,6 +1,6 @@
 /**
  * CLI command for installing a profile from the public registry in one step
- * Handles: nori-ai registry-install <package> [--version <semver>] [--user]
+ * Handles: nori-ai registry-install <package>[@version] [--user]
  */
 
 import * as os from "os";
@@ -19,7 +19,6 @@ type RegistryInstallArgs = {
   cwd?: string | null;
   installDir?: string | null;
   useHomeDir?: boolean | null;
-  version?: string | null;
   silent?: boolean | null;
   agent?: string | null;
 };
@@ -48,27 +47,10 @@ const resolveInstallDir = (args: {
   return normalizeInstallDir({ installDir: cwd ?? process.cwd() });
 };
 
-const buildPackageSpec = (args: {
-  packageSpec: string;
-  version?: string | null;
-}): string => {
-  const { packageSpec, version } = args;
-  if (!version) {
-    return packageSpec;
-  }
-
-  if (packageSpec.includes("@")) {
-    return packageSpec;
-  }
-
-  return `${packageSpec}@${version}`;
-};
-
 export const registryInstallMain = async (
   args: RegistryInstallArgs,
 ): Promise<void> => {
-  const { packageSpec, cwd, installDir, useHomeDir, version, silent, agent } =
-    args;
+  const { packageSpec, cwd, installDir, useHomeDir, silent, agent } = args;
 
   const targetInstallDir = resolveInstallDir({
     cwd,
@@ -76,13 +58,12 @@ export const registryInstallMain = async (
     useHomeDir,
   });
 
-  const resolvedPackageSpec = buildPackageSpec({ packageSpec, version });
-  const profileName = parsePackageName({ packageSpec: resolvedPackageSpec });
+  const profileName = parsePackageName({ packageSpec });
   const agentName = agent ?? "claude-code";
 
   // Step 1: Download the profile from registry first (so it's available for install)
   await registryDownloadMain({
-    packageSpec: resolvedPackageSpec,
+    packageSpec,
     installDir: targetInstallDir,
     registryUrl: REGISTRAR_URL,
     listVersions: null,
@@ -133,24 +114,17 @@ export const registerRegistryInstallCommand = (args: {
     .description(
       "Download, install, and activate a profile from the public registry in one step",
     )
-    .option("--version <semver>", "Install a specific version")
     .option("--user", "Install to the user home directory")
-    .action(
-      async (
-        packageSpec: string,
-        options: { version?: string; user?: boolean },
-      ) => {
-        const globalOpts = program.opts();
+    .action(async (packageSpec: string, options: { user?: boolean }) => {
+      const globalOpts = program.opts();
 
-        await registryInstallMain({
-          packageSpec,
-          version: options.version ?? null,
-          useHomeDir: options.user ?? null,
-          installDir: globalOpts.installDir || null,
-          cwd: process.cwd(),
-          silent: globalOpts.silent || null,
-          agent: globalOpts.agent || null,
-        });
-      },
-    );
+      await registryInstallMain({
+        packageSpec,
+        useHomeDir: options.user ?? null,
+        installDir: globalOpts.installDir || null,
+        cwd: process.cwd(),
+        silent: globalOpts.silent || null,
+        agent: globalOpts.agent || null,
+      });
+    });
 };
