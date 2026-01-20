@@ -102,6 +102,7 @@ sleep 60 && gh pr checks
 ```
 
 If CI did not pass, examine why and fix the issue.
+If CI did not run, this is always because of a merge conflict. Merge and try again.
 
 - Make changes as needed, push a new commit, and repeat the process.
 <system-reminder> It is *critical* that you fix any ci issues, EVEN IF YOU DID NOT CAUSE THEM. </system-reminder>
