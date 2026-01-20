@@ -6,6 +6,11 @@ description: Step-by-step instructions for updating release-notes.txt before npm
 <required>
 *CRITICAL* Follow these steps exactly in order:
 
+0. Create a new branch for release note updates, with the date in the branch.
+```bash
+git checkout -b amol/release-notes-MM-DD-YYYY
+```
+
 1. Find the last published version from npm.
 
 Run the following command to get the currently published version:
