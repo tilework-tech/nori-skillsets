@@ -9,7 +9,7 @@ import * as path from "path";
 import * as semver from "semver";
 import * as tar from "tar";
 
-import { registrarApi } from "@/api/registrar.js";
+import { registrarApi, REGISTRAR_URL } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
 import {
   getCommandNames,
@@ -23,7 +23,6 @@ import { getRegistryAuth } from "@/cli/config.js";
 import { getNoriProfilesDir } from "@/cli/features/claude-code/paths.js";
 import { error, success, info, newline } from "@/cli/logger.js";
 import { getInstallDirs } from "@/utils/path.js";
-import { extractOrgId, buildRegistryUrl } from "@/utils/url.js";
 
 import type { RegistryAuth } from "@/cli/config.js";
 import type { Command } from "commander";
@@ -268,27 +267,23 @@ export const registryUploadMain = async (args: {
     return;
   }
 
-  // Get available registries - include both legacy registryAuths and org-based auth
+  // Get available registries - public registry (with unified auth) and legacy registryAuths
   const availableRegistries: Array<RegistryAuth> = [];
 
-  // Add registry derived from org-based auth (config.auth)
-  if (config?.auth != null && config.auth.organizationUrl != null) {
-    const orgId = extractOrgId({ url: config.auth.organizationUrl });
-    if (orgId != null) {
-      const derivedRegistryUrl = buildRegistryUrl({ orgId });
-      availableRegistries.push({
-        registryUrl: derivedRegistryUrl,
-        username: config.auth.username,
-        password: config.auth.password ?? null,
-        refreshToken: config.auth.refreshToken ?? null,
-      });
-    }
+  // Add public registry if user has valid unified auth with refreshToken
+  // This is the default target for authenticated users
+  if (config?.auth != null && config.auth.refreshToken != null) {
+    availableRegistries.push({
+      registryUrl: REGISTRAR_URL,
+      username: config.auth.username,
+      refreshToken: config.auth.refreshToken,
+    });
   }
 
-  // Add legacy registryAuths entries
+  // Add legacy registryAuths entries (for private registries)
   if (config?.registryAuths != null) {
     for (const auth of config.registryAuths) {
-      // Avoid duplicates if the same registry URL already exists from org-based auth
+      // Avoid duplicates if the same registry URL already exists
       const alreadyExists = availableRegistries.some(
         (existing) => existing.registryUrl === auth.registryUrl,
       );
@@ -310,9 +305,15 @@ export const registryUploadMain = async (args: {
   let registryAuth: RegistryAuth | null;
 
   if (registryUrl != null) {
-    // User specified a registry URL - validate it exists in config
+    // User specified a registry URL - check availableRegistries first (includes public registry)
     registryAuth =
-      config != null ? getRegistryAuth({ config, registryUrl }) : null;
+      availableRegistries.find((r) => r.registryUrl === registryUrl) ?? null;
+
+    // Fall back to getRegistryAuth for legacy registryAuths
+    if (registryAuth == null && config != null) {
+      registryAuth = getRegistryAuth({ config, registryUrl });
+    }
+
     if (registryAuth == null) {
       error({
         message: `No registry authentication configured for ${registryUrl}.\n\nAdd credentials to .nori-config.json or use one of the configured registries.`,

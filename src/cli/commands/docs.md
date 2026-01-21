@@ -69,9 +69,15 @@ if (!agentCheck.supported) {
 
 **Skill Commands:** Two commands manage skills as first-class registry entities (mirroring the profile registry commands):
 - `skill-download` - Download and install skills directly to `~/.claude/skills/{skill-name}/`. Searches public registry first, then private registries. Creates `.nori-version` file for version tracking. Supports `--list-versions` flag and `--registry` option.
-- `skill-upload` - Upload skills from `~/.nori/skills/` to a registry. Auto-bumps patch version when no version specified. Extracts description from SKILL.md frontmatter. Supports both org-based auth (`config.auth`) and legacy `registryAuths`.
+- `skill-upload` - Upload skills from `~/.nori/skills/` to a registry. Auto-bumps patch version when no version specified. Extracts description from SKILL.md frontmatter.
 
 Skills follow the same tarball-based upload/download pattern as profiles. Downloaded skills go directly to `~/.claude/skills/`, making them immediately available in the Claude Code profile. Skills require a SKILL.md file (with optional YAML frontmatter containing name and description).
+
+**Upload Commands Registry Resolution:** Both `registry-upload` (for profiles) and `skill-upload` (for skills) use the same registry resolution logic:
+1. **Public registry (default):** When the user has unified auth (`config.auth`) with a `refreshToken`, the public registry (`https://noriskillsets.dev`) is automatically included as an available upload target. This is the default when no `--registry` flag is provided.
+2. **Private registries:** Additional registries can be added via `registryAuths` in `.nori-config.json`. These are included alongside the public registry.
+3. **Explicit registry:** Users can specify `--registry <url>` to target a specific registry. The command checks `availableRegistries` first (which includes the public registry for authenticated users), then falls back to `getRegistryAuth()` for legacy `registryAuths` lookups.
+4. **Multiple registries:** If multiple registries are configured and no `--registry` is specified, the command prompts the user to select one (or errors in non-interactive mode).
 
 **registry-download Skill Dependencies:** The `registry-download` command automatically installs skill dependencies declared in a profile's `nori.json` manifest. After extracting a profile tarball, the command checks for a `nori.json` file with a `dependencies.skills` field (mapping skill names to version strings). For each declared skill:
 1. Fetches the skill packument via `registrarApi.getSkillPackument()` to get the latest version
