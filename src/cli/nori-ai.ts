@@ -17,7 +17,6 @@ import { registerRegistrySearchCommand } from "@/cli/commands/registry-search/re
 import { registerRegistryUpdateCommand } from "@/cli/commands/registry-update/registryUpdate.js";
 import { registerRegistryUploadCommand } from "@/cli/commands/registry-upload/registryUpload.js";
 import { registerSkillDownloadCommand } from "@/cli/commands/skill-download/skillDownload.js";
-import { registerSkillSearchCommand } from "@/cli/commands/skill-search/skillSearch.js";
 import { registerSkillUploadCommand } from "@/cli/commands/skill-upload/skillUpload.js";
 import { registerSwitchProfileCommand } from "@/cli/commands/switch-profile/profiles.js";
 import { registerUninstallCommand } from "@/cli/commands/uninstall/uninstall.js";
@@ -52,7 +51,7 @@ Examples:
   $ nori-ai check
   $ nori-ai install-location
   $ nori-ai switch-profile senior-swe
-  $ nori-ai registry-search typescript
+  $ nori-ai registry-search typescript  # searches both profiles and skills
   $ nori-ai registry-download my-profile
   $ nori-ai registry-download my-profile@1.0.0
   $ nori-ai registry-download my-profile --list-versions
@@ -61,7 +60,6 @@ Examples:
   $ nori-ai registry-update my-profile
   $ nori-ai registry-upload my-profile
   $ nori-ai registry-upload my-profile@1.0.0 --registry https://registry.example.com
-  $ nori-ai skill-search debugging
   $ nori-ai skill-download my-skill
   $ nori-ai skill-download my-skill@1.0.0
   $ nori-ai skill-download my-skill --list-versions
@@ -83,7 +81,6 @@ registerRegistryDownloadCommand({ program });
 registerRegistryInstallCommand({ program });
 registerRegistryUpdateCommand({ program });
 registerRegistryUploadCommand({ program });
-registerSkillSearchCommand({ program });
 registerSkillDownloadCommand({ program });
 registerSkillUploadCommand({ program });
 

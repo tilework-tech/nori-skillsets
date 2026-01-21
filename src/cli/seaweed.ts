@@ -42,7 +42,7 @@ program
     "after",
     `
 Examples:
-  $ seaweed search typescript
+  $ seaweed search typescript  # searches both profiles and skills
   $ seaweed download my-profile
   $ seaweed download my-profile@1.0.0
   $ seaweed download my-profile --list-versions

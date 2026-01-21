@@ -67,8 +67,7 @@ if (!agentCheck.supported) {
 }
 ```
 
-**Skill Commands:** Three commands manage skills as first-class registry entities (mirroring the profile registry commands):
-- `skill-search` - Search for skills in the user's org registry. Requires `config.auth` with `organizationUrl` to derive the registry URL via `extractOrgId()` and `buildRegistryUrl()`. Unlike profile search (which searches all registries), skill search only queries the org registry.
+**Skill Commands:** Two commands manage skills as first-class registry entities (mirroring the profile registry commands):
 - `skill-download` - Download and install skills to `~/.nori/skills/{skill-name}/`. Searches public registry first, then private registries. Creates `.nori-version` file for version tracking. Supports `--list-versions` flag and `--registry` option.
 - `skill-upload` - Upload skills from `~/.nori/skills/` to a registry. Auto-bumps patch version when no version specified. Extracts description from SKILL.md frontmatter. Supports both org-based auth (`config.auth`) and legacy `registryAuths`.
 
@@ -98,7 +97,6 @@ nori-ai.ts (full CLI)
   +-- registerRegistryInstallCommand({ program })--> commands/registry-install/registryInstall.ts
   +-- registerRegistryUpdateCommand({ program })--> commands/registry-update/registryUpdate.ts
   +-- registerRegistryUploadCommand({ program })--> commands/registry-upload/registryUpload.ts
-  +-- registerSkillSearchCommand({ program })  --> commands/skill-search/skillSearch.ts
   +-- registerSkillDownloadCommand({ program })--> commands/skill-download/skillDownload.ts
   +-- registerSkillUploadCommand({ program })  --> commands/skill-upload/skillUpload.ts
 
@@ -155,7 +153,7 @@ export const registerXCommand = (args: { program: Command }): void => {
 ### Things to Know
 
 The commands directory contains shared utilities at the top level:
-- `registryAgentCheck.ts` - Shared validation for registry commands. Checks if the installation has only cursor-agent (no claude-code) and rejects with a helpful error message. Used by registry-search, registry-download, registry-update, registry-upload, skill-search, skill-download, and skill-upload commands.
+- `registryAgentCheck.ts` - Shared validation for registry commands. Checks if the installation has only cursor-agent (no claude-code) and rejects with a helpful error message. Used by registry-search, registry-download, registry-update, registry-upload, skill-download, and skill-upload commands.
 
 The `seaweedCommands.ts` file contains thin command wrappers for the seaweed CLI - registration functions (`registerSeaweedSearchCommand`, etc.) that provide simplified command names (`search`, `download`, `install`, `update`, `upload`, `switch-skillset`) by delegating to the underlying implementation functions (`*Main` functions for registry commands, `switchSkillsetAction` for switch-skillset). This allows the seaweed CLI to use cleaner command names while sharing all business logic with the nori-ai CLI.
 

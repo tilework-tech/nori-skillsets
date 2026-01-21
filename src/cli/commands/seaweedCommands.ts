@@ -28,7 +28,7 @@ export const registerSeaweedSearchCommand = (args: {
 
   program
     .command("search <query>")
-    .description("Search for profile packages in your org's registry")
+    .description("Search for profiles and skills in your org's registry")
     .action(async (query: string) => {
       const globalOpts = program.opts();
       await registrySearchMain({

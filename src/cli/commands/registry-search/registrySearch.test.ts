@@ -1,6 +1,7 @@
 /**
  * Tests for registry-search CLI command
  * Searches both public registry (no auth) and org registry (with auth)
+ * Returns both profiles and skills from each registry
  */
 
 import * as fs from "fs/promises";
@@ -15,6 +16,7 @@ vi.mock("@/api/registrar.js", () => ({
   registrarApi: {
     searchPackages: vi.fn(),
     searchPackagesOnRegistry: vi.fn(),
+    searchSkills: vi.fn(),
   },
 }));
 
@@ -89,6 +91,9 @@ describe("registry-search", () => {
       },
     });
     vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
+    // Default: mock public registry returns empty
+    vi.mocked(registrarApi.searchPackages).mockResolvedValue([]);
+    vi.mocked(registrarApi.searchSkills).mockResolvedValue([]);
   });
 
   afterEach(async () => {
@@ -98,8 +103,8 @@ describe("registry-search", () => {
     }
   });
 
-  describe("registrySearchMain - org registry search", () => {
-    it("should search org registry derived from config.auth", async () => {
+  describe("unified search - profiles and skills from org registry", () => {
+    it("should search both profiles and skills APIs on org registry", async () => {
       const mockPackages = [
         {
           id: "1",
@@ -110,14 +115,30 @@ describe("registry-search", () => {
           updatedAt: "2024-01-01",
         },
       ];
+      const mockSkills = [
+        {
+          id: "2",
+          name: "typescript-skill",
+          description: "A TypeScript skill",
+          authorEmail: "test@example.com",
+          createdAt: "2024-01-01",
+          updatedAt: "2024-01-01",
+        },
+      ];
       vi.mocked(registrarApi.searchPackagesOnRegistry).mockResolvedValue(
         mockPackages,
       );
-      // Also mock public registry to return empty (no results there)
-      vi.mocked(registrarApi.searchPackages).mockResolvedValue([]);
+      // Mock org skills search (called with authToken)
+      vi.mocked(registrarApi.searchSkills).mockImplementation(async (args) => {
+        if (args.authToken != null) {
+          return mockSkills;
+        }
+        return []; // Public registry returns empty
+      });
 
       await registrySearchMain({ query: "typescript", installDir: testDir });
 
+      // Verify org registry APIs were called with auth
       expect(registrarApi.searchPackagesOnRegistry).toHaveBeenCalledWith(
         expect.objectContaining({
           query: "typescript",
@@ -125,37 +146,266 @@ describe("registry-search", () => {
           authToken: "mock-auth-token",
         }),
       );
-      const output = getAllOutput();
-      expect(output).toContain("https://myorg.nori-registry.ai");
-      expect(output).toContain("-> typescript-profile");
+      expect(registrarApi.searchSkills).toHaveBeenCalledWith(
+        expect.objectContaining({
+          query: "typescript",
+          registryUrl: "https://myorg.nori-registry.ai",
+          authToken: "mock-auth-token",
+        }),
+      );
     });
 
-    it("should display no results message when registry returns empty", async () => {
+    it("should display results with Profiles and Skills section headers", async () => {
+      const mockPackages = [
+        {
+          id: "1",
+          name: "my-profile",
+          description: "A profile",
+          authorEmail: "test@example.com",
+          createdAt: "2024-01-01",
+          updatedAt: "2024-01-01",
+        },
+      ];
+      const mockSkills = [
+        {
+          id: "2",
+          name: "my-skill",
+          description: "A skill",
+          authorEmail: "test@example.com",
+          createdAt: "2024-01-01",
+          updatedAt: "2024-01-01",
+        },
+      ];
+      vi.mocked(registrarApi.searchPackagesOnRegistry).mockResolvedValue(
+        mockPackages,
+      );
+      vi.mocked(registrarApi.searchSkills).mockImplementation(async (args) => {
+        if (args.authToken != null) {
+          return mockSkills;
+        }
+        return [];
+      });
+
+      await registrySearchMain({ query: "my", installDir: testDir });
+
+      const output = getAllOutput();
+      expect(output).toContain("Profiles:");
+      expect(output).toContain("my-profile");
+      expect(output).toContain("Skills:");
+      expect(output).toContain("my-skill");
+    });
+
+    it("should show only Profiles section when no skills found", async () => {
+      const mockPackages = [
+        {
+          id: "1",
+          name: "only-profile",
+          description: "A profile",
+          authorEmail: "test@example.com",
+          createdAt: "2024-01-01",
+          updatedAt: "2024-01-01",
+        },
+      ];
+      vi.mocked(registrarApi.searchPackagesOnRegistry).mockResolvedValue(
+        mockPackages,
+      );
+      vi.mocked(registrarApi.searchSkills).mockResolvedValue([]);
+
+      await registrySearchMain({ query: "only", installDir: testDir });
+
+      const output = getAllOutput();
+      expect(output).toContain("Profiles:");
+      expect(output).toContain("only-profile");
+      expect(output).not.toContain("Skills:");
+    });
+
+    it("should show only Skills section when no profiles found", async () => {
+      const mockSkills = [
+        {
+          id: "1",
+          name: "only-skill",
+          description: "A skill",
+          authorEmail: "test@example.com",
+          createdAt: "2024-01-01",
+          updatedAt: "2024-01-01",
+        },
+      ];
       vi.mocked(registrarApi.searchPackagesOnRegistry).mockResolvedValue([]);
-      // Also mock public registry to return empty
+      vi.mocked(registrarApi.searchSkills).mockImplementation(async (args) => {
+        if (args.authToken != null) {
+          return mockSkills;
+        }
+        return [];
+      });
+
+      await registrySearchMain({ query: "only", installDir: testDir });
+
+      const output = getAllOutput();
+      expect(output).not.toContain("Profiles:");
+      expect(output).toContain("Skills:");
+      expect(output).toContain("only-skill");
+    });
+
+    it("should display no results message when all APIs return empty", async () => {
+      vi.mocked(registrarApi.searchPackagesOnRegistry).mockResolvedValue([]);
       vi.mocked(registrarApi.searchPackages).mockResolvedValue([]);
+      vi.mocked(registrarApi.searchSkills).mockResolvedValue([]);
 
       await registrySearchMain({ query: "nonexistent", installDir: testDir });
 
       const output = getAllOutput();
       expect(output.toLowerCase()).toContain("no");
+      expect(output).toContain("nonexistent");
     });
 
-    it("should handle API errors gracefully", async () => {
-      vi.mocked(registrarApi.searchPackagesOnRegistry).mockRejectedValue(
-        new Error("Network error"),
+    it("should show profile results and skills error when skills API fails", async () => {
+      const mockPackages = [
+        {
+          id: "1",
+          name: "good-profile",
+          description: "A profile",
+          authorEmail: "test@example.com",
+          createdAt: "2024-01-01",
+          updatedAt: "2024-01-01",
+        },
+      ];
+      vi.mocked(registrarApi.searchPackagesOnRegistry).mockResolvedValue(
+        mockPackages,
       );
-      // Also mock public registry to fail
-      vi.mocked(registrarApi.searchPackages).mockRejectedValue(
-        new Error("Network error"),
+      vi.mocked(registrarApi.searchSkills).mockRejectedValue(
+        new Error("Skills API error"),
       );
+      vi.mocked(registrarApi.searchPackages).mockResolvedValue([]);
 
       await registrySearchMain({ query: "test", installDir: testDir });
 
       const output = getAllOutput();
+      expect(output).toContain("Profiles:");
+      expect(output).toContain("good-profile");
       expect(output.toLowerCase()).toContain("error");
+      expect(output).toContain("Skills API error");
     });
 
+    it("should show skills results and profiles error when profiles API fails", async () => {
+      const mockSkills = [
+        {
+          id: "1",
+          name: "good-skill",
+          description: "A skill",
+          authorEmail: "test@example.com",
+          createdAt: "2024-01-01",
+          updatedAt: "2024-01-01",
+        },
+      ];
+      vi.mocked(registrarApi.searchPackagesOnRegistry).mockRejectedValue(
+        new Error("Profiles API error"),
+      );
+      vi.mocked(registrarApi.searchSkills).mockImplementation(async (args) => {
+        if (args.authToken != null) {
+          return mockSkills;
+        }
+        return [];
+      });
+      vi.mocked(registrarApi.searchPackages).mockResolvedValue([]);
+
+      await registrySearchMain({ query: "test", installDir: testDir });
+
+      const output = getAllOutput();
+      expect(output).toContain("Skills:");
+      expect(output).toContain("good-skill");
+      expect(output.toLowerCase()).toContain("error");
+      expect(output).toContain("Profiles API error");
+    });
+
+    it("should show both download hints when both types have results", async () => {
+      const mockPackages = [
+        {
+          id: "1",
+          name: "test-profile",
+          description: "A profile",
+          authorEmail: "test@example.com",
+          createdAt: "2024-01-01",
+          updatedAt: "2024-01-01",
+        },
+      ];
+      const mockSkills = [
+        {
+          id: "2",
+          name: "test-skill",
+          description: "A skill",
+          authorEmail: "test@example.com",
+          createdAt: "2024-01-01",
+          updatedAt: "2024-01-01",
+        },
+      ];
+      vi.mocked(registrarApi.searchPackagesOnRegistry).mockResolvedValue(
+        mockPackages,
+      );
+      vi.mocked(registrarApi.searchSkills).mockImplementation(async (args) => {
+        if (args.authToken != null) {
+          return mockSkills;
+        }
+        return [];
+      });
+
+      await registrySearchMain({ query: "test", installDir: testDir });
+
+      const output = getAllOutput();
+      expect(output).toContain("registry-download");
+      expect(output).toContain("skill-download");
+    });
+
+    it("should only show profile download hint when only profiles found", async () => {
+      const mockPackages = [
+        {
+          id: "1",
+          name: "test-profile",
+          description: "A profile",
+          authorEmail: "test@example.com",
+          createdAt: "2024-01-01",
+          updatedAt: "2024-01-01",
+        },
+      ];
+      vi.mocked(registrarApi.searchPackagesOnRegistry).mockResolvedValue(
+        mockPackages,
+      );
+      vi.mocked(registrarApi.searchSkills).mockResolvedValue([]);
+
+      await registrySearchMain({ query: "test", installDir: testDir });
+
+      const output = getAllOutput();
+      expect(output).toContain("registry-download");
+      expect(output).not.toContain("skill-download");
+    });
+
+    it("should only show skill download hint when only skills found", async () => {
+      const mockSkills = [
+        {
+          id: "1",
+          name: "test-skill",
+          description: "A skill",
+          authorEmail: "test@example.com",
+          createdAt: "2024-01-01",
+          updatedAt: "2024-01-01",
+        },
+      ];
+      vi.mocked(registrarApi.searchPackagesOnRegistry).mockResolvedValue([]);
+      vi.mocked(registrarApi.searchSkills).mockImplementation(async (args) => {
+        if (args.authToken != null) {
+          return mockSkills;
+        }
+        return [];
+      });
+
+      await registrySearchMain({ query: "test", installDir: testDir });
+
+      const output = getAllOutput();
+      expect(output).not.toContain("registry-download");
+      expect(output).toContain("skill-download");
+    });
+  });
+
+  describe("public registry search (no auth)", () => {
     it("should search public registry without auth when no org auth configured", async () => {
       const mockPublicPackages = [
         {
@@ -195,9 +445,45 @@ describe("registry-search", () => {
       expect(output).toContain(REGISTRAR_URL);
       expect(output).toContain("-> public-profile");
     });
+
+    it("should search public skills without auth when no org auth configured", async () => {
+      const mockPublicSkills = [
+        {
+          id: "1",
+          name: "public-skill",
+          description: "A public skill",
+          authorEmail: "public@example.com",
+          createdAt: "2024-01-01",
+          updatedAt: "2024-01-01",
+        },
+      ];
+      vi.mocked(registrarApi.searchSkills).mockResolvedValue(mockPublicSkills);
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
+      });
+
+      await registrySearchMain({ query: "test", installDir: testDir });
+
+      // Should search public skills without auth
+      expect(registrarApi.searchSkills).toHaveBeenCalledWith(
+        expect.objectContaining({
+          query: "test",
+        }),
+      );
+      // Should NOT have authToken in the call for public registry
+      expect(registrarApi.searchSkills).toHaveBeenCalledWith(
+        expect.not.objectContaining({
+          authToken: expect.any(String),
+        }),
+      );
+      const output = getAllOutput();
+      expect(output).toContain(REGISTRAR_URL);
+      expect(output).toContain("-> public-skill");
+    });
   });
 
-  describe("registrySearchMain - combined registry search", () => {
+  describe("combined registry search (org + public)", () => {
     it("should search both org registry and public registry when auth configured", async () => {
       const mockOrgPackages = [
         {
@@ -340,6 +626,7 @@ describe("registry-search", () => {
     it("should show no results message when both registries return empty", async () => {
       vi.mocked(registrarApi.searchPackagesOnRegistry).mockResolvedValue([]);
       vi.mocked(registrarApi.searchPackages).mockResolvedValue([]);
+      vi.mocked(registrarApi.searchSkills).mockResolvedValue([]);
 
       await registrySearchMain({ query: "nonexistent", installDir: testDir });
 
@@ -363,6 +650,7 @@ describe("registry-search", () => {
       await registrySearchMain({ query: "test", installDir: testDir });
 
       expect(registrarApi.searchPackagesOnRegistry).not.toHaveBeenCalled();
+      expect(registrarApi.searchSkills).not.toHaveBeenCalled();
       const output = getAllOutput();
       expect(output.toLowerCase()).toContain("not supported");
     });

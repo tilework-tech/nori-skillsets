@@ -52,12 +52,11 @@ src/cli/
     check/               # Check/validation command
     switch-profile/      # Profile switching command
     install-location/    # Display installation directories
-    registry-search/     # Search Nori registrar
+    registry-search/     # Search for profiles and skills in registrar
     registry-download/   # Download from registrar
     registry-install/    # Download + install + activate from public registrar
     registry-update/     # Update installed registry profiles
     registry-upload/     # Upload to registrar
-    skill-search/        # Search for skills in registrar
     skill-download/      # Download a skill from registrar
     skill-upload/        # Upload a skill to registrar
 ```
@@ -71,12 +70,11 @@ src/cli/
 | `check` | | commands/check/check.ts | Validate installation and configuration |
 | `switch-profile`, `switch-skillset` | `switch-skillset` | commands/switch-profile/profiles.ts | Switch to a different profile/skillset |
 | `install-location` | | commands/install-location/installLocation.ts | Display installation directories |
-| `registry-search` | `search` | commands/registry-search/registrySearch.ts | Search for profile packages in the Nori registrar |
+| `registry-search` | `search` | commands/registry-search/registrySearch.ts | Search for profiles and skills in the Nori registrar |
 | `registry-download` | `download` | commands/registry-download/registryDownload.ts | Download and install a profile from the Nori registrar |
 | `registry-install` | `install` | commands/registry-install/registryInstall.ts | Download, install, and activate a profile from the public registrar |
 | `registry-update` | `update` | commands/registry-update/registryUpdate.ts | Update an installed registry profile to the latest version |
 | `registry-upload` | `upload` | commands/registry-upload/registryUpload.ts | Upload a profile package to the Nori registrar |
-| `skill-search` | | commands/skill-search/skillSearch.ts | Search for skills in the Nori registrar |
 | `skill-download` | | commands/skill-download/skillDownload.ts | Download a skill from the Nori registrar |
 | `skill-upload` | | commands/skill-upload/skillUpload.ts | Upload a skill to the Nori registrar |
 

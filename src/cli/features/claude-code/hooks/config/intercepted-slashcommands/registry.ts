@@ -14,7 +14,6 @@ import { noriRegistrySearch } from "./nori-registry-search.js";
 import { noriRegistryUpdate } from "./nori-registry-update.js";
 import { noriRegistryUpload } from "./nori-registry-upload.js";
 import { noriSkillDownload } from "./nori-skill-download.js";
-import { noriSkillSearch } from "./nori-skill-search.js";
 import { noriSkillUpload } from "./nori-skill-upload.js";
 import { noriSwitchProfile } from "./nori-switch-profile.js";
 import { noriToggleAutoupdate } from "./nori-toggle-autoupdate.js";
@@ -32,7 +31,6 @@ export const interceptedSlashCommands: Array<InterceptedSlashCommand> = [
   noriRegistrySearch,
   noriSkillUpload,
   noriSkillDownload,
-  noriSkillSearch,
   noriSwitchProfile,
   noriToggleAutoupdate,
   noriToggleSessionTranscripts,
