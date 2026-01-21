@@ -383,7 +383,7 @@ describe("installTracking", () => {
       expect(updateCall).toBeDefined();
     });
 
-    it("should send nori_session_start event on every run", async () => {
+    it("should send nori_session_started event on every run", async () => {
       const existingState = {
         schema_version: 1,
         client_id: "test-client-id",
@@ -401,7 +401,7 @@ describe("installTracking", () => {
 
       const sessionCall = fetchMock.mock.calls.find((call) => {
         const body = JSON.parse(call[1].body);
-        return body.event_name === "nori_session_start";
+        return body.event_name === "nori_session_started";
       });
 
       expect(sessionCall).toBeDefined();
@@ -683,12 +683,12 @@ describe("Analytics API Spec Compliance (PLAN_ANALYTICS_PROXY.md)", () => {
     });
 
     // @current-session
-    it("sends nori_session_start on every launch", async () => {
+    it("sends nori_session_started on every launch", async () => {
       await trackInstallLifecycle({ currentVersion: "1.0.0" });
 
       const sessionCall = fetchMock.mock.calls.find((call) => {
         const body = JSON.parse(call[1].body);
-        return body.event_name === "nori_session_start";
+        return body.event_name === "nori_session_started";
       });
 
       expect(sessionCall).toBeDefined();
@@ -795,7 +795,7 @@ describe("Analytics API Spec Compliance (PLAN_ANALYTICS_PROXY.md)", () => {
 
       const sessionCall = fetchMock.mock.calls.find((call) => {
         const body = JSON.parse(call[1].body);
-        return body.event_name === "nori_session_start";
+        return body.event_name === "nori_session_started";
       });
 
       expect(sessionCall).toBeDefined();
@@ -829,5 +829,221 @@ describe("Analytics API Spec Compliance (PLAN_ANALYTICS_PROXY.md)", () => {
 
       expect(params.tilework_cli_is_first_install).toBe(true);
     });
+  });
+});
+
+/**
+ * Tests for buildCLIEventParams helper function
+ * This function builds all standard tilework_cli_* params for analytics events
+ */
+describe("buildCLIEventParams", () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  // @current-session
+  it("includes all required tilework_cli_* fields", async () => {
+    const { buildCLIEventParams } = await import("./installTracking.js");
+
+    const params = await buildCLIEventParams();
+
+    // Base params from buildBaseEventParams
+    expect(params).toHaveProperty("tilework_source", "nori-skillsets");
+    expect(params).toHaveProperty("tilework_session_id");
+    expect(params).toHaveProperty("tilework_timestamp");
+
+    // CLI-specific params
+    expect(params).toHaveProperty("tilework_cli_executable_name", "nori-ai");
+    expect(params).toHaveProperty("tilework_cli_installed_version");
+    expect(params).toHaveProperty("tilework_cli_install_source");
+    expect(typeof params.tilework_cli_days_since_install).toBe("number");
+    expect(params).toHaveProperty(
+      "tilework_cli_node_version",
+      process.versions.node,
+    );
+    expect(params).toHaveProperty("tilework_cli_install_type");
+  });
+
+  // @current-session
+  it("returns 'free' install_type when no auth in config", async () => {
+    const { buildCLIEventParams } = await import("./installTracking.js");
+
+    // Pass a mock config with no auth
+    const params = await buildCLIEventParams({
+      config: { agents: {} } as any,
+    });
+
+    expect(params.tilework_cli_install_type).toBe("free");
+  });
+
+  // @current-session
+  it("returns 'paid' install_type when auth exists in config", async () => {
+    const { buildCLIEventParams } = await import("./installTracking.js");
+
+    const params = await buildCLIEventParams({
+      config: {
+        auth: { username: "test@example.com" },
+        agents: {},
+      } as any,
+    });
+
+    expect(params.tilework_cli_install_type).toBe("paid");
+  });
+
+  // @current-session
+  it("extracts profile from agent config", async () => {
+    const { buildCLIEventParams } = await import("./installTracking.js");
+
+    const params = await buildCLIEventParams({
+      config: {
+        agents: {
+          "claude-code": {
+            profile: { baseProfile: "senior-swe" },
+          },
+        },
+      } as any,
+      agentName: "claude-code",
+    });
+
+    expect(params.tilework_cli_profile).toBe("senior-swe");
+  });
+
+  // @current-session
+  it("returns null profile when not configured", async () => {
+    const { buildCLIEventParams } = await import("./installTracking.js");
+
+    const params = await buildCLIEventParams({
+      config: { agents: {} } as any,
+    });
+
+    expect(params.tilework_cli_profile).toBeNull();
+  });
+
+  // @current-session
+  it("uses provided currentVersion instead of reading from package", async () => {
+    const { buildCLIEventParams } = await import("./installTracking.js");
+
+    const params = await buildCLIEventParams({
+      currentVersion: "99.99.99",
+      config: { agents: {} } as any,
+    });
+
+    expect(params.tilework_cli_installed_version).toBe("99.99.99");
+  });
+
+  // @current-session
+  it("calculates days_since_install from install state", async () => {
+    const { buildCLIEventParams, readInstallState } =
+      await import("./installTracking.js");
+
+    // First ensure there's an install state with a known date
+    const state = await readInstallState();
+    if (state != null) {
+      // days_since_install should be calculated from first_installed_at
+      const params = await buildCLIEventParams({
+        config: { agents: {} } as any,
+      });
+
+      expect(typeof params.tilework_cli_days_since_install).toBe("number");
+      expect(params.tilework_cli_days_since_install).toBeGreaterThanOrEqual(0);
+    }
+  });
+});
+
+/**
+ * Tests for getUserId helper function
+ * This function extracts user email from config for cross-device tracking
+ */
+describe("getUserId", () => {
+  // @current-session
+  it("returns email from config auth when present", async () => {
+    const { getUserId } = await import("./installTracking.js");
+
+    const userId = await getUserId({
+      config: {
+        auth: { username: "test@example.com" },
+      } as any,
+    });
+
+    expect(userId).toBe("test@example.com");
+  });
+
+  // @current-session
+  it("returns null when no auth in config", async () => {
+    const { getUserId } = await import("./installTracking.js");
+
+    const userId = await getUserId({
+      config: { agents: {} } as any,
+    });
+
+    expect(userId).toBeNull();
+  });
+
+  // @current-session
+  it("returns null when config is null", async () => {
+    const { getUserId } = await import("./installTracking.js");
+
+    const userId = await getUserId({ config: null });
+
+    expect(userId).toBeNull();
+  });
+});
+
+/**
+ * Tests for readInstallState export
+ * This function should be exported for use by other modules
+ */
+describe("readInstallState export", () => {
+  // @current-session
+  it("is exported and can be called", async () => {
+    const { readInstallState } = await import("./installTracking.js");
+
+    expect(typeof readInstallState).toBe("function");
+
+    // Should return null or an InstallState object
+    const state = await readInstallState();
+    if (state != null) {
+      expect(state).toHaveProperty("schema_version");
+      expect(state).toHaveProperty("client_id");
+    }
+  });
+});
+
+/**
+ * Tests for CLIEventParams type export
+ * The type should be exported for use by callers
+ */
+describe("Type exports", () => {
+  // @current-session
+  it("exports EventParams and CLIEventParams types", async () => {
+    // This test verifies the types are exported by checking
+    // that buildCLIEventParams returns the expected shape
+    const { buildCLIEventParams } = await import("./installTracking.js");
+
+    const params = await buildCLIEventParams({
+      config: { agents: {} } as any,
+    });
+
+    // Verify it matches CLIEventParams structure
+    // Base EventParams fields
+    expect(params.tilework_source).toBeDefined();
+    expect(params.tilework_session_id).toBeDefined();
+    expect(params.tilework_timestamp).toBeDefined();
+
+    // CLIEventParams additional fields
+    expect(params.tilework_cli_executable_name).toBeDefined();
+    expect(params.tilework_cli_installed_version).toBeDefined();
+    expect(params.tilework_cli_install_source).toBeDefined();
+    expect(params.tilework_cli_days_since_install).toBeDefined();
+    expect(params.tilework_cli_node_version).toBeDefined();
+    expect(params.tilework_cli_install_type).toBeDefined();
   });
 });

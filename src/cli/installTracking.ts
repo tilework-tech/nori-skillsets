@@ -5,6 +5,10 @@ import * as path from "path";
 
 import semver from "semver";
 
+import { loadConfig, type Config } from "@/cli/config.js";
+import { getCurrentPackageVersion } from "@/cli/version.js";
+import { getInstallDirs } from "@/utils/path.js";
+
 const DEFAULT_ANALYTICS_URL = "https://noriskillsets.dev/api/analytics/track";
 const INSTALL_STATE_SCHEMA_VERSION = 1;
 const INSTALL_STATE_FILE = ".nori-install.json";
@@ -21,11 +25,24 @@ const SESSION_ID = Math.floor(Date.now() / 1000).toString();
 /**
  * Type definitions matching the PLAN_ANALYTICS_PROXY.md API spec
  */
-type EventParams = {
+export type EventParams = {
   tilework_source: string;
   tilework_session_id: string;
   tilework_timestamp: string;
   [key: string]: unknown;
+};
+
+/**
+ * CLI-specific event params extending base EventParams
+ */
+export type CLIEventParams = EventParams & {
+  tilework_cli_executable_name: string;
+  tilework_cli_installed_version: string;
+  tilework_cli_install_source: string;
+  tilework_cli_days_since_install: number;
+  tilework_cli_node_version: string;
+  tilework_cli_profile: string | null;
+  tilework_cli_install_type: "paid" | "free";
 };
 
 type AnalyticsEventRequest = {
@@ -122,7 +139,7 @@ export const buildBaseEventParams = (): EventParams => {
 /**
  * Send analytics event with proper structure matching PLAN_ANALYTICS_PROXY.md
  * @param args - Event arguments
- * @param args.eventName - Name of the event (e.g., "nori_session_start")
+ * @param args.eventName - Name of the event (e.g., "nori_session_started")
  * @param args.eventParams - Event parameters including tilework_* fields
  * @param args.clientId - Optional client ID (defaults to deterministic ID)
  * @param args.userId - Optional user ID for cross-device tracking
@@ -164,7 +181,94 @@ export const sendAnalyticsEvent = (args: {
     });
 };
 
-const readInstallState = async (): Promise<InstallState | null> => {
+/**
+ * Load config for analytics without failing.
+ * @returns Config or null if not found
+ */
+const loadConfigForAnalytics = async (): Promise<Config | null> => {
+  try {
+    const installations = getInstallDirs({ currentDir: process.cwd() });
+    if (installations.length === 0) return null;
+    return await loadConfig({ installDir: installations[0] });
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Get user ID (email) from config for cross-device tracking.
+ * @param args - Optional arguments
+ * @param args.config - Pre-loaded config (optional, will load if not provided)
+ *
+ * @returns User email or null if not authenticated
+ */
+export const getUserId = async (args?: {
+  config?: Config | null;
+}): Promise<string | null> => {
+  const config = args?.config ?? (await loadConfigForAnalytics());
+  return config?.auth?.username ?? null;
+};
+
+/**
+ * Build CLI-specific event params with all standard tilework_cli_* fields.
+ * Loads config and install state to populate fields automatically.
+ * @param args - Optional arguments
+ * @param args.config - Pre-loaded config (optional, will load if not provided)
+ * @param args.agentName - Agent name for profile lookup (default: "claude-code")
+ * @param args.currentVersion - Current CLI version (optional, reads from package if not provided)
+ *
+ * @returns CLI event params including base params and all tilework_cli_* fields
+ */
+export const buildCLIEventParams = async (args?: {
+  config?: Config | null;
+  agentName?: string | null;
+  currentVersion?: string | null;
+}): Promise<CLIEventParams> => {
+  const { config: providedConfig, agentName, currentVersion } = args ?? {};
+
+  // Load config if not provided
+  const config = providedConfig ?? (await loadConfigForAnalytics());
+
+  // Load install state for days_since_install and install_source
+  const state = await readInstallState();
+
+  // Get version
+  const version = currentVersion ?? getCurrentPackageVersion() ?? "unknown";
+
+  // Calculate days since install
+  const daysSinceInstall =
+    state?.first_installed_at != null
+      ? Math.floor(
+          (Date.now() - new Date(state.first_installed_at).getTime()) /
+            (1000 * 60 * 60 * 24),
+        )
+      : 0;
+
+  // Get profile from config
+  const agent = agentName ?? "claude-code";
+  const profile = config?.agents?.[agent]?.profile?.baseProfile ?? null;
+
+  // Determine install type
+  const installType: "paid" | "free" =
+    config?.auth?.username != null ? "paid" : "free";
+
+  return {
+    ...buildBaseEventParams(),
+    tilework_cli_executable_name: "nori-ai",
+    tilework_cli_installed_version: version,
+    tilework_cli_install_source: state?.install_source ?? getInstallSource(),
+    tilework_cli_days_since_install: daysSinceInstall,
+    tilework_cli_node_version: process.versions.node,
+    tilework_cli_profile: profile,
+    tilework_cli_install_type: installType,
+  };
+};
+
+/**
+ * Read install state from disk.
+ * @returns Install state or null if not found
+ */
+export const readInstallState = async (): Promise<InstallState | null> => {
   const filePath = getInstallStatePath();
 
   try {
@@ -311,7 +415,7 @@ export const trackInstallLifecycle = async (args: {
 
     // Always send session start
     sendAnalyticsEvent({
-      eventName: "nori_session_start",
+      eventName: "nori_session_started",
       eventParams: cliEventParams,
       clientId: state.client_id,
     });
