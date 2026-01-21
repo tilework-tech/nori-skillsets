@@ -24,6 +24,11 @@ import { hasExistingInstallation } from "@/cli/commands/install/installState.js"
 import { onboardMain } from "@/cli/commands/onboard/onboard.js";
 import { loadConfig, getInstalledAgents, type Config } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
+import {
+  buildCLIEventParams,
+  getUserId,
+  sendAnalyticsEvent,
+} from "@/cli/installTracking.js";
 import { error, success, info, newline, setSilentMode } from "@/cli/logger.js";
 import {
   getCurrentPackageVersion,
@@ -33,12 +38,6 @@ import {
 import { normalizeInstallDir } from "@/utils/path.js";
 
 import type { Command } from "commander";
-
-import {
-  buildCLIEventParams,
-  getUserId,
-  sendAnalyticsEvent,
-} from "@/cli/installTracking.js";
 
 /**
  * Get the path for the progress marker file

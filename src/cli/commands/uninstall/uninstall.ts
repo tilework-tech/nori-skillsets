@@ -9,9 +9,13 @@
 import * as fs from "fs/promises";
 import * as path from "path";
 
-import { trackEvent } from "@/cli/analytics.js";
-import { loadConfig, isPaidInstall, getInstalledAgents } from "@/cli/config.js";
+import { loadConfig, getInstalledAgents } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
+import {
+  buildCLIEventParams,
+  getUserId,
+  sendAnalyticsEvent,
+} from "@/cli/installTracking.js";
 import { error, success, info, warn, newline } from "@/cli/logger.js";
 import { promptUser } from "@/cli/prompt.js";
 import { normalizeInstallDir, getInstallDirs } from "@/utils/path.js";
@@ -323,13 +327,16 @@ export const runUninstall = async (args: {
     info({ message: `Uninstalling version: ${installedVersion}` });
   }
 
-  // Track uninstallation start
-  trackEvent({
-    eventName: "plugin_uninstall_started",
-    eventParams: {
-      install_type: isPaidInstall({ config }) ? "paid" : "free",
-    },
-  });
+  // Track uninstallation start (fire-and-forget)
+  void (async () => {
+    const cliParams = await buildCLIEventParams({ config });
+    const userId = await getUserId({ config });
+    sendAnalyticsEvent({
+      eventName: "noriprof_uninstall_started",
+      eventParams: cliParams,
+      userId,
+    });
+  })();
 
   // Load all feature loaders in reverse order for uninstall
   // During install, profiles must run first to create profile directories.
@@ -393,13 +400,16 @@ export const runUninstall = async (args: {
     }
   }
 
-  // Track uninstallation completion
-  trackEvent({
-    eventName: "plugin_uninstall_completed",
-    eventParams: {
-      install_type: isPaidInstall({ config }) ? "paid" : "free",
-    },
-  });
+  // Track uninstallation completion (fire-and-forget)
+  void (async () => {
+    const cliParams = await buildCLIEventParams({ config });
+    const userId = await getUserId({ config });
+    sendAnalyticsEvent({
+      eventName: "noriprof_uninstall_completed",
+      eventParams: cliParams,
+      userId,
+    });
+  })();
 };
 
 /**

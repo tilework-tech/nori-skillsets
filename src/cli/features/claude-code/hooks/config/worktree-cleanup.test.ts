@@ -18,8 +18,10 @@ let consoleOutput: Array<string> = [];
 const originalConsoleLog = console.log;
 
 // Mock analytics to prevent actual tracking
-vi.mock("@/cli/analytics.js", () => ({
-  trackEvent: vi.fn().mockResolvedValue(undefined),
+vi.mock("@/cli/installTracking.js", () => ({
+  buildCLIEventParams: vi.fn().mockResolvedValue({}),
+  getUserId: vi.fn().mockResolvedValue(null),
+  sendAnalyticsEvent: vi.fn(),
 }));
 
 // Mock child_process to control disk space output

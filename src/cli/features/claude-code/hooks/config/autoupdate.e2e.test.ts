@@ -26,9 +26,22 @@ vi.mock("@/cli/logger.js", async (importOriginal) => {
   };
 });
 
-// Mock analytics
-vi.mock("@/cli/analytics.js", () => ({
-  trackEvent: vi.fn(),
+// Mock analytics from installTracking
+vi.mock("@/cli/installTracking.js", () => ({
+  buildCLIEventParams: vi.fn().mockResolvedValue({
+    tilework_source: "nori-skillsets",
+    tilework_session_id: "123456",
+    tilework_timestamp: "2025-01-20T00:00:00.000Z",
+    tilework_cli_executable_name: "nori-ai",
+    tilework_cli_installed_version: "1.0.0",
+    tilework_cli_install_source: "npm",
+    tilework_cli_days_since_install: 0,
+    tilework_cli_node_version: "20.0.0",
+    tilework_cli_profile: null,
+    tilework_cli_install_type: "free",
+  }),
+  getUserId: vi.fn().mockResolvedValue(null),
+  sendAnalyticsEvent: vi.fn(),
 }));
 
 // Mock config to provide install_type and version
@@ -130,10 +143,10 @@ exit 0
       installDir: tempHomeDir,
     });
 
-    // Mock trackEvent
-    const { trackEvent } = await import("@/cli/analytics.js");
-    const mockTrackEvent = vi.mocked(trackEvent);
-    mockTrackEvent.mockResolvedValue();
+    // Mock sendAnalyticsEvent
+    const { sendAnalyticsEvent } = await import("@/cli/installTracking.js");
+    const _mockSendAnalyticsEvent = vi.mocked(sendAnalyticsEvent);
+    // sendAnalyticsEvent is fire-and-forget, no mock setup needed
 
     // Spy on console.log
     const consoleLogSpy = vi

@@ -96,9 +96,21 @@ vi.mock("@/cli/version.js", async (importOriginal) => {
 });
 
 // Mock analytics to prevent tracking during tests
-vi.mock("@/cli/analytics.js", () => ({
-  initializeAnalytics: vi.fn(),
-  trackEvent: vi.fn(),
+vi.mock("@/cli/installTracking.js", () => ({
+  buildCLIEventParams: vi.fn().mockResolvedValue({
+    tilework_source: "nori-skillsets",
+    tilework_session_id: "123456",
+    tilework_timestamp: "2025-01-20T00:00:00.000Z",
+    tilework_cli_executable_name: "nori-ai",
+    tilework_cli_installed_version: "1.0.0",
+    tilework_cli_install_source: "npm",
+    tilework_cli_days_since_install: 0,
+    tilework_cli_node_version: "20.0.0",
+    tilework_cli_profile: null,
+    tilework_cli_install_type: "free",
+  }),
+  getUserId: vi.fn().mockResolvedValue(null),
+  sendAnalyticsEvent: vi.fn(),
 }));
 
 // Mock Firebase SDK to avoid hitting real Firebase API

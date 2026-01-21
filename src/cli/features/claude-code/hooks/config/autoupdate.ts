@@ -12,8 +12,12 @@ import { openSync, closeSync, existsSync } from "fs";
 
 import semver from "semver";
 
-import { trackEvent } from "@/cli/analytics.js";
 import { loadConfig } from "@/cli/config.js";
+import {
+  buildCLIEventParams,
+  getUserId,
+  sendAnalyticsEvent,
+} from "@/cli/installTracking.js";
 import { debug, LOG_FILE } from "@/cli/logger.js";
 import { getInstallDirs } from "@/utils/path.js";
 
@@ -125,7 +129,6 @@ const main = async (): Promise<void> => {
 
   // Load config from found directory
   const diskConfig = await loadConfig({ installDir: configDir });
-  const installType = diskConfig?.auth ? "paid" : "free";
 
   if (diskConfig?.installDir == null) {
     // Config exists but has no installDir - log error and exit
@@ -165,16 +168,25 @@ const main = async (): Promise<void> => {
     semver.gt(latestVersion, installedVersion);
 
   // Track session start (fire and forget - non-blocking)
-  trackEvent({
-    eventName: "nori_session_started",
-    eventParams: {
-      installed_version: installedVersion,
-      update_available: updateAvailable,
-      install_type: installType,
-    },
-  }).catch(() => {
-    // Silent failure - never interrupt session startup for analytics
-  });
+  void (async () => {
+    try {
+      const cliParams = await buildCLIEventParams({
+        config: diskConfig,
+        currentVersion: installedVersion,
+      });
+      const userId = await getUserId({ config: diskConfig });
+      sendAnalyticsEvent({
+        eventName: "claude_session_started",
+        eventParams: {
+          ...cliParams,
+          tilework_cli_update_available: updateAvailable,
+        },
+        userId,
+      });
+    } catch {
+      // Silent failure - never interrupt session startup for analytics
+    }
+  })();
 
   if (!updateAvailable) {
     // No update needed (either no latest version found, invalid version,
