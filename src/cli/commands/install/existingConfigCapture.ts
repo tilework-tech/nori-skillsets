@@ -1,0 +1,353 @@
+/**
+ * Existing Config Capture
+ *
+ * Functions for detecting and capturing existing Claude Code configurations
+ * as a named profile during installation.
+ */
+
+import * as fs from "fs/promises";
+import * as path from "path";
+
+import {
+  getClaudeDir,
+  getClaudeMdFile,
+  getClaudeSkillsDir,
+  getClaudeAgentsDir,
+  getClaudeCommandsDir,
+  getNoriProfilesDir,
+} from "@/cli/features/claude-code/paths.js";
+import { error, info, newline, warn } from "@/cli/logger.js";
+import { promptUser } from "@/cli/prompt.js";
+
+// Managed block markers
+const BEGIN_MARKER = "# BEGIN NORI-AI MANAGED BLOCK";
+const END_MARKER = "# END NORI-AI MANAGED BLOCK";
+
+/**
+ * Represents the detected existing configuration
+ */
+export type ExistingConfig = {
+  hasClaudeMd: boolean;
+  hasManagedBlock: boolean;
+  hasSkills: boolean;
+  skillCount: number;
+  hasAgents: boolean;
+  agentCount: number;
+  hasCommands: boolean;
+  commandCount: number;
+};
+
+/**
+ * Check if a file exists
+ *
+ * @param filePath - Path to the file to check
+ *
+ * @returns True if the file exists, false otherwise
+ */
+const fileExists = async (filePath: string): Promise<boolean> => {
+  try {
+    await fs.access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Count SKILL.md files in skills directory
+ *
+ * @param skillsDir - Path to the skills directory
+ *
+ * @returns Number of valid skill directories found
+ */
+const countSkills = async (skillsDir: string): Promise<number> => {
+  try {
+    const entries = await fs.readdir(skillsDir, { withFileTypes: true });
+    let count = 0;
+
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        const skillMdPath = path.join(skillsDir, entry.name, "SKILL.md");
+        if (await fileExists(skillMdPath)) {
+          count++;
+        }
+      }
+    }
+
+    return count;
+  } catch {
+    return 0;
+  }
+};
+
+/**
+ * Count .md files in a directory (for agents and commands)
+ *
+ * @param dir - Path to the directory to scan
+ *
+ * @returns Number of .md files found
+ */
+const countMdFiles = async (dir: string): Promise<number> => {
+  try {
+    const entries = await fs.readdir(dir, { withFileTypes: true });
+    let count = 0;
+
+    for (const entry of entries) {
+      if (entry.isFile() && entry.name.endsWith(".md")) {
+        count++;
+      }
+    }
+
+    return count;
+  } catch {
+    return 0;
+  }
+};
+
+/**
+ * Detect existing Claude Code configuration
+ *
+ * Checks for:
+ * - CLAUDE.md file (and whether it has a managed block)
+ * - skills directory with SKILL.md files
+ * - agents directory with .md files
+ * - commands directory with .md files
+ *
+ * @param args - Configuration arguments
+ * @param args.installDir - Installation directory
+ *
+ * @returns Detected config info, or null if no config found
+ */
+export const detectExistingConfig = async (args: {
+  installDir: string;
+}): Promise<ExistingConfig | null> => {
+  const { installDir } = args;
+
+  const claudeDir = getClaudeDir({ installDir });
+
+  // Check if .claude directory exists
+  if (!(await fileExists(claudeDir))) {
+    return null;
+  }
+
+  const claudeMdFile = getClaudeMdFile({ installDir });
+  const skillsDir = getClaudeSkillsDir({ installDir });
+  const agentsDir = getClaudeAgentsDir({ installDir });
+  const commandsDir = getClaudeCommandsDir({ installDir });
+
+  // Check CLAUDE.md
+  let hasClaudeMd = false;
+  let hasManagedBlock = false;
+
+  if (await fileExists(claudeMdFile)) {
+    hasClaudeMd = true;
+    try {
+      const content = await fs.readFile(claudeMdFile, "utf-8");
+      hasManagedBlock = content.includes(BEGIN_MARKER);
+    } catch {
+      // Ignore read errors
+    }
+  }
+
+  // Count skills
+  const skillCount = await countSkills(skillsDir);
+  const hasSkills = skillCount > 0;
+
+  // Count agents
+  const agentCount = await countMdFiles(agentsDir);
+  const hasAgents = agentCount > 0;
+
+  // Count commands
+  const commandCount = await countMdFiles(commandsDir);
+  const hasCommands = commandCount > 0;
+
+  // Return null if nothing was found
+  if (!hasClaudeMd && !hasSkills && !hasAgents && !hasCommands) {
+    return null;
+  }
+
+  return {
+    hasClaudeMd,
+    hasManagedBlock,
+    hasSkills,
+    skillCount,
+    hasAgents,
+    agentCount,
+    hasCommands,
+    commandCount,
+  };
+};
+
+/**
+ * Capture existing configuration as a named profile
+ *
+ * Creates a new profile in ~/.nori/profiles/<profileName>/ containing:
+ * - profile.json with metadata
+ * - CLAUDE.md with managed block markers added
+ * - skills/ directory (copied from ~/.claude/skills/)
+ * - subagents/ directory (copied from ~/.claude/agents/)
+ * - slashcommands/ directory (copied from ~/.claude/commands/)
+ *
+ * @param args - Configuration arguments
+ * @param args.installDir - Installation directory
+ * @param args.profileName - Name for the new profile
+ */
+export const captureExistingConfigAsProfile = async (args: {
+  installDir: string;
+  profileName: string;
+}): Promise<void> => {
+  const { installDir, profileName } = args;
+
+  const profilesDir = getNoriProfilesDir({ installDir });
+  const profileDir = path.join(profilesDir, profileName);
+
+  // Create profile directory
+  await fs.mkdir(profileDir, { recursive: true });
+
+  // Create profile.json
+  const profileJson = {
+    name: profileName,
+    description: "Captured from existing configuration",
+    builtin: false,
+  };
+  await fs.writeFile(
+    path.join(profileDir, "profile.json"),
+    JSON.stringify(profileJson, null, 2),
+  );
+
+  // Copy CLAUDE.md with managed block markers
+  const claudeMdFile = getClaudeMdFile({ installDir });
+  if (await fileExists(claudeMdFile)) {
+    let content = await fs.readFile(claudeMdFile, "utf-8");
+
+    // Add managed block markers if not present
+    if (!content.includes(BEGIN_MARKER)) {
+      content = `${BEGIN_MARKER}\n${content}\n${END_MARKER}\n`;
+    }
+
+    await fs.writeFile(path.join(profileDir, "CLAUDE.md"), content);
+  } else {
+    // Create empty CLAUDE.md with markers
+    await fs.writeFile(
+      path.join(profileDir, "CLAUDE.md"),
+      `${BEGIN_MARKER}\n\n${END_MARKER}\n`,
+    );
+  }
+
+  // Copy skills directory
+  const skillsDir = getClaudeSkillsDir({ installDir });
+  if (await fileExists(skillsDir)) {
+    const destSkillsDir = path.join(profileDir, "skills");
+    await fs.cp(skillsDir, destSkillsDir, { recursive: true });
+  }
+
+  // Copy agents directory as subagents
+  const agentsDir = getClaudeAgentsDir({ installDir });
+  if (await fileExists(agentsDir)) {
+    const destSubagentsDir = path.join(profileDir, "subagents");
+    await fs.cp(agentsDir, destSubagentsDir, { recursive: true });
+  }
+
+  // Copy commands directory as slashcommands
+  const commandsDir = getClaudeCommandsDir({ installDir });
+  if (await fileExists(commandsDir)) {
+    const destSlashcommandsDir = path.join(profileDir, "slashcommands");
+    await fs.cp(commandsDir, destSlashcommandsDir, { recursive: true });
+  }
+};
+
+/**
+ * Validate profile name
+ * Must be lowercase alphanumeric with hyphens, not empty
+ *
+ * @param name - Profile name to validate
+ *
+ * @returns True if valid, false otherwise
+ */
+const isValidProfileName = (name: string): boolean => {
+  if (!name || name.trim() === "") {
+    return false;
+  }
+  // Allow lowercase letters, numbers, and hyphens
+  return /^[a-z0-9-]+$/.test(name);
+};
+
+/**
+ * Prompt user to capture existing configuration
+ *
+ * Displays what was detected and asks if user wants to save as a profile.
+ * If yes, prompts for profile name.
+ *
+ * @param args - Configuration arguments
+ * @param args.existingConfig - Detected existing configuration
+ *
+ * @returns Profile name if user chooses to save, null if declined
+ */
+export const promptForExistingConfigCapture = async (args: {
+  existingConfig: ExistingConfig;
+}): Promise<string | null> => {
+  const { existingConfig } = args;
+
+  // Display what was found
+  info({ message: "Found existing Claude Code configuration:" });
+  newline();
+
+  if (existingConfig.hasClaudeMd) {
+    info({ message: "  • CLAUDE.md found" });
+  }
+  if (existingConfig.hasSkills) {
+    info({
+      message: `  • ${existingConfig.skillCount} skill${existingConfig.skillCount === 1 ? "" : "s"} found`,
+    });
+  }
+  if (existingConfig.hasAgents) {
+    info({
+      message: `  • ${existingConfig.agentCount} subagent${existingConfig.agentCount === 1 ? "" : "s"} found`,
+    });
+  }
+  if (existingConfig.hasCommands) {
+    info({
+      message: `  • ${existingConfig.commandCount} slash command${existingConfig.commandCount === 1 ? "" : "s"} found`,
+    });
+  }
+  newline();
+
+  // Show warning if managed block detected
+  if (existingConfig.hasManagedBlock) {
+    warn({
+      message:
+        "⚠️  Your CLAUDE.md contains a Nori managed block, which suggests",
+    });
+    warn({
+      message:
+        "   a previous Nori installation. The captured profile will preserve this content.",
+    });
+    newline();
+  }
+
+  // Ask if user wants to save as profile
+  const saveResponse = await promptUser({
+    prompt: "Would you like to save this configuration as a profile? (y/n): ",
+  });
+
+  if (!saveResponse.match(/^[Yy]$/)) {
+    return null;
+  }
+
+  // Prompt for profile name with validation
+  while (true) {
+    const nameResponse = await promptUser({
+      prompt:
+        "Enter a name for this profile (lowercase letters, numbers, hyphens): ",
+    });
+
+    if (isValidProfileName(nameResponse)) {
+      return nameResponse;
+    }
+
+    error({
+      message:
+        "Invalid profile name. Use only lowercase letters, numbers, and hyphens.",
+    });
+  }
+};

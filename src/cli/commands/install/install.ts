@@ -18,6 +18,11 @@ import {
   displayWelcomeBanner,
   displaySeaweedBed,
 } from "@/cli/commands/install/asciiArt.js";
+import {
+  detectExistingConfig,
+  captureExistingConfigAsProfile,
+  promptForExistingConfigCapture,
+} from "@/cli/commands/install/existingConfigCapture.js";
 import { hasExistingInstallation } from "@/cli/commands/install/installState.js";
 import {
   loadConfig,
@@ -603,6 +608,29 @@ export const interactive = async (args?: {
   newline();
   info({ message: "Let's personalize Nori to your needs." });
   newline();
+
+  // Check for existing Claude Code configuration to capture as a profile
+  // Only do this on first-time install (no existing Nori config)
+  if (existingConfig == null) {
+    const detectedConfig = await detectExistingConfig({
+      installDir: normalizedInstallDir,
+    });
+    if (detectedConfig != null) {
+      const capturedProfileName = await promptForExistingConfigCapture({
+        existingConfig: detectedConfig,
+      });
+      if (capturedProfileName != null) {
+        await captureExistingConfigAsProfile({
+          installDir: normalizedInstallDir,
+          profileName: capturedProfileName,
+        });
+        success({
+          message: `✓ Configuration saved as profile "${capturedProfileName}"`,
+        });
+        newline();
+      }
+    }
+  }
 
   // Generate configuration through prompts
   const config = await generatePromptConfig({
