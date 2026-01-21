@@ -15,11 +15,15 @@ import * as tar from "tar";
 import { registrarApi, REGISTRAR_URL } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
 import {
+  getCommandNames,
+  type CliName,
+} from "@/cli/commands/cliCommandNames.js";
+import {
   checkRegistryAgentSupport,
   showCursorAgentNotSupportedError,
 } from "@/cli/commands/registryAgentCheck.js";
 import { getRegistryAuth } from "@/cli/config.js";
-import { getNoriSkillsDir } from "@/cli/features/claude-code/paths.js";
+import { getClaudeSkillsDir } from "@/cli/features/claude-code/paths.js";
 import { error, success, info, newline, raw } from "@/cli/logger.js";
 import { getInstallDirs } from "@/utils/path.js";
 
@@ -249,6 +253,7 @@ const searchSpecificRegistry = async (args: {
  * @param args.skillName - The skill name
  * @param args.packument - The packument containing version information
  * @param args.registryUrl - The registry URL
+ * @param args.cliName - The CLI name for command hints
  *
  * @returns Formatted version list message
  */
@@ -256,8 +261,11 @@ const formatVersionList = (args: {
   skillName: string;
   packument: Packument;
   registryUrl: string;
+  cliName?: CliName | null;
 }): string => {
-  const { skillName, packument, registryUrl } = args;
+  const { skillName, packument, registryUrl, cliName } = args;
+  const commandNames = getCommandNames({ cliName });
+  const cliPrefix = cliName ?? "nori-ai";
   const distTags = packument["dist-tags"];
   const versions = Object.keys(packument.versions);
   const timeInfo = packument.time ?? {};
@@ -295,7 +303,7 @@ const formatVersionList = (args: {
   }
 
   lines.push(
-    `\nTo download a specific version:\n  nori-ai skill-download ${skillName}@<version>`,
+    `\nTo download a specific version:\n  ${cliPrefix} ${commandNames.downloadSkill} ${skillName}@<version>`,
   );
 
   return lines.join("\n");
@@ -306,14 +314,18 @@ const formatVersionList = (args: {
  * @param args - The format parameters
  * @param args.skillName - The skill name that was searched
  * @param args.results - The search results from multiple registries
+ * @param args.cliName - The CLI name for command hints
  *
  * @returns Formatted error message
  */
 const formatMultipleSkillsError = (args: {
   skillName: string;
   results: Array<RegistrySearchResult>;
+  cliName?: CliName | null;
 }): string => {
-  const { skillName, results } = args;
+  const { skillName, results, cliName } = args;
+  const commandNames = getCommandNames({ cliName });
+  const cliPrefix = cliName ?? "nori-ai";
 
   const lines = ["Multiple skills with the same name found.\n"];
 
@@ -327,7 +339,7 @@ const formatMultipleSkillsError = (args: {
   lines.push("To download, please specify the registry with --registry:");
   for (const result of results) {
     lines.push(
-      `nori-ai skill-download ${skillName} --registry ${result.registryUrl}`,
+      `${cliPrefix} ${commandNames.downloadSkill} ${skillName} --registry ${result.registryUrl}`,
     );
   }
 
@@ -342,6 +354,7 @@ const formatMultipleSkillsError = (args: {
  * @param args.installDir - Optional explicit install directory
  * @param args.registryUrl - Optional registry URL to download from
  * @param args.listVersions - If true, list available versions instead of downloading
+ * @param args.cliName - CLI name for user-facing messages (nori-ai or seaweed)
  */
 export const skillDownloadMain = async (args: {
   skillSpec: string;
@@ -349,9 +362,12 @@ export const skillDownloadMain = async (args: {
   installDir?: string | null;
   registryUrl?: string | null;
   listVersions?: boolean | null;
+  cliName?: CliName | null;
 }): Promise<void> => {
-  const { skillSpec, installDir, registryUrl, listVersions } = args;
+  const { skillSpec, installDir, registryUrl, listVersions, cliName } = args;
   const cwd = args.cwd ?? process.cwd();
+  const commandNames = getCommandNames({ cliName });
+  const cliPrefix = cliName ?? "nori-ai";
 
   const { skillName, version } = parseSkillSpec({ skillSpec });
 
@@ -399,7 +415,7 @@ export const skillDownloadMain = async (args: {
   // Use config from agentCheck (already loaded during support check)
   const config = agentCheck.config;
 
-  const skillsDir = getNoriSkillsDir({ installDir: targetInstallDir });
+  const skillsDir = getClaudeSkillsDir({ installDir: targetInstallDir });
   const targetDir = path.join(skillsDir, skillName);
 
   // Check if skill already exists and get its version info
@@ -454,6 +470,7 @@ export const skillDownloadMain = async (args: {
       message: formatMultipleSkillsError({
         skillName,
         results: searchResults,
+        cliName,
       }),
     });
     return;
@@ -469,6 +486,7 @@ export const skillDownloadMain = async (args: {
         skillName,
         packument: selectedRegistry.packument,
         registryUrl: selectedRegistry.registryUrl,
+        cliName,
       }),
     });
     return;
@@ -483,7 +501,7 @@ export const skillDownloadMain = async (args: {
     if (existingVersionInfo == null) {
       // Skill exists but has no .nori-version - manual install
       error({
-        message: `Skill "${skillName}" already exists at:\n${targetDir}\n\nThis skill has no version information (.nori-version file).\nIt may have been installed manually or with an older version of Nori.\n\nTo reinstall:\n  rm -rf "${targetDir}"\n  nori-ai skill-download ${skillName}`,
+        message: `Skill "${skillName}" already exists at:\n${targetDir}\n\nThis skill has no version information (.nori-version file).\nIt may have been installed manually or with an older version of Nori.\n\nTo reinstall:\n  rm -rf "${targetDir}"\n  ${cliPrefix} ${commandNames.downloadSkill} ${skillName}`,
       });
       return;
     }
@@ -629,7 +647,7 @@ export const skillDownloadMain = async (args: {
     info({ message: `Installed to: ${targetDir}` });
     newline();
     info({
-      message: `You can now reference this skill in your profile's skills.json.`,
+      message: `Skill "${skillName}" is now available in your Claude Code profile.`,
     });
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);

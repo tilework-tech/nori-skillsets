@@ -8,6 +8,10 @@
 import { registrarApi, REGISTRAR_URL, type Package } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
 import {
+  getCommandNames,
+  type CliName,
+} from "@/cli/commands/cliCommandNames.js";
+import {
   checkRegistryAgentSupport,
   showCursorAgentNotSupportedError,
 } from "@/cli/commands/registryAgentCheck.js";
@@ -253,23 +257,29 @@ const formatUnifiedSearchResults = (args: {
  * @param args - The results
  * @param args.hasProfiles - Whether profiles were found
  * @param args.hasSkills - Whether skills were found
+ * @param args.cliName - The CLI name for command hints
  *
  * @returns Hint message
  */
 const buildDownloadHints = (args: {
   hasProfiles: boolean;
   hasSkills: boolean;
+  cliName?: CliName | null;
 }): string => {
-  const { hasProfiles, hasSkills } = args;
+  const { hasProfiles, hasSkills, cliName } = args;
+  const commandNames = getCommandNames({ cliName });
+  const cliPrefix = cliName ?? "nori-ai";
   const hints: Array<string> = [];
 
   if (hasProfiles) {
     hints.push(
-      "To install a profile, run: nori-ai registry-download <package-name>",
+      `To install a profile, run: ${cliPrefix} ${commandNames.download} <package-name>`,
     );
   }
   if (hasSkills) {
-    hints.push("To install a skill, run: nori-ai skill-download <skill-name>");
+    hints.push(
+      `To install a skill, run: ${cliPrefix} ${commandNames.downloadSkill} <skill-name>`,
+    );
   }
 
   return hints.join("\n");
@@ -280,12 +290,14 @@ const buildDownloadHints = (args: {
  * @param args - The search parameters
  * @param args.query - The search query
  * @param args.installDir - Optional installation directory (detected if not provided)
+ * @param args.cliName - CLI name for user-facing messages (nori-ai or seaweed)
  */
 export const registrySearchMain = async (args: {
   query: string;
   installDir?: string | null;
+  cliName?: CliName | null;
 }): Promise<void> => {
-  const { query, installDir } = args;
+  const { query, installDir, cliName } = args;
 
   // Determine effective install directory
   let effectiveInstallDir: string;
@@ -417,6 +429,7 @@ export const registrySearchMain = async (args: {
   const hints = buildDownloadHints({
     hasProfiles: hasProfileResults,
     hasSkills: hasSkillResults,
+    cliName,
   });
   if (hints) {
     info({ message: hints });

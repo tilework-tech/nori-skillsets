@@ -749,4 +749,98 @@ describe("registry-upload", () => {
       expect(registrarApi.uploadProfile).toHaveBeenCalled();
     });
   });
+
+  describe("cliName in user-facing messages", () => {
+    it("should use seaweed command names in success message when cliName is seaweed", async () => {
+      await createTestProfile({ name: "test-profile" });
+
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        registryAuths: [
+          {
+            username: "test@example.com",
+            password: "test-password",
+            registryUrl: "https://noriskillsets.dev",
+          },
+        ],
+      });
+
+      vi.mocked(getRegistryAuth).mockReturnValue({
+        username: "test@example.com",
+        password: "test-password",
+        registryUrl: "https://noriskillsets.dev",
+      });
+
+      vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
+
+      vi.mocked(registrarApi.getPackument).mockRejectedValue(
+        new Error("Package not found"),
+      );
+
+      vi.mocked(registrarApi.uploadProfile).mockResolvedValue({
+        name: "test-profile",
+        version: "1.0.0",
+        tarballSha: "sha512-abc123",
+        createdAt: "2024-01-01T00:00:00.000Z",
+      });
+
+      await registryUploadMain({
+        profileSpec: "test-profile",
+        cwd: testDir,
+        cliName: "seaweed",
+      });
+
+      const allOutput = mockConsoleLog.mock.calls
+        .map((call) => call.join(" "))
+        .join("\n");
+      expect(allOutput).toContain("seaweed download");
+      expect(allOutput).not.toContain("nori-ai registry-download");
+    });
+
+    it("should use nori-ai command names in success message when cliName is nori-ai", async () => {
+      await createTestProfile({ name: "test-profile" });
+
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        registryAuths: [
+          {
+            username: "test@example.com",
+            password: "test-password",
+            registryUrl: "https://noriskillsets.dev",
+          },
+        ],
+      });
+
+      vi.mocked(getRegistryAuth).mockReturnValue({
+        username: "test@example.com",
+        password: "test-password",
+        registryUrl: "https://noriskillsets.dev",
+      });
+
+      vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
+
+      vi.mocked(registrarApi.getPackument).mockRejectedValue(
+        new Error("Package not found"),
+      );
+
+      vi.mocked(registrarApi.uploadProfile).mockResolvedValue({
+        name: "test-profile",
+        version: "1.0.0",
+        tarballSha: "sha512-abc123",
+        createdAt: "2024-01-01T00:00:00.000Z",
+      });
+
+      await registryUploadMain({
+        profileSpec: "test-profile",
+        cwd: testDir,
+        cliName: "nori-ai",
+      });
+
+      const allOutput = mockConsoleLog.mock.calls
+        .map((call) => call.join(" "))
+        .join("\n");
+      expect(allOutput).toContain("nori-ai registry-download");
+      expect(allOutput).not.toContain("seaweed download");
+    });
+  });
 });

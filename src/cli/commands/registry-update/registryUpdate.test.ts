@@ -539,4 +539,72 @@ describe("registry-update", () => {
       expect(registrarApi.getPackument).toHaveBeenCalled();
     });
   });
+
+  describe("cliName in user-facing messages", () => {
+    it("should use seaweed command names when cliName is seaweed", async () => {
+      // Create profile without .nori-version (triggers reinstall message)
+      const existingProfileDir = path.join(profilesDir, "test-profile");
+      await fs.mkdir(existingProfileDir, { recursive: true });
+      await fs.writeFile(
+        path.join(existingProfileDir, "CLAUDE.md"),
+        "# Manual install",
+      );
+
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        registryAuths: [],
+      });
+
+      vi.mocked(registrarApi.getPackument).mockResolvedValue({
+        name: "test-profile",
+        "dist-tags": { latest: "1.0.0" },
+        versions: { "1.0.0": { name: "test-profile", version: "1.0.0" } },
+      });
+
+      await registryUpdateMain({
+        profileName: "test-profile",
+        cwd: testDir,
+        cliName: "seaweed",
+      });
+
+      const allOutput = mockConsoleError.mock.calls
+        .map((call) => call.join(" "))
+        .join("\n");
+      expect(allOutput).toContain("seaweed download");
+      expect(allOutput).not.toContain("nori-ai registry-download");
+    });
+
+    it("should use nori-ai command names when cliName is nori-ai", async () => {
+      // Create profile without .nori-version (triggers reinstall message)
+      const existingProfileDir = path.join(profilesDir, "test-profile");
+      await fs.mkdir(existingProfileDir, { recursive: true });
+      await fs.writeFile(
+        path.join(existingProfileDir, "CLAUDE.md"),
+        "# Manual install",
+      );
+
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        registryAuths: [],
+      });
+
+      vi.mocked(registrarApi.getPackument).mockResolvedValue({
+        name: "test-profile",
+        "dist-tags": { latest: "1.0.0" },
+        versions: { "1.0.0": { name: "test-profile", version: "1.0.0" } },
+      });
+
+      await registryUpdateMain({
+        profileName: "test-profile",
+        cwd: testDir,
+        cliName: "nori-ai",
+      });
+
+      const allOutput = mockConsoleError.mock.calls
+        .map((call) => call.join(" "))
+        .join("\n");
+      expect(allOutput).toContain("nori-ai registry-download");
+      expect(allOutput).not.toContain("seaweed download");
+    });
+  });
 });

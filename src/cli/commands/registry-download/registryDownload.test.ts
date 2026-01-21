@@ -1575,6 +1575,175 @@ describe("registry-download", () => {
       expect((await fs.stat(profileDir)).isDirectory()).toBe(true);
     });
   });
+
+  describe("cliName in user-facing messages", () => {
+    it("should use seaweed command names when cliName is seaweed", async () => {
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        registryAuths: [],
+      });
+
+      vi.mocked(registrarApi.getPackument).mockResolvedValue({
+        name: "test-profile",
+        "dist-tags": { latest: "1.0.0" },
+        versions: { "1.0.0": { name: "test-profile", version: "1.0.0" } },
+      });
+
+      const mockTarball = await createMockTarball();
+      vi.mocked(registrarApi.downloadTarball).mockResolvedValue(mockTarball);
+
+      await registryDownloadMain({
+        packageSpec: "test-profile",
+        cwd: testDir,
+        cliName: "seaweed",
+      });
+
+      // Verify success message uses seaweed command names
+      const allOutput = mockConsoleLog.mock.calls
+        .map((call) => call.join(" "))
+        .join("\n");
+      expect(allOutput).toContain("seaweed switch-skillset");
+      expect(allOutput).not.toContain("nori-ai switch-profile");
+    });
+
+    it("should use nori-ai command names when cliName is nori-ai", async () => {
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        registryAuths: [],
+      });
+
+      vi.mocked(registrarApi.getPackument).mockResolvedValue({
+        name: "test-profile",
+        "dist-tags": { latest: "1.0.0" },
+        versions: { "1.0.0": { name: "test-profile", version: "1.0.0" } },
+      });
+
+      const mockTarball = await createMockTarball();
+      vi.mocked(registrarApi.downloadTarball).mockResolvedValue(mockTarball);
+
+      await registryDownloadMain({
+        packageSpec: "test-profile",
+        cwd: testDir,
+        cliName: "nori-ai",
+      });
+
+      // Verify success message uses nori-ai command names
+      const allOutput = mockConsoleLog.mock.calls
+        .map((call) => call.join(" "))
+        .join("\n");
+      expect(allOutput).toContain("nori-ai switch-profile");
+      expect(allOutput).not.toContain("seaweed switch-skillset");
+    });
+
+    it("should default to nori-ai command names when cliName is not provided", async () => {
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        registryAuths: [],
+      });
+
+      vi.mocked(registrarApi.getPackument).mockResolvedValue({
+        name: "test-profile",
+        "dist-tags": { latest: "1.0.0" },
+        versions: { "1.0.0": { name: "test-profile", version: "1.0.0" } },
+      });
+
+      const mockTarball = await createMockTarball();
+      vi.mocked(registrarApi.downloadTarball).mockResolvedValue(mockTarball);
+
+      await registryDownloadMain({
+        packageSpec: "test-profile",
+        cwd: testDir,
+      });
+
+      // Verify success message defaults to nori-ai command names
+      const allOutput = mockConsoleLog.mock.calls
+        .map((call) => call.join(" "))
+        .join("\n");
+      expect(allOutput).toContain("nori-ai switch-profile");
+    });
+
+    it("should use seaweed command names in version list hint when cliName is seaweed", async () => {
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        registryAuths: [],
+      });
+
+      vi.mocked(registrarApi.getPackument).mockResolvedValue({
+        name: "test-profile",
+        "dist-tags": { latest: "1.0.0" },
+        versions: { "1.0.0": { name: "test-profile", version: "1.0.0" } },
+      });
+
+      await registryDownloadMain({
+        packageSpec: "test-profile",
+        cwd: testDir,
+        listVersions: true,
+        cliName: "seaweed",
+      });
+
+      // Verify version hint uses seaweed command names
+      const allOutput = mockConsoleLog.mock.calls
+        .map((call) => call.join(" "))
+        .join("\n");
+      expect(allOutput).toContain("seaweed download");
+      expect(allOutput).not.toContain("nori-ai registry-download");
+    });
+
+    it("should use seaweed command names in disambiguation error when cliName is seaweed", async () => {
+      const privateRegistryUrl = "https://private.registry.com";
+
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        registryAuths: [
+          {
+            registryUrl: privateRegistryUrl,
+            username: "user",
+            password: "pass",
+          },
+        ],
+      });
+
+      vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
+
+      // Package exists in BOTH registries
+      vi.mocked(registrarApi.getPackument).mockImplementation(async (args) => {
+        if (args.registryUrl === REGISTRAR_URL) {
+          return {
+            name: "test-profile",
+            description: "Public version",
+            "dist-tags": { latest: "1.0.0" },
+            versions: {
+              "1.0.0": { name: "test-profile", version: "1.0.0" },
+            } as Record<string, { name: string; version: string }>,
+          };
+        }
+        if (args.registryUrl === privateRegistryUrl) {
+          return {
+            name: "test-profile",
+            description: "Private version",
+            "dist-tags": { latest: "2.0.0" },
+            versions: {
+              "2.0.0": { name: "test-profile", version: "2.0.0" },
+            } as Record<string, { name: string; version: string }>,
+          };
+        }
+        throw new Error("Not found");
+      });
+
+      await registryDownloadMain({
+        packageSpec: "test-profile",
+        cwd: testDir,
+        cliName: "seaweed",
+      });
+
+      // Verify disambiguation error uses seaweed command names
+      const allErrorOutput = mockConsoleError.mock.calls
+        .map((call) => call.join(" "))
+        .join("\n");
+      expect(allErrorOutput).toContain("seaweed download");
+      expect(allErrorOutput).not.toContain("nori-ai registry-download");
+    });
+  });
 });
 
 /**

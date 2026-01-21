@@ -64,8 +64,8 @@ describe("skill-download", () => {
       path.join(tmpdir(), "nori-skill-download-test-"),
     );
     configPath = path.join(testDir, ".nori-config.json");
-    // Skills are stored in .nori/skills
-    skillsDir = path.join(testDir, ".nori", "skills");
+    // Skills are now stored directly in .claude/skills (the live profile directory)
+    skillsDir = path.join(testDir, ".claude", "skills");
 
     // Create initial config
     await fs.writeFile(
@@ -276,7 +276,7 @@ describe("skill-download", () => {
       const customInstallDir = await fs.mkdtemp(
         path.join(tmpdir(), "nori-custom-install-"),
       );
-      const customSkillsDir = path.join(customInstallDir, ".nori", "skills");
+      const customSkillsDir = path.join(customInstallDir, ".claude", "skills");
       await fs.mkdir(customSkillsDir, { recursive: true });
       await fs.writeFile(
         path.join(customInstallDir, ".nori-config.json"),
@@ -927,6 +927,62 @@ describe("skill-download", () => {
 
       // Should make API calls since claude-code is installed
       expect(registrarApi.getSkillPackument).toHaveBeenCalled();
+    });
+  });
+
+  describe("cliName in user-facing messages", () => {
+    it("should use seaweed command names when cliName is seaweed", async () => {
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        registryAuths: [],
+      });
+
+      vi.mocked(registrarApi.getSkillPackument).mockResolvedValue({
+        name: "test-skill",
+        "dist-tags": { latest: "1.0.0" },
+        versions: { "1.0.0": { name: "test-skill", version: "1.0.0" } },
+      });
+
+      await skillDownloadMain({
+        skillSpec: "test-skill",
+        cwd: testDir,
+        listVersions: true,
+        cliName: "seaweed",
+      });
+
+      // Verify version hint uses seaweed command names
+      const allOutput = mockConsoleLog.mock.calls
+        .map((call) => call.join(" "))
+        .join("\n");
+      expect(allOutput).toContain("seaweed download-skill");
+      expect(allOutput).not.toContain("nori-ai skill-download");
+    });
+
+    it("should use nori-ai command names when cliName is nori-ai", async () => {
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        registryAuths: [],
+      });
+
+      vi.mocked(registrarApi.getSkillPackument).mockResolvedValue({
+        name: "test-skill",
+        "dist-tags": { latest: "1.0.0" },
+        versions: { "1.0.0": { name: "test-skill", version: "1.0.0" } },
+      });
+
+      await skillDownloadMain({
+        skillSpec: "test-skill",
+        cwd: testDir,
+        listVersions: true,
+        cliName: "nori-ai",
+      });
+
+      // Verify version hint uses nori-ai command names
+      const allOutput = mockConsoleLog.mock.calls
+        .map((call) => call.join(" "))
+        .join("\n");
+      expect(allOutput).toContain("nori-ai skill-download");
+      expect(allOutput).not.toContain("seaweed download-skill");
     });
   });
 });

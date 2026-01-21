@@ -15,6 +15,10 @@ import * as tar from "tar";
 import { registrarApi, REGISTRAR_URL } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
 import {
+  getCommandNames,
+  type CliName,
+} from "@/cli/commands/cliCommandNames.js";
+import {
   checkRegistryAgentSupport,
   showCursorAgentNotSupportedError,
 } from "@/cli/commands/registryAgentCheck.js";
@@ -114,15 +118,24 @@ const extractTarball = async (args: {
  * @param args.cwd - Current working directory (defaults to process.cwd())
  * @param args.installDir - Optional explicit install directory
  * @param args.registryUrl - Optional registry URL override (uses stored registry URL if not provided)
+ * @param args.cliName - CLI name for user-facing messages (nori-ai or seaweed)
  */
 export const registryUpdateMain = async (args: {
   profileName: string;
   cwd?: string | null;
   installDir?: string | null;
   registryUrl?: string | null;
+  cliName?: CliName | null;
 }): Promise<void> => {
-  const { profileName, installDir, registryUrl: overrideRegistryUrl } = args;
+  const {
+    profileName,
+    installDir,
+    registryUrl: overrideRegistryUrl,
+    cliName,
+  } = args;
   const cwd = args.cwd ?? process.cwd();
+  const commandNames = getCommandNames({ cliName });
+  const cliPrefix = cliName ?? "nori-ai";
 
   // Find installation directory
   let targetInstallDir: string;
@@ -176,7 +189,7 @@ export const registryUpdateMain = async (args: {
     await fs.access(profileDir);
   } catch {
     error({
-      message: `Profile "${profileName}" is not installed.\n\nUse 'nori-ai registry-download ${profileName}' to install it first.`,
+      message: `Profile "${profileName}" is not installed.\n\nUse '${cliPrefix} ${commandNames.download} ${profileName}' to install it first.`,
     });
     return;
   }
@@ -185,7 +198,7 @@ export const registryUpdateMain = async (args: {
   const versionInfo = await readVersionInfo({ profileDir });
   if (versionInfo == null) {
     error({
-      message: `Profile "${profileName}" has no version information (.nori-version file).\n\nThis profile may have been installed manually or with an older version of Nori.\n\nTo update, remove the profile and reinstall with:\n  rm -rf "${profileDir}"\n  nori-ai registry-download ${profileName}`,
+      message: `Profile "${profileName}" has no version information (.nori-version file).\n\nThis profile may have been installed manually or with an older version of Nori.\n\nTo update, remove the profile and reinstall with:\n  rm -rf "${profileDir}"\n  ${cliPrefix} ${commandNames.download} ${profileName}`,
     });
     return;
   }

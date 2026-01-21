@@ -787,4 +787,98 @@ No frontmatter here.
       expect(registrarApi.uploadSkill).toHaveBeenCalled();
     });
   });
+
+  describe("cliName in user-facing messages", () => {
+    it("should use seaweed command names in success message when cliName is seaweed", async () => {
+      await createTestSkill({ name: "test-skill" });
+
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        registryAuths: [
+          {
+            username: "test@example.com",
+            password: "test-password",
+            registryUrl: "https://registrar.tilework.tech",
+          },
+        ],
+      });
+
+      vi.mocked(getRegistryAuth).mockReturnValue({
+        username: "test@example.com",
+        password: "test-password",
+        registryUrl: "https://registrar.tilework.tech",
+      });
+
+      vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
+
+      vi.mocked(registrarApi.getSkillPackument).mockRejectedValue(
+        new Error("Skill not found"),
+      );
+
+      vi.mocked(registrarApi.uploadSkill).mockResolvedValue({
+        name: "test-skill",
+        version: "1.0.0",
+        tarballSha: "sha512-abc123",
+        createdAt: "2024-01-01T00:00:00.000Z",
+      });
+
+      await skillUploadMain({
+        skillSpec: "test-skill",
+        cwd: testDir,
+        cliName: "seaweed",
+      });
+
+      const allOutput = mockConsoleLog.mock.calls
+        .map((call) => call.join(" "))
+        .join("\n");
+      expect(allOutput).toContain("seaweed download-skill");
+      expect(allOutput).not.toContain("nori-ai skill-download");
+    });
+
+    it("should use nori-ai command names in success message when cliName is nori-ai", async () => {
+      await createTestSkill({ name: "test-skill" });
+
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        registryAuths: [
+          {
+            username: "test@example.com",
+            password: "test-password",
+            registryUrl: "https://registrar.tilework.tech",
+          },
+        ],
+      });
+
+      vi.mocked(getRegistryAuth).mockReturnValue({
+        username: "test@example.com",
+        password: "test-password",
+        registryUrl: "https://registrar.tilework.tech",
+      });
+
+      vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
+
+      vi.mocked(registrarApi.getSkillPackument).mockRejectedValue(
+        new Error("Skill not found"),
+      );
+
+      vi.mocked(registrarApi.uploadSkill).mockResolvedValue({
+        name: "test-skill",
+        version: "1.0.0",
+        tarballSha: "sha512-abc123",
+        createdAt: "2024-01-01T00:00:00.000Z",
+      });
+
+      await skillUploadMain({
+        skillSpec: "test-skill",
+        cwd: testDir,
+        cliName: "nori-ai",
+      });
+
+      const allOutput = mockConsoleLog.mock.calls
+        .map((call) => call.join(" "))
+        .join("\n");
+      expect(allOutput).toContain("nori-ai skill-download");
+      expect(allOutput).not.toContain("seaweed download-skill");
+    });
+  });
 });
