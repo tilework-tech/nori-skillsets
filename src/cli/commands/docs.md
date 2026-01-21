@@ -54,7 +54,7 @@ The install command sets `agents: { [agentName]: { profile } }` in the config, w
 - If multiple agents installed: error with "Multiple agents installed (X, Y). Please specify which agent to check with --agent <name>."
 - If no agents in config (legacy fallback): default to `claude-code`
 
-**Registry Commands Agent Validation:** Registry and skill commands require Claude Code to be installed because profiles are stored at `~/.claude/profiles/` and skills at `~/.nori/skills/`. The shared `registryAgentCheck.ts` module provides validation:
+**Registry Commands Agent Validation:** Registry and skill commands require Claude Code to be installed because profiles are stored at `~/.claude/profiles/` and skills at `~/.claude/skills/`. The shared `registryAgentCheck.ts` module provides validation:
 - `checkRegistryAgentSupport({ installDir })` - Returns `{ supported: boolean, config: Config | null }`. Rejects if config has cursor-agent but NOT claude-code; allows all other cases (backwards compatible with older installs that have no agents field)
 - `showCursorAgentNotSupportedError()` - Displays error message explaining registry requires Claude Code and how to install it
 
@@ -68,10 +68,10 @@ if (!agentCheck.supported) {
 ```
 
 **Skill Commands:** Two commands manage skills as first-class registry entities (mirroring the profile registry commands):
-- `skill-download` - Download and install skills to `~/.nori/skills/{skill-name}/`. Searches public registry first, then private registries. Creates `.nori-version` file for version tracking. Supports `--list-versions` flag and `--registry` option.
+- `skill-download` - Download and install skills directly to `~/.claude/skills/{skill-name}/`. Searches public registry first, then private registries. Creates `.nori-version` file for version tracking. Supports `--list-versions` flag and `--registry` option.
 - `skill-upload` - Upload skills from `~/.nori/skills/` to a registry. Auto-bumps patch version when no version specified. Extracts description from SKILL.md frontmatter. Supports both org-based auth (`config.auth`) and legacy `registryAuths`.
 
-Skills follow the same tarball-based upload/download pattern as profiles. Downloaded skills are stored at `~/.nori/skills/` (the skill cache), distinct from installed skills at `~/.claude/skills/`. Skills require a SKILL.md file (with optional YAML frontmatter containing name and description).
+Skills follow the same tarball-based upload/download pattern as profiles. Downloaded skills go directly to `~/.claude/skills/`, making them immediately available in the Claude Code profile. Skills require a SKILL.md file (with optional YAML frontmatter containing name and description).
 
 **registry-download Skill Dependencies:** The `registry-download` command automatically installs skill dependencies declared in a profile's `nori.json` manifest. After extracting a profile tarball, the command checks for a `nori.json` file with a `dependencies.skills` field (mapping skill names to version strings). For each declared skill:
 1. Fetches the skill packument via `registrarApi.getSkillPackument()` to get the latest version

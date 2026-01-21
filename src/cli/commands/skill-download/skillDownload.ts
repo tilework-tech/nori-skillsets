@@ -19,7 +19,7 @@ import {
   showCursorAgentNotSupportedError,
 } from "@/cli/commands/registryAgentCheck.js";
 import { getRegistryAuth } from "@/cli/config.js";
-import { getNoriSkillsDir } from "@/cli/features/claude-code/paths.js";
+import { getClaudeSkillsDir } from "@/cli/features/claude-code/paths.js";
 import { error, success, info, newline, raw } from "@/cli/logger.js";
 import { getInstallDirs } from "@/utils/path.js";
 
@@ -399,7 +399,7 @@ export const skillDownloadMain = async (args: {
   // Use config from agentCheck (already loaded during support check)
   const config = agentCheck.config;
 
-  const skillsDir = getNoriSkillsDir({ installDir: targetInstallDir });
+  const skillsDir = getClaudeSkillsDir({ installDir: targetInstallDir });
   const targetDir = path.join(skillsDir, skillName);
 
   // Check if skill already exists and get its version info
@@ -629,7 +629,7 @@ export const skillDownloadMain = async (args: {
     info({ message: `Installed to: ${targetDir}` });
     newline();
     info({
-      message: `You can now reference this skill in your profile's skills.json.`,
+      message: `Skill "${skillName}" is now available in your Claude Code profile.`,
     });
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
