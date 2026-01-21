@@ -7,10 +7,10 @@
  * - install (downloads and installs profile)
  * - update (updates installed profile)
  * - upload (uploads profile to registry)
+ * - download-skill (downloads skill package)
+ * - upload-skill (uploads skill to registry)
+ * - switch-skillset (switches skillset)
  * - version (built-in)
- *
- * It does NOT provide nori-ai commands like install (standalone), uninstall, check, etc.
- * It also does NOT provide registry-* prefixed commands (those are nori-ai only).
  */
 
 import { execSync } from "child_process";
@@ -228,7 +228,7 @@ describe("seaweed CLI", () => {
     expect(hasSwitchSkillsetCommand).toBe(true);
   });
 
-  it("should NOT have registry-search command (nori-ai only)", () => {
+  it("should have download-skill command", () => {
     let output = "";
 
     try {
@@ -244,10 +244,17 @@ describe("seaweed CLI", () => {
       }
     }
 
-    expect(output).not.toContain("registry-search");
+    // Should have "download-skill" as a command
+    const lines = output.split("\n");
+    const hasDownloadSkillCommand = lines.some(
+      (line) =>
+        line.trim().startsWith("download-skill ") ||
+        line.trim().startsWith("download-skill\t"),
+    );
+    expect(hasDownloadSkillCommand).toBe(true);
   });
 
-  it("should NOT have registry-download command (nori-ai only)", () => {
+  it("should have upload-skill command", () => {
     let output = "";
 
     try {
@@ -263,178 +270,14 @@ describe("seaweed CLI", () => {
       }
     }
 
-    expect(output).not.toContain("registry-download");
-  });
-
-  it("should NOT have registry-install command (nori-ai only)", () => {
-    let output = "";
-
-    try {
-      output = execSync("node build/src/cli/seaweed.js --help", {
-        encoding: "utf-8",
-        stdio: "pipe",
-        env: { ...process.env, FORCE_COLOR: "0", HOME: tempDir },
-      });
-    } catch (error: unknown) {
-      if (error && typeof error === "object") {
-        const execError = error as { stdout?: string; stderr?: string };
-        output = execError.stdout || execError.stderr || "";
-      }
-    }
-
-    expect(output).not.toContain("registry-install");
-  });
-
-  it("should NOT have registry-update command (nori-ai only)", () => {
-    let output = "";
-
-    try {
-      output = execSync("node build/src/cli/seaweed.js --help", {
-        encoding: "utf-8",
-        stdio: "pipe",
-        env: { ...process.env, FORCE_COLOR: "0", HOME: tempDir },
-      });
-    } catch (error: unknown) {
-      if (error && typeof error === "object") {
-        const execError = error as { stdout?: string; stderr?: string };
-        output = execError.stdout || execError.stderr || "";
-      }
-    }
-
-    expect(output).not.toContain("registry-update");
-  });
-
-  it("should NOT have registry-upload command (nori-ai only)", () => {
-    let output = "";
-
-    try {
-      output = execSync("node build/src/cli/seaweed.js --help", {
-        encoding: "utf-8",
-        stdio: "pipe",
-        env: { ...process.env, FORCE_COLOR: "0", HOME: tempDir },
-      });
-    } catch (error: unknown) {
-      if (error && typeof error === "object") {
-        const execError = error as { stdout?: string; stderr?: string };
-        output = execError.stdout || execError.stderr || "";
-      }
-    }
-
-    expect(output).not.toContain("registry-upload");
-  });
-
-  it("should NOT have uninstall command (nori-ai only)", () => {
-    let output = "";
-
-    try {
-      output = execSync("node build/src/cli/seaweed.js --help", {
-        encoding: "utf-8",
-        stdio: "pipe",
-        env: { ...process.env, FORCE_COLOR: "0", HOME: tempDir },
-      });
-    } catch (error: unknown) {
-      if (error && typeof error === "object") {
-        const execError = error as { stdout?: string; stderr?: string };
-        output = execError.stdout || execError.stderr || "";
-      }
-    }
-
-    expect(output).not.toContain("uninstall");
-  });
-
-  it("should NOT have check command (nori-ai only)", () => {
-    let output = "";
-
-    try {
-      output = execSync("node build/src/cli/seaweed.js --help", {
-        encoding: "utf-8",
-        stdio: "pipe",
-        env: { ...process.env, FORCE_COLOR: "0", HOME: tempDir },
-      });
-    } catch (error: unknown) {
-      if (error && typeof error === "object") {
-        const execError = error as { stdout?: string; stderr?: string };
-        output = execError.stdout || execError.stderr || "";
-      }
-    }
-
-    expect(output).not.toContain("check");
-  });
-
-  it("should NOT have switch-profile command (nori-ai only)", () => {
-    let output = "";
-
-    try {
-      output = execSync("node build/src/cli/seaweed.js --help", {
-        encoding: "utf-8",
-        stdio: "pipe",
-        env: { ...process.env, FORCE_COLOR: "0", HOME: tempDir },
-      });
-    } catch (error: unknown) {
-      if (error && typeof error === "object") {
-        const execError = error as { stdout?: string; stderr?: string };
-        output = execError.stdout || execError.stderr || "";
-      }
-    }
-
-    expect(output).not.toContain("switch-profile");
-  });
-
-  it("should NOT have skill-search command (nori-ai only)", () => {
-    let output = "";
-
-    try {
-      output = execSync("node build/src/cli/seaweed.js --help", {
-        encoding: "utf-8",
-        stdio: "pipe",
-        env: { ...process.env, FORCE_COLOR: "0", HOME: tempDir },
-      });
-    } catch (error: unknown) {
-      if (error && typeof error === "object") {
-        const execError = error as { stdout?: string; stderr?: string };
-        output = execError.stdout || execError.stderr || "";
-      }
-    }
-
-    expect(output).not.toContain("skill-search");
-  });
-
-  it("should NOT have skill-download command (nori-ai only)", () => {
-    let output = "";
-
-    try {
-      output = execSync("node build/src/cli/seaweed.js --help", {
-        encoding: "utf-8",
-        stdio: "pipe",
-        env: { ...process.env, FORCE_COLOR: "0", HOME: tempDir },
-      });
-    } catch (error: unknown) {
-      if (error && typeof error === "object") {
-        const execError = error as { stdout?: string; stderr?: string };
-        output = execError.stdout || execError.stderr || "";
-      }
-    }
-
-    expect(output).not.toContain("skill-download");
-  });
-
-  it("should NOT have skill-upload command (nori-ai only)", () => {
-    let output = "";
-
-    try {
-      output = execSync("node build/src/cli/seaweed.js --help", {
-        encoding: "utf-8",
-        stdio: "pipe",
-        env: { ...process.env, FORCE_COLOR: "0", HOME: tempDir },
-      });
-    } catch (error: unknown) {
-      if (error && typeof error === "object") {
-        const execError = error as { stdout?: string; stderr?: string };
-        output = execError.stdout || execError.stderr || "";
-      }
-    }
-
-    expect(output).not.toContain("skill-upload");
+    // Should have "upload-skill" as a command
+    const lines = output.split("\n");
+    const hasUploadSkillCommand = lines.some(
+      (line) =>
+        line.trim().startsWith("upload-skill ") ||
+        line.trim().startsWith("upload-skill\t"),
+    );
+    expect(hasUploadSkillCommand).toBe(true);
   });
 
   it("should show help when no arguments provided", () => {

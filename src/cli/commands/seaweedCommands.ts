@@ -12,6 +12,8 @@ import { registryInstallMain } from "@/cli/commands/registry-install/registryIns
 import { registrySearchMain } from "@/cli/commands/registry-search/registrySearch.js";
 import { registryUpdateMain } from "@/cli/commands/registry-update/registryUpdate.js";
 import { registryUploadMain } from "@/cli/commands/registry-upload/registryUpload.js";
+import { skillDownloadMain } from "@/cli/commands/skill-download/skillDownload.js";
+import { skillUploadMain } from "@/cli/commands/skill-upload/skillUpload.js";
 import { switchSkillsetAction } from "@/cli/commands/switch-profile/profiles.js";
 
 import type { Command } from "commander";
@@ -188,5 +190,71 @@ export const registerSeaweedSwitchSkillsetCommand = (args: {
     .option("-a, --agent <name>", "AI agent to switch skillset for")
     .action(async (name: string, options: { agent?: string }) => {
       await switchSkillsetAction({ name, options, program });
+    });
+};
+
+/**
+ * Register the 'download-skill' command for seaweed CLI
+ * @param args - Configuration arguments
+ * @param args.program - Commander program instance
+ */
+export const registerSeaweedDownloadSkillCommand = (args: {
+  program: Command;
+}): void => {
+  const { program } = args;
+
+  program
+    .command("download-skill <skill>")
+    .description("Download and install a skill package from the Nori registrar")
+    .option(
+      "--registry <url>",
+      "Download from a specific registry URL instead of searching all registries",
+    )
+    .option(
+      "--list-versions",
+      "List available versions for the skill instead of downloading",
+    )
+    .action(
+      async (
+        skillSpec: string,
+        options: { registry?: string; listVersions?: boolean },
+      ) => {
+        const globalOpts = program.opts();
+
+        await skillDownloadMain({
+          skillSpec,
+          installDir: globalOpts.installDir || null,
+          registryUrl: options.registry || null,
+          listVersions: options.listVersions || null,
+        });
+      },
+    );
+};
+
+/**
+ * Register the 'upload-skill' command for seaweed CLI
+ * @param args - Configuration arguments
+ * @param args.program - Commander program instance
+ */
+export const registerSeaweedUploadSkillCommand = (args: {
+  program: Command;
+}): void => {
+  const { program } = args;
+
+  program
+    .command("upload-skill <skill>")
+    .description("Upload a skill package to the Nori registrar")
+    .option(
+      "--registry <url>",
+      "Upload to a specific registry URL instead of the default",
+    )
+    .action(async (skillSpec: string, options: { registry?: string }) => {
+      const globalOpts = program.opts();
+
+      await skillUploadMain({
+        skillSpec,
+        installDir: globalOpts.installDir || null,
+        registryUrl: options.registry || null,
+      });
     });
 };

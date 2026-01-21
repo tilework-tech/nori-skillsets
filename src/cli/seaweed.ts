@@ -11,11 +11,13 @@ import { Command } from "commander";
 
 import {
   registerSeaweedDownloadCommand,
+  registerSeaweedDownloadSkillCommand,
   registerSeaweedInstallCommand,
   registerSeaweedSearchCommand,
   registerSeaweedSwitchSkillsetCommand,
   registerSeaweedUpdateCommand,
   registerSeaweedUploadCommand,
+  registerSeaweedUploadSkillCommand,
 } from "@/cli/commands/seaweedCommands.js";
 import { getCurrentPackageVersion } from "@/cli/version.js";
 import { normalizeInstallDir } from "@/utils/path.js";
@@ -52,6 +54,11 @@ Examples:
   $ seaweed upload my-profile
   $ seaweed upload my-profile@1.0.0 --registry https://registry.example.com
   $ seaweed switch-skillset senior-swe
+  $ seaweed download-skill my-skill
+  $ seaweed download-skill my-skill@1.0.0
+  $ seaweed download-skill my-skill --list-versions
+  $ seaweed upload-skill my-skill
+  $ seaweed upload-skill my-skill@1.0.0 --registry https://registry.example.com
 `,
   );
 
@@ -62,6 +69,8 @@ registerSeaweedInstallCommand({ program });
 registerSeaweedUpdateCommand({ program });
 registerSeaweedUploadCommand({ program });
 registerSeaweedSwitchSkillsetCommand({ program });
+registerSeaweedDownloadSkillCommand({ program });
+registerSeaweedUploadSkillCommand({ program });
 
 program.parse(process.argv);
 

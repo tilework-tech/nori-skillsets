@@ -75,10 +75,11 @@ src/cli/
 | `registry-install` | `install` | commands/registry-install/registryInstall.ts | Download, install, and activate a profile from the public registrar |
 | `registry-update` | `update` | commands/registry-update/registryUpdate.ts | Update an installed registry profile to the latest version |
 | `registry-upload` | `upload` | commands/registry-upload/registryUpload.ts | Upload a profile package to the Nori registrar |
-| `skill-download` | | commands/skill-download/skillDownload.ts | Download a skill from the Nori registrar |
-| `skill-upload` | | commands/skill-upload/skillUpload.ts | Upload a skill to the Nori registrar |
+| `skill-search` | | commands/skill-search/skillSearch.ts | Search for skills in the Nori registrar |
+| `skill-download` | `download-skill` | commands/skill-download/skillDownload.ts | Download a skill from the Nori registrar |
+| `skill-upload` | `upload-skill` | commands/skill-upload/skillUpload.ts | Upload a skill to the Nori registrar |
 
-The seaweed CLI uses simplified command names (no `registry-` prefix for registry operations, plus `switch-skillset` for profile switching). Both CLIs share the same underlying implementation functions - the seaweed commands are thin wrappers defined in @/src/cli/commands/seaweedCommands.ts that delegate to the existing implementations (registry-* `*Main` functions and `switchSkillsetAction` from profiles.ts).
+The seaweed CLI uses simplified command names (no `registry-` prefix for profile registry operations, `download-skill`/`upload-skill` for skill registry operations, plus `switch-skillset` for profile switching). Both CLIs share the same underlying implementation functions - the seaweed commands are thin wrappers defined in @/src/cli/commands/seaweedCommands.ts that delegate to the existing implementations (`*Main` functions from registry-* and skill-* commands, plus `switchSkillsetAction` from profiles.ts).
 
 Each command directory contains the command implementation, its tests, and any command-specific utilities (e.g., `install/` contains `asciiArt.ts` and `installState.ts`).
 
