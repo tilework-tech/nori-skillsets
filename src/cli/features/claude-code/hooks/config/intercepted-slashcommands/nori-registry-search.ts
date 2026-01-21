@@ -1,10 +1,11 @@
 /**
  * Intercepted slash command for searching profile packages and skills
  * Handles /nori-registry-search <query> command
- * Searches the user's org registry for both profiles and skills (requires config.auth)
+ * Searches both org registry (with auth) and public registry (no auth)
+ * Returns both profiles and skills from each registry
  */
 
-import { registrarApi, type Package } from "@/api/registrar.js";
+import { registrarApi, REGISTRAR_URL, type Package } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
 import { loadConfig } from "@/cli/config.js";
 import { getInstallDirs } from "@/utils/path.js";
@@ -35,6 +36,15 @@ type SkillSearchResult = {
   registryUrl: string;
   skills: Array<Package>;
   error?: string | null;
+};
+
+/**
+ * Combined result from searching a registry
+ */
+type RegistrySearchResult = {
+  registryUrl: string;
+  profileResult: ProfileSearchResult;
+  skillResult: SkillSearchResult;
 };
 
 /**
@@ -120,6 +130,59 @@ const searchOrgRegistrySkills = async (args: {
 };
 
 /**
+ * Search the public registry for profiles (no auth required)
+ * @param args - Search parameters
+ * @param args.query - The search query string
+ *
+ * @returns Search result for profiles
+ */
+const searchPublicRegistryProfiles = async (args: {
+  query: string;
+}): Promise<ProfileSearchResult> => {
+  const { query } = args;
+
+  try {
+    const packages = await registrarApi.searchPackages({
+      query,
+    });
+    return { registryUrl: REGISTRAR_URL, packages };
+  } catch (err) {
+    return {
+      registryUrl: REGISTRAR_URL,
+      packages: [],
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+};
+
+/**
+ * Search the public registry for skills (no auth required)
+ * @param args - Search parameters
+ * @param args.query - The search query string
+ *
+ * @returns Search result for skills
+ */
+const searchPublicRegistrySkills = async (args: {
+  query: string;
+}): Promise<SkillSearchResult> => {
+  const { query } = args;
+
+  try {
+    // searchSkills supports optional authToken - omit it for public access
+    const skills = await registrarApi.searchSkills({
+      query,
+    });
+    return { registryUrl: REGISTRAR_URL, skills };
+  } catch (err) {
+    return {
+      registryUrl: REGISTRAR_URL,
+      skills: [],
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+};
+
+/**
  * Format a list of packages/skills for display
  * @param args - The items to format
  * @param args.registryUrl - The registry URL
@@ -146,42 +209,57 @@ const formatItems = (args: {
 /**
  * Format unified search results for display with section headers
  * @param args - The results to format
- * @param args.profileResult - Profile search result
- * @param args.skillResult - Skill search result
+ * @param args.results - Array of registry search results
  *
  * @returns Formatted string
  */
 const formatUnifiedSearchResults = (args: {
-  profileResult: ProfileSearchResult;
-  skillResult: SkillSearchResult;
+  results: Array<RegistrySearchResult>;
 }): string => {
-  const { profileResult, skillResult } = args;
-  const sections: Array<string> = [];
+  const { results } = args;
+  const profileSections: Array<string> = [];
+  const skillSections: Array<string> = [];
 
-  // Profiles section
-  if (profileResult.error != null) {
-    sections.push(
-      `Profiles:\n${profileResult.registryUrl}\n  -> Error: ${profileResult.error}`,
-    );
-  } else if (profileResult.packages.length > 0) {
-    const formattedProfiles = formatItems({
-      registryUrl: profileResult.registryUrl,
-      items: profileResult.packages,
-    });
-    sections.push(`Profiles:\n${formattedProfiles}`);
+  for (const result of results) {
+    const { profileResult, skillResult } = result;
+
+    // Collect profile results
+    if (profileResult.error != null) {
+      profileSections.push(
+        `${profileResult.registryUrl}\n  -> Error: ${profileResult.error}`,
+      );
+    } else if (profileResult.packages.length > 0) {
+      profileSections.push(
+        formatItems({
+          registryUrl: profileResult.registryUrl,
+          items: profileResult.packages,
+        }),
+      );
+    }
+
+    // Collect skill results
+    if (skillResult.error != null) {
+      skillSections.push(
+        `${skillResult.registryUrl}\n  -> Error: ${skillResult.error}`,
+      );
+    } else if (skillResult.skills.length > 0) {
+      skillSections.push(
+        formatItems({
+          registryUrl: skillResult.registryUrl,
+          items: skillResult.skills,
+        }),
+      );
+    }
   }
 
-  // Skills section
-  if (skillResult.error != null) {
-    sections.push(
-      `Skills:\n${skillResult.registryUrl}\n  -> Error: ${skillResult.error}`,
-    );
-  } else if (skillResult.skills.length > 0) {
-    const formattedSkills = formatItems({
-      registryUrl: skillResult.registryUrl,
-      items: skillResult.skills,
-    });
-    sections.push(`Skills:\n${formattedSkills}`);
+  const sections: Array<string> = [];
+
+  if (profileSections.length > 0) {
+    sections.push(`Profiles:\n${profileSections.join("\n\n")}`);
+  }
+
+  if (skillSections.length > 0) {
+    sections.push(`Skills:\n${skillSections.join("\n\n")}`);
   }
 
   return sections.join("\n\n");
@@ -231,7 +309,7 @@ const run = async (args: { input: HookInput }): Promise<HookOutput | null> => {
     return {
       decision: "block",
       reason: formatSuccess({
-        message: `Search for profiles and skills in your org's registry.\n\nUsage: /nori-registry-search <query>\n\nExamples:\n  /nori-registry-search typescript\n  /nori-registry-search react developer`,
+        message: `Search for profiles and skills in Nori registries.\n\nUsage: /nori-registry-search <query>\n\nExamples:\n  /nori-registry-search typescript\n  /nori-registry-search react developer`,
       }),
     };
   }
@@ -250,62 +328,85 @@ const run = async (args: { input: HookInput }): Promise<HookOutput | null> => {
 
   const installDir = allInstallations[0];
 
-  // Load config and check for org auth
+  // Load config to check for org auth
   const config = await loadConfig({ installDir });
 
-  if (config?.auth == null || config.auth.organizationUrl == null) {
-    return {
-      decision: "block",
-      reason: formatError({
-        message: `No organization configured.\n\nRun 'nori-ai install' to set up your organization credentials.`,
-      }),
-    };
+  // Collect results from all registries
+  const results: Array<RegistrySearchResult> = [];
+
+  // Search org registry first if auth is configured (private first, then public)
+  if (
+    config?.auth != null &&
+    config.auth.organizationUrl != null &&
+    config.auth.refreshToken != null
+  ) {
+    const orgId = extractOrgId({ url: config.auth.organizationUrl });
+    if (orgId != null) {
+      const registryUrl = buildRegistryUrl({ orgId });
+      const registryAuth: RegistryAuth = {
+        registryUrl,
+        username: config.auth.username,
+        refreshToken: config.auth.refreshToken,
+      };
+
+      // Search both profiles and skills in parallel on org registry
+      const [profileResult, skillResult] = await Promise.all([
+        searchOrgRegistryProfiles({
+          query,
+          registryUrl,
+          registryAuth,
+        }),
+        searchOrgRegistrySkills({
+          query,
+          registryUrl,
+          registryAuth,
+        }),
+      ]);
+
+      results.push({ registryUrl, profileResult, skillResult });
+    }
   }
 
-  // Extract org ID and build registry URL
-  const orgId = extractOrgId({ url: config.auth.organizationUrl });
-  if (orgId == null) {
-    return {
-      decision: "block",
-      reason: formatError({
-        message: `Invalid organization URL in config.\n\nRun 'nori-ai install' to reconfigure your credentials.`,
-      }),
-    };
-  }
-
-  const registryUrl = buildRegistryUrl({ orgId });
-  const registryAuth: RegistryAuth = {
-    registryUrl,
-    username: config.auth.username,
-    refreshToken: config.auth.refreshToken ?? null,
-  };
-
-  // Search both profiles and skills in parallel
-  const [profileResult, skillResult] = await Promise.all([
-    searchOrgRegistryProfiles({
-      query,
-      registryUrl,
-      registryAuth,
-    }),
-    searchOrgRegistrySkills({
-      query,
-      registryUrl,
-      registryAuth,
-    }),
+  // Always search public registry (no auth required)
+  const [publicProfileResult, publicSkillResult] = await Promise.all([
+    searchPublicRegistryProfiles({ query }),
+    searchPublicRegistrySkills({ query }),
   ]);
 
-  // Check if we have any results or errors to display
-  const hasProfileResults = profileResult.packages.length > 0;
-  const hasSkillResults = skillResult.skills.length > 0;
-  const hasProfileError = profileResult.error != null;
-  const hasSkillError = skillResult.error != null;
+  results.push({
+    registryUrl: REGISTRAR_URL,
+    profileResult: publicProfileResult,
+    skillResult: publicSkillResult,
+  });
 
-  // Handle case where both failed
-  if (hasProfileError && hasSkillError) {
+  // Check if we have any results or all errors
+  const hasProfileResults = results.some(
+    (r) => r.profileResult.error == null && r.profileResult.packages.length > 0,
+  );
+  const hasSkillResults = results.some(
+    (r) => r.skillResult.error == null && r.skillResult.skills.length > 0,
+  );
+  const allProfileErrors = results.every(
+    (r) =>
+      r.profileResult.error != null || r.profileResult.packages.length === 0,
+  );
+  const allSkillErrors = results.every(
+    (r) => r.skillResult.error != null || r.skillResult.skills.length === 0,
+  );
+
+  // Handle case where everything failed with errors
+  const hasAnyProfileError = results.some((r) => r.profileResult.error != null);
+  const hasAnySkillError = results.some((r) => r.skillResult.error != null);
+  if (
+    allProfileErrors &&
+    allSkillErrors &&
+    hasAnyProfileError &&
+    hasAnySkillError
+  ) {
     return {
       decision: "block",
       reason: formatError({
-        message: `Failed to search:\n\nProfiles: ${profileResult.error}\nSkills: ${skillResult.error}`,
+        message: `Failed to search:\n\n${formatUnifiedSearchResults({ results })}`,
       }),
     };
   }
@@ -314,8 +415,8 @@ const run = async (args: { input: HookInput }): Promise<HookOutput | null> => {
   if (
     !hasProfileResults &&
     !hasSkillResults &&
-    !hasProfileError &&
-    !hasSkillError
+    !hasAnyProfileError &&
+    !hasAnySkillError
   ) {
     return {
       decision: "block",
@@ -326,10 +427,7 @@ const run = async (args: { input: HookInput }): Promise<HookOutput | null> => {
   }
 
   // Format and display results
-  const formattedResults = formatUnifiedSearchResults({
-    profileResult,
-    skillResult,
-  });
+  const formattedResults = formatUnifiedSearchResults({ results });
 
   // Build download hints
   const hints = buildDownloadHints({
