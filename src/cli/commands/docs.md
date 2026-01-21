@@ -74,6 +74,17 @@ if (!agentCheck.supported) {
 
 Skills follow the same tarball-based upload/download pattern as profiles. Downloaded skills are stored at `~/.nori/skills/` (the skill cache), distinct from installed skills at `~/.claude/skills/`. Skills require a SKILL.md file (with optional YAML frontmatter containing name and description).
 
+**registry-download Skill Dependencies:** The `registry-download` command automatically installs skill dependencies declared in a profile's `nori.json` manifest. After extracting a profile tarball, the command checks for a `nori.json` file with a `dependencies.skills` field (mapping skill names to version strings). For each declared skill:
+1. Fetches the skill packument via `registrarApi.getSkillPackument()` to get the latest version
+2. Checks if the already-installed version equals the latest version (skips download if so)
+3. Downloads and extracts the skill tarball to `~/.nori/skills/{skill-name}/`
+4. Writes a `.nori-version` file for version tracking
+
+Skills always download the latest version - version ranges in `nori.json` are currently ignored but reserved for future use. Skills are downloaded from the same registry (with same auth token) as the profile being installed. Skill download failures are non-blocking - the command warns but continues with profile installation. The `nori.json` format supports externalized skills that can be shared across profiles and versioned independently:
+```json
+{ "name": "profile-name", "version": "1.0.0", "dependencies": { "skills": { "skill-name": "*" } } }
+```
+
 ```
 cli.ts
   |
