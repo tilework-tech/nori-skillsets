@@ -32,7 +32,12 @@ nori-ai install (orchestrator)
 - Creates `~/.nori/profiles/` directory for user-installed profiles
 - Creates or updates `.nori-config.json` with version tracking
 - Warns about ancestor installations that might cause CLAUDE.md conflicts
-- In interactive mode: detects existing Claude Code configuration (`~/.claude/` CLAUDE.md, skills, agents, commands) and offers to capture it as a named profile via `existingConfigCapture.ts`
+- Detects existing Claude Code configuration (`~/.claude/` CLAUDE.md, skills, agents, commands) and captures it as a profile:
+  - Interactive mode: prompts user for profile name via `existingConfigCapture.ts`
+  - Non-interactive mode: auto-captures as "my-profile"
+- When a profile is captured, init performs two additional steps:
+  - Sets the captured profile as active by writing `agents.claude-code.profile.baseProfile` to config
+  - Applies the managed block to `~/.claude/CLAUDE.md` by calling `claudeMdLoader.install()`
 - Idempotent: preserves existing config fields (auth, agents, registryAuths) while updating version
 
 **Onboard Command:** The onboard command (@/src/cli/commands/onboard/onboard.ts) handles profile and auth selection:
