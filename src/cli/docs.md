@@ -69,7 +69,7 @@ src/cli/
 | `install` | | commands/install/install.ts | Install Nori Profiles with profile selection |
 | `uninstall` | | commands/uninstall/uninstall.ts | Remove Nori installation |
 | `check` | | commands/check/check.ts | Validate installation and configuration |
-| `switch-profile` | | commands/switch-profile/profiles.ts | Switch to a different profile |
+| `switch-profile`, `switch-skillset` | `switch-skillset` | commands/switch-profile/profiles.ts | Switch to a different profile/skillset |
 | `install-location` | | commands/install-location/installLocation.ts | Display installation directories |
 | `registry-search` | `search` | commands/registry-search/registrySearch.ts | Search for profile packages in the Nori registrar |
 | `registry-download` | `download` | commands/registry-download/registryDownload.ts | Download and install a profile from the Nori registrar |
@@ -80,7 +80,7 @@ src/cli/
 | `skill-download` | | commands/skill-download/skillDownload.ts | Download a skill from the Nori registrar |
 | `skill-upload` | | commands/skill-upload/skillUpload.ts | Upload a skill to the Nori registrar |
 
-The seaweed CLI uses simplified command names (no `registry-` prefix) since it is dedicated to registry operations. Both CLIs share the same underlying `*Main` implementation functions - the seaweed commands are thin wrappers defined in @/src/cli/commands/seaweedCommands.ts that delegate to the registry-* command implementations.
+The seaweed CLI uses simplified command names (no `registry-` prefix for registry operations, plus `switch-skillset` for profile switching). Both CLIs share the same underlying implementation functions - the seaweed commands are thin wrappers defined in @/src/cli/commands/seaweedCommands.ts that delegate to the existing implementations (registry-* `*Main` functions and `switchSkillsetAction` from profiles.ts).
 
 Each command directory contains the command implementation, its tests, and any command-specific utilities (e.g., `install/` contains `asciiArt.ts` and `installState.ts`).
 

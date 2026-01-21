@@ -12,6 +12,7 @@ import { registryInstallMain } from "@/cli/commands/registry-install/registryIns
 import { registrySearchMain } from "@/cli/commands/registry-search/registrySearch.js";
 import { registryUpdateMain } from "@/cli/commands/registry-update/registryUpdate.js";
 import { registryUploadMain } from "@/cli/commands/registry-upload/registryUpload.js";
+import { switchSkillsetAction } from "@/cli/commands/switch-profile/profiles.js";
 
 import type { Command } from "commander";
 
@@ -168,5 +169,24 @@ export const registerSeaweedUploadCommand = (args: {
         installDir: globalOpts.installDir || null,
         registryUrl: options.registry || null,
       });
+    });
+};
+
+/**
+ * Register the 'switch-skillset' command for seaweed CLI
+ * @param args - Configuration arguments
+ * @param args.program - Commander program instance
+ */
+export const registerSeaweedSwitchSkillsetCommand = (args: {
+  program: Command;
+}): void => {
+  const { program } = args;
+
+  program
+    .command("switch-skillset <name>")
+    .description("Switch to a different skillset and reinstall")
+    .option("-a, --agent <name>", "AI agent to switch skillset for")
+    .action(async (name: string, options: { agent?: string | null }) => {
+      await switchSkillsetAction({ name, options, program });
     });
 };

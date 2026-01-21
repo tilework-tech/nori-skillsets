@@ -102,13 +102,14 @@ nori-ai.ts (full CLI)
   +-- registerSkillDownloadCommand({ program })--> commands/skill-download/skillDownload.ts
   +-- registerSkillUploadCommand({ program })  --> commands/skill-upload/skillUpload.ts
 
-seaweed.ts (registry-only CLI with simplified command names)
+seaweed.ts (simplified CLI for registry operations and profile switching)
   |
   +-- registerSeaweedSearchCommand({ program })   --> commands/seaweedCommands.ts --> registrySearchMain
   +-- registerSeaweedDownloadCommand({ program }) --> commands/seaweedCommands.ts --> registryDownloadMain
   +-- registerSeaweedInstallCommand({ program })  --> commands/seaweedCommands.ts --> registryInstallMain
   +-- registerSeaweedUpdateCommand({ program })   --> commands/seaweedCommands.ts --> registryUpdateMain
   +-- registerSeaweedUploadCommand({ program })   --> commands/seaweedCommands.ts --> registryUploadMain
+  +-- registerSeaweedSwitchSkillsetCommand({ program }) --> commands/seaweedCommands.ts --> switchSkillsetAction
 ```
 
 Commands use shared utilities from the parent @/src/cli/ directory:
@@ -156,7 +157,7 @@ export const registerXCommand = (args: { program: Command }): void => {
 The commands directory contains shared utilities at the top level:
 - `registryAgentCheck.ts` - Shared validation for registry commands. Checks if the installation has only cursor-agent (no claude-code) and rejects with a helpful error message. Used by registry-search, registry-download, registry-update, registry-upload, skill-search, skill-download, and skill-upload commands.
 
-The `seaweedCommands.ts` file contains thin command wrappers for the seaweed CLI - registration functions (`registerSeaweedSearchCommand`, etc.) that provide simplified command names (`search`, `download`, `install`, `update`, `upload`) by delegating to the underlying `*Main` functions from the `registry-*` commands. This allows the seaweed CLI to use cleaner command names while sharing all business logic with the nori-ai CLI.
+The `seaweedCommands.ts` file contains thin command wrappers for the seaweed CLI - registration functions (`registerSeaweedSearchCommand`, etc.) that provide simplified command names (`search`, `download`, `install`, `update`, `upload`, `switch-skillset`) by delegating to the underlying implementation functions (`*Main` functions for registry commands, `switchSkillsetAction` for switch-skillset). This allows the seaweed CLI to use cleaner command names while sharing all business logic with the nori-ai CLI.
 
 The `install/` directory contains command-specific utilities:
 - `asciiArt.ts` - ASCII banners displayed during installation. All display functions (displayNoriBanner, displayWelcomeBanner, displaySeaweedBed) check `isSilentMode()` and return early without output when silent mode is enabled.

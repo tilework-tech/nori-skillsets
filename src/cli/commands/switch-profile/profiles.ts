@@ -131,7 +131,7 @@ const confirmSwitchProfile = async (args: {
  * @param args.options.agent - Optional agent name override
  * @param args.program - Commander program instance
  */
-const switchSkillsetAction = async (args: {
+export const switchSkillsetAction = async (args: {
   name: string;
   options: { agent?: string };
   program: Command;
