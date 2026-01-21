@@ -18,8 +18,9 @@ import {
   captureExistingConfigAsProfile,
   promptForExistingConfigCapture,
 } from "@/cli/commands/install/existingConfigCapture.js";
-import { loadConfig, saveConfig } from "@/cli/config.js";
+import { loadConfig, saveConfig, type Config } from "@/cli/config.js";
 import { getNoriProfilesDir } from "@/cli/features/claude-code/paths.js";
+import { claudeMdLoader } from "@/cli/features/claude-code/profiles/claudemd/loader.js";
 import { info, warn, newline, success } from "@/cli/logger.js";
 import { getCurrentPackageVersion } from "@/cli/version.js";
 import { normalizeInstallDir, getInstallDirs } from "@/utils/path.js";
@@ -100,16 +101,18 @@ export const initMain = async (args?: {
   const existingConfig = await loadConfig({ installDir: normalizedInstallDir });
   const currentVersion = getCurrentPackageVersion();
 
+  // Track captured profile name for setting in config
+  let capturedProfileName: string | null = null;
+
   // If no existing config, check for existing Claude Code configuration to capture
-  if (existingConfig == null && !nonInteractive) {
+  if (existingConfig == null) {
     const detectedConfig = await detectExistingConfig({
       installDir: normalizedInstallDir,
     });
     if (detectedConfig != null) {
-      const capturedProfileName = await promptForExistingConfigCapture({
-        existingConfig: detectedConfig,
-      });
-      if (capturedProfileName != null) {
+      if (nonInteractive) {
+        // Non-interactive mode: auto-capture as "my-profile"
+        capturedProfileName = "my-profile";
         await captureExistingConfigAsProfile({
           installDir: normalizedInstallDir,
           profileName: capturedProfileName,
@@ -117,7 +120,21 @@ export const initMain = async (args?: {
         success({
           message: `✓ Configuration saved as profile "${capturedProfileName}"`,
         });
-        newline();
+      } else {
+        // Interactive mode: prompt for profile name
+        capturedProfileName = await promptForExistingConfigCapture({
+          existingConfig: detectedConfig,
+        });
+        if (capturedProfileName != null) {
+          await captureExistingConfigAsProfile({
+            installDir: normalizedInstallDir,
+            profileName: capturedProfileName,
+          });
+          success({
+            message: `✓ Configuration saved as profile "${capturedProfileName}"`,
+          });
+          newline();
+        }
       }
     }
   }
@@ -132,8 +149,16 @@ export const initMain = async (args?: {
   const sendSessionTranscript = existingConfig?.sendSessionTranscript ?? null;
   const autoupdate = existingConfig?.autoupdate ?? null;
   const registryAuths = existingConfig?.registryAuths ?? null;
-  const agents = existingConfig?.agents ?? {};
   const version = currentVersion ?? null;
+
+  // Set agents - if a profile was captured, set it as the active profile for claude-code
+  let agents = existingConfig?.agents ?? {};
+  if (capturedProfileName != null) {
+    agents = {
+      ...agents,
+      "claude-code": { profile: { baseProfile: capturedProfileName } },
+    };
+  }
 
   // Save config
   await saveConfig({
@@ -148,6 +173,15 @@ export const initMain = async (args?: {
     version,
     installDir: normalizedInstallDir,
   });
+
+  // If a profile was captured, install the managed block to CLAUDE.md
+  if (capturedProfileName != null) {
+    const config: Config = {
+      installDir: normalizedInstallDir,
+      agents,
+    };
+    await claudeMdLoader.install({ config });
+  }
 
   if (!nonInteractive) {
     success({ message: "✓ Nori initialized successfully" });

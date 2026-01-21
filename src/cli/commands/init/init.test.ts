@@ -202,26 +202,61 @@ describe("init command", () => {
       expect(
         fs.existsSync(path.join(capturedProfileDir, "skills", "my-skill")),
       ).toBe(true);
+
+      // Verify .nori-config.json has the profile set
+      const CONFIG_PATH = getConfigPath({ installDir: tempDir });
+      const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
+      expect(config.agents).toEqual({
+        "claude-code": { profile: { baseProfile: "my-captured-profile" } },
+      });
+
+      // Verify CLAUDE.md has the managed block
+      const updatedClaudeMd = fs.readFileSync(claudeMdPath, "utf-8");
+      expect(updatedClaudeMd).toContain("# BEGIN NORI-AI MANAGED BLOCK");
+      expect(updatedClaudeMd).toContain("# END NORI-AI MANAGED BLOCK");
     });
 
-    it("should skip existing config capture in non-interactive mode", async () => {
+    it("should auto-capture existing config as my-profile in non-interactive mode", async () => {
       // Create existing Claude Code config
       const claudeMdPath = path.join(TEST_CLAUDE_DIR, "CLAUDE.md");
-      fs.writeFileSync(claudeMdPath, "# My Custom Config");
+      fs.writeFileSync(claudeMdPath, "# My Custom Config\n\nSome content");
+
+      const skillsDir = path.join(TEST_CLAUDE_DIR, "skills");
+      fs.mkdirSync(skillsDir, { recursive: true });
+      fs.mkdirSync(path.join(skillsDir, "my-skill"));
+      fs.writeFileSync(path.join(skillsDir, "my-skill", "SKILL.md"), "# Skill");
 
       // Run init in non-interactive mode
       await initMain({ installDir: tempDir, nonInteractive: true });
 
-      // Verify no profile was captured (only built-in profiles should exist)
-      const profilesDir = path.join(TEST_NORI_DIR, "profiles");
-      const profiles = fs.existsSync(profilesDir)
-        ? fs.readdirSync(profilesDir)
-        : [];
-
-      // No captured profiles should exist
+      // Verify profile was captured as "my-profile"
+      const capturedProfileDir = path.join(
+        TEST_NORI_DIR,
+        "profiles",
+        "my-profile",
+      );
+      expect(fs.existsSync(capturedProfileDir)).toBe(true);
+      expect(fs.existsSync(path.join(capturedProfileDir, "profile.json"))).toBe(
+        true,
+      );
+      expect(fs.existsSync(path.join(capturedProfileDir, "CLAUDE.md"))).toBe(
+        true,
+      );
       expect(
-        profiles.some((p) => p.includes("captured") || p.includes("my-")),
-      ).toBe(false);
+        fs.existsSync(path.join(capturedProfileDir, "skills", "my-skill")),
+      ).toBe(true);
+
+      // Verify .nori-config.json has the profile set
+      const CONFIG_PATH = getConfigPath({ installDir: tempDir });
+      const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
+      expect(config.agents).toEqual({
+        "claude-code": { profile: { baseProfile: "my-profile" } },
+      });
+
+      // Verify CLAUDE.md has the managed block
+      const updatedClaudeMd = fs.readFileSync(claudeMdPath, "utf-8");
+      expect(updatedClaudeMd).toContain("# BEGIN NORI-AI MANAGED BLOCK");
+      expect(updatedClaudeMd).toContain("# END NORI-AI MANAGED BLOCK");
     });
 
     it("should warn about ancestor installations", async () => {
