@@ -186,7 +186,7 @@ export const registerSeaweedSwitchSkillsetCommand = (args: {
     .command("switch-skillset <name>")
     .description("Switch to a different skillset and reinstall")
     .option("-a, --agent <name>", "AI agent to switch skillset for")
-    .action(async (name: string, options: { agent?: string | null }) => {
+    .action(async (name: string, options: { agent?: string }) => {
       await switchSkillsetAction({ name, options, program });
     });
 };
