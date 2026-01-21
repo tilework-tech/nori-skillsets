@@ -8,7 +8,7 @@ CLI for Nori Profiles that prompts for configuration, installs features into Cla
 
 ### How it fits into the larger codebase
 
-**CLI Architecture:** The nori-ai CLI command (defined in @/package.json bin) routes to @/src/cli/cli.ts, which uses Commander.js for command routing, argument parsing, validation, and help generation. The CLI defines global options (`--install-dir`, `--non-interactive`, `--agent`) on the main program. Each command lives in its own subdirectory under @/src/cli/commands/ and exports a `registerXCommand({ program })` function that cli.ts imports and calls. Commands access global options via `program.opts()`. The CLI provides automatic `--help`, `--version`, and unknown command detection. Running `nori-ai` with no command shows help. The CLI layer (cli.ts) is responsible ONLY for parsing and routing - all business logic remains in the command modules.
+**CLI Architecture:** The CLI binaries (`nori-ai` and `seaweed`, both defined in @/package.json bin) routes to @/src/cli/cli.ts, which uses Commander.js for command routing, argument parsing, validation, and help generation. The CLI defines global options (`--install-dir`, `--non-interactive`, `--agent`) on the main program. Each command lives in its own subdirectory under @/src/cli/commands/ and exports a `registerXCommand({ program })` function that cli.ts imports and calls. Commands access global options via `program.opts()`. The CLI provides automatic `--help`, `--version`, and unknown command detection. Running either command with no arguments shows help. The CLI layer (cli.ts) is responsible ONLY for parsing and routing - all business logic remains in the command modules.
 
 **Global Options:**
 
