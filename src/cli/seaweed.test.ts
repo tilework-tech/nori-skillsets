@@ -5,10 +5,7 @@
  * - search (searches org registry)
  * - download (downloads profile package)
  * - install (downloads and installs profile)
- * - update (updates installed profile)
- * - upload (uploads profile to registry)
  * - download-skill (downloads skill package)
- * - upload-skill (uploads skill to registry)
  * - switch-skillset (switches skillset)
  * - version (built-in)
  */
@@ -152,56 +149,6 @@ describe("seaweed CLI", () => {
     expect(hasInstallCommand).toBe(true);
   });
 
-  it("should have update command (simplified from registry-update)", () => {
-    let output = "";
-
-    try {
-      output = execSync("node build/src/cli/seaweed.js --help", {
-        encoding: "utf-8",
-        stdio: "pipe",
-        env: { ...process.env, FORCE_COLOR: "0", HOME: tempDir },
-      });
-    } catch (error: unknown) {
-      if (error && typeof error === "object") {
-        const execError = error as { stdout?: string; stderr?: string };
-        output = execError.stdout || execError.stderr || "";
-      }
-    }
-
-    // Should have "update" as a command (not registry-update)
-    const lines = output.split("\n");
-    const hasUpdateCommand = lines.some(
-      (line) =>
-        line.trim().startsWith("update ") || line.trim().startsWith("update\t"),
-    );
-    expect(hasUpdateCommand).toBe(true);
-  });
-
-  it("should have upload command (simplified from registry-upload)", () => {
-    let output = "";
-
-    try {
-      output = execSync("node build/src/cli/seaweed.js --help", {
-        encoding: "utf-8",
-        stdio: "pipe",
-        env: { ...process.env, FORCE_COLOR: "0", HOME: tempDir },
-      });
-    } catch (error: unknown) {
-      if (error && typeof error === "object") {
-        const execError = error as { stdout?: string; stderr?: string };
-        output = execError.stdout || execError.stderr || "";
-      }
-    }
-
-    // Should have "upload" as a command (not registry-upload)
-    const lines = output.split("\n");
-    const hasUploadCommand = lines.some(
-      (line) =>
-        line.trim().startsWith("upload ") || line.trim().startsWith("upload\t"),
-    );
-    expect(hasUploadCommand).toBe(true);
-  });
-
   it("should have switch-skillset command", () => {
     let output = "";
 
@@ -254,32 +201,6 @@ describe("seaweed CLI", () => {
     expect(hasDownloadSkillCommand).toBe(true);
   });
 
-  it("should have upload-skill command", () => {
-    let output = "";
-
-    try {
-      output = execSync("node build/src/cli/seaweed.js --help", {
-        encoding: "utf-8",
-        stdio: "pipe",
-        env: { ...process.env, FORCE_COLOR: "0", HOME: tempDir },
-      });
-    } catch (error: unknown) {
-      if (error && typeof error === "object") {
-        const execError = error as { stdout?: string; stderr?: string };
-        output = execError.stdout || execError.stderr || "";
-      }
-    }
-
-    // Should have "upload-skill" as a command
-    const lines = output.split("\n");
-    const hasUploadSkillCommand = lines.some(
-      (line) =>
-        line.trim().startsWith("upload-skill ") ||
-        line.trim().startsWith("upload-skill\t"),
-    );
-    expect(hasUploadSkillCommand).toBe(true);
-  });
-
   it("should show help when no arguments provided", () => {
     let output = "";
 
@@ -320,8 +241,7 @@ describe("seaweed CLI", () => {
     expect(output).toContain("$ seaweed search");
     expect(output).toContain("$ seaweed download");
     expect(output).toContain("$ seaweed install");
-    expect(output).toContain("$ seaweed update");
-    expect(output).toContain("$ seaweed upload");
     expect(output).toContain("$ seaweed switch-skillset");
+    expect(output).toContain("$ seaweed download-skill");
   });
 });

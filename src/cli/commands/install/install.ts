@@ -12,7 +12,6 @@ import * as path from "path";
 
 import semver from "semver";
 
-import { trackEvent } from "@/cli/analytics.js";
 import {
   displayNoriBanner,
   displayWelcomeBanner,
@@ -28,12 +27,16 @@ import {
   loadConfig,
   getDefaultProfile,
   getAgentProfile,
-  isPaidInstall,
   getInstalledAgents,
   type Config,
 } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { migrate } from "@/cli/features/migration.js";
+import {
+  buildCLIEventParams,
+  getUserId,
+  sendAnalyticsEvent,
+} from "@/cli/installTracking.js";
 import {
   error,
   success,
@@ -644,14 +647,19 @@ export const interactive = async (args?: {
     process.exit(0);
   }
 
-  // Track installation start
-  trackEvent({
-    eventName: "plugin_install_started",
-    eventParams: {
-      install_type: isPaidInstall({ config }) ? "paid" : "free",
-      non_interactive: false,
-    },
-  });
+  // Track installation start (fire-and-forget)
+  void (async () => {
+    const cliParams = await buildCLIEventParams({ config });
+    const userId = await getUserId({ config });
+    sendAnalyticsEvent({
+      eventName: "noriprof_install_started",
+      eventParams: {
+        ...cliParams,
+        tilework_cli_non_interactive: false,
+      },
+      userId,
+    });
+  })();
 
   // Create progress marker
   const currentVersion = getCurrentPackageVersion();
@@ -685,14 +693,19 @@ export const interactive = async (args?: {
     unlinkSync(markerPath);
   }
 
-  // Track completion
-  trackEvent({
-    eventName: "plugin_install_completed",
-    eventParams: {
-      install_type: isPaidInstall({ config }) ? "paid" : "free",
-      non_interactive: false,
-    },
-  });
+  // Track completion (fire-and-forget)
+  void (async () => {
+    const cliParams = await buildCLIEventParams({ config });
+    const userId = await getUserId({ config });
+    sendAnalyticsEvent({
+      eventName: "noriprof_install_completed",
+      eventParams: {
+        ...cliParams,
+        tilework_cli_non_interactive: false,
+      },
+      userId,
+    });
+  })();
 
   displayWelcomeBanner();
   success({
@@ -867,14 +880,19 @@ export const noninteractive = async (args?: {
         installDir: normalizedInstallDir,
       };
 
-  // Track installation start
-  trackEvent({
-    eventName: "plugin_install_started",
-    eventParams: {
-      install_type: isPaidInstall({ config }) ? "paid" : "free",
-      non_interactive: true,
-    },
-  });
+  // Track installation start (fire-and-forget)
+  void (async () => {
+    const cliParams = await buildCLIEventParams({ config });
+    const userId = await getUserId({ config });
+    sendAnalyticsEvent({
+      eventName: "noriprof_install_started",
+      eventParams: {
+        ...cliParams,
+        tilework_cli_non_interactive: true,
+      },
+      userId,
+    });
+  })();
 
   // Create progress marker
   const currentVersion = getCurrentPackageVersion();
@@ -908,14 +926,19 @@ export const noninteractive = async (args?: {
     unlinkSync(markerPath);
   }
 
-  // Track completion
-  trackEvent({
-    eventName: "plugin_install_completed",
-    eventParams: {
-      install_type: isPaidInstall({ config }) ? "paid" : "free",
-      non_interactive: true,
-    },
-  });
+  // Track completion (fire-and-forget)
+  void (async () => {
+    const cliParams = await buildCLIEventParams({ config });
+    const userId = await getUserId({ config });
+    sendAnalyticsEvent({
+      eventName: "noriprof_install_completed",
+      eventParams: {
+        ...cliParams,
+        tilework_cli_non_interactive: true,
+      },
+      userId,
+    });
+  })();
 
   displayWelcomeBanner();
   success({

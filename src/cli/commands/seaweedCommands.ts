@@ -10,10 +10,7 @@
 import { registryDownloadMain } from "@/cli/commands/registry-download/registryDownload.js";
 import { registryInstallMain } from "@/cli/commands/registry-install/registryInstall.js";
 import { registrySearchMain } from "@/cli/commands/registry-search/registrySearch.js";
-import { registryUpdateMain } from "@/cli/commands/registry-update/registryUpdate.js";
-import { registryUploadMain } from "@/cli/commands/registry-upload/registryUpload.js";
 import { skillDownloadMain } from "@/cli/commands/skill-download/skillDownload.js";
-import { skillUploadMain } from "@/cli/commands/skill-upload/skillUpload.js";
 import { switchSkillsetAction } from "@/cli/commands/switch-profile/profiles.js";
 
 import type { Command } from "commander";
@@ -121,64 +118,6 @@ export const registerSeaweedInstallCommand = (args: {
 };
 
 /**
- * Register the 'update' command for seaweed CLI
- * @param args - Configuration arguments
- * @param args.program - Commander program instance
- */
-export const registerSeaweedUpdateCommand = (args: {
-  program: Command;
-}): void => {
-  const { program } = args;
-
-  program
-    .command("update <profile>")
-    .description("Update an installed profile package to the latest version")
-    .option(
-      "--registry <url>",
-      "Use a different registry URL instead of the stored one",
-    )
-    .action(async (profileName: string, options: { registry?: string }) => {
-      const globalOpts = program.opts();
-
-      await registryUpdateMain({
-        profileName,
-        installDir: globalOpts.installDir || null,
-        registryUrl: options.registry || null,
-        cliName: "seaweed",
-      });
-    });
-};
-
-/**
- * Register the 'upload' command for seaweed CLI
- * @param args - Configuration arguments
- * @param args.program - Commander program instance
- */
-export const registerSeaweedUploadCommand = (args: {
-  program: Command;
-}): void => {
-  const { program } = args;
-
-  program
-    .command("upload <profile>")
-    .description("Upload a profile package to the Nori registrar")
-    .option(
-      "--registry <url>",
-      "Upload to a specific registry URL instead of the default",
-    )
-    .action(async (profileSpec: string, options: { registry?: string }) => {
-      const globalOpts = program.opts();
-
-      await registryUploadMain({
-        profileSpec,
-        installDir: globalOpts.installDir || null,
-        registryUrl: options.registry || null,
-        cliName: "seaweed",
-      });
-    });
-};
-
-/**
  * Register the 'switch-skillset' command for seaweed CLI
  * @param args - Configuration arguments
  * @param args.program - Commander program instance
@@ -234,33 +173,4 @@ export const registerSeaweedDownloadSkillCommand = (args: {
         });
       },
     );
-};
-
-/**
- * Register the 'upload-skill' command for seaweed CLI
- * @param args - Configuration arguments
- * @param args.program - Commander program instance
- */
-export const registerSeaweedUploadSkillCommand = (args: {
-  program: Command;
-}): void => {
-  const { program } = args;
-
-  program
-    .command("upload-skill <skill>")
-    .description("Upload a skill package to the Nori registrar")
-    .option(
-      "--registry <url>",
-      "Upload to a specific registry URL instead of the default",
-    )
-    .action(async (skillSpec: string, options: { registry?: string }) => {
-      const globalOpts = program.opts();
-
-      await skillUploadMain({
-        skillSpec,
-        installDir: globalOpts.installDir || null,
-        registryUrl: options.registry || null,
-        cliName: "seaweed",
-      });
-    });
 };
