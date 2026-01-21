@@ -61,15 +61,15 @@ When an update is available (latestVersion is valid AND greater than installedVe
 
 - `nori-toggle-session-transcripts.ts`: Toggles the `sendSessionTranscript` field in `.nori-config.json` between "enabled" and "disabled". Default state (missing field) is treated as enabled.
 
-- `nori-registry-search.ts`: Handles `/nori-registry-search <query>` to search for profile packages across all configured registries (public + private). The command always searches the public registrar at `REGISTRAR_URL`, then iterates through any private registries in `config.registryAuths` using `getRegistryAuthToken()` for authentication. Uses `registrarApi.searchPackagesOnRegistry()` from @/src/api/registrar.ts to search each registry with optional Bearer token. Deduplicates registries using `normalizeUrl()` to avoid searching the same registry twice (e.g., if a private registry URL matches the public one). Results are grouped by registry URL in the output format:
+- `nori-registry-search.ts`: Handles `/nori-registry-search <query>` to search for profile packages across configured registries. The command searches the public registry (at `REGISTRAR_URL`) without authentication, making the public registry accessible to all users. If org auth is configured (`config.auth` with `organizationUrl` and `refreshToken`), it also searches the org registry with authentication (private results appear first). Uses `searchPublicRegistry()` (calls `registrarApi.searchPackages()` without auth token) and `searchOrgRegistry()` (calls `registrarApi.searchPackagesOnRegistry()` with auth token). Results are grouped by registry URL:
   ```
-  https://noriskillsets.dev
-    -> package-name: Description...
+  https://org-id.nori-registry.ai
+    -> private-package: Description...
 
-  https://private.registry.com
-    -> another-package: Description...
+  https://noriskillsets.dev
+    -> public-package: Description...
   ```
-  Error handling is per-registry: failures in one registry don't prevent searching others. Registries with no results are omitted from output; registries with errors display the error message under their URL.
+  Error handling is per-registry: failures in one registry don't prevent searching others. Registries with no results are omitted from output; registries with errors display the error message under their URL. This follows the same pattern as `registry-download` which also supports unauthenticated public registry access.
 
 - `nori-registry-download.ts`: Handles `/nori-registry-download <package-name>[@version] [registry-url]` to download and install profile packages from Nori registries. Supports multi-registry search: when no registry URL is provided, searches the public registry first, then all private registries configured in `.nori-config.json` `registryAuths` array. If the package is found in multiple registries, shows a disambiguation error with options. When a specific registry URL is provided, searches only that registry. Uses `getRegistryAuthToken()` from @/src/api/registryAuth.ts to obtain auth tokens for private registries. Uses registrarApi.downloadTarball() to fetch the tarball, then extracts it using the `tar` npm package with zlib gzip decompression. Installs profiles to `{installDir}/.claude/profiles/{packageName}/`. Checks for existing installations and refuses to overwrite. Requires exactly one Nori installation to be detected (errors if multiple installations found). **Version listing**: Supports `--list-versions` flag to display all available versions with timestamps and dist-tags without downloading (e.g., `/nori-registry-download --list-versions my-profile`). **Version tracking**: After successful download, creates a `.nori-version` JSON file in the profile directory containing `{ version, registryUrl }` - this file enables the update command to track installed versions and their source registry.
 
