@@ -9,8 +9,10 @@
 import { Command } from "commander";
 
 import { registerCheckCommand } from "@/cli/commands/check/check.js";
+import { registerInitCommand } from "@/cli/commands/init/init.js";
 import { registerInstallCommand } from "@/cli/commands/install/install.js";
 import { registerInstallLocationCommand } from "@/cli/commands/install-location/installLocation.js";
+import { registerOnboardCommand } from "@/cli/commands/onboard/onboard.js";
 import { registerRegistryDownloadCommand } from "@/cli/commands/registry-download/registryDownload.js";
 import { registerRegistryInstallCommand } from "@/cli/commands/registry-install/registryInstall.js";
 import { registerRegistrySearchCommand } from "@/cli/commands/registry-search/registrySearch.js";
@@ -48,13 +50,17 @@ program
     "after",
     `
 Examples:
+  $ nori-ai install                      # Full installation flow
   $ nori-ai install --install-dir ~/my-dir
   $ nori-ai install --agent claude-code
+  $ nori-ai init                         # Initialize config and directories only
+  $ nori-ai onboard                      # Select profile and configure auth
+  $ nori-ai onboard --profile senior-swe
   $ nori-ai uninstall
   $ nori-ai check
   $ nori-ai install-location
   $ nori-ai switch-profile senior-swe
-  $ nori-ai registry-search typescript  # searches both profiles and skills
+  $ nori-ai registry-search typescript   # searches both profiles and skills
   $ nori-ai registry-download my-profile
   $ nori-ai registry-download my-profile@1.0.0
   $ nori-ai registry-download my-profile --list-versions
@@ -75,6 +81,8 @@ Examples:
 
 // Register all commands
 registerInstallCommand({ program });
+registerInitCommand({ program });
+registerOnboardCommand({ program });
 registerUninstallCommand({ program });
 registerCheckCommand({ program });
 registerSwitchProfileCommand({ program });

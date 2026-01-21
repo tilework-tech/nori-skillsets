@@ -198,14 +198,20 @@ const loadConfigForAnalytics = async (): Promise<Config | null> => {
 /**
  * Get user ID (email) from config for cross-device tracking.
  * @param args - Optional arguments
- * @param args.config - Pre-loaded config (optional, will load if not provided)
+ * @param args.config - Pre-loaded config (optional, will load if not provided).
+ *   Pass `null` explicitly to skip loading config and return null.
  *
  * @returns User email or null if not authenticated
  */
 export const getUserId = async (args?: {
   config?: Config | null;
 }): Promise<string | null> => {
-  const config = args?.config ?? (await loadConfigForAnalytics());
+  // If config is explicitly passed (even if null), use it. Only load from disk
+  // when config is not provided at all (args is undefined or config key is missing).
+  const hasExplicitConfig = args != null && "config" in args;
+  const config = hasExplicitConfig
+    ? args.config
+    : await loadConfigForAnalytics();
   return config?.auth?.username ?? null;
 };
 

@@ -12,6 +12,37 @@ The CLI entry points (@/src/cli/nori-ai.ts and @/src/cli/seaweed.ts) import `reg
 
 Commands that interact with agent-specific features (install, uninstall, check, switch-profile) use the AgentRegistry (@/src/cli/features/agentRegistry.ts) to look up the agent implementation by name. The agent provides access to its LoaderRegistry, environment paths, and global feature declarations. Commands pass the `--agent` option through their call chain to ensure consistent agent context.
 
+**Installation Flow Architecture:** The installation process is split into three commands that can be called independently or orchestrated together:
+
+```
+nori-ai install (orchestrator)
+    |
+    +-- init        (Step 1: Set up directories and config, capture existing config)
+    |
+    +-- onboard     (Step 2: Select profile and configure auth)
+    |
+    +-- loaders     (Step 3: Run feature loaders to install components)
+```
+
+- `init` - Creates `.nori-config.json`, `~/.nori/profiles/` directory, and optionally captures existing Claude Code configuration as a profile
+- `onboard` - Prompts for Nori Web authentication and profile selection, updates config
+- `install` - Orchestrates init → onboard → feature loaders, handles upgrade cleanup
+
+**Init Command:** The init command (@/src/cli/commands/init/init.ts) handles first-time setup:
+- Creates `~/.nori/profiles/` directory for user-installed profiles
+- Creates or updates `.nori-config.json` with version tracking
+- Warns about ancestor installations that might cause CLAUDE.md conflicts
+- In interactive mode: detects existing Claude Code configuration (`~/.claude/` CLAUDE.md, skills, agents, commands) and offers to capture it as a named profile via `existingConfigCapture.ts`
+- Idempotent: preserves existing config fields (auth, agents, registryAuths) while updating version
+
+**Onboard Command:** The onboard command (@/src/cli/commands/onboard/onboard.ts) handles profile and auth selection:
+- Requires init to have been run first (config must exist)
+- Prompts for Nori Web authentication (email, password, organization ID) or allows skipping
+- For first-time installs: offers choice between pre-built profile or onboarding wizard
+- Displays available profiles from both source (@/src/cli/features/claude-code/profiles/config/) and user-installed (`~/.nori/profiles/`)
+- Non-interactive mode requires `--profile` flag if no existing profile is set
+- Updates config with selected profile in `agents[agentName].profile` format
+
 **switch-profile Agent Resolution:** The switch-profile command (@/src/cli/commands/switch-profile/profiles.ts) defines `--agent` as both a global option AND a local subcommand option, allowing `nori-ai switch-profile senior-swe --agent cursor-agent` syntax (local option takes precedence). The `resolveAgent()` function determines which agent to use:
 - If `--agent` is explicitly provided: use that agent
 - If no agents installed: default to `claude-code`
@@ -37,7 +68,7 @@ Each agent declares its own global features (e.g., claude-code has hooks, status
 
 The install command sets `agents: { [agentName]: { profile } }` in the config, where the keys of the `agents` object indicate which agents are installed. The config loader merges `agents` objects with any existing config. The uninstall command prompts the user to select which agent to uninstall when multiple agents are installed at a location (in interactive mode).
 
-**Install Non-Interactive Profile Requirement:** Non-interactive installs require either an existing configuration with a profile OR the `--profile` flag. When no existing config is found, the install command errors with a helpful message listing available profiles and example usage. This prevents silent assignment of default profiles - users must explicitly choose. Profile is resolved by checking (in order): agent-specific profile (`config.agents[agentName].profile`), then top-level profile (`config.profile`), then the explicit `--profile` flag. The first non-null value is used. Example: `nori-ai install --non-interactive --profile senior-swe`.
+**Install Non-Interactive Profile Requirement:** Non-interactive installs require either an existing configuration with a profile OR the `--profile` flag. This requirement is enforced by the onboard command. When no existing config is found, the onboard command errors with a helpful message listing available profiles and example usage. Example: `nori-ai install --non-interactive --profile senior-swe`.
 
 **Install Agent-Specific Uninstall Logic:** The install command only runs uninstall cleanup when reinstalling the SAME agent (upgrade scenario). When installing a different agent (e.g., cursor-agent when claude-code is already installed), it skips uninstall to preserve the existing agent's installation. The logic:
 1. Reads config at start to get installed agents via `getInstalledAgents({ config })` (keys of `agents` object)
@@ -94,6 +125,8 @@ Skills always download the latest version - version ranges in `nori.json` are cu
 nori-ai.ts (full CLI)
   |
   +-- registerInstallCommand({ program })      --> commands/install/install.ts
+  +-- registerInitCommand({ program })         --> commands/init/init.ts
+  +-- registerOnboardCommand({ program })      --> commands/onboard/onboard.ts
   +-- registerUninstallCommand({ program })    --> commands/uninstall/uninstall.ts
   +-- registerCheckCommand({ program })        --> commands/check/check.ts
   +-- registerSwitchProfileCommand({ program })--> commands/switch-profile/profiles.ts
@@ -167,13 +200,9 @@ The `install/` directory contains command-specific utilities:
 - `asciiArt.ts` - ASCII banners displayed during installation. All display functions (displayNoriBanner, displayWelcomeBanner, displaySeaweedBed) check `isSilentMode()` and return early without output when silent mode is enabled.
 - `installState.ts` - Helper to check for existing installations (wraps version.ts)
 - `registryAuthPrompt.ts` - Prompts for private registry authentication during interactive install. Collects organization ID (or full URL for local dev), username, and password (hidden input). Organization IDs are converted to registry URLs using `buildRegistryUrl()` from @/src/utils/url.ts. Full URLs are accepted as a fallback for local development (e.g., `http://localhost:3000`). Supports preserving existing registryAuths from config and adding multiple registries. Uses `RegistryAuth` type from `@/cli/config.js`.
-- `existingConfigCapture.ts` - Detects and captures existing Claude Code configurations as named profiles. On first-time install (no existing Nori config), checks `~/.claude/` for CLAUDE.md, skills, agents, and commands. If found, prompts the user to save as a profile in `~/.nori/profiles/<name>/`. Captured profiles follow the standard profile structure (profile.json, CLAUDE.md with managed block markers, skills/, subagents/, slashcommands/).
-
-**Install Command Existing Config Capture:** During first-time interactive install (when no existing Nori config exists), the install command detects existing Claude Code configurations before profile selection. The `detectExistingConfig()` function scans `~/.claude/` for: CLAUDE.md (and whether it contains a managed block), skills directory (counts SKILL.md files), agents directory (counts .md files), and commands directory (counts .md files). If any configuration is found, `promptForExistingConfigCapture()` displays what was detected, warns if a managed block is present (suggesting prior Nori installation), and asks if the user wants to save as a profile. If accepted, `captureExistingConfigAsProfile()` creates a new profile directory at `~/.nori/profiles/<profileName>/` containing: profile.json with metadata, CLAUDE.md with managed block markers added if not present, and copies of skills/, agents/ (as subagents/), and commands/ (as slashcommands/). The captured profile then appears in the profile selection list. Profile names must be lowercase alphanumeric with hyphens.
+- `existingConfigCapture.ts` - Detects and captures existing Claude Code configurations as named profiles. The `detectExistingConfig()` function scans `~/.claude/` for CLAUDE.md, skills directory, agents directory, and commands directory. The `captureExistingConfigAsProfile()` function creates a profile directory at `~/.nori/profiles/<profileName>/` with: profile.json, CLAUDE.md (with managed block markers added if not present), and copies of skills/, agents/ (renamed to subagents/), and commands/ (renamed to slashcommands/). Profile names must be lowercase alphanumeric with hyphens.
 
 **Install Command Silent Mode:** The `main()` function in install.ts accepts a `silent` parameter. When `silent: true`, the function calls `setSilentMode({ silent: true })` before execution and restores it to false in a `finally` block to prevent state leakage. Silent mode implies non-interactive mode. This is used by intercepted slash commands (e.g., `/nori-switch-profile` in both claude-code and cursor-agent) that call `installMain()` and need clean stdout to return JSON responses without corruption from installation messages like ASCII art banners.
-
-**Install Command Auth Prompts:** Both Watchtower and Registry authentication prompts accept organization IDs instead of full URLs. The install command prompts for "Organization ID (e.g., 'tilework') or full URL for local dev" and validates input using `isValidOrgId()` from @/src/utils/url.ts. Valid org IDs are converted to service URLs using `buildWatchtowerUrl()` (for Watchtower: `https://{orgId}.tilework.tech`) or `buildRegistryUrl()` (for Registry: `https://{orgId}.nori-registry.ai`). Full URLs starting with `http://` or `https://` are accepted as-is to support local development scenarios. The config storage format remains unchanged - full URLs are stored in `.nori-config.json`.
 
 The install command uses `agent.listSourceProfiles()` to get available profiles from the package source directory, combined with `agent.listProfiles({ installDir })` to include any user-installed profiles. This ensures each agent displays its own profiles (claude-code shows amol, senior-swe, etc.; cursor-agent shows its own profiles).
 

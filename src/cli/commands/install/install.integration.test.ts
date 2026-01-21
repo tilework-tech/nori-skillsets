@@ -686,8 +686,12 @@ describe("install integration test", () => {
         installMain({ nonInteractive: true, installDir: tempDir }),
       ).rejects.toThrow("process.exit(1)");
 
-      // Verify no config was created
-      expect(fs.existsSync(CONFIG_PATH)).toBe(false);
+      // With the new init → onboard flow, init creates a minimal config before
+      // onboard fails. The config exists but has no profile set for the agent.
+      expect(fs.existsSync(CONFIG_PATH)).toBe(true);
+      const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
+      // Config should exist but not have a claude-code profile set
+      expect(config.agents?.["claude-code"]?.profile).toBeUndefined();
     } finally {
       processExitSpy.mockRestore();
     }
