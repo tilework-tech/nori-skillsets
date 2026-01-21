@@ -110,6 +110,13 @@ Skills follow the same tarball-based upload/download pattern as profiles. Downlo
 3. **Explicit registry:** Users can specify `--registry <url>` to target a specific registry. The command checks `availableRegistries` first (which includes the public registry for authenticated users), then falls back to `getRegistryAuth()` for legacy `registryAuths` lookups.
 4. **Multiple registries:** If multiple registries are configured and no `--registry` is specified, the command prompts the user to select one (or errors in non-interactive mode).
 
+**registry-download Auto-Init:** The `registry-download` command (and `seaweed download`) automatically initializes Nori configuration when no installation exists, allowing users to download profiles without first running `nori-ai init` or `nori-ai install`. The installation directory resolution logic:
+1. If `--install-dir` is provided but no installation exists there: calls `initMain({ installDir, nonInteractive: true })` to set up at that location
+2. If no `--install-dir` and no existing installations found via `getInstallDirs()`: calls `initMain({ installDir: cwd, nonInteractive: true })` to set up at current directory
+3. If multiple installations found: errors with a list of installations and prompts user to specify with `--install-dir`
+
+This differs from `registry-install`, which calls the full `installMain()` (orchestrating init, onboard, and loaders). The `registry-download` command only calls `initMain()` because download just places profile files without activating them - the user still needs to run `switch-profile` to activate the downloaded profile.
+
 **registry-download Skill Dependencies:** The `registry-download` command automatically installs skill dependencies declared in a profile's `nori.json` manifest. After extracting a profile tarball, the command checks for a `nori.json` file with a `dependencies.skills` field (mapping skill names to version strings). For each declared skill:
 1. Fetches the skill packument via `registrarApi.getSkillPackument()` to get the latest version
 2. Checks if the already-installed version equals the latest version (skips download if so)

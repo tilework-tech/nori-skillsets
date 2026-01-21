@@ -39,6 +39,11 @@ vi.mock("@/api/registryAuth.js", () => ({
   getRegistryAuthToken: vi.fn(),
 }));
 
+// Mock the init command
+vi.mock("@/cli/commands/init/init.js", () => ({
+  initMain: vi.fn(),
+}));
+
 // Mock console methods to capture output
 const mockConsoleLog = vi
   .spyOn(console, "log")
@@ -49,6 +54,7 @@ const mockConsoleError = vi
 
 import { registrarApi, REGISTRAR_URL } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
+import { initMain } from "@/cli/commands/init/init.js";
 import { loadConfig, getRegistryAuth } from "@/cli/config.js";
 
 import { registryDownloadMain } from "./registryDownload.js";
@@ -196,11 +202,41 @@ describe("registry-download", () => {
       expect(allErrorOutput.toLowerCase()).toContain("already exists");
     });
 
-    it("should error when no Nori installation found", async () => {
+    it("should auto-init when no Nori installation found", async () => {
       // Create directory without .nori-config.json
       const noInstallDir = await fs.mkdtemp(
         path.join(tmpdir(), "nori-no-install-"),
       );
+
+      // Mock initMain to simulate successful initialization
+      // After init, it creates the config file so subsequent loadConfig works
+      vi.mocked(initMain).mockImplementation(async (args) => {
+        const installDir = args?.installDir ?? noInstallDir;
+        // Simulate what initMain does - create config file and profiles dir
+        await fs.writeFile(
+          path.join(installDir, ".nori-config.json"),
+          JSON.stringify({ agents: {} }),
+        );
+        await fs.mkdir(path.join(installDir, ".nori", "profiles"), {
+          recursive: true,
+        });
+      });
+
+      // Mock config to return valid config after init
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: noInstallDir,
+        registryAuths: [],
+      });
+
+      // Mock package info
+      vi.mocked(registrarApi.getPackument).mockResolvedValue({
+        name: "test-profile",
+        "dist-tags": { latest: "1.0.0" },
+        versions: { "1.0.0": { name: "test-profile", version: "1.0.0" } },
+      });
+
+      const mockTarball = await createMockTarball();
+      vi.mocked(registrarApi.downloadTarball).mockResolvedValue(mockTarball);
 
       try {
         await registryDownloadMain({
@@ -208,12 +244,141 @@ describe("registry-download", () => {
           cwd: noInstallDir,
         });
 
-        // Verify error message about no installation
+        // Verify initMain was called with correct args
+        expect(initMain).toHaveBeenCalledWith({
+          installDir: noInstallDir,
+          nonInteractive: true,
+        });
+
+        // Verify info message about setting up was shown
+        const allOutput = mockConsoleLog.mock.calls
+          .map((call) => call.join(" "))
+          .join("\n");
+        expect(allOutput.toLowerCase()).toContain("setting up");
+
+        // Verify download proceeded after init
+        expect(registrarApi.downloadTarball).toHaveBeenCalled();
+      } finally {
+        await fs.rm(noInstallDir, { recursive: true, force: true });
+      }
+    });
+
+    it("should auto-init with --install-dir when no installation found", async () => {
+      // Create directory without .nori-config.json
+      const customInstallDir = await fs.mkdtemp(
+        path.join(tmpdir(), "nori-custom-no-install-"),
+      );
+
+      // Mock initMain to simulate successful initialization
+      vi.mocked(initMain).mockImplementation(async (args) => {
+        const installDir = args?.installDir ?? customInstallDir;
+        await fs.writeFile(
+          path.join(installDir, ".nori-config.json"),
+          JSON.stringify({ agents: {} }),
+        );
+        await fs.mkdir(path.join(installDir, ".nori", "profiles"), {
+          recursive: true,
+        });
+      });
+
+      // Mock config to return valid config after init
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: customInstallDir,
+        registryAuths: [],
+      });
+
+      // Mock package info
+      vi.mocked(registrarApi.getPackument).mockResolvedValue({
+        name: "test-profile",
+        "dist-tags": { latest: "1.0.0" },
+        versions: { "1.0.0": { name: "test-profile", version: "1.0.0" } },
+      });
+
+      const mockTarball = await createMockTarball();
+      vi.mocked(registrarApi.downloadTarball).mockResolvedValue(mockTarball);
+
+      try {
+        await registryDownloadMain({
+          packageSpec: "test-profile",
+          installDir: customInstallDir,
+        });
+
+        // Verify initMain was called with the custom install dir
+        expect(initMain).toHaveBeenCalledWith({
+          installDir: customInstallDir,
+          nonInteractive: true,
+        });
+
+        // Verify download proceeded
+        expect(registrarApi.downloadTarball).toHaveBeenCalled();
+      } finally {
+        await fs.rm(customInstallDir, { recursive: true, force: true });
+      }
+    });
+
+    it("should not call initMain when installation already exists", async () => {
+      // testDir already has .nori-config.json from beforeEach
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        registryAuths: [],
+      });
+
+      vi.mocked(registrarApi.getPackument).mockResolvedValue({
+        name: "test-profile",
+        "dist-tags": { latest: "1.0.0" },
+        versions: { "1.0.0": { name: "test-profile", version: "1.0.0" } },
+      });
+
+      const mockTarball = await createMockTarball();
+      vi.mocked(registrarApi.downloadTarball).mockResolvedValue(mockTarball);
+
+      await registryDownloadMain({
+        packageSpec: "test-profile",
+        cwd: testDir,
+      });
+
+      // Verify initMain was NOT called since installation exists
+      expect(initMain).not.toHaveBeenCalled();
+
+      // Verify download proceeded normally
+      expect(registrarApi.downloadTarball).toHaveBeenCalled();
+    });
+
+    it("should return failure when auto-init fails", async () => {
+      // Create directory without .nori-config.json
+      const noInstallDir = await fs.mkdtemp(
+        path.join(tmpdir(), "nori-no-install-fail-"),
+      );
+
+      // Mock initMain to throw an error
+      vi.mocked(initMain).mockRejectedValue(
+        new Error("Permission denied: cannot create config"),
+      );
+
+      try {
+        const result = await registryDownloadMain({
+          packageSpec: "test-profile",
+          cwd: noInstallDir,
+        });
+
+        // Verify failure was returned
+        expect(result.success).toBe(false);
+
+        // Verify initMain was called
+        expect(initMain).toHaveBeenCalledWith({
+          installDir: noInstallDir,
+          nonInteractive: true,
+        });
+
+        // Verify error message about init failure was shown
         const allErrorOutput = mockConsoleError.mock.calls
           .map((call) => call.join(" "))
           .join("\n");
-        expect(allErrorOutput.toLowerCase()).toContain("no");
-        expect(allErrorOutput.toLowerCase()).toContain("installation");
+        expect(allErrorOutput.toLowerCase()).toContain("failed to initialize");
+        expect(allErrorOutput).toContain("Permission denied");
+
+        // Verify no download was attempted
+        expect(registrarApi.downloadTarball).not.toHaveBeenCalled();
       } finally {
         await fs.rm(noInstallDir, { recursive: true, force: true });
       }

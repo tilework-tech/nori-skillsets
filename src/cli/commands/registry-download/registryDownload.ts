@@ -22,6 +22,7 @@ import {
   getCommandNames,
   type CliName,
 } from "@/cli/commands/cliCommandNames.js";
+import { initMain } from "@/cli/commands/init/init.js";
 import {
   checkRegistryAgentSupport,
   showCursorAgentNotSupportedError,
@@ -577,20 +578,37 @@ export const registryDownloadMain = async (args: {
 
   if (installDir != null) {
     targetInstallDir = installDir;
+
+    // Check if installation exists at the specified directory
+    const allInstallations = getInstallDirs({ currentDir: installDir });
+    if (!allInstallations.includes(installDir)) {
+      // No installation at specified directory - auto-init
+      info({ message: "Setting up Nori for first time use..." });
+      try {
+        await initMain({ installDir, nonInteractive: true });
+      } catch (err) {
+        error({
+          message: `Failed to initialize Nori: ${err instanceof Error ? err.message : String(err)}`,
+        });
+        return { success: false };
+      }
+    }
   } else {
     const allInstallations = getInstallDirs({ currentDir: cwd });
 
     if (allInstallations.length === 0) {
-      error({
-        message: "No Nori installation found.",
-      });
-      info({
-        message: "Run 'npx nori-ai install' to install Nori Profiles.",
-      });
-      return { success: false };
-    }
-
-    if (allInstallations.length > 1) {
+      // No installation found - auto-init at cwd
+      info({ message: "Setting up Nori for first time use..." });
+      try {
+        await initMain({ installDir: cwd, nonInteractive: true });
+      } catch (err) {
+        error({
+          message: `Failed to initialize Nori: ${err instanceof Error ? err.message : String(err)}`,
+        });
+        return { success: false };
+      }
+      targetInstallDir = cwd;
+    } else if (allInstallations.length > 1) {
       const installList = allInstallations
         .map((dir, index) => `${index + 1}. ${dir}`)
         .join("\n");
@@ -599,9 +617,9 @@ export const registryDownloadMain = async (args: {
         message: `Found multiple Nori installations. Cannot determine which one to use.\n\nInstallations found:\n${installList}\n\nPlease use --install-dir to specify the target installation.`,
       });
       return { success: false };
+    } else {
+      targetInstallDir = allInstallations[0];
     }
-
-    targetInstallDir = allInstallations[0];
   }
 
   // Check if cursor-agent-only installation (not supported for registry commands)
