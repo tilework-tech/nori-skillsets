@@ -14,7 +14,6 @@ import { writeFileSync, unlinkSync, existsSync } from "fs";
 import * as os from "os";
 import * as path from "path";
 
-import { trackEvent } from "@/cli/analytics.js";
 import { initMain } from "@/cli/commands/init/init.js";
 import {
   displayNoriBanner,
@@ -23,12 +22,7 @@ import {
 } from "@/cli/commands/install/asciiArt.js";
 import { hasExistingInstallation } from "@/cli/commands/install/installState.js";
 import { onboardMain } from "@/cli/commands/onboard/onboard.js";
-import {
-  loadConfig,
-  isPaidInstall,
-  getInstalledAgents,
-  type Config,
-} from "@/cli/config.js";
+import { loadConfig, getInstalledAgents, type Config } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { error, success, info, newline, setSilentMode } from "@/cli/logger.js";
 import {
@@ -39,6 +33,12 @@ import {
 import { normalizeInstallDir } from "@/utils/path.js";
 
 import type { Command } from "commander";
+
+import {
+  buildCLIEventParams,
+  getUserId,
+  sendAnalyticsEvent,
+} from "@/cli/installTracking.js";
 
 /**
  * Get the path for the progress marker file
@@ -135,14 +135,19 @@ const completeInstallation = async (args: {
 }): Promise<void> => {
   const { config, agent, nonInteractive } = args;
 
-  // Track installation start
-  trackEvent({
-    eventName: "plugin_install_started",
-    eventParams: {
-      install_type: isPaidInstall({ config }) ? "paid" : "free",
-      non_interactive: nonInteractive,
-    },
-  });
+  // Track installation start (fire-and-forget)
+  void (async () => {
+    const cliParams = await buildCLIEventParams({ config });
+    const userId = await getUserId({ config });
+    sendAnalyticsEvent({
+      eventName: "noriprof_install_started",
+      eventParams: {
+        ...cliParams,
+        tilework_cli_non_interactive: nonInteractive,
+      },
+      userId,
+    });
+  })();
 
   // Create progress marker
   createProgressMarker();
@@ -153,14 +158,19 @@ const completeInstallation = async (args: {
   // Remove progress marker
   cleanupProgressMarker();
 
-  // Track completion
-  trackEvent({
-    eventName: "plugin_install_completed",
-    eventParams: {
-      install_type: isPaidInstall({ config }) ? "paid" : "free",
-      non_interactive: nonInteractive,
-    },
-  });
+  // Track completion (fire-and-forget)
+  void (async () => {
+    const cliParams = await buildCLIEventParams({ config });
+    const userId = await getUserId({ config });
+    sendAnalyticsEvent({
+      eventName: "noriprof_install_completed",
+      eventParams: {
+        ...cliParams,
+        tilework_cli_non_interactive: nonInteractive,
+      },
+      userId,
+    });
+  })();
 
   // Display completion banners
   displayCompletionBanners();
