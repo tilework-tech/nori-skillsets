@@ -139,7 +139,7 @@ export const buildBaseEventParams = (): EventParams => {
 /**
  * Send analytics event with proper structure matching PLAN_ANALYTICS_PROXY.md
  * @param args - Event arguments
- * @param args.eventName - Name of the event (e.g., "nori_session_started")
+ * @param args.eventName - Name of the event (e.g., "claude_session_started")
  * @param args.eventParams - Event parameters including tilework_* fields
  * @param args.clientId - Optional client ID (defaults to deterministic ID)
  * @param args.userId - Optional user ID for cross-device tracking
