@@ -1,5 +1,5 @@
-import { createHash, randomUUID } from "crypto";
 import { promises as fs } from "fs";
+import { createHash } from "node:crypto";
 import * as os from "os";
 import * as path from "path";
 
@@ -9,6 +9,31 @@ const DEFAULT_ANALYTICS_URL = "https://noriskillsets.dev/api/analytics/track";
 const INSTALL_STATE_SCHEMA_VERSION = 1;
 const INSTALL_STATE_FILE = ".nori-install.json";
 const RESURRECTION_THRESHOLD_DAYS = 30;
+const TILEWORK_SOURCE = "nori-skillsets";
+
+/**
+ * Session ID generated once per process lifetime.
+ * Per GA4 spec, all events in the same session should share this ID.
+ * Using Unix timestamp in seconds as recommended.
+ */
+const SESSION_ID = Math.floor(Date.now() / 1000).toString();
+
+/**
+ * Type definitions matching the PLAN_ANALYTICS_PROXY.md API spec
+ */
+type EventParams = {
+  tilework_source: string;
+  tilework_session_id: string;
+  tilework_timestamp: string;
+  [key: string]: unknown;
+};
+
+type AnalyticsEventRequest = {
+  client_id: string;
+  user_id?: string | null;
+  event_name: string;
+  event_params: EventParams;
+};
 
 type InstallState = {
   schema_version: number;
@@ -65,7 +90,7 @@ const formatHashAsUuid = (hash: string): string => {
   ].join("-");
 };
 
-const getDeterministicClientId = (): string => {
+export const getDeterministicClientId = (): string => {
   let username = "unknown";
   try {
     username = os.userInfo().username;
@@ -78,6 +103,65 @@ const getDeterministicClientId = (): string => {
     .update(`nori_salt:${hostname}:${username}`)
     .digest("hex");
   return formatHashAsUuid(hash);
+};
+
+/**
+ * Build the base event params required for ALL events.
+ * Note: tilework_session_id is constant for the process lifetime,
+ * while tilework_timestamp captures when each event is sent.
+ * @returns Base event params with tilework_source, tilework_session_id, and tilework_timestamp
+ */
+export const buildBaseEventParams = (): EventParams => {
+  return {
+    tilework_source: TILEWORK_SOURCE,
+    tilework_session_id: SESSION_ID,
+    tilework_timestamp: new Date().toISOString(),
+  };
+};
+
+/**
+ * Send analytics event with proper structure matching PLAN_ANALYTICS_PROXY.md
+ * @param args - Event arguments
+ * @param args.eventName - Name of the event (e.g., "nori_session_start")
+ * @param args.eventParams - Event parameters including tilework_* fields
+ * @param args.clientId - Optional client ID (defaults to deterministic ID)
+ * @param args.userId - Optional user ID for cross-device tracking
+ */
+export const sendAnalyticsEvent = (args: {
+  eventName: string;
+  eventParams: EventParams;
+  clientId?: string | null;
+  userId?: string | null;
+}): void => {
+  const { eventName, eventParams, clientId, userId } = args;
+
+  const payload: AnalyticsEventRequest = {
+    client_id: clientId ?? getDeterministicClientId(),
+    event_name: eventName,
+    event_params: eventParams,
+  };
+
+  if (userId != null) {
+    payload.user_id = userId;
+  }
+
+  const analyticsUrl = process.env.NORI_ANALYTICS_URL ?? DEFAULT_ANALYTICS_URL;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000);
+  timeout.unref?.();
+
+  void fetch(analyticsUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    signal: controller.signal,
+  })
+    .catch(() => {
+      // Silent failure
+    })
+    .finally(() => {
+      clearTimeout(timeout);
+    });
 };
 
 const readInstallState = async (): Promise<InstallState | null> => {
@@ -97,53 +181,6 @@ const writeInstallState = async (state: InstallState): Promise<void> => {
 
   await fs.mkdir(dirPath, { recursive: true });
   await fs.writeFile(filePath, `${JSON.stringify(state, null, 2)}\n`);
-};
-
-const isCiEnvironment = (): boolean => {
-  const env = process.env;
-  return Boolean(
-    env.CI ||
-    env.GITHUB_ACTIONS ||
-    env.GITLAB_CI ||
-    env.BUILDKITE ||
-    env.CIRCLECI ||
-    env.TRAVIS ||
-    env.BITBUCKET_BUILD_NUMBER,
-  );
-};
-
-const fireAndForgetAnalyticsEvent = (payload: {
-  event: string;
-  client_id: string;
-  session_id: string;
-  timestamp: string;
-  properties: {
-    version: string;
-    os: string;
-    arch: string;
-    node_version: string;
-    is_ci: boolean;
-  };
-}): void => {
-  const analyticsUrl = process.env.NORI_ANALYTICS_URL ?? DEFAULT_ANALYTICS_URL;
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 5000);
-  timeout.unref?.();
-
-  void fetch(analyticsUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-    signal: controller.signal,
-  })
-    .catch(() => {
-      // Silent failure
-    })
-    .finally(() => {
-      clearTimeout(timeout);
-    });
 };
 
 const shouldTriggerResurrection = (state: InstallState): boolean => {
@@ -167,11 +204,12 @@ export const trackInstallLifecycle = async (args: {
 
   try {
     const now = new Date().toISOString();
-    const sessionId = randomUUID();
     const stateFromDisk = await readInstallState();
 
     let state = stateFromDisk;
-    let eventToSend: "app_install" | "app_update" | null = null;
+    let isFirstInstall = false;
+    let previousVersion: string | null = null;
+    let shouldSendInstallEvent = false;
 
     if (state == null) {
       const clientId = getDeterministicClientId();
@@ -185,7 +223,8 @@ export const trackInstallLifecycle = async (args: {
         installed_version: currentVersion,
         install_source: getInstallSource(),
       };
-      eventToSend = "app_install";
+      shouldSendInstallEvent = true;
+      isFirstInstall = true;
     } else {
       if (!state.client_id) {
         state.client_id = getDeterministicClientId();
@@ -199,9 +238,11 @@ export const trackInstallLifecycle = async (args: {
         semver.valid(state.installed_version) != null &&
         semver.gt(currentVersion, state.installed_version)
       ) {
+        previousVersion = state.installed_version;
         state.installed_version = currentVersion;
         state.last_updated_at = now;
-        eventToSend = "app_update";
+        shouldSendInstallEvent = true;
+        isFirstInstall = false;
       }
     }
 
@@ -226,36 +267,53 @@ export const trackInstallLifecycle = async (args: {
       return;
     }
 
-    const basePayload = {
-      client_id: state.client_id,
-      session_id: sessionId,
-      timestamp: now,
-      properties: {
-        version: currentVersion,
-        os: process.platform,
-        arch: process.arch,
-        node_version: process.versions.node,
-        is_ci: isCiEnvironment(),
-      },
+    // Calculate days since install
+    const daysSinceInstall = Math.floor(
+      (Date.now() - new Date(state.first_installed_at).getTime()) /
+        (1000 * 60 * 60 * 24),
+    );
+
+    // Build CLI-specific event params per PLAN_ANALYTICS_PROXY.md
+    const cliEventParams: EventParams = {
+      ...buildBaseEventParams(),
+      tilework_cli_executable_name: "nori-ai",
+      tilework_cli_installed_version: currentVersion,
+      tilework_cli_install_source: state.install_source,
+      tilework_cli_days_since_install: daysSinceInstall,
+      tilework_cli_node_version: process.versions.node,
     };
 
+    // Send resurrection event if applicable
     if (isResurrected) {
-      fireAndForgetAnalyticsEvent({
-        event: "user_resurrected",
-        ...basePayload,
+      sendAnalyticsEvent({
+        eventName: "nori_user_resurrected",
+        eventParams: cliEventParams,
+        clientId: state.client_id,
       });
     }
 
-    if (eventToSend != null) {
-      fireAndForgetAnalyticsEvent({
-        event: eventToSend,
-        ...basePayload,
+    // Send install/upgrade event if applicable
+    if (shouldSendInstallEvent) {
+      const installParams: EventParams = {
+        ...cliEventParams,
+        tilework_cli_is_first_install: isFirstInstall,
+      };
+      if (previousVersion != null) {
+        installParams.tilework_cli_previous_version = previousVersion;
+      }
+
+      sendAnalyticsEvent({
+        eventName: "nori_install_completed",
+        eventParams: installParams,
+        clientId: state.client_id,
       });
     }
 
-    fireAndForgetAnalyticsEvent({
-      event: "session_start",
-      ...basePayload,
+    // Always send session start
+    sendAnalyticsEvent({
+      eventName: "nori_session_start",
+      eventParams: cliEventParams,
+      clientId: state.client_id,
     });
   } catch {
     // Silent failure - analytics should never block CLI

@@ -74,10 +74,10 @@ describe("installTracking", () => {
 
       await trackInstallLifecycle({ currentVersion: "1.0.0" });
 
-      // Should have sent user_resurrected event
+      // Should have sent nori_user_resurrected event
       const resurrectedCall = fetchMock.mock.calls.find((call) => {
         const body = JSON.parse(call[1].body);
-        return body.event === "user_resurrected";
+        return body.event_name === "nori_user_resurrected";
       });
 
       expect(resurrectedCall).toBeDefined();
@@ -108,7 +108,7 @@ describe("installTracking", () => {
       // Should NOT have sent user_resurrected event
       const resurrectedCall = fetchMock.mock.calls.find((call) => {
         const body = JSON.parse(call[1].body);
-        return body.event === "user_resurrected";
+        return body.event_name === "nori_user_resurrected";
       });
 
       expect(resurrectedCall).toBeUndefined();
@@ -137,7 +137,7 @@ describe("installTracking", () => {
       // Should NOT have sent user_resurrected event (30 seconds is not 30 days)
       const resurrectedCall = fetchMock.mock.calls.find((call) => {
         const body = JSON.parse(call[1].body);
-        return body.event === "user_resurrected";
+        return body.event_name === "nori_user_resurrected";
       });
 
       expect(resurrectedCall).toBeUndefined();
@@ -348,18 +348,18 @@ describe("installTracking", () => {
       expect(state.installed_version).toBe("1.0.0");
     });
 
-    it("should send app_install event on first run", async () => {
+    it("should send nori_install_completed event on first run", async () => {
       await trackInstallLifecycle({ currentVersion: "1.0.0" });
 
       const installCall = fetchMock.mock.calls.find((call) => {
         const body = JSON.parse(call[1].body);
-        return body.event === "app_install";
+        return body.event_name === "nori_install_completed";
       });
 
       expect(installCall).toBeDefined();
     });
 
-    it("should send app_update event on version upgrade", async () => {
+    it("should send nori_install_completed event on version upgrade", async () => {
       const existingState = {
         schema_version: 1,
         client_id: "test-client-id",
@@ -377,13 +377,13 @@ describe("installTracking", () => {
 
       const updateCall = fetchMock.mock.calls.find((call) => {
         const body = JSON.parse(call[1].body);
-        return body.event === "app_update";
+        return body.event_name === "nori_install_completed";
       });
 
       expect(updateCall).toBeDefined();
     });
 
-    it("should send session_start event on every run", async () => {
+    it("should send nori_session_start event on every run", async () => {
       const existingState = {
         schema_version: 1,
         client_id: "test-client-id",
@@ -401,7 +401,7 @@ describe("installTracking", () => {
 
       const sessionCall = fetchMock.mock.calls.find((call) => {
         const body = JSON.parse(call[1].body);
-        return body.event === "session_start";
+        return body.event_name === "nori_session_start";
       });
 
       expect(sessionCall).toBeDefined();
@@ -457,6 +457,377 @@ describe("installTracking", () => {
 
       // Version should remain at 2.0.0, not downgrade to 1.0.0
       expect(updatedState.installed_version).toBe("2.0.0");
+    });
+  });
+});
+
+/**
+ * Tests for new API spec compliance (PLAN_ANALYTICS_PROXY.md)
+ * These test the new exported functions and event structure
+ */
+describe("Analytics API Spec Compliance (PLAN_ANALYTICS_PROXY.md)", () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  describe("getDeterministicClientId", () => {
+    // @current-session
+    it("returns a deterministic UUID-formatted string based on machine identifiers", async () => {
+      // Import the function - it should be exported
+      const { getDeterministicClientId } = await import("./installTracking.js");
+
+      const clientId = getDeterministicClientId();
+
+      // Should be a valid UUID format (8-4-4-4-12 hex characters)
+      expect(clientId).toMatch(
+        /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/,
+      );
+
+      // Should be deterministic - same machine = same ID
+      const clientId2 = getDeterministicClientId();
+      expect(clientId2).toBe(clientId);
+    });
+
+    // @current-session
+    it("is NOT a static string like 'plugin-installer'", async () => {
+      const { getDeterministicClientId } = await import("./installTracking.js");
+
+      const clientId = getDeterministicClientId();
+      expect(clientId).not.toBe("plugin-installer");
+      expect(clientId).not.toBe("nori-skillsets");
+    });
+  });
+
+  describe("buildBaseEventParams", () => {
+    // @current-session
+    it("includes all required tilework_* fields", async () => {
+      const { buildBaseEventParams } = await import("./installTracking.js");
+
+      const params = buildBaseEventParams();
+
+      expect(params).toHaveProperty("tilework_source", "nori-skillsets");
+      expect(params).toHaveProperty("tilework_session_id");
+      expect(params).toHaveProperty("tilework_timestamp");
+    });
+
+    // @current-session
+    it("tilework_session_id is constant across multiple calls in the same process", async () => {
+      const { buildBaseEventParams } = await import("./installTracking.js");
+
+      const params1 = buildBaseEventParams();
+      const params2 = buildBaseEventParams();
+
+      expect(params1.tilework_session_id).toBe(params2.tilework_session_id);
+    });
+
+    // @current-session
+    it("tilework_timestamp is ISO 8601 format", async () => {
+      const { buildBaseEventParams } = await import("./installTracking.js");
+
+      const params = buildBaseEventParams();
+
+      // Should be a valid ISO 8601 timestamp
+      expect(new Date(params.tilework_timestamp).toISOString()).toBe(
+        params.tilework_timestamp,
+      );
+    });
+  });
+
+  describe("sendAnalyticsEvent", () => {
+    // @current-session
+    it("sends event with correct structure matching API spec", async () => {
+      const { sendAnalyticsEvent, buildBaseEventParams } =
+        await import("./installTracking.js");
+
+      sendAnalyticsEvent({
+        eventName: "test_event",
+        eventParams: buildBaseEventParams(),
+      });
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [url, options] = fetchMock.mock.calls[0];
+
+      expect(url).toBe("https://noriskillsets.dev/api/analytics/track");
+
+      const payload = JSON.parse(options.body);
+      expect(payload).toHaveProperty("client_id");
+      expect(payload).toHaveProperty("event_name", "test_event");
+      expect(payload).toHaveProperty("event_params");
+      expect(payload.event_params).toHaveProperty(
+        "tilework_source",
+        "nori-skillsets",
+      );
+      expect(payload.event_params).toHaveProperty("tilework_session_id");
+      expect(payload.event_params).toHaveProperty("tilework_timestamp");
+    });
+
+    // @current-session
+    it("includes user_id when provided", async () => {
+      const { sendAnalyticsEvent, buildBaseEventParams } =
+        await import("./installTracking.js");
+
+      sendAnalyticsEvent({
+        eventName: "test_event",
+        eventParams: buildBaseEventParams(),
+        userId: "test@example.com",
+      });
+
+      const payload = JSON.parse(fetchMock.mock.calls[0][1].body);
+      expect(payload).toHaveProperty("user_id", "test@example.com");
+    });
+
+    // @current-session
+    it("omits user_id when not provided", async () => {
+      const { sendAnalyticsEvent, buildBaseEventParams } =
+        await import("./installTracking.js");
+
+      sendAnalyticsEvent({
+        eventName: "test_event",
+        eventParams: buildBaseEventParams(),
+      });
+
+      const payload = JSON.parse(fetchMock.mock.calls[0][1].body);
+      expect(payload).not.toHaveProperty("user_id");
+    });
+
+    // @current-session
+    it("uses snake_case field names (not camelCase)", async () => {
+      const { sendAnalyticsEvent, buildBaseEventParams } =
+        await import("./installTracking.js");
+
+      sendAnalyticsEvent({
+        eventName: "test_event",
+        eventParams: buildBaseEventParams(),
+        clientId: "test-client-id",
+      });
+
+      const payload = JSON.parse(fetchMock.mock.calls[0][1].body);
+
+      // Should have snake_case
+      expect(payload).toHaveProperty("client_id");
+      expect(payload).toHaveProperty("event_name");
+      expect(payload).toHaveProperty("event_params");
+
+      // Should NOT have camelCase
+      expect(payload).not.toHaveProperty("clientId");
+      expect(payload).not.toHaveProperty("eventName");
+      expect(payload).not.toHaveProperty("eventParams");
+    });
+
+    // @current-session
+    it("uses deterministic client_id when none provided", async () => {
+      const { sendAnalyticsEvent, buildBaseEventParams } =
+        await import("./installTracking.js");
+
+      sendAnalyticsEvent({
+        eventName: "test_event",
+        eventParams: buildBaseEventParams(),
+      });
+
+      const payload = JSON.parse(fetchMock.mock.calls[0][1].body);
+      expect(payload.client_id).toMatch(
+        /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/,
+      );
+      expect(payload.client_id).not.toBe("plugin-installer");
+    });
+  });
+
+  describe("trackInstallLifecycle - New Event Names", () => {
+    let installStatePath: string;
+    let tempProfilesDir: string;
+
+    beforeEach(async () => {
+      installStatePath = path.join(
+        os.homedir(),
+        ".nori",
+        "profiles",
+        ".nori-install.json",
+      );
+      tempProfilesDir = path.dirname(installStatePath);
+
+      await fs.mkdir(tempProfilesDir, { recursive: true });
+
+      try {
+        await fs.unlink(installStatePath);
+      } catch {
+        // File doesn't exist
+      }
+    });
+
+    afterEach(async () => {
+      try {
+        await fs.unlink(installStatePath);
+      } catch {
+        // File doesn't exist
+      }
+    });
+
+    // @current-session
+    it("sends nori_install_completed on first install", async () => {
+      await trackInstallLifecycle({ currentVersion: "1.0.0" });
+
+      const installCall = fetchMock.mock.calls.find((call) => {
+        const body = JSON.parse(call[1].body);
+        return body.event_name === "nori_install_completed";
+      });
+
+      expect(installCall).toBeDefined();
+    });
+
+    // @current-session
+    it("sends nori_session_start on every launch", async () => {
+      await trackInstallLifecycle({ currentVersion: "1.0.0" });
+
+      const sessionCall = fetchMock.mock.calls.find((call) => {
+        const body = JSON.parse(call[1].body);
+        return body.event_name === "nori_session_start";
+      });
+
+      expect(sessionCall).toBeDefined();
+    });
+
+    // @current-session
+    it("sends nori_install_completed with tilework_cli_previous_version on upgrade", async () => {
+      const existingState = {
+        schema_version: 1,
+        client_id: "test-client-id",
+        opt_out: false,
+        first_installed_at: new Date().toISOString(),
+        last_updated_at: new Date().toISOString(),
+        last_launched_at: new Date().toISOString(),
+        installed_version: "1.0.0",
+        install_source: "npm",
+      };
+
+      await fs.writeFile(installStatePath, JSON.stringify(existingState));
+
+      await trackInstallLifecycle({ currentVersion: "2.0.0" });
+
+      const installCall = fetchMock.mock.calls.find((call) => {
+        const body = JSON.parse(call[1].body);
+        return body.event_name === "nori_install_completed";
+      });
+
+      expect(installCall).toBeDefined();
+      const payload = JSON.parse(installCall![1].body);
+      expect(payload.event_params).toHaveProperty(
+        "tilework_cli_is_first_install",
+        false,
+      );
+      expect(payload.event_params).toHaveProperty(
+        "tilework_cli_previous_version",
+        "1.0.0",
+      );
+    });
+
+    // @current-session
+    it("sends nori_user_resurrected after 30+ days of inactivity", async () => {
+      const thirtyOneDaysAgo = new Date(
+        Date.now() - 31 * 24 * 60 * 60 * 1000,
+      ).toISOString();
+
+      await fs.writeFile(
+        installStatePath,
+        JSON.stringify({
+          schema_version: 1,
+          client_id: "test-client-id",
+          opt_out: false,
+          first_installed_at: thirtyOneDaysAgo,
+          last_updated_at: thirtyOneDaysAgo,
+          last_launched_at: thirtyOneDaysAgo,
+          installed_version: "1.0.0",
+          install_source: "npm",
+        }),
+      );
+
+      await trackInstallLifecycle({ currentVersion: "1.0.0" });
+
+      const resurrectedCall = fetchMock.mock.calls.find((call) => {
+        const body = JSON.parse(call[1].body);
+        return body.event_name === "nori_user_resurrected";
+      });
+
+      expect(resurrectedCall).toBeDefined();
+    });
+  });
+
+  describe("trackInstallLifecycle - CLI Event Params", () => {
+    let installStatePath: string;
+    let tempProfilesDir: string;
+
+    beforeEach(async () => {
+      installStatePath = path.join(
+        os.homedir(),
+        ".nori",
+        "profiles",
+        ".nori-install.json",
+      );
+      tempProfilesDir = path.dirname(installStatePath);
+
+      await fs.mkdir(tempProfilesDir, { recursive: true });
+
+      try {
+        await fs.unlink(installStatePath);
+      } catch {
+        // File doesn't exist
+      }
+    });
+
+    afterEach(async () => {
+      try {
+        await fs.unlink(installStatePath);
+      } catch {
+        // File doesn't exist
+      }
+    });
+
+    // @current-session
+    it("includes all required tilework_cli_* fields in event_params", async () => {
+      await trackInstallLifecycle({ currentVersion: "1.0.0" });
+
+      const sessionCall = fetchMock.mock.calls.find((call) => {
+        const body = JSON.parse(call[1].body);
+        return body.event_name === "nori_session_start";
+      });
+
+      expect(sessionCall).toBeDefined();
+      const payload = JSON.parse(sessionCall![1].body);
+      const params = payload.event_params;
+
+      // Required base fields
+      expect(params).toHaveProperty("tilework_source", "nori-skillsets");
+      expect(params).toHaveProperty("tilework_session_id");
+      expect(params).toHaveProperty("tilework_timestamp");
+
+      // Required CLI fields
+      expect(params).toHaveProperty("tilework_cli_executable_name", "nori-ai");
+      expect(params).toHaveProperty("tilework_cli_installed_version", "1.0.0");
+      expect(params).toHaveProperty("tilework_cli_install_source");
+      expect(params).toHaveProperty("tilework_cli_days_since_install");
+      expect(params).toHaveProperty("tilework_cli_node_version");
+    });
+
+    // @current-session
+    it("includes tilework_cli_is_first_install=true on first install", async () => {
+      await trackInstallLifecycle({ currentVersion: "1.0.0" });
+
+      const installCall = fetchMock.mock.calls.find((call) => {
+        const body = JSON.parse(call[1].body);
+        return body.event_name === "nori_install_completed";
+      });
+
+      expect(installCall).toBeDefined();
+      const params = JSON.parse(installCall![1].body).event_params;
+
+      expect(params.tilework_cli_is_first_install).toBe(true);
     });
   });
 });
