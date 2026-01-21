@@ -623,6 +623,121 @@ describe("registry-upload", () => {
     });
   });
 
+  describe("public registry support", () => {
+    it("should include public registry when user has unified auth with refreshToken", async () => {
+      await createTestProfile({ name: "test-profile" });
+
+      // User has unified auth (config.auth) but NO registryAuths
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        auth: {
+          username: "test@example.com",
+          organizationUrl: "https://myorg.tilework.tech",
+          refreshToken: "mock-refresh-token",
+        },
+        // No registryAuths - only the unified auth
+      });
+
+      vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
+
+      vi.mocked(registrarApi.getPackument).mockRejectedValue(
+        new Error("Package not found"),
+      );
+
+      vi.mocked(registrarApi.uploadProfile).mockResolvedValue({
+        name: "test-profile",
+        version: "1.0.0",
+        tarballSha: "sha512-abc123",
+        createdAt: "2024-01-01T00:00:00.000Z",
+      });
+
+      await registryUploadMain({
+        profileSpec: "test-profile",
+        cwd: testDir,
+      });
+
+      // Should upload to public registry since it's included as an available registry
+      expect(registrarApi.uploadProfile).toHaveBeenCalledWith(
+        expect.objectContaining({
+          packageName: "test-profile",
+          registryUrl: "https://noriskillsets.dev",
+        }),
+      );
+    });
+
+    it("should upload to public registry when --registry specifies it and user has unified auth", async () => {
+      await createTestProfile({ name: "test-profile" });
+
+      // User has unified auth with refreshToken
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        auth: {
+          username: "test@example.com",
+          organizationUrl: "https://myorg.tilework.tech",
+          refreshToken: "mock-refresh-token",
+        },
+      });
+
+      // getRegistryAuth returns null for public registry (current behavior)
+      vi.mocked(getRegistryAuth).mockReturnValue(null);
+
+      vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
+
+      vi.mocked(registrarApi.getPackument).mockRejectedValue(
+        new Error("Package not found"),
+      );
+
+      vi.mocked(registrarApi.uploadProfile).mockResolvedValue({
+        name: "test-profile",
+        version: "1.0.0",
+        tarballSha: "sha512-abc123",
+        createdAt: "2024-01-01T00:00:00.000Z",
+      });
+
+      await registryUploadMain({
+        profileSpec: "test-profile",
+        cwd: testDir,
+        registryUrl: "https://noriskillsets.dev",
+      });
+
+      // Should successfully upload to public registry
+      expect(registrarApi.uploadProfile).toHaveBeenCalledWith(
+        expect.objectContaining({
+          packageName: "test-profile",
+          registryUrl: "https://noriskillsets.dev",
+          authToken: "mock-auth-token",
+        }),
+      );
+    });
+
+    it("should still fail for public registry when user has no auth at all", async () => {
+      await createTestProfile({ name: "test-profile" });
+
+      // User has NO auth at all
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        // No auth, no registryAuths
+      });
+
+      vi.mocked(getRegistryAuth).mockReturnValue(null);
+
+      await registryUploadMain({
+        profileSpec: "test-profile",
+        cwd: testDir,
+        registryUrl: "https://noriskillsets.dev",
+      });
+
+      // Should fail with auth error
+      const allErrorOutput = mockConsoleError.mock.calls
+        .map((call) => call.join(" "))
+        .join("\n");
+      expect(allErrorOutput.toLowerCase()).toContain("auth");
+
+      // Should not attempt upload
+      expect(registrarApi.uploadProfile).not.toHaveBeenCalled();
+    });
+  });
+
   describe("cursor-agent validation", () => {
     it("should fail when only cursor-agent is installed", async () => {
       await createTestProfile({ name: "test-profile" });

@@ -10,7 +10,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 // Mock the registrar API
 vi.mock("@/api/registrar.js", () => ({
-  REGISTRAR_URL: "https://registrar.tilework.tech",
+  REGISTRAR_URL: "https://noriskillsets.dev",
   registrarApi: {
     uploadSkill: vi.fn(),
     getSkillPackument: vi.fn(),
@@ -117,7 +117,7 @@ This is a test skill.
           {
             username: "test@example.com",
             password: "test-password",
-            registryUrl: "https://registrar.tilework.tech",
+            registryUrl: "https://noriskillsets.dev",
           },
         ],
       });
@@ -125,7 +125,7 @@ This is a test skill.
       vi.mocked(getRegistryAuth).mockReturnValue({
         username: "test@example.com",
         password: "test-password",
-        registryUrl: "https://registrar.tilework.tech",
+        registryUrl: "https://noriskillsets.dev",
       });
 
       vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
@@ -148,7 +148,7 @@ This is a test skill.
           skillName: "test-skill",
           version: "1.0.0",
           authToken: "mock-auth-token",
-          registryUrl: "https://registrar.tilework.tech",
+          registryUrl: "https://noriskillsets.dev",
         }),
       );
 
@@ -168,7 +168,7 @@ This is a test skill.
           {
             username: "test@example.com",
             password: "test-password",
-            registryUrl: "https://registrar.tilework.tech",
+            registryUrl: "https://noriskillsets.dev",
           },
         ],
       });
@@ -176,7 +176,7 @@ This is a test skill.
       vi.mocked(getRegistryAuth).mockReturnValue({
         username: "test@example.com",
         password: "test-password",
-        registryUrl: "https://registrar.tilework.tech",
+        registryUrl: "https://noriskillsets.dev",
       });
 
       vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
@@ -209,7 +209,7 @@ This is a test skill.
           {
             username: "test@example.com",
             password: "test-password",
-            registryUrl: "https://registrar.tilework.tech",
+            registryUrl: "https://noriskillsets.dev",
           },
         ],
       });
@@ -235,7 +235,7 @@ This is a test skill.
           {
             username: "test@example.com",
             password: "test-password",
-            registryUrl: "https://registrar.tilework.tech",
+            registryUrl: "https://noriskillsets.dev",
           },
         ],
       });
@@ -304,7 +304,7 @@ This is a test skill.
           {
             username: "test@example.com",
             password: "test-password",
-            registryUrl: "https://registrar.tilework.tech",
+            registryUrl: "https://noriskillsets.dev",
           },
         ],
       });
@@ -312,7 +312,7 @@ This is a test skill.
       vi.mocked(getRegistryAuth).mockReturnValue({
         username: "test@example.com",
         password: "test-password",
-        registryUrl: "https://registrar.tilework.tech",
+        registryUrl: "https://noriskillsets.dev",
       });
 
       vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
@@ -352,7 +352,7 @@ description: This is a custom description from frontmatter
           {
             username: "test@example.com",
             password: "test-password",
-            registryUrl: "https://registrar.tilework.tech",
+            registryUrl: "https://noriskillsets.dev",
           },
         ],
       });
@@ -360,7 +360,7 @@ description: This is a custom description from frontmatter
       vi.mocked(getRegistryAuth).mockReturnValue({
         username: "test@example.com",
         password: "test-password",
-        registryUrl: "https://registrar.tilework.tech",
+        registryUrl: "https://noriskillsets.dev",
       });
 
       vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
@@ -401,7 +401,7 @@ No frontmatter here.
           {
             username: "test@example.com",
             password: "test-password",
-            registryUrl: "https://registrar.tilework.tech",
+            registryUrl: "https://noriskillsets.dev",
           },
         ],
       });
@@ -409,7 +409,7 @@ No frontmatter here.
       vi.mocked(getRegistryAuth).mockReturnValue({
         username: "test@example.com",
         password: "test-password",
-        registryUrl: "https://registrar.tilework.tech",
+        registryUrl: "https://noriskillsets.dev",
       });
 
       vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
@@ -447,7 +447,7 @@ No frontmatter here.
           {
             username: "test@example.com",
             password: "test-password",
-            registryUrl: "https://registrar.tilework.tech",
+            registryUrl: "https://noriskillsets.dev",
           },
           {
             username: "private@example.com",
@@ -467,7 +467,7 @@ No frontmatter here.
         .map((call) => call.join(" "))
         .join("\n");
       expect(allErrorOutput.toLowerCase()).toContain("multiple");
-      expect(allErrorOutput).toContain("https://registrar.tilework.tech");
+      expect(allErrorOutput).toContain("https://noriskillsets.dev");
       expect(allErrorOutput).toContain("https://private-registry.example.com");
       expect(allErrorOutput).toContain("--registry");
 
@@ -486,7 +486,7 @@ No frontmatter here.
           {
             username: "test@example.com",
             password: "test-password",
-            registryUrl: "https://registrar.tilework.tech",
+            registryUrl: "https://noriskillsets.dev",
           },
           {
             username: "private@example.com",
@@ -536,7 +536,7 @@ No frontmatter here.
           {
             username: "test@example.com",
             password: "test-password",
-            registryUrl: "https://registrar.tilework.tech",
+            registryUrl: "https://noriskillsets.dev",
           },
         ],
       });
@@ -571,7 +571,7 @@ No frontmatter here.
           {
             username: "test@example.com",
             password: "test-password",
-            registryUrl: "https://registrar.tilework.tech",
+            registryUrl: "https://noriskillsets.dev",
           },
         ],
       });
@@ -579,7 +579,7 @@ No frontmatter here.
       vi.mocked(getRegistryAuth).mockReturnValue({
         username: "test@example.com",
         password: "test-password",
-        registryUrl: "https://registrar.tilework.tech",
+        registryUrl: "https://noriskillsets.dev",
       });
 
       vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
@@ -621,7 +621,7 @@ No frontmatter here.
           {
             username: "test@example.com",
             password: "test-password",
-            registryUrl: "https://registrar.tilework.tech",
+            registryUrl: "https://noriskillsets.dev",
           },
         ],
       });
@@ -629,7 +629,7 @@ No frontmatter here.
       vi.mocked(getRegistryAuth).mockReturnValue({
         username: "test@example.com",
         password: "test-password",
-        registryUrl: "https://registrar.tilework.tech",
+        registryUrl: "https://noriskillsets.dev",
       });
 
       vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
@@ -669,7 +669,7 @@ No frontmatter here.
           {
             username: "test@example.com",
             password: "test-password",
-            registryUrl: "https://registrar.tilework.tech",
+            registryUrl: "https://noriskillsets.dev",
           },
         ],
       });
@@ -677,7 +677,7 @@ No frontmatter here.
       vi.mocked(getRegistryAuth).mockReturnValue({
         username: "test@example.com",
         password: "test-password",
-        registryUrl: "https://registrar.tilework.tech",
+        registryUrl: "https://noriskillsets.dev",
       });
 
       vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
@@ -707,6 +707,121 @@ No frontmatter here.
     });
   });
 
+  describe("public registry support", () => {
+    it("should include public registry when user has unified auth with refreshToken", async () => {
+      await createTestSkill({ name: "test-skill" });
+
+      // User has unified auth (config.auth) but NO registryAuths
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        auth: {
+          username: "test@example.com",
+          organizationUrl: "https://myorg.tilework.tech",
+          refreshToken: "mock-refresh-token",
+        },
+        // No registryAuths - only the unified auth
+      });
+
+      vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
+
+      vi.mocked(registrarApi.getSkillPackument).mockRejectedValue(
+        new Error("Skill not found"),
+      );
+
+      vi.mocked(registrarApi.uploadSkill).mockResolvedValue({
+        name: "test-skill",
+        version: "1.0.0",
+        tarballSha: "sha512-abc123",
+        createdAt: "2024-01-01T00:00:00.000Z",
+      });
+
+      await skillUploadMain({
+        skillSpec: "test-skill",
+        cwd: testDir,
+      });
+
+      // Should upload to public registry since it's included as an available registry
+      expect(registrarApi.uploadSkill).toHaveBeenCalledWith(
+        expect.objectContaining({
+          skillName: "test-skill",
+          registryUrl: "https://noriskillsets.dev",
+        }),
+      );
+    });
+
+    it("should upload to public registry when --registry specifies it and user has unified auth", async () => {
+      await createTestSkill({ name: "test-skill" });
+
+      // User has unified auth with refreshToken
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        auth: {
+          username: "test@example.com",
+          organizationUrl: "https://myorg.tilework.tech",
+          refreshToken: "mock-refresh-token",
+        },
+      });
+
+      // getRegistryAuth returns null for public registry (current behavior)
+      vi.mocked(getRegistryAuth).mockReturnValue(null);
+
+      vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
+
+      vi.mocked(registrarApi.getSkillPackument).mockRejectedValue(
+        new Error("Skill not found"),
+      );
+
+      vi.mocked(registrarApi.uploadSkill).mockResolvedValue({
+        name: "test-skill",
+        version: "1.0.0",
+        tarballSha: "sha512-abc123",
+        createdAt: "2024-01-01T00:00:00.000Z",
+      });
+
+      await skillUploadMain({
+        skillSpec: "test-skill",
+        cwd: testDir,
+        registryUrl: "https://noriskillsets.dev",
+      });
+
+      // Should successfully upload to public registry
+      expect(registrarApi.uploadSkill).toHaveBeenCalledWith(
+        expect.objectContaining({
+          skillName: "test-skill",
+          registryUrl: "https://noriskillsets.dev",
+          authToken: "mock-auth-token",
+        }),
+      );
+    });
+
+    it("should still fail for public registry when user has no auth at all", async () => {
+      await createTestSkill({ name: "test-skill" });
+
+      // User has NO auth at all
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        // No auth, no registryAuths
+      });
+
+      vi.mocked(getRegistryAuth).mockReturnValue(null);
+
+      await skillUploadMain({
+        skillSpec: "test-skill",
+        cwd: testDir,
+        registryUrl: "https://noriskillsets.dev",
+      });
+
+      // Should fail with auth error
+      const allErrorOutput = mockConsoleError.mock.calls
+        .map((call) => call.join(" "))
+        .join("\n");
+      expect(allErrorOutput.toLowerCase()).toContain("auth");
+
+      // Should not attempt upload
+      expect(registrarApi.uploadSkill).not.toHaveBeenCalled();
+    });
+  });
+
   describe("cursor-agent validation", () => {
     it("should fail when only cursor-agent is installed", async () => {
       await createTestSkill({ name: "test-skill" });
@@ -719,7 +834,7 @@ No frontmatter here.
           {
             username: "test@example.com",
             password: "test-password",
-            registryUrl: "https://registrar.tilework.tech",
+            registryUrl: "https://noriskillsets.dev",
           },
         ],
       });
@@ -754,7 +869,7 @@ No frontmatter here.
           {
             username: "test@example.com",
             password: "test-password",
-            registryUrl: "https://registrar.tilework.tech",
+            registryUrl: "https://noriskillsets.dev",
           },
         ],
       });
@@ -762,7 +877,7 @@ No frontmatter here.
       vi.mocked(getRegistryAuth).mockReturnValue({
         username: "test@example.com",
         password: "test-password",
-        registryUrl: "https://registrar.tilework.tech",
+        registryUrl: "https://noriskillsets.dev",
       });
 
       vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
