@@ -26,9 +26,22 @@ vi.mock("@/cli/logger.js", () => ({
   LOG_FILE: "/tmp/nori.log",
 }));
 
-// Mock analytics
-vi.mock("@/cli/analytics.js", () => ({
-  trackEvent: vi.fn(),
+// Mock analytics from installTracking
+vi.mock("@/cli/installTracking.js", () => ({
+  buildCLIEventParams: vi.fn().mockResolvedValue({
+    tilework_source: "nori-skillsets",
+    tilework_session_id: "123456",
+    tilework_timestamp: "2025-01-20T00:00:00.000Z",
+    tilework_cli_executable_name: "nori-ai",
+    tilework_cli_installed_version: "1.0.0",
+    tilework_cli_install_source: "npm",
+    tilework_cli_days_since_install: 0,
+    tilework_cli_node_version: "20.0.0",
+    tilework_cli_profile: null,
+    tilework_cli_install_type: "free",
+  }),
+  getUserId: vi.fn().mockResolvedValue(null),
+  sendAnalyticsEvent: vi.fn(),
 }));
 
 // Mock config to provide install_type and version
@@ -90,10 +103,10 @@ describe("autoupdate", () => {
         installDir: process.cwd(),
       });
 
-      // Mock trackEvent
-      const { trackEvent } = await import("@/cli/analytics.js");
-      const mockTrackEvent = vi.mocked(trackEvent);
-      mockTrackEvent.mockResolvedValue();
+      // Mock sendAnalyticsEvent
+      const { sendAnalyticsEvent } = await import("@/cli/installTracking.js");
+      const _mockSendAnalyticsEvent = vi.mocked(sendAnalyticsEvent);
+      // sendAnalyticsEvent is fire-and-forget, no mock setup needed
 
       // Spy on console.log to capture output
       const consoleLogSpy = vi
@@ -156,10 +169,10 @@ describe("autoupdate", () => {
         installDir: process.cwd(),
       });
 
-      // Mock trackEvent
-      const { trackEvent } = await import("@/cli/analytics.js");
-      const mockTrackEvent = vi.mocked(trackEvent);
-      mockTrackEvent.mockResolvedValue();
+      // Mock sendAnalyticsEvent
+      const { sendAnalyticsEvent } = await import("@/cli/installTracking.js");
+      const _mockSendAnalyticsEvent = vi.mocked(sendAnalyticsEvent);
+      // sendAnalyticsEvent is fire-and-forget, no mock setup needed
 
       const consoleLogSpy = vi
         .spyOn(console, "log")
@@ -199,10 +212,10 @@ describe("autoupdate", () => {
         installDir: process.cwd(),
       });
 
-      // Mock trackEvent
-      const { trackEvent } = await import("@/cli/analytics.js");
-      const mockTrackEvent = vi.mocked(trackEvent);
-      mockTrackEvent.mockResolvedValue();
+      // Mock sendAnalyticsEvent
+      const { sendAnalyticsEvent } = await import("@/cli/installTracking.js");
+      const _mockSendAnalyticsEvent = vi.mocked(sendAnalyticsEvent);
+      // sendAnalyticsEvent is fire-and-forget, no mock setup needed
 
       const consoleLogSpy = vi
         .spyOn(console, "log")
@@ -235,10 +248,10 @@ describe("autoupdate", () => {
         installDir: process.cwd(),
       });
 
-      // Mock trackEvent
-      const { trackEvent } = await import("@/cli/analytics.js");
-      const mockTrackEvent = vi.mocked(trackEvent);
-      mockTrackEvent.mockResolvedValue();
+      // Mock sendAnalyticsEvent
+      const { sendAnalyticsEvent } = await import("@/cli/installTracking.js");
+      const _mockSendAnalyticsEvent = vi.mocked(sendAnalyticsEvent);
+      // sendAnalyticsEvent is fire-and-forget, no mock setup needed
 
       const consoleLogSpy = vi
         .spyOn(console, "log")
@@ -275,24 +288,26 @@ describe("autoupdate", () => {
         installDir: process.cwd(),
       });
 
-      // Mock trackEvent
-      const { trackEvent } = await import("@/cli/analytics.js");
-      const mockTrackEvent = vi.mocked(trackEvent);
-      mockTrackEvent.mockResolvedValue();
+      // Mock sendAnalyticsEvent
+      const { sendAnalyticsEvent } = await import("@/cli/installTracking.js");
+      const mockSendAnalyticsEvent = vi.mocked(sendAnalyticsEvent);
 
       // Import and run main function
       const autoupdate = await import("./autoupdate.js");
       await autoupdate.main();
 
-      // Verify trackEvent was called with session start
-      expect(mockTrackEvent).toHaveBeenCalledWith({
-        eventName: "nori_session_started",
-        eventParams: {
-          installed_version: "14.1.0",
-          update_available: false,
-          install_type: "paid",
-        },
-      });
+      // Wait for async analytics to complete (fire-and-forget runs as microtask)
+      await new Promise((resolve) => setImmediate(resolve));
+
+      // Verify sendAnalyticsEvent was called with session start
+      expect(mockSendAnalyticsEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventName: "claude_session_started",
+          eventParams: expect.objectContaining({
+            tilework_cli_update_available: false,
+          }),
+        }),
+      );
     });
 
     it("should track session start with update_available=true when update exists", async () => {
@@ -318,10 +333,9 @@ describe("autoupdate", () => {
         installDir: process.cwd(),
       });
 
-      // Mock trackEvent
-      const { trackEvent } = await import("@/cli/analytics.js");
-      const mockTrackEvent = vi.mocked(trackEvent);
-      mockTrackEvent.mockResolvedValue();
+      // Mock sendAnalyticsEvent
+      const { sendAnalyticsEvent } = await import("@/cli/installTracking.js");
+      const mockSendAnalyticsEvent = vi.mocked(sendAnalyticsEvent);
 
       // Spy on console.log
       const consoleLogSpy = vi
@@ -332,15 +346,18 @@ describe("autoupdate", () => {
       const autoupdate = await import("./autoupdate.js");
       await autoupdate.main();
 
-      // Verify trackEvent was called with update_available=true
-      expect(mockTrackEvent).toHaveBeenCalledWith({
-        eventName: "nori_session_started",
-        eventParams: {
-          installed_version: "14.1.0",
-          update_available: true,
-          install_type: "free",
-        },
-      });
+      // Wait for async analytics to complete (fire-and-forget runs as microtask)
+      await new Promise((resolve) => setImmediate(resolve));
+
+      // Verify sendAnalyticsEvent was called with update_available=true
+      expect(mockSendAnalyticsEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventName: "claude_session_started",
+          eventParams: expect.objectContaining({
+            tilework_cli_update_available: true,
+          }),
+        }),
+      );
 
       consoleLogSpy.mockRestore();
     });
@@ -368,25 +385,27 @@ describe("autoupdate", () => {
         installDir: process.cwd(),
       });
 
-      // Mock trackEvent
-      const { trackEvent } = await import("@/cli/analytics.js");
-      const mockTrackEvent = vi.mocked(trackEvent);
-      mockTrackEvent.mockResolvedValue();
+      // Mock sendAnalyticsEvent
+      const { sendAnalyticsEvent } = await import("@/cli/installTracking.js");
+      const mockSendAnalyticsEvent = vi.mocked(sendAnalyticsEvent);
 
       // Import and run main function
       const autoupdate = await import("./autoupdate.js");
       await autoupdate.main();
 
-      // Verify trackEvent was still called (session tracking should be independent)
+      // Wait for async analytics to complete (fire-and-forget runs as microtask)
+      await new Promise((resolve) => setImmediate(resolve));
+
+      // Verify sendAnalyticsEvent was still called (session tracking should be independent)
       // When npm check fails, we can't determine if update is available, so default to false
-      expect(mockTrackEvent).toHaveBeenCalledWith({
-        eventName: "nori_session_started",
-        eventParams: {
-          installed_version: "14.1.0",
-          update_available: false,
-          install_type: "paid",
-        },
-      });
+      expect(mockSendAnalyticsEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventName: "claude_session_started",
+          eventParams: expect.objectContaining({
+            tilework_cli_update_available: false,
+          }),
+        }),
+      );
     });
 
     it("should check installed version from config not build constant", async () => {
@@ -425,10 +444,10 @@ describe("autoupdate", () => {
         installDir: process.cwd(),
       });
 
-      // Mock trackEvent
-      const { trackEvent } = await import("@/cli/analytics.js");
-      const mockTrackEvent = vi.mocked(trackEvent);
-      mockTrackEvent.mockResolvedValue();
+      // Mock sendAnalyticsEvent
+      const { sendAnalyticsEvent } = await import("@/cli/installTracking.js");
+      const _mockSendAnalyticsEvent = vi.mocked(sendAnalyticsEvent);
+      // sendAnalyticsEvent is fire-and-forget, no mock setup needed
 
       // Spy on console.log
       const consoleLogSpy = vi
@@ -497,10 +516,10 @@ describe("autoupdate", () => {
         installDir: process.cwd(),
       });
 
-      // Mock trackEvent
-      const { trackEvent } = await import("@/cli/analytics.js");
-      const mockTrackEvent = vi.mocked(trackEvent);
-      mockTrackEvent.mockResolvedValue();
+      // Mock sendAnalyticsEvent
+      const { sendAnalyticsEvent } = await import("@/cli/installTracking.js");
+      const _mockSendAnalyticsEvent = vi.mocked(sendAnalyticsEvent);
+      // sendAnalyticsEvent is fire-and-forget, no mock setup needed
 
       // Spy on console.log
       const consoleLogSpy = vi
@@ -568,10 +587,10 @@ describe("autoupdate", () => {
         installDir: process.cwd(),
       });
 
-      // Mock trackEvent
-      const { trackEvent } = await import("@/cli/analytics.js");
-      const mockTrackEvent = vi.mocked(trackEvent);
-      mockTrackEvent.mockResolvedValue();
+      // Mock sendAnalyticsEvent
+      const { sendAnalyticsEvent } = await import("@/cli/installTracking.js");
+      const _mockSendAnalyticsEvent = vi.mocked(sendAnalyticsEvent);
+      // sendAnalyticsEvent is fire-and-forget, no mock setup needed
 
       // Spy on console.log
       const consoleLogSpy = vi
@@ -644,10 +663,10 @@ describe("autoupdate", () => {
       const mockOpenSync = vi.mocked(openSync);
       mockOpenSync.mockReturnValue(3 as any);
 
-      // Mock trackEvent
-      const { trackEvent } = await import("@/cli/analytics.js");
-      const mockTrackEvent = vi.mocked(trackEvent);
-      mockTrackEvent.mockResolvedValue();
+      // Mock sendAnalyticsEvent
+      const { sendAnalyticsEvent } = await import("@/cli/installTracking.js");
+      const _mockSendAnalyticsEvent = vi.mocked(sendAnalyticsEvent);
+      // sendAnalyticsEvent is fire-and-forget, no mock setup needed
 
       // Spy on console.log
       const consoleLogSpy = vi
@@ -704,10 +723,10 @@ describe("autoupdate", () => {
         installDir: process.cwd(),
       });
 
-      // Mock trackEvent
-      const { trackEvent } = await import("@/cli/analytics.js");
-      const mockTrackEvent = vi.mocked(trackEvent);
-      mockTrackEvent.mockResolvedValue();
+      // Mock sendAnalyticsEvent
+      const { sendAnalyticsEvent } = await import("@/cli/installTracking.js");
+      const _mockSendAnalyticsEvent = vi.mocked(sendAnalyticsEvent);
+      // sendAnalyticsEvent is fire-and-forget, no mock setup needed
 
       const consoleLogSpy = vi
         .spyOn(console, "log")
@@ -748,10 +767,10 @@ describe("autoupdate", () => {
         installDir: process.cwd(),
       });
 
-      // Mock trackEvent
-      const { trackEvent } = await import("@/cli/analytics.js");
-      const mockTrackEvent = vi.mocked(trackEvent);
-      mockTrackEvent.mockResolvedValue();
+      // Mock sendAnalyticsEvent
+      const { sendAnalyticsEvent } = await import("@/cli/installTracking.js");
+      const _mockSendAnalyticsEvent = vi.mocked(sendAnalyticsEvent);
+      // sendAnalyticsEvent is fire-and-forget, no mock setup needed
 
       const consoleLogSpy = vi
         .spyOn(console, "log")
@@ -803,10 +822,10 @@ describe("autoupdate", () => {
         installDir: process.cwd(),
       });
 
-      // Mock trackEvent
-      const { trackEvent } = await import("@/cli/analytics.js");
-      const mockTrackEvent = vi.mocked(trackEvent);
-      mockTrackEvent.mockResolvedValue();
+      // Mock sendAnalyticsEvent
+      const { sendAnalyticsEvent } = await import("@/cli/installTracking.js");
+      const _mockSendAnalyticsEvent = vi.mocked(sendAnalyticsEvent);
+      // sendAnalyticsEvent is fire-and-forget, no mock setup needed
 
       const consoleLogSpy = vi
         .spyOn(console, "log")
@@ -858,10 +877,10 @@ describe("autoupdate", () => {
         installDir: process.cwd(),
       });
 
-      // Mock trackEvent
-      const { trackEvent } = await import("@/cli/analytics.js");
-      const mockTrackEvent = vi.mocked(trackEvent);
-      mockTrackEvent.mockResolvedValue();
+      // Mock sendAnalyticsEvent
+      const { sendAnalyticsEvent } = await import("@/cli/installTracking.js");
+      const _mockSendAnalyticsEvent = vi.mocked(sendAnalyticsEvent);
+      // sendAnalyticsEvent is fire-and-forget, no mock setup needed
 
       const consoleLogSpy = vi
         .spyOn(console, "log")
@@ -900,10 +919,10 @@ describe("autoupdate", () => {
         installDir: process.cwd(),
       });
 
-      // Mock trackEvent
-      const { trackEvent } = await import("@/cli/analytics.js");
-      const mockTrackEvent = vi.mocked(trackEvent);
-      mockTrackEvent.mockResolvedValue();
+      // Mock sendAnalyticsEvent
+      const { sendAnalyticsEvent } = await import("@/cli/installTracking.js");
+      const _mockSendAnalyticsEvent = vi.mocked(sendAnalyticsEvent);
+      // sendAnalyticsEvent is fire-and-forget, no mock setup needed
 
       const consoleLogSpy = vi
         .spyOn(console, "log")
@@ -958,10 +977,10 @@ describe("autoupdate", () => {
         installDir: process.cwd(),
       });
 
-      // Mock trackEvent
-      const { trackEvent } = await import("@/cli/analytics.js");
-      const mockTrackEvent = vi.mocked(trackEvent);
-      mockTrackEvent.mockResolvedValue();
+      // Mock sendAnalyticsEvent
+      const { sendAnalyticsEvent } = await import("@/cli/installTracking.js");
+      const _mockSendAnalyticsEvent = vi.mocked(sendAnalyticsEvent);
+      // sendAnalyticsEvent is fire-and-forget, no mock setup needed
 
       const consoleLogSpy = vi
         .spyOn(console, "log")
@@ -1022,10 +1041,10 @@ describe("autoupdate", () => {
         installDir: process.cwd(),
       });
 
-      // Mock trackEvent
-      const { trackEvent } = await import("@/cli/analytics.js");
-      const mockTrackEvent = vi.mocked(trackEvent);
-      mockTrackEvent.mockResolvedValue();
+      // Mock sendAnalyticsEvent
+      const { sendAnalyticsEvent } = await import("@/cli/installTracking.js");
+      const _mockSendAnalyticsEvent = vi.mocked(sendAnalyticsEvent);
+      // sendAnalyticsEvent is fire-and-forget, no mock setup needed
 
       const consoleLogSpy = vi
         .spyOn(console, "log")

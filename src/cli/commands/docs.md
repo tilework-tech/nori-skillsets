@@ -114,7 +114,7 @@ Commands use shared utilities from the parent @/src/cli/ directory:
 - `logger.ts` - Unified logging via Winston. All console output uses these functions: `error()`, `success()`, `info()`, `warn()` for formatted messages; `newline()` for blank line spacing; `raw({ message })` for pre-formatted output (ASCII art, separators). Silent mode via `setSilentMode()`/`isSilentMode()` suppresses all console output while file logging to `/tmp/nori.log` continues. The `debug({ message })` function writes to file only (no console).
 - `prompt.ts` - User input prompting
 - `version.ts` - Version tracking for upgrades and CLI flag compatibility checking
-- `analytics.ts` - GA4 event tracking
+- `installTracking.ts` - Install lifecycle and session tracking to Nori backend
 
 Commands obtain feature loaders via the AgentRegistry (@/src/cli/features/agentRegistry.ts). The pattern is:
 ```typescript
