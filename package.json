@@ -11,7 +11,8 @@
   "description": "Nori Profiles plugin for Claude Code",
   "type": "module",
   "bin": {
-    "nori-ai": "./build/src/cli/cli.js"
+    "nori-ai": "./build/src/cli/cli.js",
+    "seaweed": "./build/src/cli/cli.js"
   },
   "scripts": {
     "build": "./scripts/build.sh",

@@ -453,6 +453,23 @@ ${stderr || "(empty)"}`,
     expect(mdFiles).toContain("nori-info.md");
   });
 
+  it("should register seaweed binary in package.json", () => {
+    // This test verifies that the seaweed binary is registered in package.json
+    // alongside the nori-ai binary, both pointing to the same CLI entry point.
+    const pluginDir = process.cwd();
+    const packageJson = JSON.parse(
+      fs.readFileSync(path.join(pluginDir, "package.json"), "utf-8"),
+    );
+
+    // Both binaries should be registered
+    expect(packageJson.bin).toHaveProperty("nori-ai");
+    expect(packageJson.bin).toHaveProperty("seaweed");
+
+    // Both should point to the same CLI entry point
+    expect(packageJson.bin["nori-ai"]).toBe("./build/src/cli/cli.js");
+    expect(packageJson.bin.seaweed).toBe("./build/src/cli/cli.js");
+  });
+
   // CLI behavior tests - these run after build tests to ensure build artifacts exist
   describe("CLI behavior", () => {
     let tempDir: string;
