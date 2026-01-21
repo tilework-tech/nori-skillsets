@@ -624,7 +624,7 @@ export const interactive = async (args?: {
     const cliParams = await buildCLIEventParams({ config });
     const userId = await getUserId({ config });
     sendAnalyticsEvent({
-      eventName: "nori_install_started",
+      eventName: "noriprof_install_started",
       eventParams: {
         ...cliParams,
         tilework_cli_non_interactive: false,
@@ -670,7 +670,7 @@ export const interactive = async (args?: {
     const cliParams = await buildCLIEventParams({ config });
     const userId = await getUserId({ config });
     sendAnalyticsEvent({
-      eventName: "nori_install_completed",
+      eventName: "noriprof_install_completed",
       eventParams: {
         ...cliParams,
         tilework_cli_non_interactive: false,
@@ -857,7 +857,7 @@ export const noninteractive = async (args?: {
     const cliParams = await buildCLIEventParams({ config });
     const userId = await getUserId({ config });
     sendAnalyticsEvent({
-      eventName: "nori_install_started",
+      eventName: "noriprof_install_started",
       eventParams: {
         ...cliParams,
         tilework_cli_non_interactive: true,
@@ -903,7 +903,7 @@ export const noninteractive = async (args?: {
     const cliParams = await buildCLIEventParams({ config });
     const userId = await getUserId({ config });
     sendAnalyticsEvent({
-      eventName: "nori_install_completed",
+      eventName: "noriprof_install_completed",
       eventParams: {
         ...cliParams,
         tilework_cli_non_interactive: true,

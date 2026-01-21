@@ -390,7 +390,7 @@ export const trackInstallLifecycle = async (args: {
     // Send resurrection event if applicable
     if (isResurrected) {
       sendAnalyticsEvent({
-        eventName: "nori_user_resurrected",
+        eventName: "noriprof_user_resurrected",
         eventParams: cliEventParams,
         clientId: state.client_id,
       });
@@ -407,18 +407,11 @@ export const trackInstallLifecycle = async (args: {
       }
 
       sendAnalyticsEvent({
-        eventName: "nori_install_completed",
+        eventName: "noriprof_install_detected",
         eventParams: installParams,
         clientId: state.client_id,
       });
     }
-
-    // Always send session start
-    sendAnalyticsEvent({
-      eventName: "nori_session_started",
-      eventParams: cliEventParams,
-      clientId: state.client_id,
-    });
   } catch {
     // Silent failure - analytics should never block CLI
   }

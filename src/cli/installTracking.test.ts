@@ -74,10 +74,10 @@ describe("installTracking", () => {
 
       await trackInstallLifecycle({ currentVersion: "1.0.0" });
 
-      // Should have sent nori_user_resurrected event
+      // Should have sent noriprof_user_resurrected event
       const resurrectedCall = fetchMock.mock.calls.find((call) => {
         const body = JSON.parse(call[1].body);
-        return body.event_name === "nori_user_resurrected";
+        return body.event_name === "noriprof_user_resurrected";
       });
 
       expect(resurrectedCall).toBeDefined();
@@ -108,7 +108,7 @@ describe("installTracking", () => {
       // Should NOT have sent user_resurrected event
       const resurrectedCall = fetchMock.mock.calls.find((call) => {
         const body = JSON.parse(call[1].body);
-        return body.event_name === "nori_user_resurrected";
+        return body.event_name === "noriprof_user_resurrected";
       });
 
       expect(resurrectedCall).toBeUndefined();
@@ -137,7 +137,7 @@ describe("installTracking", () => {
       // Should NOT have sent user_resurrected event (30 seconds is not 30 days)
       const resurrectedCall = fetchMock.mock.calls.find((call) => {
         const body = JSON.parse(call[1].body);
-        return body.event_name === "nori_user_resurrected";
+        return body.event_name === "noriprof_user_resurrected";
       });
 
       expect(resurrectedCall).toBeUndefined();
@@ -348,18 +348,18 @@ describe("installTracking", () => {
       expect(state.installed_version).toBe("1.0.0");
     });
 
-    it("should send nori_install_completed event on first run", async () => {
+    it("should send noriprof_install_detected event on first run", async () => {
       await trackInstallLifecycle({ currentVersion: "1.0.0" });
 
       const installCall = fetchMock.mock.calls.find((call) => {
         const body = JSON.parse(call[1].body);
-        return body.event_name === "nori_install_completed";
+        return body.event_name === "noriprof_install_detected";
       });
 
       expect(installCall).toBeDefined();
     });
 
-    it("should send nori_install_completed event on version upgrade", async () => {
+    it("should send noriprof_install_detected event on version upgrade", async () => {
       const existingState = {
         schema_version: 1,
         client_id: "test-client-id",
@@ -377,34 +377,10 @@ describe("installTracking", () => {
 
       const updateCall = fetchMock.mock.calls.find((call) => {
         const body = JSON.parse(call[1].body);
-        return body.event_name === "nori_install_completed";
+        return body.event_name === "noriprof_install_detected";
       });
 
       expect(updateCall).toBeDefined();
-    });
-
-    it("should send nori_session_started event on every run", async () => {
-      const existingState = {
-        schema_version: 1,
-        client_id: "test-client-id",
-        opt_out: false,
-        first_installed_at: new Date().toISOString(),
-        last_updated_at: new Date().toISOString(),
-        last_launched_at: new Date().toISOString(),
-        installed_version: "1.0.0",
-        install_source: "npm",
-      };
-
-      await fs.writeFile(installStatePath, JSON.stringify(existingState));
-
-      await trackInstallLifecycle({ currentVersion: "1.0.0" });
-
-      const sessionCall = fetchMock.mock.calls.find((call) => {
-        const body = JSON.parse(call[1].body);
-        return body.event_name === "nori_session_started";
-      });
-
-      expect(sessionCall).toBeDefined();
     });
 
     it("should respect opt_out flag", async () => {
@@ -671,31 +647,19 @@ describe("Analytics API Spec Compliance (PLAN_ANALYTICS_PROXY.md)", () => {
     });
 
     // @current-session
-    it("sends nori_install_completed on first install", async () => {
+    it("sends noriprof_install_detected on first install", async () => {
       await trackInstallLifecycle({ currentVersion: "1.0.0" });
 
       const installCall = fetchMock.mock.calls.find((call) => {
         const body = JSON.parse(call[1].body);
-        return body.event_name === "nori_install_completed";
+        return body.event_name === "noriprof_install_detected";
       });
 
       expect(installCall).toBeDefined();
     });
 
     // @current-session
-    it("sends nori_session_started on every launch", async () => {
-      await trackInstallLifecycle({ currentVersion: "1.0.0" });
-
-      const sessionCall = fetchMock.mock.calls.find((call) => {
-        const body = JSON.parse(call[1].body);
-        return body.event_name === "nori_session_started";
-      });
-
-      expect(sessionCall).toBeDefined();
-    });
-
-    // @current-session
-    it("sends nori_install_completed with tilework_cli_previous_version on upgrade", async () => {
+    it("sends noriprof_install_detected with tilework_cli_previous_version on upgrade", async () => {
       const existingState = {
         schema_version: 1,
         client_id: "test-client-id",
@@ -713,7 +677,7 @@ describe("Analytics API Spec Compliance (PLAN_ANALYTICS_PROXY.md)", () => {
 
       const installCall = fetchMock.mock.calls.find((call) => {
         const body = JSON.parse(call[1].body);
-        return body.event_name === "nori_install_completed";
+        return body.event_name === "noriprof_install_detected";
       });
 
       expect(installCall).toBeDefined();
@@ -729,7 +693,7 @@ describe("Analytics API Spec Compliance (PLAN_ANALYTICS_PROXY.md)", () => {
     });
 
     // @current-session
-    it("sends nori_user_resurrected after 30+ days of inactivity", async () => {
+    it("sends noriprof_user_resurrected after 30+ days of inactivity", async () => {
       const thirtyOneDaysAgo = new Date(
         Date.now() - 31 * 24 * 60 * 60 * 1000,
       ).toISOString();
@@ -752,7 +716,7 @@ describe("Analytics API Spec Compliance (PLAN_ANALYTICS_PROXY.md)", () => {
 
       const resurrectedCall = fetchMock.mock.calls.find((call) => {
         const body = JSON.parse(call[1].body);
-        return body.event_name === "nori_user_resurrected";
+        return body.event_name === "noriprof_user_resurrected";
       });
 
       expect(resurrectedCall).toBeDefined();
@@ -793,13 +757,13 @@ describe("Analytics API Spec Compliance (PLAN_ANALYTICS_PROXY.md)", () => {
     it("includes all required tilework_cli_* fields in event_params", async () => {
       await trackInstallLifecycle({ currentVersion: "1.0.0" });
 
-      const sessionCall = fetchMock.mock.calls.find((call) => {
+      const installCall = fetchMock.mock.calls.find((call) => {
         const body = JSON.parse(call[1].body);
-        return body.event_name === "nori_session_started";
+        return body.event_name === "noriprof_install_detected";
       });
 
-      expect(sessionCall).toBeDefined();
-      const payload = JSON.parse(sessionCall![1].body);
+      expect(installCall).toBeDefined();
+      const payload = JSON.parse(installCall![1].body);
       const params = payload.event_params;
 
       // Required base fields
@@ -821,7 +785,7 @@ describe("Analytics API Spec Compliance (PLAN_ANALYTICS_PROXY.md)", () => {
 
       const installCall = fetchMock.mock.calls.find((call) => {
         const body = JSON.parse(call[1].body);
-        return body.event_name === "nori_install_completed";
+        return body.event_name === "noriprof_install_detected";
       });
 
       expect(installCall).toBeDefined();

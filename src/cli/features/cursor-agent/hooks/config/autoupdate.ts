@@ -176,7 +176,7 @@ const main = async (): Promise<void> => {
       });
       const userId = await getUserId({ config: diskConfig });
       sendAnalyticsEvent({
-        eventName: "nori_session_started",
+        eventName: "claude_session_started",
         eventParams: {
           ...cliParams,
           tilework_cli_update_available: updateAvailable,

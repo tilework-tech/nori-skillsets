@@ -332,7 +332,7 @@ export const runUninstall = async (args: {
     const cliParams = await buildCLIEventParams({ config });
     const userId = await getUserId({ config });
     sendAnalyticsEvent({
-      eventName: "nori_uninstall_started",
+      eventName: "noriprof_uninstall_started",
       eventParams: cliParams,
       userId,
     });
@@ -405,7 +405,7 @@ export const runUninstall = async (args: {
     const cliParams = await buildCLIEventParams({ config });
     const userId = await getUserId({ config });
     sendAnalyticsEvent({
-      eventName: "nori_uninstall_completed",
+      eventName: "noriprof_uninstall_completed",
       eventParams: cliParams,
       userId,
     });

@@ -305,7 +305,7 @@ describe("autoupdate", () => {
       // Verify sendAnalyticsEvent was called with session start
       expect(mockSendAnalyticsEvent).toHaveBeenCalledWith(
         expect.objectContaining({
-          eventName: "nori_session_started",
+          eventName: "claude_session_started",
           eventParams: expect.objectContaining({
             tilework_cli_update_available: false,
           }),
@@ -354,7 +354,7 @@ describe("autoupdate", () => {
       // Verify sendAnalyticsEvent was called with update_available=true
       expect(mockSendAnalyticsEvent).toHaveBeenCalledWith(
         expect.objectContaining({
-          eventName: "nori_session_started",
+          eventName: "claude_session_started",
           eventParams: expect.objectContaining({
             tilework_cli_update_available: true,
           }),
@@ -402,7 +402,7 @@ describe("autoupdate", () => {
       // When npm check fails, we can't determine if update is available, so default to false
       expect(mockSendAnalyticsEvent).toHaveBeenCalledWith(
         expect.objectContaining({
-          eventName: "nori_session_started",
+          eventName: "claude_session_started",
           eventParams: expect.objectContaining({
             tilework_cli_update_available: false,
           }),
