@@ -929,6 +929,62 @@ describe("skill-download", () => {
       expect(registrarApi.getSkillPackument).toHaveBeenCalled();
     });
   });
+
+  describe("cliName in user-facing messages", () => {
+    it("should use seaweed command names when cliName is seaweed", async () => {
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        registryAuths: [],
+      });
+
+      vi.mocked(registrarApi.getSkillPackument).mockResolvedValue({
+        name: "test-skill",
+        "dist-tags": { latest: "1.0.0" },
+        versions: { "1.0.0": { name: "test-skill", version: "1.0.0" } },
+      });
+
+      await skillDownloadMain({
+        skillSpec: "test-skill",
+        cwd: testDir,
+        listVersions: true,
+        cliName: "seaweed",
+      });
+
+      // Verify version hint uses seaweed command names
+      const allOutput = mockConsoleLog.mock.calls
+        .map((call) => call.join(" "))
+        .join("\n");
+      expect(allOutput).toContain("seaweed download-skill");
+      expect(allOutput).not.toContain("nori-ai skill-download");
+    });
+
+    it("should use nori-ai command names when cliName is nori-ai", async () => {
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        registryAuths: [],
+      });
+
+      vi.mocked(registrarApi.getSkillPackument).mockResolvedValue({
+        name: "test-skill",
+        "dist-tags": { latest: "1.0.0" },
+        versions: { "1.0.0": { name: "test-skill", version: "1.0.0" } },
+      });
+
+      await skillDownloadMain({
+        skillSpec: "test-skill",
+        cwd: testDir,
+        listVersions: true,
+        cliName: "nori-ai",
+      });
+
+      // Verify version hint uses nori-ai command names
+      const allOutput = mockConsoleLog.mock.calls
+        .map((call) => call.join(" "))
+        .join("\n");
+      expect(allOutput).toContain("nori-ai skill-download");
+      expect(allOutput).not.toContain("seaweed download-skill");
+    });
+  });
 });
 
 /**

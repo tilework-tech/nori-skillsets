@@ -36,6 +36,7 @@ export const registerSeaweedSearchCommand = (args: {
       await registrySearchMain({
         query,
         installDir: globalOpts.installDir || null,
+        cliName: "seaweed",
       });
     });
 };
@@ -75,6 +76,7 @@ export const registerSeaweedDownloadCommand = (args: {
           installDir: globalOpts.installDir || null,
           registryUrl: options.registry || null,
           listVersions: options.listVersions || null,
+          cliName: "seaweed",
         });
 
         if (!result.success) {
@@ -142,6 +144,7 @@ export const registerSeaweedUpdateCommand = (args: {
         profileName,
         installDir: globalOpts.installDir || null,
         registryUrl: options.registry || null,
+        cliName: "seaweed",
       });
     });
 };
@@ -170,6 +173,7 @@ export const registerSeaweedUploadCommand = (args: {
         profileSpec,
         installDir: globalOpts.installDir || null,
         registryUrl: options.registry || null,
+        cliName: "seaweed",
       });
     });
 };
@@ -226,6 +230,7 @@ export const registerSeaweedDownloadSkillCommand = (args: {
           installDir: globalOpts.installDir || null,
           registryUrl: options.registry || null,
           listVersions: options.listVersions || null,
+          cliName: "seaweed",
         });
       },
     );
@@ -255,6 +260,7 @@ export const registerSeaweedUploadSkillCommand = (args: {
         skillSpec,
         installDir: globalOpts.installDir || null,
         registryUrl: options.registry || null,
+        cliName: "seaweed",
       });
     });
 };

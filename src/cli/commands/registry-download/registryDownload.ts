@@ -19,6 +19,10 @@ import {
 } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
 import {
+  getCommandNames,
+  type CliName,
+} from "@/cli/commands/cliCommandNames.js";
+import {
   checkRegistryAgentSupport,
   showCursorAgentNotSupportedError,
 } from "@/cli/commands/registryAgentCheck.js";
@@ -441,6 +445,7 @@ const searchSpecificRegistry = async (args: {
  * @param args.packageName - The package name
  * @param args.packument - The packument containing version information
  * @param args.registryUrl - The registry URL
+ * @param args.cliName - The CLI name for command hints
  *
  * @returns Formatted version list message
  */
@@ -448,8 +453,10 @@ const formatVersionList = (args: {
   packageName: string;
   packument: Packument;
   registryUrl: string;
+  cliName?: CliName | null;
 }): string => {
-  const { packageName, packument, registryUrl } = args;
+  const { packageName, packument, registryUrl, cliName } = args;
+  const commandNames = getCommandNames({ cliName });
   const distTags = packument["dist-tags"];
   const versions = Object.keys(packument.versions);
   const timeInfo = packument.time ?? {};
@@ -486,8 +493,9 @@ const formatVersionList = (args: {
     lines.push(`  ${version}${tagStr}${timeStr}`);
   }
 
+  const cliPrefix = cliName ?? "nori-ai";
   lines.push(
-    `\nTo download a specific version:\n  nori-ai registry-download ${packageName}@<version>`,
+    `\nTo download a specific version:\n  ${cliPrefix} ${commandNames.download} ${packageName}@<version>`,
   );
 
   return lines.join("\n");
@@ -498,14 +506,18 @@ const formatVersionList = (args: {
  * @param args - The format parameters
  * @param args.packageName - The package name that was searched
  * @param args.results - The search results from multiple registries
+ * @param args.cliName - The CLI name for command hints
  *
  * @returns Formatted error message
  */
 const formatMultiplePackagesError = (args: {
   packageName: string;
   results: Array<RegistrySearchResult>;
+  cliName?: CliName | null;
 }): string => {
-  const { packageName, results } = args;
+  const { packageName, results, cliName } = args;
+  const commandNames = getCommandNames({ cliName });
+  const cliPrefix = cliName ?? "nori-ai";
 
   const lines = ["Multiple packages with the same name found.\n"];
 
@@ -519,7 +531,7 @@ const formatMultiplePackagesError = (args: {
   lines.push("To download, please specify the registry with --registry:");
   for (const result of results) {
     lines.push(
-      `nori-ai registry-download ${packageName} --registry ${result.registryUrl}`,
+      `${cliPrefix} ${commandNames.download} ${packageName} --registry ${result.registryUrl}`,
     );
   }
 
@@ -541,6 +553,7 @@ export type RegistryDownloadResult = {
  * @param args.installDir - Optional explicit install directory
  * @param args.registryUrl - Optional registry URL to download from
  * @param args.listVersions - If true, list available versions instead of downloading
+ * @param args.cliName - CLI name for user-facing messages (nori-ai or seaweed)
  *
  * @returns Result indicating success or failure
  */
@@ -550,9 +563,12 @@ export const registryDownloadMain = async (args: {
   installDir?: string | null;
   registryUrl?: string | null;
   listVersions?: boolean | null;
+  cliName?: CliName | null;
 }): Promise<RegistryDownloadResult> => {
-  const { packageSpec, installDir, registryUrl, listVersions } = args;
+  const { packageSpec, installDir, registryUrl, listVersions, cliName } = args;
   const cwd = args.cwd ?? process.cwd();
+  const commandNames = getCommandNames({ cliName });
+  const cliPrefix = cliName ?? "nori-ai";
 
   const { packageName, version } = parsePackageSpec({ packageSpec });
 
@@ -655,6 +671,7 @@ export const registryDownloadMain = async (args: {
       message: formatMultiplePackagesError({
         packageName,
         results: searchResults,
+        cliName,
       }),
     });
     return { success: false };
@@ -670,6 +687,7 @@ export const registryDownloadMain = async (args: {
         packageName,
         packument: selectedRegistry.packument,
         registryUrl: selectedRegistry.registryUrl,
+        cliName,
       }),
     });
     return { success: true };
@@ -684,7 +702,7 @@ export const registryDownloadMain = async (args: {
     if (existingVersionInfo == null) {
       // Profile exists but has no .nori-version - manual install
       error({
-        message: `Profile "${packageName}" already exists at:\n${targetDir}\n\nThis profile has no version information (.nori-version file).\nIt may have been installed manually or with an older version of Nori.\n\nTo reinstall:\n  rm -rf "${targetDir}"\n  nori-ai registry-download ${packageName}`,
+        message: `Profile "${packageName}" already exists at:\n${targetDir}\n\nThis profile has no version information (.nori-version file).\nIt may have been installed manually or with an older version of Nori.\n\nTo reinstall:\n  rm -rf "${targetDir}"\n  ${cliPrefix} ${commandNames.download} ${packageName}`,
       });
       return { success: false };
     }
@@ -819,7 +837,7 @@ export const registryDownloadMain = async (args: {
     info({ message: `Installed to: ${targetDir}` });
     newline();
     info({
-      message: `You can now use this profile with 'nori-ai switch-profile ${packageName}'.`,
+      message: `You can now use this profile with '${cliPrefix} ${commandNames.switchProfile} ${packageName}'.`,
     });
 
     return { success: true };

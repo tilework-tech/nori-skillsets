@@ -655,4 +655,118 @@ describe("registry-search", () => {
       expect(output.toLowerCase()).toContain("not supported");
     });
   });
+
+  describe("cliName in user-facing messages", () => {
+    it("should use seaweed command names in install hints when cliName is seaweed", async () => {
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
+        registryAuths: [],
+      });
+
+      // Mock public registry search functions (no org auth = only public registry is searched)
+      vi.mocked(registrarApi.searchPackages).mockResolvedValue([
+        {
+          id: "1",
+          name: "test-profile",
+          description: "A test profile",
+          authorEmail: "test@example.com",
+          createdAt: "2024-01-01",
+          updatedAt: "2024-01-01",
+        },
+      ]);
+      vi.mocked(registrarApi.searchSkills).mockResolvedValue([
+        {
+          id: "2",
+          name: "test-skill",
+          description: "A test skill",
+          authorEmail: "test@example.com",
+          createdAt: "2024-01-01",
+          updatedAt: "2024-01-01",
+        },
+      ]);
+
+      await registrySearchMain({
+        query: "test",
+        installDir: testDir,
+        cliName: "seaweed",
+      });
+
+      const output = getAllOutput();
+      expect(output).toContain("seaweed download");
+      expect(output).toContain("seaweed download-skill");
+      expect(output).not.toContain("nori-ai registry-download");
+      expect(output).not.toContain("nori-ai skill-download");
+    });
+
+    it("should use nori-ai command names in install hints when cliName is nori-ai", async () => {
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
+        registryAuths: [],
+      });
+
+      // Mock public registry search functions (no org auth = only public registry is searched)
+      vi.mocked(registrarApi.searchPackages).mockResolvedValue([
+        {
+          id: "1",
+          name: "test-profile",
+          description: "A test profile",
+          authorEmail: "test@example.com",
+          createdAt: "2024-01-01",
+          updatedAt: "2024-01-01",
+        },
+      ]);
+      vi.mocked(registrarApi.searchSkills).mockResolvedValue([
+        {
+          id: "2",
+          name: "test-skill",
+          description: "A test skill",
+          authorEmail: "test@example.com",
+          createdAt: "2024-01-01",
+          updatedAt: "2024-01-01",
+        },
+      ]);
+
+      await registrySearchMain({
+        query: "test",
+        installDir: testDir,
+        cliName: "nori-ai",
+      });
+
+      const output = getAllOutput();
+      expect(output).toContain("nori-ai registry-download");
+      expect(output).toContain("nori-ai skill-download");
+      expect(output).not.toContain("seaweed download");
+    });
+
+    it("should default to nori-ai command names when cliName is not provided", async () => {
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
+        registryAuths: [],
+      });
+
+      // Mock public registry search functions (no org auth = only public registry is searched)
+      vi.mocked(registrarApi.searchPackages).mockResolvedValue([
+        {
+          id: "1",
+          name: "test-profile",
+          description: "A test profile",
+          authorEmail: "test@example.com",
+          createdAt: "2024-01-01",
+          updatedAt: "2024-01-01",
+        },
+      ]);
+      vi.mocked(registrarApi.searchSkills).mockResolvedValue([]);
+
+      await registrySearchMain({
+        query: "test",
+        installDir: testDir,
+      });
+
+      const output = getAllOutput();
+      expect(output).toContain("nori-ai registry-download");
+    });
+  });
 });
