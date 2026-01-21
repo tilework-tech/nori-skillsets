@@ -12,6 +12,7 @@ import { Command } from "commander";
 import {
   registerSeaweedDownloadCommand,
   registerSeaweedDownloadSkillCommand,
+  registerSeaweedInitCommand,
   registerSeaweedInstallCommand,
   registerSeaweedSearchCommand,
   registerSeaweedSwitchSkillsetCommand,
@@ -41,6 +42,7 @@ program
     "after",
     `
 Examples:
+  $ seaweed init
   $ seaweed search typescript  # searches both profiles and skills
   $ seaweed download my-profile
   $ seaweed download my-profile@1.0.0
@@ -55,6 +57,7 @@ Examples:
   );
 
 // Register simplified commands for seaweed CLI
+registerSeaweedInitCommand({ program });
 registerSeaweedSearchCommand({ program });
 registerSeaweedDownloadCommand({ program });
 registerSeaweedInstallCommand({ program });

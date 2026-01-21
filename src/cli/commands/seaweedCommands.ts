@@ -7,6 +7,7 @@
  * The nori-ai CLI continues to use the registry-* prefixed commands.
  */
 
+import { initMain } from "@/cli/commands/init/init.js";
 import { registryDownloadMain } from "@/cli/commands/registry-download/registryDownload.js";
 import { registryInstallMain } from "@/cli/commands/registry-install/registryInstall.js";
 import { registrySearchMain } from "@/cli/commands/registry-search/registrySearch.js";
@@ -14,6 +15,28 @@ import { skillDownloadMain } from "@/cli/commands/skill-download/skillDownload.j
 import { switchSkillsetAction } from "@/cli/commands/switch-profile/profiles.js";
 
 import type { Command } from "commander";
+
+/**
+ * Register the 'init' command for seaweed CLI
+ * @param args - Configuration arguments
+ * @param args.program - Commander program instance
+ */
+export const registerSeaweedInitCommand = (args: {
+  program: Command;
+}): void => {
+  const { program } = args;
+
+  program
+    .command("init")
+    .description("Initialize Nori configuration and directories")
+    .action(async () => {
+      const globalOpts = program.opts();
+      await initMain({
+        installDir: globalOpts.installDir || null,
+        nonInteractive: globalOpts.nonInteractive || null,
+      });
+    });
+};
 
 /**
  * Register the 'search' command for seaweed CLI

@@ -139,8 +139,9 @@ nori-ai.ts (full CLI)
   +-- registerSkillDownloadCommand({ program })--> commands/skill-download/skillDownload.ts
   +-- registerSkillUploadCommand({ program })  --> commands/skill-upload/skillUpload.ts
 
-seaweed.ts (simplified CLI for registry read operations, skill downloads, and profile switching)
+seaweed.ts (simplified CLI for registry read operations, skill downloads, profile switching, and initialization)
   |
+  +-- registerSeaweedInitCommand({ program })          --> commands/seaweedCommands.ts --> initMain
   +-- registerSeaweedSearchCommand({ program })        --> commands/seaweedCommands.ts --> registrySearchMain
   +-- registerSeaweedDownloadCommand({ program })      --> commands/seaweedCommands.ts --> registryDownloadMain
   +-- registerSeaweedInstallCommand({ program })       --> commands/seaweedCommands.ts --> registryInstallMain
@@ -194,7 +195,7 @@ The commands directory contains shared utilities at the top level:
 - `registryAgentCheck.ts` - Shared validation for registry commands. Checks if the installation has only cursor-agent (no claude-code) and rejects with a helpful error message. Used by registry-search, registry-download, registry-update, registry-upload, skill-download, and skill-upload commands.
 - `cliCommandNames.ts` - CLI command name mapping for user-facing messages. Maps CLI names (`nori-ai`, `seaweed`) to their respective command names (e.g., `registry-download` vs `download`, `switch-profile` vs `switch-skillset`). The `getCommandNames({ cliName })` function returns a `CommandNames` object with mappings for download, downloadSkill, search, update, upload, uploadSkill, and switchProfile. Defaults to nori-ai command names when `cliName` is null or undefined.
 
-The `seaweedCommands.ts` file contains thin command wrappers for the seaweed CLI - registration functions that provide simplified command names (`search`, `download`, `install`, `switch-skillset`, `download-skill`) by delegating to the underlying implementation functions (`*Main` functions from registry-* and skill-* commands, `switchSkillsetAction` for switch-skillset). Upload and update commands are only available via the nori-ai CLI. Each wrapper passes `cliName: "seaweed"` to the `*Main` functions so user-facing messages display seaweed command names (e.g., "run seaweed switch-skillset" instead of "run nori-ai switch-profile"). This allows the seaweed CLI to use cleaner command names while sharing all business logic with the nori-ai CLI.
+The `seaweedCommands.ts` file contains thin command wrappers for the seaweed CLI - registration functions that provide simplified command names (`init`, `search`, `download`, `install`, `switch-skillset`, `download-skill`) by delegating to the underlying implementation functions (`*Main` functions from init, registry-*, and skill-* commands, `switchSkillsetAction` for switch-skillset). Upload, update, and onboard commands are only available via the nori-ai CLI. Each wrapper passes `cliName: "seaweed"` to the `*Main` functions so user-facing messages display seaweed command names (e.g., "run seaweed switch-skillset" instead of "run nori-ai switch-profile"). This allows the seaweed CLI to use cleaner command names while sharing all business logic with the nori-ai CLI.
 
 The `install/` directory contains command-specific utilities:
 - `asciiArt.ts` - ASCII banners displayed during installation. All display functions (displayNoriBanner, displayWelcomeBanner, displaySeaweedBed) check `isSilentMode()` and return early without output when silent mode is enabled.

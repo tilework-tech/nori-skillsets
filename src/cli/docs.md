@@ -48,6 +48,8 @@ src/cli/
     cursor-agent/        # Cursor agent implementation (see @/src/cli/features/cursor-agent/docs.md)
   commands/              # Command implementations
     install/             # Install command + asciiArt, installState utilities
+    init/                # Initialize Nori configuration and directories
+    onboard/             # Profile and auth selection
     uninstall/           # Uninstall command
     check/               # Check/validation command
     switch-profile/      # Profile switching command
@@ -66,6 +68,8 @@ src/cli/
 | nori-ai Command | seaweed Command | Module | Description |
 |-----------------|-----------------|--------|-------------|
 | `install` | | commands/install/install.ts | Install Nori Profiles with profile selection |
+| `init` | `init` | commands/init/init.ts | Initialize Nori configuration and directories |
+| `onboard` | | commands/onboard/onboard.ts | Select profile and configure authentication |
 | `uninstall` | | commands/uninstall/uninstall.ts | Remove Nori installation |
 | `check` | | commands/check/check.ts | Validate installation and configuration |
 | `switch-profile`, `switch-skillset` | `switch-skillset` | commands/switch-profile/profiles.ts | Switch to a different profile/skillset |
@@ -79,7 +83,7 @@ src/cli/
 | `skill-download` | `download-skill` | commands/skill-download/skillDownload.ts | Download a skill from the Nori registrar |
 | `skill-upload` | | commands/skill-upload/skillUpload.ts | Upload a skill to the Nori registrar |
 
-The seaweed CLI uses simplified command names (no `registry-` prefix for registry read operations, `download-skill` for skill downloads, plus `switch-skillset` for profile switching). Upload and update operations are only available via the nori-ai CLI. Both CLIs share the same underlying implementation functions - the seaweed commands are thin wrappers defined in @/src/cli/commands/seaweedCommands.ts that delegate to the existing implementations (`*Main` functions from registry-* and skill-* commands, plus `switchSkillsetAction` from profiles.ts).
+The seaweed CLI uses simplified command names (no `registry-` prefix for registry read operations, `download-skill` for skill downloads, `switch-skillset` for profile switching, and `init` for initialization). Upload, update, and onboard operations are only available via the nori-ai CLI. Both CLIs share the same underlying implementation functions - the seaweed commands are thin wrappers defined in @/src/cli/commands/seaweedCommands.ts that delegate to the existing implementations (`*Main` functions from registry-*, skill-*, and init commands, plus `switchSkillsetAction` from profiles.ts).
 
 Each command directory contains the command implementation, its tests, and any command-specific utilities (e.g., `install/` contains `asciiArt.ts` and `installState.ts`).
 
