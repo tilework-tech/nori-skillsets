@@ -85,24 +85,24 @@ The install command sets `agents: { [agentName]: { profile } }` in the config, w
 - If multiple agents installed: error with "Multiple agents installed (X, Y). Please specify which agent to check with --agent <name>."
 - If no agents in config (legacy fallback): default to `claude-code`
 
-**Registry Commands Agent Validation:** Registry and skill commands require Claude Code to be installed because profiles are stored at `~/.claude/profiles/` and skills at `~/.claude/skills/`. The shared `registryAgentCheck.ts` module provides validation:
+**Registry Commands Agent Validation:** Most registry and skill commands require Claude Code to be installed because profiles are stored at `~/.claude/profiles/` and skills at `~/.claude/skills/`. The shared `registryAgentCheck.ts` module provides validation:
 - `checkRegistryAgentSupport({ installDir })` - Returns `{ supported: boolean, config: Config | null }`. Rejects if config has cursor-agent but NOT claude-code; allows all other cases (backwards compatible with older installs that have no agents field)
 - `showCursorAgentNotSupportedError()` - Displays error message explaining registry requires Claude Code and how to install it
 
-All registry and skill commands call this validation early in their main function, after determining the install directory but before any API calls:
-```typescript
-const agentCheck = await checkRegistryAgentSupport({ installDir });
-if (!agentCheck.supported) {
-  showCursorAgentNotSupportedError();
-  return;
-}
-```
+Registry commands (registry-search, registry-download, registry-update, registry-upload) and `skill-upload` call this validation early in their main function. **Exception:** `skill-download` does not use this validation - it allows downloading skills without any prior Nori installation.
 
 **Skill Commands:** Two commands manage skills as first-class registry entities (mirroring the profile registry commands):
-- `skill-download` - Download and install skills directly to `~/.claude/skills/{skill-name}/`. Searches public registry first, then private registries. Creates `.nori-version` file for version tracking. Supports `--list-versions` flag and `--registry` option.
+- `skill-download` - Download and install skills directly to `.claude/skills/{skill-name}/` in the target directory. Searches public registry first, then private registries. Creates `.nori-version` file for version tracking. Supports `--list-versions` flag and `--registry` option.
 - `skill-upload` - Upload skills from `~/.nori/skills/` to a registry. Auto-bumps patch version when no version specified. Extracts description from SKILL.md frontmatter.
 
-Skills follow the same tarball-based upload/download pattern as profiles. Downloaded skills go directly to `~/.claude/skills/`, making them immediately available in the Claude Code profile. Skills require a SKILL.md file (with optional YAML frontmatter containing name and description).
+Skills follow the same tarball-based upload/download pattern as profiles. Downloaded skills go directly to `.claude/skills/`, making them immediately available in the Claude Code profile. Skills require a SKILL.md file (with optional YAML frontmatter containing name and description).
+
+**skill-download No Installation Required:** Unlike other registry commands, `skill-download` does not require a prior Nori installation. The installation directory resolution:
+1. If `--install-dir` is provided: uses that directory as the target
+2. If existing Nori installation found via `getInstallDirs()`: uses that installation's directory
+3. If no installation found: uses the current working directory (cwd) as the target
+
+The command creates `.claude/skills/` directory if it doesn't exist. This allows users to simply drop skills into any directory without running `nori-ai init` or `nori-ai install` first. Config is loaded only for private registry authentication (if it exists).
 
 **Upload Commands Registry Resolution:** Both `registry-upload` (for profiles) and `skill-upload` (for skills) use the same registry resolution logic:
 1. **Public registry (default):** When the user has unified auth (`config.auth`) with a `refreshToken`, the public registry (`https://noriskillsets.dev`) is automatically included as an available upload target. This is the default when no `--registry` flag is provided.
@@ -199,7 +199,7 @@ export const registerXCommand = (args: { program: Command }): void => {
 ### Things to Know
 
 The commands directory contains shared utilities at the top level:
-- `registryAgentCheck.ts` - Shared validation for registry commands. Checks if the installation has only cursor-agent (no claude-code) and rejects with a helpful error message. Used by registry-search, registry-download, registry-update, registry-upload, skill-download, and skill-upload commands.
+- `registryAgentCheck.ts` - Shared validation for registry commands. Checks if the installation has only cursor-agent (no claude-code) and rejects with a helpful error message. Used by registry-search, registry-download, registry-update, registry-upload, and skill-upload commands. Note: `skill-download` does not use this validation.
 - `cliCommandNames.ts` - CLI command name mapping for user-facing messages. Maps CLI names (`nori-ai`, `seaweed`) to their respective command names (e.g., `registry-download` vs `download`, `switch-profile` vs `switch-skillset`). The `getCommandNames({ cliName })` function returns a `CommandNames` object with mappings for download, downloadSkill, search, update, upload, uploadSkill, and switchProfile. Defaults to nori-ai command names when `cliName` is null or undefined.
 
 The `seaweedCommands.ts` file contains thin command wrappers for the seaweed CLI - registration functions that provide simplified command names (`init`, `search`, `download`, `install`, `switch-skillset`, `download-skill`) by delegating to the underlying implementation functions (`*Main` functions from init, registry-*, and skill-* commands, `switchSkillsetAction` for switch-skillset). Upload, update, and onboard commands are only available via the nori-ai CLI. Each wrapper passes `cliName: "seaweed"` to the `*Main` functions so user-facing messages display seaweed command names (e.g., "run seaweed switch-skillset" instead of "run nori-ai switch-profile"). This allows the seaweed CLI to use cleaner command names while sharing all business logic with the nori-ai CLI.

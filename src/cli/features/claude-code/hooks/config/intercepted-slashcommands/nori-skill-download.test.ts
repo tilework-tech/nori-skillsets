@@ -249,10 +249,12 @@ describe("nori-skill-download", () => {
   });
 
   describe("installation detection", () => {
-    it("should fail when no installation found", async () => {
+    it("should use cwd when no installation found", async () => {
       const nonInstallDir = await fs.mkdtemp(
         path.join(tmpdir(), "non-install-"),
       );
+
+      vi.mocked(skillDownloadMain).mockResolvedValue();
 
       const result = await noriSkillDownload.run({
         input: createInput({
@@ -261,10 +263,19 @@ describe("nori-skill-download", () => {
         }),
       });
 
+      // Should call skillDownloadMain with cwd as installDir
+      expect(skillDownloadMain).toHaveBeenCalledWith(
+        expect.objectContaining({
+          skillSpec: "my-skill",
+          cwd: nonInstallDir,
+          installDir: nonInstallDir,
+        }),
+      );
+
       expect(result).not.toBeNull();
       expect(result!.decision).toBe("block");
       const plainReason = stripAnsi(result!.reason!);
-      expect(plainReason.toLowerCase()).toContain("no nori installation");
+      expect(plainReason.toLowerCase()).toContain("completed");
 
       await fs.rm(nonInstallDir, { recursive: true, force: true });
     });
