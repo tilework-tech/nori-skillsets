@@ -64,8 +64,8 @@ describe("skill-download", () => {
       path.join(tmpdir(), "nori-skill-download-test-"),
     );
     configPath = path.join(testDir, ".nori-config.json");
-    // Skills are stored in .nori/skills
-    skillsDir = path.join(testDir, ".nori", "skills");
+    // Skills are now stored directly in .claude/skills (the live profile directory)
+    skillsDir = path.join(testDir, ".claude", "skills");
 
     // Create initial config
     await fs.writeFile(
@@ -276,7 +276,7 @@ describe("skill-download", () => {
       const customInstallDir = await fs.mkdtemp(
         path.join(tmpdir(), "nori-custom-install-"),
       );
-      const customSkillsDir = path.join(customInstallDir, ".nori", "skills");
+      const customSkillsDir = path.join(customInstallDir, ".claude", "skills");
       await fs.mkdir(customSkillsDir, { recursive: true });
       await fs.writeFile(
         path.join(customInstallDir, ".nori-config.json"),
