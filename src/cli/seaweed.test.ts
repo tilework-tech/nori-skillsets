@@ -1,15 +1,16 @@
 /**
  * Tests for the seaweed CLI
  *
- * The seaweed CLI is a minimal registry-focused CLI that only provides:
- * - registry-search
- * - registry-download
- * - registry-upload
- * - registry-update
- * - registry-install
+ * The seaweed CLI is a minimal registry-focused CLI that provides simplified commands:
+ * - search (searches org registry)
+ * - download (downloads profile package)
+ * - install (downloads and installs profile)
+ * - update (updates installed profile)
+ * - upload (uploads profile to registry)
  * - version (built-in)
  *
- * It does NOT provide nori-ai commands like install, uninstall, check, etc.
+ * It does NOT provide nori-ai commands like install (standalone), uninstall, check, etc.
+ * It also does NOT provide registry-* prefixed commands (those are nori-ai only).
  */
 
 import { execSync } from "child_process";
@@ -74,7 +75,7 @@ describe("seaweed CLI", () => {
     expect(output.trim()).toMatch(/^\d+\.\d+\.\d+$/);
   });
 
-  it("should have registry-search command", () => {
+  it("should have search command (simplified from registry-search)", () => {
     let output = "";
 
     try {
@@ -90,111 +91,210 @@ describe("seaweed CLI", () => {
       }
     }
 
-    expect(output).toContain("registry-search");
-  });
-
-  it("should have registry-download command", () => {
-    let output = "";
-
-    try {
-      output = execSync("node build/src/cli/seaweed.js --help", {
-        encoding: "utf-8",
-        stdio: "pipe",
-        env: { ...process.env, FORCE_COLOR: "0", HOME: tempDir },
-      });
-    } catch (error: unknown) {
-      if (error && typeof error === "object") {
-        const execError = error as { stdout?: string; stderr?: string };
-        output = execError.stdout || execError.stderr || "";
-      }
-    }
-
-    expect(output).toContain("registry-download");
-  });
-
-  it("should have registry-upload command", () => {
-    let output = "";
-
-    try {
-      output = execSync("node build/src/cli/seaweed.js --help", {
-        encoding: "utf-8",
-        stdio: "pipe",
-        env: { ...process.env, FORCE_COLOR: "0", HOME: tempDir },
-      });
-    } catch (error: unknown) {
-      if (error && typeof error === "object") {
-        const execError = error as { stdout?: string; stderr?: string };
-        output = execError.stdout || execError.stderr || "";
-      }
-    }
-
-    expect(output).toContain("registry-upload");
-  });
-
-  it("should have registry-update command", () => {
-    let output = "";
-
-    try {
-      output = execSync("node build/src/cli/seaweed.js --help", {
-        encoding: "utf-8",
-        stdio: "pipe",
-        env: { ...process.env, FORCE_COLOR: "0", HOME: tempDir },
-      });
-    } catch (error: unknown) {
-      if (error && typeof error === "object") {
-        const execError = error as { stdout?: string; stderr?: string };
-        output = execError.stdout || execError.stderr || "";
-      }
-    }
-
-    expect(output).toContain("registry-update");
-  });
-
-  it("should have registry-install command", () => {
-    let output = "";
-
-    try {
-      output = execSync("node build/src/cli/seaweed.js --help", {
-        encoding: "utf-8",
-        stdio: "pipe",
-        env: { ...process.env, FORCE_COLOR: "0", HOME: tempDir },
-      });
-    } catch (error: unknown) {
-      if (error && typeof error === "object") {
-        const execError = error as { stdout?: string; stderr?: string };
-        output = execError.stdout || execError.stderr || "";
-      }
-    }
-
-    expect(output).toContain("registry-install");
-  });
-
-  it("should NOT have install command (nori-ai only)", () => {
-    let output = "";
-
-    try {
-      output = execSync("node build/src/cli/seaweed.js --help", {
-        encoding: "utf-8",
-        stdio: "pipe",
-        env: { ...process.env, FORCE_COLOR: "0", HOME: tempDir },
-      });
-    } catch (error: unknown) {
-      if (error && typeof error === "object") {
-        const execError = error as { stdout?: string; stderr?: string };
-        output = execError.stdout || execError.stderr || "";
-      }
-    }
-
-    // Should not have "install" as a standalone command (registry-install is OK)
-    // Look for "install " with a space to avoid matching "registry-install"
+    // Should have "search" as a command (not registry-search)
     const lines = output.split("\n");
-    const hasStandaloneInstall = lines.some(
+    const hasSearchCommand = lines.some(
+      (line) =>
+        line.trim().startsWith("search ") || line.trim().startsWith("search\t"),
+    );
+    expect(hasSearchCommand).toBe(true);
+  });
+
+  it("should have download command (simplified from registry-download)", () => {
+    let output = "";
+
+    try {
+      output = execSync("node build/src/cli/seaweed.js --help", {
+        encoding: "utf-8",
+        stdio: "pipe",
+        env: { ...process.env, FORCE_COLOR: "0", HOME: tempDir },
+      });
+    } catch (error: unknown) {
+      if (error && typeof error === "object") {
+        const execError = error as { stdout?: string; stderr?: string };
+        output = execError.stdout || execError.stderr || "";
+      }
+    }
+
+    // Should have "download" as a command (not registry-download)
+    const lines = output.split("\n");
+    const hasDownloadCommand = lines.some(
+      (line) =>
+        line.trim().startsWith("download ") ||
+        line.trim().startsWith("download\t"),
+    );
+    expect(hasDownloadCommand).toBe(true);
+  });
+
+  it("should have install command (simplified from registry-install)", () => {
+    let output = "";
+
+    try {
+      output = execSync("node build/src/cli/seaweed.js --help", {
+        encoding: "utf-8",
+        stdio: "pipe",
+        env: { ...process.env, FORCE_COLOR: "0", HOME: tempDir },
+      });
+    } catch (error: unknown) {
+      if (error && typeof error === "object") {
+        const execError = error as { stdout?: string; stderr?: string };
+        output = execError.stdout || execError.stderr || "";
+      }
+    }
+
+    // Should have "install" as a command (simplified from registry-install)
+    const lines = output.split("\n");
+    const hasInstallCommand = lines.some(
       (line) =>
         line.trim().startsWith("install ") ||
-        line.trim().startsWith("install\t") ||
-        line.match(/^\s*install\s+\[/),
+        line.trim().startsWith("install\t"),
     );
-    expect(hasStandaloneInstall).toBe(false);
+    expect(hasInstallCommand).toBe(true);
+  });
+
+  it("should have update command (simplified from registry-update)", () => {
+    let output = "";
+
+    try {
+      output = execSync("node build/src/cli/seaweed.js --help", {
+        encoding: "utf-8",
+        stdio: "pipe",
+        env: { ...process.env, FORCE_COLOR: "0", HOME: tempDir },
+      });
+    } catch (error: unknown) {
+      if (error && typeof error === "object") {
+        const execError = error as { stdout?: string; stderr?: string };
+        output = execError.stdout || execError.stderr || "";
+      }
+    }
+
+    // Should have "update" as a command (not registry-update)
+    const lines = output.split("\n");
+    const hasUpdateCommand = lines.some(
+      (line) =>
+        line.trim().startsWith("update ") || line.trim().startsWith("update\t"),
+    );
+    expect(hasUpdateCommand).toBe(true);
+  });
+
+  it("should have upload command (simplified from registry-upload)", () => {
+    let output = "";
+
+    try {
+      output = execSync("node build/src/cli/seaweed.js --help", {
+        encoding: "utf-8",
+        stdio: "pipe",
+        env: { ...process.env, FORCE_COLOR: "0", HOME: tempDir },
+      });
+    } catch (error: unknown) {
+      if (error && typeof error === "object") {
+        const execError = error as { stdout?: string; stderr?: string };
+        output = execError.stdout || execError.stderr || "";
+      }
+    }
+
+    // Should have "upload" as a command (not registry-upload)
+    const lines = output.split("\n");
+    const hasUploadCommand = lines.some(
+      (line) =>
+        line.trim().startsWith("upload ") || line.trim().startsWith("upload\t"),
+    );
+    expect(hasUploadCommand).toBe(true);
+  });
+
+  it("should NOT have registry-search command (nori-ai only)", () => {
+    let output = "";
+
+    try {
+      output = execSync("node build/src/cli/seaweed.js --help", {
+        encoding: "utf-8",
+        stdio: "pipe",
+        env: { ...process.env, FORCE_COLOR: "0", HOME: tempDir },
+      });
+    } catch (error: unknown) {
+      if (error && typeof error === "object") {
+        const execError = error as { stdout?: string; stderr?: string };
+        output = execError.stdout || execError.stderr || "";
+      }
+    }
+
+    expect(output).not.toContain("registry-search");
+  });
+
+  it("should NOT have registry-download command (nori-ai only)", () => {
+    let output = "";
+
+    try {
+      output = execSync("node build/src/cli/seaweed.js --help", {
+        encoding: "utf-8",
+        stdio: "pipe",
+        env: { ...process.env, FORCE_COLOR: "0", HOME: tempDir },
+      });
+    } catch (error: unknown) {
+      if (error && typeof error === "object") {
+        const execError = error as { stdout?: string; stderr?: string };
+        output = execError.stdout || execError.stderr || "";
+      }
+    }
+
+    expect(output).not.toContain("registry-download");
+  });
+
+  it("should NOT have registry-install command (nori-ai only)", () => {
+    let output = "";
+
+    try {
+      output = execSync("node build/src/cli/seaweed.js --help", {
+        encoding: "utf-8",
+        stdio: "pipe",
+        env: { ...process.env, FORCE_COLOR: "0", HOME: tempDir },
+      });
+    } catch (error: unknown) {
+      if (error && typeof error === "object") {
+        const execError = error as { stdout?: string; stderr?: string };
+        output = execError.stdout || execError.stderr || "";
+      }
+    }
+
+    expect(output).not.toContain("registry-install");
+  });
+
+  it("should NOT have registry-update command (nori-ai only)", () => {
+    let output = "";
+
+    try {
+      output = execSync("node build/src/cli/seaweed.js --help", {
+        encoding: "utf-8",
+        stdio: "pipe",
+        env: { ...process.env, FORCE_COLOR: "0", HOME: tempDir },
+      });
+    } catch (error: unknown) {
+      if (error && typeof error === "object") {
+        const execError = error as { stdout?: string; stderr?: string };
+        output = execError.stdout || execError.stderr || "";
+      }
+    }
+
+    expect(output).not.toContain("registry-update");
+  });
+
+  it("should NOT have registry-upload command (nori-ai only)", () => {
+    let output = "";
+
+    try {
+      output = execSync("node build/src/cli/seaweed.js --help", {
+        encoding: "utf-8",
+        stdio: "pipe",
+        env: { ...process.env, FORCE_COLOR: "0", HOME: tempDir },
+      });
+    } catch (error: unknown) {
+      if (error && typeof error === "object") {
+        const execError = error as { stdout?: string; stderr?: string };
+        output = execError.stdout || execError.stderr || "";
+      }
+    }
+
+    expect(output).not.toContain("registry-upload");
   });
 
   it("should NOT have uninstall command (nori-ai only)", () => {
@@ -329,5 +429,29 @@ describe("seaweed CLI", () => {
 
     expect(output).toContain("Usage: seaweed");
     expect(output).toContain("Commands:");
+  });
+
+  it("should show examples with simplified command names in help", () => {
+    let output = "";
+
+    try {
+      output = execSync("node build/src/cli/seaweed.js --help", {
+        encoding: "utf-8",
+        stdio: "pipe",
+        env: { ...process.env, FORCE_COLOR: "0", HOME: tempDir },
+      });
+    } catch (error: unknown) {
+      if (error && typeof error === "object") {
+        const execError = error as { stdout?: string; stderr?: string };
+        output = execError.stdout || execError.stderr || "";
+      }
+    }
+
+    // Help examples should use simplified command names
+    expect(output).toContain("$ seaweed search");
+    expect(output).toContain("$ seaweed download");
+    expect(output).toContain("$ seaweed install");
+    expect(output).toContain("$ seaweed update");
+    expect(output).toContain("$ seaweed upload");
   });
 });

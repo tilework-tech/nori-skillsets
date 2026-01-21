@@ -64,21 +64,23 @@ src/cli/
 
 **CLI Commands:**
 
-| Command | Module | nori-ai | seaweed | Description |
-|---------|--------|:-------:|:-------:|-------------|
-| `install` | commands/install/install.ts | ✓ | | Install Nori Profiles with profile selection |
-| `uninstall` | commands/uninstall/uninstall.ts | ✓ | | Remove Nori installation |
-| `check` | commands/check/check.ts | ✓ | | Validate installation and configuration |
-| `switch-profile` | commands/switch-profile/profiles.ts | ✓ | | Switch to a different profile |
-| `install-location` | commands/install-location/installLocation.ts | ✓ | | Display installation directories |
-| `registry-search` | commands/registry-search/registrySearch.ts | ✓ | ✓ | Search for profile packages in the Nori registrar |
-| `registry-download` | commands/registry-download/registryDownload.ts | ✓ | ✓ | Download and install a profile from the Nori registrar |
-| `registry-install` | commands/registry-install/registryInstall.ts | ✓ | ✓ | Download, install, and activate a profile from the public registrar |
-| `registry-update` | commands/registry-update/registryUpdate.ts | ✓ | ✓ | Update an installed registry profile to the latest version |
-| `registry-upload` | commands/registry-upload/registryUpload.ts | ✓ | ✓ | Upload a profile package to the Nori registrar |
-| `skill-search` | commands/skill-search/skillSearch.ts | ✓ | | Search for skills in the Nori registrar |
-| `skill-download` | commands/skill-download/skillDownload.ts | ✓ | | Download a skill from the Nori registrar |
-| `skill-upload` | commands/skill-upload/skillUpload.ts | ✓ | | Upload a skill to the Nori registrar |
+| nori-ai Command | seaweed Command | Module | Description |
+|-----------------|-----------------|--------|-------------|
+| `install` | | commands/install/install.ts | Install Nori Profiles with profile selection |
+| `uninstall` | | commands/uninstall/uninstall.ts | Remove Nori installation |
+| `check` | | commands/check/check.ts | Validate installation and configuration |
+| `switch-profile` | | commands/switch-profile/profiles.ts | Switch to a different profile |
+| `install-location` | | commands/install-location/installLocation.ts | Display installation directories |
+| `registry-search` | `search` | commands/registry-search/registrySearch.ts | Search for profile packages in the Nori registrar |
+| `registry-download` | `download` | commands/registry-download/registryDownload.ts | Download and install a profile from the Nori registrar |
+| `registry-install` | `install` | commands/registry-install/registryInstall.ts | Download, install, and activate a profile from the public registrar |
+| `registry-update` | `update` | commands/registry-update/registryUpdate.ts | Update an installed registry profile to the latest version |
+| `registry-upload` | `upload` | commands/registry-upload/registryUpload.ts | Upload a profile package to the Nori registrar |
+| `skill-search` | | commands/skill-search/skillSearch.ts | Search for skills in the Nori registrar |
+| `skill-download` | | commands/skill-download/skillDownload.ts | Download a skill from the Nori registrar |
+| `skill-upload` | | commands/skill-upload/skillUpload.ts | Upload a skill to the Nori registrar |
+
+The seaweed CLI uses simplified command names (no `registry-` prefix) since it is dedicated to registry operations. Both CLIs share the same underlying `*Main` implementation functions - the seaweed commands are thin wrappers defined in @/src/cli/commands/seaweedCommands.ts that delegate to the registry-* command implementations.
 
 Each command directory contains the command implementation, its tests, and any command-specific utilities (e.g., `install/` contains `asciiArt.ts` and `installState.ts`).
 

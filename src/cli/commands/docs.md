@@ -4,11 +4,11 @@ Path: @/src/cli/commands
 
 ### Overview
 
-Contains all CLI command implementations for the nori-ai CLI. Each command lives in its own subdirectory with its implementation, tests, and any command-specific utilities co-located together.
+Contains all CLI command implementations for both the nori-ai and seaweed CLIs. Each command lives in its own subdirectory with its implementation, tests, and any command-specific utilities co-located together.
 
 ### How it fits into the larger codebase
 
-The main CLI entry point (@/src/cli/cli.ts) imports `registerXCommand` functions from each command subdirectory and calls them to register commands with the Commander.js program. Each command module exports a register function that accepts `{ program: Command }` and adds its command definition. Commands access global options (`--install-dir`, `--non-interactive`, `--agent`) via `program.opts()`. Business logic is encapsulated within each command directory - cli.ts only handles routing.
+The CLI entry points (@/src/cli/nori-ai.ts and @/src/cli/seaweed.ts) import `registerXCommand` functions from each command subdirectory and call them to register commands with the Commander.js program. Each command module exports a register function that accepts `{ program: Command }` and adds its command definition. Commands access global options (`--install-dir`, `--non-interactive`, `--agent`) via `program.opts()`. Business logic is encapsulated within each command directory - the entry points only handle routing.
 
 Commands that interact with agent-specific features (install, uninstall, check, switch-profile) use the AgentRegistry (@/src/cli/features/agentRegistry.ts) to look up the agent implementation by name. The agent provides access to its LoaderRegistry, environment paths, and global feature declarations. Commands pass the `--agent` option through their call chain to ensure consistent agent context.
 
@@ -86,7 +86,7 @@ Skills always download the latest version - version ranges in `nori.json` are cu
 ```
 
 ```
-cli.ts
+nori-ai.ts (full CLI)
   |
   +-- registerInstallCommand({ program })      --> commands/install/install.ts
   +-- registerUninstallCommand({ program })    --> commands/uninstall/uninstall.ts
@@ -95,10 +95,20 @@ cli.ts
   +-- registerInstallLocationCommand({ program })--> commands/install-location/installLocation.ts
   +-- registerRegistrySearchCommand({ program })--> commands/registry-search/registrySearch.ts
   +-- registerRegistryDownloadCommand({ program })--> commands/registry-download/registryDownload.ts
+  +-- registerRegistryInstallCommand({ program })--> commands/registry-install/registryInstall.ts
+  +-- registerRegistryUpdateCommand({ program })--> commands/registry-update/registryUpdate.ts
   +-- registerRegistryUploadCommand({ program })--> commands/registry-upload/registryUpload.ts
   +-- registerSkillSearchCommand({ program })  --> commands/skill-search/skillSearch.ts
   +-- registerSkillDownloadCommand({ program })--> commands/skill-download/skillDownload.ts
   +-- registerSkillUploadCommand({ program })  --> commands/skill-upload/skillUpload.ts
+
+seaweed.ts (registry-only CLI with simplified command names)
+  |
+  +-- registerSeaweedSearchCommand({ program })   --> commands/seaweedCommands.ts --> registrySearchMain
+  +-- registerSeaweedDownloadCommand({ program }) --> commands/seaweedCommands.ts --> registryDownloadMain
+  +-- registerSeaweedInstallCommand({ program })  --> commands/seaweedCommands.ts --> registryInstallMain
+  +-- registerSeaweedUpdateCommand({ program })   --> commands/seaweedCommands.ts --> registryUpdateMain
+  +-- registerSeaweedUploadCommand({ program })   --> commands/seaweedCommands.ts --> registryUploadMain
 ```
 
 Commands use shared utilities from the parent @/src/cli/ directory:
@@ -145,6 +155,8 @@ export const registerXCommand = (args: { program: Command }): void => {
 
 The commands directory contains shared utilities at the top level:
 - `registryAgentCheck.ts` - Shared validation for registry commands. Checks if the installation has only cursor-agent (no claude-code) and rejects with a helpful error message. Used by registry-search, registry-download, registry-update, registry-upload, skill-search, skill-download, and skill-upload commands.
+
+The `seaweedCommands.ts` file contains thin command wrappers for the seaweed CLI - registration functions (`registerSeaweedSearchCommand`, etc.) that provide simplified command names (`search`, `download`, `install`, `update`, `upload`) by delegating to the underlying `*Main` functions from the `registry-*` commands. This allows the seaweed CLI to use cleaner command names while sharing all business logic with the nori-ai CLI.
 
 The `install/` directory contains command-specific utilities:
 - `asciiArt.ts` - ASCII banners displayed during installation. All display functions (displayNoriBanner, displayWelcomeBanner, displaySeaweedBed) check `isSilentMode()` and return early without output when silent mode is enabled.

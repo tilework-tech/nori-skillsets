@@ -9,11 +9,13 @@
 
 import { Command } from "commander";
 
-import { registerRegistryDownloadCommand } from "@/cli/commands/registry-download/registryDownload.js";
-import { registerRegistryInstallCommand } from "@/cli/commands/registry-install/registryInstall.js";
-import { registerRegistrySearchCommand } from "@/cli/commands/registry-search/registrySearch.js";
-import { registerRegistryUpdateCommand } from "@/cli/commands/registry-update/registryUpdate.js";
-import { registerRegistryUploadCommand } from "@/cli/commands/registry-upload/registryUpload.js";
+import {
+  registerSeaweedDownloadCommand,
+  registerSeaweedInstallCommand,
+  registerSeaweedSearchCommand,
+  registerSeaweedUpdateCommand,
+  registerSeaweedUploadCommand,
+} from "@/cli/commands/seaweedCommands.js";
 import { getCurrentPackageVersion } from "@/cli/version.js";
 import { normalizeInstallDir } from "@/utils/path.js";
 
@@ -39,24 +41,24 @@ program
     "after",
     `
 Examples:
-  $ seaweed registry-search typescript
-  $ seaweed registry-download my-profile
-  $ seaweed registry-download my-profile@1.0.0
-  $ seaweed registry-download my-profile --list-versions
-  $ seaweed registry-install my-profile
-  $ seaweed registry-install my-profile --user
-  $ seaweed registry-update my-profile
-  $ seaweed registry-upload my-profile
-  $ seaweed registry-upload my-profile@1.0.0 --registry https://registry.example.com
+  $ seaweed search typescript
+  $ seaweed download my-profile
+  $ seaweed download my-profile@1.0.0
+  $ seaweed download my-profile --list-versions
+  $ seaweed install my-profile
+  $ seaweed install my-profile --user
+  $ seaweed update my-profile
+  $ seaweed upload my-profile
+  $ seaweed upload my-profile@1.0.0 --registry https://registry.example.com
 `,
   );
 
-// Register only registry commands
-registerRegistrySearchCommand({ program });
-registerRegistryDownloadCommand({ program });
-registerRegistryInstallCommand({ program });
-registerRegistryUpdateCommand({ program });
-registerRegistryUploadCommand({ program });
+// Register simplified commands for seaweed CLI
+registerSeaweedSearchCommand({ program });
+registerSeaweedDownloadCommand({ program });
+registerSeaweedInstallCommand({ program });
+registerSeaweedUpdateCommand({ program });
+registerSeaweedUploadCommand({ program });
 
 program.parse(process.argv);
 
