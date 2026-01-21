@@ -24,6 +24,21 @@ nori-ai install
 
 Launch Claude Code from your terminal. Nori features activate automatically.
 
+### Quick Start with npx
+
+For registry operations without a full install, use the `nori-skillsets` package:
+
+```bash
+# Search for profiles and skills
+npx nori-skillsets search <term>
+
+# Download a profile
+npx nori-skillsets download <profile-name>
+
+# Install a profile (download + activate)
+npx nori-skillsets install <profile-name>
+```
+
 ## Requirements
 
 - Node.js 22 or higher

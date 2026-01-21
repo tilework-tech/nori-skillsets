@@ -1,0 +1,445 @@
+# Nori Skillsets Release Workflow
+#
+# This workflow builds and publishes nori-skillsets releases to npm.
+# It supports both stable releases and @next dev snapshots.
+#
+# Usage:
+#   # Create a release via tag push
+#   git tag skillsets-v1.0.0
+#   git push origin skillsets-v1.0.0
+#
+#   # Create a @next dev snapshot (from GitHub Actions UI)
+#   gh workflow run skillsets-release.yml -f publish_next=true -f dry_run=false
+#
+#   # Test the build process without publishing
+#   gh workflow run skillsets-release.yml -f version=1.0.0 -f dry_run=true
+#
+name: Skillsets Release
+
+on:
+  push:
+    tags:
+      - "skillsets-v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to build (e.g., 1.0.0) - ignored if publish_next is true"
+        required: false
+        type: string
+      publish_next:
+        description: "Publish a dev snapshot (@next) - auto-determines version"
+        required: false
+        default: false
+        type: boolean
+      dry_run:
+        description: "Dry run mode (builds but does not publish)"
+        required: false
+        default: true
+        type: boolean
+
+env:
+  NPM_PACKAGE_NAME: "nori-skillsets"
+  TAG_PREFIX: "skillsets-v"
+
+jobs:
+  # ============================================================================
+  # VALIDATION
+  # ============================================================================
+  validate:
+    name: Validate Release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.validate.outputs.version }}
+      tag_name: ${{ steps.validate.outputs.tag_name }}
+      is_prerelease: ${{ steps.validate.outputs.is_prerelease }}
+      is_tag_push: ${{ steps.validate.outputs.is_tag_push }}
+      publish_next: ${{ steps.validate.outputs.publish_next }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate version and determine refs
+        id: validate
+        run: |
+          IS_TAG_PUSH="false"
+          PUBLISH_NEXT="false"
+
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            IS_TAG_PUSH="true"
+            # Extract version from tag name (skillsets-v1.0.0 -> 1.0.0)
+            VERSION="${GITHUB_REF_NAME#${{ env.TAG_PREFIX }}}"
+            TAG_NAME="${GITHUB_REF_NAME}"
+          elif [[ "${{ inputs.publish_next }}" == "true" ]]; then
+            PUBLISH_NEXT="true"
+            # Auto-determine the next -next.N version
+            # Get the latest skillsets tag
+            LATEST_TAG=$(git tag -l "skillsets-v*" --sort=-v:refname | head -1)
+            
+            if [[ -z "$LATEST_TAG" ]]; then
+              # No previous tags, start at 1.0.0-next.1
+              VERSION="1.0.0-next.1"
+            else
+              LATEST_VERSION="${LATEST_TAG#skillsets-v}"
+              # Get base version (strip any prerelease suffix)
+              BASE_VERSION=$(echo "$LATEST_VERSION" | sed 's/-.*$//')
+              
+              # Find the highest -next.N for this base version
+              NEXT_NUM=1
+              for tag in $(git tag -l "skillsets-v${BASE_VERSION}-next.*" --sort=-v:refname); do
+                NUM=$(echo "$tag" | sed "s/skillsets-v${BASE_VERSION}-next\.//")
+                if [[ "$NUM" =~ ^[0-9]+$ ]] && [[ "$NUM" -ge "$NEXT_NUM" ]]; then
+                  NEXT_NUM=$((NUM + 1))
+                fi
+              done
+              
+              VERSION="${BASE_VERSION}-next.${NEXT_NUM}"
+            fi
+            
+            TAG_NAME="${{ env.TAG_PREFIX }}${VERSION}"
+            echo "Auto-determined version: $VERSION"
+          else
+            VERSION="${{ inputs.version }}"
+            if [[ -z "$VERSION" ]]; then
+              echo "::error::Must specify either 'version' or 'publish_next=true'"
+              exit 1
+            fi
+            TAG_NAME="${{ env.TAG_PREFIX }}${VERSION}"
+          fi
+
+          echo "is_tag_push=$IS_TAG_PUSH" >> "$GITHUB_OUTPUT"
+          echo "publish_next=$PUBLISH_NEXT" >> "$GITHUB_OUTPUT"
+
+          # Validate semver format (X.Y.Z or X.Y.Z-prerelease.N)
+          if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z]+\.[0-9]+)?$'; then
+            echo "::error::Invalid version format: $VERSION"
+            echo "Expected format: X.Y.Z or X.Y.Z-alpha.N"
+            exit 1
+          fi
+
+          # Determine if this is a prerelease
+          IS_PRERELEASE="false"
+          if echo "$VERSION" | grep -qE '-'; then
+            IS_PRERELEASE="true"
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag_name=$TAG_NAME" >> "$GITHUB_OUTPUT"
+          echo "is_prerelease=$IS_PRERELEASE" >> "$GITHUB_OUTPUT"
+
+          # Determine run mode for summary
+          RUN_MODE="Dry Run (build test only)"
+          if [[ "$IS_TAG_PUSH" == "true" ]]; then
+            RUN_MODE="Release (tag push)"
+          elif [[ "$PUBLISH_NEXT" == "true" && "${{ inputs.dry_run }}" != "true" ]]; then
+            RUN_MODE="Publish @next"
+          fi
+
+          echo "## Release Validation" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Property | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|----------|-------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Version | \`$VERSION\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Tag | \`$TAG_NAME\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Pre-release | $IS_PRERELEASE |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Trigger | ${{ github.event_name }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Mode | $RUN_MODE |" >> "$GITHUB_STEP_SUMMARY"
+
+  # ============================================================================
+  # BUILD AND TEST
+  # ============================================================================
+  build:
+    name: Build and Test
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+
+      - name: Install dependencies
+        run: rm -f package-lock.json && npm install
+
+      - name: Build package
+        run: npm run build
+
+      - name: Run linter
+        run: npm run lint
+
+      - name: Run tests
+        run: npm test
+
+      - name: Package nori-skillsets
+        env:
+          SKILLSETS_VERSION: ${{ needs.validate.outputs.version }}
+        run: ./scripts/package_skillsets.sh
+
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-package
+          path: dist/nori-skillsets-*.tgz
+          retention-days: 7
+
+      - name: Build summary
+        run: |
+          echo "## Build Artifacts" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          ls -la dist/ >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+  # ============================================================================
+  # CREATE TAG FOR PUBLISH_NEXT
+  # ============================================================================
+  create-next-tag:
+    name: Create @next Tag
+    needs: [validate, build]
+    # Only run when publish_next=true and dry_run=false (not for tag pushes)
+    if: ${{ !failure() && !cancelled() && needs.validate.outputs.publish_next == 'true' && inputs.dry_run == false }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create and push tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${{ needs.validate.outputs.version }}"
+          TAG_NAME="${{ needs.validate.outputs.tag_name }}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Create annotated tag
+          git tag -a "$TAG_NAME" -m "nori-skillsets release $VERSION"
+          git push origin "$TAG_NAME"
+
+          echo "## Tag Created" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Property | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|----------|-------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Version | \`$VERSION\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Tag | \`$TAG_NAME\` |" >> "$GITHUB_STEP_SUMMARY"
+
+  # ============================================================================
+  # PUBLISH TO NPM
+  # ============================================================================
+  publish-npm:
+    name: Publish to npm
+    needs: [validate, build]
+    # Publish for tag pushes OR when publish_next=true with dry_run=false
+    # Note: create-next-tag runs in parallel for publish_next flows
+    if: ${{ !failure() && !cancelled() && (github.event_name == 'push' || (needs.validate.outputs.publish_next == 'true' && inputs.dry_run == false)) }}
+    runs-on: ubuntu-latest
+    environment: npm-publish
+    permissions:
+      contents: read
+      id-token: write # Required for OIDC Trusted Publishing
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Download package artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: npm-package
+          path: dist/
+
+      - name: Check if version already published
+        id: check-published
+        run: |
+          VERSION="${{ needs.validate.outputs.version }}"
+
+          # Check if this version is already published
+          if npm view "${{ env.NPM_PACKAGE_NAME }}@$VERSION" version 2>/dev/null; then
+            echo "::error::Version $VERSION is already published to npm"
+            echo "already_published=true" >> "$GITHUB_OUTPUT"
+            exit 1
+          else
+            echo "Version $VERSION is not yet published"
+            echo "already_published=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish to npm
+        run: |
+          VERSION="${{ needs.validate.outputs.version }}"
+          IS_PRERELEASE="${{ needs.validate.outputs.is_prerelease }}"
+
+          # Find the tarball
+          TARBALL="./$(ls dist/*.tgz | head -1)"
+
+          if [[ -z "$TARBALL" || "$TARBALL" == "./" ]]; then
+            echo "::error::No tarball found in dist/"
+            exit 1
+          fi
+
+          echo "Publishing $TARBALL"
+
+          # Determine npm tag
+          NPM_TAG="latest"
+          if [[ "$IS_PRERELEASE" == "true" ]]; then
+            NPM_TAG="next"
+          fi
+
+          # Publish with OIDC Trusted Publishing
+          npm publish "$TARBALL" --tag "$NPM_TAG" --access public
+
+          echo "## npm Publish Complete" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Published \`${{ env.NPM_PACKAGE_NAME }}@$VERSION\` with tag \`$NPM_TAG\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Install with:" >> "$GITHUB_STEP_SUMMARY"
+          echo '```bash' >> "$GITHUB_STEP_SUMMARY"
+          echo "npx ${{ env.NPM_PACKAGE_NAME }}@$VERSION" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+          # For stable releases, also update @next to point to this version
+          if [[ "$IS_PRERELEASE" != "true" ]]; then
+            npm dist-tag add "${{ env.NPM_PACKAGE_NAME }}@$VERSION" next || echo "Warning: Failed to update @next tag"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "Also updated \`@next\` tag to point to \`$VERSION\`" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  # ============================================================================
+  # CREATE GITHUB RELEASE
+  # ============================================================================
+  create-release:
+    name: Create GitHub Release
+    needs: [validate, publish-npm]
+    if: ${{ !failure() && !cancelled() && (github.event_name == 'push' || (needs.validate.outputs.publish_next == 'true' && inputs.dry_run == false)) }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download package artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: npm-package
+          path: release-assets/
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          VERSION="${{ needs.validate.outputs.version }}"
+          TAG_NAME="${{ needs.validate.outputs.tag_name }}"
+
+          echo "## What's Changed" > CHANGELOG_RELEASE.md
+          echo "" >> CHANGELOG_RELEASE.md
+
+          # Get previous skillsets tag
+          PREV_TAG=$(git tag -l "skillsets-v*" --sort=-v:refname | grep -v "$TAG_NAME" | head -1)
+
+          if [[ -n "$PREV_TAG" ]]; then
+            git log --pretty=format:"* %s (%h)" "$PREV_TAG"..HEAD >> CHANGELOG_RELEASE.md
+          else
+            git log --pretty=format:"* %s (%h)" -20 >> CHANGELOG_RELEASE.md
+          fi
+
+          echo "" >> CHANGELOG_RELEASE.md
+          echo "" >> CHANGELOG_RELEASE.md
+          echo "## Installation" >> CHANGELOG_RELEASE.md
+          echo "" >> CHANGELOG_RELEASE.md
+          echo '```bash' >> CHANGELOG_RELEASE.md
+          echo "npx ${{ env.NPM_PACKAGE_NAME }}@$VERSION" >> CHANGELOG_RELEASE.md
+          echo '```' >> CHANGELOG_RELEASE.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.validate.outputs.tag_name }}
+          name: "nori-skillsets ${{ needs.validate.outputs.version }}"
+          body_path: CHANGELOG_RELEASE.md
+          draft: false
+          prerelease: ${{ needs.validate.outputs.is_prerelease == 'true' }}
+          files: release-assets/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Summary
+        run: |
+          VERSION="${{ needs.validate.outputs.version }}"
+          TAG_NAME="${{ needs.validate.outputs.tag_name }}"
+
+          echo "## Release Complete!" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Item | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|------|-------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Version | \`$VERSION\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Tag | \`$TAG_NAME\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| npm | \`${{ env.NPM_PACKAGE_NAME }}@$VERSION\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| GitHub Release | [$TAG_NAME](https://github.com/${{ github.repository }}/releases/tag/$TAG_NAME) |" >> "$GITHUB_STEP_SUMMARY"
+
+  # ============================================================================
+  # DRY RUN SUMMARY
+  # ============================================================================
+  dry-run-summary:
+    name: Dry Run Summary
+    needs: [validate, build]
+    if: ${{ !failure() && !cancelled() && github.event_name == 'workflow_dispatch' && inputs.dry_run == true }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download package artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: npm-package
+          path: dist/
+
+      - name: Dry run summary
+        run: |
+          VERSION="${{ needs.validate.outputs.version }}"
+          TAG_NAME="${{ needs.validate.outputs.tag_name }}"
+          IS_PRERELEASE="${{ needs.validate.outputs.is_prerelease }}"
+          PUBLISH_NEXT="${{ needs.validate.outputs.publish_next }}"
+
+          echo "## Dry Run Complete" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Build test successful! The following would be created in a real release:" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Item | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|------|-------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Git Tag | \`$TAG_NAME\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| npm Package | \`${{ env.NPM_PACKAGE_NAME }}@$VERSION\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| npm Tag | \`$([ \"$IS_PRERELEASE\" == \"true\" ] && echo \"next\" || echo \"latest\")\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Pre-release | $IS_PRERELEASE |" >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$PUBLISH_NEXT" == "true" ]]; then
+            echo "| Mode | Dev Snapshot (@next) |" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Staged Package" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          ls -la dist/ >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "To create an actual release:" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$PUBLISH_NEXT" == "true" ]]; then
+            echo "**Option 1: From GitHub UI**" >> "$GITHUB_STEP_SUMMARY"
+            echo '```bash' >> "$GITHUB_STEP_SUMMARY"
+            echo "gh workflow run skillsets-release.yml -f publish_next=true -f dry_run=false" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo '```bash' >> "$GITHUB_STEP_SUMMARY"
+            echo "git tag skillsets-v$VERSION" >> "$GITHUB_STEP_SUMMARY"
+            echo "git push origin skillsets-v$VERSION" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          fi
