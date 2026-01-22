@@ -42,7 +42,7 @@ vi.mock("@/cli/config.js", async () => {
 
 vi.mock("@/cli/installTracking.js", () => ({
   buildCLIEventParams: vi.fn().mockResolvedValue({
-    tilework_source: "nori-skillsets",
+    tilework_source: "nori-ai",
     tilework_session_id: "123456",
     tilework_timestamp: "2025-01-20T00:00:00.000Z",
     tilework_cli_executable_name: "nori-ai",
