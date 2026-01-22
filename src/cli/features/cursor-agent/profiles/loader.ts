@@ -25,6 +25,10 @@ const PROFILE_TEMPLATES_DIR = path.join(__dirname, "config");
  * Install profile templates to ~/.cursor/profiles/
  * Each profile is self-contained with all content inlined directly
  *
+ * When config.skipBuiltinProfiles is true, this function skips copying built-in profiles
+ * entirely. This is used during switch-profile operations where the user has downloaded
+ * a profile from the registry and doesn't want all built-in profiles installed.
+ *
  * @param args - Configuration arguments
  * @param args.config - Runtime configuration
  */
@@ -35,10 +39,19 @@ const installProfiles = async (args: { config: Config }): Promise<void> => {
     installDir: config.installDir,
   });
 
-  info({ message: "Installing Cursor profiles..." });
-
   // Create profiles directory if it doesn't exist
   await fs.mkdir(cursorProfilesDir, { recursive: true });
+
+  // Skip installing built-in profiles if flag is set (used during switch-profile)
+  if (config.skipBuiltinProfiles === true) {
+    info({
+      message:
+        "Skipping built-in profile installation (switch-profile mode)...",
+    });
+    return;
+  }
+
+  info({ message: "Installing Cursor profiles..." });
 
   let installedCount = 0;
   let skippedCount = 0;

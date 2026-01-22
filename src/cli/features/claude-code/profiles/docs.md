@@ -74,6 +74,8 @@ This logic is implemented in @/src/cli/features/claude-code/profiles/skills/load
 
 **Profile preservation**: Profiles are NEVER deleted during install or uninstall operations. During install, existing profile directories are skipped entirely. During uninstall, only permissions configuration in `~/.claude/settings.json` is removed - all profiles remain in `~/.nori/profiles/`.
 
+**skipBuiltinProfiles for switch-profile**: When `config.skipBuiltinProfiles === true`, the `installProfiles()` function skips copying built-in profiles from the package and only configures permissions. This runtime-only flag is set by the switch-profile command (@/src/cli/commands/switch-profile/profiles.ts) to support the `seaweed download && seaweed switch-skillset` workflow where users download a specific profile from the registry and want only that profile active without installing all built-in profiles.
+
 **CLAUDE.md as validation marker**: A directory is only a valid profile if it contains CLAUDE.md. This allows config/ to contain other directories (like internal configuration) without treating them as profiles.
 
 **Template placeholders in profile files**: Source markdown files use placeholders like `{{skills_dir}}` instead of hardcoded paths. Template substitution is applied by sub-loaders during installation via @/src/cli/features/claude-code/template.ts.

@@ -306,4 +306,74 @@ describe("cursor-agent profiles loader", () => {
       expect(ruleMdExists).toBe(true);
     });
   });
+
+  describe("skipBuiltinProfiles", () => {
+    test("should not install built-in profiles when skipBuiltinProfiles is true", async () => {
+      // Create a custom profile that was downloaded from registry (not a built-in)
+      const customProfileDir = path.join(profilesDir, "my-registry-profile");
+      await fs.mkdir(customProfileDir, { recursive: true });
+      await fs.writeFile(
+        path.join(customProfileDir, "profile.json"),
+        JSON.stringify({
+          name: "my-registry-profile",
+          description: "Profile downloaded from registry",
+        }),
+      );
+      await fs.writeFile(
+        path.join(customProfileDir, "AGENTS.md"),
+        "# My Registry Profile\n",
+      );
+
+      const config = createConfig({
+        skipBuiltinProfiles: true,
+        agents: {
+          "cursor-agent": { profile: { baseProfile: "my-registry-profile" } },
+        },
+      });
+
+      await profilesLoader.run({ config });
+
+      // Verify custom profile still exists
+      const customExists = await fs
+        .access(customProfileDir)
+        .then(() => true)
+        .catch(() => false);
+      expect(customExists).toBe(true);
+
+      // Verify built-in profiles were NOT installed
+      const amolExists = await fs
+        .access(path.join(profilesDir, "amol"))
+        .then(() => true)
+        .catch(() => false);
+      expect(amolExists).toBe(false);
+    });
+
+    test("should install built-in profiles when skipBuiltinProfiles is false", async () => {
+      const config = createConfig({
+        skipBuiltinProfiles: false,
+      });
+
+      await profilesLoader.run({ config });
+
+      // Verify built-in profiles were installed
+      const amolExists = await fs
+        .access(path.join(profilesDir, "amol"))
+        .then(() => true)
+        .catch(() => false);
+      expect(amolExists).toBe(true);
+    });
+
+    test("should install built-in profiles when skipBuiltinProfiles is undefined (default behavior)", async () => {
+      const config = createConfig();
+
+      await profilesLoader.run({ config });
+
+      // Verify built-in profiles were installed (default behavior)
+      const amolExists = await fs
+        .access(path.join(profilesDir, "amol"))
+        .then(() => true)
+        .catch(() => false);
+      expect(amolExists).toBe(true);
+    });
+  });
 });

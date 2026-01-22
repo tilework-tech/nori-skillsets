@@ -58,6 +58,8 @@ Note: Unlike claude-code which preserves existing profiles, cursor-agent replace
 
 **AGENTS.md as validation marker**: A directory is only treated as a valid profile if it contains AGENTS.md. Directories without AGENTS.md are skipped.
 
+**skipBuiltinProfiles for switch-profile**: When `config.skipBuiltinProfiles === true`, the `installProfiles()` function skips copying built-in profiles from the package entirely. This runtime-only flag is set by the switch-profile command (@/src/cli/commands/switch-profile/profiles.ts) to support the `seaweed download && seaweed switch-skillset` workflow where users download a specific profile from the registry and want only that profile active without installing all built-in profiles.
+
 **Template substitution in profile loaders**: All profile sub-loaders apply template substitution to `.md` files during the final copy stage. This replaces placeholders like `{{rules_dir}}`, `{{subagents_dir}}` with actual paths. Substitution is applied by:
 - **rulesLoader** - Uses `copyDirWithTemplateSubstitution()` when copying to `~/.cursor/rules/`
 - **subagentsLoader** - Uses `copyDirWithTemplateSubstitution()` when copying to `~/.cursor/subagents/`
