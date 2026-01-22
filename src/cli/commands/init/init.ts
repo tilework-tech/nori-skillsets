@@ -70,7 +70,7 @@ const displayProfilePersistenceWarning = async (args: {
   });
   warn({
     message:
-      "║                    IMPORTANT: Profile Persistence              ║",
+      "║                   IMPORTANT: Skillset Persistence              ║",
   });
   warn({
     message:
@@ -78,16 +78,20 @@ const displayProfilePersistenceWarning = async (args: {
   });
   newline();
   info({
-    message: "Any changes to ~/.claude/skills/, ~/.claude/CLAUDE.md, or other",
+    message:
+      "By running init, nori will manage your config. From here on, any changes",
   });
   info({
     message:
-      "configuration files will be OVERWRITTEN when you run switch-profile.",
+      "to ~/.claude/skills/, ~/.claude/CLAUDE.md, or other configuration",
+  });
+  info({
+    message: "files will be OVERWRITTEN the next time you run switch-skillset.",
   });
   newline();
-  info({ message: "To persist your customizations across profile switches:" });
+  info({ message: "To persist your customizations across skillset switches:" });
   info({ message: "  • Make changes in ~/.nori/profiles/<profile-name>/" });
-  info({ message: "  • Or create a new custom profile" });
+  info({ message: "  • Or create a new custom skillset" });
   newline();
 
   const response = await promptUser({

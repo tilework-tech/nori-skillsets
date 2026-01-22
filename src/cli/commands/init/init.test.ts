@@ -470,11 +470,11 @@ describe("init command", () => {
         );
         expect(hasProfilesWarning).toBe(true);
 
-        // Verify warning mentions switch-profile
-        const hasSwitchProfileWarning = consoleOutput.some((line) =>
-          line.includes("switch-profile"),
+        // Verify warning mentions switch-skillset (not switch-profile)
+        const hasSwitchSkillsetWarning = consoleOutput.some((line) =>
+          line.includes("switch-skillset"),
         );
-        expect(hasSwitchProfileWarning).toBe(true);
+        expect(hasSwitchSkillsetWarning).toBe(true);
       } finally {
         console.log = originalConsoleLog;
       }
