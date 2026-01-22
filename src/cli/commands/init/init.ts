@@ -121,20 +121,18 @@ export const initMain = async (args?: {
           message: `✓ Configuration saved as profile "${capturedProfileName}"`,
         });
       } else {
-        // Interactive mode: prompt for profile name
+        // Interactive mode: require profile name
         capturedProfileName = await promptForExistingConfigCapture({
           existingConfig: detectedConfig,
         });
-        if (capturedProfileName != null) {
-          await captureExistingConfigAsProfile({
-            installDir: normalizedInstallDir,
-            profileName: capturedProfileName,
-          });
-          success({
-            message: `✓ Configuration saved as profile "${capturedProfileName}"`,
-          });
-          newline();
-        }
+        await captureExistingConfigAsProfile({
+          installDir: normalizedInstallDir,
+          profileName: capturedProfileName,
+        });
+        success({
+          message: `✓ Configuration saved as profile "${capturedProfileName}"`,
+        });
+        newline();
       }
     }
   }

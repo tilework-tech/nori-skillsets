@@ -177,11 +177,10 @@ describe("init command", () => {
       fs.mkdirSync(path.join(skillsDir, "my-skill"));
       fs.writeFileSync(path.join(skillsDir, "my-skill", "SKILL.md"), "# Skill");
 
-      // Mock promptUser to simulate user accepting capture with profile name
+      // Mock promptUser to simulate user providing profile name directly
+      // (no "save?" question - user must provide a name)
       const { promptUser } = await import("@/cli/prompt.js");
-      vi.mocked(promptUser)
-        .mockResolvedValueOnce("y") // Accept saving config
-        .mockResolvedValueOnce("my-captured-profile"); // Profile name
+      vi.mocked(promptUser).mockResolvedValueOnce("my-captured-profile"); // Profile name only
 
       // Run init in interactive mode (default)
       await initMain({ installDir: tempDir });
