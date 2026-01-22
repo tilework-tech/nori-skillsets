@@ -80,6 +80,8 @@ This logic is implemented in @/src/cli/features/claude-code/profiles/skills/load
 
 **Template placeholders in profile files**: Source markdown files use placeholders like `{{skills_dir}}` instead of hardcoded paths. Template substitution is applied by sub-loaders during installation via @/src/cli/features/claude-code/template.ts.
 
+**Managed block marker idempotency**: The `insertClaudeMd()` function in @/src/cli/features/claude-code/profiles/claudemd/loader.ts strips any existing `# BEGIN NORI-AI MANAGED BLOCK` and `# END NORI-AI MANAGED BLOCK` markers from profile CLAUDE.md content before wrapping it with fresh markers. This ensures the final installed `~/.claude/CLAUDE.md` always has exactly one set of markers, even when the profile content was created by `captureExistingConfigAsProfile()` (which adds markers during capture). Without this stripping, captured profiles would end up with double-nested markers.
+
 **Hook-intercepted slash commands**: Several global slash commands (`nori-switch-profile`, `nori-toggle-autoupdate`, etc.) are intercepted by the slash-command-intercept hook and executed directly without LLM processing.
 
 **Global vs profile slash commands**: Slash commands are split between two loaders:

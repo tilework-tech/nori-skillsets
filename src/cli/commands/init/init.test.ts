@@ -263,6 +263,32 @@ describe("init command", () => {
       expect(updatedClaudeMd).toContain("# END NORI-AI MANAGED BLOCK");
     });
 
+    it("should not produce double-nested managed block markers when capturing existing config", async () => {
+      // Create existing CLAUDE.md with plain content (no managed block)
+      const claudeMdPath = path.join(TEST_CLAUDE_DIR, "CLAUDE.md");
+      fs.writeFileSync(claudeMdPath, "hello");
+
+      // Run init in non-interactive mode (which captures config and installs managed block)
+      await initMain({ installDir: tempDir, nonInteractive: true });
+
+      // Read the resulting CLAUDE.md
+      const resultContent = fs.readFileSync(claudeMdPath, "utf-8");
+
+      // Should have exactly ONE BEGIN and ONE END marker (not nested/doubled)
+      const beginCount = (
+        resultContent.match(/# BEGIN NORI-AI MANAGED BLOCK/g) || []
+      ).length;
+      const endCount = (
+        resultContent.match(/# END NORI-AI MANAGED BLOCK/g) || []
+      ).length;
+
+      expect(beginCount).toBe(1);
+      expect(endCount).toBe(1);
+
+      // Content should be properly wrapped with the original content inside
+      expect(resultContent).toContain("hello");
+    });
+
     it("should warn about ancestor installations", async () => {
       // Create parent directory with nori installation
       const parentDir = path.join(tempDir, "parent");
