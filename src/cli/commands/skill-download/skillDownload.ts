@@ -18,8 +18,12 @@ import {
   getCommandNames,
   type CliName,
 } from "@/cli/commands/cliCommandNames.js";
-import { getRegistryAuth, loadConfig } from "@/cli/config.js";
-import { getClaudeSkillsDir } from "@/cli/features/claude-code/paths.js";
+import { getRegistryAuth, loadConfig, getAgentProfile } from "@/cli/config.js";
+import {
+  getClaudeSkillsDir,
+  getNoriProfilesDir,
+} from "@/cli/features/claude-code/paths.js";
+import { addSkillDependency } from "@/cli/features/claude-code/profiles/skills/resolver.js";
 import { error, success, info, newline, raw } from "@/cli/logger.js";
 import { getInstallDirs } from "@/utils/path.js";
 
@@ -350,6 +354,7 @@ const formatMultipleSkillsError = (args: {
  * @param args.installDir - Optional explicit install directory
  * @param args.registryUrl - Optional registry URL to download from
  * @param args.listVersions - If true, list available versions instead of downloading
+ * @param args.skillset - Optional skillset name to add skill to (defaults to active profile)
  * @param args.cliName - CLI name for user-facing messages (nori-ai or nori-skillsets)
  */
 export const skillDownloadMain = async (args: {
@@ -358,9 +363,17 @@ export const skillDownloadMain = async (args: {
   installDir?: string | null;
   registryUrl?: string | null;
   listVersions?: boolean | null;
+  skillset?: string | null;
   cliName?: CliName | null;
 }): Promise<void> => {
-  const { skillSpec, installDir, registryUrl, listVersions, cliName } = args;
+  const {
+    skillSpec,
+    installDir,
+    registryUrl,
+    listVersions,
+    skillset,
+    cliName,
+  } = args;
   const cwd = args.cwd ?? process.cwd();
   const commandNames = getCommandNames({ cliName });
   const cliPrefix = cliName ?? "nori-ai";
@@ -396,6 +409,42 @@ export const skillDownloadMain = async (args: {
 
   // Load config if it exists (for private registry auth)
   const config = await loadConfig({ installDir: targetInstallDir });
+
+  // Resolve target skillset for manifest update
+  // Priority: --skillset option > active profile from config > no manifest update
+  let targetSkillset: string | null = null;
+  const profilesDir = getNoriProfilesDir({ installDir: targetInstallDir });
+
+  if (skillset != null) {
+    // User specified a skillset - verify it exists
+    const skillsetDir = path.join(profilesDir, skillset);
+    const skillsetClaudeMd = path.join(skillsetDir, "CLAUDE.md");
+    try {
+      await fs.access(skillsetClaudeMd);
+      targetSkillset = skillset;
+    } catch {
+      error({
+        message: `Skillset "${skillset}" not found at: ${skillsetDir}\n\nMake sure the skillset exists and contains a CLAUDE.md file.`,
+      });
+      return;
+    }
+  } else if (config != null) {
+    // No skillset specified - try to use active profile
+    const activeProfile = getAgentProfile({
+      config,
+      agentName: "claude-code",
+    });
+    if (activeProfile != null) {
+      // Verify profile directory exists
+      const profileDir = path.join(profilesDir, activeProfile.baseProfile);
+      try {
+        await fs.access(profileDir);
+        targetSkillset = activeProfile.baseProfile;
+      } catch {
+        // Profile directory doesn't exist - skip manifest update
+      }
+    }
+  }
 
   const skillsDir = getClaudeSkillsDir({ installDir: targetInstallDir });
 
@@ -631,6 +680,35 @@ export const skillDownloadMain = async (args: {
       });
     }
     info({ message: `Installed to: ${targetDir}` });
+
+    // Update skillset manifest if we have a target skillset
+    if (targetSkillset != null) {
+      const skillsetDir = path.join(profilesDir, targetSkillset);
+      try {
+        await addSkillDependency({
+          profileDir: skillsetDir,
+          skillName,
+          version: "*",
+        });
+        info({
+          message: `Added "${skillName}" to ${targetSkillset} skillset manifest`,
+        });
+      } catch (manifestErr) {
+        // Don't fail the download if manifest update fails
+        const manifestErrMsg =
+          manifestErr instanceof Error
+            ? manifestErr.message
+            : String(manifestErr);
+        info({
+          message: `Warning: Could not update skillset manifest: ${manifestErrMsg}`,
+        });
+      }
+    } else {
+      info({
+        message: `No active skillset - skill not added to any manifest`,
+      });
+    }
+
     newline();
     info({
       message: `Skill "${skillName}" is now available in your Claude Code profile.`,
@@ -664,10 +742,18 @@ export const registerSkillDownloadCommand = (args: {
       "--list-versions",
       "List available versions for the skill instead of downloading",
     )
+    .option(
+      "--skillset <name>",
+      "Add skill to the specified skillset's manifest (defaults to active skillset)",
+    )
     .action(
       async (
         skillSpec: string,
-        options: { registry?: string; listVersions?: boolean },
+        options: {
+          registry?: string;
+          listVersions?: boolean;
+          skillset?: string;
+        },
       ) => {
         const globalOpts = program.opts();
 
@@ -676,6 +762,7 @@ export const registerSkillDownloadCommand = (args: {
           installDir: globalOpts.installDir || null,
           registryUrl: options.registry || null,
           listVersions: options.listVersions || null,
+          skillset: options.skillset || null,
         });
       },
     );

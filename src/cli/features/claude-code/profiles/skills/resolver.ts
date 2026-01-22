@@ -75,6 +75,63 @@ export const readSkillsJson = async (args: {
 };
 
 /**
+ * Write skills.json to a profile directory
+ *
+ * @param args - Arguments
+ * @param args.profileDir - Path to the profile directory
+ * @param args.dependencies - Array of skill dependencies to write
+ */
+export const writeSkillsJson = async (args: {
+  profileDir: string;
+  dependencies: Array<ParsedSkillDependency>;
+}): Promise<void> => {
+  const { profileDir, dependencies } = args;
+  const skillsJsonPath = path.join(profileDir, "skills.json");
+
+  // Convert array back to SkillsJson object format
+  const skillsJson: SkillsJson = {};
+  for (const dep of dependencies) {
+    skillsJson[dep.name] = dep.versionRange;
+  }
+
+  await fs.writeFile(skillsJsonPath, JSON.stringify(skillsJson, null, 2));
+};
+
+/**
+ * Add or update a skill dependency in a profile's skills.json
+ *
+ * @param args - Arguments
+ * @param args.profileDir - Path to the profile directory
+ * @param args.skillName - Name of the skill to add
+ * @param args.version - Version string (e.g., "*", "^1.0.0", "1.2.3")
+ */
+export const addSkillDependency = async (args: {
+  profileDir: string;
+  skillName: string;
+  version: string;
+}): Promise<void> => {
+  const { profileDir, skillName, version } = args;
+
+  // Read existing skills.json or start with empty array
+  let dependencies = await readSkillsJson({ profileDir });
+  if (dependencies == null) {
+    dependencies = [];
+  }
+
+  // Check if skill already exists
+  const existingIndex = dependencies.findIndex((dep) => dep.name === skillName);
+  if (existingIndex >= 0) {
+    // Update existing entry
+    dependencies[existingIndex].versionRange = version;
+  } else {
+    // Add new entry
+    dependencies.push({ name: skillName, versionRange: version });
+  }
+
+  await writeSkillsJson({ profileDir, dependencies });
+};
+
+/**
  * Resolve a version range to a specific version from available versions
  *
  * @param args - Arguments

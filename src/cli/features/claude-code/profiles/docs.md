@@ -153,11 +153,13 @@ The skills loader (@/src/cli/features/claude-code/profiles/skills/loader.ts) ins
    - Paid-prefixed skills are handled based on tier (stripped prefix for paid, skipped for free)
    - Template placeholders are substituted during copy
 
-External skills are downloaded to the profile's `skills/` directory by the `registry-download` command, so the skills loader treats all skills uniformly. The `skills.json` file is now just metadata for tracking which skills were downloaded as dependencies.
+External skills are downloaded to the profile's `skills/` directory by the `registry-download` command, so the skills loader treats all skills uniformly. The `skills.json` file serves as metadata for tracking which skills were downloaded as dependencies, and is updated by the `skill-download` command when skills are downloaded.
 
-The resolver module (@/src/cli/features/claude-code/profiles/skills/resolver.ts) provides:
-- `parseSkillsJson()` - Parse skills.json into dependency array
+The resolver module (@/src/cli/features/claude-code/profiles/skills/resolver.ts) provides read and write operations for skills.json:
+- `parseSkillsJson()` - Parse skills.json content into dependency array
 - `readSkillsJson()` - Read and parse skills.json from profile directory
+- `writeSkillsJson()` - Write skills.json to a profile directory
+- `addSkillDependency()` - Add or update a skill dependency in a profile's skills.json (used by `skill-download` to track downloaded skills)
 - `resolveSkillVersion()` - Resolve semver version range to specific version
 
 ## Usage

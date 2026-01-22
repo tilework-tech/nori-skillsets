@@ -101,7 +101,7 @@ The install command sets `agents: { [agentName]: { profile } }` in the config, w
 Registry commands (registry-search, registry-download, registry-update, registry-upload) and `skill-upload` call this validation early in their main function. **Exception:** `skill-download` does not use this validation - it allows downloading skills without any prior Nori installation.
 
 **Skill Commands:** Two commands manage skills as first-class registry entities (mirroring the profile registry commands):
-- `skill-download` - Download and install skills directly to `.claude/skills/{skill-name}/` in the target directory. Searches public registry first, then private registries. Creates `.nori-version` file for version tracking. Supports `--list-versions` flag and `--registry` option.
+- `skill-download` - Download and install skills directly to `.claude/skills/{skill-name}/` in the target directory. Searches public registry first, then private registries. Creates `.nori-version` file for version tracking. Supports `--list-versions`, `--registry`, and `--skillset` options.
 - `skill-upload` - Upload skills from `~/.claude/skills/` to a registry. Auto-bumps patch version when no version specified. Extracts description from SKILL.md frontmatter.
 
 Skills follow the same tarball-based upload/download pattern as profiles. Downloaded skills go directly to `.claude/skills/`, making them immediately available in the Claude Code profile. Skills require a SKILL.md file (with optional YAML frontmatter containing name and description).
@@ -112,6 +112,13 @@ Skills follow the same tarball-based upload/download pattern as profiles. Downlo
 3. If no installation found: uses the current working directory (cwd) as the target
 
 The command creates `.claude/skills/` directory if it doesn't exist. This allows users to simply drop skills into any directory without running `nori-ai init` or `nori-ai install` first. Config is loaded only for private registry authentication (if it exists).
+
+**skill-download Manifest Update:** When a skill is downloaded, the command automatically adds it to a profile's `skills.json` manifest for dependency tracking. The target profile is determined by:
+1. `--skillset <name>` option - explicitly specifies which profile to update
+2. Active profile from config - if no `--skillset` is provided, uses the currently active profile
+3. No manifest update - if neither is available, the skill downloads but no manifest is updated
+
+The skill is added with version `"*"` (always latest). If the skill already exists in `skills.json`, its version is updated. The manifest update uses `addSkillDependency()` from @/src/cli/features/claude-code/profiles/skills/resolver.ts. Manifest update failures are non-blocking - the skill download succeeds even if the manifest cannot be written.
 
 **Upload Commands Registry Resolution:** Both `registry-upload` (for profiles) and `skill-upload` (for skills) use the same registry resolution logic:
 1. **Public registry (default):** When the user has unified auth (`config.auth`) with a `refreshToken`, the public registry (`https://noriskillsets.dev`) is automatically included as an available upload target. This is the default when no `--registry` flag is provided.
