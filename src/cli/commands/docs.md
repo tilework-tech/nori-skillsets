@@ -29,7 +29,7 @@ nori-ai install (orchestrator)
 - `install` - Orchestrates init → onboard → feature loaders, handles upgrade cleanup
 
 **Init Command:** The init command (@/src/cli/commands/init/init.ts) handles first-time setup:
-- **Profile Persistence Warning Gate (interactive mode only):** Before any other operations, displays a prominent warning that changes to `~/.claude/skills/`, `~/.claude/CLAUDE.md`, and other configuration files will be overwritten by `switch-profile`. Users must type the full word "yes" (case-insensitive, whitespace-trimmed) to proceed; any other input cancels initialization. This warning is skipped in non-interactive mode (`--non-interactive`) or when `skipWarning: true` is passed (used by `registry-download` auto-init to avoid confusing users who are just trying to download a profile).
+- **Skillset Persistence Warning Gate (interactive mode only):** Before any other operations, displays a prominent warning that changes to `~/.claude/skills/`, `~/.claude/CLAUDE.md`, and other configuration files will be overwritten by `switch-skillset`. Users must type the full word "yes" (case-insensitive, whitespace-trimmed) to proceed; any other input cancels initialization. This warning is skipped in non-interactive mode (`--non-interactive`) or when `skipWarning: true` is passed (used by `registry-download` auto-init to avoid confusing users who are just trying to download a profile).
 - Creates `~/.nori/profiles/` directory for user-installed profiles
 - Creates or updates `.nori-config.json` with version tracking
 - Warns about ancestor installations that might cause CLAUDE.md conflicts
