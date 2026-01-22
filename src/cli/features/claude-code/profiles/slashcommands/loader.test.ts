@@ -38,6 +38,7 @@ describe("slashCommandsLoader", () => {
   let tempDir: string;
   let claudeDir: string;
   let commandsDir: string;
+  let noriProfilesDir: string;
 
   beforeEach(async () => {
     // Create temp directory for testing
@@ -49,6 +50,7 @@ describe("slashCommandsLoader", () => {
     mockClaudeDir = claudeDir;
     mockClaudeCommandsDir = commandsDir;
     mockNoriDir = path.join(tempDir, ".nori");
+    noriProfilesDir = path.join(mockNoriDir, "profiles");
 
     // Create directories
     await fs.mkdir(claudeDir, { recursive: true });
@@ -205,6 +207,38 @@ describe("slashCommandsLoader", () => {
   // Profile-specific slash commands (nori-init-docs, nori-sync-docs) may not use template substitution
 
   describe("missing profile slashcommands directory", () => {
+    it("should remove existing commands when switching to profile without slashcommands", async () => {
+      const config: Config = {
+        installDir: tempDir,
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
+      };
+
+      // First, install slashcommands from a profile that has them
+      await slashCommandsLoader.install({ config });
+
+      // Verify commands were installed
+      let files = await fs.readdir(commandsDir);
+      expect(files.length).toBeGreaterThan(0);
+
+      // Now remove the slashcommands directory from the profile to simulate
+      // switching to a profile without slashcommands
+      const profileSlashCommandsDir = path.join(
+        noriProfilesDir,
+        "senior-swe",
+        "slashcommands",
+      );
+      await fs.rm(profileSlashCommandsDir, { recursive: true, force: true });
+
+      // Install again (simulating profile switch)
+      await slashCommandsLoader.install({ config });
+
+      // The commands directory should now be empty since the profile has no slashcommands
+      files = await fs.readdir(commandsDir);
+      expect(files.length).toBe(0);
+    });
+
     it("should handle missing slashcommands directory gracefully during install", async () => {
       const config: Config = {
         installDir: tempDir,
@@ -215,8 +249,7 @@ describe("slashCommandsLoader", () => {
 
       // Remove the slashcommands directory from the installed profile
       const profileSlashCommandsDir = path.join(
-        claudeDir,
-        "profiles",
+        noriProfilesDir,
         "senior-swe",
         "slashcommands",
       );
@@ -248,8 +281,7 @@ describe("slashCommandsLoader", () => {
 
       // Remove the slashcommands directory from the installed profile
       const profileSlashCommandsDir = path.join(
-        claudeDir,
-        "profiles",
+        noriProfilesDir,
         "senior-swe",
         "slashcommands",
       );

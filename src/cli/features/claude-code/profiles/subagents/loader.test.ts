@@ -343,6 +343,38 @@ describe("subagentsLoader", () => {
   // Validate tests removed - validation is now handled at profilesLoader level
 
   describe("missing profile subagents directory", () => {
+    it("should remove existing agents when switching to profile without subagents", async () => {
+      const config: Config = {
+        installDir: tempDir,
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
+      };
+
+      // First, install subagents from a profile that has them
+      await subagentsLoader.install({ config });
+
+      // Verify agents were installed
+      let files = await fs.readdir(agentsDir);
+      expect(files.length).toBeGreaterThan(0);
+
+      // Now remove the subagents directory from the profile to simulate
+      // switching to a profile without subagents
+      const profileSubagentsDir = path.join(
+        noriProfilesDir,
+        "senior-swe",
+        "subagents",
+      );
+      await fs.rm(profileSubagentsDir, { recursive: true, force: true });
+
+      // Install again (simulating profile switch)
+      await subagentsLoader.install({ config });
+
+      // The agents directory should now be empty since the profile has no subagents
+      files = await fs.readdir(agentsDir);
+      expect(files.length).toBe(0);
+    });
+
     it("should handle missing subagents directory gracefully during install", async () => {
       const config: Config = {
         installDir: tempDir,
