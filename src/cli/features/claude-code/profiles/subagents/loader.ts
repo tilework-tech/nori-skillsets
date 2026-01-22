@@ -66,7 +66,8 @@ const registerSubagents = async (args: { config: Config }): Promise<void> => {
   });
   const claudeAgentsDir = getClaudeAgentsDir({ installDir: config.installDir });
 
-  // Create agents directory if it doesn't exist
+  // Remove existing agents directory if it exists, then recreate
+  await fs.rm(claudeAgentsDir, { recursive: true, force: true });
   await fs.mkdir(claudeAgentsDir, { recursive: true });
 
   let registeredCount = 0;
