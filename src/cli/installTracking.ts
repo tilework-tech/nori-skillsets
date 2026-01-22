@@ -285,7 +285,7 @@ export const buildCLIEventParams = async (args?: {
 
   return {
     ...buildBaseEventParams(),
-    tilework_cli_executable_name: "nori-ai",
+    tilework_cli_executable_name: getTileworkSource(),
     tilework_cli_installed_version: version,
     tilework_cli_install_source: state?.install_source ?? getInstallSource(),
     tilework_cli_days_since_install: daysSinceInstall,
@@ -411,7 +411,7 @@ export const trackInstallLifecycle = async (args: {
     // Build CLI-specific event params per PLAN_ANALYTICS_PROXY.md
     const cliEventParams: EventParams = {
       ...buildBaseEventParams(),
-      tilework_cli_executable_name: "nori-ai",
+      tilework_cli_executable_name: getTileworkSource(),
       tilework_cli_installed_version: currentVersion,
       tilework_cli_install_source: state.install_source,
       tilework_cli_days_since_install: daysSinceInstall,

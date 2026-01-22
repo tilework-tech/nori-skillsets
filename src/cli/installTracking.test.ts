@@ -1119,4 +1119,36 @@ describe("tilework_source configuration", () => {
       expect(payload.event_params.tilework_source).toBe("nori-skillsets");
     });
   });
+
+  describe("buildCLIEventParams uses configured source for executable name", () => {
+    beforeEach(() => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true }));
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+      vi.unstubAllGlobals();
+      setTileworkSource({ source: "nori-ai" });
+    });
+
+    it("includes tilework_cli_executable_name from getTileworkSource when set to nori-skillsets", async () => {
+      const { buildCLIEventParams, setTileworkSource: setSrc } =
+        await import("./installTracking.js");
+
+      setSrc({ source: "nori-skillsets" });
+      const params = await buildCLIEventParams();
+
+      expect(params.tilework_cli_executable_name).toBe("nori-skillsets");
+    });
+
+    it("includes tilework_cli_executable_name from getTileworkSource when set to nori-ai", async () => {
+      const { buildCLIEventParams, setTileworkSource: setSrc } =
+        await import("./installTracking.js");
+
+      setSrc({ source: "nori-ai" });
+      const params = await buildCLIEventParams();
+
+      expect(params.tilework_cli_executable_name).toBe("nori-ai");
+    });
+  });
 });
