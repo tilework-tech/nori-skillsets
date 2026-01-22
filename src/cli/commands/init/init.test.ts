@@ -287,6 +287,34 @@ describe("init command", () => {
       expect(resultContent).toContain("hello");
     });
 
+    it("should not duplicate content outside the managed block when capturing existing config", async () => {
+      // This test reproduces the bug where running seaweed init on a directory
+      // with existing CLAUDE.md content results in the content being duplicated:
+      // once outside the managed block and once inside.
+      //
+      // Expected: # BEGIN NORI-AI MANAGED BLOCK\nhello\n# END NORI-AI MANAGED BLOCK
+      // Bug:      hello\n\n# BEGIN NORI-AI MANAGED BLOCK\nhello\n# END NORI-AI MANAGED BLOCK
+
+      const claudeMdPath = path.join(TEST_CLAUDE_DIR, "CLAUDE.md");
+      fs.writeFileSync(claudeMdPath, "hello");
+
+      // Run init in non-interactive mode
+      await initMain({ installDir: tempDir, nonInteractive: true });
+
+      // Read the resulting CLAUDE.md
+      const resultContent = fs.readFileSync(claudeMdPath, "utf-8");
+
+      // Count occurrences of "hello" - should appear exactly ONCE (inside the managed block)
+      const helloCount = (resultContent.match(/hello/g) || []).length;
+      expect(helloCount).toBe(1);
+
+      // The file should START with the managed block marker (no content before it)
+      // Allow for optional leading newline
+      expect(
+        resultContent.trimStart().startsWith("# BEGIN NORI-AI MANAGED BLOCK"),
+      ).toBe(true);
+    });
+
     it("should warn about ancestor installations", async () => {
       // Create parent directory with nori installation
       const parentDir = path.join(tempDir, "parent");

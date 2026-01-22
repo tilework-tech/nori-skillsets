@@ -19,7 +19,10 @@ import {
   promptForExistingConfigCapture,
 } from "@/cli/commands/install/existingConfigCapture.js";
 import { loadConfig, saveConfig, type Config } from "@/cli/config.js";
-import { getNoriProfilesDir } from "@/cli/features/claude-code/paths.js";
+import {
+  getClaudeMdFile,
+  getNoriProfilesDir,
+} from "@/cli/features/claude-code/paths.js";
 import { claudeMdLoader } from "@/cli/features/claude-code/profiles/claudemd/loader.js";
 import { info, warn, newline, success } from "@/cli/logger.js";
 import { promptUser } from "@/cli/prompt.js";
@@ -211,6 +214,18 @@ export const initMain = async (args?: {
           message: `✓ Configuration saved as profile "${capturedProfileName}"`,
         });
         newline();
+      }
+
+      // Clear the original CLAUDE.md to prevent content duplication when the
+      // managed block is installed. The content has already been captured to
+      // the profile, so we delete it here before claudeMdLoader.install runs.
+      const claudeMdPath = getClaudeMdFile({
+        installDir: normalizedInstallDir,
+      });
+      try {
+        await fs.unlink(claudeMdPath);
+      } catch {
+        // File may not exist, which is fine
       }
     }
   }

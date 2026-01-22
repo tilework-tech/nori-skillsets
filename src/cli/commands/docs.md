@@ -36,7 +36,8 @@ nori-ai install (orchestrator)
 - Detects existing Claude Code configuration (`~/.claude/` CLAUDE.md, skills, agents, commands) and captures it as a profile:
   - Interactive mode: requires user to provide a profile name via `existingConfigCapture.ts` (user can abort with Ctrl+C)
   - Non-interactive mode: auto-captures as "my-profile"
-- When a profile is captured, init performs two additional steps:
+- When a profile is captured, init performs three additional steps:
+  - Deletes the original `~/.claude/CLAUDE.md` to prevent content duplication (the content was already captured to the profile with managed block markers)
   - Sets the captured profile as active by writing `agents.claude-code.profile.baseProfile` to config
   - Applies the managed block to `~/.claude/CLAUDE.md` by calling `claudeMdLoader.install()`
 - Idempotent: preserves existing config fields (auth, agents, registryAuths) while updating version
