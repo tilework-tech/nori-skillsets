@@ -100,6 +100,12 @@ export const cursorAgent: Agent = {
           continue;
         }
 
+        // Try nori.json first, fall back to profile.json for backward compatibility
+        const noriJsonPath = path.join(
+          SOURCE_PROFILES_DIR,
+          entry.name,
+          "nori.json",
+        );
         const profileJsonPath = path.join(
           SOURCE_PROFILES_DIR,
           entry.name,
@@ -107,15 +113,23 @@ export const cursorAgent: Agent = {
         );
 
         try {
-          const content = await fs.readFile(profileJsonPath, "utf-8");
-          const profileData = JSON.parse(content);
+          let profileData: { description?: string };
+
+          try {
+            const content = await fs.readFile(noriJsonPath, "utf-8");
+            profileData = JSON.parse(content);
+          } catch {
+            // Fall back to profile.json
+            const content = await fs.readFile(profileJsonPath, "utf-8");
+            profileData = JSON.parse(content);
+          }
 
           profiles.push({
             name: entry.name,
             description: profileData.description || "No description available",
           });
         } catch {
-          // Skip profiles without valid profile.json
+          // Skip profiles without valid metadata file
         }
       }
     } catch {

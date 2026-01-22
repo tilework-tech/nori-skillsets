@@ -18,7 +18,7 @@ This is one of the built-in profiles shipped with Nori at @/src/cli/features/cla
 
 **Profile Content**: This profile directory contains:
 - `CLAUDE.md` - Dual-mode workflow instructions (copilot vs full-send)
-- `profile.json` - Metadata with name, description, and `"builtin": true`
+- `nori.json` - Unified manifest with name, version, and description
 - `skills/` - All SWE skills inlined (TDD, debugging, git-worktrees, brainstorming, writing-plans, etc.)
 - `subagents/` - All subagents inlined (documentation, codebase analysis, web research)
 - `slashcommands/` - Profile-specific slash commands

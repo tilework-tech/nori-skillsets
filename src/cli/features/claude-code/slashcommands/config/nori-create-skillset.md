@@ -1,6 +1,6 @@
 ---
 description: Create a new custom skillset by cloning an existing skillset
-allowed-tools: Bash(cat:*), Bash(ls:*), Bash(cp:*), Bash(mkdir:*), Read({{profiles_dir}}/**), Write({{profiles_dir}}/**/profile.json:*)
+allowed-tools: Bash(cat:*), Bash(ls:*), Bash(cp:*), Bash(mkdir:*), Read({{profiles_dir}}/**), Write({{profiles_dir}}/**/nori.json:*)
 ---
 
 Create a new custom Nori skillset by cloning an existing skillset and customizing it.
@@ -13,7 +13,7 @@ git worktree or git branch just to manipulate skillsets.</system-reminder>
 
 First, let me show you all available skillsets you can clone from:
 
-!`cat {{profiles_dir}}/*/profile.json`
+!`cat {{profiles_dir}}/*/nori.json`
 
 Parse the JSON output above and display each skillset in a clear, readable format showing:
 - Skillset name
@@ -43,28 +43,21 @@ mkdir -p {{profiles_dir}}/<new-skillset-name>
 cp -r {{profiles_dir}}/<source-skillset>/* {{profiles_dir}}/<new-skillset-name>/
 ```
 
-## Step 5: Create profile.json
+## Step 5: Create nori.json
 
-Create a new `profile.json` file for the skillset with the user's custom information.
+Create a new `nori.json` file for the skillset with the user's custom information.
 
 Ask the user: "What description do you want for this skillset?"
 
-Then write the new `{{profiles_dir}}/<new-skillset-name>/profile.json` with:
+Then write the new `{{profiles_dir}}/<new-skillset-name>/nori.json` with:
 
 ```json
 {
   "name": "<new-skillset-name>",
-  "description": "<user-provided-description>",
-  "builtin": false,
-  "mixins": {
-    "base": {},
-    "docs": {},
-    "swe": {}
-  }
+  "version": "1.0.0",
+  "description": "<user-provided-description>"
 }
 ```
-
-Copy the mixins object exactly from the source skillset's profile.json.
 
 ## Step 6: Ask About CLAUDE.md Customization
 
@@ -133,4 +126,4 @@ Or:
 - All skillsets are stored in `{{profiles_dir}}/` which is the source of truth
 - After switching to your new skillset, you'll need to restart Claude Code to load the new configuration
 - You can always edit your skillset later by modifying files in `{{profiles_dir}}/<new-skillset-name>/`
-- Custom skillsets (builtin: false) are preserved during Nori upgrades
+- Custom skillsets are preserved during Nori upgrades

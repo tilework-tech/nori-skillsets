@@ -131,17 +131,24 @@ describe("cursor-agent profiles loader", () => {
         .catch(() => false);
       expect(ruleExists).toBe(true);
 
-      // Verify profile.json does NOT have a mixins field (mixin composition removed)
+      // Verify nori.json exists with correct metadata (replaces profile.json)
+      const noriJsonPath = path.join(amolPath, "nori.json");
+      const noriJson = JSON.parse(await fs.readFile(noriJsonPath, "utf-8"));
+      expect(noriJson.name).toBe("amol");
+      expect(noriJson.version).toBe("1.0.0");
+
+      // Verify profile.json does NOT exist (replaced by nori.json)
       const profileJsonPath = path.join(amolPath, "profile.json");
-      const profileJson = JSON.parse(
-        await fs.readFile(profileJsonPath, "utf-8"),
-      );
-      expect(profileJson.mixins).toBeUndefined();
+      const profileJsonExists = await fs
+        .access(profileJsonPath)
+        .then(() => true)
+        .catch(() => false);
+      expect(profileJsonExists).toBe(false);
     });
   });
 
   describe("uninstall", () => {
-    test("removes built-in profiles", async () => {
+    test("preserves ALL profiles during uninstall (profiles are never deleted)", async () => {
       const config = createConfig();
 
       // First install
@@ -157,27 +164,28 @@ describe("cursor-agent profiles loader", () => {
       // Then uninstall
       await profilesLoader.uninstall({ config });
 
-      // Verify built-in profile was removed
+      // Verify ALL profiles are preserved (profiles are never deleted)
       const amolExistsAfter = await fs
         .access(path.join(profilesDir, "amol"))
         .then(() => true)
         .catch(() => false);
-      expect(amolExistsAfter).toBe(false);
+      expect(amolExistsAfter).toBe(true);
     });
 
-    test("preserves custom user profiles during uninstall", async () => {
+    test("preserves both built-in and custom profiles during uninstall", async () => {
       const config = createConfig();
 
       // Install built-in profiles
       await profilesLoader.run({ config });
 
-      // Create a custom profile (no "builtin": true field)
+      // Create a custom profile
       const customProfileDir = path.join(profilesDir, "my-custom-profile");
       await fs.mkdir(customProfileDir, { recursive: true });
       await fs.writeFile(
-        path.join(customProfileDir, "profile.json"),
+        path.join(customProfileDir, "nori.json"),
         JSON.stringify({
           name: "my-custom-profile",
+          version: "1.0.0",
           description: "My custom profile",
         }),
       );
@@ -201,12 +209,12 @@ describe("cursor-agent profiles loader", () => {
         .catch(() => false);
       expect(customExists).toBe(true);
 
-      // Verify built-in profile is removed
+      // Verify built-in profile is ALSO preserved (profiles are never deleted)
       const amolExists = await fs
         .access(path.join(profilesDir, "amol"))
         .then(() => true)
         .catch(() => false);
-      expect(amolExists).toBe(false);
+      expect(amolExists).toBe(true);
     });
 
     test("does not throw if profiles directory does not exist", async () => {

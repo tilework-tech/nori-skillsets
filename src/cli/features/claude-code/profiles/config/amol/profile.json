@@ -1,5 +1,0 @@
-{
-  "name": "amol",
-  "description": "Amol's preferred settings. Ideal for running many Claude Code tasks in parallel. Achieves high autonomy using worktrees, an extensive research and planning phase, and test driven development.",
-  "builtin": true
-}

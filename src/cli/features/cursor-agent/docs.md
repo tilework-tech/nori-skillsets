@@ -35,7 +35,7 @@ The cursor-agent follows the same architectural pattern as claude-code. The `cur
 - `displayName`: "Cursor Agent"
 - `getLoaderRegistry()`: Returns the CursorLoaderRegistry singleton
 - `listProfiles({ installDir })`: Scans installed `.cursor/profiles/` for directories containing `AGENTS.md`
-- `listSourceProfiles()`: Scans package's `profiles/config/` for directories with `profile.json`, returns `SourceProfile[]` with name and description
+- `listSourceProfiles()`: Scans package's `profiles/config/` for directories with `nori.json` (falls back to `profile.json`), returns `SourceProfile[]` with name and description
 - `switchProfile({ installDir, profileName })`: Validates profile exists, filters out config entries for uninstalled agents, updates config's `agents["cursor-agent"]` field, logs success message
 - `getGlobalFeatureNames()`: Returns `["hooks", "slash commands"]` - human-readable names for prompts
 - `getGlobalLoaderNames()`: Returns `["hooks", "slashcommands"]` - loader names used by uninstall to skip global loaders
@@ -102,7 +102,7 @@ The AgentRegistry (@/src/cli/features/agentRegistry.ts) registers this agent alo
 
 **Profile structure:** Each profile directory in `profiles/config/` contains:
 - `AGENTS.md`: Instructions file (required for profile to be listed)
-- `profile.json`: Profile metadata with name, description, builtin flag
+- `nori.json`: Unified manifest with name, version, description, and optional dependencies
 - `rules/`: Directory containing rule subdirectories
 - `subagents/`: Directory containing subagent .md files
 

@@ -11,7 +11,7 @@ Profile system that provides complete, self-contained Nori configurations for Cu
 The profiles loader is the top-level loader registered with CursorLoaderRegistry (@/src/cli/features/cursor-agent/loaderRegistry.ts). During installation, it:
 
 1. Reads profile directories from `config/` (skipping directories starting with `_`)
-2. Copies each profile directly to `~/.cursor/profiles/` (no composition needed)
+2. Copies each profile directly to `~/.cursor/profiles/` (skips legacy profile.json during copy)
 3. Invokes sub-loaders via CursorProfileLoaderRegistry for rules, subagents, and AGENTS.md installation
 
 The architecture mirrors claude-code's profile system (@/src/cli/features/claude-code/profiles/), using the same self-contained profile pattern.
@@ -37,20 +37,34 @@ profilesLoader (loader.ts)
 
 **Profile Structure**: Each profile directory is self-contained with:
 - `AGENTS.md` (instructions file, required for profile to be valid)
-- `profile.json` (metadata with name, description, and builtin flag)
+- `nori.json` (unified manifest with name, version, description, and optional dependencies)
 - `rules/` (rule directories, each containing RULE.md)
 - `subagents/` (subagent .md files)
 
-Profiles are copied directly to `~/.cursor/profiles/` without any composition or transformation.
+Profiles are copied directly to `~/.cursor/profiles/` without any composition or transformation. Legacy `profile.json` files are skipped during installation.
+
+**Profile Metadata (nori.json)**: The `ProfileMetadata` type (@/src/cli/features/cursor-agent/profiles/metadata.ts) defines the unified manifest format:
+```json
+{
+  "name": "profile-name",
+  "version": "1.0.0",
+  "description": "Human-readable description",
+  "dependencies": {
+    "skills": { "skill-name": "*" }
+  }
+}
+```
+
+The `readProfileMetadata()` function reads `nori.json` first, falling back to legacy `profile.json` for backward compatibility with older profiles.
 
 **Installation Flow**: The `installProfiles()` function:
 1. Reads profile directories from config/ (skips directories starting with `_`)
-2. For each profile with AGENTS.md, removes existing version and copies fresh
+2. For each profile with AGENTS.md, removes existing version and copies fresh (skips profile.json)
 3. Invokes sub-loaders for rules, subagents, and AGENTS.md
 
 Note: Unlike claude-code which preserves existing profiles, cursor-agent replaces profiles on each install.
 
-**Profile Metadata** (metadata.ts): The `ProfileMetadata` type and `readProfileMetadata()` function handle reading and parsing `profile.json` files. Metadata includes `name`, `description`, and `builtin` flag.
+**Uninstall Behavior**: Profiles are never deleted during uninstall. Users manage their profiles via the registry and all customizations are preserved.
 
 ### Things to Know
 
@@ -95,22 +109,22 @@ profiles/
   config/
     amol/
       AGENTS.md        # Full workflow instructions
-      profile.json     # {"name": "amol", "builtin": true}
+      nori.json        # {"name": "amol", "version": "1.0.0", "description": "..."}
       rules/           # All rules inlined
       subagents/       # All subagents inlined
     senior-swe/
       AGENTS.md
-      profile.json
+      nori.json
       rules/
       subagents/
     product-manager/
       AGENTS.md
-      profile.json
+      nori.json
       rules/
       subagents/
     none/
       AGENTS.md        # Minimal (empty/nearly-empty)
-      profile.json     # {"name": "none", "builtin": true}
+      nori.json        # {"name": "none", "version": "1.0.0"}
       rules/           # Base rules only
   agentsmd/            # AGENTS.md loader
   rules/

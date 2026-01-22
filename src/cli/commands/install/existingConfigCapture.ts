@@ -216,22 +216,11 @@ export const captureExistingConfigAsProfile = async (args: {
   // Create profile directory
   await fs.mkdir(profileDir, { recursive: true });
 
-  // Create profile.json
-  const profileJson = {
-    name: profileName,
-    description: "Captured from existing configuration",
-    builtin: false,
-  };
-  await fs.writeFile(
-    path.join(profileDir, "profile.json"),
-    JSON.stringify(profileJson, null, 2),
-  );
-
   // Get skill names from the source skills directory
   const skillsDir = getClaudeSkillsDir({ installDir });
   const skillNames = await getSkillNames(skillsDir);
 
-  // Create nori.json with skills map
+  // Create nori.json with skills map and description
   const skillsMap: Record<string, string> = {};
   for (const skillName of skillNames) {
     skillsMap[skillName] = "*";
@@ -240,6 +229,7 @@ export const captureExistingConfigAsProfile = async (args: {
   const noriJson = {
     name: profileName,
     version: "1.0.0",
+    description: "Captured from existing configuration",
     dependencies: {
       skills: skillsMap,
     },

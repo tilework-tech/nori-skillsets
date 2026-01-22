@@ -210,15 +210,11 @@ describe("cursor-agent profiles content", () => {
     );
 
     test.each(expectedProfiles)(
-      "%s profile has profile.json file",
+      "%s profile has nori.json file",
       async (profileName) => {
-        const profileJsonPath = path.join(
-          PROFILES_DIR,
-          profileName,
-          "profile.json",
-        );
+        const noriJsonPath = path.join(PROFILES_DIR, profileName, "nori.json");
         const exists = await fs
-          .access(profileJsonPath)
+          .access(noriJsonPath)
           .then(() => true)
           .catch(() => false);
         expect(exists).toBe(true);
@@ -226,25 +222,19 @@ describe("cursor-agent profiles content", () => {
     );
   });
 
-  describe("profile.json content", () => {
+  describe("nori.json content", () => {
     test.each(expectedProfiles)(
-      "%s profile.json has required fields (no mixins field)",
+      "%s nori.json has required fields",
       async (profileName) => {
-        const profileJsonPath = path.join(
-          PROFILES_DIR,
-          profileName,
-          "profile.json",
-        );
-        const content = await fs.readFile(profileJsonPath, "utf-8");
+        const noriJsonPath = path.join(PROFILES_DIR, profileName, "nori.json");
+        const content = await fs.readFile(noriJsonPath, "utf-8");
         const json = JSON.parse(content);
 
         expect(json.name).toBe(profileName);
+        expect(json.version).toBe("1.0.0");
         expect(json.description).toBeDefined();
         expect(typeof json.description).toBe("string");
         expect(json.description.length).toBeGreaterThan(0);
-        expect(json.builtin).toBe(true);
-        // Mixin composition has been removed
-        expect(json.mixins).toBeUndefined();
       },
     );
   });

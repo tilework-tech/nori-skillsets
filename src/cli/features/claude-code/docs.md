@@ -13,7 +13,7 @@ This `claude-code/` subdirectory implements the Agent interface defined in @/src
 - `displayName`: "Claude Code"
 - `getLoaderRegistry()`: Returns the LoaderRegistry singleton with all Claude Code loaders
 - `listProfiles({ installDir })`: Scans installed `.nori/profiles/` for directories containing `CLAUDE.md`
-- `listSourceProfiles()`: Scans package's `profiles/config/` for directories with `profile.json`, returns `SourceProfile[]` with name and description
+- `listSourceProfiles()`: Scans package's `profiles/config/` for directories with `nori.json` (falls back to `profile.json`), returns `SourceProfile[]` with name and description
 - `switchProfile({ installDir, profileName })`: Validates profile exists, filters out config entries for uninstalled agents, updates config with new profile, logs success message
 - `getGlobalLoaders()`: Returns loaders that write to `~/.claude/` global config (hooks, statusline, slashcommands, announcements)
 
@@ -72,7 +72,7 @@ Global features (hooks, statusline, global slash commands) use home-based paths 
 
 **Directory Separation Architecture:** Profiles are stored in `~/.nori/profiles/` instead of `~/.claude/profiles/`. This creates a clear separation between Nori's internal profile repository and Claude Code's native artifacts.
 
-**Profile structure**: Each profile directory contains CLAUDE.md, skills/, subagents/, slashcommands/, and profile.json. All content is self-contained - no mixin composition or inheritance.
+**Profile structure**: Each profile directory contains CLAUDE.md, skills/, subagents/, slashcommands/, and nori.json (unified manifest). All content is self-contained - no mixin composition or inheritance.
 
 **Template placeholders**: Source markdown files use placeholders (`{{skills_dir}}`, `{{profiles_dir}}`, `{{commands_dir}}`, `{{install_dir}}`) that are substituted during installation via @/src/cli/features/claude-code/template.ts.
 

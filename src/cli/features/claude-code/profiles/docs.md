@@ -14,13 +14,27 @@ The profiles loader executes FIRST in both interactive and non-interactive insta
 
 **Profile Structure**: Each profile directory is self-contained with:
 - `CLAUDE.md` (behavioral instructions, required for profile to be valid)
-- `profile.json` (metadata with name, description, and builtin flag)
+- `nori.json` (unified manifest with name, version, description, and optional dependencies)
 - `skills/` (inline skill directories, each containing SKILL.md)
 - `skills.json` (optional external skill dependencies)
 - `subagents/` (subagent .md files)
 - `slashcommands/` (slash command .md files)
 
 Profiles are copied directly to `~/.nori/profiles/` without any composition or transformation. Markdown files use template placeholders like `{{skills_dir}}`, `{{profiles_dir}}`, `{{commands_dir}}`, and `{{install_dir}}` which are substituted with actual paths during installation by sub-loaders.
+
+**Profile Metadata (nori.json)**: The `ProfileMetadata` type (@/src/cli/features/claude-code/profiles/metadata.ts) defines the unified manifest format:
+```json
+{
+  "name": "profile-name",
+  "version": "1.0.0",
+  "description": "Human-readable description",
+  "dependencies": {
+    "skills": { "skill-name": "*" }
+  }
+}
+```
+
+The `readProfileMetadata()` function reads `nori.json` first, falling back to legacy `profile.json` for backward compatibility with older profiles. Legacy `profile.json` files are not copied during installation.
 
 **Skills as First-Class Citizens**: Skills can be declared in two ways:
 1. **Inline skills**: Stored in profile's `skills/` folder, bundled with the profile
@@ -41,8 +55,6 @@ External skills are downloaded by `registry-download` to the profile's own `skil
 - For free users: `paid-` prefixed items are skipped entirely
 This logic is implemented in @/src/cli/features/claude-code/profiles/skills/loader.ts and @/src/cli/features/claude-code/profiles/subagents/loader.ts.
 
-**Built-in Profile Metadata**: All built-in profiles include `"builtin": true` in their profile.json files. This field is informational only - it indicates which profiles shipped with Nori. Profiles are NEVER deleted during install or uninstall regardless of this field's value.
-
 **Built-in Profiles**: Several profiles ship with the package at @/src/cli/features/claude-code/profiles/config/:
 - `senior-swe` - Co-pilot with high confirmation, the default profile
 - `amol` - Full autonomy with frequent commits
@@ -55,7 +67,7 @@ This logic is implemented in @/src/cli/features/claude-code/profiles/skills/load
 1. Reads profile directories from config/ (skips directories starting with `_`)
 2. For each profile with CLAUDE.md, checks if it already exists in `~/.nori/profiles/`
 3. Skips existing profiles (logs "use registry to update") to preserve user customizations
-4. Copies new profiles directly (no composition needed)
+4. Copies new profiles directly (skips legacy `profile.json` files during copy)
 5. Configures permissions for the profiles directory in `~/.claude/settings.json`
 
 **Profile Lookup in Loaders**: All feature loaders use `getAgentProfile({ config, agentName: "claude-code" })` from @/src/cli/config.ts to determine the active profile name. This function returns the agent-specific profile from `config.agents["claude-code"].profile`, falling back to the legacy `config.profile` field for backwards compatibility.
@@ -102,7 +114,7 @@ This logic is implemented in @/src/cli/features/claude-code/profiles/skills/load
       subagents/
       slashcommands/
       CLAUDE.md
-      profile.json
+      nori.json         # Unified manifest (name, version, description, dependencies)
     amol/
     ...
 
@@ -119,7 +131,7 @@ This logic is implemented in @/src/cli/features/claude-code/profiles/skills/load
 1. **Profiles loader runs FIRST** (before profile selection)
    - Checks if each profile already exists in `~/.nori/profiles/`
    - Skips existing profiles (logs "use registry to update")
-   - Copies new profiles directly from config/
+   - Copies new profiles directly from config/ (skips legacy profile.json)
    - Never overwrites existing profiles
 
 2. **User selects profile** (interactive mode)
@@ -160,7 +172,7 @@ Or use `/nori-switch-profile` slash command in Claude Code.
 
 The `validate()` function checks:
 - `~/.nori/profiles/` directory exists
-- Required built-in profiles are present with CLAUDE.md and profile.json
+- Required built-in profiles are present with CLAUDE.md and nori.json
 - Profiles directory permissions are configured in settings.json
 
 Run with `npx nori-ai@latest check`

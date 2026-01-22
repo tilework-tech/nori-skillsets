@@ -84,15 +84,15 @@ cp -r {{profiles_dir}}/senior-swe/subagents {{profiles_dir}}/<profile-name>/
 cp -r {{profiles_dir}}/senior-swe/slashcommands {{profiles_dir}}/<profile-name>/
 ```
 
-### 6c. Create profile.json
+### 6c. Create nori.json
 
-Write `{{profiles_dir}}/<profile-name>/profile.json`:
+Write `{{profiles_dir}}/<profile-name>/nori.json`:
 
 ```json
 {
   "name": "<profile-name>",
-  "description": "<generated description based on preferences>",
-  "builtin": false
+  "version": "1.0.0",
+  "description": "<generated description based on preferences>"
 }
 ```
 

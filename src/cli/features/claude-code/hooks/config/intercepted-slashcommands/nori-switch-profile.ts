@@ -110,22 +110,29 @@ const run = async (args: { input: HookInput }): Promise<HookOutput | null> => {
     );
 
     // Read skillset description if available
+    // Try nori.json first, fall back to profile.json for backward compatibility
     let profileDescription = "";
     try {
       const profilesDir = getNoriProfilesDir({ installDir });
+      const noriJsonPath = path.join(profilesDir, profileName, "nori.json");
       const profileJsonPath = path.join(
         profilesDir,
         profileName,
         "profile.json",
       );
-      const profileJson = JSON.parse(
-        await fs.readFile(profileJsonPath, "utf-8"),
-      );
-      if (profileJson.description) {
-        profileDescription = profileJson.description;
+
+      let profileData: { description?: string };
+      try {
+        profileData = JSON.parse(await fs.readFile(noriJsonPath, "utf-8"));
+      } catch {
+        profileData = JSON.parse(await fs.readFile(profileJsonPath, "utf-8"));
+      }
+
+      if (profileData.description) {
+        profileDescription = profileData.description;
       }
     } catch {
-      // No profile.json or no description
+      // No metadata file or no description
     }
 
     return {

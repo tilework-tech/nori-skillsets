@@ -104,11 +104,17 @@ const installProfiles = async (args: { config: Config }): Promise<void> => {
       await fs.mkdir(profileDestDir, { recursive: true });
 
       // Copy all profile content directly (profiles are self-contained)
+      // Skip profile.json (legacy format) - we use nori.json instead
       const profileEntries = await fs.readdir(profileSrcDir, {
         withFileTypes: true,
       });
 
       for (const profileEntry of profileEntries) {
+        // Skip legacy profile.json - nori.json is the new format
+        if (profileEntry.name === "profile.json") {
+          continue;
+        }
+
         const srcPath = path.join(profileSrcDir, profileEntry.name);
         const destPath = path.join(profileDestDir, profileEntry.name);
 
@@ -320,11 +326,11 @@ const validate = async (args: {
   for (const profile of requiredProfiles) {
     const profileDir = path.join(noriProfilesDir, profile);
     const claudeMdPath = path.join(profileDir, "CLAUDE.md");
-    const profileJsonPath = path.join(profileDir, "profile.json");
+    const noriJsonPath = path.join(profileDir, "nori.json");
 
     try {
       await fs.access(claudeMdPath);
-      await fs.access(profileJsonPath);
+      await fs.access(noriJsonPath);
     } catch {
       missingProfiles.push(profile);
     }

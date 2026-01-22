@@ -113,14 +113,20 @@ describe("profilesLoader", () => {
         .catch(() => false);
       expect(wizardExists).toBe(true);
 
-      // Verify profile.json exists and has correct metadata
+      // Verify nori.json exists and has correct metadata (replaces profile.json)
+      const noriJsonPath = path.join(wizardPath, "nori.json");
+      const noriJson = JSON.parse(await fs.readFile(noriJsonPath, "utf-8"));
+      expect(noriJson.name).toBe("onboarding-wizard-questionnaire");
+      expect(noriJson.version).toBe("1.0.0");
+      expect(noriJson.description).toContain("questionnaire");
+
+      // Verify profile.json does NOT exist (replaced by nori.json)
       const profileJsonPath = path.join(wizardPath, "profile.json");
-      const profileJson = JSON.parse(
-        await fs.readFile(profileJsonPath, "utf-8"),
-      );
-      expect(profileJson.name).toBe("onboarding-wizard-questionnaire");
-      expect(profileJson.builtin).toBe(true);
-      expect(profileJson.description).toContain("questionnaire");
+      const profileJsonExists = await fs
+        .access(profileJsonPath)
+        .then(() => true)
+        .catch(() => false);
+      expect(profileJsonExists).toBe(false);
 
       // Verify CLAUDE.md exists and contains wizard instructions
       const claudeMdPath = path.join(wizardPath, "CLAUDE.md");
@@ -146,13 +152,11 @@ describe("profilesLoader", () => {
         .catch(() => false);
       expect(noneExists).toBe(true);
 
-      // Verify profile.json exists and has NO mixins field (inlined content)
-      const profileJsonPath = path.join(nonePath, "profile.json");
-      const profileJson = JSON.parse(
-        await fs.readFile(profileJsonPath, "utf-8"),
-      );
-      expect(profileJson.name).toBe("none");
-      expect(profileJson.mixins).toBeUndefined();
+      // Verify nori.json exists and has correct metadata (replaces profile.json)
+      const noriJsonPath = path.join(nonePath, "nori.json");
+      const noriJson = JSON.parse(await fs.readFile(noriJsonPath, "utf-8"));
+      expect(noriJson.name).toBe("none");
+      expect(noriJson.version).toBe("1.0.0");
 
       // Verify CLAUDE.md exists and is empty or minimal
       const claudeMdPath = path.join(nonePath, "CLAUDE.md");
@@ -229,7 +233,7 @@ describe("profilesLoader", () => {
         .catch(() => false);
       expect(seniorSweExists).toBe(true);
 
-      // Verify it has CLAUDE.md and profile.json
+      // Verify it has CLAUDE.md and nori.json (not profile.json)
       const claudeMdPath = path.join(seniorSwePath, "CLAUDE.md");
       const claudeMdExists = await fs
         .access(claudeMdPath)
@@ -237,12 +241,20 @@ describe("profilesLoader", () => {
         .catch(() => false);
       expect(claudeMdExists).toBe(true);
 
+      const noriJsonPath = path.join(seniorSwePath, "nori.json");
+      const noriJsonExists = await fs
+        .access(noriJsonPath)
+        .then(() => true)
+        .catch(() => false);
+      expect(noriJsonExists).toBe(true);
+
+      // Verify profile.json does NOT exist
       const profileJsonPath = path.join(seniorSwePath, "profile.json");
       const profileJsonExists = await fs
         .access(profileJsonPath)
         .then(() => true)
         .catch(() => false);
-      expect(profileJsonExists).toBe(true);
+      expect(profileJsonExists).toBe(false);
 
       // Verify it has composed content from _base (skills, subagents, slashcommands)
       const skillsDir = path.join(seniorSwePath, "skills");
@@ -307,13 +319,12 @@ describe("profilesLoader", () => {
 
       const seniorSwePath = path.join(profilesDir, "senior-swe");
 
-      // Verify profile.json has NO mixins field
-      const profileJsonPath = path.join(seniorSwePath, "profile.json");
-      const profileJson = JSON.parse(
-        await fs.readFile(profileJsonPath, "utf-8"),
-      );
-      expect(profileJson.name).toBe("senior-swe");
-      expect(profileJson.mixins).toBeUndefined();
+      // Verify nori.json has correct metadata (replaces profile.json)
+      const noriJsonPath = path.join(seniorSwePath, "nori.json");
+      const noriJson = JSON.parse(await fs.readFile(noriJsonPath, "utf-8"));
+      expect(noriJson.name).toBe("senior-swe");
+      expect(noriJson.version).toBe("1.0.0");
+      expect(noriJson.description).toBeDefined();
 
       // Verify skills are present directly (not composed from mixins)
       const skillsDir = path.join(seniorSwePath, "skills");
@@ -354,13 +365,11 @@ describe("profilesLoader", () => {
         "onboarding-wizard-questionnaire",
       );
 
-      // Verify profile.json has NO mixins field
-      const profileJsonPath = path.join(wizardPath, "profile.json");
-      const profileJson = JSON.parse(
-        await fs.readFile(profileJsonPath, "utf-8"),
-      );
-      expect(profileJson.name).toBe("onboarding-wizard-questionnaire");
-      expect(profileJson.mixins).toBeUndefined();
+      // Verify nori.json has correct metadata (replaces profile.json)
+      const noriJsonPath = path.join(wizardPath, "nori.json");
+      const noriJson = JSON.parse(await fs.readFile(noriJsonPath, "utf-8"));
+      expect(noriJson.name).toBe("onboarding-wizard-questionnaire");
+      expect(noriJson.version).toBe("1.0.0");
 
       // Verify NO skills directory exists (wizard doesn't need skills)
       const skillsDir = path.join(wizardPath, "skills");
@@ -640,6 +649,11 @@ describe("profilesLoader", () => {
         path.join(seniorSwePath, "CLAUDE.md"),
         "# Senior SWE Profile\n\nTest content",
       );
+      // Create nori.json for the profile
+      await fs.writeFile(
+        path.join(seniorSwePath, "nori.json"),
+        JSON.stringify({ name: "senior-swe", version: "1.0.0" }),
+      );
 
       // Validate (should fail because amol and product-manager are missing)
       const result = await profilesLoader.validate!({ config });
@@ -654,19 +668,46 @@ describe("profilesLoader", () => {
     });
   });
 
-  describe("profile.json parsing", () => {
-    it("should parse valid profile.json with extends field", async () => {
+  describe("nori.json parsing", () => {
+    it("should parse valid nori.json with name, version and description", async () => {
       const tempTestDir = await fs.mkdtemp(
-        path.join(os.tmpdir(), "profile-json-test-"),
+        path.join(os.tmpdir(), "nori-json-test-"),
       );
 
-      const profileJson = {
-        extends: "_base",
+      const noriJson = {
         name: "test-profile",
+        version: "1.0.0",
         description: "Test profile description",
       };
 
       const profilePath = path.join(tempTestDir, "test-profile");
+      await fs.mkdir(profilePath, { recursive: true });
+      await fs.writeFile(
+        path.join(profilePath, "nori.json"),
+        JSON.stringify(noriJson, null, 2),
+      );
+
+      const { readProfileMetadata } = await import("./metadata.js");
+      const result = await readProfileMetadata({ profileDir: profilePath });
+
+      expect(result.name).toBe("test-profile");
+      expect(result.version).toBe("1.0.0");
+      expect(result.description).toBe("Test profile description");
+
+      await fs.rm(tempTestDir, { recursive: true, force: true });
+    });
+
+    it("should fallback to profile.json when nori.json does not exist", async () => {
+      const tempTestDir = await fs.mkdtemp(
+        path.join(os.tmpdir(), "profile-json-fallback-test-"),
+      );
+
+      const profileJson = {
+        name: "legacy-profile",
+        description: "Legacy profile from profile.json",
+      };
+
+      const profilePath = path.join(tempTestDir, "legacy-profile");
       await fs.mkdir(profilePath, { recursive: true });
       await fs.writeFile(
         path.join(profilePath, "profile.json"),
@@ -676,7 +717,8 @@ describe("profilesLoader", () => {
       const { readProfileMetadata } = await import("./metadata.js");
       const result = await readProfileMetadata({ profileDir: profilePath });
 
-      expect(result).toEqual(profileJson);
+      expect(result.name).toBe("legacy-profile");
+      expect(result.description).toBe("Legacy profile from profile.json");
 
       await fs.rm(tempTestDir, { recursive: true, force: true });
     });

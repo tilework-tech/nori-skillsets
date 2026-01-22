@@ -324,7 +324,7 @@ More custom content.`,
       expect(exists).toBe(true);
     });
 
-    it("should create valid profile.json with builtin: false", async () => {
+    it("should create valid nori.json with description (no profile.json)", async () => {
       await fs.mkdir(claudeDir, { recursive: true });
       await fs.writeFile(
         path.join(claudeDir, "CLAUDE.md"),
@@ -336,21 +336,31 @@ More custom content.`,
         profileName: "captured-config",
       });
 
+      // Verify nori.json exists with correct content
+      const noriJsonPath = path.join(
+        noriDir,
+        "profiles",
+        "captured-config",
+        "nori.json",
+      );
+      const noriJson = JSON.parse(await fs.readFile(noriJsonPath, "utf-8"));
+
+      expect(noriJson.name).toBe("captured-config");
+      expect(noriJson.version).toBe("1.0.0");
+      expect(noriJson.description).toBe("Captured from existing configuration");
+
+      // Verify profile.json does NOT exist (replaced by nori.json)
       const profileJsonPath = path.join(
         noriDir,
         "profiles",
         "captured-config",
         "profile.json",
       );
-      const profileJson = JSON.parse(
-        await fs.readFile(profileJsonPath, "utf-8"),
-      );
-
-      expect(profileJson.name).toBe("captured-config");
-      expect(profileJson.description).toBe(
-        "Captured from existing configuration",
-      );
-      expect(profileJson.builtin).toBe(false);
+      const profileJsonExists = await fs
+        .access(profileJsonPath)
+        .then(() => true)
+        .catch(() => false);
+      expect(profileJsonExists).toBe(false);
     });
 
     it("should copy CLAUDE.md with managed block markers added when not present", async () => {
@@ -551,12 +561,12 @@ Managed content here
         .catch(() => false);
       expect(claudeMdExists).toBe(true);
 
-      // profile.json should exist
-      const profileJsonExists = await fs
-        .access(path.join(profileDir, "profile.json"))
+      // nori.json should exist (not profile.json)
+      const noriJsonExists = await fs
+        .access(path.join(profileDir, "nori.json"))
         .then(() => true)
         .catch(() => false);
-      expect(profileJsonExists).toBe(true);
+      expect(noriJsonExists).toBe(true);
 
       // Other directories should not exist (or be empty)
       const skillsExists = await fs

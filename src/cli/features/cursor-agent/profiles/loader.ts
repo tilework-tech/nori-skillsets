@@ -83,7 +83,11 @@ const installProfiles = async (args: { config: Config }): Promise<void> => {
       await fs.mkdir(profileDestDir, { recursive: true });
 
       // Copy all profile content directly (no mixin composition)
-      await fs.cp(profileSrcDir, profileDestDir, { recursive: true });
+      // Skip profile.json (legacy format) - we use nori.json instead
+      await fs.cp(profileSrcDir, profileDestDir, {
+        recursive: true,
+        filter: (source) => !source.endsWith("profile.json"),
+      });
 
       success({
         message: `✓ ${entry.name} profile installed`,
@@ -116,8 +120,8 @@ const installProfiles = async (args: { config: Config }): Promise<void> => {
 
 /**
  * Uninstall profiles directory
- * Only removes built-in profiles (those with "builtin": true in profile.json)
- * Custom user profiles are preserved
+ * Profiles are never deleted - users manage them via the registry
+ * Only logs that profiles are preserved
  *
  * @param args - Configuration arguments
  * @param args.config - Runtime configuration
@@ -129,7 +133,9 @@ const uninstallProfiles = async (args: { config: Config }): Promise<void> => {
     installDir: config.installDir,
   });
 
-  info({ message: "Removing built-in Cursor profiles..." });
+  // Profiles are never deleted during uninstall
+  // Users manage their profiles via the registry and we preserve all customizations
+  info({ message: "Preserving Cursor profiles (profiles are never deleted)" });
 
   try {
     await fs.access(cursorProfilesDir);
@@ -138,56 +144,14 @@ const uninstallProfiles = async (args: { config: Config }): Promise<void> => {
       withFileTypes: true,
     });
 
-    let removedCount = 0;
-    let preservedCount = 0;
-
-    for (const entry of entries) {
-      if (!entry.isDirectory()) {
-        continue;
-      }
-
-      const profileDir = path.join(cursorProfilesDir, entry.name);
-      const profileJsonPath = path.join(profileDir, "profile.json");
-
-      try {
-        const content = await fs.readFile(profileJsonPath, "utf-8");
-        const profileData = JSON.parse(content);
-
-        if (profileData.builtin === true) {
-          await fs.rm(profileDir, { recursive: true, force: true });
-          removedCount++;
-        } else {
-          preservedCount++;
-        }
-      } catch {
-        // If profile.json doesn't exist or can't be read, treat as custom
-        preservedCount++;
-      }
-    }
-
-    if (removedCount > 0) {
-      success({
-        message: `✓ Removed ${removedCount} built-in profile${removedCount === 1 ? "" : "s"}`,
-      });
-    }
-    if (preservedCount > 0) {
+    const profileCount = entries.filter((e) => e.isDirectory()).length;
+    if (profileCount > 0) {
       info({
-        message: `  Preserved ${preservedCount} custom profile${preservedCount === 1 ? "" : "s"}`,
+        message: `  ${profileCount} profile${profileCount === 1 ? "" : "s"} preserved`,
       });
     }
   } catch {
     info({ message: "Profiles directory not found (may not be installed)" });
-  }
-
-  // Remove parent directory if empty
-  try {
-    const files = await fs.readdir(cursorProfilesDir);
-    if (files.length === 0) {
-      await fs.rmdir(cursorProfilesDir);
-      success({ message: `✓ Removed empty directory: ${cursorProfilesDir}` });
-    }
-  } catch {
-    // Directory doesn't exist or couldn't be removed, which is fine
   }
 };
 
