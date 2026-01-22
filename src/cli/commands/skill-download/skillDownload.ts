@@ -18,11 +18,7 @@ import {
   getCommandNames,
   type CliName,
 } from "@/cli/commands/cliCommandNames.js";
-import {
-  checkRegistryAgentSupport,
-  showCursorAgentNotSupportedError,
-} from "@/cli/commands/registryAgentCheck.js";
-import { getRegistryAuth } from "@/cli/config.js";
+import { getRegistryAuth, loadConfig } from "@/cli/config.js";
 import { getClaudeSkillsDir } from "@/cli/features/claude-code/paths.js";
 import { error, success, info, newline, raw } from "@/cli/logger.js";
 import { getInstallDirs } from "@/utils/path.js";
@@ -372,6 +368,8 @@ export const skillDownloadMain = async (args: {
   const { skillName, version } = parseSkillSpec({ skillSpec });
 
   // Find installation directory
+  // If installDir is provided, use it; otherwise check for existing installations
+  // If no installations found, use cwd (skills can be downloaded without prior Nori installation)
   let targetInstallDir: string;
 
   if (installDir != null) {
@@ -380,16 +378,9 @@ export const skillDownloadMain = async (args: {
     const allInstallations = getInstallDirs({ currentDir: cwd });
 
     if (allInstallations.length === 0) {
-      error({
-        message: "No Nori installation found.",
-      });
-      info({
-        message: "Run 'npx nori-ai install' to install Nori Profiles.",
-      });
-      return;
-    }
-
-    if (allInstallations.length > 1) {
+      // No installation - use cwd as target
+      targetInstallDir = cwd;
+    } else if (allInstallations.length > 1) {
       const installList = allInstallations
         .map((dir, index) => `${index + 1}. ${dir}`)
         .join("\n");
@@ -398,24 +389,19 @@ export const skillDownloadMain = async (args: {
         message: `Found multiple Nori installations. Cannot determine which one to use.\n\nInstallations found:\n${installList}\n\nPlease use --install-dir to specify the target installation.`,
       });
       return;
+    } else {
+      targetInstallDir = allInstallations[0];
     }
-
-    targetInstallDir = allInstallations[0];
   }
 
-  // Check if cursor-agent-only installation (not supported for registry commands)
-  const agentCheck = await checkRegistryAgentSupport({
-    installDir: targetInstallDir,
-  });
-  if (!agentCheck.supported) {
-    showCursorAgentNotSupportedError();
-    return;
-  }
-
-  // Use config from agentCheck (already loaded during support check)
-  const config = agentCheck.config;
+  // Load config if it exists (for private registry auth)
+  const config = await loadConfig({ installDir: targetInstallDir });
 
   const skillsDir = getClaudeSkillsDir({ installDir: targetInstallDir });
+
+  // Ensure skills directory exists
+  await fs.mkdir(skillsDir, { recursive: true });
+
   const targetDir = path.join(skillsDir, skillName);
 
   // Check if skill already exists and get its version info

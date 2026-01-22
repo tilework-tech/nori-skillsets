@@ -32,7 +32,12 @@ nori-ai install (orchestrator)
 - Creates `~/.nori/profiles/` directory for user-installed profiles
 - Creates or updates `.nori-config.json` with version tracking
 - Warns about ancestor installations that might cause CLAUDE.md conflicts
-- In interactive mode: detects existing Claude Code configuration (`~/.claude/` CLAUDE.md, skills, agents, commands) and offers to capture it as a named profile via `existingConfigCapture.ts`
+- Detects existing Claude Code configuration (`~/.claude/` CLAUDE.md, skills, agents, commands) and captures it as a profile:
+  - Interactive mode: prompts user for profile name via `existingConfigCapture.ts`
+  - Non-interactive mode: auto-captures as "my-profile"
+- When a profile is captured, init performs two additional steps:
+  - Sets the captured profile as active by writing `agents.claude-code.profile.baseProfile` to config
+  - Applies the managed block to `~/.claude/CLAUDE.md` by calling `claudeMdLoader.install()`
 - Idempotent: preserves existing config fields (auth, agents, registryAuths) while updating version
 
 **Onboard Command:** The onboard command (@/src/cli/commands/onboard/onboard.ts) handles profile and auth selection:
@@ -85,24 +90,24 @@ The install command sets `agents: { [agentName]: { profile } }` in the config, w
 - If multiple agents installed: error with "Multiple agents installed (X, Y). Please specify which agent to check with --agent <name>."
 - If no agents in config (legacy fallback): default to `claude-code`
 
-**Registry Commands Agent Validation:** Registry and skill commands require Claude Code to be installed because profiles are stored at `~/.claude/profiles/` and skills at `~/.claude/skills/`. The shared `registryAgentCheck.ts` module provides validation:
+**Registry Commands Agent Validation:** Most registry and skill commands require Claude Code to be installed because profiles are stored at `~/.claude/profiles/` and skills at `~/.claude/skills/`. The shared `registryAgentCheck.ts` module provides validation:
 - `checkRegistryAgentSupport({ installDir })` - Returns `{ supported: boolean, config: Config | null }`. Rejects if config has cursor-agent but NOT claude-code; allows all other cases (backwards compatible with older installs that have no agents field)
 - `showCursorAgentNotSupportedError()` - Displays error message explaining registry requires Claude Code and how to install it
 
-All registry and skill commands call this validation early in their main function, after determining the install directory but before any API calls:
-```typescript
-const agentCheck = await checkRegistryAgentSupport({ installDir });
-if (!agentCheck.supported) {
-  showCursorAgentNotSupportedError();
-  return;
-}
-```
+Registry commands (registry-search, registry-download, registry-update, registry-upload) and `skill-upload` call this validation early in their main function. **Exception:** `skill-download` does not use this validation - it allows downloading skills without any prior Nori installation.
 
 **Skill Commands:** Two commands manage skills as first-class registry entities (mirroring the profile registry commands):
-- `skill-download` - Download and install skills directly to `~/.claude/skills/{skill-name}/`. Searches public registry first, then private registries. Creates `.nori-version` file for version tracking. Supports `--list-versions` flag and `--registry` option.
+- `skill-download` - Download and install skills directly to `.claude/skills/{skill-name}/` in the target directory. Searches public registry first, then private registries. Creates `.nori-version` file for version tracking. Supports `--list-versions` flag and `--registry` option.
 - `skill-upload` - Upload skills from `~/.claude/skills/` to a registry. Auto-bumps patch version when no version specified. Extracts description from SKILL.md frontmatter.
 
-Skills follow the same tarball-based upload/download pattern as profiles. Downloaded skills go directly to `~/.claude/skills/`, making them immediately available in the Claude Code profile. Skills require a SKILL.md file (with optional YAML frontmatter containing name and description).
+Skills follow the same tarball-based upload/download pattern as profiles. Downloaded skills go directly to `.claude/skills/`, making them immediately available in the Claude Code profile. Skills require a SKILL.md file (with optional YAML frontmatter containing name and description).
+
+**skill-download No Installation Required:** Unlike other registry commands, `skill-download` does not require a prior Nori installation. The installation directory resolution:
+1. If `--install-dir` is provided: uses that directory as the target
+2. If existing Nori installation found via `getInstallDirs()`: uses that installation's directory
+3. If no installation found: uses the current working directory (cwd) as the target
+
+The command creates `.claude/skills/` directory if it doesn't exist. This allows users to simply drop skills into any directory without running `nori-ai init` or `nori-ai install` first. Config is loaded only for private registry authentication (if it exists).
 
 **Upload Commands Registry Resolution:** Both `registry-upload` (for profiles) and `skill-upload` (for skills) use the same registry resolution logic:
 1. **Public registry (default):** When the user has unified auth (`config.auth`) with a `refreshToken`, the public registry (`https://noriskillsets.dev`) is automatically included as an available upload target. This is the default when no `--registry` flag is provided.
@@ -111,9 +116,11 @@ Skills follow the same tarball-based upload/download pattern as profiles. Downlo
 4. **Multiple registries:** If multiple registries are configured and no `--registry` is specified, the command prompts the user to select one (or errors in non-interactive mode).
 
 **registry-download Auto-Init:** The `registry-download` command (and `seaweed download`) automatically initializes Nori configuration when no installation exists, allowing users to download profiles without first running `nori-ai init` or `nori-ai install`. The installation directory resolution logic:
-1. If `--install-dir` is provided but no installation exists there: calls `initMain({ installDir, nonInteractive: true })` to set up at that location
-2. If no `--install-dir` and no existing installations found via `getInstallDirs()`: calls `initMain({ installDir: cwd, nonInteractive: true })` to set up at current directory
+1. If `--install-dir` is provided but no installation exists there: calls `initMain({ installDir, nonInteractive: false })` to set up at that location
+2. If no `--install-dir` and no existing installations found via `getInstallDirs()`: calls `initMain({ installDir: cwd, nonInteractive: false })` to set up at current directory
 3. If multiple installations found: errors with a list of installations and prompts user to specify with `--install-dir`
+
+By using `nonInteractive: false`, the auto-init triggers the interactive existing config capture flow - users with an existing `~/.claude/` configuration (CLAUDE.md, skills, agents, commands) will be prompted to save it as a named profile before proceeding.
 
 This differs from `registry-install`, which calls the full `installMain()` (orchestrating init, onboard, and loaders). The `registry-download` command only calls `initMain()` because download just places profile files without activating them - the user still needs to run `switch-profile` to activate the downloaded profile.
 
@@ -199,7 +206,7 @@ export const registerXCommand = (args: { program: Command }): void => {
 ### Things to Know
 
 The commands directory contains shared utilities at the top level:
-- `registryAgentCheck.ts` - Shared validation for registry commands. Checks if the installation has only cursor-agent (no claude-code) and rejects with a helpful error message. Used by registry-search, registry-download, registry-update, registry-upload, skill-download, and skill-upload commands.
+- `registryAgentCheck.ts` - Shared validation for registry commands. Checks if the installation has only cursor-agent (no claude-code) and rejects with a helpful error message. Used by registry-search, registry-download, registry-update, registry-upload, and skill-upload commands. Note: `skill-download` does not use this validation.
 - `cliCommandNames.ts` - CLI command name mapping for user-facing messages. Maps CLI names (`nori-ai`, `seaweed`) to their respective command names (e.g., `registry-download` vs `download`, `switch-profile` vs `switch-skillset`). The `getCommandNames({ cliName })` function returns a `CommandNames` object with mappings for download, downloadSkill, search, update, upload, uploadSkill, and switchProfile. Defaults to nori-ai command names when `cliName` is null or undefined.
 
 The `seaweedCommands.ts` file contains thin command wrappers for the seaweed CLI - registration functions that provide simplified command names (`init`, `search`, `download`, `install`, `switch-skillset`, `download-skill`) by delegating to the underlying implementation functions (`*Main` functions from init, registry-*, and skill-* commands, `switchSkillsetAction` for switch-skillset). Upload, update, and onboard commands are only available via the nori-ai CLI. Each wrapper passes `cliName: "seaweed"` to the `*Main` functions so user-facing messages display seaweed command names (e.g., "run seaweed switch-skillset" instead of "run nori-ai switch-profile"). This allows the seaweed CLI to use cleaner command names while sharing all business logic with the nori-ai CLI.
