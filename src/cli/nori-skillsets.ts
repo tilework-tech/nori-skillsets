@@ -17,11 +17,20 @@ import {
   registerNoriSkillsetsSearchCommand,
   registerNoriSkillsetsSwitchSkillsetCommand,
 } from "@/cli/commands/noriSkillsetsCommands.js";
+import {
+  setTileworkSource,
+  trackInstallLifecycle,
+} from "@/cli/installTracking.js";
 import { getCurrentPackageVersion } from "@/cli/version.js";
 import { normalizeInstallDir } from "@/utils/path.js";
 
 const program = new Command();
 const version = getCurrentPackageVersion() || "unknown";
+
+// Set the tilework source for analytics before any tracking calls
+setTileworkSource({ source: "nori-skillsets" });
+
+void trackInstallLifecycle({ currentVersion: version });
 
 program
   .name("nori-skillsets")

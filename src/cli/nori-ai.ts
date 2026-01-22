@@ -22,12 +22,18 @@ import { registerSkillDownloadCommand } from "@/cli/commands/skill-download/skil
 import { registerSkillUploadCommand } from "@/cli/commands/skill-upload/skillUpload.js";
 import { registerSwitchProfileCommand } from "@/cli/commands/switch-profile/profiles.js";
 import { registerUninstallCommand } from "@/cli/commands/uninstall/uninstall.js";
-import { trackInstallLifecycle } from "@/cli/installTracking.js";
+import {
+  setTileworkSource,
+  trackInstallLifecycle,
+} from "@/cli/installTracking.js";
 import { getCurrentPackageVersion } from "@/cli/version.js";
 import { normalizeInstallDir } from "@/utils/path.js";
 
 const program = new Command();
 const version = getCurrentPackageVersion() || "unknown";
+
+// Set the tilework source for analytics before any tracking calls
+setTileworkSource({ source: "nori-ai" });
 
 void trackInstallLifecycle({ currentVersion: version });
 
