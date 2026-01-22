@@ -298,17 +298,17 @@ const isValidProfileName = (name: string): boolean => {
 /**
  * Prompt user to capture existing configuration
  *
- * Displays what was detected and asks if user wants to save as a profile.
- * If yes, prompts for profile name.
+ * Displays what was detected and requires a profile name.
+ * The user must provide a valid profile name or abort with Ctrl+C.
  *
  * @param args - Configuration arguments
  * @param args.existingConfig - Detected existing configuration
  *
- * @returns Profile name if user chooses to save, null if declined
+ * @returns Profile name (always returns a valid name)
  */
 export const promptForExistingConfigCapture = async (args: {
   existingConfig: ExistingConfig;
-}): Promise<string | null> => {
+}): Promise<string> => {
   const { existingConfig } = args;
 
   // Display what was found
@@ -348,20 +348,19 @@ export const promptForExistingConfigCapture = async (args: {
     newline();
   }
 
-  // Ask if user wants to save as profile
-  const saveResponse = await promptUser({
-    prompt: "Would you like to save this configuration as a profile? (y/n): ",
+  // Inform user that config will be saved locally as a skillset
+  info({
+    message:
+      "This configuration will be saved locally as a skillset in ~/.nori/profiles/.",
   });
+  info({ message: "(Press Ctrl+C to abort if you do not want to save it.)" });
+  newline();
 
-  if (!saveResponse.match(/^[Yy]$/)) {
-    return null;
-  }
-
-  // Prompt for profile name with validation
+  // Prompt for skillset name with validation (required)
   while (true) {
     const nameResponse = await promptUser({
       prompt:
-        "Enter a name for this profile (lowercase letters, numbers, hyphens): ",
+        "Enter a name for this skillset (lowercase letters, numbers, hyphens): ",
     });
 
     if (isValidProfileName(nameResponse)) {
@@ -370,7 +369,7 @@ export const promptForExistingConfigCapture = async (args: {
 
     error({
       message:
-        "Invalid profile name. Use only lowercase letters, numbers, and hyphens.",
+        "Invalid skillset name. Use only lowercase letters, numbers, and hyphens.",
     });
   }
 };

@@ -29,11 +29,12 @@ nori-ai install (orchestrator)
 - `install` - Orchestrates init → onboard → feature loaders, handles upgrade cleanup
 
 **Init Command:** The init command (@/src/cli/commands/init/init.ts) handles first-time setup:
+- **Profile Persistence Warning Gate (interactive mode only):** Before any other operations, displays a prominent warning that changes to `~/.claude/skills/`, `~/.claude/CLAUDE.md`, and other configuration files will be overwritten by `switch-profile`. Users must type the full word "yes" (case-insensitive, whitespace-trimmed) to proceed; any other input cancels initialization. This warning is skipped in non-interactive mode (`--non-interactive`) or when `skipWarning: true` is passed (used by `registry-download` auto-init to avoid confusing users who are just trying to download a profile).
 - Creates `~/.nori/profiles/` directory for user-installed profiles
 - Creates or updates `.nori-config.json` with version tracking
 - Warns about ancestor installations that might cause CLAUDE.md conflicts
 - Detects existing Claude Code configuration (`~/.claude/` CLAUDE.md, skills, agents, commands) and captures it as a profile:
-  - Interactive mode: prompts user for profile name via `existingConfigCapture.ts`
+  - Interactive mode: requires user to provide a profile name via `existingConfigCapture.ts` (user can abort with Ctrl+C)
   - Non-interactive mode: auto-captures as "my-profile"
 - When a profile is captured, init performs two additional steps:
   - Sets the captured profile as active by writing `agents.claude-code.profile.baseProfile` to config
@@ -122,7 +123,7 @@ The command creates `.claude/skills/` directory if it doesn't exist. This allows
 2. If no `--install-dir` and no existing installations found via `getInstallDirs()`: calls `initMain({ installDir: cwd, nonInteractive: false })` to set up at current directory
 3. If multiple installations found: errors with a list of installations and prompts user to specify with `--install-dir`
 
-By using `nonInteractive: false`, the auto-init triggers the interactive existing config capture flow - users with an existing `~/.claude/` configuration (CLAUDE.md, skills, agents, commands) will be prompted to save it as a named profile before proceeding.
+By using `nonInteractive: false`, the auto-init triggers the interactive existing config capture flow - users with an existing `~/.claude/` configuration (CLAUDE.md, skills, agents, commands) must provide a profile name to save it before proceeding (or abort with Ctrl+C).
 
 This differs from `registry-install`, which calls the full `installMain()` (orchestrating init, onboard, and loaders). The `registry-download` command only calls `initMain()` because download just places profile files without activating them - the user still needs to run `switch-profile` to activate the downloaded profile.
 
@@ -217,7 +218,7 @@ The `install/` directory contains command-specific utilities:
 - `asciiArt.ts` - ASCII banners displayed during installation. All display functions (displayNoriBanner, displayWelcomeBanner, displaySeaweedBed) check `isSilentMode()` and return early without output when silent mode is enabled.
 - `installState.ts` - Helper to check for existing installations (wraps version.ts)
 - `registryAuthPrompt.ts` - Prompts for private registry authentication during interactive install. Collects organization ID (or full URL for local dev), username, and password (hidden input). Organization IDs are converted to registry URLs using `buildRegistryUrl()` from @/src/utils/url.ts. Full URLs are accepted as a fallback for local development (e.g., `http://localhost:3000`). Supports preserving existing registryAuths from config and adding multiple registries. Uses `RegistryAuth` type from `@/cli/config.js`.
-- `existingConfigCapture.ts` - Detects and captures existing Claude Code configurations as named profiles. The `detectExistingConfig()` function scans `~/.claude/` for CLAUDE.md, skills directory, agents directory, and commands directory. The `captureExistingConfigAsProfile()` function creates a profile directory at `~/.nori/profiles/<profileName>/` with: nori.json (unified manifest format with skill dependencies), CLAUDE.md (with managed block markers added if not present), and copies of skills/, agents/ (renamed to subagents/), and commands/ (renamed to slashcommands/). Profile names must be lowercase alphanumeric with hyphens.
+- `existingConfigCapture.ts` - Detects and captures existing Claude Code configurations as named profiles. The `detectExistingConfig()` function scans `~/.claude/` for CLAUDE.md, skills directory, agents directory, and commands directory. The `promptForExistingConfigCapture()` function displays what was found and requires the user to provide a valid profile name (lowercase alphanumeric with hyphens) - the user cannot decline and must either provide a name or abort with Ctrl+C. The `captureExistingConfigAsProfile()` function creates a profile directory at `~/.nori/profiles/<profileName>/` with: nori.json (unified manifest format with skill dependencies), CLAUDE.md (with managed block markers added if not present), and copies of skills/, agents/ (renamed to subagents/), and commands/ (renamed to slashcommands/).
 
 **Install Command Silent Mode:** The `main()` function in install.ts accepts a `silent` parameter. When `silent: true`, the function calls `setSilentMode({ silent: true })` before execution and restores it to false in a `finally` block to prevent state leakage. Silent mode implies non-interactive mode. This is used by intercepted slash commands (e.g., `/nori-switch-profile` in both claude-code and cursor-agent) that call `installMain()` and need clean stdout to return JSON responses without corruption from installation messages like ASCII art banners.
 

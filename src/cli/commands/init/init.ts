@@ -22,6 +22,7 @@ import { loadConfig, saveConfig, type Config } from "@/cli/config.js";
 import { getNoriProfilesDir } from "@/cli/features/claude-code/paths.js";
 import { claudeMdLoader } from "@/cli/features/claude-code/profiles/claudemd/loader.js";
 import { info, warn, newline, success } from "@/cli/logger.js";
+import { promptUser } from "@/cli/prompt.js";
 import { getCurrentPackageVersion } from "@/cli/version.js";
 import { normalizeInstallDir, getInstallDirs } from "@/utils/path.js";
 
@@ -44,18 +45,91 @@ const directoryExists = async (dirPath: string): Promise<boolean> => {
 };
 
 /**
+ * Display profile persistence warning and require "yes" confirmation
+ *
+ * @param args - Configuration arguments
+ * @param args.nonInteractive - Whether to run in non-interactive mode
+ *
+ * @returns True if user confirmed, false if cancelled
+ */
+const displayProfilePersistenceWarning = async (args: {
+  nonInteractive: boolean;
+}): Promise<boolean> => {
+  const { nonInteractive } = args;
+
+  // Skip warning in non-interactive mode
+  if (nonInteractive) {
+    return true;
+  }
+
+  // Display prominent warning
+  newline();
+  warn({
+    message:
+      "╔════════════════════════════════════════════════════════════════╗",
+  });
+  warn({
+    message:
+      "║                    IMPORTANT: Profile Persistence              ║",
+  });
+  warn({
+    message:
+      "╚════════════════════════════════════════════════════════════════╝",
+  });
+  newline();
+  info({
+    message: "Any changes to ~/.claude/skills/, ~/.claude/CLAUDE.md, or other",
+  });
+  info({
+    message:
+      "configuration files will be OVERWRITTEN when you run switch-profile.",
+  });
+  newline();
+  info({ message: "To persist your customizations across profile switches:" });
+  info({ message: "  • Make changes in ~/.nori/profiles/<profile-name>/" });
+  info({ message: "  • Or create a new custom profile" });
+  newline();
+
+  const response = await promptUser({
+    prompt: "Type 'yes' to confirm you understand: ",
+  });
+
+  if (response.trim().toLowerCase() !== "yes") {
+    newline();
+    info({ message: "Initialization cancelled." });
+    return false;
+  }
+
+  newline();
+  return true;
+};
+
+/**
  * Main init function
  *
  * @param args - Configuration arguments
  * @param args.installDir - Installation directory
  * @param args.nonInteractive - Whether to run in non-interactive mode
+ * @param args.skipWarning - Whether to skip the profile persistence warning (useful for auto-init in download flows)
  */
 export const initMain = async (args?: {
   installDir?: string | null;
   nonInteractive?: boolean | null;
+  skipWarning?: boolean | null;
 }): Promise<void> => {
-  const { installDir, nonInteractive } = args ?? {};
+  const { installDir, nonInteractive, skipWarning } = args ?? {};
   const normalizedInstallDir = normalizeInstallDir({ installDir });
+
+  // Show profile persistence warning and get confirmation (unless skipped)
+  if (!skipWarning) {
+    const confirmed = await displayProfilePersistenceWarning({
+      nonInteractive: nonInteractive ?? false,
+    });
+
+    if (!confirmed) {
+      return;
+    }
+  }
 
   // Check for ancestor installations
   const allInstallations = getInstallDirs({
@@ -121,20 +195,18 @@ export const initMain = async (args?: {
           message: `✓ Configuration saved as profile "${capturedProfileName}"`,
         });
       } else {
-        // Interactive mode: prompt for profile name
+        // Interactive mode: require profile name
         capturedProfileName = await promptForExistingConfigCapture({
           existingConfig: detectedConfig,
         });
-        if (capturedProfileName != null) {
-          await captureExistingConfigAsProfile({
-            installDir: normalizedInstallDir,
-            profileName: capturedProfileName,
-          });
-          success({
-            message: `✓ Configuration saved as profile "${capturedProfileName}"`,
-          });
-          newline();
-        }
+        await captureExistingConfigAsProfile({
+          installDir: normalizedInstallDir,
+          profileName: capturedProfileName,
+        });
+        success({
+          message: `✓ Configuration saved as profile "${capturedProfileName}"`,
+        });
+        newline();
       }
     }
   }

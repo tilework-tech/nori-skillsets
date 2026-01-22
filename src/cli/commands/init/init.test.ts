@@ -177,11 +177,13 @@ describe("init command", () => {
       fs.mkdirSync(path.join(skillsDir, "my-skill"));
       fs.writeFileSync(path.join(skillsDir, "my-skill", "SKILL.md"), "# Skill");
 
-      // Mock promptUser to simulate user accepting capture with profile name
+      // Mock promptUser to simulate user accepting:
+      // 1. Profile persistence warning (type "yes")
+      // 2. Profile name directly (no "save?" question - user must provide a name)
       const { promptUser } = await import("@/cli/prompt.js");
       vi.mocked(promptUser)
-        .mockResolvedValueOnce("y") // Accept saving config
-        .mockResolvedValueOnce("my-captured-profile"); // Profile name
+        .mockResolvedValueOnce("yes") // Profile persistence warning
+        .mockResolvedValueOnce("my-captured-profile"); // Profile name only
 
       // Run init in interactive mode (default)
       await initMain({ installDir: tempDir });
@@ -259,6 +261,32 @@ describe("init command", () => {
       expect(updatedClaudeMd).toContain("# END NORI-AI MANAGED BLOCK");
     });
 
+    it("should not produce double-nested managed block markers when capturing existing config", async () => {
+      // Create existing CLAUDE.md with plain content (no managed block)
+      const claudeMdPath = path.join(TEST_CLAUDE_DIR, "CLAUDE.md");
+      fs.writeFileSync(claudeMdPath, "hello");
+
+      // Run init in non-interactive mode (which captures config and installs managed block)
+      await initMain({ installDir: tempDir, nonInteractive: true });
+
+      // Read the resulting CLAUDE.md
+      const resultContent = fs.readFileSync(claudeMdPath, "utf-8");
+
+      // Should have exactly ONE BEGIN and ONE END marker (not nested/doubled)
+      const beginCount = (
+        resultContent.match(/# BEGIN NORI-AI MANAGED BLOCK/g) || []
+      ).length;
+      const endCount = (
+        resultContent.match(/# END NORI-AI MANAGED BLOCK/g) || []
+      ).length;
+
+      expect(beginCount).toBe(1);
+      expect(endCount).toBe(1);
+
+      // Content should be properly wrapped with the original content inside
+      expect(resultContent).toContain("hello");
+    });
+
     it("should warn about ancestor installations", async () => {
       // Create parent directory with nori installation
       const parentDir = path.join(tempDir, "parent");
@@ -309,6 +337,181 @@ describe("init command", () => {
       expect(initCmd?.description()).toBe(
         "Initialize Nori configuration and directories",
       );
+    });
+  });
+
+  describe("profile persistence warning gate", () => {
+    it("should proceed with init when user types 'yes' in interactive mode", async () => {
+      const CONFIG_PATH = getConfigPath({ installDir: tempDir });
+
+      // Ensure no existing config
+      expect(fs.existsSync(CONFIG_PATH)).toBe(false);
+
+      // Mock promptUser to return "yes" for the warning confirmation
+      const { promptUser } = await import("@/cli/prompt.js");
+      vi.mocked(promptUser).mockResolvedValueOnce("yes");
+
+      // Run init in interactive mode
+      await initMain({ installDir: tempDir });
+
+      // Verify config was created (init proceeded)
+      expect(fs.existsSync(CONFIG_PATH)).toBe(true);
+    });
+
+    it("should proceed with init when user types 'YES' (case insensitive)", async () => {
+      const CONFIG_PATH = getConfigPath({ installDir: tempDir });
+
+      // Ensure no existing config
+      expect(fs.existsSync(CONFIG_PATH)).toBe(false);
+
+      // Mock promptUser to return "YES" for the warning confirmation
+      const { promptUser } = await import("@/cli/prompt.js");
+      vi.mocked(promptUser).mockResolvedValueOnce("YES");
+
+      // Run init in interactive mode
+      await initMain({ installDir: tempDir });
+
+      // Verify config was created (init proceeded)
+      expect(fs.existsSync(CONFIG_PATH)).toBe(true);
+    });
+
+    it("should cancel init when user types 'y' (must be full word yes)", async () => {
+      const CONFIG_PATH = getConfigPath({ installDir: tempDir });
+
+      // Ensure no existing config
+      expect(fs.existsSync(CONFIG_PATH)).toBe(false);
+
+      // Mock promptUser to return "y" (not full "yes")
+      const { promptUser } = await import("@/cli/prompt.js");
+      vi.mocked(promptUser).mockResolvedValueOnce("y");
+
+      // Run init in interactive mode
+      await initMain({ installDir: tempDir });
+
+      // Verify config was NOT created (init cancelled)
+      expect(fs.existsSync(CONFIG_PATH)).toBe(false);
+    });
+
+    it("should cancel init when user types 'no'", async () => {
+      const CONFIG_PATH = getConfigPath({ installDir: tempDir });
+
+      // Ensure no existing config
+      expect(fs.existsSync(CONFIG_PATH)).toBe(false);
+
+      // Mock promptUser to return "no"
+      const { promptUser } = await import("@/cli/prompt.js");
+      vi.mocked(promptUser).mockResolvedValueOnce("no");
+
+      // Run init in interactive mode
+      await initMain({ installDir: tempDir });
+
+      // Verify config was NOT created (init cancelled)
+      expect(fs.existsSync(CONFIG_PATH)).toBe(false);
+    });
+
+    it("should cancel init when user types empty string", async () => {
+      const CONFIG_PATH = getConfigPath({ installDir: tempDir });
+
+      // Ensure no existing config
+      expect(fs.existsSync(CONFIG_PATH)).toBe(false);
+
+      // Mock promptUser to return empty string
+      const { promptUser } = await import("@/cli/prompt.js");
+      vi.mocked(promptUser).mockResolvedValueOnce("");
+
+      // Run init in interactive mode
+      await initMain({ installDir: tempDir });
+
+      // Verify config was NOT created (init cancelled)
+      expect(fs.existsSync(CONFIG_PATH)).toBe(false);
+    });
+
+    it("should skip warning in non-interactive mode and proceed", async () => {
+      const CONFIG_PATH = getConfigPath({ installDir: tempDir });
+
+      // Ensure no existing config
+      expect(fs.existsSync(CONFIG_PATH)).toBe(false);
+
+      // Mock promptUser - should NOT be called in non-interactive mode
+      const { promptUser } = await import("@/cli/prompt.js");
+      vi.mocked(promptUser).mockClear();
+
+      // Run init in non-interactive mode
+      await initMain({ installDir: tempDir, nonInteractive: true });
+
+      // Verify config was created (init proceeded without prompting)
+      expect(fs.existsSync(CONFIG_PATH)).toBe(true);
+
+      // Verify promptUser was NOT called for the warning
+      // (it may be called for other purposes, but not for the warning gate)
+      // Since non-interactive mode skips all prompts, we verify init completed
+    });
+
+    it("should display warning message about .nori/profiles/ in interactive mode", async () => {
+      // Capture console output
+      const consoleOutput: Array<string> = [];
+      const originalConsoleLog = console.log;
+      console.log = (...args: Array<unknown>) => {
+        consoleOutput.push(args.map(String).join(" "));
+      };
+
+      // Mock promptUser to return "yes"
+      const { promptUser } = await import("@/cli/prompt.js");
+      vi.mocked(promptUser).mockResolvedValueOnce("yes");
+
+      try {
+        // Run init in interactive mode
+        await initMain({ installDir: tempDir });
+
+        // Verify warning mentions .nori/profiles/
+        const hasProfilesWarning = consoleOutput.some(
+          (line) =>
+            line.includes(".nori/profiles") || line.includes("nori/profiles"),
+        );
+        expect(hasProfilesWarning).toBe(true);
+
+        // Verify warning mentions switch-profile
+        const hasSwitchProfileWarning = consoleOutput.some((line) =>
+          line.includes("switch-profile"),
+        );
+        expect(hasSwitchProfileWarning).toBe(true);
+      } finally {
+        console.log = originalConsoleLog;
+      }
+    });
+
+    it("should accept 'yes' with leading/trailing whitespace", async () => {
+      const CONFIG_PATH = getConfigPath({ installDir: tempDir });
+
+      // Ensure no existing config
+      expect(fs.existsSync(CONFIG_PATH)).toBe(false);
+
+      // Mock promptUser to return "  yes  " with whitespace
+      const { promptUser } = await import("@/cli/prompt.js");
+      vi.mocked(promptUser).mockResolvedValueOnce("  yes  ");
+
+      // Run init in interactive mode
+      await initMain({ installDir: tempDir });
+
+      // Verify config was created (init proceeded)
+      expect(fs.existsSync(CONFIG_PATH)).toBe(true);
+    });
+
+    it("should skip warning when skipWarning is true", async () => {
+      const CONFIG_PATH = getConfigPath({ installDir: tempDir });
+
+      // Ensure no existing config
+      expect(fs.existsSync(CONFIG_PATH)).toBe(false);
+
+      // Mock promptUser - should NOT be called when skipWarning is true
+      const { promptUser } = await import("@/cli/prompt.js");
+      vi.mocked(promptUser).mockClear();
+
+      // Run init with skipWarning: true (used by registry-download auto-init)
+      await initMain({ installDir: tempDir, skipWarning: true });
+
+      // Verify config was created (init proceeded without prompting)
+      expect(fs.existsSync(CONFIG_PATH)).toBe(true);
     });
   });
 });

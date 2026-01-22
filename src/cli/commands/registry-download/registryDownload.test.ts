@@ -244,10 +244,11 @@ describe("registry-download", () => {
           cwd: noInstallDir,
         });
 
-        // Verify initMain was called with correct args (interactive mode for user prompts)
+        // Verify initMain was called with correct args (interactive mode for user prompts, skip warning for download flow)
         expect(initMain).toHaveBeenCalledWith({
           installDir: noInstallDir,
           nonInteractive: false,
+          skipWarning: true,
         });
 
         // Verify info message about setting up was shown
@@ -303,10 +304,11 @@ describe("registry-download", () => {
           installDir: customInstallDir,
         });
 
-        // Verify initMain was called with the custom install dir (interactive mode for user prompts)
+        // Verify initMain was called with the custom install dir (interactive mode for user prompts, skip warning for download flow)
         expect(initMain).toHaveBeenCalledWith({
           installDir: customInstallDir,
           nonInteractive: false,
+          skipWarning: true,
         });
 
         // Verify download proceeded
@@ -364,10 +366,11 @@ describe("registry-download", () => {
         // Verify failure was returned
         expect(result.success).toBe(false);
 
-        // Verify initMain was called (interactive mode for user prompts)
+        // Verify initMain was called (interactive mode for user prompts, skip warning for download flow)
         expect(initMain).toHaveBeenCalledWith({
           installDir: noInstallDir,
           nonInteractive: false,
+          skipWarning: true,
         });
 
         // Verify error message about init failure was shown

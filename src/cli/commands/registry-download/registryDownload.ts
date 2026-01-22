@@ -580,9 +580,14 @@ export const registryDownloadMain = async (args: {
     const allInstallations = getInstallDirs({ currentDir: installDir });
     if (!allInstallations.includes(installDir)) {
       // No installation at specified directory - auto-init (interactive to allow user prompts)
+      // Skip the profile persistence warning since users are just trying to download a profile
       info({ message: "Setting up Nori for first time use..." });
       try {
-        await initMain({ installDir, nonInteractive: false });
+        await initMain({
+          installDir,
+          nonInteractive: false,
+          skipWarning: true,
+        });
       } catch (err) {
         error({
           message: `Failed to initialize Nori: ${err instanceof Error ? err.message : String(err)}`,
@@ -595,9 +600,14 @@ export const registryDownloadMain = async (args: {
 
     if (allInstallations.length === 0) {
       // No installation found - auto-init at cwd (interactive to allow user prompts)
+      // Skip the profile persistence warning since users are just trying to download a profile
       info({ message: "Setting up Nori for first time use..." });
       try {
-        await initMain({ installDir: cwd, nonInteractive: false });
+        await initMain({
+          installDir: cwd,
+          nonInteractive: false,
+          skipWarning: true,
+        });
       } catch (err) {
         error({
           message: `Failed to initialize Nori: ${err instanceof Error ? err.message : String(err)}`,

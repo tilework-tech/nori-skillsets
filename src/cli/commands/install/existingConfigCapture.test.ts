@@ -726,10 +726,10 @@ Managed content here
   });
 
   describe("promptForExistingConfigCapture", () => {
-    it("should display what was detected", async () => {
-      mockedPromptUser.mockResolvedValueOnce("n"); // User declines
+    it("should display what was detected and prompt for profile name", async () => {
+      mockedPromptUser.mockResolvedValueOnce("my-profile"); // Profile name directly
 
-      await promptForExistingConfigCapture({
+      const result = await promptForExistingConfigCapture({
         existingConfig: {
           hasClaudeMd: true,
           hasManagedBlock: false,
@@ -742,17 +742,15 @@ Managed content here
         },
       });
 
-      // This test just verifies the function runs without error
-      // The actual display is handled by logger which we don't mock here
-      expect(mockedPromptUser).toHaveBeenCalled();
+      // Should prompt only once for profile name (no "save?" question)
+      expect(mockedPromptUser).toHaveBeenCalledTimes(1);
+      expect(result).toBe("my-profile");
     });
 
-    it("should show warning when managed block is detected", async () => {
-      mockedPromptUser.mockResolvedValueOnce("n"); // User declines
+    it("should show warning when managed block is detected and still require profile name", async () => {
+      mockedPromptUser.mockResolvedValueOnce("my-profile"); // Profile name directly
 
-      // We can't easily test console output, but we can verify the function
-      // runs and accepts hasManagedBlock: true
-      await promptForExistingConfigCapture({
+      const result = await promptForExistingConfigCapture({
         existingConfig: {
           hasClaudeMd: true,
           hasManagedBlock: true,
@@ -765,32 +763,13 @@ Managed content here
         },
       });
 
-      expect(mockedPromptUser).toHaveBeenCalled();
+      // Should prompt only once for profile name
+      expect(mockedPromptUser).toHaveBeenCalledTimes(1);
+      expect(result).toBe("my-profile");
     });
 
-    it("should return null when user declines to save", async () => {
-      mockedPromptUser.mockResolvedValueOnce("n");
-
-      const result = await promptForExistingConfigCapture({
-        existingConfig: {
-          hasClaudeMd: true,
-          hasManagedBlock: false,
-          hasSkills: false,
-          skillCount: 0,
-          hasAgents: false,
-          agentCount: 0,
-          hasCommands: false,
-          commandCount: 0,
-        },
-      });
-
-      expect(result).toBeNull();
-    });
-
-    it("should return profile name when user accepts and provides name", async () => {
-      mockedPromptUser
-        .mockResolvedValueOnce("y") // User accepts
-        .mockResolvedValueOnce("my-profile"); // Profile name
+    it("should return profile name when user provides valid name", async () => {
+      mockedPromptUser.mockResolvedValueOnce("my-profile"); // Profile name directly
 
       const result = await promptForExistingConfigCapture({
         existingConfig: {
@@ -806,11 +785,11 @@ Managed content here
       });
 
       expect(result).toBe("my-profile");
+      expect(mockedPromptUser).toHaveBeenCalledTimes(1);
     });
 
     it("should re-prompt for empty profile name", async () => {
       mockedPromptUser
-        .mockResolvedValueOnce("y") // User accepts
         .mockResolvedValueOnce("") // Empty name (invalid)
         .mockResolvedValueOnce("valid-name"); // Valid name
 
@@ -828,13 +807,12 @@ Managed content here
       });
 
       expect(result).toBe("valid-name");
-      // Should have been called 3 times: accept, empty name, valid name
-      expect(mockedPromptUser).toHaveBeenCalledTimes(3);
+      // Should have been called 2 times: empty name, valid name
+      expect(mockedPromptUser).toHaveBeenCalledTimes(2);
     });
 
     it("should re-prompt for profile name with invalid characters", async () => {
       mockedPromptUser
-        .mockResolvedValueOnce("y") // User accepts
         .mockResolvedValueOnce("Invalid Name!") // Invalid (has spaces and !)
         .mockResolvedValueOnce("valid-name"); // Valid name
 
@@ -852,13 +830,11 @@ Managed content here
       });
 
       expect(result).toBe("valid-name");
-      expect(mockedPromptUser).toHaveBeenCalledTimes(3);
+      expect(mockedPromptUser).toHaveBeenCalledTimes(2);
     });
 
     it("should accept profile name with hyphens and numbers", async () => {
-      mockedPromptUser
-        .mockResolvedValueOnce("y") // User accepts
-        .mockResolvedValueOnce("my-profile-123"); // Valid name with hyphens and numbers
+      mockedPromptUser.mockResolvedValueOnce("my-profile-123"); // Valid name with hyphens and numbers
 
       const result = await promptForExistingConfigCapture({
         existingConfig: {
@@ -874,6 +850,7 @@ Managed content here
       });
 
       expect(result).toBe("my-profile-123");
+      expect(mockedPromptUser).toHaveBeenCalledTimes(1);
     });
   });
 });

@@ -337,6 +337,61 @@ More user instructions.
 
   // Validate tests removed - validation is now handled at profilesLoader level
 
+  describe("managed block marker handling", () => {
+    it("should not produce double-nested markers when profile CLAUDE.md already has markers", async () => {
+      // Create a custom profile with CLAUDE.md that already has managed block markers
+      // This simulates what happens when captureExistingConfigAsProfile saves a profile
+      const customProfileDir = path.join(mockNoriDir, "profiles", "my-profile");
+      await fs.mkdir(customProfileDir, { recursive: true });
+
+      // Write profile.json
+      await fs.writeFile(
+        path.join(customProfileDir, "profile.json"),
+        JSON.stringify({
+          name: "my-profile",
+          description: "Test profile with pre-existing markers",
+          builtin: false,
+        }),
+      );
+
+      // Write CLAUDE.md with managed block markers already present
+      // This mimics what captureExistingConfigAsProfile does
+      const profileClaudeMdContent = `# BEGIN NORI-AI MANAGED BLOCK
+hello world
+# END NORI-AI MANAGED BLOCK
+`;
+      await fs.writeFile(
+        path.join(customProfileDir, "CLAUDE.md"),
+        profileClaudeMdContent,
+      );
+
+      const config: Config = {
+        installDir: tempDir,
+        agents: {
+          "claude-code": { profile: { baseProfile: "my-profile" } },
+        },
+      };
+
+      await claudeMdLoader.install({ config });
+
+      const resultContent = await fs.readFile(claudeMdPath, "utf-8");
+
+      // Should have exactly ONE BEGIN and ONE END marker (not nested/doubled)
+      const beginCount = (
+        resultContent.match(/# BEGIN NORI-AI MANAGED BLOCK/g) || []
+      ).length;
+      const endCount = (
+        resultContent.match(/# END NORI-AI MANAGED BLOCK/g) || []
+      ).length;
+
+      expect(beginCount).toBe(1);
+      expect(endCount).toBe(1);
+
+      // Content should be properly wrapped with the original content inside
+      expect(resultContent).toContain("hello world");
+    });
+  });
+
   describe("profile-based CLAUDE.md loading", () => {
     it("should load CLAUDE.md from selected profile", async () => {
       const config: Config = {
