@@ -951,4 +951,133 @@ describe("profilesLoader", () => {
       expect(_testing.getMixinPaths).toBeUndefined();
     });
   });
+
+  describe("skipBuiltinProfiles", () => {
+    it("should not install built-in profiles when skipBuiltinProfiles is true", async () => {
+      // Create a custom profile that was downloaded from registry (not a built-in)
+      const customProfileDir = path.join(profilesDir, "my-registry-profile");
+      await fs.mkdir(customProfileDir, { recursive: true });
+      await fs.writeFile(
+        path.join(customProfileDir, "profile.json"),
+        JSON.stringify({
+          name: "my-registry-profile",
+          description: "Profile downloaded from registry",
+        }),
+      );
+      await fs.writeFile(
+        path.join(customProfileDir, "CLAUDE.md"),
+        "# My Registry Profile\n",
+      );
+
+      const config: Config = {
+        installDir: tempDir,
+        skipBuiltinProfiles: true,
+        agents: {
+          "claude-code": { profile: { baseProfile: "my-registry-profile" } },
+        },
+      };
+
+      await profilesLoader.run({ config });
+
+      // Verify custom profile still exists
+      const customExists = await fs
+        .access(customProfileDir)
+        .then(() => true)
+        .catch(() => false);
+      expect(customExists).toBe(true);
+
+      // Verify built-in profiles were NOT installed
+      const seniorSweExists = await fs
+        .access(path.join(profilesDir, "senior-swe"))
+        .then(() => true)
+        .catch(() => false);
+      expect(seniorSweExists).toBe(false);
+
+      const amolExists = await fs
+        .access(path.join(profilesDir, "amol"))
+        .then(() => true)
+        .catch(() => false);
+      expect(amolExists).toBe(false);
+
+      const productManagerExists = await fs
+        .access(path.join(profilesDir, "product-manager"))
+        .then(() => true)
+        .catch(() => false);
+      expect(productManagerExists).toBe(false);
+    });
+
+    it("should still configure permissions when skipBuiltinProfiles is true", async () => {
+      const settingsPath = path.join(claudeDir, "settings.json");
+
+      // Create a custom profile
+      const customProfileDir = path.join(profilesDir, "my-registry-profile");
+      await fs.mkdir(customProfileDir, { recursive: true });
+      await fs.writeFile(
+        path.join(customProfileDir, "profile.json"),
+        JSON.stringify({ name: "my-registry-profile" }),
+      );
+      await fs.writeFile(
+        path.join(customProfileDir, "CLAUDE.md"),
+        "# My Registry Profile\n",
+      );
+
+      const config: Config = {
+        installDir: tempDir,
+        skipBuiltinProfiles: true,
+        agents: {
+          "claude-code": { profile: { baseProfile: "my-registry-profile" } },
+        },
+      };
+
+      await profilesLoader.run({ config });
+
+      // Verify permissions are still configured
+      const content = await fs.readFile(settingsPath, "utf-8");
+      const settings = JSON.parse(content);
+      expect(settings.permissions.additionalDirectories).toContain(profilesDir);
+    });
+
+    it("should install built-in profiles when skipBuiltinProfiles is false", async () => {
+      const config: Config = {
+        installDir: tempDir,
+        skipBuiltinProfiles: false,
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
+      };
+
+      await profilesLoader.run({ config });
+
+      // Verify built-in profiles were installed
+      const seniorSweExists = await fs
+        .access(path.join(profilesDir, "senior-swe"))
+        .then(() => true)
+        .catch(() => false);
+      expect(seniorSweExists).toBe(true);
+
+      const amolExists = await fs
+        .access(path.join(profilesDir, "amol"))
+        .then(() => true)
+        .catch(() => false);
+      expect(amolExists).toBe(true);
+    });
+
+    it("should install built-in profiles when skipBuiltinProfiles is undefined (default behavior)", async () => {
+      const config: Config = {
+        installDir: tempDir,
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
+      };
+
+      await profilesLoader.run({ config });
+
+      // Verify built-in profiles were installed (default behavior)
+      const seniorSweExists = await fs
+        .access(path.join(profilesDir, "senior-swe"))
+        .then(() => true)
+        .catch(() => false);
+      expect(seniorSweExists).toBe(true);
+    });
+  });
 });

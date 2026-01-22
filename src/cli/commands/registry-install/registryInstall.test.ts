@@ -125,11 +125,12 @@ describe("registry-install", () => {
       profileName: "senior-swe",
     });
 
-    // Step 4: Regenerate files
+    // Step 4: Regenerate files (with skipBuiltinProfiles to not install all built-ins)
     expect(installMain).toHaveBeenCalledTimes(1);
     expect(installMain).toHaveBeenCalledWith({
       nonInteractive: true,
       skipUninstall: true,
+      skipBuiltinProfiles: true,
       installDir: "/repo",
       agent: "claude-code",
       silent: true,

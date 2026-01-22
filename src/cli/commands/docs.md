@@ -65,6 +65,8 @@ nori-ai install (orchestrator)
 
 The user must enter "y" or "Y" to proceed; any other input cancels the operation. In non-interactive mode (`--non-interactive`), confirmation is skipped to allow automated/scripted usage.
 
+
+**switch-profile Built-in Profile Handling:** The switch-profile command passes `skipBuiltinProfiles: true` to the install process. This prevents the profiles loader from copying all built-in profiles (amol, senior-swe, documenter, etc.) during profile switching. This is important for the `seaweed download && seaweed switch-skillset` workflow where users download a specific profile from the registry and only want that profile to be active, not all built-in profiles installed. The `skipBuiltinProfiles` flag is a runtime-only Config field (not persisted to disk) that the profiles loaders check before installing built-in profiles.
 The uninstall command uses two agent methods for global features:
 - `agent.getGlobalFeatureNames()`: Human-readable names for displaying in prompts (e.g., "hooks, statusline, and global slash commands")
 - `agent.getGlobalLoaderNames()`: Loader names for determining which loaders to skip when preserving global settings (e.g., `["hooks", "statusline", "slashcommands"]`)

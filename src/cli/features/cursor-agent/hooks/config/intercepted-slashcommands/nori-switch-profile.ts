@@ -100,8 +100,11 @@ const run = async (args: { input: HookInput }): Promise<HookOutput | null> => {
     // Spawning nori-ai as a subprocess runs the CLI from its installed location
     // where paths resolve correctly.
     // See: https://github.com/evanw/esbuild/issues/1921
+    //
+    // --skip-builtin-profiles prevents installing all built-in profiles when
+    // user has downloaded a specific profile from the registry.
     execSync(
-      `nori-ai install --non-interactive --silent --skip-uninstall --install-dir "${installDir}" --agent cursor-agent`,
+      `nori-ai install --non-interactive --silent --skip-uninstall --skip-builtin-profiles --install-dir "${installDir}" --agent cursor-agent`,
       { stdio: ["ignore", "ignore", "ignore"] },
     );
 

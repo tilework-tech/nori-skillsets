@@ -34,6 +34,10 @@ const PROFILE_TEMPLATES_DIR = path.join(__dirname, "config");
  * Built-in profiles are NEVER overwritten to preserve user customizations.
  * Custom profiles (those that don't exist in the nori-ai package) are never touched.
  *
+ * When config.skipBuiltinProfiles is true, this function skips copying built-in profiles
+ * entirely. This is used during switch-profile operations where the user has downloaded
+ * a profile from the registry and doesn't want all built-in profiles installed.
+ *
  * @param args - Configuration arguments
  * @param args.config - Runtime configuration
  */
@@ -44,10 +48,21 @@ const installProfiles = async (args: { config: Config }): Promise<void> => {
     installDir: config.installDir,
   });
 
-  info({ message: "Installing Nori profiles..." });
-
   // Create profiles directory if it doesn't exist
   await fs.mkdir(noriProfilesDir, { recursive: true });
+
+  // Skip installing built-in profiles if flag is set (used during switch-profile)
+  if (config.skipBuiltinProfiles === true) {
+    info({
+      message:
+        "Skipping built-in profile installation (switch-profile mode)...",
+    });
+    // Still configure permissions for profiles directory
+    await configureProfilesPermissions({ config });
+    return;
+  }
+
+  info({ message: "Installing Nori profiles..." });
 
   let installedCount = 0;
   let skippedCount = 0;
