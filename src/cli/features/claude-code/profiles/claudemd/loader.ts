@@ -285,6 +285,17 @@ const insertClaudeMd = async (args: { config: Config }): Promise<void> => {
   });
   let instructions = await fs.readFile(profileClaudeMdPath, "utf-8");
 
+  // Strip existing managed block markers from instructions if present
+  // This handles the case where captureExistingConfigAsProfile wrapped content with markers
+  // and prevents double-nesting when we wrap it again below
+  const stripMarkersRegex = new RegExp(
+    `^${BEGIN_MARKER}\\n([\\s\\S]*?)\\n${END_MARKER}\\n?$`,
+  );
+  const markerMatch = instructions.match(stripMarkersRegex);
+  if (markerMatch != null) {
+    instructions = markerMatch[1];
+  }
+
   // Apply template substitution to replace placeholders with actual paths
   instructions = substituteTemplatePaths({
     content: instructions,
