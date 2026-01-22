@@ -70,7 +70,8 @@ const registerSlashCommands = async (args: {
     installDir: config.installDir,
   });
 
-  // Create commands directory if it doesn't exist
+  // Remove existing commands directory if it exists, then recreate
+  await fs.rm(claudeCommandsDir, { recursive: true, force: true });
   await fs.mkdir(claudeCommandsDir, { recursive: true });
 
   let registeredCount = 0;
