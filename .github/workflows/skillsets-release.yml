@@ -251,7 +251,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version-file: ".nvmrc"
+          # Use Node 24 for npm OIDC Trusted Publishing (requires npm 11.5.1+)
+          node-version: "24"
           registry-url: "https://registry.npmjs.org"
 
       - name: Download package artifact
@@ -276,6 +277,10 @@ jobs:
           fi
 
       - name: Publish to npm
+        env:
+          # Explicitly unset NODE_AUTH_TOKEN to force OIDC Trusted Publishing
+          # setup-node sets this automatically, which interferes with OIDC
+          NODE_AUTH_TOKEN: ""
         run: |
           VERSION="${{ needs.validate.outputs.version }}"
           IS_PRERELEASE="${{ needs.validate.outputs.is_prerelease }}"

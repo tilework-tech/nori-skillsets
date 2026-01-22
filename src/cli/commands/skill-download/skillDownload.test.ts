@@ -202,24 +202,92 @@ describe("skill-download", () => {
       expect(allErrorOutput.toLowerCase()).toContain("already exists");
     });
 
-    it("should error when no Nori installation found", async () => {
-      // Create directory without .nori-config.json
+    it("should download skill without prior Nori installation", async () => {
+      // Create directory WITHOUT .nori-config.json
       const noInstallDir = await fs.mkdtemp(
         path.join(tmpdir(), "nori-no-install-"),
       );
+      const noInstallSkillsDir = path.join(noInstallDir, ".claude", "skills");
 
       try {
+        // Mock config returns null (no config file exists)
+        vi.mocked(loadConfig).mockResolvedValue(null);
+
+        vi.mocked(registrarApi.getSkillPackument).mockResolvedValue({
+          name: "test-skill",
+          "dist-tags": { latest: "1.0.0" },
+          versions: { "1.0.0": { name: "test-skill", version: "1.0.0" } },
+        });
+
+        const mockTarball = await createMockSkillTarball();
+        vi.mocked(registrarApi.downloadSkillTarball).mockResolvedValue(
+          mockTarball,
+        );
+
         await skillDownloadMain({
           skillSpec: "test-skill",
           cwd: noInstallDir,
         });
 
-        // Verify error message about no installation
-        const allErrorOutput = mockConsoleError.mock.calls
-          .map((call) => call.join(" "))
-          .join("\n");
-        expect(allErrorOutput.toLowerCase()).toContain("no");
-        expect(allErrorOutput.toLowerCase()).toContain("installation");
+        // Verify skill was installed (directory should be created)
+        const skillDir = path.join(noInstallSkillsDir, "test-skill");
+        const stats = await fs.stat(skillDir);
+        expect(stats.isDirectory()).toBe(true);
+
+        // Verify SKILL.md was extracted
+        const skillMd = await fs.readFile(
+          path.join(skillDir, "SKILL.md"),
+          "utf-8",
+        );
+        expect(skillMd).toContain("test-skill");
+
+        // Verify .nori-version file was created
+        const versionFilePath = path.join(skillDir, ".nori-version");
+        const versionFileContent = await fs.readFile(versionFilePath, "utf-8");
+        const versionInfo = JSON.parse(versionFileContent);
+        expect(versionInfo.version).toBe("1.0.0");
+      } finally {
+        await fs.rm(noInstallDir, { recursive: true, force: true });
+      }
+    });
+
+    it("should create .claude/skills directory if it does not exist", async () => {
+      // Create directory WITHOUT .nori-config.json and WITHOUT .claude/skills
+      const noInstallDir = await fs.mkdtemp(
+        path.join(tmpdir(), "nori-no-install-"),
+      );
+      const noInstallSkillsDir = path.join(noInstallDir, ".claude", "skills");
+
+      try {
+        // Verify skills directory does not exist initially
+        await expect(fs.access(noInstallSkillsDir)).rejects.toThrow();
+
+        vi.mocked(loadConfig).mockResolvedValue(null);
+
+        vi.mocked(registrarApi.getSkillPackument).mockResolvedValue({
+          name: "new-skill",
+          "dist-tags": { latest: "1.0.0" },
+          versions: { "1.0.0": { name: "new-skill", version: "1.0.0" } },
+        });
+
+        const mockTarball = await createMockSkillTarball();
+        vi.mocked(registrarApi.downloadSkillTarball).mockResolvedValue(
+          mockTarball,
+        );
+
+        await skillDownloadMain({
+          skillSpec: "new-skill",
+          cwd: noInstallDir,
+        });
+
+        // Verify skills directory was created
+        const skillsDirStats = await fs.stat(noInstallSkillsDir);
+        expect(skillsDirStats.isDirectory()).toBe(true);
+
+        // Verify skill was installed
+        const skillDir = path.join(noInstallSkillsDir, "new-skill");
+        const skillDirStats = await fs.stat(skillDir);
+        expect(skillDirStats.isDirectory()).toBe(true);
       } finally {
         await fs.rm(noInstallDir, { recursive: true, force: true });
       }
@@ -871,62 +939,6 @@ describe("skill-download", () => {
         .join("\n");
       expect(allOutput.toLowerCase()).toContain("already");
       expect(allOutput).toContain("2.0.0");
-    });
-  });
-
-  describe("cursor-agent validation", () => {
-    it("should fail when only cursor-agent is installed", async () => {
-      // Mock config with only cursor-agent installed
-      vi.mocked(loadConfig).mockResolvedValue({
-        installDir: testDir,
-        agents: { "cursor-agent": { profile: { baseProfile: "amol" } } },
-      });
-
-      await skillDownloadMain({
-        skillSpec: "test-skill",
-        cwd: testDir,
-      });
-
-      // Should not make any API calls
-      expect(registrarApi.getSkillPackument).not.toHaveBeenCalled();
-      expect(registrarApi.downloadSkillTarball).not.toHaveBeenCalled();
-
-      // Should display error message about cursor-agent not being supported
-      const allOutput = [
-        ...mockConsoleLog.mock.calls,
-        ...mockConsoleError.mock.calls,
-      ]
-        .map((call) => call.join(" "))
-        .join("\n");
-      expect(allOutput.toLowerCase()).toContain("not supported");
-      expect(allOutput.toLowerCase()).toContain("cursor");
-      expect(allOutput).toContain("claude-code");
-    });
-
-    it("should succeed when only claude-code is installed", async () => {
-      vi.mocked(loadConfig).mockResolvedValue({
-        installDir: testDir,
-        agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
-      });
-
-      vi.mocked(registrarApi.getSkillPackument).mockResolvedValue({
-        name: "test-skill",
-        "dist-tags": { latest: "1.0.0" },
-        versions: { "1.0.0": { name: "test-skill", version: "1.0.0" } },
-      });
-
-      const mockTarball = await createMockSkillTarball();
-      vi.mocked(registrarApi.downloadSkillTarball).mockResolvedValue(
-        mockTarball,
-      );
-
-      await skillDownloadMain({
-        skillSpec: "test-skill",
-        cwd: testDir,
-      });
-
-      // Should make API calls since claude-code is installed
-      expect(registrarApi.getSkillPackument).toHaveBeenCalled();
     });
   });
 

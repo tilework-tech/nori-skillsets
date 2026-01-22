@@ -88,18 +88,15 @@ const run = async (args: { input: HookInput }): Promise<HookOutput | null> => {
   const { skillSpec, registryUrl, listVersions } = downloadArgs;
 
   // Find installation directory
+  // If no installation found, use cwd - skills can be downloaded without prior Nori installation
   const allInstallations = getInstallDirs({ currentDir: cwd });
 
-  if (allInstallations.length === 0) {
-    return {
-      decision: "block",
-      reason: formatError({
-        message: `No Nori installation found.\n\nRun 'npx nori-ai install' to install Nori Profiles.`,
-      }),
-    };
-  }
+  let installDir: string;
 
-  if (allInstallations.length > 1) {
+  if (allInstallations.length === 0) {
+    // No installation - use cwd as target
+    installDir = cwd;
+  } else if (allInstallations.length > 1) {
     const installList = allInstallations
       .map((dir, index) => `${index + 1}. ${dir}`)
       .join("\n");
@@ -110,9 +107,9 @@ const run = async (args: { input: HookInput }): Promise<HookOutput | null> => {
         message: `Found multiple Nori installations. Cannot determine which one to use.\n\nInstallations found:\n${installList}\n\nPlease navigate to the specific installation directory and try again.`,
       }),
     };
+  } else {
+    installDir = allInstallations[0];
   }
-
-  const installDir = allInstallations[0];
 
   // Run the skill download command
   try {
