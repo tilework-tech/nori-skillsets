@@ -6,11 +6,10 @@
 # It creates a minimal package containing only the nori-skillsets CLI.
 #
 # Usage:
-#   ./scripts/package_skillsets.sh
 #   SKILLSETS_VERSION=1.0.0 ./scripts/package_skillsets.sh
 #
 # Environment variables:
-#   SKILLSETS_VERSION - Version for the nori-skillsets package (default: 1.0.0)
+#   SKILLSETS_VERSION - Version for the nori-skillsets package (required)
 
 set -e  # Exit on any error
 
@@ -30,14 +29,19 @@ PACKAGE_TEMPLATE="$TEMPLATE_DIR/package.template.json"
 DEPS_CONFIG="$TEMPLATE_DIR/dependencies.json"
 MAIN_PACKAGE_JSON="$PROJECT_ROOT/package.json"
 
-# Version can be set via environment variable, defaults to 1.0.0
-VERSION="${SKILLSETS_VERSION:-1.0.0}"
-
 # Color codes for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
+
+# Version must be set via environment variable
+if [[ -z "${SKILLSETS_VERSION:-}" ]]; then
+  echo -e "${RED}ERROR: SKILLSETS_VERSION environment variable is required${NC}"
+  echo "Usage: SKILLSETS_VERSION=1.0.0 ./scripts/package_skillsets.sh"
+  exit 1
+fi
+VERSION="$SKILLSETS_VERSION"
 
 echo -e "${BLUE}================================${NC}"
 echo -e "${BLUE}  Package nori-skillsets${NC}"

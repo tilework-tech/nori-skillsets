@@ -23,8 +23,14 @@ const __dirname = dirname(__filename);
 const MIN_AGENT_FLAG_VERSION = "19.0.0";
 
 /**
+ * Valid package names that this version module can detect.
+ * Includes both the main nori-ai package and the standalone nori-skillsets package.
+ */
+const VALID_PACKAGE_NAMES = ["nori-ai", "nori-skillsets"];
+
+/**
  * Find the package root by walking up from the start directory
- * looking for package.json with name "nori-ai"
+ * looking for package.json with a valid Nori package name
  *
  * @param args - Configuration arguments
  * @param args.startDir - Directory to start searching from
@@ -43,7 +49,7 @@ const findPackageRoot = (args: { startDir: string }): string | null => {
     if (existsSync(packageJsonPath)) {
       try {
         const pkg = JSON.parse(readFileSync(packageJsonPath, "utf-8"));
-        if (pkg.name === "nori-ai") {
+        if (VALID_PACKAGE_NAMES.includes(pkg.name)) {
           return currentDir;
         }
       } catch {
@@ -79,8 +85,8 @@ export const getCurrentPackageVersion = (args?: {
   try {
     const packageJsonPath = join(packageRoot, "package.json");
     const pkg = JSON.parse(readFileSync(packageJsonPath, "utf-8"));
-    // Verify it's the nori-ai package
-    if (pkg.name === "nori-ai") {
+    // Verify it's a valid Nori package
+    if (VALID_PACKAGE_NAMES.includes(pkg.name)) {
       return pkg.version;
     }
     return null;
