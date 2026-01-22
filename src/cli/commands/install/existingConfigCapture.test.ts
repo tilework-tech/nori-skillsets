@@ -584,6 +584,135 @@ Managed content here
       expect(capturedClaudeMd).toContain("# BEGIN NORI-AI MANAGED BLOCK");
       expect(capturedClaudeMd).toContain("# END NORI-AI MANAGED BLOCK");
     });
+
+    it("should create nori.json with correct schema", async () => {
+      await fs.mkdir(claudeDir, { recursive: true });
+      await fs.writeFile(
+        path.join(claudeDir, "CLAUDE.md"),
+        "# My Instructions",
+      );
+
+      await captureExistingConfigAsProfile({
+        installDir: tempDir,
+        profileName: "captured-config",
+      });
+
+      const noriJsonPath = path.join(
+        noriDir,
+        "profiles",
+        "captured-config",
+        "nori.json",
+      );
+      const noriJson = JSON.parse(await fs.readFile(noriJsonPath, "utf-8"));
+
+      expect(noriJson.name).toBe("captured-config");
+      expect(noriJson.version).toBe("1.0.0");
+      expect(noriJson.dependencies).toBeDefined();
+      expect(noriJson.dependencies.skills).toBeDefined();
+    });
+
+    it("should populate nori.json skills from captured skills directory", async () => {
+      await fs.mkdir(claudeDir, { recursive: true });
+      await fs.writeFile(path.join(claudeDir, "CLAUDE.md"), "# Instructions");
+
+      // Create skills
+      const skillsDir = path.join(claudeDir, "skills");
+      await fs.mkdir(skillsDir, { recursive: true });
+
+      const skill1Dir = path.join(skillsDir, "my-skill");
+      await fs.mkdir(skill1Dir, { recursive: true });
+      await fs.writeFile(path.join(skill1Dir, "SKILL.md"), "Skill 1 content");
+
+      const skill2Dir = path.join(skillsDir, "another-skill");
+      await fs.mkdir(skill2Dir, { recursive: true });
+      await fs.writeFile(path.join(skill2Dir, "SKILL.md"), "Skill 2 content");
+
+      await captureExistingConfigAsProfile({
+        installDir: tempDir,
+        profileName: "with-skills",
+      });
+
+      const noriJsonPath = path.join(
+        noriDir,
+        "profiles",
+        "with-skills",
+        "nori.json",
+      );
+      const noriJson = JSON.parse(await fs.readFile(noriJsonPath, "utf-8"));
+
+      expect(noriJson.dependencies.skills).toEqual({
+        "my-skill": "*",
+        "another-skill": "*",
+      });
+    });
+
+    it("should create nori.json with empty skills when no skills directory exists", async () => {
+      await fs.mkdir(claudeDir, { recursive: true });
+      await fs.writeFile(
+        path.join(claudeDir, "CLAUDE.md"),
+        "# Only CLAUDE.md exists",
+      );
+
+      await captureExistingConfigAsProfile({
+        installDir: tempDir,
+        profileName: "no-skills",
+      });
+
+      const noriJsonPath = path.join(
+        noriDir,
+        "profiles",
+        "no-skills",
+        "nori.json",
+      );
+      const noriJson = JSON.parse(await fs.readFile(noriJsonPath, "utf-8"));
+
+      expect(noriJson.dependencies.skills).toEqual({});
+    });
+
+    it("should only include valid skills (directories with SKILL.md) in nori.json", async () => {
+      await fs.mkdir(claudeDir, { recursive: true });
+      await fs.writeFile(path.join(claudeDir, "CLAUDE.md"), "# Instructions");
+
+      const skillsDir = path.join(claudeDir, "skills");
+      await fs.mkdir(skillsDir, { recursive: true });
+
+      // Valid skill with SKILL.md
+      const validSkillDir = path.join(skillsDir, "valid-skill");
+      await fs.mkdir(validSkillDir, { recursive: true });
+      await fs.writeFile(path.join(validSkillDir, "SKILL.md"), "Valid skill");
+
+      // Invalid - directory without SKILL.md
+      const invalidSkillDir = path.join(skillsDir, "invalid-skill");
+      await fs.mkdir(invalidSkillDir, { recursive: true });
+      await fs.writeFile(
+        path.join(invalidSkillDir, "README.md"),
+        "No SKILL.md",
+      );
+
+      // Invalid - file, not directory
+      await fs.writeFile(
+        path.join(skillsDir, "not-a-skill.txt"),
+        "Just a file",
+      );
+
+      await captureExistingConfigAsProfile({
+        installDir: tempDir,
+        profileName: "mixed-skills",
+      });
+
+      const noriJsonPath = path.join(
+        noriDir,
+        "profiles",
+        "mixed-skills",
+        "nori.json",
+      );
+      const noriJson = JSON.parse(await fs.readFile(noriJsonPath, "utf-8"));
+
+      // Only the valid skill should be included
+      expect(noriJson.dependencies.skills).toEqual({
+        "valid-skill": "*",
+      });
+    });
   });
 
   describe("promptForExistingConfigCapture", () => {

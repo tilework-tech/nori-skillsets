@@ -54,6 +54,33 @@ const fileExists = async (filePath: string): Promise<boolean> => {
 };
 
 /**
+ * Get list of valid skill names from a skills directory
+ *
+ * @param skillsDir - Path to the skills directory
+ *
+ * @returns Array of skill directory names that contain SKILL.md
+ */
+const getSkillNames = async (skillsDir: string): Promise<Array<string>> => {
+  try {
+    const entries = await fs.readdir(skillsDir, { withFileTypes: true });
+    const skillNames: Array<string> = [];
+
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        const skillMdPath = path.join(skillsDir, entry.name, "SKILL.md");
+        if (await fileExists(skillMdPath)) {
+          skillNames.push(entry.name);
+        }
+      }
+    }
+
+    return skillNames;
+  } catch {
+    return [];
+  }
+};
+
+/**
  * Count SKILL.md files in skills directory
  *
  * @param skillsDir - Path to the skills directory
@@ -61,23 +88,8 @@ const fileExists = async (filePath: string): Promise<boolean> => {
  * @returns Number of valid skill directories found
  */
 const countSkills = async (skillsDir: string): Promise<number> => {
-  try {
-    const entries = await fs.readdir(skillsDir, { withFileTypes: true });
-    let count = 0;
-
-    for (const entry of entries) {
-      if (entry.isDirectory()) {
-        const skillMdPath = path.join(skillsDir, entry.name, "SKILL.md");
-        if (await fileExists(skillMdPath)) {
-          count++;
-        }
-      }
-    }
-
-    return count;
-  } catch {
-    return 0;
-  }
+  const names = await getSkillNames(skillsDir);
+  return names.length;
 };
 
 /**
@@ -215,6 +227,28 @@ export const captureExistingConfigAsProfile = async (args: {
     JSON.stringify(profileJson, null, 2),
   );
 
+  // Get skill names from the source skills directory
+  const skillsDir = getClaudeSkillsDir({ installDir });
+  const skillNames = await getSkillNames(skillsDir);
+
+  // Create nori.json with skills map
+  const skillsMap: Record<string, string> = {};
+  for (const skillName of skillNames) {
+    skillsMap[skillName] = "*";
+  }
+
+  const noriJson = {
+    name: profileName,
+    version: "1.0.0",
+    dependencies: {
+      skills: skillsMap,
+    },
+  };
+  await fs.writeFile(
+    path.join(profileDir, "nori.json"),
+    JSON.stringify(noriJson, null, 2),
+  );
+
   // Copy CLAUDE.md with managed block markers
   const claudeMdFile = getClaudeMdFile({ installDir });
   if (await fileExists(claudeMdFile)) {
@@ -234,8 +268,7 @@ export const captureExistingConfigAsProfile = async (args: {
     );
   }
 
-  // Copy skills directory
-  const skillsDir = getClaudeSkillsDir({ installDir });
+  // Copy skills directory (skillsDir already defined above for nori.json)
   if (await fileExists(skillsDir)) {
     const destSkillsDir = path.join(profileDir, "skills");
     await fs.cp(skillsDir, destSkillsDir, { recursive: true });
