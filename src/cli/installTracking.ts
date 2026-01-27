@@ -5,6 +5,7 @@ import * as path from "path";
 
 import semver from "semver";
 
+import { type CliName } from "@/cli/commands/cliCommandNames.js";
 import { loadConfig, type Config } from "@/cli/config.js";
 import { getCurrentPackageVersion } from "@/cli/version.js";
 import { getInstallDirs } from "@/utils/path.js";
@@ -13,7 +14,31 @@ const DEFAULT_ANALYTICS_URL = "https://noriskillsets.dev/api/analytics/track";
 const INSTALL_STATE_SCHEMA_VERSION = 1;
 const INSTALL_STATE_FILE = ".nori-install.json";
 const RESURRECTION_THRESHOLD_DAYS = 30;
-const TILEWORK_SOURCE = "nori-skillsets";
+
+/**
+ * Mutable tilework source identifier.
+ * Default is "nori-ai" for backwards compatibility.
+ * Entry points should call setTileworkSource() to configure this.
+ */
+let tileworkSource: CliName = "nori-ai";
+
+/**
+ * Set the tilework source identifier for analytics events.
+ * Call this early in your entry point before any analytics calls.
+ * @param args - Arguments
+ * @param args.source - The source identifier ("nori-ai" or "nori-skillsets")
+ */
+export const setTileworkSource = (args: { source: CliName }): void => {
+  tileworkSource = args.source;
+};
+
+/**
+ * Get the current tilework source identifier.
+ * @returns The current source identifier
+ */
+export const getTileworkSource = (): CliName => {
+  return tileworkSource;
+};
 
 /**
  * Session ID generated once per process lifetime.
@@ -130,7 +155,7 @@ export const getDeterministicClientId = (): string => {
  */
 export const buildBaseEventParams = (): EventParams => {
   return {
-    tilework_source: TILEWORK_SOURCE,
+    tilework_source: getTileworkSource(),
     tilework_session_id: SESSION_ID,
     tilework_timestamp: new Date().toISOString(),
   };
@@ -260,7 +285,7 @@ export const buildCLIEventParams = async (args?: {
 
   return {
     ...buildBaseEventParams(),
-    tilework_cli_executable_name: "nori-ai",
+    tilework_cli_executable_name: getTileworkSource(),
     tilework_cli_installed_version: version,
     tilework_cli_install_source: state?.install_source ?? getInstallSource(),
     tilework_cli_days_since_install: daysSinceInstall,
@@ -386,7 +411,7 @@ export const trackInstallLifecycle = async (args: {
     // Build CLI-specific event params per PLAN_ANALYTICS_PROXY.md
     const cliEventParams: EventParams = {
       ...buildBaseEventParams(),
-      tilework_cli_executable_name: "nori-ai",
+      tilework_cli_executable_name: getTileworkSource(),
       tilework_cli_installed_version: currentVersion,
       tilework_cli_install_source: state.install_source,
       tilework_cli_days_since_install: daysSinceInstall,

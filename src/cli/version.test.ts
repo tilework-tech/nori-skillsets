@@ -61,6 +61,20 @@ describe("version", () => {
       expect(version).toBeNull();
     });
 
+    // @current-session
+    it("should return version from package.json with name nori-skillsets", () => {
+      // Create test package.json with nori-skillsets name (for nori-skillsets CLI)
+      const testPackage = {
+        name: "nori-skillsets",
+        version: "0.3.0",
+      };
+      fs.writeFileSync(testPackageJsonPath, JSON.stringify(testPackage));
+
+      const version = getCurrentPackageVersion({ startDir: testRoot });
+
+      expect(version).toBe("0.3.0");
+    });
+
     it("should return null if package.json does not exist", () => {
       // Don't create package.json - directory is empty
       const version = getCurrentPackageVersion({ startDir: testRoot });
