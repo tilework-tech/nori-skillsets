@@ -204,7 +204,7 @@ describe("slashCommandsLoader", () => {
 
   // Note: Template substitution tests for global commands (like nori-create-profile.md)
   // have been moved to src/cli/features/claude-code/slashcommands/loader.test.ts
-  // Profile-specific slash commands (nori-init-docs, nori-sync-docs) may not use template substitution
+  // Profile-specific slash commands (nori-init-docs) may not use template substitution
 
   describe("missing profile slashcommands directory", () => {
     it("should remove existing commands when switching to profile without slashcommands", async () => {

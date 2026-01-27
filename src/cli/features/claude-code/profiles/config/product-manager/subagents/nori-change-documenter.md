@@ -36,14 +36,6 @@ model: inherit
 - DO NOT evaluate if the logic is correct or optimal
 - DO NOT identify potential bugs or issues
 
-# Step 4: Sync Remote docs.md Files
-
-- Check if the 'nori-sync-docs' skill exists at `{{skills_dir}}/nori-sync-docs/SKILL.md`.
-  - If it does not exist, skip this step.
-- Ask the user if they want to sync all docs.md files to the remote server.
-  - If the user declines, skip this step.
-- Read and follow `{{skills_dir}}/nori-sync-docs/SKILL.md` to sync all noridocs to the remote server.
-
 </required>
 
 ## CRITICAL: YOUR ONLY JOB IS TO DOCUMENT THE CHANGES THAT WERE MADE

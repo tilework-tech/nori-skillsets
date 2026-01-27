@@ -475,41 +475,6 @@ describe("skillsLoader", () => {
       expect(skillExists).toBe(true);
     });
 
-    it("should install nori-sync-docs skill for paid tier", async () => {
-      const config: Config = {
-        auth: {
-          username: "test",
-          password: "test",
-          organizationUrl: "https://test.com",
-        },
-        installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-      };
-
-      // Delete existing profiles and recompose with paid mixin
-      const profilesDir = path.join(mockNoriDir, "profiles");
-      await fs.rm(profilesDir, { recursive: true, force: true });
-      await profilesLoader.run({ config });
-
-      await skillsLoader.install({ config });
-
-      // Skill should be installed as nori-sync-docs (matching the slash command reference)
-      const skillPath = path.join(skillsDir, "nori-sync-docs", "SKILL.md");
-
-      const skillExists = await fs
-        .access(skillPath)
-        .then(() => true)
-        .catch(() => false);
-
-      expect(skillExists).toBe(true);
-
-      // Verify the skill content references the correct script path
-      const content = await fs.readFile(skillPath, "utf-8");
-      expect(content).toContain("nori-sync-docs/script.js");
-    });
-
     it("should not install any paid skills for free tier", async () => {
       const config: Config = {
         installDir: tempDir,

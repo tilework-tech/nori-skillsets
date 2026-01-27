@@ -181,7 +181,6 @@ ${stderr || "(empty)"}`,
       // Expected: At least 5 paid-* prefixed script files (may be duplicated across profiles)
       // - paid-recall, paid-memorize
       // - paid-read-noridoc, paid-write-noridoc, paid-list-noridocs
-      // Note: nori-sync-docs is also bundled but doesn't have paid- prefix
 
       const pluginDir = process.cwd();
       const buildDir = path.join(pluginDir, "build");

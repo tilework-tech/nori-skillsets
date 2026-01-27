@@ -29,7 +29,7 @@ Profile-agnostic slash commands installed directly to `~/.claude/commands/` inde
 
 - **Registered in LoaderRegistry** (@/src/cli/features/claude-code/loaderRegistry.ts) after statusline loader
 - **Part of "global settings" group**: During uninstall, hooks, statusline, and slashcommands are treated as a unit that can be preserved together when `removeGlobalSettings` is false
-- **Separate from profile slash commands**: Profile-specific commands (like `nori-init-docs`, `nori-sync-docs`) are inlined in each profile's `slashcommands/` directory and are handled by the profile slashcommands loader at @/src/cli/features/claude-code/profiles/slashcommands/loader.ts
+- **Separate from profile slash commands**: Profile-specific commands (like `nori-init-docs`) are inlined in each profile's `slashcommands/` directory and are handled by the profile slashcommands loader at @/src/cli/features/claude-code/profiles/slashcommands/loader.ts
 - **Template substitution**: Uses `substituteTemplatePaths()` to replace placeholders like `{{skills_dir}}`, `{{profiles_dir}}` with actual installation paths
 
 ### Core Implementation
@@ -47,7 +47,7 @@ Profile-agnostic slash commands installed directly to `~/.claude/commands/` inde
 | Command Type | Source Location | Loader | Examples |
 |-------------|-----------------|--------|----------|
 | Global | @/src/cli/features/claude-code/slashcommands/config/ | globalSlashCommandsLoader | nori-debug, nori-switch-profile, nori-info |
-| Profile | Each profile's `slashcommands/` directory | slashCommandsLoader (profiles) | nori-init-docs, nori-sync-docs |
+| Profile | Each profile's `slashcommands/` directory | slashCommandsLoader (profiles) | nori-init-docs |
 
 **Hook-intercepted commands**: Several global commands (`nori-switch-profile`, `nori-toggle-autoupdate`, `nori-toggle-session-transcripts`, `nori-install-location`, `nori-prune-context`) are intercepted by the slash-command-intercept hook and executed directly by TypeScript code rather than by Claude. The markdown files still provide the `description` frontmatter for Claude Code's command palette.
 

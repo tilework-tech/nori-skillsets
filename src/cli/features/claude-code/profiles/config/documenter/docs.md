@@ -21,7 +21,7 @@ This is one of the built-in profiles shipped with Nori at @/src/cli/features/cla
 - `nori.json` - Unified manifest with name, version, and description
 - `skills/` - Documentation-related skills (updating-noridocs, etc.)
 - `subagents/` - Documentation subagents (nori-initial-documenter, nori-change-documenter)
-- `slashcommands/` - Documentation commands (nori-init-docs, nori-sync-docs)
+- `slashcommands/` - Documentation commands (nori-init-docs)
 
 **Documentation subagents**: The subagents use a **two-pass documentation approach**:
 1. Top-down pass creates architectural documentation starting from high-level understanding
