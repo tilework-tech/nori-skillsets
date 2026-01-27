@@ -215,7 +215,7 @@ TIPS=(
     "Nori Tip: Keep an eye on your total context usage. Start new conversations regularly!"
     "Nori Tip: Agents love tests! Use Nori's built-in Test Driven Development to never have a regression."
     "Nori Tip: Switch workflows with /nori-switch-skillset - try documenter, senior-swe, or product-manager"
-    "Nori Tip: Use /sync-noridocs to bulk upload all your local docs.md files to the server (paid)"
+    "Nori Tip: Use /write-noridoc to save documentation to the Nori server (paid)"
     "Nori Tip: The nori-change-documenter subagent automatically updates docs when you make code changes"
     "Nori Tip: Use the systematic-debugging skill when bugs occur - it ensures root cause analysis"
     "Nori Tip: The root-cause-tracing skill helps trace errors backward through the call stack"

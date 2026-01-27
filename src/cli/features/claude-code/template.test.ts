@@ -47,12 +47,12 @@ describe("substituteTemplatePaths", () => {
 
   describe("commands_dir placeholder", () => {
     it("should replace {{commands_dir}} with absolute path", () => {
-      const content = "See `{{commands_dir}}/nori-sync-docs.md`";
+      const content = "See `{{commands_dir}}/nori-init-docs.md`";
       const result = substituteTemplatePaths({
         content,
         installDir: "/project/.claude",
       });
-      expect(result).toBe("See `/project/.claude/commands/nori-sync-docs.md`");
+      expect(result).toBe("See `/project/.claude/commands/nori-init-docs.md`");
     });
   });
 

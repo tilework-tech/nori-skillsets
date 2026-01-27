@@ -67,14 +67,11 @@ const main = async (): Promise<void> => {
   console.log("Bundling Paid Skill Scripts and Hook Scripts");
   console.log("=".repeat(60));
 
-  // Find all paid skill and bundled skill script files in the build output
+  // Find all paid skill script files in the build output
   // Skills are inlined directly in profile directories (no more mixin composition)
-  // Patterns:
-  // - build/src/cli/features/claude-code/profiles/config/*/skills/paid-*/script.js (paid skills in any profile)
-  // - build/src/cli/features/claude-code/profiles/config/*/skills/nori-sync-docs/script.js (bundled but not paid)
+  // Pattern: build/src/cli/features/claude-code/profiles/config/*/skills/paid-*/script.js (paid skills in any profile)
   const skillPatterns = [
     "build/src/cli/features/claude-code/profiles/config/*/skills/paid-*/script.js",
-    "build/src/cli/features/claude-code/profiles/config/*/skills/nori-sync-docs/script.js",
   ];
 
   const skillFilesArrays = await Promise.all(
@@ -110,9 +107,6 @@ const main = async (): Promise<void> => {
     console.warn("Expected patterns:");
     console.warn(
       "  - build/src/cli/features/claude-code/profiles/config/*/skills/paid-*/script.js",
-    );
-    console.warn(
-      "  - build/src/cli/features/claude-code/profiles/config/*/skills/nori-sync-docs/script.js",
     );
     console.warn("  - build/src/cli/features/claude-code/hooks/config/*.js");
     return;
