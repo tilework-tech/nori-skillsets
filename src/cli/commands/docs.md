@@ -106,6 +106,29 @@ Registry commands (registry-search, registry-download, registry-update, registry
 
 Skills follow the same tarball-based upload/download pattern as profiles. Downloaded skills go directly to `.claude/skills/`, making them immediately available in the Claude Code profile. Skills require a SKILL.md file (with optional YAML frontmatter containing name and description).
 
+**Authentication Commands:** Two commands manage authentication for the nori-skillsets CLI:
+- `login` - Authenticates with noriskillsets.dev using email/password, stores credentials in `.nori-config.json`
+- `logout` - Clears stored authentication credentials from config
+
+**Login Command Flow:** The login command (@/src/cli/commands/login/login.ts) authenticates users directly against noriskillsets.dev:
+1. Prompts for email and password (or accepts `--email` and `--password` flags in non-interactive mode)
+2. Authenticates with Firebase using `signInWithEmailAndPassword()` from the Firebase SDK
+3. Calls `https://noriskillsets.dev/api/auth/check-access` with the Firebase ID token to fetch user's organizations and admin status
+4. Stores credentials in `.nori-config.json`:
+   - `auth.username` - User's email
+   - `auth.refreshToken` - Firebase refresh token for session persistence
+   - `auth.organizationUrl` - Defaults to `https://noriskillsets.dev`
+   - `auth.organizations` - Array of organization IDs the user has access to (for private registry operations)
+   - `auth.isAdmin` - Whether the user has admin privileges
+5. Preserves existing config fields (agents, autoupdate, registryAuths, etc.) when logging in
+
+The login command provides helpful error messages based on Firebase AuthErrorCodes (invalid credentials, user not found, too many attempts, network errors).
+
+**Logout Command Flow:** The logout command (@/src/cli/commands/logout/logout.ts) clears authentication:
+1. Loads existing config
+2. If no auth credentials exist, displays "Not currently logged in" and exits
+3. Saves config without auth fields, preserving other config fields (agents, autoupdate, registryAuths, version)
+
 **skill-download No Installation Required:** Unlike other registry commands, `skill-download` does not require a prior Nori installation. The installation directory resolution:
 1. If `--install-dir` is provided: uses that directory as the target
 2. If existing Nori installation found via `getInstallDirs()`: uses that installation's directory
@@ -164,7 +187,7 @@ nori-ai.ts (full CLI)
   +-- registerSkillDownloadCommand({ program })--> commands/skill-download/skillDownload.ts
   +-- registerSkillUploadCommand({ program })  --> commands/skill-upload/skillUpload.ts
 
-nori-skillsets.ts (simplified CLI for registry read operations, skill downloads, profile switching, and initialization)
+nori-skillsets.ts (simplified CLI for registry read operations, skill downloads, profile switching, initialization, and authentication)
   |
   +-- registerNoriSkillsetsInitCommand({ program })          --> commands/noriSkillsetsCommands.ts --> initMain
   +-- registerNoriSkillsetsSearchCommand({ program })        --> commands/noriSkillsetsCommands.ts --> registrySearchMain
@@ -172,6 +195,8 @@ nori-skillsets.ts (simplified CLI for registry read operations, skill downloads,
   +-- registerNoriSkillsetsInstallCommand({ program })       --> commands/noriSkillsetsCommands.ts --> registryInstallMain
   +-- registerNoriSkillsetsSwitchSkillsetCommand({ program })--> commands/noriSkillsetsCommands.ts --> switchSkillsetAction
   +-- registerNoriSkillsetsDownloadSkillCommand({ program }) --> commands/noriSkillsetsCommands.ts --> skillDownloadMain
+  +-- registerNoriSkillsetsLoginCommand({ program })         --> commands/noriSkillsetsCommands.ts --> loginMain
+  +-- registerNoriSkillsetsLogoutCommand({ program })        --> commands/noriSkillsetsCommands.ts --> logoutMain
 ```
 
 Commands use shared utilities from the parent @/src/cli/ directory:

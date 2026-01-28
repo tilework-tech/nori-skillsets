@@ -862,6 +862,8 @@ describe("install integration test", () => {
         password: null,
         organizationUrl: "https://example.com",
         refreshToken: "mock-refresh-token",
+        organizations: null,
+        isAdmin: null,
       });
 
       // Flat auth fields should be removed
