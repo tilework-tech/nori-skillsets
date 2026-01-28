@@ -9,6 +9,8 @@
 
 import { initMain } from "@/cli/commands/init/init.js";
 import { listSkillsetsMain } from "@/cli/commands/list-skillsets/listSkillsets.js";
+import { loginMain } from "@/cli/commands/login/login.js";
+import { logoutMain } from "@/cli/commands/logout/logout.js";
 import { registryDownloadMain } from "@/cli/commands/registry-download/registryDownload.js";
 import { registryInstallMain } from "@/cli/commands/registry-install/registryInstall.js";
 import { registrySearchMain } from "@/cli/commands/registry-search/registrySearch.js";
@@ -217,6 +219,53 @@ export const registerNoriSkillsetsListSkillsetsCommand = (args: {
       await listSkillsetsMain({
         installDir: globalOpts.installDir || null,
         agent: globalOpts.agent || null,
+      });
+    });
+};
+
+/**
+ * Register the 'login' command for nori-skillsets CLI
+ * @param args - Configuration arguments
+ * @param args.program - Commander program instance
+ */
+export const registerNoriSkillsetsLoginCommand = (args: {
+  program: Command;
+}): void => {
+  const { program } = args;
+
+  program
+    .command("login")
+    .description("Authenticate with noriskillsets.dev")
+    .option("-e, --email <email>", "Email address (for non-interactive mode)")
+    .option("-p, --password <password>", "Password (for non-interactive mode)")
+    .action(async (options: { email?: string; password?: string }) => {
+      const globalOpts = program.opts();
+      await loginMain({
+        installDir: globalOpts.installDir || null,
+        nonInteractive: globalOpts.nonInteractive || null,
+        email: options.email || null,
+        password: options.password || null,
+      });
+    });
+};
+
+/**
+ * Register the 'logout' command for nori-skillsets CLI
+ * @param args - Configuration arguments
+ * @param args.program - Commander program instance
+ */
+export const registerNoriSkillsetsLogoutCommand = (args: {
+  program: Command;
+}): void => {
+  const { program } = args;
+
+  program
+    .command("logout")
+    .description("Clear stored authentication credentials")
+    .action(async () => {
+      const globalOpts = program.opts();
+      await logoutMain({
+        installDir: globalOpts.installDir || null,
       });
     });
 };

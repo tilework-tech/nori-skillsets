@@ -1,0 +1,122 @@
+/**
+ * Tests for the logout command
+ */
+
+import * as fs from "fs/promises";
+import * as os from "os";
+import * as path from "path";
+
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { loadConfig, saveConfig } from "@/cli/config.js";
+
+import { logoutMain } from "./logout.js";
+
+// Mock logger to suppress output during tests
+vi.mock("@/cli/logger.js", () => ({
+  info: vi.fn(),
+  success: vi.fn(),
+  error: vi.fn(),
+  warn: vi.fn(),
+  debug: vi.fn(),
+  newline: vi.fn(),
+  raw: vi.fn(),
+}));
+
+describe("logout command", () => {
+  let tempDir: string;
+
+  beforeEach(async () => {
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "logout-test-"));
+    vi.clearAllMocks();
+  });
+
+  afterEach(async () => {
+    await fs.rm(tempDir, { recursive: true, force: true });
+  });
+
+  describe("logoutMain", () => {
+    it("should clear auth fields but preserve other config", async () => {
+      // Create config with auth and other settings
+      await saveConfig({
+        username: "user@example.com",
+        refreshToken: "mock-refresh-token",
+        organizationUrl: "https://noriskillsets.dev",
+        organizations: ["acme", "orderco"],
+        isAdmin: true,
+        agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
+        autoupdate: "enabled",
+        installDir: tempDir,
+      });
+
+      // Verify auth exists before logout
+      const beforeLogout = await loadConfig({ installDir: tempDir });
+      expect(beforeLogout?.auth).not.toBeNull();
+
+      // Perform logout
+      await logoutMain({ installDir: tempDir });
+
+      // Verify auth is cleared
+      const afterLogout = await loadConfig({ installDir: tempDir });
+      expect(afterLogout?.auth).toBeNull();
+
+      // Verify other fields are preserved
+      expect(afterLogout?.agents?.["claude-code"]?.profile?.baseProfile).toBe(
+        "senior-swe",
+      );
+      expect(afterLogout?.autoupdate).toBe("enabled");
+    });
+
+    it("should show info message when not logged in", async () => {
+      const { info } = await import("@/cli/logger.js");
+
+      // Create config without auth
+      await saveConfig({
+        username: null,
+        organizationUrl: null,
+        agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
+        installDir: tempDir,
+      });
+
+      await logoutMain({ installDir: tempDir });
+
+      expect(info).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.stringContaining("Not currently logged in"),
+        }),
+      );
+    });
+
+    it("should show info message when no config exists", async () => {
+      const { info } = await import("@/cli/logger.js");
+
+      await logoutMain({ installDir: tempDir });
+
+      expect(info).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.stringContaining("Not currently logged in"),
+        }),
+      );
+    });
+
+    it("should show success message after logging out", async () => {
+      const { success } = await import("@/cli/logger.js");
+
+      // Create config with auth
+      await saveConfig({
+        username: "user@example.com",
+        refreshToken: "mock-refresh-token",
+        organizationUrl: "https://noriskillsets.dev",
+        installDir: tempDir,
+      });
+
+      await logoutMain({ installDir: tempDir });
+
+      expect(success).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.stringContaining("Logged out"),
+        }),
+      );
+    });
+  });
+});

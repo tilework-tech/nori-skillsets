@@ -82,6 +82,8 @@ src/cli/
 | `skill-search` | | commands/skill-search/skillSearch.ts | Search for skills in the Nori registrar |
 | `skill-download` | `download-skill` | commands/skill-download/skillDownload.ts | Download a skill from the Nori registrar |
 | `skill-upload` | | commands/skill-upload/skillUpload.ts | Upload a skill to the Nori registrar |
+| | `login` | commands/login/login.ts | Authenticate with noriskillsets.dev |
+| | `logout` | commands/logout/logout.ts | Clear stored authentication credentials |
 
 The nori-skillsets CLI uses simplified command names (no `registry-` prefix for registry read operations, `download-skill` for skill downloads, `switch-skillset` for profile switching, and `init` for initialization). Upload, update, and onboard operations are only available via the nori-ai CLI. Both CLIs share the same underlying implementation functions - the nori-skillsets commands are thin wrappers defined in @/src/cli/commands/noriSkillsetsCommands.ts that delegate to the existing implementations (`*Main` functions from registry-*, skill-*, and init commands, plus `switchSkillsetAction` from profiles.ts).
 
@@ -130,6 +132,8 @@ The config.ts module provides a unified `Config` type for both disk persistence 
 - `username` and `organizationUrl` - required for all paid installs
 - `refreshToken` - preferred, secure token-based auth (Firebase refresh token)
 - `password` - legacy, deprecated (will be removed in future)
+- `organizations` - array of organization IDs the user has access to (populated by login command from `/api/auth/check-access`)
+- `isAdmin` - whether the user has admin privileges for their organization
 
 The `isLegacyPasswordConfig({ config })` helper identifies configs that have password but no refreshToken (candidates for migration).
 
