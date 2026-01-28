@@ -17,6 +17,7 @@ import {
   registerNoriSkillsetsListSkillsetsCommand,
   registerNoriSkillsetsSearchCommand,
   registerNoriSkillsetsSwitchSkillsetCommand,
+  registerNoriSkillsetsWatchCommand,
 } from "@/cli/commands/noriSkillsetsCommands.js";
 import {
   setTileworkSource,
@@ -64,6 +65,8 @@ Examples:
   $ nori-skillsets download-skill my-skill
   $ nori-skillsets download-skill my-skill@1.0.0
   $ nori-skillsets download-skill my-skill --list-versions
+  $ nori-skillsets watch              # start watching Claude Code sessions
+  $ nori-skillsets watch stop         # stop the watch daemon
 `,
   );
 
@@ -75,6 +78,7 @@ registerNoriSkillsetsInstallCommand({ program });
 registerNoriSkillsetsSwitchSkillsetCommand({ program });
 registerNoriSkillsetsListSkillsetsCommand({ program });
 registerNoriSkillsetsDownloadSkillCommand({ program });
+registerNoriSkillsetsWatchCommand({ program });
 
 program.parse(process.argv);
 
