@@ -8,6 +8,7 @@
  */
 
 import { initMain } from "@/cli/commands/init/init.js";
+import { listSkillsetsMain } from "@/cli/commands/list-skillsets/listSkillsets.js";
 import { registryDownloadMain } from "@/cli/commands/registry-download/registryDownload.js";
 import { registryInstallMain } from "@/cli/commands/registry-install/registryInstall.js";
 import { registrySearchMain } from "@/cli/commands/registry-search/registrySearch.js";
@@ -196,4 +197,26 @@ export const registerNoriSkillsetsDownloadSkillCommand = (args: {
         });
       },
     );
+};
+
+/**
+ * Register the 'list-skillsets' command for nori-skillsets CLI
+ * @param args - Configuration arguments
+ * @param args.program - Commander program instance
+ */
+export const registerNoriSkillsetsListSkillsetsCommand = (args: {
+  program: Command;
+}): void => {
+  const { program } = args;
+
+  program
+    .command("list-skillsets")
+    .description("List locally available skillsets (one per line)")
+    .action(async () => {
+      const globalOpts = program.opts();
+      await listSkillsetsMain({
+        installDir: globalOpts.installDir || null,
+        agent: globalOpts.agent || null,
+      });
+    });
 };
