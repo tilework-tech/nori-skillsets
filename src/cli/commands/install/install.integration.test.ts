@@ -272,10 +272,6 @@ describe("install integration test", () => {
     expect(fs.existsSync(path.join(skillsDir, "paid-write-noridoc"))).toBe(
       true,
     );
-    expect(fs.existsSync(path.join(skillsDir, "paid-read-noridoc"))).toBe(true);
-    expect(fs.existsSync(path.join(skillsDir, "paid-list-noridocs"))).toBe(
-      true,
-    );
 
     // Check that paid subagents exist in the source profile (with paid- prefix)
     const subagentsDir = path.join(profileDir, "subagents");
@@ -316,12 +312,6 @@ describe("install integration test", () => {
     expect(fs.existsSync(path.join(skillsDir, "paid-recall"))).toBe(false);
     expect(fs.existsSync(path.join(skillsDir, "paid-memorize"))).toBe(false);
     expect(fs.existsSync(path.join(skillsDir, "paid-write-noridoc"))).toBe(
-      false,
-    );
-    expect(fs.existsSync(path.join(skillsDir, "paid-read-noridoc"))).toBe(
-      false,
-    );
-    expect(fs.existsSync(path.join(skillsDir, "paid-list-noridocs"))).toBe(
       false,
     );
 
