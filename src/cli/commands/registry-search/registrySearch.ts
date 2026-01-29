@@ -177,6 +177,29 @@ const searchPublicRegistrySkills = async (args: {
 };
 
 /**
+ * Get the namespaced package name for display
+ * @param args - The arguments
+ * @param args.packageName - The base package name
+ * @param args.registryUrl - The registry URL to derive namespace from
+ *
+ * @returns Namespaced package name (e.g., "myorg/package" or "package" for public)
+ */
+const getNamespacedPackageName = (args: {
+  packageName: string;
+  registryUrl: string;
+}): string => {
+  const { packageName, registryUrl } = args;
+  const orgId = extractOrgId({ url: registryUrl });
+
+  // Public registry packages don't need namespace prefix
+  if (orgId == null || orgId === "public") {
+    return packageName;
+  }
+
+  return `${orgId}/${packageName}`;
+};
+
+/**
  * Format a list of packages/skills for display
  * @param args - The items to format
  * @param args.registryUrl - The registry URL
@@ -190,11 +213,17 @@ const formatItems = (args: {
 }): string => {
   const { registryUrl, items } = args;
   const lines: Array<string> = [];
+  const orgId = extractOrgId({ url: registryUrl });
+  const orgLabel = orgId === "public" || orgId == null ? "public" : orgId;
 
-  lines.push(registryUrl);
+  lines.push(`${orgLabel}:`);
   for (const item of items) {
-    const description = item.description ? `: ${item.description}` : "";
-    lines.push(`  -> ${item.name}${description}`);
+    const namespacedName = getNamespacedPackageName({
+      packageName: item.name,
+      registryUrl,
+    });
+    const description = item.description ? ` - ${item.description}` : "";
+    lines.push(`  ${namespacedName}${description}`);
   }
 
   return lines.join("\n");
@@ -217,12 +246,8 @@ const formatUnifiedSearchResults = (args: {
   for (const result of results) {
     const { profileResult, skillResult } = result;
 
-    // Collect profile results
-    if (profileResult.error != null) {
-      profileSections.push(
-        `${profileResult.registryUrl}\n  -> Error: ${profileResult.error}`,
-      );
-    } else if (profileResult.packages.length > 0) {
+    // Collect profile results (skip errors - just noise for unavailable registries)
+    if (profileResult.error == null && profileResult.packages.length > 0) {
       profileSections.push(
         formatItems({
           registryUrl: profileResult.registryUrl,
@@ -231,12 +256,8 @@ const formatUnifiedSearchResults = (args: {
       );
     }
 
-    // Collect skill results
-    if (skillResult.error != null) {
-      skillSections.push(
-        `${skillResult.registryUrl}\n  -> Error: ${skillResult.error}`,
-      );
-    } else if (skillResult.skills.length > 0) {
+    // Collect skill results (skip errors - just noise for unavailable registries)
+    if (skillResult.error == null && skillResult.skills.length > 0) {
       skillSections.push(
         formatItems({
           registryUrl: skillResult.registryUrl,
