@@ -865,6 +865,188 @@ describe("registry-upload", () => {
     });
   });
 
+  describe("namespaced package upload", () => {
+    it("should upload non-namespaced package to public registry", async () => {
+      await createTestProfile({ name: "test-profile" });
+
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        auth: {
+          username: "test@example.com",
+          organizationUrl: "https://noriskillsets.dev",
+          refreshToken: "mock-refresh-token",
+          organizations: ["public"],
+        },
+      });
+
+      vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
+
+      vi.mocked(registrarApi.getPackument).mockRejectedValue(
+        new Error("Package not found"),
+      );
+
+      vi.mocked(registrarApi.uploadProfile).mockResolvedValue({
+        name: "test-profile",
+        version: "1.0.0",
+        tarballSha: "sha512-abc123",
+        createdAt: "2024-01-01T00:00:00.000Z",
+      });
+
+      await registryUploadMain({
+        profileSpec: "test-profile",
+        cwd: testDir,
+      });
+
+      // Should upload to public registry (apex domain)
+      expect(registrarApi.uploadProfile).toHaveBeenCalledWith(
+        expect.objectContaining({
+          packageName: "test-profile",
+          registryUrl: "https://noriskillsets.dev",
+        }),
+      );
+    });
+
+    it("should upload namespaced package to org-specific registry", async () => {
+      // Create the profile in the namespaced directory
+      const namespacedProfileDir = path.join(
+        profilesDir,
+        "myorg",
+        "my-profile",
+      );
+      await fs.mkdir(namespacedProfileDir, { recursive: true });
+      await fs.writeFile(
+        path.join(namespacedProfileDir, "CLAUDE.md"),
+        "# Test Profile",
+      );
+
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        auth: {
+          username: "test@example.com",
+          organizationUrl: "https://noriskillsets.dev",
+          refreshToken: "mock-refresh-token",
+          organizations: ["public", "myorg"],
+        },
+      });
+
+      vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
+
+      vi.mocked(registrarApi.getPackument).mockRejectedValue(
+        new Error("Package not found"),
+      );
+
+      vi.mocked(registrarApi.uploadProfile).mockResolvedValue({
+        name: "my-profile",
+        version: "1.0.0",
+        tarballSha: "sha512-abc123",
+        createdAt: "2024-01-01T00:00:00.000Z",
+      });
+
+      await registryUploadMain({
+        profileSpec: "myorg/my-profile",
+        cwd: testDir,
+      });
+
+      // Should upload to org-specific registry
+      expect(registrarApi.uploadProfile).toHaveBeenCalledWith(
+        expect.objectContaining({
+          packageName: "my-profile",
+          registryUrl: "https://myorg.noriskillsets.dev",
+        }),
+      );
+    });
+
+    it("should error when uploading to org user does not have access to", async () => {
+      // Create the profile in the namespaced directory
+      const namespacedProfileDir = path.join(
+        profilesDir,
+        "other-org",
+        "my-profile",
+      );
+      await fs.mkdir(namespacedProfileDir, { recursive: true });
+      await fs.writeFile(
+        path.join(namespacedProfileDir, "CLAUDE.md"),
+        "# Test Profile",
+      );
+
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        auth: {
+          username: "test@example.com",
+          organizationUrl: "https://noriskillsets.dev",
+          refreshToken: "mock-refresh-token",
+          organizations: ["public", "myorg"], // Does NOT include "other-org"
+        },
+      });
+
+      await registryUploadMain({
+        profileSpec: "other-org/my-profile",
+        cwd: testDir,
+      });
+
+      // Should error about not having access
+      const allErrorOutput = mockConsoleError.mock.calls
+        .map((call) => call.join(" "))
+        .join("\n");
+      expect(allErrorOutput.toLowerCase()).toContain("access");
+      expect(allErrorOutput).toContain("other-org");
+
+      // Should not attempt upload
+      expect(registrarApi.uploadProfile).not.toHaveBeenCalled();
+    });
+
+    it("should use --registry flag to override namespaced target", async () => {
+      // Create the profile in the namespaced directory
+      const namespacedProfileDir = path.join(
+        profilesDir,
+        "myorg",
+        "my-profile",
+      );
+      await fs.mkdir(namespacedProfileDir, { recursive: true });
+      await fs.writeFile(
+        path.join(namespacedProfileDir, "CLAUDE.md"),
+        "# Test Profile",
+      );
+
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        auth: {
+          username: "test@example.com",
+          organizationUrl: "https://noriskillsets.dev",
+          refreshToken: "mock-refresh-token",
+          organizations: ["public", "myorg", "other-org"],
+        },
+      });
+
+      vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
+
+      vi.mocked(registrarApi.getPackument).mockRejectedValue(
+        new Error("Package not found"),
+      );
+
+      vi.mocked(registrarApi.uploadProfile).mockResolvedValue({
+        name: "my-profile",
+        version: "1.0.0",
+        tarballSha: "sha512-abc123",
+        createdAt: "2024-01-01T00:00:00.000Z",
+      });
+
+      await registryUploadMain({
+        profileSpec: "myorg/my-profile",
+        cwd: testDir,
+        registryUrl: "https://other-org.noriskillsets.dev",
+      });
+
+      // Should upload to the specified registry, not the namespaced one
+      expect(registrarApi.uploadProfile).toHaveBeenCalledWith(
+        expect.objectContaining({
+          packageName: "my-profile",
+          registryUrl: "https://other-org.noriskillsets.dev",
+        }),
+      );
+    });
+  });
+
   describe("cliName in user-facing messages", () => {
     it("should use nori-skillsets command names in success message when cliName is nori-skillsets", async () => {
       await createTestProfile({ name: "test-profile" });

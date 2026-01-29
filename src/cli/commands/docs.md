@@ -158,6 +158,18 @@ By using `nonInteractive: false`, the auto-init triggers the interactive existin
 
 This differs from `registry-install`, which calls the full `installMain()` (orchestrating init, onboard, and loaders). The `registry-download` command only calls `initMain()` because download just places profile files without activating them - the user still needs to run `switch-profile` to activate the downloaded profile.
 
+**registry-download Namespaced Packages:** The `registry-download` command supports namespaced package specifications for organization-scoped packages. The package spec format is `[org/]package-name[@version]`:
+- `my-profile` - downloads from public registry to `~/.nori/profiles/my-profile/`
+- `myorg/my-profile` - downloads from `https://myorg.noriskillsets.dev` to `~/.nori/profiles/myorg/my-profile/`
+
+The command uses `parseNamespacedPackage()` from @/src/utils/url.ts to extract the org ID, package name, and optional version from the package spec. It then uses `buildOrganizationRegistryUrl()` to derive the target registry URL from the org ID. For authentication, the command checks `config.auth.organizations` (unified auth) to verify the user has access to the specified org's registry, falling back to legacy `registryAuths` for backwards compatibility.
+
+**registry-upload Namespaced Packages:** The `registry-upload` command supports the same namespaced package specification format for uploading to organization registries. The profile directory structure mirrors the package namespace:
+- `my-profile` - uploads from `~/.nori/profiles/my-profile/` to public registry
+- `myorg/my-profile` - uploads from `~/.nori/profiles/myorg/my-profile/` to `https://myorg.noriskillsets.dev`
+
+When using unified auth (new flow), the command derives the target registry from the package namespace automatically. When no explicit `--registry` is provided and the user has unified auth with organizations, the command uploads to the org's registry matching the package namespace. Legacy flow (multiple `registryAuths`) requires explicit `--registry` selection when multiple registries are configured.
+
 **registry-download Skill Dependencies:** The `registry-download` command automatically installs skill dependencies declared in a profile's `nori.json` manifest. After extracting a profile tarball, the command checks for a `nori.json` file with a `dependencies.skills` field (mapping skill names to version strings). For each declared skill:
 1. Fetches the skill packument via `registrarApi.getSkillPackument()` to get the latest version
 2. Checks if the already-installed version equals the latest version (skips download if so)

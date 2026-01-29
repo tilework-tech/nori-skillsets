@@ -1785,6 +1785,293 @@ describe("registry-download", () => {
     });
   });
 
+  describe("namespaced package download", () => {
+    it("should download namespaced package to nested directory", async () => {
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        auth: {
+          username: "test@example.com",
+          organizationUrl: "https://tilework.tilework.tech",
+          refreshToken: "test-refresh-token",
+          organizations: ["myorg", "public"],
+        },
+        registryAuths: [],
+      });
+
+      vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
+
+      // Package exists in org registry
+      vi.mocked(registrarApi.getPackument).mockResolvedValue({
+        name: "my-profile",
+        "dist-tags": { latest: "1.0.0" },
+        versions: { "1.0.0": { name: "my-profile", version: "1.0.0" } },
+      });
+
+      const mockTarball = await createMockTarball();
+      vi.mocked(registrarApi.downloadTarball).mockResolvedValue(mockTarball);
+
+      await registryDownloadMain({
+        packageSpec: "myorg/my-profile",
+        cwd: testDir,
+      });
+
+      // Verify download was from the org registry
+      expect(registrarApi.downloadTarball).toHaveBeenCalledWith({
+        packageName: "my-profile",
+        version: undefined,
+        registryUrl: "https://myorg.noriskillsets.dev",
+        authToken: "mock-auth-token",
+      });
+
+      // Verify profile was installed to nested directory (profiles/myorg/my-profile)
+      const profileDir = path.join(profilesDir, "myorg", "my-profile");
+      const stats = await fs.stat(profileDir);
+      expect(stats.isDirectory()).toBe(true);
+    });
+
+    it("should download public namespace package to flat directory", async () => {
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        auth: {
+          username: "test@example.com",
+          organizationUrl: "https://tilework.tilework.tech",
+          refreshToken: "test-refresh-token",
+          organizations: ["public"],
+        },
+        registryAuths: [],
+      });
+
+      vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
+
+      // Package exists in public registry
+      vi.mocked(registrarApi.getPackument).mockResolvedValue({
+        name: "my-profile",
+        "dist-tags": { latest: "1.0.0" },
+        versions: { "1.0.0": { name: "my-profile", version: "1.0.0" } },
+      });
+
+      const mockTarball = await createMockTarball();
+      vi.mocked(registrarApi.downloadTarball).mockResolvedValue(mockTarball);
+
+      // Non-namespaced package defaults to public org
+      await registryDownloadMain({
+        packageSpec: "my-profile",
+        cwd: testDir,
+      });
+
+      // Verify download was from the public registry (apex domain)
+      expect(registrarApi.downloadTarball).toHaveBeenCalledWith({
+        packageName: "my-profile",
+        version: undefined,
+        registryUrl: "https://noriskillsets.dev",
+        authToken: "mock-auth-token",
+      });
+
+      // Verify profile was installed to flat directory (profiles/my-profile)
+      const profileDir = path.join(profilesDir, "my-profile");
+      const stats = await fs.stat(profileDir);
+      expect(stats.isDirectory()).toBe(true);
+    });
+
+    it("should handle namespaced package with version", async () => {
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        auth: {
+          username: "test@example.com",
+          organizationUrl: "https://tilework.tilework.tech",
+          refreshToken: "test-refresh-token",
+          organizations: ["myorg"],
+        },
+        registryAuths: [],
+      });
+
+      vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
+
+      vi.mocked(registrarApi.getPackument).mockResolvedValue({
+        name: "my-profile",
+        "dist-tags": { latest: "2.0.0" },
+        versions: {
+          "1.0.0": { name: "my-profile", version: "1.0.0" },
+          "2.0.0": { name: "my-profile", version: "2.0.0" },
+        },
+      });
+
+      const mockTarball = await createMockTarball();
+      vi.mocked(registrarApi.downloadTarball).mockResolvedValue(mockTarball);
+
+      await registryDownloadMain({
+        packageSpec: "myorg/my-profile@1.0.0",
+        cwd: testDir,
+      });
+
+      // Verify version was passed correctly
+      expect(registrarApi.downloadTarball).toHaveBeenCalledWith({
+        packageName: "my-profile",
+        version: "1.0.0",
+        registryUrl: "https://myorg.noriskillsets.dev",
+        authToken: "mock-auth-token",
+      });
+    });
+
+    it("should error when user does not have access to the namespaced org", async () => {
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        auth: {
+          username: "test@example.com",
+          organizationUrl: "https://tilework.tilework.tech",
+          refreshToken: "test-refresh-token",
+          organizations: ["other-org"], // User only has access to other-org, not myorg
+        },
+        registryAuths: [],
+      });
+
+      await registryDownloadMain({
+        packageSpec: "myorg/my-profile",
+        cwd: testDir,
+      });
+
+      // Verify error about not having access
+      const allErrorOutput = mockConsoleError.mock.calls
+        .map((call) => call.join(" "))
+        .join("\n");
+      expect(allErrorOutput.toLowerCase()).toContain("access");
+      expect(allErrorOutput).toContain("myorg");
+
+      // Verify no download occurred
+      expect(registrarApi.downloadTarball).not.toHaveBeenCalled();
+    });
+
+    it("should reject invalid namespaced package format with multiple slashes", async () => {
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        registryAuths: [],
+      });
+
+      await registryDownloadMain({
+        packageSpec: "org/sub/package",
+        cwd: testDir,
+      });
+
+      // Verify error about invalid format
+      const allErrorOutput = mockConsoleError.mock.calls
+        .map((call) => call.join(" "))
+        .join("\n");
+      expect(allErrorOutput.toLowerCase()).toContain("invalid");
+
+      // Verify no download occurred
+      expect(registrarApi.downloadTarball).not.toHaveBeenCalled();
+    });
+
+    it("should reject namespaced package with invalid org ID format", async () => {
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        registryAuths: [],
+      });
+
+      await registryDownloadMain({
+        packageSpec: "MyOrg/my-profile", // Uppercase not allowed in org ID
+        cwd: testDir,
+      });
+
+      // Verify error about invalid format
+      const allErrorOutput = mockConsoleError.mock.calls
+        .map((call) => call.join(" "))
+        .join("\n");
+      expect(allErrorOutput.toLowerCase()).toContain("invalid");
+
+      // Verify no download occurred
+      expect(registrarApi.downloadTarball).not.toHaveBeenCalled();
+    });
+
+    it("should fall back to legacy flow when no unified auth is present", async () => {
+      // Legacy config without auth.organizations - uses registryAuths
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        registryAuths: [],
+      });
+
+      // Package exists in public registry
+      vi.mocked(registrarApi.getPackument).mockResolvedValue({
+        name: "my-profile",
+        "dist-tags": { latest: "1.0.0" },
+        versions: { "1.0.0": { name: "my-profile", version: "1.0.0" } },
+      });
+
+      const mockTarball = await createMockTarball();
+      vi.mocked(registrarApi.downloadTarball).mockResolvedValue(mockTarball);
+
+      await registryDownloadMain({
+        packageSpec: "my-profile",
+        cwd: testDir,
+      });
+
+      // Verify download went through the legacy public registry (REGISTRAR_URL)
+      expect(registrarApi.downloadTarball).toHaveBeenCalledWith({
+        packageName: "my-profile",
+        version: undefined,
+        registryUrl: REGISTRAR_URL, // Legacy public registry
+        authToken: undefined,
+      });
+    });
+
+    it("should update existing namespaced profile in nested directory", async () => {
+      // Create existing namespaced profile with old version
+      const existingProfileDir = path.join(profilesDir, "myorg", "my-profile");
+      await fs.mkdir(existingProfileDir, { recursive: true });
+      await fs.writeFile(
+        path.join(existingProfileDir, "CLAUDE.md"),
+        "# Old version",
+      );
+      await fs.writeFile(
+        path.join(existingProfileDir, ".nori-version"),
+        JSON.stringify({
+          version: "1.0.0",
+          registryUrl: "https://myorg.noriskillsets.dev",
+        }),
+      );
+
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        auth: {
+          username: "test@example.com",
+          organizationUrl: "https://tilework.tilework.tech",
+          refreshToken: "test-refresh-token",
+          organizations: ["myorg"],
+        },
+        registryAuths: [],
+      });
+
+      vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
+
+      // Registry has newer version
+      vi.mocked(registrarApi.getPackument).mockResolvedValue({
+        name: "my-profile",
+        "dist-tags": { latest: "2.0.0" },
+        versions: {
+          "1.0.0": { name: "my-profile", version: "1.0.0" },
+          "2.0.0": { name: "my-profile", version: "2.0.0" },
+        },
+      });
+
+      const mockTarball = await createMockTarball();
+      vi.mocked(registrarApi.downloadTarball).mockResolvedValue(mockTarball);
+
+      await registryDownloadMain({
+        packageSpec: "myorg/my-profile",
+        cwd: testDir,
+      });
+
+      // Verify download occurred
+      expect(registrarApi.downloadTarball).toHaveBeenCalled();
+
+      // Verify .nori-version was updated
+      const versionFilePath = path.join(existingProfileDir, ".nori-version");
+      const versionContent = await fs.readFile(versionFilePath, "utf-8");
+      const versionInfo = JSON.parse(versionContent);
+      expect(versionInfo.version).toBe("2.0.0");
+    });
+  });
+
   describe("cliName in user-facing messages", () => {
     it("should use nori-skillsets command names when cliName is nori-skillsets", async () => {
       vi.mocked(loadConfig).mockResolvedValue({

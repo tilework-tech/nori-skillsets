@@ -5,8 +5,10 @@ import {
   isValidOrgId,
   buildWatchtowerUrl,
   buildRegistryUrl,
+  buildOrganizationRegistryUrl,
   isValidUrl,
   extractOrgId,
+  parseNamespacedPackage,
 } from "./url";
 
 describe("normalizeUrl", () => {
@@ -193,6 +195,117 @@ describe("isValidUrl", () => {
   });
 });
 
+describe("buildOrganizationRegistryUrl", () => {
+  it("should return apex domain for public org", () => {
+    expect(buildOrganizationRegistryUrl({ orgId: "public" })).toBe(
+      "https://noriskillsets.dev",
+    );
+  });
+
+  it("should return subdomain URL for non-public org", () => {
+    expect(buildOrganizationRegistryUrl({ orgId: "myorg" })).toBe(
+      "https://myorg.noriskillsets.dev",
+    );
+  });
+
+  it("should handle org ID with hyphens", () => {
+    expect(buildOrganizationRegistryUrl({ orgId: "my-company" })).toBe(
+      "https://my-company.noriskillsets.dev",
+    );
+  });
+});
+
+describe("parseNamespacedPackage", () => {
+  describe("non-namespaced packages", () => {
+    it("should parse simple package name as public", () => {
+      const result = parseNamespacedPackage({ packageSpec: "my-profile" });
+      expect(result).toEqual({
+        orgId: "public",
+        packageName: "my-profile",
+        version: null,
+      });
+    });
+
+    it("should parse package with version as public", () => {
+      const result = parseNamespacedPackage({
+        packageSpec: "my-profile@1.0.0",
+      });
+      expect(result).toEqual({
+        orgId: "public",
+        packageName: "my-profile",
+        version: "1.0.0",
+      });
+    });
+
+    it("should parse package with prerelease version", () => {
+      const result = parseNamespacedPackage({
+        packageSpec: "my-profile@1.0.0-beta.1",
+      });
+      expect(result).toEqual({
+        orgId: "public",
+        packageName: "my-profile",
+        version: "1.0.0-beta.1",
+      });
+    });
+  });
+
+  describe("namespaced packages", () => {
+    it("should parse namespaced package", () => {
+      const result = parseNamespacedPackage({
+        packageSpec: "myorg/my-profile",
+      });
+      expect(result).toEqual({
+        orgId: "myorg",
+        packageName: "my-profile",
+        version: null,
+      });
+    });
+
+    it("should parse namespaced package with version", () => {
+      const result = parseNamespacedPackage({
+        packageSpec: "myorg/my-profile@2.0.0",
+      });
+      expect(result).toEqual({
+        orgId: "myorg",
+        packageName: "my-profile",
+        version: "2.0.0",
+      });
+    });
+
+    it("should handle org ID with hyphens", () => {
+      const result = parseNamespacedPackage({
+        packageSpec: "my-company/my-profile",
+      });
+      expect(result).toEqual({
+        orgId: "my-company",
+        packageName: "my-profile",
+        version: null,
+      });
+    });
+  });
+
+  describe("edge cases", () => {
+    it("should return null for invalid package spec with multiple slashes", () => {
+      const result = parseNamespacedPackage({
+        packageSpec: "org/sub/package",
+      });
+      expect(result).toBe(null);
+    });
+
+    it("should return null for empty string", () => {
+      const result = parseNamespacedPackage({ packageSpec: "" });
+      expect(result).toBe(null);
+    });
+
+    it("should return null for invalid org ID format", () => {
+      const result = parseNamespacedPackage({
+        packageSpec: "MyOrg/my-profile",
+      });
+      expect(result).toBe(null);
+    });
+  });
+});
+
 describe("extractOrgId", () => {
   describe("watchtower URLs", () => {
     it("should extract org ID from watchtower URL", () => {
@@ -214,7 +327,7 @@ describe("extractOrgId", () => {
     });
   });
 
-  describe("registry URLs", () => {
+  describe("registry URLs (nori-registry.ai)", () => {
     it("should extract org ID from registry URL", () => {
       expect(extractOrgId({ url: "https://myorg.nori-registry.ai" })).toBe(
         "myorg",
@@ -225,6 +338,36 @@ describe("extractOrgId", () => {
       expect(extractOrgId({ url: "https://my-org.nori-registry.ai" })).toBe(
         "my-org",
       );
+    });
+  });
+
+  describe("organization registry URLs (noriskillsets.dev)", () => {
+    it("should return 'public' for apex domain", () => {
+      expect(extractOrgId({ url: "https://noriskillsets.dev" })).toBe("public");
+    });
+
+    it("should extract org ID from subdomain", () => {
+      expect(extractOrgId({ url: "https://myorg.noriskillsets.dev" })).toBe(
+        "myorg",
+      );
+    });
+
+    it("should extract org ID with hyphens from subdomain", () => {
+      expect(
+        extractOrgId({ url: "https://my-company.noriskillsets.dev" }),
+      ).toBe("my-company");
+    });
+
+    it("should handle URL with path", () => {
+      expect(
+        extractOrgId({ url: "https://myorg.noriskillsets.dev/api/profiles" }),
+      ).toBe("myorg");
+    });
+
+    it("should handle apex domain with path", () => {
+      expect(
+        extractOrgId({ url: "https://noriskillsets.dev/api/profiles" }),
+      ).toBe("public");
     });
   });
 
