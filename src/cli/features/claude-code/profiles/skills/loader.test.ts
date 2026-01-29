@@ -385,36 +385,6 @@ describe("skillsLoader", () => {
       expect(skillExists).toBe(true);
     });
 
-    it("should install paid-write-noridoc skill without prefix for paid tier", async () => {
-      const config: Config = {
-        auth: {
-          username: "test",
-          password: "test",
-          organizationUrl: "https://test.com",
-        },
-        installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-      };
-
-      // Delete existing profiles and recompose with paid mixin
-      const profilesDir = path.join(mockNoriDir, "profiles");
-      await fs.rm(profilesDir, { recursive: true, force: true });
-      await profilesLoader.run({ config });
-
-      await skillsLoader.install({ config });
-
-      const skillPath = path.join(skillsDir, "write-noridoc", "SKILL.md");
-
-      const skillExists = await fs
-        .access(skillPath)
-        .then(() => true)
-        .catch(() => false);
-
-      expect(skillExists).toBe(true);
-    });
-
     it("should not install any paid skills for free tier", async () => {
       const config: Config = {
         installDir: tempDir,
@@ -425,7 +395,7 @@ describe("skillsLoader", () => {
 
       await skillsLoader.install({ config });
 
-      const paidSkills = ["memorize", "recall", "write-noridoc"];
+      const paidSkills = ["memorize", "recall"];
 
       for (const skill of paidSkills) {
         const skillPath = path.join(skillsDir, skill);

@@ -269,9 +269,6 @@ describe("install integration test", () => {
     // Paid skills are copied from mixin with their original names (paid- prefix)
     expect(fs.existsSync(path.join(skillsDir, "paid-recall"))).toBe(true);
     expect(fs.existsSync(path.join(skillsDir, "paid-memorize"))).toBe(true);
-    expect(fs.existsSync(path.join(skillsDir, "paid-write-noridoc"))).toBe(
-      true,
-    );
 
     // Check that paid subagents exist in the source profile (with paid- prefix)
     const subagentsDir = path.join(profileDir, "subagents");
@@ -311,9 +308,6 @@ describe("install integration test", () => {
     // Paid skills should NOT exist for free users (check with paid- prefix)
     expect(fs.existsSync(path.join(skillsDir, "paid-recall"))).toBe(false);
     expect(fs.existsSync(path.join(skillsDir, "paid-memorize"))).toBe(false);
-    expect(fs.existsSync(path.join(skillsDir, "paid-write-noridoc"))).toBe(
-      false,
-    );
 
     // Paid subagents should NOT exist
     const subagentsDir = path.join(profileDir, "subagents");

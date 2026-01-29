@@ -79,16 +79,12 @@ Skills are reusable workflows that guide Claude through complex tasks. Claude au
 - **using-screenshots** - Capture screen context
 - **webapp-testing** - Playwright-based web testing
 
-### 2.2 Paid Tier Additional Skills (3)
+### 2.2 Paid Tier Additional Skills (2)
 
 **Knowledge Base:**
 
 - **recall** - Search the knowledge base for relevant context
 - **memorize** - Save important information for future sessions
-
-**Noridocs (Server-side):**
-
-- **write-noridoc** - Update server-side documentation
 
 ## 3. Specialized Subagents
 
@@ -146,19 +142,10 @@ Persistent memory and context across sessions, stored server-side.
 
 An opinionated documentation system with docs.md files in each folder.
 
-### 6.1 Free Tier (Local)
-
 - **Format:** Overview, How it fits, Core Implementation, Things to Know
 - **Updates:** Manual via updating-noridocs skill
 - **Storage:** Part of codebase, tracked in git
 - **Initialize:** `/nori-init-docs` to generate throughout codebase
-
-### 6.2 Paid Tier (Server-side)
-
-- Everything in free tier, plus:
-- **Server storage** with versioning
-- **Skills:** write-noridoc
-- **Automatic updates** via nori-change-documenter subagent
 
 ## 7. Status Line
 

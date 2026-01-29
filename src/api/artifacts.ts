@@ -6,7 +6,6 @@ export type ArtifactType =
   | "recipe"
   | "webhook"
   | "memory"
-  | "noridoc"
   | "premortem"
   | "no-type";
 

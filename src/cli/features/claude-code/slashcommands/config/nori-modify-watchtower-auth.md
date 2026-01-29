@@ -67,7 +67,6 @@ You now have access to all Nori features:
 Watchtower:
   - recall: Search the knowledge base for relevant context
   - memorize: Save important context for future sessions
-  - noridocs: Server-side documentation with versioning
 
 Registry:
   - /nori-registry-search: Search private profile packages
@@ -111,7 +110,6 @@ Nori uses **unified authentication** - one set of credentials works for all Nori
 **Watchtower** (`https://{orgId}.tilework.tech`):
 - **recall**: Search and recall past solutions across your team
 - **memorize**: Save learnings for future sessions
-- **noridocs**: Server-side documentation with versioning
 
 **Registry** (`https://{orgId}.nori-registry.ai`):
 - Download private profile packages

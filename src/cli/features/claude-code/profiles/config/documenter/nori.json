@@ -1,5 +1,5 @@
 {
   "name": "documenter",
   "version": "1.0.0",
-  "description": "Documentation-focused mode that automatically produces high-quality docs and keeps them up-to-date with code changes. Free tier: local docs.md workflows with change tracking. Paid tier: server-side noridocs with cross-repo access."
+  "description": "Documentation-focused mode that automatically produces high-quality docs and keeps them up-to-date with code changes. Local docs.md workflows with change tracking."
 }
