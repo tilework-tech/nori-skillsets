@@ -5,6 +5,9 @@
  * Returns both profiles and skills from each registry
  */
 
+import os from "os";
+import path from "path";
+
 import { registrarApi, REGISTRAR_URL, type Package } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
 import {
@@ -311,14 +314,24 @@ export const registrySearchMain = async (args: {
   } else {
     // Auto-detect from current directory
     const allInstallations = getInstallDirs({ currentDir: process.cwd() });
-    if (allInstallations.length === 0) {
+
+    // Also check ~/.nori as it typically has registry auth configured
+    // For registry commands, prefer ~/.nori if it exists
+    const homeNoriDir = path.join(os.homedir(), ".nori");
+    const homeInstallations = getInstallDirs({ currentDir: homeNoriDir });
+
+    // Prefer ~/.nori if it exists (typically has registry auth)
+    if (homeInstallations.includes(homeNoriDir)) {
+      effectiveInstallDir = homeNoriDir;
+    } else if (allInstallations.length > 0) {
+      effectiveInstallDir = allInstallations[0];
+    } else {
       error({
         message:
           "No Nori installation found.\n\nRun 'npx nori-ai install' to install Nori Profiles.",
       });
       return;
     }
-    effectiveInstallDir = allInstallations[0];
   }
 
   // Check if cursor-agent-only installation (not supported for registry commands)
