@@ -48,7 +48,7 @@ The `skills.json` format supports both simple version strings and object format:
 }
 ```
 
-External skills are downloaded by `registry-download` to the profile's own `skills/` directory (e.g., `~/.nori/profiles/senior-swe/skills/writing-plans/`). This keeps profiles self-contained. External skills take precedence over inline skills when the same name exists.
+External skills are downloaded to the profile's own `skills/` directory (e.g., `~/.nori/profiles/senior-swe/skills/writing-plans/`) by both `registry-download` (as profile dependencies) and `skill-download` (as standalone skill installs). This keeps profiles self-contained. External skills take precedence over inline skills when the same name exists.
 
 **Paid Skills and Subagents**: Skills and subagents with a `paid-` prefix are tier-gated:
 - For paid users: the `paid-` prefix is stripped when copying (e.g., `paid-recall/` becomes `recall/`)
@@ -109,7 +109,7 @@ This logic is implemented in @/src/cli/features/claude-code/profiles/skills/load
   profiles/
     senior-swe/         # Self-contained profile
       skills/           # Inline skills + downloaded external skills
-        writing-plans/  # External skill downloaded by registry-download
+        writing-plans/  # External skill downloaded by registry-download or skill-download
         using-skills/   # Inline skill bundled with profile
         ...
       skills.json       # External skill dependencies metadata (optional)
@@ -149,11 +149,11 @@ This logic is implemented in @/src/cli/features/claude-code/profiles/skills/load
 The skills loader (@/src/cli/features/claude-code/profiles/skills/loader.ts) installs skills in a single step:
 
 1. **Install all skills**: Copy skills from profile's `skills/` folder to `~/.claude/skills/`
-   - This includes both inline skills (bundled with profile) and external skills (downloaded by registry-download)
+   - This includes both inline skills (bundled with profile) and external skills (downloaded by registry-download or skill-download)
    - Paid-prefixed skills are handled based on tier (stripped prefix for paid, skipped for free)
    - Template placeholders are substituted during copy
 
-External skills are downloaded to the profile's `skills/` directory by the `registry-download` command, so the skills loader treats all skills uniformly. The `skills.json` file serves as metadata for tracking which skills were downloaded as dependencies, and is updated by the `skill-download` command when skills are downloaded.
+External skills are downloaded to the profile's `skills/` directory by both the `registry-download` command (for profile dependencies declared in `nori.json`) and the `skill-download` command (for standalone skill installs). The skills loader treats all skills in the profile's `skills/` directory uniformly. The `skills.json` file serves as metadata for tracking which skills were downloaded, and is updated by the `skill-download` command when skills are downloaded.
 
 The resolver module (@/src/cli/features/claude-code/profiles/skills/resolver.ts) provides read and write operations for skills.json:
 - `parseSkillsJson()` - Parse skills.json content into dependency array

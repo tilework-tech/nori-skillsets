@@ -101,10 +101,10 @@ The install command sets `agents: { [agentName]: { profile } }` in the config, w
 Registry commands (registry-search, registry-download, registry-update, registry-upload) and `skill-upload` call this validation early in their main function. **Exception:** `skill-download` does not use this validation - it allows downloading skills without any prior Nori installation.
 
 **Skill Commands:** Two commands manage skills as first-class registry entities (mirroring the profile registry commands):
-- `skill-download` - Download and install skills directly to `.claude/skills/{skill-name}/` in the target directory. Searches public registry first, then private registries. Creates `.nori-version` file for version tracking. Supports `--list-versions`, `--registry`, and `--skillset` options.
+- `skill-download` - Download and install skills directly to `.claude/skills/{skill-name}/` in the target directory. Searches public registry first, then private registries. Creates `.nori-version` file for version tracking. Persists raw skill files to the active profile's `skills/` directory and applies template substitution to the live copy. Supports `--list-versions`, `--registry`, and `--skillset` options.
 - `skill-upload` - Upload skills from `~/.claude/skills/` to a registry. Auto-bumps patch version when no version specified. Extracts description from SKILL.md frontmatter.
 
-Skills follow the same tarball-based upload/download pattern as profiles. Downloaded skills go directly to `.claude/skills/`, making them immediately available in the Claude Code profile. Skills require a SKILL.md file (with optional YAML frontmatter containing name and description).
+Skills follow the same tarball-based upload/download pattern as profiles. Downloaded skills go to both `.claude/skills/` (live copy with template substitution applied) and `~/.nori/profiles/<profile>/skills/` (raw copy for persistence across profile switches). Skills require a SKILL.md file (with optional YAML frontmatter containing name and description).
 
 **Authentication Commands:** Two commands manage authentication for the nori-skillsets CLI:
 - `login` - Authenticates with noriskillsets.dev using email/password, stores credentials in `.nori-config.json`
@@ -142,6 +142,16 @@ The command creates `.claude/skills/` directory if it doesn't exist. This allows
 3. No manifest update - if neither is available, the skill downloads but no manifest is updated
 
 The skill is added with version `"*"` (always latest). If the skill already exists in `skills.json`, its version is updated. The manifest update uses `addSkillDependency()` from @/src/cli/features/claude-code/profiles/skills/resolver.ts. Manifest update failures are non-blocking - the skill download succeeds even if the manifest cannot be written.
+
+**skill-download Profile Persistence:** After extracting a skill to `~/.claude/skills/<name>/`, the command copies the raw (unsubstituted) skill files to the active profile's skills directory at `~/.nori/profiles/<profile>/skills/<name>/`. This ensures skills survive profile switches, because the skills loader (@/src/cli/features/claude-code/profiles/skills/loader.ts) wipes `~/.claude/skills/` entirely during install and rebuilds it from the profile's `skills/` directory. The profile is determined the same way as for manifest updates (`--skillset` option or active profile from config). If no profile is available, the profile copy is skipped. Profile copy failures emit a warning but do not fail the download.
+
+**skill-download Template Substitution:** After persisting raw files to the profile, the command applies template substitution to all `.md` files in the live copy (`~/.claude/skills/<name>/`). This replaces template variables like `{{skills_dir}}`, `{{install_dir}}`, etc. with actual paths using `substituteTemplatePaths()` from @/src/cli/features/claude-code/template.ts. The profile copy retains raw template variables so they can be re-substituted during future installs. The complete download flow is:
+
+1. Extract tarball to `~/.claude/skills/<name>/` (live location)
+2. Write `.nori-version` file for update tracking
+3. Copy raw files to `~/.nori/profiles/<profile>/skills/<name>/` (profile persistence)
+4. Apply template substitution to `.md` files in the live copy
+5. Update `skills.json` manifest
 
 **Upload Commands Registry Resolution:** Both `registry-upload` (for profiles) and `skill-upload` (for skills) use the same registry resolution logic:
 1. **Public registry (default):** When the user has unified auth (`config.auth`) with a `refreshToken`, the public registry (`https://noriskillsets.dev`) is automatically included as an available upload target. This is the default when no `--registry` flag is provided.

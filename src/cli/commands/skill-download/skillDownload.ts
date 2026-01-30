@@ -24,6 +24,7 @@ import {
   getNoriProfilesDir,
 } from "@/cli/features/claude-code/paths.js";
 import { addSkillDependency } from "@/cli/features/claude-code/profiles/skills/resolver.js";
+import { substituteTemplatePaths } from "@/cli/features/claude-code/template.js";
 import { error, success, info, newline, raw } from "@/cli/logger.js";
 import { getInstallDirs } from "@/utils/path.js";
 
@@ -119,6 +120,58 @@ const extractTarball = async (args: {
     );
   } else {
     await pipeline(readable, tar.extract({ cwd: targetDir }));
+  }
+};
+
+/**
+ * Copy a directory recursively
+ * @param args - The copy parameters
+ * @param args.src - Source directory path
+ * @param args.dest - Destination directory path
+ */
+const copyDirRecursive = async (args: {
+  src: string;
+  dest: string;
+}): Promise<void> => {
+  const { src, dest } = args;
+  await fs.mkdir(dest, { recursive: true });
+
+  const entries = await fs.readdir(src, { withFileTypes: true });
+  for (const entry of entries) {
+    const srcPath = path.join(src, entry.name);
+    const destPath = path.join(dest, entry.name);
+
+    if (entry.isDirectory()) {
+      await copyDirRecursive({ src: srcPath, dest: destPath });
+    } else {
+      await fs.copyFile(srcPath, destPath);
+    }
+  }
+};
+
+/**
+ * Apply template substitution to all .md files in a directory recursively
+ * @param args - The substitution parameters
+ * @param args.dir - Directory to process
+ * @param args.installDir - The .claude directory path for template substitution
+ */
+const applyTemplateSubstitutionToDir = async (args: {
+  dir: string;
+  installDir: string;
+}): Promise<void> => {
+  const { dir, installDir } = args;
+
+  const entries = await fs.readdir(dir, { withFileTypes: true });
+  for (const entry of entries) {
+    const entryPath = path.join(dir, entry.name);
+
+    if (entry.isDirectory()) {
+      await applyTemplateSubstitutionToDir({ dir: entryPath, installDir });
+    } else if (entry.name.endsWith(".md")) {
+      const content = await fs.readFile(entryPath, "utf-8");
+      const substituted = substituteTemplatePaths({ content, installDir });
+      await fs.writeFile(entryPath, substituted);
+    }
   }
 };
 
@@ -656,17 +709,44 @@ export const skillDownloadMain = async (args: {
     }
 
     // Write .nori-version file for update tracking
-    await fs.writeFile(
-      path.join(targetDir, ".nori-version"),
-      JSON.stringify(
-        {
-          version: targetVersion,
-          registryUrl: selectedRegistry.registryUrl,
-        },
-        null,
-        2,
-      ),
+    const versionData = JSON.stringify(
+      {
+        version: targetVersion,
+        registryUrl: selectedRegistry.registryUrl,
+      },
+      null,
+      2,
     );
+    await fs.writeFile(path.join(targetDir, ".nori-version"), versionData);
+
+    // Persist skill to profile's skills directory (raw files, no template substitution)
+    if (targetSkillset != null) {
+      const profileSkillDir = path.join(
+        profilesDir,
+        targetSkillset,
+        "skills",
+        skillName,
+      );
+      try {
+        await fs.rm(profileSkillDir, { recursive: true, force: true });
+        await copyDirRecursive({ src: targetDir, dest: profileSkillDir });
+      } catch (profileCopyErr) {
+        const profileCopyErrMsg =
+          profileCopyErr instanceof Error
+            ? profileCopyErr.message
+            : String(profileCopyErr);
+        info({
+          message: `Warning: Could not persist skill to profile: ${profileCopyErrMsg}`,
+        });
+      }
+    }
+
+    // Apply template substitution to .md files in the live copy
+    const claudeDir = path.join(targetInstallDir, ".claude");
+    await applyTemplateSubstitutionToDir({
+      dir: targetDir,
+      installDir: claudeDir,
+    });
 
     const versionStr = version ? `@${version}` : " (latest)";
     newline();
