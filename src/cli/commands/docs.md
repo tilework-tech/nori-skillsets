@@ -101,10 +101,24 @@ The install command sets `agents: { [agentName]: { profile } }` in the config, w
 Registry commands (registry-search, registry-download, registry-update, registry-upload) and `skill-upload` call this validation early in their main function. **Exception:** `skill-download` does not use this validation - it allows downloading skills without any prior Nori installation.
 
 **Skill Commands:** Two commands manage skills as first-class registry entities (mirroring the profile registry commands):
-- `skill-download` - Download and install skills directly to `.claude/skills/{skill-name}/` in the target directory. Searches public registry first, then private registries. Creates `.nori-version` file for version tracking. Persists raw skill files to the active profile's `skills/` directory and applies template substitution to the live copy. Supports `--list-versions`, `--registry`, and `--skillset` options.
+- `skill-download` - Download and install skills directly to `.claude/skills/{skill-name}/` in the target directory. Supports namespaced package specs for org-specific downloads (see below). Creates `.nori-version` file for version tracking. Persists raw skill files to the active profile's `skills/` directory and applies template substitution to the live copy. Supports `--list-versions`, `--registry`, and `--skillset` options.
 - `skill-upload` - Upload skills from `~/.claude/skills/` to a registry. Auto-bumps patch version when no version specified. Extracts description from SKILL.md frontmatter.
 
 Skills follow the same tarball-based upload/download pattern as profiles. Downloaded skills go to both `.claude/skills/` (live copy with template substitution applied) and `~/.nori/profiles/<profile>/skills/` (raw copy for persistence across profile switches). Skills require a SKILL.md file (with optional YAML frontmatter containing name and description).
+
+**skill-download Namespaced Packages:** The `skill-download` command supports namespaced package specifications for organization-scoped skills. The package spec format is `[org/]skill-name[@version]`:
+- `my-skill` - downloads from public registry to `.claude/skills/my-skill/`
+- `my-skill@1.0.0` - downloads specific version from public registry
+- `myorg/my-skill` - downloads from `https://myorg.noriskillsets.dev` to `.claude/skills/my-skill/`
+- `myorg/my-skill@1.0.0` - downloads specific version from org registry
+
+The command uses `parseNamespacedPackage()` from @/src/utils/url.ts to extract the org ID, package name, and optional version. It then uses `buildOrganizationRegistryUrl()` to derive the target registry URL from the org ID. For authentication, the command checks `config.auth.organizations` (unified auth) to verify the user has access to the specified org's registry.
+
+**skill-download Flat Installation:** Unlike profiles which nest by org (`~/.nori/profiles/myorg/my-profile/`), skills install to a flat directory (`~/.claude/skills/my-skill/`) regardless of namespace. This maintains backward compatibility with the Claude Code skills directory structure.
+
+**skill-download Org Collision Warning:** When installing a skill from a different org than the currently installed version (tracked via `orgId` in `.nori-version`), the command warns the user about the overwrite. For example, installing `myorg/my-skill` over a previously installed `my-skill` (from public registry) will display a warning.
+
+**skill-download Namespace/Registry Conflict:** If user specifies both a namespace (`myorg/skill`) and `--registry`, the command errors since they are mutually exclusive - the namespace determines the registry automatically.
 
 **Authentication Commands:** Two commands manage authentication for the nori-skillsets CLI:
 - `login` - Authenticates with noriskillsets.dev using email/password, stores credentials in `.nori-config.json`

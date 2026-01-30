@@ -24,7 +24,7 @@ The url.ts module exports URL normalization and construction functions:
 
 **buildRegistryUrl:** Accepts { orgId: string } and returns the Registry URL as `https://{orgId}.nori-registry.ai`.
 
-**buildOrganizationRegistryUrl:** Accepts { orgId: string } and returns the organization-specific registry URL for noriskillsets.dev. The "public" org maps to the apex domain `https://noriskillsets.dev`, while other orgs map to subdomains like `https://{orgId}.noriskillsets.dev`. Used by registry-upload and registry-download commands to determine the target registry based on package namespace.
+**buildOrganizationRegistryUrl:** Accepts { orgId: string } and returns the organization-specific registry URL for noriskillsets.dev. The "public" org maps to the apex domain `https://noriskillsets.dev`, while other orgs map to subdomains like `https://{orgId}.noriskillsets.dev`. Used by registry-upload, registry-download, and skill-download commands to determine the target registry based on package namespace.
 
 **parseNamespacedPackage:** Accepts { packageSpec: string } and returns `{ orgId: string, packageName: string, version: string | null }` or null if invalid. Parses package specifications in formats:
 - `package-name` -> `{ orgId: "public", packageName: "package-name", version: null }`
@@ -32,7 +32,7 @@ The url.ts module exports URL normalization and construction functions:
 - `org/package-name` -> `{ orgId: "org", packageName: "package-name", version: null }`
 - `org/package-name@1.0.0` -> `{ orgId: "org", packageName: "package-name", version: "1.0.0" }`
 
-Non-namespaced packages default to the "public" organization. Used by registry-upload and registry-download commands to extract org, package name, and version from user-provided package specifications. The orgId is then passed to buildOrganizationRegistryUrl to derive the correct registry URL.
+Non-namespaced packages default to the "public" organization. Used by registry-upload, registry-download, and skill-download commands to extract org, package name, and version from user-provided package specifications. The orgId is then passed to buildOrganizationRegistryUrl to derive the correct registry URL.
 
 These URL construction functions are used by the install command (@/src/cli/commands/install/install.ts) and registry auth prompt (@/src/cli/commands/install/registryAuthPrompt.ts) to convert user-provided org IDs into full service URLs. The stored config format remains unchanged (full URLs), so this is purely a UX improvement at the user input layer.
 

@@ -1646,6 +1646,250 @@ Install directory: {{install_dir}}
   });
 });
 
+describe("namespaced package support", () => {
+  let testDir: string;
+  let skillsDir: string;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+
+    // Create test directory structure simulating a Nori installation
+    testDir = await fs.mkdtemp(path.join(tmpdir(), "nori-namespace-test-"));
+    skillsDir = path.join(testDir, ".claude", "skills");
+
+    // Create initial config
+    await fs.writeFile(
+      path.join(testDir, ".nori-config.json"),
+      JSON.stringify({
+        profile: {
+          baseProfile: "senior-swe",
+        },
+      }),
+    );
+
+    // Create skills directory
+    await fs.mkdir(skillsDir, { recursive: true });
+  });
+
+  afterEach(async () => {
+    vi.clearAllMocks();
+    if (testDir) {
+      await fs.rm(testDir, { recursive: true, force: true });
+    }
+  });
+
+  describe("namespace parsing", () => {
+    it("should parse org/skill-name format and download from org registry", async () => {
+      const orgRegistryUrl = "https://myorg.noriskillsets.dev";
+
+      // Mock config with unified auth
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        registryAuths: [],
+        auth: {
+          username: "testuser",
+          organizationUrl: "https://noriskillsets.dev",
+          refreshToken: "test-refresh-token",
+          organizations: ["myorg", "public"],
+        },
+      });
+
+      // Mock auth token
+      vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
+
+      // Skill exists in org registry
+      vi.mocked(registrarApi.getSkillPackument).mockResolvedValue({
+        name: "my-skill",
+        "dist-tags": { latest: "1.0.0" },
+        versions: { "1.0.0": { name: "my-skill", version: "1.0.0" } },
+      });
+
+      const mockTarball = await createMockSkillTarball();
+      vi.mocked(registrarApi.downloadSkillTarball).mockResolvedValue(
+        mockTarball,
+      );
+
+      await skillDownloadMain({
+        skillSpec: "myorg/my-skill",
+        cwd: testDir,
+      });
+
+      // Verify API was called with org registry URL
+      expect(registrarApi.getSkillPackument).toHaveBeenCalledWith({
+        skillName: "my-skill",
+        registryUrl: orgRegistryUrl,
+        authToken: "mock-auth-token",
+      });
+
+      // Verify download was from org registry
+      expect(registrarApi.downloadSkillTarball).toHaveBeenCalledWith({
+        skillName: "my-skill",
+        version: undefined,
+        registryUrl: orgRegistryUrl,
+        authToken: "mock-auth-token",
+      });
+
+      // Verify skill was installed to FLAT directory (not nested by org)
+      const skillDir = path.join(skillsDir, "my-skill");
+      const stats = await fs.stat(skillDir);
+      expect(stats.isDirectory()).toBe(true);
+
+      // Verify .nori-version includes orgId
+      const versionFilePath = path.join(skillDir, ".nori-version");
+      const versionFileContent = await fs.readFile(versionFilePath, "utf-8");
+      const versionInfo = JSON.parse(versionFileContent);
+      expect(versionInfo.orgId).toBe("myorg");
+      expect(versionInfo.version).toBe("1.0.0");
+      expect(versionInfo.registryUrl).toBe(orgRegistryUrl);
+    });
+
+    it("should parse org/skill-name@version format", async () => {
+      const orgRegistryUrl = "https://myorg.noriskillsets.dev";
+
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        registryAuths: [],
+        auth: {
+          username: "testuser",
+          organizationUrl: "https://noriskillsets.dev",
+          refreshToken: "test-refresh-token",
+          organizations: ["myorg", "public"],
+        },
+      });
+
+      vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
+
+      vi.mocked(registrarApi.getSkillPackument).mockResolvedValue({
+        name: "my-skill",
+        "dist-tags": { latest: "2.0.0" },
+        versions: {
+          "1.0.0": { name: "my-skill", version: "1.0.0" },
+          "2.0.0": { name: "my-skill", version: "2.0.0" },
+        },
+      });
+
+      const mockTarball = await createMockSkillTarball();
+      vi.mocked(registrarApi.downloadSkillTarball).mockResolvedValue(
+        mockTarball,
+      );
+
+      await skillDownloadMain({
+        skillSpec: "myorg/my-skill@1.0.0",
+        cwd: testDir,
+      });
+
+      // Verify download was called with specific version
+      expect(registrarApi.downloadSkillTarball).toHaveBeenCalledWith({
+        skillName: "my-skill",
+        version: "1.0.0",
+        registryUrl: orgRegistryUrl,
+        authToken: "mock-auth-token",
+      });
+    });
+  });
+
+  describe("unified auth and org access", () => {
+    it("should error when user does not have access to org", async () => {
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        registryAuths: [],
+        auth: {
+          username: "testuser",
+          organizationUrl: "https://noriskillsets.dev",
+          refreshToken: "test-refresh-token",
+          organizations: ["other-org", "public"], // Does NOT include "myorg"
+        },
+      });
+
+      await skillDownloadMain({
+        skillSpec: "myorg/my-skill",
+        cwd: testDir,
+      });
+
+      // Verify error message about no access to org
+      const allErrorOutput = mockConsoleError.mock.calls
+        .map((call) => call.join(" "))
+        .join("\n");
+      expect(allErrorOutput).toContain("myorg");
+      expect(allErrorOutput.toLowerCase()).toContain("access");
+
+      // Verify no download occurred
+      expect(registrarApi.downloadSkillTarball).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("namespace and --registry conflict", () => {
+    it("should error when namespace is specified with --registry flag", async () => {
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        registryAuths: [],
+        auth: {
+          username: "testuser",
+          organizationUrl: "https://noriskillsets.dev",
+          refreshToken: "test-refresh-token",
+          organizations: ["myorg", "public"],
+        },
+      });
+
+      await skillDownloadMain({
+        skillSpec: "myorg/my-skill",
+        registryUrl: "https://other.registry.com",
+        cwd: testDir,
+      });
+
+      // Verify error about conflicting options
+      const allErrorOutput = mockConsoleError.mock.calls
+        .map((call) => call.join(" "))
+        .join("\n");
+      expect(allErrorOutput.toLowerCase()).toMatch(
+        /namespace.*registry|registry.*namespace|cannot.*both/i,
+      );
+
+      // Verify no download occurred
+      expect(registrarApi.downloadSkillTarball).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("display names in messages", () => {
+    it("should show namespaced format in success messages", async () => {
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        registryAuths: [],
+        auth: {
+          username: "testuser",
+          organizationUrl: "https://noriskillsets.dev",
+          refreshToken: "test-refresh-token",
+          organizations: ["myorg", "public"],
+        },
+      });
+
+      vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
+
+      vi.mocked(registrarApi.getSkillPackument).mockResolvedValue({
+        name: "my-skill",
+        "dist-tags": { latest: "1.0.0" },
+        versions: { "1.0.0": { name: "my-skill", version: "1.0.0" } },
+      });
+
+      const mockTarball = await createMockSkillTarball();
+      vi.mocked(registrarApi.downloadSkillTarball).mockResolvedValue(
+        mockTarball,
+      );
+
+      await skillDownloadMain({
+        skillSpec: "myorg/my-skill",
+        cwd: testDir,
+      });
+
+      // Verify success message includes namespaced format
+      const allOutput = mockConsoleLog.mock.calls
+        .map((call) => call.join(" "))
+        .join("\n");
+      expect(allOutput).toContain("myorg/my-skill");
+    });
+  });
+});
+
 /**
  * Creates a minimal mock skill tarball for testing
  * @param args - The tarball options
