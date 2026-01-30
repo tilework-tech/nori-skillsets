@@ -16,6 +16,7 @@ import { registryInstallMain } from "@/cli/commands/registry-install/registryIns
 import { registrySearchMain } from "@/cli/commands/registry-search/registrySearch.js";
 import { skillDownloadMain } from "@/cli/commands/skill-download/skillDownload.js";
 import { switchSkillsetAction } from "@/cli/commands/switch-profile/profiles.js";
+import { watchMain, watchStopMain } from "@/cli/commands/watch/watch.js";
 
 import type { Command } from "commander";
 
@@ -183,10 +184,18 @@ export const registerNoriSkillsetsDownloadSkillCommand = (args: {
       "--list-versions",
       "List available versions for the skill instead of downloading",
     )
+    .option(
+      "--skillset <name>",
+      "Add skill to the specified skillset's manifest (defaults to active skillset)",
+    )
     .action(
       async (
         skillSpec: string,
-        options: { registry?: string; listVersions?: boolean },
+        options: {
+          registry?: string;
+          listVersions?: boolean;
+          skillset?: string;
+        },
       ) => {
         const globalOpts = program.opts();
 
@@ -195,6 +204,7 @@ export const registerNoriSkillsetsDownloadSkillCommand = (args: {
           installDir: globalOpts.installDir || null,
           registryUrl: options.registry || null,
           listVersions: options.listVersions || null,
+          skillset: options.skillset || null,
           cliName: "nori-skillsets",
         });
       },
@@ -220,6 +230,37 @@ export const registerNoriSkillsetsListSkillsetsCommand = (args: {
         installDir: globalOpts.installDir || null,
         agent: globalOpts.agent || null,
       });
+    });
+};
+
+/**
+ * Register the 'watch' command for nori-skillsets CLI
+ * @param args - Configuration arguments
+ * @param args.program - Commander program instance
+ */
+export const registerNoriSkillsetsWatchCommand = (args: {
+  program: Command;
+}): void => {
+  const { program } = args;
+
+  const watchCmd = program
+    .command("watch")
+    .description(
+      "Watch Claude Code sessions and save transcripts to ~/.nori/transcripts/",
+    )
+    .option("-a, --agent <name>", "Agent to watch", "claude-code")
+    .action(async (options: { agent: string }) => {
+      await watchMain({
+        agent: options.agent,
+        daemon: true,
+      });
+    });
+
+  watchCmd
+    .command("stop")
+    .description("Stop the watch daemon")
+    .action(async () => {
+      await watchStopMain({ quiet: false });
     });
 };
 

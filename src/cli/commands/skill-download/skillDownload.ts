@@ -26,8 +26,12 @@ import {
 import { addSkillToNoriJson } from "@/cli/features/claude-code/profiles/metadata.js";
 import { addSkillDependency } from "@/cli/features/claude-code/profiles/skills/resolver.js";
 import { substituteTemplatePaths } from "@/cli/features/claude-code/template.js";
-import { error, success, info, newline, raw } from "@/cli/logger.js";
+import { error, success, info, newline, raw, warn } from "@/cli/logger.js";
 import { getInstallDirs } from "@/utils/path.js";
+import {
+  parseNamespacedPackage,
+  buildOrganizationRegistryUrl,
+} from "@/utils/url.js";
 
 import type { Packument } from "@/api/registrar.js";
 import type { Config } from "@/cli/config.js";
@@ -39,6 +43,7 @@ import type { Command } from "commander";
 type VersionInfo = {
   version: string;
   registryUrl: string;
+  orgId?: string | null;
 };
 
 /**
@@ -60,30 +65,6 @@ const readVersionInfo = async (args: {
   } catch {
     return null;
   }
-};
-
-/**
- * Parse skill name and optional version from skill spec
- * Supports formats: "skill-name" or "skill-name@1.0.0"
- * @param args - The parsing parameters
- * @param args.skillSpec - Skill specification string
- *
- * @returns Parsed skill name and optional version
- */
-const parseSkillSpec = (args: {
-  skillSpec: string;
-}): { skillName: string; version?: string | null } => {
-  const { skillSpec } = args;
-  const match = skillSpec.match(/^([a-z0-9-]+)(?:@(\d+\.\d+\.\d+.*))?$/i);
-
-  if (!match) {
-    return { skillName: skillSpec, version: null };
-  }
-
-  return {
-    skillName: match[1],
-    version: match[2] ?? null,
-  };
 };
 
 /**
@@ -432,7 +413,26 @@ export const skillDownloadMain = async (args: {
   const commandNames = getCommandNames({ cliName });
   const cliPrefix = cliName ?? "nori-ai";
 
-  const { skillName, version } = parseSkillSpec({ skillSpec });
+  // Parse the namespaced skill spec (e.g., "myorg/my-skill@1.0.0")
+  const parsed = parseNamespacedPackage({ packageSpec: skillSpec });
+  if (parsed == null) {
+    error({
+      message: `Invalid skill specification: "${skillSpec}".\nExpected format: skill-name or org/skill-name[@version]`,
+    });
+    return;
+  }
+  const { orgId, packageName: skillName, version } = parsed;
+  // Display name includes org prefix for namespaced packages (e.g., "myorg/my-skill")
+  const skillDisplayName =
+    orgId === "public" ? skillName : `${orgId}/${skillName}`;
+
+  // Check for namespace/registry conflict
+  if (orgId !== "public" && registryUrl != null) {
+    error({
+      message: `Cannot specify both namespace and --registry flag.\n\nThe namespace "${orgId}/" determines the registry automatically.\nUse either "${skillDisplayName}" (derived registry) or "${skillName} --registry ${registryUrl}" (explicit registry).`,
+    });
+    return;
+  }
 
   // Find installation directory
   // If installDir is provided, use it; otherwise check for existing installations
@@ -521,6 +521,12 @@ export const skillDownloadMain = async (args: {
   // Search for the skill
   let searchResults: Array<RegistrySearchResult>;
 
+  // Check if using unified auth with organizations (new flow)
+  const hasUnifiedAuthWithOrgs =
+    config?.auth != null &&
+    config.auth.refreshToken != null &&
+    config.auth.organizations != null;
+
   if (registryUrl != null) {
     // User specified a specific registry
     // Check if private registry requires auth
@@ -541,15 +547,54 @@ export const skillDownloadMain = async (args: {
       config,
     });
     searchResults = result != null ? [result] : [];
+  } else if (hasUnifiedAuthWithOrgs) {
+    // New flow: derive registry from namespace
+    const targetRegistryUrl = buildOrganizationRegistryUrl({ orgId });
+    const userOrgs = config.auth!.organizations!;
+
+    // Check if user has access to this org
+    if (!userOrgs.includes(orgId)) {
+      error({
+        message: `You do not have access to organization "${orgId}".\n\nCannot download "${skillDisplayName}" from ${targetRegistryUrl}.\n\nYour available organizations: ${userOrgs.length > 0 ? userOrgs.join(", ") : "(none)"}`,
+      });
+      return;
+    }
+
+    // Get auth token for the org registry
+    const registryAuth = {
+      registryUrl: targetRegistryUrl,
+      username: config.auth!.username,
+      refreshToken: config.auth!.refreshToken,
+    };
+
+    try {
+      const authToken = await getRegistryAuthToken({ registryAuth });
+      const packument = await registrarApi.getSkillPackument({
+        skillName,
+        registryUrl: targetRegistryUrl,
+        authToken,
+      });
+
+      searchResults = [
+        {
+          registryUrl: targetRegistryUrl,
+          packument,
+          authToken,
+        },
+      ];
+    } catch {
+      // Skill not found in org registry
+      searchResults = [];
+    }
   } else {
-    // Search all registries
+    // Legacy flow: Search all registries
     searchResults = await searchAllRegistries({ skillName, config });
   }
 
   // Handle search results
   if (searchResults.length === 0) {
     error({
-      message: `Skill "${skillName}" not found in any registry.`,
+      message: `Skill "${skillDisplayName}" not found in any registry.`,
     });
     return;
   }
@@ -590,9 +635,21 @@ export const skillDownloadMain = async (args: {
     if (existingVersionInfo == null) {
       // Skill exists but has no .nori-version - manual install
       error({
-        message: `Skill "${skillName}" already exists at:\n${targetDir}\n\nThis skill has no version information (.nori-version file).\nIt may have been installed manually or with an older version of Nori.\n\nTo reinstall:\n  rm -rf "${targetDir}"\n  ${cliPrefix} ${commandNames.downloadSkill} ${skillName}`,
+        message: `Skill "${skillDisplayName}" already exists at:\n${targetDir}\n\nThis skill has no version information (.nori-version file).\nIt may have been installed manually or with an older version of Nori.\n\nTo reinstall:\n  rm -rf "${targetDir}"\n  ${cliPrefix} ${commandNames.downloadSkill} ${skillDisplayName}`,
       });
       return;
+    }
+
+    // Check for org collision - warn if installing from different org
+    const existingOrgId = existingVersionInfo.orgId ?? "public";
+    if (existingOrgId !== orgId) {
+      const existingDisplayName =
+        existingOrgId === "public"
+          ? skillName
+          : `${existingOrgId}/${skillName}`;
+      warn({
+        message: `Warning: Skill "${skillName}" is currently installed from "${existingDisplayName}" (${existingOrgId}).\nThis will be overwritten with "${skillDisplayName}" (${orgId}).`,
+      });
     }
 
     const installedVersion = existingVersionInfo.version;
@@ -606,23 +663,23 @@ export const skillDownloadMain = async (args: {
         // Already at same or newer version
         if (installedVersion === targetVersion) {
           success({
-            message: `Skill "${skillName}" is already at version ${installedVersion}.`,
+            message: `Skill "${skillDisplayName}" is already at version ${installedVersion}.`,
           });
         } else {
           success({
-            message: `Skill "${skillName}" is already at version ${installedVersion} (requested ${targetVersion}).`,
+            message: `Skill "${skillDisplayName}" is already at version ${installedVersion} (requested ${targetVersion}).`,
           });
         }
         return;
       }
       // Newer version available - will proceed to update
       info({
-        message: `Updating skill "${skillName}" from ${installedVersion} to ${targetVersion}...`,
+        message: `Updating skill "${skillDisplayName}" from ${installedVersion} to ${targetVersion}...`,
       });
     } else if (installedVersion === targetVersion) {
       // Fallback for non-semver versions
       success({
-        message: `Skill "${skillName}" is already at version ${installedVersion}.`,
+        message: `Skill "${skillDisplayName}" is already at version ${installedVersion}.`,
       });
       return;
     }
@@ -631,7 +688,7 @@ export const skillDownloadMain = async (args: {
   // Download and extract the tarball
   try {
     if (!skillExists) {
-      info({ message: `Downloading skill "${skillName}"...` });
+      info({ message: `Downloading skill "${skillDisplayName}"...` });
     }
 
     const tarballData = await registrarApi.downloadSkillTarball({
@@ -714,6 +771,7 @@ export const skillDownloadMain = async (args: {
       {
         version: targetVersion,
         registryUrl: selectedRegistry.registryUrl,
+        orgId,
       },
       null,
       2,
@@ -753,11 +811,11 @@ export const skillDownloadMain = async (args: {
     newline();
     if (skillExists) {
       success({
-        message: `Updated skill "${skillName}" to ${targetVersion}`,
+        message: `Updated skill "${skillDisplayName}" to ${targetVersion}`,
       });
     } else {
       success({
-        message: `Downloaded and installed skill "${skillName}"${versionStr}`,
+        message: `Downloaded and installed skill "${skillDisplayName}"${versionStr}`,
       });
     }
     info({ message: `Installed to: ${targetDir}` });
@@ -772,7 +830,7 @@ export const skillDownloadMain = async (args: {
           version: "*",
         });
         info({
-          message: `Added "${skillName}" to ${targetSkillset} skillset manifest`,
+          message: `Added "${skillDisplayName}" to ${targetSkillset} skillset manifest`,
         });
       } catch (manifestErr) {
         // Don't fail the download if manifest update fails
@@ -815,12 +873,12 @@ export const skillDownloadMain = async (args: {
 
     newline();
     info({
-      message: `Skill "${skillName}" is now available in your Claude Code profile.`,
+      message: `Skill "${skillDisplayName}" is now available in your Claude Code profile.`,
     });
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
     error({
-      message: `Failed to download skill "${skillName}": ${errorMessage}`,
+      message: `Failed to download skill "${skillDisplayName}": ${errorMessage}`,
     });
   }
 };
