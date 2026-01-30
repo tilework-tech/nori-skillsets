@@ -61,6 +61,7 @@ src/cli/
     registry-upload/     # Upload to registrar
     skill-download/      # Download a skill from registrar
     skill-upload/        # Upload a skill to registrar
+    watch/               # Monitor Claude Code sessions and save transcripts
 ```
 
 **CLI Commands:**
@@ -82,10 +83,11 @@ src/cli/
 | `skill-search` | | commands/skill-search/skillSearch.ts | Search for skills in the Nori registrar |
 | `skill-download` | `download-skill` | commands/skill-download/skillDownload.ts | Download a skill from the Nori registrar |
 | `skill-upload` | | commands/skill-upload/skillUpload.ts | Upload a skill to the Nori registrar |
+| | `watch`, `watch stop` | commands/watch/watch.ts | Monitor Claude Code sessions and save transcripts |
 | | `login` | commands/login/login.ts | Authenticate with noriskillsets.dev |
 | | `logout` | commands/logout/logout.ts | Clear stored authentication credentials |
 
-The nori-skillsets CLI uses simplified command names (no `registry-` prefix for registry read operations, `download-skill` for skill downloads, `switch-skillset` for profile switching, and `init` for initialization). Upload, update, and onboard operations are only available via the nori-ai CLI. Both CLIs share the same underlying implementation functions - the nori-skillsets commands are thin wrappers defined in @/src/cli/commands/noriSkillsetsCommands.ts that delegate to the existing implementations (`*Main` functions from registry-*, skill-*, and init commands, plus `switchSkillsetAction` from profiles.ts).
+The nori-skillsets CLI uses simplified command names (no `registry-` prefix for registry read operations, `download-skill` for skill downloads, `switch-skillset` for profile switching, `init` for initialization, and `watch` for session monitoring). Upload, update, and onboard operations are only available via the nori-ai CLI. Both CLIs share the same underlying implementation functions - the nori-skillsets commands are thin wrappers defined in @/src/cli/commands/noriSkillsetsCommands.ts that delegate to the existing implementations (`*Main` functions from registry-*, skill-*, watch, and init commands, plus `switchSkillsetAction` from profiles.ts).
 
 Each command directory contains the command implementation, its tests, and any command-specific utilities (e.g., `install/` contains `asciiArt.ts` and `installState.ts`).
 
