@@ -31,6 +31,10 @@ import { getRegistryAuth } from "@/cli/config.js";
 import { getNoriProfilesDir } from "@/cli/features/claude-code/paths.js";
 import { error, success, info, newline, raw } from "@/cli/logger.js";
 import { getInstallDirs } from "@/utils/path.js";
+import {
+  parseNamespacedPackage,
+  buildOrganizationRegistryUrl,
+} from "@/utils/url.js";
 
 import type { Config } from "@/cli/config.js";
 import type { Command } from "commander";
@@ -248,30 +252,6 @@ const downloadSkillDependencies = async (args: {
       authToken,
     });
   }
-};
-
-/**
- * Parse package name and optional version from package spec
- * Supports formats: "package-name" or "package-name@1.0.0"
- * @param args - The parsing parameters
- * @param args.packageSpec - Package specification string
- *
- * @returns Parsed package name and optional version
- */
-const parsePackageSpec = (args: {
-  packageSpec: string;
-}): { packageName: string; version?: string | null } => {
-  const { packageSpec } = args;
-  const match = packageSpec.match(/^([a-z0-9-]+)(?:@(\d+\.\d+\.\d+.*))?$/i);
-
-  if (!match) {
-    return { packageName: packageSpec, version: null };
-  }
-
-  return {
-    packageName: match[1],
-    version: match[2] ?? null,
-  };
 };
 
 /**
@@ -568,7 +548,18 @@ export const registryDownloadMain = async (args: {
   const commandNames = getCommandNames({ cliName });
   const cliPrefix = cliName ?? "nori-ai";
 
-  const { packageName, version } = parsePackageSpec({ packageSpec });
+  // Parse the namespaced package spec (e.g., "myorg/my-profile@1.0.0")
+  const parsed = parseNamespacedPackage({ packageSpec });
+  if (parsed == null) {
+    error({
+      message: `Invalid package specification: "${packageSpec}".\nExpected format: profile-name or org/profile-name[@version]`,
+    });
+    return { success: false };
+  }
+  const { orgId, packageName, version } = parsed;
+  // Display name includes org prefix for namespaced packages (e.g., "myorg/my-profile")
+  const profileDisplayName =
+    orgId === "public" ? packageName : `${orgId}/${packageName}`;
 
   // Find installation directory
   let targetInstallDir: string;
@@ -642,7 +633,11 @@ export const registryDownloadMain = async (args: {
   const config = agentCheck.config;
 
   const profilesDir = getNoriProfilesDir({ installDir: targetInstallDir });
-  const targetDir = path.join(profilesDir, packageName);
+  // For namespaced packages, the profile is in a nested directory (e.g., profiles/myorg/my-profile)
+  const targetDir =
+    orgId === "public"
+      ? path.join(profilesDir, packageName)
+      : path.join(profilesDir, orgId, packageName);
 
   // Check if profile already exists and get its version info
   let existingVersionInfo: VersionInfo | null = null;
@@ -658,17 +653,42 @@ export const registryDownloadMain = async (args: {
   // Search for the package
   let searchResults: Array<RegistrySearchResult>;
 
+  // Check if using unified auth with organizations (new flow)
+  const hasUnifiedAuthWithOrgs =
+    config?.auth != null &&
+    config.auth.refreshToken != null &&
+    config.auth.organizations != null;
+
   if (registryUrl != null) {
     // User specified a specific registry
-    // Check if private registry requires auth
-    if (registryUrl !== REGISTRAR_URL) {
-      const registryAuth =
-        config != null ? getRegistryAuth({ config, registryUrl }) : null;
-      if (registryAuth == null) {
-        error({
-          message: `No authentication configured for registry: ${registryUrl}\n\nAdd registry credentials to your .nori-config.json file.`,
-        });
-        return { success: false };
+    // Check if private registry requires auth (not public org registries)
+    const publicRegistryUrl = buildOrganizationRegistryUrl({ orgId: "public" });
+    if (registryUrl !== REGISTRAR_URL && registryUrl !== publicRegistryUrl) {
+      // Check unified auth first
+      let hasAuth = false;
+      if (hasUnifiedAuthWithOrgs) {
+        // Check if any org registry matches
+        const userOrgs = config.auth!.organizations!;
+        for (const userOrgId of userOrgs) {
+          const orgRegistryUrl = buildOrganizationRegistryUrl({
+            orgId: userOrgId,
+          });
+          if (orgRegistryUrl === registryUrl) {
+            hasAuth = true;
+            break;
+          }
+        }
+      }
+      // Fall back to legacy registryAuths
+      if (!hasAuth) {
+        const registryAuth =
+          config != null ? getRegistryAuth({ config, registryUrl }) : null;
+        if (registryAuth == null) {
+          error({
+            message: `No authentication configured for registry: ${registryUrl}\n\nAdd registry credentials to your .nori-config.json file.`,
+          });
+          return { success: false };
+        }
       }
     }
 
@@ -678,15 +698,56 @@ export const registryDownloadMain = async (args: {
       config,
     });
     searchResults = result != null ? [result] : [];
+  } else if (hasUnifiedAuthWithOrgs) {
+    // New flow: derive registry from namespace
+    const targetRegistryUrl = buildOrganizationRegistryUrl({ orgId });
+    const userOrgs = config.auth!.organizations!;
+
+    // Check if user has access to this org
+    if (!userOrgs.includes(orgId)) {
+      const displayName =
+        orgId === "public" ? packageName : `${orgId}/${packageName}`;
+      error({
+        message: `You do not have access to organization "${orgId}".\n\nCannot download "${displayName}" from ${targetRegistryUrl}.\n\nYour available organizations: ${userOrgs.length > 0 ? userOrgs.join(", ") : "(none)"}`,
+      });
+      return { success: false };
+    }
+
+    // Get auth token for the org registry
+    const registryAuth = {
+      registryUrl: targetRegistryUrl,
+      username: config.auth!.username,
+      refreshToken: config.auth!.refreshToken,
+    };
+
+    try {
+      const authToken = await getRegistryAuthToken({ registryAuth });
+      const packument = await registrarApi.getPackument({
+        packageName,
+        registryUrl: targetRegistryUrl,
+        authToken,
+      });
+
+      searchResults = [
+        {
+          registryUrl: targetRegistryUrl,
+          packument,
+          authToken,
+        },
+      ];
+    } catch {
+      // Package not found in org registry
+      searchResults = [];
+    }
   } else {
-    // Search all registries
+    // Legacy flow: Search all registries
     searchResults = await searchAllRegistries({ packageName, config });
   }
 
   // Handle search results
   if (searchResults.length === 0) {
     error({
-      message: `Profile "${packageName}" not found in any registry.`,
+      message: `Profile "${profileDisplayName}" not found in any registry.`,
     });
     return { success: false };
   }
@@ -790,7 +851,7 @@ export const registryDownloadMain = async (args: {
   // Download and extract the tarball
   try {
     if (!profileExists) {
-      info({ message: `Downloading profile "${packageName}"...` });
+      info({ message: `Downloading profile "${profileDisplayName}"...` });
     }
 
     const tarballData = await registrarApi.downloadTarball({
@@ -885,24 +946,24 @@ export const registryDownloadMain = async (args: {
     newline();
     if (profileExists) {
       success({
-        message: `Updated profile "${packageName}" to ${targetVersion}`,
+        message: `Updated profile "${profileDisplayName}" to ${targetVersion}`,
       });
     } else {
       success({
-        message: `Downloaded and installed profile "${packageName}"${versionStr}`,
+        message: `Downloaded and installed profile "${profileDisplayName}"${versionStr}`,
       });
     }
     info({ message: `Installed to: ${targetDir}` });
     newline();
     info({
-      message: `You can now use this profile with '${cliPrefix} ${commandNames.switchProfile} ${packageName}'.`,
+      message: `You can now use this profile with '${cliPrefix} ${commandNames.switchProfile} ${profileDisplayName}'.`,
     });
 
     return { success: true };
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
     error({
-      message: `Failed to download profile "${packageName}": ${errorMessage}`,
+      message: `Failed to download profile "${profileDisplayName}": ${errorMessage}`,
     });
     return { success: false };
   }

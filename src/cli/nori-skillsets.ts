@@ -15,6 +15,8 @@ import {
   registerNoriSkillsetsInitCommand,
   registerNoriSkillsetsInstallCommand,
   registerNoriSkillsetsListSkillsetsCommand,
+  registerNoriSkillsetsLoginCommand,
+  registerNoriSkillsetsLogoutCommand,
   registerNoriSkillsetsSearchCommand,
   registerNoriSkillsetsSwitchSkillsetCommand,
   registerNoriSkillsetsWatchCommand,
@@ -53,6 +55,8 @@ program
     "after",
     `
 Examples:
+  $ nori-skillsets login
+  $ nori-skillsets logout
   $ nori-skillsets init
   $ nori-skillsets search typescript  # searches both profiles and skills
   $ nori-skillsets download my-profile
@@ -71,6 +75,8 @@ Examples:
   );
 
 // Register simplified commands for nori-skillsets CLI
+registerNoriSkillsetsLoginCommand({ program });
+registerNoriSkillsetsLogoutCommand({ program });
 registerNoriSkillsetsInitCommand({ program });
 registerNoriSkillsetsSearchCommand({ program });
 registerNoriSkillsetsDownloadCommand({ program });

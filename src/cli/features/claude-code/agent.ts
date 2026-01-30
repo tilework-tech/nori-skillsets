@@ -74,10 +74,37 @@ export const claudeCodeAgent: Agent = {
             INSTRUCTIONS_FILE,
           );
           try {
+            // Check if this is a flat profile (has CLAUDE.md directly)
             await fs.access(instructionsPath);
             profiles.push(entry.name);
           } catch {
-            // Skip directories without instructions file
+            // Not a flat profile - check if it's an org directory with nested profiles
+            // Org directories contain subdirectories with CLAUDE.md files
+            try {
+              const orgDir = path.join(profilesDir, entry.name);
+              const subEntries = await fs.readdir(orgDir, {
+                withFileTypes: true,
+              });
+
+              for (const subEntry of subEntries) {
+                if (subEntry.isDirectory()) {
+                  const nestedInstructionsPath = path.join(
+                    orgDir,
+                    subEntry.name,
+                    INSTRUCTIONS_FILE,
+                  );
+                  try {
+                    await fs.access(nestedInstructionsPath);
+                    // Found a nested profile - use org/profile format
+                    profiles.push(`${entry.name}/${subEntry.name}`);
+                  } catch {
+                    // Skip subdirectories without instructions file
+                  }
+                }
+              }
+            } catch {
+              // Skip directories that can't be read
+            }
           }
         }
       }
@@ -149,6 +176,8 @@ export const claudeCodeAgent: Agent = {
     const profilesDir = getProfilesDir({ installDir });
 
     // Verify profile exists
+    // profileName can be flat (e.g., "senior-swe") or namespaced (e.g., "myorg/my-profile")
+    // path.join handles both cases correctly since it just joins the path components
     const profileDir = path.join(profilesDir, profileName);
     const instructionsPath = path.join(profileDir, INSTRUCTIONS_FILE);
 

@@ -97,6 +97,31 @@ export const buildRegistryUrl = (args: { orgId: string }): string => {
 };
 
 /**
+ * Build Organization Registry URL from organization ID
+ * Uses noriskillsets.dev domain. "public" org maps to apex domain.
+ * @param args - Build arguments
+ * @param args.orgId - The organization ID ("public" for public registry)
+ *
+ * @returns The full Registry URL
+ *
+ * @example
+ * buildOrganizationRegistryUrl({ orgId: "public" })
+ * // Returns: "https://noriskillsets.dev"
+ * @example
+ * buildOrganizationRegistryUrl({ orgId: "myorg" })
+ * // Returns: "https://myorg.noriskillsets.dev"
+ */
+export const buildOrganizationRegistryUrl = (args: {
+  orgId: string;
+}): string => {
+  const { orgId } = args;
+  if (orgId === "public") {
+    return "https://noriskillsets.dev";
+  }
+  return `https://${orgId}.noriskillsets.dev`;
+};
+
+/**
  * Check if a string is a valid URL
  * @param args - Validation arguments
  * @param args.input - The string to check
@@ -154,9 +179,85 @@ export const extractOrgId = (args: { url: string }): string | null => {
       return isValidOrgId({ orgId }) ? orgId : null;
     }
 
+    // Check for Organization Registry URL pattern: noriskillsets.dev or {orgId}.noriskillsets.dev
+    if (hostname === "noriskillsets.dev") {
+      return "public";
+    }
+    if (hostname.endsWith(".noriskillsets.dev")) {
+      const orgId = hostname.replace(".noriskillsets.dev", "");
+      return isValidOrgId({ orgId }) ? orgId : null;
+    }
+
     // Not a recognized Nori service URL (e.g., localhost for local dev)
     return null;
   } catch {
     return null;
   }
+};
+
+/**
+ * Result of parsing a namespaced package specification
+ */
+export type ParsedNamespacedPackage = {
+  orgId: string;
+  packageName: string;
+  version: string | null;
+};
+
+/**
+ * Parse a namespaced package specification into org, name, and version
+ * Supports formats: "package-name", "package-name@1.0.0", "org/package-name", "org/package-name@1.0.0"
+ * Non-namespaced packages are treated as belonging to "public" org
+ *
+ * @param args - Parsing arguments
+ * @param args.packageSpec - The package specification string
+ *
+ * @returns Parsed package info, or null if invalid format
+ *
+ * @example
+ * parseNamespacedPackage({ packageSpec: "my-profile" })
+ * // Returns: { orgId: "public", packageName: "my-profile", version: null }
+ * @example
+ * parseNamespacedPackage({ packageSpec: "myorg/my-profile@1.0.0" })
+ * // Returns: { orgId: "myorg", packageName: "my-profile", version: "1.0.0" }
+ */
+export const parseNamespacedPackage = (args: {
+  packageSpec: string;
+}): ParsedNamespacedPackage | null => {
+  const { packageSpec } = args;
+
+  if (packageSpec.length === 0) {
+    return null;
+  }
+
+  // Check for multiple slashes (invalid)
+  const slashCount = (packageSpec.match(/\//g) || []).length;
+  if (slashCount > 1) {
+    return null;
+  }
+
+  // Pattern: optional org/ prefix, package name, optional @version
+  // org: lowercase alphanumeric with hyphens
+  // package: lowercase alphanumeric with hyphens
+  // version: semver-like (digits, dots, hyphens, alphanumeric)
+  const pattern =
+    /^(?:([a-z0-9]+(?:-[a-z0-9]+)*)\/)?([a-z0-9]+(?:-[a-z0-9]+)*)(?:@(\d+\.\d+\.\d+.*))?$/;
+  const match = packageSpec.match(pattern);
+
+  if (match == null) {
+    return null;
+  }
+
+  const [, orgId, packageName, version] = match;
+
+  // Validate org ID if present
+  if (orgId != null && !isValidOrgId({ orgId })) {
+    return null;
+  }
+
+  return {
+    orgId: orgId ?? "public",
+    packageName,
+    version: version ?? null,
+  };
 };

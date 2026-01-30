@@ -251,6 +251,66 @@ describe("AgentRegistry", () => {
       expect(profiles).not.toContain("invalid-profile");
       expect(profiles.length).toBe(2);
     });
+
+    test("returns namespaced profiles in nested directories", async () => {
+      const profilesDir = path.join(testInstallDir, ".nori", "profiles");
+
+      // Create flat profile (e.g., profiles/amol)
+      const flatDir = path.join(profilesDir, "amol");
+      await fs.mkdir(flatDir, { recursive: true });
+      await fs.writeFile(path.join(flatDir, "CLAUDE.md"), "# amol");
+
+      // Create org directory with nested profiles (e.g., profiles/myorg/my-profile)
+      const orgDir = path.join(profilesDir, "myorg");
+      const nestedProfile1 = path.join(orgDir, "my-profile");
+      const nestedProfile2 = path.join(orgDir, "other-profile");
+      await fs.mkdir(nestedProfile1, { recursive: true });
+      await fs.mkdir(nestedProfile2, { recursive: true });
+      await fs.writeFile(
+        path.join(nestedProfile1, "CLAUDE.md"),
+        "# myorg/my-profile",
+      );
+      await fs.writeFile(
+        path.join(nestedProfile2, "CLAUDE.md"),
+        "# myorg/other-profile",
+      );
+
+      const registry = AgentRegistry.getInstance();
+      const agent = registry.get({ name: "claude-code" });
+
+      const profiles = await agent.listProfiles({ installDir: testInstallDir });
+
+      expect(profiles).toContain("amol");
+      expect(profiles).toContain("myorg/my-profile");
+      expect(profiles).toContain("myorg/other-profile");
+      expect(profiles.length).toBe(3);
+    });
+
+    test("org directory without CLAUDE.md is treated as org, not profile", async () => {
+      const profilesDir = path.join(testInstallDir, ".nori", "profiles");
+
+      // Create org directory without CLAUDE.md but with nested profile
+      const orgDir = path.join(profilesDir, "myorg");
+      const nestedProfile = path.join(orgDir, "my-profile");
+      await fs.mkdir(nestedProfile, { recursive: true });
+      await fs.writeFile(
+        path.join(nestedProfile, "CLAUDE.md"),
+        "# myorg/my-profile",
+      );
+
+      // Also create readme.txt in org dir to simulate a non-profile directory
+      await fs.writeFile(path.join(orgDir, "readme.txt"), "org readme");
+
+      const registry = AgentRegistry.getInstance();
+      const agent = registry.get({ name: "claude-code" });
+
+      const profiles = await agent.listProfiles({ installDir: testInstallDir });
+
+      // Should only include the nested profile, not the org directory itself
+      expect(profiles).toContain("myorg/my-profile");
+      expect(profiles).not.toContain("myorg");
+      expect(profiles.length).toBe(1);
+    });
   });
 
   describe("claude-code agent listSourceProfiles", () => {
@@ -448,6 +508,39 @@ describe("AgentRegistry", () => {
           profileName: "non-existent",
         }),
       ).rejects.toThrow(/Profile "non-existent" not found/);
+    });
+
+    test("switches to namespaced profile in nested directory", async () => {
+      // Create org directory with nested profile (e.g., profiles/myorg/my-profile)
+      const profilesDir = path.join(testInstallDir, ".nori", "profiles");
+      const orgDir = path.join(profilesDir, "myorg");
+      const profileDir = path.join(orgDir, "my-profile");
+      await fs.mkdir(profileDir, { recursive: true });
+      await fs.writeFile(
+        path.join(profileDir, "CLAUDE.md"),
+        "# myorg/my-profile",
+      );
+
+      // Create initial config
+      const configPath = path.join(testInstallDir, ".nori-config.json");
+      await fs.writeFile(
+        configPath,
+        JSON.stringify({ profile: { baseProfile: "old-profile" } }),
+      );
+
+      const registry = AgentRegistry.getInstance();
+      const agent = registry.get({ name: "claude-code" });
+
+      await agent.switchProfile({
+        installDir: testInstallDir,
+        profileName: "myorg/my-profile",
+      });
+
+      // Verify config was updated with namespaced profile name
+      const updatedConfig = JSON.parse(await fs.readFile(configPath, "utf-8"));
+      expect(updatedConfig.agents?.["claude-code"]?.profile?.baseProfile).toBe(
+        "myorg/my-profile",
+      );
     });
   });
 });

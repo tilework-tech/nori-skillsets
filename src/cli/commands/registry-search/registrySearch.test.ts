@@ -46,7 +46,7 @@ const mockConsoleError = vi
   .spyOn(console, "error")
   .mockImplementation(() => undefined);
 
-import { registrarApi, REGISTRAR_URL } from "@/api/registrar.js";
+import { registrarApi } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
 import { loadConfig } from "@/cli/config.js";
 import { stripAnsi } from "@/cli/features/test-utils/index.js";
@@ -282,11 +282,11 @@ describe("registry-search", () => {
       const output = getAllOutput();
       expect(output).toContain("Profiles:");
       expect(output).toContain("good-profile");
-      expect(output.toLowerCase()).toContain("error");
-      expect(output).toContain("Skills API error");
+      // Errors are now hidden for cleaner output
+      expect(output).not.toContain("Skills API error");
     });
 
-    it("should show skills results and profiles error when profiles API fails", async () => {
+    it("should show skills results when profiles API fails", async () => {
       const mockSkills = [
         {
           id: "1",
@@ -313,8 +313,8 @@ describe("registry-search", () => {
       const output = getAllOutput();
       expect(output).toContain("Skills:");
       expect(output).toContain("good-skill");
-      expect(output.toLowerCase()).toContain("error");
-      expect(output).toContain("Profiles API error");
+      // Errors are now hidden for cleaner output
+      expect(output).not.toContain("Profiles API error");
     });
 
     it("should show both download hints when both types have results", async () => {
@@ -442,8 +442,8 @@ describe("registry-search", () => {
       // Should NOT search org registry since no auth
       expect(registrarApi.searchPackagesOnRegistry).not.toHaveBeenCalled();
       const output = getAllOutput();
-      expect(output).toContain(REGISTRAR_URL);
-      expect(output).toContain("-> public-profile");
+      expect(output).toContain("public:");
+      expect(output).toContain("public-profile");
     });
 
     it("should search public skills without auth when no org auth configured", async () => {
@@ -478,8 +478,8 @@ describe("registry-search", () => {
         }),
       );
       const output = getAllOutput();
-      expect(output).toContain(REGISTRAR_URL);
-      expect(output).toContain("-> public-skill");
+      expect(output).toContain("public:");
+      expect(output).toContain("public-skill");
     });
   });
 
@@ -530,10 +530,10 @@ describe("registry-search", () => {
       );
       const output = getAllOutput();
       // Org results should appear first (private first, then public)
-      expect(output).toContain("https://myorg.nori-registry.ai");
-      expect(output).toContain("-> org-profile");
-      expect(output).toContain(REGISTRAR_URL);
-      expect(output).toContain("-> public-profile");
+      expect(output).toContain("myorg:");
+      expect(output).toContain("myorg/org-profile");
+      expect(output).toContain("public:");
+      expect(output).toContain("public-profile");
     });
 
     it("should show org results before public results", async () => {
@@ -567,9 +567,9 @@ describe("registry-search", () => {
       await registrySearchMain({ query: "profile", installDir: testDir });
 
       const output = getAllOutput();
-      // Org registry URL should appear before public registry URL
-      const orgIndex = output.indexOf("https://myorg.nori-registry.ai");
-      const publicIndex = output.indexOf(REGISTRAR_URL);
+      // Org label should appear before public label
+      const orgIndex = output.indexOf("myorg:");
+      const publicIndex = output.indexOf("public:");
       expect(orgIndex).toBeLessThan(publicIndex);
     });
 
@@ -594,8 +594,8 @@ describe("registry-search", () => {
       await registrySearchMain({ query: "profile", installDir: testDir });
 
       const output = getAllOutput();
-      expect(output).toContain(REGISTRAR_URL);
-      expect(output).toContain("-> public-profile");
+      expect(output).toContain("public:");
+      expect(output).toContain("public-profile");
     });
 
     it("should show only org results when public search fails", async () => {
@@ -619,8 +619,8 @@ describe("registry-search", () => {
       await registrySearchMain({ query: "profile", installDir: testDir });
 
       const output = getAllOutput();
-      expect(output).toContain("https://myorg.nori-registry.ai");
-      expect(output).toContain("-> org-profile");
+      expect(output).toContain("myorg:");
+      expect(output).toContain("myorg/org-profile");
     });
 
     it("should show no results message when both registries return empty", async () => {

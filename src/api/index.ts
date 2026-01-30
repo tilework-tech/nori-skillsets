@@ -2,7 +2,6 @@ import { analyticsApi } from "@/api/analytics.js";
 import { artifactsApi } from "@/api/artifacts.js";
 import { apiRequest } from "@/api/base.js";
 import { conversationApi } from "@/api/conversation.js";
-import { noridocsApi } from "@/api/noridocs.js";
 import { queryApi } from "@/api/query.js";
 import { registrarApi } from "@/api/registrar.js";
 
@@ -30,7 +29,6 @@ export const apiClient = {
   analytics: analyticsApi,
   artifacts: artifactsApi,
   conversation: conversationApi,
-  noridocs: noridocsApi,
   query: queryApi,
   registrar: registrarApi,
   handshake,
@@ -42,14 +40,6 @@ export type {
   SummarizeRequest,
   SummarizeResponse,
 } from "@/api/conversation.js";
-export type {
-  Noridoc,
-  NoridocVersion,
-  CreateNoridocRequest,
-  UpdateNoridocRequest,
-  ListNoridocsRequest,
-  ListVersionsRequest,
-} from "@/api/noridocs.js";
 export { ConfigManager } from "@/api/base.js";
 export type {
   Package,

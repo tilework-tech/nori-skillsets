@@ -178,9 +178,8 @@ ${stderr || "(empty)"}`,
       // This test verifies that the bundle-skills.ts script correctly discovers
       // all paid skill script.js files in profile directories.
       //
-      // Expected: At least 5 paid-* prefixed script files (may be duplicated across profiles)
+      // Expected: 2 unique paid-* prefixed skill types (may be duplicated across profiles)
       // - paid-recall, paid-memorize
-      // - paid-read-noridoc, paid-write-noridoc, paid-list-noridocs
 
       const pluginDir = process.cwd();
       const buildDir = path.join(pluginDir, "build");
@@ -223,9 +222,9 @@ ${stderr || "(empty)"}`,
         }
       }
 
-      // Verify we found scripts and at least 5 unique paid skill types
+      // Verify we found scripts and at least 3 unique paid skill types
       expect(scriptPaths.length).toBeGreaterThan(0);
-      expect(uniqueSkillNames.size).toBe(5); // 5 unique paid-* skill types
+      expect(uniqueSkillNames.size).toBe(2); // 2 unique paid-* skill types
 
       // Verify each script file exists
       for (const scriptPath of scriptPaths) {

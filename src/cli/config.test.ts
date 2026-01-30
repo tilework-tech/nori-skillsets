@@ -93,6 +93,8 @@ describe("config with profile-based system", () => {
         password: "password123",
         refreshToken: null,
         organizationUrl: "https://example.com",
+        organizations: null,
+        isAdmin: null,
       });
       expect(loaded?.agents).toEqual({
         "claude-code": { profile: { baseProfile: "senior-swe" } },
@@ -114,6 +116,8 @@ describe("config with profile-based system", () => {
         password: "password123",
         refreshToken: null,
         organizationUrl: "https://example.com",
+        organizations: null,
+        isAdmin: null,
       });
       expect(loaded?.agents).toBeUndefined();
     });

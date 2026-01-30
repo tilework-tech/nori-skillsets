@@ -35,6 +35,10 @@ export type AuthCredentials = {
   refreshToken?: string | null;
   // Legacy password-based auth (deprecated, will be removed)
   password?: string | null;
+  // Organizations the user has access to
+  organizations?: Array<string> | null;
+  // Whether the user is an admin for their organization
+  isAdmin?: boolean | null;
 };
 
 /**
@@ -87,6 +91,8 @@ type RawDiskConfig = {
     password?: string | null;
     refreshToken?: string | null;
     organizationUrl?: string | null;
+    organizations?: Array<string> | null;
+    isAdmin?: boolean | null;
   } | null;
   // Common fields
   sendSessionTranscript?: "enabled" | "disabled" | null;
@@ -353,12 +359,14 @@ export const loadConfig = async (args: {
       validated.auth.username != null &&
       validated.auth.organizationUrl != null
     ) {
-      // New nested format: auth: { username, organizationUrl, refreshToken, password }
+      // New nested format: auth: { username, organizationUrl, refreshToken, password, organizations, isAdmin }
       result.auth = {
         username: validated.auth.username,
         organizationUrl: validated.auth.organizationUrl,
         refreshToken: validated.auth.refreshToken ?? null,
         password: validated.auth.password ?? null,
+        organizations: validated.auth.organizations ?? null,
+        isAdmin: validated.auth.isAdmin ?? null,
       };
     } else if (
       validated.username != null &&
@@ -414,12 +422,16 @@ export const loadConfig = async (args: {
  * @param args.registryAuths - Array of registry authentication credentials (null to skip)
  * @param args.agents - Per-agent configuration settings (null to skip). Keys indicate installed agents.
  * @param args.version - Installed version of Nori (null to skip)
+ * @param args.organizations - List of organizations the user has access to (null to skip)
+ * @param args.isAdmin - Whether the user is an admin for their organization (null to skip)
  */
 export const saveConfig = async (args: {
   username: string | null;
   password?: string | null;
   refreshToken?: string | null;
   organizationUrl: string | null;
+  organizations?: Array<string> | null;
+  isAdmin?: boolean | null;
   sendSessionTranscript?: "enabled" | "disabled" | null;
   autoupdate?: "enabled" | "disabled" | null;
   registryAuths?: Array<RegistryAuth> | null;
@@ -432,6 +444,8 @@ export const saveConfig = async (args: {
     password,
     refreshToken,
     organizationUrl,
+    organizations,
+    isAdmin,
     sendSessionTranscript,
     autoupdate,
     registryAuths,
@@ -456,6 +470,10 @@ export const saveConfig = async (args: {
       refreshToken: refreshToken ?? null,
       // Only save password if no refreshToken (legacy support)
       password: refreshToken != null ? null : (password ?? null),
+      // Organizations the user has access to
+      organizations: organizations ?? null,
+      // Admin status
+      isAdmin: isAdmin ?? null,
     };
   }
 
@@ -511,6 +529,11 @@ const configSchema = {
         password: { type: ["string", "null"] },
         refreshToken: { type: ["string", "null"] },
         organizationUrl: { type: "string", format: "uri" },
+        organizations: {
+          type: ["array", "null"],
+          items: { type: "string" },
+        },
+        isAdmin: { type: ["boolean", "null"] },
       },
       required: ["username", "organizationUrl"],
     },

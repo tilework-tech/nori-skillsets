@@ -4,11 +4,11 @@ Path: @/src/api
 
 ### Overview
 
-Client API for communicating with the Nori Profiles backend server, providing typed interfaces for artifacts, queries, conversation operations, analytics event tracking, noridocs management (with repository filtering), and the public Nori registrar (profile package registry).
+Client API for communicating with the Nori Profiles backend server, providing typed interfaces for artifacts, queries, conversation operations, analytics event tracking, and the public Nori registrar (profile package registry).
 
 ### How it fits into the larger codebase
 
-This folder contains the API client used by paid skills in paid skills in profile directories (e.g., paid-recall, paid-memorize) to communicate with @/server/src/endpoints. It mirrors the API structure in @/ui/src/api/apiClient but uses Firebase Authentication with cached tokens via @/src/providers/firebase.ts instead of direct Firebase UI integration. The base.ts module handles authentication via AuthManager and request formatting via apiRequest, while artifacts.ts, query.ts, conversation.ts, analytics.ts, and noridocs.ts provide typed methods for specific endpoints. The registrar.ts module is a standalone API client for the public Nori registrar (https://noriskillsets.dev) used by profile-related slash commands. The API contracts here must stay in sync with @/server/src/endpoints and @/ui/src/api/apiClient.
+This folder contains the API client used by paid skills in profile directories (e.g., paid-recall, paid-memorize) to communicate with @/server/src/endpoints. It mirrors the API structure in @/ui/src/api/apiClient but uses Firebase Authentication with cached tokens via @/src/providers/firebase.ts instead of direct Firebase UI integration. The base.ts module handles authentication via AuthManager and request formatting via apiRequest, while artifacts.ts, query.ts, conversation.ts, and analytics.ts provide typed methods for specific endpoints. The registrar.ts module is a standalone API client for the public Nori registrar (https://noriskillsets.dev) used by profile-related slash commands. The API contracts here must stay in sync with @/server/src/endpoints and @/ui/src/api/apiClient.
 
 ### Core Implementation
 
@@ -24,13 +24,11 @@ ConfigManager.isConfigured() checks for either `refreshToken` or `password` (plu
 
 **Refresh Token Module:** The refreshToken.ts module exchanges Firebase refresh tokens for ID tokens via REST API. `exchangeRefreshToken({ refreshToken })` sends POST to `https://securetoken.googleapis.com/v1/token` using the tilework-e18c5 Firebase project API key. ID tokens are cached in a Map keyed by refresh token, with expiry set to 5 minutes before actual expiry. The `clearRefreshTokenCache()` function is exported for testing. Note: The Firebase SDK doesn't expose refresh token exchange for stateless CLI use (it handles this internally via `user.getIdToken()`), so we use the REST API directly. Sign-in with email/password uses the Firebase SDK directly (see claude-code/config/loader.ts).
 
-**API Modules:** Each module in this folder corresponds to a specific domain: artifacts (memory/recall), analytics (event tracking), noridocs (documentation management), conversation (summarization), query (semantic search), and registrar (package registry). The index.ts aggregates all APIs into a single apiClient export and provides a handshake() function for auth testing. Each module provides typed methods that map to @/server/src/endpoints.
+**API Modules:** Each module in this folder corresponds to a specific domain: artifacts (memory/recall), analytics (event tracking), conversation (summarization), query (semantic search), and registrar (package registry). The index.ts aggregates all APIs into a single apiClient export and provides a handshake() function for auth testing. Each module provides typed methods that map to @/server/src/endpoints.
 
-**Artifacts:** The artifacts module defines an ArtifactType enum for categorizing stored content (memories, summaries, transcripts, noridocs, etc.). All Artifact types include a repository field that scopes artifacts to specific repositories - the server extracts repository from paths using the format @<repository>/path. This enables multi-repository support where the same path can exist in different repositories without conflicts. The module supports CRUD operations with actor tracking for analytics.
+**Artifacts:** The artifacts module defines an ArtifactType enum for categorizing stored content (memories, summaries, transcripts, etc.). All Artifact types include a repository field that scopes artifacts to specific repositories - the server extracts repository from paths using the format @<repository>/path. This enables multi-repository support where the same path can exist in different repositories without conflicts. The module supports CRUD operations with actor tracking for analytics.
 
 **Analytics:** Proxies analytics events to the server which forwards to GA4, keeping the GA4 API secret secure server-side. The trackEvent method is a special case that works without authentication (so free-tier users can be tracked).
-
-**Noridocs:** Manages documentation artifacts with CRUD operations plus versioning support. The repository field scopes noridocs and the list method supports server-side filtering by repository.
 
 ### Things to Know
 
@@ -77,9 +75,9 @@ AuthManager in base.ts prefers refresh token auth via `exchangeRefreshToken()` w
 
 **Registry Authentication:** The registryAuth.ts module handles Firebase authentication for authenticated registry operations (profile uploads, org registry search). It exports `getRegistryAuthToken()` which accepts a `RegistryAuth` object (username, refreshToken, registryUrl) and exchanges the refresh token for a Firebase ID token via `exchangeRefreshToken()` from refreshToken.ts. Tokens are cached per registry URL with 55-minute expiry (5 minutes before Firebase's 1-hour token expiry). The module uses the unified Nori authentication (same refresh token as Watchtower) - the `config.auth` credentials are reused for registry operations. The `clearRegistryAuthCache()` function is exported for testing.
 
-**Type Synchronization:** The ArtifactType enum in artifacts.ts must stay synchronized with @/server/src/persistence/Artifact.ts and @/ui/src/api/apiClient/artifacts.ts. All three locations define the same types to maintain contract compatibility. The type field enables distinction between user-created content (memories, noridocs), system-generated content (summaries, transcripts), and external content (webhooks).
+**Type Synchronization:** The ArtifactType enum in artifacts.ts must stay synchronized with @/server/src/persistence/Artifact.ts and @/ui/src/api/apiClient/artifacts.ts. All three locations define the same types to maintain contract compatibility. The type field enables distinction between user-created content (memories), system-generated content (summaries, transcripts), and external content (webhooks).
 
-**Repository Scoping:** All Artifact types (including Noridoc) include a repository field that scopes artifacts to specific repositories. The server extracts repository from paths using regex /^@([a-z0-9-]+)\/(.+)/ - paths like "@nori-watchtower/server/src/api" are scoped to repository "nori-watchtower", while paths without repository prefix (e.g., "@/path" or "path") default to "no-repository". This enables multi-repository support where the same path can exist in different repositories without conflicts. Repository names must be lowercase alphanumeric with hyphens only.
+**Repository Scoping:** All Artifact types include a repository field that scopes artifacts to specific repositories. The server extracts repository from paths using regex /^@([a-z0-9-]+)\/(.+)/ - paths like "@nori-watchtower/server/src/api" are scoped to repository "nori-watchtower", while paths without repository prefix (e.g., "@/path" or "path") default to "no-repository". This enables multi-repository support where the same path can exist in different repositories without conflicts. Repository names must be lowercase alphanumeric with hyphens only.
 
 **Actor Field:** All artifact mutations (create) and conversation operations (summarize) include actor: 'claude-code' to identify the plugin as the source. This differs from the UI which may use different actor values.
 

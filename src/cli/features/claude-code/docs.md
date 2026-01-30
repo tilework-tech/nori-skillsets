@@ -12,9 +12,9 @@ This `claude-code/` subdirectory implements the Agent interface defined in @/src
 - `name`: "claude-code"
 - `displayName`: "Claude Code"
 - `getLoaderRegistry()`: Returns the LoaderRegistry singleton with all Claude Code loaders
-- `listProfiles({ installDir })`: Scans installed `.nori/profiles/` for directories containing `CLAUDE.md`
+- `listProfiles({ installDir })`: Scans installed `.nori/profiles/` for both flat profiles (e.g., `senior-swe`) and namespaced profiles in nested directories (e.g., `myorg/my-profile`). Returns an array of profile names in their canonical format.
 - `listSourceProfiles()`: Scans package's `profiles/config/` for directories with `nori.json` (falls back to `profile.json`), returns `SourceProfile[]` with name and description
-- `switchProfile({ installDir, profileName })`: Validates profile exists, filters out config entries for uninstalled agents, updates config with new profile, logs success message
+- `switchProfile({ installDir, profileName })`: Validates profile exists (handles both flat and namespaced paths via `path.join`), updates config with new profile, logs success message
 - `getGlobalLoaders()`: Returns loaders that write to `~/.claude/` global config (hooks, statusline, slashcommands, announcements)
 
 The AgentRegistry (@/src/cli/features/agentRegistry.ts) registers this agent and provides lookup by name. CLI commands use `AgentRegistry.getInstance().get({ name: "claude-code" })` to obtain the agent implementation.
@@ -71,6 +71,12 @@ The LoaderRegistry provides getAll() for install order and getAllReversed() for 
 Global features (hooks, statusline, global slash commands) use home-based paths because Claude Code reads these from the user's home directory.
 
 **Directory Separation Architecture:** Profiles are stored in `~/.nori/profiles/` instead of `~/.claude/profiles/`. This creates a clear separation between Nori's internal profile repository and Claude Code's native artifacts.
+
+**Profile Directory Structure:** Profiles support two directory layouts:
+- Flat profiles: `~/.nori/profiles/{profile-name}/` - for public registry packages
+- Namespaced profiles: `~/.nori/profiles/{org}/{profile-name}/` - for organization-specific registry packages
+
+The `listProfiles()` method discovers both layouts by first checking if a directory contains `CLAUDE.md` (flat profile), and if not, checking for subdirectories that contain `CLAUDE.md` (org directory with nested profiles). Namespaced profiles are returned in `org/profile-name` format.
 
 **Profile structure**: Each profile directory contains CLAUDE.md, skills/, subagents/, slashcommands/, and nori.json (unified manifest). All content is self-contained - no mixin composition or inheritance.
 

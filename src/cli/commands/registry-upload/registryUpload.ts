@@ -9,7 +9,7 @@ import * as path from "path";
 import * as semver from "semver";
 import * as tar from "tar";
 
-import { registrarApi, REGISTRAR_URL } from "@/api/registrar.js";
+import { registrarApi } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
 import {
   getCommandNames,
@@ -23,33 +23,13 @@ import { getRegistryAuth } from "@/cli/config.js";
 import { getNoriProfilesDir } from "@/cli/features/claude-code/paths.js";
 import { error, success, info, newline } from "@/cli/logger.js";
 import { getInstallDirs } from "@/utils/path.js";
+import {
+  parseNamespacedPackage,
+  buildOrganizationRegistryUrl,
+} from "@/utils/url.js";
 
 import type { RegistryAuth } from "@/cli/config.js";
 import type { Command } from "commander";
-
-/**
- * Parse profile name and optional version from profile spec
- * Supports formats: "profile-name" or "profile-name@1.0.0"
- * @param args - The parsing parameters
- * @param args.profileSpec - Profile specification string
- *
- * @returns Parsed profile name and optional version
- */
-const parseProfileSpec = (args: {
-  profileSpec: string;
-}): { profileName: string; version?: string | null } => {
-  const { profileSpec } = args;
-  const match = profileSpec.match(/^([a-z0-9-]+)(?:@(\d+\.\d+\.\d+.*))?$/i);
-
-  if (!match) {
-    return { profileName: profileSpec, version: null };
-  }
-
-  return {
-    profileName: match[1],
-    version: match[2] ?? null,
-  };
-};
 
 /**
  * Create a gzipped tarball from a profile directory
@@ -208,7 +188,15 @@ export const registryUploadMain = async (args: {
   const commandNames = getCommandNames({ cliName });
   const cliPrefix = cliName ?? "nori-ai";
 
-  const { profileName, version } = parseProfileSpec({ profileSpec });
+  // Parse the namespaced package spec (e.g., "myorg/my-profile@1.0.0")
+  const parsed = parseNamespacedPackage({ packageSpec: profileSpec });
+  if (parsed == null) {
+    error({
+      message: `Invalid profile specification: "${profileSpec}".\nExpected format: profile-name or org/profile-name[@version]`,
+    });
+    return;
+  }
+  const { orgId, packageName: profileName, version } = parsed;
 
   // Find installation directory
   let targetInstallDir: string;
@@ -255,32 +243,41 @@ export const registryUploadMain = async (args: {
   const config = agentCheck.config;
 
   const profilesDir = getNoriProfilesDir({ installDir: targetInstallDir });
-  const profileDir = path.join(profilesDir, profileName);
+  // For namespaced packages, the profile is in a nested directory (e.g., profiles/myorg/my-profile)
+  const profileDir =
+    orgId === "public"
+      ? path.join(profilesDir, profileName)
+      : path.join(profilesDir, orgId, profileName);
 
   // Check if profile exists
   try {
     await fs.access(profileDir);
   } catch {
+    const displayName =
+      orgId === "public" ? profileName : `${orgId}/${profileName}`;
     error({
-      message: `Profile "${profileName}" not found at:\n${profileDir}`,
+      message: `Profile "${displayName}" not found at:\n${profileDir}`,
     });
     return;
   }
 
-  // Get available registries - public registry (with unified auth) and legacy registryAuths
+  // Get available registries - combining unified auth organization registries and legacy registryAuths
   const availableRegistries: Array<RegistryAuth> = [];
 
-  // Add public registry if user has valid unified auth with refreshToken
-  // This is the default target for authenticated users
+  // Add organization registries from unified auth
   if (config?.auth != null && config.auth.refreshToken != null) {
-    availableRegistries.push({
-      registryUrl: REGISTRAR_URL,
-      username: config.auth.username,
-      refreshToken: config.auth.refreshToken,
-    });
+    const userOrgs = config.auth.organizations ?? ["public"];
+    for (const userOrgId of userOrgs) {
+      const orgRegistryUrl = buildOrganizationRegistryUrl({ orgId: userOrgId });
+      availableRegistries.push({
+        registryUrl: orgRegistryUrl,
+        username: config.auth.username,
+        refreshToken: config.auth.refreshToken,
+      });
+    }
   }
 
-  // Add legacy registryAuths entries (for private registries)
+  // Add legacy registryAuths entries (for backwards compatibility)
   if (config?.registryAuths != null) {
     for (const auth of config.registryAuths) {
       // Avoid duplicates if the same registry URL already exists
@@ -295,17 +292,20 @@ export const registryUploadMain = async (args: {
 
   if (availableRegistries.length === 0) {
     error({
-      message: `No registry authentication configured.\n\nEither log in with 'nori-ai install' or add registry credentials to .nori-config.json:\n{\n  "registryAuths": [{\n    "username": "your-email@example.com",\n    "password": "your-password",\n    "registryUrl": "https://registry.example.com"\n  }]\n}`,
+      message: `No registry authentication configured.\n\nEither log in with '${cliPrefix} login' or add registry credentials to .nori-config.json:\n{\n  "registryAuths": [{\n    "username": "your-email@example.com",\n    "password": "your-password",\n    "registryUrl": "https://registry.example.com"\n  }]\n}`,
     });
     return;
   }
 
   // Determine target registry
   let targetRegistryUrl: string;
-  let registryAuth: RegistryAuth | null;
+  let registryAuth: RegistryAuth | null = null;
 
   if (registryUrl != null) {
-    // User specified a registry URL - check availableRegistries first (includes public registry)
+    // User specified explicit --registry flag
+    targetRegistryUrl = registryUrl;
+
+    // Check availableRegistries first
     registryAuth =
       availableRegistries.find((r) => r.registryUrl === registryUrl) ?? null;
 
@@ -320,21 +320,54 @@ export const registryUploadMain = async (args: {
       });
       return;
     }
-    targetRegistryUrl = registryUrl;
-  } else if (availableRegistries.length === 1) {
-    // Single registry - use it
-    registryAuth = availableRegistries[0];
-    targetRegistryUrl = registryAuth.registryUrl;
   } else {
-    // Multiple registries - require explicit selection
-    error({
-      message: formatMultipleRegistriesError({
-        profileName,
-        registries: availableRegistries,
-        cliName,
-      }),
-    });
-    return;
+    // No explicit registry - derive from namespace or use legacy logic
+
+    // Check if using unified auth with organizations (new flow)
+    const hasUnifiedAuthWithOrgs =
+      config?.auth != null &&
+      config.auth.refreshToken != null &&
+      config.auth.organizations != null;
+
+    if (hasUnifiedAuthWithOrgs) {
+      // New flow: derive registry from namespace
+      targetRegistryUrl = buildOrganizationRegistryUrl({ orgId });
+
+      // Check if user has access to this org
+      registryAuth =
+        availableRegistries.find((r) => r.registryUrl === targetRegistryUrl) ??
+        null;
+
+      if (registryAuth == null) {
+        const displayName =
+          orgId === "public" ? profileName : `${orgId}/${profileName}`;
+        const userOrgs = config.auth!.organizations!;
+        error({
+          message: `You do not have access to organization "${orgId}".\n\nCannot upload "${displayName}" to ${targetRegistryUrl}.\n\nYour available organizations: ${userOrgs.length > 0 ? userOrgs.join(", ") : "(none)"}`,
+        });
+        return;
+      }
+    } else if (availableRegistries.length === 1) {
+      // Legacy flow: single registry - use it
+      registryAuth = availableRegistries[0];
+      targetRegistryUrl = registryAuth.registryUrl;
+    } else if (availableRegistries.length > 1) {
+      // Legacy flow: multiple registries - require explicit selection
+      error({
+        message: formatMultipleRegistriesError({
+          profileName,
+          registries: availableRegistries,
+          cliName,
+        }),
+      });
+      return;
+    } else {
+      // No registries available
+      error({
+        message: `No registry authentication configured.\n\nEither log in with '${cliPrefix} login' or add registry credentials to .nori-config.json.`,
+      });
+      return;
+    }
   }
 
   // Get auth token
