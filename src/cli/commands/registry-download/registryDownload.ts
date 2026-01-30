@@ -4,6 +4,7 @@
  */
 
 import * as fs from "fs/promises";
+import * as os from "os";
 import * as path from "path";
 import { Readable } from "stream";
 import { pipeline } from "stream/promises";
@@ -589,7 +590,15 @@ export const registryDownloadMain = async (args: {
   } else {
     const allInstallations = getInstallDirs({ currentDir: cwd });
 
-    if (allInstallations.length === 0) {
+    // Also check ~/.nori as it typically has registry auth configured
+    // For registry commands, prefer ~/.nori if it exists
+    const homeNoriDir = path.join(os.homedir(), ".nori");
+    const homeInstallations = getInstallDirs({ currentDir: homeNoriDir });
+
+    // Prefer ~/.nori if it exists (typically has registry auth)
+    if (homeInstallations.includes(homeNoriDir)) {
+      targetInstallDir = homeNoriDir;
+    } else if (allInstallations.length === 0) {
       // No installation found - auto-init at cwd (interactive to allow user prompts)
       // Skip the profile persistence warning since users are just trying to download a profile
       info({ message: "Setting up Nori for first time use..." });

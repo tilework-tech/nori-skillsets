@@ -175,8 +175,12 @@ The skill is added with version `"*"` (always latest). If the skill already exis
 
 **registry-download Auto-Init:** The `registry-download` command (and `nori-skillsets download`) automatically initializes Nori configuration when no installation exists, allowing users to download profiles without first running `nori-ai init` or `nori-ai install`. The installation directory resolution logic:
 1. If `--install-dir` is provided but no installation exists there: calls `initMain({ installDir, nonInteractive: false })` to set up at that location
-2. If no `--install-dir` and no existing installations found via `getInstallDirs()`: calls `initMain({ installDir: cwd, nonInteractive: false })` to set up at current directory
-3. If multiple installations found: errors with a list of installations and prompts user to specify with `--install-dir`
+2. If no `--install-dir`: prefers `~/.nori` if it exists (since that directory typically has registry auth configured via `nori-skillsets login`)
+3. Falls back to `getInstallDirs()` from current directory if `~/.nori` doesn't exist
+4. If no existing installations found: calls `initMain({ installDir: cwd, nonInteractive: false })` to set up at current directory
+5. If multiple installations found: errors with a list of installations and prompts user to specify with `--install-dir`
+
+This `~/.nori` preference mirrors the same logic in `registry-search` and ensures authenticated operations (especially for namespaced packages like `org/profile-name`) use the config that has registry credentials.
 
 By using `nonInteractive: false`, the auto-init triggers the interactive existing config capture flow - users with an existing `~/.claude/` configuration (CLAUDE.md, skills, agents, commands) must provide a profile name to save it before proceeding (or abort with Ctrl+C).
 

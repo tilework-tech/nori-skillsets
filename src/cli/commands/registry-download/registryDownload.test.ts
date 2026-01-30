@@ -9,6 +9,19 @@ import * as path from "path";
 import * as tar from "tar";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
+// Track the mock homedir value - will be set in beforeEach
+let mockHomedir = "";
+
+// Mock the os module to control homedir() return value
+vi.mock("node:os", async (importOriginal) => {
+  // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+  const actual = (await importOriginal()) as typeof import("os");
+  return {
+    ...actual,
+    homedir: () => mockHomedir,
+  };
+});
+
 // Mock the registrar API
 vi.mock("@/api/registrar.js", () => ({
   REGISTRAR_URL: "https://noriskillsets.dev",
@@ -74,6 +87,9 @@ describe("registry-download", () => {
     configPath = path.join(testDir, ".nori-config.json");
     // Profiles are stored in .nori/profiles, not .claude/profiles
     profilesDir = path.join(testDir, ".nori", "profiles");
+
+    // Set mock homedir to testDir so ~/.nori check doesn't find real user's ~/.nori
+    mockHomedir = testDir;
 
     // Create initial config
     await fs.writeFile(
@@ -344,6 +360,68 @@ describe("registry-download", () => {
 
       // Verify download proceeded normally
       expect(registrarApi.downloadTarball).toHaveBeenCalled();
+    });
+
+    it("should prefer ~/.nori over cwd installation when both exist", async () => {
+      // Create a separate cwd installation directory
+      const cwdInstall = await fs.mkdtemp(
+        path.join(tmpdir(), "nori-cwd-install-"),
+      );
+      const cwdConfigPath = path.join(cwdInstall, ".nori-config.json");
+      // Profiles are at installDir/.nori/profiles (see getNoriProfilesDir)
+      const cwdProfilesDir = path.join(cwdInstall, ".nori", "profiles");
+
+      // Create cwd installation
+      await fs.writeFile(
+        cwdConfigPath,
+        JSON.stringify({ profile: { baseProfile: "cwd-profile" } }),
+      );
+      await fs.mkdir(cwdProfilesDir, { recursive: true });
+
+      // Set up ~/.nori installation in testDir (mockHomedir is testDir)
+      // The installation directory is ~/.nori (i.e., testDir/.nori)
+      const homeNoriDir = path.join(testDir, ".nori");
+      await fs.mkdir(homeNoriDir, { recursive: true });
+      await fs.writeFile(
+        path.join(homeNoriDir, ".nori-config.json"),
+        JSON.stringify({ profile: { baseProfile: "home-profile" } }),
+      );
+      // Profiles at homeNoriDir/.nori/profiles (i.e., testDir/.nori/.nori/profiles)
+      const homeNoriProfilesDir = path.join(homeNoriDir, ".nori", "profiles");
+      await fs.mkdir(homeNoriProfilesDir, { recursive: true });
+
+      // Mock loadConfig to be called with homeNoriDir
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: homeNoriDir,
+        registryAuths: [],
+      });
+
+      vi.mocked(registrarApi.getPackument).mockResolvedValue({
+        name: "test-profile",
+        "dist-tags": { latest: "1.0.0" },
+        versions: { "1.0.0": { name: "test-profile", version: "1.0.0" } },
+      });
+
+      const mockTarball = await createMockTarball();
+      vi.mocked(registrarApi.downloadTarball).mockResolvedValue(mockTarball);
+
+      try {
+        await registryDownloadMain({
+          packageSpec: "test-profile",
+          cwd: cwdInstall, // cwd has installation, but ~/.nori should be preferred
+        });
+
+        // Verify profile was installed to ~/.nori/.nori/profiles, NOT cwdInstall/.nori/profiles
+        const homeProfileDir = path.join(homeNoriProfilesDir, "test-profile");
+        const homeStats = await fs.stat(homeProfileDir);
+        expect(homeStats.isDirectory()).toBe(true);
+
+        // Verify profile was NOT installed to cwd
+        const cwdProfileDir = path.join(cwdProfilesDir, "test-profile");
+        await expect(fs.stat(cwdProfileDir)).rejects.toThrow();
+      } finally {
+        await fs.rm(cwdInstall, { recursive: true, force: true });
+      }
     });
 
     it("should return failure when auto-init fails", async () => {
