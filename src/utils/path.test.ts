@@ -8,7 +8,11 @@ import * as path from "path";
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 
-import { normalizeInstallDir, getInstallDirs } from "./path.js";
+import {
+  normalizeInstallDir,
+  getInstallDirs,
+  getInstallDirsWithTypes,
+} from "./path.js";
 
 describe("normalizeInstallDir", () => {
   describe("default behavior", () => {
@@ -255,6 +259,178 @@ describe("getInstallDirs", () => {
       // Should find the parent installation
       expect(result).toHaveLength(1);
       expect(result[0]).toBe(parentDir);
+    });
+  });
+});
+
+describe("getInstallDirsWithTypes", () => {
+  let tempDir: string;
+
+  beforeEach(() => {
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "nori-types-test-"));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  describe("source installations (config file only)", () => {
+    it("should identify directory with .nori-config.json as source type", () => {
+      const projectDir = path.join(tempDir, "project");
+      fs.mkdirSync(projectDir, { recursive: true });
+
+      // Create only config file (no managed block)
+      fs.writeFileSync(
+        path.join(projectDir, ".nori-config.json"),
+        JSON.stringify({ profile: { baseProfile: "test" } }),
+      );
+
+      const result = getInstallDirsWithTypes({ currentDir: projectDir });
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toEqual({
+        path: projectDir,
+        type: "source",
+      });
+    });
+
+    it("should identify directory with legacy nori-config.json as source type", () => {
+      const projectDir = path.join(tempDir, "project");
+      fs.mkdirSync(projectDir, { recursive: true });
+
+      // Create only legacy config file
+      fs.writeFileSync(
+        path.join(projectDir, "nori-config.json"),
+        JSON.stringify({ profile: { baseProfile: "test" } }),
+      );
+
+      const result = getInstallDirsWithTypes({ currentDir: projectDir });
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toEqual({
+        path: projectDir,
+        type: "source",
+      });
+    });
+  });
+
+  describe("managed installations (CLAUDE.md with managed block only)", () => {
+    it("should identify directory with only managed CLAUDE.md as managed type", () => {
+      const projectDir = path.join(tempDir, "project");
+      const claudeDir = path.join(projectDir, ".claude");
+      fs.mkdirSync(claudeDir, { recursive: true });
+
+      // Create only managed CLAUDE.md (no config file)
+      fs.writeFileSync(
+        path.join(claudeDir, "CLAUDE.md"),
+        "# BEGIN NORI-AI MANAGED BLOCK\nsome content\n# END NORI-AI MANAGED BLOCK",
+      );
+
+      const result = getInstallDirsWithTypes({ currentDir: projectDir });
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toEqual({
+        path: projectDir,
+        type: "managed",
+      });
+    });
+  });
+
+  describe("both installations (config file AND managed block)", () => {
+    it("should identify directory with both markers as both type", () => {
+      const projectDir = path.join(tempDir, "project");
+      const claudeDir = path.join(projectDir, ".claude");
+      fs.mkdirSync(claudeDir, { recursive: true });
+
+      // Create both config file and managed CLAUDE.md
+      fs.writeFileSync(
+        path.join(projectDir, ".nori-config.json"),
+        JSON.stringify({ profile: { baseProfile: "test" } }),
+      );
+      fs.writeFileSync(
+        path.join(claudeDir, "CLAUDE.md"),
+        "# BEGIN NORI-AI MANAGED BLOCK\nsome content\n# END NORI-AI MANAGED BLOCK",
+      );
+
+      const result = getInstallDirsWithTypes({ currentDir: projectDir });
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toEqual({
+        path: projectDir,
+        type: "both",
+      });
+    });
+  });
+
+  describe("mixed installations across directory tree", () => {
+    it("should correctly classify multiple installations of different types", () => {
+      // Setup: grandparent (source), parent (managed), current (both)
+      const grandparentDir = path.join(tempDir, "grandparent");
+      const parentDir = path.join(grandparentDir, "parent");
+      const currentDir = path.join(parentDir, "current");
+      const parentClaudeDir = path.join(parentDir, ".claude");
+      const currentClaudeDir = path.join(currentDir, ".claude");
+
+      fs.mkdirSync(currentClaudeDir, { recursive: true });
+      fs.mkdirSync(parentClaudeDir, { recursive: true });
+
+      // Grandparent: source only
+      fs.writeFileSync(
+        path.join(grandparentDir, ".nori-config.json"),
+        JSON.stringify({ profile: { baseProfile: "grandparent" } }),
+      );
+
+      // Parent: managed only
+      fs.writeFileSync(
+        path.join(parentClaudeDir, "CLAUDE.md"),
+        "# BEGIN NORI-AI MANAGED BLOCK\nparent content\n# END NORI-AI MANAGED BLOCK",
+      );
+
+      // Current: both
+      fs.writeFileSync(
+        path.join(currentDir, ".nori-config.json"),
+        JSON.stringify({ profile: { baseProfile: "current" } }),
+      );
+      fs.writeFileSync(
+        path.join(currentClaudeDir, "CLAUDE.md"),
+        "# BEGIN NORI-AI MANAGED BLOCK\ncurrent content\n# END NORI-AI MANAGED BLOCK",
+      );
+
+      const result = getInstallDirsWithTypes({ currentDir });
+
+      expect(result).toHaveLength(3);
+      expect(result[0]).toEqual({ path: currentDir, type: "both" });
+      expect(result[1]).toEqual({ path: parentDir, type: "managed" });
+      expect(result[2]).toEqual({ path: grandparentDir, type: "source" });
+    });
+  });
+
+  describe("no installations", () => {
+    it("should return empty array when no installations found", () => {
+      const projectDir = path.join(tempDir, "empty");
+      fs.mkdirSync(projectDir, { recursive: true });
+
+      const result = getInstallDirsWithTypes({ currentDir: projectDir });
+
+      expect(result).toEqual([]);
+    });
+  });
+
+  describe("CLAUDE.md without managed block", () => {
+    it("should not classify directory as managed if CLAUDE.md lacks managed block", () => {
+      const projectDir = path.join(tempDir, "project");
+      const claudeDir = path.join(projectDir, ".claude");
+      fs.mkdirSync(claudeDir, { recursive: true });
+
+      // Create CLAUDE.md without managed block
+      fs.writeFileSync(
+        path.join(claudeDir, "CLAUDE.md"),
+        "# Some other content\nNo managed block here",
+      );
+
+      const result = getInstallDirsWithTypes({ currentDir: projectDir });
+
+      expect(result).toEqual([]);
     });
   });
 });

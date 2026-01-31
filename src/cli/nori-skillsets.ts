@@ -14,6 +14,7 @@ import {
   registerNoriSkillsetsDownloadSkillCommand,
   registerNoriSkillsetsInitCommand,
   registerNoriSkillsetsInstallCommand,
+  registerNoriSkillsetsInstallLocationCommand,
   registerNoriSkillsetsListSkillsetsCommand,
   registerNoriSkillsetsLoginCommand,
   registerNoriSkillsetsLogoutCommand,
@@ -71,6 +72,10 @@ Examples:
   $ nori-skillsets download-skill my-skill --list-versions
   $ nori-skillsets watch              # start watching Claude Code sessions
   $ nori-skillsets watch stop         # stop the watch daemon
+  $ nori-skillsets install-location   # show all installation directories
+  $ nori-skillsets install-location --installation-source  # show only source dirs
+  $ nori-skillsets install-location --installation-managed # show only managed dirs
+  $ nori-skillsets install-location --non-interactive      # plain output for scripts
 `,
   );
 
@@ -85,6 +90,7 @@ registerNoriSkillsetsSwitchSkillsetCommand({ program });
 registerNoriSkillsetsListSkillsetsCommand({ program });
 registerNoriSkillsetsDownloadSkillCommand({ program });
 registerNoriSkillsetsWatchCommand({ program });
+registerNoriSkillsetsInstallLocationCommand({ program });
 
 program.parse(process.argv);
 

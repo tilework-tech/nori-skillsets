@@ -234,7 +234,7 @@ nori-ai.ts (full CLI)
   +-- registerSkillDownloadCommand({ program })--> commands/skill-download/skillDownload.ts
   +-- registerSkillUploadCommand({ program })  --> commands/skill-upload/skillUpload.ts
 
-nori-skillsets.ts (simplified CLI for registry read operations, skill downloads, profile switching, initialization, authentication, and session watching)
+nori-skillsets.ts (simplified CLI for registry read operations, skill downloads, profile switching, initialization, authentication, session watching, and installation location detection)
   |
   +-- registerNoriSkillsetsInitCommand({ program })          --> commands/noriSkillsetsCommands.ts --> initMain
   +-- registerNoriSkillsetsSearchCommand({ program })        --> commands/noriSkillsetsCommands.ts --> registrySearchMain
@@ -245,6 +245,7 @@ nori-skillsets.ts (simplified CLI for registry read operations, skill downloads,
   +-- registerNoriSkillsetsWatchCommand({ program })         --> commands/noriSkillsetsCommands.ts --> watchMain
   +-- registerNoriSkillsetsLoginCommand({ program })         --> commands/noriSkillsetsCommands.ts --> loginMain
   +-- registerNoriSkillsetsLogoutCommand({ program })        --> commands/noriSkillsetsCommands.ts --> logoutMain
+  +-- registerNoriSkillsetsInstallLocationCommand({ program })--> commands/noriSkillsetsCommands.ts --> installLocationMain
 ```
 
 Commands use shared utilities from the parent @/src/cli/ directory:
@@ -305,7 +306,7 @@ The `install/` directory contains command-specific utilities:
 
 The install command uses `agent.listSourceProfiles()` to get available profiles from the package source directory, combined with `agent.listProfiles({ installDir })` to include any user-installed profiles. This ensures each agent displays its own profiles (claude-code shows amol, senior-swe, etc.; cursor-agent shows its own profiles).
 
-The `install-location/` command was extracted from inline definition in cli.ts to follow the same pattern as other commands.
+The `install-location/` command displays Nori installation directories found in the current directory and parent directories. The `nori-skillsets` CLI version (via `registerNoriSkillsetsInstallLocationCommand`) adds installation type classification, supporting `--installation-source` (show only directories with `.nori-config.json`) and `--installation-managed` (show only directories with managed CLAUDE.md block) flags. The `--non-interactive` global flag outputs plain paths one per line for scripting. The command uses `getInstallDirsWithTypes()` from @/src/utils/path.ts to classify installations as "source", "managed", or "both" - installations of type "both" appear in both filtered views. The `nori-ai` version uses the simpler `getInstallDirs()` without type classification.
 
 Tests within each command directory use the same temp directory isolation pattern as other tests in the codebase, passing `installDir` explicitly to functions rather than mocking `process.env.HOME`.
 
