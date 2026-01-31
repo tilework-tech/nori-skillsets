@@ -9,6 +9,7 @@ import { fileURLToPath } from "url";
 
 import { isPaidInstall, getAgentProfile, type Config } from "@/cli/config.js";
 import {
+  getClaudeDir,
   getClaudeSkillsDir,
   getClaudeSettingsFile,
   getNoriDir,
@@ -124,6 +125,7 @@ const installSkills = async (args: { config: Config }): Promise<void> => {
     profileName,
     installDir: config.installDir,
   });
+  const claudeDir = getClaudeDir({ installDir: config.installDir });
   const claudeSkillsDir = getClaudeSkillsDir({ installDir: config.installDir });
 
   // Remove existing skills directory if it exists
@@ -147,7 +149,7 @@ const installSkills = async (args: { config: Config }): Promise<void> => {
           const content = await fs.readFile(sourcePath, "utf-8");
           const substituted = substituteTemplatePaths({
             content,
-            installDir: config.installDir,
+            installDir: claudeDir,
           });
           await fs.writeFile(destPath, substituted);
         } else {
@@ -174,7 +176,7 @@ const installSkills = async (args: { config: Config }): Promise<void> => {
           await copyDirWithTemplateSubstitution({
             src: sourcePath,
             dest: destPath,
-            installDir: config.installDir,
+            installDir: claudeDir,
           });
         }
         // Skip if free tier
@@ -184,7 +186,7 @@ const installSkills = async (args: { config: Config }): Promise<void> => {
         await copyDirWithTemplateSubstitution({
           src: sourcePath,
           dest: destPath,
-          installDir: config.installDir,
+          installDir: claudeDir,
         });
       }
     }

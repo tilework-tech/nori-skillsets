@@ -249,6 +249,66 @@ describe("skillsLoader", () => {
       expect(content).not.toContain("{{install_dir}}");
     });
 
+    it("should resolve {{skills_dir}} to .claude/skills, not installDir/skills", async () => {
+      const config: Config = {
+        installDir: tempDir,
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
+      };
+
+      // Create a test skill with known template variables in the profile's skills dir
+      const profileSkillDir = path.join(
+        mockNoriDir,
+        "profiles",
+        "senior-swe",
+        "skills",
+        "template-test",
+      );
+      await fs.mkdir(profileSkillDir, { recursive: true });
+      await fs.writeFile(
+        path.join(profileSkillDir, "SKILL.md"),
+        [
+          "---",
+          "name: Template Test",
+          "description: Test template resolution",
+          "---",
+          "Skills at {{skills_dir}}/foo/SKILL.md",
+          "Commands at {{commands_dir}}/bar.md",
+          "Config at {{install_dir}}/.nori-config.json",
+          "Profiles at {{profiles_dir}}/senior-swe",
+        ].join("\n"),
+      );
+
+      await skillsLoader.install({ config });
+
+      const content = await fs.readFile(
+        path.join(skillsDir, "template-test", "SKILL.md"),
+        "utf-8",
+      );
+
+      // {{skills_dir}} must resolve to <tempDir>/.claude/skills (not <tempDir>/skills)
+      expect(content).toContain(
+        path.join(tempDir, ".claude", "skills", "foo", "SKILL.md"),
+      );
+      expect(content).not.toContain(
+        path.join(tempDir, "skills", "foo", "SKILL.md"),
+      );
+
+      // {{commands_dir}} must resolve to <tempDir>/.claude/commands (not <tempDir>/commands)
+      expect(content).toContain(
+        path.join(tempDir, ".claude", "commands", "bar.md"),
+      );
+
+      // {{install_dir}} must resolve to <tempDir> (not dirname(tempDir))
+      expect(content).toContain(path.join(tempDir, ".nori-config.json"));
+
+      // {{profiles_dir}} must resolve to <tempDir>/.nori/profiles (not dirname(tempDir)/.nori/profiles)
+      expect(content).toContain(
+        path.join(tempDir, ".nori", "profiles", "senior-swe"),
+      );
+    });
+
     it("should apply template substitution to skill markdown files for custom install", async () => {
       // Create a custom install directory (not under home)
       const customInstallDir = path.join(tempDir, "custom-install", ".claude");
