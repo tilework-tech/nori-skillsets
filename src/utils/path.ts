@@ -98,6 +98,16 @@ export const getInstallDirs = (args?: {
       return true;
     }
 
+    // Check for .nori-config.json in .nori subdirectory (home directory installations)
+    const noriSubdirConfigPath = path.join(
+      currentDir,
+      ".nori",
+      ".nori-config.json",
+    );
+    if (fs.existsSync(noriSubdirConfigPath)) {
+      return true;
+    }
+
     // Check for .claude/CLAUDE.md with NORI-AI MANAGED BLOCK
     const claudeMdPath = path.join(currentDir, ".claude", "CLAUDE.md");
     if (fs.existsSync(claudeMdPath)) {
@@ -136,6 +146,16 @@ export const getInstallDirs = (args?: {
         return true;
       }
 
+      // Check for .nori-config.json in .nori subdirectory (home directory installations)
+      const noriSubdirConfigPath = path.join(
+        checkDir,
+        ".nori",
+        ".nori-config.json",
+      );
+      if (fs.existsSync(noriSubdirConfigPath)) {
+        return true;
+      }
+
       // Check for .claude/CLAUDE.md with NORI-AI MANAGED BLOCK
       const claudeMdPath = path.join(checkDir, ".claude", "CLAUDE.md");
       if (fs.existsSync(claudeMdPath)) {
@@ -165,18 +185,27 @@ export const getInstallDirs = (args?: {
 
 /**
  * Check if a directory has a Nori config file (.nori-config.json or legacy nori-config.json)
+ * Also checks in .nori subdirectory for home directory installations
  * @param dir - Directory to check
  *
  * @returns true if config file exists
  */
 const hasConfigFile = (dir: string): boolean => {
+  // Check for .nori-config.json (new style) in directory
   const newConfigPath = path.join(dir, ".nori-config.json");
   if (fs.existsSync(newConfigPath)) {
     return true;
   }
 
+  // Check for nori-config.json (legacy style) in directory
   const legacyConfigPath = path.join(dir, "nori-config.json");
   if (fs.existsSync(legacyConfigPath)) {
+    return true;
+  }
+
+  // Check for .nori-config.json in .nori subdirectory (home directory installations)
+  const noriSubdirConfigPath = path.join(dir, ".nori", ".nori-config.json");
+  if (fs.existsSync(noriSubdirConfigPath)) {
     return true;
   }
 
