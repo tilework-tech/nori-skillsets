@@ -8,6 +8,7 @@
  */
 
 import { initMain } from "@/cli/commands/init/init.js";
+import { installLocationMain } from "@/cli/commands/install-location/installLocation.js";
 import { listSkillsetsMain } from "@/cli/commands/list-skillsets/listSkillsets.js";
 import { loginMain } from "@/cli/commands/login/login.js";
 import { logoutMain } from "@/cli/commands/logout/logout.js";
@@ -300,4 +301,41 @@ export const registerNoriSkillsetsLogoutCommand = (args: {
         installDir: globalOpts.installDir || null,
       });
     });
+};
+
+/**
+ * Register the 'install-location' command for nori-skillsets CLI
+ * @param args - Configuration arguments
+ * @param args.program - Commander program instance
+ */
+export const registerNoriSkillsetsInstallLocationCommand = (args: {
+  program: Command;
+}): void => {
+  const { program } = args;
+
+  program
+    .command("install-location")
+    .description("Display Nori installation directories")
+    .option(
+      "--installation-source",
+      "Show only installation source directories (containing .nori-config.json)",
+    )
+    .option(
+      "--managed-installation",
+      "Show only managed installation directories (containing CLAUDE.md with managed block)",
+    )
+    .action(
+      async (options: {
+        installationSource?: boolean;
+        managedInstallation?: boolean;
+      }) => {
+        const globalOpts = program.opts();
+        await installLocationMain({
+          currentDir: process.cwd(),
+          installationSource: options.installationSource || null,
+          managedInstallation: options.managedInstallation || null,
+          nonInteractive: globalOpts.nonInteractive || null,
+        });
+      },
+    );
 };
