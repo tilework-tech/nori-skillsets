@@ -42,7 +42,7 @@ export const installLocationMain = async (args?: {
   if (installationSource && managedInstallation) {
     error({
       message:
-        "Cannot use both --installation-source and --managed-installation flags",
+        "Cannot use both --installation-source and --installation-managed flags",
     });
     process.exit(1);
   }

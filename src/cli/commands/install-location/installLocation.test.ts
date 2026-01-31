@@ -167,7 +167,7 @@ describe("installLocationMain", () => {
     });
   });
 
-  describe("--managed-installation flag", () => {
+  describe("--installation-managed flag", () => {
     it("should only show managed installations when flag is set", async () => {
       // Setup: parent (source), current (managed)
       const parentDir = path.join(tempDir, "parent");
@@ -316,7 +316,7 @@ describe("installLocationMain", () => {
       expect(mockRaw).toHaveBeenCalledTimes(1);
     });
 
-    it("should apply --managed-installation with --non-interactive", async () => {
+    it("should apply --installation-managed with --non-interactive", async () => {
       const parentDir = path.join(tempDir, "parent");
       const currentDir = path.join(parentDir, "current");
       const currentClaudeDir = path.join(currentDir, ".claude");
@@ -348,7 +348,7 @@ describe("installLocationMain", () => {
   });
 
   describe("conflicting flags", () => {
-    it("should error when both --installation-source and --managed-installation are provided", async () => {
+    it("should error when both --installation-source and --installation-managed are provided", async () => {
       const projectDir = path.join(tempDir, "project");
       await fs.mkdir(projectDir, { recursive: true });
 

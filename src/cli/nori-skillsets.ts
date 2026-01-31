@@ -74,7 +74,7 @@ Examples:
   $ nori-skillsets watch stop         # stop the watch daemon
   $ nori-skillsets install-location   # show all installation directories
   $ nori-skillsets install-location --installation-source  # show only source dirs
-  $ nori-skillsets install-location --managed-installation # show only managed dirs
+  $ nori-skillsets install-location --installation-managed # show only managed dirs
   $ nori-skillsets install-location --non-interactive      # plain output for scripts
 `,
   );

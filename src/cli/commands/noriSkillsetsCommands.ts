@@ -330,7 +330,7 @@ export const registerNoriSkillsetsInstallLocationCommand = (args: {
       "Show only installation source directories (containing .nori-config.json)",
     )
     .option(
-      "--managed-installation",
+      "--installation-managed",
       "Show only managed installation directories (containing CLAUDE.md with managed block)",
     )
     .action(
