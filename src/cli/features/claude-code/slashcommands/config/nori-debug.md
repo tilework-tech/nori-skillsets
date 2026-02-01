@@ -8,7 +8,7 @@ allowed-tools: Bash(nori-ai:*)
 This validates the Nori Profiles installation:
 
 - Config file structure and credentials
-- Server authentication (paid mode only)
+- Server authentication (when credentials are configured)
 - Hooks configuration in .claude/settings.json
 - Subagent files in ~/.claude/agents/
 - Slash command files in ~/.claude/commands/

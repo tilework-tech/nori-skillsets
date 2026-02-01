@@ -3,14 +3,14 @@
 # Plugin Package Build Script
 #
 # This script orchestrates the complete build process for the Nori plugin package.
-# It compiles TypeScript, resolves path aliases, bundles paid skills, and prepares
+# It compiles TypeScript, resolves path aliases, bundles hook scripts, and prepares
 # all configuration files for installation.
 #
 # Build Pipeline:
 # 1. Clean build directory
 # 2. TypeScript compilation (tsc)
 # 3. Path alias resolution (tsc-alias)
-# 4. Paid skills bundling (esbuild)
+# 4. Hook scripts bundling (esbuild)
 # 5. File permissions setup
 # 6. Configuration file copying
 # 7. Version substitution
@@ -70,7 +70,6 @@ echo ""
 # STEP 4: Bundle Scripts
 # ============================================================================
 # Uses esbuild to create standalone executables for:
-# - Paid skills: script files that need API access
 # - Hook scripts: scripts that run on Claude Code events
 # - Inlines all dependencies (minimist, API client, config)
 # - Resolves all imports at build time
@@ -97,9 +96,6 @@ chmod +x build/src/cli/commands/uninstall/uninstall.js
 chmod +x build/src/cli/features/claude-code/hooks/config/autoupdate.js
 chmod +x build/src/cli/features/claude-code/hooks/config/summarize.js
 chmod +x build/src/cli/features/claude-code/hooks/config/summarize-notification.js
-
-# Paid skill scripts (all script.js files in paid-* directories within profiles)
-find build/src/cli/features/claude-code/profiles/config -path '*/skills/paid-*/script.js' -exec chmod +x {} \; 2>/dev/null || true
 
 echo -e "${GREEN}✓ File permissions set${NC}"
 echo ""
