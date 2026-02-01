@@ -205,6 +205,46 @@ describe("config with profile-based system", () => {
       );
     });
 
+    it("should clean up old .nori subdirectory config when saving to primary path", async () => {
+      // Simulate existing old-style config at installDir/.nori/.nori-config.json
+      const noriSubdir = path.join(tempDir, ".nori");
+      await fs.mkdir(noriSubdir, { recursive: true });
+      const oldConfigPath = path.join(noriSubdir, ".nori-config.json");
+      await fs.writeFile(
+        oldConfigPath,
+        JSON.stringify({
+          auth: {
+            username: "old@example.com",
+            refreshToken: "old-token",
+            organizationUrl: "https://example.com",
+          },
+        }),
+      );
+
+      // Save config to the primary path (installDir/.nori-config.json)
+      await saveConfig({
+        username: "new@example.com",
+        refreshToken: "new-token",
+        organizationUrl: "https://example.com",
+        installDir: tempDir,
+      });
+
+      // Primary config should exist
+      const primaryConfig = path.join(tempDir, ".nori-config.json");
+      const primaryExists = await fs
+        .access(primaryConfig)
+        .then(() => true)
+        .catch(() => false);
+      expect(primaryExists).toBe(true);
+
+      // Old config should be cleaned up
+      const oldExists = await fs
+        .access(oldConfigPath)
+        .then(() => true)
+        .catch(() => false);
+      expect(oldExists).toBe(false);
+    });
+
     it("should handle malformed config gracefully", async () => {
       await fs.writeFile(mockConfigPath, "invalid json {");
 
