@@ -52,7 +52,7 @@ node build/src/cli/nori-skillsets.js switch-skillset amol
 10. Run login.
 
 ```bash
-node build/src/cli/nori-skillsets.js switch-skillset amol
+node build/src/cli/nori-skillsets.js login
 ```
 
 - Ask the user for creds or look in .env for skillset email and password creds
