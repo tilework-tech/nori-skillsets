@@ -150,7 +150,7 @@ const run = async (args: { input: HookInput }): Promise<HookOutput | null> => {
     return {
       decision: "block",
       reason: formatSuccess({
-        message: `Update an installed profile package to the latest version.\n\nUsage: /nori-registry-update <profile-name> [registry-url]\n\nExamples:\n  /nori-registry-update my-profile\n  /nori-registry-update my-profile https://private-registry.com`,
+        message: `Update an installed profile package to the latest version.\n\nUsage: /nori-registry-update <profile-name> [registry-url]\n\nExamples:\n  /nori-registry-update my-skillset\n  /nori-registry-update my-skillset https://private-registry.com`,
       }),
     };
   }

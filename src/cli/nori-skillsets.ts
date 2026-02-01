@@ -59,12 +59,12 @@ Examples:
   $ nori-skillsets login
   $ nori-skillsets logout
   $ nori-skillsets init
-  $ nori-skillsets search typescript  # searches both profiles and skills
-  $ nori-skillsets download my-profile
-  $ nori-skillsets download my-profile@1.0.0
-  $ nori-skillsets download my-profile --list-versions
-  $ nori-skillsets install my-profile
-  $ nori-skillsets install my-profile --user
+  $ nori-skillsets search typescript  # searches both skillsets and skills
+  $ nori-skillsets download my-skillset
+  $ nori-skillsets download my-skillset@1.0.0
+  $ nori-skillsets download my-skillset --list-versions
+  $ nori-skillsets install my-skillset
+  $ nori-skillsets install my-skillset --user
   $ nori-skillsets switch-skillset senior-swe
   $ nori-skillsets list-skillsets
   $ nori-skillsets download-skill my-skill

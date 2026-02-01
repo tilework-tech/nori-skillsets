@@ -236,7 +236,7 @@ const run = async (args: { input: HookInput }): Promise<HookOutput | null> => {
     return {
       decision: "block",
       reason: formatSuccess({
-        message: `Upload a profile to the Nori registry.\n\nUsage: /nori-registry-upload <profile-name> [version] [registry-url]\n\nExamples:\n  /nori-registry-upload my-profile\n  /nori-registry-upload my-profile 1.0.0\n  /nori-registry-upload my-profile https://registry.example.com\n  /nori-registry-upload my-profile 1.0.0 https://registry.example.com\n\nRequires registry authentication in .nori-config.json`,
+        message: `Upload a profile to the Nori registry.\n\nUsage: /nori-registry-upload <profile-name> [version] [registry-url]\n\nExamples:\n  /nori-registry-upload my-skillset\n  /nori-registry-upload my-skillset 1.0.0\n  /nori-registry-upload my-skillset https://registry.example.com\n  /nori-registry-upload my-skillset 1.0.0 https://registry.example.com\n\nRequires registry authentication in .nori-config.json`,
       }),
     };
   }

@@ -35,7 +35,7 @@ nori-ai install (orchestrator)
 - Warns about ancestor installations that might cause CLAUDE.md conflicts
 - Detects existing Claude Code configuration (`~/.claude/` CLAUDE.md, skills, agents, commands) and captures it as a profile:
   - Interactive mode: requires user to provide a profile name via `existingConfigCapture.ts` (user can abort with Ctrl+C)
-  - Non-interactive mode: auto-captures as "my-profile"
+  - Non-interactive mode: auto-captures as "my-skillset"
 - When a profile is captured, init performs three additional steps:
   - Deletes the original `~/.claude/CLAUDE.md` to prevent content duplication (the content was already captured to the profile with managed block markers)
   - Sets the captured profile as active by writing `agents.claude-code.profile.baseProfile` to config
@@ -73,7 +73,7 @@ Each agent declares its own global features (e.g., claude-code has hooks, status
 
 The install command sets `agents: { [agentName]: { profile } }` in the config, where the keys of the `agents` object indicate which agents are installed. The config loader merges `agents` objects with any existing config. The uninstall command prompts the user to select which agent to uninstall when multiple agents are installed at a location (in interactive mode).
 
-**Install Non-Interactive Profile Requirement:** Non-interactive installs require either an existing configuration with a profile OR the `--profile` flag. This requirement is enforced by the onboard command. When no existing config is found, the onboard command errors with a helpful message listing available profiles and example usage. Example: `nori-ai install --non-interactive --profile my-profile`.
+**Install Non-Interactive Profile Requirement:** Non-interactive installs require either an existing configuration with a profile OR the `--profile` flag. This requirement is enforced by the onboard command. When no existing config is found, the onboard command errors with a helpful message listing available profiles and example usage. Example: `nori-ai install --non-interactive --profile my-skillset`.
 
 **Install Agent-Specific Uninstall Logic:** The install command only runs uninstall cleanup when reinstalling the SAME agent (upgrade scenario). When installing a different agent (e.g., cursor-agent when claude-code is already installed), it skips uninstall to preserve the existing agent's installation. The logic:
 1. Reads config at start to get installed agents via `getInstalledAgents({ config })` (keys of `agents` object)
@@ -110,7 +110,7 @@ Skills follow the same tarball-based upload/download pattern as profiles. Downlo
 
 The command uses `parseNamespacedPackage()` from @/src/utils/url.ts to extract the org ID, package name, and optional version. It then uses `buildOrganizationRegistryUrl()` to derive the target registry URL from the org ID. For authentication, the command checks `config.auth.organizations` (unified auth) to verify the user has access to the specified org's registry.
 
-**skill-download Flat Installation:** Unlike profiles which nest by org (`~/.nori/profiles/myorg/my-profile/`), skills install to a flat directory (`~/.claude/skills/my-skill/`) regardless of namespace. This maintains backward compatibility with the Claude Code skills directory structure.
+**skill-download Flat Installation:** Unlike profiles which nest by org (`~/.nori/profiles/myorg/my-skillset/`), skills install to a flat directory (`~/.claude/skills/my-skill/`) regardless of namespace. This maintains backward compatibility with the Claude Code skills directory structure.
 
 **skill-download Org Collision Warning:** When installing a skill from a different org than the currently installed version (tracked via `orgId` in `.nori-version`), the command warns the user about the overwrite. For example, installing `myorg/my-skill` over a previously installed `my-skill` (from public registry) will display a warning.
 
@@ -202,14 +202,14 @@ By using `nonInteractive: false`, the auto-init triggers the interactive existin
 This differs from `registry-install`, which calls the full `installMain()` (orchestrating init, onboard, and loaders). The `registry-download` command only calls `initMain()` because download just places profile files without activating them - the user still needs to run `switch-profile` to activate the downloaded profile.
 
 **registry-download Namespaced Packages:** The `registry-download` command supports namespaced package specifications for organization-scoped packages. The package spec format is `[org/]package-name[@version]`:
-- `my-profile` - downloads from public registry to `~/.nori/profiles/my-profile/`
-- `myorg/my-profile` - downloads from `https://myorg.noriskillsets.dev` to `~/.nori/profiles/myorg/my-profile/`
+- `my-skillset` - downloads from public registry to `~/.nori/profiles/my-skillset/`
+- `myorg/my-skillset` - downloads from `https://myorg.noriskillsets.dev` to `~/.nori/profiles/myorg/my-skillset/`
 
 The command uses `parseNamespacedPackage()` from @/src/utils/url.ts to extract the org ID, package name, and optional version from the package spec. It then uses `buildOrganizationRegistryUrl()` to derive the target registry URL from the org ID. For authentication, the command checks `config.auth.organizations` (unified auth) to verify the user has access to the specified org's registry. If the user is not logged in (no unified auth), the command errors with a message prompting the user to log in via `nori-ai login`. Unnamespaced packages (public registry) do not require authentication.
 
 **registry-upload Namespaced Packages:** The `registry-upload` command supports the same namespaced package specification format for uploading to organization registries. The profile directory structure mirrors the package namespace:
-- `my-profile` - uploads from `~/.nori/profiles/my-profile/` to public registry
-- `myorg/my-profile` - uploads from `~/.nori/profiles/myorg/my-profile/` to `https://myorg.noriskillsets.dev`
+- `my-skillset` - uploads from `~/.nori/profiles/my-skillset/` to public registry
+- `myorg/my-skillset` - uploads from `~/.nori/profiles/myorg/my-skillset/` to `https://myorg.noriskillsets.dev`
 
 When using unified auth, the command derives the target registry from the package namespace automatically. When no explicit `--registry` is provided and the user has unified auth with organizations, the command uploads to the org's registry matching the package namespace.
 

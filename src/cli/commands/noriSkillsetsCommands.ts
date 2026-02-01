@@ -55,7 +55,7 @@ export const registerNoriSkillsetsSearchCommand = (args: {
 
   program
     .command("search <query>")
-    .description("Search for profiles and skills in your org's registry")
+    .description("Search for skillsets and skills in your org's registry")
     .action(async (query: string) => {
       const globalOpts = program.opts();
       await registrySearchMain({
@@ -79,7 +79,7 @@ export const registerNoriSkillsetsDownloadCommand = (args: {
   program
     .command("download <package>")
     .description(
-      "Download and install a profile package from the Nori registrar",
+      "Download and install a skillset package from the Nori registrar",
     )
     .option(
       "--registry <url>",
@@ -124,7 +124,7 @@ export const registerNoriSkillsetsInstallCommand = (args: {
   program
     .command("install <package>")
     .description(
-      "Download, install, and activate a profile from the public registry in one step",
+      "Download, install, and activate a skillset from the public registry in one step",
     )
     .option("--user", "Install to the user home directory")
     .action(async (packageSpec: string, options: { user?: boolean }) => {
