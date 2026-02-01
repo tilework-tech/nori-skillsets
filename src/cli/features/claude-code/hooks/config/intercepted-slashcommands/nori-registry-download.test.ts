@@ -142,6 +142,8 @@ describe("nori-registry-download", () => {
       const plainReason = stripAnsi(result!.reason!);
       expect(plainReason).toContain("Usage:");
       expect(plainReason).toContain("/nori-registry-download <package-name>");
+      expect(plainReason).toContain("my-skillset");
+      expect(plainReason).not.toContain("my-profile");
     });
 
     it("should return error when no installation found", async () => {

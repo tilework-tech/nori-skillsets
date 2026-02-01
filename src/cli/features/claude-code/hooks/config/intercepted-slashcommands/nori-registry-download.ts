@@ -323,7 +323,7 @@ const run = async (args: { input: HookInput }): Promise<HookOutput | null> => {
     return {
       decision: "block",
       reason: formatSuccess({
-        message: `Download and install a profile package from the Nori registry.\n\nUsage: /nori-registry-download <package-name>[@version] [registry-url]\n\nExamples:\n  /nori-registry-download my-profile\n  /nori-registry-download my-profile@1.0.0\n  /nori-registry-download my-profile https://private-registry.com\n\nUse /nori-registry-search to find available packages.`,
+        message: `Download and install a skillset package from the Nori registry.\n\nUsage: /nori-registry-download <package-name>[@version] [registry-url]\n\nExamples:\n  /nori-registry-download my-skillset\n  /nori-registry-download my-skillset@1.0.0\n  /nori-registry-download my-skillset https://private-registry.com\n\nUse /nori-registry-search to find available packages.`,
       }),
     };
   }

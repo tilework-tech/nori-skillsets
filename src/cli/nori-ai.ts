@@ -66,15 +66,15 @@ Examples:
   $ nori-ai check
   $ nori-ai install-location
   $ nori-ai switch-profile senior-swe
-  $ nori-ai registry-search typescript   # searches both profiles and skills
-  $ nori-ai registry-download my-profile
-  $ nori-ai registry-download my-profile@1.0.0
-  $ nori-ai registry-download my-profile --list-versions
-  $ nori-ai registry-install my-profile
-  $ nori-ai registry-install my-profile --user
-  $ nori-ai registry-update my-profile
-  $ nori-ai registry-upload my-profile
-  $ nori-ai registry-upload my-profile@1.0.0 --registry https://registry.example.com
+  $ nori-ai registry-search typescript   # searches both skillsets and skills
+  $ nori-ai registry-download my-skillset
+  $ nori-ai registry-download my-skillset@1.0.0
+  $ nori-ai registry-download my-skillset --list-versions
+  $ nori-ai registry-install my-skillset
+  $ nori-ai registry-install my-skillset --user
+  $ nori-ai registry-update my-skillset
+  $ nori-ai registry-upload my-skillset
+  $ nori-ai registry-upload my-skillset@1.0.0 --registry https://registry.example.com
   $ nori-ai skill-download my-skill
   $ nori-ai skill-download my-skill@1.0.0
   $ nori-ai skill-download my-skill --list-versions

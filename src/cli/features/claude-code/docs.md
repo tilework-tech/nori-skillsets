@@ -12,7 +12,7 @@ This `claude-code/` subdirectory implements the Agent interface defined in @/src
 - `name`: "claude-code"
 - `displayName`: "Claude Code"
 - `getLoaderRegistry()`: Returns the LoaderRegistry singleton with all Claude Code loaders
-- `listProfiles({ installDir })`: Scans installed `.nori/profiles/` for both flat profiles (e.g., `my-profile`) and namespaced profiles in nested directories (e.g., `myorg/my-profile`). Returns an array of profile names in their canonical format.
+- `listProfiles({ installDir })`: Scans installed `.nori/profiles/` for both flat profiles (e.g., `my-skillset`) and namespaced profiles in nested directories (e.g., `myorg/my-skillset`). Returns an array of profile names in their canonical format.
 - `switchProfile({ installDir, profileName })`: Validates profile exists (handles both flat and namespaced paths via `path.join`), updates config with new profile, logs success message
 - `getGlobalLoaders()`: Returns loaders that write to `~/.claude/` global config (hooks, statusline, slashcommands, announcements)
 

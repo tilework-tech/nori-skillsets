@@ -4,7 +4,7 @@ Path: @/src/api
 
 ### Overview
 
-Client API for communicating with the Nori Profiles backend server, providing typed interfaces for artifacts, queries, conversation operations, analytics event tracking, and the public Nori registrar (profile package registry).
+Client API for communicating with the Nori Profiles backend server, providing typed interfaces for artifacts, queries, conversation operations, analytics event tracking, and the public Nori registrar (skillset package registry).
 
 ### How it fits into the larger codebase
 

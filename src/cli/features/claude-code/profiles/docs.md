@@ -93,7 +93,7 @@ The `profiles/config/` directory in the package is empty -- no built-in profiles
 ```
 ~/.nori/
   profiles/
-    my-profile/         # Self-contained profile (downloaded or user-created)
+    my-skillset/         # Self-contained profile (downloaded or user-created)
       skills/           # Inline skills + downloaded external skills
         writing-plans/  # External skill downloaded by registry-download or skill-download
         using-skills/   # Inline skill bundled with profile
