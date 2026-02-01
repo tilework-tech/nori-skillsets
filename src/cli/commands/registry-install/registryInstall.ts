@@ -169,12 +169,9 @@ export const registryInstallMain = async (
     });
 
     // Step 4: Re-run install in silent mode to regenerate files with new profile
-    // skipBuiltinProfiles prevents installing all built-in profiles when user
-    // explicitly downloaded a specific profile from the registry
     await installMain({
       nonInteractive: true,
       skipUninstall: true,
-      skipBuiltinProfiles: true,
       installDir: targetInstallDir,
       agent: agentName,
       silent: true,

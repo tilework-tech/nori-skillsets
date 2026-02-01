@@ -4,30 +4,17 @@
  */
 
 import * as fs from "fs/promises";
-import * as path from "path";
-import { fileURLToPath } from "url";
 
 import { getCursorProfilesDir } from "@/cli/features/cursor-agent/paths.js";
 import { CursorProfileLoaderRegistry } from "@/cli/features/cursor-agent/profiles/profileLoaderRegistry.js";
-import { success, info, warn } from "@/cli/logger.js";
+import { info } from "@/cli/logger.js";
 
 import type { Config } from "@/cli/config.js";
 import type { Loader, ValidationResult } from "@/cli/features/agentRegistry.js";
 
-// Get directory of this loader file
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Profile templates config directory (relative to this loader)
-const PROFILE_TEMPLATES_DIR = path.join(__dirname, "config");
-
 /**
  * Install profile templates to ~/.cursor/profiles/
- * Each profile is self-contained with all content inlined directly
- *
- * When config.skipBuiltinProfiles is true, this function skips copying built-in profiles
- * entirely. This is used during switch-profile operations where the user has downloaded
- * a profile from the registry and doesn't want all built-in profiles installed.
+ * Creates the profiles directory. Profiles are managed via the registry.
  *
  * @param args - Configuration arguments
  * @param args.config - Runtime configuration
@@ -41,81 +28,6 @@ const installProfiles = async (args: { config: Config }): Promise<void> => {
 
   // Create profiles directory if it doesn't exist
   await fs.mkdir(cursorProfilesDir, { recursive: true });
-
-  // Skip installing built-in profiles if flag is set (used during switch-profile)
-  if (config.skipBuiltinProfiles === true) {
-    info({
-      message:
-        "Skipping built-in profile installation (switch-profile mode)...",
-    });
-    return;
-  }
-
-  info({ message: "Installing Cursor profiles..." });
-
-  let installedCount = 0;
-  let skippedCount = 0;
-
-  // Read all directories from templates directory (these are built-in profiles)
-  const entries = await fs.readdir(PROFILE_TEMPLATES_DIR, {
-    withFileTypes: true,
-  });
-
-  // Install user-facing profiles
-  // Internal directories (starting with _) are NEVER installed
-  for (const entry of entries) {
-    if (!entry.isDirectory() || entry.name.startsWith("_")) {
-      continue; // Skip non-directories and internal directories
-    }
-
-    const profileSrcDir = path.join(PROFILE_TEMPLATES_DIR, entry.name);
-    const profileDestDir = path.join(cursorProfilesDir, entry.name);
-
-    try {
-      // User-facing profile - must have AGENTS.md
-      const agentsMdPath = path.join(profileSrcDir, "AGENTS.md");
-      await fs.access(agentsMdPath);
-
-      // Remove existing profile directory if it exists
-      await fs.rm(profileDestDir, { recursive: true, force: true });
-
-      // Create destination directory
-      await fs.mkdir(profileDestDir, { recursive: true });
-
-      // Copy all profile content directly (no mixin composition)
-      // Skip profile.json (legacy format) - we use nori.json instead
-      await fs.cp(profileSrcDir, profileDestDir, {
-        recursive: true,
-        filter: (source) => !source.endsWith("profile.json"),
-      });
-
-      success({
-        message: `✓ ${entry.name} profile installed`,
-      });
-      installedCount++;
-    } catch {
-      warn({
-        message: `Profile directory ${entry.name} not found or invalid, skipping`,
-      });
-      skippedCount++;
-    }
-  }
-
-  if (installedCount > 0) {
-    success({
-      message: `Successfully installed ${installedCount} profile${
-        installedCount === 1 ? "" : "s"
-      }`,
-    });
-    info({ message: `Profiles directory: ${cursorProfilesDir}` });
-  }
-  if (skippedCount > 0) {
-    warn({
-      message: `Skipped ${skippedCount} profile${
-        skippedCount === 1 ? "" : "s"
-      } (not found or invalid)`,
-    });
-  }
 };
 
 /**

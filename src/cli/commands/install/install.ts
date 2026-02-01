@@ -126,21 +126,13 @@ const runFeatureLoaders = async (args: {
  * @param args.config - Configuration to use
  * @param args.agent - AI agent implementation
  * @param args.nonInteractive - Whether running in non-interactive mode
- * @param args.skipBuiltinProfiles - Whether to skip installing built-in profiles
  */
 const completeInstallation = async (args: {
   config: Config;
   agent: ReturnType<typeof AgentRegistry.prototype.get>;
   nonInteractive: boolean;
-  skipBuiltinProfiles?: boolean | null;
 }): Promise<void> => {
-  const { config, agent, nonInteractive, skipBuiltinProfiles } = args;
-
-  // Pass skipBuiltinProfiles to config for loaders to access
-  const configWithFlags: Config = {
-    ...config,
-    skipBuiltinProfiles: skipBuiltinProfiles ?? null,
-  };
+  const { config, agent, nonInteractive } = args;
 
   // Track installation start (fire-and-forget)
   void (async () => {
@@ -160,7 +152,7 @@ const completeInstallation = async (args: {
   createProgressMarker();
 
   // Run feature loaders
-  await runFeatureLoaders({ config: configWithFlags, agent });
+  await runFeatureLoaders({ config, agent });
 
   // Remove progress marker
   cleanupProgressMarker();
@@ -280,15 +272,13 @@ const getInstalledAgentInfo = async (args: {
  * @param args.skipUninstall - Whether to skip uninstall step
  * @param args.installDir - Installation directory (optional)
  * @param args.agent - AI agent to use (defaults to claude-code)
- * @param args.skipBuiltinProfiles - Whether to skip installing built-in profiles
  */
 export const interactive = async (args?: {
   skipUninstall?: boolean | null;
   installDir?: string | null;
   agent?: string | null;
-  skipBuiltinProfiles?: boolean | null;
 }): Promise<void> => {
-  const { skipUninstall, installDir, agent, skipBuiltinProfiles } = args || {};
+  const { skipUninstall, installDir, agent } = args || {};
   const normalizedInstallDir = normalizeInstallDir({ installDir });
   const agentImpl = AgentRegistry.getInstance().get({
     name: agent ?? "claude-code",
@@ -341,7 +331,6 @@ export const interactive = async (args?: {
     config,
     agent: agentImpl,
     nonInteractive: false,
-    skipBuiltinProfiles,
   });
 };
 
@@ -354,17 +343,14 @@ export const interactive = async (args?: {
  * @param args.installDir - Installation directory (optional)
  * @param args.agent - AI agent to use (defaults to claude-code)
  * @param args.profile - Profile to use (required if no existing config)
- * @param args.skipBuiltinProfiles - Whether to skip installing built-in profiles
  */
 export const noninteractive = async (args?: {
   skipUninstall?: boolean | null;
   installDir?: string | null;
   agent?: string | null;
   profile?: string | null;
-  skipBuiltinProfiles?: boolean | null;
 }): Promise<void> => {
-  const { skipUninstall, installDir, agent, profile, skipBuiltinProfiles } =
-    args || {};
+  const { skipUninstall, installDir, agent, profile } = args || {};
   const normalizedInstallDir = normalizeInstallDir({ installDir });
   const agentImpl = AgentRegistry.getInstance().get({
     name: agent ?? "claude-code",
@@ -412,7 +398,6 @@ export const noninteractive = async (args?: {
     config,
     agent: agentImpl,
     nonInteractive: true,
-    skipBuiltinProfiles,
   });
 };
 
@@ -426,7 +411,6 @@ export const noninteractive = async (args?: {
  * @param args.agent - AI agent to use (defaults to claude-code)
  * @param args.silent - Whether to suppress all output (implies nonInteractive)
  * @param args.profile - Profile to use for non-interactive install (required if no existing config)
- * @param args.skipBuiltinProfiles - Whether to skip installing built-in profiles (for switch-profile)
  */
 export const main = async (args?: {
   nonInteractive?: boolean | null;
@@ -435,17 +419,9 @@ export const main = async (args?: {
   agent?: string | null;
   silent?: boolean | null;
   profile?: string | null;
-  skipBuiltinProfiles?: boolean | null;
 }): Promise<void> => {
-  const {
-    nonInteractive,
-    skipUninstall,
-    installDir,
-    agent,
-    silent,
-    profile,
-    skipBuiltinProfiles,
-  } = args || {};
+  const { nonInteractive, skipUninstall, installDir, agent, silent, profile } =
+    args || {};
 
   // Save original console.log and suppress all output if silent mode requested
   const originalConsoleLog = console.log;
@@ -462,14 +438,12 @@ export const main = async (args?: {
         installDir,
         agent,
         profile,
-        skipBuiltinProfiles,
       });
     } else {
       await interactive({
         skipUninstall,
         installDir,
         agent,
-        skipBuiltinProfiles,
       });
     }
   } catch (err: any) {
@@ -503,10 +477,6 @@ export const registerInstallCommand = (args: { program: Command }): void => {
       "--skip-uninstall",
       "Skip uninstall step (useful for profile switching to preserve user customizations)",
     )
-    .option(
-      "--skip-builtin-profiles",
-      "Skip installing built-in profiles (for switch-profile operations)",
-    )
     .action(async (options) => {
       // Get global options from parent
       const globalOpts = program.opts();
@@ -514,7 +484,6 @@ export const registerInstallCommand = (args: { program: Command }): void => {
       await main({
         nonInteractive: globalOpts.nonInteractive || null,
         skipUninstall: options.skipUninstall || null,
-        skipBuiltinProfiles: options.skipBuiltinProfiles || null,
         installDir: globalOpts.installDir || null,
         agent: globalOpts.agent || null,
         silent: globalOpts.silent || null,

@@ -5,20 +5,12 @@
 
 import * as fs from "fs/promises";
 import * as path from "path";
-import { fileURLToPath } from "url";
 
 import { loadConfig, saveConfig } from "@/cli/config.js";
 import { CursorLoaderRegistry } from "@/cli/features/cursor-agent/loaderRegistry.js";
 import { success, info } from "@/cli/logger.js";
 
-import type { Agent, SourceProfile } from "@/cli/features/agentRegistry.js";
-
-// Get directory of this file for source profile loading
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Source profiles directory (in the package)
-const SOURCE_PROFILES_DIR = path.join(__dirname, "profiles", "config");
+import type { Agent } from "@/cli/features/agentRegistry.js";
 
 /** Instructions file name for Cursor */
 const INSTRUCTIONS_FILE = "AGENTS.md";
@@ -84,59 +76,6 @@ export const cursorAgent: Agent = {
     }
 
     return profiles.sort();
-  },
-
-  listSourceProfiles: async (): Promise<Array<SourceProfile>> => {
-    const profiles: Array<SourceProfile> = [];
-
-    try {
-      const entries = await fs.readdir(SOURCE_PROFILES_DIR, {
-        withFileTypes: true,
-      });
-
-      for (const entry of entries) {
-        // Skip non-directories and internal directories (starting with _)
-        if (!entry.isDirectory() || entry.name.startsWith("_")) {
-          continue;
-        }
-
-        // Try nori.json first, fall back to profile.json for backward compatibility
-        const noriJsonPath = path.join(
-          SOURCE_PROFILES_DIR,
-          entry.name,
-          "nori.json",
-        );
-        const profileJsonPath = path.join(
-          SOURCE_PROFILES_DIR,
-          entry.name,
-          "profile.json",
-        );
-
-        try {
-          let profileData: { description?: string };
-
-          try {
-            const content = await fs.readFile(noriJsonPath, "utf-8");
-            profileData = JSON.parse(content);
-          } catch {
-            // Fall back to profile.json
-            const content = await fs.readFile(profileJsonPath, "utf-8");
-            profileData = JSON.parse(content);
-          }
-
-          profiles.push({
-            name: entry.name,
-            description: profileData.description || "No description available",
-          });
-        } catch {
-          // Skip profiles without valid metadata file
-        }
-      }
-    } catch {
-      // Source profiles directory doesn't exist (shouldn't happen in production)
-    }
-
-    return profiles.sort((a, b) => a.name.localeCompare(b.name));
   },
 
   switchProfile: async (args: {

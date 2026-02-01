@@ -6,7 +6,7 @@
  *
  * Responsibilities:
  * - Prompt for Nori Web authentication credentials
- * - Prompt for profile selection (wizard OR preset)
+ * - Prompt for profile selection
  * - Update config with auth and selected profile
  */
 
@@ -34,7 +34,7 @@ import {
 import type { Command } from "commander";
 
 /**
- * Get available profiles from both source and installed locations
+ * Get available profiles from installed location
  *
  * @param args - Configuration arguments
  * @param args.installDir - Installation directory
@@ -47,27 +47,13 @@ const getAvailableProfiles = async (args: {
   agent: ReturnType<typeof AgentRegistry.prototype.get>;
 }): Promise<Array<{ name: string; description: string }>> => {
   const { installDir, agent } = args;
-  const profilesMap = new Map<string, { name: string; description: string }>();
 
-  // Get profiles from package source directory
-  const sourceProfiles = await agent.listSourceProfiles();
-  for (const profile of sourceProfiles) {
-    profilesMap.set(profile.name, profile);
-  }
-
-  // Get installed profiles (may include user-added profiles)
   const installedProfileNames = await agent.listProfiles({ installDir });
-  for (const name of installedProfileNames) {
-    // Only add if not already in source profiles (source takes precedence for description)
-    if (!profilesMap.has(name)) {
-      profilesMap.set(name, {
-        name,
-        description: "User-installed profile",
-      });
-    }
-  }
 
-  return Array.from(profilesMap.values());
+  return installedProfileNames.map((name) => ({
+    name,
+    description: "Installed profile",
+  }));
 };
 
 /**
@@ -156,151 +142,48 @@ const promptForAuth = async (): Promise<{
 };
 
 /**
- * Prompt for profile selection (wizard vs pre-built, then specific profile)
+ * Prompt for profile selection
  *
  * @param args - Configuration arguments
  * @param args.installDir - Installation directory
  * @param args.agent - AI agent implementation
- * @param args.isFirstTimeInstall - Whether this is first-time install
  *
  * @returns Selected profile
  */
 const promptForProfile = async (args: {
   installDir: string;
   agent: ReturnType<typeof AgentRegistry.prototype.get>;
-  isFirstTimeInstall: boolean;
 }): Promise<{ baseProfile: string }> => {
-  const { installDir, agent, isFirstTimeInstall } = args;
-
-  // First-time install: Ask if user wants pre-built profile or wizard
-  if (isFirstTimeInstall) {
-    info({
-      message: "Would you like to:",
-    });
-    newline();
-
-    const number1 = brightCyan({ text: "1." });
-    const option1Name = boldWhite({ text: "Use a pre-built profile" });
-    const option1Desc = gray({
-      text: "Choose from senior-swe, amol, product-manager, and more",
-    });
-    raw({ message: `${number1} ${option1Name}` });
-    raw({ message: `   ${option1Desc}` });
-    newline();
-
-    const number2 = brightCyan({ text: "2." });
-    const option2Name = boldWhite({
-      text: "Create a personalized profile with our setup wizard",
-    });
-    const option2Desc = gray({
-      text: "Answer questions about your workflow to generate a custom profile",
-    });
-    raw({ message: `${number2} ${option2Name}` });
-    raw({ message: `   ${option2Desc}` });
-    newline();
-
-    const wizardChoice = await promptUser({
-      prompt: "Select an option (1-2): ",
-    });
-
-    if (wizardChoice === "2") {
-      info({ message: 'Loading "onboarding-wizard-questionnaire" profile...' });
-      newline();
-      info({
-        message: wrapText({
-          text: "After restarting Claude Code, the wizard will guide you through creating a personalized profile based on your workflow preferences.",
-        }),
-      });
-      newline();
-
-      return { baseProfile: "onboarding-wizard-questionnaire" };
-    }
-
-    // User chose pre-built, continue to profile selection
-    newline();
-  }
+  const { installDir, agent } = args;
 
   // Get available profiles from both source and installed locations
   const profiles = await getAvailableProfiles({ installDir, agent });
 
   if (profiles.length === 0) {
-    error({ message: "No profiles found. This should not happen." });
+    error({
+      message:
+        "No profiles found. Download a profile from the registry first using 'nori-ai download'.",
+    });
     process.exit(1);
   }
 
-  // Display profiles with categorization
+  // Display available profiles
   info({
     message: wrapText({
-      text: "Nori profiles contain a complete configuration for customizing your coding agent, including a CLAUDE/AGENT.md, skills, subagents, and commands. We recommend starting with:",
+      text: "Nori profiles contain a complete configuration for customizing your coding agent, including a CLAUDE/AGENT.md, skills, subagents, and commands.",
     }),
   });
   newline();
 
-  // Order profiles for display: known profiles first in fixed order, then custom
-  const knownProfileOrder = ["senior-swe", "amol", "product-manager"];
-  const customProfiles = profiles.filter(
-    (p) => !knownProfileOrder.includes(p.name),
-  );
-  const displayOrderedProfiles = [
-    ...knownProfileOrder
-      .map((name) => profiles.find((p) => p.name === name))
-      .filter((p) => p != null),
-    ...customProfiles,
-  ];
-
-  // Categorize for display formatting
-  const recommendedProfile = displayOrderedProfiles.find(
-    (p) => p.name === "senior-swe",
-  );
-  const additionalProfiles = displayOrderedProfiles.filter((p) =>
-    ["amol", "product-manager"].includes(p.name),
-  );
-
-  let profileIndex = 1;
-
-  // Display recommended profile (senior-swe)
-  if (recommendedProfile) {
-    const number = brightCyan({ text: `${profileIndex}.` });
-    const name = boldWhite({ text: recommendedProfile.name });
-    const description = gray({ text: recommendedProfile.description });
+  // Display all profiles in a simple numbered list
+  profiles.forEach((p, index) => {
+    const number = brightCyan({ text: `${index + 1}.` });
+    const name = boldWhite({ text: p.name });
+    const description = gray({ text: p.description });
     raw({ message: `${number} ${name}` });
     raw({ message: `   ${description}` });
     newline();
-    profileIndex++;
-  }
-
-  // Display additional profiles (amol, product-manager)
-  if (additionalProfiles.length > 0) {
-    info({ message: "Two additional profiles are:" });
-    newline();
-    additionalProfiles.forEach((p) => {
-      const number = brightCyan({ text: `${profileIndex}.` });
-      const name = boldWhite({ text: p.name });
-      const description = gray({ text: p.description });
-      raw({ message: `${number} ${name}` });
-      raw({ message: `   ${description}` });
-      newline();
-      profileIndex++;
-    });
-  }
-
-  // Display custom profiles
-  if (customProfiles.length > 0) {
-    info({
-      message:
-        "The following profiles were found in your existing Nori profiles folder:",
-    });
-    newline();
-    customProfiles.forEach((p) => {
-      const number = brightCyan({ text: `${profileIndex}.` });
-      const name = boldWhite({ text: p.name });
-      const description = gray({ text: p.description });
-      raw({ message: `${number} ${name}` });
-      raw({ message: `   ${description}` });
-      newline();
-      profileIndex++;
-    });
-  }
+  });
 
   info({
     message: wrapText({
@@ -313,12 +196,12 @@ const promptForProfile = async (args: {
   let selectedProfileName: string;
   while (true) {
     const response = await promptUser({
-      prompt: `Select a profile (1-${displayOrderedProfiles.length}): `,
+      prompt: `Select a profile (1-${profiles.length}): `,
     });
 
     const selectedIndex = parseInt(response) - 1;
-    if (selectedIndex >= 0 && selectedIndex < displayOrderedProfiles.length) {
-      const selected = displayOrderedProfiles[selectedIndex];
+    if (selectedIndex >= 0 && selectedIndex < profiles.length) {
+      const selected = profiles[selectedIndex];
       info({ message: `Loading "${selected.name}" profile...` });
       selectedProfileName = selected.name;
       break;
@@ -326,7 +209,7 @@ const promptForProfile = async (args: {
 
     // Invalid selection - show error and loop
     error({
-      message: `Invalid selection "${response}". Please enter a number between 1 and ${displayOrderedProfiles.length}.`,
+      message: `Invalid selection "${response}". Please enter a number between 1 and ${profiles.length}.`,
     });
     newline();
   }
@@ -365,12 +248,11 @@ export const onboardMain = async (args?: {
     process.exit(1);
   }
 
-  // Determine if this agent already has a profile (affects wizard flow)
+  // Determine if this agent already has a profile
   const existingProfile = getAgentProfile({
     config: existingConfig,
     agentName: agentImpl.name,
   });
-  const isFirstTimeInstall = existingProfile == null;
 
   let auth: {
     username: string;
@@ -387,11 +269,8 @@ export const onboardMain = async (args?: {
           "Non-interactive onboard requires --profile flag when no existing profile is set",
       });
       info({
-        message: "Available profiles: senior-swe, amol, product-manager",
-      });
-      info({
         message:
-          "Example: nori-ai onboard --non-interactive --profile senior-swe",
+          "Example: nori-ai onboard --non-interactive --profile <profile-name>",
       });
       process.exit(1);
     }
@@ -441,7 +320,6 @@ export const onboardMain = async (args?: {
         (await promptForProfile({
           installDir: normalizedInstallDir,
           agent: agentImpl,
-          isFirstTimeInstall,
         }));
     } else {
       newline();
@@ -449,7 +327,6 @@ export const onboardMain = async (args?: {
       selectedProfile = await promptForProfile({
         installDir: normalizedInstallDir,
         agent: agentImpl,
-        isFirstTimeInstall,
       });
     }
   } else {
@@ -458,7 +335,6 @@ export const onboardMain = async (args?: {
     selectedProfile = await promptForProfile({
       installDir: normalizedInstallDir,
       agent: agentImpl,
-      isFirstTimeInstall,
     });
   }
 

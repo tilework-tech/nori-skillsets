@@ -27,6 +27,32 @@ import {
 
 import type { Config } from "@/cli/config.js";
 
+/**
+ * Create a minimal stub profile in the profiles directory.
+ * Since built-in profiles are no longer bundled, downstream loaders (agentsmd, rules)
+ * need a profile with at least an AGENTS.md file to exist in the profiles directory.
+ * @param args - Function arguments
+ * @param args.profilesDir - Path to the profiles directory
+ * @param args.profileName - Name of the profile to create
+ */
+const createStubProfile = async (args: {
+  profilesDir: string;
+  profileName: string;
+}): Promise<void> => {
+  const { profilesDir, profileName } = args;
+  const profileDir = path.join(profilesDir, profileName);
+  await fs.mkdir(profileDir, { recursive: true });
+  await fs.writeFile(path.join(profileDir, "AGENTS.md"), "# Test Profile\n");
+  await fs.writeFile(
+    path.join(profileDir, "nori.json"),
+    JSON.stringify({
+      name: profileName,
+      version: "1.0.0",
+      description: "Test profile",
+    }),
+  );
+};
+
 describe("cursor-agent profiles loader", () => {
   let tempDir: string;
   let cursorDir: string;
@@ -55,7 +81,7 @@ describe("cursor-agent profiles loader", () => {
 
   const createConfig = (overrides: Partial<Config> = {}): Config => ({
     installDir: tempDir,
-    agents: { "cursor-agent": { profile: { baseProfile: "amol" } } },
+    agents: { "cursor-agent": { profile: { baseProfile: "test-profile" } } },
     ...overrides,
   });
 
@@ -74,76 +100,92 @@ describe("cursor-agent profiles loader", () => {
     test("creates profiles directory", async () => {
       const config = createConfig();
 
+      await fs.mkdir(profilesDir, { recursive: true });
+      await createStubProfile({
+        profilesDir,
+        profileName: "test-profile",
+      });
+
       await profilesLoader.run({ config });
 
       const stat = await fs.stat(profilesDir);
       expect(stat.isDirectory()).toBe(true);
     });
 
-    test("installs amol profile with AGENTS.md", async () => {
+    test("should not copy any built-in profiles", async () => {
       const config = createConfig();
+
+      await fs.mkdir(profilesDir, { recursive: true });
+      await createStubProfile({
+        profilesDir,
+        profileName: "test-profile",
+      });
 
       await profilesLoader.run({ config });
 
-      const agentsMdPath = path.join(profilesDir, "amol", "AGENTS.md");
-      await expect(fs.access(agentsMdPath)).resolves.toBeUndefined();
-    });
-
-    test("should not install internal profiles (starting with _)", async () => {
-      const config = createConfig();
-
-      await profilesLoader.run({ config });
-
-      // Verify profiles directory exists
+      // Verify only the stub profile exists (no built-in profiles were added)
       const files = await fs.readdir(profilesDir);
-
-      // Verify no profiles starting with _ are installed
-      const internalProfiles = files.filter((f) => f.startsWith("_"));
-      expect(internalProfiles).toHaveLength(0);
+      expect(files).toEqual(["test-profile"]);
     });
 
-    test("should install profile with all content inlined directly", async () => {
+    test("should handle reinstallation without errors", async () => {
       const config = createConfig();
 
+      await fs.mkdir(profilesDir, { recursive: true });
+      await createStubProfile({
+        profilesDir,
+        profileName: "test-profile",
+      });
+
+      // First installation
       await profilesLoader.run({ config });
 
-      // Verify amol profile has all content
-      const amolPath = path.join(profilesDir, "amol");
-      const amolExists = await fs
-        .access(amolPath)
+      // Second installation (update)
+      await expect(profilesLoader.run({ config })).resolves.not.toThrow();
+
+      // Verify profiles directory still exists
+      const exists = await fs
+        .access(profilesDir)
         .then(() => true)
         .catch(() => false);
-      expect(amolExists).toBe(true);
+      expect(exists).toBe(true);
+    });
 
-      // Verify it has rules directory with inlined content
-      const rulesDir = path.join(amolPath, "rules");
-      const rulesExists = await fs
-        .access(rulesDir)
+    test("should preserve existing user-installed profiles on reinstall", async () => {
+      const config = createConfig();
+
+      await fs.mkdir(profilesDir, { recursive: true });
+      await createStubProfile({
+        profilesDir,
+        profileName: "test-profile",
+      });
+
+      // First installation
+      await profilesLoader.run({ config });
+
+      // Simulate user installing another profile
+      const userProfile = path.join(profilesDir, "my-custom-profile");
+      await fs.mkdir(userProfile, { recursive: true });
+      await fs.writeFile(
+        path.join(userProfile, "AGENTS.md"),
+        "# Custom Profile",
+      );
+
+      // Second installation (update)
+      await profilesLoader.run({ config });
+
+      // Verify user profile is preserved
+      const customExists = await fs
+        .access(userProfile)
         .then(() => true)
         .catch(() => false);
-      expect(rulesExists).toBe(true);
+      expect(customExists).toBe(true);
 
-      // Verify it has the using-git-worktrees rule (inlined from former _swe mixin)
-      const gitWorktreesRule = path.join(rulesDir, "using-git-worktrees");
-      const ruleExists = await fs
-        .access(gitWorktreesRule)
-        .then(() => true)
-        .catch(() => false);
-      expect(ruleExists).toBe(true);
-
-      // Verify nori.json exists with correct metadata (replaces profile.json)
-      const noriJsonPath = path.join(amolPath, "nori.json");
-      const noriJson = JSON.parse(await fs.readFile(noriJsonPath, "utf-8"));
-      expect(noriJson.name).toBe("amol");
-      expect(noriJson.version).toBe("1.0.0");
-
-      // Verify profile.json does NOT exist (replaced by nori.json)
-      const profileJsonPath = path.join(amolPath, "profile.json");
-      const profileJsonExists = await fs
-        .access(profileJsonPath)
-        .then(() => true)
-        .catch(() => false);
-      expect(profileJsonExists).toBe(false);
+      const content = await fs.readFile(
+        path.join(userProfile, "AGENTS.md"),
+        "utf-8",
+      );
+      expect(content).toBe("# Custom Profile");
     });
   });
 
@@ -151,70 +193,33 @@ describe("cursor-agent profiles loader", () => {
     test("preserves ALL profiles during uninstall (profiles are never deleted)", async () => {
       const config = createConfig();
 
-      // First install
+      // First install and add a user profile
+      await fs.mkdir(profilesDir, { recursive: true });
+      await createStubProfile({
+        profilesDir,
+        profileName: "test-profile",
+      });
       await profilesLoader.run({ config });
 
-      // Verify profile exists
-      const amolExists = await fs
-        .access(path.join(profilesDir, "amol"))
-        .then(() => true)
-        .catch(() => false);
-      expect(amolExists).toBe(true);
+      const userProfile = path.join(profilesDir, "my-profile");
+      await fs.mkdir(userProfile, { recursive: true });
+      await fs.writeFile(path.join(userProfile, "AGENTS.md"), "# My Profile");
 
       // Then uninstall
       await profilesLoader.uninstall({ config });
 
-      // Verify ALL profiles are preserved (profiles are never deleted)
-      const amolExistsAfter = await fs
-        .access(path.join(profilesDir, "amol"))
+      // Verify profiles are preserved (profiles are never deleted)
+      const testProfileExists = await fs
+        .access(path.join(profilesDir, "test-profile"))
         .then(() => true)
         .catch(() => false);
-      expect(amolExistsAfter).toBe(true);
-    });
+      expect(testProfileExists).toBe(true);
 
-    test("preserves both built-in and custom profiles during uninstall", async () => {
-      const config = createConfig();
-
-      // Install built-in profiles
-      await profilesLoader.run({ config });
-
-      // Create a custom profile
-      const customProfileDir = path.join(profilesDir, "my-custom-profile");
-      await fs.mkdir(customProfileDir, { recursive: true });
-      await fs.writeFile(
-        path.join(customProfileDir, "nori.json"),
-        JSON.stringify({
-          name: "my-custom-profile",
-          version: "1.0.0",
-          description: "My custom profile",
-        }),
-      );
-      await fs.writeFile(
-        path.join(customProfileDir, "AGENTS.md"),
-        "# My Custom Profile\n",
-      );
-
-      // Verify both profiles exist before uninstall
-      const filesBeforeUninstall = await fs.readdir(profilesDir);
-      expect(filesBeforeUninstall).toContain("amol");
-      expect(filesBeforeUninstall).toContain("my-custom-profile");
-
-      // Uninstall
-      await profilesLoader.uninstall({ config });
-
-      // Verify custom profile still exists
-      const customExists = await fs
-        .access(customProfileDir)
+      const userProfileExists = await fs
+        .access(userProfile)
         .then(() => true)
         .catch(() => false);
-      expect(customExists).toBe(true);
-
-      // Verify built-in profile is ALSO preserved (profiles are never deleted)
-      const amolExists = await fs
-        .access(path.join(profilesDir, "amol"))
-        .then(() => true)
-        .catch(() => false);
-      expect(amolExists).toBe(true);
+      expect(userProfileExists).toBe(true);
     });
 
     test("does not throw if profiles directory does not exist", async () => {
@@ -226,15 +231,6 @@ describe("cursor-agent profiles loader", () => {
   });
 
   describe("validate", () => {
-    test("returns valid when profiles are installed", async () => {
-      const config = createConfig();
-
-      await profilesLoader.run({ config });
-
-      const result = await profilesLoader.validate!({ config });
-      expect(result.valid).toBe(true);
-    });
-
     test("returns invalid when profiles directory missing", async () => {
       const config = createConfig();
 
@@ -242,146 +238,34 @@ describe("cursor-agent profiles loader", () => {
       expect(result.valid).toBe(false);
       expect(result.errors).toBeDefined();
     });
+
+    test("returns invalid when profiles directory exists but is empty", async () => {
+      const config = createConfig();
+
+      // Create profiles directory but don't add any profiles
+      await fs.mkdir(profilesDir, { recursive: true });
+
+      const result = await profilesLoader.validate!({ config });
+      expect(result.valid).toBe(false);
+      expect(result.errors).toBeDefined();
+    });
+
+    test("returns valid when profiles directory has at least one profile", async () => {
+      const config = createConfig();
+
+      // Create profiles directory with a user-installed profile
+      await fs.mkdir(profilesDir, { recursive: true });
+      const profileDir = path.join(profilesDir, "my-profile");
+      await fs.mkdir(profileDir, { recursive: true });
+
+      const result = await profilesLoader.validate!({ config });
+      expect(result.valid).toBe(true);
+    });
   });
 
   describe("_testing exports", () => {
     test("getMixinPaths should be undefined (mixin composition removed)", () => {
       expect(_testing.getMixinPaths).toBeUndefined();
-    });
-  });
-
-  describe("profile content", () => {
-    test("should install amol profile with subagents", async () => {
-      const config = createConfig();
-
-      await profilesLoader.run({ config });
-
-      // amol profile should have subagents directory
-      const subagentsDir = path.join(profilesDir, "amol", "subagents");
-      const subagentsExists = await fs
-        .access(subagentsDir)
-        .then(() => true)
-        .catch(() => false);
-      expect(subagentsExists).toBe(true);
-
-      // Should have nori-initial-documenter subagent
-      const initialDocumenter = path.join(
-        subagentsDir,
-        "nori-initial-documenter.md",
-      );
-      const initialDocumenterExists = await fs
-        .access(initialDocumenter)
-        .then(() => true)
-        .catch(() => false);
-      expect(initialDocumenterExists).toBe(true);
-
-      // Should have nori-change-documenter subagent
-      const changeDocumenter = path.join(
-        subagentsDir,
-        "nori-change-documenter.md",
-      );
-      const changeDocumenterExists = await fs
-        .access(changeDocumenter)
-        .then(() => true)
-        .catch(() => false);
-      expect(changeDocumenterExists).toBe(true);
-    });
-
-    test("should install amol profile with updating-noridocs rule", async () => {
-      const config = createConfig();
-
-      await profilesLoader.run({ config });
-
-      // amol profile should have updating-noridocs rule
-      const updatingNoridocsRule = path.join(
-        profilesDir,
-        "amol",
-        "rules",
-        "updating-noridocs",
-      );
-      const ruleExists = await fs
-        .access(updatingNoridocsRule)
-        .then(() => true)
-        .catch(() => false);
-      expect(ruleExists).toBe(true);
-
-      // Should have RULE.md file
-      const ruleMdPath = path.join(updatingNoridocsRule, "RULE.md");
-      const ruleMdExists = await fs
-        .access(ruleMdPath)
-        .then(() => true)
-        .catch(() => false);
-      expect(ruleMdExists).toBe(true);
-    });
-  });
-
-  describe("skipBuiltinProfiles", () => {
-    test("should not install built-in profiles when skipBuiltinProfiles is true", async () => {
-      // Create a custom profile that was downloaded from registry (not a built-in)
-      const customProfileDir = path.join(profilesDir, "my-registry-profile");
-      await fs.mkdir(customProfileDir, { recursive: true });
-      await fs.writeFile(
-        path.join(customProfileDir, "profile.json"),
-        JSON.stringify({
-          name: "my-registry-profile",
-          description: "Profile downloaded from registry",
-        }),
-      );
-      await fs.writeFile(
-        path.join(customProfileDir, "AGENTS.md"),
-        "# My Registry Profile\n",
-      );
-
-      const config = createConfig({
-        skipBuiltinProfiles: true,
-        agents: {
-          "cursor-agent": { profile: { baseProfile: "my-registry-profile" } },
-        },
-      });
-
-      await profilesLoader.run({ config });
-
-      // Verify custom profile still exists
-      const customExists = await fs
-        .access(customProfileDir)
-        .then(() => true)
-        .catch(() => false);
-      expect(customExists).toBe(true);
-
-      // Verify built-in profiles were NOT installed
-      const amolExists = await fs
-        .access(path.join(profilesDir, "amol"))
-        .then(() => true)
-        .catch(() => false);
-      expect(amolExists).toBe(false);
-    });
-
-    test("should install built-in profiles when skipBuiltinProfiles is false", async () => {
-      const config = createConfig({
-        skipBuiltinProfiles: false,
-      });
-
-      await profilesLoader.run({ config });
-
-      // Verify built-in profiles were installed
-      const amolExists = await fs
-        .access(path.join(profilesDir, "amol"))
-        .then(() => true)
-        .catch(() => false);
-      expect(amolExists).toBe(true);
-    });
-
-    test("should install built-in profiles when skipBuiltinProfiles is undefined (default behavior)", async () => {
-      const config = createConfig();
-
-      await profilesLoader.run({ config });
-
-      // Verify built-in profiles were installed (default behavior)
-      const amolExists = await fs
-        .access(path.join(profilesDir, "amol"))
-        .then(() => true)
-        .catch(() => false);
-      expect(amolExists).toBe(true);
     });
   });
 });

@@ -1,5 +1,0 @@
-{
-  "name": "onboarding-wizard-questionnaire",
-  "version": "1.0.0",
-  "description": "Profile wizard using step-by-step questionnaire. User answers specific questions about autonomy, git, testing, and docs."
-}

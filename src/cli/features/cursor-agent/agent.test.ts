@@ -121,38 +121,6 @@ describe("cursorAgent", () => {
     });
   });
 
-  describe("listSourceProfiles", () => {
-    test("returns profiles from package source directory", async () => {
-      const profiles = await cursorAgent.listSourceProfiles();
-
-      // Should return at least the amol profile that exists in cursor-agent/profiles/config/
-      expect(profiles.length).toBeGreaterThan(0);
-
-      const amolProfile = profiles.find((p) => p.name === "amol");
-      expect(amolProfile).toBeDefined();
-      expect(amolProfile?.description).toBeDefined();
-      expect(amolProfile?.description.length).toBeGreaterThan(0);
-    });
-
-    test("returns profiles sorted alphabetically by name", async () => {
-      const profiles = await cursorAgent.listSourceProfiles();
-      const names = profiles.map((p) => p.name);
-      const sortedNames = [...names].sort();
-
-      expect(names).toEqual(sortedNames);
-    });
-
-    test("excludes directories starting with underscore", async () => {
-      const profiles = await cursorAgent.listSourceProfiles();
-      const names = profiles.map((p) => p.name);
-
-      // No profile name should start with underscore (internal/mixin directories)
-      for (const name of names) {
-        expect(name.startsWith("_")).toBe(false);
-      }
-    });
-  });
-
   describe("switchProfile", () => {
     let testInstallDir: string;
 

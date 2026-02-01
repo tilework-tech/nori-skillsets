@@ -9,8 +9,6 @@ import * as path from "path";
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
-import { profilesLoader } from "@/cli/features/claude-code/profiles/loader.js";
-
 import type { Config } from "@/cli/config.js";
 
 // Mock the env module to use temp directories
@@ -34,10 +32,85 @@ vi.mock("@/cli/features/claude-code/paths.js", () => ({
 // Import loaders after mocking env
 import { skillsLoader } from "./loader.js";
 
+/**
+ * Create a stub profile directory with CLAUDE.md and optional skills/skills.json
+ *
+ * @param args - Function arguments
+ * @param args.profilesDir - Path to the profiles directory
+ * @param args.profileName - Name of the profile
+ * @param args.skills - Optional map of skill name to SKILL.md content
+ * @param args.paidSkills - Optional map of paid-prefixed skill name to SKILL.md content
+ */
+const createStubProfile = async (args: {
+  profilesDir: string;
+  profileName: string;
+  skills?: Record<string, string> | null;
+  paidSkills?: Record<string, string> | null;
+}): Promise<void> => {
+  const { profilesDir, profileName, skills, paidSkills } = args;
+  const profileDir = path.join(profilesDir, profileName);
+  await fs.mkdir(profileDir, { recursive: true });
+  await fs.writeFile(path.join(profileDir, "CLAUDE.md"), "# Test Profile\n");
+
+  const allSkills = { ...skills, ...paidSkills };
+  if (Object.keys(allSkills).length > 0) {
+    for (const [skillName, skillContent] of Object.entries(allSkills)) {
+      const skillDir = path.join(profileDir, "skills", skillName);
+      await fs.mkdir(skillDir, { recursive: true });
+      await fs.writeFile(path.join(skillDir, "SKILL.md"), skillContent);
+    }
+  }
+};
+
+// Standard test skills used across tests
+const TEST_SKILLS: Record<string, string> = {
+  "using-skills": [
+    "---",
+    "name: Getting Started with Abilities",
+    "description: Describes how to use abilities. Read before any conversation.",
+    "---",
+    "# Using Skills",
+    "",
+    "Skills at {{skills_dir}}/some-skill/SKILL.md",
+  ].join("\n"),
+  "updating-noridocs": [
+    "---",
+    "name: Updating Noridocs",
+    "description: Use this when you have finished making code changes.",
+    "---",
+    "# Updating Noridocs",
+  ].join("\n"),
+  "creating-skills": [
+    "---",
+    "name: Creating-Skills",
+    "description: Use when you need to create a new custom skill.",
+    "---",
+    "# Creating Skills",
+  ].join("\n"),
+};
+
+const PAID_SKILLS: Record<string, string> = {
+  "paid-recall": [
+    "---",
+    "name: Recall",
+    "description: Search the knowledge base",
+    "---",
+    "# Recall",
+  ].join("\n"),
+  "paid-memorize": [
+    "---",
+    "name: Memorize",
+    "description: Save to the knowledge base",
+    "---",
+    "# Memorize",
+  ].join("\n"),
+};
+
 describe("skillsLoader", () => {
   let tempDir: string;
   let claudeDir: string;
   let skillsDir: string;
+  let noriProfilesDir: string;
 
   beforeEach(async () => {
     // Create temp directory for testing
@@ -49,20 +122,18 @@ describe("skillsLoader", () => {
     mockClaudeDir = claudeDir;
     mockClaudeSkillsDir = skillsDir;
     mockNoriDir = path.join(tempDir, ".nori");
+    noriProfilesDir = path.join(mockNoriDir, "profiles");
 
     // Create directories
     await fs.mkdir(claudeDir, { recursive: true });
-    await fs.mkdir(mockNoriDir, { recursive: true });
+    await fs.mkdir(noriProfilesDir, { recursive: true });
 
-    // Run profiles loader to populate ~/.nori/profiles/ directory with composed profiles
-    // This is required since feature loaders now read from ~/.nori/profiles/
-    const config: Config = {
-      installDir: tempDir,
-      agents: {
-        "claude-code": { profile: { baseProfile: "senior-swe" } },
-      },
-    };
-    await profilesLoader.run({ config });
+    // Create stub profile with test skills
+    await createStubProfile({
+      profilesDir: noriProfilesDir,
+      profileName: "senior-swe",
+      skills: TEST_SKILLS,
+    });
   });
 
   afterEach(async () => {
@@ -318,15 +389,26 @@ describe("skillsLoader", () => {
       mockClaudeDir = customInstallDir;
       mockClaudeSkillsDir = path.join(customInstallDir, "skills");
 
+      const customInstallBase = path.join(tempDir, "custom-install");
+      const customNoriProfilesDir = path.join(
+        customInstallBase,
+        ".nori",
+        "profiles",
+      );
+
       const config: Config = {
-        installDir: path.join(tempDir, "custom-install"),
+        installDir: customInstallBase,
         agents: {
           "claude-code": { profile: { baseProfile: "senior-swe" } },
         },
       };
 
-      // Run profiles loader for custom install
-      await profilesLoader.run({ config });
+      // Create stub profile in the custom install location
+      await createStubProfile({
+        profilesDir: customNoriProfilesDir,
+        profileName: "senior-swe",
+        skills: TEST_SKILLS,
+      });
       await skillsLoader.install({ config });
 
       // Check a skill that references {{skills_dir}}
@@ -364,11 +446,17 @@ describe("skillsLoader", () => {
         },
       };
 
-      // Delete existing profiles and recompose with paid mixin
-      // (profiles are only installed once and never overwritten)
-      const profilesDir = path.join(mockNoriDir, "profiles");
-      await fs.rm(profilesDir, { recursive: true, force: true });
-      await profilesLoader.run({ config });
+      // Recreate profile with paid skills
+      await fs.rm(path.join(noriProfilesDir, "senior-swe"), {
+        recursive: true,
+        force: true,
+      });
+      await createStubProfile({
+        profilesDir: noriProfilesDir,
+        profileName: "senior-swe",
+        skills: TEST_SKILLS,
+        paidSkills: PAID_SKILLS,
+      });
 
       await skillsLoader.install({ config });
 
@@ -428,10 +516,17 @@ describe("skillsLoader", () => {
         },
       };
 
-      // Delete existing profiles and recompose with paid mixin
-      const profilesDir = path.join(mockNoriDir, "profiles");
-      await fs.rm(profilesDir, { recursive: true, force: true });
-      await profilesLoader.run({ config });
+      // Recreate profile with paid skills
+      await fs.rm(path.join(noriProfilesDir, "senior-swe"), {
+        recursive: true,
+        force: true,
+      });
+      await createStubProfile({
+        profilesDir: noriProfilesDir,
+        profileName: "senior-swe",
+        skills: TEST_SKILLS,
+        paidSkills: PAID_SKILLS,
+      });
 
       await skillsLoader.install({ config });
 
@@ -504,9 +599,6 @@ describe("skillsLoader", () => {
           "claude-code": { profile: { baseProfile: "senior-swe" } },
         },
       };
-
-      // Recompose profiles with paid mixin
-      await profilesLoader.run({ config });
 
       await skillsLoader.install({ config });
 

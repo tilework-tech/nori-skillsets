@@ -1,5 +1,0 @@
-{
-  "name": "product-manager",
-  "version": "1.0.0",
-  "description": "Full autonomy profile for product managers - automatically creates worktrees, updates documentation, commits frequently, and creates PRs without asking. Makes technical decisions independently while asking many questions about product requirements."
-}

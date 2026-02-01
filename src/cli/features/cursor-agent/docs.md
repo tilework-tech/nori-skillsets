@@ -35,10 +35,8 @@ The cursor-agent follows the same architectural pattern as claude-code. The `cur
 - `displayName`: "Cursor Agent"
 - `getLoaderRegistry()`: Returns the CursorLoaderRegistry singleton
 - `listProfiles({ installDir })`: Scans installed `.cursor/profiles/` for directories containing `AGENTS.md`
-- `listSourceProfiles()`: Scans package's `profiles/config/` for directories with `nori.json` (falls back to `profile.json`), returns `SourceProfile[]` with name and description
 - `switchProfile({ installDir, profileName })`: Validates profile exists, filters out config entries for uninstalled agents, updates config's `agents["cursor-agent"]` field, logs success message
-- `getGlobalFeatureNames()`: Returns `["hooks", "slash commands"]` - human-readable names for prompts
-- `getGlobalLoaderNames()`: Returns `["hooks", "slashcommands"]` - loader names used by uninstall to skip global loaders
+- `getGlobalLoaders()`: Returns array of `GlobalLoader` objects for hooks and slash commands
 
 The AgentRegistry (@/src/cli/features/agentRegistry.ts) registers this agent alongside claude-code. CLI commands use `--agent cursor-agent` to target Cursor installation.
 
@@ -46,7 +44,7 @@ The AgentRegistry (@/src/cli/features/agentRegistry.ts) registers this agent alo
 
 **CursorLoaderRegistry** (loaderRegistry.ts): Singleton registry implementing the shared `LoaderRegistry` interface from @/src/cli/features/agentRegistry.ts. Registers the shared `configLoader`, `profilesLoader`, `hooksLoader`, and `slashCommandsLoader`. Provides `getAll()` and `getAllReversed()` for install/uninstall ordering.
 
-**profilesLoader** (profiles/loader.ts): Copies self-contained profile directories directly from config/ to `~/.cursor/profiles/`. Each profile contains all its content (rules/, subagents/, AGENTS.md) without any composition needed. Invokes sub-loaders via CursorProfileLoaderRegistry in order: rules, subagents, agentsmd.
+**profilesLoader** (profiles/loader.ts): Creates `~/.cursor/profiles/` directory and invokes sub-loaders via CursorProfileLoaderRegistry in order: rules, subagents, agentsmd. No built-in profiles are copied -- profiles are managed via the registry.
 
 **CursorProfileLoaderRegistry** (profiles/profileLoaderRegistry.ts): Singleton registry for profile-dependent sub-loaders. Registration order matters: rules, subagents, then agentsmd (AGENTS.md references both rules and subagents).
 
@@ -96,29 +94,20 @@ The AgentRegistry (@/src/cli/features/agentRegistry.ts) registers this agent alo
 
 **Intercepted slash commands:** Slash commands registered in `intercepted-slashcommands/registry.ts` are executed directly without LLM inference overhead.
 
-**Self-contained profiles**: Each profile contains all content it needs directly. There is no mixin composition, inheritance, or conditional injection. Profiles are copied as-is to `~/.cursor/profiles/`.
+**No built-in profiles**: The package does not ship any default profiles. The `profiles/config/` directory is empty. Users must download profiles from the registry or create their own.
+
+**Self-contained profiles**: Each profile contains all content it needs directly. There is no mixin composition, inheritance, or conditional injection.
 
 **Template substitution (template.ts):** Cursor-specific placeholders for content files. Replaces `{{rules_dir}}`, `{{profiles_dir}}`, `{{commands_dir}}`, `{{subagents_dir}}`, and `{{install_dir}}` with absolute paths.
 
-**Profile structure:** Each profile directory in `profiles/config/` contains:
+**Profile structure:** Each profile directory contains:
 - `AGENTS.md`: Instructions file (required for profile to be listed)
 - `nori.json`: Unified manifest with name, version, description, and optional dependencies
 - `rules/`: Directory containing rule subdirectories
 - `subagents/`: Directory containing subagent .md files
 
-**Available profiles:**
-
-| Profile | Description |
-|---------|-------------|
-| amol | Opinionated workflow with TDD, structured planning, rule-based guidance |
-| senior-swe | Dual-mode: "copilot" (interactive) or "full-send" (autonomous) |
-| product-manager | High technical autonomy, product-focused questions, auto-creates PRs |
-| none | Minimal infrastructure only, no behavioral modifications |
-
 **Subagents system:** Cursor lacks a built-in Task tool like Claude Code. Subagents provide equivalent functionality by invoking `cursor-agent` CLI in headless mode.
 
 **Managed block pattern:** AGENTS.md uses the same managed block pattern as claude-code's CLAUDE.md, allowing users to add custom content outside the managed markers.
-
-**Default profile:** Falls back to "amol" if no profile is configured.
 
 Created and maintained by Nori.

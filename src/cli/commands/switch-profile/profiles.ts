@@ -193,16 +193,13 @@ export const switchSkillsetAction = async (args: {
     throw err;
   }
 
-  // Run install in silent mode with skipUninstall and skipBuiltinProfiles
+  // Run install in silent mode with skipUninstall
   // This preserves custom user skillsets during the skillset switch
-  // skipBuiltinProfiles prevents installing all built-in profiles when user
-  // has downloaded a profile from the registry (nori-skillsets download workflow)
   const { main: installMain } =
     await import("@/cli/commands/install/install.js");
   await installMain({
     nonInteractive: true,
     skipUninstall: true,
-    skipBuiltinProfiles: true,
     installDir,
     agent: agentName,
     silent: true,

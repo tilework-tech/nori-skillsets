@@ -138,7 +138,7 @@ const formatSkillInfo = async (args: {
     const frontMatter = extractFrontMatter({ content });
 
     // Extract the skill name from the path
-    // Path format: .../profiles/config/{profile}/skills/{skill-name}/SKILL.md
+    // Path format: .../profiles/{profile}/skills/{skill-name}/SKILL.md
     // The skillPath is an absolute path, so we need to extract just the skill directory name
     const pathParts = skillPath.split(path.sep);
     const skillMdIndex = pathParts.lastIndexOf("SKILL.md");

@@ -88,6 +88,50 @@ describe("configurable install directory integration", () => {
     // Mock HOME for any legacy code paths
     originalHome = process.env.HOME;
     process.env.HOME = tempDir;
+
+    // Create stub profiles (built-in profiles are no longer bundled)
+    const profilesDir = path.join(customInstallDir, ".nori", "profiles");
+    await fs.mkdir(profilesDir, { recursive: true });
+    for (const profileName of ["senior-swe", "amol"]) {
+      const profileDir = path.join(profilesDir, profileName);
+      await fs.mkdir(profileDir, { recursive: true });
+      await fs.writeFile(
+        path.join(profileDir, "CLAUDE.md"),
+        `# ${profileName}\n`,
+      );
+      await fs.writeFile(
+        path.join(profileDir, "nori.json"),
+        JSON.stringify({
+          name: profileName,
+          version: "1.0.0",
+          description: `${profileName} profile`,
+        }),
+      );
+
+      // Create skills directory with a stub skill
+      const skillDir = path.join(profileDir, "skills", "using-skills");
+      await fs.mkdir(skillDir, { recursive: true });
+      await fs.writeFile(
+        path.join(skillDir, "SKILL.md"),
+        "---\nname: Getting Started with Abilities\ndescription: Describes how to use abilities.\n---\n# Stub\n",
+      );
+
+      // Create subagents directory with a stub subagent
+      const subagentsDir = path.join(profileDir, "subagents");
+      await fs.mkdir(subagentsDir, { recursive: true });
+      await fs.writeFile(
+        path.join(subagentsDir, "nori-stub-agent.md"),
+        "# Stub subagent\n",
+      );
+
+      // Create slashcommands directory with a stub command
+      const slashcommandsDir = path.join(profileDir, "slashcommands");
+      await fs.mkdir(slashcommandsDir, { recursive: true });
+      await fs.writeFile(
+        path.join(slashcommandsDir, "nori-stub-command.md"),
+        "# Stub slash command\n",
+      );
+    }
   });
 
   afterEach(async () => {

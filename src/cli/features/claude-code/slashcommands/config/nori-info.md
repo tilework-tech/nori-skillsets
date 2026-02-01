@@ -20,30 +20,9 @@ Nori enhances Claude Code with better context management, specialized workflows,
 
 ## 1. Skillset System
 
-Skillsets control Claude's behavior and autonomy level. Three built-in skillsets are available:
+Skillsets control Claude's behavior and autonomy level. Skillsets can be downloaded from the registry.
 
-### 1.1 senior-swe (Default)
-
-- **Behavior:** Co-pilot mode with high confirmation
-- **Worktrees:** Asks user to create branch/worktree
-- **Commits/PRs:** Always asks before committing or creating PRs
-- **Best for:** Engineers who want control over git operations
-
-### 1.2 amol
-
-- **Behavior:** Full autonomy with frequent commits
-- **Worktrees:** Automatically creates worktrees
-- **Commits/PRs:** Autonomous commits and PR creation
-- **Best for:** Experienced users who want maximum productivity
-- **Requires:** Paid tier
-
-### 1.3 product-manager
-
-- **Behavior:** Full autonomy optimized for product managers
-- **Best for:** Product managers and users focused on product requirements
-- **Requires:** Paid tier
-
-### 1.4 Skillset Management
+### 1.1 Skillset Management
 
 - **Switch skillsets:** `/nori-switch-skillset` or `nori-ai switch-skillset`
 - **Custom skillsets:** Create your own in `~/.nori/profiles/`

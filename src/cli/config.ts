@@ -65,13 +65,6 @@ export type Config = {
   agents?: Record<string, AgentConfig> | null;
   /** Installed version of Nori */
   version?: string | null;
-  /**
-   * Runtime-only flag to skip installing built-in profiles during profile switch.
-   * When true, the profiles loader will NOT copy built-in profiles from the package,
-   * preserving only the user's downloaded/custom profiles.
-   * This is NOT persisted to disk - it's only used during switch-profile operations.
-   */
-  skipBuiltinProfiles?: boolean | null;
 };
 
 /**
@@ -115,16 +108,6 @@ type RawDiskConfig = {
 export const getConfigPath = (args: { installDir: string }): string => {
   const { installDir } = args;
   return path.join(installDir, ".nori-config.json");
-};
-
-/**
- * Get default profile
- * @returns Default profile (senior-swe)
- */
-export const getDefaultProfile = (): { baseProfile: string } => {
-  return {
-    baseProfile: "senior-swe",
-  };
 };
 
 /**
