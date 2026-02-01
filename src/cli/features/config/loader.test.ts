@@ -66,15 +66,10 @@ describe("configLoader", () => {
       });
     });
 
-    it("should include sendSessionTranscript: enabled for paid installation", async () => {
+    it("should include sendSessionTranscript when provided", async () => {
       const config: Config = {
         installDir: tempDir,
         agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
-        auth: {
-          username: "test@example.com",
-          password: "testpass",
-          organizationUrl: "https://example.com",
-        },
         sendSessionTranscript: "enabled",
       };
 
@@ -85,7 +80,7 @@ describe("configLoader", () => {
       expect(fileContents.sendSessionTranscript).toBe("enabled");
     });
 
-    it("should NOT include sendSessionTranscript for free installation", async () => {
+    it("should NOT include sendSessionTranscript when not provided", async () => {
       const config: Config = {
         installDir: tempDir,
         agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
@@ -98,15 +93,10 @@ describe("configLoader", () => {
       expect(fileContents.sendSessionTranscript).toBeUndefined();
     });
 
-    it("should preserve existing sendSessionTranscript preference for paid installation", async () => {
+    it("should preserve existing sendSessionTranscript preference", async () => {
       const config: Config = {
         installDir: tempDir,
         agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
-        auth: {
-          username: "test@example.com",
-          password: "testpass",
-          organizationUrl: "https://example.com",
-        },
         sendSessionTranscript: "disabled",
       };
 

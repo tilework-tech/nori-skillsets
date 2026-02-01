@@ -27,8 +27,6 @@ This is one of the built-in profiles shipped with Nori at @/src/cli/features/cla
 1. Top-down pass creates architectural documentation starting from high-level understanding
 2. Bottom-up pass verifies accuracy by starting from leaf directories and working upward
 
-**Paid content**: Skills and subagents with `paid-` prefix are tier-gated and handled appropriately during installation.
-
 ### Things to Know
 
 **Self-contained architecture**: All profile content is inlined directly in this directory. There is no mixin composition or inheritance.

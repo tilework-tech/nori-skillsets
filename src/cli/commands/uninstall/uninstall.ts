@@ -198,7 +198,7 @@ export const generatePromptConfig = async (args: {
   }
 
   if (existingConfig?.auth) {
-    info({ message: "Found paid mode configuration:" });
+    info({ message: "Found authentication configuration:" });
     info({ message: `  Username: ${existingConfig.auth.username}` });
     info({
       message: `  Organization URL: ${existingConfig.auth.organizationUrl}`,

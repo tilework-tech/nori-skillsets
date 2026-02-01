@@ -9,12 +9,7 @@ import * as path from "path";
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
-import {
-  loadConfig,
-  saveConfig,
-  isPaidInstall,
-  type Config,
-} from "@/cli/config.js";
+import { loadConfig, saveConfig, type Config } from "@/cli/config.js";
 import { claudeMdLoader } from "@/cli/features/claude-code/profiles/claudemd/loader.js";
 import { profilesLoader } from "@/cli/features/claude-code/profiles/loader.js";
 import { skillsLoader } from "@/cli/features/claude-code/profiles/skills/loader.js";
@@ -252,7 +247,7 @@ describe("configurable install directory integration", () => {
       expect(loaded?.installDir).toBe(customInstallDir);
     });
 
-    it("should correctly identify free install with installDir", async () => {
+    it("should correctly create config with installDir", async () => {
       const config: Config = {
         auth: null,
         agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
@@ -260,7 +255,7 @@ describe("configurable install directory integration", () => {
       };
 
       expect(config.installDir).toBe(customInstallDir);
-      expect(isPaidInstall({ config }) ? "paid" : "free").toBe("free");
+      expect(config.auth).toBeNull();
     });
   });
 

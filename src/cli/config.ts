@@ -128,17 +128,6 @@ export const getDefaultProfile = (): { baseProfile: string } => {
 };
 
 /**
- * Check if config represents a paid installation
- * @param args - Configuration arguments
- * @param args.config - The config to check
- *
- * @returns True if the config has valid auth credentials (paid install)
- */
-export const isPaidInstall = (args: { config: Config }): boolean => {
-  return args.config.auth != null;
-};
-
-/**
  * Check if config uses legacy password-based authentication
  * @param args - Configuration arguments
  * @param args.config - The config to check
@@ -687,11 +676,11 @@ export const validateConfig = async (args: {
     };
   }
 
-  // If no credentials provided, it's free mode
+  // If no credentials provided, config is still valid
   if (!someProvided) {
     return {
       valid: true,
-      message: "Config is valid for free mode (no credentials provided)",
+      message: "Config is valid (no credentials provided)",
       errors: null,
     };
   }
@@ -720,7 +709,7 @@ export const validateConfig = async (args: {
 
   return {
     valid: true,
-    message: "Config is valid for paid mode",
+    message: "Config is valid",
     errors: null,
   };
 };

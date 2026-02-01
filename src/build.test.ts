@@ -81,7 +81,7 @@ describe.sequential("build process", () => {
     try {
       // Run the installer pointing to our temp directory
       // Use the CLI entry point (cli.js) with --non-interactive flag
-      // to skip prompts and default to free mode
+      // to skip prompts and default to unauthenticated mode
       // CRITICAL: Use --install-dir to ensure installation goes to temp directory
       // Without this flag, installDir defaults to process.cwd() which creates
       // .claude in the project root, breaking test containment
@@ -173,180 +173,36 @@ ${stderr || "(empty)"}`,
     }
   });
 
-  describe("skill bundling", () => {
-    it("should find and bundle all paid skill scripts", () => {
-      // This test verifies that the bundle-skills.ts script correctly discovers
-      // all paid skill script.js files in profile directories.
-      //
-      // Expected: 2 unique paid-* prefixed skill types (may be duplicated across profiles)
-      // - paid-recall, paid-memorize
+  describe("hook script bundling", () => {
+    it("should not contain paid skill scripts in build", () => {
+      // After removing paid skills, no paid-* prefixed skill directories
+      // should exist in any profile's skills directory.
 
       const pluginDir = process.cwd();
       const buildDir = path.join(pluginDir, "build");
-
-      // Verify build directory exists
-      expect(fs.existsSync(buildDir)).toBe(true);
-
-      // Find all paid skill script.js files in profile directories
-      // Skills are now inlined directly in profiles (no more mixin composition)
       const profilesDir = path.join(
         buildDir,
         "src/cli/features/claude-code/profiles/config",
       );
 
-      const scriptPaths: Array<string> = [];
-      const uniqueSkillNames = new Set<string>();
-
       if (fs.existsSync(profilesDir)) {
         const profiles = fs.readdirSync(profilesDir);
         for (const profile of profiles) {
-          if (profile.startsWith("_")) continue; // Skip internal directories
+          if (profile.startsWith("_")) continue;
 
           const skillsDir = path.join(profilesDir, profile, "skills");
           if (!fs.existsSync(skillsDir)) continue;
 
           const skills = fs.readdirSync(skillsDir);
-          for (const skill of skills) {
-            if (!skill.startsWith("paid-")) continue;
-
-            const skillPath = path.join(skillsDir, skill);
-            const stat = fs.statSync(skillPath);
-            if (!stat.isDirectory()) continue;
-
-            const scriptPath = path.join(skillPath, "script.js");
-            if (fs.existsSync(scriptPath)) {
-              scriptPaths.push(scriptPath);
-              uniqueSkillNames.add(skill);
-            }
-          }
+          const paidSkills = skills.filter((s) => s.startsWith("paid-"));
+          expect(paidSkills).toEqual([]);
         }
-      }
-
-      // Verify we found scripts and at least 3 unique paid skill types
-      expect(scriptPaths.length).toBeGreaterThan(0);
-      expect(uniqueSkillNames.size).toBe(2); // 2 unique paid-* skill types
-
-      // Verify each script file exists
-      for (const scriptPath of scriptPaths) {
-        expect(fs.existsSync(scriptPath)).toBe(true);
       }
     });
 
-    it("should bundle scripts to be standalone (no import statements)", () => {
-      // This test verifies that bundled scripts have all dependencies inlined
-      // and don't contain any import/require statements that would fail at runtime.
-
-      const pluginDir = process.cwd();
-      const buildDir = path.join(pluginDir, "build");
-
-      // Find paid skill script.js files in profile directories
-      // Use senior-swe as reference profile (it has all paid skills)
-      const skillsDir = path.join(
-        buildDir,
-        "src/cli/features/claude-code/profiles/config/senior-swe/skills",
-      );
-
-      const scriptPaths: Array<string> = [];
-
-      if (fs.existsSync(skillsDir)) {
-        const skills = fs.readdirSync(skillsDir);
-        for (const skill of skills) {
-          if (!skill.startsWith("paid-")) continue;
-
-          const skillPath = path.join(skillsDir, skill);
-          const stat = fs.statSync(skillPath);
-          if (!stat.isDirectory()) continue;
-
-          const scriptPath = path.join(skillPath, "script.js");
-          if (fs.existsSync(scriptPath)) {
-            scriptPaths.push(scriptPath);
-          }
-        }
-      }
-
-      // Verify we have scripts to test
-      expect(scriptPaths.length).toBeGreaterThan(0);
-
-      // Check each bundled script
-      for (const scriptPath of scriptPaths) {
-        const content = fs.readFileSync(scriptPath, "utf-8");
-
-        // Bundled scripts should NOT contain import statements
-        // (except for built-in Node.js modules if needed)
-        const importMatches = content.match(/^import\s+.*\s+from\s+['"]/gm);
-        const relativeImports = importMatches?.filter(
-          (match) =>
-            match.includes("from '@/") ||
-            match.includes("from '../") ||
-            match.includes("from './"),
-        );
-
-        // Should have no relative imports (all should be inlined)
-        expect(relativeImports || []).toEqual([]);
-
-        // Bundled scripts should NOT contain require() for relative modules
-        const requireMatches = content.match(
-          /require\(['"](@\/|\.\.\/|\.\/)[^'"]+['"]\)/g,
-        );
-        expect(requireMatches || []).toEqual([]);
-      }
-    });
-
-    it("should make bundled scripts executable", () => {
-      // This test verifies that bundled scripts have:
-      // 1. Execute permissions (chmod +x)
-      // 2. A shebang line (#!/usr/bin/env node)
-
-      const pluginDir = process.cwd();
-      const buildDir = path.join(pluginDir, "build");
-
-      // Find paid skill script.js files in profile directories
-      // Use senior-swe as reference profile (it has all paid skills)
-      const skillsDir = path.join(
-        buildDir,
-        "src/cli/features/claude-code/profiles/config/senior-swe/skills",
-      );
-
-      const scriptPaths: Array<string> = [];
-
-      if (fs.existsSync(skillsDir)) {
-        const skills = fs.readdirSync(skillsDir);
-        for (const skill of skills) {
-          if (!skill.startsWith("paid-")) continue;
-
-          const skillPath = path.join(skillsDir, skill);
-          const stat = fs.statSync(skillPath);
-          if (!stat.isDirectory()) continue;
-
-          const scriptPath = path.join(skillPath, "script.js");
-          if (fs.existsSync(scriptPath)) {
-            scriptPaths.push(scriptPath);
-          }
-        }
-      }
-
-      // Verify we have scripts to test
-      expect(scriptPaths.length).toBeGreaterThan(0);
-
-      // Check each bundled script
-      for (const scriptPath of scriptPaths) {
-        // Check file permissions (should be executable)
-        const stats = fs.statSync(scriptPath);
-        const mode = stats.mode;
-        // Check if owner has execute permission (0o100)
-        const isExecutable = (mode & 0o100) !== 0;
-        expect(isExecutable).toBe(true);
-
-        // Check for shebang
-        const content = fs.readFileSync(scriptPath, "utf-8");
-        const firstLine = content.split("\n")[0];
-        expect(firstLine).toMatch(/^#!.*node/);
-      }
-    });
-
-    it('should not report "No paid skill scripts found" warning', () => {
+    it('should not report "No scripts found to bundle" warning', () => {
       // This test verifies that the bundle-skills.ts script successfully finds
-      // the paid skill scripts and doesn't output the warning message.
+      // hook scripts and doesn't output the warning message.
 
       const pluginDir = process.cwd();
 
@@ -366,11 +222,10 @@ ${stderr || "(empty)"}`,
       }
 
       // Should NOT contain the warning about no scripts found
-      expect(stdout).not.toContain("No paid skill scripts found to bundle");
       expect(stdout).not.toContain("No scripts found to bundle");
 
       // Should contain success message about bundling
-      expect(stdout).toContain("Bundling Paid Skill Scripts and Hook Scripts");
+      expect(stdout).toContain("Bundling Hook Scripts");
       expect(stdout).toMatch(/Successfully bundled \d+ script\(s\)/);
     });
 

@@ -147,9 +147,7 @@ const formatSkillInfo = async (args: {
     }
 
     // The skill name is the directory containing SKILL.md
-    let skillName = pathParts[skillMdIndex - 1];
-    // Strip paid- prefix from skill name to match actual installation
-    skillName = skillName.replace(/^paid-/, "");
+    const skillName = pathParts[skillMdIndex - 1];
 
     // Format the installed path based on install directory
     const installedPath = path.join(

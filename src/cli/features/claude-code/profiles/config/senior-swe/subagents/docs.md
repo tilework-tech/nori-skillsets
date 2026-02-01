@@ -8,7 +8,7 @@ This directory contains subagent definitions inlined directly in the senior-swe 
 
 ### How it fits into the larger codebase
 
-These subagent .md files are copied to ~/.claude/agents/ during profile installation by @/src/cli/features/claude-code/profiles/subagents/loader.ts. The main agent invokes these subagents using the Task tool with a subagent_type parameter. Files with `paid-` prefix are tier-gated: for paid users the prefix is stripped, for free users they are skipped entirely.
+These subagent .md files are copied to ~/.claude/agents/ during profile installation by @/src/cli/features/claude-code/profiles/subagents/loader.ts. The main agent invokes these subagents using the Task tool with a subagent_type parameter.
 
 ### Core Implementation
 

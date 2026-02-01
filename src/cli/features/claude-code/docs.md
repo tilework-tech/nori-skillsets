@@ -31,8 +31,6 @@ Each loader implements run(config) to install, uninstall(config) to remove, and 
 
 **Self-contained profiles**: Each profile in @/src/cli/features/claude-code/profiles/config/ is a complete, standalone directory containing all content directly (CLAUDE.md, skills/, subagents/, slashcommands/). No mixin composition or inheritance is used - profiles are copied as-is to `~/.nori/profiles/`.
 
-**Paid Skills/Subagents**: Skills and subagents with a `paid-` prefix are tier-gated. For paid users, the prefix is stripped when copying. For free users, `paid-` prefixed items are skipped.
-
 **Config Loader Token-Based Auth:** The configLoader handles credential persistence with automatic token conversion. During installation, if the config contains a password but no refreshToken, the loader authenticates via Firebase SDK to obtain a refresh token. The refresh token is then saved to `.nori-config.json` instead of the password.
 
 The LoaderRegistry provides getAll() for install order and getAllReversed() for uninstall order. The profiles loader must run first because other loaders read from the profile directories it creates.

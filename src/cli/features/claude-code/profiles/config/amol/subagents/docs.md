@@ -8,7 +8,7 @@ This directory contains subagent definitions inlined directly in the amol profil
 
 ### How it fits into the larger codebase
 
-These subagent .md files are copied to ~/.claude/agents/ during profile installation by @/src/cli/features/claude-code/profiles/subagents/loader.ts. Files with `paid-` prefix are tier-gated: for paid users the prefix is stripped, for free users they are skipped entirely.
+These subagent .md files are copied to ~/.claude/agents/ during profile installation by @/src/cli/features/claude-code/profiles/subagents/loader.ts.
 
 ### Core Implementation
 

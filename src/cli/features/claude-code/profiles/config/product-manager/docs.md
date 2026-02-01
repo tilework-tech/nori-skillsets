@@ -23,8 +23,6 @@ This is one of the built-in profiles shipped with Nori at @/src/cli/features/cla
 - `subagents/` - All subagents inlined (documentation, codebase analysis, web research)
 - `slashcommands/` - Profile-specific slash commands
 
-**Paid content**: Skills and subagents with `paid-` prefix are tier-gated.
-
 ### Things to Know
 
 **Self-contained architecture**: All profile content is inlined directly in this directory. There is no mixin composition or inheritance.

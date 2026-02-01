@@ -50,11 +50,6 @@ The `skills.json` format supports both simple version strings and object format:
 
 External skills are downloaded to the profile's own `skills/` directory (e.g., `~/.nori/profiles/senior-swe/skills/writing-plans/`) by both `registry-download` (as profile dependencies) and `skill-download` (as standalone skill installs). This keeps profiles self-contained. External skills take precedence over inline skills when the same name exists.
 
-**Paid Skills and Subagents**: Skills and subagents with a `paid-` prefix are tier-gated:
-- For paid users: the `paid-` prefix is stripped when copying (e.g., `paid-recall/` becomes `recall/`)
-- For free users: `paid-` prefixed items are skipped entirely
-This logic is implemented in @/src/cli/features/claude-code/profiles/skills/loader.ts and @/src/cli/features/claude-code/profiles/subagents/loader.ts.
-
 **Built-in Profiles**: Several profiles ship with the package at @/src/cli/features/claude-code/profiles/config/:
 - `senior-swe` - Co-pilot with high confirmation, the default profile
 - `amol` - Full autonomy with frequent commits
@@ -150,7 +145,6 @@ The skills loader (@/src/cli/features/claude-code/profiles/skills/loader.ts) ins
 
 1. **Install all skills**: Copy skills from profile's `skills/` folder to `~/.claude/skills/`
    - This includes both inline skills (bundled with profile) and external skills (downloaded by registry-download or skill-download)
-   - Paid-prefixed skills are handled based on tier (stripped prefix for paid, skipped for free)
    - Template placeholders are substituted during copy
 
 External skills are downloaded to the profile's `skills/` directory by both the `registry-download` command (for profile dependencies declared in `nori.json`) and the `skill-download` command (for standalone skill installs). The skills loader treats all skills in the profile's `skills/` directory uniformly. When `skill-download` installs a skill, it updates two manifests: `skills.json` (used by the skill loader/resolver) and `nori.json` (the canonical profile manifest, via `addSkillToNoriJson()` from @/src/cli/features/claude-code/profiles/metadata.ts). Both updates are non-fatal -- download succeeds even if either manifest write fails.

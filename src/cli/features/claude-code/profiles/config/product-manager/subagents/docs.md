@@ -8,7 +8,7 @@ This directory contains subagent definitions inlined directly in the product-man
 
 ### How it fits into the larger codebase
 
-These subagent .md files are copied to ~/.claude/agents/ during profile installation by @/src/cli/features/claude-code/profiles/subagents/loader.ts. Files with `paid-` prefix are tier-gated.
+These subagent .md files are copied to ~/.claude/agents/ during profile installation by @/src/cli/features/claude-code/profiles/subagents/loader.ts.
 
 ### Core Implementation
 

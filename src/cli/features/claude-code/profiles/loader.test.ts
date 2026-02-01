@@ -63,7 +63,7 @@ describe("profilesLoader", () => {
   });
 
   describe("run", () => {
-    it("should create profiles directory and copy profile templates for free installation", async () => {
+    it("should create profiles directory and copy profile templates", async () => {
       const config: Config = {
         installDir: tempDir,
         agents: {
@@ -172,39 +172,6 @@ describe("profilesLoader", () => {
       expect(skills).toContain("creating-skills");
       expect(skills).not.toContain("test-driven-development"); // swe content
       expect(skills).not.toContain("updating-noridocs"); // docs content
-    });
-
-    it("should create profiles directory and copy profile templates for paid installation", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        auth: {
-          username: "test@example.com",
-          password: "testpass",
-          organizationUrl: "https://example.com",
-        },
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-      };
-
-      await profilesLoader.run({ config });
-
-      // Verify profiles directory exists
-      const exists = await fs
-        .access(profilesDir)
-        .then(() => true)
-        .catch(() => false);
-
-      expect(exists).toBe(true);
-
-      // Verify profile directories were copied (but not _base)
-      const files = await fs.readdir(profilesDir);
-      expect(files.length).toBeGreaterThan(0);
-      expect(files).toContain("senior-swe");
-      expect(files).toContain("amol");
-      expect(files).toContain("product-manager");
-      expect(files).toContain("none");
-      expect(files).not.toContain("_base"); // _base is never installed
     });
 
     it("should copy profile directories with complete structure", async () => {
@@ -417,54 +384,9 @@ describe("profilesLoader", () => {
   });
 
   describe("uninstall", () => {
-    it("should preserve all profiles during uninstall for free installation", async () => {
+    it("should preserve all profiles during uninstall", async () => {
       const config: Config = {
         installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-      };
-
-      // First install profiles
-      await profilesLoader.run({ config });
-      const exists = await fs
-        .access(profilesDir)
-        .then(() => true)
-        .catch(() => false);
-      expect(exists).toBe(true);
-
-      // Verify built-in profiles exist
-      const seniorSweExists = await fs
-        .access(path.join(profilesDir, "senior-swe"))
-        .then(() => true)
-        .catch(() => false);
-      expect(seniorSweExists).toBe(true);
-
-      // Uninstall profiles
-      await profilesLoader.uninstall({ config });
-
-      // Verify all profiles are preserved (profiles are never deleted)
-      const seniorSweExistsAfter = await fs
-        .access(path.join(profilesDir, "senior-swe"))
-        .then(() => true)
-        .catch(() => false);
-      expect(seniorSweExistsAfter).toBe(true);
-
-      const amolExistsAfter = await fs
-        .access(path.join(profilesDir, "amol"))
-        .then(() => true)
-        .catch(() => false);
-      expect(amolExistsAfter).toBe(true);
-    });
-
-    it("should preserve all profiles during uninstall for paid installation", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        auth: {
-          username: "test@example.com",
-          password: "testpass",
-          organizationUrl: "https://example.com",
-        },
         agents: {
           "claude-code": { profile: { baseProfile: "senior-swe" } },
         },

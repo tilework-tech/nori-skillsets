@@ -27,8 +27,6 @@ This is one of the built-in profiles shipped with Nori at @/src/cli/features/cla
 - **Copilot mode**: Interactive pair programming with frequent checkpoints. Asks for approval at each major step.
 - **Full-send mode**: Highly autonomous operation. Creates plan, gets approval, then executes independently until completion.
 
-**Paid content**: Skills and subagents with `paid-` prefix (e.g., `paid-recall/`, `paid-memorize/`) are tier-gated.
-
 ### Things to Know
 
 **Self-contained architecture**: All profile content is inlined directly in this directory. There is no mixin composition or inheritance - this profile is complete as-is.

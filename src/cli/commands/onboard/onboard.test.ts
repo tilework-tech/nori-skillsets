@@ -269,7 +269,7 @@ describe("onboard command", () => {
       // Mock user inputs - skip auth, select pre-built profile
       const { promptUser } = await import("@/cli/prompt.js");
       vi.mocked(promptUser)
-        .mockResolvedValueOnce("") // Skip email (free mode)
+        .mockResolvedValueOnce("") // Skip email (unauthenticated)
         .mockResolvedValueOnce("1") // Use pre-built profile
         .mockResolvedValueOnce("2"); // Select "amol" profile (2nd option)
 

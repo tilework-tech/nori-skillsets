@@ -7,13 +7,13 @@ import * as fs from "fs/promises";
 import * as path from "path";
 import { fileURLToPath } from "url";
 
-import { isPaidInstall, type Config } from "@/cli/config.js";
 import {
   getClaudeHomeDir,
   getClaudeHomeSettingsFile,
 } from "@/cli/features/claude-code/paths.js";
 import { success, info, warn } from "@/cli/logger.js";
 
+import type { Config } from "@/cli/config.js";
 import type { Loader, ValidationResult } from "@/cli/features/agentRegistry.js";
 
 // Get directory of this loader file
@@ -44,66 +44,6 @@ type HookInterface = {
   name: string;
   description: string;
   install: () => Promise<Array<HookConfig>>;
-};
-
-/**
- * Summarize notification hook - displays user notification for transcript saving
- */
-const summarizeNotificationHook: HookInterface = {
-  name: "summarize-notification",
-  description: "Notify user about transcript saving",
-  install: async () => {
-    const scriptPath = path.join(HOOKS_CONFIG_DIR, "summarize-notification.js");
-    return [
-      {
-        event: "SessionEnd",
-        matcher: "*",
-        hooks: [
-          {
-            type: "command",
-            command: `node ${scriptPath}`,
-            description: "Notify user that transcript is being saved",
-          },
-        ],
-      },
-    ];
-  },
-};
-
-/**
- * Summarize hook - memorizes conversations to Nori Profiles (async)
- */
-const summarizeHook: HookInterface = {
-  name: "summarize",
-  description: "Memorize conversations to Nori Profiles",
-  install: async () => {
-    const scriptPath = path.join(HOOKS_CONFIG_DIR, "summarize.js");
-    return [
-      {
-        event: "SessionEnd",
-        matcher: "*",
-        hooks: [
-          {
-            type: "command",
-            command: `node ${scriptPath} SessionEnd`,
-            description: "Memorize session summary to Nori Profiles",
-          },
-        ],
-      },
-      {
-        event: "PreCompact",
-        matcher: "auto",
-        hooks: [
-          {
-            type: "command",
-            command: `node ${scriptPath} PreCompact`,
-            description:
-              "Memorize conversation before context compaction to Nori Profiles",
-          },
-        ],
-      },
-    ];
-  },
 };
 
 /**
@@ -361,18 +301,16 @@ const worktreeCleanupHook: HookInterface = {
 };
 
 /**
- * Configure hooks for automatic conversation memorization (paid version)
+ * Configure hooks
  * @param args - Configuration arguments
  * @param args.config - Runtime configuration
  */
-const configurePaidHooks = async (args: { config: Config }): Promise<void> => {
+const configureHooks = async (args: { config: Config }): Promise<void> => {
   const { config: _config } = args;
   const claudeDir = getClaudeHomeDir();
   const claudeSettingsFile = getClaudeHomeSettingsFile();
 
-  info({
-    message: "Configuring hooks for automatic conversation memorization...",
-  });
+  info({ message: "Configuring hooks..." });
 
   // Create .claude directory if it doesn't exist
   await fs.mkdir(claudeDir, { recursive: true });
@@ -391,90 +329,6 @@ const configurePaidHooks = async (args: { config: Config }): Promise<void> => {
   // Disable Claude Code's built-in co-author byline
   settings.includeCoAuthoredBy = false;
 
-  // Install all hooks for paid version
-  // Note: notification hooks must run before their async counterparts for proper ordering
-  const hooks = [
-    summarizeNotificationHook,
-    summarizeHook,
-    statisticsNotificationHook,
-    statisticsHook,
-    autoupdateHook,
-    nestedInstallWarningHook,
-    contextUsageWarningHook,
-    worktreeCleanupHook,
-    onboardingWizardWelcomeHook,
-    notifyHook,
-    slashCommandInterceptHook,
-    commitAuthorHook,
-  ];
-  const hooksConfig: any = {};
-
-  for (const hook of hooks) {
-    const configs = await hook.install();
-    for (const config of configs) {
-      if (!hooksConfig[config.event]) {
-        hooksConfig[config.event] = [];
-      }
-      hooksConfig[config.event].push({
-        matcher: config.matcher,
-        hooks: config.hooks,
-      });
-    }
-  }
-
-  // Merge hooks into settings
-  settings.hooks = hooksConfig;
-
-  await fs.writeFile(claudeSettingsFile, JSON.stringify(settings, null, 2));
-  success({ message: `✓ Hooks configured in ${claudeSettingsFile}` });
-  info({ message: "Hooks are configured to automatically memorize:" });
-  info({ message: "  - Session summaries (on SessionEnd event)" });
-  info({
-    message:
-      "  - Conversation summaries before context compaction (on PreCompact event)",
-  });
-
-  // Check if notification hook was configured
-  if (settings.hooks.Notification) {
-    info({ message: "  - Desktop notifications (on Notification event)" });
-  }
-
-  // Check if autoupdate hook was configured
-  if (settings.hooks.SessionStart) {
-    info({ message: "  - Auto-update checks (on SessionStart event)" });
-  }
-};
-
-/**
- * Configure notification-only hooks (free version)
- * @param args - Configuration arguments
- * @param args.config - Runtime configuration
- */
-const configureFreeHooks = async (args: { config: Config }): Promise<void> => {
-  const { config: _config } = args;
-  const claudeDir = getClaudeHomeDir();
-  const claudeSettingsFile = getClaudeHomeSettingsFile();
-
-  info({ message: "Configuring desktop notification hook..." });
-
-  // Create .claude directory if it doesn't exist
-  await fs.mkdir(claudeDir, { recursive: true });
-
-  // Initialize settings file if it doesn't exist
-  let settings: any = {};
-  try {
-    const content = await fs.readFile(claudeSettingsFile, "utf-8");
-    settings = JSON.parse(content);
-  } catch {
-    settings = {
-      $schema: "https://json.schemastore.org/claude-code-settings.json",
-    };
-  }
-
-  // Disable Claude Code's built-in co-author byline
-  settings.includeCoAuthoredBy = false;
-
-  // Install hooks for free version (statistics, autoupdate, notifications, etc.)
   const hooks = [
     statisticsNotificationHook,
     statisticsHook,
@@ -506,18 +360,7 @@ const configureFreeHooks = async (args: { config: Config }): Promise<void> => {
   settings.hooks = hooksConfig;
 
   await fs.writeFile(claudeSettingsFile, JSON.stringify(settings, null, 2));
-  success({
-    message: `✓ Notification hook configured in ${claudeSettingsFile}`,
-  });
-  info({
-    message:
-      "Desktop notifications will appear when Claude Code needs your attention",
-  });
-
-  // Check if autoupdate hook was configured
-  if (settings.hooks.SessionStart) {
-    info({ message: "  - Auto-update checks (on SessionStart event)" });
-  }
+  success({ message: `✓ Hooks configured in ${claudeSettingsFile}` });
 };
 
 /**
@@ -571,7 +414,7 @@ const removeHooks = async (args: { config: Config }): Promise<void> => {
 const validate = async (args: {
   config: Config;
 }): Promise<ValidationResult> => {
-  const { config } = args;
+  const { config: _config } = args;
   const claudeSettingsFile = getClaudeHomeSettingsFile();
   const errors: Array<string> = [];
 
@@ -614,87 +457,16 @@ const validate = async (args: {
     };
   }
 
-  // Validate expected hooks for paid mode
-  if (isPaidInstall({ config })) {
-    const requiredEvents = ["SessionEnd", "PreCompact", "SessionStart"];
-    for (const event of requiredEvents) {
-      if (!settings.hooks[event]) {
-        errors.push(`Missing hook configuration for event: ${event}`);
-      }
-    }
-
-    // Check if SessionEnd has required hooks (summarize and statistics)
-    if (settings.hooks.SessionEnd) {
-      const sessionEndHooks = settings.hooks.SessionEnd;
-      let hasSummarizeNotificationHook = false;
-      let hasSummarizeHook = false;
-      let hasStatisticsNotificationHook = false;
-      let hasStatisticsHook = false;
-
-      for (const hookConfig of sessionEndHooks) {
-        if (hookConfig.hooks) {
-          for (const hook of hookConfig.hooks) {
-            if (
-              hook.command &&
-              hook.command.includes("summarize-notification.js")
-            ) {
-              hasSummarizeNotificationHook = true;
-            }
-            if (
-              hook.command &&
-              hook.command.includes("summarize.js") &&
-              !hook.command.includes("summarize-notification")
-            ) {
-              hasSummarizeHook = true;
-            }
-            if (
-              hook.command &&
-              hook.command.includes("statistics-notification.js")
-            ) {
-              hasStatisticsNotificationHook = true;
-            }
-            if (
-              hook.command &&
-              hook.command.includes("statistics.js") &&
-              !hook.command.includes("statistics-notification")
-            ) {
-              hasStatisticsHook = true;
-            }
-          }
-        }
-      }
-
-      if (!hasSummarizeNotificationHook) {
-        errors.push("Missing summarize-notification hook for SessionEnd event");
-      }
-      if (!hasSummarizeHook) {
-        errors.push("Missing summarize hook for SessionEnd event");
-      }
-      if (!hasStatisticsNotificationHook) {
-        errors.push(
-          "Missing statistics-notification hook for SessionEnd event",
-        );
-      }
-      if (!hasStatisticsHook) {
-        errors.push("Missing statistics hook for SessionEnd event");
-      }
-    }
-  } else {
-    // Free mode - check for SessionStart and SessionEnd (statistics)
-    if (!settings.hooks.SessionStart) {
-      errors.push(
-        "Missing hook configuration for SessionStart event (autoupdate)",
-      );
-    }
-    if (!settings.hooks.SessionEnd) {
-      errors.push(
-        "Missing hook configuration for SessionEnd event (statistics)",
-      );
+  // Check for required hook events
+  const requiredEvents = ["SessionEnd", "SessionStart"];
+  for (const event of requiredEvents) {
+    if (!settings.hooks[event]) {
+      errors.push(`Missing hook configuration for event: ${event}`);
     }
   }
 
-  // Free mode - check for statistics hooks if SessionEnd is present
-  if (!isPaidInstall({ config }) && settings.hooks.SessionEnd) {
+  // Check if SessionEnd has required hooks (statistics)
+  if (settings.hooks.SessionEnd) {
     const sessionEndHooks = settings.hooks.SessionEnd;
     let hasStatisticsNotificationHook = false;
     let hasStatisticsHook = false;
@@ -756,12 +528,7 @@ export const hooksLoader: Loader = {
   description: "Claude Code hooks (memorization, notifications, etc.)",
   run: async (args: { config: Config }) => {
     const { config } = args;
-
-    if (isPaidInstall({ config })) {
-      await configurePaidHooks({ config });
-    } else {
-      await configureFreeHooks({ config });
-    }
+    await configureHooks({ config });
   },
   uninstall: async (args: { config: Config }) => {
     await removeHooks(args);

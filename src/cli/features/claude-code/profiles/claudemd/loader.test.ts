@@ -74,7 +74,7 @@ describe("claudeMdLoader", () => {
   });
 
   describe("run", () => {
-    it("should create CLAUDE.md with managed block for free installation", async () => {
+    it("should create CLAUDE.md with managed block", async () => {
       const config: Config = {
         installDir: tempDir,
         agents: {
@@ -98,33 +98,6 @@ describe("claudeMdLoader", () => {
       expect(content).toContain(
         "ask me if I want to create a branch or a worktree",
       );
-    });
-
-    it("should create CLAUDE.md with managed block for paid installation", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        auth: {
-          username: "test@example.com",
-          password: "testpass",
-          organizationUrl: "https://example.com",
-        },
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-      };
-
-      await claudeMdLoader.install({ config });
-
-      // Verify file exists
-      const content = await fs.readFile(claudeMdPath, "utf-8");
-
-      // Check for managed block markers
-      expect(content).toContain("# BEGIN NORI-AI MANAGED BLOCK");
-      expect(content).toContain("# END NORI-AI MANAGED BLOCK");
-
-      // Check for core content sections from profile CLAUDE.md
-      expect(content).toContain("# Tone");
-      expect(content).toContain("# Coding Guidelines");
     });
 
     it("should append managed block to existing CLAUDE.md without destroying user content", async () => {
@@ -199,7 +172,7 @@ More user instructions.
       expect(content).toContain("# Tone");
     });
 
-    it("should handle switching from free to paid installation", async () => {
+    it("should handle switching between profiles", async () => {
       // First install with senior-swe profile
       const seniorSweConfig: Config = {
         agents: {
@@ -216,11 +189,6 @@ More user instructions.
 
       // Then switch to amol profile
       const amolConfig: Config = {
-        auth: {
-          username: "test@example.com",
-          password: "testpass",
-          organizationUrl: "https://example.com",
-        },
         agents: {
           "claude-code": { profile: { baseProfile: "amol" } },
         },
@@ -500,38 +468,6 @@ hello world
       expect(content).toContain("Name: Brainstorming");
       // Verify description exists (exact wording may change)
       expect(content).toMatch(/Description:.*abilities/i);
-    });
-
-    it("should strip paid- prefix from skill paths", async () => {
-      const config: Config = {
-        auth: {
-          username: "test",
-          password: "test",
-          organizationUrl: "https://test.com",
-        },
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-        installDir: tempDir,
-      };
-
-      // Delete existing profiles and recompose with paid mixin
-      const profilesDir = path.join(mockNoriDir, "profiles");
-      await fs.rm(profilesDir, { recursive: true, force: true });
-      await profilesLoader.run({ config });
-
-      await claudeMdLoader.install({ config });
-
-      const content = await fs.readFile(claudeMdPath, "utf-8");
-
-      // Should show installed paths without paid- prefix
-      // Paths should be absolute since we're using a temp directory (not home)
-      expect(content).toContain(`${claudeDir}/skills/recall/SKILL.md`);
-      expect(content).toContain(`${claudeDir}/skills/memorize/SKILL.md`);
-
-      // Should NOT contain paid- prefix in paths
-      expect(content).not.toContain(`${claudeDir}/skills/paid-recall`);
-      expect(content).not.toContain(`${claudeDir}/skills/paid-memorize`);
     });
 
     it("should handle profiles with no skills gracefully", async () => {
