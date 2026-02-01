@@ -32,69 +32,94 @@ vi.mock("@/cli/features/claude-code/paths.js", () => ({
 // Import loaders after mocking env
 import { claudeMdLoader } from "./loader.js";
 
-// Stub CLAUDE.md content for the "senior-swe" test profile
+// Stub profile content matching what the tests expect
 const SENIOR_SWE_CLAUDE_MD = `<required>
-- Check git status
-- ask me if I want to create a branch or a worktree
-</required>
-
 # Tone
 
-Be direct and concise.
-
-# Coding Guidelines
-
-Follow best practices.
-`;
-
-// Stub CLAUDE.md content for the "amol" test profile
-const AMOL_CLAUDE_MD = `<required>
-- Check git status
-- automatically create a worktree
-</required>
-
-# Tone
-
-Be direct and honest.
+Do not be deferential.
 
 # Coding Guidelines
 
 YAGNI. Do not add features that are not explicitly asked for.
+
+# Independence
+
+When starting a new task, ask me if I want to create a branch or a worktree.
+</required>
 `;
 
-// Stub CLAUDE.md content for the "product-manager" test profile (no skills)
-const PRODUCT_MANAGER_CLAUDE_MD = `# Product Manager Profile
+const AMOL_CLAUDE_MD = `<required>
+# Tone
 
-Focus on product requirements and user stories.
+Do not be deferential.
+
+# Coding Guidelines
+
+YAGNI.
+
+# Independence
+
+When starting a new task, automatically create a worktree.
+</required>
 `;
 
 /**
- * Create a stub profile directory with CLAUDE.md and optional skills
+ * Create a stub profile with CLAUDE.md and optional skills
  *
  * @param args - Function arguments
  * @param args.profilesDir - Path to the profiles directory
  * @param args.profileName - Name of the profile
- * @param args.claudeMdContent - Content for the profile's CLAUDE.md
- * @param args.skills - Optional map of skill name to SKILL.md content
+ * @param args.claudeMd - Content for the profile's CLAUDE.md
+ * @param args.skills - Optional map of skill name to frontmatter and body content
  */
 const createStubProfile = async (args: {
   profilesDir: string;
   profileName: string;
-  claudeMdContent: string;
-  skills?: Record<string, string> | null;
+  claudeMd: string;
+  skills?: Record<string, { frontmatter: string; body: string }> | null;
 }): Promise<void> => {
-  const { profilesDir, profileName, claudeMdContent, skills } = args;
+  const { profilesDir, profileName, claudeMd, skills } = args;
   const profileDir = path.join(profilesDir, profileName);
   await fs.mkdir(profileDir, { recursive: true });
-  await fs.writeFile(path.join(profileDir, "CLAUDE.md"), claudeMdContent);
+  await fs.writeFile(path.join(profileDir, "CLAUDE.md"), claudeMd);
+  await fs.writeFile(
+    path.join(profileDir, "nori.json"),
+    JSON.stringify({
+      name: profileName,
+      version: "1.0.0",
+      description: `${profileName} profile`,
+    }),
+  );
 
   if (skills != null) {
-    for (const [skillName, skillContent] of Object.entries(skills)) {
+    for (const [skillName, content] of Object.entries(skills)) {
       const skillDir = path.join(profileDir, "skills", skillName);
       await fs.mkdir(skillDir, { recursive: true });
-      await fs.writeFile(path.join(skillDir, "SKILL.md"), skillContent);
+      await fs.writeFile(
+        path.join(skillDir, "SKILL.md"),
+        `${content.frontmatter}\n${content.body}`,
+      );
     }
   }
+};
+
+// Standard test skills for senior-swe profile
+const TEST_SKILLS: Record<string, { frontmatter: string; body: string }> = {
+  "using-skills": {
+    frontmatter:
+      "---\nname: Getting Started with Abilities\ndescription: Describes how to use abilities. Read before any conversation.\n---",
+    body: "# Using Skills\n\nHow to use skills.",
+  },
+  brainstorming: {
+    frontmatter:
+      "---\nname: Brainstorming\ndescription: Refine ideas through Socratic questioning.\n---",
+    body: "# Brainstorming\n\nRefine ideas.",
+  },
+  "test-driven-development": {
+    frontmatter:
+      "---\nname: Test-Driven Development\ndescription: Write the test first.\n---",
+    body: "# TDD\n\nRed-green-refactor.",
+  },
 };
 
 describe("claudeMdLoader", () => {
@@ -102,49 +127,6 @@ describe("claudeMdLoader", () => {
   let claudeDir: string;
   let claudeMdPath: string;
   let noriProfilesDir: string;
-
-  const testSkills: Record<string, string> = {
-    "using-skills": [
-      "---",
-      "name: Getting Started with Abilities",
-      "description: Describes how to use abilities. Read before any conversation.",
-      "---",
-      "# Using Skills",
-    ].join("\n"),
-    brainstorming: [
-      "---",
-      "name: Brainstorming",
-      "description: Use when creating or developing anything",
-      "---",
-      "# Brainstorming",
-    ].join("\n"),
-    "test-driven-development": [
-      "---",
-      "name: Test-Driven Development",
-      "description: Write tests first",
-      "---",
-      "# TDD",
-    ].join("\n"),
-    "no-frontmatter": "# A skill without frontmatter\n\nJust content.\n",
-  };
-
-  const paidSkills: Record<string, string> = {
-    ...testSkills,
-    "paid-recall": [
-      "---",
-      "name: Recall",
-      "description: Search the knowledge base",
-      "---",
-      "# Recall",
-    ].join("\n"),
-    "paid-memorize": [
-      "---",
-      "name: Memorize",
-      "description: Save to the knowledge base",
-      "---",
-      "# Memorize",
-    ].join("\n"),
-  };
 
   beforeEach(async () => {
     // Create temp directory for testing
@@ -162,23 +144,24 @@ describe("claudeMdLoader", () => {
     await fs.mkdir(claudeDir, { recursive: true });
     await fs.mkdir(noriProfilesDir, { recursive: true });
 
-    // Create stub profiles with known content
+    // Create stub profiles (built-in profiles are no longer bundled)
     await createStubProfile({
       profilesDir: noriProfilesDir,
       profileName: "senior-swe",
-      claudeMdContent: SENIOR_SWE_CLAUDE_MD,
-      skills: testSkills,
+      claudeMd: SENIOR_SWE_CLAUDE_MD,
+      skills: TEST_SKILLS,
     });
+
     await createStubProfile({
       profilesDir: noriProfilesDir,
       profileName: "amol",
-      claudeMdContent: AMOL_CLAUDE_MD,
-      skills: testSkills,
+      claudeMd: AMOL_CLAUDE_MD,
     });
+
     await createStubProfile({
       profilesDir: noriProfilesDir,
       profileName: "product-manager",
-      claudeMdContent: PRODUCT_MANAGER_CLAUDE_MD,
+      claudeMd: "# Product Manager\n\nFocus on product decisions.\n",
     });
   });
 
@@ -191,7 +174,7 @@ describe("claudeMdLoader", () => {
   });
 
   describe("run", () => {
-    it("should create CLAUDE.md with managed block for free installation", async () => {
+    it("should create CLAUDE.md with managed block", async () => {
       const config: Config = {
         installDir: tempDir,
         agents: {
@@ -201,6 +184,7 @@ describe("claudeMdLoader", () => {
 
       await claudeMdLoader.install({ config });
 
+      // Verify file exists
       const content = await fs.readFile(claudeMdPath, "utf-8");
 
       // Check for managed block markers
@@ -214,32 +198,6 @@ describe("claudeMdLoader", () => {
       expect(content).toContain(
         "ask me if I want to create a branch or a worktree",
       );
-    });
-
-    it("should create CLAUDE.md with managed block for paid installation", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        auth: {
-          username: "test@example.com",
-          password: "testpass",
-          organizationUrl: "https://example.com",
-        },
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-      };
-
-      await claudeMdLoader.install({ config });
-
-      const content = await fs.readFile(claudeMdPath, "utf-8");
-
-      // Check for managed block markers
-      expect(content).toContain("# BEGIN NORI-AI MANAGED BLOCK");
-      expect(content).toContain("# END NORI-AI MANAGED BLOCK");
-
-      // Check for core content sections from profile CLAUDE.md
-      expect(content).toContain("# Tone");
-      expect(content).toContain("# Coding Guidelines");
     });
 
     it("should append managed block to existing CLAUDE.md without destroying user content", async () => {
@@ -257,6 +215,7 @@ describe("claudeMdLoader", () => {
 
       await claudeMdLoader.install({ config });
 
+      // Verify file exists
       const content = await fs.readFile(claudeMdPath, "utf-8");
 
       // Check that user content is preserved
@@ -293,6 +252,7 @@ More user instructions.
 
       await claudeMdLoader.install({ config });
 
+      // Verify file exists
       const content = await fs.readFile(claudeMdPath, "utf-8");
 
       // Check that user content is preserved
@@ -308,7 +268,7 @@ More user instructions.
       // Old content should be replaced
       expect(content).not.toContain("Old nori instructions here.");
 
-      // New content should be present
+      // New content should be present (simplified structure)
       expect(content).toContain("# Tone");
     });
 
@@ -329,11 +289,6 @@ More user instructions.
 
       // Then switch to amol profile
       const amolConfig: Config = {
-        auth: {
-          username: "test@example.com",
-          password: "testpass",
-          organizationUrl: "https://example.com",
-        },
         agents: {
           "claude-code": { profile: { baseProfile: "amol" } },
         },
@@ -343,7 +298,7 @@ More user instructions.
 
       const amolContent = await fs.readFile(claudeMdPath, "utf-8");
 
-      // Should have amol-specific content
+      // Should have amol-specific content (profile-specific behavior)
       expect(amolContent).toContain("automatically create a worktree");
 
       // Managed block markers should still be present
@@ -448,11 +403,24 @@ More user instructions.
     });
   });
 
+  // Validate tests removed - validation is now handled at profilesLoader level
+
   describe("managed block marker handling", () => {
     it("should not produce double-nested markers when profile CLAUDE.md already has markers", async () => {
       // Create a custom profile with CLAUDE.md that already has managed block markers
-      const customProfileDir = path.join(noriProfilesDir, "my-profile");
+      // This simulates what happens when captureExistingConfigAsProfile saves a profile
+      const customProfileDir = path.join(mockNoriDir, "profiles", "my-profile");
       await fs.mkdir(customProfileDir, { recursive: true });
+
+      // Write profile.json
+      await fs.writeFile(
+        path.join(customProfileDir, "profile.json"),
+        JSON.stringify({
+          name: "my-profile",
+          description: "Test profile with pre-existing markers",
+          builtin: false,
+        }),
+      );
 
       // Write CLAUDE.md with managed block markers already present
       // This mimics what captureExistingConfigAsProfile does
@@ -534,11 +502,12 @@ hello world
 
       // Should contain amol profile specific instructions
       expect(content).toContain("automatically create a worktree");
+      // Verify profile-specific behavior exists
       expect(content).toContain("required");
       expect(content).toContain("# Tone");
     });
 
-    it("should load correct profile content based on config", async () => {
+    it("should use default profile (senior-swe) when no profile specified", async () => {
       const config: Config = {
         installDir: tempDir,
         agents: {
@@ -550,6 +519,7 @@ hello world
 
       const content = await fs.readFile(claudeMdPath, "utf-8");
 
+      // Should use senior-swe as default
       expect(content).toContain(
         "ask me if I want to create a branch or a worktree",
       );
@@ -572,7 +542,8 @@ hello world
       // Should contain skills list section
       expect(content).toContain("Available Skills");
 
-      // Should list skills from the stub profile
+      // Should list at least some skills from senior-swe profile
+      // Paths should be absolute since we're using a temp directory (not home)
       expect(content).toContain(`${claudeDir}/skills/using-skills/SKILL.md`);
       expect(content).toContain(
         `${claudeDir}/skills/test-driven-development/SKILL.md`,
@@ -592,48 +563,11 @@ hello world
 
       const content = await fs.readFile(claudeMdPath, "utf-8");
 
-      // Should include skill metadata from frontmatter
+      // Should include skill metadata (names and descriptions from frontmatter)
       expect(content).toContain("Name: Getting Started with Abilities");
       expect(content).toContain("Name: Brainstorming");
+      // Verify description exists (exact wording may change)
       expect(content).toMatch(/Description:.*abilities/i);
-    });
-
-    it("should strip paid- prefix from skill paths", async () => {
-      // Recreate senior-swe profile with paid skills
-      await fs.rm(path.join(noriProfilesDir, "senior-swe"), {
-        recursive: true,
-        force: true,
-      });
-      await createStubProfile({
-        profilesDir: noriProfilesDir,
-        profileName: "senior-swe",
-        claudeMdContent: SENIOR_SWE_CLAUDE_MD,
-        skills: paidSkills,
-      });
-
-      const config: Config = {
-        auth: {
-          username: "test",
-          password: "test",
-          organizationUrl: "https://test.com",
-        },
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-        installDir: tempDir,
-      };
-
-      await claudeMdLoader.install({ config });
-
-      const content = await fs.readFile(claudeMdPath, "utf-8");
-
-      // Should show installed paths without paid- prefix
-      expect(content).toContain(`${claudeDir}/skills/recall/SKILL.md`);
-      expect(content).toContain(`${claudeDir}/skills/memorize/SKILL.md`);
-
-      // Should NOT contain paid- prefix in paths
-      expect(content).not.toContain(`${claudeDir}/skills/paid-recall`);
-      expect(content).not.toContain(`${claudeDir}/skills/paid-memorize`);
     });
 
     it("should handle profiles with no skills gracefully", async () => {

@@ -12,7 +12,6 @@ import {
   loadConfig,
   saveConfig,
   getConfigPath,
-  isPaidInstall,
   getInstalledAgents,
   type Config,
 } from "./config.js";
@@ -345,38 +344,6 @@ describe("config with profile-based system", () => {
       const loaded = await loadConfig({ installDir: customDir });
       expect(loaded?.installDir).toBe(customDir);
     });
-  });
-});
-
-describe("isPaidInstall", () => {
-  it("should return true when config has auth with all fields", () => {
-    const config: Config = {
-      auth: {
-        username: "test@example.com",
-        password: "password123",
-        organizationUrl: "https://example.com",
-      },
-      installDir: "/test/dir",
-    };
-
-    expect(isPaidInstall({ config })).toBe(true);
-  });
-
-  it("should return false when config has no auth", () => {
-    const config: Config = {
-      installDir: "/test/dir",
-    };
-
-    expect(isPaidInstall({ config })).toBe(false);
-  });
-
-  it("should return false when config has auth set to null", () => {
-    const config: Config = {
-      auth: null,
-      installDir: "/test/dir",
-    };
-
-    expect(isPaidInstall({ config })).toBe(false);
   });
 });
 
@@ -974,34 +941,6 @@ describe("token-based auth", () => {
       const isLegacy = isLegacyPasswordConfig({ config: loaded! });
 
       expect(isLegacy).toBe(false);
-    });
-  });
-
-  describe("isPaidInstall with token-based auth", () => {
-    it("should return true when config has auth with refreshToken", () => {
-      const config: Config = {
-        auth: {
-          username: "test@example.com",
-          refreshToken: "firebase-refresh-token",
-          organizationUrl: "https://example.com",
-        },
-        installDir: "/test/dir",
-      };
-
-      expect(isPaidInstall({ config })).toBe(true);
-    });
-
-    it("should return true for legacy password-based auth", () => {
-      const config: Config = {
-        auth: {
-          username: "test@example.com",
-          password: "password123",
-          organizationUrl: "https://example.com",
-        },
-        installDir: "/test/dir",
-      };
-
-      expect(isPaidInstall({ config })).toBe(true);
     });
   });
 });

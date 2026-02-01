@@ -11,7 +11,6 @@ import {
   getConfigPath,
   loadConfig,
   saveConfig,
-  isPaidInstall,
   getInstalledAgents,
 } from "@/cli/config.js";
 import { info, success, error, warn, debug } from "@/cli/logger.js";
@@ -41,11 +40,7 @@ const installConfig = async (args: { config: Config }): Promise<void> => {
   const refreshToken = config.auth?.refreshToken ?? null;
   const organizationUrl = config.auth?.organizationUrl ?? null;
 
-  // Only include sendSessionTranscript for paid users
-  // Free users should not have this field in their config
-  const sendSessionTranscript = isPaidInstall({ config })
-    ? (config.sendSessionTranscript ?? null)
-    : null;
+  const sendSessionTranscript = config.sendSessionTranscript ?? null;
 
   // Merge agents from existing config and new config
   // The keys of the agents object indicate which agents are installed

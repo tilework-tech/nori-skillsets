@@ -840,7 +840,7 @@ describe("buildCLIEventParams", () => {
   });
 
   // @current-session
-  it("returns 'free' install_type when no auth in config", async () => {
+  it("returns 'unauthenticated' install_type when no auth in config", async () => {
     const { buildCLIEventParams } = await import("./installTracking.js");
 
     // Pass a mock config with no auth
@@ -848,11 +848,11 @@ describe("buildCLIEventParams", () => {
       config: { agents: {} } as any,
     });
 
-    expect(params.tilework_cli_install_type).toBe("free");
+    expect(params.tilework_cli_install_type).toBe("unauthenticated");
   });
 
   // @current-session
-  it("returns 'paid' install_type when auth exists in config", async () => {
+  it("returns 'authenticated' install_type when auth exists in config", async () => {
     const { buildCLIEventParams } = await import("./installTracking.js");
 
     const params = await buildCLIEventParams({
@@ -862,7 +862,7 @@ describe("buildCLIEventParams", () => {
       } as any,
     });
 
-    expect(params.tilework_cli_install_type).toBe("paid");
+    expect(params.tilework_cli_install_type).toBe("authenticated");
   });
 
   // @current-session

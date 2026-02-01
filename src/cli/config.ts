@@ -105,14 +105,13 @@ export const getConfigPath = (args: { installDir: string }): string => {
 };
 
 /**
- * Check if config represents a paid installation
- * @param args - Configuration arguments
- * @param args.config - The config to check
- *
- * @returns True if the config has valid auth credentials (paid install)
+ * Get default profile
+ * @returns Default profile (senior-swe)
  */
-export const isPaidInstall = (args: { config: Config }): boolean => {
-  return args.config.auth != null;
+export const getDefaultProfile = (): { baseProfile: string } => {
+  return {
+    baseProfile: "senior-swe",
+  };
 };
 
 /**
@@ -588,11 +587,11 @@ export const validateConfig = async (args: {
     };
   }
 
-  // If no credentials provided, it's free mode
+  // If no credentials provided, config is still valid
   if (!someProvided) {
     return {
       valid: true,
-      message: "Config is valid for free mode (no credentials provided)",
+      message: "Config is valid (no credentials provided)",
       errors: null,
     };
   }
@@ -621,7 +620,7 @@ export const validateConfig = async (args: {
 
   return {
     valid: true,
-    message: "Config is valid for paid mode",
+    message: "Config is valid",
     errors: null,
   };
 };

@@ -1,16 +1,16 @@
-# Paid Skills Bundler
+# Hook Scripts Bundler
 
-**IMPORTANT**: This script bundles paid skill scripts into standalone executables.
+**IMPORTANT**: This script bundles hook scripts into standalone executables.
 
 ## Why Bundling is Necessary
 
-Paid skill scripts are TypeScript files that use:
+Hook scripts are TypeScript files that use:
 
 - Path aliases (`@/api/index.js`, `@/cli/config.js`)
 - External dependencies (`minimist`)
 - Internal modules from the plugin package
 
-After TypeScript compilation, `tsc-alias` converts `@` imports to relative paths like `../../../../../api/index.js`. When these scripts are installed to `~/.claude/skills/`, those relative paths no longer resolve correctly.
+After TypeScript compilation, `tsc-alias` converts `@` imports to relative paths like `../../../../../api/index.js`. When these scripts are installed to `~/.claude/`, those relative paths no longer resolve correctly.
 
 ## Solution: esbuild Bundling
 
@@ -54,21 +54,21 @@ This provides a working `require` function in ESM context, allowing bundled Comm
 
 1. TypeScript compiles `src/` to `build/` (with `@` aliases)
 2. `tsc-alias` converts `@` imports to relative paths
-3. **THIS SCRIPT** bundles each `paid-*/script.js` (found in profile directories) into standalone version
-4. Installation copies bundled scripts to `~/.claude/skills/`
+3. **THIS SCRIPT** bundles each hook script (found in `build/src/cli/features/claude-code/hooks/config/*.js`) into standalone version
+4. Installation copies bundled scripts to `~/.claude/`
 
 ## Output Structure
 
-Skills are now inlined directly in profile directories (no mixin composition):
+Hook scripts are located in:
 
-- **Input**: `build/src/cli/features/claude-code/profiles/config/*/skills/paid-*/script.js`
+- **Input**: `build/src/cli/features/claude-code/hooks/config/*.js`
 - **Output**: Same path (replaced with bundle)
 
 The bundled version **REPLACES** the tsc output, so the installer workflow remains unchanged.
 
 ## Maintenance Notes
 
-- **Add new paid skills**: They'll be auto-detected and bundled (any `paid-*/script.js` in any profile's skills/)
+- **Add new hooks**: They'll be auto-detected and bundled (any `*.js` in hooks/config/)
 - **Update dependencies**: Rebuild will include updated versions
 - **Debug bundling issues**: Run `npm run build` and check this script's output
 - **Bundle size**: Each script is approximately 50-100KB (includes all dependencies)
@@ -76,5 +76,4 @@ The bundled version **REPLACES** the tsc output, so the installer workflow remai
 ## Integration Points
 
 - `package.json:build` - Build pipeline integration
-- `src/cli/features/claude-code/profiles/skills/loader.ts` - Installation process
-- Profile skill directories contain paid skills like `paid-recall/script.ts`, `paid-memorize/script.ts`
+- `src/cli/features/claude-code/hooks/loader.ts` - Hook installation process
