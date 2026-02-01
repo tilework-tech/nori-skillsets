@@ -32,6 +32,32 @@ vi.mock("@/cli/features/claude-code/paths.js", () => ({
 // Import loader after mocking env
 import { profilesLoader, _testing } from "./loader.js";
 
+/**
+ * Create a minimal stub profile in the profiles directory.
+ * Since built-in profiles are no longer bundled, downstream loaders (claudemd, skills)
+ * need a profile with at least a CLAUDE.md file to exist in the profiles directory.
+ * @param args - Function arguments
+ * @param args.profilesDir - Path to the profiles directory
+ * @param args.profileName - Name of the profile to create
+ */
+const createStubProfile = async (args: {
+  profilesDir: string;
+  profileName: string;
+}): Promise<void> => {
+  const { profilesDir, profileName } = args;
+  const profileDir = path.join(profilesDir, profileName);
+  await fs.mkdir(profileDir, { recursive: true });
+  await fs.writeFile(path.join(profileDir, "CLAUDE.md"), "# Test Profile\n");
+  await fs.writeFile(
+    path.join(profileDir, "nori.json"),
+    JSON.stringify({
+      name: profileName,
+      version: "1.0.0",
+      description: "Test profile",
+    }),
+  );
+};
+
 describe("profilesLoader", () => {
   let tempDir: string;
   let claudeDir: string;
@@ -63,129 +89,20 @@ describe("profilesLoader", () => {
   });
 
   describe("run", () => {
-    it("should create profiles directory and copy profile templates for free installation", async () => {
+    it("should create profiles directory and configure permissions", async () => {
       const config: Config = {
         installDir: tempDir,
         agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
+          "claude-code": { profile: { baseProfile: "test-profile" } },
         },
       };
 
-      await profilesLoader.run({ config });
-
-      // Verify profiles directory exists
-      const exists = await fs
-        .access(profilesDir)
-        .then(() => true)
-        .catch(() => false);
-
-      expect(exists).toBe(true);
-
-      // Verify profile directories were copied (but not _base)
-      const files = await fs.readdir(profilesDir);
-      expect(files.length).toBeGreaterThan(0);
-      expect(files).toContain("senior-swe");
-      expect(files).toContain("amol");
-      expect(files).toContain("product-manager");
-      expect(files).toContain("none");
-      expect(files).toContain("onboarding-wizard-questionnaire");
-      expect(files).not.toContain("_base"); // _base is never installed
-    });
-
-    it("should install onboarding-wizard-questionnaire profile with correct structure", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-      };
-
-      await profilesLoader.run({ config });
-
-      // Verify onboarding-wizard-questionnaire profile exists
-      const wizardPath = path.join(
+      // Create stub profile so downstream loaders can find CLAUDE.md
+      await fs.mkdir(profilesDir, { recursive: true });
+      await createStubProfile({
         profilesDir,
-        "onboarding-wizard-questionnaire",
-      );
-      const wizardExists = await fs
-        .access(wizardPath)
-        .then(() => true)
-        .catch(() => false);
-      expect(wizardExists).toBe(true);
-
-      // Verify nori.json exists and has correct metadata (replaces profile.json)
-      const noriJsonPath = path.join(wizardPath, "nori.json");
-      const noriJson = JSON.parse(await fs.readFile(noriJsonPath, "utf-8"));
-      expect(noriJson.name).toBe("onboarding-wizard-questionnaire");
-      expect(noriJson.version).toBe("1.0.0");
-      expect(noriJson.description).toContain("questionnaire");
-
-      // Verify profile.json does NOT exist (replaced by nori.json)
-      const profileJsonPath = path.join(wizardPath, "profile.json");
-      const profileJsonExists = await fs
-        .access(profileJsonPath)
-        .then(() => true)
-        .catch(() => false);
-      expect(profileJsonExists).toBe(false);
-
-      // Verify CLAUDE.md exists and contains wizard instructions
-      const claudeMdPath = path.join(wizardPath, "CLAUDE.md");
-      const claudeMdContent = await fs.readFile(claudeMdPath, "utf-8");
-      expect(claudeMdContent).toContain("Onboarding Wizard (Questionnaire)");
-    });
-
-    it("should install none profile with only base content and empty CLAUDE.md", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-      };
-
-      await profilesLoader.run({ config });
-
-      // Verify none profile exists
-      const nonePath = path.join(profilesDir, "none");
-      const noneExists = await fs
-        .access(nonePath)
-        .then(() => true)
-        .catch(() => false);
-      expect(noneExists).toBe(true);
-
-      // Verify nori.json exists and has correct metadata (replaces profile.json)
-      const noriJsonPath = path.join(nonePath, "nori.json");
-      const noriJson = JSON.parse(await fs.readFile(noriJsonPath, "utf-8"));
-      expect(noriJson.name).toBe("none");
-      expect(noriJson.version).toBe("1.0.0");
-
-      // Verify CLAUDE.md exists and is empty or minimal
-      const claudeMdPath = path.join(nonePath, "CLAUDE.md");
-      const claudeMdContent = await fs.readFile(claudeMdPath, "utf-8");
-      expect(claudeMdContent.trim()).toBe("");
-
-      // Verify only base content is present (inlined directly in profile)
-      const skillsDir = path.join(nonePath, "skills");
-      const skills = await fs.readdir(skillsDir);
-
-      // Should only have base skills (using-skills, creating-skills)
-      expect(skills).toContain("using-skills");
-      expect(skills).toContain("creating-skills");
-      expect(skills).not.toContain("test-driven-development"); // swe content
-      expect(skills).not.toContain("updating-noridocs"); // docs content
-    });
-
-    it("should create profiles directory and copy profile templates for paid installation", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        auth: {
-          username: "test@example.com",
-          password: "testpass",
-          organizationUrl: "https://example.com",
-        },
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-      };
+        profileName: "test-profile",
+      });
 
       await profilesLoader.run({ config });
 
@@ -194,401 +111,174 @@ describe("profilesLoader", () => {
         .access(profilesDir)
         .then(() => true)
         .catch(() => false);
-
       expect(exists).toBe(true);
 
-      // Verify profile directories were copied (but not _base)
-      const files = await fs.readdir(profilesDir);
-      expect(files.length).toBeGreaterThan(0);
-      expect(files).toContain("senior-swe");
-      expect(files).toContain("amol");
-      expect(files).toContain("product-manager");
-      expect(files).toContain("none");
-      expect(files).not.toContain("_base"); // _base is never installed
+      // Verify permissions are configured in settings.json
+      const settingsPath = path.join(claudeDir, "settings.json");
+      const content = await fs.readFile(settingsPath, "utf-8");
+      const settings = JSON.parse(content);
+      expect(settings.permissions.additionalDirectories).toContain(profilesDir);
     });
 
-    it("should copy profile directories with complete structure", async () => {
+    it("should not copy any built-in profiles into an empty profiles directory", async () => {
       const config: Config = {
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
         installDir: tempDir,
+        agents: {
+          "claude-code": { profile: { baseProfile: "test-profile" } },
+        },
       };
+
+      // Create stub profile so downstream loaders don't fail
+      await fs.mkdir(profilesDir, { recursive: true });
+      await createStubProfile({
+        profilesDir,
+        profileName: "test-profile",
+      });
 
       await profilesLoader.run({ config });
 
-      // Verify _base is NOT installed (it's only for composition)
-      const basePath = path.join(profilesDir, "_base");
-      const baseExists = await fs
-        .access(basePath)
-        .then(() => true)
-        .catch(() => false);
-      expect(baseExists).toBe(false);
-
-      // Verify senior-swe profile exists and is fully composed
-      const seniorSwePath = path.join(profilesDir, "senior-swe");
-      const seniorSweExists = await fs
-        .access(seniorSwePath)
-        .then(() => true)
-        .catch(() => false);
-      expect(seniorSweExists).toBe(true);
-
-      // Verify it has CLAUDE.md and nori.json (not profile.json)
-      const claudeMdPath = path.join(seniorSwePath, "CLAUDE.md");
-      const claudeMdExists = await fs
-        .access(claudeMdPath)
-        .then(() => true)
-        .catch(() => false);
-      expect(claudeMdExists).toBe(true);
-
-      const noriJsonPath = path.join(seniorSwePath, "nori.json");
-      const noriJsonExists = await fs
-        .access(noriJsonPath)
-        .then(() => true)
-        .catch(() => false);
-      expect(noriJsonExists).toBe(true);
-
-      // Verify profile.json does NOT exist
-      const profileJsonPath = path.join(seniorSwePath, "profile.json");
-      const profileJsonExists = await fs
-        .access(profileJsonPath)
-        .then(() => true)
-        .catch(() => false);
-      expect(profileJsonExists).toBe(false);
-
-      // Verify it has composed content from _base (skills, subagents, slashcommands)
-      const skillsDir = path.join(seniorSwePath, "skills");
-      const subagentsDir = path.join(seniorSwePath, "subagents");
-      const slashcommandsDir = path.join(seniorSwePath, "slashcommands");
-
-      expect(
-        await fs
-          .access(skillsDir)
-          .then(() => true)
-          .catch(() => false),
-      ).toBe(true);
-      expect(
-        await fs
-          .access(subagentsDir)
-          .then(() => true)
-          .catch(() => false),
-      ).toBe(true);
-      expect(
-        await fs
-          .access(slashcommandsDir)
-          .then(() => true)
-          .catch(() => false),
-      ).toBe(true);
+      // Verify only our stub profile exists (no built-in profiles were added)
+      const files = await fs.readdir(profilesDir);
+      expect(files).toEqual(["test-profile"]);
     });
 
-    it("should handle reinstallation (update scenario)", async () => {
+    it("should handle reinstallation without errors", async () => {
       const config: Config = {
         installDir: tempDir,
         agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
+          "claude-code": { profile: { baseProfile: "test-profile" } },
         },
       };
+
+      await fs.mkdir(profilesDir, { recursive: true });
+      await createStubProfile({
+        profilesDir,
+        profileName: "test-profile",
+      });
 
       // First installation
       await profilesLoader.run({ config });
 
-      // Verify initial installation
-      let files = await fs.readdir(profilesDir);
-      expect(files.length).toBeGreaterThan(0);
+      // Second installation (update)
+      await expect(profilesLoader.run({ config })).resolves.not.toThrow();
+
+      // Verify profiles directory still exists
+      const exists = await fs
+        .access(profilesDir)
+        .then(() => true)
+        .catch(() => false);
+      expect(exists).toBe(true);
+    });
+
+    it("should preserve existing user-installed profiles on reinstall", async () => {
+      const config: Config = {
+        installDir: tempDir,
+        agents: {
+          "claude-code": { profile: { baseProfile: "test-profile" } },
+        },
+      };
+
+      await fs.mkdir(profilesDir, { recursive: true });
+      await createStubProfile({
+        profilesDir,
+        profileName: "test-profile",
+      });
+
+      // First installation
+      await profilesLoader.run({ config });
+
+      // Simulate user installing another profile
+      const userProfile = path.join(profilesDir, "my-custom-profile");
+      await fs.mkdir(userProfile, { recursive: true });
+      await fs.writeFile(
+        path.join(userProfile, "CLAUDE.md"),
+        "# Custom Profile",
+      );
 
       // Second installation (update)
       await profilesLoader.run({ config });
 
-      // Verify directories still exist after update
-      files = await fs.readdir(profilesDir);
-      expect(files.length).toBeGreaterThan(0);
-      expect(files).toContain("senior-swe");
-      expect(files).toContain("amol");
-      expect(files).toContain("product-manager");
-    });
-
-    it("should install senior-swe profile with all skills inlined directly", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-      };
-
-      await profilesLoader.run({ config });
-
-      const seniorSwePath = path.join(profilesDir, "senior-swe");
-
-      // Verify nori.json has correct metadata (replaces profile.json)
-      const noriJsonPath = path.join(seniorSwePath, "nori.json");
-      const noriJson = JSON.parse(await fs.readFile(noriJsonPath, "utf-8"));
-      expect(noriJson.name).toBe("senior-swe");
-      expect(noriJson.version).toBe("1.0.0");
-      expect(noriJson.description).toBeDefined();
-
-      // Verify skills are present directly (not composed from mixins)
-      const skillsDir = path.join(seniorSwePath, "skills");
-      const skills = await fs.readdir(skillsDir);
-
-      // Base skills
-      expect(skills).toContain("using-skills");
-      expect(skills).toContain("creating-skills");
-
-      // Docs skills
-      expect(skills).toContain("updating-noridocs");
-
-      // SWE skills
-      expect(skills).toContain("test-driven-development");
-      expect(skills).toContain("systematic-debugging");
-      expect(skills).toContain("writing-plans");
-      expect(skills).toContain("using-git-worktrees");
-
-      // Verify subagents are present
-      const subagentsDir = path.join(seniorSwePath, "subagents");
-      const subagents = await fs.readdir(subagentsDir);
-      expect(subagents).toContain("nori-web-search-researcher.md");
-      expect(subagents).toContain("nori-codebase-locator.md");
-    });
-
-    it("should install onboarding-wizard-questionnaire with NO skills (wizard only)", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-      };
-
-      await profilesLoader.run({ config });
-
-      const wizardPath = path.join(
-        profilesDir,
-        "onboarding-wizard-questionnaire",
-      );
-
-      // Verify nori.json has correct metadata (replaces profile.json)
-      const noriJsonPath = path.join(wizardPath, "nori.json");
-      const noriJson = JSON.parse(await fs.readFile(noriJsonPath, "utf-8"));
-      expect(noriJson.name).toBe("onboarding-wizard-questionnaire");
-      expect(noriJson.version).toBe("1.0.0");
-
-      // Verify NO skills directory exists (wizard doesn't need skills)
-      const skillsDir = path.join(wizardPath, "skills");
-      const skillsExist = await fs
-        .access(skillsDir)
+      // Verify user profile is preserved
+      const customExists = await fs
+        .access(userProfile)
         .then(() => true)
         .catch(() => false);
-      expect(skillsExist).toBe(false);
+      expect(customExists).toBe(true);
 
-      // Verify NO subagents directory exists
-      const subagentsDir = path.join(wizardPath, "subagents");
-      const subagentsExist = await fs
-        .access(subagentsDir)
-        .then(() => true)
-        .catch(() => false);
-      expect(subagentsExist).toBe(false);
-    });
-
-    it("should skip existing profiles and preserve user modifications", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-      };
-
-      // First installation
-      await profilesLoader.run({ config });
-
-      // Modify a profile (simulate user customization)
-      const seniorSwePath = path.join(profilesDir, "senior-swe");
-      const customContent = "# My Custom CLAUDE.md\nThis is my customization.";
-      await fs.writeFile(path.join(seniorSwePath, "CLAUDE.md"), customContent);
-
-      // Second installation (should skip existing profiles)
-      await profilesLoader.run({ config });
-
-      // Verify user modification is preserved
-      const claudeMdContent = await fs.readFile(
-        path.join(seniorSwePath, "CLAUDE.md"),
+      const content = await fs.readFile(
+        path.join(userProfile, "CLAUDE.md"),
         "utf-8",
       );
-      expect(claudeMdContent).toBe(customContent);
+      expect(content).toBe("# Custom Profile");
     });
   });
 
   describe("uninstall", () => {
-    it("should preserve all profiles during uninstall for free installation", async () => {
+    it("should preserve all profiles during uninstall", async () => {
       const config: Config = {
         installDir: tempDir,
         agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
+          "claude-code": { profile: { baseProfile: "test-profile" } },
         },
       };
 
-      // First install profiles
+      // Install and add a user profile
+      await fs.mkdir(profilesDir, { recursive: true });
+      await createStubProfile({
+        profilesDir,
+        profileName: "test-profile",
+      });
       await profilesLoader.run({ config });
-      const exists = await fs
-        .access(profilesDir)
-        .then(() => true)
-        .catch(() => false);
-      expect(exists).toBe(true);
 
-      // Verify built-in profiles exist
-      const seniorSweExists = await fs
-        .access(path.join(profilesDir, "senior-swe"))
-        .then(() => true)
-        .catch(() => false);
-      expect(seniorSweExists).toBe(true);
+      const userProfile = path.join(profilesDir, "my-profile");
+      await fs.mkdir(userProfile, { recursive: true });
+      await fs.writeFile(path.join(userProfile, "CLAUDE.md"), "# My Profile");
 
       // Uninstall profiles
       await profilesLoader.uninstall({ config });
 
-      // Verify all profiles are preserved (profiles are never deleted)
-      const seniorSweExistsAfter = await fs
-        .access(path.join(profilesDir, "senior-swe"))
+      // Verify profiles are preserved (profiles are never deleted)
+      const testProfileExists = await fs
+        .access(path.join(profilesDir, "test-profile"))
         .then(() => true)
         .catch(() => false);
-      expect(seniorSweExistsAfter).toBe(true);
+      expect(testProfileExists).toBe(true);
 
-      const amolExistsAfter = await fs
-        .access(path.join(profilesDir, "amol"))
+      const userProfileExists = await fs
+        .access(userProfile)
         .then(() => true)
         .catch(() => false);
-      expect(amolExistsAfter).toBe(true);
-    });
-
-    it("should preserve all profiles during uninstall for paid installation", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        auth: {
-          username: "test@example.com",
-          password: "testpass",
-          organizationUrl: "https://example.com",
-        },
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-      };
-
-      // First install profiles
-      await profilesLoader.run({ config });
-      const exists = await fs
-        .access(profilesDir)
-        .then(() => true)
-        .catch(() => false);
-      expect(exists).toBe(true);
-
-      // Verify built-in profiles exist
-      const seniorSweExists = await fs
-        .access(path.join(profilesDir, "senior-swe"))
-        .then(() => true)
-        .catch(() => false);
-      expect(seniorSweExists).toBe(true);
-
-      // Uninstall profiles
-      await profilesLoader.uninstall({ config });
-
-      // Verify all profiles are preserved (profiles are never deleted)
-      const seniorSweExistsAfter = await fs
-        .access(path.join(profilesDir, "senior-swe"))
-        .then(() => true)
-        .catch(() => false);
-      expect(seniorSweExistsAfter).toBe(true);
-
-      const amolExistsAfter = await fs
-        .access(path.join(profilesDir, "amol"))
-        .then(() => true)
-        .catch(() => false);
-      expect(amolExistsAfter).toBe(true);
+      expect(userProfileExists).toBe(true);
     });
 
     it("should not throw if profiles directory does not exist", async () => {
       const config: Config = {
         installDir: tempDir,
         agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
+          "claude-code": { profile: { baseProfile: "test-profile" } },
         },
       };
 
       // Uninstall without installing first
       await expect(profilesLoader.uninstall({ config })).resolves.not.toThrow();
     });
-
-    it("should preserve all profiles including custom ones during uninstall", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-      };
-
-      // Install built-in profiles
-      await profilesLoader.run({ config });
-
-      // Create a custom profile (no "builtin": true field)
-      const customProfileDir = path.join(profilesDir, "my-custom-profile");
-      await fs.mkdir(customProfileDir, { recursive: true });
-      await fs.writeFile(
-        path.join(customProfileDir, "profile.json"),
-        JSON.stringify({
-          name: "my-custom-profile",
-          description: "My custom profile",
-          mixins: { base: {} },
-        }),
-      );
-      await fs.writeFile(
-        path.join(customProfileDir, "CLAUDE.md"),
-        "# My Custom Profile\n",
-      );
-
-      // Verify built-in and custom profiles exist before uninstall
-      const filesBeforeUninstall = await fs.readdir(profilesDir);
-      expect(filesBeforeUninstall).toContain("senior-swe");
-      expect(filesBeforeUninstall).toContain("amol");
-      expect(filesBeforeUninstall).toContain("my-custom-profile");
-
-      // Uninstall profiles
-      await profilesLoader.uninstall({ config });
-
-      // Verify custom profile still exists
-      const customExists = await fs
-        .access(customProfileDir)
-        .then(() => true)
-        .catch(() => false);
-      expect(customExists).toBe(true);
-
-      // Verify built-in profiles are also preserved (profiles are never deleted)
-      const seniorSweExists = await fs
-        .access(path.join(profilesDir, "senior-swe"))
-        .then(() => true)
-        .catch(() => false);
-      expect(seniorSweExists).toBe(true);
-
-      const amolExists = await fs
-        .access(path.join(profilesDir, "amol"))
-        .then(() => true)
-        .catch(() => false);
-      expect(amolExists).toBe(true);
-
-      // Verify profiles directory itself still exists (not deleted)
-      const profilesDirExists = await fs
-        .access(profilesDir)
-        .then(() => true)
-        .catch(() => false);
-      expect(profilesDirExists).toBe(true);
-    });
   });
 
   describe("validate", () => {
-    it("should pass validation when all required profiles are installed", async () => {
+    it("should pass validation when profiles directory exists and permissions are configured", async () => {
       const config: Config = {
         installDir: tempDir,
         agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
+          "claude-code": { profile: { baseProfile: "test-profile" } },
         },
       };
 
-      // Install profiles
+      // Create stub profile and install
+      await fs.mkdir(profilesDir, { recursive: true });
+      await createStubProfile({
+        profilesDir,
+        profileName: "test-profile",
+      });
       await profilesLoader.run({ config });
 
       // Validate
@@ -602,7 +292,7 @@ describe("profilesLoader", () => {
       const config: Config = {
         installDir: tempDir,
         agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
+          "claude-code": { profile: { baseProfile: "test-profile" } },
         },
       };
 
@@ -614,57 +304,35 @@ describe("profilesLoader", () => {
       expect(result.errors!.length).toBeGreaterThan(0);
     });
 
-    it("should fail validation when required profiles are missing", async () => {
+    it("should return invalid when permissions are not configured", async () => {
       const config: Config = {
         installDir: tempDir,
         agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
+          "claude-code": { profile: { baseProfile: "test-profile" } },
         },
       };
+      const settingsPath = path.join(claudeDir, "settings.json");
 
-      // Create profiles directory but don't copy profiles
+      // Create stub profile and install
       await fs.mkdir(profilesDir, { recursive: true });
+      await createStubProfile({
+        profilesDir,
+        profileName: "test-profile",
+      });
+      await profilesLoader.run({ config });
+
+      // Manually remove permissions
+      const content = await fs.readFile(settingsPath, "utf-8");
+      const settings = JSON.parse(content);
+      delete settings.permissions;
+      await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2));
 
       // Validate
       const result = await profilesLoader.validate!({ config });
 
       expect(result.valid).toBe(false);
-      expect(result.errors).toBeDefined();
-      expect(result.errors!.length).toBeGreaterThan(0);
-    });
-
-    it("should fail validation when only some required profiles are present", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-      };
-
-      // Create profiles directory and only one profile (senior-swe)
-      await fs.mkdir(profilesDir, { recursive: true });
-      const seniorSwePath = path.join(profilesDir, "senior-swe");
-      await fs.mkdir(seniorSwePath, { recursive: true });
-      await fs.writeFile(
-        path.join(seniorSwePath, "CLAUDE.md"),
-        "# Senior SWE Profile\n\nTest content",
-      );
-      // Create nori.json for the profile
-      await fs.writeFile(
-        path.join(seniorSwePath, "nori.json"),
-        JSON.stringify({ name: "senior-swe", version: "1.0.0" }),
-      );
-
-      // Validate (should fail because amol and product-manager are missing)
-      const result = await profilesLoader.validate!({ config });
-
-      expect(result.valid).toBe(false);
-      expect(result.errors).toBeDefined();
-      expect(
-        result.errors!.some(
-          (err) => err.includes("amol") || err.includes("product-manager"),
-        ),
-      ).toBe(true);
+      expect(result.errors).not.toBeNull();
+      expect(result.errors?.some((e) => e.includes("permissions"))).toBe(true);
     });
   });
 
@@ -729,10 +397,16 @@ describe("profilesLoader", () => {
       const config: Config = {
         installDir: tempDir,
         agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
+          "claude-code": { profile: { baseProfile: "test-profile" } },
         },
       };
       const settingsPath = path.join(claudeDir, "settings.json");
+
+      await fs.mkdir(profilesDir, { recursive: true });
+      await createStubProfile({
+        profilesDir,
+        profileName: "test-profile",
+      });
 
       // Install profiles
       await profilesLoader.run({ config });
@@ -757,10 +431,16 @@ describe("profilesLoader", () => {
       const config: Config = {
         installDir: tempDir,
         agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
+          "claude-code": { profile: { baseProfile: "test-profile" } },
         },
       };
       const settingsPath = path.join(claudeDir, "settings.json");
+
+      await fs.mkdir(profilesDir, { recursive: true });
+      await createStubProfile({
+        profilesDir,
+        profileName: "test-profile",
+      });
 
       // Create settings.json with existing fields
       await fs.writeFile(
@@ -792,10 +472,16 @@ describe("profilesLoader", () => {
       const config: Config = {
         installDir: tempDir,
         agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
+          "claude-code": { profile: { baseProfile: "test-profile" } },
         },
       };
       const settingsPath = path.join(claudeDir, "settings.json");
+
+      await fs.mkdir(profilesDir, { recursive: true });
+      await createStubProfile({
+        profilesDir,
+        profileName: "test-profile",
+      });
 
       // Install profiles twice
       await profilesLoader.run({ config });
@@ -816,10 +502,16 @@ describe("profilesLoader", () => {
       const config: Config = {
         installDir: tempDir,
         agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
+          "claude-code": { profile: { baseProfile: "test-profile" } },
         },
       };
       const settingsPath = path.join(claudeDir, "settings.json");
+
+      await fs.mkdir(profilesDir, { recursive: true });
+      await createStubProfile({
+        profilesDir,
+        profileName: "test-profile",
+      });
 
       // Create settings.json with existing additionalDirectories
       await fs.writeFile(
@@ -850,18 +542,22 @@ describe("profilesLoader", () => {
         "/existing/path2",
       );
       expect(settings.permissions.additionalDirectories).toContain(profilesDir);
-      // Now includes profiles + skills directories (profilesLoader calls skillsLoader)
-      expect(settings.permissions.additionalDirectories.length).toBe(4);
     });
 
     it("should remove permissions on uninstall", async () => {
       const config: Config = {
         installDir: tempDir,
         agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
+          "claude-code": { profile: { baseProfile: "test-profile" } },
         },
       };
       const settingsPath = path.join(claudeDir, "settings.json");
+
+      await fs.mkdir(profilesDir, { recursive: true });
+      await createStubProfile({
+        profilesDir,
+        profileName: "test-profile",
+      });
 
       // Install first
       await profilesLoader.run({ config });
@@ -887,10 +583,16 @@ describe("profilesLoader", () => {
       const config: Config = {
         installDir: tempDir,
         agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
+          "claude-code": { profile: { baseProfile: "test-profile" } },
         },
       };
       const settingsPath = path.join(claudeDir, "settings.json");
+
+      await fs.mkdir(profilesDir, { recursive: true });
+      await createStubProfile({
+        profilesDir,
+        profileName: "test-profile",
+      });
 
       // Create settings.json with existing additionalDirectories
       await fs.writeFile(
@@ -931,7 +633,7 @@ describe("profilesLoader", () => {
       const config: Config = {
         installDir: tempDir,
         agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
+          "claude-code": { profile: { baseProfile: "test-profile" } },
         },
       };
 
@@ -942,9 +644,15 @@ describe("profilesLoader", () => {
       const config: Config = {
         installDir: tempDir,
         agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
+          "claude-code": { profile: { baseProfile: "test-profile" } },
         },
       };
+
+      await fs.mkdir(profilesDir, { recursive: true });
+      await createStubProfile({
+        profilesDir,
+        profileName: "test-profile",
+      });
 
       // Install
       await profilesLoader.run({ config });
@@ -954,31 +662,6 @@ describe("profilesLoader", () => {
 
       expect(result.valid).toBe(true);
       expect(result.errors).toBeNull();
-    });
-
-    it("should return invalid when permissions are not configured", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-      };
-      const settingsPath = path.join(claudeDir, "settings.json");
-
-      // Install profiles but manually remove permissions
-      await profilesLoader.run({ config });
-
-      const content = await fs.readFile(settingsPath, "utf-8");
-      const settings = JSON.parse(content);
-      delete settings.permissions;
-      await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2));
-
-      // Validate
-      const result = await profilesLoader.validate!({ config });
-
-      expect(result.valid).toBe(false);
-      expect(result.errors).not.toBeNull();
-      expect(result.errors?.some((e) => e.includes("permissions"))).toBe(true);
     });
   });
 
@@ -991,135 +674,6 @@ describe("profilesLoader", () => {
     it("should not have _testing.getMixinPaths export (removed)", () => {
       // After removing mixin composition, these functions should not exist
       expect(_testing.getMixinPaths).toBeUndefined();
-    });
-  });
-
-  describe("skipBuiltinProfiles", () => {
-    it("should not install built-in profiles when skipBuiltinProfiles is true", async () => {
-      // Create a custom profile that was downloaded from registry (not a built-in)
-      const customProfileDir = path.join(profilesDir, "my-registry-profile");
-      await fs.mkdir(customProfileDir, { recursive: true });
-      await fs.writeFile(
-        path.join(customProfileDir, "profile.json"),
-        JSON.stringify({
-          name: "my-registry-profile",
-          description: "Profile downloaded from registry",
-        }),
-      );
-      await fs.writeFile(
-        path.join(customProfileDir, "CLAUDE.md"),
-        "# My Registry Profile\n",
-      );
-
-      const config: Config = {
-        installDir: tempDir,
-        skipBuiltinProfiles: true,
-        agents: {
-          "claude-code": { profile: { baseProfile: "my-registry-profile" } },
-        },
-      };
-
-      await profilesLoader.run({ config });
-
-      // Verify custom profile still exists
-      const customExists = await fs
-        .access(customProfileDir)
-        .then(() => true)
-        .catch(() => false);
-      expect(customExists).toBe(true);
-
-      // Verify built-in profiles were NOT installed
-      const seniorSweExists = await fs
-        .access(path.join(profilesDir, "senior-swe"))
-        .then(() => true)
-        .catch(() => false);
-      expect(seniorSweExists).toBe(false);
-
-      const amolExists = await fs
-        .access(path.join(profilesDir, "amol"))
-        .then(() => true)
-        .catch(() => false);
-      expect(amolExists).toBe(false);
-
-      const productManagerExists = await fs
-        .access(path.join(profilesDir, "product-manager"))
-        .then(() => true)
-        .catch(() => false);
-      expect(productManagerExists).toBe(false);
-    });
-
-    it("should still configure permissions when skipBuiltinProfiles is true", async () => {
-      const settingsPath = path.join(claudeDir, "settings.json");
-
-      // Create a custom profile
-      const customProfileDir = path.join(profilesDir, "my-registry-profile");
-      await fs.mkdir(customProfileDir, { recursive: true });
-      await fs.writeFile(
-        path.join(customProfileDir, "profile.json"),
-        JSON.stringify({ name: "my-registry-profile" }),
-      );
-      await fs.writeFile(
-        path.join(customProfileDir, "CLAUDE.md"),
-        "# My Registry Profile\n",
-      );
-
-      const config: Config = {
-        installDir: tempDir,
-        skipBuiltinProfiles: true,
-        agents: {
-          "claude-code": { profile: { baseProfile: "my-registry-profile" } },
-        },
-      };
-
-      await profilesLoader.run({ config });
-
-      // Verify permissions are still configured
-      const content = await fs.readFile(settingsPath, "utf-8");
-      const settings = JSON.parse(content);
-      expect(settings.permissions.additionalDirectories).toContain(profilesDir);
-    });
-
-    it("should install built-in profiles when skipBuiltinProfiles is false", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        skipBuiltinProfiles: false,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-      };
-
-      await profilesLoader.run({ config });
-
-      // Verify built-in profiles were installed
-      const seniorSweExists = await fs
-        .access(path.join(profilesDir, "senior-swe"))
-        .then(() => true)
-        .catch(() => false);
-      expect(seniorSweExists).toBe(true);
-
-      const amolExists = await fs
-        .access(path.join(profilesDir, "amol"))
-        .then(() => true)
-        .catch(() => false);
-      expect(amolExists).toBe(true);
-    });
-
-    it("should install built-in profiles when skipBuiltinProfiles is undefined (default behavior)", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-      };
-
-      await profilesLoader.run({ config });
-
-      // Verify built-in profiles were installed (default behavior)
-      const seniorSweExists = await fs
-        .access(path.join(profilesDir, "senior-swe"))
-        .then(() => true)
-        .catch(() => false);
-      expect(seniorSweExists).toBe(true);
     });
   });
 });

@@ -174,6 +174,86 @@ describe("install integration test", () => {
     if (!fs.existsSync(TEST_NORI_DIR)) {
       fs.mkdirSync(TEST_NORI_DIR, { recursive: true });
     }
+
+    // Create stub profiles (built-in profiles are no longer bundled)
+    for (const profileName of ["senior-swe", "amol"]) {
+      const profileDir = path.join(TEST_NORI_DIR, "profiles", profileName);
+      fs.mkdirSync(profileDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(profileDir, "CLAUDE.md"),
+        `# ${profileName}\n`,
+      );
+      fs.writeFileSync(
+        path.join(profileDir, "nori.json"),
+        JSON.stringify({
+          name: profileName,
+          version: "1.0.0",
+          description: `${profileName} profile`,
+        }),
+      );
+
+      // Create skills directory with a stub skill
+      const skillDir = path.join(profileDir, "skills", "using-skills");
+      fs.mkdirSync(skillDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(skillDir, "SKILL.md"),
+        "---\nname: Getting Started with Abilities\ndescription: Describes how to use abilities.\n---\n# Stub\n",
+      );
+
+      // Create paid skills (needed for paid features tests)
+      for (const paidSkill of ["paid-recall", "paid-memorize"]) {
+        const paidSkillDir = path.join(profileDir, "skills", paidSkill);
+        fs.mkdirSync(paidSkillDir, { recursive: true });
+        fs.writeFileSync(
+          path.join(paidSkillDir, "SKILL.md"),
+          `---\nname: ${paidSkill}\ndescription: ${paidSkill} skill\n---\n# Stub\n`,
+        );
+      }
+
+      // Create subagents directory with stub files
+      const subagentsDir = path.join(profileDir, "subagents");
+      fs.mkdirSync(subagentsDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(subagentsDir, "nori-stub-agent.md"),
+        "# Stub subagent\n",
+      );
+      fs.writeFileSync(
+        path.join(subagentsDir, "paid-nori-knowledge-researcher.md"),
+        "# Paid stub subagent\n",
+      );
+
+      // Create slashcommands directory with stub files
+      const slashcommandsDir = path.join(profileDir, "slashcommands");
+      fs.mkdirSync(slashcommandsDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(slashcommandsDir, "nori-stub-command.md"),
+        "# Stub slash command\n",
+      );
+    }
+
+    // Create cursor-agent stub profiles at {tempDir}/.cursor/profiles/
+    // (cursor-agent paths are NOT mocked, so they resolve relative to installDir)
+    for (const profileName of ["senior-swe", "amol"]) {
+      const cursorProfileDir = path.join(
+        tempDir,
+        ".cursor",
+        "profiles",
+        profileName,
+      );
+      fs.mkdirSync(cursorProfileDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(cursorProfileDir, "AGENTS.md"),
+        `# ${profileName}\n`,
+      );
+      fs.writeFileSync(
+        path.join(cursorProfileDir, "nori.json"),
+        JSON.stringify({
+          name: profileName,
+          version: "1.0.0",
+          description: `${profileName} cursor profile`,
+        }),
+      );
+    }
   });
 
   afterEach(async () => {
@@ -714,8 +794,8 @@ describe("install integration test", () => {
     //
     // This is the exact scenario that caused the bug: switch-profile sets the agent's
     // profile but the top-level 'profile' field is not updated (for non-claude-code agents).
-    // Then noninteractive() was using existingConfig.profile ?? getDefaultProfile()
-    // which would return the default instead of the agent-specific profile.
+    // Then noninteractive() was using existingConfig.profile
+    // which would return stale data instead of the agent-specific profile.
     fs.writeFileSync(
       CONFIG_PATH,
       JSON.stringify({
@@ -744,8 +824,8 @@ describe("install integration test", () => {
     const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
 
     // BUG: Before the fix, this would be "senior-swe" (the default)
-    // because noninteractive() used existingConfig.profile ?? getDefaultProfile()
-    // which fell back to the default since top-level profile was absent
+    // because noninteractive() used existingConfig.profile
+    // which fell back to stale data since top-level profile was absent
     expect(config.agents["claude-code"].profile.baseProfile).toBe("amol");
   });
 

@@ -12,8 +12,7 @@ This `claude-code/` subdirectory implements the Agent interface defined in @/src
 - `name`: "claude-code"
 - `displayName`: "Claude Code"
 - `getLoaderRegistry()`: Returns the LoaderRegistry singleton with all Claude Code loaders
-- `listProfiles({ installDir })`: Scans installed `.nori/profiles/` for both flat profiles (e.g., `senior-swe`) and namespaced profiles in nested directories (e.g., `myorg/my-profile`). Returns an array of profile names in their canonical format.
-- `listSourceProfiles()`: Scans package's `profiles/config/` for directories with `nori.json` (falls back to `profile.json`), returns `SourceProfile[]` with name and description
+- `listProfiles({ installDir })`: Scans installed `.nori/profiles/` for both flat profiles (e.g., `my-profile`) and namespaced profiles in nested directories (e.g., `myorg/my-profile`). Returns an array of profile names in their canonical format.
 - `switchProfile({ installDir, profileName })`: Validates profile exists (handles both flat and namespaced paths via `path.join`), updates config with new profile, logs success message
 - `getGlobalLoaders()`: Returns loaders that write to `~/.claude/` global config (hooks, statusline, slashcommands, announcements)
 
@@ -29,7 +28,7 @@ Each loader implements the `Loader` interface with `run()`, `uninstall()`, and o
 
 Each loader implements run(config) to install, uninstall(config) to remove, and validate(config) to check installation state. The profiles loader (@/src/cli/features/claude-code/profiles/loader.ts) orchestrates profile-dependent features through a ProfileLoaderRegistry that manages sub-loaders for claudemd, skills, slashcommands, and subagents within each profile.
 
-**Self-contained profiles**: Each profile in @/src/cli/features/claude-code/profiles/config/ is a complete, standalone directory containing all content directly (CLAUDE.md, skills/, subagents/, slashcommands/). No mixin composition or inheritance is used - profiles are copied as-is to `~/.nori/profiles/`.
+**Self-contained profiles**: Each profile is a complete, standalone directory containing all content directly (CLAUDE.md, skills/, subagents/, slashcommands/). No mixin composition or inheritance is used. The package does not ship any built-in profiles -- profiles are obtained from the registry or created by users.
 
 **Paid Skills/Subagents**: Skills and subagents with a `paid-` prefix are tier-gated. For paid users, the prefix is stripped when copying. For free users, `paid-` prefixed items are skipped.
 
@@ -85,7 +84,5 @@ The `listProfiles()` method discovers both layouts by first checking if a direct
 **Switch profile**: The switch-nori-profile command updates nori-config.json and re-runs installation to apply the new profile. Most changes require Claude Code restart except CLAUDE.md which applies to new conversations immediately.
 
 **Managed block pattern**: CLAUDE.md uses a managed block pattern allowing users to add custom instructions outside the block without losing them during reinstalls.
-
-**Default profile**: Falls back to 'senior-swe' if no profile is configured.
 
 Created and maintained by Nori.

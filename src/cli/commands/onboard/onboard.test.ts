@@ -111,6 +111,16 @@ describe("onboard command", () => {
     fs.mkdirSync(TEST_NORI_DIR, { recursive: true });
     fs.mkdirSync(path.join(TEST_NORI_DIR, "profiles"), { recursive: true });
 
+    // Create stub profiles (built-in profiles are no longer bundled)
+    for (const profileName of ["senior-swe", "amol", "product-manager"]) {
+      const profileDir = path.join(TEST_NORI_DIR, "profiles", profileName);
+      fs.mkdirSync(profileDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(profileDir, "CLAUDE.md"),
+        `# ${profileName}\n`,
+      );
+    }
+
     // Reset mocks
     vi.clearAllMocks();
   });
@@ -236,8 +246,7 @@ describe("onboard command", () => {
         .mockResolvedValueOnce("test@example.com") // Email
         .mockResolvedValueOnce("password123") // Password
         .mockResolvedValueOnce("myorg") // Org ID
-        .mockResolvedValueOnce("1") // Profile selection (use pre-built)
-        .mockResolvedValueOnce("1"); // Profile choice (senior-swe)
+        .mockResolvedValueOnce("1"); // Profile choice (first available)
 
       // Run onboard in interactive mode
       await onboardMain({
@@ -266,12 +275,11 @@ describe("onboard command", () => {
         installDir: tempDir,
       });
 
-      // Mock user inputs - skip auth, select pre-built profile
+      // Mock user inputs - skip auth, select profile
       const { promptUser } = await import("@/cli/prompt.js");
       vi.mocked(promptUser)
         .mockResolvedValueOnce("") // Skip email (free mode)
-        .mockResolvedValueOnce("1") // Use pre-built profile
-        .mockResolvedValueOnce("2"); // Select "amol" profile (2nd option)
+        .mockResolvedValueOnce("2"); // Select second profile
 
       // Run onboard in interactive mode
       await onboardMain({
@@ -280,11 +288,15 @@ describe("onboard command", () => {
       });
 
       // Verify config was updated with selected profile
+      // Profiles are listed alphabetically: amol, product-manager, senior-swe
+      // Selecting option 2 picks the second profile
       const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
-      expect(config.agents["claude-code"].profile.baseProfile).toBe("amol");
+      expect(config.agents["claude-code"].profile.baseProfile).toBe(
+        "product-manager",
+      );
     });
 
-    it("should handle wizard choice for personalized profile", async () => {
+    it("should select first profile when option 1 is chosen", async () => {
       const CONFIG_PATH = getConfigPath({ installDir: tempDir });
 
       // Create minimal config
@@ -296,11 +308,11 @@ describe("onboard command", () => {
         installDir: tempDir,
       });
 
-      // Mock user inputs - skip auth, choose wizard
+      // Mock user inputs - skip auth, select first profile
       const { promptUser } = await import("@/cli/prompt.js");
       vi.mocked(promptUser)
         .mockResolvedValueOnce("") // Skip email
-        .mockResolvedValueOnce("2"); // Choose wizard option
+        .mockResolvedValueOnce("1"); // Select first profile
 
       // Run onboard in interactive mode
       await onboardMain({
@@ -308,11 +320,9 @@ describe("onboard command", () => {
         agent: "claude-code",
       });
 
-      // Verify config was updated with wizard profile
+      // Verify config was updated with first profile (alphabetically: amol)
       const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
-      expect(config.agents["claude-code"].profile.baseProfile).toBe(
-        "onboarding-wizard-questionnaire",
-      );
+      expect(config.agents["claude-code"].profile.baseProfile).toBe("amol");
     });
   });
 

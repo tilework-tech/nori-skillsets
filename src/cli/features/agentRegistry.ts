@@ -51,14 +51,6 @@ export type LoaderRegistry = {
 };
 
 /**
- * Profile metadata returned by listSourceProfiles
- */
-export type SourceProfile = {
-  name: string;
-  description: string;
-};
-
-/**
  * Global loader metadata for uninstall prompts
  */
 export type GlobalLoader = {
@@ -80,8 +72,6 @@ export type Agent = {
   getLoaderRegistry: () => LoaderRegistry;
   /** List installed profiles for this agent (from ~/.{agent}/profiles/) */
   listProfiles: (args: { installDir: string }) => Promise<Array<string>>;
-  /** List profiles from package source directory (for install UI) */
-  listSourceProfiles: () => Promise<Array<SourceProfile>>;
   /** Switch to a profile (validates and updates config) */
   switchProfile: (args: {
     installDir: string;

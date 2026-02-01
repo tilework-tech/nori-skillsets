@@ -116,6 +116,43 @@ describe("uninstall cleanup", () => {
     // Create base directories
     await fs.mkdir(claudeDir, { recursive: true });
     await fs.mkdir(noriDir, { recursive: true });
+
+    // Create stub profile (built-in profiles are no longer bundled)
+    const seniorSweDir = path.join(noriProfilesDir, "senior-swe");
+    await fs.mkdir(seniorSweDir, { recursive: true });
+    await fs.writeFile(path.join(seniorSweDir, "CLAUDE.md"), "# senior-swe\n");
+    await fs.writeFile(
+      path.join(seniorSweDir, "nori.json"),
+      JSON.stringify({
+        name: "senior-swe",
+        version: "1.0.0",
+        description: "Test profile",
+      }),
+    );
+
+    // Create skills directory with a stub skill
+    const skillDir = path.join(seniorSweDir, "skills", "using-skills");
+    await fs.mkdir(skillDir, { recursive: true });
+    await fs.writeFile(
+      path.join(skillDir, "SKILL.md"),
+      "---\nname: Getting Started with Abilities\ndescription: Describes how to use abilities.\n---\n# Stub\n",
+    );
+
+    // Create subagents directory with a stub subagent
+    const subagentsDir = path.join(seniorSweDir, "subagents");
+    await fs.mkdir(subagentsDir, { recursive: true });
+    await fs.writeFile(
+      path.join(subagentsDir, "nori-stub-agent.md"),
+      "# Stub subagent\n",
+    );
+
+    // Create slashcommands directory with a stub command
+    const slashcommandsDir = path.join(seniorSweDir, "slashcommands");
+    await fs.mkdir(slashcommandsDir, { recursive: true });
+    await fs.writeFile(
+      path.join(slashcommandsDir, "nori-stub-command.md"),
+      "# Stub slash command\n",
+    );
   });
 
   afterEach(async () => {

@@ -9,8 +9,6 @@ import * as path from "path";
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
-import { profilesLoader } from "@/cli/features/claude-code/profiles/loader.js";
-
 import type { Config } from "@/cli/config.js";
 
 // Mock the env module to use temp directories
@@ -34,6 +32,49 @@ vi.mock("@/cli/features/claude-code/paths.js", () => ({
 // Import loaders after mocking env
 import { subagentsLoader } from "./loader.js";
 
+/**
+ * Create a stub profile directory with CLAUDE.md and optional subagents
+ *
+ * @param args - Function arguments
+ * @param args.profilesDir - Path to the profiles directory
+ * @param args.profileName - Name of the profile
+ * @param args.subagents - Optional map of subagent filename to content
+ * @param args.paidSubagents - Optional map of paid-prefixed subagent filename to content
+ */
+const createStubProfile = async (args: {
+  profilesDir: string;
+  profileName: string;
+  subagents?: Record<string, string> | null;
+  paidSubagents?: Record<string, string> | null;
+}): Promise<void> => {
+  const { profilesDir, profileName, subagents, paidSubagents } = args;
+  const profileDir = path.join(profilesDir, profileName);
+  await fs.mkdir(profileDir, { recursive: true });
+  await fs.writeFile(path.join(profileDir, "CLAUDE.md"), "# Test Profile\n");
+
+  const allSubagents = { ...subagents, ...paidSubagents };
+  if (Object.keys(allSubagents).length > 0) {
+    const subagentsDir = path.join(profileDir, "subagents");
+    await fs.mkdir(subagentsDir, { recursive: true });
+    for (const [filename, content] of Object.entries(allSubagents)) {
+      await fs.writeFile(path.join(subagentsDir, filename), content);
+    }
+  }
+};
+
+// Standard test subagents
+const TEST_SUBAGENTS: Record<string, string> = {
+  "nori-codebase-analyzer.md":
+    "# Codebase Analyzer\n\nAnalyze codebase.\nRead: `{{skills_dir}}/some-skill/SKILL.md`\n",
+  "nori-web-search-researcher.md":
+    "# Web Search Researcher\n\nResearch on the web.\n",
+};
+
+const PAID_SUBAGENTS: Record<string, string> = {
+  "paid-nori-knowledge-researcher.md":
+    "# Knowledge Researcher\n\nSearch knowledge base.\n",
+};
+
 describe("subagentsLoader", () => {
   let tempDir: string;
   let claudeDir: string;
@@ -50,24 +91,18 @@ describe("subagentsLoader", () => {
     mockClaudeDir = claudeDir;
     mockClaudeAgentsDir = agentsDir;
     mockNoriDir = path.join(tempDir, ".nori");
-
-    // Set path for nori profiles (where profiles are installed)
     noriProfilesDir = path.join(mockNoriDir, "profiles");
 
     // Create directories
     await fs.mkdir(claudeDir, { recursive: true });
-    await fs.mkdir(mockNoriDir, { recursive: true });
+    await fs.mkdir(noriProfilesDir, { recursive: true });
 
-    // Install profiles first to set up composed profile structure
-    // Run profiles loader to populate ~/.nori/profiles/ directory
-    // This is required since feature loaders now read from ~/.nori/profiles/
-    const config: Config = {
-      installDir: tempDir,
-      agents: {
-        "claude-code": { profile: { baseProfile: "senior-swe" } },
-      },
-    };
-    await profilesLoader.run({ config });
+    // Create stub profile with test subagents
+    await createStubProfile({
+      profilesDir: noriProfilesDir,
+      profileName: "senior-swe",
+      subagents: TEST_SUBAGENTS,
+    });
   });
 
   afterEach(async () => {
@@ -122,9 +157,17 @@ describe("subagentsLoader", () => {
         },
       };
 
-      // Delete existing profiles and recompose with paid mixin
-      await fs.rm(noriProfilesDir, { recursive: true, force: true });
-      await profilesLoader.run({ config });
+      // Recreate profile with paid subagents
+      await fs.rm(path.join(noriProfilesDir, "senior-swe"), {
+        recursive: true,
+        force: true,
+      });
+      await createStubProfile({
+        profilesDir: noriProfilesDir,
+        profileName: "senior-swe",
+        subagents: TEST_SUBAGENTS,
+        paidSubagents: PAID_SUBAGENTS,
+      });
 
       await subagentsLoader.install({ config });
 
@@ -167,8 +210,7 @@ describe("subagentsLoader", () => {
         },
       };
 
-      // Free installation
-      await profilesLoader.run({ config: freeConfig });
+      // Free installation (profile already has TEST_SUBAGENTS from beforeEach)
       await subagentsLoader.install({ config: freeConfig });
       const freeFiles = await fs.readdir(agentsDir);
       const freeCount = freeFiles.length;
@@ -176,8 +218,19 @@ describe("subagentsLoader", () => {
       // Clean up for paid installation
       await fs.rm(agentsDir, { recursive: true, force: true });
 
+      // Recreate profile with paid subagents
+      await fs.rm(path.join(noriProfilesDir, "senior-swe"), {
+        recursive: true,
+        force: true,
+      });
+      await createStubProfile({
+        profilesDir: noriProfilesDir,
+        profileName: "senior-swe",
+        subagents: TEST_SUBAGENTS,
+        paidSubagents: PAID_SUBAGENTS,
+      });
+
       // Paid installation
-      await profilesLoader.run({ config: paidConfig });
       await subagentsLoader.install({ config: paidConfig });
       const paidFiles = await fs.readdir(agentsDir);
       const paidCount = paidFiles.length;

@@ -46,14 +46,8 @@ The `--agent` global CLI option (default: "claude-code") determines which agent 
 - `displayName`: Human-readable name (e.g., "Claude Code")
 - `getLoaderRegistry()`: Returns an object implementing the `LoaderRegistry` interface
 - `listProfiles({ installDir })`: Returns array of installed profile names (Claude Code uses `~/.nori/profiles/`)
-- `listSourceProfiles()`: Returns array of `SourceProfile` objects from the package's source directory (for install UI profile selection)
 - `switchProfile({ installDir, profileName })`: Validates profile exists, filters out config entries for uninstalled agents, and updates config
-- `getGlobalFeatureNames()`: Returns human-readable names of features installed to the user's home directory for display in prompts (e.g., `["hooks", "statusline", "global slash commands"]` for claude-code)
-- `getGlobalLoaderNames()`: Returns loader names for global features, used by uninstall to skip loaders when preserving global settings (e.g., `["hooks", "statusline", "slashcommands"]` for claude-code)
-
-**SourceProfile Type** (agentRegistry.ts):
-- `name`: Profile identifier (e.g., "senior-swe")
-- `description`: Human-readable description from profile.json
+- `getGlobalLoaders()`: Returns array of `GlobalLoader` objects with loader names and human-readable names, used for display in uninstall prompts and for skipping global loaders when preserving global settings
 
 **AgentRegistry** (agentRegistry.ts):
 - Singleton pattern with `getInstance()`
@@ -88,15 +82,12 @@ The `--agent` global CLI option (default: "claude-code") determines which agent 
 The AgentRegistry auto-registers all agents in its constructor. Currently claude-code and cursor-agent are registered. Adding new agents follows this pattern:
 1. Create a new directory (e.g., `new-agent/`) with an agent implementation satisfying the Agent interface
 2. Create a LoaderRegistry class implementing the `LoaderRegistry` interface, including the shared `configLoader`
-3. Implement `getGlobalFeatureNames()` to declare which features are installed globally (for display in prompts)
-4. Implement `getGlobalLoaderNames()` to declare which loaders correspond to global features (for uninstall skipping)
-5. Import and register it in AgentRegistry's constructor
+3. Implement `getGlobalLoaders()` to declare which loaders are installed globally (with their human-readable names for uninstall prompts)
+4. Import and register it in AgentRegistry's constructor
 
 Commands that use loaders should obtain them via the agent rather than importing LoaderRegistry directly. This ensures the correct agent's loaders are used when `--agent` is specified.
 
-Profile management is owned by the Agent interface. Two separate methods handle different profile use cases:
-- `listProfiles({ installDir })`: Scans the agent's installed profiles directory (`~/.{agent}/profiles/`) for valid profiles (directories containing the agent's instruction file). Used when switching profiles after installation.
-- `listSourceProfiles()`: Scans the package's source profiles directory (`profiles/config/`) and returns profiles with metadata. Used by the install command to present profile options to the user.
+Profile management is owned by the Agent interface. The `listProfiles({ installDir })` method scans the agent's installed profiles directory for valid profiles (directories containing the agent's instruction file). Since no built-in profiles are shipped with the package, profiles are obtained exclusively from the registry or created by users.
 
 The `switchProfile` method validates the profile exists, updates the agent's profile in the `agents` object, and logs success/restart messages. CLI commands add additional behavior on top (e.g., applying changes immediately via reinstall).
 

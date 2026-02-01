@@ -45,8 +45,7 @@ nori-ai install (orchestrator)
 **Onboard Command:** The onboard command (@/src/cli/commands/onboard/onboard.ts) handles profile and auth selection:
 - Requires init to have been run first (config must exist)
 - Prompts for Nori Web authentication (email, password, organization ID) or allows skipping
-- For first-time installs: offers choice between pre-built profile or onboarding wizard
-- Displays available profiles from both source (@/src/cli/features/claude-code/profiles/config/) and user-installed (`~/.nori/profiles/`)
+- Displays available profiles from installed profiles in `~/.nori/profiles/` (obtained via `agent.listProfiles()`)
 - Non-interactive mode requires `--profile` flag if no existing profile is set
 - Updates config with selected profile in `agents[agentName].profile` format
 
@@ -68,16 +67,13 @@ nori-ai install (orchestrator)
 The user must enter "y" or "Y" to proceed; any other input cancels the operation. In non-interactive mode (`--non-interactive`), confirmation is skipped to allow automated/scripted usage.
 
 
-**switch-profile Built-in Profile Handling:** The switch-profile command passes `skipBuiltinProfiles: true` to the install process. This prevents the profiles loader from copying all built-in profiles (amol, senior-swe, documenter, etc.) during profile switching. This is important for the `nori-skillsets download && nori-skillsets switch-skillset` workflow where users download a specific profile from the registry and only want that profile to be active, not all built-in profiles installed. The `skipBuiltinProfiles` flag is a runtime-only Config field (not persisted to disk) that the profiles loaders check before installing built-in profiles.
-The uninstall command uses two agent methods for global features:
-- `agent.getGlobalFeatureNames()`: Human-readable names for displaying in prompts (e.g., "hooks, statusline, and global slash commands")
-- `agent.getGlobalLoaderNames()`: Loader names for determining which loaders to skip when preserving global settings (e.g., `["hooks", "statusline", "slashcommands"]`)
+The uninstall command uses the `agent.getGlobalLoaders()` method to obtain global loader metadata (loader names and human-readable names) for displaying in uninstall prompts and for determining which loaders to skip when preserving global settings.
 
 Each agent declares its own global features (e.g., claude-code has hooks, statusline, and global slash commands; cursor-agent has hooks and slash commands). If an agent has no global features, the global settings prompt is skipped entirely.
 
 The install command sets `agents: { [agentName]: { profile } }` in the config, where the keys of the `agents` object indicate which agents are installed. The config loader merges `agents` objects with any existing config. The uninstall command prompts the user to select which agent to uninstall when multiple agents are installed at a location (in interactive mode).
 
-**Install Non-Interactive Profile Requirement:** Non-interactive installs require either an existing configuration with a profile OR the `--profile` flag. This requirement is enforced by the onboard command. When no existing config is found, the onboard command errors with a helpful message listing available profiles and example usage. Example: `nori-ai install --non-interactive --profile senior-swe`.
+**Install Non-Interactive Profile Requirement:** Non-interactive installs require either an existing configuration with a profile OR the `--profile` flag. This requirement is enforced by the onboard command. When no existing config is found, the onboard command errors with a helpful message listing available profiles and example usage. Example: `nori-ai install --non-interactive --profile my-profile`.
 
 **Install Agent-Specific Uninstall Logic:** The install command only runs uninstall cleanup when reinstalling the SAME agent (upgrade scenario). When installing a different agent (e.g., cursor-agent when claude-code is already installed), it skips uninstall to preserve the existing agent's installation. The logic:
 1. Reads config at start to get installed agents via `getInstalledAgents({ config })` (keys of `agents` object)
@@ -304,7 +300,7 @@ The `install/` directory contains command-specific utilities:
 
 **Install Command Silent Mode:** The `main()` function in install.ts accepts a `silent` parameter. When `silent: true`, the function calls `setSilentMode({ silent: true })` before execution and restores it to false in a `finally` block to prevent state leakage. Silent mode implies non-interactive mode. This is used by intercepted slash commands (e.g., `/nori-switch-profile` in both claude-code and cursor-agent) that call `installMain()` and need clean stdout to return JSON responses without corruption from installation messages like ASCII art banners.
 
-The install command uses `agent.listSourceProfiles()` to get available profiles from the package source directory, combined with `agent.listProfiles({ installDir })` to include any user-installed profiles. This ensures each agent displays its own profiles (claude-code shows amol, senior-swe, etc.; cursor-agent shows its own profiles).
+The install command uses `agent.listProfiles({ installDir })` to get available profiles from the user's installed profiles directory. Since no built-in profiles are shipped with the package, only profiles downloaded from the registry or created by users are shown.
 
 The `install-location/` command displays Nori installation directories found in the current directory and parent directories. The `nori-skillsets` CLI version (via `registerNoriSkillsetsInstallLocationCommand`) adds installation type classification, supporting `--installation-source` (show only directories with `.nori-config.json`) and `--installation-managed` (show only directories with managed CLAUDE.md block) flags. The `--non-interactive` global flag outputs plain paths one per line for scripting. The command uses `getInstallDirsWithTypes()` from @/src/utils/path.ts to classify installations as "source", "managed", or "both" - installations of type "both" appear in both filtered views. The `nori-ai` version uses the simpler `getInstallDirs()` without type classification.
 

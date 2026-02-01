@@ -9,8 +9,6 @@ import * as path from "path";
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
-import { profilesLoader } from "@/cli/features/claude-code/profiles/loader.js";
-
 import type { Config } from "@/cli/config.js";
 
 // Mock the env module to use temp directories
@@ -34,6 +32,40 @@ vi.mock("@/cli/features/claude-code/paths.js", () => ({
 // Import loaders after mocking env
 import { slashCommandsLoader } from "./loader.js";
 
+/**
+ * Create a stub profile directory with CLAUDE.md and optional slashcommands
+ *
+ * @param args - Function arguments
+ * @param args.profilesDir - Path to the profiles directory
+ * @param args.profileName - Name of the profile
+ * @param args.slashcommands - Optional map of command filename to content
+ */
+const createStubProfile = async (args: {
+  profilesDir: string;
+  profileName: string;
+  slashcommands?: Record<string, string> | null;
+}): Promise<void> => {
+  const { profilesDir, profileName, slashcommands } = args;
+  const profileDir = path.join(profilesDir, profileName);
+  await fs.mkdir(profileDir, { recursive: true });
+  await fs.writeFile(path.join(profileDir, "CLAUDE.md"), "# Test Profile\n");
+
+  if (slashcommands != null) {
+    const cmdDir = path.join(profileDir, "slashcommands");
+    await fs.mkdir(cmdDir, { recursive: true });
+    for (const [filename, content] of Object.entries(slashcommands)) {
+      await fs.writeFile(path.join(cmdDir, filename), content);
+    }
+  }
+};
+
+// Standard test slash commands
+const TEST_SLASH_COMMANDS: Record<string, string> = {
+  "nori-init-docs.md": "# Init Docs\n\nInitialize documentation.\n",
+  "nori-create-profile.md":
+    "# Create Profile\n\nCreate a new profile at {{profiles_dir}}/new.\n",
+};
+
 describe("slashCommandsLoader", () => {
   let tempDir: string;
   let claudeDir: string;
@@ -54,18 +86,14 @@ describe("slashCommandsLoader", () => {
 
     // Create directories
     await fs.mkdir(claudeDir, { recursive: true });
-    await fs.mkdir(mockNoriDir, { recursive: true });
+    await fs.mkdir(noriProfilesDir, { recursive: true });
 
-    // Install profiles first to set up composed profile structure
-    // Run profiles loader to populate ~/.nori/profiles/ directory
-    // This is required since feature loaders now read from ~/.nori/profiles/
-    const config: Config = {
-      installDir: tempDir,
-      agents: {
-        "claude-code": { profile: { baseProfile: "senior-swe" } },
-      },
-    };
-    await profilesLoader.run({ config });
+    // Create stub profile with test slash commands
+    await createStubProfile({
+      profilesDir: noriProfilesDir,
+      profileName: "senior-swe",
+      slashcommands: TEST_SLASH_COMMANDS,
+    });
   });
 
   afterEach(async () => {

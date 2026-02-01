@@ -485,7 +485,6 @@ describe("uninstall prompt with agent-specific global features", () => {
         getAllReversed: () => [],
       }),
       listProfiles: async () => [],
-      listSourceProfiles: async () => [],
       switchProfile: async () => {
         // Mock implementation - intentionally empty
       },
