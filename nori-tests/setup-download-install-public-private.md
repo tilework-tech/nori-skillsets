@@ -20,6 +20,8 @@ npm run build
 
 3. Make sure you cleaned up correctly by running install-location and verifying there are no existing profiles.
 
+<system-reminder> It is ok if there are managed install locations. There should be no 'source' install locations </system-reminder>
+
 ```bash
 node build/src/cli/nori-skillsets.js install-location
 ```
