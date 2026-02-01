@@ -240,6 +240,11 @@ export const loadConfig = async (args: {
 
   try {
     await fs.access(configPath);
+  } catch {
+    return null;
+  }
+
+  try {
     const content = await fs.readFile(configPath, "utf-8");
     const rawConfig = JSON.parse(content);
 

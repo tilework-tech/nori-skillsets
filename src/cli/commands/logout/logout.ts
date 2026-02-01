@@ -5,7 +5,6 @@
  */
 
 import * as os from "os";
-import * as path from "path";
 
 import { loadConfig, saveConfig } from "@/cli/config.js";
 import { info, success } from "@/cli/logger.js";
@@ -13,7 +12,7 @@ import { info, success } from "@/cli/logger.js";
 import type { Command } from "commander";
 
 /** Default config directory for login/logout commands */
-const DEFAULT_CONFIG_DIR = path.join(os.homedir(), ".nori");
+const DEFAULT_CONFIG_DIR = os.homedir();
 
 /**
  * Main logout function
@@ -25,7 +24,7 @@ export const logoutMain = async (args?: {
   installDir?: string | null;
 }): Promise<void> => {
   const { installDir } = args ?? {};
-  // Default to ~/.nori for config storage
+  // Default to home directory for config storage
   const configDir = installDir ?? DEFAULT_CONFIG_DIR;
 
   // Load existing config

@@ -190,12 +190,14 @@ Both manifest update failures are non-blocking - the skill download succeeds eve
 
 **registry-download Auto-Init:** The `registry-download` command (and `nori-skillsets download`) automatically initializes Nori configuration when no installation exists, allowing users to download profiles without first running `nori-ai init` or `nori-ai install`. The installation directory resolution logic:
 1. If `--install-dir` is provided but no installation exists there: calls `initMain({ installDir, nonInteractive: false })` to set up at that location
-2. If no `--install-dir`: prefers `~/.nori` if it exists (since that directory typically has registry auth configured via `nori-skillsets login`)
-3. Falls back to `getInstallDirs()` from current directory if `~/.nori` doesn't exist
+2. If no `--install-dir`: checks the home directory (`os.homedir()`) via `getInstallDirs({ currentDir: homeDir })` for an existing installation. If the home directory is returned as an installation (i.e., `~/.nori/.nori-config.json` exists), it is preferred as the `targetInstallDir`. This is because the home directory installation typically has registry auth configured via `nori-skillsets login`.
+3. Falls back to `getInstallDirs({ currentDir: cwd })` results if the home directory has no installation
 4. If no existing installations found: calls `initMain({ installDir: cwd, nonInteractive: false })` to set up at current directory
 5. If multiple installations found: errors with a list of installations and prompts user to specify with `--install-dir`
 
-This `~/.nori` preference mirrors the same logic in `registry-search` and ensures authenticated operations (especially for namespaced packages like `org/profile-name`) use the config that has registry credentials.
+**Critical `installDir` invariant:** The `targetInstallDir` passed to `getNoriProfilesDir()` must be the *parent* directory that contains the `.nori` folder, not the `.nori` folder itself. `getNoriProfilesDir({ installDir })` returns `<installDir>/.nori/profiles`. Passing `~/.nori` instead of `~` as `installDir` would produce the doubled path `~/.nori/.nori/profiles`. The home directory preference correctly passes `os.homedir()` (e.g., `~`) so profiles resolve to `~/.nori/profiles`.
+
+This home directory preference ensures authenticated operations (especially for namespaced packages like `org/profile-name`) use the config that has registry credentials. Note: `registry-search` has similar home directory preference logic.
 
 By using `nonInteractive: false`, the auto-init triggers the interactive existing config capture flow - users with an existing `~/.claude/` configuration (CLAUDE.md, skills, agents, commands) must provide a profile name to save it before proceeding (or abort with Ctrl+C).
 

@@ -6,7 +6,6 @@
  */
 
 import os from "os";
-import path from "path";
 
 import { registrarApi, REGISTRAR_URL, type Package } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
@@ -336,14 +335,14 @@ export const registrySearchMain = async (args: {
     // Auto-detect from current directory
     const allInstallations = getInstallDirs({ currentDir: process.cwd() });
 
-    // Also check ~/.nori as it typically has registry auth configured
-    // For registry commands, prefer ~/.nori if it exists
-    const homeNoriDir = path.join(os.homedir(), ".nori");
-    const homeInstallations = getInstallDirs({ currentDir: homeNoriDir });
+    // Also check the home directory as it typically has registry auth configured
+    // For registry commands, prefer the home dir installation if it exists
+    const homeDir = os.homedir();
+    const homeInstallations = getInstallDirs({ currentDir: homeDir });
 
-    // Prefer ~/.nori if it exists (typically has registry auth)
-    if (homeInstallations.includes(homeNoriDir)) {
-      effectiveInstallDir = homeNoriDir;
+    // Prefer the home dir if it has a Nori installation (typically has registry auth)
+    if (homeInstallations.includes(homeDir)) {
+      effectiveInstallDir = homeDir;
     } else if (allInstallations.length > 0) {
       effectiveInstallDir = allInstallations[0];
     } else {

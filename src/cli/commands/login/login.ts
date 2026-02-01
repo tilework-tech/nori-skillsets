@@ -6,7 +6,6 @@
  */
 
 import * as os from "os";
-import * as path from "path";
 
 import {
   signInWithEmailAndPassword,
@@ -81,7 +80,7 @@ const fetchUserAccess = async (args: {
 };
 
 /** Default config directory for login/logout commands */
-const DEFAULT_CONFIG_DIR = path.join(os.homedir(), ".nori");
+const DEFAULT_CONFIG_DIR = os.homedir();
 
 /**
  * Authenticate via Google SSO using the localhost OAuth callback pattern
@@ -183,7 +182,7 @@ export const loginMain = async (args?: {
     password,
     google: useGoogle,
   } = args ?? {};
-  // Default to ~/.nori for config storage
+  // Default to home directory for config storage
   const configDir = installDir ?? DEFAULT_CONFIG_DIR;
 
   // Validate flag combinations

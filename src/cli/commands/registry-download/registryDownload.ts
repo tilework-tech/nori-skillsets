@@ -533,14 +533,14 @@ export const registryDownloadMain = async (args: {
   } else {
     const allInstallations = getInstallDirs({ currentDir: cwd });
 
-    // Also check ~/.nori as it typically has registry auth configured
-    // For registry commands, prefer ~/.nori if it exists
-    const homeNoriDir = path.join(os.homedir(), ".nori");
-    const homeInstallations = getInstallDirs({ currentDir: homeNoriDir });
+    // Also check the home directory as it typically has registry auth configured
+    // For registry commands, prefer the home dir installation if it exists
+    const homeDir = os.homedir();
+    const homeInstallations = getInstallDirs({ currentDir: homeDir });
 
-    // Prefer ~/.nori if it exists (typically has registry auth)
-    if (homeInstallations.includes(homeNoriDir)) {
-      targetInstallDir = homeNoriDir;
+    // Prefer the home dir if it has a Nori installation (typically has registry auth)
+    if (homeInstallations.includes(homeDir)) {
+      targetInstallDir = homeDir;
     } else if (allInstallations.length === 0) {
       // No installation found - auto-init at cwd (interactive to allow user prompts)
       // Skip the profile persistence warning since users are just trying to download a profile

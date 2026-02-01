@@ -222,6 +222,13 @@ describe("registry-download", () => {
         path.join(tmpdir(), "nori-no-install-"),
       );
 
+      // Set mock homedir to a directory without any installation
+      // so the home dir preference doesn't kick in
+      const emptyHomeDir = await fs.mkdtemp(
+        path.join(tmpdir(), "nori-empty-home-"),
+      );
+      mockHomedir = emptyHomeDir;
+
       // Mock initMain to simulate successful initialization
       // After init, it creates the config file so subsequent loadConfig works
       vi.mocked(initMain).mockImplementation(async (args) => {
@@ -274,6 +281,7 @@ describe("registry-download", () => {
         expect(registrarApi.downloadTarball).toHaveBeenCalled();
       } finally {
         await fs.rm(noInstallDir, { recursive: true, force: true });
+        await fs.rm(emptyHomeDir, { recursive: true, force: true });
       }
     });
 
@@ -357,13 +365,12 @@ describe("registry-download", () => {
       expect(registrarApi.downloadTarball).toHaveBeenCalled();
     });
 
-    it("should prefer ~/.nori over cwd installation when both exist", async () => {
+    it("should prefer home dir over cwd installation when ~/.nori exists", async () => {
       // Create a separate cwd installation directory
       const cwdInstall = await fs.mkdtemp(
         path.join(tmpdir(), "nori-cwd-install-"),
       );
       const cwdConfigPath = path.join(cwdInstall, ".nori-config.json");
-      // Profiles are at installDir/.nori/profiles (see getNoriProfilesDir)
       const cwdProfilesDir = path.join(cwdInstall, ".nori", "profiles");
 
       // Create cwd installation
@@ -373,21 +380,21 @@ describe("registry-download", () => {
       );
       await fs.mkdir(cwdProfilesDir, { recursive: true });
 
-      // Set up ~/.nori installation in testDir (mockHomedir is testDir)
-      // The installation directory is ~/.nori (i.e., testDir/.nori)
+      // Set up home dir installation (mockHomedir is testDir)
+      // Config is at ~/.nori/.nori-config.json (home directory installation style)
       const homeNoriDir = path.join(testDir, ".nori");
       await fs.mkdir(homeNoriDir, { recursive: true });
       await fs.writeFile(
         path.join(homeNoriDir, ".nori-config.json"),
         JSON.stringify({ profile: { baseProfile: "home-profile" } }),
       );
-      // Profiles at homeNoriDir/.nori/profiles (i.e., testDir/.nori/.nori/profiles)
-      const homeNoriProfilesDir = path.join(homeNoriDir, ".nori", "profiles");
-      await fs.mkdir(homeNoriProfilesDir, { recursive: true });
+      // Correct profiles path: ~/.nori/profiles (NOT ~/.nori/.nori/profiles)
+      const homeProfilesDir = path.join(testDir, ".nori", "profiles");
+      await fs.mkdir(homeProfilesDir, { recursive: true });
 
-      // Mock loadConfig to be called with homeNoriDir
+      // Mock loadConfig - installDir should be the home dir (testDir), not ~/.nori
       vi.mocked(loadConfig).mockResolvedValue({
-        installDir: homeNoriDir,
+        installDir: testDir,
       });
 
       vi.mocked(registrarApi.getPackument).mockResolvedValue({
@@ -402,17 +409,27 @@ describe("registry-download", () => {
       try {
         await registryDownloadMain({
           packageSpec: "test-profile",
-          cwd: cwdInstall, // cwd has installation, but ~/.nori should be preferred
+          cwd: cwdInstall, // cwd has installation, but home dir should be preferred
         });
 
-        // Verify profile was installed to ~/.nori/.nori/profiles, NOT cwdInstall/.nori/profiles
-        const homeProfileDir = path.join(homeNoriProfilesDir, "test-profile");
+        // Verify profile was installed to ~/.nori/profiles (correct, undoubled path)
+        const homeProfileDir = path.join(homeProfilesDir, "test-profile");
         const homeStats = await fs.stat(homeProfileDir);
         expect(homeStats.isDirectory()).toBe(true);
 
         // Verify profile was NOT installed to cwd
         const cwdProfileDir = path.join(cwdProfilesDir, "test-profile");
         await expect(fs.stat(cwdProfileDir)).rejects.toThrow();
+
+        // Regression: verify profile was NOT installed to doubled path ~/.nori/.nori/profiles
+        const doubledPathDir = path.join(
+          testDir,
+          ".nori",
+          ".nori",
+          "profiles",
+          "test-profile",
+        );
+        await expect(fs.stat(doubledPathDir)).rejects.toThrow();
       } finally {
         await fs.rm(cwdInstall, { recursive: true, force: true });
       }
@@ -423,6 +440,13 @@ describe("registry-download", () => {
       const noInstallDir = await fs.mkdtemp(
         path.join(tmpdir(), "nori-no-install-fail-"),
       );
+
+      // Set mock homedir to a directory without any installation
+      // so the home dir preference doesn't kick in
+      const emptyHomeDir = await fs.mkdtemp(
+        path.join(tmpdir(), "nori-empty-home-fail-"),
+      );
+      mockHomedir = emptyHomeDir;
 
       // Mock initMain to throw an error
       vi.mocked(initMain).mockRejectedValue(
@@ -456,10 +480,18 @@ describe("registry-download", () => {
         expect(registrarApi.downloadTarball).not.toHaveBeenCalled();
       } finally {
         await fs.rm(noInstallDir, { recursive: true, force: true });
+        await fs.rm(emptyHomeDir, { recursive: true, force: true });
       }
     });
 
     it("should error when multiple installations found", async () => {
+      // Set mock homedir to a directory without any installation
+      // so the home dir preference doesn't kick in
+      const emptyHomeDir = await fs.mkdtemp(
+        path.join(tmpdir(), "nori-empty-home-multi-"),
+      );
+      mockHomedir = emptyHomeDir;
+
       // Create a nested installation
       const nestedDir = path.join(testDir, "nested");
       await fs.mkdir(nestedDir, { recursive: true });
@@ -468,16 +500,20 @@ describe("registry-download", () => {
         JSON.stringify({ profile: { baseProfile: "test" } }),
       );
 
-      await registryDownloadMain({
-        packageSpec: "test-profile",
-        cwd: nestedDir,
-      });
+      try {
+        await registryDownloadMain({
+          packageSpec: "test-profile",
+          cwd: nestedDir,
+        });
 
-      // Verify error message about multiple installations
-      const allErrorOutput = mockConsoleError.mock.calls
-        .map((call) => call.join(" "))
-        .join("\n");
-      expect(allErrorOutput.toLowerCase()).toContain("multiple");
+        // Verify error message about multiple installations
+        const allErrorOutput = mockConsoleError.mock.calls
+          .map((call) => call.join(" "))
+          .join("\n");
+        expect(allErrorOutput.toLowerCase()).toContain("multiple");
+      } finally {
+        await fs.rm(emptyHomeDir, { recursive: true, force: true });
+      }
     });
 
     it("should handle download errors gracefully", async () => {
