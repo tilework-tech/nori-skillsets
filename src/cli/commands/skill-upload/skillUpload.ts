@@ -348,7 +348,7 @@ export const skillUploadMain = async (args: {
 
     if (registryAuth == null) {
       error({
-        message: `No registry authentication configured for ${registryUrl}.\n\nAdd credentials to .nori-config.json or use one of the configured registries.`,
+        message: `No registry authentication configured for ${registryUrl}.\n\nLog in with '${cliPrefix} login' to configure registry access, or use one of the configured registries.`,
       });
       return;
     }

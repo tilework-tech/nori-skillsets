@@ -128,7 +128,7 @@ The logger.ts module provides console output formatting with ANSI color codes, p
 
 The promptForProfileSelection function in install.ts uses these formatters to display profile options with brightCyan numbers, boldWhite names, and gray indented descriptions, separated by blank lines for improved scannability. The promptForCredentials function displays a wrapped prompt asking users to enter credentials or skip for free tier.
 
-The config.ts module provides a unified `Config` type for both disk persistence and runtime use. The `Config` type contains: auth credentials via `AuthCredentials` type (username, organizationUrl, refreshToken, password), agents (per-agent configuration - keys indicate installed agents, each with their own profile), user preferences (sendSessionTranscript, autoupdate), registry authentication (registryAuths array), and the required installDir field.
+The config.ts module provides a unified `Config` type for both disk persistence and runtime use. The `Config` type contains: auth credentials via `AuthCredentials` type (username, organizationUrl, refreshToken, password), agents (per-agent configuration - keys indicate installed agents, each with their own profile), user preferences (sendSessionTranscript, autoupdate), and the required installDir field.
 
 **AuthCredentials Type:** Supports both token-based and legacy password-based authentication:
 - `username` and `organizationUrl` - required for all paid installs
@@ -153,7 +153,7 @@ The getConfigPath() function requires { installDir: string } and returns `<insta
 - Field types and allowed values (enum constraints for sendSessionTranscript/autoupdate)
 - Default values (sendSessionTranscript: "enabled", autoupdate: "disabled")
 - URI format validation for organizationUrl
-- Object structure for nested types (profile, agents, registryAuths, auth)
+- Object structure for nested types (profile, agents, auth)
 - `additionalProperties: false` to strip unknown fields
 - Both legacy flat auth format (username/password at root) and new nested `auth` object format
 
@@ -161,12 +161,11 @@ The Ajv instance is configured with `useDefaults: true` (applies default values)
 
 **loadConfig() Validation Flow:**
 1. Read and parse JSON from disk
-2. Filter invalid registryAuths entries via `filterRegistryAuths()` (warns if entries are filtered)
-3. Deep clone the config to avoid mutation during validation
-4. Run JSON schema validation (applies defaults, strips unknown properties)
-5. Transform validated data into the `Config` type with proper null handling
-6. Build auth from either nested format (`auth: {...}`) or legacy flat format (fields at root)
-7. Return null if schema validation fails (e.g., invalid enum values)
+2. Deep clone the config to avoid mutation during validation
+3. Run JSON schema validation (applies defaults, strips unknown properties)
+4. Transform validated data into the `Config` type with proper null handling
+5. Build auth from either nested format (`auth: {...}`) or legacy flat format (fields at root)
+6. Return null if schema validation fails (e.g., invalid enum values)
 
 The `RawDiskConfig` type represents the JSON structure on disk after schema validation but before transformation to `Config`. This intermediate type provides type safety for the transformation logic. It includes both legacy flat auth fields (username/password/refreshToken/organizationUrl at root) and the new nested `auth` property for dual-format support. It also includes the legacy `profile` field for reading old configs, though this field is no longer written by `saveConfig()`.
 
@@ -180,7 +179,7 @@ The `saveConfig()` function always writes auth in this nested format. The `loadC
 
 When reading legacy flat format, `loadConfig()` constructs the nested auth structure internally so all downstream code works with the same `Config.auth` type.
 
-**Registry Authentication:** The `registryAuths` field in Config is an array of `RegistryAuth` objects, each containing `username`, `password`, and `registryUrl`. This enables authentication for package registry operations like profile uploads. The `getRegistryAuth({ config, registryUrl })` helper function looks up credentials for a specific registry URL with trailing slash normalization. Registry auth is separate from the main Nori backend auth (`auth` field) - they use different Firebase projects and serve different purposes (registry operations vs. backend API access). The loadConfig() function validates registryAuths entries, filtering out any with missing required fields.
+**Registry Authentication:** Registry operations use the unified `config.auth` credentials. The `RegistryAuth` type contains `username`, `registryUrl`, and optional `refreshToken`. The `getRegistryAuth({ config, registryUrl })` helper derives registry credentials from `config.auth` by extracting the org ID from `organizationUrl` and building the registry URL via `buildRegistryUrl({ orgId })`. If the derived registry URL matches the requested URL, it returns credentials. For local dev URLs (where `extractOrgId` returns null), the function returns credentials for any registry request. There is no separate per-registry auth mechanism.
 
 **Installed Agents Tracking:** Installed agents are derived from the keys of the `agents` object (e.g., `{"claude-code": {...}, "cursor-agent": {...}}` means both agents are installed). This enables multi-agent installations at the same location. Use `getInstalledAgents({ config })` helper to get the list. Key behaviors:
 - During install: The config loader merges `agents` objects from both existing config and new config, so installing cursor-agent when claude-code is already installed results in both keys present
@@ -208,6 +207,6 @@ Install lifecycle tracking (installTracking.ts) is called at CLI startup via `tr
 
 **Registrar CLI Commands:** The `registry-search`, `registry-download`, and `registry-upload` commands provide terminal access to Nori package registries for discovering, installing, and publishing profile packages. These commands use the `registrarApi` from @/src/api/registrar.ts (the same API used by slash commands). The `registry-search <query>` command searches for packages and displays results with names and descriptions. The search always queries the public registry (at `REGISTRAR_URL`) without authentication; if org auth is configured (`config.auth`), it also searches the org registry with authentication (org results displayed first). The `registry-download <package>[@version] [--registry <url>]` command downloads a package tarball and extracts it to `<installDir>/.claude/profiles/<packageName>/`. The download command supports optional version pinning via `package@1.0.0` syntax; without a version, it downloads the latest. Before downloading, it uses `getInstallDirs()` to locate the Nori installation (erroring if none found or if multiple exist without `--install-dir` specified). Extraction handles both gzipped and plain tarballs by checking for gzip magic bytes (0x1f 0x8b). If extraction fails, the target directory is cleaned up to avoid partial installations.
 
-**Multi-Registry Download:** The `registry-download` command searches both the public registry (`REGISTRAR_URL`) and private registries configured in `config.registryAuths`. The public registry is always searched without authentication; private registries require auth credentials from the config and use `getRegistryAuthToken()` to obtain Firebase tokens. When a package is found in multiple registries, the command displays all matching registries with version/description and requires the user to specify `--registry <url>` to disambiguate. The `--registry` option allows downloading from a specific registry URL directly - for private registries, auth must be configured in `.nori-config.json` or an error is displayed. This behavior mirrors the `/nori-registry-download` slash command in @/src/cli/features/claude-code/hooks/config/intercepted-slashcommands/.
+**Namespace-Based Download:** The `registry-download` command uses package namespaces to determine the target registry. Unnamespaced packages (e.g., `my-profile`) are downloaded from the public registry without authentication. Namespaced packages (e.g., `myorg/my-profile`) use `buildOrganizationRegistryUrl({ orgId })` to derive the registry URL and require unified auth (`config.auth`) with the user's organizations list. The `--registry` option allows specifying an explicit registry URL - for private registries, auth must be configured via `config.auth`. Namespace and `--registry` flag cannot be used together. This behavior mirrors the `/nori-registry-download` slash command in @/src/cli/features/claude-code/hooks/config/intercepted-slashcommands/.
 
-**Multi-Registry Upload:** The `registry-upload <profile>[@version] [--registry <url>]` command uploads a local profile to a configured registry. Unlike search and download (which query multiple registries), upload targets a SINGLE registry. The command requires registry authentication configured in `config.registryAuths`. When only one registry is configured, it uploads automatically. When multiple registries are configured and no `--registry` option is provided, the command displays an error listing available registries and example commands. The `--registry` option specifies the target registry URL - auth must be configured for that URL in `.nori-config.json`. Version defaults to "1.0.0" if not specified (e.g., `nori-ai registry-upload my-profile` uses 1.0.0, while `nori-ai registry-upload my-profile@2.0.0` uses 2.0.0). This behavior mirrors the `/nori-registry-upload` slash command in @/src/cli/features/claude-code/hooks/config/intercepted-slashcommands/.
+**Registry Upload:** The `registry-upload <profile>[@version] [--registry <url>]` command uploads a local profile to a configured registry. Upload targets a SINGLE registry. The command derives available registries from unified auth (`config.auth`) - for each organization in `config.auth.organizations`, it builds a registry URL via `buildOrganizationRegistryUrl({ orgId })`. When only one registry is available, it uploads automatically. When multiple registries are available and no `--registry` option is provided, the command displays an error listing available registries. Version defaults to "1.0.0" if not specified. This behavior mirrors the `/nori-registry-upload` slash command in @/src/cli/features/claude-code/hooks/config/intercepted-slashcommands/.
