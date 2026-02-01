@@ -18,30 +18,36 @@ rm ~/.nori/.nori-config.json
 npm run build
 ```
 
-3. Download the amol skillset and the onboarding skillset from public.
+3. Make sure you cleaned up correctly by running install-location and verifying there are no existing profiles.
+
+```bash
+node build/src/cli/nori-skillsets.js install-location
+```
+
+4. Download the amol skillset and the onboarding skillset from public.
 
 ```bash
 node build/src/cli/nori-skillsets.js download amol
 node build/src/cli/nori-skillsets.js download onboarding
 ```
 
-4. Confirm that the download worked by looking at the ~/.nori/profiles directory.
+5. Confirm that the download worked by looking at the ~/.nori/profiles directory.
 
-5. Switch to the amol skillset.
+6. Switch to the amol skillset.
 
 ```bash
 node build/src/cli/nori-skillsets.js switch-skillset amol
 ```
 
-6. Confirm that the switch worked by checking the CLAUDE.md file at ~/.claude/CLAUDE.md.
+7. Confirm that the switch worked by checking the CLAUDE.md file at ~/.claude/CLAUDE.md.
 
 - Make sure that the templating worked as expected.
 
-7. Switch to the onboarding skillset.
+8. Switch to the onboarding skillset.
 
-8. Confirm that the switch worked by checking the CLAUDE.md file.
+9. Confirm that the switch worked by checking the CLAUDE.md file.
 
-9. Run login.
+10. Run login.
 
 ```bash
 node build/src/cli/nori-skillsets.js switch-skillset amol
@@ -49,10 +55,10 @@ node build/src/cli/nori-skillsets.js switch-skillset amol
 
 - Ask the user for creds or look in .env for skillset email and password creds
 
-10. Download the vc-tech-investing skillset from the dev private repo.
+11. Download the vc-tech-investing skillset from the dev private repo.
 
 ```bash
 node build/src/cli/nori-skillsets.js download dev/vc-tech-investing
 ```
 
-11. Switch to the vc-tech-investing skillset. Confirm that it loaded correctly.
+12. Switch to the vc-tech-investing skillset. Confirm that it loaded correctly.
