@@ -117,7 +117,6 @@ describe("registry-download", () => {
       // Mock config (no private registries)
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [],
       });
 
       // Mock getPackument to return package info
@@ -174,7 +173,6 @@ describe("registry-download", () => {
       // Mock config (no private registries)
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [],
       });
 
       // Mock getPackument to return package info
@@ -241,7 +239,6 @@ describe("registry-download", () => {
       // Mock config to return valid config after init
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: noInstallDir,
-        registryAuths: [],
       });
 
       // Mock package info
@@ -301,7 +298,6 @@ describe("registry-download", () => {
       // Mock config to return valid config after init
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: customInstallDir,
-        registryAuths: [],
       });
 
       // Mock package info
@@ -338,7 +334,6 @@ describe("registry-download", () => {
       // testDir already has .nori-config.json from beforeEach
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [],
       });
 
       vi.mocked(registrarApi.getPackument).mockResolvedValue({
@@ -393,7 +388,6 @@ describe("registry-download", () => {
       // Mock loadConfig to be called with homeNoriDir
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: homeNoriDir,
-        registryAuths: [],
       });
 
       vi.mocked(registrarApi.getPackument).mockResolvedValue({
@@ -555,35 +549,18 @@ describe("registry-download", () => {
     });
   });
 
-  describe("multi-registry support", () => {
-    it("should search all registries when no registry URL specified", async () => {
-      const privateRegistryUrl = "https://private.registry.com";
-
-      // Mock config with private registry auth
+  describe("registry search behavior", () => {
+    it("should download public (unnamespaced) package without auth", async () => {
+      // Mock config without any auth
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [
-          {
-            registryUrl: privateRegistryUrl,
-            username: "user",
-            password: "pass",
-          },
-        ],
       });
 
-      // Mock auth token
-      vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
-
-      // Package only exists in public registry
-      vi.mocked(registrarApi.getPackument).mockImplementation(async (args) => {
-        if (args.registryUrl === REGISTRAR_URL) {
-          return {
-            name: "test-profile",
-            "dist-tags": { latest: "1.0.0" },
-            versions: { "1.0.0": { name: "test-profile", version: "1.0.0" } },
-          };
-        }
-        throw new Error("Not found");
+      // Package exists in public registry
+      vi.mocked(registrarApi.getPackument).mockResolvedValue({
+        name: "test-profile",
+        "dist-tags": { latest: "1.0.0" },
+        versions: { "1.0.0": { name: "test-profile", version: "1.0.0" } },
       });
 
       const mockTarball = await createMockTarball();
@@ -594,15 +571,11 @@ describe("registry-download", () => {
         cwd: testDir,
       });
 
-      // Verify both registries were searched
+      // Verify only public registry was searched (no auth token)
+      expect(registrarApi.getPackument).toHaveBeenCalledTimes(1);
       expect(registrarApi.getPackument).toHaveBeenCalledWith({
         packageName: "test-profile",
         registryUrl: REGISTRAR_URL,
-      });
-      expect(registrarApi.getPackument).toHaveBeenCalledWith({
-        packageName: "test-profile",
-        registryUrl: privateRegistryUrl,
-        authToken: "mock-auth-token",
       });
 
       // Verify download succeeded from public registry
@@ -611,132 +584,34 @@ describe("registry-download", () => {
       expect(stats.isDirectory()).toBe(true);
     });
 
-    it("should error with disambiguation when package found in multiple registries", async () => {
-      const privateRegistryUrl = "https://private.registry.com";
-
-      // Mock config with private registry auth
+    it("should error when namespaced package downloaded without auth", async () => {
+      // Mock config without unified auth (no auth.organizations)
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [
-          {
-            registryUrl: privateRegistryUrl,
-            username: "user",
-            password: "pass",
-          },
-        ],
       });
 
-      // Mock auth token
-      vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
-
-      // Package exists in BOTH registries
-      vi.mocked(registrarApi.getPackument).mockImplementation(async (args) => {
-        if (args.registryUrl === REGISTRAR_URL) {
-          return {
-            name: "test-profile",
-            description: "Public version",
-            "dist-tags": { latest: "1.0.0" },
-            versions: {
-              "1.0.0": { name: "test-profile", version: "1.0.0" },
-            } as Record<string, { name: string; version: string }>,
-          };
-        }
-        if (args.registryUrl === privateRegistryUrl) {
-          return {
-            name: "test-profile",
-            description: "Private version",
-            "dist-tags": { latest: "2.0.0" },
-            versions: {
-              "2.0.0": { name: "test-profile", version: "2.0.0" },
-            } as Record<string, { name: string; version: string }>,
-          };
-        }
-        throw new Error("Not found");
-      });
-
-      await registryDownloadMain({
-        packageSpec: "test-profile",
+      const result = await registryDownloadMain({
+        packageSpec: "pangram/senior-swe",
         cwd: testDir,
       });
 
-      // Verify error message about multiple packages
+      // Verify failure
+      expect(result.success).toBe(false);
+
+      // Verify error message about authentication required
       const allErrorOutput = mockConsoleError.mock.calls
         .map((call) => call.join(" "))
         .join("\n");
-      expect(allErrorOutput.toLowerCase()).toContain("multiple");
-      expect(allErrorOutput).toContain(REGISTRAR_URL);
-      expect(allErrorOutput).toContain(privateRegistryUrl);
-      expect(allErrorOutput).toContain("--registry");
+      expect(allErrorOutput.toLowerCase()).toContain("not found");
 
       // Verify no download occurred
       expect(registrarApi.downloadTarball).not.toHaveBeenCalled();
     });
 
-    it("should download from single registry when package only in one", async () => {
-      const privateRegistryUrl = "https://private.registry.com";
-
-      // Mock config with private registry auth
-      vi.mocked(loadConfig).mockResolvedValue({
-        installDir: testDir,
-        registryAuths: [
-          {
-            registryUrl: privateRegistryUrl,
-            username: "user",
-            password: "pass",
-          },
-        ],
-      });
-
-      // Mock auth token
-      vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
-
-      // Package only exists in private registry
-      vi.mocked(registrarApi.getPackument).mockImplementation(async (args) => {
-        if (args.registryUrl === privateRegistryUrl) {
-          return {
-            name: "private-profile",
-            "dist-tags": { latest: "1.0.0" },
-            versions: {
-              "1.0.0": { name: "private-profile", version: "1.0.0" },
-            },
-          };
-        }
-        throw new Error("Not found");
-      });
-
-      const mockTarball = await createMockTarball();
-      vi.mocked(registrarApi.downloadTarball).mockResolvedValue(mockTarball);
-
-      await registryDownloadMain({
-        packageSpec: "private-profile",
-        cwd: testDir,
-      });
-
-      // Verify download was from private registry with auth
-      expect(registrarApi.downloadTarball).toHaveBeenCalledWith({
-        packageName: "private-profile",
-        version: undefined,
-        registryUrl: privateRegistryUrl,
-        authToken: "mock-auth-token",
-      });
-
-      // Verify profile was installed
-      const profileDir = path.join(profilesDir, "private-profile");
-      const stats = await fs.stat(profileDir);
-      expect(stats.isDirectory()).toBe(true);
-    });
-
     it("should use --registry option to download from specific public registry", async () => {
-      // Mock config (with private registry, but we'll specify public)
+      // Mock config
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [
-          {
-            registryUrl: "https://private.registry.com",
-            username: "user",
-            password: "pass",
-          },
-        ],
       });
 
       // Package exists in public registry
@@ -774,23 +649,16 @@ describe("registry-download", () => {
     it("should use --registry option with auth for private registry", async () => {
       const privateRegistryUrl = "https://private.registry.com";
 
-      // Mock config with private registry auth
+      // Mock config with unified auth
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [
-          {
-            registryUrl: privateRegistryUrl,
-            username: "user",
-            password: "pass",
-          },
-        ],
       });
 
-      // Mock getRegistryAuth to return the auth config
+      // Mock getRegistryAuth to return the auth config (using refreshToken, not password)
       vi.mocked(getRegistryAuth).mockReturnValue({
         registryUrl: privateRegistryUrl,
         username: "user",
-        password: "pass",
+        refreshToken: "refresh-token",
       });
 
       // Mock auth token
@@ -832,10 +700,9 @@ describe("registry-download", () => {
     it("should error when private registry specified but no auth configured", async () => {
       const privateRegistryUrl = "https://private.registry.com";
 
-      // Mock config WITHOUT the private registry auth
+      // Mock config WITHOUT auth
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [],
       });
 
       // Mock getRegistryAuth to return null (no auth configured)
@@ -889,25 +756,13 @@ describe("registry-download", () => {
       expect(stats.isDirectory()).toBe(true);
     });
 
-    it("should error when package not found in any registry", async () => {
-      const privateRegistryUrl = "https://private.registry.com";
-
-      // Mock config with private registry auth
+    it("should error when package not found in public registry", async () => {
+      // Mock config without auth
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [
-          {
-            registryUrl: privateRegistryUrl,
-            username: "user",
-            password: "pass",
-          },
-        ],
       });
 
-      // Mock auth token
-      vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
-
-      // Package not found in any registry
+      // Package not found in public registry
       vi.mocked(registrarApi.getPackument).mockRejectedValue(
         new Error("Not found"),
       );
@@ -950,7 +805,6 @@ describe("registry-download", () => {
 
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [],
       });
 
       await registryDownloadMain({
@@ -977,19 +831,12 @@ describe("registry-download", () => {
 
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [
-          {
-            registryUrl: privateRegistryUrl,
-            username: "user",
-            password: "pass",
-          },
-        ],
       });
 
       vi.mocked(getRegistryAuth).mockReturnValue({
         registryUrl: privateRegistryUrl,
         username: "user",
-        password: "pass",
+        refreshToken: "refresh-token",
       });
 
       vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
@@ -1023,7 +870,6 @@ describe("registry-download", () => {
     it("should error when package not found with --list-versions", async () => {
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [],
       });
 
       vi.mocked(registrarApi.getPackument).mockRejectedValue(
@@ -1060,7 +906,6 @@ describe("registry-download", () => {
 
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [],
       });
 
       // Registry has newer version
@@ -1106,7 +951,6 @@ describe("registry-download", () => {
 
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [],
       });
 
       // Registry has same version
@@ -1144,7 +988,6 @@ describe("registry-download", () => {
 
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [],
       });
 
       // Registry has version
@@ -1186,7 +1029,6 @@ describe("registry-download", () => {
 
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [],
       });
 
       // Request older version
@@ -1303,7 +1145,6 @@ describe("registry-download", () => {
     it("should download skill dependencies to profile directory", async () => {
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [],
       });
 
       vi.mocked(registrarApi.getPackument).mockResolvedValue({
@@ -1386,7 +1227,6 @@ describe("registry-download", () => {
     it("should download multiple skill dependencies to profile directory", async () => {
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [],
       });
 
       vi.mocked(registrarApi.getPackument).mockResolvedValue({
@@ -1458,7 +1298,6 @@ describe("registry-download", () => {
     it("should skip profile without nori.json (legacy profile)", async () => {
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [],
       });
 
       vi.mocked(registrarApi.getPackument).mockResolvedValue({
@@ -1488,7 +1327,6 @@ describe("registry-download", () => {
     it("should skip profile with nori.json but no skill dependencies", async () => {
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [],
       });
 
       vi.mocked(registrarApi.getPackument).mockResolvedValue({
@@ -1519,7 +1357,6 @@ describe("registry-download", () => {
     it("should warn but continue when skill dependency not found", async () => {
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [],
       });
 
       vi.mocked(registrarApi.getPackument).mockResolvedValue({
@@ -1587,7 +1424,6 @@ describe("registry-download", () => {
 
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [],
       });
 
       // Profile update scenario - newer version available
@@ -1667,7 +1503,6 @@ describe("registry-download", () => {
 
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [],
       });
 
       vi.mocked(registrarApi.getPackument).mockResolvedValue({
@@ -1732,19 +1567,12 @@ describe("registry-download", () => {
 
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [
-          {
-            registryUrl: privateRegistryUrl,
-            username: "user",
-            password: "pass",
-          },
-        ],
       });
 
       vi.mocked(getRegistryAuth).mockReturnValue({
         registryUrl: privateRegistryUrl,
         username: "user",
-        password: "pass",
+        refreshToken: "refresh-token",
       });
 
       vi.mocked(getRegistryAuthToken).mockResolvedValue("private-auth-token");
@@ -1805,7 +1633,6 @@ describe("registry-download", () => {
     it("should always download latest version regardless of version range in nori.json", async () => {
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [],
       });
 
       vi.mocked(registrarApi.getPackument).mockResolvedValue({
@@ -1873,7 +1700,6 @@ describe("registry-download", () => {
           refreshToken: "test-refresh-token",
           organizations: ["myorg", "public"],
         },
-        registryAuths: [],
       });
 
       vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
@@ -1916,7 +1742,6 @@ describe("registry-download", () => {
           refreshToken: "test-refresh-token",
           organizations: ["public"],
         },
-        registryAuths: [],
       });
 
       vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
@@ -1960,7 +1785,6 @@ describe("registry-download", () => {
           refreshToken: "test-refresh-token",
           organizations: ["myorg"],
         },
-        registryAuths: [],
       });
 
       vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
@@ -2000,7 +1824,6 @@ describe("registry-download", () => {
           refreshToken: "test-refresh-token",
           organizations: ["other-org"], // User only has access to other-org, not myorg
         },
-        registryAuths: [],
       });
 
       await registryDownloadMain({
@@ -2022,7 +1845,6 @@ describe("registry-download", () => {
     it("should reject invalid namespaced package format with multiple slashes", async () => {
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [],
       });
 
       await registryDownloadMain({
@@ -2043,7 +1865,6 @@ describe("registry-download", () => {
     it("should reject namespaced package with invalid org ID format", async () => {
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [],
       });
 
       await registryDownloadMain({
@@ -2062,10 +1883,9 @@ describe("registry-download", () => {
     });
 
     it("should fall back to legacy flow when no unified auth is present", async () => {
-      // Legacy config without auth.organizations - uses registryAuths
+      // Config without auth.organizations - searches public registry only
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [],
       });
 
       // Package exists in public registry
@@ -2116,7 +1936,6 @@ describe("registry-download", () => {
           refreshToken: "test-refresh-token",
           organizations: ["myorg"],
         },
-        registryAuths: [],
       });
 
       vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
@@ -2154,7 +1973,6 @@ describe("registry-download", () => {
     it("should use nori-skillsets command names when cliName is nori-skillsets", async () => {
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [],
       });
 
       vi.mocked(registrarApi.getPackument).mockResolvedValue({
@@ -2183,7 +2001,6 @@ describe("registry-download", () => {
     it("should use nori-ai command names when cliName is nori-ai", async () => {
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [],
       });
 
       vi.mocked(registrarApi.getPackument).mockResolvedValue({
@@ -2212,7 +2029,6 @@ describe("registry-download", () => {
     it("should default to nori-ai command names when cliName is not provided", async () => {
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [],
       });
 
       vi.mocked(registrarApi.getPackument).mockResolvedValue({
@@ -2239,7 +2055,6 @@ describe("registry-download", () => {
     it("should use nori-skillsets command names in version list hint when cliName is nori-skillsets", async () => {
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [],
       });
 
       vi.mocked(registrarApi.getPackument).mockResolvedValue({
@@ -2263,46 +2078,15 @@ describe("registry-download", () => {
       expect(allOutput).not.toContain("nori-ai registry-download");
     });
 
-    it("should use nori-skillsets command names in disambiguation error when cliName is nori-skillsets", async () => {
-      const privateRegistryUrl = "https://private.registry.com";
-
+    it("should use nori-skillsets command names in error messages when cliName is nori-skillsets", async () => {
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [
-          {
-            registryUrl: privateRegistryUrl,
-            username: "user",
-            password: "pass",
-          },
-        ],
       });
 
-      vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
-
-      // Package exists in BOTH registries
-      vi.mocked(registrarApi.getPackument).mockImplementation(async (args) => {
-        if (args.registryUrl === REGISTRAR_URL) {
-          return {
-            name: "test-profile",
-            description: "Public version",
-            "dist-tags": { latest: "1.0.0" },
-            versions: {
-              "1.0.0": { name: "test-profile", version: "1.0.0" },
-            } as Record<string, { name: string; version: string }>,
-          };
-        }
-        if (args.registryUrl === privateRegistryUrl) {
-          return {
-            name: "test-profile",
-            description: "Private version",
-            "dist-tags": { latest: "2.0.0" },
-            versions: {
-              "2.0.0": { name: "test-profile", version: "2.0.0" },
-            } as Record<string, { name: string; version: string }>,
-          };
-        }
-        throw new Error("Not found");
-      });
+      // Package not found in public registry
+      vi.mocked(registrarApi.getPackument).mockRejectedValue(
+        new Error("Not found"),
+      );
 
       await registryDownloadMain({
         packageSpec: "test-profile",
@@ -2310,12 +2094,11 @@ describe("registry-download", () => {
         cliName: "nori-skillsets",
       });
 
-      // Verify disambiguation error uses nori-skillsets command names
+      // Verify error message uses nori-skillsets command names
       const allErrorOutput = mockConsoleError.mock.calls
         .map((call) => call.join(" "))
         .join("\n");
-      expect(allErrorOutput).toContain("nori-skillsets download");
-      expect(allErrorOutput).not.toContain("nori-ai registry-download");
+      expect(allErrorOutput.toLowerCase()).toContain("not found");
     });
   });
 });

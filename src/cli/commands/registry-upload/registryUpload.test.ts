@@ -21,7 +21,6 @@ vi.mock("@/api/registrar.js", () => ({
 vi.mock("@/cli/config.js", async () => {
   return {
     loadConfig: vi.fn(),
-    getRegistryAuth: vi.fn(),
     getInstalledAgents: (args: {
       config: { agents?: Record<string, unknown> | null };
     }) => {
@@ -46,7 +45,7 @@ const mockConsoleError = vi
 
 import { registrarApi } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
-import { loadConfig, getRegistryAuth } from "@/cli/config.js";
+import { loadConfig } from "@/cli/config.js";
 
 import { registryUploadMain } from "./registryUpload.js";
 
@@ -98,19 +97,12 @@ describe("registry-upload", () => {
 
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [
-          {
-            username: "test@example.com",
-            password: "test-password",
-            registryUrl: "https://noriskillsets.dev",
-          },
-        ],
-      });
-
-      vi.mocked(getRegistryAuth).mockReturnValue({
-        username: "test@example.com",
-        password: "test-password",
-        registryUrl: "https://noriskillsets.dev",
+        auth: {
+          username: "test@example.com",
+          organizationUrl: "https://noriskillsets.dev",
+          refreshToken: "mock-refresh-token",
+          organizations: ["public"],
+        },
       });
 
       vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
@@ -149,19 +141,12 @@ describe("registry-upload", () => {
 
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [
-          {
-            username: "test@example.com",
-            password: "test-password",
-            registryUrl: "https://noriskillsets.dev",
-          },
-        ],
-      });
-
-      vi.mocked(getRegistryAuth).mockReturnValue({
-        username: "test@example.com",
-        password: "test-password",
-        registryUrl: "https://noriskillsets.dev",
+        auth: {
+          username: "test@example.com",
+          organizationUrl: "https://noriskillsets.dev",
+          refreshToken: "mock-refresh-token",
+          organizations: ["public"],
+        },
       });
 
       vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
@@ -190,13 +175,12 @@ describe("registry-upload", () => {
     it("should error when profile does not exist", async () => {
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [
-          {
-            username: "test@example.com",
-            password: "test-password",
-            registryUrl: "https://noriskillsets.dev",
-          },
-        ],
+        auth: {
+          username: "test@example.com",
+          organizationUrl: "https://noriskillsets.dev",
+          refreshToken: "mock-refresh-token",
+          organizations: ["public"],
+        },
       });
 
       await registryUploadMain({
@@ -239,7 +223,6 @@ describe("registry-upload", () => {
 
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [],
       });
 
       await registryUploadMain({
@@ -259,19 +242,12 @@ describe("registry-upload", () => {
 
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [
-          {
-            username: "test@example.com",
-            password: "test-password",
-            registryUrl: "https://noriskillsets.dev",
-          },
-        ],
-      });
-
-      vi.mocked(getRegistryAuth).mockReturnValue({
-        username: "test@example.com",
-        password: "test-password",
-        registryUrl: "https://noriskillsets.dev",
+        auth: {
+          username: "test@example.com",
+          organizationUrl: "https://noriskillsets.dev",
+          refreshToken: "mock-refresh-token",
+          organizations: ["public"],
+        },
       });
 
       vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
@@ -295,68 +271,19 @@ describe("registry-upload", () => {
   });
 
   describe("multi-registry support", () => {
-    it("should error when multiple registries configured and no --registry provided", async () => {
-      await createTestProfile({ name: "test-profile" });
-
-      vi.mocked(loadConfig).mockResolvedValue({
-        installDir: testDir,
-        registryAuths: [
-          {
-            username: "test@example.com",
-            password: "test-password",
-            registryUrl: "https://noriskillsets.dev",
-          },
-          {
-            username: "private@example.com",
-            password: "private-password",
-            registryUrl: "https://private-registry.example.com",
-          },
-        ],
-      });
-
-      await registryUploadMain({
-        profileSpec: "test-profile",
-        cwd: testDir,
-      });
-
-      // Verify error message about multiple registries
-      const allErrorOutput = mockConsoleError.mock.calls
-        .map((call) => call.join(" "))
-        .join("\n");
-      expect(allErrorOutput.toLowerCase()).toContain("multiple");
-      expect(allErrorOutput).toContain("https://noriskillsets.dev");
-      expect(allErrorOutput).toContain("https://private-registry.example.com");
-      expect(allErrorOutput).toContain("--registry");
-
-      // Verify no upload occurred
-      expect(registrarApi.uploadProfile).not.toHaveBeenCalled();
-    });
-
     it("should upload to specified registry when --registry provided", async () => {
       await createTestProfile({ name: "test-profile" });
 
-      const privateRegistryUrl = "https://private-registry.example.com";
+      const privateRegistryUrl = "https://private-org.noriskillsets.dev";
 
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [
-          {
-            username: "test@example.com",
-            password: "test-password",
-            registryUrl: "https://noriskillsets.dev",
-          },
-          {
-            username: "private@example.com",
-            password: "private-password",
-            registryUrl: privateRegistryUrl,
-          },
-        ],
-      });
-
-      vi.mocked(getRegistryAuth).mockReturnValue({
-        username: "private@example.com",
-        password: "private-password",
-        registryUrl: privateRegistryUrl,
+        auth: {
+          username: "test@example.com",
+          organizationUrl: "https://noriskillsets.dev",
+          refreshToken: "mock-refresh-token",
+          organizations: ["public", "private-org"],
+        },
       });
 
       vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-private-token");
@@ -389,16 +316,13 @@ describe("registry-upload", () => {
 
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [
-          {
-            username: "test@example.com",
-            password: "test-password",
-            registryUrl: "https://noriskillsets.dev",
-          },
-        ],
+        auth: {
+          username: "test@example.com",
+          organizationUrl: "https://noriskillsets.dev",
+          refreshToken: "mock-refresh-token",
+          organizations: ["public"],
+        },
       });
-
-      vi.mocked(getRegistryAuth).mockReturnValue(null);
 
       await registryUploadMain({
         profileSpec: "test-profile",
@@ -420,28 +344,16 @@ describe("registry-upload", () => {
     it("should upload with version and --registry", async () => {
       await createTestProfile({ name: "test-profile" });
 
-      const privateRegistryUrl = "https://private-registry.example.com";
+      const privateRegistryUrl = "https://private-org.noriskillsets.dev";
 
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [
-          {
-            username: "test@example.com",
-            password: "test-password",
-            registryUrl: "https://noriskillsets.dev",
-          },
-          {
-            username: "private@example.com",
-            password: "private-password",
-            registryUrl: privateRegistryUrl,
-          },
-        ],
-      });
-
-      vi.mocked(getRegistryAuth).mockReturnValue({
-        username: "private@example.com",
-        password: "private-password",
-        registryUrl: privateRegistryUrl,
+        auth: {
+          username: "test@example.com",
+          organizationUrl: "https://noriskillsets.dev",
+          refreshToken: "mock-refresh-token",
+          organizations: ["public", "private-org"],
+        },
       });
 
       vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-private-token");
@@ -476,19 +388,12 @@ describe("registry-upload", () => {
 
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [
-          {
-            username: "test@example.com",
-            password: "test-password",
-            registryUrl: "https://noriskillsets.dev",
-          },
-        ],
-      });
-
-      vi.mocked(getRegistryAuth).mockReturnValue({
-        username: "test@example.com",
-        password: "test-password",
-        registryUrl: "https://noriskillsets.dev",
+        auth: {
+          username: "test@example.com",
+          organizationUrl: "https://noriskillsets.dev",
+          refreshToken: "mock-refresh-token",
+          organizations: ["public"],
+        },
       });
 
       vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
@@ -526,19 +431,12 @@ describe("registry-upload", () => {
 
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [
-          {
-            username: "test@example.com",
-            password: "test-password",
-            registryUrl: "https://noriskillsets.dev",
-          },
-        ],
-      });
-
-      vi.mocked(getRegistryAuth).mockReturnValue({
-        username: "test@example.com",
-        password: "test-password",
-        registryUrl: "https://noriskillsets.dev",
+        auth: {
+          username: "test@example.com",
+          organizationUrl: "https://noriskillsets.dev",
+          refreshToken: "mock-refresh-token",
+          organizations: ["public"],
+        },
       });
 
       vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
@@ -574,19 +472,12 @@ describe("registry-upload", () => {
 
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [
-          {
-            username: "test@example.com",
-            password: "test-password",
-            registryUrl: "https://noriskillsets.dev",
-          },
-        ],
-      });
-
-      vi.mocked(getRegistryAuth).mockReturnValue({
-        username: "test@example.com",
-        password: "test-password",
-        registryUrl: "https://noriskillsets.dev",
+        auth: {
+          username: "test@example.com",
+          organizationUrl: "https://noriskillsets.dev",
+          refreshToken: "mock-refresh-token",
+          organizations: ["public"],
+        },
       });
 
       vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
@@ -627,7 +518,6 @@ describe("registry-upload", () => {
     it("should include public registry when user has unified auth with refreshToken", async () => {
       await createTestProfile({ name: "test-profile" });
 
-      // User has unified auth (config.auth) but NO registryAuths
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
         auth: {
@@ -635,7 +525,6 @@ describe("registry-upload", () => {
           organizationUrl: "https://myorg.tilework.tech",
           refreshToken: "mock-refresh-token",
         },
-        // No registryAuths - only the unified auth
       });
 
       vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
@@ -678,9 +567,6 @@ describe("registry-upload", () => {
         },
       });
 
-      // getRegistryAuth returns null for public registry (current behavior)
-      vi.mocked(getRegistryAuth).mockReturnValue(null);
-
       vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
 
       vi.mocked(registrarApi.getPackument).mockRejectedValue(
@@ -716,10 +602,7 @@ describe("registry-upload", () => {
       // User has NO auth at all
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        // No auth, no registryAuths
       });
-
-      vi.mocked(getRegistryAuth).mockReturnValue(null);
 
       await registryUploadMain({
         profileSpec: "test-profile",
@@ -746,13 +629,12 @@ describe("registry-upload", () => {
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
         agents: { "cursor-agent": { profile: { baseProfile: "amol" } } },
-        registryAuths: [
-          {
-            username: "test@example.com",
-            password: "test-password",
-            registryUrl: "https://noriskillsets.dev",
-          },
-        ],
+        auth: {
+          username: "test@example.com",
+          organizationUrl: "https://noriskillsets.dev",
+          refreshToken: "mock-refresh-token",
+          organizations: ["public"],
+        },
       });
 
       await registryUploadMain({
@@ -781,19 +663,12 @@ describe("registry-upload", () => {
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
         agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
-        registryAuths: [
-          {
-            username: "test@example.com",
-            password: "test-password",
-            registryUrl: "https://noriskillsets.dev",
-          },
-        ],
-      });
-
-      vi.mocked(getRegistryAuth).mockReturnValue({
-        username: "test@example.com",
-        password: "test-password",
-        registryUrl: "https://noriskillsets.dev",
+        auth: {
+          username: "test@example.com",
+          organizationUrl: "https://noriskillsets.dev",
+          refreshToken: "mock-refresh-token",
+          organizations: ["public"],
+        },
       });
 
       vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
@@ -827,19 +702,12 @@ describe("registry-upload", () => {
           "claude-code": { profile: { baseProfile: "senior-swe" } },
           "cursor-agent": { profile: { baseProfile: "amol" } },
         },
-        registryAuths: [
-          {
-            username: "test@example.com",
-            password: "test-password",
-            registryUrl: "https://noriskillsets.dev",
-          },
-        ],
-      });
-
-      vi.mocked(getRegistryAuth).mockReturnValue({
-        username: "test@example.com",
-        password: "test-password",
-        registryUrl: "https://noriskillsets.dev",
+        auth: {
+          username: "test@example.com",
+          organizationUrl: "https://noriskillsets.dev",
+          refreshToken: "mock-refresh-token",
+          organizations: ["public"],
+        },
       });
 
       vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
@@ -1053,19 +921,12 @@ describe("registry-upload", () => {
 
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [
-          {
-            username: "test@example.com",
-            password: "test-password",
-            registryUrl: "https://noriskillsets.dev",
-          },
-        ],
-      });
-
-      vi.mocked(getRegistryAuth).mockReturnValue({
-        username: "test@example.com",
-        password: "test-password",
-        registryUrl: "https://noriskillsets.dev",
+        auth: {
+          username: "test@example.com",
+          organizationUrl: "https://noriskillsets.dev",
+          refreshToken: "mock-refresh-token",
+          organizations: ["public"],
+        },
       });
 
       vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
@@ -1099,19 +960,12 @@ describe("registry-upload", () => {
 
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [
-          {
-            username: "test@example.com",
-            password: "test-password",
-            registryUrl: "https://noriskillsets.dev",
-          },
-        ],
-      });
-
-      vi.mocked(getRegistryAuth).mockReturnValue({
-        username: "test@example.com",
-        password: "test-password",
-        registryUrl: "https://noriskillsets.dev",
+        auth: {
+          username: "test@example.com",
+          organizationUrl: "https://noriskillsets.dev",
+          refreshToken: "mock-refresh-token",
+          organizations: ["public"],
+        },
       });
 
       vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");

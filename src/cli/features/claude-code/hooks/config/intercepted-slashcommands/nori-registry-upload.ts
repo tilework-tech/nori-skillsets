@@ -61,7 +61,7 @@ const parseUploadArgs = (
 
 /**
  * Get list of registries the user can upload to
- * Includes both org-based auth (config.auth) and legacy registryAuths
+ * Uses org-based auth (config.auth) to determine available registries
  * @param args - The function arguments
  * @param args.config - The Nori configuration
  *
@@ -81,22 +81,8 @@ const getAvailableUploadRegistries = (args: {
       availableRegistries.push({
         registryUrl: derivedRegistryUrl,
         username: config.auth.username,
-        password: config.auth.password ?? null,
         refreshToken: config.auth.refreshToken ?? null,
       });
-    }
-  }
-
-  // Add legacy registryAuths entries
-  if (config.registryAuths != null) {
-    for (const auth of config.registryAuths) {
-      // Avoid duplicates if the same registry URL already exists from org-based auth
-      const alreadyExists = availableRegistries.some(
-        (existing) => existing.registryUrl === auth.registryUrl,
-      );
-      if (!alreadyExists) {
-        availableRegistries.push(auth);
-      }
     }
   }
 
@@ -302,7 +288,7 @@ const run = async (args: { input: HookInput }): Promise<HookOutput | null> => {
     return {
       decision: "block",
       reason: formatError({
-        message: `No registry authentication configured.\n\nEither log in with 'nori-ai install' or add registry credentials to .nori-config.json:\n{\n  "registryAuths": [{\n    "username": "your-email@example.com",\n    "password": "your-password",\n    "registryUrl": "https://registry.example.com"\n  }]\n}`,
+        message: `No registry authentication configured.\n\nLog in with 'nori-ai login' to configure registry access.`,
       }),
     };
   }
@@ -318,7 +304,7 @@ const run = async (args: { input: HookInput }): Promise<HookOutput | null> => {
       return {
         decision: "block",
         reason: formatError({
-          message: `No registry authentication configured for ${registryUrl}.\n\nAdd credentials to .nori-config.json or use one of the configured registries.`,
+          message: `No registry authentication configured for ${registryUrl}.\n\nLog in with 'nori-ai login' to configure registry access, or use one of the configured registries.`,
         }),
       };
     }

@@ -19,7 +19,6 @@ import {
   checkRegistryAgentSupport,
   showCursorAgentNotSupportedError,
 } from "@/cli/commands/registryAgentCheck.js";
-import { getRegistryAuth } from "@/cli/config.js";
 import { getNoriProfilesDir } from "@/cli/features/claude-code/paths.js";
 import { error, success, info, newline } from "@/cli/logger.js";
 import { getInstallDirs } from "@/utils/path.js";
@@ -261,7 +260,7 @@ export const registryUploadMain = async (args: {
     return;
   }
 
-  // Get available registries - combining unified auth organization registries and legacy registryAuths
+  // Get available registries from unified auth
   const availableRegistries: Array<RegistryAuth> = [];
 
   // Add organization registries from unified auth
@@ -277,22 +276,9 @@ export const registryUploadMain = async (args: {
     }
   }
 
-  // Add legacy registryAuths entries (for backwards compatibility)
-  if (config?.registryAuths != null) {
-    for (const auth of config.registryAuths) {
-      // Avoid duplicates if the same registry URL already exists
-      const alreadyExists = availableRegistries.some(
-        (existing) => existing.registryUrl === auth.registryUrl,
-      );
-      if (!alreadyExists) {
-        availableRegistries.push(auth);
-      }
-    }
-  }
-
   if (availableRegistries.length === 0) {
     error({
-      message: `No registry authentication configured.\n\nEither log in with '${cliPrefix} login' or add registry credentials to .nori-config.json:\n{\n  "registryAuths": [{\n    "username": "your-email@example.com",\n    "password": "your-password",\n    "registryUrl": "https://registry.example.com"\n  }]\n}`,
+      message: `No registry authentication configured.\n\nLog in with '${cliPrefix} login' to configure registry access.`,
     });
     return;
   }
@@ -305,18 +291,13 @@ export const registryUploadMain = async (args: {
     // User specified explicit --registry flag
     targetRegistryUrl = registryUrl;
 
-    // Check availableRegistries first
+    // Check availableRegistries for a match
     registryAuth =
       availableRegistries.find((r) => r.registryUrl === registryUrl) ?? null;
 
-    // Fall back to getRegistryAuth for legacy registryAuths
-    if (registryAuth == null && config != null) {
-      registryAuth = getRegistryAuth({ config, registryUrl });
-    }
-
     if (registryAuth == null) {
       error({
-        message: `No registry authentication configured for ${registryUrl}.\n\nAdd credentials to .nori-config.json or use one of the configured registries.`,
+        message: `No registry authentication configured for ${registryUrl}.\n\nLog in with '${cliPrefix} login' to configure registry access, or use one of the configured registries.`,
       });
       return;
     }
@@ -330,7 +311,7 @@ export const registryUploadMain = async (args: {
       config.auth.organizations != null;
 
     if (hasUnifiedAuthWithOrgs) {
-      // New flow: derive registry from namespace
+      // Derive registry from namespace
       targetRegistryUrl = buildOrganizationRegistryUrl({ orgId });
 
       // Check if user has access to this org
@@ -348,11 +329,11 @@ export const registryUploadMain = async (args: {
         return;
       }
     } else if (availableRegistries.length === 1) {
-      // Legacy flow: single registry - use it
+      // Single registry - use it
       registryAuth = availableRegistries[0];
       targetRegistryUrl = registryAuth.registryUrl;
     } else if (availableRegistries.length > 1) {
-      // Legacy flow: multiple registries - require explicit selection
+      // Multiple registries - require explicit selection
       error({
         message: formatMultipleRegistriesError({
           profileName,
@@ -364,7 +345,7 @@ export const registryUploadMain = async (args: {
     } else {
       // No registries available
       error({
-        message: `No registry authentication configured.\n\nEither log in with '${cliPrefix} login' or add registry credentials to .nori-config.json.`,
+        message: `No registry authentication configured.\n\nLog in with '${cliPrefix} login' to configure registry access.`,
       });
       return;
     }

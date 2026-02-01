@@ -87,53 +87,6 @@ describe("agent.switchProfile", () => {
     AgentRegistry.resetInstance();
   });
 
-  it("should preserve registryAuths when switching profiles", async () => {
-    // Create profiles directory with test profiles
-    const profilesDir = path.join(testInstallDir, ".nori", "profiles");
-    await fs.mkdir(profilesDir, { recursive: true });
-
-    for (const name of ["profile-a", "profile-b"]) {
-      const dir = path.join(profilesDir, name);
-      await fs.mkdir(dir, { recursive: true });
-      await fs.writeFile(path.join(dir, "CLAUDE.md"), `# ${name}`);
-    }
-
-    // Create initial config with registryAuths
-    const configPath = path.join(testInstallDir, ".nori-config.json");
-    const initialConfig = {
-      profile: { baseProfile: "profile-a" },
-      registryAuths: [
-        {
-          username: "test@example.com",
-          password: "secret123",
-          registryUrl: "https://private.registry.com",
-        },
-      ],
-      sendSessionTranscript: "enabled",
-    };
-    await fs.writeFile(configPath, JSON.stringify(initialConfig, null, 2));
-
-    // Switch to profile-b using agent method
-    const agent = AgentRegistry.getInstance().get({ name: "claude-code" });
-    await agent.switchProfile({
-      installDir: testInstallDir,
-      profileName: "profile-b",
-    });
-
-    // Verify registryAuths was preserved
-    const updatedConfig = JSON.parse(await fs.readFile(configPath, "utf-8"));
-    expect(updatedConfig.agents?.["claude-code"]?.profile?.baseProfile).toBe(
-      "profile-b",
-    );
-    expect(updatedConfig.registryAuths).toEqual([
-      {
-        username: "test@example.com",
-        password: "secret123",
-        registryUrl: "https://private.registry.com",
-      },
-    ]);
-  });
-
   it("should preserve version when switching profiles for claude-code", async () => {
     // Create profiles directory with test profiles
     const profilesDir = path.join(testInstallDir, ".nori", "profiles");

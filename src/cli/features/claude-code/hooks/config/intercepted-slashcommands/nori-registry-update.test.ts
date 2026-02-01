@@ -18,11 +18,14 @@ vi.mock("@/api/registrar.js", () => ({
   },
 }));
 
-// Mock the config module
-vi.mock("@/cli/config.js", () => ({
-  loadConfig: vi.fn(),
-  getRegistryAuth: vi.fn(),
-}));
+// Mock the config module - use real getRegistryAuth implementation
+vi.mock("@/cli/config.js", async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
+  return {
+    loadConfig: vi.fn(),
+    getRegistryAuth: actual.getRegistryAuth,
+  };
+});
 
 // Mock the registryAuth module
 vi.mock("@/api/registryAuth.js", () => ({
@@ -31,7 +34,7 @@ vi.mock("@/api/registryAuth.js", () => ({
 
 import { registrarApi, REGISTRAR_URL } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
-import { loadConfig, getRegistryAuth } from "@/cli/config.js";
+import { loadConfig } from "@/cli/config.js";
 import { stripAnsi } from "@/cli/features/test-utils/index.js";
 
 import type { HookInput } from "./types.js";
@@ -214,7 +217,6 @@ describe("nori-registry-update", () => {
         agents: {
           "claude-code": { profile: { baseProfile: "senior-swe" } },
         },
-        registryAuths: null,
       });
 
       vi.mocked(registrarApi.getPackument).mockResolvedValue({
@@ -259,7 +261,6 @@ describe("nori-registry-update", () => {
         agents: {
           "claude-code": { profile: { baseProfile: "senior-swe" } },
         },
-        registryAuths: null,
       });
 
       vi.mocked(registrarApi.getPackument).mockResolvedValue({
@@ -315,25 +316,17 @@ describe("nori-registry-update", () => {
         }),
       );
 
-      // Mock config with private registry auth
+      // Mock config with auth
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
         agents: {
           "claude-code": { profile: { baseProfile: "senior-swe" } },
         },
-        registryAuths: [
-          {
-            username: "test@example.com",
-            password: "password",
-            registryUrl: "https://private-registry.com",
-          },
-        ],
-      });
-
-      vi.mocked(getRegistryAuth).mockReturnValue({
-        username: "test@example.com",
-        password: "password",
-        registryUrl: "https://private-registry.com",
+        auth: {
+          username: "test@example.com",
+          organizationUrl: "https://private-registry.com",
+          refreshToken: "mock-refresh-token",
+        },
       });
 
       vi.mocked(getRegistryAuthToken).mockResolvedValue("test-auth-token");
@@ -377,19 +370,11 @@ describe("nori-registry-update", () => {
         agents: {
           "claude-code": { profile: { baseProfile: "senior-swe" } },
         },
-        registryAuths: [
-          {
-            username: "test@example.com",
-            password: "password",
-            registryUrl: "https://new-registry.com",
-          },
-        ],
-      });
-
-      vi.mocked(getRegistryAuth).mockReturnValue({
-        username: "test@example.com",
-        password: "password",
-        registryUrl: "https://new-registry.com",
+        auth: {
+          username: "test@example.com",
+          organizationUrl: "https://new-registry.com",
+          refreshToken: "mock-refresh-token",
+        },
       });
 
       vi.mocked(getRegistryAuthToken).mockResolvedValue("test-auth-token");
@@ -440,7 +425,6 @@ describe("nori-registry-update", () => {
         agents: {
           "claude-code": { profile: { baseProfile: "senior-swe" } },
         },
-        registryAuths: null,
       });
 
       vi.mocked(registrarApi.getPackument).mockRejectedValue(
@@ -474,7 +458,6 @@ describe("nori-registry-update", () => {
         agents: {
           "claude-code": { profile: { baseProfile: "senior-swe" } },
         },
-        registryAuths: null,
       });
 
       vi.mocked(registrarApi.getPackument).mockResolvedValue({
@@ -517,7 +500,6 @@ describe("nori-registry-update", () => {
         agents: {
           "claude-code": { profile: { baseProfile: "senior-swe" } },
         },
-        registryAuths: null,
       });
 
       vi.mocked(registrarApi.getPackument).mockResolvedValue({
@@ -577,7 +559,6 @@ describe("nori-registry-update", () => {
         agents: {
           "claude-code": { profile: { baseProfile: "senior-swe" } },
         },
-        registryAuths: null,
       });
 
       vi.mocked(registrarApi.getPackument).mockResolvedValue({
@@ -616,7 +597,6 @@ describe("nori-registry-update", () => {
         agents: {
           "claude-code": { profile: { baseProfile: "senior-swe" } },
         },
-        registryAuths: null,
       });
 
       vi.mocked(registrarApi.getPackument).mockResolvedValue({
@@ -657,7 +637,6 @@ describe("nori-registry-update", () => {
         agents: {
           "claude-code": { profile: { baseProfile: "senior-swe" } },
         },
-        registryAuths: null,
       });
 
       vi.mocked(registrarApi.getPackument).mockResolvedValue({
@@ -698,7 +677,6 @@ describe("nori-registry-update", () => {
         agents: {
           "claude-code": { profile: { baseProfile: "senior-swe" } },
         },
-        registryAuths: null,
       });
 
       vi.mocked(registrarApi.getPackument).mockResolvedValue({
@@ -736,7 +714,6 @@ describe("nori-registry-update", () => {
         agents: {
           "claude-code": { profile: { baseProfile: "senior-swe" } },
         },
-        registryAuths: null,
       });
 
       vi.mocked(registrarApi.getPackument).mockResolvedValue({

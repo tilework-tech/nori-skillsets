@@ -105,7 +105,6 @@ describe("skill-download", () => {
       // Mock config (no private registries)
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [],
       });
 
       // Mock getSkillPackument to return skill info
@@ -164,7 +163,6 @@ describe("skill-download", () => {
       // Mock config (no private registries)
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [],
       });
 
       // Mock getSkillPackument to return skill info
@@ -326,7 +324,6 @@ describe("skill-download", () => {
     it("should support gzipped tarballs", async () => {
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [],
       });
 
       vi.mocked(registrarApi.getSkillPackument).mockResolvedValue({
@@ -365,7 +362,6 @@ describe("skill-download", () => {
 
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: customInstallDir,
-        registryAuths: [],
       });
 
       vi.mocked(registrarApi.getSkillPackument).mockResolvedValue({
@@ -395,38 +391,19 @@ describe("skill-download", () => {
     });
   });
 
-  describe("multi-registry support", () => {
-    it("should search all registries when no registry URL specified", async () => {
-      const privateRegistryUrl = "https://private.registry.com";
-
-      // Mock config with private registry auth
+  describe("registry search behavior", () => {
+    it("should download public (unnamespaced) skill without auth", async () => {
+      // Mock config without any auth
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [
-          {
-            registryUrl: privateRegistryUrl,
-            username: "user",
-            password: "pass",
-          },
-        ],
       });
 
-      // Mock auth token
-      vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
-
-      // Skill only exists in public registry
-      vi.mocked(registrarApi.getSkillPackument).mockImplementation(
-        async (args) => {
-          if (args.registryUrl === REGISTRAR_URL) {
-            return {
-              name: "test-skill",
-              "dist-tags": { latest: "1.0.0" },
-              versions: { "1.0.0": { name: "test-skill", version: "1.0.0" } },
-            };
-          }
-          throw new Error("Not found");
-        },
-      );
+      // Skill exists in public registry
+      vi.mocked(registrarApi.getSkillPackument).mockResolvedValue({
+        name: "test-skill",
+        "dist-tags": { latest: "1.0.0" },
+        versions: { "1.0.0": { name: "test-skill", version: "1.0.0" } },
+      });
 
       const mockTarball = await createMockSkillTarball();
       vi.mocked(registrarApi.downloadSkillTarball).mockResolvedValue(
@@ -438,15 +415,11 @@ describe("skill-download", () => {
         cwd: testDir,
       });
 
-      // Verify both registries were searched
+      // Verify only public registry was searched (no auth token)
+      expect(registrarApi.getSkillPackument).toHaveBeenCalledTimes(1);
       expect(registrarApi.getSkillPackument).toHaveBeenCalledWith({
         skillName: "test-skill",
         registryUrl: REGISTRAR_URL,
-      });
-      expect(registrarApi.getSkillPackument).toHaveBeenCalledWith({
-        skillName: "test-skill",
-        registryUrl: privateRegistryUrl,
-        authToken: "mock-auth-token",
       });
 
       // Verify download succeeded from public registry
@@ -455,138 +428,31 @@ describe("skill-download", () => {
       expect(stats.isDirectory()).toBe(true);
     });
 
-    it("should error with disambiguation when skill found in multiple registries", async () => {
-      const privateRegistryUrl = "https://private.registry.com";
-
-      // Mock config with private registry auth
+    it("should error when namespaced skill downloaded without auth", async () => {
+      // Mock config without unified auth (no auth.organizations)
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [
-          {
-            registryUrl: privateRegistryUrl,
-            username: "user",
-            password: "pass",
-          },
-        ],
       });
 
-      // Mock auth token
-      vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
-
-      // Skill exists in BOTH registries
-      vi.mocked(registrarApi.getSkillPackument).mockImplementation(
-        async (args) => {
-          if (args.registryUrl === REGISTRAR_URL) {
-            return {
-              name: "test-skill",
-              description: "Public version",
-              "dist-tags": { latest: "1.0.0" },
-              versions: {
-                "1.0.0": { name: "test-skill", version: "1.0.0" },
-              } as Record<string, { name: string; version: string }>,
-            };
-          }
-          if (args.registryUrl === privateRegistryUrl) {
-            return {
-              name: "test-skill",
-              description: "Private version",
-              "dist-tags": { latest: "2.0.0" },
-              versions: {
-                "2.0.0": { name: "test-skill", version: "2.0.0" },
-              } as Record<string, { name: string; version: string }>,
-            };
-          }
-          throw new Error("Not found");
-        },
-      );
-
       await skillDownloadMain({
-        skillSpec: "test-skill",
+        skillSpec: "pangram/my-skill",
         cwd: testDir,
       });
 
-      // Verify error message about multiple skills
+      // Verify error message about authentication required
       const allErrorOutput = mockConsoleError.mock.calls
         .map((call) => call.join(" "))
         .join("\n");
-      expect(allErrorOutput.toLowerCase()).toContain("multiple");
-      expect(allErrorOutput).toContain(REGISTRAR_URL);
-      expect(allErrorOutput).toContain(privateRegistryUrl);
-      expect(allErrorOutput).toContain("--registry");
+      expect(allErrorOutput.toLowerCase()).toContain("not found");
 
       // Verify no download occurred
       expect(registrarApi.downloadSkillTarball).not.toHaveBeenCalled();
     });
 
-    it("should download from single registry when skill only in one", async () => {
-      const privateRegistryUrl = "https://private.registry.com";
-
-      // Mock config with private registry auth
-      vi.mocked(loadConfig).mockResolvedValue({
-        installDir: testDir,
-        registryAuths: [
-          {
-            registryUrl: privateRegistryUrl,
-            username: "user",
-            password: "pass",
-          },
-        ],
-      });
-
-      // Mock auth token
-      vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
-
-      // Skill only exists in private registry
-      vi.mocked(registrarApi.getSkillPackument).mockImplementation(
-        async (args) => {
-          if (args.registryUrl === privateRegistryUrl) {
-            return {
-              name: "private-skill",
-              "dist-tags": { latest: "1.0.0" },
-              versions: {
-                "1.0.0": { name: "private-skill", version: "1.0.0" },
-              },
-            };
-          }
-          throw new Error("Not found");
-        },
-      );
-
-      const mockTarball = await createMockSkillTarball();
-      vi.mocked(registrarApi.downloadSkillTarball).mockResolvedValue(
-        mockTarball,
-      );
-
-      await skillDownloadMain({
-        skillSpec: "private-skill",
-        cwd: testDir,
-      });
-
-      // Verify download was from private registry with auth
-      expect(registrarApi.downloadSkillTarball).toHaveBeenCalledWith({
-        skillName: "private-skill",
-        version: undefined,
-        registryUrl: privateRegistryUrl,
-        authToken: "mock-auth-token",
-      });
-
-      // Verify skill was installed
-      const skillDir = path.join(skillsDir, "private-skill");
-      const stats = await fs.stat(skillDir);
-      expect(stats.isDirectory()).toBe(true);
-    });
-
     it("should use --registry option to download from specific public registry", async () => {
-      // Mock config (with private registry, but we'll specify public)
+      // Mock config
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [
-          {
-            registryUrl: "https://private.registry.com",
-            username: "user",
-            password: "pass",
-          },
-        ],
       });
 
       // Skill exists in public registry
@@ -626,23 +492,16 @@ describe("skill-download", () => {
     it("should use --registry option with auth for private registry", async () => {
       const privateRegistryUrl = "https://private.registry.com";
 
-      // Mock config with private registry auth
+      // Mock config with unified auth
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [
-          {
-            registryUrl: privateRegistryUrl,
-            username: "user",
-            password: "pass",
-          },
-        ],
       });
 
-      // Mock getRegistryAuth to return the auth config
+      // Mock getRegistryAuth to return the auth config (using refreshToken, not password)
       vi.mocked(getRegistryAuth).mockReturnValue({
         registryUrl: privateRegistryUrl,
         username: "user",
-        password: "pass",
+        refreshToken: "refresh-token",
       });
 
       // Mock auth token
@@ -686,10 +545,9 @@ describe("skill-download", () => {
     it("should error when private registry specified but no auth configured", async () => {
       const privateRegistryUrl = "https://private.registry.com";
 
-      // Mock config WITHOUT the private registry auth
+      // Mock config WITHOUT auth
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [],
       });
 
       // Mock getRegistryAuth to return null (no auth configured)
@@ -711,25 +569,47 @@ describe("skill-download", () => {
       expect(registrarApi.downloadSkillTarball).not.toHaveBeenCalled();
     });
 
-    it("should error when skill not found in any registry", async () => {
-      const privateRegistryUrl = "https://private.registry.com";
+    it("should work when config is null (only searches public registry)", async () => {
+      // Mock config to return null
+      vi.mocked(loadConfig).mockResolvedValue(null);
 
-      // Mock config with private registry auth
-      vi.mocked(loadConfig).mockResolvedValue({
-        installDir: testDir,
-        registryAuths: [
-          {
-            registryUrl: privateRegistryUrl,
-            username: "user",
-            password: "pass",
-          },
-        ],
+      // Skill exists in public registry
+      vi.mocked(registrarApi.getSkillPackument).mockResolvedValue({
+        name: "test-skill",
+        "dist-tags": { latest: "1.0.0" },
+        versions: { "1.0.0": { name: "test-skill", version: "1.0.0" } },
       });
 
-      // Mock auth token
-      vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
+      const mockTarball = await createMockSkillTarball();
+      vi.mocked(registrarApi.downloadSkillTarball).mockResolvedValue(
+        mockTarball,
+      );
 
-      // Skill not found in any registry
+      await skillDownloadMain({
+        skillSpec: "test-skill",
+        cwd: testDir,
+      });
+
+      // Verify only public registry was searched
+      expect(registrarApi.getSkillPackument).toHaveBeenCalledTimes(1);
+      expect(registrarApi.getSkillPackument).toHaveBeenCalledWith({
+        skillName: "test-skill",
+        registryUrl: REGISTRAR_URL,
+      });
+
+      // Verify download succeeded
+      const skillDir = path.join(skillsDir, "test-skill");
+      const stats = await fs.stat(skillDir);
+      expect(stats.isDirectory()).toBe(true);
+    });
+
+    it("should error when skill not found in public registry", async () => {
+      // Mock config without auth
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+      });
+
+      // Skill not found in public registry
       vi.mocked(registrarApi.getSkillPackument).mockRejectedValue(
         new Error("Not found"),
       );
@@ -772,7 +652,6 @@ describe("skill-download", () => {
 
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [],
       });
 
       await skillDownloadMain({
@@ -797,7 +676,6 @@ describe("skill-download", () => {
     it("should error when skill not found with --list-versions", async () => {
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [],
       });
 
       vi.mocked(registrarApi.getSkillPackument).mockRejectedValue(
@@ -834,7 +712,6 @@ describe("skill-download", () => {
 
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [],
       });
 
       // Registry has newer version
@@ -882,7 +759,6 @@ describe("skill-download", () => {
 
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [],
       });
 
       // Registry has same version
@@ -924,7 +800,6 @@ describe("skill-download", () => {
 
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [],
       });
 
       // Request older version
@@ -958,7 +833,6 @@ describe("skill-download", () => {
     it("should use nori-skillsets command names when cliName is nori-skillsets", async () => {
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [],
       });
 
       vi.mocked(registrarApi.getSkillPackument).mockResolvedValue({
@@ -985,7 +859,6 @@ describe("skill-download", () => {
     it("should use nori-ai command names when cliName is nori-ai", async () => {
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [],
       });
 
       vi.mocked(registrarApi.getSkillPackument).mockResolvedValue({
@@ -1047,7 +920,7 @@ describe("--skillset option and manifest updates", () => {
   it("should add skill to specified skillset's skills.json", async () => {
     vi.mocked(loadConfig).mockResolvedValue({
       installDir: testDir,
-      registryAuths: [],
+
       agents: {
         "claude-code": {
           profile: { baseProfile: "other-profile" },
@@ -1097,7 +970,7 @@ describe("--skillset option and manifest updates", () => {
 
     vi.mocked(loadConfig).mockResolvedValue({
       installDir: testDir,
-      registryAuths: [],
+
       agents: {
         "claude-code": {
           profile: { baseProfile: "active-profile" },
@@ -1133,7 +1006,6 @@ describe("--skillset option and manifest updates", () => {
   it("should error when specified skillset does not exist", async () => {
     vi.mocked(loadConfig).mockResolvedValue({
       installDir: testDir,
-      registryAuths: [],
     });
 
     vi.mocked(registrarApi.getSkillPackument).mockResolvedValue({
@@ -1162,7 +1034,7 @@ describe("--skillset option and manifest updates", () => {
   it("should skip manifest update when no active profile and --skillset not specified", async () => {
     vi.mocked(loadConfig).mockResolvedValue({
       installDir: testDir,
-      registryAuths: [],
+
       // No agents/profile configured
     });
 
@@ -1195,7 +1067,7 @@ describe("--skillset option and manifest updates", () => {
   it("should not update manifest when --list-versions flag is used", async () => {
     vi.mocked(loadConfig).mockResolvedValue({
       installDir: testDir,
-      registryAuths: [],
+
       agents: {
         "claude-code": {
           profile: { baseProfile: "test-profile" },
@@ -1237,7 +1109,7 @@ describe("--skillset option and manifest updates", () => {
 
     vi.mocked(loadConfig).mockResolvedValue({
       installDir: testDir,
-      registryAuths: [],
+
       agents: {
         "claude-code": {
           profile: { baseProfile: "test-profile" },
@@ -1313,7 +1185,7 @@ describe("profile directory persistence", () => {
   it("should copy downloaded skill to active profile's skills directory", async () => {
     vi.mocked(loadConfig).mockResolvedValue({
       installDir: testDir,
-      registryAuths: [],
+
       agents: {
         "claude-code": {
           profile: { baseProfile: "active-profile" },
@@ -1379,7 +1251,7 @@ describe("profile directory persistence", () => {
 
     vi.mocked(loadConfig).mockResolvedValue({
       installDir: testDir,
-      registryAuths: [],
+
       agents: {
         "claude-code": {
           profile: { baseProfile: "active-profile" },
@@ -1422,7 +1294,7 @@ describe("profile directory persistence", () => {
   it("should not crash when no active profile and no --skillset", async () => {
     vi.mocked(loadConfig).mockResolvedValue({
       installDir: testDir,
-      registryAuths: [],
+
       // No agents/profile configured
     });
 
@@ -1470,7 +1342,7 @@ describe("profile directory persistence", () => {
   it("should create profile skills directory if it does not exist", async () => {
     vi.mocked(loadConfig).mockResolvedValue({
       installDir: testDir,
-      registryAuths: [],
+
       agents: {
         "claude-code": {
           profile: { baseProfile: "active-profile" },
@@ -1546,7 +1418,7 @@ describe("profile directory persistence", () => {
 
     vi.mocked(loadConfig).mockResolvedValue({
       installDir: testDir,
-      registryAuths: [],
+
       agents: {
         "claude-code": {
           profile: { baseProfile: "active-profile" },
@@ -1584,7 +1456,7 @@ describe("profile directory persistence", () => {
   it("should store raw files in profile and apply template substitution to live copy", async () => {
     vi.mocked(loadConfig).mockResolvedValue({
       installDir: testDir,
-      registryAuths: [],
+
       agents: {
         "claude-code": {
           profile: { baseProfile: "active-profile" },
@@ -1685,7 +1557,7 @@ describe("nori.json updates on skill download", () => {
 
     vi.mocked(loadConfig).mockResolvedValue({
       installDir: testDir,
-      registryAuths: [],
+
       agents: {
         "claude-code": {
           profile: { baseProfile: "my-profile" },
@@ -1728,7 +1600,7 @@ describe("nori.json updates on skill download", () => {
 
     vi.mocked(loadConfig).mockResolvedValue({
       installDir: testDir,
-      registryAuths: [],
+
       agents: {
         "claude-code": {
           profile: { baseProfile: "no-nori-json-profile" },
@@ -1780,7 +1652,7 @@ describe("nori.json updates on skill download", () => {
 
     vi.mocked(loadConfig).mockResolvedValue({
       installDir: testDir,
-      registryAuths: [],
+
       agents: {
         "claude-code": {
           profile: { baseProfile: "deps-profile" },
@@ -1816,7 +1688,7 @@ describe("nori.json updates on skill download", () => {
   it("should not update nori.json when no active skillset", async () => {
     vi.mocked(loadConfig).mockResolvedValue({
       installDir: testDir,
-      registryAuths: [],
+
       // No agents/profile configured
     });
 
@@ -1884,7 +1756,7 @@ describe("namespaced package support", () => {
       // Mock config with unified auth
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [],
+
         auth: {
           username: "testuser",
           organizationUrl: "https://noriskillsets.dev",
@@ -1947,7 +1819,7 @@ describe("namespaced package support", () => {
 
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [],
+
         auth: {
           username: "testuser",
           organizationUrl: "https://noriskillsets.dev",
@@ -1991,7 +1863,7 @@ describe("namespaced package support", () => {
     it("should error when user does not have access to org", async () => {
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [],
+
         auth: {
           username: "testuser",
           organizationUrl: "https://noriskillsets.dev",
@@ -2021,7 +1893,7 @@ describe("namespaced package support", () => {
     it("should error when namespace is specified with --registry flag", async () => {
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [],
+
         auth: {
           username: "testuser",
           organizationUrl: "https://noriskillsets.dev",
@@ -2053,7 +1925,7 @@ describe("namespaced package support", () => {
     it("should show namespaced format in success messages", async () => {
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [],
+
         auth: {
           username: "testuser",
           organizationUrl: "https://noriskillsets.dev",

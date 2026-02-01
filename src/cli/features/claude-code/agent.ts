@@ -149,7 +149,6 @@ export const claudeCodeAgent: Agent = {
       agents: updatedAgents,
       sendSessionTranscript: currentConfig?.sendSessionTranscript ?? null,
       autoupdate: currentConfig?.autoupdate,
-      registryAuths: currentConfig?.registryAuths ?? null,
       version: currentConfig?.version ?? null,
       installDir,
     });

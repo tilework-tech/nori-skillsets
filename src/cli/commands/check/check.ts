@@ -4,11 +4,9 @@
  * Validates Nori installation and configuration
  */
 
-import { handshake } from "@/api/index.js";
 import {
   loadConfig,
   validateConfig,
-  isPaidInstall,
   getInstalledAgents,
 } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
@@ -125,22 +123,6 @@ export const checkMain = async (args?: {
     }
   }
 
-  // Check server connectivity (paid mode only)
-  if (isPaidInstall({ config })) {
-    info({ message: "Testing server connection..." });
-    try {
-      const response = await handshake();
-      success({
-        message: `   ✓ Server authentication successful (user: ${response.user})`,
-      });
-    } catch (err: any) {
-      error({ message: "   ✗ Server authentication failed" });
-      info({ message: `     - ${err.message}` });
-      hasErrors = true;
-    }
-    newline();
-  }
-
   // Run validation for all loaders
   const agentImpl = AgentRegistry.getInstance().get({ name: agentName });
   const registry = agentImpl.getLoaderRegistry();
@@ -179,8 +161,5 @@ export const checkMain = async (args?: {
     process.exit(1);
   } else {
     success({ message: "All validation checks passed!" });
-    info({
-      message: `Installation mode: ${isPaidInstall({ config }) ? "paid" : "free"}`,
-    });
   }
 };

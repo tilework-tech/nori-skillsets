@@ -286,13 +286,6 @@ describe("migration 19.0.0 - consolidate auth structure", () => {
       },
       sendSessionTranscript: "enabled",
       autoupdate: "disabled",
-      registryAuths: [
-        {
-          username: "reg@example.com",
-          password: "regpass",
-          registryUrl: "https://registry.example.com",
-        },
-      ],
     } as any;
 
     const result = await migrate({
@@ -308,13 +301,6 @@ describe("migration 19.0.0 - consolidate auth structure", () => {
     });
     expect(result.sendSessionTranscript).toBe("enabled");
     expect(result.autoupdate).toBe("disabled");
-    expect(result.registryAuths).toEqual([
-      {
-        username: "reg@example.com",
-        password: "regpass",
-        registryUrl: "https://registry.example.com",
-      },
-    ]);
   });
 
   it("should handle config with no auth fields", async () => {

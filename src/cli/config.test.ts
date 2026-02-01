@@ -12,7 +12,6 @@ import {
   loadConfig,
   saveConfig,
   getConfigPath,
-  isPaidInstall,
   getInstalledAgents,
   type Config,
 } from "./config.js";
@@ -345,38 +344,6 @@ describe("config with profile-based system", () => {
       const loaded = await loadConfig({ installDir: customDir });
       expect(loaded?.installDir).toBe(customDir);
     });
-  });
-});
-
-describe("isPaidInstall", () => {
-  it("should return true when config has auth with all fields", () => {
-    const config: Config = {
-      auth: {
-        username: "test@example.com",
-        password: "password123",
-        organizationUrl: "https://example.com",
-      },
-      installDir: "/test/dir",
-    };
-
-    expect(isPaidInstall({ config })).toBe(true);
-  });
-
-  it("should return false when config has no auth", () => {
-    const config: Config = {
-      installDir: "/test/dir",
-    };
-
-    expect(isPaidInstall({ config })).toBe(false);
-  });
-
-  it("should return false when config has auth set to null", () => {
-    const config: Config = {
-      auth: null,
-      installDir: "/test/dir",
-    };
-
-    expect(isPaidInstall({ config })).toBe(false);
   });
 });
 
@@ -787,327 +754,89 @@ describe("saveConfig should not write installedAgents", () => {
   });
 });
 
-describe("registryAuths", () => {
-  let tempDir: string;
-  let mockConfigPath: string;
+describe("getRegistryAuth", () => {
+  it("should return auth when unified auth org URL matches the requested registry URL", async () => {
+    const { getRegistryAuth } = await import("./config.js");
 
-  beforeEach(async () => {
-    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "config-registry-test-"));
-    mockConfigPath = path.join(tempDir, ".nori-config.json");
-  });
-
-  afterEach(async () => {
-    await fs.rm(tempDir, { recursive: true, force: true });
-  });
-
-  describe("loadConfig with registryAuths", () => {
-    it("should load registryAuths when present and valid", async () => {
-      await fs.writeFile(
-        mockConfigPath,
-        JSON.stringify({
-          agents: {
-            "claude-code": { profile: { baseProfile: "senior-swe" } },
-          },
-          registryAuths: [
-            {
-              username: "test@example.com",
-              password: "password123",
-              registryUrl: "https://noriskillsets.dev",
-            },
-          ],
-        }),
-      );
-
-      const loaded = await loadConfig({ installDir: tempDir });
-
-      expect(loaded?.registryAuths).toEqual([
-        {
-          username: "test@example.com",
-          password: "password123",
-          registryUrl: "https://noriskillsets.dev",
-        },
-      ]);
-    });
-
-    it("should load multiple registryAuths", async () => {
-      await fs.writeFile(
-        mockConfigPath,
-        JSON.stringify({
-          agents: {
-            "claude-code": { profile: { baseProfile: "senior-swe" } },
-          },
-          registryAuths: [
-            {
-              username: "user1@example.com",
-              password: "pass1",
-              registryUrl: "https://registry1.example.com",
-            },
-            {
-              username: "user2@example.com",
-              password: "pass2",
-              registryUrl: "https://registry2.example.com",
-            },
-          ],
-        }),
-      );
-
-      const loaded = await loadConfig({ installDir: tempDir });
-
-      expect(loaded?.registryAuths).toHaveLength(2);
-      expect(loaded?.registryAuths?.[0].registryUrl).toBe(
-        "https://registry1.example.com",
-      );
-      expect(loaded?.registryAuths?.[1].registryUrl).toBe(
-        "https://registry2.example.com",
-      );
-    });
-
-    it("should filter out invalid registryAuths entries", async () => {
-      await fs.writeFile(
-        mockConfigPath,
-        JSON.stringify({
-          agents: {
-            "claude-code": { profile: { baseProfile: "senior-swe" } },
-          },
-          registryAuths: [
-            {
-              username: "valid@example.com",
-              password: "validpass",
-              registryUrl: "https://valid.example.com",
-            },
-            {
-              // Missing password
-              username: "invalid@example.com",
-              registryUrl: "https://invalid.example.com",
-            },
-            {
-              // Missing username
-              password: "pass",
-              registryUrl: "https://invalid2.example.com",
-            },
-            {
-              // Missing registryUrl
-              username: "user@example.com",
-              password: "pass",
-            },
-            "not an object",
-            null,
-          ],
-        }),
-      );
-
-      const loaded = await loadConfig({ installDir: tempDir });
-
-      expect(loaded?.registryAuths).toHaveLength(1);
-      expect(loaded?.registryAuths?.[0].username).toBe("valid@example.com");
-    });
-
-    it("should return null registryAuths when array is empty after filtering", async () => {
-      await fs.writeFile(
-        mockConfigPath,
-        JSON.stringify({
-          agents: {
-            "claude-code": { profile: { baseProfile: "senior-swe" } },
-          },
-          registryAuths: [
-            { username: "incomplete" }, // Invalid - missing fields
-          ],
-        }),
-      );
-
-      const loaded = await loadConfig({ installDir: tempDir });
-
-      expect(loaded?.registryAuths).toBeUndefined();
-    });
-
-    it("should handle non-array registryAuths gracefully", async () => {
-      await fs.writeFile(
-        mockConfigPath,
-        JSON.stringify({
-          agents: {
-            "claude-code": { profile: { baseProfile: "senior-swe" } },
-          },
-          registryAuths: "not an array",
-        }),
-      );
-
-      const loaded = await loadConfig({ installDir: tempDir });
-
-      expect(loaded?.registryAuths).toBeUndefined();
-    });
-  });
-
-  describe("saveConfig with registryAuths", () => {
-    it("should save registryAuths to config file", async () => {
-      await saveConfig({
-        username: null,
-        password: null,
-        organizationUrl: null,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-        registryAuths: [
-          {
-            username: "test@example.com",
-            password: "testpass",
-            registryUrl: "https://noriskillsets.dev",
-          },
-        ],
-        installDir: tempDir,
-      });
-
-      const content = await fs.readFile(mockConfigPath, "utf-8");
-      const config = JSON.parse(content);
-
-      expect(config.registryAuths).toEqual([
-        {
-          username: "test@example.com",
-          password: "testpass",
-          registryUrl: "https://noriskillsets.dev",
-        },
-      ]);
-    });
-
-    it("should not save registryAuths when null", async () => {
-      await saveConfig({
-        username: null,
-        password: null,
-        organizationUrl: null,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-        registryAuths: null,
-        installDir: tempDir,
-      });
-
-      const content = await fs.readFile(mockConfigPath, "utf-8");
-      const config = JSON.parse(content);
-
-      expect(config.registryAuths).toBeUndefined();
-    });
-
-    it("should not save registryAuths when empty array", async () => {
-      await saveConfig({
-        username: null,
-        password: null,
-        organizationUrl: null,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-        registryAuths: [],
-        installDir: tempDir,
-      });
-
-      const content = await fs.readFile(mockConfigPath, "utf-8");
-      const config = JSON.parse(content);
-
-      expect(config.registryAuths).toBeUndefined();
-    });
-  });
-
-  describe("getRegistryAuth", () => {
-    it("should find auth for matching registryUrl", async () => {
-      const { getRegistryAuth } = await import("./config.js");
-
-      const config: Config = {
-        installDir: "/test",
-        registryAuths: [
-          {
-            username: "test@example.com",
-            password: "testpass",
-            registryUrl: "https://noriskillsets.dev",
-          },
-        ],
-      };
-
-      const auth = getRegistryAuth({
-        config,
-        registryUrl: "https://noriskillsets.dev",
-      });
-
-      expect(auth).toEqual({
+    const config: Config = {
+      installDir: "/test",
+      auth: {
         username: "test@example.com",
-        password: "testpass",
-        registryUrl: "https://noriskillsets.dev",
-      });
+        refreshToken: "token-123",
+        organizationUrl: "https://myorg.tilework.tech",
+      },
+    };
+
+    const auth = getRegistryAuth({
+      config,
+      registryUrl: "https://myorg.nori-registry.ai",
     });
 
-    it("should return null when no matching registryUrl", async () => {
-      const { getRegistryAuth } = await import("./config.js");
+    expect(auth).not.toBeNull();
+    expect(auth?.username).toBe("test@example.com");
+    expect(auth?.refreshToken).toBe("token-123");
+    expect(auth?.registryUrl).toBe("https://myorg.nori-registry.ai");
+    // Should NOT have password field
+    expect((auth as any)?.password).toBeUndefined();
+  });
 
-      const config: Config = {
-        installDir: "/test",
-        registryAuths: [
-          {
-            username: "test@example.com",
-            password: "testpass",
-            registryUrl: "https://other-registry.example.com",
-          },
-        ],
-      };
+  it("should return auth for localhost/local dev URLs", async () => {
+    const { getRegistryAuth } = await import("./config.js");
 
-      const auth = getRegistryAuth({
-        config,
-        registryUrl: "https://noriskillsets.dev",
-      });
+    const config: Config = {
+      installDir: "/test",
+      auth: {
+        username: "dev@example.com",
+        refreshToken: "dev-token",
+        organizationUrl: "http://localhost:3000",
+      },
+    };
 
-      expect(auth).toBeNull();
+    const auth = getRegistryAuth({
+      config,
+      registryUrl: "http://localhost:4000/registry",
     });
 
-    it("should return null when registryAuths is null", async () => {
-      const { getRegistryAuth } = await import("./config.js");
+    expect(auth).not.toBeNull();
+    expect(auth?.username).toBe("dev@example.com");
+    expect(auth?.refreshToken).toBe("dev-token");
+    // Should NOT have password field
+    expect((auth as any)?.password).toBeUndefined();
+  });
 
-      const config: Config = {
-        installDir: "/test",
-        registryAuths: null,
-      };
+  it("should return null when no match", async () => {
+    const { getRegistryAuth } = await import("./config.js");
 
-      const auth = getRegistryAuth({
-        config,
-        registryUrl: "https://noriskillsets.dev",
-      });
+    const config: Config = {
+      installDir: "/test",
+      auth: {
+        username: "test@example.com",
+        refreshToken: "token-123",
+        organizationUrl: "https://myorg.tilework.tech",
+      },
+    };
 
-      expect(auth).toBeNull();
+    const auth = getRegistryAuth({
+      config,
+      registryUrl: "https://otherorg.nori-registry.ai",
     });
 
-    it("should return null when registryAuths is undefined", async () => {
-      const { getRegistryAuth } = await import("./config.js");
+    expect(auth).toBeNull();
+  });
 
-      const config: Config = {
-        installDir: "/test",
-      };
+  it("should return null when config has no auth", async () => {
+    const { getRegistryAuth } = await import("./config.js");
 
-      const auth = getRegistryAuth({
-        config,
-        registryUrl: "https://noriskillsets.dev",
-      });
+    const config: Config = {
+      installDir: "/test",
+    };
 
-      expect(auth).toBeNull();
+    const auth = getRegistryAuth({
+      config,
+      registryUrl: "https://noriskillsets.dev",
     });
 
-    it("should match registryUrl with trailing slash normalization", async () => {
-      const { getRegistryAuth } = await import("./config.js");
-
-      const config: Config = {
-        installDir: "/test",
-        registryAuths: [
-          {
-            username: "test@example.com",
-            password: "testpass",
-            registryUrl: "https://noriskillsets.dev/",
-          },
-        ],
-      };
-
-      // Search without trailing slash should find auth with trailing slash
-      const auth = getRegistryAuth({
-        config,
-        registryUrl: "https://noriskillsets.dev",
-      });
-
-      expect(auth).not.toBeNull();
-      expect(auth?.username).toBe("test@example.com");
-    });
+    expect(auth).toBeNull();
   });
 });
 
@@ -1214,34 +943,6 @@ describe("token-based auth", () => {
       expect(isLegacy).toBe(false);
     });
   });
-
-  describe("isPaidInstall with token-based auth", () => {
-    it("should return true when config has auth with refreshToken", () => {
-      const config: Config = {
-        auth: {
-          username: "test@example.com",
-          refreshToken: "firebase-refresh-token",
-          organizationUrl: "https://example.com",
-        },
-        installDir: "/test/dir",
-      };
-
-      expect(isPaidInstall({ config })).toBe(true);
-    });
-
-    it("should return true for legacy password-based auth", () => {
-      const config: Config = {
-        auth: {
-          username: "test@example.com",
-          password: "password123",
-          organizationUrl: "https://example.com",
-        },
-        installDir: "/test/dir",
-      };
-
-      expect(isPaidInstall({ config })).toBe(true);
-    });
-  });
 });
 
 describe("schema validation", () => {
@@ -1338,45 +1039,6 @@ describe("schema validation", () => {
       // Unknown properties should be stripped
       expect((loaded as any).unknownField).toBeUndefined();
       expect((loaded as any).anotherUnknown).toBeUndefined();
-    });
-  });
-
-  describe("registryAuths filtering warning", () => {
-    it("should warn when invalid registryAuths entries are filtered", async () => {
-      // Logger's warn uses console.log (not console.warn)
-      const logSpy = vi
-        .spyOn(console, "log")
-        .mockImplementation(() => undefined);
-
-      await fs.writeFile(
-        mockConfigPath,
-        JSON.stringify({
-          agents: {
-            "claude-code": { profile: { baseProfile: "senior-swe" } },
-          },
-          registryAuths: [
-            {
-              username: "valid@example.com",
-              password: "validpass",
-              registryUrl: "https://valid.example.com",
-            },
-            {
-              // Missing password - invalid
-              username: "invalid@example.com",
-              registryUrl: "https://invalid.example.com",
-            },
-          ],
-        }),
-      );
-
-      const loaded = await loadConfig({ installDir: tempDir });
-
-      expect(loaded?.registryAuths).toHaveLength(1);
-      expect(logSpy).toHaveBeenCalledWith(
-        expect.stringContaining("registryAuths"),
-      );
-
-      logSpy.mockRestore();
     });
   });
 });

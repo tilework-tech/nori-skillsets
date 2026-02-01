@@ -51,7 +51,7 @@ vi.mock("@/cli/installTracking.js", () => ({
     tilework_cli_days_since_install: 0,
     tilework_cli_node_version: "20.0.0",
     tilework_cli_profile: null,
-    tilework_cli_install_type: "free",
+    tilework_cli_install_type: "unauthenticated",
   }),
   getUserId: vi.fn().mockResolvedValue(null),
   sendAnalyticsEvent: vi.fn(),
@@ -168,7 +168,7 @@ describe("uninstall cleanup", () => {
 
   describe("uninstall order", () => {
     it("should uninstall subagents before profiles removes profile directories", async () => {
-      // Set up free config
+      // Set up config
       const config = {
         installDir: tempDir,
         agents: {
@@ -207,7 +207,7 @@ describe("uninstall cleanup", () => {
     });
 
     it("should uninstall slash commands before profiles removes profile directories", async () => {
-      // Set up free config
+      // Set up config
       const config = {
         installDir: tempDir,
         agents: {
@@ -339,7 +339,7 @@ describe("uninstall cleanup", () => {
     });
 
     it("should preserve directories with user-created files", async () => {
-      // Set up free config
+      // Set up config
       const config = {
         installDir: tempDir,
         agents: {

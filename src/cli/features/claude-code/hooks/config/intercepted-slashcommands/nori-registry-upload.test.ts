@@ -96,13 +96,12 @@ describe("nori-registry-upload", () => {
       configPath,
       JSON.stringify({
         profile: { baseProfile: "senior-swe" },
-        registryAuths: [
-          {
-            username: "test@example.com",
-            password: "test-password",
-            registryUrl: "https://noriskillsets.dev",
-          },
-        ],
+        auth: {
+          username: "test@example.com",
+          organizationUrl: "https://public.tilework.tech",
+          refreshToken: "mock-refresh-token",
+          organizations: ["public"],
+        },
       }),
     );
   };
@@ -202,7 +201,7 @@ describe("nori-registry-upload", () => {
       expect(result!.decision).toBe("block");
       const plainReason = stripAnsi(result!.reason!);
       expect(plainReason).toContain("No registry authentication");
-      expect(plainReason).toContain("registryAuths");
+      expect(plainReason).toContain("login");
     });
 
     it("should return error when profile does not exist", async () => {
@@ -343,27 +342,6 @@ describe("nori-registry-upload", () => {
   });
 
   describe("multi-registry support", () => {
-    const createConfigWithMultipleRegistries = async (): Promise<void> => {
-      await fs.writeFile(
-        configPath,
-        JSON.stringify({
-          profile: { baseProfile: "senior-swe" },
-          registryAuths: [
-            {
-              username: "test@example.com",
-              password: "test-password",
-              registryUrl: "https://noriskillsets.dev",
-            },
-            {
-              username: "private@example.com",
-              password: "private-password",
-              registryUrl: "https://private-registry.example.com",
-            },
-          ],
-        }),
-      );
-    };
-
     it("should match /nori-registry-upload with registry URL", () => {
       const hasMatch = noriRegistryUpload.matchers.some((m) => {
         const regex = new RegExp(m, "i");
@@ -406,47 +384,20 @@ describe("nori-registry-upload", () => {
       const plainReason = stripAnsi(result!.reason!);
       expect(plainReason).toContain("Successfully uploaded");
 
-      // Verify API was called with the single configured registry
+      // Verify API was called with the derived registry URL from org auth
       expect(registrarApi.uploadProfile).toHaveBeenCalledWith(
         expect.objectContaining({
           packageName: "test-profile",
-          registryUrl: "https://noriskillsets.dev",
+          registryUrl: "https://public.nori-registry.ai",
         }),
       );
     });
 
-    it("should error when multiple registries configured and no URL provided", async () => {
-      await createConfigWithMultipleRegistries();
+    it("should upload to specified registry when registry URL matches", async () => {
+      await createConfigWithRegistryAuth();
       await createTestProfile({ name: "test-profile" });
 
-      const input = createInput({
-        prompt: "/nori-registry-upload test-profile",
-      });
-      const result = await noriRegistryUpload.run({ input });
-
-      expect(result).not.toBeNull();
-      expect(result!.decision).toBe("block");
-      const plainReason = stripAnsi(result!.reason!);
-
-      // Should list multiple registries
-      expect(plainReason).toContain("Multiple registries");
-      expect(plainReason).toContain("https://noriskillsets.dev");
-      expect(plainReason).toContain("https://private-registry.example.com");
-
-      // Should show example commands
-      expect(plainReason).toContain(
-        "/nori-registry-upload test-profile https://noriskillsets.dev",
-      );
-      expect(plainReason).toContain(
-        "/nori-registry-upload test-profile https://private-registry.example.com",
-      );
-    });
-
-    it("should upload to specified registry when multiple are configured", async () => {
-      await createConfigWithMultipleRegistries();
-      await createTestProfile({ name: "test-profile" });
-
-      vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-private-token");
+      vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
       vi.mocked(registrarApi.uploadProfile).mockResolvedValue({
         name: "test-profile",
         version: "1.0.0",
@@ -456,7 +407,7 @@ describe("nori-registry-upload", () => {
 
       const input = createInput({
         prompt:
-          "/nori-registry-upload test-profile https://private-registry.example.com",
+          "/nori-registry-upload test-profile https://public.nori-registry.ai",
       });
       const result = await noriRegistryUpload.run({ input });
 
@@ -469,13 +420,13 @@ describe("nori-registry-upload", () => {
       expect(registrarApi.uploadProfile).toHaveBeenCalledWith(
         expect.objectContaining({
           packageName: "test-profile",
-          registryUrl: "https://private-registry.example.com",
+          registryUrl: "https://public.nori-registry.ai",
         }),
       );
     });
 
     it("should upload with version and registry URL", async () => {
-      await createConfigWithMultipleRegistries();
+      await createConfigWithRegistryAuth();
       await createTestProfile({ name: "test-profile" });
 
       vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
@@ -488,7 +439,7 @@ describe("nori-registry-upload", () => {
 
       const input = createInput({
         prompt:
-          "/nori-registry-upload test-profile 2.0.0 https://noriskillsets.dev",
+          "/nori-registry-upload test-profile 2.0.0 https://public.nori-registry.ai",
       });
       const result = await noriRegistryUpload.run({ input });
 
@@ -503,7 +454,7 @@ describe("nori-registry-upload", () => {
         expect.objectContaining({
           packageName: "test-profile",
           version: "2.0.0",
-          registryUrl: "https://noriskillsets.dev",
+          registryUrl: "https://public.nori-registry.ai",
         }),
       );
     });

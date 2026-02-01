@@ -19,7 +19,6 @@ import {
   checkRegistryAgentSupport,
   showCursorAgentNotSupportedError,
 } from "@/cli/commands/registryAgentCheck.js";
-import { getRegistryAuth } from "@/cli/config.js";
 import { getClaudeSkillsDir } from "@/cli/features/claude-code/paths.js";
 import { error, success, info, newline } from "@/cli/logger.js";
 import { getInstallDirs } from "@/utils/path.js";
@@ -318,7 +317,7 @@ export const skillUploadMain = async (args: {
   // Extract description from frontmatter (optional)
   const description = parseSkillMdFrontmatter({ content: skillMdContent });
 
-  // Get available registries - public registry (with unified auth) and legacy registryAuths
+  // Get available registries from unified auth
   const availableRegistries: Array<RegistryAuth> = [];
 
   // Add public registry if user has valid unified auth with refreshToken
@@ -331,22 +330,9 @@ export const skillUploadMain = async (args: {
     });
   }
 
-  // Add legacy registryAuths entries (for private registries)
-  if (config?.registryAuths != null) {
-    for (const auth of config.registryAuths) {
-      // Avoid duplicates if the same registry URL already exists
-      const alreadyExists = availableRegistries.some(
-        (existing) => existing.registryUrl === auth.registryUrl,
-      );
-      if (!alreadyExists) {
-        availableRegistries.push(auth);
-      }
-    }
-  }
-
   if (availableRegistries.length === 0) {
     error({
-      message: `No registry authentication configured.\n\nEither log in with 'nori-ai install' or add registry credentials to .nori-config.json:\n{\n  "registryAuths": [{\n    "username": "your-email@example.com",\n    "password": "your-password",\n    "registryUrl": "https://registry.example.com"\n  }]\n}`,
+      message: `No registry authentication configured.\n\nLog in with 'nori-ai login' to configure registry access.`,
     });
     return;
   }
@@ -356,18 +342,13 @@ export const skillUploadMain = async (args: {
   let registryAuth: RegistryAuth | null;
 
   if (registryUrl != null) {
-    // User specified a registry URL - check availableRegistries first (includes public registry)
+    // User specified a registry URL - check availableRegistries for a match
     registryAuth =
       availableRegistries.find((r) => r.registryUrl === registryUrl) ?? null;
 
-    // Fall back to getRegistryAuth for legacy registryAuths
-    if (registryAuth == null && config != null) {
-      registryAuth = getRegistryAuth({ config, registryUrl });
-    }
-
     if (registryAuth == null) {
       error({
-        message: `No registry authentication configured for ${registryUrl}.\n\nAdd credentials to .nori-config.json or use one of the configured registries.`,
+        message: `No registry authentication configured for ${registryUrl}.\n\nLog in with '${cliPrefix} login' to configure registry access, or use one of the configured registries.`,
       });
       return;
     }

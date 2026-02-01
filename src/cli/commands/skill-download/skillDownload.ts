@@ -167,63 +167,6 @@ type RegistrySearchResult = {
 };
 
 /**
- * Search all registries for a skill
- * Public registry is searched without auth, private registries require auth
- * @param args - The search parameters
- * @param args.skillName - The skill name to search for
- * @param args.config - The Nori configuration containing registry auth
- *
- * @returns Array of registries where the skill was found
- */
-const searchAllRegistries = async (args: {
-  skillName: string;
-  config: Config | null;
-}): Promise<Array<RegistrySearchResult>> => {
-  const { skillName, config } = args;
-  const results: Array<RegistrySearchResult> = [];
-
-  // Search public registry first (no auth needed)
-  try {
-    const packument = await registrarApi.getSkillPackument({
-      skillName,
-      registryUrl: REGISTRAR_URL,
-    });
-    results.push({
-      registryUrl: REGISTRAR_URL,
-      packument,
-    });
-  } catch {
-    // Skill not found in public registry - continue to private registries
-  }
-
-  // Search private registries from config (auth required)
-  if (config?.registryAuths != null) {
-    for (const registryAuth of config.registryAuths) {
-      try {
-        // Get auth token for this registry
-        const authToken = await getRegistryAuthToken({ registryAuth });
-
-        const packument = await registrarApi.getSkillPackument({
-          skillName,
-          registryUrl: registryAuth.registryUrl,
-          authToken,
-        });
-
-        results.push({
-          registryUrl: registryAuth.registryUrl,
-          packument,
-          authToken,
-        });
-      } catch {
-        // Skill not found or auth failed for this registry - continue
-      }
-    }
-  }
-
-  return results;
-};
-
-/**
  * Search a specific registry for a skill
  * @param args - The search parameters
  * @param args.skillName - The skill name to search for
@@ -586,9 +529,29 @@ export const skillDownloadMain = async (args: {
       // Skill not found in org registry
       searchResults = [];
     }
+  } else if (orgId === "public") {
+    // Unnamespaced skill: search public registry only (no auth needed)
+    try {
+      const packument = await registrarApi.getSkillPackument({
+        skillName,
+        registryUrl: REGISTRAR_URL,
+      });
+      searchResults = [
+        {
+          registryUrl: REGISTRAR_URL,
+          packument,
+        },
+      ];
+    } catch {
+      searchResults = [];
+    }
   } else {
-    // Legacy flow: Search all registries
-    searchResults = await searchAllRegistries({ skillName, config });
+    // Namespaced skill without unified auth: require login
+    const displayName = `${orgId}/${skillName}`;
+    error({
+      message: `Skill "${displayName}" not found. To download from organization "${orgId}", log in with:\n\n  nori-ai login`,
+    });
+    return;
   }
 
   // Handle search results

@@ -303,63 +303,6 @@ type RegistrySearchResult = {
 };
 
 /**
- * Search all registries for a package
- * Public registry is searched without auth, private registries require auth
- * @param args - The search parameters
- * @param args.packageName - The package name to search for
- * @param args.config - The Nori configuration containing registry auth
- *
- * @returns Array of registries where the package was found
- */
-const searchAllRegistries = async (args: {
-  packageName: string;
-  config: Config | null;
-}): Promise<Array<RegistrySearchResult>> => {
-  const { packageName, config } = args;
-  const results: Array<RegistrySearchResult> = [];
-
-  // Search public registry first (no auth needed)
-  try {
-    const packument = await registrarApi.getPackument({
-      packageName,
-      registryUrl: REGISTRAR_URL,
-    });
-    results.push({
-      registryUrl: REGISTRAR_URL,
-      packument,
-    });
-  } catch {
-    // Package not found in public registry - continue to private registries
-  }
-
-  // Search private registries from config (auth required)
-  if (config?.registryAuths != null) {
-    for (const registryAuth of config.registryAuths) {
-      try {
-        // Get auth token for this registry
-        const authToken = await getRegistryAuthToken({ registryAuth });
-
-        const packument = await registrarApi.getPackument({
-          packageName,
-          registryUrl: registryAuth.registryUrl,
-          authToken,
-        });
-
-        results.push({
-          registryUrl: registryAuth.registryUrl,
-          packument,
-          authToken,
-        });
-      } catch {
-        // Package not found or auth failed for this registry - continue
-      }
-    }
-  }
-
-  return results;
-};
-
-/**
  * Search a specific registry for a package
  * @param args - The search parameters
  * @param args.packageName - The package name to search for
@@ -688,7 +631,7 @@ export const registryDownloadMain = async (args: {
           }
         }
       }
-      // Fall back to legacy registryAuths
+      // Check config-level registry auth
       if (!hasAuth) {
         const registryAuth =
           config != null ? getRegistryAuth({ config, registryUrl }) : null;
@@ -748,9 +691,29 @@ export const registryDownloadMain = async (args: {
       // Package not found in org registry
       searchResults = [];
     }
+  } else if (orgId === "public") {
+    // Unnamespaced package: search public registry only (no auth needed)
+    try {
+      const packument = await registrarApi.getPackument({
+        packageName,
+        registryUrl: REGISTRAR_URL,
+      });
+      searchResults = [
+        {
+          registryUrl: REGISTRAR_URL,
+          packument,
+        },
+      ];
+    } catch {
+      searchResults = [];
+    }
   } else {
-    // Legacy flow: Search all registries
-    searchResults = await searchAllRegistries({ packageName, config });
+    // Namespaced package without unified auth: require login
+    const displayName = `${orgId}/${packageName}`;
+    error({
+      message: `Profile "${displayName}" not found. To download from organization "${orgId}", log in with:\n\n  nori-ai login`,
+    });
+    return { success: false };
   }
 
   // Handle search results

@@ -353,7 +353,6 @@ export const onboardMain = async (args?: {
       auth?.organizationUrl ?? existingConfig.auth?.organizationUrl ?? null,
     sendSessionTranscript: existingConfig.sendSessionTranscript ?? null,
     autoupdate: existingConfig.autoupdate ?? null,
-    registryAuths: existingConfig.registryAuths ?? null,
     agents,
     version: existingConfig.version ?? null,
     installDir: normalizedInstallDir,

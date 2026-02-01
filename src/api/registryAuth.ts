@@ -31,7 +31,7 @@ export const getRegistryAuthToken = async (args: {
 
   if (registryAuth.refreshToken == null) {
     throw new Error(
-      "No refresh token available. Please log in with 'nori-ai install'.",
+      "No refresh token available. Please log in with 'nori-ai login'.",
     );
   }
 

@@ -43,7 +43,6 @@ export const logoutMain = async (args?: {
     organizationUrl: null,
     sendSessionTranscript: existingConfig.sendSessionTranscript ?? null,
     autoupdate: existingConfig.autoupdate ?? null,
-    registryAuths: existingConfig.registryAuths ?? null,
     agents: existingConfig.agents ?? null,
     version: existingConfig.version ?? null,
     installDir: configDir,

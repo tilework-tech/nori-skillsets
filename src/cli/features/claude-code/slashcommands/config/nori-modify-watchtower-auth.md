@@ -52,7 +52,7 @@ The Watchtower auth credentials are stored in the `auth` object of the config fi
 }
 ```
 
-**Important:** Preserve all other existing fields in the config file (like `agents`, `sendSessionTranscript`, `autoupdate`, `registryAuths`, `installDir`).
+**Important:** Preserve all other existing fields in the config file (like `agents`, `sendSessionTranscript`, `autoupdate`, `installDir`).
 
 5. Display a success message:
 
@@ -92,7 +92,7 @@ And end the wizard.
 2. Ask the user to confirm they want to remove their Watchtower credentials.
 3. Remove the `auth` object (or the `username`, `password`, and `organizationUrl` fields) from the config file.
 
-**Important:** Preserve all other existing fields in the config file (like `agents`, `sendSessionTranscript`, `autoupdate`, `registryAuths`, `installDir`).
+**Important:** Preserve all other existing fields in the config file (like `agents`, `sendSessionTranscript`, `autoupdate`, `installDir`).
 
 4. Display a success message:
 ```

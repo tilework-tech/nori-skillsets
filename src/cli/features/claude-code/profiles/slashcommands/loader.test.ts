@@ -105,7 +105,7 @@ describe("slashCommandsLoader", () => {
   });
 
   describe("run", () => {
-    it("should create commands directory and copy slash command files for free installation", async () => {
+    it("should create commands directory and copy slash command files", async () => {
       const config: Config = {
         installDir: tempDir,
         agents: {
@@ -124,34 +124,6 @@ describe("slashCommandsLoader", () => {
       expect(exists).toBe(true);
 
       // Verify at least one command file was copied (based on SLASH_COMMANDS config in loader)
-      const files = await fs.readdir(commandsDir);
-      expect(files.length).toBeGreaterThan(0);
-    });
-
-    it("should create commands directory and copy slash command files for paid installation", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        auth: {
-          username: "test@example.com",
-          password: "testpass",
-          organizationUrl: "https://example.com",
-        },
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-      };
-
-      await slashCommandsLoader.install({ config });
-
-      // Verify commands directory exists
-      const exists = await fs
-        .access(commandsDir)
-        .then(() => true)
-        .catch(() => false);
-
-      expect(exists).toBe(true);
-
-      // Verify at least one command file was copied
       const files = await fs.readdir(commandsDir);
       expect(files.length).toBeGreaterThan(0);
     });

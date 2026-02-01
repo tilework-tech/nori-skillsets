@@ -3,6 +3,7 @@
   "dependencies": [
     "ajv",
     "ajv-formats",
+    "chokidar",
     "commander",
     "firebase",
     "glob",

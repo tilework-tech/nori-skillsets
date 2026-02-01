@@ -39,22 +39,19 @@ import { skillsLoader } from "./loader.js";
  * @param args.profilesDir - Path to the profiles directory
  * @param args.profileName - Name of the profile
  * @param args.skills - Optional map of skill name to SKILL.md content
- * @param args.paidSkills - Optional map of paid-prefixed skill name to SKILL.md content
  */
 const createStubProfile = async (args: {
   profilesDir: string;
   profileName: string;
   skills?: Record<string, string> | null;
-  paidSkills?: Record<string, string> | null;
 }): Promise<void> => {
-  const { profilesDir, profileName, skills, paidSkills } = args;
+  const { profilesDir, profileName, skills } = args;
   const profileDir = path.join(profilesDir, profileName);
   await fs.mkdir(profileDir, { recursive: true });
   await fs.writeFile(path.join(profileDir, "CLAUDE.md"), "# Test Profile\n");
 
-  const allSkills = { ...skills, ...paidSkills };
-  if (Object.keys(allSkills).length > 0) {
-    for (const [skillName, skillContent] of Object.entries(allSkills)) {
+  if (skills != null && Object.keys(skills).length > 0) {
+    for (const [skillName, skillContent] of Object.entries(skills)) {
       const skillDir = path.join(profileDir, "skills", skillName);
       await fs.mkdir(skillDir, { recursive: true });
       await fs.writeFile(path.join(skillDir, "SKILL.md"), skillContent);
@@ -86,23 +83,6 @@ const TEST_SKILLS: Record<string, string> = {
     "description: Use when you need to create a new custom skill.",
     "---",
     "# Creating Skills",
-  ].join("\n"),
-};
-
-const PAID_SKILLS: Record<string, string> = {
-  "paid-recall": [
-    "---",
-    "name: Recall",
-    "description: Search the knowledge base",
-    "---",
-    "# Recall",
-  ].join("\n"),
-  "paid-memorize": [
-    "---",
-    "name: Memorize",
-    "description: Save to the knowledge base",
-    "---",
-    "# Memorize",
   ].join("\n"),
 };
 
@@ -432,137 +412,8 @@ describe("skillsLoader", () => {
     });
   });
 
-  describe("paid skills", () => {
-    it("should install paid-prefixed skills without prefix for paid tier", async () => {
-      const config: Config = {
-        auth: {
-          username: "test",
-          password: "test",
-          organizationUrl: "https://test.com",
-        },
-        installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-      };
-
-      // Recreate profile with paid skills
-      await fs.rm(path.join(noriProfilesDir, "senior-swe"), {
-        recursive: true,
-        force: true,
-      });
-      await createStubProfile({
-        profilesDir: noriProfilesDir,
-        profileName: "senior-swe",
-        skills: TEST_SKILLS,
-        paidSkills: PAID_SKILLS,
-      });
-
-      await skillsLoader.install({ config });
-
-      // Should exist without prefix
-      const memorizeExists = await fs
-        .access(path.join(skillsDir, "memorize", "SKILL.md"))
-        .then(() => true)
-        .catch(() => false);
-
-      expect(memorizeExists).toBe(true);
-
-      // Should not exist with prefix
-      const paidMemorizeExists = await fs
-        .access(path.join(skillsDir, "paid-memorize", "SKILL.md"))
-        .then(() => true)
-        .catch(() => false);
-
-      expect(paidMemorizeExists).toBe(false);
-    });
-
-    it("should not install paid-prefixed skills for free tier", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-      };
-
-      await skillsLoader.install({ config });
-
-      // Should not exist with or without prefix
-      const memorizeExists = await fs
-        .access(path.join(skillsDir, "memorize", "SKILL.md"))
-        .then(() => true)
-        .catch(() => false);
-
-      expect(memorizeExists).toBe(false);
-
-      const paidMemorizeExists = await fs
-        .access(path.join(skillsDir, "paid-memorize", "SKILL.md"))
-        .then(() => true)
-        .catch(() => false);
-
-      expect(paidMemorizeExists).toBe(false);
-    });
-
-    it("should install paid-recall skill without prefix for paid tier", async () => {
-      const config: Config = {
-        auth: {
-          username: "test",
-          password: "test",
-          organizationUrl: "https://test.com",
-        },
-        installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-      };
-
-      // Recreate profile with paid skills
-      await fs.rm(path.join(noriProfilesDir, "senior-swe"), {
-        recursive: true,
-        force: true,
-      });
-      await createStubProfile({
-        profilesDir: noriProfilesDir,
-        profileName: "senior-swe",
-        skills: TEST_SKILLS,
-        paidSkills: PAID_SKILLS,
-      });
-
-      await skillsLoader.install({ config });
-
-      const skillPath = path.join(skillsDir, "recall", "SKILL.md");
-
-      const skillExists = await fs
-        .access(skillPath)
-        .then(() => true)
-        .catch(() => false);
-
-      expect(skillExists).toBe(true);
-    });
-
-    it("should not install any paid skills for free tier", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-      };
-
-      await skillsLoader.install({ config });
-
-      const paidSkills = ["memorize", "recall"];
-
-      for (const skill of paidSkills) {
-        const skillPath = path.join(skillsDir, skill);
-        const exists = await fs
-          .access(skillPath)
-          .then(() => true)
-          .catch(() => false);
-        expect(exists).toBe(false);
-      }
-    });
-
-    it("should install creating-skills skill from _base mixin for free tier", async () => {
+  describe("creating-skills skill", () => {
+    it("should install creating-skills skill", async () => {
       const config: Config = {
         installDir: tempDir,
         agents: {
@@ -585,31 +436,6 @@ describe("skillsLoader", () => {
       const content = await fs.readFile(skillPath, "utf-8");
       expect(content).toContain("name: Creating-Skills");
       expect(content).toContain("description:");
-    });
-
-    it("should install creating-skills skill from _base mixin for paid tier", async () => {
-      const config: Config = {
-        auth: {
-          username: "test",
-          password: "test",
-          organizationUrl: "https://test.com",
-        },
-        installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-      };
-
-      await skillsLoader.install({ config });
-
-      const skillPath = path.join(skillsDir, "creating-skills", "SKILL.md");
-
-      const skillExists = await fs
-        .access(skillPath)
-        .then(() => true)
-        .catch(() => false);
-
-      expect(skillExists).toBe(true);
     });
   });
 

@@ -661,7 +661,6 @@ describe("registry-search", () => {
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
         agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
-        registryAuths: [],
       });
 
       // Mock public registry search functions (no org auth = only public registry is searched)
@@ -703,7 +702,6 @@ describe("registry-search", () => {
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
         agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
-        registryAuths: [],
       });
 
       // Mock public registry search functions (no org auth = only public registry is searched)
@@ -744,7 +742,6 @@ describe("registry-search", () => {
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
         agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
-        registryAuths: [],
       });
 
       // Mock public registry search functions (no org auth = only public registry is searched)

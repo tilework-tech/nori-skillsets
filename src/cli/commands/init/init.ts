@@ -239,7 +239,6 @@ export const initMain = async (args?: {
   const organizationUrl = existingConfig?.auth?.organizationUrl ?? null;
   const sendSessionTranscript = existingConfig?.sendSessionTranscript ?? null;
   const autoupdate = existingConfig?.autoupdate ?? null;
-  const registryAuths = existingConfig?.registryAuths ?? null;
   const version = currentVersion ?? null;
 
   // Set agents - if a profile was captured, set it as the active profile for claude-code
@@ -259,7 +258,6 @@ export const initMain = async (args?: {
     organizationUrl,
     sendSessionTranscript,
     autoupdate,
-    registryAuths,
     agents,
     version,
     installDir: normalizedInstallDir,

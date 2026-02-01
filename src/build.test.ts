@@ -99,7 +99,7 @@ describe.sequential("build process", () => {
     try {
       // Run the installer pointing to our temp directory
       // Use the CLI entry point (cli.js) with --non-interactive flag
-      // to skip prompts and default to free mode
+      // to skip prompts and default to unauthenticated mode
       // CRITICAL: Use --install-dir to ensure installation goes to temp directory
       // Without this flag, installDir defaults to process.cwd() which creates
       // .claude in the project root, breaking test containment
@@ -189,6 +189,115 @@ ${stderr || "(empty)"}`,
         fs.rmSync(tempDir, { recursive: true, force: true });
       }
     }
+  });
+
+  describe("hook script bundling", () => {
+    it("should not contain paid- prefixed skill directories in build", () => {
+      // No paid-* prefixed skill directories should exist in any
+      // profile's skills directory.
+
+      const pluginDir = process.cwd();
+      const buildDir = path.join(pluginDir, "build");
+      const profilesDir = path.join(
+        buildDir,
+        "src/cli/features/claude-code/profiles/config",
+      );
+
+      if (fs.existsSync(profilesDir)) {
+        const profiles = fs.readdirSync(profilesDir);
+        for (const profile of profiles) {
+          if (profile.startsWith("_")) continue;
+
+          const skillsDir = path.join(profilesDir, profile, "skills");
+          if (!fs.existsSync(skillsDir)) continue;
+
+          const skills = fs.readdirSync(skillsDir);
+          const paidSkills = skills.filter((s) => s.startsWith("paid-"));
+          expect(paidSkills).toEqual([]);
+        }
+      }
+    });
+
+    it('should not report "No scripts found to bundle" warning', () => {
+      // This test verifies that the bundle-skills.ts script successfully finds
+      // hook scripts and doesn't output the warning message.
+
+      const pluginDir = process.cwd();
+
+      let stdout = "";
+      try {
+        stdout = execSync("npm run build", {
+          cwd: pluginDir,
+          encoding: "utf-8",
+          env: { ...process.env, FORCE_COLOR: "0" },
+        });
+      } catch (error: unknown) {
+        if (error && typeof error === "object") {
+          const execError = error as { stdout?: string };
+          stdout = execError.stdout || "";
+        }
+        throw error;
+      }
+
+      // Should NOT contain the warning about no scripts found
+      expect(stdout).not.toContain("No scripts found to bundle");
+
+      // Should contain success message about bundling
+      expect(stdout).toContain("Bundling Hook Scripts");
+      expect(stdout).toContain("Successfully bundled");
+    });
+
+    it("should execute bundled hook scripts without dynamic require errors", () => {
+      // This test verifies that bundled hook scripts can actually run without
+      // crashing with "Dynamic require of 'util' is not supported" errors.
+      //
+      // The issue: When esbuild bundles CommonJS libraries (like Winston's
+      // logform which uses @colors/colors) into ESM format, dynamic require()
+      // calls for Node.js builtins fail at runtime.
+      //
+      // This test executes a bundled hook script to verify it runs cleanly.
+
+      const pluginDir = process.cwd();
+      const hookScript = path.join(
+        pluginDir,
+        "build/src/cli/features/claude-code/hooks/config/statistics.js",
+      );
+
+      // Verify the hook script exists
+      expect(fs.existsSync(hookScript)).toBe(true);
+
+      // Execute the hook script with empty stdin
+      // The script should exit gracefully without throwing "Dynamic require" error
+      let stderr = "";
+      let exitCode: number | null = null;
+
+      try {
+        execSync(`echo '{}' | node "${hookScript}"`, {
+          cwd: pluginDir,
+          encoding: "utf-8",
+          env: { ...process.env, FORCE_COLOR: "0" },
+          timeout: 10000, // 10 second timeout
+        });
+        exitCode = 0;
+      } catch (error: unknown) {
+        if (error && typeof error === "object") {
+          const execError = error as {
+            stderr?: string;
+            status?: number;
+          };
+          stderr = execError.stderr || "";
+          exitCode = execError.status ?? 1;
+        }
+      }
+
+      // The critical check: stderr should NOT contain dynamic require errors
+      expect(stderr).not.toContain("Dynamic require of");
+      expect(stderr).not.toContain("is not supported");
+
+      // Script should exit cleanly (exit code 0)
+      // The statistics hook exits with 0 even on errors to not crash sessions
+      expect(exitCode).toBe(0);
+    });
   });
 
   it("should copy cursor-agent slashcommands config files to build", () => {

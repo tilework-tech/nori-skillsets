@@ -66,15 +66,10 @@ describe("configLoader", () => {
       });
     });
 
-    it("should include sendSessionTranscript: enabled for paid installation", async () => {
+    it("should include sendSessionTranscript when provided", async () => {
       const config: Config = {
         installDir: tempDir,
         agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
-        auth: {
-          username: "test@example.com",
-          password: "testpass",
-          organizationUrl: "https://example.com",
-        },
         sendSessionTranscript: "enabled",
       };
 
@@ -85,7 +80,7 @@ describe("configLoader", () => {
       expect(fileContents.sendSessionTranscript).toBe("enabled");
     });
 
-    it("should NOT include sendSessionTranscript for free installation", async () => {
+    it("should NOT include sendSessionTranscript when not provided", async () => {
       const config: Config = {
         installDir: tempDir,
         agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
@@ -98,15 +93,10 @@ describe("configLoader", () => {
       expect(fileContents.sendSessionTranscript).toBeUndefined();
     });
 
-    it("should preserve existing sendSessionTranscript preference for paid installation", async () => {
+    it("should preserve existing sendSessionTranscript preference", async () => {
       const config: Config = {
         installDir: tempDir,
         agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
-        auth: {
-          username: "test@example.com",
-          password: "testpass",
-          organizationUrl: "https://example.com",
-        },
         sendSessionTranscript: "disabled",
       };
 
@@ -115,68 +105,6 @@ describe("configLoader", () => {
       const configFile = getConfigPath({ installDir: tempDir });
       const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
       expect(fileContents.sendSessionTranscript).toBe("disabled");
-    });
-
-    it("should save registryAuths to config file", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
-        registryAuths: [
-          {
-            registryUrl: "https://registry.example.com",
-            username: "user@example.com",
-            password: "secret123",
-          },
-        ],
-      };
-
-      await configLoader.run({ config });
-
-      const configFile = getConfigPath({ installDir: tempDir });
-      const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
-      expect(fileContents.registryAuths).toEqual([
-        {
-          registryUrl: "https://registry.example.com",
-          username: "user@example.com",
-          password: "secret123",
-        },
-      ]);
-    });
-
-    it("should preserve existing registryAuths when not provided in new config", async () => {
-      // Create existing config with registryAuths
-      const configFile = getConfigPath({ installDir: tempDir });
-      fs.writeFileSync(
-        configFile,
-        JSON.stringify({
-          installDir: tempDir,
-          registryAuths: [
-            {
-              registryUrl: "https://existing.example.com",
-              username: "existing@example.com",
-              password: "existingpass",
-            },
-          ],
-        }),
-        "utf-8",
-      );
-
-      // Run with config that doesn't include registryAuths
-      const config: Config = {
-        installDir: tempDir,
-        agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
-      };
-
-      await configLoader.run({ config });
-
-      const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
-      expect(fileContents.registryAuths).toEqual([
-        {
-          registryUrl: "https://existing.example.com",
-          username: "existing@example.com",
-          password: "existingpass",
-        },
-      ]);
     });
 
     it("should save agents to config file", async () => {

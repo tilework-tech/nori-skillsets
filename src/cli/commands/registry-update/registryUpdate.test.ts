@@ -18,11 +18,12 @@ vi.mock("@/api/registrar.js", () => ({
   },
 }));
 
-// Mock the config module - include getInstalledAgents with real implementation
-vi.mock("@/cli/config.js", async () => {
+// Mock the config module - include getInstalledAgents with real implementation, use real getRegistryAuth
+vi.mock("@/cli/config.js", async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
   return {
     loadConfig: vi.fn(),
-    getRegistryAuth: vi.fn(),
+    getRegistryAuth: actual.getRegistryAuth,
     getInstalledAgents: (args: {
       config: { agents?: Record<string, unknown> | null };
     }) => {
@@ -47,7 +48,7 @@ const mockConsoleError = vi
 
 import { REGISTRAR_URL, registrarApi } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
-import { loadConfig, getRegistryAuth } from "@/cli/config.js";
+import { loadConfig } from "@/cli/config.js";
 
 import { registryUpdateMain } from "./registryUpdate.js";
 
@@ -149,7 +150,6 @@ describe("registry-update", () => {
 
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [],
       });
 
       // Mock packument with newer version
@@ -196,7 +196,6 @@ describe("registry-update", () => {
 
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [],
       });
 
       // Mock packument with same version
@@ -226,7 +225,6 @@ describe("registry-update", () => {
     it("should error when profile is not installed", async () => {
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [],
       });
 
       await registryUpdateMain({
@@ -252,7 +250,6 @@ describe("registry-update", () => {
 
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [],
       });
 
       await registryUpdateMain({
@@ -301,19 +298,11 @@ describe("registry-update", () => {
 
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [
-          {
-            registryUrl: privateRegistryUrl,
-            username: "user",
-            password: "pass",
-          },
-        ],
-      });
-
-      vi.mocked(getRegistryAuth).mockReturnValue({
-        registryUrl: privateRegistryUrl,
-        username: "user",
-        password: "pass",
+        auth: {
+          username: "user",
+          organizationUrl: privateRegistryUrl,
+          refreshToken: "mock-refresh-token",
+        },
       });
 
       vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
@@ -362,19 +351,11 @@ describe("registry-update", () => {
 
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [
-          {
-            registryUrl: overrideRegistryUrl,
-            username: "user",
-            password: "pass",
-          },
-        ],
-      });
-
-      vi.mocked(getRegistryAuth).mockReturnValue({
-        registryUrl: overrideRegistryUrl,
-        username: "user",
-        password: "pass",
+        auth: {
+          username: "user",
+          organizationUrl: overrideRegistryUrl,
+          refreshToken: "mock-refresh-token",
+        },
       });
 
       vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
@@ -414,7 +395,6 @@ describe("registry-update", () => {
 
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [],
       });
 
       vi.mocked(registrarApi.getPackument).mockRejectedValue(
@@ -552,7 +532,6 @@ describe("registry-update", () => {
 
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [],
       });
 
       vi.mocked(registrarApi.getPackument).mockResolvedValue({
@@ -585,7 +564,6 @@ describe("registry-update", () => {
 
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        registryAuths: [],
       });
 
       vi.mocked(registrarApi.getPackument).mockResolvedValue({

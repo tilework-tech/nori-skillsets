@@ -374,13 +374,6 @@ describe("AgentRegistry", () => {
           organizationUrl: "https://org.example.com",
           profile: { baseProfile: "old-profile" },
           sendSessionTranscript: "enabled",
-          registryAuths: [
-            {
-              username: "reg-user",
-              password: "reg-pass",
-              registryUrl: "https://registry.example.com",
-            },
-          ],
         }),
       );
 
@@ -400,13 +393,6 @@ describe("AgentRegistry", () => {
         "https://org.example.com",
       );
       expect(updatedConfig.sendSessionTranscript).toBe("enabled");
-      expect(updatedConfig.registryAuths).toEqual([
-        {
-          username: "reg-user",
-          password: "reg-pass",
-          registryUrl: "https://registry.example.com",
-        },
-      ]);
       expect(updatedConfig.agents?.["claude-code"]?.profile?.baseProfile).toBe(
         "new-profile",
       );

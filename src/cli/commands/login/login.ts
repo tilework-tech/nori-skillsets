@@ -334,7 +334,6 @@ export const loginMain = async (args?: {
     isAdmin,
     sendSessionTranscript: existingConfig?.sendSessionTranscript ?? null,
     autoupdate: existingConfig?.autoupdate ?? null,
-    registryAuths: existingConfig?.registryAuths ?? null,
     agents: existingConfig?.agents ?? null,
     version: existingConfig?.version ?? null,
     installDir: configDir,

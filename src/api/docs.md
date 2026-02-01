@@ -8,7 +8,7 @@ Client API for communicating with the Nori Profiles backend server, providing ty
 
 ### How it fits into the larger codebase
 
-This folder contains the API client used by paid skills in profile directories (e.g., paid-recall, paid-memorize) to communicate with @/server/src/endpoints. It mirrors the API structure in @/ui/src/api/apiClient but uses Firebase Authentication with cached tokens via @/src/providers/firebase.ts instead of direct Firebase UI integration. The base.ts module handles authentication via AuthManager and request formatting via apiRequest, while artifacts.ts, query.ts, conversation.ts, and analytics.ts provide typed methods for specific endpoints. The registrar.ts module is a standalone API client for the public Nori registrar (https://noriskillsets.dev) used by profile-related slash commands. The API contracts here must stay in sync with @/server/src/endpoints and @/ui/src/api/apiClient.
+This folder contains the API client used by hook scripts and other components to communicate with @/server/src/endpoints. It mirrors the API structure in @/ui/src/api/apiClient but uses Firebase Authentication with cached tokens via @/src/providers/firebase.ts instead of direct Firebase UI integration. The base.ts module handles authentication via AuthManager and request formatting via apiRequest, while artifacts.ts, query.ts, conversation.ts, and analytics.ts provide typed methods for specific endpoints. The registrar.ts module is a standalone API client for the public Nori registrar (https://noriskillsets.dev) used by profile-related slash commands. The API contracts here must stay in sync with @/server/src/endpoints and @/ui/src/api/apiClient.
 
 ### Core Implementation
 
@@ -18,7 +18,7 @@ The base.ts module exports ConfigManager (loads credentials from `.nori-config.j
 - **Nested format (v19+):** `{ auth: { username, password, refreshToken, organizationUrl } }` - loadConfig() extracts fields from `auth` object
 - **Legacy flat format:** `{ username, password, refreshToken, organizationUrl }` at root level - returned as-is
 
-This normalization ensures that `ConfigManager.isConfigured()` works correctly with both formats. Without this normalization, configs using the nested format would fail `isConfigured()` checks because the auth fields wouldn't be at root level where the method expects them. This affects downstream code like the summarize hook and stats hook that rely on `isConfigured()` to gate API calls.
+This normalization ensures that `ConfigManager.isConfigured()` works correctly with both formats. Without this normalization, configs using the nested format would fail `isConfigured()` checks because the auth fields wouldn't be at root level where the method expects them. This affects downstream code like the stats hook that rely on `isConfigured()` to gate API calls.
 
 ConfigManager.isConfigured() checks for either `refreshToken` or `password` (plus username and organizationUrl) to support both auth methods. AuthManager.getAuthToken() prefers refresh token auth (via exchangeRefreshToken from refreshToken.ts) when available, falling back to legacy password auth via Firebase SDK. All apiRequest calls include the Firebase ID token in Authorization: Bearer {token} headers.
 
@@ -28,7 +28,7 @@ ConfigManager.isConfigured() checks for either `refreshToken` or `password` (plu
 
 **Artifacts:** The artifacts module defines an ArtifactType enum for categorizing stored content (memories, summaries, transcripts, etc.). All Artifact types include a repository field that scopes artifacts to specific repositories - the server extracts repository from paths using the format @<repository>/path. This enables multi-repository support where the same path can exist in different repositories without conflicts. The module supports CRUD operations with actor tracking for analytics.
 
-**Analytics:** Proxies analytics events to the server which forwards to GA4, keeping the GA4 API secret secure server-side. The trackEvent method is a special case that works without authentication (so free-tier users can be tracked).
+**Analytics:** Proxies analytics events to the server which forwards to GA4, keeping the GA4 API secret secure server-side. The trackEvent method is a special case that works without authentication (so unauthenticated users can be tracked).
 
 ### Things to Know
 
@@ -57,7 +57,7 @@ AuthManager in base.ts prefers refresh token auth via `exchangeRefreshToken()` w
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-**Analytics Exception:** The trackEvent() method in analytics.ts is the sole exception to the apiRequest() pattern - it makes direct fetch() calls without authentication. This is intentional: analytics must work for all users (including free-tier without organizationUrl configured). The method falls back to DEFAULT_ANALYTICS_URL when no organizationUrl is present, ensuring analytics are never silently dropped. The generateDailyReport() and generateUserReport() methods continue to use apiRequest() with authentication since they are privileged operations.
+**Analytics Exception:** The trackEvent() method in analytics.ts is the sole exception to the apiRequest() pattern - it makes direct fetch() calls without authentication. This is intentional: analytics must work for all users (including unauthenticated users without organizationUrl configured). The method falls back to DEFAULT_ANALYTICS_URL when no organizationUrl is present, ensuring analytics are never silently dropped. The generateDailyReport() and generateUserReport() methods continue to use apiRequest() with authentication since they are privileged operations.
 
 **Registrar API:** The registrar.ts module is a standalone API client for Nori package registries (npm-compatible). Unlike other API modules that use apiRequest() with Firebase authentication, the registrar uses direct fetch() calls. It supports both profiles and skills as first-class registry entities. All functions support multi-registry configurations - read operations accept optional `registryUrl` and `authToken` parameters (defaulting to the public registry), while write operations require authentication. When targeting private registries, the authToken is sent as a Bearer token. The registrar API is consumed by the `nori-registry-*` intercepted slash commands and CLI commands.
 
@@ -81,6 +81,6 @@ AuthManager in base.ts prefers refresh token auth via `exchangeRefreshToken()` w
 
 **Actor Field:** All artifact mutations (create) and conversation operations (summarize) include actor: 'claude-code' to identify the plugin as the source. This differs from the UI which may use different actor values.
 
-The organizationUrl in `.nori-config.json` (resolved via getInstallDirs) determines the backend server (production or local development). Paid skills are the primary consumers of this API client, importing apiClient from @/api/index.js. The API client depends on @/src/providers/firebase.ts for authentication, which is a shared provider used across the plugin package. The ConfigManager follows the same directory resolution pattern as hooks and paid skills: it uses getInstallDirs({ currentDir: process.cwd() }) to locate installations, enabling correct operation when running from subdirectories of the installation root.
+The organizationUrl in `.nori-config.json` (resolved via getInstallDirs) determines the backend server (production or local development). Hook scripts and other components consume this API client via @/api/index.js. The API client depends on @/src/providers/firebase.ts for authentication, which is a shared provider used across the plugin package. The ConfigManager follows the same directory resolution pattern as hooks: it uses getInstallDirs({ currentDir: process.cwd() }) to locate installations, enabling correct operation when running from subdirectories of the installation root.
 
 Created and maintained by Nori.
