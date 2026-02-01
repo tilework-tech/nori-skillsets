@@ -238,30 +238,14 @@ export const loadConfig = async (args: {
   const { installDir } = args;
   const configPath = getConfigPath({ installDir });
 
-  // Also check .nori subdirectory for home directory installations
-  // (e.g., ~/.nori/.nori-config.json when installDir is ~)
-  const noriSubdirConfigPath = path.join(
-    installDir,
-    ".nori",
-    ".nori-config.json",
-  );
-
-  let effectiveConfigPath = configPath;
   try {
     await fs.access(configPath);
   } catch {
-    // Primary path not found, try .nori subdirectory fallback
-    try {
-      await fs.access(noriSubdirConfigPath);
-      effectiveConfigPath = noriSubdirConfigPath;
-    } catch {
-      // Neither path exists
-      return null;
-    }
+    return null;
   }
 
   try {
-    const content = await fs.readFile(effectiveConfigPath, "utf-8");
+    const content = await fs.readFile(configPath, "utf-8");
     const rawConfig = JSON.parse(content);
 
     if (rawConfig == null || typeof rawConfig !== "object") {
@@ -439,22 +423,6 @@ export const saveConfig = async (args: {
   config.installDir = installDir;
 
   await fs.writeFile(configPath, JSON.stringify(config, null, 2));
-
-  // Clean up old config from .nori subdirectory if it exists
-  // (migration from when login used ~/.nori as installDir instead of ~)
-  const oldNoriSubdirConfigPath = path.join(
-    installDir,
-    ".nori",
-    ".nori-config.json",
-  );
-  if (oldNoriSubdirConfigPath !== configPath) {
-    try {
-      await fs.access(oldNoriSubdirConfigPath);
-      await fs.unlink(oldNoriSubdirConfigPath);
-    } catch {
-      // Old config doesn't exist, nothing to clean up
-    }
-  }
 };
 
 /**
