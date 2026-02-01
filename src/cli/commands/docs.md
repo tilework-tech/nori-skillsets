@@ -40,7 +40,7 @@ nori-ai install (orchestrator)
   - Deletes the original `~/.claude/CLAUDE.md` to prevent content duplication (the content was already captured to the profile with managed block markers)
   - Sets the captured profile as active by writing `agents.claude-code.profile.baseProfile` to config
   - Applies the managed block to `~/.claude/CLAUDE.md` by calling `claudeMdLoader.install()`
-- Idempotent: preserves existing config fields (auth, agents, registryAuths) while updating version
+- Idempotent: preserves existing config fields (auth, agents) while updating version
 
 **Onboard Command:** The onboard command (@/src/cli/commands/onboard/onboard.ts) handles profile and auth selection:
 - Requires init to have been run first (config must exist)
@@ -130,14 +130,14 @@ The command uses `parseNamespacedPackage()` from @/src/utils/url.ts to extract t
    - `auth.organizationUrl` - Defaults to `https://noriskillsets.dev`
    - `auth.organizations` - Array of organization IDs the user has access to (for private registry operations)
    - `auth.isAdmin` - Whether the user has admin privileges
-5. Preserves existing config fields (agents, autoupdate, registryAuths, etc.) when logging in
+5. Preserves existing config fields (agents, autoupdate, etc.) when logging in
 
 The login command provides helpful error messages based on Firebase AuthErrorCodes (invalid credentials, user not found, too many attempts, network errors).
 
 **Logout Command Flow:** The logout command (@/src/cli/commands/logout/logout.ts) clears authentication:
 1. Loads existing config
 2. If no auth credentials exist, displays "Not currently logged in" and exits
-3. Saves config without auth fields, preserving other config fields (agents, autoupdate, registryAuths, version)
+3. Saves config without auth fields, preserving other config fields (agents, autoupdate, version)
 
 **skill-download No Installation Required:** Unlike other registry commands, `skill-download` does not require a prior Nori installation. The installation directory resolution:
 1. If `--install-dir` is provided: uses that directory as the target
@@ -170,8 +170,8 @@ Both manifest update failures are non-blocking - the skill download succeeds eve
 
 **Upload Commands Registry Resolution:** Both `registry-upload` (for profiles) and `skill-upload` (for skills) use the same registry resolution logic:
 1. **Public registry (default):** When the user has unified auth (`config.auth`) with a `refreshToken`, the public registry (`https://noriskillsets.dev`) is automatically included as an available upload target. This is the default when no `--registry` flag is provided.
-2. **Private registries:** Additional registries can be added via `registryAuths` in `.nori-config.json`. These are included alongside the public registry.
-3. **Explicit registry:** Users can specify `--registry <url>` to target a specific registry. The command checks `availableRegistries` first (which includes the public registry for authenticated users), then falls back to `getRegistryAuth()` for legacy `registryAuths` lookups.
+2. **Organization registries:** When the user has unified auth with `organizations`, organization-specific registries are derived from `buildOrganizationRegistryUrl()` and included alongside the public registry.
+3. **Explicit registry:** Users can specify `--registry <url>` to target a specific registry. The command checks `availableRegistries` first (which includes the public registry for authenticated users), then falls back to `getRegistryAuth()` for org-based auth lookups.
 4. **Multiple registries:** If multiple registries are configured and no `--registry` is specified, the command prompts the user to select one (or errors in non-interactive mode).
 
 **registry-download Auto-Init:** The `registry-download` command (and `nori-skillsets download`) automatically initializes Nori configuration when no installation exists, allowing users to download profiles without first running `nori-ai init` or `nori-ai install`. The installation directory resolution logic:
@@ -191,13 +191,13 @@ This differs from `registry-install`, which calls the full `installMain()` (orch
 - `my-profile` - downloads from public registry to `~/.nori/profiles/my-profile/`
 - `myorg/my-profile` - downloads from `https://myorg.noriskillsets.dev` to `~/.nori/profiles/myorg/my-profile/`
 
-The command uses `parseNamespacedPackage()` from @/src/utils/url.ts to extract the org ID, package name, and optional version from the package spec. It then uses `buildOrganizationRegistryUrl()` to derive the target registry URL from the org ID. For authentication, the command checks `config.auth.organizations` (unified auth) to verify the user has access to the specified org's registry, falling back to legacy `registryAuths` for backwards compatibility.
+The command uses `parseNamespacedPackage()` from @/src/utils/url.ts to extract the org ID, package name, and optional version from the package spec. It then uses `buildOrganizationRegistryUrl()` to derive the target registry URL from the org ID. For authentication, the command checks `config.auth.organizations` (unified auth) to verify the user has access to the specified org's registry. If the user is not logged in (no unified auth), the command errors with a message prompting the user to log in via `nori-ai login`. Unnamespaced packages (public registry) do not require authentication.
 
 **registry-upload Namespaced Packages:** The `registry-upload` command supports the same namespaced package specification format for uploading to organization registries. The profile directory structure mirrors the package namespace:
 - `my-profile` - uploads from `~/.nori/profiles/my-profile/` to public registry
 - `myorg/my-profile` - uploads from `~/.nori/profiles/myorg/my-profile/` to `https://myorg.noriskillsets.dev`
 
-When using unified auth (new flow), the command derives the target registry from the package namespace automatically. When no explicit `--registry` is provided and the user has unified auth with organizations, the command uploads to the org's registry matching the package namespace. Legacy flow (multiple `registryAuths`) requires explicit `--registry` selection when multiple registries are configured.
+When using unified auth, the command derives the target registry from the package namespace automatically. When no explicit `--registry` is provided and the user has unified auth with organizations, the command uploads to the org's registry matching the package namespace.
 
 **registry-download Skill Dependencies:** The `registry-download` command automatically installs skill dependencies declared in a profile's `nori.json` manifest. After extracting a profile tarball, the command checks for a `nori.json` file with a `dependencies.skills` field (mapping skill names to version strings). For each declared skill:
 1. Fetches the skill packument via `registrarApi.getSkillPackument()` to get the latest version
