@@ -310,7 +310,7 @@ describe("install integration test", () => {
     expect(await getInstalledVersion({ installDir: tempDir })).toBe("13.0.0");
   });
 
-  it("should not have paid skill directories after installation", async () => {
+  it("should not have paid- prefixed skill directories after installation", async () => {
     const CONFIG_PATH = getConfigPath({ installDir: tempDir });
 
     // Create config with auth credentials
@@ -326,7 +326,7 @@ describe("install integration test", () => {
     // Run installation in non-interactive mode
     await installMain({ nonInteractive: true, installDir: tempDir });
 
-    // Verify no paid-prefixed skill directories exist
+    // Verify no paid- prefixed skill directories exist
     const profileDir = path.join(TEST_NORI_DIR, "profiles", "senior-swe");
     const skillsDir = path.join(profileDir, "skills");
 
@@ -336,7 +336,7 @@ describe("install integration test", () => {
       expect(paidSkills).toEqual([]);
     }
 
-    // Verify no paid-prefixed subagent files exist
+    // Verify no paid- prefixed subagent files exist
     const subagentsDir = path.join(profileDir, "subagents");
     if (fs.existsSync(subagentsDir)) {
       const subagents = fs.readdirSync(subagentsDir);
@@ -437,14 +437,14 @@ describe("install integration test", () => {
     const preInstallCwdSnapshot = getDirectorySnapshot(tempDir);
 
     // STEP 2: Install with authenticated config to get all features
-    const paidConfig = {
+    const authConfig = {
       version: "18.0.0",
       username: "test@example.com",
       password: "testpass",
       organizationUrl: "http://localhost:3000",
       agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
     };
-    fs.writeFileSync(CONFIG_PATH, JSON.stringify(paidConfig, null, 2));
+    fs.writeFileSync(CONFIG_PATH, JSON.stringify(authConfig, null, 2));
 
     await installMain({ nonInteractive: true, installDir: tempDir });
 

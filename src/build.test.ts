@@ -192,9 +192,9 @@ ${stderr || "(empty)"}`,
   });
 
   describe("hook script bundling", () => {
-    it("should not contain paid skill scripts in build", () => {
-      // After removing paid skills, no paid-* prefixed skill directories
-      // should exist in any profile's skills directory.
+    it("should not contain paid- prefixed skill directories in build", () => {
+      // No paid-* prefixed skill directories should exist in any
+      // profile's skills directory.
 
       const pluginDir = process.cwd();
       const buildDir = path.join(pluginDir, "build");
