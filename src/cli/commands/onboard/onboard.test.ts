@@ -278,7 +278,7 @@ describe("onboard command", () => {
       // Mock user inputs - skip auth, select profile
       const { promptUser } = await import("@/cli/prompt.js");
       vi.mocked(promptUser)
-        .mockResolvedValueOnce("") // Skip email (free mode)
+        .mockResolvedValueOnce("") // Skip email (unauthenticated)
         .mockResolvedValueOnce("2"); // Select second profile
 
       // Run onboard in interactive mode

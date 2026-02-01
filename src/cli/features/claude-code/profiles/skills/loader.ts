@@ -7,7 +7,7 @@ import * as fs from "fs/promises";
 import * as path from "path";
 import { fileURLToPath } from "url";
 
-import { isPaidInstall, getAgentProfile, type Config } from "@/cli/config.js";
+import { getAgentProfile, type Config } from "@/cli/config.js";
 import {
   getClaudeDir,
   getClaudeSkillsDir,
@@ -158,36 +158,12 @@ const installSkills = async (args: { config: Config }): Promise<void> => {
         continue;
       }
 
-      // Handle paid-prefixed skills
-      //
-      // IMPORTANT: Paid skill scripts are BUNDLED before installation.
-      // The script.js files we're copying here are standalone executables created
-      // by scripts/bundle-skills.ts during the build process. They contain all
-      // dependencies inlined by esbuild, making them portable and executable from
-      // ~/.claude/skills/ without requiring the MCP package context.
-      //
-      // @see scripts/bundle-skills.ts - The bundler that creates standalone scripts
-      if (entry.name.startsWith("paid-")) {
-        if (isPaidInstall({ config })) {
-          // Strip paid- prefix when copying
-          const destName = entry.name.replace(/^paid-/, "");
-          const destPath = path.join(claudeSkillsDir, destName);
-          await copyDirWithTemplateSubstitution({
-            src: sourcePath,
-            dest: destPath,
-            installDir: claudeDir,
-          });
-        }
-        // Skip if free tier
-      } else {
-        // Copy non-paid skills for all tiers
-        const destPath = path.join(claudeSkillsDir, entry.name);
-        await copyDirWithTemplateSubstitution({
-          src: sourcePath,
-          dest: destPath,
-          installDir: claudeDir,
-        });
-      }
+      const destPath = path.join(claudeSkillsDir, entry.name);
+      await copyDirWithTemplateSubstitution({
+        src: sourcePath,
+        dest: destPath,
+        installDir: claudeDir,
+      });
     }
   } catch {
     // Profile skills directory not found - continue to check skills.json
@@ -362,7 +338,7 @@ const validate = async (args: {
     };
   }
 
-  // Verify expected skills exist based on tier
+  // Verify expected skills exist
   const profileName = getAgentProfile({
     config,
     agentName: "claude-code",
@@ -390,23 +366,10 @@ const validate = async (args: {
         continue;
       }
 
-      // For paid-prefixed skills, check if they exist without prefix (paid tier only)
-      if (entry.name.startsWith("paid-")) {
-        if (isPaidInstall({ config })) {
-          const destName = entry.name.replace(/^paid-/, "");
-          try {
-            await fs.access(path.join(claudeSkillsDir, destName));
-          } catch {
-            errors.push(`Expected skill '${destName}' not found (paid tier)`);
-          }
-        }
-      } else {
-        // Non-paid skills should exist for all tiers
-        try {
-          await fs.access(path.join(claudeSkillsDir, entry.name));
-        } catch {
-          errors.push(`Expected skill '${entry.name}' not found`);
-        }
+      try {
+        await fs.access(path.join(claudeSkillsDir, entry.name));
+      } catch {
+        errors.push(`Expected skill '${entry.name}' not found`);
       }
     }
 

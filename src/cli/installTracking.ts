@@ -67,7 +67,7 @@ export type CLIEventParams = EventParams & {
   tilework_cli_days_since_install: number;
   tilework_cli_node_version: string;
   tilework_cli_profile: string | null;
-  tilework_cli_install_type: "paid" | "free";
+  tilework_cli_install_type: "authenticated" | "unauthenticated";
 };
 
 type AnalyticsEventRequest = {
@@ -280,8 +280,8 @@ export const buildCLIEventParams = async (args?: {
   const profile = config?.agents?.[agent]?.profile?.baseProfile ?? null;
 
   // Determine install type
-  const installType: "paid" | "free" =
-    config?.auth?.username != null ? "paid" : "free";
+  const installType: "authenticated" | "unauthenticated" =
+    config?.auth?.username != null ? "authenticated" : "unauthenticated";
 
   return {
     ...buildBaseEventParams(),

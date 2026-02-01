@@ -38,7 +38,7 @@ vi.mock("@/cli/installTracking.js", () => ({
     tilework_cli_days_since_install: 0,
     tilework_cli_node_version: "20.0.0",
     tilework_cli_profile: null,
-    tilework_cli_install_type: "free",
+    tilework_cli_install_type: "unauthenticated",
   }),
   getUserId: vi.fn().mockResolvedValue(null),
   sendAnalyticsEvent: vi.fn(),
@@ -275,7 +275,7 @@ describe("autoupdate", () => {
       const mockExecSync = vi.mocked(execSync);
       mockExecSync.mockReturnValue("14.1.0\n");
 
-      // Mock loadConfig to return paid config with version
+      // Mock loadConfig to return config with auth and version
       const { loadConfig } = await import("@/cli/config.js");
       const mockLoadConfig = vi.mocked(loadConfig);
       mockLoadConfig.mockResolvedValue({
@@ -325,7 +325,7 @@ describe("autoupdate", () => {
       };
       mockSpawn.mockReturnValue(mockChild as any);
 
-      // Mock loadConfig to return free config with version
+      // Mock loadConfig to return config with version
       const { loadConfig } = await import("@/cli/config.js");
       const mockLoadConfig = vi.mocked(loadConfig);
       mockLoadConfig.mockResolvedValue({
@@ -371,7 +371,7 @@ describe("autoupdate", () => {
         throw new Error("Network error");
       });
 
-      // Mock loadConfig to return paid config with version
+      // Mock loadConfig to return config with auth and version
       const { loadConfig } = await import("@/cli/config.js");
       const mockLoadConfig = vi.mocked(loadConfig);
       mockLoadConfig.mockResolvedValue({

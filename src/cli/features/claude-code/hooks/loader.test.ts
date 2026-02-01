@@ -58,15 +58,8 @@ describe("hooksLoader", () => {
   });
 
   describe("run", () => {
-    it("should configure hooks for paid installation", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        auth: {
-          username: "test@example.com",
-          password: "testpass",
-          organizationUrl: "https://example.com",
-        },
-      };
+    it("should configure hooks", async () => {
+      const config: Config = { installDir: tempDir };
 
       await hooksLoader.run({ config });
 
@@ -85,47 +78,9 @@ describe("hooksLoader", () => {
       // Verify hooks are configured
       expect(settings.hooks).toBeDefined();
 
-      // Verify SessionEnd hooks (should have summarize-notification and summarize)
+      // Verify SessionEnd hooks (should have statistics-notification and statistics)
       expect(settings.hooks.SessionEnd).toBeDefined();
       expect(settings.hooks.SessionEnd.length).toBeGreaterThan(0);
-
-      // Find summarize hooks
-      let hasNotificationHook = false;
-      let hasSummarizeHook = false;
-      for (const hookConfig of settings.hooks.SessionEnd) {
-        if (hookConfig.hooks) {
-          for (const hook of hookConfig.hooks) {
-            if (
-              hook.command &&
-              hook.command.includes("summarize-notification")
-            ) {
-              hasNotificationHook = true;
-            }
-            if (hook.command && hook.command.includes("summarize.js")) {
-              hasSummarizeHook = true;
-            }
-          }
-        }
-      }
-      expect(hasNotificationHook).toBe(true);
-      expect(hasSummarizeHook).toBe(true);
-
-      // Verify PreCompact hooks
-      expect(settings.hooks.PreCompact).toBeDefined();
-      expect(settings.hooks.PreCompact.length).toBeGreaterThan(0);
-
-      // Find PreCompact summarize hook
-      let hasPreCompactHook = false;
-      for (const hookConfig of settings.hooks.PreCompact) {
-        if (hookConfig.hooks) {
-          for (const hook of hookConfig.hooks) {
-            if (hook.command && hook.command.includes("summarize.js")) {
-              hasPreCompactHook = true;
-            }
-          }
-        }
-      }
-      expect(hasPreCompactHook).toBe(true);
 
       // Verify SessionStart hooks (autoupdate)
       expect(settings.hooks.SessionStart).toBeDefined();
@@ -158,53 +113,9 @@ describe("hooksLoader", () => {
         }
       }
       expect(hasNotifyHook).toBe(true);
-    });
 
-    it("should configure hooks for free installation", async () => {
-      const config: Config = { installDir: tempDir };
-
-      await hooksLoader.run({ config });
-
-      // Verify settings.json exists
-      const exists = await fs
-        .access(settingsPath)
-        .then(() => true)
-        .catch(() => false);
-
-      expect(exists).toBe(true);
-
-      // Read and parse settings
-      const content = await fs.readFile(settingsPath, "utf-8");
-      const settings = JSON.parse(content);
-
-      // Verify hooks are configured
-      expect(settings.hooks).toBeDefined();
-
-      // Free mode should NOT have PreCompact hooks (only paid has summarize on PreCompact)
+      // Should NOT have PreCompact hooks (summarize hooks were removed)
       expect(settings.hooks.PreCompact).toBeUndefined();
-
-      // Free mode SHOULD have SessionEnd hooks (statistics hooks)
-      expect(settings.hooks.SessionEnd).toBeDefined();
-
-      // Free mode SHOULD have SessionStart hooks (autoupdate)
-      expect(settings.hooks.SessionStart).toBeDefined();
-      expect(settings.hooks.SessionStart.length).toBeGreaterThan(0);
-
-      let hasAutoupdateHook = false;
-      for (const hookConfig of settings.hooks.SessionStart) {
-        if (hookConfig.hooks) {
-          for (const hook of hookConfig.hooks) {
-            if (hook.command && hook.command.includes("autoupdate")) {
-              hasAutoupdateHook = true;
-            }
-          }
-        }
-      }
-      expect(hasAutoupdateHook).toBe(true);
-
-      // Free mode SHOULD have Notification hooks
-      expect(settings.hooks.Notification).toBeDefined();
-      expect(settings.hooks.Notification.length).toBeGreaterThan(0);
     });
 
     it("should preserve existing settings when adding hooks", async () => {
@@ -254,46 +165,8 @@ describe("hooksLoader", () => {
       expect(settings.hooks.Notification).toBeDefined();
     });
 
-    it("should handle switching from free to paid installation", async () => {
-      // First install free version
-      const freeConfig: Config = { installDir: tempDir };
-      await hooksLoader.run({ config: freeConfig });
-
-      let content = await fs.readFile(settingsPath, "utf-8");
-      let settings = JSON.parse(content);
-
-      // Verify free installation (has SessionEnd for statistics, but no PreCompact)
-      expect(settings.hooks.SessionEnd).toBeDefined();
-      expect(settings.hooks.PreCompact).toBeUndefined();
-
-      // Then install paid version
-      const paidConfig: Config = {
-        installDir: tempDir,
-        auth: {
-          username: "test@example.com",
-          password: "testpass",
-          organizationUrl: "https://example.com",
-        },
-      };
-      await hooksLoader.run({ config: paidConfig });
-
-      content = await fs.readFile(settingsPath, "utf-8");
-      settings = JSON.parse(content);
-
-      // Verify paid installation (has SessionEnd and PreCompact hooks)
-      expect(settings.hooks.SessionEnd).toBeDefined();
-      expect(settings.hooks.PreCompact).toBeDefined();
-    });
-
-    it("should configure UserPromptSubmit hook for slash command interception (paid)", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        auth: {
-          username: "test@example.com",
-          password: "testpass",
-          organizationUrl: "https://example.com",
-        },
-      };
+    it("should configure UserPromptSubmit hook for slash command interception", async () => {
+      const config: Config = { installDir: tempDir };
 
       await hooksLoader.run({ config });
 
@@ -321,15 +194,8 @@ describe("hooksLoader", () => {
       expect(hasSlashCommandInterceptHook).toBe(true);
     });
 
-    it("should configure nested-install-warning hook for paid installation", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        auth: {
-          username: "test@example.com",
-          password: "testpass",
-          organizationUrl: "https://example.com",
-        },
-      };
+    it("should configure nested-install-warning hook", async () => {
+      const config: Config = { installDir: tempDir };
 
       await hooksLoader.run({ config });
 
@@ -357,41 +223,7 @@ describe("hooksLoader", () => {
       expect(hasNestedWarningHook).toBe(true);
     });
 
-    it("should configure PreToolUse hook for commit-author (paid)", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        auth: {
-          username: "test@example.com",
-          password: "testpass",
-          organizationUrl: "https://example.com",
-        },
-      };
-
-      await hooksLoader.run({ config });
-
-      const content = await fs.readFile(settingsPath, "utf-8");
-      const settings = JSON.parse(content);
-
-      // Verify PreToolUse hooks include commit-author
-      expect(settings.hooks.PreToolUse).toBeDefined();
-      expect(settings.hooks.PreToolUse.length).toBeGreaterThan(0);
-
-      // Find commit-author hook
-      let hasCommitAuthorHook = false;
-      for (const hookConfig of settings.hooks.PreToolUse) {
-        if (hookConfig.matcher === "Bash" && hookConfig.hooks) {
-          for (const hook of hookConfig.hooks) {
-            if (hook.command && hook.command.includes("commit-author")) {
-              hasCommitAuthorHook = true;
-              expect(hook.description).toContain("Nori");
-            }
-          }
-        }
-      }
-      expect(hasCommitAuthorHook).toBe(true);
-    });
-
-    it("should configure PreToolUse hook for commit-author (free)", async () => {
+    it("should configure PreToolUse hook for commit-author", async () => {
       const config: Config = { installDir: tempDir };
 
       await hooksLoader.run({ config });
@@ -418,50 +250,7 @@ describe("hooksLoader", () => {
       expect(hasCommitAuthorHook).toBe(true);
     });
 
-    it("should configure statistics-notification and statistics hooks for paid installation", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        auth: {
-          username: "test@example.com",
-          password: "testpass",
-          organizationUrl: "https://example.com",
-        },
-      };
-
-      await hooksLoader.run({ config });
-
-      const content = await fs.readFile(settingsPath, "utf-8");
-      const settings = JSON.parse(content);
-
-      // Verify SessionEnd hooks include statistics hooks
-      expect(settings.hooks.SessionEnd).toBeDefined();
-
-      let hasStatisticsNotificationHook = false;
-      let hasStatisticsHook = false;
-      for (const hookConfig of settings.hooks.SessionEnd) {
-        if (hookConfig.hooks) {
-          for (const hook of hookConfig.hooks) {
-            if (
-              hook.command &&
-              hook.command.includes("statistics-notification")
-            ) {
-              hasStatisticsNotificationHook = true;
-            }
-            if (
-              hook.command &&
-              hook.command.includes("statistics.js") &&
-              !hook.command.includes("statistics-notification")
-            ) {
-              hasStatisticsHook = true;
-            }
-          }
-        }
-      }
-      expect(hasStatisticsNotificationHook).toBe(true);
-      expect(hasStatisticsHook).toBe(true);
-    });
-
-    it("should configure statistics-notification and statistics hooks for free installation", async () => {
+    it("should configure statistics-notification and statistics hooks", async () => {
       const config: Config = { installDir: tempDir };
 
       await hooksLoader.run({ config });
@@ -500,14 +289,7 @@ describe("hooksLoader", () => {
 
   describe("uninstall", () => {
     it("should remove hooks from settings.json", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        auth: {
-          username: "test@example.com",
-          password: "testpass",
-          organizationUrl: "https://example.com",
-        },
-      };
+      const config: Config = { installDir: tempDir };
 
       // Install first
       await hooksLoader.run({ config });
@@ -527,14 +309,7 @@ describe("hooksLoader", () => {
     });
 
     it("should preserve other settings when removing hooks", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        auth: {
-          username: "test@example.com",
-          password: "testpass",
-          organizationUrl: "https://example.com",
-        },
-      };
+      const config: Config = { installDir: tempDir };
 
       // Create settings with hooks and other content
       await hooksLoader.run({ config });
@@ -583,32 +358,7 @@ describe("hooksLoader", () => {
   });
 
   describe("validate", () => {
-    it("should return valid for properly installed hooks (paid mode)", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        auth: {
-          username: "test@example.com",
-          password: "testpass",
-          organizationUrl: "https://example.com",
-        },
-      };
-
-      // Install
-      await hooksLoader.run({ config });
-
-      // Validate
-      if (hooksLoader.validate == null) {
-        throw new Error("validate method not implemented");
-      }
-
-      const result = await hooksLoader.validate({ config });
-
-      expect(result.valid).toBe(true);
-      expect(result.message).toContain("properly configured");
-      expect(result.errors).toBeNull();
-    });
-
-    it("should return valid for properly installed hooks (free mode)", async () => {
+    it("should return valid for properly installed hooks", async () => {
       const config: Config = { installDir: tempDir };
 
       // Install
@@ -644,14 +394,7 @@ describe("hooksLoader", () => {
     });
 
     it("should return invalid when includeCoAuthoredBy is not set to false", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        auth: {
-          username: "test@example.com",
-          password: "testpass",
-          organizationUrl: "https://example.com",
-        },
-      };
+      const config: Config = { installDir: tempDir };
 
       // Install hooks
       await hooksLoader.run({ config });
@@ -678,14 +421,7 @@ describe("hooksLoader", () => {
     });
 
     it("should return invalid when includeCoAuthoredBy is set to true", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        auth: {
-          username: "test@example.com",
-          password: "testpass",
-          organizationUrl: "https://example.com",
-        },
-      };
+      const config: Config = { installDir: tempDir };
 
       // Install hooks
       await hooksLoader.run({ config });
@@ -734,22 +470,15 @@ describe("hooksLoader", () => {
       expect(result.errors?.[0]).toContain("No hooks configured");
     });
 
-    it("should return invalid when required hooks are missing (paid mode)", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        auth: {
-          username: "test@example.com",
-          password: "testpass",
-          organizationUrl: "https://example.com",
-        },
-      };
+    it("should return invalid when required hooks are missing", async () => {
+      const config: Config = { installDir: tempDir };
 
       // Create settings.json with incomplete hooks
       const settings = {
         $schema: "https://json.schemastore.org/claude-code-settings.json",
         hooks: {
           SessionEnd: [],
-          // Missing PreCompact and SessionStart
+          // Missing SessionStart
         },
       };
       await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2));
@@ -767,63 +496,14 @@ describe("hooksLoader", () => {
       expect(result.errors?.length).toBeGreaterThan(0);
     });
 
-    it("should return invalid when SessionEnd hooks are incomplete (paid mode)", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        auth: {
-          username: "test@example.com",
-          password: "testpass",
-          organizationUrl: "https://example.com",
-        },
-      };
-
-      // Create settings.json with SessionEnd but missing required hooks
-      const settings = {
-        $schema: "https://json.schemastore.org/claude-code-settings.json",
-        hooks: {
-          SessionEnd: [
-            {
-              matcher: "*",
-              hooks: [
-                {
-                  type: "command",
-                  command: "echo test",
-                  description: "Test hook",
-                },
-              ],
-            },
-          ],
-          PreCompact: [],
-          SessionStart: [],
-        },
-      };
-      await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2));
-
-      // Validate
-      if (hooksLoader.validate == null) {
-        throw new Error("validate method not implemented");
-      }
-
-      const result = await hooksLoader.validate({ config });
-
-      expect(result.valid).toBe(false);
-      expect(result.message).toContain("has issues");
-      expect(result.errors).not.toBeNull();
-      expect(result.errors?.length).toBeGreaterThan(0);
-
-      // Check that specific errors are reported
-      const errorMessages = result.errors?.join(" ") || "";
-      expect(errorMessages).toContain("summarize-notification");
-      expect(errorMessages).toContain("summarize");
-    });
-
-    it("should return invalid for free mode when SessionStart hook is missing", async () => {
+    it("should return invalid when SessionStart hook is missing", async () => {
       const config: Config = { installDir: tempDir };
 
       // Create settings.json with hooks but missing SessionStart
       const settings = {
         $schema: "https://json.schemastore.org/claude-code-settings.json",
         hooks: {
+          SessionEnd: [],
           Notification: [],
         },
       };

@@ -85,7 +85,7 @@ vi.mock("@/cli/installTracking.js", () => ({
     tilework_cli_days_since_install: 0,
     tilework_cli_node_version: "20.0.0",
     tilework_cli_profile: null,
-    tilework_cli_install_type: "free",
+    tilework_cli_install_type: "unauthenticated",
   }),
   getUserId: vi.fn().mockResolvedValue(null),
   sendAnalyticsEvent: vi.fn(),

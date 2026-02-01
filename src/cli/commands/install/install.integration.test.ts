@@ -107,7 +107,7 @@ vi.mock("@/cli/installTracking.js", () => ({
     tilework_cli_days_since_install: 0,
     tilework_cli_node_version: "20.0.0",
     tilework_cli_profile: null,
-    tilework_cli_install_type: "free",
+    tilework_cli_install_type: "unauthenticated",
   }),
   getUserId: vi.fn().mockResolvedValue(null),
   sendAnalyticsEvent: vi.fn(),
@@ -200,26 +200,12 @@ describe("install integration test", () => {
         "---\nname: Getting Started with Abilities\ndescription: Describes how to use abilities.\n---\n# Stub\n",
       );
 
-      // Create paid skills (needed for paid features tests)
-      for (const paidSkill of ["paid-recall", "paid-memorize"]) {
-        const paidSkillDir = path.join(profileDir, "skills", paidSkill);
-        fs.mkdirSync(paidSkillDir, { recursive: true });
-        fs.writeFileSync(
-          path.join(paidSkillDir, "SKILL.md"),
-          `---\nname: ${paidSkill}\ndescription: ${paidSkill} skill\n---\n# Stub\n`,
-        );
-      }
-
       // Create subagents directory with stub files
       const subagentsDir = path.join(profileDir, "subagents");
       fs.mkdirSync(subagentsDir, { recursive: true });
       fs.writeFileSync(
         path.join(subagentsDir, "nori-stub-agent.md"),
         "# Stub subagent\n",
-      );
-      fs.writeFileSync(
-        path.join(subagentsDir, "paid-nori-knowledge-researcher.md"),
-        "# Paid stub subagent\n",
       );
 
       // Create slashcommands directory with stub files
@@ -324,80 +310,39 @@ describe("install integration test", () => {
     expect(await getInstalledVersion({ installDir: tempDir })).toBe("13.0.0");
   });
 
-  it("should install paid features for paid users with auth credentials", async () => {
+  it("should not have paid- prefixed skill directories after installation", async () => {
     const CONFIG_PATH = getConfigPath({ installDir: tempDir });
 
-    // STEP 1: Create config with auth credentials (paid user)
-    const paidConfig = {
+    // Create config with auth credentials
+    const config = {
       version: "18.0.0",
       username: "test@example.com",
       password: "testpass",
       organizationUrl: "http://localhost:3000",
       agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
     };
-    fs.writeFileSync(CONFIG_PATH, JSON.stringify(paidConfig, null, 2));
+    fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
 
-    // STEP 2: Run installation in non-interactive mode
+    // Run installation in non-interactive mode
     await installMain({ nonInteractive: true, installDir: tempDir });
 
-    // STEP 3: Verify paid features are installed
-    // Check that paid skills exist in the profile (WITH 'paid-' prefix from mixin)
-    // Profiles now go to .nori/profiles, not .claude/profiles
+    // Verify no paid- prefixed skill directories exist
     const profileDir = path.join(TEST_NORI_DIR, "profiles", "senior-swe");
     const skillsDir = path.join(profileDir, "skills");
 
-    // Paid skills are copied from mixin with their original names (paid- prefix)
-    expect(fs.existsSync(path.join(skillsDir, "paid-recall"))).toBe(true);
-    expect(fs.existsSync(path.join(skillsDir, "paid-memorize"))).toBe(true);
+    if (fs.existsSync(skillsDir)) {
+      const skills = fs.readdirSync(skillsDir);
+      const paidSkills = skills.filter((s) => s.startsWith("paid-"));
+      expect(paidSkills).toEqual([]);
+    }
 
-    // Check that paid subagents exist in the source profile (with paid- prefix)
+    // Verify no paid- prefixed subagent files exist
     const subagentsDir = path.join(profileDir, "subagents");
-    expect(
-      fs.existsSync(
-        path.join(subagentsDir, "paid-nori-knowledge-researcher.md"),
-      ),
-    ).toBe(true);
-
-    // STEP 4: Verify sendSessionTranscript is enabled for paid users
-    const finalConfig = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
-    expect(finalConfig.sendSessionTranscript).toBe("enabled");
-
-    // Clean up
-    try {
-      fs.unlinkSync(CONFIG_PATH);
-    } catch {}
-  });
-
-  it("should NOT install paid features for free users without auth credentials", async () => {
-    const CONFIG_PATH = getConfigPath({ installDir: tempDir });
-
-    // STEP 1: Create config WITHOUT auth credentials (free user)
-    const freeConfig = {
-      version: "18.0.0",
-      agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
-    };
-    fs.writeFileSync(CONFIG_PATH, JSON.stringify(freeConfig, null, 2));
-
-    // STEP 2: Run installation in non-interactive mode
-    await installMain({ nonInteractive: true, installDir: tempDir });
-
-    // STEP 3: Verify paid features are NOT installed
-    const profileDir = path.join(TEST_CLAUDE_DIR, "profiles", "senior-swe");
-    const skillsDir = path.join(profileDir, "skills");
-
-    // Paid skills should NOT exist for free users (check with paid- prefix)
-    expect(fs.existsSync(path.join(skillsDir, "paid-recall"))).toBe(false);
-    expect(fs.existsSync(path.join(skillsDir, "paid-memorize"))).toBe(false);
-
-    // Paid subagents should NOT exist
-    const subagentsDir = path.join(profileDir, "subagents");
-    expect(
-      fs.existsSync(path.join(subagentsDir, "nori-knowledge-researcher.md")),
-    ).toBe(false);
-
-    // STEP 4: Verify sendSessionTranscript is NOT included for free users
-    const finalConfig = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
-    expect(finalConfig.sendSessionTranscript).toBeUndefined();
+    if (fs.existsSync(subagentsDir)) {
+      const subagents = fs.readdirSync(subagentsDir);
+      const paidSubagents = subagents.filter((s) => s.startsWith("paid-"));
+      expect(paidSubagents).toEqual([]);
+    }
 
     // Clean up
     try {
@@ -491,15 +436,15 @@ describe("install integration test", () => {
     const preInstallClaudeSnapshot = getDirectorySnapshot(TEST_CLAUDE_DIR);
     const preInstallCwdSnapshot = getDirectorySnapshot(tempDir);
 
-    // STEP 2: Install with paid config to get all features
-    const paidConfig = {
+    // STEP 2: Install with authenticated config to get all features
+    const authConfig = {
       version: "18.0.0",
       username: "test@example.com",
       password: "testpass",
       organizationUrl: "http://localhost:3000",
       agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
     };
-    fs.writeFileSync(CONFIG_PATH, JSON.stringify(paidConfig, null, 2));
+    fs.writeFileSync(CONFIG_PATH, JSON.stringify(authConfig, null, 2));
 
     await installMain({ nonInteractive: true, installDir: tempDir });
 
