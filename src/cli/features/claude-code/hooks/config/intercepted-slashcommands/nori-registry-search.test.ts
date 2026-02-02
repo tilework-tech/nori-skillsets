@@ -454,7 +454,7 @@ describe("nori-registry-search", () => {
       expect(result).not.toBeNull();
       const plainReason = stripAnsi(result!.reason!);
       expect(plainReason).toContain("registry-download");
-      expect(plainReason).toContain("skill-download");
+      expect(plainReason).toContain("download-skill");
     });
   });
 

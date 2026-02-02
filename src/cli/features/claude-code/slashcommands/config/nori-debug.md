@@ -1,18 +1,33 @@
 ---
-description: Validate Nori Profiles installation and configuration
+description: Validate Nori Skillsets installation and configuration
 allowed-tools: Bash(nori-skillsets:*)
 ---
 
-!`nori-skillsets check`
+Run the following diagnostic commands to validate the Nori Skillsets installation:
 
-This validates the Nori Profiles installation:
+1. Check installation location:
 
-- Config file structure and credentials
-- Server authentication (when credentials are configured)
-- Hooks configuration in .claude/settings.json
-- Subagent files in ~/.claude/agents/
-- Slash command files in ~/.claude/commands/
-- CLAUDE.md managed block
+```bash
+nori-skillsets install-location
+```
+
+2. Verify the config file exists and is valid:
+
+```bash
+cat ~/.claude/.nori-config.json | head -20
+```
+
+3. Check hooks configuration:
+
+```bash
+cat ~/.claude/settings.json | grep -A 5 nori
+```
+
+4. Verify installed version:
+
+```bash
+nori-skillsets --version
+```
 
 ## Troubleshooting
 

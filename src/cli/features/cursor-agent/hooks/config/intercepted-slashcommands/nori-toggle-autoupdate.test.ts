@@ -16,23 +16,16 @@ import { noriToggleAutoupdate } from "./nori-toggle-autoupdate.js";
 
 describe("nori-toggle-autoupdate", () => {
   let testDir: string;
-  let configPath: string;
 
   beforeEach(async () => {
-    // Create test directory structure
     testDir = await fs.mkdtemp(
       path.join(tmpdir(), "nori-toggle-autoupdate-test-"),
     );
-    configPath = path.join(testDir, ".nori-config.json");
 
-    // Create initial config without autoupdate field
+    // Create a config file so getInstallDirs finds this as an installation
     await fs.writeFile(
-      configPath,
-      JSON.stringify({
-        profile: {
-          baseProfile: "senior-swe",
-        },
-      }),
+      path.join(testDir, ".nori-config.json"),
+      JSON.stringify({ profile: { baseProfile: "senior-swe" } }),
     );
   });
 
@@ -67,88 +60,33 @@ describe("nori-toggle-autoupdate", () => {
   });
 
   describe("run function", () => {
-    it("should return block decision with toggle result", async () => {
+    it("should return block decision with informational message", async () => {
       const input = createInput({ prompt: "/nori-toggle-autoupdate" });
       const result = await noriToggleAutoupdate.run({ input });
 
       expect(result).not.toBeNull();
       expect(result!.decision).toBe("block");
+      expect(result!.reason).toContain("Automatic updates have been removed");
     });
-  });
 
-  describe("toggling behavior", () => {
-    it("should add disabled when field does not exist (since default is enabled)", async () => {
+    it("should include update instructions in the message", async () => {
       const input = createInput({ prompt: "/nori-toggle-autoupdate" });
       const result = await noriToggleAutoupdate.run({ input });
 
       expect(result).not.toBeNull();
-      expect(result!.decision).toBe("block");
-      expect(result!.reason).toContain("DISABLED");
-
-      const updatedConfig = JSON.parse(await fs.readFile(configPath, "utf-8"));
-      expect(updatedConfig.autoupdate).toBe("disabled");
+      expect(result!.reason).toContain("npm install -g nori-skillsets");
+      expect(result!.reason).toContain("nori-skillsets switch-skillset");
     });
 
-    it("should toggle from enabled to disabled", async () => {
-      // Set up config with enabled
-      await fs.writeFile(
-        configPath,
-        JSON.stringify({
-          profile: { baseProfile: "senior-swe" },
-          autoupdate: "enabled",
-        }),
-      );
-
-      const input = createInput({ prompt: "/nori-toggle-autoupdate" });
-      const result = await noriToggleAutoupdate.run({ input });
-
-      expect(result).not.toBeNull();
-      expect(result!.decision).toBe("block");
-      expect(result!.reason).toContain("DISABLED");
-
-      const updatedConfig = JSON.parse(await fs.readFile(configPath, "utf-8"));
-      expect(updatedConfig.autoupdate).toBe("disabled");
-    });
-
-    it("should toggle from disabled to enabled", async () => {
-      // Set up config with disabled
-      await fs.writeFile(
-        configPath,
-        JSON.stringify({
-          profile: { baseProfile: "senior-swe" },
-          autoupdate: "disabled",
-        }),
-      );
-
-      const input = createInput({ prompt: "/nori-toggle-autoupdate" });
-      const result = await noriToggleAutoupdate.run({ input });
-
-      expect(result).not.toBeNull();
-      expect(result!.decision).toBe("block");
-      expect(result!.reason).toContain("ENABLED");
-
-      const updatedConfig = JSON.parse(await fs.readFile(configPath, "utf-8"));
-      expect(updatedConfig.autoupdate).toBe("enabled");
-    });
-
-    it("should preserve other config fields when toggling", async () => {
-      // Set up config with additional fields
-      await fs.writeFile(
-        configPath,
-        JSON.stringify({
-          profile: { baseProfile: "amol" },
-          username: "test@example.com",
-          autoupdate: "enabled",
-        }),
-      );
+    it("should not modify the config file", async () => {
+      const configPath = path.join(testDir, ".nori-config.json");
+      const configBefore = await fs.readFile(configPath, "utf-8");
 
       const input = createInput({ prompt: "/nori-toggle-autoupdate" });
       await noriToggleAutoupdate.run({ input });
 
-      const updatedConfig = JSON.parse(await fs.readFile(configPath, "utf-8"));
-      expect(updatedConfig.profile.baseProfile).toBe("amol");
-      expect(updatedConfig.username).toBe("test@example.com");
-      expect(updatedConfig.autoupdate).toBe("disabled");
+      const configAfter = await fs.readFile(configPath, "utf-8");
+      expect(configAfter).toBe(configBefore);
     });
   });
 
@@ -173,28 +111,6 @@ describe("nori-toggle-autoupdate", () => {
       } finally {
         await fs.rm(noInstallDir, { recursive: true, force: true });
       }
-    });
-
-    it("should create config with autoupdate field when config has other content", async () => {
-      // Set up config with only profile (no autoupdate field)
-      await fs.writeFile(
-        configPath,
-        JSON.stringify({
-          profile: { baseProfile: "senior-swe" },
-        }),
-      );
-
-      const input = createInput({ prompt: "/nori-toggle-autoupdate" });
-      const result = await noriToggleAutoupdate.run({ input });
-
-      expect(result).not.toBeNull();
-      expect(result!.decision).toBe("block");
-      expect(result!.reason).toContain("DISABLED");
-
-      // Config should have autoupdate field added
-      const updatedConfig = JSON.parse(await fs.readFile(configPath, "utf-8"));
-      expect(updatedConfig.autoupdate).toBe("disabled");
-      expect(updatedConfig.profile.baseProfile).toBe("senior-swe");
     });
   });
 });

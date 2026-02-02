@@ -286,7 +286,9 @@ const buildDownloadHints = (args: {
     );
   }
   if (hasSkills) {
-    hints.push("To install a skill, use: /nori-skill-download <skill-name>");
+    hints.push(
+      "To install a skill, run: nori-skillsets download-skill <skill-name>",
+    );
   }
 
   return hints.join("\n");

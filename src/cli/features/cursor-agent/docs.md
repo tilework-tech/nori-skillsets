@@ -9,7 +9,7 @@ Cursor agent implementation that satisfies the Agent interface from @/src/cli/fe
 ### How it fits into the larger codebase
 
 ```
-CLI Commands (install, uninstall, check, switch-profile)
+CLI Commands (install, switch-profile)
     |
     +-- AgentRegistry.getInstance().get({ name: "cursor-agent" })
     |

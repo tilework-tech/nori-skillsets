@@ -8,7 +8,7 @@ Profile system that provides complete, self-contained Nori configurations for Cl
 
 ### How it fits into the larger codebase
 
-The profiles loader executes FIRST in both interactive and non-interactive installation modes (see @/src/cli/commands/install/install.ts). It ensures `~/.nori/profiles/` exists and configures permissions, but does not copy any profiles into it -- profiles arrive via registry download or user creation. All subsequent feature loaders (@/src/cli/features/claude-code/profiles/claudemd/loader.ts, @/src/cli/features/claude-code/profiles/skills/loader.ts, @/src/cli/features/claude-code/profiles/subagents/loader.ts, @/src/cli/features/claude-code/profiles/slashcommands/loader.ts) read from `~/.nori/profiles/{selectedProfile}/` to install their components. Profile switching is handled by @/src/cli/commands/switch-profile/profiles.ts which updates `.nori-config.json` while preserving auth credentials, then re-runs installation. The statusline (@/src/cli/features/claude-code/statusline) displays the active profile name. The `/nori-switch-profile` slash command enables in-conversation profile switching.
+The profiles loader executes FIRST during installation (see @/src/cli/commands/install/install.ts). It ensures `~/.nori/profiles/` exists and configures permissions, but does not copy any profiles into it -- profiles arrive via registry download or user creation. All subsequent feature loaders (@/src/cli/features/claude-code/profiles/claudemd/loader.ts, @/src/cli/features/claude-code/profiles/skills/loader.ts, @/src/cli/features/claude-code/profiles/subagents/loader.ts, @/src/cli/features/claude-code/profiles/slashcommands/loader.ts) read from `~/.nori/profiles/{selectedProfile}/` to install their components. Profile switching is handled by @/src/cli/commands/switch-profile/profiles.ts which updates `.nori-config.json` while preserving auth credentials, then re-runs installation. The statusline (@/src/cli/features/claude-code/statusline) displays the active profile name. The `/nori-switch-profile` slash command provides informational guidance for profile switching (directs user to run the terminal command).
 
 ### Core Implementation
 
@@ -72,7 +72,7 @@ The `profiles/config/` directory in the package is empty -- no built-in profiles
 
 **Missing profile directories are valid**: Feature loaders (skills, slashcommands, subagents) treat missing profile directories as valid with zero items. When `fs.readdir()` fails on a profile's subdirectory (e.g., `~/.nori/profiles/none/skills/` doesn't exist), the install functions return early with an info message rather than throwing ENOENT.
 
-**Profile preservation**: Profiles are NEVER deleted during install or uninstall operations. During uninstall, only permissions configuration in `~/.claude/settings.json` is removed -- all profiles remain in `~/.nori/profiles/`.
+**Profile preservation**: Profiles are NEVER deleted during install operations. All profiles remain in `~/.nori/profiles/`.
 
 **CLAUDE.md as validation marker**: A directory is only a valid profile if it contains CLAUDE.md.
 
@@ -121,7 +121,7 @@ The `profiles/config/` directory in the package is empty -- no built-in profiles
    - Creates `~/.nori/profiles/` directory if it does not exist
    - Configures permissions in `~/.claude/settings.json`
 
-2. **User selects profile** (interactive mode)
+2. **User selects profile**
    - Reads available profiles from `~/.nori/profiles/`
    - Shows only user-installed profiles (downloaded from registry or user-created)
 
@@ -160,6 +160,5 @@ The `validate()` function checks:
 - `~/.nori/profiles/` directory exists
 - Profiles directory permissions are configured in settings.json
 
-Run with `npx nori-skillsets check`
 
 Created and maintained by Nori.
