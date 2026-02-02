@@ -4,7 +4,7 @@ Path: @/src/cli
 
 ### Overview
 
-CLI for Nori Profiles that installs features into Claude Code and Cursor, manages credentials, and tracks installation analytics via Google Analytics, with directory-based profile system. The CLI uses Commander.js for command routing, argument parsing, and help generation.
+CLI for Nori Profiles that installs features into Claude Code, manages credentials, and tracks installation analytics via Google Analytics, with directory-based profile system. The CLI uses Commander.js for command routing, argument parsing, and help generation.
 
 ### How it fits into the larger codebase
 
@@ -14,16 +14,14 @@ CLI for Nori Profiles that installs features into Claude Code and Cursor, manage
 |--------|-------------|---------|
 | `nori-skillsets` | @/src/cli/nori-skillsets.ts | CLI with all commands for Nori Profiles installation, management, and registry operations |
 
-The CLI uses Commander.js for command routing, argument parsing, validation, and help generation. It defines global options (`--install-dir`, `--non-interactive`, `--silent`, `--agent`) on the main program. Each command lives in its own subdirectory under @/src/cli/commands/ and exports a `registerXCommand({ program })` function that the entry point imports and calls. Commands access global options via `program.opts()`. The CLI provides automatic `--help`, `--version`, and unknown command detection. Running the binary with no arguments shows help. The CLI layer is responsible ONLY for parsing and routing - all business logic remains in the command modules. The entry point configures analytics tracking by calling `setTileworkSource()` and `trackInstallLifecycle()` at startup before any commands are registered, setting source to "nori-skillsets" to identify CLI usage in analytics data.
+The CLI uses Commander.js for command routing, argument parsing, validation, and help generation. It defines global options (`--non-interactive`, `--silent`) on the main program. Each command lives in its own subdirectory under @/src/cli/commands/ and exports a `registerXCommand({ program })` function that the entry point imports and calls. Commands access global options via `program.opts()`. The CLI provides automatic `--help`, `--version`, and unknown command detection. Running the binary with no arguments shows help. The CLI layer is responsible ONLY for parsing and routing - all business logic remains in the command modules. The entry point configures analytics tracking by calling `setTileworkSource()` and `trackInstallLifecycle()` at startup before any commands are registered, setting source to "nori-skillsets" to identify CLI usage in analytics data.
 
 **Global Options:**
 
 | Option | Description |
 |--------|-------------|
-| `-d, --install-dir <path>` | Custom installation directory (default: current working directory) |
 | `-n, --non-interactive` | Run without interactive prompts |
 | `-s, --silent` | Suppress all output (implies non-interactive) |
-| `-a, --agent <name>` | AI agent to use (auto-detected from config, or claude-code) |
 
 **Directory Structure:**
 
@@ -35,17 +33,15 @@ src/cli/
   logger.ts              # Console output formatting via Winston
   version.ts             # Version tracking for upgrades + package root discovery
   installTracking.ts     # Install lifecycle and session tracking to Nori backend
-  features/              # Multi-agent abstraction layer (see @/src/cli/features/docs.md)
+  features/              # Agent abstraction layer (see @/src/cli/features/docs.md)
     agentRegistry.ts     # AgentRegistry singleton + shared Loader/LoaderRegistry types
     config/              # Shared config loader (used by all agents)
     claude-code/         # Claude Code agent implementation (see @/src/cli/features/claude-code/docs.md)
-    cursor-agent/        # Cursor agent implementation (see @/src/cli/features/cursor-agent/docs.md)
   commands/              # Command implementations (see @/src/cli/commands/docs.md)
     install/             # Install command + asciiArt, installState utilities
     init/                # Initialize Nori configuration and directories
     onboard/             # Profile and auth selection
     switch-profile/      # Profile switching command
-    install-location/    # Display installation directories
     registry-search/     # Search for skillsets and skills in registrar
     registry-download/   # Download from registrar
     registry-install/    # Download + install + activate from public registrar
@@ -69,7 +65,6 @@ src/cli/
 | `login` | commands/login/ | Authenticate with Nori backend |
 | `logout` | commands/logout/ | Remove authentication credentials |
 | `watch` | commands/watch/ | Monitor Claude Code sessions and save transcripts |
-| `install-location` | commands/install-location/ | Display installation directories |
 
 The nori-skillsets CLI uses simplified command names (no `registry-` prefix for registry read operations, `download-skill` for skill downloads, `switch-skillset` for profile switching, `init` for initialization, and `watch` for session monitoring). The commands are defined in @/src/cli/commands/noriSkillsetsCommands.ts and delegate to the underlying implementation functions (`*Main` functions from registry-*, skill-*, watch, and init commands, plus `switchSkillsetAction` from profiles.ts).
 
@@ -77,11 +72,11 @@ Each command directory contains the command implementation, its tests, and any c
 
 **Installation Flow:** The installer (install.ts) orchestrates the installation process in non-interactive mode. It delegates to three steps in sequence: (1) `initMain()` to set up directories and config, (2) `onboardMain()` to set the profile, (3) run feature loaders from the agent's LoaderRegistry. The installer creates `<installDir>/.nori-config.json` containing auth credentials and selected profile name, and installs components into `<installDir>/.claude/`. By default, installDir is `process.cwd()`, so running `cd /project && npx nori-skillsets init` creates files in `/project/`. The profile selection determines which complete directory structure (CLAUDE.md, skills/, subagents/, slashcommands/) gets installed from the user's profiles directory at `<installDir>/.nori/profiles/{profileName}/`. Each profile is a self-contained directory with a CLAUDE.md file that defines the profile. Profiles are obtained from the registry or created by users; no built-in profiles are bundled with the package. The installTracking.ts module tracks installation and session events to the Nori backend.
 
-**installDir Architecture:** The codebase follows a strict pattern where `installDir` is a required parameter for all internal functions. CLI entry points are the ONLY places that accept optional installDir. These entry points either call normalizeInstallDir() from @/src/utils/path.ts or use getInstallDirs() to auto-detect installations. The `installDir` is the BASE directory (e.g., `/home/user/project`), NOT the `.claude` directory. All files are stored relative to this base:
+**installDir Architecture:** The codebase follows a strict pattern where `installDir` is a required parameter for all internal functions. CLI entry points are the ONLY places that accept optional installDir. These entry points call normalizeInstallDir() from @/src/utils/path.ts, which defaults to `~/.nori` when no installDir is provided. The `installDir` is the BASE directory (e.g., `~/.nori`), NOT the `.claude` directory. All files are stored relative to this base:
 - `<installDir>/.nori-config.json` - config file with version tracking (via getConfigPath)
 - `<installDir>/.claude/` - Claude Code configuration (via getClaudeDir)
 
-This ensures that when running `cd /foo/bar && npx nori-skillsets init`, all files are created in `/foo/bar/` rather than the user's home directory.
+The default installation location is `~/.nori`, consolidating all Nori configuration to a single location in the user's home directory.
 
 **Config Migration During Install:** The installation flow uses the `loadAndMigrateConfig({ installDir })` helper early in the flow. This helper:
 1. Loads the existing config via `loadConfig()`

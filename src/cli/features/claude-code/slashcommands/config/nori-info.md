@@ -74,7 +74,6 @@ Hooks execute automatically in response to events like session start/end.
 ### 4.1 Available Hooks
 
 - **Auto-update check** (SessionStart) - Notify when new Nori versions available
-- **Nested install warning** (SessionStart) - Warn about installations in ancestor directories
 - **Context usage warning** (SessionStart) - Warn about excessive permissions context usage
 - **Worktree cleanup** (SessionStart) - Warn about excessive git worktree disk usage
 - **Desktop notifications** (Notification) - Alerts when Claude needs attention
@@ -124,7 +123,6 @@ Custom commands available in Claude Code.
 
 - `/nori-info` - Display this information (you're using it now!)
 - `/nori-debug` - Validate Nori installation (`nori-skillsets check`)
-- `/nori-install-location` - Display Nori installation directories
 - `/nori-switch-skillset` - Switch between skillsets interactively
 - `/nori-init-docs` - Generate documentation files throughout codebase
 

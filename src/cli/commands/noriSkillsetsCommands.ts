@@ -9,7 +9,6 @@
 
 import { externalMain } from "@/cli/commands/external/external.js";
 import { initMain } from "@/cli/commands/init/init.js";
-import { installLocationMain } from "@/cli/commands/install-location/installLocation.js";
 import { listSkillsetsMain } from "@/cli/commands/list-skillsets/listSkillsets.js";
 import { loginMain } from "@/cli/commands/login/login.js";
 import { logoutMain } from "@/cli/commands/logout/logout.js";
@@ -38,7 +37,6 @@ export const registerNoriSkillsetsInitCommand = (args: {
     .action(async () => {
       const globalOpts = program.opts();
       await initMain({
-        installDir: globalOpts.installDir || null,
         nonInteractive: globalOpts.nonInteractive || null,
       });
     });
@@ -58,10 +56,8 @@ export const registerNoriSkillsetsSearchCommand = (args: {
     .command("search <query>")
     .description("Search for skillsets and skills in your org's registry")
     .action(async (query: string) => {
-      const globalOpts = program.opts();
       await registrySearchMain({
         query,
-        installDir: globalOpts.installDir || null,
         cliName: "nori-skillsets",
       });
     });
@@ -95,11 +91,8 @@ export const registerNoriSkillsetsDownloadCommand = (args: {
         packageSpec: string,
         options: { registry?: string; listVersions?: boolean },
       ) => {
-        const globalOpts = program.opts();
-
         const result = await registryDownloadMain({
           packageSpec,
-          installDir: globalOpts.installDir || null,
           registryUrl: options.registry || null,
           listVersions: options.listVersions || null,
           cliName: "nori-skillsets",
@@ -134,10 +127,8 @@ export const registerNoriSkillsetsInstallCommand = (args: {
       const result = await registryInstallMain({
         packageSpec,
         useHomeDir: options.user ?? null,
-        installDir: globalOpts.installDir || null,
         cwd: process.cwd(),
         silent: globalOpts.silent || null,
-        agent: globalOpts.agent || null,
       });
 
       if (!result.success) {
@@ -159,9 +150,8 @@ export const registerNoriSkillsetsSwitchSkillsetCommand = (args: {
   program
     .command("switch-skillset <name>")
     .description("Switch to a different skillset and reinstall")
-    .option("-a, --agent <name>", "AI agent to switch skillset for")
-    .action(async (name: string, options: { agent?: string }) => {
-      await switchSkillsetAction({ name, options, program });
+    .action(async (name: string) => {
+      await switchSkillsetAction({ name, options: {}, program });
     });
 };
 
@@ -199,11 +189,8 @@ export const registerNoriSkillsetsDownloadSkillCommand = (args: {
           skillset?: string;
         },
       ) => {
-        const globalOpts = program.opts();
-
         await skillDownloadMain({
           skillSpec,
-          installDir: globalOpts.installDir || null,
           registryUrl: options.registry || null,
           listVersions: options.listVersions || null,
           skillset: options.skillset || null,
@@ -227,11 +214,7 @@ export const registerNoriSkillsetsListSkillsetsCommand = (args: {
     .command("list-skillsets")
     .description("List locally available skillsets (one per line)")
     .action(async () => {
-      const globalOpts = program.opts();
-      await listSkillsetsMain({
-        installDir: globalOpts.installDir || null,
-        agent: globalOpts.agent || null,
-      });
+      await listSkillsetsMain({});
     });
 };
 
@@ -250,10 +233,8 @@ export const registerNoriSkillsetsWatchCommand = (args: {
     .description(
       "Watch Claude Code sessions and save transcripts to ~/.nori/transcripts/",
     )
-    .option("-a, --agent <name>", "Agent to watch", "claude-code")
-    .action(async (options: { agent: string }) => {
+    .action(async () => {
       await watchMain({
-        agent: options.agent,
         daemon: true,
       });
     });
@@ -290,7 +271,6 @@ export const registerNoriSkillsetsLoginCommand = (args: {
       }) => {
         const globalOpts = program.opts();
         await loginMain({
-          installDir: globalOpts.installDir || null,
           nonInteractive: globalOpts.nonInteractive || null,
           email: options.email || null,
           password: options.password || null,
@@ -314,10 +294,7 @@ export const registerNoriSkillsetsLogoutCommand = (args: {
     .command("logout")
     .description("Clear stored authentication credentials")
     .action(async () => {
-      const globalOpts = program.opts();
-      await logoutMain({
-        installDir: globalOpts.installDir || null,
-      });
+      await logoutMain({});
     });
 };
 
@@ -354,53 +331,13 @@ export const registerNoriSkillsetsExternalCommand = (args: {
           ref?: string;
         },
       ) => {
-        const globalOpts = program.opts();
-
         await externalMain({
           source,
-          installDir: globalOpts.installDir || null,
           skillset: options.skillset || null,
           skill: options.skill || null,
           all: options.all || null,
           ref: options.ref || null,
           cliName: "nori-skillsets",
-        });
-      },
-    );
-};
-
-/**
- * Register the 'install-location' command for nori-skillsets CLI
- * @param args - Configuration arguments
- * @param args.program - Commander program instance
- */
-export const registerNoriSkillsetsInstallLocationCommand = (args: {
-  program: Command;
-}): void => {
-  const { program } = args;
-
-  program
-    .command("install-location")
-    .description("Display Nori installation directories")
-    .option(
-      "--installation-source",
-      "Show only installation source directories (containing .nori-config.json)",
-    )
-    .option(
-      "--installation-managed",
-      "Show only managed installation directories (containing CLAUDE.md with managed block)",
-    )
-    .action(
-      async (options: {
-        installationSource?: boolean;
-        managedInstallation?: boolean;
-      }) => {
-        const globalOpts = program.opts();
-        await installLocationMain({
-          currentDir: process.cwd(),
-          installationSource: options.installationSource || null,
-          managedInstallation: options.managedInstallation || null,
-          nonInteractive: globalOpts.nonInteractive || null,
         });
       },
     );

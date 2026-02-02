@@ -71,31 +71,6 @@ const autoupdateHook: HookInterface = {
 };
 
 /**
- * Nested install warning hook - warns about installations in ancestor directories
- */
-const nestedInstallWarningHook: HookInterface = {
-  name: "nested-install-warning",
-  description: "Warn about Nori installations in ancestor directories",
-  install: async () => {
-    const scriptPath = path.join(HOOKS_CONFIG_DIR, "nested-install-warning.js");
-    return [
-      {
-        event: "SessionStart",
-        matcher: "startup",
-        hooks: [
-          {
-            type: "command",
-            command: `node ${scriptPath}`,
-            description:
-              "Warn about Nori installations in ancestor directories on session start",
-          },
-        ],
-      },
-    ];
-  },
-};
-
-/**
  * Context usage warning hook - warns about excessive permissions context usage
  */
 const contextUsageWarningHook: HookInterface = {
@@ -333,7 +308,6 @@ const configureHooks = async (args: { config: Config }): Promise<void> => {
     statisticsNotificationHook,
     statisticsHook,
     autoupdateHook,
-    nestedInstallWarningHook,
     contextUsageWarningHook,
     worktreeCleanupHook,
     onboardingWizardWelcomeHook,

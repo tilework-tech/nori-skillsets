@@ -78,20 +78,17 @@ describe.sequential("build process", () => {
     );
 
     try {
-      // Run the init command pointing to our temp directory
-      // CRITICAL: Use --install-dir to ensure installation goes to temp directory
-      execSync(
-        `node build/src/cli/nori-skillsets.js init --non-interactive --install-dir "${tempDir}"`,
-        {
-          cwd: pluginDir,
-          encoding: "utf-8",
-          env: {
-            ...process.env,
-            FORCE_COLOR: "0",
-            HOME: tempDir,
-          },
+      // Run the init command in temp directory
+      // The HOME env var ensures installation goes to temp directory's ~/.nori/
+      execSync(`node build/src/cli/nori-skillsets.js init --non-interactive`, {
+        cwd: pluginDir,
+        encoding: "utf-8",
+        env: {
+          ...process.env,
+          FORCE_COLOR: "0",
+          HOME: tempDir,
         },
-      );
+      });
 
       // Verify the installation directory was created with expected structure
       const noriDir = path.join(tempDir, ".nori");
@@ -238,30 +235,6 @@ ${stderr || "(empty)"}`,
       // The statistics hook exits with 0 even on errors to not crash sessions
       expect(exitCode).toBe(0);
     });
-  });
-
-  it("should copy cursor-agent slashcommands config files to build", () => {
-    // This test verifies that the build script copies cursor-agent slash command
-    // markdown files to the build directory. Without this, running
-    // `nori-skillsets install --agent cursor-agent` fails with ENOENT error when
-    // the loader tries to read from the config directory.
-
-    const pluginDir = process.cwd();
-    const configDir = path.join(
-      pluginDir,
-      "build/src/cli/features/cursor-agent/slashcommands/config",
-    );
-
-    // Check that the config directory exists
-    expect(fs.existsSync(configDir)).toBe(true);
-
-    // Check that at least one .md file exists
-    const files = fs.readdirSync(configDir);
-    const mdFiles = files.filter((f) => f.endsWith(".md"));
-    expect(mdFiles.length).toBeGreaterThan(0);
-
-    // Specifically check for nori-info.md which should always be present
-    expect(mdFiles).toContain("nori-info.md");
   });
 
   it("should register nori-skillsets binary in package.json", () => {

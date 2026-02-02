@@ -27,16 +27,16 @@ export type InstallationInfo = {
  * @param args - Configuration arguments
  * @param args.installDir - The installation directory (optional)
  *
- * @returns Absolute path to the base installation directory
+ * @returns Absolute path to the base installation directory (defaults to ~/.nori)
  */
 export const normalizeInstallDir = (args: {
   installDir?: string | null;
 }): string => {
   const { installDir } = args;
 
-  // Use current working directory if no installDir provided or empty
+  // Default to ~/.nori when no installDir provided
   if (installDir == null || installDir === "") {
-    return process.cwd();
+    return path.join(os.homedir(), ".nori");
   }
 
   let normalizedPath = installDir;

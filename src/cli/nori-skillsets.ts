@@ -14,7 +14,6 @@ import {
   registerNoriSkillsetsExternalCommand,
   registerNoriSkillsetsInitCommand,
   registerNoriSkillsetsInstallCommand,
-  registerNoriSkillsetsInstallLocationCommand,
   registerNoriSkillsetsListSkillsetsCommand,
   registerNoriSkillsetsLoginCommand,
   registerNoriSkillsetsLogoutCommand,
@@ -28,7 +27,6 @@ import {
 } from "@/cli/installTracking.js";
 import { getCurrentPackageVersion } from "@/cli/version.js";
 import { initializeProxySupport } from "@/utils/fetch.js";
-import { normalizeInstallDir } from "@/utils/path.js";
 
 // Initialize proxy support early, before any network requests
 initializeProxySupport();
@@ -45,17 +43,8 @@ program
   .name("nori-skillsets")
   .version(version)
   .description(`Nori Skillsets CLI - Registry Operations v${version}`)
-  .option(
-    "-d, --install-dir <path>",
-    "Custom installation directory (default: ~/.claude)",
-    (value) => normalizeInstallDir({ installDir: value }),
-  )
   .option("-n, --non-interactive", "Run without interactive prompts")
   .option("-s, --silent", "Suppress all output (implies --non-interactive)")
-  .option(
-    "-a, --agent <name>",
-    "AI agent to use (auto-detected from config, or claude-code)",
-  )
   .addHelpText(
     "after",
     `
@@ -79,10 +68,6 @@ Examples:
   $ nori-skillsets external owner/repo --all --ref main
   $ nori-skillsets watch              # start watching Claude Code sessions
   $ nori-skillsets watch stop         # stop the watch daemon
-  $ nori-skillsets install-location   # show all installation directories
-  $ nori-skillsets install-location --installation-source  # show only source dirs
-  $ nori-skillsets install-location --installation-managed # show only managed dirs
-  $ nori-skillsets install-location --non-interactive      # plain output for scripts
 `,
   );
 
@@ -98,7 +83,6 @@ registerNoriSkillsetsListSkillsetsCommand({ program });
 registerNoriSkillsetsDownloadSkillCommand({ program });
 registerNoriSkillsetsExternalCommand({ program });
 registerNoriSkillsetsWatchCommand({ program });
-registerNoriSkillsetsInstallLocationCommand({ program });
 
 program.parse(process.argv);
 

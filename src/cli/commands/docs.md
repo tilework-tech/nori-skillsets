@@ -8,9 +8,9 @@ Contains all CLI command implementations for the nori-skillsets CLI. Each comman
 
 ### How it fits into the larger codebase
 
-The CLI entry point (@/src/cli/nori-skillsets.ts) imports `registerXCommand` functions from each command subdirectory and calls them to register commands with the Commander.js program. Each command module exports a register function that accepts `{ program: Command }` and adds its command definition. Commands access global options (`--install-dir`, `--non-interactive`, `--agent`) via `program.opts()`. Business logic is encapsulated within each command directory - the entry points only handle routing.
+The CLI entry point (@/src/cli/nori-skillsets.ts) imports `registerXCommand` functions from each command subdirectory and calls them to register commands with the Commander.js program. Each command module exports a register function that accepts `{ program: Command }` and adds its command definition. Commands access global options (`--non-interactive`, `--silent`) via `program.opts()`. Business logic is encapsulated within each command directory - the entry points only handle routing.
 
-Commands that interact with agent-specific features (install, switch-profile) use the AgentRegistry (@/src/cli/features/agentRegistry.ts) to look up the agent implementation by name. The agent provides access to its LoaderRegistry, environment paths, and global feature declarations. Commands pass the `--agent` option through their call chain to ensure consistent agent context.
+Commands that interact with agent-specific features (install, switch-profile) use the AgentRegistry (@/src/cli/features/agentRegistry.ts) to look up the claude-code agent implementation. The agent provides access to its LoaderRegistry, environment paths, and global feature declarations.
 
 **Installation Flow Architecture:** The installation process is split into three steps orchestrated by install.ts:
 
@@ -32,7 +32,7 @@ The `install` command in @/src/cli/commands/registry-install/registryInstall.ts 
 **onboard** (@/src/cli/commands/onboard/onboard.ts): Configures the profile selection and auth credentials:
 - Non-interactive mode requires `--profile` flag if no existing profile is set
 
-**Multi-Agent Support:** The `--agent` flag defaults to `"claude-code"` and determines which agent's loaders run during installation. Agent resolution uses `AgentRegistry.getInstance().get({ name: agentName })` to obtain the agent implementation. Each agent provides its own LoaderRegistry with agent-specific loaders.
+**Agent Support:** The AgentRegistry only supports `"claude-code"` as a valid agent. Agent resolution uses `AgentRegistry.getInstance().get({ name: "claude-code" })` to obtain the agent implementation. The agent provides its own LoaderRegistry with agent-specific loaders.
 
 The install command sets `agents: { [agentName]: { profile } }` in the config, where the keys of the `agents` object indicate which agents are installed. The config loader merges `agents` objects with any existing config.
 
@@ -55,8 +55,6 @@ The `logout` command removes auth credentials from config, preserving the profil
 ### Core Implementation
 
 **Command Naming Convention:** The nori-skillsets CLI uses simplified names without `registry-` prefix for read operations. The `noriSkillsetsCommands.ts` module defines register functions that create Commander commands with simplified names while delegating to the full implementation functions.
-
-**install-location** (@/src/cli/commands/install-location/): Displays all Nori installation directories found from cwd upward. Supports `--installation-source` (source dirs only), `--installation-managed` (managed dirs only), and `--non-interactive` (plain output for scripts). Uses `getInstallDirs({ currentDir: process.cwd() })` to discover installations.
 
 **switch-profile** (@/src/cli/commands/switch-profile/profiles.ts): The `switchSkillsetAction` function handles profile switching. It loads the config, validates the profile exists using the agent's `listProfiles()` method, then calls `noninteractive()` from install.ts to re-run the full installation with the new profile. The re-run picks up the new profile and applies it through all loaders.
 

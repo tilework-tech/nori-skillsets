@@ -34,14 +34,6 @@ describe("AgentRegistry", () => {
       expect(agent.displayName).toBe("Claude Code");
     });
 
-    test("returns cursor-agent when requested", () => {
-      const registry = AgentRegistry.getInstance();
-      const agent = registry.get({ name: "cursor-agent" });
-
-      expect(agent.name).toBe("cursor-agent");
-      expect(agent.displayName).toBe("Cursor Agent");
-    });
-
     test("throws error with helpful message for unknown agent", () => {
       const registry = AgentRegistry.getInstance();
 
@@ -63,8 +55,7 @@ describe("AgentRegistry", () => {
       const agents = registry.list();
 
       expect(agents).toContain("claude-code");
-      expect(agents).toContain("cursor-agent");
-      expect(agents.length).toBeGreaterThanOrEqual(2);
+      expect(agents.length).toBe(1);
     });
   });
 
@@ -108,35 +99,9 @@ describe("AgentRegistry", () => {
       ]);
     });
 
-    test("cursor-agent returns global loaders (hooks and slashcommands, no statusline)", () => {
-      const registry = AgentRegistry.getInstance();
-      const agent = registry.get({ name: "cursor-agent" });
-
-      const globalLoaders = agent.getGlobalLoaders();
-
-      expect(globalLoaders).toEqual([
-        { name: "hooks", humanReadableName: "hooks" },
-        { name: "slashcommands", humanReadableName: "slash commands" },
-      ]);
-    });
-
     test("claude-code agent provides LoaderRegistry", () => {
       const registry = AgentRegistry.getInstance();
       const agent = registry.get({ name: "claude-code" });
-      const loaderRegistry: LoaderRegistry = agent.getLoaderRegistry();
-
-      // Verify it has the expected methods
-      expect(loaderRegistry.getAll).toBeDefined();
-      expect(loaderRegistry.getAllReversed).toBeDefined();
-
-      // Verify it returns loaders
-      const loaders = loaderRegistry.getAll();
-      expect(loaders.length).toBeGreaterThan(0);
-    });
-
-    test("cursor-agent provides LoaderRegistry", () => {
-      const registry = AgentRegistry.getInstance();
-      const agent = registry.get({ name: "cursor-agent" });
       const loaderRegistry: LoaderRegistry = agent.getLoaderRegistry();
 
       // Verify it has the expected methods
@@ -166,27 +131,14 @@ describe("AgentRegistry", () => {
       }
     });
 
-    test("cursor-agent includes config loader", () => {
+    test("claude-code agent includes config loader", () => {
       const registry = AgentRegistry.getInstance();
-      const agent = registry.get({ name: "cursor-agent" });
+      const agent = registry.get({ name: "claude-code" });
       const loaderRegistry = agent.getLoaderRegistry();
       const loaders = loaderRegistry.getAll();
       const loaderNames = loaders.map((l) => l.name);
 
       expect(loaderNames).toContain("config");
-    });
-
-    test("both agents include config loader", () => {
-      const registry = AgentRegistry.getInstance();
-
-      for (const agentName of ["claude-code", "cursor-agent"]) {
-        const agent = registry.get({ name: agentName });
-        const loaderRegistry = agent.getLoaderRegistry();
-        const loaders = loaderRegistry.getAll();
-        const loaderNames = loaders.map((l) => l.name);
-
-        expect(loaderNames).toContain("config");
-      }
     });
   });
 
