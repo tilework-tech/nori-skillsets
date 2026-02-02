@@ -25,12 +25,14 @@ import type { Command } from "commander";
 import type { AuthError } from "firebase/auth";
 
 import {
+  AUTH_WARNING_MS,
   exchangeCodeForTokens,
   findAvailablePort,
   generateState,
   getGoogleAuthUrl,
   GOOGLE_OAUTH_CLIENT_ID,
   GOOGLE_OAUTH_CLIENT_SECRET,
+  isHeadlessEnvironment,
   startAuthServer,
   validateOAuthCredentials,
 } from "./googleAuth.js";
@@ -118,22 +120,41 @@ const authenticateWithGoogle = async (): Promise<{
     state,
   });
 
+  // Always display the auth URL for headless/SSH environments
+  newline();
+  info({ message: "Authentication URL:" });
+  info({ message: `  ${authUrl}` });
+  newline();
+
+  // Detect SSH environment and provide port forwarding instructions
+  if (isHeadlessEnvironment()) {
+    info({ message: "Detected SSH/headless environment." });
+    info({ message: "To authenticate from a remote session:" });
+    info({ message: `  1. Run this on your local machine:` });
+    info({ message: `     ssh -L ${port}:localhost:${port} <user>@<server>` });
+    info({ message: `  2. Open the URL above in your local browser` });
+    newline();
+  }
+
   // Start the local server to capture the callback
   const serverPromise = startAuthServer({
     port,
     expectedState: state,
+    warningMs: AUTH_WARNING_MS,
+    onTimeoutWarning: () => {
+      warn({
+        message:
+          "Authentication will timeout in 1 minute. Please complete the browser flow.",
+      });
+    },
   });
 
-  // Open browser to the Google consent screen
-  info({ message: "Opening browser for Google authentication..." });
+  // Attempt to open browser (may fail silently in headless)
+  info({ message: "Attempting to open browser..." });
   try {
     await open(authUrl);
   } catch {
-    // If browser fails to open, print the URL for manual copy-paste
-    info({
-      message: "Could not open browser automatically. Please visit:",
-    });
-    info({ message: `  ${authUrl}` });
+    // Browser failed to open - already displayed the URL above
   }
 
   // Wait for the OAuth callback
