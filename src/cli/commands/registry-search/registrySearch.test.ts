@@ -635,27 +635,6 @@ describe("registry-search", () => {
     });
   });
 
-  describe("cursor-agent validation", () => {
-    it("should fail when only cursor-agent is installed", async () => {
-      vi.mocked(loadConfig).mockResolvedValue({
-        installDir: testDir,
-        agents: { "cursor-agent": { profile: { baseProfile: "amol" } } },
-        auth: {
-          username: "user@example.com",
-          organizationUrl: "https://myorg.tilework.tech",
-          refreshToken: "token",
-        },
-      });
-
-      await registrySearchMain({ query: "test", installDir: testDir });
-
-      expect(registrarApi.searchPackagesOnRegistry).not.toHaveBeenCalled();
-      expect(registrarApi.searchSkills).not.toHaveBeenCalled();
-      const output = getAllOutput();
-      expect(output.toLowerCase()).toContain("not supported");
-    });
-  });
-
   describe("cliName in user-facing messages", () => {
     it("should use nori-skillsets command names in install hints when cliName is nori-skillsets", async () => {
       vi.mocked(loadConfig).mockResolvedValue({

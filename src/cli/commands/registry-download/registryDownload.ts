@@ -24,11 +24,7 @@ import {
   type CliName,
 } from "@/cli/commands/cliCommandNames.js";
 import { initMain } from "@/cli/commands/init/init.js";
-import {
-  checkRegistryAgentSupport,
-  showCursorAgentNotSupportedError,
-} from "@/cli/commands/registryAgentCheck.js";
-import { getRegistryAuth } from "@/cli/config.js";
+import { getRegistryAuth, loadConfig } from "@/cli/config.js";
 import { getNoriProfilesDir } from "@/cli/features/claude-code/paths.js";
 import { error, success, info, newline, raw } from "@/cli/logger.js";
 import { getInstallDirs } from "@/utils/path.js";
@@ -572,17 +568,8 @@ export const registryDownloadMain = async (args: {
     }
   }
 
-  // Check if cursor-agent-only installation (not supported for registry commands)
-  const agentCheck = await checkRegistryAgentSupport({
-    installDir: targetInstallDir,
-  });
-  if (!agentCheck.supported) {
-    showCursorAgentNotSupportedError();
-    return { success: false };
-  }
-
-  // Use config from agentCheck (already loaded during support check)
-  const config = agentCheck.config;
+  // Load config for registry auth
+  const config = await loadConfig({ installDir: targetInstallDir });
 
   const profilesDir = getNoriProfilesDir({ installDir: targetInstallDir });
   // For namespaced packages, the profile is in a nested directory (e.g., profiles/myorg/my-profile)

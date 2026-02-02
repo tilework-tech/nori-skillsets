@@ -63,10 +63,9 @@ describe.sequential("build process", () => {
     expect(stdout).toContain("Build Complete");
   });
 
-  it("should successfully run install after build and pass validation", () => {
+  it("should successfully run init after build", () => {
     // This test verifies that all config files are properly copied during build
-    // by actually running the installer after build completes, then running
-    // the 'check' command to validate the installation.
+    // by actually running the init command after build completes.
     //
     // This catches issues where new features with config directories are added
     // but the build script (scripts/build.sh) is not updated to copy them.
@@ -78,84 +77,25 @@ describe.sequential("build process", () => {
       path.join(os.tmpdir(), "nori-install-test-"),
     );
 
-    // Create stub profile (built-in profiles no longer bundled)
-    const noriProfilesDir = path.join(
-      tempDir,
-      ".nori",
-      "profiles",
-      "senior-swe",
-    );
-    fs.mkdirSync(noriProfilesDir, { recursive: true });
-    fs.writeFileSync(path.join(noriProfilesDir, "CLAUDE.md"), "# senior-swe\n");
-    fs.writeFileSync(
-      path.join(noriProfilesDir, "nori.json"),
-      JSON.stringify({
-        name: "senior-swe",
-        version: "1.0.0",
-        description: "Test profile",
-      }),
-    );
-
     try {
-      // Run the installer pointing to our temp directory
-      // Use the CLI entry point (cli.js) with --non-interactive flag
-      // to skip prompts and default to unauthenticated mode
+      // Run the init command pointing to our temp directory
       // CRITICAL: Use --install-dir to ensure installation goes to temp directory
-      // Without this flag, installDir defaults to process.cwd() which creates
-      // .claude in the project root, breaking test containment
-      // Note: We don't check install output - it's expected to succeed
-      // The real validation happens with the check command below
       execSync(
-        `node build/src/cli/nori-ai.js install --non-interactive --install-dir "${tempDir}" --profile senior-swe`,
+        `node build/src/cli/nori-skillsets.js init --non-interactive --install-dir "${tempDir}"`,
         {
           cwd: pluginDir,
           encoding: "utf-8",
           env: {
             ...process.env,
             FORCE_COLOR: "0",
-            HOME: tempDir, // Installer uses HOME to find ~/.claude
+            HOME: tempDir,
           },
         },
       );
 
-      // Run the 'check' command to validate the installation
-      // This is much more comprehensive than checking individual files
-      // It validates all loaders (skills, profiles, hooks, subagents, etc.)
-      // Note: We expect this to fail overall because there's no nori-config.json,
-      // but we can still check that all features validated successfully
-      let checkOutput = "";
-      try {
-        checkOutput = execSync(
-          `node build/src/cli/nori-ai.js check --install-dir "${tempDir}"`,
-          {
-            cwd: pluginDir,
-            encoding: "utf-8",
-            env: {
-              ...process.env,
-              FORCE_COLOR: "0",
-              HOME: tempDir, // Use same temp directory
-            },
-          },
-        );
-      } catch (error: unknown) {
-        // Check command exits with error due to missing config, but that's OK
-        // We can still verify the feature installations from stdout
-        if (error && typeof error === "object") {
-          const execError = error as { stdout?: string | Buffer };
-          checkOutput =
-            typeof execError.stdout === "string"
-              ? execError.stdout
-              : execError.stdout?.toString() || "";
-        }
-      }
-
-      // Verify all features validated successfully
-      // This proves the build script copied all necessary config files
-      // Note: skills, claudemd, slashcommands, subagents are now validated via profilesLoader
-      expect(checkOutput).toContain("✓ hooks: Hooks are properly configured");
-      expect(checkOutput).toContain(
-        "✓ profiles: Profiles directory exists and permissions are configured",
-      );
+      // Verify the installation directory was created with expected structure
+      const noriDir = path.join(tempDir, ".nori");
+      expect(fs.existsSync(noriDir)).toBe(true);
     } catch (error: unknown) {
       if (error && typeof error === "object") {
         const execError = error as {
@@ -173,7 +113,7 @@ describe.sequential("build process", () => {
             ? execError.stderr
             : execError.stderr?.toString() || "";
         throw new Error(
-          `Installation failed with status ${execError.status}:
+          `Init failed with status ${execError.status}:
 Message: ${execError.message || "none"}
 STDOUT:
 ${stdout || "(empty)"}
@@ -324,43 +264,36 @@ ${stderr || "(empty)"}`,
     expect(mdFiles).toContain("nori-info.md");
   });
 
-  it("should register nori-ai and nori-skillsets binaries in package.json", () => {
-    // This test verifies that both binaries are registered in package.json
-    // with nori-ai pointing to nori-ai.js and nori-skillsets pointing to nori-skillsets.js.
+  it("should register nori-skillsets binary in package.json", () => {
+    // This test verifies that the nori-skillsets binary is registered in package.json
     const pluginDir = process.cwd();
     const packageJson = JSON.parse(
       fs.readFileSync(path.join(pluginDir, "package.json"), "utf-8"),
     );
 
-    // Both binaries should be registered
-    expect(packageJson.bin).toHaveProperty("nori-ai");
+    // nori-skillsets binary should be registered
     expect(packageJson.bin).toHaveProperty("nori-skillsets");
 
-    // Each should point to its own CLI entry point
-    expect(packageJson.bin["nori-ai"]).toBe("./build/src/cli/nori-ai.js");
+    // Should point to its CLI entry point
     expect(packageJson.bin["nori-skillsets"]).toBe(
       "./build/src/cli/nori-skillsets.js",
     );
   });
 
-  it("should create both nori-ai.js and nori-skillsets.js executables in build", () => {
-    // This test verifies that both CLI entry points exist after build
+  it("should create nori-skillsets.js executable in build", () => {
+    // This test verifies that the CLI entry point exists after build
     const pluginDir = process.cwd();
 
-    const noriAiPath = path.join(pluginDir, "build/src/cli/nori-ai.js");
     const noriSkillsetsPath = path.join(
       pluginDir,
       "build/src/cli/nori-skillsets.js",
     );
 
-    // Both files should exist
-    expect(fs.existsSync(noriAiPath)).toBe(true);
+    // File should exist
     expect(fs.existsSync(noriSkillsetsPath)).toBe(true);
 
-    // Both should be executable
-    const noriAiStats = fs.statSync(noriAiPath);
+    // Should be executable
     const noriSkillsetsStats = fs.statSync(noriSkillsetsPath);
-    expect((noriAiStats.mode & 0o100) !== 0).toBe(true);
     expect((noriSkillsetsStats.mode & 0o100) !== 0).toBe(true);
   });
 
@@ -399,7 +332,7 @@ ${stderr || "(empty)"}`,
       let output = "";
 
       try {
-        output = execSync("node build/src/cli/nori-ai.js", {
+        output = execSync("node build/src/cli/nori-skillsets.js", {
           encoding: "utf-8",
           stdio: "pipe",
           env: { ...process.env, FORCE_COLOR: "0", HOME: tempDir },
@@ -413,7 +346,7 @@ ${stderr || "(empty)"}`,
       }
 
       // Verify that help text is shown
-      expect(output).toContain("Usage: nori-ai");
+      expect(output).toContain("Usage: nori-skillsets");
       expect(output).toContain("Options:");
       expect(output).toContain("Commands:");
 
@@ -427,11 +360,14 @@ ${stderr || "(empty)"}`,
 
       try {
         // Run with --help on the install command to avoid actual installation
-        output = execSync("node build/src/cli/nori-ai.js install --help", {
-          encoding: "utf-8",
-          stdio: "pipe",
-          env: { ...process.env, FORCE_COLOR: "0", HOME: tempDir },
-        });
+        output = execSync(
+          "node build/src/cli/nori-skillsets.js install --help",
+          {
+            encoding: "utf-8",
+            stdio: "pipe",
+            env: { ...process.env, FORCE_COLOR: "0", HOME: tempDir },
+          },
+        );
       } catch (error: unknown) {
         if (error && typeof error === "object") {
           const execError = error as { stdout?: string; stderr?: string };

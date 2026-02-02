@@ -4,11 +4,11 @@ Path: @/src/cli/commands
 
 ### Overview
 
-Contains all CLI command implementations for both the nori-ai and nori-skillsets CLIs. Each command lives in its own subdirectory with its implementation, tests, and any command-specific utilities co-located together.
+Contains all CLI command implementations for the nori-skillsets CLI. Each command lives in its own subdirectory with its implementation, tests, and any command-specific utilities co-located together.
 
 ### How it fits into the larger codebase
 
-The CLI entry points (@/src/cli/nori-ai.ts and @/src/cli/nori-skillsets.ts) import `registerXCommand` functions from each command subdirectory and call them to register commands with the Commander.js program. Each command module exports a register function that accepts `{ program: Command }` and adds its command definition. Commands access global options (`--install-dir`, `--non-interactive`, `--agent`) via `program.opts()`. Business logic is encapsulated within each command directory - the entry points only handle routing.
+The CLI entry point (@/src/cli/nori-skillsets.ts) imports `registerXCommand` functions from each command subdirectory and calls them to register commands with the Commander.js program. Each command module exports a register function that accepts `{ program: Command }` and adds its command definition. Commands access global options (`--install-dir`, `--non-interactive`, `--agent`) via `program.opts()`. Business logic is encapsulated within each command directory - the entry points only handle routing.
 
 Commands that interact with agent-specific features (install, uninstall, check, switch-profile) use the AgentRegistry (@/src/cli/features/agentRegistry.ts) to look up the agent implementation by name. The agent provides access to its LoaderRegistry, environment paths, and global feature declarations. Commands pass the `--agent` option through their call chain to ensure consistent agent context.
 
@@ -90,11 +90,7 @@ The install command sets `agents: { [agentName]: { profile } }` in the config, w
 - If multiple agents installed: error with "Multiple agents installed (X, Y). Please specify which agent to check with --agent <name>."
 - If no agents in config (legacy fallback): default to `claude-code`
 
-**Registry Commands Agent Validation:** Most registry and skill commands require Claude Code to be installed because profiles are stored at `~/.claude/profiles/` and skills at `~/.claude/skills/`. The shared `registryAgentCheck.ts` module provides validation:
-- `checkRegistryAgentSupport({ installDir })` - Returns `{ supported: boolean, config: Config | null }`. Rejects if config has cursor-agent but NOT claude-code; allows all other cases (backwards compatible with older installs that have no agents field)
-- `showCursorAgentNotSupportedError()` - Displays error message explaining registry requires Claude Code and how to install it
-
-Registry commands (registry-search, registry-download, registry-update, registry-upload) and `skill-upload` call this validation early in their main function. **Exception:** `skill-download` does not use this validation - it allows downloading skills without any prior Nori installation.
+**Registry Commands:** Registry commands (registry-search, registry-download) load config directly via `loadConfig()` from @/src/cli/config.ts without any agent-type gating. `skill-download` also does not require any prior Nori installation.
 
 **Skill Commands:** Two commands manage skills as first-class registry entities (mirroring the profile registry commands):
 - `skill-download` - Download and install skills directly to `.claude/skills/{skill-name}/` in the target directory. Supports namespaced package specs for org-specific downloads (see below). Creates `.nori-version` file for version tracking. Persists raw skill files to the active profile's `skills/` directory and applies template substitution to the live copy. Supports `--list-versions`, `--registry`, and `--skillset` options.
@@ -303,7 +299,6 @@ export const registerXCommand = (args: { program: Command }): void => {
 ### Things to Know
 
 The commands directory contains shared utilities at the top level:
-- `registryAgentCheck.ts` - Shared validation for registry commands. Checks if the installation has only cursor-agent (no claude-code) and rejects with a helpful error message. Used by registry-search, registry-download, registry-update, registry-upload, and skill-upload commands. Note: `skill-download` does not use this validation.
 - `cliCommandNames.ts` - CLI command name mapping for user-facing messages. Maps CLI names (`nori-ai`, `nori-skillsets`) to their respective command names (e.g., `registry-download` vs `download`, `switch-profile` vs `switch-skillset`). The `getCommandNames({ cliName })` function returns a `CommandNames` object with mappings for download, downloadSkill, search, update, upload, uploadSkill, and switchProfile. Defaults to nori-ai command names when `cliName` is null or undefined.
 
 The `noriSkillsetsCommands.ts` file contains thin command wrappers for the nori-skillsets CLI - registration functions that provide simplified command names (`init`, `search`, `download`, `install`, `switch-skillset`, `download-skill`, `watch`) by delegating to the underlying implementation functions (`*Main` functions from init, registry-*, skill-*, and watch commands, `switchSkillsetAction` for switch-skillset). Upload, update, and onboard commands are only available via the nori-ai CLI. Each wrapper passes `cliName: "nori-skillsets"` to the `*Main` functions so user-facing messages display nori-skillsets command names (e.g., "run nori-skillsets switch-skillset" instead of "run nori-ai switch-profile"). This allows the nori-skillsets CLI to use cleaner command names while sharing all business logic with the nori-ai CLI.

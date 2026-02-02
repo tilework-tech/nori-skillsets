@@ -1095,34 +1095,6 @@ describe("registry-download", () => {
   });
 
   describe("cursor-agent validation", () => {
-    it("should fail when only cursor-agent is installed", async () => {
-      // Mock config with only cursor-agent installed
-      vi.mocked(loadConfig).mockResolvedValue({
-        installDir: testDir,
-        agents: { "cursor-agent": { profile: { baseProfile: "amol" } } },
-      });
-
-      await registryDownloadMain({
-        packageSpec: "test-profile",
-        cwd: testDir,
-      });
-
-      // Should not make any API calls
-      expect(registrarApi.getPackument).not.toHaveBeenCalled();
-      expect(registrarApi.downloadTarball).not.toHaveBeenCalled();
-
-      // Should display error message about cursor-agent not being supported
-      const allOutput = [
-        ...mockConsoleLog.mock.calls,
-        ...mockConsoleError.mock.calls,
-      ]
-        .map((call) => call.join(" "))
-        .join("\n");
-      expect(allOutput.toLowerCase()).toContain("not supported");
-      expect(allOutput.toLowerCase()).toContain("cursor");
-      expect(allOutput).toContain("claude-code");
-    });
-
     it("should succeed when only claude-code is installed", async () => {
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,

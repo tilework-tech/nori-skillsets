@@ -13,10 +13,6 @@ import {
   getCommandNames,
   type CliName,
 } from "@/cli/commands/cliCommandNames.js";
-import {
-  checkRegistryAgentSupport,
-  showCursorAgentNotSupportedError,
-} from "@/cli/commands/registryAgentCheck.js";
 import { loadConfig } from "@/cli/config.js";
 import { error, info, newline, raw } from "@/cli/logger.js";
 import { getInstallDirs, normalizeInstallDir } from "@/utils/path.js";
@@ -352,15 +348,6 @@ export const registrySearchMain = async (args: {
       });
       return;
     }
-  }
-
-  // Check if cursor-agent-only installation (not supported for registry commands)
-  const agentCheck = await checkRegistryAgentSupport({
-    installDir: effectiveInstallDir,
-  });
-  if (!agentCheck.supported) {
-    showCursorAgentNotSupportedError();
-    return;
   }
 
   // Load config to check for org auth
