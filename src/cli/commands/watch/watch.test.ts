@@ -6,7 +6,18 @@ import * as fs from "fs/promises";
 import * as os from "os";
 import * as path from "path";
 
-import { afterEach, beforeEach, describe, expect, test } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+
+// Mock the uploader module to avoid undici import chain
+vi.mock("@/cli/commands/watch/uploader.js", () => ({
+  processTranscriptForUpload: vi.fn().mockResolvedValue(true),
+}));
+
+// Mock the hook installer to avoid settings.json side effects
+vi.mock("@/cli/commands/watch/hookInstaller.js", () => ({
+  installTranscriptHook: vi.fn().mockResolvedValue(undefined),
+  removeTranscriptHook: vi.fn().mockResolvedValue(undefined),
+}));
 
 import {
   watchMain,

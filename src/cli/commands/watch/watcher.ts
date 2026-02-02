@@ -17,40 +17,45 @@ export type WatcherEvents = {
 };
 
 /**
- * Global watcher instance
+ * Collection of active watchers
  */
-let watcher: FSWatcher | null = null;
+const activeWatchers: Set<FSWatcher> = new Set();
 
 /**
- * Promise that resolves when watcher is ready
+ * Map of watcher to ready promise
  */
-let watcherReady: Promise<void> | null = null;
+const watcherReadyPromises: Map<FSWatcher, Promise<void>> = new Map();
 
 /**
- * Create a file watcher for JSONL files
+ * Watcher instance with ready promise
+ */
+export type WatcherInstance = {
+  watcher: FSWatcher;
+  ready: Promise<void>;
+};
+
+/**
+ * Create a file watcher for files matching the filter
  *
  * @param args - Configuration arguments
  * @param args.watchDir - Directory to watch
  * @param args.onEvent - Callback for file events
+ * @param args.fileFilter - Optional function to filter files (default: .jsonl files)
  *
- * @returns The watcher instance
+ * @returns The watcher instance with ready promise
  */
 export const createWatcher = (args: {
   watchDir: string;
   onEvent: (event: WatcherEvents) => void;
-}): FSWatcher => {
-  const { watchDir, onEvent } = args;
-
-  // Stop any existing watcher
-  if (watcher != null) {
-    void watcher.close();
-    watcher = null;
-    watcherReady = null;
-  }
+  fileFilter?: ((filePath: string) => boolean) | null;
+}): WatcherInstance => {
+  const { watchDir, onEvent, fileFilter } = args;
+  const filter =
+    fileFilter ?? ((filePath: string) => filePath.endsWith(".jsonl"));
 
   // Create new watcher
   // Use polling for reliability (native fsevents can be flaky in temp dirs)
-  watcher = chokidar.watch(watchDir, {
+  const watcher = chokidar.watch(watchDir, {
     persistent: true,
     ignoreInitial: true, // Don't emit events for existing files
     followSymlinks: true,
@@ -65,21 +70,21 @@ export const createWatcher = (args: {
   });
 
   // Create ready promise
-  watcherReady = new Promise((resolve) => {
-    watcher!.on("ready", () => {
+  const ready = new Promise<void>((resolve) => {
+    watcher.on("ready", () => {
       resolve();
     });
   });
 
   // Set up event handlers
   watcher.on("add", (filePath) => {
-    if (filePath.endsWith(".jsonl")) {
+    if (filter(filePath)) {
       onEvent({ type: "add", filePath });
     }
   });
 
   watcher.on("change", (filePath) => {
-    if (filePath.endsWith(".jsonl")) {
+    if (filter(filePath)) {
       onEvent({ type: "change", filePath });
     }
   });
@@ -88,34 +93,59 @@ export const createWatcher = (args: {
     console.error("Watcher error:", error);
   });
 
-  return watcher;
+  // Track watcher
+  activeWatchers.add(watcher);
+  watcherReadyPromises.set(watcher, ready);
+
+  return { watcher, ready };
 };
 
 /**
- * Wait for the watcher to be ready
- */
-export const waitForWatcherReady = async (): Promise<void> => {
-  if (watcherReady != null) {
-    await watcherReady;
-  }
-};
-
-/**
- * Stop the file watcher
- */
-export const stopWatcher = (): void => {
-  if (watcher != null) {
-    void watcher.close();
-    watcher = null;
-    watcherReady = null;
-  }
-};
-
-/**
- * Check if a watcher is active
+ * Wait for a specific watcher to be ready
  *
- * @returns True if a watcher is running, false otherwise
+ * @param args - Configuration arguments
+ * @param args.instance - The watcher instance to wait for
+ */
+export const waitForWatcherReady = async (args?: {
+  instance?: WatcherInstance | null;
+}): Promise<void> => {
+  const instance = args?.instance;
+  if (instance != null) {
+    await instance.ready;
+  }
+};
+
+/**
+ * Stop a specific watcher or all watchers
+ *
+ * @param args - Configuration arguments
+ * @param args.instance - Optional specific watcher to stop (stops all if not provided)
+ */
+export const stopWatcher = (args?: {
+  instance?: WatcherInstance | null;
+}): void => {
+  const instance = args?.instance;
+
+  if (instance != null) {
+    // Stop specific watcher
+    void instance.watcher.close();
+    activeWatchers.delete(instance.watcher);
+    watcherReadyPromises.delete(instance.watcher);
+  } else {
+    // Stop all watchers
+    for (const watcher of activeWatchers) {
+      void watcher.close();
+    }
+    activeWatchers.clear();
+    watcherReadyPromises.clear();
+  }
+};
+
+/**
+ * Check if any watcher is active
+ *
+ * @returns True if at least one watcher is running, false otherwise
  */
 export const isWatcherActive = (): boolean => {
-  return watcher != null;
+  return activeWatchers.size > 0;
 };
