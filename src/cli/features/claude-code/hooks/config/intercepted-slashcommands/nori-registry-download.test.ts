@@ -16,6 +16,26 @@ vi.mock("@/api/registrar.js", () => ({
     getPackument: vi.fn(),
     downloadTarball: vi.fn(),
   },
+  NetworkError: class NetworkError extends Error {
+    readonly isNetworkError = true;
+    constructor(
+      message: string,
+      readonly code: string,
+    ) {
+      super(message);
+      this.name = "NetworkError";
+    }
+  },
+  ApiError: class ApiError extends Error {
+    readonly isApiError = true;
+    constructor(
+      message: string,
+      readonly statusCode: number,
+    ) {
+      super(message);
+      this.name = "ApiError";
+    }
+  },
 }));
 
 // Mock the config module

@@ -11,7 +11,7 @@ import {
 
 // Mock global fetch
 const mockFetch = vi.fn();
-global.fetch = mockFetch;
+vi.stubGlobal("fetch", mockFetch);
 
 describe("refreshToken", () => {
   beforeEach(() => {
@@ -93,7 +93,7 @@ describe("refreshToken", () => {
 
       await expect(
         exchangeRefreshToken({ refreshToken: "valid-token" }),
-      ).rejects.toThrow("Network error");
+      ).rejects.toThrow();
     });
 
     it("should cache the ID token and return cached value on subsequent calls", async () => {

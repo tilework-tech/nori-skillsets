@@ -6,6 +6,10 @@
  * Write operations (upload) require authentication.
  */
 
+import { ApiError } from "@/utils/fetch.js";
+
+export { NetworkError, ApiError } from "@/utils/fetch.js";
+
 export const REGISTRAR_URL = "https://noriskillsets.dev";
 
 /**
@@ -164,7 +168,10 @@ export const registrarApi = {
       const errorData = (await response.json().catch(() => ({
         error: `HTTP ${response.status}`,
       }))) as { error?: string };
-      throw new Error(errorData.error ?? `HTTP ${response.status}`);
+      throw new ApiError(
+        errorData.error ?? `HTTP ${response.status}`,
+        response.status,
+      );
     }
 
     return (await response.json()) as Array<Package>;
@@ -205,7 +212,10 @@ export const registrarApi = {
       const errorData = (await response.json().catch(() => ({
         error: `HTTP ${response.status}`,
       }))) as { error?: string };
-      throw new Error(errorData.error ?? `HTTP ${response.status}`);
+      throw new ApiError(
+        errorData.error ?? `HTTP ${response.status}`,
+        response.status,
+      );
     }
 
     return (await response.json()) as Array<Package>;
@@ -237,7 +247,10 @@ export const registrarApi = {
       const errorData = (await response.json().catch(() => ({
         error: `HTTP ${response.status}`,
       }))) as { error?: string };
-      throw new Error(errorData.error ?? `HTTP ${response.status}`);
+      throw new ApiError(
+        errorData.error ?? `HTTP ${response.status}`,
+        response.status,
+      );
     }
 
     return (await response.json()) as Packument;
@@ -289,7 +302,10 @@ export const registrarApi = {
       const errorData = (await response.json().catch(() => ({
         error: `HTTP ${response.status}`,
       }))) as { error?: string };
-      throw new Error(errorData.error ?? `HTTP ${response.status}`);
+      throw new ApiError(
+        errorData.error ?? `HTTP ${response.status}`,
+        response.status,
+      );
     }
 
     return await response.arrayBuffer();
@@ -335,7 +351,10 @@ export const registrarApi = {
       const errorData = (await response.json().catch(() => ({
         error: `HTTP ${response.status}`,
       }))) as { error?: string };
-      throw new Error(errorData.error ?? `HTTP ${response.status}`);
+      throw new ApiError(
+        errorData.error ?? `HTTP ${response.status}`,
+        response.status,
+      );
     }
 
     return (await response.json()) as UploadProfileResponse;
@@ -377,7 +396,10 @@ export const registrarApi = {
       const errorData = (await response.json().catch(() => ({
         error: `HTTP ${response.status}`,
       }))) as { error?: string };
-      throw new Error(errorData.error ?? `HTTP ${response.status}`);
+      throw new ApiError(
+        errorData.error ?? `HTTP ${response.status}`,
+        response.status,
+      );
     }
 
     return (await response.json()) as Array<Package>;
@@ -411,7 +433,10 @@ export const registrarApi = {
       const errorData = (await response.json().catch(() => ({
         error: `HTTP ${response.status}`,
       }))) as { error?: string };
-      throw new Error(errorData.error ?? `HTTP ${response.status}`);
+      throw new ApiError(
+        errorData.error ?? `HTTP ${response.status}`,
+        response.status,
+      );
     }
 
     return (await response.json()) as Packument;
@@ -463,7 +488,10 @@ export const registrarApi = {
       const errorData = (await response.json().catch(() => ({
         error: `HTTP ${response.status}`,
       }))) as { error?: string };
-      throw new Error(errorData.error ?? `HTTP ${response.status}`);
+      throw new ApiError(
+        errorData.error ?? `HTTP ${response.status}`,
+        response.status,
+      );
     }
 
     return await response.arrayBuffer();
@@ -509,7 +537,10 @@ export const registrarApi = {
       const errorData = (await response.json().catch(() => ({
         error: `HTTP ${response.status}`,
       }))) as { error?: string };
-      throw new Error(errorData.error ?? `HTTP ${response.status}`);
+      throw new ApiError(
+        errorData.error ?? `HTTP ${response.status}`,
+        response.status,
+      );
     }
 
     return (await response.json()) as UploadSkillResponse;

@@ -10,6 +10,7 @@
     "open",
     "semver",
     "tar",
+    "undici",
     "winston"
   ]
 }

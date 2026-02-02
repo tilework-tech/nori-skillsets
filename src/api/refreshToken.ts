@@ -10,6 +10,8 @@
  * Sign-in with email/password uses the Firebase SDK (see loader.ts).
  */
 
+import { formatNetworkError } from "@/utils/fetch.js";
+
 // Firebase API key from tilework-e18c5 project
 const FIREBASE_API_KEY = "AIzaSyC54HqlGrkyANVFKGDQi3LobO5moDOuafk";
 const TOKEN_ENDPOINT = `https://securetoken.googleapis.com/v1/token?key=${FIREBASE_API_KEY}`;
@@ -71,13 +73,26 @@ export const exchangeRefreshToken = async (args: {
   }
 
   // Exchange refresh token for new ID token via Firebase REST API
-  const response = await fetch(TOKEN_ENDPOINT, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: `grant_type=refresh_token&refresh_token=${encodeURIComponent(refreshToken)}`,
-  });
+  let response: Response;
+  try {
+    response = await fetch(TOKEN_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: `grant_type=refresh_token&refresh_token=${encodeURIComponent(refreshToken)}`,
+    });
+  } catch (err) {
+    // Network errors from fetch - wrap with helpful message
+    if (err instanceof Error) {
+      const networkError = formatNetworkError({
+        error: err,
+        url: TOKEN_ENDPOINT,
+      });
+      throw new Error(`Token exchange failed: ${networkError.message}`);
+    }
+    throw err;
+  }
 
   const data = await response.json();
 
