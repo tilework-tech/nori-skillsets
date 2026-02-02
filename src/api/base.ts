@@ -5,6 +5,7 @@ import { signInWithEmailAndPassword } from "firebase/auth";
 import { exchangeRefreshToken } from "@/api/refreshToken.js";
 import { getConfigPath } from "@/cli/config.js";
 import { getFirebase, configureFirebase } from "@/providers/firebase.js";
+import { proxyFetch, NetworkError } from "@/utils/fetch.js";
 import { getInstallDirs } from "@/utils/path.js";
 import { normalizeUrl } from "@/utils/url.js";
 
@@ -198,7 +199,7 @@ export const apiRequest = async <T>(args: {
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      const response = await fetch(url, {
+      const response = await proxyFetch(url, {
         method,
         headers,
         body: body ? JSON.stringify(body) : undefined,
@@ -222,7 +223,12 @@ export const apiRequest = async <T>(args: {
     } catch (error) {
       lastError = error as Error;
 
-      // Retry on network errors
+      // Don't retry on network errors - they're likely permanent (proxy/DNS issues)
+      if (error instanceof NetworkError) {
+        throw error;
+      }
+
+      // Retry on other errors
       if (attempt < maxRetries) {
         // Exponential backoff
         const delay = Math.min(1000 * Math.pow(2, attempt), 10000);

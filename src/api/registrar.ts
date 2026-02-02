@@ -6,6 +6,10 @@
  * Write operations (upload) require authentication.
  */
 
+import { proxyFetch, ApiError } from "@/utils/fetch.js";
+
+export { NetworkError, ApiError } from "@/utils/fetch.js";
+
 export const REGISTRAR_URL = "https://noriskillsets.dev";
 
 /**
@@ -155,7 +159,7 @@ export const registrarApi = {
       headers.Authorization = `Bearer ${authToken}`;
     }
 
-    const response = await fetch(url, {
+    const response = await proxyFetch(url, {
       method: "GET",
       ...(Object.keys(headers).length > 0 ? { headers } : {}),
     });
@@ -164,7 +168,10 @@ export const registrarApi = {
       const errorData = (await response.json().catch(() => ({
         error: `HTTP ${response.status}`,
       }))) as { error?: string };
-      throw new Error(errorData.error ?? `HTTP ${response.status}`);
+      throw new ApiError(
+        errorData.error ?? `HTTP ${response.status}`,
+        response.status,
+      );
     }
 
     return (await response.json()) as Array<Package>;
@@ -196,7 +203,7 @@ export const registrarApi = {
       headers["Authorization"] = `Bearer ${authToken}`;
     }
 
-    const response = await fetch(url, {
+    const response = await proxyFetch(url, {
       method: "GET",
       headers,
     });
@@ -205,7 +212,10 @@ export const registrarApi = {
       const errorData = (await response.json().catch(() => ({
         error: `HTTP ${response.status}`,
       }))) as { error?: string };
-      throw new Error(errorData.error ?? `HTTP ${response.status}`);
+      throw new ApiError(
+        errorData.error ?? `HTTP ${response.status}`,
+        response.status,
+      );
     }
 
     return (await response.json()) as Array<Package>;
@@ -228,7 +238,7 @@ export const registrarApi = {
       headers.Authorization = `Bearer ${authToken}`;
     }
 
-    const response = await fetch(url, {
+    const response = await proxyFetch(url, {
       method: "GET",
       ...(Object.keys(headers).length > 0 ? { headers } : {}),
     });
@@ -237,7 +247,10 @@ export const registrarApi = {
       const errorData = (await response.json().catch(() => ({
         error: `HTTP ${response.status}`,
       }))) as { error?: string };
-      throw new Error(errorData.error ?? `HTTP ${response.status}`);
+      throw new ApiError(
+        errorData.error ?? `HTTP ${response.status}`,
+        response.status,
+      );
     }
 
     return (await response.json()) as Packument;
@@ -280,7 +293,7 @@ export const registrarApi = {
       headers.Authorization = `Bearer ${authToken}`;
     }
 
-    const response = await fetch(url, {
+    const response = await proxyFetch(url, {
       method: "GET",
       ...(Object.keys(headers).length > 0 ? { headers } : {}),
     });
@@ -289,7 +302,10 @@ export const registrarApi = {
       const errorData = (await response.json().catch(() => ({
         error: `HTTP ${response.status}`,
       }))) as { error?: string };
-      throw new Error(errorData.error ?? `HTTP ${response.status}`);
+      throw new ApiError(
+        errorData.error ?? `HTTP ${response.status}`,
+        response.status,
+      );
     }
 
     return await response.arrayBuffer();
@@ -323,7 +339,7 @@ export const registrarApi = {
 
     const url = `${baseUrl}/api/profiles/${packageName}/profile`;
 
-    const response = await fetch(url, {
+    const response = await proxyFetch(url, {
       method: "PUT",
       headers: {
         Authorization: `Bearer ${authToken}`,
@@ -335,7 +351,10 @@ export const registrarApi = {
       const errorData = (await response.json().catch(() => ({
         error: `HTTP ${response.status}`,
       }))) as { error?: string };
-      throw new Error(errorData.error ?? `HTTP ${response.status}`);
+      throw new ApiError(
+        errorData.error ?? `HTTP ${response.status}`,
+        response.status,
+      );
     }
 
     return (await response.json()) as UploadProfileResponse;
@@ -368,7 +387,7 @@ export const registrarApi = {
       headers.Authorization = `Bearer ${authToken}`;
     }
 
-    const response = await fetch(url, {
+    const response = await proxyFetch(url, {
       method: "GET",
       ...(Object.keys(headers).length > 0 ? { headers } : {}),
     });
@@ -377,7 +396,10 @@ export const registrarApi = {
       const errorData = (await response.json().catch(() => ({
         error: `HTTP ${response.status}`,
       }))) as { error?: string };
-      throw new Error(errorData.error ?? `HTTP ${response.status}`);
+      throw new ApiError(
+        errorData.error ?? `HTTP ${response.status}`,
+        response.status,
+      );
     }
 
     return (await response.json()) as Array<Package>;
@@ -402,7 +424,7 @@ export const registrarApi = {
       headers.Authorization = `Bearer ${authToken}`;
     }
 
-    const response = await fetch(url, {
+    const response = await proxyFetch(url, {
       method: "GET",
       ...(Object.keys(headers).length > 0 ? { headers } : {}),
     });
@@ -411,7 +433,10 @@ export const registrarApi = {
       const errorData = (await response.json().catch(() => ({
         error: `HTTP ${response.status}`,
       }))) as { error?: string };
-      throw new Error(errorData.error ?? `HTTP ${response.status}`);
+      throw new ApiError(
+        errorData.error ?? `HTTP ${response.status}`,
+        response.status,
+      );
     }
 
     return (await response.json()) as Packument;
@@ -454,7 +479,7 @@ export const registrarApi = {
       headers.Authorization = `Bearer ${authToken}`;
     }
 
-    const response = await fetch(url, {
+    const response = await proxyFetch(url, {
       method: "GET",
       ...(Object.keys(headers).length > 0 ? { headers } : {}),
     });
@@ -463,7 +488,10 @@ export const registrarApi = {
       const errorData = (await response.json().catch(() => ({
         error: `HTTP ${response.status}`,
       }))) as { error?: string };
-      throw new Error(errorData.error ?? `HTTP ${response.status}`);
+      throw new ApiError(
+        errorData.error ?? `HTTP ${response.status}`,
+        response.status,
+      );
     }
 
     return await response.arrayBuffer();
@@ -497,7 +525,7 @@ export const registrarApi = {
 
     const url = `${baseUrl}/api/skills/${skillName}/skill`;
 
-    const response = await fetch(url, {
+    const response = await proxyFetch(url, {
       method: "PUT",
       headers: {
         Authorization: `Bearer ${authToken}`,
@@ -509,7 +537,10 @@ export const registrarApi = {
       const errorData = (await response.json().catch(() => ({
         error: `HTTP ${response.status}`,
       }))) as { error?: string };
-      throw new Error(errorData.error ?? `HTTP ${response.status}`);
+      throw new ApiError(
+        errorData.error ?? `HTTP ${response.status}`,
+        response.status,
+      );
     }
 
     return (await response.json()) as UploadSkillResponse;

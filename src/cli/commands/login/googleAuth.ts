@@ -10,6 +10,8 @@ import * as crypto from "crypto";
 import * as http from "http";
 import * as net from "net";
 
+import { proxyFetch, NetworkError } from "@/utils/fetch.js";
+
 /**
  * Google OAuth client credentials (Desktop app type).
  * For Desktop app type, the client secret is not truly secret -- this is
@@ -268,13 +270,21 @@ export const exchangeCodeForTokens = async (args: {
     grant_type: "authorization_code",
   }).toString();
 
-  const response = await fetch(GOOGLE_TOKEN_ENDPOINT, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body,
-  });
+  let response: Response;
+  try {
+    response = await proxyFetch(GOOGLE_TOKEN_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body,
+    });
+  } catch (err) {
+    if (err instanceof NetworkError) {
+      throw new Error(`Google token exchange failed: ${err.message}`);
+    }
+    throw err;
+  }
 
   const data = (await response.json()) as Record<string, unknown>;
 

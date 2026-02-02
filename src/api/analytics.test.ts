@@ -4,12 +4,27 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
+// Hoisted mock for proxyFetch
+const { mockProxyFetch } = vi.hoisted(() => ({
+  mockProxyFetch: vi.fn(),
+}));
+
+vi.mock("@/utils/fetch.js", () => ({
+  proxyFetch: mockProxyFetch,
+  NetworkError: class NetworkError extends Error {
+    readonly isNetworkError = true;
+    constructor(
+      message: string,
+      readonly code: string,
+    ) {
+      super(message);
+      this.name = "NetworkError";
+    }
+  },
+}));
+
 import { analyticsApi } from "./analytics.js";
 import { ConfigManager } from "./base.js";
-
-// Mock fetch globally
-const mockFetch = vi.fn();
-vi.stubGlobal("fetch", mockFetch);
 
 // Mock base.js - we need ConfigManager for analytics
 vi.mock("./base.js", async (importOriginal) => {
@@ -25,7 +40,7 @@ vi.mock("./base.js", async (importOriginal) => {
 describe("analyticsApi.trackEvent", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockFetch.mockResolvedValue({
+    mockProxyFetch.mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({ success: true }),
     });
@@ -46,8 +61,8 @@ describe("analyticsApi.trackEvent", () => {
     });
 
     // Verify: Should call default endpoint
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    expect(mockFetch).toHaveBeenCalledWith(
+    expect(mockProxyFetch).toHaveBeenCalledTimes(1);
+    expect(mockProxyFetch).toHaveBeenCalledWith(
       "https://demo.tilework.tech/api/analytics/track",
       expect.objectContaining({
         method: "POST",
@@ -74,8 +89,8 @@ describe("analyticsApi.trackEvent", () => {
     });
 
     // Verify: Should call custom endpoint
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    expect(mockFetch).toHaveBeenCalledWith(
+    expect(mockProxyFetch).toHaveBeenCalledTimes(1);
+    expect(mockProxyFetch).toHaveBeenCalledWith(
       "https://custom.example.com/api/analytics/track",
       expect.objectContaining({
         method: "POST",
@@ -99,7 +114,7 @@ describe("analyticsApi.trackEvent", () => {
     });
 
     // Verify: Headers should only have Content-Type, no Authorization
-    const fetchCall = mockFetch.mock.calls[0];
+    const fetchCall = mockProxyFetch.mock.calls[0];
     const headers = fetchCall[1].headers;
     expect(headers).toEqual({ "Content-Type": "application/json" });
     expect(headers).not.toHaveProperty("Authorization");
@@ -108,7 +123,7 @@ describe("analyticsApi.trackEvent", () => {
   it("returns success response on successful fetch", async () => {
     // Setup
     vi.mocked(ConfigManager.loadConfig).mockReturnValue({});
-    mockFetch.mockResolvedValue({
+    mockProxyFetch.mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({ success: true }),
     });
@@ -135,7 +150,7 @@ describe("analyticsApi.trackEvent", () => {
     });
 
     // Verify
-    expect(mockFetch).toHaveBeenCalledWith(
+    expect(mockProxyFetch).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({
         body: JSON.stringify({
@@ -160,7 +175,7 @@ describe("analyticsApi.trackEvent", () => {
     });
 
     // Verify: Should not have double slashes
-    expect(mockFetch).toHaveBeenCalledWith(
+    expect(mockProxyFetch).toHaveBeenCalledWith(
       "https://custom.example.com/api/analytics/track",
       expect.any(Object),
     );
@@ -177,7 +192,7 @@ describe("analyticsApi.trackEvent", () => {
     });
 
     // Verify: Should still call default endpoint
-    expect(mockFetch).toHaveBeenCalledWith(
+    expect(mockProxyFetch).toHaveBeenCalledWith(
       "https://demo.tilework.tech/api/analytics/track",
       expect.any(Object),
     );
@@ -186,7 +201,7 @@ describe("analyticsApi.trackEvent", () => {
   it("returns success: false on non-OK HTTP responses", async () => {
     // Setup
     vi.mocked(ConfigManager.loadConfig).mockReturnValue({});
-    mockFetch.mockResolvedValue({
+    mockProxyFetch.mockResolvedValue({
       ok: false,
       status: 500,
     });

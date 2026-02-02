@@ -16,6 +16,7 @@ import * as tar from "tar";
 import {
   registrarApi,
   REGISTRAR_URL,
+  NetworkError,
   type Packument,
 } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
@@ -299,19 +300,31 @@ type RegistrySearchResult = {
 };
 
 /**
+ * Error information from a failed search
+ */
+type SearchError = {
+  registryUrl: string;
+  isNetworkError: boolean;
+  message: string;
+};
+
+/**
  * Search a specific registry for a package
  * @param args - The search parameters
  * @param args.packageName - The package name to search for
  * @param args.registryUrl - The registry URL to search
  * @param args.config - The Nori configuration containing registry auth
  *
- * @returns The search result or null if not found or no auth configured
+ * @returns Object with result (if found) and/or error (if failed)
  */
 const searchSpecificRegistry = async (args: {
   packageName: string;
   registryUrl: string;
   config: Config | null;
-}): Promise<RegistrySearchResult | null> => {
+}): Promise<{
+  result: RegistrySearchResult | null;
+  error: SearchError | null;
+}> => {
   const { packageName, registryUrl, config } = args;
 
   // Check if this is the public registry
@@ -322,22 +335,36 @@ const searchSpecificRegistry = async (args: {
         registryUrl: REGISTRAR_URL,
       });
       return {
-        registryUrl: REGISTRAR_URL,
-        packument,
+        result: {
+          registryUrl: REGISTRAR_URL,
+          packument,
+        },
+        error: null,
       };
-    } catch {
-      return null;
+    } catch (err) {
+      if (err instanceof NetworkError) {
+        return {
+          result: null,
+          error: {
+            registryUrl: REGISTRAR_URL,
+            isNetworkError: true,
+            message: err.message,
+          },
+        };
+      }
+      // API error (like 404) - package not found
+      return { result: null, error: null };
     }
   }
 
   // Private registry - require auth from config
   if (config == null) {
-    return null;
+    return { result: null, error: null };
   }
 
   const registryAuth = getRegistryAuth({ config, registryUrl });
   if (registryAuth == null) {
-    return null;
+    return { result: null, error: null };
   }
 
   try {
@@ -348,12 +375,26 @@ const searchSpecificRegistry = async (args: {
       authToken,
     });
     return {
-      registryUrl,
-      packument,
-      authToken,
+      result: {
+        registryUrl,
+        packument,
+        authToken,
+      },
+      error: null,
     };
-  } catch {
-    return null;
+  } catch (err) {
+    if (err instanceof NetworkError) {
+      return {
+        result: null,
+        error: {
+          registryUrl,
+          isNetworkError: true,
+          message: err.message,
+        },
+      };
+    }
+    // API error (like 404) - package not found
+    return { result: null, error: null };
   }
 };
 
@@ -631,11 +672,17 @@ export const registryDownloadMain = async (args: {
       }
     }
 
-    const result = await searchSpecificRegistry({
+    const { result, error: searchError } = await searchSpecificRegistry({
       packageName,
       registryUrl,
       config,
     });
+    if (searchError?.isNetworkError) {
+      error({
+        message: `Network error while connecting to ${registryUrl}:\n\n${searchError.message}`,
+      });
+      return { success: false };
+    }
     searchResults = result != null ? [result] : [];
   } else if (hasUnifiedAuthWithOrgs) {
     // New flow: derive registry from namespace
@@ -674,8 +721,14 @@ export const registryDownloadMain = async (args: {
           authToken,
         },
       ];
-    } catch {
-      // Package not found in org registry
+    } catch (err) {
+      if (err instanceof NetworkError) {
+        error({
+          message: `Network error while connecting to ${targetRegistryUrl}:\n\n${err.message}`,
+        });
+        return { success: false };
+      }
+      // API error (like 404) - package not found in org registry
       searchResults = [];
     }
   } else if (orgId === "public") {
@@ -691,7 +744,14 @@ export const registryDownloadMain = async (args: {
           packument,
         },
       ];
-    } catch {
+    } catch (err) {
+      if (err instanceof NetworkError) {
+        error({
+          message: `Network error while connecting to registry:\n\n${err.message}`,
+        });
+        return { success: false };
+      }
+      // API error (like 404) - package not found
       searchResults = [];
     }
   } else {
