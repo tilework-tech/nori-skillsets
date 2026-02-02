@@ -29,7 +29,7 @@ Skillsets control Cursor's behavior through AGENTS.md instructions and rules.
 
 ### 1.2 Skillset Management
 
-- **Switch skillsets:** `nori-ai switch-skillset --agent cursor-agent`
+- **Switch skillsets:** `nori-skillsets switch-skillset --agent cursor-agent`
 - **Custom skillsets:** Create your own in `{{profiles_dir}}/`
 - **Source of truth:** All skillsets stored in `{{profiles_dir}}/`
 
@@ -64,14 +64,13 @@ Custom commands available in Cursor.
 ### 5.1 Install
 
 ```bash
-npm install -g nori-ai
-nori-ai install --agent cursor-agent
+npx nori-skillsets init --agent cursor-agent
 ```
 
 ### 5.2 Switch Skillsets
 
 ```bash
-nori-ai switch-skillset --agent cursor-agent
+nori-skillsets switch-skillset --agent cursor-agent
 ```
 
 ## 6. Troubleshooting
@@ -85,7 +84,7 @@ cat /tmp/nori-installer.log
 For validation and debugging:
 
 ```bash
-nori-ai check --agent cursor-agent
+nori-skillsets check --agent cursor-agent
 ```
 
 ## 7. Key Differences from Claude Code

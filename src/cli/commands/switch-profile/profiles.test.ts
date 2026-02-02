@@ -294,7 +294,7 @@ describe("registerSwitchProfileCommand", () => {
     try {
       await program.parseAsync([
         "node",
-        "nori-ai",
+        "nori-skillsets",
         "switch-profile",
         "senior-swe",
         "--agent",
@@ -368,7 +368,7 @@ describe("registerSwitchProfileCommand", () => {
       // Note: from: "node" means first two args are node and script path
       await program.parseAsync([
         "node",
-        "nori-ai",
+        "nori-skillsets",
         "switch-profile",
         "senior-swe",
         "--agent",
@@ -442,7 +442,7 @@ describe("registerSwitchProfileCommand", () => {
     try {
       await program.parseAsync([
         "node",
-        "nori-ai",
+        "nori-skillsets",
         "switch-profile",
         "senior-swe",
         "--install-dir",
@@ -492,7 +492,7 @@ describe("registerSwitchProfileCommand", () => {
     try {
       await program.parseAsync([
         "node",
-        "nori-ai",
+        "nori-skillsets",
         "--non-interactive",
         "switch-profile",
         "senior-swe",
@@ -550,7 +550,7 @@ describe("registerSwitchProfileCommand", () => {
     try {
       await program.parseAsync([
         "node",
-        "nori-ai",
+        "nori-skillsets",
         "switch-profile",
         "senior-swe",
         "--non-interactive",
@@ -622,7 +622,7 @@ describe("registerSwitchProfileCommand", () => {
     try {
       await program.parseAsync([
         "node",
-        "nori-ai",
+        "nori-skillsets",
         "switch-profile",
         "senior-swe",
         "--install-dir",
@@ -712,7 +712,7 @@ describe("switch-profile confirmation", () => {
     try {
       await program.parseAsync([
         "node",
-        "nori-ai",
+        "nori-skillsets",
         "switch-profile",
         "product-manager",
         "--install-dir",
@@ -772,7 +772,7 @@ describe("switch-profile confirmation", () => {
     try {
       await program.parseAsync([
         "node",
-        "nori-ai",
+        "nori-skillsets",
         "switch-profile",
         "product-manager",
         "--install-dir",
@@ -819,7 +819,7 @@ describe("switch-profile confirmation", () => {
     try {
       await program.parseAsync([
         "node",
-        "nori-ai",
+        "nori-skillsets",
         "--non-interactive",
         "switch-profile",
         "product-manager",
@@ -893,7 +893,7 @@ describe("switch-profile confirmation", () => {
     try {
       await program.parseAsync([
         "node",
-        "nori-ai",
+        "nori-skillsets",
         "switch-profile",
         "product-manager",
         "--agent",
@@ -992,7 +992,7 @@ describe("switch-profile getInstallDirs auto-detection", () => {
       // Note: NO --install-dir flag - should auto-detect from cwd
       await program.parseAsync([
         "node",
-        "nori-ai",
+        "nori-skillsets",
         "switch-profile",
         "product-manager",
       ]);
@@ -1040,7 +1040,7 @@ describe("switch-profile getInstallDirs auto-detection", () => {
       // Note: NO --install-dir flag - should traverse up and find installation
       await program.parseAsync([
         "node",
-        "nori-ai",
+        "nori-skillsets",
         "switch-profile",
         "product-manager",
       ]);
@@ -1085,7 +1085,7 @@ describe("switch-profile getInstallDirs auto-detection", () => {
         // Note: NO --install-dir flag - should fail to find any installation
         await program.parseAsync([
           "node",
-          "nori-ai",
+          "nori-skillsets",
           "switch-profile",
           "product-manager",
         ]);

@@ -34,10 +34,10 @@ describe("version", () => {
       }
     });
 
-    it("should return null for package.json with name nori-ai (no longer recognized)", () => {
-      // nori-ai is no longer a valid package name
+    it("should return null for package.json with unrecognized name (no longer recognized)", () => {
+      // unrecognized package names should return null
       const testPackage = {
-        name: "nori-ai",
+        name: "some-other-package",
         version: "13.5.2",
       };
       fs.writeFileSync(testPackageJsonPath, JSON.stringify(testPackage));

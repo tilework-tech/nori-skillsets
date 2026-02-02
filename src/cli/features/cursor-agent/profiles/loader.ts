@@ -90,9 +90,7 @@ const validate = async (args: {
     await fs.access(cursorProfilesDir);
   } catch {
     errors.push(`Profiles directory not found at ${cursorProfilesDir}`);
-    errors.push(
-      'Run "nori-ai install --agent cursor-agent" to create the profiles directory',
-    );
+    errors.push('Run "nori-skillsets init" to create the profiles directory');
     return {
       valid: false,
       message: "Profiles directory not found",
@@ -106,9 +104,7 @@ const validate = async (args: {
 
   if (profiles.length === 0) {
     errors.push("No profiles found in profiles directory");
-    errors.push(
-      'Run "nori-ai install --agent cursor-agent" to install profiles',
-    );
+    errors.push('Run "nori-skillsets init" to install profiles');
     return {
       valid: false,
       message: "No profiles installed",

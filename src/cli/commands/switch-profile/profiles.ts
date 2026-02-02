@@ -154,7 +154,7 @@ export const switchSkillsetAction = async (args: {
     if (installations.length === 0) {
       throw new Error(
         "No Nori installations found in current directory or parent directories. " +
-          "Run 'nori-ai install' to create a new installation, or use --install-dir to specify a location.",
+          "Run 'nori-skillsets init' to create a new installation, or use --install-dir to specify a location.",
       );
     }
     installDir = installations[0]; // Use closest installation

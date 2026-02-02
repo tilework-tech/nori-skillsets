@@ -56,10 +56,8 @@ export const main = async (args?: {
       message += `- ${installPath}\n`;
     }
 
-    message += "\n**To remove an installation, run:**\n";
-    for (const installPath of allInstallations) {
-      message += `\`cd ${installPath} && nori-ai uninstall\`\n`;
-    }
+    message +=
+      "\n**To resolve this, remove the conflicting installation manually.**\n";
 
     // Output to Claude session
     logToClaudeSession({ message });

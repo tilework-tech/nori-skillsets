@@ -179,7 +179,7 @@ const validate = async (args: {
     await fs.access(cursorRulesDir);
   } catch {
     errors.push(`Rules directory not found at ${cursorRulesDir}`);
-    errors.push('Run "nori-ai install --agent cursor-agent" to install rules');
+    errors.push('Run "nori-skillsets init" to install rules');
     return {
       valid: false,
       message: "Rules directory not found",

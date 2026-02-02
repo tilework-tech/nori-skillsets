@@ -15,7 +15,7 @@ git checkout -b amol/release-notes-MM-DD-YYYY
 
 Run the following command to get the currently published version:
 ```bash
-npm view nori-ai version
+npm view nori-skillsets version
 ```
 
 This returns the version string (e.g., "19.1.1").
@@ -91,7 +91,7 @@ This ensures the release notes are included in the publish commit.
 
 ## Version Detection
 
-The last published version is retrieved from the npm registry using `npm view nori-ai version`. The commit where that version was **first** set is found using git's pickaxe search (`-S` flag) with `--reverse | head -1` to get the earliest occurrence. This is important because subsequent commits may touch package.json without changing the version, and we need all commits since the version was originally set.
+The last published version is retrieved from the npm registry using `npm view nori-skillsets version`. The commit where that version was **first** set is found using git's pickaxe search (`-S` flag) with `--reverse | head -1` to get the earliest occurrence. This is important because subsequent commits may touch package.json without changing the version, and we need all commits since the version was originally set.
 
 ## Empty Releases
 

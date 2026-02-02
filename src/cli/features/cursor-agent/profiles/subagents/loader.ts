@@ -131,9 +131,7 @@ const validate = async (args: {
     await fs.access(cursorSubagentsDir);
   } catch {
     errors.push(`Subagents directory not found at ${cursorSubagentsDir}`);
-    errors.push(
-      'Run "nori-ai install --agent cursor-agent" to install subagents',
-    );
+    errors.push('Run "nori-skillsets init" to install subagents');
     return {
       valid: false,
       message: "Subagents directory not found",

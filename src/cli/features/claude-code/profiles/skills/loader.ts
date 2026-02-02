@@ -118,7 +118,7 @@ const installSkills = async (args: { config: Config }): Promise<void> => {
   })?.baseProfile;
   if (profileName == null) {
     throw new Error(
-      "No profile configured for claude-code. Run 'nori-ai install' to configure a profile.",
+      "No profile configured for claude-code. Run 'nori-skillsets init' to configure a profile.",
     );
   }
   const configDir = getConfigDir({
@@ -330,7 +330,7 @@ const validate = async (args: {
     await fs.access(claudeSkillsDir);
   } catch {
     errors.push(`Skills directory not found at ${claudeSkillsDir}`);
-    errors.push('Run "nori-ai install" to install skills');
+    errors.push('Run "nori-skillsets init" to install skills');
     return {
       valid: false,
       message: "Skills directory not found",
@@ -345,7 +345,7 @@ const validate = async (args: {
   })?.baseProfile;
   if (profileName == null) {
     errors.push("No profile configured for claude-code");
-    errors.push("Run 'nori-ai install' to configure a profile");
+    errors.push("Run 'nori-skillsets init' to configure a profile");
     return {
       valid: false,
       message: "No profile configured",
@@ -374,7 +374,7 @@ const validate = async (args: {
     }
 
     if (errors.length > 0) {
-      errors.push('Run "nori-ai install" to reinstall skills');
+      errors.push('Run "nori-skillsets init" to reinstall skills');
       return {
         valid: false,
         message: "Skills directory incomplete",
@@ -402,7 +402,7 @@ const validate = async (args: {
     }
 
     if (errors.length > 0) {
-      errors.push('Run "nori-ai install" to reinstall skills');
+      errors.push('Run "nori-skillsets init" to reinstall skills');
       return {
         valid: false,
         message: "Skills directory incomplete",
@@ -422,7 +422,7 @@ const validate = async (args: {
       errors.push(
         "Skills directory not configured in permissions.additionalDirectories",
       );
-      errors.push('Run "nori-ai install" to configure permissions');
+      errors.push('Run "nori-skillsets init" to configure permissions');
       return {
         valid: false,
         message: "Skills permissions not configured",

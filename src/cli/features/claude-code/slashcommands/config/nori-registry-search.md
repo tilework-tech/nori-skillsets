@@ -1,6 +1,6 @@
 ---
 description: Search for profile packages in the Nori registrar
-allowed-tools: Bash(nori-ai:*)
+allowed-tools: Bash(nori-skillsets:*)
 ---
 
 Search the Nori package registrar for profile packages.

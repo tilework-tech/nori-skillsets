@@ -153,9 +153,7 @@ const validate = async (args: {
     await fs.access(cursorCommandsDir);
   } catch {
     errors.push(`Commands directory not found at ${cursorCommandsDir}`);
-    errors.push(
-      'Run "nori-ai install --agent cursor-agent" to create the commands directory',
-    );
+    errors.push('Run "nori-skillsets init" to create the commands directory');
     return {
       valid: false,
       message: "Commands directory not found",
@@ -182,9 +180,7 @@ const validate = async (args: {
     errors.push(
       `Missing ${missingCommands.length} slash command(s): ${missingCommands.join(", ")}`,
     );
-    errors.push(
-      'Run "nori-ai install --agent cursor-agent" to register missing commands',
-    );
+    errors.push('Run "nori-skillsets init" to register missing commands');
     return {
       valid: false,
       message: "Some slash commands are missing",

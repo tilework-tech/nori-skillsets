@@ -73,7 +73,7 @@ const run = async (args: { input: HookInput }): Promise<HookOutput | null> => {
     return {
       decision: "block",
       reason: formatSuccess({
-        message: `Autoupdate is now DISABLED. You will be notified of new versions but must update manually with 'npx nori-ai install'.`,
+        message: `Autoupdate is now DISABLED. You will be notified of new versions but must update manually with 'npx nori-skillsets init'.`,
       }),
     };
   }

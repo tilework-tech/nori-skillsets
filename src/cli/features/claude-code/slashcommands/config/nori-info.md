@@ -22,7 +22,7 @@ Skillsets control Claude's behavior and autonomy level. Skillsets can be downloa
 
 ### 1.1 Skillset Management
 
-- **Switch skillsets:** `/nori-switch-skillset` or `nori-ai switch-skillset`
+- **Switch skillsets:** `/nori-switch-skillset` or `nori-skillsets switch-skillset`
 - **Custom skillsets:** Create your own in `~/.nori/profiles/`
 - **Source of truth:** All skillsets stored in `~/.nori/profiles/`
 
@@ -123,7 +123,7 @@ Skillset-specific instructions that guide Claude's behavior.
 Custom commands available in Claude Code.
 
 - `/nori-info` - Display this information (you're using it now!)
-- `/nori-debug` - Validate Nori installation (`nori-ai check`)
+- `/nori-debug` - Validate Nori installation (`nori-skillsets check`)
 - `/nori-install-location` - Display Nori installation directories
 - `/nori-switch-skillset` - Switch between skillsets interactively
 - `/nori-init-docs` - Generate documentation files throughout codebase
@@ -131,8 +131,7 @@ Custom commands available in Claude Code.
 ## 9. Installation
 
 ```bash
-npm install -g nori-ai
-nori-ai install
+npx nori-skillsets init
 ```
 
 During installation, you'll be prompted for your profile and optional credentials.
@@ -140,7 +139,7 @@ During installation, you'll be prompted for your profile and optional credential
 ### 9.1 Switch Skillsets
 
 ```bash
-nori-ai switch-skillset
+nori-skillsets switch-skillset
 ```
 
 Or use the `/nori-switch-skillset` slash command.
@@ -158,7 +157,7 @@ This log contains detailed information about the installation process and any er
 For validation and debugging:
 
 ```bash
-nori-ai check
+nori-skillsets check
 ```
 
 Or use the `/nori-debug` slash command.

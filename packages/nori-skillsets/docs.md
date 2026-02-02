@@ -4,7 +4,7 @@ Path: @/packages/nori-skillsets
 
 ### Overview
 
-- Template files and configuration for building the `nori-skillsets` npm package, which is published separately from the main `nori-ai` package
+- Template files and configuration for building the `nori-skillsets` npm package, which is the primary published npm package
 - Contains the curated runtime dependency list and the package.json template used by the packaging script at @/scripts/package_skillsets.sh
 
 ### How it fits into the larger codebase

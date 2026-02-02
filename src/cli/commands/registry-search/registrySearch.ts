@@ -1,6 +1,6 @@
 /**
  * CLI command for searching profile packages and skills in the Nori registrar
- * Handles: nori-ai registry-search <query>
+ * Handles: nori-skillsets search <query>
  * Searches both org registry (with auth) and public registry (no auth)
  * Returns both profiles and skills from each registry
  */
@@ -291,7 +291,7 @@ const buildDownloadHints = (args: {
 }): string => {
   const { hasProfiles, hasSkills, cliName } = args;
   const commandNames = getCommandNames({ cliName });
-  const cliPrefix = cliName ?? "nori-ai";
+  const cliPrefix = cliName ?? "nori-skillsets";
   const hints: Array<string> = [];
 
   if (hasProfiles) {
@@ -313,7 +313,7 @@ const buildDownloadHints = (args: {
  * @param args - The search parameters
  * @param args.query - The search query
  * @param args.installDir - Optional installation directory (detected if not provided)
- * @param args.cliName - CLI name for user-facing messages (nori-ai or nori-skillsets)
+ * @param args.cliName - CLI name for user-facing messages (defaults to nori-skillsets)
  */
 export const registrySearchMain = async (args: {
   query: string;
@@ -344,7 +344,7 @@ export const registrySearchMain = async (args: {
     } else {
       error({
         message:
-          "No Nori installation found.\n\nRun 'npx nori-ai install' to install Nori Profiles.",
+          "No Nori installation found.\n\nRun 'npx nori-skillsets init' to install Nori Profiles.",
       });
       return;
     }

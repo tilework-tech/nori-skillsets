@@ -530,7 +530,7 @@ export const validateConfig = async (args: {
       message: "No nori-config.json found",
       errors: [
         `Config file not found at ${configPath}`,
-        'Run "nori-ai install" to create configuration',
+        'Run "nori-skillsets init" to create configuration',
       ],
     };
   }

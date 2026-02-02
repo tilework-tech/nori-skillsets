@@ -162,7 +162,7 @@ const promptForProfile = async (args: {
   if (profiles.length === 0) {
     error({
       message:
-        "No profiles found. Download a profile from the registry first using 'nori-ai download'.",
+        "No profiles found. Download a profile from the registry first using 'nori-skillsets download'.",
     });
     process.exit(1);
   }
@@ -243,7 +243,8 @@ export const onboardMain = async (args?: {
 
   if (existingConfig == null) {
     error({
-      message: "No Nori configuration found. Please run 'nori-ai init' first.",
+      message:
+        "No Nori configuration found. Please run 'nori-skillsets init' first.",
     });
     process.exit(1);
   }
@@ -270,7 +271,7 @@ export const onboardMain = async (args?: {
       });
       info({
         message:
-          "Example: nori-ai onboard --non-interactive --profile <profile-name>",
+          "Example: nori-skillsets init --non-interactive --profile <profile-name>",
       });
       process.exit(1);
     }

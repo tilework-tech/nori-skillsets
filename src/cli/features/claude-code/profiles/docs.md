@@ -149,7 +149,7 @@ The resolver module (@/src/cli/features/claude-code/profiles/skills/resolver.ts)
 ## Usage
 
 ```bash
-npx nori-ai@latest switch-profile my-custom-profile
+npx nori-skillsets switch-skillset my-custom-profile
 ```
 
 Or use `/nori-switch-profile` slash command in Claude Code.
@@ -160,6 +160,6 @@ The `validate()` function checks:
 - `~/.nori/profiles/` directory exists
 - Profiles directory permissions are configured in settings.json
 
-Run with `npx nori-ai@latest check`
+Run with `npx nori-skillsets check`
 
 Created and maintained by Nori.

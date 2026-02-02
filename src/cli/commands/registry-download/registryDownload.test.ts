@@ -2003,10 +2003,10 @@ describe("registry-download", () => {
         .map((call) => call.join(" "))
         .join("\n");
       expect(allOutput).toContain("nori-skillsets switch-skillset");
-      expect(allOutput).not.toContain("nori-ai switch-profile");
+      expect(allOutput).not.toContain("nori-skillsets switch-profile");
     });
 
-    it("should default to nori-skillsets command names with nori-ai prefix when cliName is not provided", async () => {
+    it("should default to nori-skillsets command names when cliName is not provided", async () => {
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
       });
@@ -2025,7 +2025,7 @@ describe("registry-download", () => {
         cwd: testDir,
       });
 
-      // When no cliName is provided, prefix defaults to nori-ai but command names are nori-skillsets
+      // When no cliName is provided, prefix defaults to nori-skillsets
       const allOutput = mockConsoleLog.mock.calls
         .map((call) => call.join(" "))
         .join("\n");
@@ -2055,7 +2055,7 @@ describe("registry-download", () => {
         .map((call) => call.join(" "))
         .join("\n");
       expect(allOutput).toContain("nori-skillsets download");
-      expect(allOutput).not.toContain("nori-ai registry-download");
+      expect(allOutput).not.toContain("nori-skillsets registry-download");
     });
 
     it("should use nori-skillsets command names in error messages when cliName is nori-skillsets", async () => {

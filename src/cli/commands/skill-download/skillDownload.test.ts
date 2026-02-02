@@ -853,10 +853,10 @@ describe("skill-download", () => {
         .map((call) => call.join(" "))
         .join("\n");
       expect(allOutput).toContain("nori-skillsets download-skill");
-      expect(allOutput).not.toContain("nori-ai skill-download");
+      expect(allOutput).not.toContain("nori-skillsets skill-download");
     });
 
-    it("should default to nori-skillsets command names with nori-ai prefix when cliName is not provided", async () => {
+    it("should default to nori-skillsets command names when cliName is not provided", async () => {
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
       });
@@ -873,11 +873,11 @@ describe("skill-download", () => {
         listVersions: true,
       });
 
-      // When no cliName is provided, prefix defaults to nori-ai but command names are nori-skillsets
+      // When no cliName is provided, prefix defaults to nori-skillsets
       const allOutput = mockConsoleLog.mock.calls
         .map((call) => call.join(" "))
         .join("\n");
-      expect(allOutput).toContain("nori-ai download-skill");
+      expect(allOutput).toContain("nori-skillsets download-skill");
     });
   });
 });

@@ -1,6 +1,6 @@
 /**
  * CLI command for downloading skill packages from the Nori registrar
- * Handles: nori-ai skill-download <skill>[@version] [--registry <url>]
+ * Handles: nori-skillsets download-skill <skill>[@version] [--registry <url>]
  */
 
 import * as fs from "fs/promises";
@@ -243,7 +243,7 @@ const formatVersionList = (args: {
 }): string => {
   const { skillName, packument, registryUrl, cliName } = args;
   const commandNames = getCommandNames({ cliName });
-  const cliPrefix = cliName ?? "nori-ai";
+  const cliPrefix = cliName ?? "nori-skillsets";
   const distTags = packument["dist-tags"];
   const versions = Object.keys(packument.versions);
   const timeInfo = packument.time ?? {};
@@ -303,7 +303,7 @@ const formatMultipleSkillsError = (args: {
 }): string => {
   const { skillName, results, cliName } = args;
   const commandNames = getCommandNames({ cliName });
-  const cliPrefix = cliName ?? "nori-ai";
+  const cliPrefix = cliName ?? "nori-skillsets";
 
   const lines = ["Multiple skills with the same name found.\n"];
 
@@ -333,7 +333,7 @@ const formatMultipleSkillsError = (args: {
  * @param args.registryUrl - Optional registry URL to download from
  * @param args.listVersions - If true, list available versions instead of downloading
  * @param args.skillset - Optional skillset name to add skill to (defaults to active profile)
- * @param args.cliName - CLI name for user-facing messages (nori-ai or nori-skillsets)
+ * @param args.cliName - CLI name for user-facing messages (defaults to nori-skillsets)
  */
 export const skillDownloadMain = async (args: {
   skillSpec: string;
@@ -354,7 +354,7 @@ export const skillDownloadMain = async (args: {
   } = args;
   const cwd = args.cwd ?? process.cwd();
   const commandNames = getCommandNames({ cliName });
-  const cliPrefix = cliName ?? "nori-ai";
+  const cliPrefix = cliName ?? "nori-skillsets";
 
   // Parse the namespaced skill spec (e.g., "myorg/my-skill@1.0.0")
   const parsed = parseNamespacedPackage({ packageSpec: skillSpec });
@@ -549,7 +549,7 @@ export const skillDownloadMain = async (args: {
     // Namespaced skill without unified auth: require login
     const displayName = `${orgId}/${skillName}`;
     error({
-      message: `Skill "${displayName}" not found. To download from organization "${orgId}", log in with:\n\n  nori-ai login`,
+      message: `Skill "${displayName}" not found. To download from organization "${orgId}", log in with:\n\n  nori-skillsets login`,
     });
     return;
   }

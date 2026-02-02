@@ -188,7 +188,7 @@ const validate = async (args: {
     await fs.access(noriProfilesDir);
   } catch {
     errors.push(`Profiles directory not found at ${noriProfilesDir}`);
-    errors.push('Run "nori-ai install" to create the profiles directory');
+    errors.push('Run "nori-skillsets init" to create the profiles directory');
     return {
       valid: false,
       message: "Profiles directory not found",
@@ -207,7 +207,7 @@ const validate = async (args: {
       errors.push(
         "Profiles directory not configured in permissions.additionalDirectories",
       );
-      errors.push('Run "nori-ai install" to configure permissions');
+      errors.push('Run "nori-skillsets init" to configure permissions');
       return {
         valid: false,
         message: "Profiles permissions not configured",

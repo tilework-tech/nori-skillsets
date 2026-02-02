@@ -15,7 +15,7 @@ Commands that interact with agent-specific features (install, uninstall, check, 
 **Installation Flow Architecture:** The installation process is split into three commands that can be called independently or orchestrated together:
 
 ```
-nori-ai install (orchestrator)
+nori-skillsets install (orchestrator)
     |
     +-- init        (Step 1: Set up directories and config, capture existing config)
     |
@@ -49,14 +49,14 @@ nori-ai install (orchestrator)
 - Non-interactive mode requires `--profile` flag if no existing profile is set
 - Updates config with selected profile in `agents[agentName].profile` format
 
-**switch-profile Agent Resolution:** The switch-profile command (@/src/cli/commands/switch-profile/profiles.ts) defines `--agent` as both a global option AND a local subcommand option, allowing `nori-ai switch-profile senior-swe --agent cursor-agent` syntax (local option takes precedence). The `resolveAgent()` function determines which agent to use:
+**switch-profile Agent Resolution:** The switch-profile command (@/src/cli/commands/switch-profile/profiles.ts) defines `--agent` as both a global option AND a local subcommand option, allowing `nori-skillsets switch-skillset senior-swe --agent cursor-agent` syntax (local option takes precedence). The `resolveAgent()` function determines which agent to use:
 - If `--agent` is explicitly provided: use that agent
 - If no agents installed: default to `claude-code`
 - If exactly one agent installed: auto-select it
 - If multiple agents installed (interactive mode): prompt user to select from numbered list
 - If multiple agents installed (non-interactive mode): throw error with helpful message listing installed agents
 
-**switch-profile Installation Directory Resolution:** The switch-profile command uses `getInstallDirs()` for auto-detection when no explicit `--install-dir` is provided, allowing users to run `nori-ai switch-profile <profile>` from any subdirectory of a Nori installation. If an explicit `--install-dir` is provided, it uses `normalizeInstallDir()` to process that path. If no installation is found in the current directory or any ancestor directories, the command throws an error with a helpful message suggesting `nori-ai install` or the `--install-dir` flag. This aligns switch-profile with the check command's behavior.
+**switch-profile Installation Directory Resolution:** The switch-profile command uses `getInstallDirs()` for auto-detection when no explicit `--install-dir` is provided, allowing users to run `nori-skillsets switch-skillset <profile>` from any subdirectory of a Nori installation. If an explicit `--install-dir` is provided, it uses `normalizeInstallDir()` to process that path. If no installation is found in the current directory or any ancestor directories, the command throws an error with a helpful message suggesting `nori-skillsets init` or the `--install-dir` flag. This aligns switch-profile with the check command's behavior.
 
 **switch-profile Confirmation:** After agent resolution, the switch-profile command prompts the user to confirm before proceeding. The `confirmSwitchProfile()` function displays:
 - Install directory being operated on
@@ -73,9 +73,9 @@ Each agent declares its own global features (e.g., claude-code has hooks, status
 
 The install command sets `agents: { [agentName]: { profile } }` in the config, where the keys of the `agents` object indicate which agents are installed. The config loader merges `agents` objects with any existing config. The uninstall command prompts the user to select which agent to uninstall when multiple agents are installed at a location (in interactive mode).
 
-**Install Non-Interactive Profile Requirement:** Non-interactive installs require either an existing configuration with a profile OR the `--profile` flag. This requirement is enforced by the onboard command. When no existing config is found, the onboard command errors with a helpful message listing available profiles and example usage. Example: `nori-ai install --non-interactive --profile my-skillset`.
+**Install Non-Interactive Profile Requirement:** Non-interactive installs require either an existing configuration with a profile OR the `--profile` flag. This requirement is enforced by the onboard command. When no existing config is found, the onboard command errors with a helpful message listing available profiles and example usage. Example: `nori-skillsets install --non-interactive --profile my-skillset`.
 
-**Install Simplified Flow:** The install command's `main()` function always delegates to `noninteractive()` mode. The interactive mode and `handleExistingInstallationCleanup` (which shelled out to `nori-ai uninstall`) have been removed since all callers pass `nonInteractive: true`. The `main()` function signature retains `nonInteractive` and `skipUninstall` parameters for caller compatibility but does not use them. The non-interactive flow runs: init -> onboard -> feature loaders (via `completeInstallation`).
+**Install Simplified Flow:** The install command's `main()` function always delegates to `noninteractive()` mode. The interactive mode and `handleExistingInstallationCleanup` (which shelled out to `nori-skillsets uninstall`) have been removed since all callers pass `nonInteractive: true`. The `main()` function signature retains `nonInteractive` and `skipUninstall` parameters for caller compatibility but does not use them. The non-interactive flow runs: init -> onboard -> feature loaders (via `completeInstallation`).
 
 **Uninstall Agent Detection:** In non-interactive mode (used during upgrades), the uninstall command auto-detects the agent from config when `--agent` is not explicitly provided. It uses `getInstalledAgents({ config })` to determine installed agents from the `agents` object keys. If exactly one agent is installed, it uses that agent; otherwise it defaults to `claude-code`. This ensures the correct agent is uninstalled during autoupdate scenarios without requiring explicit `--agent` flags in older installed versions.
 
@@ -149,7 +149,7 @@ The login command provides helpful error messages based on Firebase AuthErrorCod
 2. If existing Nori installation found via `getInstallDirs()`: uses that installation's directory
 3. If no installation found: uses the current working directory (cwd) as the target
 
-The command creates `.claude/skills/` directory if it doesn't exist. This allows users to simply drop skills into any directory without running `nori-ai init` or `nori-ai install` first. Config is loaded only for private registry authentication (if it exists).
+The command creates `.claude/skills/` directory if it doesn't exist. This allows users to simply drop skills into any directory without running `nori-skillsets init` first. Config is loaded only for private registry authentication (if it exists).
 
 **skill-download Manifest Update:** When a skill is downloaded, the command automatically adds it to both the profile's `skills.json` and `nori.json` manifests. The target profile is determined by:
 1. `--skillset <name>` option - explicitly specifies which profile to update
@@ -179,7 +179,7 @@ Both manifest update failures are non-blocking - the skill download succeeds eve
 3. **Explicit registry:** Users can specify `--registry <url>` to target a specific registry. The command checks `availableRegistries` first (which includes the public registry for authenticated users), then falls back to `getRegistryAuth()` for org-based auth lookups.
 4. **Multiple registries:** If multiple registries are configured and no `--registry` is specified, the command prompts the user to select one (or errors in non-interactive mode).
 
-**registry-download Auto-Init:** The `registry-download` command (and `nori-skillsets download`) automatically initializes Nori configuration when no installation exists, allowing users to download profiles without first running `nori-ai init` or `nori-ai install`. The installation directory resolution logic:
+**registry-download Auto-Init:** The `registry-download` command (and `nori-skillsets download`) automatically initializes Nori configuration when no installation exists, allowing users to download profiles without first running `nori-skillsets init`. The installation directory resolution logic:
 1. If `--install-dir` is provided but no installation exists there: calls `initMain({ installDir, nonInteractive: false })` to set up at that location
 2. If no `--install-dir`: checks the home directory (`os.homedir()`) via `getInstallDirs({ currentDir: homeDir })` for an existing installation. If the home directory is returned as an installation (i.e., `~/.nori/.nori-config.json` exists), it is preferred as the `targetInstallDir`. This is because the home directory installation typically has registry auth configured via `nori-skillsets login`.
 3. Falls back to `getInstallDirs({ currentDir: cwd })` results if the home directory has no installation
@@ -198,7 +198,7 @@ This differs from `registry-install`, which calls the full `installMain()` (orch
 - `my-skillset` - downloads from public registry to `~/.nori/profiles/my-skillset/`
 - `myorg/my-skillset` - downloads from `https://myorg.noriskillsets.dev` to `~/.nori/profiles/myorg/my-skillset/`
 
-The command uses `parseNamespacedPackage()` from @/src/utils/url.ts to extract the org ID, package name, and optional version from the package spec. It then uses `buildOrganizationRegistryUrl()` to derive the target registry URL from the org ID. For authentication, the command checks `config.auth.organizations` (unified auth) to verify the user has access to the specified org's registry. If the user is not logged in (no unified auth), the command errors with a message prompting the user to log in via `nori-ai login`. Unnamespaced packages (public registry) do not require authentication.
+The command uses `parseNamespacedPackage()` from @/src/utils/url.ts to extract the org ID, package name, and optional version from the package spec. It then uses `buildOrganizationRegistryUrl()` to derive the target registry URL from the org ID. For authentication, the command checks `config.auth.organizations` (unified auth) to verify the user has access to the specified org's registry. If the user is not logged in (no unified auth), the command errors with a message prompting the user to log in via `nori-skillsets login`. Unnamespaced packages (public registry) do not require authentication.
 
 **registry-upload Namespaced Packages:** The `registry-upload` command supports the same namespaced package specification format for uploading to organization registries. The profile directory structure mirrors the package namespace:
 - `my-skillset` - uploads from `~/.nori/profiles/my-skillset/` to public registry
@@ -220,23 +220,7 @@ Skills always download the latest version - version ranges in `nori.json` are cu
 **Watch Command:** The `watch` command (@/src/cli/commands/watch/) monitors Claude Code sessions and saves transcripts to `~/.nori/transcripts/`. It runs as a background daemon that watches `~/.claude/projects/` for JSONL file changes and copies them to organized transcript storage. See @/src/cli/commands/watch/docs.md for details.
 
 ```
-nori-ai.ts (full CLI)
-  |
-  +-- registerInitCommand({ program })         --> commands/init/init.ts
-  +-- registerOnboardCommand({ program })      --> commands/onboard/onboard.ts
-  +-- registerUninstallCommand({ program })    --> commands/uninstall/uninstall.ts
-  +-- registerCheckCommand({ program })        --> commands/check/check.ts
-  +-- registerSwitchProfileCommand({ program })--> commands/switch-profile/profiles.ts
-  +-- registerInstallLocationCommand({ program })--> commands/install-location/installLocation.ts
-  +-- registerRegistrySearchCommand({ program })--> commands/registry-search/registrySearch.ts
-  +-- registerRegistryDownloadCommand({ program })--> commands/registry-download/registryDownload.ts
-  +-- registerRegistryInstallCommand({ program })--> commands/registry-install/registryInstall.ts
-  +-- registerRegistryUpdateCommand({ program })--> commands/registry-update/registryUpdate.ts
-  +-- registerRegistryUploadCommand({ program })--> commands/registry-upload/registryUpload.ts
-  +-- registerSkillDownloadCommand({ program })--> commands/skill-download/skillDownload.ts
-  +-- registerSkillUploadCommand({ program })  --> commands/skill-upload/skillUpload.ts
-
-nori-skillsets.ts (simplified CLI for registry read operations, skill downloads, profile switching, initialization, authentication, session watching, and installation location detection)
+nori-skillsets.ts (CLI for registry operations, skill downloads, profile switching, initialization, authentication, session watching, and installation location detection)
   |
   +-- registerNoriSkillsetsInitCommand({ program })          --> commands/noriSkillsetsCommands.ts --> initMain
   +-- registerNoriSkillsetsSearchCommand({ program })        --> commands/noriSkillsetsCommands.ts --> registrySearchMain
@@ -295,7 +279,7 @@ export const registerXCommand = (args: { program: Command }): void => {
 The commands directory contains shared utilities at the top level:
 - `cliCommandNames.ts` - CLI command name mapping for user-facing messages. The `CliName` type is `"nori-skillsets"` (the sole recognized CLI name). The `getCommandNames({ cliName })` function returns a `CommandNames` object with mappings for download, downloadSkill, search, update, upload, uploadSkill, and switchProfile. Always returns nori-skillsets command names (e.g., `download`, `download-skill`, `switch-skillset`).
 
-The `noriSkillsetsCommands.ts` file contains thin command wrappers for the nori-skillsets CLI - registration functions that provide simplified command names (`init`, `search`, `download`, `install`, `switch-skillset`, `download-skill`, `watch`) by delegating to the underlying implementation functions (`*Main` functions from init, registry-*, skill-*, and watch commands, `switchSkillsetAction` for switch-skillset). Upload, update, and onboard commands are only available via the nori-ai CLI. Each wrapper passes `cliName: "nori-skillsets"` to the `*Main` functions so user-facing messages display nori-skillsets command names (e.g., "run nori-skillsets switch-skillset" instead of "run nori-ai switch-profile"). This allows the nori-skillsets CLI to use cleaner command names while sharing all business logic with the nori-ai CLI.
+The `noriSkillsetsCommands.ts` file contains thin command wrappers for the nori-skillsets CLI - registration functions that provide simplified command names (`init`, `search`, `download`, `install`, `switch-skillset`, `download-skill`, `watch`) by delegating to the underlying implementation functions (`*Main` functions from init, registry-*, skill-*, and watch commands, `switchSkillsetAction` for switch-skillset). Each wrapper passes `cliName: "nori-skillsets"` to the `*Main` functions so user-facing messages display nori-skillsets command names (e.g., "run nori-skillsets switch-skillset" instead of legacy command names).
 
 The `install/` directory contains command-specific utilities:
 - `asciiArt.ts` - ASCII banners displayed during installation. Display functions (displayNoriBanner, displayWelcomeBanner, displaySeaweedBed) check `isSilentMode()` and return early without output when silent mode is enabled. Note: `displayNoriBanner` is no longer imported by install.ts (was only used in the removed interactive mode) but remains available in asciiArt.ts.
@@ -306,7 +290,7 @@ The `install/` directory contains command-specific utilities:
 
 The install command uses `agent.listProfiles({ installDir })` to get available profiles from the user's installed profiles directory. Since no built-in profiles are shipped with the package, only profiles downloaded from the registry or created by users are shown.
 
-The `install-location/` command displays Nori installation directories found in the current directory and parent directories. The `nori-skillsets` CLI version (via `registerNoriSkillsetsInstallLocationCommand`) adds installation type classification, supporting `--installation-source` (show only directories with `.nori-config.json`) and `--installation-managed` (show only directories with managed CLAUDE.md block) flags. The `--non-interactive` global flag outputs plain paths one per line for scripting. The command uses `getInstallDirsWithTypes()` from @/src/utils/path.ts to classify installations as "source", "managed", or "both" - installations of type "both" appear in both filtered views. The `nori-ai` version uses the simpler `getInstallDirs()` without type classification.
+The `install-location/` command displays Nori installation directories found in the current directory and parent directories. The `nori-skillsets` CLI version (via `registerNoriSkillsetsInstallLocationCommand`) adds installation type classification, supporting `--installation-source` (show only directories with `.nori-config.json`) and `--installation-managed` (show only directories with managed CLAUDE.md block) flags. The `--non-interactive` global flag outputs plain paths one per line for scripting. The command uses `getInstallDirsWithTypes()` from @/src/utils/path.ts to classify installations as "source", "managed", or "both" - installations of type "both" appear in both filtered views. The base `getInstallDirs()` function provides simpler discovery without type classification.
 
 Tests within each command directory use the same temp directory isolation pattern as other tests in the codebase, passing `installDir` explicitly to functions rather than mocking `process.env.HOME`.
 

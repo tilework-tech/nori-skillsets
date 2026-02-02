@@ -250,7 +250,7 @@ const run = async (args: { input: HookInput }): Promise<HookOutput | null> => {
     return {
       decision: "block",
       reason: formatError({
-        message: `No Nori installation found.\n\nRun 'npx nori-ai install' to install Nori Profiles.`,
+        message: `No Nori installation found.\n\nRun 'npx nori-skillsets init' to install Nori Profiles.`,
       }),
     };
   }
@@ -288,7 +288,7 @@ const run = async (args: { input: HookInput }): Promise<HookOutput | null> => {
     return {
       decision: "block",
       reason: formatError({
-        message: `No registry authentication configured.\n\nLog in with 'nori-ai login' to configure registry access.`,
+        message: `No registry authentication configured.\n\nLog in with 'nori-skillsets login' to configure registry access.`,
       }),
     };
   }
@@ -304,7 +304,7 @@ const run = async (args: { input: HookInput }): Promise<HookOutput | null> => {
       return {
         decision: "block",
         reason: formatError({
-          message: `No registry authentication configured for ${registryUrl}.\n\nLog in with 'nori-ai login' to configure registry access, or use one of the configured registries.`,
+          message: `No registry authentication configured for ${registryUrl}.\n\nLog in with 'nori-skillsets login' to configure registry access, or use one of the configured registries.`,
         }),
       };
     }

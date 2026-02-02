@@ -673,11 +673,11 @@ describe("registry-search", () => {
       const output = getAllOutput();
       expect(output).toContain("nori-skillsets download");
       expect(output).toContain("nori-skillsets download-skill");
-      expect(output).not.toContain("nori-ai registry-download");
-      expect(output).not.toContain("nori-ai skill-download");
+      expect(output).not.toContain("nori-skillsets registry-download");
+      expect(output).not.toContain("nori-skillsets skill-download");
     });
 
-    it("should default to nori-skillsets command names with nori-ai prefix when cliName is not provided", async () => {
+    it("should default to nori-skillsets command names when cliName is not provided", async () => {
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
         agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
@@ -701,9 +701,9 @@ describe("registry-search", () => {
         installDir: testDir,
       });
 
-      // When no cliName is provided, prefix defaults to nori-ai but command names are nori-skillsets
+      // When no cliName is provided, prefix defaults to nori-skillsets
       const output = getAllOutput();
-      expect(output).toContain("nori-ai download");
+      expect(output).toContain("nori-skillsets download");
     });
   });
 });

@@ -91,7 +91,9 @@ describe("nested-install-warning hook", () => {
     expect(output.systemMessage).toContain("⚠️");
     expect(output.systemMessage).toContain(parentDir);
     expect(output.systemMessage).toContain(grandparentDir);
-    expect(output.systemMessage).toContain("nori-ai uninstall");
+    expect(output.systemMessage).toContain(
+      "remove the conflicting installation manually",
+    );
   });
 
   it("should output nothing when no ancestor installation exists", async () => {

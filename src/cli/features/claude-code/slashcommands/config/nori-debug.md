@@ -1,9 +1,9 @@
 ---
 description: Validate Nori Profiles installation and configuration
-allowed-tools: Bash(nori-ai:*)
+allowed-tools: Bash(nori-skillsets:*)
 ---
 
-!`nori-ai check`
+!`nori-skillsets check`
 
 This validates the Nori Profiles installation:
 

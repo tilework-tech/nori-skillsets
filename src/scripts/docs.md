@@ -4,14 +4,14 @@ Path: @/src/scripts
 
 ### Overview
 
-- Build-time and publish-time scripts for packaging the `nori-ai` and `nori-skillsets` npm packages, plus their associated tests
+- Build-time and publish-time scripts for packaging the `nori-skillsets` npm package, plus their associated tests
 - Handles paid skill bundling (esbuild), the interactive prepublish workflow (release notes via headless Claude), and validation of the `nori-skillsets` packaging pipeline
 
 ### How it fits into the larger codebase
 
 - `bundle-skills.ts` is invoked during `npm run build` to bundle paid skill scripts (found in profile directories at @/src/cli/features/) into standalone executables using esbuild, so they work when installed to `~/.claude/skills/` where relative paths would otherwise break
 - `package-skillsets.test.ts` validates the separate `nori-skillsets` packaging pipeline defined by @/scripts/package_skillsets.sh and the template files at @/packages/nori-skillsets/
-- `prepublish.test.ts` validates the interactive prepublish script at @/scripts/prepublish.sh that runs on `npm publish` for the main `nori-ai` package
+- `prepublish.test.ts` validates the interactive prepublish script at @/scripts/prepublish.sh that runs on `npm publish` for the main `nori-skillsets` package
 
 ### Core Implementation
 

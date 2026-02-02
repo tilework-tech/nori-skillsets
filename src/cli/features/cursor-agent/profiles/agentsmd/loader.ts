@@ -368,9 +368,7 @@ const validate = async (args: {
     await fs.access(agentsMdFile);
   } catch {
     errors.push(`AGENTS.md not found at ${agentsMdFile}`);
-    errors.push(
-      'Run "nori-ai install --agent cursor-agent" to create AGENTS.md',
-    );
+    errors.push('Run "nori-skillsets init" to create AGENTS.md');
     return {
       valid: false,
       message: "AGENTS.md not found",
@@ -395,9 +393,7 @@ const validate = async (args: {
   // Check if managed block exists
   if (!content.includes(BEGIN_MARKER) || !content.includes(END_MARKER)) {
     errors.push("Nori managed block not found in AGENTS.md");
-    errors.push(
-      'Run "nori-ai install --agent cursor-agent" to add managed block',
-    );
+    errors.push('Run "nori-skillsets init" to add managed block');
     return {
       valid: false,
       message: "Nori managed block missing",

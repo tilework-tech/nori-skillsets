@@ -4,13 +4,13 @@ Path: @/src/cli/commands/registry-download
 
 ### Overview
 
-- Implements `nori-ai registry-download <package>[@version]` and `nori-skillsets download <package>[@version]` CLI commands
+- Implements `nori-skillsets download <package>[@version]` CLI command
 - Downloads profile packages from the Nori registrar, extracts them to the local profiles directory, and recursively installs skill dependencies
 - Handles installation directory discovery with a preference for the home directory installation, auto-initialization when no installation exists, and namespaced (organization-scoped) packages
 
 ### How it fits into the larger codebase
 
-- Registered with Commander.js by `registerRegistryDownloadCommand` (called from @/src/cli/nori-ai.ts) and by `registerNoriSkillsetsDownloadCommand` (called from @/src/cli/commands/noriSkillsetsCommands.ts)
+- Registered with Commander.js by `registerNoriSkillsetsDownloadCommand` (called from @/src/cli/commands/noriSkillsetsCommands.ts)
 - Uses `getInstallDirs()` from @/src/utils/path.ts to discover existing Nori installations by walking the directory tree
 - Uses `getNoriProfilesDir()` from @/src/cli/features/claude-code/paths.ts to construct the profiles output directory from `installDir`. **The `installDir` passed here must be the parent of `.nori`, not `.nori` itself** -- `getNoriProfilesDir` appends `.nori/profiles` to it
 - Uses `loadConfig()` from @/src/cli/config.ts to load Nori config (auth, profile, registries) from the resolved installation

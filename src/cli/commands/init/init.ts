@@ -163,12 +163,9 @@ export const initMain = async (args?: {
       info({ message: `  • ${ancestorPath}` });
     }
     newline();
-    info({ message: "To remove an existing installation, run:" });
-    for (const ancestorPath of ancestorInstallations) {
-      info({
-        message: `  cd ${ancestorPath} && nori-ai uninstall`,
-      });
-    }
+    info({
+      message: "Please remove the conflicting installation before continuing.",
+    });
     newline();
   }
 

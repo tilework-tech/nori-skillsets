@@ -3,8 +3,7 @@
 /**
  * Nori Skillsets CLI - Registry Operations
  *
- * A minimal CLI focused on registry operations only.
- * For full Nori Profiles functionality, use the nori-ai CLI.
+ * A CLI focused on registry operations and profile management.
  */
 
 import { Command } from "commander";

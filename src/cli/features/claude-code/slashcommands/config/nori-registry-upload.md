@@ -1,6 +1,6 @@
 ---
 description: Upload a profile to the Nori registry
-allowed-tools: Bash(nori-ai:*)
+allowed-tools: Bash(nori-skillsets:*)
 ---
 
 Upload a local skillset to the Nori package registry.

@@ -59,7 +59,7 @@ const registerSlashCommands = async (args: {
   })?.baseProfile;
   if (profileName == null) {
     throw new Error(
-      "No profile configured for claude-code. Run 'nori-ai install' to configure a profile.",
+      "No profile configured for claude-code. Run 'nori-skillsets init' to configure a profile.",
     );
   }
   const configDir = getConfigDir({
@@ -233,7 +233,7 @@ const validate = async (args: {
     await fs.access(claudeCommandsDir);
   } catch {
     errors.push(`Commands directory not found at ${claudeCommandsDir}`);
-    errors.push('Run "nori-ai install" to create the commands directory');
+    errors.push('Run "nori-skillsets init" to create the commands directory');
     return {
       valid: false,
       message: "Commands directory not found",
@@ -248,7 +248,7 @@ const validate = async (args: {
   })?.baseProfile;
   if (profileName == null) {
     errors.push("No profile configured for claude-code");
-    errors.push("Run 'nori-ai install' to configure a profile");
+    errors.push("Run 'nori-skillsets init' to configure a profile");
     return {
       valid: false,
       message: "No profile configured",
@@ -294,7 +294,7 @@ const validate = async (args: {
         missingCommands.length
       } slash command(s): ${missingCommands.join(", ")}`,
     );
-    errors.push('Run "nori-ai install" to register missing commands');
+    errors.push('Run "nori-skillsets init" to register missing commands');
     return {
       valid: false,
       message: "Some slash commands are not installed",

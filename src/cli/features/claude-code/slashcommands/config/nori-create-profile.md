@@ -120,7 +120,7 @@ To use your new skillset, run:
   /nori-switch-skillset
 
 Or:
-  nori-ai switch-skillset <new-skillset-name>
+  nori-skillsets switch-skillset <new-skillset-name>
 ```
 
 ## Important Notes

@@ -31,7 +31,7 @@ const run = async (args: { input: HookInput }): Promise<HookOutput | null> => {
     return {
       decision: "block",
       reason: formatError({
-        message: `No Nori installation found.\n\nRun 'npx nori-ai install' to install Nori Profiles.`,
+        message: `No Nori installation found.\n\nRun 'npx nori-skillsets init' to install Nori Profiles.`,
       }),
     };
   }

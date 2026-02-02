@@ -268,7 +268,7 @@ const insertClaudeMd = async (args: { config: Config }): Promise<void> => {
   })?.baseProfile;
   if (profileName == null) {
     throw new Error(
-      "No profile configured for claude-code. Run 'nori-ai install' to configure a profile.",
+      "No profile configured for claude-code. Run 'nori-skillsets init' to configure a profile.",
     );
   }
 
@@ -407,7 +407,7 @@ const validate = async (args: {
     await fs.access(claudeMdFile);
   } catch {
     errors.push(`CLAUDE.md not found at ${claudeMdFile}`);
-    errors.push('Run "nori-ai install" to create CLAUDE.md');
+    errors.push('Run "nori-skillsets init" to create CLAUDE.md');
     return {
       valid: false,
       message: "CLAUDE.md not found",
@@ -432,7 +432,7 @@ const validate = async (args: {
   // Check if managed block exists
   if (!content.includes(BEGIN_MARKER) || !content.includes(END_MARKER)) {
     errors.push("Nori managed block not found in CLAUDE.md");
-    errors.push('Run "nori-ai install" to add managed block');
+    errors.push('Run "nori-skillsets init" to add managed block');
     return {
       valid: false,
       message: "Nori managed block missing",

@@ -1,6 +1,6 @@
 /**
  * CLI command for installing a profile from the public registry in one step
- * Handles: nori-ai registry-install <package>[@version] [--user]
+ * Handles: nori-skillsets install <package>[@version] [--user]
  */
 
 import * as fs from "fs/promises";

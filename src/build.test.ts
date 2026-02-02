@@ -243,7 +243,7 @@ ${stderr || "(empty)"}`,
   it("should copy cursor-agent slashcommands config files to build", () => {
     // This test verifies that the build script copies cursor-agent slash command
     // markdown files to the build directory. Without this, running
-    // `nori-ai install --agent cursor-agent` fails with ENOENT error when
+    // `nori-skillsets install --agent cursor-agent` fails with ENOENT error when
     // the loader tries to read from the config directory.
 
     const pluginDir = process.cwd();

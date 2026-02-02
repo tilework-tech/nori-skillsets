@@ -1,6 +1,6 @@
 /**
  * CLI command for downloading profile packages from the Nori registrar
- * Handles: nori-ai registry-download <package>[@version] [--registry <url>]
+ * Handles: nori-skillsets download <package>[@version] [--registry <url>]
  */
 
 import * as fs from "fs/promises";
@@ -411,7 +411,7 @@ const formatVersionList = (args: {
     lines.push(`  ${version}${tagStr}${timeStr}`);
   }
 
-  const cliPrefix = cliName ?? "nori-ai";
+  const cliPrefix = cliName ?? "nori-skillsets";
   lines.push(
     `\nTo download a specific version:\n  ${cliPrefix} ${commandNames.download} ${packageName}@<version>`,
   );
@@ -435,7 +435,7 @@ const formatMultiplePackagesError = (args: {
 }): string => {
   const { packageName, results, cliName } = args;
   const commandNames = getCommandNames({ cliName });
-  const cliPrefix = cliName ?? "nori-ai";
+  const cliPrefix = cliName ?? "nori-skillsets";
 
   const lines = ["Multiple packages with the same name found.\n"];
 
@@ -471,7 +471,7 @@ export type RegistryDownloadResult = {
  * @param args.installDir - Optional explicit install directory
  * @param args.registryUrl - Optional registry URL to download from
  * @param args.listVersions - If true, list available versions instead of downloading
- * @param args.cliName - CLI name for user-facing messages (nori-ai or nori-skillsets)
+ * @param args.cliName - CLI name for user-facing messages (defaults to nori-skillsets)
  *
  * @returns Result indicating success or failure
  */
@@ -486,7 +486,7 @@ export const registryDownloadMain = async (args: {
   const { packageSpec, installDir, registryUrl, listVersions, cliName } = args;
   const cwd = args.cwd ?? process.cwd();
   const commandNames = getCommandNames({ cliName });
-  const cliPrefix = cliName ?? "nori-ai";
+  const cliPrefix = cliName ?? "nori-skillsets";
 
   // Parse the namespaced package spec (e.g., "myorg/my-profile@1.0.0")
   const parsed = parseNamespacedPackage({ packageSpec });
@@ -698,7 +698,7 @@ export const registryDownloadMain = async (args: {
     // Namespaced package without unified auth: require login
     const displayName = `${orgId}/${packageName}`;
     error({
-      message: `Profile "${displayName}" not found. To download from organization "${orgId}", log in with:\n\n  nori-ai login`,
+      message: `Profile "${displayName}" not found. To download from organization "${orgId}", log in with:\n\n  nori-skillsets login`,
     });
     return { success: false };
   }

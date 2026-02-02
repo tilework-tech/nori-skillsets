@@ -1,6 +1,6 @@
 ---
 description: Download a profile package from the Nori registrar
-allowed-tools: Bash(nori-ai:*)
+allowed-tools: Bash(nori-skillsets:*)
 ---
 
 Download and install a skillset package from the Nori package registrar.

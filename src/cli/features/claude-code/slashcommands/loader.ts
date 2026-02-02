@@ -153,7 +153,7 @@ const validate = async (args: {
     await fs.access(claudeCommandsDir);
   } catch {
     errors.push(`Commands directory not found at ${claudeCommandsDir}`);
-    errors.push('Run "nori-ai install" to create the commands directory');
+    errors.push('Run "nori-skillsets init" to create the commands directory');
     return {
       valid: false,
       message: "Commands directory not found",
@@ -180,7 +180,7 @@ const validate = async (args: {
     errors.push(
       `Missing ${missingCommands.length} global slash command(s): ${missingCommands.join(", ")}`,
     );
-    errors.push('Run "nori-ai install" to register missing commands');
+    errors.push('Run "nori-skillsets init" to register missing commands');
     return {
       valid: false,
       message: "Some global slash commands are missing",

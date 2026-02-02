@@ -4,7 +4,7 @@
  * These functions register simplified command names (search, download, install, update, upload)
  * for the nori-skillsets CLI, reusing the existing *Main implementation functions from the registry-* commands.
  *
- * The nori-ai CLI continues to use the registry-* prefixed commands.
+ * The registry-* prefixed commands are also available as aliases.
  */
 
 import { initMain } from "@/cli/commands/init/init.js";

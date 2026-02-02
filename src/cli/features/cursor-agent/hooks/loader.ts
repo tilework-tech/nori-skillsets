@@ -368,7 +368,7 @@ const validate = async (args: {
     await fs.access(hooksFile);
   } catch {
     errors.push(`Hooks file not found at ${hooksFile}`);
-    errors.push('Run "nori-ai install --agent cursor-agent" to create hooks');
+    errors.push('Run "nori-skillsets init" to create hooks');
     return {
       valid: false,
       message: "Cursor hooks.json not found",
@@ -394,9 +394,7 @@ const validate = async (args: {
   // Check if stop hooks are configured
   if (!hooksConfig.hooks?.stop || hooksConfig.hooks.stop.length === 0) {
     errors.push("No stop hooks configured in hooks.json");
-    errors.push(
-      'Run "nori-ai install --agent cursor-agent" to configure hooks',
-    );
+    errors.push('Run "nori-skillsets init" to configure hooks');
     return {
       valid: false,
       message: "stop hooks not configured",
@@ -411,9 +409,7 @@ const validate = async (args: {
 
   if (!hasNotifyHook) {
     errors.push("Missing notify-hook in stop event");
-    errors.push(
-      'Run "nori-ai install --agent cursor-agent" to configure hooks',
-    );
+    errors.push('Run "nori-skillsets init" to configure hooks');
     return {
       valid: false,
       message: "notify-hook not configured",
@@ -428,9 +424,7 @@ const validate = async (args: {
 
   if (!hasCursorChatExportHook) {
     errors.push("Missing cursor-chat-export hook in stop event");
-    errors.push(
-      'Run "nori-ai install --agent cursor-agent" to configure hooks',
-    );
+    errors.push('Run "nori-skillsets init" to configure hooks');
     return {
       valid: false,
       message: "cursor-chat-export hook not configured",
@@ -444,9 +438,7 @@ const validate = async (args: {
     hooksConfig.hooks.beforeSubmitPrompt.length === 0
   ) {
     errors.push("No beforeSubmitPrompt hooks configured in hooks.json");
-    errors.push(
-      'Run "nori-ai install --agent cursor-agent" to configure hooks',
-    );
+    errors.push('Run "nori-skillsets init" to configure hooks');
     return {
       valid: false,
       message: "beforeSubmitPrompt hooks not configured",
@@ -464,9 +456,7 @@ const validate = async (args: {
     errors.push(
       "Missing slash-command-intercept hook in beforeSubmitPrompt event",
     );
-    errors.push(
-      'Run "nori-ai install --agent cursor-agent" to configure hooks',
-    );
+    errors.push('Run "nori-skillsets init" to configure hooks');
     return {
       valid: false,
       message: "slash-command-intercept hook not configured",

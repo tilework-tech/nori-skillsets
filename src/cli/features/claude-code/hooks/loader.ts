@@ -423,7 +423,7 @@ const validate = async (args: {
     await fs.access(claudeSettingsFile);
   } catch {
     errors.push(`Settings file not found at ${claudeSettingsFile}`);
-    errors.push('Run "nori-ai install" to create the settings file');
+    errors.push('Run "nori-skillsets init" to create the settings file');
     return {
       valid: false,
       message: "Claude settings file not found",
@@ -449,7 +449,7 @@ const validate = async (args: {
   // Check if hooks are configured
   if (!settings.hooks) {
     errors.push("No hooks configured in settings.json");
-    errors.push('Run "nori-ai install" to configure hooks');
+    errors.push('Run "nori-skillsets init" to configure hooks');
     return {
       valid: false,
       message: "Hooks not configured",
@@ -502,7 +502,7 @@ const validate = async (args: {
   // Check includeCoAuthoredBy setting
   if (settings.includeCoAuthoredBy !== false) {
     errors.push("includeCoAuthoredBy should be set to false in settings.json");
-    errors.push('Run "nori-ai install" to configure git settings');
+    errors.push('Run "nori-skillsets init" to configure git settings');
   }
 
   if (errors.length > 0) {
