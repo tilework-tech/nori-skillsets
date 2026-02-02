@@ -18,7 +18,6 @@ export type CommandNames = {
   switchProfile: string;
 };
 
-
 const NORI_SKILLSETS_COMMANDS: CommandNames = {
   download: "download",
   downloadSkill: "download-skill",

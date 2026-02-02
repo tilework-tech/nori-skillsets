@@ -18,7 +18,6 @@ import {
   getNoriProfilesDir,
 } from "@/cli/features/claude-code/paths.js";
 import { addSkillToNoriJson } from "@/cli/features/claude-code/profiles/metadata.js";
-import { addSkillDependency } from "@/cli/features/claude-code/profiles/skills/resolver.js";
 import { substituteTemplatePaths } from "@/cli/features/claude-code/template.js";
 import { error, success, info, newline, warn } from "@/cli/logger.js";
 import { getInstallDirs } from "@/utils/path.js";
@@ -203,25 +202,6 @@ const installSkill = async (args: {
   // Update skillset manifests
   if (targetSkillset != null) {
     const skillsetDir = path.join(profilesDir, targetSkillset);
-    try {
-      await addSkillDependency({
-        profileDir: skillsetDir,
-        skillName: skillDirName,
-        version: "*",
-      });
-      info({
-        message: `Added "${skill.name}" to ${targetSkillset} skillset manifest`,
-      });
-    } catch (manifestErr) {
-      const msg =
-        manifestErr instanceof Error
-          ? manifestErr.message
-          : String(manifestErr);
-      info({
-        message: `Warning: Could not update skillset manifest: ${msg}`,
-      });
-    }
-
     try {
       await addSkillToNoriJson({
         profileDir: skillsetDir,
