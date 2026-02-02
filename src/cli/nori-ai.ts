@@ -9,6 +9,7 @@
 import { Command } from "commander";
 
 import { registerCheckCommand } from "@/cli/commands/check/check.js";
+import { registerClearSkillsetCommand } from "@/cli/commands/clear-skillset/clearSkillset.js";
 import { registerInitCommand } from "@/cli/commands/init/init.js";
 import { registerInstallCommand } from "@/cli/commands/install/install.js";
 import { registerInstallLocationCommand } from "@/cli/commands/install-location/installLocation.js";
@@ -66,6 +67,7 @@ Examples:
   $ nori-ai check
   $ nori-ai install-location
   $ nori-ai switch-profile senior-swe
+  $ nori-ai clear-skillset
   $ nori-ai registry-search typescript   # searches both skillsets and skills
   $ nori-ai registry-download my-skillset
   $ nori-ai registry-download my-skillset@1.0.0
@@ -92,6 +94,7 @@ registerOnboardCommand({ program });
 registerUninstallCommand({ program });
 registerCheckCommand({ program });
 registerSwitchProfileCommand({ program });
+registerClearSkillsetCommand({ program });
 registerInstallLocationCommand({ program });
 registerRegistrySearchCommand({ program });
 registerRegistryDownloadCommand({ program });

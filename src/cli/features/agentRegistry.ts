@@ -77,6 +77,8 @@ export type Agent = {
     installDir: string;
     profileName: string;
   }) => Promise<void>;
+  /** Clear the current profile (sets profile to null in config) */
+  clearProfile: (args: { installDir: string }) => Promise<void>;
   /** Get global loaders (installed to home directory) with their human-readable names */
   getGlobalLoaders: () => Array<GlobalLoader>;
 };

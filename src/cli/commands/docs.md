@@ -10,7 +10,7 @@ Contains all CLI command implementations for both the nori-ai and nori-skillsets
 
 The CLI entry points (@/src/cli/nori-ai.ts and @/src/cli/nori-skillsets.ts) import `registerXCommand` functions from each command subdirectory and call them to register commands with the Commander.js program. Each command module exports a register function that accepts `{ program: Command }` and adds its command definition. Commands access global options (`--install-dir`, `--non-interactive`, `--agent`) via `program.opts()`. Business logic is encapsulated within each command directory - the entry points only handle routing.
 
-Commands that interact with agent-specific features (install, uninstall, check, switch-profile) use the AgentRegistry (@/src/cli/features/agentRegistry.ts) to look up the agent implementation by name. The agent provides access to its LoaderRegistry, environment paths, and global feature declarations. Commands pass the `--agent` option through their call chain to ensure consistent agent context.
+Commands that interact with agent-specific features (install, uninstall, check, switch-profile, clear-skillset) use the AgentRegistry (@/src/cli/features/agentRegistry.ts) to look up the agent implementation by name. The agent provides access to its LoaderRegistry, environment paths, and global feature declarations. Commands pass the `--agent` option through their call chain to ensure consistent agent context.
 
 **Installation Flow Architecture:** The installation process is split into three commands that can be called independently or orchestrated together:
 
@@ -65,6 +65,19 @@ nori-ai install (orchestrator)
 - New profile being switched to
 
 The user must enter "y" or "Y" to proceed; any other input cancels the operation. In non-interactive mode (`--non-interactive`), confirmation is skipped to allow automated/scripted usage.
+
+**clear-skillset Command:** The clear-skillset command (@/src/cli/commands/clear-skillset/clearSkillset.ts) removes the current skillset entirely, giving the user a clean agent configuration without requiring a full uninstall. The `clearSkillsetMain()` function orchestrates two operations in sequence:
+1. Calls `agent.clearProfile({ installDir })` to set the agent's profile to `null` in `.nori-config.json` (preserving auth, version, and other config)
+2. Calls `runUninstall()` with `removeConfig: false` and `removeGlobalSettings: false` to remove profile artifacts (skills, CLAUDE.md managed block, etc.) while keeping the config file and global settings (hooks, statusline, global slash commands)
+
+**clear-skillset Agent Resolution:** Uses the same pattern as switch-profile for determining which agent to operate on:
+- If `--agent` explicitly provided: use that agent
+- If no agents installed: default to `claude-code`
+- If exactly one agent installed: auto-select it
+- If multiple agents installed (interactive mode): prompt user to select from numbered list
+- If multiple agents installed (non-interactive mode): throw error requiring `--agent` flag
+
+The command is registered in both CLIs: `nori-ai clear-skillset` (via `registerClearSkillsetCommand`) and `nori-skillsets clear-skillset` (via `registerNoriSkillsetsClearSkillsetCommand` in @/src/cli/commands/noriSkillsetsCommands.ts).
 
 
 The uninstall command uses the `agent.getGlobalLoaders()` method to obtain global loader metadata (loader names and human-readable names) for displaying in uninstall prompts and for determining which loaders to skip when preserving global settings.
@@ -237,6 +250,7 @@ nori-ai.ts (full CLI)
   +-- registerUninstallCommand({ program })    --> commands/uninstall/uninstall.ts
   +-- registerCheckCommand({ program })        --> commands/check/check.ts
   +-- registerSwitchProfileCommand({ program })--> commands/switch-profile/profiles.ts
+  +-- registerClearSkillsetCommand({ program }) --> commands/clear-skillset/clearSkillset.ts
   +-- registerInstallLocationCommand({ program })--> commands/install-location/installLocation.ts
   +-- registerRegistrySearchCommand({ program })--> commands/registry-search/registrySearch.ts
   +-- registerRegistryDownloadCommand({ program })--> commands/registry-download/registryDownload.ts
@@ -253,6 +267,7 @@ nori-skillsets.ts (simplified CLI for registry read operations, skill downloads,
   +-- registerNoriSkillsetsDownloadCommand({ program })      --> commands/noriSkillsetsCommands.ts --> registryDownloadMain
   +-- registerNoriSkillsetsInstallCommand({ program })       --> commands/noriSkillsetsCommands.ts --> registryInstallMain
   +-- registerNoriSkillsetsSwitchSkillsetCommand({ program })--> commands/noriSkillsetsCommands.ts --> switchSkillsetAction
+  +-- registerNoriSkillsetsClearSkillsetCommand({ program })  --> commands/noriSkillsetsCommands.ts --> clearSkillsetMain
   +-- registerNoriSkillsetsDownloadSkillCommand({ program }) --> commands/noriSkillsetsCommands.ts --> skillDownloadMain
   +-- registerNoriSkillsetsWatchCommand({ program })         --> commands/noriSkillsetsCommands.ts --> watchMain
   +-- registerNoriSkillsetsLoginCommand({ program })         --> commands/noriSkillsetsCommands.ts --> loginMain
@@ -304,7 +319,7 @@ export const registerXCommand = (args: { program: Command }): void => {
 
 The commands directory contains shared utilities at the top level:
 - `registryAgentCheck.ts` - Shared validation for registry commands. Checks if the installation has only cursor-agent (no claude-code) and rejects with a helpful error message. Used by registry-search, registry-download, registry-update, registry-upload, and skill-upload commands. Note: `skill-download` does not use this validation.
-- `cliCommandNames.ts` - CLI command name mapping for user-facing messages. Maps CLI names (`nori-ai`, `nori-skillsets`) to their respective command names (e.g., `registry-download` vs `download`, `switch-profile` vs `switch-skillset`). The `getCommandNames({ cliName })` function returns a `CommandNames` object with mappings for download, downloadSkill, search, update, upload, uploadSkill, and switchProfile. Defaults to nori-ai command names when `cliName` is null or undefined.
+- `cliCommandNames.ts` - CLI command name mapping for user-facing messages. Maps CLI names (`nori-ai`, `nori-skillsets`) to their respective command names (e.g., `registry-download` vs `download`, `switch-profile` vs `switch-skillset`). The `getCommandNames({ cliName })` function returns a `CommandNames` object with mappings for download, downloadSkill, search, update, upload, uploadSkill, switchProfile, and clearProfile. Defaults to nori-ai command names when `cliName` is null or undefined.
 
 The `noriSkillsetsCommands.ts` file contains thin command wrappers for the nori-skillsets CLI - registration functions that provide simplified command names (`init`, `search`, `download`, `install`, `switch-skillset`, `download-skill`, `watch`) by delegating to the underlying implementation functions (`*Main` functions from init, registry-*, skill-*, and watch commands, `switchSkillsetAction` for switch-skillset). Upload, update, and onboard commands are only available via the nori-ai CLI. Each wrapper passes `cliName: "nori-skillsets"` to the `*Main` functions so user-facing messages display nori-skillsets command names (e.g., "run nori-skillsets switch-skillset" instead of "run nori-ai switch-profile"). This allows the nori-skillsets CLI to use cleaner command names while sharing all business logic with the nori-ai CLI.
 

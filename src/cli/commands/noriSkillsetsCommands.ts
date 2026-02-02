@@ -7,6 +7,7 @@
  * The nori-ai CLI continues to use the registry-* prefixed commands.
  */
 
+import { clearSkillsetMain } from "@/cli/commands/clear-skillset/clearSkillset.js";
 import { initMain } from "@/cli/commands/init/init.js";
 import { installLocationMain } from "@/cli/commands/install-location/installLocation.js";
 import { listSkillsetsMain } from "@/cli/commands/list-skillsets/listSkillsets.js";
@@ -316,6 +317,32 @@ export const registerNoriSkillsetsLogoutCommand = (args: {
       const globalOpts = program.opts();
       await logoutMain({
         installDir: globalOpts.installDir || null,
+      });
+    });
+};
+
+/**
+ * Register the 'clear-skillset' command for nori-skillsets CLI
+ * @param args - Configuration arguments
+ * @param args.program - Commander program instance
+ */
+export const registerNoriSkillsetsClearSkillsetCommand = (args: {
+  program: Command;
+}): void => {
+  const { program } = args;
+
+  program
+    .command("clear-skillset")
+    .description(
+      "Remove the current skillset and reset to a clean configuration",
+    )
+    .option("-a, --agent <name>", "AI agent to clear skillset for")
+    .action(async (options: { agent?: string }) => {
+      const globalOpts = program.opts();
+      await clearSkillsetMain({
+        installDir: globalOpts.installDir || null,
+        nonInteractive: globalOpts.nonInteractive || null,
+        agent: options.agent ?? null,
       });
     });
 };

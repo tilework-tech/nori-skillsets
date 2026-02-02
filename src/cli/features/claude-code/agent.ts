@@ -160,4 +160,37 @@ export const claudeCodeAgent: Agent = {
       message: `Restart Claude Code to load the new profile configuration`,
     });
   },
+
+  clearProfile: async (args: { installDir: string }): Promise<void> => {
+    const { installDir } = args;
+
+    // Load current config
+    const currentConfig = await loadConfig({ installDir });
+
+    // Get existing agents config
+    const existingAgents = currentConfig?.agents ?? {};
+
+    // Set profile to null for this agent
+    const updatedAgents = {
+      ...existingAgents,
+      ["claude-code"]: {
+        ...existingAgents["claude-code"],
+        profile: null,
+      },
+    };
+
+    await saveConfig({
+      username: currentConfig?.auth?.username ?? null,
+      password: currentConfig?.auth?.password ?? null,
+      refreshToken: currentConfig?.auth?.refreshToken ?? null,
+      organizationUrl: currentConfig?.auth?.organizationUrl ?? null,
+      organizations: currentConfig?.auth?.organizations ?? null,
+      isAdmin: currentConfig?.auth?.isAdmin ?? null,
+      agents: updatedAgents,
+      sendSessionTranscript: currentConfig?.sendSessionTranscript ?? null,
+      autoupdate: currentConfig?.autoupdate,
+      version: currentConfig?.version ?? null,
+      installDir,
+    });
+  },
 };

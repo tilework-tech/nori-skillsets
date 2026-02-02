@@ -53,6 +53,7 @@ src/cli/
     uninstall/           # Uninstall command
     check/               # Check/validation command
     switch-profile/      # Profile switching command
+    clear-skillset/      # Clear skillset (remove profile without full uninstall)
     install-location/    # Display installation directories
     registry-search/     # Search for skillsets and skills in registrar
     registry-download/   # Download from registrar
@@ -74,6 +75,7 @@ src/cli/
 | `uninstall` | | commands/uninstall/uninstall.ts | Remove Nori installation |
 | `check` | | commands/check/check.ts | Validate installation and configuration |
 | `switch-profile`, `switch-skillset` | `switch-skillset` | commands/switch-profile/profiles.ts | Switch to a different profile/skillset |
+| `clear-skillset` | `clear-skillset` | commands/clear-skillset/clearSkillset.ts | Remove the current skillset and reset to a clean configuration |
 | `install-location` | | commands/install-location/installLocation.ts | Display installation directories |
 | `registry-search` | `search` | commands/registry-search/registrySearch.ts | Search for skillsets and skills in the Nori registrar |
 | `registry-download` | `download` | commands/registry-download/registryDownload.ts | Download and install a skillset from the Nori registrar |

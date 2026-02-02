@@ -18,6 +18,7 @@ describe("cliCommandNames", () => {
       expect(names.upload).toBe("registry-upload");
       expect(names.uploadSkill).toBe("skill-upload");
       expect(names.switchProfile).toBe("switch-profile");
+      expect(names.clearProfile).toBe("clear-skillset");
     });
 
     it("should return nori-skillsets command names when cliName is nori-skillsets", () => {
@@ -30,6 +31,7 @@ describe("cliCommandNames", () => {
       expect(names.upload).toBe("upload");
       expect(names.uploadSkill).toBe("upload-skill");
       expect(names.switchProfile).toBe("switch-skillset");
+      expect(names.clearProfile).toBe("clear-skillset");
     });
 
     it("should default to nori-ai command names when cliName is null", () => {

@@ -294,4 +294,30 @@ describe("nori-skillsets CLI", () => {
     expect(output).toContain("list-skillsets");
     expect(output).toContain("List locally available skillsets");
   });
+
+  it("should have clear-skillset command", () => {
+    let output = "";
+
+    try {
+      output = execSync("node build/src/cli/nori-skillsets.js --help", {
+        encoding: "utf-8",
+        stdio: "pipe",
+        env: { ...process.env, FORCE_COLOR: "0", HOME: tempDir },
+      });
+    } catch (error: unknown) {
+      if (error && typeof error === "object") {
+        const execError = error as { stdout?: string; stderr?: string };
+        output = execError.stdout || execError.stderr || "";
+      }
+    }
+
+    // Should have "clear-skillset" as a command
+    const lines = output.split("\n");
+    const hasClearSkillsetCommand = lines.some(
+      (line) =>
+        line.trim().startsWith("clear-skillset ") ||
+        line.trim().startsWith("clear-skillset\t"),
+    );
+    expect(hasClearSkillsetCommand).toBe(true);
+  });
 });

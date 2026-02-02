@@ -488,6 +488,9 @@ describe("uninstall prompt with agent-specific global features", () => {
       switchProfile: async () => {
         // Mock implementation - intentionally empty
       },
+      clearProfile: async () => {
+        // Mock implementation - intentionally empty
+      },
       getGlobalLoaders: () => [], // Empty - no global features
     };
 

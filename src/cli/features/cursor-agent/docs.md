@@ -9,7 +9,7 @@ Cursor agent implementation that satisfies the Agent interface from @/src/cli/fe
 ### How it fits into the larger codebase
 
 ```
-CLI Commands (install, uninstall, check, switch-profile)
+CLI Commands (install, uninstall, check, switch-profile, clear-skillset)
     |
     +-- AgentRegistry.getInstance().get({ name: "cursor-agent" })
     |
@@ -36,6 +36,7 @@ The cursor-agent follows the same architectural pattern as claude-code. The `cur
 - `getLoaderRegistry()`: Returns the CursorLoaderRegistry singleton
 - `listProfiles({ installDir })`: Scans installed `.cursor/profiles/` for directories containing `AGENTS.md`
 - `switchProfile({ installDir, profileName })`: Validates profile exists, filters out config entries for uninstalled agents, updates config's `agents["cursor-agent"]` field, logs success message
+- `clearProfile({ installDir })`: Sets `profile: null` for the `"cursor-agent"` agent entry in config while preserving auth, version, and other agent entries
 - `getGlobalLoaders()`: Returns array of `GlobalLoader` objects for hooks and slash commands
 
 The AgentRegistry (@/src/cli/features/agentRegistry.ts) registers this agent alongside claude-code. CLI commands use `--agent cursor-agent` to target Cursor installation.
