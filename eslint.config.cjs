@@ -2,7 +2,15 @@ const configs = require("./configs/index.cjs");
 
 module.exports = [
   {
-    ignores: ["dist/", "node_modules/", ".git/", "**/build/", "**/.worktrees/"],
+    ignores: [
+      "dist/",
+      "node_modules/",
+      ".git/",
+      "**/build/",
+      "**/.worktrees/",
+      ".nori/",
+      ".nori-bak/",
+    ],
   },
   ...configs.eslint,
 

@@ -1,4 +1,7 @@
 build
 node_modules
 .worktrees
+.nori
+.nori-bak
+.nori-config.json
 *.md
