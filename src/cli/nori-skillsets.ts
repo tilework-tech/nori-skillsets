@@ -27,7 +27,11 @@ import {
   trackInstallLifecycle,
 } from "@/cli/installTracking.js";
 import { getCurrentPackageVersion } from "@/cli/version.js";
+import { initializeProxySupport } from "@/utils/fetch.js";
 import { normalizeInstallDir } from "@/utils/path.js";
+
+// Initialize proxy support early, before any network requests
+initializeProxySupport();
 
 const program = new Command();
 const version = getCurrentPackageVersion() || "unknown";

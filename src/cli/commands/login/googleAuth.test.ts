@@ -7,6 +7,10 @@ import * as net from "net";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+// Mock global fetch
+const mockFetch = vi.fn();
+vi.stubGlobal("fetch", mockFetch);
+
 import {
   exchangeCodeForTokens,
   findAvailablePort,
@@ -15,10 +19,6 @@ import {
   startAuthServer,
   validateOAuthCredentials,
 } from "./googleAuth.js";
-
-// Mock fetch for token exchange
-const mockFetch = vi.fn();
-global.fetch = mockFetch;
 
 describe("googleAuth", () => {
   beforeEach(() => {

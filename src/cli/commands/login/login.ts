@@ -19,6 +19,7 @@ import { loadConfig, saveConfig } from "@/cli/config.js";
 import { error, info, success, warn, newline } from "@/cli/logger.js";
 import { promptUser } from "@/cli/prompt.js";
 import { configureFirebase, getFirebase } from "@/providers/firebase.js";
+import { formatNetworkError } from "@/utils/fetch.js";
 
 import type { Command } from "commander";
 import type { AuthError } from "firebase/auth";
@@ -74,7 +75,15 @@ const fetchUserAccess = async (args: {
     }
 
     return (await response.json()) as CheckAccessResponse;
-  } catch {
+  } catch (err) {
+    // Log network errors for debugging but don't fail the login
+    if (err instanceof Error) {
+      const networkError = formatNetworkError({
+        error: err,
+        url: `${NORI_SKILLSETS_API_URL}/api/auth/check-access`,
+      });
+      console.error(`Network error checking access: ${networkError.message}`);
+    }
     return null;
   }
 };

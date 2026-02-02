@@ -45,16 +45,21 @@ export const analyticsApi = {
 
     const url = normalizeUrl({ baseUrl, path: "/api/analytics/track" });
 
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(args),
-    });
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(args),
+      });
 
-    if (!response.ok) {
+      if (!response.ok) {
+        return { success: false };
+      }
+
+      return (await response.json()) as TrackEventResponse;
+    } catch {
+      // Analytics failures should be silent - don't interrupt user flow
       return { success: false };
     }
-
-    return (await response.json()) as TrackEventResponse;
   },
 };

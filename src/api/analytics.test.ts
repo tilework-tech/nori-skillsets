@@ -7,10 +7,6 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { analyticsApi } from "./analytics.js";
 import { ConfigManager } from "./base.js";
 
-// Mock fetch globally
-const mockFetch = vi.fn();
-vi.stubGlobal("fetch", mockFetch);
-
 // Mock base.js - we need ConfigManager for analytics
 vi.mock("./base.js", async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
@@ -21,6 +17,10 @@ vi.mock("./base.js", async (importOriginal) => {
     },
   };
 });
+
+// Mock global fetch
+const mockFetch = vi.fn();
+vi.stubGlobal("fetch", mockFetch);
 
 describe("analyticsApi.trackEvent", () => {
   beforeEach(() => {

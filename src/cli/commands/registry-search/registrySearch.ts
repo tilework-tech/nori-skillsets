@@ -7,7 +7,12 @@
 
 import os from "os";
 
-import { registrarApi, REGISTRAR_URL, type Package } from "@/api/registrar.js";
+import {
+  registrarApi,
+  REGISTRAR_URL,
+  NetworkError,
+  type Package,
+} from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
 import {
   getCommandNames,
@@ -32,6 +37,7 @@ type ProfileSearchResult = {
   registryUrl: string;
   packages: Array<Package>;
   error?: string | null;
+  isNetworkError?: boolean | null;
 };
 
 /**
@@ -41,6 +47,7 @@ type SkillSearchResult = {
   registryUrl: string;
   skills: Array<Package>;
   error?: string | null;
+  isNetworkError?: boolean | null;
 };
 
 /**
@@ -77,10 +84,12 @@ const searchOrgRegistryProfiles = async (args: {
     });
     return { registryUrl, packages };
   } catch (err) {
+    const isNetworkError = err instanceof NetworkError;
     return {
       registryUrl,
       packages: [],
       error: err instanceof Error ? err.message : String(err),
+      isNetworkError,
     };
   }
 };
@@ -110,10 +119,12 @@ const searchOrgRegistrySkills = async (args: {
     });
     return { registryUrl, skills };
   } catch (err) {
+    const isNetworkError = err instanceof NetworkError;
     return {
       registryUrl,
       skills: [],
       error: err instanceof Error ? err.message : String(err),
+      isNetworkError,
     };
   }
 };
@@ -136,10 +147,12 @@ const searchPublicRegistryProfiles = async (args: {
     });
     return { registryUrl: REGISTRAR_URL, packages };
   } catch (err) {
+    const isNetworkError = err instanceof NetworkError;
     return {
       registryUrl: REGISTRAR_URL,
       packages: [],
       error: err instanceof Error ? err.message : String(err),
+      isNetworkError,
     };
   }
 };
@@ -163,10 +176,12 @@ const searchPublicRegistrySkills = async (args: {
     });
     return { registryUrl: REGISTRAR_URL, skills };
   } catch (err) {
+    const isNetworkError = err instanceof NetworkError;
     return {
       registryUrl: REGISTRAR_URL,
       skills: [],
       error: err instanceof Error ? err.message : String(err),
+      isNetworkError,
     };
   }
 };
@@ -237,6 +252,7 @@ const formatUnifiedSearchResults = (args: {
   const { results } = args;
   const profileSections: Array<string> = [];
   const skillSections: Array<string> = [];
+  const errorSections: Array<string> = [];
 
   for (const result of results) {
     const { profileResult, skillResult } = result;
@@ -260,9 +276,26 @@ const formatUnifiedSearchResults = (args: {
         }),
       );
     }
+
+    // Collect network errors (these are important to show to the user)
+    if (profileResult.isNetworkError && profileResult.error != null) {
+      errorSections.push(profileResult.error);
+    }
+    if (
+      skillResult.isNetworkError &&
+      skillResult.error != null &&
+      skillResult.error !== profileResult.error
+    ) {
+      errorSections.push(skillResult.error);
+    }
   }
 
   const sections: Array<string> = [];
+
+  // Show network errors first
+  if (errorSections.length > 0) {
+    sections.push(`Network Errors:\n${errorSections.join("\n")}`);
+  }
 
   if (profileSections.length > 0) {
     sections.push(`Profiles:\n${profileSections.join("\n\n")}`);
@@ -450,15 +483,26 @@ export const registrySearchMain = async (args: {
   // Handle case where everything failed with errors
   const hasAnyProfileError = results.some((r) => r.profileResult.error != null);
   const hasAnySkillError = results.some((r) => r.skillResult.error != null);
+  const hasNetworkError = results.some(
+    (r) => r.profileResult.isNetworkError || r.skillResult.isNetworkError,
+  );
+
   if (
     allProfileErrors &&
     allSkillErrors &&
     hasAnyProfileError &&
     hasAnySkillError
   ) {
-    error({
-      message: `Failed to search:\n\n${formatUnifiedSearchResults({ results })}`,
-    });
+    // Show different message for network errors vs other errors
+    if (hasNetworkError) {
+      error({
+        message: `Failed to search due to network connectivity issues:\n\n${formatUnifiedSearchResults({ results })}`,
+      });
+    } else {
+      error({
+        message: `Failed to search:\n\n${formatUnifiedSearchResults({ results })}`,
+      });
+    }
     return;
   }
 

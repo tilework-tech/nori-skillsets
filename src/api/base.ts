@@ -5,6 +5,7 @@ import { signInWithEmailAndPassword } from "firebase/auth";
 import { exchangeRefreshToken } from "@/api/refreshToken.js";
 import { getConfigPath } from "@/cli/config.js";
 import { getFirebase, configureFirebase } from "@/providers/firebase.js";
+import { formatNetworkError } from "@/utils/fetch.js";
 import { getInstallDirs } from "@/utils/path.js";
 import { normalizeUrl } from "@/utils/url.js";
 
@@ -222,7 +223,20 @@ export const apiRequest = async <T>(args: {
     } catch (error) {
       lastError = error as Error;
 
-      // Retry on network errors
+      // Don't retry on network errors - they're likely permanent (proxy/DNS issues)
+      const errorCode = (error as NodeJS.ErrnoException)?.code;
+      const isNetworkErr =
+        errorCode === "ECONNREFUSED" ||
+        errorCode === "ENOTFOUND" ||
+        errorCode === "ETIMEDOUT" ||
+        errorCode === "ECONNRESET";
+
+      if (isNetworkErr) {
+        const networkError = formatNetworkError({ error: error as Error, url });
+        throw networkError;
+      }
+
+      // Retry on other errors
       if (attempt < maxRetries) {
         // Exponential backoff
         const delay = Math.min(1000 * Math.pow(2, attempt), 10000);

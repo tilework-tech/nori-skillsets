@@ -10,6 +10,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getConfigPath, loadConfig } from "@/cli/config.js";
 
+// Mock global fetch
+const mockFetch = vi.fn();
+vi.stubGlobal("fetch", mockFetch);
+
 import { loginMain } from "./login.js";
 
 // Mock Firebase SDK
@@ -69,10 +73,6 @@ vi.mock("./googleAuth.js", () => ({
   GOOGLE_OAUTH_CLIENT_ID: "test-client-id",
   GOOGLE_OAUTH_CLIENT_SECRET: "test-client-secret",
 }));
-
-// Mock fetch for check-access endpoint
-const mockFetch = vi.fn();
-global.fetch = mockFetch;
 
 describe("login command", () => {
   let tempDir: string;
