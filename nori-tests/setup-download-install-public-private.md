@@ -3,14 +3,11 @@
 <required>
 *CRITICAL* Add the following steps to your Todo list using TodoWrite:
 
-1. Clean the existing install
+1. Create and cd into a tmp directory. Make sure it is clean.
 
 ```bash
-rm -r ~/.nori/profiles
-rm ~/.nori/.nori-config.json
+rm -r /tmp/skillset-test && mkdir /tmp/skillset-test
 ```
-
-- Find the existing .nori/profiles directory if it is not at ~/.nori
 
 2. Build.
 
@@ -41,7 +38,7 @@ node build/src/cli/nori-skillsets.js download onboarding
 node build/src/cli/nori-skillsets.js switch-skillset amol
 ```
 
-7. Confirm that the switch worked by checking the CLAUDE.md file at ~/.claude/CLAUDE.md.
+7. Confirm that the switch worked by checking the CLAUDE.md file at <tmppath>/.claude/CLAUDE.md.
 
 - Make sure that the templating worked as expected.
 
