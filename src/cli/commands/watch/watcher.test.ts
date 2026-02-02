@@ -14,6 +14,7 @@ import {
   isWatcherActive,
   waitForWatcherReady,
   type WatcherEvents,
+  type WatcherInstance,
 } from "@/cli/commands/watch/watcher.js";
 
 /**
@@ -37,6 +38,7 @@ const waitFor = async (
 
 describe("createWatcher", () => {
   let tempDir: string;
+  let watcherInstance: WatcherInstance | null = null;
 
   beforeEach(async () => {
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "watcher-test-"));
@@ -44,20 +46,24 @@ describe("createWatcher", () => {
   });
 
   afterEach(async () => {
-    stopWatcher();
+    if (watcherInstance != null) {
+      stopWatcher({ instance: watcherInstance });
+      watcherInstance = null;
+    }
+    stopWatcher(); // Clean up any remaining watchers
     await fs.rm(tempDir, { recursive: true, force: true });
   });
 
   test("emits add event when new JSONL file is created", async () => {
     const events: Array<WatcherEvents> = [];
 
-    createWatcher({
+    watcherInstance = createWatcher({
       watchDir: tempDir,
       onEvent: (event) => events.push(event),
     });
 
     // Wait for watcher to be ready
-    await waitForWatcherReady();
+    await waitForWatcherReady({ instance: watcherInstance });
 
     // Create a new JSONL file
     const testFile = path.join(tempDir, "test.jsonl");
@@ -78,13 +84,13 @@ describe("createWatcher", () => {
 
     const events: Array<WatcherEvents> = [];
 
-    createWatcher({
+    watcherInstance = createWatcher({
       watchDir: tempDir,
       onEvent: (event) => events.push(event),
     });
 
     // Wait for watcher to be ready
-    await waitForWatcherReady();
+    await waitForWatcherReady({ instance: watcherInstance });
 
     // Small delay to ensure file is indexed
     await new Promise((resolve) => setTimeout(resolve, 200));
@@ -103,13 +109,13 @@ describe("createWatcher", () => {
   test("ignores non-JSONL files", async () => {
     const events: Array<WatcherEvents> = [];
 
-    createWatcher({
+    watcherInstance = createWatcher({
       watchDir: tempDir,
       onEvent: (event) => events.push(event),
     });
 
     // Wait for watcher to be ready
-    await waitForWatcherReady();
+    await waitForWatcherReady({ instance: watcherInstance });
 
     // Create a non-JSONL file
     const testFile = path.join(tempDir, "test.txt");
@@ -128,13 +134,13 @@ describe("createWatcher", () => {
 
     const events: Array<WatcherEvents> = [];
 
-    createWatcher({
+    watcherInstance = createWatcher({
       watchDir: tempDir,
       onEvent: (event) => events.push(event),
     });
 
     // Wait for watcher to be ready
-    await waitForWatcherReady();
+    await waitForWatcherReady({ instance: watcherInstance });
 
     // Create a JSONL file in nested directory
     const testFile = path.join(nestedDir, "session.jsonl");
@@ -154,18 +160,19 @@ describe("createWatcher", () => {
   test("stopWatcher stops the watcher", async () => {
     const events: Array<WatcherEvents> = [];
 
-    createWatcher({
+    watcherInstance = createWatcher({
       watchDir: tempDir,
       onEvent: (event) => events.push(event),
     });
 
     // Wait for watcher to be ready
-    await waitForWatcherReady();
+    await waitForWatcherReady({ instance: watcherInstance });
 
     expect(isWatcherActive()).toBe(true);
 
     // Stop the watcher
-    stopWatcher();
+    stopWatcher({ instance: watcherInstance });
+    watcherInstance = null;
 
     expect(isWatcherActive()).toBe(false);
 
@@ -184,7 +191,7 @@ describe("createWatcher", () => {
     const nonExistentDir = path.join(tempDir, "does-not-exist");
 
     // Should not throw
-    const watcherInstance = createWatcher({
+    watcherInstance = createWatcher({
       watchDir: nonExistentDir,
       onEvent: (_event) => {
         // No-op for testing

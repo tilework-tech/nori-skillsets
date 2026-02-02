@@ -4,6 +4,7 @@ import { apiRequest } from "@/api/base.js";
 import { conversationApi } from "@/api/conversation.js";
 import { queryApi } from "@/api/query.js";
 import { registrarApi } from "@/api/registrar.js";
+import { transcriptApi } from "@/api/transcript.js";
 
 /**
  * Response from handshake endpoint
@@ -31,6 +32,7 @@ export const apiClient = {
   conversation: conversationApi,
   query: queryApi,
   registrar: registrarApi,
+  transcript: transcriptApi,
   handshake,
 };
 
@@ -48,3 +50,8 @@ export type {
   GetPackumentRequest,
   DownloadTarballRequest,
 } from "@/api/registrar.js";
+export type {
+  TranscriptMessage,
+  UploadTranscriptRequest,
+  UploadTranscriptResponse,
+} from "@/api/transcript.js";
