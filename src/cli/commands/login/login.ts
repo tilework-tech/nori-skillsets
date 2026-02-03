@@ -17,7 +17,7 @@ import open from "open";
 
 import { loadConfig, saveConfig } from "@/cli/config.js";
 import { error, info, success, warn, newline } from "@/cli/logger.js";
-import { promptUser } from "@/cli/prompt.js";
+import { promptText, promptPassword } from "@/cli/prompts/index.js";
 import { configureFirebase, getFirebase } from "@/providers/firebase.js";
 import { formatNetworkError } from "@/utils/fetch.js";
 
@@ -147,8 +147,8 @@ const authenticateWithGoogle = async (args?: {
     newline();
 
     // Prompt user to paste the code
-    const inputCode = await promptUser({
-      prompt: "Paste authorization code: ",
+    const inputCode = await promptText({
+      message: "Paste authorization code",
     });
 
     if (inputCode == null || inputCode.trim() === "") {
@@ -336,13 +336,13 @@ export const loginMain = async (args?: {
       inputEmail = email;
       inputPassword = password;
     } else {
-      inputEmail = await promptUser({ prompt: "Email: " });
+      inputEmail = await promptText({ message: "Email" });
       if (!inputEmail || inputEmail.trim() === "") {
         error({ message: "Email is required." });
         return;
       }
 
-      inputPassword = await promptUser({ prompt: "Password: ", hidden: true });
+      inputPassword = await promptPassword({ message: "Password" });
       if (!inputPassword) {
         error({ message: "Password is required." });
         return;

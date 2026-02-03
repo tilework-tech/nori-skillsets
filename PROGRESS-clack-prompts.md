@@ -109,3 +109,56 @@ const promptForAuth = async (): Promise<AuthCredentials | null>;
 ```
 
 Returns `null` when user skips auth by entering empty email.
+
+## Completed: Command Migration - login.ts (2026-02-03)
+
+### Files Created/Modified
+
+- `src/cli/prompts/password.ts` - `promptPassword()` wrapper for masked password input
+- `src/cli/prompts/password.test.ts` - 4 tests for password behavior
+- `src/cli/commands/login/login.ts` - Migrated from `promptUser` to `promptText`/`promptPassword`
+- `src/cli/commands/login/login.test.ts` - Updated mocks from `@/cli/prompt.js` to `@clack/prompts`
+
+### Migration Pattern
+
+The login command used `promptUser()` from the old prompt system in 3 places:
+1. **Email prompt** (interactive login): `promptUser({ prompt: "Email: " })` → `promptText({ message: "Email" })`
+2. **Password prompt** (interactive login): `promptUser({ prompt: "Password: ", hidden: true })` → `promptPassword({ message: "Password" })`
+3. **Auth code prompt** (headless Google OAuth): `promptUser({ prompt: "Paste authorization code: " })` → `promptText({ message: "Paste authorization code" })`
+
+### Test Migration Pattern
+
+Tests must mock `@clack/prompts` at module level:
+```typescript
+import * as clack from "@clack/prompts";
+
+vi.mock("@clack/prompts", () => ({
+  text: vi.fn(),
+  password: vi.fn(),
+  isCancel: vi.fn(() => false),
+  cancel: vi.fn(),
+}));
+
+// In tests:
+vi.mocked(clack.text).mockResolvedValueOnce("user@example.com");
+vi.mocked(clack.password).mockResolvedValueOnce("password123");
+```
+
+### API
+
+```typescript
+const promptPassword = async (args: {
+  message: string;
+  placeholder?: string | null;
+}): Promise<string>;
+```
+
+### Critical Notes for Future Migrations
+
+1. **Message format change**: Old `promptUser` used `prompt: "Email: "` with trailing colon/space. New wrappers use `message: "Email"` without punctuation - @clack/prompts adds its own formatting.
+
+2. **Import path**: Use `@/cli/prompts/index.js` (or specific modules) instead of `@/cli/prompt.js`.
+
+3. **Cancel handling is automatic**: The new wrappers call `handleCancel()` internally when user cancels, so no need for explicit cancel checking in the command code.
+
+4. **Non-interactive mode unchanged**: The login command's non-interactive mode (using CLI flags) bypasses all prompts entirely - no changes needed there.

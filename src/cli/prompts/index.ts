@@ -19,3 +19,4 @@ export {
   type ProfileSelection,
 } from "./profile.js";
 export { promptForAuth, type AuthCredentials } from "./auth.js";
+export { promptPassword } from "./password.js";
