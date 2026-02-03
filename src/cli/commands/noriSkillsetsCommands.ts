@@ -156,9 +156,18 @@ export const registerNoriSkillsetsSwitchSkillsetCommand = (args: {
 }): void => {
   const { program } = args;
 
+  // Primary command: switch-skillset (singular, canonical)
   program
     .command("switch-skillset <name>")
     .description("Switch to a different skillset and reinstall")
+    .option("-a, --agent <name>", "AI agent to switch skillset for")
+    .action(async (name: string, options: { agent?: string }) => {
+      await switchSkillsetAction({ name, options, program });
+    });
+
+  // Hidden alias: switch-skillsets (plural)
+  program
+    .command("switch-skillsets <name>", { hidden: true })
     .option("-a, --agent <name>", "AI agent to switch skillset for")
     .action(async (name: string, options: { agent?: string }) => {
       await switchSkillsetAction({ name, options, program });
@@ -223,6 +232,7 @@ export const registerNoriSkillsetsListSkillsetsCommand = (args: {
 }): void => {
   const { program } = args;
 
+  // Primary command: list-skillsets (plural, canonical)
   program
     .command("list-skillsets")
     .description("List locally available skillsets (one per line)")
@@ -233,6 +243,15 @@ export const registerNoriSkillsetsListSkillsetsCommand = (args: {
         agent: globalOpts.agent || null,
       });
     });
+
+  // Hidden alias: list-skillset (singular)
+  program.command("list-skillset", { hidden: true }).action(async () => {
+    const globalOpts = program.opts();
+    await listSkillsetsMain({
+      installDir: globalOpts.installDir || null,
+      agent: globalOpts.agent || null,
+    });
+  });
 };
 
 /**
