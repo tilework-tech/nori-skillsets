@@ -153,5 +153,86 @@ describe("logout command", () => {
       );
       expect(afterLogout?.autoupdate).toBe("disabled");
     });
+
+    it("should clear auth from .nori subdirectory config when no installDir provided", async () => {
+      const { success } = await import("@/cli/logger.js");
+
+      // Create .nori subdirectory (mimics home directory installation pattern)
+      const noriSubdir = path.join(tempDir, ".nori");
+      await fs.mkdir(noriSubdir, { recursive: true });
+
+      // Create config with auth in the .nori subdirectory
+      await saveConfig({
+        username: "user@example.com",
+        refreshToken: "mock-refresh-token",
+        organizationUrl: "https://noriskillsets.dev",
+        agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
+        installDir: noriSubdir,
+      });
+
+      // Verify auth exists before logout
+      const beforeLogout = await loadConfig({ installDir: noriSubdir });
+      expect(beforeLogout?.auth?.username).toBe("user@example.com");
+
+      // Perform logout without installDir - should auto-detect the .nori subdirectory
+      await logoutMain({ searchDir: tempDir });
+
+      // Verify auth is cleared
+      const afterLogout = await loadConfig({ installDir: noriSubdir });
+      expect(afterLogout?.auth).toBeNull();
+
+      // Verify success message was shown
+      expect(success).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.stringContaining("Logged out"),
+        }),
+      );
+    });
+
+    it("should clear auth from all detected installations when no installDir provided", async () => {
+      const { success } = await import("@/cli/logger.js");
+
+      // Create .nori subdirectory
+      const noriSubdir = path.join(tempDir, ".nori");
+      await fs.mkdir(noriSubdir, { recursive: true });
+
+      // Create config with auth at root level
+      await saveConfig({
+        username: "root-user@example.com",
+        refreshToken: "root-token",
+        organizationUrl: "https://noriskillsets.dev",
+        installDir: tempDir,
+      });
+
+      // Create config with auth in .nori subdirectory
+      await saveConfig({
+        username: "nori-user@example.com",
+        refreshToken: "nori-token",
+        organizationUrl: "https://noriskillsets.dev",
+        installDir: noriSubdir,
+      });
+
+      // Verify both have auth before logout
+      const rootBefore = await loadConfig({ installDir: tempDir });
+      const noriBefore = await loadConfig({ installDir: noriSubdir });
+      expect(rootBefore?.auth?.username).toBe("root-user@example.com");
+      expect(noriBefore?.auth?.username).toBe("nori-user@example.com");
+
+      // Perform logout without installDir - should clear auth from both
+      await logoutMain({ searchDir: tempDir });
+
+      // Verify auth is cleared from both
+      const rootAfter = await loadConfig({ installDir: tempDir });
+      const noriAfter = await loadConfig({ installDir: noriSubdir });
+      expect(rootAfter?.auth).toBeNull();
+      expect(noriAfter?.auth).toBeNull();
+
+      // Verify success message indicates multiple installations
+      expect(success).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.stringContaining("2 installations"),
+        }),
+      );
+    });
   });
 });
