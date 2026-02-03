@@ -78,7 +78,6 @@ vi.mock("@/cli/logger.js", () => ({
   newline: () => mockNewline(),
 }));
 
-import { REGISTRAR_URL } from "@/api/registrar.js";
 import { main as installMain } from "@/cli/commands/install/install.js";
 import { hasExistingInstallation } from "@/cli/commands/install/installState.js";
 import { registryDownloadMain } from "@/cli/commands/registry-download/registryDownload.js";
@@ -100,7 +99,7 @@ describe("registry-install", () => {
     expect(registryDownloadMain).toHaveBeenCalledWith({
       packageSpec: "senior-swe",
       installDir: "/repo",
-      registryUrl: REGISTRAR_URL,
+      registryUrl: null,
       listVersions: null,
     });
 
@@ -135,7 +134,7 @@ describe("registry-install", () => {
     expect(registryDownloadMain).toHaveBeenCalledWith({
       packageSpec: "senior-swe",
       installDir: "/repo",
-      registryUrl: REGISTRAR_URL,
+      registryUrl: null,
       listVersions: null,
     });
 
@@ -167,7 +166,7 @@ describe("registry-install", () => {
     expect(registryDownloadMain).toHaveBeenCalledWith({
       packageSpec: "product-manager",
       installDir: "/mock-home",
-      registryUrl: REGISTRAR_URL,
+      registryUrl: null,
       listVersions: null,
     });
 
@@ -189,7 +188,7 @@ describe("registry-install", () => {
     expect(registryDownloadMain).toHaveBeenCalledWith({
       packageSpec: "documenter@2.1.0",
       installDir: "/repo",
-      registryUrl: REGISTRAR_URL,
+      registryUrl: null,
       listVersions: null,
     });
 
@@ -214,7 +213,7 @@ describe("registry-install", () => {
     expect(registryDownloadMain).toHaveBeenCalledWith({
       packageSpec: "nonexistent-profile",
       installDir: "/repo",
-      registryUrl: REGISTRAR_URL,
+      registryUrl: null,
       listVersions: null,
     });
 
