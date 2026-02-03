@@ -31,6 +31,7 @@
     "format:eslint": "eslint . --fix"
   },
   "dependencies": {
+    "@clack/prompts": "^1.0.0",
     "@types/semver": "^7.7.1",
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",

@@ -5,9 +5,9 @@ Ordered approximately from smallest to largest effort.
 
 ## Setup & Foundation
 
-- [ ] Add @clack/prompts dependency and create src/cli/prompts/ directory structure
-- [ ] Implement utils.ts with cancel handling (handleCancel, isCancel re-export)
-- [ ] Implement validators.ts with extracted validation functions and unit tests
+- [x] Add @clack/prompts dependency and create src/cli/prompts/ directory structure
+- [x] Implement utils.ts with cancel handling (handleCancel, isCancel re-export)
+- [x] Implement validators.ts with extracted validation functions and unit tests
 
 ## Core Prompt Modules
 
