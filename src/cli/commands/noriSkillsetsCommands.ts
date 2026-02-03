@@ -255,13 +255,20 @@ export const registerNoriSkillsetsWatchCommand = (args: {
       "--set-destination",
       "Re-configure transcript upload destination organization",
     )
-    .action(async (options: { agent: string; setDestination?: boolean }) => {
-      await watchMain({
-        agent: options.agent,
-        daemon: true,
-        setDestination: options.setDestination ?? false,
-      });
-    });
+    .option("--_background", "Internal: run as background daemon")
+    .action(
+      async (options: {
+        agent: string;
+        setDestination?: boolean;
+        _background?: boolean;
+      }) => {
+        await watchMain({
+          agent: options.agent,
+          setDestination: options.setDestination ?? false,
+          _background: options._background ?? false,
+        });
+      },
+    );
 
   watchCmd
     .command("stop")
