@@ -48,6 +48,9 @@ const MAX_PORT_ATTEMPTS = 10;
 /** Timeout for waiting for the OAuth callback (ms) */
 const AUTH_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes
 
+/** Default warning delay before timeout (ms) */
+export const AUTH_WARNING_MS = 60 * 1000; // 1 minute
+
 /** Google OAuth endpoints */
 const GOOGLE_AUTH_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
@@ -150,6 +153,8 @@ const ERROR_HTML = `<!DOCTYPE html>
  * @param args.port - Port to listen on
  * @param args.expectedState - Expected state parameter for CSRF validation
  * @param args.timeoutMs - Timeout in milliseconds
+ * @param args.warningMs - Time before timeout to call onTimeoutWarning (optional)
+ * @param args.onTimeoutWarning - Callback to invoke when warning threshold reached (optional)
  *
  * @throws Error on timeout, user cancellation, or CSRF mismatch
  *
@@ -159,18 +164,25 @@ export const startAuthServer = (args: {
   port: number;
   expectedState: string;
   timeoutMs?: number | null;
+  warningMs?: number | null;
+  onTimeoutWarning?: (() => void) | null;
 }): Promise<{ code: string; server: http.Server }> => {
-  const { port, expectedState, timeoutMs } = args;
+  const { port, expectedState, timeoutMs, warningMs, onTimeoutWarning } = args;
   const timeout = timeoutMs ?? AUTH_TIMEOUT_MS;
 
   return new Promise((resolve, reject) => {
     let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+    let warningHandle: ReturnType<typeof setTimeout> | null = null;
     let settled = false;
 
     const cleanup = () => {
       if (timeoutHandle != null) {
         clearTimeout(timeoutHandle);
         timeoutHandle = null;
+      }
+      if (warningHandle != null) {
+        clearTimeout(warningHandle);
+        warningHandle = null;
       }
     };
 
@@ -229,6 +241,15 @@ export const startAuthServer = (args: {
     });
 
     server.listen(port, () => {
+      // Set up warning callback if provided
+      if (warningMs != null && onTimeoutWarning != null) {
+        warningHandle = setTimeout(() => {
+          if (!settled) {
+            onTimeoutWarning();
+          }
+        }, warningMs);
+      }
+
       // Set up timeout
       timeoutHandle = setTimeout(() => {
         safeReject(
@@ -314,4 +335,20 @@ export const exchangeCodeForTokens = async (args: {
  */
 export const generateState = (): string => {
   return crypto.randomBytes(16).toString("hex");
+};
+
+/**
+ * Detect if running in a headless or SSH environment
+ *
+ * Checks for common SSH environment variables that indicate the session
+ * is running over SSH, where a local browser cannot be opened.
+ *
+ * @returns true if running in an SSH or headless environment
+ */
+export const isHeadlessEnvironment = (): boolean => {
+  return (
+    process.env.SSH_TTY != null ||
+    process.env.SSH_CONNECTION != null ||
+    process.env.SSH_CLIENT != null
+  );
 };

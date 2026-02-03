@@ -64,12 +64,14 @@ vi.mock("open", () => ({
 
 // Mock the googleAuth module
 vi.mock("./googleAuth.js", () => ({
+  AUTH_WARNING_MS: 60 * 1000,
   findAvailablePort: vi.fn(),
   getGoogleAuthUrl: vi.fn(),
   startAuthServer: vi.fn(),
   exchangeCodeForTokens: vi.fn(),
   generateState: vi.fn(),
   validateOAuthCredentials: vi.fn(),
+  isHeadlessEnvironment: vi.fn(),
   GOOGLE_OAUTH_CLIENT_ID: "test-client-id",
   GOOGLE_OAUTH_CLIENT_SECRET: "test-client-secret",
 }));
@@ -626,6 +628,115 @@ describe("login command", () => {
       );
       expect(config?.autoupdate).toBe("enabled");
       expect(config?.auth?.username).toBe("user@gmail.com");
+    });
+
+    it("should always display auth URL before opening browser", async () => {
+      const { signInWithCredential } = await import("firebase/auth");
+      const { info } = await import("@/cli/logger.js");
+      const {
+        findAvailablePort,
+        getGoogleAuthUrl,
+        startAuthServer,
+        exchangeCodeForTokens,
+        generateState,
+        isHeadlessEnvironment,
+      } = await import("./googleAuth.js");
+
+      const testAuthUrl =
+        "https://accounts.google.com/o/oauth2/v2/auth?client_id=test";
+
+      vi.mocked(generateState).mockReturnValue("state");
+      vi.mocked(findAvailablePort).mockResolvedValue(9876);
+      vi.mocked(getGoogleAuthUrl).mockReturnValue(testAuthUrl);
+      vi.mocked(isHeadlessEnvironment).mockReturnValue(false);
+      vi.mocked(startAuthServer).mockResolvedValue({
+        code: "code",
+        server: { close: vi.fn() } as any,
+      });
+      vi.mocked(exchangeCodeForTokens).mockResolvedValue({
+        idToken: "id-token",
+        accessToken: "access-token",
+      });
+      vi.mocked(signInWithCredential).mockResolvedValue({
+        user: {
+          refreshToken: "refresh",
+          email: "user@gmail.com",
+          getIdToken: vi.fn().mockResolvedValue("firebase-id-token"),
+        },
+      } as any);
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            authorized: true,
+            organizations: [],
+            isAdmin: false,
+          }),
+      });
+
+      await loginMain({ installDir: tempDir, google: true });
+
+      // Verify the auth URL was displayed
+      expect(info).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.stringContaining(testAuthUrl),
+        }),
+      );
+    });
+
+    it("should display SSH port forwarding instructions in headless environment", async () => {
+      const { signInWithCredential } = await import("firebase/auth");
+      const { info } = await import("@/cli/logger.js");
+      const {
+        findAvailablePort,
+        getGoogleAuthUrl,
+        startAuthServer,
+        exchangeCodeForTokens,
+        generateState,
+        isHeadlessEnvironment,
+      } = await import("./googleAuth.js");
+
+      vi.mocked(generateState).mockReturnValue("state");
+      vi.mocked(findAvailablePort).mockResolvedValue(9876);
+      vi.mocked(getGoogleAuthUrl).mockReturnValue(
+        "https://accounts.google.com/test",
+      );
+      vi.mocked(isHeadlessEnvironment).mockReturnValue(true); // Simulate SSH environment
+      vi.mocked(startAuthServer).mockResolvedValue({
+        code: "code",
+        server: { close: vi.fn() } as any,
+      });
+      vi.mocked(exchangeCodeForTokens).mockResolvedValue({
+        idToken: "id-token",
+        accessToken: "access-token",
+      });
+      vi.mocked(signInWithCredential).mockResolvedValue({
+        user: {
+          refreshToken: "refresh",
+          email: "user@gmail.com",
+          getIdToken: vi.fn().mockResolvedValue("firebase-id-token"),
+        },
+      } as any);
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            authorized: true,
+            organizations: [],
+            isAdmin: false,
+          }),
+      });
+
+      await loginMain({ installDir: tempDir, google: true });
+
+      // Verify SSH port forwarding instructions were displayed
+      const infoCalls = vi.mocked(info).mock.calls.map((call) => call[0]);
+      const hasPortForwardingInstruction = infoCalls.some(
+        (call) => call.message.includes("ssh") && call.message.includes("9876"),
+      );
+      expect(hasPortForwardingInstruction).toBe(true);
     });
   });
 });

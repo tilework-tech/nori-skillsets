@@ -7,7 +7,6 @@ import * as fs from "fs/promises";
 import * as os from "os";
 import * as path from "path";
 
-import { REGISTRAR_URL } from "@/api/registrar.js";
 import { main as installMain } from "@/cli/commands/install/install.js";
 import { hasExistingInstallation } from "@/cli/commands/install/installState.js";
 import { registryDownloadMain } from "@/cli/commands/registry-download/registryDownload.js";
@@ -123,10 +122,12 @@ export const registryInstallMain = async (
   const agentName = agent ?? "claude-code";
 
   // Step 1: Download the profile from registry first (so it's available for install)
+  // Note: registryUrl is null to let registryDownloadMain determine the correct
+  // registry based on the package namespace (e.g., "org/package" -> org's registry)
   const downloadResult = await registryDownloadMain({
     packageSpec,
     installDir: targetInstallDir,
-    registryUrl: REGISTRAR_URL,
+    registryUrl: null,
     listVersions: null,
   });
 

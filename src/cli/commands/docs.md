@@ -40,11 +40,23 @@ The install command sets `agents: { [agentName]: { profile } }` in the config, w
 
 **cliCommandNames.ts:** The `CliName` type is a single literal `"nori-skillsets"` (not a union). The `getCommandNames()` function returns the `NORI_SKILLSETS_COMMANDS` constant, which maps logical command names (download, search, switchProfile, etc.) to their CLI command strings.
 
-**Login/Logout:** The `login` command authenticates users with the Nori backend via Firebase:
-1. Prompts for email and password (or accepts `--email` and `--password` flags in non-interactive mode)
-2. Authenticates via Firebase SDK
-3. Calls `/api/auth/check-access` to verify organization access and retrieve organization list
-4. Saves auth credentials (refreshToken, organizationUrl, organizations, isAdmin) to config
+**Login/Logout:** The `login` command authenticates users with the Nori backend via Firebase. It supports two authentication methods:
+
+1. **Email/Password Authentication:**
+   - Prompts for email and password (or accepts `--email` and `--password` flags in non-interactive mode)
+   - Authenticates via Firebase SDK using `signInWithEmailAndPassword`
+
+2. **Google SSO Authentication** (`--google` flag):
+   - Uses the localhost OAuth callback pattern: starts a temporary HTTP server on an available port (9876-9885), opens the browser to Google's consent screen, and captures the authorization code via redirect
+   - `isHeadlessEnvironment()` in googleAuth.ts detects SSH/headless environments by checking for `SSH_TTY`, `SSH_CONNECTION`, or `SSH_CLIENT` environment variables
+   - Always displays the OAuth URL before attempting to open the browser, enabling manual copy-paste in environments where browser opening fails
+   - In SSH environments, displays port forwarding instructions: `ssh -L <port>:localhost:<port> <user>@<server>`
+   - `startAuthServer()` supports a `warningMs` parameter and `onTimeoutWarning` callback to warn users before the 2-minute timeout expires
+   - Exchanges the authorization code for Google tokens via `exchangeCodeForTokens()`, then signs in to Firebase using `GoogleAuthProvider.credential()`
+
+After authentication (either method):
+- Calls `/api/auth/check-access` to verify organization access and retrieve organization list
+- Saves auth credentials (refreshToken, organizationUrl, organizations, isAdmin) to config
 
 The `logout` command removes auth credentials from config, preserving the profile selection and other settings.
 
@@ -78,5 +90,6 @@ The `logout` command removes auth credentials from config, preserving the profil
 - The `registry-install` command combines `registry-download` with `noninteractive()` install to provide a single-step "download and activate" flow from the public registrar.
 - The `registry-search` command always queries the public registry without authentication; if org auth is configured, it also searches the org registry with authentication (org results displayed first).
 - The `registry-upload` command creates a gzipped tarball from the local profile directory before uploading. Skill collision errors from the API include conflict metadata (skillId, latestVersion, owner, contentUnchanged, availableActions) that enables auto-resolution for unchanged skills.
+- Google OAuth uses Desktop app client credentials; the client secret is not truly secret (same as firebase-tools, gcloud CLI, etc.). CSRF protection uses a cryptographic nonce (`generateState()`) verified in the callback.
 
 Created and maintained by Nori.

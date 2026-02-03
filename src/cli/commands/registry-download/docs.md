@@ -39,6 +39,22 @@ Path: @/src/cli/commands/registry-download
 
 The home directory preference exists because `nori-skillsets login` stores auth credentials at `~/.nori/.nori-config.json`, so the home installation typically has registry auth configured for authenticated downloads.
 
+**Home directory auth fallback** for namespaced packages:
+
+When an explicit `--install-dir` is provided (or passed programmatically from `registry-install`), the code loads auth from that directory's config. If the package is namespaced (e.g., `pangram/high-autonomy`) and the explicit install dir has no unified auth credentials, the code falls back to checking the home directory for auth:
+
+```
+Namespaced package with no auth in explicit installDir?
+  YES --> Load config from os.homedir()
+          |
+          Home dir has unified auth with organizations?
+            YES --> Use home dir auth for registry access
+                    (but still install profile to explicit installDir)
+            NO  --> Error: "Profile not found. To download from organization, log in"
+```
+
+This fallback enables users who have logged in at the user level (`nori-skillsets login` stores auth in `~`) to install namespaced packages to any project directory without re-authenticating.
+
 **Download flow** after installation directory is resolved:
 1. Resolve the package version (latest if unspecified, or semver-matched from available versions)
 2. Check if profile already exists locally and compare versions (skip if same version, prompt for upgrade/downgrade)
