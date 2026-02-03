@@ -54,6 +54,11 @@ The install command sets `agents: { [agentName]: { profile } }` in the config, w
    - `startAuthServer()` supports a `warningMs` parameter and `onTimeoutWarning` callback to warn users before the 2-minute timeout expires
    - Exchanges the authorization code for Google tokens via `exchangeCodeForTokens()`, then signs in to Firebase using `GoogleAuthProvider.credential()`
 
+3. **Headless Mode** (`--google --no-localhost` flags):
+   - For environments where SSH port forwarding isn't possible, uses a hosted callback page at `https://noriskillsets.dev/oauth/callback`
+   - Instead of starting a localhost server, prompts the user to paste the authorization code displayed on the callback page
+   - The callback page extracts the code from the OAuth redirect URL and displays it for copy-paste
+
 After authentication (either method):
 - Calls `/api/auth/check-access` to verify organization access and retrieve organization list
 - Saves auth credentials (refreshToken, organizationUrl, organizations, isAdmin) to config

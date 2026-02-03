@@ -739,4 +739,201 @@ describe("login command", () => {
       expect(hasPortForwardingInstruction).toBe(true);
     });
   });
+
+  describe("loginMain with --google --no-localhost", () => {
+    it("should use noriskillsets.dev callback URL when --no-localhost is set", async () => {
+      const { signInWithCredential } = await import("firebase/auth");
+      const { promptUser } = await import("@/cli/prompt.js");
+      const { getGoogleAuthUrl, exchangeCodeForTokens, generateState } =
+        await import("./googleAuth.js");
+
+      vi.mocked(generateState).mockReturnValue("test-state");
+      vi.mocked(getGoogleAuthUrl).mockReturnValue(
+        "https://accounts.google.com/test?redirect_uri=https://noriskillsets.dev/oauth/callback",
+      );
+      vi.mocked(promptUser).mockResolvedValue("auth-code-from-page");
+      vi.mocked(exchangeCodeForTokens).mockResolvedValue({
+        idToken: "google-id-token",
+        accessToken: "access-token",
+      });
+      vi.mocked(signInWithCredential).mockResolvedValue({
+        user: {
+          refreshToken: "refresh-token",
+          email: "user@gmail.com",
+          getIdToken: vi.fn().mockResolvedValue("firebase-id-token"),
+        },
+      } as any);
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            authorized: true,
+            organizations: [],
+            isAdmin: false,
+          }),
+      });
+
+      await loginMain({ installDir: tempDir, google: true, noLocalhost: true });
+
+      // Verify getGoogleAuthUrl was called with noriskillsets.dev redirect URI
+      expect(getGoogleAuthUrl).toHaveBeenCalledWith(
+        expect.objectContaining({
+          redirectUri: "https://noriskillsets.dev/oauth/callback",
+        }),
+      );
+
+      // Verify user was prompted to paste the auth code
+      expect(promptUser).toHaveBeenCalledWith(
+        expect.objectContaining({
+          prompt: expect.stringContaining("authorization code"),
+        }),
+      );
+
+      // Verify exchangeCodeForTokens was called with the pasted code
+      expect(exchangeCodeForTokens).toHaveBeenCalledWith(
+        expect.objectContaining({
+          code: "auth-code-from-page",
+          redirectUri: "https://noriskillsets.dev/oauth/callback",
+        }),
+      );
+
+      // Verify config was saved
+      const config = await loadConfig({ installDir: tempDir });
+      expect(config?.auth?.username).toBe("user@gmail.com");
+    });
+
+    it("should not start local auth server when --no-localhost is set", async () => {
+      const { signInWithCredential } = await import("firebase/auth");
+      const { promptUser } = await import("@/cli/prompt.js");
+      const {
+        getGoogleAuthUrl,
+        exchangeCodeForTokens,
+        generateState,
+        startAuthServer,
+        findAvailablePort,
+      } = await import("./googleAuth.js");
+
+      vi.mocked(generateState).mockReturnValue("test-state");
+      vi.mocked(getGoogleAuthUrl).mockReturnValue(
+        "https://accounts.google.com/test",
+      );
+      vi.mocked(promptUser).mockResolvedValue("auth-code");
+      vi.mocked(exchangeCodeForTokens).mockResolvedValue({
+        idToken: "google-id-token",
+        accessToken: "access-token",
+      });
+      vi.mocked(signInWithCredential).mockResolvedValue({
+        user: {
+          refreshToken: "refresh-token",
+          email: "user@gmail.com",
+          getIdToken: vi.fn().mockResolvedValue("firebase-id-token"),
+        },
+      } as any);
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            authorized: true,
+            organizations: [],
+            isAdmin: false,
+          }),
+      });
+
+      await loginMain({ installDir: tempDir, google: true, noLocalhost: true });
+
+      // Verify local server functions were NOT called
+      expect(findAvailablePort).not.toHaveBeenCalled();
+      expect(startAuthServer).not.toHaveBeenCalled();
+    });
+
+    it("should show error when --no-localhost is used without --google", async () => {
+      const { error } = await import("@/cli/logger.js");
+
+      await loginMain({ installDir: tempDir, noLocalhost: true });
+
+      expect(error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.stringContaining("--no-localhost"),
+        }),
+      );
+
+      // No config should be saved
+      const config = await loadConfig({ installDir: tempDir });
+      expect(config?.auth).toBeUndefined();
+    });
+
+    it("should display instructions to copy the code from the callback page", async () => {
+      const { signInWithCredential } = await import("firebase/auth");
+      const { info } = await import("@/cli/logger.js");
+      const { promptUser } = await import("@/cli/prompt.js");
+      const { getGoogleAuthUrl, exchangeCodeForTokens, generateState } =
+        await import("./googleAuth.js");
+
+      vi.mocked(generateState).mockReturnValue("test-state");
+      vi.mocked(getGoogleAuthUrl).mockReturnValue(
+        "https://accounts.google.com/test",
+      );
+      vi.mocked(promptUser).mockResolvedValue("auth-code");
+      vi.mocked(exchangeCodeForTokens).mockResolvedValue({
+        idToken: "google-id-token",
+        accessToken: "access-token",
+      });
+      vi.mocked(signInWithCredential).mockResolvedValue({
+        user: {
+          refreshToken: "refresh-token",
+          email: "user@gmail.com",
+          getIdToken: vi.fn().mockResolvedValue("firebase-id-token"),
+        },
+      } as any);
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            authorized: true,
+            organizations: [],
+            isAdmin: false,
+          }),
+      });
+
+      await loginMain({ installDir: tempDir, google: true, noLocalhost: true });
+
+      // Verify instructions were displayed
+      const infoCalls = vi.mocked(info).mock.calls.map((call) => call[0]);
+      const hasInstructions = infoCalls.some(
+        (call) =>
+          call.message.includes("copy") ||
+          call.message.includes("paste") ||
+          call.message.includes("code"),
+      );
+      expect(hasInstructions).toBe(true);
+    });
+
+    it("should handle empty auth code input gracefully", async () => {
+      const { error } = await import("@/cli/logger.js");
+      const { promptUser } = await import("@/cli/prompt.js");
+      const { getGoogleAuthUrl, generateState } =
+        await import("./googleAuth.js");
+
+      vi.mocked(generateState).mockReturnValue("test-state");
+      vi.mocked(getGoogleAuthUrl).mockReturnValue(
+        "https://accounts.google.com/test",
+      );
+      vi.mocked(promptUser).mockResolvedValue(""); // Empty input
+
+      await loginMain({ installDir: tempDir, google: true, noLocalhost: true });
+
+      expect(error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.stringContaining("authorization code"),
+        }),
+      );
+
+      // No config should be saved
+      const config = await loadConfig({ installDir: tempDir });
+      expect(config?.auth).toBeUndefined();
+    });
+  });
 });
