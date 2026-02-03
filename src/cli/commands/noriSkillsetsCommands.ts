@@ -251,12 +251,24 @@ export const registerNoriSkillsetsWatchCommand = (args: {
       "Watch Claude Code sessions and save transcripts to ~/.nori/transcripts/",
     )
     .option("-a, --agent <name>", "Agent to watch", "claude-code")
-    .action(async (options: { agent: string }) => {
-      await watchMain({
-        agent: options.agent,
-        daemon: true,
-      });
-    });
+    .option(
+      "--set-destination",
+      "Re-configure transcript upload destination organization",
+    )
+    .option("--_background", "Internal: run as background daemon")
+    .action(
+      async (options: {
+        agent: string;
+        setDestination?: boolean;
+        _background?: boolean;
+      }) => {
+        await watchMain({
+          agent: options.agent,
+          setDestination: options.setDestination ?? false,
+          _background: options._background ?? false,
+        });
+      },
+    );
 
   watchCmd
     .command("stop")

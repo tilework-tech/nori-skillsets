@@ -5,6 +5,7 @@
  * Runs as a background daemon with PID file management.
  */
 
+import { spawn } from "child_process";
 import * as fs from "fs/promises";
 import * as path from "path";
 
@@ -465,27 +466,65 @@ const selectTranscriptDestination = async (args: {
 };
 
 /**
+ * Spawn the watch daemon as a detached background process
+ *
+ * @param args - Configuration arguments
+ * @param args.agent - Agent to watch
+ *
+ * @returns The spawned child process PID
+ */
+const spawnDaemonProcess = async (args: { agent: string }): Promise<number> => {
+  const { agent } = args;
+
+  // Get the path to the nori-skillsets executable
+  const execPath = process.argv[1];
+
+  // Spawn detached child process with _background flag
+  const child = spawn(
+    process.execPath,
+    [execPath, "watch", "--agent", agent, "--_background"],
+    {
+      detached: true,
+      stdio: ["ignore", "ignore", "ignore"],
+      env: { ...process.env },
+    },
+  );
+
+  // Unref so parent can exit independently
+  child.unref();
+
+  if (child.pid == null) {
+    throw new Error("Failed to spawn daemon process");
+  }
+
+  return child.pid;
+};
+
+/**
  * Main watch function
  *
  * @param args - Configuration arguments
  * @param args.agent - Agent to watch (default: claude-code)
- * @param args.daemon - Whether to run as daemon
+ * @param args.daemon - Whether to run as daemon (deprecated, kept for compatibility)
  * @param args.staleTimeoutMs - Staleness timeout in milliseconds (default: 5 minutes)
  * @param args.setDestination - Force re-selection of transcript destination
+ * @param args._background - Internal flag: run as background daemon (set by spawn)
  */
 export const watchMain = async (args?: {
   agent?: string | null;
   daemon?: boolean | null;
+  _background?: boolean | null;
   staleTimeoutMs?: number | null;
   setDestination?: boolean | null;
 }): Promise<void> => {
   const agent = args?.agent ?? "claude-code";
-  const daemon = args?.daemon ?? false;
+  const _background = args?._background ?? false;
   const staleTimeoutMs = args?.staleTimeoutMs ?? DEFAULT_STALE_TIMEOUT_MS;
   const setDestination = args?.setDestination ?? false;
 
-  // Reset shutdown flag
-  isShuttingDown = false;
+  const homeDir = process.env.HOME ?? "";
+  const installDir = homeDir; // Config is at ~/.nori-config.json (home dir is base)
+  const logFile = getWatchLogFile();
 
   // Check if already running
   if (await isWatchRunning()) {
@@ -493,46 +532,63 @@ export const watchMain = async (args?: {
     return;
   }
 
-  // Load config and handle transcript destination
-  const homeDir = process.env.HOME ?? "";
-  const installDir = path.join(homeDir, ".nori");
-  const config = await loadConfig({ installDir });
+  // INTERACTIVE MODE: Do setup, then spawn background daemon
+  if (!_background) {
+    // Load config and handle transcript destination selection (interactive)
+    const config = await loadConfig({ installDir });
 
-  // Get user's organizations (filter out "public")
-  const userOrgs = config?.auth?.organizations ?? [];
-  const privateOrgs = userOrgs.filter((org) => org !== "public");
+    // Get user's organizations (filter out "public")
+    const userOrgs = config?.auth?.organizations ?? [];
+    const privateOrgs = userOrgs.filter((org) => org !== "public");
 
-  // Select transcript destination
-  const selectedOrg = await selectTranscriptDestination({
-    privateOrgs,
-    currentDestination: config?.transcriptDestination,
-    forceSelection: setDestination,
-    isDaemon: daemon,
-  });
-
-  // Save selection if it changed
-  if (selectedOrg != null && selectedOrg !== config?.transcriptDestination) {
-    await saveConfig({
-      username: config?.auth?.username ?? null,
-      password: config?.auth?.password ?? null,
-      refreshToken: config?.auth?.refreshToken ?? null,
-      organizationUrl: config?.auth?.organizationUrl ?? null,
-      organizations: config?.auth?.organizations ?? null,
-      isAdmin: config?.auth?.isAdmin ?? null,
-      sendSessionTranscript: config?.sendSessionTranscript ?? null,
-      autoupdate: config?.autoupdate ?? null,
-      agents: config?.agents ?? null,
-      version: config?.version ?? null,
-      transcriptDestination: selectedOrg,
-      installDir,
+    // Select transcript destination (interactive - will prompt if needed)
+    const selectedOrg = await selectTranscriptDestination({
+      privateOrgs,
+      currentDestination: config?.transcriptDestination,
+      forceSelection: setDestination,
+      isDaemon: false, // Always interactive in this mode
     });
+
+    // Save selection if it changed
+    if (selectedOrg != null && selectedOrg !== config?.transcriptDestination) {
+      await saveConfig({
+        username: config?.auth?.username ?? null,
+        password: config?.auth?.password ?? null,
+        refreshToken: config?.auth?.refreshToken ?? null,
+        organizationUrl: config?.auth?.organizationUrl ?? null,
+        organizations: config?.auth?.organizations ?? null,
+        isAdmin: config?.auth?.isAdmin ?? null,
+        sendSessionTranscript: config?.sendSessionTranscript ?? null,
+        autoupdate: config?.autoupdate ?? null,
+        agents: config?.agents ?? null,
+        version: config?.version ?? null,
+        transcriptDestination: selectedOrg,
+        installDir,
+      });
+    }
+
+    // Ensure log directory exists before spawning
+    await fs.mkdir(path.dirname(logFile), { recursive: true });
+
+    // Spawn the background daemon process
+    const pid = await spawnDaemonProcess({ agent });
+    success({
+      message: `Watch daemon started (PID: ${pid}). Logs: ${logFile}`,
+    });
+
+    // Parent process exits here, child continues in background
+    return;
   }
 
-  // Store for use in upload functions
-  transcriptOrgId = selectedOrg;
+  // BACKGROUND MODE: Run the actual daemon (spawned by interactive mode)
+  // Reset shutdown flag
+  isShuttingDown = false;
+
+  // Load config to get saved transcript destination
+  const config = await loadConfig({ installDir });
+  transcriptOrgId = config?.transcriptDestination ?? null;
 
   const pidFile = getWatchPidFile();
-  const logFile = getWatchLogFile();
 
   // Ensure directories exist
   await fs.mkdir(path.dirname(pidFile), { recursive: true });
@@ -541,10 +597,9 @@ export const watchMain = async (args?: {
   // Write PID file
   await fs.writeFile(pidFile, process.pid.toString(), "utf-8");
 
-  // Set up log file for daemon mode
-  if (daemon) {
-    logStream = await fs.open(logFile, "a");
-  }
+  // Set up log file for background daemon mode
+  // (stdout/stderr are detached, so we must log to file)
+  logStream = await fs.open(logFile, "a");
 
   await log(`Watch daemon started (PID: ${process.pid})`);
   await log(`Watching for ${agent} sessions`);
@@ -629,11 +684,7 @@ export const watchMain = async (args?: {
 
   await log(`Also watching transcript directory: ${transcriptStorageDir}`);
 
-  // Keep the process running in daemon mode
-  if (daemon) {
-    // In daemon mode, just keep running until stopped
-    // Don't block - let the event loop continue
-  }
+  // Process stays running due to active watchers and interval timers
 };
 
 /**
