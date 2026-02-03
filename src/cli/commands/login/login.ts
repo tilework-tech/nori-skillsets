@@ -17,7 +17,11 @@ import open from "open";
 
 import { loadConfig, saveConfig } from "@/cli/config.js";
 import { error, info, success, warn, newline } from "@/cli/logger.js";
-import { promptText, promptPassword } from "@/cli/prompts/index.js";
+import {
+  loginFlow,
+  promptText,
+  type AuthenticateResult,
+} from "@/cli/prompts/index.js";
 import { configureFirebase, getFirebase } from "@/providers/firebase.js";
 import { formatNetworkError } from "@/utils/fetch.js";
 
@@ -320,33 +324,13 @@ export const loginMain = async (args?: {
 
       return;
     }
-  } else {
-    // Email/password flow
-    let inputEmail: string;
-    let inputPassword: string;
-
-    if (nonInteractive) {
-      if (email == null || password == null) {
-        error({
-          message:
-            "Non-interactive mode requires --email and --password flags.",
-        });
-        return;
-      }
-      inputEmail = email;
-      inputPassword = password;
-    } else {
-      inputEmail = await promptText({ message: "Email" });
-      if (!inputEmail || inputEmail.trim() === "") {
-        error({ message: "Email is required." });
-        return;
-      }
-
-      inputPassword = await promptPassword({ message: "Password" });
-      if (!inputPassword) {
-        error({ message: "Password is required." });
-        return;
-      }
+  } else if (nonInteractive) {
+    // Non-interactive email/password flow: use provided credentials directly
+    if (email == null || password == null) {
+      error({
+        message: "Non-interactive mode requires --email and --password flags.",
+      });
+      return;
     }
 
     info({ message: "Authenticating..." });
@@ -357,48 +341,114 @@ export const loginMain = async (args?: {
 
       const userCredential = await signInWithEmailAndPassword(
         firebase.auth,
-        inputEmail,
-        inputPassword,
+        email,
+        password,
       );
 
       refreshToken = userCredential.user.refreshToken;
       idToken = await userCredential.user.getIdToken();
-      userEmail = inputEmail;
+      userEmail = email;
     } catch (err) {
       const authError = err as AuthError;
       error({ message: "Authentication failed" });
       error({ message: `  Error: ${authError.message}` });
-
-      if (
-        authError.code === AuthErrorCodes.INVALID_PASSWORD ||
-        authError.code === AuthErrorCodes.INVALID_LOGIN_CREDENTIALS ||
-        authError.code === "auth/invalid-credential"
-      ) {
-        error({
-          message: "  Hint: Check that your email and password are correct.",
-        });
-      } else if (authError.code === AuthErrorCodes.USER_DELETED) {
-        error({
-          message: "  Hint: This email is not registered. Contact support.",
-        });
-      } else if (
-        authError.code === AuthErrorCodes.TOO_MANY_ATTEMPTS_TRY_LATER
-      ) {
-        error({
-          message:
-            "  Hint: Too many failed attempts. Wait a few minutes and try again.",
-        });
-      } else if (authError.code === AuthErrorCodes.NETWORK_REQUEST_FAILED) {
-        error({
-          message: "  Hint: Network error. Check your internet connection.",
-        });
-      }
-
       return;
     }
+  } else {
+    // Interactive mode: use loginFlow for grouped prompts UX
+    const result = await loginFlow({
+      callbacks: {
+        onAuthenticate: async (args): Promise<AuthenticateResult> => {
+          const { email: inputEmail, password: inputPassword } = args;
+
+          try {
+            configureFirebase();
+            const firebase = getFirebase();
+
+            const userCredential = await signInWithEmailAndPassword(
+              firebase.auth,
+              inputEmail,
+              inputPassword,
+            );
+
+            const token = await userCredential.user.getIdToken();
+
+            // Fetch user's organizations and admin status
+            const accessInfo = await fetchUserAccess({ idToken: token });
+
+            return {
+              success: true,
+              userEmail: inputEmail,
+              organizations: accessInfo?.organizations ?? [],
+              isAdmin: accessInfo?.isAdmin ?? false,
+              refreshToken: userCredential.user.refreshToken,
+              idToken: token,
+            };
+          } catch (err) {
+            const authError = err as AuthError;
+            let hint: string | null = null;
+
+            if (
+              authError.code === AuthErrorCodes.INVALID_PASSWORD ||
+              authError.code === AuthErrorCodes.INVALID_LOGIN_CREDENTIALS ||
+              authError.code === "auth/invalid-credential"
+            ) {
+              hint = "Check that your email and password are correct.";
+            } else if (authError.code === AuthErrorCodes.USER_DELETED) {
+              hint = "This email is not registered. Contact support.";
+            } else if (
+              authError.code === AuthErrorCodes.TOO_MANY_ATTEMPTS_TRY_LATER
+            ) {
+              hint =
+                "Too many failed attempts. Wait a few minutes and try again.";
+            } else if (
+              authError.code === AuthErrorCodes.NETWORK_REQUEST_FAILED
+            ) {
+              hint = "Network error. Check your internet connection.";
+            }
+
+            return {
+              success: false,
+              error: authError.message,
+              hint,
+            };
+          }
+        },
+      },
+    });
+
+    if (result == null) {
+      // User cancelled or auth failed (flow handles the UI)
+      return;
+    }
+
+    // Use the tokens from the flow result (no need to re-authenticate)
+    refreshToken = result.refreshToken;
+    idToken = result.idToken;
+    userEmail = result.email;
+
+    // Load existing config to preserve other fields
+    const existingConfig = await loadConfig({ installDir: configDir });
+
+    // Save credentials to config (using access info from flow result)
+    await saveConfig({
+      username: userEmail,
+      refreshToken,
+      organizationUrl: NORI_SKILLSETS_API_URL,
+      organizations: result.organizations,
+      isAdmin: result.isAdmin,
+      sendSessionTranscript: existingConfig?.sendSessionTranscript ?? null,
+      autoupdate: existingConfig?.autoupdate ?? null,
+      agents: existingConfig?.agents ?? null,
+      version: existingConfig?.version ?? null,
+      installDir: configDir,
+    });
+
+    // Flow already showed intro/outro, so we're done
+    return;
   }
 
-  // Fetch user's organizations and admin status
+  // For Google SSO and non-interactive flows, fetch and display access info
   let organizations: Array<string> = [];
   let isAdmin = false;
 

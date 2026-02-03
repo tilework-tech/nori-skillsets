@@ -40,26 +40,29 @@ The install command sets `agents: { [agentName]: { profile } }` in the config, w
 
 **cliCommandNames.ts:** The `CliName` type is a single literal `"nori-skillsets"` (not a union). The `getCommandNames()` function returns the `NORI_SKILLSETS_COMMANDS` constant, which maps logical command names (download, search, switchProfile, etc.) to their CLI command strings.
 
-**Login/Logout:** The `login` command authenticates users with the Nori backend via Firebase. It supports two authentication methods:
+**Login/Logout:** The `login` command authenticates users with the Nori backend via Firebase. It supports three modes:
 
-1. **Email/Password Authentication:**
-   - Prompts for email and password (or accepts `--email` and `--password` flags in non-interactive mode)
-   - Authenticates via Firebase SDK using `signInWithEmailAndPassword`
+1. **Interactive Email/Password** (default):
+   - Uses `loginFlow` from @/cli/prompts to provide a complete interactive experience
+   - Shows intro message ("Login to Nori Skillsets")
+   - Groups email and password prompts together using @clack/prompts group()
+   - Displays spinner during authentication
+   - Shows organization info in a note box (if user has orgs)
+   - Shows outro message on success
+   - The flow uses a callbacks pattern: loginFlow handles UI while the command provides onAuthenticate callback for Firebase auth and API calls
 
-2. **Google SSO Authentication** (`--google` flag):
+2. **Non-interactive Email/Password** (`--email` and `--password` flags):
+   - Bypasses loginFlow and authenticates directly via Firebase SDK
+   - Uses standard logger output instead of @clack/prompts UI
+
+3. **Google SSO** (`--google` flag):
    - Uses the localhost OAuth callback pattern: starts a temporary HTTP server on an available port (9876-9885), opens the browser to Google's consent screen, and captures the authorization code via redirect
    - `isHeadlessEnvironment()` in googleAuth.ts detects SSH/headless environments by checking for `SSH_TTY`, `SSH_CONNECTION`, or `SSH_CLIENT` environment variables
    - Always displays the OAuth URL before attempting to open the browser, enabling manual copy-paste in environments where browser opening fails
    - In SSH environments, displays port forwarding instructions: `ssh -L <port>:localhost:<port> <user>@<server>`
-   - `startAuthServer()` supports a `warningMs` parameter and `onTimeoutWarning` callback to warn users before the 2-minute timeout expires
-   - Exchanges the authorization code for Google tokens via `exchangeCodeForTokens()`, then signs in to Firebase using `GoogleAuthProvider.credential()`
+   - With `--no-localhost` flag, uses a hosted callback page at `https://noriskillsets.dev/oauth/callback` for environments where SSH port forwarding isn't possible
 
-3. **Headless Mode** (`--google --no-localhost` flags):
-   - For environments where SSH port forwarding isn't possible, uses a hosted callback page at `https://noriskillsets.dev/oauth/callback`
-   - Instead of starting a localhost server, prompts the user to paste the authorization code displayed on the callback page
-   - The callback page extracts the code from the OAuth redirect URL and displays it for copy-paste
-
-After authentication (either method):
+After authentication (any method):
 - Calls `/api/auth/check-access` to verify organization access and retrieve organization list
 - Saves auth credentials (refreshToken, organizationUrl, organizations, isAdmin) to config
 

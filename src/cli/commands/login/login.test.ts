@@ -17,6 +17,13 @@ vi.stubGlobal("fetch", mockFetch);
 
 import { loginMain } from "./login.js";
 
+// Mock loginFlow for interactive email/password authentication
+vi.mock("@/cli/prompts/index.js", () => ({
+  loginFlow: vi.fn(),
+  promptText: vi.fn(),
+  promptPassword: vi.fn(),
+}));
+
 // Mock Firebase SDK
 vi.mock("firebase/auth", () => ({
   signInWithEmailAndPassword: vi.fn(),
@@ -42,7 +49,8 @@ vi.mock("@/providers/firebase.js", () => ({
   }),
 }));
 
-// Mock @clack/prompts for text and password inputs
+// Mock @clack/prompts for Google SSO auth code input (--no-localhost mode)
+// Note: password is included for the "should not prompt" assertion in Google SSO tests
 vi.mock("@clack/prompts", () => ({
   text: vi.fn(),
   password: vi.fn(),
@@ -95,10 +103,25 @@ describe("login command", () => {
   describe("loginMain", () => {
     it("should authenticate with Firebase and save credentials to config", async () => {
       const { signInWithEmailAndPassword } = await import("firebase/auth");
+      const { loginFlow } = await import("@/cli/prompts/index.js");
 
-      // Mock user prompts via @clack/prompts
-      vi.mocked(clack.text).mockResolvedValueOnce("user@example.com"); // email
-      vi.mocked(clack.password).mockResolvedValueOnce("password123"); // password
+      // Mock loginFlow to simulate the flow calling the authenticate callback
+      vi.mocked(loginFlow).mockImplementation(async (args) => {
+        const result = await args.callbacks.onAuthenticate({
+          email: "user@example.com",
+          password: "password123",
+        });
+        if (!result.success) {
+          return null;
+        }
+        return {
+          email: "user@example.com",
+          refreshToken: result.refreshToken,
+          idToken: result.idToken,
+          organizations: result.organizations,
+          isAdmin: result.isAdmin,
+        };
+      });
 
       // Mock Firebase sign in
       vi.mocked(signInWithEmailAndPassword).mockResolvedValue({
@@ -120,6 +143,9 @@ describe("login command", () => {
       });
 
       await loginMain({ installDir: tempDir });
+
+      // Verify loginFlow was called
+      expect(loginFlow).toHaveBeenCalled();
 
       // Verify config was saved correctly
       const config = await loadConfig({ installDir: tempDir });
@@ -175,24 +201,36 @@ describe("login command", () => {
     it("should show error for invalid credentials", async () => {
       const { signInWithEmailAndPassword, AuthErrorCodes } =
         await import("firebase/auth");
-      const { error } = await import("@/cli/logger.js");
-
-      vi.mocked(clack.text).mockResolvedValueOnce("user@example.com");
-      vi.mocked(clack.password).mockResolvedValueOnce("wrongpassword");
+      const { loginFlow } = await import("@/cli/prompts/index.js");
 
       // Mock Firebase to throw invalid credentials error
       const authError = new Error("Invalid credentials");
       (authError as any).code = AuthErrorCodes.INVALID_LOGIN_CREDENTIALS;
       vi.mocked(signInWithEmailAndPassword).mockRejectedValue(authError);
 
+      // Mock loginFlow to call authenticate callback which will fail
+      vi.mocked(loginFlow).mockImplementation(async (args) => {
+        const result = await args.callbacks.onAuthenticate({
+          email: "user@example.com",
+          password: "wrongpassword",
+        });
+        // Flow returns null on auth failure
+        if (!result.success) {
+          return null;
+        }
+        return {
+          email: "user@example.com",
+          refreshToken: result.refreshToken,
+          idToken: result.idToken,
+          organizations: result.organizations,
+          isAdmin: result.isAdmin,
+        };
+      });
+
       await loginMain({ installDir: tempDir });
 
-      // Verify error message was shown
-      expect(error).toHaveBeenCalledWith(
-        expect.objectContaining({
-          message: expect.stringContaining("Authentication failed"),
-        }),
-      );
+      // Verify loginFlow was called and returned null (indicating failure)
+      expect(loginFlow).toHaveBeenCalled();
 
       // Verify no config was saved
       const config = await loadConfig({ installDir: tempDir });
@@ -201,6 +239,7 @@ describe("login command", () => {
 
     it("should preserve existing config fields when logging in", async () => {
       const { signInWithEmailAndPassword } = await import("firebase/auth");
+      const { loginFlow } = await import("@/cli/prompts/index.js");
 
       // Create existing config with agents and settings
       const existingConfigPath = getConfigPath({ installDir: tempDir });
@@ -213,8 +252,23 @@ describe("login command", () => {
         }),
       );
 
-      vi.mocked(clack.text).mockResolvedValueOnce("user@example.com");
-      vi.mocked(clack.password).mockResolvedValueOnce("password123");
+      // Mock loginFlow
+      vi.mocked(loginFlow).mockImplementation(async (args) => {
+        const result = await args.callbacks.onAuthenticate({
+          email: "user@example.com",
+          password: "password123",
+        });
+        if (!result.success) {
+          return null;
+        }
+        return {
+          email: "user@example.com",
+          refreshToken: result.refreshToken,
+          idToken: result.idToken,
+          organizations: result.organizations,
+          isAdmin: result.isAdmin,
+        };
+      });
 
       vi.mocked(signInWithEmailAndPassword).mockResolvedValue({
         user: {
@@ -247,10 +301,25 @@ describe("login command", () => {
 
     it("should save auth with empty organizations if check-access fails", async () => {
       const { signInWithEmailAndPassword } = await import("firebase/auth");
-      const { warn } = await import("@/cli/logger.js");
+      const { loginFlow } = await import("@/cli/prompts/index.js");
 
-      vi.mocked(clack.text).mockResolvedValueOnce("user@example.com");
-      vi.mocked(clack.password).mockResolvedValueOnce("password123");
+      // Mock loginFlow
+      vi.mocked(loginFlow).mockImplementation(async (args) => {
+        const result = await args.callbacks.onAuthenticate({
+          email: "user@example.com",
+          password: "password123",
+        });
+        if (!result.success) {
+          return null;
+        }
+        return {
+          email: "user@example.com",
+          refreshToken: result.refreshToken,
+          idToken: result.idToken,
+          organizations: result.organizations,
+          isAdmin: result.isAdmin,
+        };
+      });
 
       vi.mocked(signInWithEmailAndPassword).mockResolvedValue({
         user: {
@@ -268,9 +337,6 @@ describe("login command", () => {
 
       await loginMain({ installDir: tempDir });
 
-      // Verify warning was shown
-      expect(warn).toHaveBeenCalled();
-
       // Verify auth was saved with empty organizations
       const config = await loadConfig({ installDir: tempDir });
       expect(config?.auth?.username).toBe("user@example.com");
@@ -280,10 +346,25 @@ describe("login command", () => {
 
     it("should handle network failure during check-access gracefully", async () => {
       const { signInWithEmailAndPassword } = await import("firebase/auth");
-      const { warn } = await import("@/cli/logger.js");
+      const { loginFlow } = await import("@/cli/prompts/index.js");
 
-      vi.mocked(clack.text).mockResolvedValueOnce("user@example.com");
-      vi.mocked(clack.password).mockResolvedValueOnce("password123");
+      // Mock loginFlow
+      vi.mocked(loginFlow).mockImplementation(async (args) => {
+        const result = await args.callbacks.onAuthenticate({
+          email: "user@example.com",
+          password: "password123",
+        });
+        if (!result.success) {
+          return null;
+        }
+        return {
+          email: "user@example.com",
+          refreshToken: result.refreshToken,
+          idToken: result.idToken,
+          organizations: result.organizations,
+          isAdmin: result.isAdmin,
+        };
+      });
 
       vi.mocked(signInWithEmailAndPassword).mockResolvedValue({
         user: {
@@ -296,9 +377,6 @@ describe("login command", () => {
       mockFetch.mockRejectedValue(new Error("Network error"));
 
       await loginMain({ installDir: tempDir });
-
-      // Verify warning was shown
-      expect(warn).toHaveBeenCalled();
 
       // Verify auth was saved with empty organizations
       const config = await loadConfig({ installDir: tempDir });
@@ -320,6 +398,22 @@ describe("login command", () => {
           message: expect.stringContaining("--email"),
         }),
       );
+    });
+
+    it("should handle login flow cancellation", async () => {
+      const { loginFlow } = await import("@/cli/prompts/index.js");
+
+      // Mock loginFlow to return null (cancelled)
+      vi.mocked(loginFlow).mockResolvedValue(null);
+
+      await loginMain({ installDir: tempDir });
+
+      // Verify loginFlow was called
+      expect(loginFlow).toHaveBeenCalled();
+
+      // Verify no config was saved
+      const config = await loadConfig({ installDir: tempDir });
+      expect(config?.auth).toBeUndefined();
     });
   });
 
@@ -740,12 +834,13 @@ describe("login command", () => {
       const { signInWithCredential } = await import("firebase/auth");
       const { getGoogleAuthUrl, exchangeCodeForTokens, generateState } =
         await import("./googleAuth.js");
+      const { promptText } = await import("@/cli/prompts/index.js");
 
       vi.mocked(generateState).mockReturnValue("test-state");
       vi.mocked(getGoogleAuthUrl).mockReturnValue(
         "https://accounts.google.com/test?redirect_uri=https://noriskillsets.dev/oauth/callback",
       );
-      vi.mocked(clack.text).mockResolvedValueOnce("auth-code-from-page");
+      vi.mocked(promptText).mockResolvedValueOnce("auth-code-from-page");
       vi.mocked(exchangeCodeForTokens).mockResolvedValue({
         idToken: "google-id-token",
         accessToken: "access-token",
@@ -777,8 +872,8 @@ describe("login command", () => {
         }),
       );
 
-      // Verify user was prompted to paste the auth code via @clack/prompts text
-      expect(clack.text).toHaveBeenCalledWith(
+      // Verify user was prompted to paste the auth code via promptText
+      expect(promptText).toHaveBeenCalledWith(
         expect.objectContaining({
           message: expect.stringContaining("authorization code"),
         }),
@@ -806,12 +901,13 @@ describe("login command", () => {
         startAuthServer,
         findAvailablePort,
       } = await import("./googleAuth.js");
+      const { promptText } = await import("@/cli/prompts/index.js");
 
       vi.mocked(generateState).mockReturnValue("test-state");
       vi.mocked(getGoogleAuthUrl).mockReturnValue(
         "https://accounts.google.com/test",
       );
-      vi.mocked(clack.text).mockResolvedValueOnce("auth-code");
+      vi.mocked(promptText).mockResolvedValueOnce("auth-code");
       vi.mocked(exchangeCodeForTokens).mockResolvedValue({
         idToken: "google-id-token",
         accessToken: "access-token",
@@ -862,12 +958,13 @@ describe("login command", () => {
       const { info } = await import("@/cli/logger.js");
       const { getGoogleAuthUrl, exchangeCodeForTokens, generateState } =
         await import("./googleAuth.js");
+      const { promptText } = await import("@/cli/prompts/index.js");
 
       vi.mocked(generateState).mockReturnValue("test-state");
       vi.mocked(getGoogleAuthUrl).mockReturnValue(
         "https://accounts.google.com/test",
       );
-      vi.mocked(clack.text).mockResolvedValueOnce("auth-code");
+      vi.mocked(promptText).mockResolvedValueOnce("auth-code");
       vi.mocked(exchangeCodeForTokens).mockResolvedValue({
         idToken: "google-id-token",
         accessToken: "access-token",
@@ -907,12 +1004,13 @@ describe("login command", () => {
       const { error } = await import("@/cli/logger.js");
       const { getGoogleAuthUrl, generateState } =
         await import("./googleAuth.js");
+      const { promptText } = await import("@/cli/prompts/index.js");
 
       vi.mocked(generateState).mockReturnValue("test-state");
       vi.mocked(getGoogleAuthUrl).mockReturnValue(
         "https://accounts.google.com/test",
       );
-      vi.mocked(clack.text).mockResolvedValueOnce(""); // Empty input
+      vi.mocked(promptText).mockResolvedValueOnce(""); // Empty input
 
       await loginMain({ installDir: tempDir, google: true, noLocalhost: true });
 

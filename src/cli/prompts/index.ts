@@ -20,3 +20,11 @@ export {
 } from "./profile.js";
 export { promptForAuth, type AuthCredentials } from "./auth.js";
 export { promptPassword } from "./password.js";
+
+// Flow modules - complete interactive experiences
+export {
+  loginFlow,
+  type AuthenticateResult,
+  type LoginFlowCallbacks,
+  type LoginFlowResult,
+} from "./flows/index.js";
