@@ -664,6 +664,110 @@ describe("registry-download", () => {
       expect(registrarApi.downloadTarball).not.toHaveBeenCalled();
     });
 
+    it("should use home dir auth for namespaced packages when explicit installDir has no auth", async () => {
+      // Create explicit install dir WITHOUT auth (simulates cwd from registry-install)
+      const explicitInstallDir = await fs.mkdtemp(
+        path.join(tmpdir(), "nori-explicit-install-"),
+      );
+      const explicitProfilesDir = path.join(
+        explicitInstallDir,
+        ".nori",
+        "profiles",
+      );
+      await fs.mkdir(explicitProfilesDir, { recursive: true });
+      await fs.writeFile(
+        path.join(explicitInstallDir, ".nori-config.json"),
+        JSON.stringify({ profile: { baseProfile: "test" } }),
+      );
+
+      // Create home dir WITH unified auth including "pangram" organization
+      const homeNoriDir = path.join(testDir, ".nori");
+      await fs.mkdir(homeNoriDir, { recursive: true });
+      await fs.writeFile(
+        path.join(homeNoriDir, ".nori-config.json"),
+        JSON.stringify({
+          profile: { baseProfile: "home-profile" },
+          auth: {
+            username: "testuser",
+            refreshToken: "mock-refresh-token",
+            organizations: ["pangram", "demo"],
+          },
+        }),
+      );
+      const homeProfilesDir = path.join(testDir, ".nori", "profiles");
+      await fs.mkdir(homeProfilesDir, { recursive: true });
+
+      // Mock loadConfig to return config based on installDir
+      // When called with explicit installDir - returns config without auth
+      // When called with home dir - returns config with auth
+      vi.mocked(loadConfig).mockImplementation(async (args) => {
+        if (args?.installDir === explicitInstallDir) {
+          // Explicit installDir has no auth
+          return { installDir: explicitInstallDir };
+        }
+        // Home dir has auth
+        return {
+          installDir: testDir,
+          auth: {
+            username: "testuser",
+            organizationUrl: "https://pangram.noriskillsets.dev",
+            refreshToken: "mock-refresh-token",
+            organizations: ["pangram", "demo"],
+          },
+        };
+      });
+
+      // Mock getRegistryAuth to return auth for the pangram namespace
+      vi.mocked(getRegistryAuth).mockReturnValue({
+        registryUrl: "https://pangram.noriskillsets.dev",
+        username: "testuser",
+        refreshToken: "mock-refresh-token",
+      });
+
+      // Mock auth token
+      vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
+
+      // Package exists in pangram namespace
+      vi.mocked(registrarApi.getPackument).mockResolvedValue({
+        name: "high-autonomy",
+        "dist-tags": { latest: "1.0.0" },
+        versions: { "1.0.0": { name: "high-autonomy", version: "1.0.0" } },
+      });
+
+      const mockTarball = await createMockTarball();
+      vi.mocked(registrarApi.downloadTarball).mockResolvedValue(mockTarball);
+
+      try {
+        const result = await registryDownloadMain({
+          packageSpec: "pangram/high-autonomy",
+          installDir: explicitInstallDir, // Explicit installDir (like registry-install passes)
+        });
+
+        // Verify success - should have used home dir auth as fallback
+        expect(result.success).toBe(true);
+
+        // Verify download was called with auth token from home dir
+        expect(registrarApi.downloadTarball).toHaveBeenCalledWith({
+          packageName: "high-autonomy",
+          version: undefined,
+          registryUrl: "https://pangram.noriskillsets.dev",
+          authToken: "mock-auth-token",
+        });
+
+        // Verify profile was installed to the explicit installDir (not home dir)
+        // Namespaced packages are installed in a nested directory: profiles/{orgId}/{packageName}
+        const profileDir = path.join(
+          explicitProfilesDir,
+          "pangram",
+          "high-autonomy",
+        );
+        const stats = await fs.stat(profileDir);
+        expect(stats.isDirectory()).toBe(true);
+      } finally {
+        await fs.rm(explicitInstallDir, { recursive: true, force: true });
+      }
+    });
+
     it("should use --registry option to download from specific public registry", async () => {
       // Mock config
       vi.mocked(loadConfig).mockResolvedValue({

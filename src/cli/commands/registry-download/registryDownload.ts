@@ -755,12 +755,69 @@ export const registryDownloadMain = async (args: {
       searchResults = [];
     }
   } else {
-    // Namespaced package without unified auth: require login
-    const displayName = `${orgId}/${packageName}`;
-    error({
-      message: `Profile "${displayName}" not found. To download from organization "${orgId}", log in with:\n\n  nori-skillsets login`,
-    });
-    return { success: false };
+    // Namespaced package without unified auth in current config
+    // Check home directory for auth as fallback (common pattern: user-level login)
+    const homeDir = os.homedir();
+    const homeConfig = await loadConfig({ installDir: homeDir });
+    const homeHasUnifiedAuthWithOrgs =
+      homeConfig?.auth != null &&
+      homeConfig.auth.refreshToken != null &&
+      homeConfig.auth.organizations != null;
+
+    if (homeHasUnifiedAuthWithOrgs) {
+      // Use home dir auth for namespaced package
+      const targetRegistryUrl = buildOrganizationRegistryUrl({ orgId });
+      const userOrgs = homeConfig.auth!.organizations!;
+
+      // Check if user has access to this org
+      if (!userOrgs.includes(orgId)) {
+        const displayName = `${orgId}/${packageName}`;
+        error({
+          message: `You do not have access to organization "${orgId}".\n\nCannot download "${displayName}" from ${targetRegistryUrl}.\n\nYour available organizations: ${userOrgs.length > 0 ? userOrgs.join(", ") : "(none)"}`,
+        });
+        return { success: false };
+      }
+
+      // Get auth token for the org registry using home dir auth
+      const registryAuth = {
+        registryUrl: targetRegistryUrl,
+        username: homeConfig.auth!.username,
+        refreshToken: homeConfig.auth!.refreshToken,
+      };
+
+      try {
+        const authToken = await getRegistryAuthToken({ registryAuth });
+        const packument = await registrarApi.getPackument({
+          packageName,
+          registryUrl: targetRegistryUrl,
+          authToken,
+        });
+
+        searchResults = [
+          {
+            registryUrl: targetRegistryUrl,
+            packument,
+            authToken,
+          },
+        ];
+      } catch (err) {
+        if (err instanceof NetworkError) {
+          error({
+            message: `Network error while connecting to ${targetRegistryUrl}:\n\n${err.message}`,
+          });
+          return { success: false };
+        }
+        // API error (like 404) - package not found in org registry
+        searchResults = [];
+      }
+    } else {
+      // No auth anywhere - require login
+      const displayName = `${orgId}/${packageName}`;
+      error({
+        message: `Profile "${displayName}" not found. To download from organization "${orgId}", log in with:\n\n  nori-skillsets login`,
+      });
+      return { success: false };
+    }
   }
 
   // Handle search results
