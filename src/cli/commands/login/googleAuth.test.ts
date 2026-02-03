@@ -230,6 +230,54 @@ describe("googleAuth", () => {
         }),
       ).rejects.toThrow(/timed out/i);
     });
+
+    it("should call onTimeoutWarning callback after warningMs delay", async () => {
+      const onTimeoutWarning = vi.fn();
+
+      const authPromise = startAuthServer({
+        port: 9881,
+        expectedState: "test-state",
+        timeoutMs: 2000,
+        warningMs: 100, // Short warning for testing
+        onTimeoutWarning,
+      });
+
+      // Wait for the warning to fire
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      // Warning should have been called
+      expect(onTimeoutWarning).toHaveBeenCalledTimes(1);
+
+      // Now send the auth callback to complete the flow
+      await httpGet("http://localhost:9881?code=test-code&state=test-state");
+
+      const result = await authPromise;
+      server = result.server;
+    });
+
+    it("should not call onTimeoutWarning if auth completes before warning delay", async () => {
+      const onTimeoutWarning = vi.fn();
+
+      const authPromise = startAuthServer({
+        port: 9882,
+        expectedState: "test-state",
+        timeoutMs: 5000,
+        warningMs: 1000, // 1 second warning
+        onTimeoutWarning,
+      });
+
+      // Wait for server to start
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // Send auth callback immediately (before warning fires)
+      await httpGet("http://localhost:9882?code=test-code&state=test-state");
+
+      const result = await authPromise;
+      server = result.server;
+
+      // Warning should NOT have been called since auth completed first
+      expect(onTimeoutWarning).not.toHaveBeenCalled();
+    });
   });
 
   describe("exchangeCodeForTokens", () => {
