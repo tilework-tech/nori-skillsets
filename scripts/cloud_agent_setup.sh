@@ -156,6 +156,24 @@ $NORI_CMD install "$SKILLSET"
 
 log_success "Cloud agent setup complete!"
 
+# Output the Nori workflow message that CLAUDE.md would normally trigger
+# This ensures the message appears even on first session before restart
+cat << 'NORI_WORKFLOW_MSG'
+
+┌─────────────────────────────────────────────────────────────────────┐
+│                                                                     │
+│   Following Nori workflow...                                        │
+│                                                                     │
+│   The senior-swe skillset has been installed. On your next message, │
+│   I will follow the Nori workflow which includes:                   │
+│   - Adding tasks to the Todo list                                   │
+│   - Reading relevant skills                                         │
+│   - Asking about your preferred mode (nori-full-send or copilot)    │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+
+NORI_WORKFLOW_MSG
+
 # Prepend verification message to AGENTS.md (for hook verification)
 AGENTS_FILE="$REPO_ROOT/AGENTS.md"
 if [ -f "$AGENTS_FILE" ]; then
