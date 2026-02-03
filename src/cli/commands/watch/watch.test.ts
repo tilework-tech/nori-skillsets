@@ -19,6 +19,14 @@ vi.mock("@/cli/commands/watch/hookInstaller.js", () => ({
   removeTranscriptHook: vi.fn().mockResolvedValue(undefined),
 }));
 
+// Mock child_process spawn to prevent actual process spawning in tests
+vi.mock("child_process", () => ({
+  spawn: vi.fn().mockReturnValue({
+    pid: 12345,
+    unref: vi.fn(),
+  }),
+}));
+
 import {
   watchMain,
   watchStopMain,
@@ -63,10 +71,10 @@ describe("watch command", () => {
 
   describe("watchMain", () => {
     test("starts daemon and writes PID file", async () => {
-      // Start watch (don't block)
+      // Start watch in background mode (don't block)
       void watchMain({
         agent: "claude-code",
-        daemon: true,
+        _background: true,
       });
 
       // Give it time to start
@@ -84,7 +92,7 @@ describe("watch command", () => {
     test("creates log file in daemon mode", async () => {
       void watchMain({
         agent: "claude-code",
-        daemon: true,
+        _background: true,
       });
 
       await new Promise((resolve) => setTimeout(resolve, 300));
@@ -100,7 +108,7 @@ describe("watch command", () => {
 
     test("uses claude-code as default agent", async () => {
       void watchMain({
-        daemon: true,
+        _background: true,
       });
 
       await new Promise((resolve) => setTimeout(resolve, 300));
@@ -116,7 +124,7 @@ describe("watch command", () => {
       // Start daemon
       void watchMain({
         agent: "claude-code",
-        daemon: true,
+        _background: true,
       });
 
       await new Promise((resolve) => setTimeout(resolve, 300));
@@ -134,7 +142,7 @@ describe("watch command", () => {
     test("removes PID file after stopping", async () => {
       void watchMain({
         agent: "claude-code",
-        daemon: true,
+        _background: true,
       });
 
       await new Promise((resolve) => setTimeout(resolve, 300));
@@ -165,7 +173,7 @@ describe("watch command", () => {
     test("returns true when daemon is running", async () => {
       void watchMain({
         agent: "claude-code",
-        daemon: true,
+        _background: true,
       });
 
       await new Promise((resolve) => setTimeout(resolve, 300));
@@ -241,13 +249,11 @@ describe("transcript destination selection", () => {
       }),
     );
 
-    // Start watch
-    void watchMain({
+    // Run in interactive mode (not _background) to test org selection
+    // spawn is mocked so no actual child process is created
+    await watchMain({
       agent: "claude-code",
-      daemon: true,
     });
-
-    await new Promise((resolve) => setTimeout(resolve, 500));
 
     // Load config and verify transcriptDestination was set
     const updatedConfig = await fs.readFile(configPath, "utf-8");
@@ -277,7 +283,7 @@ describe("transcript destination selection", () => {
     // Start watch
     void watchMain({
       agent: "claude-code",
-      daemon: true,
+      _background: true,
     });
 
     await new Promise((resolve) => setTimeout(resolve, 300));
@@ -308,7 +314,7 @@ describe("transcript destination selection", () => {
 
     void watchMain({
       agent: "claude-code",
-      daemon: true,
+      _background: true,
     });
 
     await new Promise((resolve) => setTimeout(resolve, 300));
@@ -337,12 +343,11 @@ describe("transcript destination selection", () => {
       }),
     );
 
-    void watchMain({
+    // Run in interactive mode (not _background) to test org selection
+    // spawn is mocked so no actual child process is created
+    await watchMain({
       agent: "claude-code",
-      daemon: true,
     });
-
-    await new Promise((resolve) => setTimeout(resolve, 500));
 
     // Should auto-select myorg (only private org)
     const updatedConfig = await fs.readFile(configPath, "utf-8");
@@ -369,12 +374,11 @@ describe("transcript destination selection", () => {
       }),
     );
 
-    void watchMain({
+    // Run in interactive mode (not _background) to test org selection
+    // spawn is mocked so no actual child process is created
+    await watchMain({
       agent: "claude-code",
-      daemon: true,
     });
-
-    await new Promise((resolve) => setTimeout(resolve, 500));
 
     // Should update to neworg (only available private org)
     const updatedConfig = await fs.readFile(configPath, "utf-8");
@@ -402,9 +406,10 @@ describe("transcript destination selection", () => {
       }),
     );
 
-    void watchMain({
+    // Run in interactive mode (not _background) to test org selection
+    // spawn is mocked so no actual child process is created
+    await watchMain({
       agent: "claude-code",
-      daemon: true,
       setDestination: true,
     });
 
