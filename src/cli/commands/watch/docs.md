@@ -6,7 +6,7 @@ Path: @/src/cli/commands/watch
 
 - Background daemon that monitors Claude Code sessions, saves transcripts to `~/.nori/transcripts/`, and uploads them to a user-selected private organization
 - Watches `~/.claude/projects/` for JSONL file changes using chokidar with polling mode
-- Uses a hybrid upload strategy: marker-based for immediate upload when sessions end, staleness-based fallback for agents without hook support
+- Uses marker-based uploads: uploads are triggered exclusively when `.done` marker files are created by the Claude Code session end hook
 - Prompts user to select transcript destination organization on first run (if multiple orgs available)
 
 ### How it fits into the larger codebase
@@ -46,10 +46,10 @@ nori-skillsets watch stop
 ```
 JSONL file change detected
     |
+    +-- Debounce check: skip if lastEventTime for this file < DEBOUNCE_MS (500ms) ago
     +-- paths.ts: Extract project name from file path
     +-- parser.ts: Extract sessionId (UUID) via regex
     +-- storage.ts: Copy to ~/.nori/transcripts/<agent>/<project>/<sessionId>.jsonl
-    +-- Track file in fileLastModified Map for staleness detection
 ```
 
 **Transcript Upload Pipeline (marker-based):**
@@ -59,21 +59,13 @@ Claude Code session ends
     +-- transcript-done-marker hook writes .done marker to ~/.nori/transcripts/<agent>/<project>/
     +-- watch daemon detects marker via chokidar watcher on transcript directory
     +-- handleMarkerEvent() derives transcript path from marker (.done -> .jsonl)
+    |   +-- Checks uploadingFiles Set to prevent concurrent uploads of same file
+    |   +-- Adds transcript path to uploadingFiles Set before upload
     +-- uploader.ts: processTranscriptForUpload({ transcriptPath, markerPath, orgId })
     |   +-- Reads and parses JSONL transcript
     |   +-- Uploads via transcriptApi.upload() with orgId for org-specific URL targeting
     +-- On success: delete both transcript and marker files
-```
-
-**Transcript Upload Pipeline (staleness-based fallback):**
-```
-checkStaleTranscripts() runs every 60 seconds
-    |
-    +-- Iterate fileLastModified Map
-    +-- If (now - lastModified) >= staleTimeoutMs (default 5 minutes):
-        +-- Upload via processTranscriptForUpload()
-        +-- On success: delete transcript, remove from tracking
-        +-- On failure: reset timestamp to retry later
+    +-- Finally: removes transcript path from uploadingFiles Set (whether success or failure)
 ```
 
 **Claude Code Session Format:**
@@ -85,7 +77,7 @@ checkStaleTranscripts() runs every 60 seconds
 
 | Module | Purpose |
 |--------|---------|
-| `watch.ts` | Main daemon orchestration, signal handlers, logging, staleness tracking, upload coordination, transcript destination selection |
+| `watch.ts` | Main daemon orchestration, signal handlers, logging, event debouncing, upload locking, transcript destination selection |
 | `paths.ts` | Path utilities for Claude projects dir and transcript storage |
 | `parser.ts` | Extracts sessionId from JSONL using regex (avoids full JSON parsing) |
 | `storage.ts` | Copies transcript files to organized storage |
@@ -108,10 +100,13 @@ checkStaleTranscripts() runs every 60 seconds
 - On `watchMain()` startup, `installTranscriptHook()` is called to register the transcript-done-marker hook in `~/.claude/settings.json` (idempotent - won't duplicate if already present)
 - On `watchStopMain()`, `removeTranscriptHook()` is called before cleanup to unregister the hook
 - The daemon watches two directories: (1) `~/.claude/projects/` for raw session files, (2) `~/.nori/transcripts/<agent>/` for .done marker files
-- The `fileLastModified` Map tracks transcript paths and their last modification timestamps for staleness detection
-- `scanExistingTranscripts()` runs after `staleTimeoutMs` delay on startup to pick up pre-existing transcripts
 - Upload failures preserve files for retry; successful uploads delete both transcript and marker files
-- The hybrid approach ensures transcripts are uploaded promptly for hook-aware agents (Claude Code) while still supporting hook-unaware agents (Cursor) via staleness detection
+- Uploads are triggered exclusively by `.done` marker files (created when Claude Code sessions end via the session end hook)
+
+**Duplicate Upload Prevention:**
+- **Event debouncing:** `lastEventTime` Map tracks the timestamp of the last processed event per file path; events within `DEBOUNCE_MS` (500ms) are skipped to handle chokidar emitting duplicate file events
+- **Upload locking:** `uploadingFiles` Set tracks transcripts currently being uploaded; concurrent upload attempts for the same file are skipped and logged
+- Both mechanisms are cleared in `cleanupWatch()` to ensure clean state for subsequent daemon runs
 
 **hookInstaller.ts Implementation:**
 - Reads/writes `~/.claude/settings.json` directly (via `getClaudeHomeSettingsFile()` from @/src/cli/features/claude-code/paths.ts)

@@ -33,9 +33,9 @@ import { info, success, warn } from "@/cli/logger.js";
 import { promptUser } from "@/cli/prompt.js";
 
 /**
- * Default staleness timeout in milliseconds (5 minutes)
+ * Debounce window in milliseconds for file events
  */
-const DEFAULT_STALE_TIMEOUT_MS = 5 * 60 * 1000;
+const DEBOUNCE_MS = 500;
 
 /**
  * Log stream for daemon mode
@@ -53,20 +53,15 @@ let isShuttingDown = false;
 let signalHandler: (() => void) | null = null;
 
 /**
- * Track last modification time for staleness detection
- * Key: transcript file path, Value: last modification timestamp
+ * Debounce map for file events
+ * Key: file path, Value: last event timestamp
  */
-const fileLastModified: Map<string, number> = new Map();
+const lastEventTime: Map<string, number> = new Map();
 
 /**
- * Interval ID for staleness check
+ * Track files currently being uploaded to prevent duplicate uploads
  */
-let stalenessCheckInterval: NodeJS.Timeout | null = null;
-
-/**
- * Timeout ID for initial scan
- */
-let initialScanTimeout: NodeJS.Timeout | null = null;
+const uploadingFiles: Set<string> = new Set();
 
 /**
  * Watcher for Claude Code projects directory
@@ -148,23 +143,43 @@ const handleMarkerEvent = async (args: {
     return;
   }
 
+  // Debounce: skip if we processed this marker recently
+  const now = Date.now();
+  const lastTime = lastEventTime.get(markerPath);
+  if (lastTime != null && now - lastTime < DEBOUNCE_MS) {
+    return;
+  }
+  lastEventTime.set(markerPath, now);
+
   // Derive transcript path from marker path (.done -> .jsonl)
   const transcriptPath = markerPath.replace(/\.done$/, ".jsonl");
 
-  await log(`Marker detected, uploading: ${transcriptPath}`);
+  // Skip if already uploading this file (prevent concurrent uploads)
+  if (uploadingFiles.has(transcriptPath)) {
+    await log(
+      `Skipping duplicate upload (already in progress): ${transcriptPath}`,
+    );
+    return;
+  }
 
-  const uploaded = await processTranscriptForUpload({
-    transcriptPath,
-    markerPath,
-    orgId: transcriptOrgId,
-  });
+  uploadingFiles.add(transcriptPath);
 
-  if (uploaded) {
-    await log(`Successfully uploaded and cleaned up: ${transcriptPath}`);
-    // Remove from tracking
-    fileLastModified.delete(transcriptPath);
-  } else {
-    await log(`Upload failed, will retry later: ${transcriptPath}`);
+  try {
+    await log(`Marker detected, uploading: ${transcriptPath}`);
+
+    const uploaded = await processTranscriptForUpload({
+      transcriptPath,
+      markerPath,
+      orgId: transcriptOrgId,
+    });
+
+    if (uploaded) {
+      await log(`Successfully uploaded and cleaned up: ${transcriptPath}`);
+    } else {
+      await log(`Upload failed: ${transcriptPath}`);
+    }
+  } finally {
+    uploadingFiles.delete(transcriptPath);
   }
 };
 
@@ -184,6 +199,14 @@ const handleFileEvent = async (args: {
   if (isShuttingDown) {
     return;
   }
+
+  // Debounce: skip if we processed this file recently
+  const now = Date.now();
+  const lastTime = lastEventTime.get(filePath);
+  if (lastTime != null && now - lastTime < DEBOUNCE_MS) {
+    return;
+  }
+  lastEventTime.set(filePath, now);
 
   try {
     // Extract sessionId from the file
@@ -214,106 +237,9 @@ const handleFileEvent = async (args: {
       sessionId,
     });
 
-    // Track for staleness detection
-    const destFile = path.join(destDir, `${sessionId}.jsonl`);
-    fileLastModified.set(destFile, Date.now());
-
     await log(`Copied ${sessionId} from ${projectName}`);
   } catch (err) {
     await log(`Error processing ${filePath}: ${err}`);
-  }
-};
-
-/**
- * Check for stale transcripts and upload them
- *
- * @param args - Configuration arguments
- * @param args.staleTimeoutMs - Staleness threshold in milliseconds
- */
-const checkStaleTranscripts = async (args: {
-  staleTimeoutMs: number;
-}): Promise<void> => {
-  const { staleTimeoutMs } = args;
-  const now = Date.now();
-
-  for (const [transcriptPath, lastModified] of fileLastModified.entries()) {
-    if (now - lastModified >= staleTimeoutMs) {
-      await log(`Stale transcript detected, uploading: ${transcriptPath}`);
-
-      // Check if marker exists
-      const markerPath = transcriptPath.replace(/\.jsonl$/, ".done");
-      let hasMarker = false;
-      try {
-        await fs.access(markerPath);
-        hasMarker = true;
-      } catch {
-        // No marker
-      }
-
-      const uploaded = await processTranscriptForUpload({
-        transcriptPath,
-        markerPath: hasMarker ? markerPath : null,
-        orgId: transcriptOrgId,
-      });
-
-      if (uploaded) {
-        await log(`Uploaded stale transcript: ${transcriptPath}`);
-        fileLastModified.delete(transcriptPath);
-      } else {
-        await log(`Failed to upload stale transcript: ${transcriptPath}`);
-        // Update timestamp to retry later
-        fileLastModified.set(transcriptPath, now);
-      }
-    }
-  }
-};
-
-/**
- * Scan transcript directory for existing files to track
- *
- * @param args - Configuration arguments
- * @param args.agent - Agent name
- */
-const scanExistingTranscripts = async (args: {
-  agent: string;
-}): Promise<void> => {
-  const { agent } = args;
-  const homeDir = process.env.HOME ?? "";
-  const transcriptsBaseDir = path.join(homeDir, ".nori", "transcripts", agent);
-
-  try {
-    await fs.access(transcriptsBaseDir);
-  } catch {
-    // Directory doesn't exist - nothing to scan
-    return;
-  }
-
-  await log(`Scanning existing transcripts in ${transcriptsBaseDir}`);
-
-  try {
-    const projects = await fs.readdir(transcriptsBaseDir);
-
-    for (const project of projects) {
-      const projectDir = path.join(transcriptsBaseDir, project);
-      const stat = await fs.stat(projectDir);
-
-      if (!stat.isDirectory()) continue;
-
-      const files = await fs.readdir(projectDir);
-
-      for (const file of files) {
-        if (!file.endsWith(".jsonl")) continue;
-
-        const filePath = path.join(projectDir, file);
-        const fileStat = await fs.stat(filePath);
-
-        // Track with the file's actual modification time
-        fileLastModified.set(filePath, fileStat.mtimeMs);
-        await log(`Found existing transcript: ${filePath}`);
-      }
-    }
-  } catch (err) {
-    await log(`Error scanning transcripts: ${err}`);
   }
 };
 
@@ -345,20 +271,9 @@ export const cleanupWatch = async (args?: {
     markersWatcher = null;
   }
 
-  // Clear staleness check interval
-  if (stalenessCheckInterval != null) {
-    clearInterval(stalenessCheckInterval);
-    stalenessCheckInterval = null;
-  }
-
-  // Clear initial scan timeout
-  if (initialScanTimeout != null) {
-    clearTimeout(initialScanTimeout);
-    initialScanTimeout = null;
-  }
-
-  // Clear file tracking
-  fileLastModified.clear();
+  // Clear debounce and upload tracking
+  lastEventTime.clear();
+  uploadingFiles.clear();
 
   // Remove PID file
   const pidFile = getWatchPidFile();
@@ -506,7 +421,6 @@ const spawnDaemonProcess = async (args: { agent: string }): Promise<number> => {
  * @param args - Configuration arguments
  * @param args.agent - Agent to watch (default: claude-code)
  * @param args.daemon - Whether to run as daemon (deprecated, kept for compatibility)
- * @param args.staleTimeoutMs - Staleness timeout in milliseconds (default: 5 minutes)
  * @param args.setDestination - Force re-selection of transcript destination
  * @param args._background - Internal flag: run as background daemon (set by spawn)
  */
@@ -514,12 +428,10 @@ export const watchMain = async (args?: {
   agent?: string | null;
   daemon?: boolean | null;
   _background?: boolean | null;
-  staleTimeoutMs?: number | null;
   setDestination?: boolean | null;
 }): Promise<void> => {
   const agent = args?.agent ?? "claude-code";
   const _background = args?._background ?? false;
-  const staleTimeoutMs = args?.staleTimeoutMs ?? DEFAULT_STALE_TIMEOUT_MS;
   const setDestination = args?.setDestination ?? false;
 
   const homeDir = process.env.HOME ?? "";
@@ -610,7 +522,7 @@ export const watchMain = async (args?: {
     await log("Transcript upload hook installed");
   } catch (err) {
     await log(`Warning: Failed to install transcript hook: ${err}`);
-    // Continue anyway - manual upload via staleness will still work
+    // Continue anyway - daemon still watches for .done markers
   }
 
   // Set up signal handlers for graceful shutdown (only exit in production)
@@ -643,21 +555,6 @@ export const watchMain = async (args?: {
   await waitForWatcherReady({ instance: projectsWatcher });
 
   await log(`Watching directory: ${watchDir}`);
-
-  // Set up staleness check interval (check every minute)
-  stalenessCheckInterval = setInterval(() => {
-    void checkStaleTranscripts({ staleTimeoutMs });
-  }, 60 * 1000);
-
-  // Schedule initial scan after staleTimeoutMs (so existing files have time to be considered stale)
-  initialScanTimeout = setTimeout(() => {
-    void (async () => {
-      await log("Running initial scan for existing transcripts...");
-      await scanExistingTranscripts({ agent });
-      // Immediately check for stale ones
-      await checkStaleTranscripts({ staleTimeoutMs });
-    })();
-  }, staleTimeoutMs);
 
   // Also set up watching for the transcript storage directory (for .done markers)
   const transcriptStorageDir = path.join(

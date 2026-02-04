@@ -13,6 +13,16 @@ vi.mock("@/cli/commands/watch/uploader.js", () => ({
   processTranscriptForUpload: vi.fn().mockResolvedValue(true),
 }));
 
+// Mock the storage module to track copy calls
+vi.mock("@/cli/commands/watch/storage.js", () => ({
+  copyTranscript: vi.fn().mockResolvedValue(undefined),
+}));
+
+// Mock the parser module to return predictable sessionIds
+vi.mock("@/cli/commands/watch/parser.js", () => ({
+  extractSessionId: vi.fn().mockResolvedValue("test-session-id"),
+}));
+
 // Mock the hook installer to avoid settings.json side effects
 vi.mock("@/cli/commands/watch/hookInstaller.js", () => ({
   installTranscriptHook: vi.fn().mockResolvedValue(undefined),
@@ -27,6 +37,8 @@ vi.mock("child_process", () => ({
   }),
 }));
 
+import { copyTranscript } from "@/cli/commands/watch/storage.js";
+import { processTranscriptForUpload } from "@/cli/commands/watch/uploader.js";
 import {
   watchMain,
   watchStopMain,
@@ -420,5 +432,235 @@ describe("transcript destination selection", () => {
     const config = JSON.parse(updatedConfig);
 
     expect(config.transcriptDestination).toBe("singleorg");
+  });
+});
+
+describe("event debouncing", () => {
+  let tempDir: string;
+  let originalHome: string | undefined;
+  let projectDir: string;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "watch-debounce-test-"));
+
+    // Create mock .nori and .claude directories
+    await fs.mkdir(path.join(tempDir, ".nori", "logs"), { recursive: true });
+    await fs.mkdir(path.join(tempDir, ".nori", "transcripts", "claude-code"), {
+      recursive: true,
+    });
+    projectDir = path.join(tempDir, ".claude", "projects", "test-project");
+    await fs.mkdir(projectDir, { recursive: true });
+
+    // Save original HOME and override for tests
+    originalHome = process.env.HOME;
+    process.env.HOME = tempDir;
+  });
+
+  afterEach(async () => {
+    stopWatcher();
+    await cleanupWatch({ exitProcess: false });
+
+    if (originalHome) {
+      process.env.HOME = originalHome;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    await fs.rm(tempDir, { recursive: true, force: true });
+  });
+
+  test("debounces rapid duplicate file events for the same file", async () => {
+    // Start the daemon
+    void watchMain({
+      agent: "claude-code",
+      _background: true,
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    // Create a transcript file - this triggers one copy
+    const transcriptFile = path.join(projectDir, "transcript.jsonl");
+    await fs.writeFile(
+      transcriptFile,
+      JSON.stringify({ sessionId: "test-session-id", type: "init" }) + "\n",
+    );
+
+    // Wait for first event to be processed
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    const copyMock = vi.mocked(copyTranscript);
+    const callsAfterFirstWrite = copyMock.mock.calls.length;
+
+    // Modify the file rapidly multiple times within the debounce window
+    for (let i = 0; i < 5; i++) {
+      await fs.appendFile(
+        transcriptFile,
+        JSON.stringify({ type: "message", index: i }) + "\n",
+      );
+      // Very short delay between writes - within debounce window
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+
+    // Wait for events to be processed
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    // With debouncing, should have at most 1-2 additional calls
+    // (some events may coalesce, but without debouncing we'd see ~5)
+    const additionalCalls = copyMock.mock.calls.length - callsAfterFirstWrite;
+    expect(additionalCalls).toBeLessThanOrEqual(2);
+  });
+
+  test("processes events for different files separately", async () => {
+    void watchMain({
+      agent: "claude-code",
+      _background: true,
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    // Create two different transcript files
+    const transcriptFile1 = path.join(projectDir, "transcript1.jsonl");
+    const transcriptFile2 = path.join(projectDir, "transcript2.jsonl");
+
+    await fs.writeFile(
+      transcriptFile1,
+      JSON.stringify({ sessionId: "session-1", type: "init" }) + "\n",
+    );
+    await fs.writeFile(
+      transcriptFile2,
+      JSON.stringify({ sessionId: "session-2", type: "init" }) + "\n",
+    );
+
+    // Wait for events to be processed
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    // Both files should trigger copy events
+    const copyMock = vi.mocked(copyTranscript);
+    expect(copyMock.mock.calls.length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe("upload locking", () => {
+  let tempDir: string;
+  let originalHome: string | undefined;
+  let transcriptDir: string;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+
+    tempDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), "watch-upload-lock-test-"),
+    );
+
+    // Create mock .nori and .claude directories
+    await fs.mkdir(path.join(tempDir, ".nori", "logs"), { recursive: true });
+    transcriptDir = path.join(
+      tempDir,
+      ".nori",
+      "transcripts",
+      "claude-code",
+      "test-project",
+    );
+    await fs.mkdir(transcriptDir, { recursive: true });
+    await fs.mkdir(path.join(tempDir, ".claude", "projects"), {
+      recursive: true,
+    });
+
+    // Save original HOME and override for tests
+    originalHome = process.env.HOME;
+    process.env.HOME = tempDir;
+  });
+
+  afterEach(async () => {
+    stopWatcher();
+    await cleanupWatch({ exitProcess: false });
+
+    if (originalHome) {
+      process.env.HOME = originalHome;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    await fs.rm(tempDir, { recursive: true, force: true });
+  });
+
+  test("prevents concurrent uploads of the same transcript", async () => {
+    // Mock processTranscriptForUpload to delay, simulating slow upload
+    const uploadMock = vi.mocked(processTranscriptForUpload);
+    uploadMock.mockImplementation(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      return true;
+    });
+
+    void watchMain({
+      agent: "claude-code",
+      _background: true,
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    // Create a transcript file
+    const transcriptFile = path.join(transcriptDir, "test-session.jsonl");
+    await fs.writeFile(
+      transcriptFile,
+      JSON.stringify({ sessionId: "test-session", type: "init" }) + "\n",
+    );
+
+    // Create multiple .done markers rapidly for the same session
+    const markerFile = path.join(transcriptDir, "test-session.done");
+    await fs.writeFile(markerFile, "");
+
+    // Wait a bit then create another marker (simulating duplicate event)
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    await fs.writeFile(markerFile, "");
+
+    // Wait for uploads to complete
+    await new Promise((resolve) => setTimeout(resolve, 600));
+
+    // Should only have uploaded once due to locking
+    expect(uploadMock.mock.calls.length).toBe(1);
+  });
+
+  test("allows sequential uploads after previous completes", async () => {
+    const uploadMock = vi.mocked(processTranscriptForUpload);
+    uploadMock.mockImplementation(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      return true;
+    });
+
+    void watchMain({
+      agent: "claude-code",
+      _background: true,
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    // Create transcript file
+    const transcriptFile = path.join(transcriptDir, "test-session.jsonl");
+    await fs.writeFile(
+      transcriptFile,
+      JSON.stringify({ sessionId: "test-session", type: "init" }) + "\n",
+    );
+
+    // First marker
+    const markerFile = path.join(transcriptDir, "test-session.done");
+    await fs.writeFile(markerFile, "");
+
+    // Wait for first upload to complete (including 100ms upload time)
+    // and debounce window (500ms) to expire
+    await new Promise((resolve) => setTimeout(resolve, 700));
+
+    // Re-create files (simulating new session with same ID)
+    await fs.writeFile(
+      transcriptFile,
+      JSON.stringify({ sessionId: "test-session", type: "init" }) + "\n",
+    );
+    await fs.writeFile(markerFile, "");
+
+    // Wait for second upload
+    await new Promise((resolve) => setTimeout(resolve, 400));
+
+    // Should have uploaded twice (once per marker, sequentially)
+    expect(uploadMock.mock.calls.length).toBe(2);
   });
 });
