@@ -16,14 +16,22 @@ import { formatNetworkError } from "@/utils/fetch.js";
  * Google OAuth client credentials (Desktop app type).
  * For Desktop app type, the client secret is not truly secret -- this is
  * standard practice (same as firebase-tools, gcloud CLI, etc.).
- * Replace these with real values from Google Cloud Console.
+ * Used for the localhost callback flow.
  */
 export const GOOGLE_OAUTH_CLIENT_ID =
   "199991289749-otcibgl0kp53qq2tn46n08iutm62pq6h.apps.googleusercontent.com";
 export const GOOGLE_OAUTH_CLIENT_SECRET = "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";
 
 /**
- * Validate that OAuth credentials have been configured.
+ * Google OAuth Web Application client ID (for headless/no-localhost flow).
+ * The client secret is kept server-side on noriskillsets.dev.
+ * Used when --no-localhost flag is specified.
+ */
+export const GOOGLE_OAUTH_WEB_CLIENT_ID =
+  "199991289749-qneu4fa6jn6q5ss256ogj6ldg90b0h6a.apps.googleusercontent.com";
+
+/**
+ * Validate that OAuth credentials have been configured for localhost flow.
  * Throws if still using placeholder values.
  *
  * @throws Error if credentials are still placeholders
@@ -37,6 +45,22 @@ export const validateOAuthCredentials = (): void => {
       "Google OAuth credentials are not configured. " +
         "Replace placeholder values in googleAuth.ts " +
         "with real values from the Google Cloud Console.",
+    );
+  }
+};
+
+/**
+ * Validate that Web OAuth client ID has been configured for headless flow.
+ * Throws if still using placeholder value.
+ *
+ * @throws Error if web client ID is still a placeholder
+ */
+export const validateWebOAuthCredentials = (): void => {
+  if (GOOGLE_OAUTH_WEB_CLIENT_ID.startsWith("PLACEHOLDER")) {
+    throw new Error(
+      "Google OAuth Web Application client ID is not configured. " +
+        "Replace placeholder value in googleAuth.ts " +
+        "with the Web Application client ID from the Google Cloud Console.",
     );
   }
 };

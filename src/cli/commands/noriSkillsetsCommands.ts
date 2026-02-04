@@ -294,11 +294,16 @@ export const registerNoriSkillsetsLoginCommand = (args: {
     .option("-e, --email <email>", "Email address (for non-interactive mode)")
     .option("-p, --password <password>", "Password (for non-interactive mode)")
     .option("-g, --google", "Sign in with Google SSO")
+    .option(
+      "--no-localhost",
+      "Use hosted callback page instead of localhost (for headless/SSH)",
+    )
     .action(
       async (options: {
         email?: string;
         password?: string;
         google?: boolean;
+        localhost?: boolean;
       }) => {
         const globalOpts = program.opts();
         await loginMain({
@@ -307,6 +312,7 @@ export const registerNoriSkillsetsLoginCommand = (args: {
           email: options.email || null,
           password: options.password || null,
           google: options.google || null,
+          noLocalhost: options.localhost === false ? true : null,
         });
       },
     );

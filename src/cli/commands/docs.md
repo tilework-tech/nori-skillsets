@@ -56,8 +56,9 @@ The install command sets `agents: { [agentName]: { profile } }` in the config, w
 
 3. **Headless Mode** (`--google --no-localhost` flags):
    - For environments where SSH port forwarding isn't possible, uses a hosted callback page at `https://noriskillsets.dev/oauth/callback`
-   - Instead of starting a localhost server, prompts the user to paste the authorization code displayed on the callback page
-   - The callback page extracts the code from the OAuth redirect URL and displays it for copy-paste
+   - Uses a separate Web Application OAuth client (`GOOGLE_OAUTH_WEB_CLIENT_ID`) instead of the Desktop client; the client secret is kept server-side on `noriskillsets.dev`
+   - Instead of starting a localhost server, the server handles the OAuth code-to-token exchange and displays the resulting `id_token` for copy-paste
+   - The CLI prompts the user to paste this token directly, which is then used with `GoogleAuthProvider.credential()` to sign in to Firebase (no client-side token exchange needed)
 
 After authentication (either method):
 - Calls `/api/auth/check-access` to verify organization access and retrieve organization list

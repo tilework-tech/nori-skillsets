@@ -32,9 +32,11 @@ import {
   getGoogleAuthUrl,
   GOOGLE_OAUTH_CLIENT_ID,
   GOOGLE_OAUTH_CLIENT_SECRET,
+  GOOGLE_OAUTH_WEB_CLIENT_ID,
   isHeadlessEnvironment,
   startAuthServer,
   validateOAuthCredentials,
+  validateWebOAuthCredentials,
 } from "./googleAuth.js";
 
 /** Redirect URI for headless/no-localhost mode */
@@ -114,23 +116,17 @@ const authenticateWithGoogle = async (args?: {
 }> => {
   const { noLocalhost } = args ?? {};
 
-  // Fail fast if OAuth credentials are not configured
-  validateOAuthCredentials();
-
-  // Generate CSRF protection nonce
-  const state = generateState();
-
-  let redirectUri: string;
-  let code: string;
-
   if (noLocalhost) {
-    // Headless mode: use noriskillsets.dev callback page
-    redirectUri = HEADLESS_REDIRECT_URI;
+    // Headless mode: use Web Application client, server handles token exchange
+    validateWebOAuthCredentials();
 
-    // Build the Google OAuth URL
+    // Generate CSRF protection nonce (for display purposes)
+    const state = generateState();
+
+    // Build the Google OAuth URL with Web Application client ID
     const authUrl = getGoogleAuthUrl({
-      clientId: GOOGLE_OAUTH_CLIENT_ID,
-      redirectUri,
+      clientId: GOOGLE_OAUTH_WEB_CLIENT_ID,
+      redirectUri: HEADLESS_REDIRECT_URI,
       state,
     });
 
@@ -142,76 +138,100 @@ const authenticateWithGoogle = async (args?: {
     info({ message: "Instructions:" });
     info({ message: "  1. Open the URL above in any browser" });
     info({ message: "  2. Complete the Google sign-in" });
-    info({ message: "  3. Copy the authorization code from the page" });
+    info({ message: "  3. Copy the token from the page" });
     info({ message: "  4. Paste it below" });
     newline();
 
-    // Prompt user to paste the code
-    const inputCode = await promptUser({
-      prompt: "Paste authorization code: ",
+    // Prompt user to paste the id_token (server already exchanged the code)
+    const inputToken = await promptUser({
+      prompt: "Paste token: ",
     });
 
-    if (inputCode == null || inputCode.trim() === "") {
-      throw new Error("No authorization code provided.");
+    if (inputToken == null || inputToken.trim() === "") {
+      throw new Error("No token provided.");
     }
 
-    code = inputCode.trim();
-  } else {
-    // Standard mode: use localhost callback server
-    const port = await findAvailablePort({});
-    redirectUri = `http://localhost:${port}`;
+    // Use the id_token directly with Firebase (no exchange needed)
+    info({ message: "Signing in..." });
+    configureFirebase();
+    const firebase = getFirebase();
+    const credential = GoogleAuthProvider.credential(inputToken.trim());
+    const userCredential = await signInWithCredential(
+      firebase.auth,
+      credential,
+    );
 
-    // Build the Google OAuth URL
-    const authUrl = getGoogleAuthUrl({
-      clientId: GOOGLE_OAUTH_CLIENT_ID,
-      redirectUri,
-      state,
-    });
-
-    // Always display the auth URL for headless/SSH environments
-    newline();
-    info({ message: "Authentication URL:" });
-    info({ message: `  ${authUrl}` });
-    newline();
-
-    // Detect SSH environment and provide port forwarding instructions
-    if (isHeadlessEnvironment()) {
-      info({ message: "Detected SSH/headless environment." });
-      info({ message: "To authenticate from a remote session:" });
-      info({ message: `  1. Run this on your local machine:` });
-      info({
-        message: `     ssh -L ${port}:localhost:${port} <user>@<server>`,
-      });
-      info({ message: `  2. Open the URL above in your local browser` });
-      newline();
+    const email = userCredential.user.email;
+    if (email == null) {
+      throw new Error("No email address associated with Google account.");
     }
 
-    // Start the local server to capture the callback
-    const serverPromise = startAuthServer({
-      port,
-      expectedState: state,
-      warningMs: AUTH_WARNING_MS,
-      onTimeoutWarning: () => {
-        warn({
-          message:
-            "Authentication will timeout in 1 minute. Please complete the browser flow.",
-        });
-      },
-    });
-
-    // Attempt to open browser (may fail silently in headless)
-    info({ message: "Attempting to open browser..." });
-    try {
-      await open(authUrl);
-    } catch {
-      // Browser failed to open - already displayed the URL above
-    }
-
-    // Wait for the OAuth callback
-    const result = await serverPromise;
-    code = result.code;
-    result.server.close();
+    return {
+      refreshToken: userCredential.user.refreshToken,
+      idToken: await userCredential.user.getIdToken(),
+      email,
+    };
   }
+
+  // Standard mode: use Desktop client with localhost callback server
+  validateOAuthCredentials();
+
+  // Generate CSRF protection nonce
+  const state = generateState();
+
+  const port = await findAvailablePort({});
+  const redirectUri = `http://localhost:${port}`;
+
+  // Build the Google OAuth URL
+  const authUrl = getGoogleAuthUrl({
+    clientId: GOOGLE_OAUTH_CLIENT_ID,
+    redirectUri,
+    state,
+  });
+
+  // Always display the auth URL for headless/SSH environments
+  newline();
+  info({ message: "Authentication URL:" });
+  info({ message: `  ${authUrl}` });
+  newline();
+
+  // Detect SSH environment and provide port forwarding instructions
+  if (isHeadlessEnvironment()) {
+    info({ message: "Detected SSH/headless environment." });
+    info({ message: "To authenticate from a remote session:" });
+    info({ message: `  1. Run this on your local machine:` });
+    info({
+      message: `     ssh -L ${port}:localhost:${port} <user>@<server>`,
+    });
+    info({ message: `  2. Open the URL above in your local browser` });
+    newline();
+  }
+
+  // Start the local server to capture the callback
+  const serverPromise = startAuthServer({
+    port,
+    expectedState: state,
+    warningMs: AUTH_WARNING_MS,
+    onTimeoutWarning: () => {
+      warn({
+        message:
+          "Authentication will timeout in 1 minute. Please complete the browser flow.",
+      });
+    },
+  });
+
+  // Attempt to open browser (may fail silently in headless)
+  info({ message: "Attempting to open browser..." });
+  try {
+    await open(authUrl);
+  } catch {
+    // Browser failed to open - already displayed the URL above
+  }
+
+  // Wait for the OAuth callback
+  const result = await serverPromise;
+  const code = result.code;
+  result.server.close();
 
   // Exchange the authorization code for Google tokens
   info({ message: "Exchanging authorization code..." });
