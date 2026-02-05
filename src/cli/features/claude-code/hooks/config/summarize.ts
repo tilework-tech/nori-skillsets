@@ -174,7 +174,7 @@ const summarizeConversation = async (args: {
     console.log(
       JSON.stringify({
         systemMessage:
-          "Session Transcript disabled. Use /nori-toggle-session-transcripts to reenable",
+          "Session Transcript disabled. Edit .nori-config.json to set sendSessionTranscript to reenable.",
       }),
     );
     debug({

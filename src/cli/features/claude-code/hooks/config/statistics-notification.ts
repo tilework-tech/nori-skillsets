@@ -14,7 +14,7 @@
 import { debug } from "@/cli/logger.js";
 import { getInstallDirs } from "@/utils/path.js";
 
-import { formatWithLineClear } from "./intercepted-slashcommands/format.js";
+import { formatWithLineClear } from "./format.js";
 
 /**
  * Get the hook script path for ANSI line clearing calculations

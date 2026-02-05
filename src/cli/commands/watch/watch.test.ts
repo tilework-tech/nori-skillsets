@@ -23,12 +23,6 @@ vi.mock("@/cli/commands/watch/parser.js", () => ({
   extractSessionId: vi.fn().mockResolvedValue("test-session-id"),
 }));
 
-// Mock the hook installer to avoid settings.json side effects
-vi.mock("@/cli/commands/watch/hookInstaller.js", () => ({
-  installTranscriptHook: vi.fn().mockResolvedValue(undefined),
-  removeTranscriptHook: vi.fn().mockResolvedValue(undefined),
-}));
-
 // Mock child_process spawn to prevent actual process spawning in tests
 vi.mock("child_process", () => ({
   spawn: vi.fn().mockReturnValue({
@@ -582,7 +576,11 @@ describe("event debouncing", () => {
   });
 });
 
-describe("upload locking", () => {
+// Note: The "upload locking" tests were removed as they tested the deprecated
+// marker-based upload system. The stale scanner now handles uploads with its
+// own locking via the uploadingFiles Set.
+
+describe("stale transcript upload", () => {
   let tempDir: string;
   let originalHome: string | undefined;
   let transcriptDir: string;
@@ -591,7 +589,7 @@ describe("upload locking", () => {
     vi.clearAllMocks();
 
     tempDir = await fs.mkdtemp(
-      path.join(os.tmpdir(), "watch-upload-lock-test-"),
+      path.join(os.tmpdir(), "watch-stale-upload-test-"),
     );
 
     // Create mock .nori and .claude directories
@@ -625,85 +623,49 @@ describe("upload locking", () => {
     await fs.rm(tempDir, { recursive: true, force: true });
   });
 
-  test("prevents concurrent uploads of the same transcript", async () => {
-    // Mock processTranscriptForUpload to delay, simulating slow upload
-    const uploadMock = vi.mocked(processTranscriptForUpload);
-    uploadMock.mockImplementation(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      return true;
-    });
-
-    void watchMain({
-      agent: "claude-code",
-      _background: true,
-    });
-
-    await new Promise((resolve) => setTimeout(resolve, 300));
-
-    // Create a transcript file
-    const transcriptFile = path.join(transcriptDir, "test-session.jsonl");
-    await fs.writeFile(
-      transcriptFile,
-      JSON.stringify({ sessionId: "test-session", type: "init" }) + "\n",
-    );
-
-    // Create multiple .done markers rapidly for the same session
-    const markerFile = path.join(transcriptDir, "test-session.done");
-    await fs.writeFile(markerFile, "");
-
-    // Wait a bit then create another marker (simulating duplicate event)
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    await fs.writeFile(markerFile, "");
-
-    // Wait for uploads to complete
-    await new Promise((resolve) => setTimeout(resolve, 600));
-
-    // Should only have uploaded once due to locking
-    expect(uploadMock.mock.calls.length).toBe(1);
-  });
-
-  test("debounces rapid marker events for same transcript (add+change scenario)", async () => {
-    // This test verifies that when chokidar emits both 'add' and 'change' events
-    // for the same marker file creation (which happens in polling mode), we only
-    // upload once. Events can be as close as 60ms apart.
+  test("uploads stale transcript that has not been modified recently", async () => {
     const uploadMock = vi.mocked(processTranscriptForUpload);
     uploadMock.mockResolvedValue(true);
 
+    // Create a transcript file with valid UUID sessionId (required by regex)
+    const transcriptFile = path.join(transcriptDir, "stale-session.jsonl");
+    await fs.writeFile(
+      transcriptFile,
+      JSON.stringify({
+        sessionId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+        type: "init",
+      }) + "\n",
+    );
+
+    // Make the file appear old (older than stale threshold)
+    const oldTime = new Date(Date.now() - 60000); // 60 seconds ago
+    await fs.utimes(transcriptFile, oldTime, oldTime);
+
+    // Start the daemon
     void watchMain({
       agent: "claude-code",
       _background: true,
     });
 
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    // Wait for the stale scanner to run (scan interval + processing time)
+    // The scan runs every 10 seconds, so we need to wait for at least one scan
+    await new Promise((resolve) => setTimeout(resolve, 12000));
 
-    // Create a transcript file
-    const transcriptFile = path.join(transcriptDir, "rapid-test.jsonl");
-    await fs.writeFile(
-      transcriptFile,
-      JSON.stringify({ sessionId: "rapid-test", type: "init" }) + "\n",
+    // Should have uploaded the stale transcript
+    expect(uploadMock.mock.calls.length).toBeGreaterThanOrEqual(1);
+
+    // Verify it was called with our transcript
+    const uploadedPaths = uploadMock.mock.calls.map(
+      (call) => call[0].transcriptPath,
     );
+    expect(uploadedPaths).toContain(transcriptFile);
+  }, 15000); // Increase timeout for this test
 
-    // Create marker file - this may trigger both 'add' and 'change' events
-    const markerFile = path.join(transcriptDir, "rapid-test.done");
-    await fs.writeFile(markerFile, "");
-
-    // Immediately modify it to simulate chokidar emitting change after add
-    await fs.writeFile(markerFile, " ");
-
-    // Wait for events to be processed
-    await new Promise((resolve) => setTimeout(resolve, 400));
-
-    // Should only have uploaded once due to debouncing on transcriptPath
-    expect(uploadMock.mock.calls.length).toBe(1);
-  });
-
-  test("allows sequential uploads after previous completes", async () => {
+  test("does not upload transcript that was recently modified", async () => {
     const uploadMock = vi.mocked(processTranscriptForUpload);
-    uploadMock.mockImplementation(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      return true;
-    });
+    uploadMock.mockResolvedValue(true);
 
+    // Start the daemon first
     void watchMain({
       agent: "claude-code",
       _background: true,
@@ -711,32 +673,66 @@ describe("upload locking", () => {
 
     await new Promise((resolve) => setTimeout(resolve, 300));
 
-    // Create transcript file
-    const transcriptFile = path.join(transcriptDir, "test-session.jsonl");
+    // Create a transcript file (will have current mtime - considered "fresh")
+    // Use valid UUID sessionId
+    const transcriptFile = path.join(transcriptDir, "fresh-session.jsonl");
     await fs.writeFile(
       transcriptFile,
-      JSON.stringify({ sessionId: "test-session", type: "init" }) + "\n",
+      JSON.stringify({
+        sessionId: "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+        type: "init",
+      }) + "\n",
     );
 
-    // First marker
-    const markerFile = path.join(transcriptDir, "test-session.done");
-    await fs.writeFile(markerFile, "");
+    // Wait for a scan cycle
+    await new Promise((resolve) => setTimeout(resolve, 12000));
 
-    // Wait for first upload to complete (including 100ms upload time)
-    // and debounce window (500ms) to expire
-    await new Promise((resolve) => setTimeout(resolve, 700));
-
-    // Re-create files (simulating new session with same ID)
-    await fs.writeFile(
-      transcriptFile,
-      JSON.stringify({ sessionId: "test-session", type: "init" }) + "\n",
+    // Fresh file should NOT be uploaded by the stale scanner
+    // (it might be uploaded by other mechanisms, but not due to staleness)
+    const staleUploadCalls = uploadMock.mock.calls.filter(
+      (call) => call[0].transcriptPath === transcriptFile,
     );
-    await fs.writeFile(markerFile, "");
 
-    // Wait for second upload
-    await new Promise((resolve) => setTimeout(resolve, 400));
+    // The file is fresh, so no stale upload should occur
+    expect(staleUploadCalls.length).toBe(0);
+  }, 15000);
 
-    // Should have uploaded twice (once per marker, sequentially)
-    expect(uploadMock.mock.calls.length).toBe(2);
-  });
+  test("skips upload when transcript is already in registry with same hash", async () => {
+    const uploadMock = vi.mocked(processTranscriptForUpload);
+    uploadMock.mockResolvedValue(true);
+
+    // Create a stale transcript file with valid UUID sessionId
+    const transcriptFile = path.join(transcriptDir, "already-uploaded.jsonl");
+    const content =
+      JSON.stringify({
+        sessionId: "c3d4e5f6-a7b8-9012-cdef-123456789012",
+        type: "init",
+      }) + "\n";
+    await fs.writeFile(transcriptFile, content);
+
+    // Make the file appear old
+    const oldTime = new Date(Date.now() - 60000);
+    await fs.utimes(transcriptFile, oldTime, oldTime);
+
+    // Start the daemon
+    void watchMain({
+      agent: "claude-code",
+      _background: true,
+    });
+
+    // Wait for first scan to upload
+    await new Promise((resolve) => setTimeout(resolve, 12000));
+
+    const firstUploadCount = uploadMock.mock.calls.length;
+    expect(firstUploadCount).toBeGreaterThanOrEqual(1);
+
+    // Reset mock to track subsequent calls
+    uploadMock.mockClear();
+
+    // Wait for another scan cycle
+    await new Promise((resolve) => setTimeout(resolve, 12000));
+
+    // Should NOT upload again - already in registry with same hash
+    expect(uploadMock.mock.calls.length).toBe(0);
+  }, 30000);
 });

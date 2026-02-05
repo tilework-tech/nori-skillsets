@@ -19,8 +19,14 @@ import {
   displaySeaweedBed,
 } from "@/cli/commands/install/asciiArt.js";
 import { onboardMain } from "@/cli/commands/onboard/onboard.js";
-import { loadConfig, type Config } from "@/cli/config.js";
+import { loadConfig, getAgentProfile, type Config } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
+import { getClaudeDir } from "@/cli/features/claude-code/paths.js";
+import {
+  computeDirectoryManifest,
+  writeManifest,
+  getManifestPath,
+} from "@/cli/features/claude-code/profiles/manifest.js";
 import {
   buildCLIEventParams,
   getUserId,
@@ -111,6 +117,47 @@ const runFeatureLoaders = async (args: {
 };
 
 /**
+ * Write manifest of installed files for change detection
+ *
+ * Creates a manifest file containing hashes of all files installed to ~/.claude/
+ * This is used by switch-skillset to detect local modifications.
+ *
+ * @param args - Configuration arguments
+ * @param args.config - Configuration to use
+ * @param args.agentName - Name of the agent being installed
+ */
+const writeInstalledManifest = async (args: {
+  config: Config;
+  agentName: string;
+}): Promise<void> => {
+  const { config, agentName } = args;
+
+  // Only write manifest for claude-code agent
+  if (agentName !== "claude-code") {
+    return;
+  }
+
+  const profileName = getAgentProfile({ config, agentName })?.baseProfile;
+  if (profileName == null) {
+    return;
+  }
+
+  const claudeDir = getClaudeDir({ installDir: config.installDir });
+  const manifestPath = getManifestPath({ installDir: config.installDir });
+
+  try {
+    const manifest = await computeDirectoryManifest({
+      dir: claudeDir,
+      profileName,
+    });
+    await writeManifest({ manifestPath, manifest });
+    info({ message: "✓ Created installation manifest for change detection" });
+  } catch {
+    // Non-fatal - manifest writing failure shouldn't block installation
+  }
+};
+
+/**
  * Complete the installation by running loaders and displaying banners
  *
  * @param args - Configuration arguments
@@ -144,6 +191,9 @@ const completeInstallation = async (args: {
 
   // Run feature loaders
   await runFeatureLoaders({ config, agent });
+
+  // Write manifest for change detection
+  await writeInstalledManifest({ config, agentName: agent.name });
 
   // Remove progress marker
   cleanupProgressMarker();

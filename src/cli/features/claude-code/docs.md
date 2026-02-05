@@ -4,7 +4,7 @@ Path: @/src/cli/features/claude-code
 
 ### Overview
 
-Claude Code agent implementation that satisfies the Agent interface from @/src/cli/features/agentRegistry.ts. Contains feature loaders and configurations for installing Nori components into Anthropic's Claude Code CLI tool. Uses a directory-based profile system where each profile is self-contained with CLAUDE.md, skills, subagents, and slash commands. Contains loaders for: config, profiles, hooks, statusline, global slashcommands, and announcements. Claude-specific path helpers are encapsulated in paths.ts within this directory.
+Claude Code agent implementation that satisfies the Agent interface from @/src/cli/features/agentRegistry.ts. Contains feature loaders and configurations for installing Nori components into Anthropic's Claude Code CLI tool. Uses a directory-based profile system where each profile is self-contained with CLAUDE.md, skills, subagents, and slash commands. Contains loaders for: config, profiles, hooks, statusline, global slashcommands (no-op), and announcements. Claude-specific path helpers are encapsulated in paths.ts within this directory.
 
 ### How it fits into the larger codebase
 
@@ -33,6 +33,10 @@ Each loader implements run(config) to install, uninstall(config) to remove, and 
 **Config Loader Token-Based Auth:** The configLoader handles credential persistence with automatic token conversion. During installation, if the config contains a password but no refreshToken, the loader authenticates via Firebase SDK to obtain a refresh token. The refresh token is then saved to `.nori-config.json` instead of the password.
 
 The LoaderRegistry provides getAll() for install order and getAllReversed() for uninstall order. The profiles loader must run first because other loaders read from the profile directories it creates.
+
+**Hooks loader** (@/src/cli/features/claude-code/hooks/loader.ts): Configures a minimal set of hooks: statisticsHook, statisticsNotificationHook, contextUsageWarningHook, notifyHook, and commitAuthorHook. Also sets `includeCoAuthoredBy = false` in settings.json.
+
+**Slashcommands loader** (@/src/cli/features/claude-code/slashcommands/loader.ts): Now a no-op. Global slash commands have been removed to reduce complexity.
 
 ### Things to Know
 
@@ -65,7 +69,7 @@ The LoaderRegistry provides getAll() for install order and getAllReversed() for 
 | `getClaudeHomeSettingsFile()` | `~/.claude/settings.json` |
 | `getClaudeHomeCommandsDir()` | `~/.claude/commands` |
 
-Global features (hooks, statusline, global slash commands) use home-based paths because Claude Code reads these from the user's home directory.
+Global features (hooks, statusline) use home-based paths because Claude Code reads these from the user's home directory.
 
 **Directory Separation Architecture:** Profiles are stored in `~/.nori/profiles/` instead of `~/.claude/profiles/`. This creates a clear separation between Nori's internal profile repository and Claude Code's native artifacts.
 

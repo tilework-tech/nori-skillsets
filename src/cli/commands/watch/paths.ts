@@ -97,3 +97,12 @@ export const getWatchPidFile = (): string => {
 export const getWatchLogFile = (): string => {
   return path.join(getHomeDir(), ".nori", "logs", "watch.log");
 };
+
+/**
+ * Get the transcript registry database path
+ *
+ * @returns Path to ~/.nori/transcripts/registry.db
+ */
+export const getTranscriptRegistryPath = (): string => {
+  return path.join(getHomeDir(), ".nori", "transcripts", "registry.db");
+};

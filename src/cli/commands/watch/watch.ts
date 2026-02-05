@@ -6,21 +6,21 @@
  */
 
 import { spawn } from "child_process";
+import { createHash } from "crypto";
 import * as fs from "fs/promises";
 import * as path from "path";
 
-import {
-  installTranscriptHook,
-  removeTranscriptHook,
-} from "@/cli/commands/watch/hookInstaller.js";
 import { extractSessionId } from "@/cli/commands/watch/parser.js";
 import {
   getClaudeProjectsDir,
   getTranscriptDir,
+  getTranscriptRegistryPath,
   getWatchLogFile,
   getWatchPidFile,
 } from "@/cli/commands/watch/paths.js";
+import { findStaleTranscripts } from "@/cli/commands/watch/staleScanner.js";
 import { copyTranscript } from "@/cli/commands/watch/storage.js";
+import { TranscriptRegistry } from "@/cli/commands/watch/transcriptRegistry.js";
 import { processTranscriptForUpload } from "@/cli/commands/watch/uploader.js";
 import {
   createWatcher,
@@ -36,6 +36,21 @@ import { promptUser } from "@/cli/prompt.js";
  * Debounce window in milliseconds for file events
  */
 const DEBOUNCE_MS = 500;
+
+/**
+ * Stale threshold in milliseconds - files not modified for this long are considered stale
+ */
+const STALE_THRESHOLD_MS = 30000;
+
+/**
+ * Expire threshold in milliseconds - files not modified for this long are deleted (24 hours)
+ */
+const EXPIRE_THRESHOLD_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Scan interval in milliseconds - how often to scan for stale transcripts
+ */
+const SCAN_INTERVAL_MS = 10000;
 
 /**
  * Log stream for daemon mode
@@ -69,14 +84,24 @@ const uploadingFiles: Set<string> = new Set();
 let projectsWatcher: WatcherInstance | null = null;
 
 /**
- * Watcher for transcript storage directory (.done markers)
- */
-let markersWatcher: WatcherInstance | null = null;
-
-/**
  * Current transcript destination org ID
  */
 let transcriptOrgId: string | null = null;
+
+/**
+ * Transcript registry for tracking uploaded transcripts
+ */
+let registry: TranscriptRegistry | null = null;
+
+/**
+ * Interval handle for stale transcript scanner
+ */
+let scanIntervalHandle: NodeJS.Timeout | null = null;
+
+/**
+ * Current transcript storage directory (for stale scanner)
+ */
+let currentTranscriptDir: string | null = null;
 
 /**
  * Log a message (to file in daemon mode, console otherwise)
@@ -125,64 +150,6 @@ export const isWatchRunning = async (): Promise<boolean> => {
   } catch {
     // PID file doesn't exist
     return false;
-  }
-};
-
-/**
- * Handle a .done marker file event - trigger immediate upload
- *
- * @param args - Configuration arguments
- * @param args.markerPath - Path to the .done marker file
- */
-const handleMarkerEvent = async (args: {
-  markerPath: string;
-}): Promise<void> => {
-  const { markerPath } = args;
-
-  if (isShuttingDown) {
-    return;
-  }
-
-  // Derive transcript path from marker path (.done -> .jsonl)
-  // Do this BEFORE debounce so we debounce on the transcript, not the marker
-  const transcriptPath = markerPath.replace(/\.done$/, ".jsonl");
-
-  // Debounce: skip if we processed this transcript recently
-  // This prevents duplicate uploads when chokidar emits both 'add' and 'change'
-  // events for the same marker file creation
-  const now = Date.now();
-  const lastTime = lastEventTime.get(transcriptPath);
-  if (lastTime != null && now - lastTime < DEBOUNCE_MS) {
-    return;
-  }
-  lastEventTime.set(transcriptPath, now);
-
-  // Skip if already uploading this file (prevent concurrent uploads)
-  if (uploadingFiles.has(transcriptPath)) {
-    await log(
-      `Skipping duplicate upload (already in progress): ${transcriptPath}`,
-    );
-    return;
-  }
-
-  uploadingFiles.add(transcriptPath);
-
-  try {
-    await log(`Marker detected, uploading: ${transcriptPath}`);
-
-    const uploaded = await processTranscriptForUpload({
-      transcriptPath,
-      markerPath,
-      orgId: transcriptOrgId,
-    });
-
-    if (uploaded) {
-      await log(`Successfully uploaded and cleaned up: ${transcriptPath}`);
-    } else {
-      await log(`Upload failed: ${transcriptPath}`);
-    }
-  } finally {
-    uploadingFiles.delete(transcriptPath);
   }
 };
 
@@ -247,6 +214,168 @@ const handleFileEvent = async (args: {
 };
 
 /**
+ * Compute MD5 hash of file content
+ *
+ * @param args - Configuration arguments
+ * @param args.filePath - Path to the file to hash
+ *
+ * @returns MD5 hash as hex string, or null if file can't be read
+ */
+const computeFileHash = async (args: {
+  filePath: string;
+}): Promise<string | null> => {
+  const { filePath } = args;
+
+  try {
+    const content = await fs.readFile(filePath);
+    return createHash("md5").update(content).digest("hex");
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Extract sessionId from transcript file content
+ *
+ * @param args - Configuration arguments
+ * @param args.filePath - Path to the transcript file
+ *
+ * @returns Session ID or null if not found
+ */
+const extractSessionIdFromFile = async (args: {
+  filePath: string;
+}): Promise<string | null> => {
+  const { filePath } = args;
+
+  try {
+    const content = await fs.readFile(filePath, "utf-8");
+    // Match UUID format sessionId
+    const regex =
+      /"sessionId"\s*:\s*"([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})"/;
+    const match = content.match(regex);
+    return match ? match[1] : null;
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Delete expired transcript files
+ *
+ * @param args - Configuration arguments
+ * @param args.expiredFiles - Array of file paths to delete
+ */
+const deleteExpiredFiles = async (args: {
+  expiredFiles: Array<string>;
+}): Promise<void> => {
+  const { expiredFiles } = args;
+
+  for (const filePath of expiredFiles) {
+    if (isShuttingDown) {
+      break;
+    }
+
+    try {
+      await fs.unlink(filePath);
+      await log(`Deleted expired transcript: ${filePath}`);
+    } catch (err) {
+      await log(`Failed to delete expired transcript ${filePath}: ${err}`);
+    }
+  }
+};
+
+/**
+ * Scan for stale transcripts and upload them
+ */
+const scanForStaleTranscripts = async (): Promise<void> => {
+  if (isShuttingDown || currentTranscriptDir == null || registry == null) {
+    return;
+  }
+
+  try {
+    const { staleFiles, expiredFiles } = await findStaleTranscripts({
+      transcriptDir: currentTranscriptDir,
+      staleThresholdMs: STALE_THRESHOLD_MS,
+      expireThresholdMs: EXPIRE_THRESHOLD_MS,
+    });
+
+    // Delete expired files first
+    if (expiredFiles.length > 0) {
+      await deleteExpiredFiles({ expiredFiles });
+    }
+
+    // Process stale files for upload
+    for (const transcriptPath of staleFiles) {
+      if (isShuttingDown) {
+        break;
+      }
+
+      // Skip if already uploading
+      if (uploadingFiles.has(transcriptPath)) {
+        continue;
+      }
+
+      // Extract sessionId
+      const sessionId = await extractSessionIdFromFile({
+        filePath: transcriptPath,
+      });
+
+      if (sessionId == null) {
+        await log(`Skipping stale file (no sessionId): ${transcriptPath}`);
+        continue;
+      }
+
+      // Compute file hash
+      const fileHash = await computeFileHash({ filePath: transcriptPath });
+
+      if (fileHash == null) {
+        await log(`Skipping stale file (can't hash): ${transcriptPath}`);
+        continue;
+      }
+
+      // Check if already uploaded with same hash
+      if (registry.isUploaded({ sessionId, fileHash })) {
+        continue;
+      }
+
+      // Upload the transcript
+      uploadingFiles.add(transcriptPath);
+
+      try {
+        await log(`Uploading stale transcript: ${transcriptPath}`);
+
+        const uploaded = await processTranscriptForUpload({
+          transcriptPath,
+          orgId: transcriptOrgId,
+        });
+
+        if (uploaded) {
+          // Mark as uploaded in registry
+          // Note: The file may already be deleted by processTranscriptForUpload at this point
+          // If marking fails, log warning but don't fail - the upload did succeed
+          try {
+            registry.markUploaded({ sessionId, fileHash, transcriptPath });
+            await log(
+              `Successfully uploaded stale transcript: ${transcriptPath}`,
+            );
+          } catch (registryErr) {
+            await log(
+              `Warning: Upload succeeded but failed to update registry: ${registryErr}`,
+            );
+          }
+        } else {
+          await log(`Failed to upload stale transcript: ${transcriptPath}`);
+        }
+      } finally {
+        uploadingFiles.delete(transcriptPath);
+      }
+    }
+  } catch (err) {
+    await log(`Error scanning for stale transcripts: ${err}`);
+  }
+};
+
+/**
  * Clean up watch daemon resources
  *
  * @param args - Configuration arguments
@@ -264,19 +393,30 @@ export const cleanupWatch = async (args?: {
 
   await log("Shutting down watch daemon...");
 
-  // Stop both watchers
+  // Stop the stale scanner interval
+  if (scanIntervalHandle != null) {
+    clearInterval(scanIntervalHandle);
+    scanIntervalHandle = null;
+  }
+
+  // Close the registry
+  if (registry != null) {
+    registry.close();
+    registry = null;
+  }
+
+  // Stop the watcher
   if (projectsWatcher != null) {
     stopWatcher({ instance: projectsWatcher });
     projectsWatcher = null;
-  }
-  if (markersWatcher != null) {
-    stopWatcher({ instance: markersWatcher });
-    markersWatcher = null;
   }
 
   // Clear debounce and upload tracking
   lastEventTime.clear();
   uploadingFiles.clear();
+
+  // Reset transcript directory
+  currentTranscriptDir = null;
 
   // Remove PID file
   const pidFile = getWatchPidFile();
@@ -520,14 +660,11 @@ export const watchMain = async (args?: {
   await log(`Watch daemon started (PID: ${process.pid})`);
   await log(`Watching for ${agent} sessions`);
 
-  // Install transcript upload hook (idempotent)
-  try {
-    await installTranscriptHook();
-    await log("Transcript upload hook installed");
-  } catch (err) {
-    await log(`Warning: Failed to install transcript hook: ${err}`);
-    // Continue anyway - daemon still watches for .done markers
-  }
+  // Initialize transcript registry
+  const registryPath = getTranscriptRegistryPath();
+  await fs.mkdir(path.dirname(registryPath), { recursive: true });
+  registry = new TranscriptRegistry({ dbPath: registryPath });
+  await log(`Transcript registry initialized: ${registryPath}`);
 
   // Set up signal handlers for graceful shutdown (only exit in production)
   signalHandler = (): void => {
@@ -560,7 +697,7 @@ export const watchMain = async (args?: {
 
   await log(`Watching directory: ${watchDir}`);
 
-  // Also set up watching for the transcript storage directory (for .done markers)
+  // Set up transcript storage directory for stale scanner
   const transcriptStorageDir = path.join(
     homeDir,
     ".nori",
@@ -571,19 +708,23 @@ export const watchMain = async (args?: {
   // Ensure transcript storage directory exists
   await fs.mkdir(transcriptStorageDir, { recursive: true });
 
-  // Create a second watcher for .done marker files
-  markersWatcher = createWatcher({
-    watchDir: transcriptStorageDir,
-    onEvent: (event) => {
-      void handleMarkerEvent({ markerPath: event.filePath });
-    },
-    fileFilter: (filePath) => filePath.endsWith(".done"),
-  });
+  // Store for stale scanner
+  currentTranscriptDir = transcriptStorageDir;
 
-  // Wait for markers watcher to be ready
-  await waitForWatcherReady({ instance: markersWatcher });
+  // Start the stale transcript scanner
+  await log(
+    `Starting stale transcript scanner (threshold: ${STALE_THRESHOLD_MS}ms, interval: ${SCAN_INTERVAL_MS}ms)`,
+  );
 
-  await log(`Also watching transcript directory: ${transcriptStorageDir}`);
+  // Run initial scan immediately
+  void scanForStaleTranscripts();
+
+  // Then run periodically
+  scanIntervalHandle = setInterval(() => {
+    void scanForStaleTranscripts();
+  }, SCAN_INTERVAL_MS);
+
+  await log(`Transcript storage directory: ${transcriptStorageDir}`);
 
   // Process stays running due to active watchers and interval timers
 };
@@ -600,16 +741,6 @@ export const watchStopMain = async (args?: {
   const quiet = args?.quiet ?? false;
 
   const pidFile = getWatchPidFile();
-
-  // Remove transcript upload hook
-  try {
-    await removeTranscriptHook();
-    if (!quiet) {
-      info({ message: "Transcript upload hook removed" });
-    }
-  } catch {
-    // Ignore errors - hook may not exist
-  }
 
   // Read PID file FIRST, before cleanupWatch deletes it
   let daemonPid: number | null = null;

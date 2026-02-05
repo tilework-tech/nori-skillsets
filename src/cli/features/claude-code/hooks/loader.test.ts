@@ -82,21 +82,24 @@ describe("hooksLoader", () => {
       expect(settings.hooks.SessionEnd).toBeDefined();
       expect(settings.hooks.SessionEnd.length).toBeGreaterThan(0);
 
-      // Verify SessionStart hooks (autoupdate)
+      // Verify SessionStart hooks (context-usage-warning)
       expect(settings.hooks.SessionStart).toBeDefined();
       expect(settings.hooks.SessionStart.length).toBeGreaterThan(0);
 
-      let hasAutoupdateHook = false;
+      let hasContextUsageWarningHook = false;
       for (const hookConfig of settings.hooks.SessionStart) {
         if (hookConfig.hooks) {
           for (const hook of hookConfig.hooks) {
-            if (hook.command && hook.command.includes("autoupdate")) {
-              hasAutoupdateHook = true;
+            if (
+              hook.command &&
+              hook.command.includes("context-usage-warning")
+            ) {
+              hasContextUsageWarningHook = true;
             }
           }
         }
       }
-      expect(hasAutoupdateHook).toBe(true);
+      expect(hasContextUsageWarningHook).toBe(true);
 
       // Verify Notification hooks
       expect(settings.hooks.Notification).toBeDefined();
@@ -116,6 +119,9 @@ describe("hooksLoader", () => {
 
       // Should NOT have PreCompact hooks (summarize hooks were removed)
       expect(settings.hooks.PreCompact).toBeUndefined();
+
+      // Should NOT have UserPromptSubmit hooks (slash command intercept was removed)
+      expect(settings.hooks.UserPromptSubmit).toBeUndefined();
     });
 
     it("should preserve existing settings when adding hooks", async () => {
@@ -163,64 +169,6 @@ describe("hooksLoader", () => {
       // Verify hooks still exist
       expect(settings.hooks).toBeDefined();
       expect(settings.hooks.Notification).toBeDefined();
-    });
-
-    it("should configure UserPromptSubmit hook for slash command interception", async () => {
-      const config: Config = { installDir: tempDir };
-
-      await hooksLoader.run({ config });
-
-      const content = await fs.readFile(settingsPath, "utf-8");
-      const settings = JSON.parse(content);
-
-      // Verify UserPromptSubmit hooks are configured
-      expect(settings.hooks.UserPromptSubmit).toBeDefined();
-      expect(settings.hooks.UserPromptSubmit.length).toBeGreaterThan(0);
-
-      // Find slash-command-intercept hook
-      let hasSlashCommandInterceptHook = false;
-      for (const hookConfig of settings.hooks.UserPromptSubmit) {
-        if (hookConfig.hooks) {
-          for (const hook of hookConfig.hooks) {
-            if (
-              hook.command &&
-              hook.command.includes("slash-command-intercept")
-            ) {
-              hasSlashCommandInterceptHook = true;
-            }
-          }
-        }
-      }
-      expect(hasSlashCommandInterceptHook).toBe(true);
-    });
-
-    it("should configure nested-install-warning hook", async () => {
-      const config: Config = { installDir: tempDir };
-
-      await hooksLoader.run({ config });
-
-      const content = await fs.readFile(settingsPath, "utf-8");
-      const settings = JSON.parse(content);
-
-      // Verify SessionStart hooks include nested-install-warning
-      expect(settings.hooks.SessionStart).toBeDefined();
-      expect(settings.hooks.SessionStart.length).toBeGreaterThan(0);
-
-      // Find nested-install-warning hook
-      let hasNestedWarningHook = false;
-      for (const hookConfig of settings.hooks.SessionStart) {
-        if (hookConfig.hooks) {
-          for (const hook of hookConfig.hooks) {
-            if (
-              hook.command &&
-              hook.command.includes("nested-install-warning")
-            ) {
-              hasNestedWarningHook = true;
-            }
-          }
-        }
-      }
-      expect(hasNestedWarningHook).toBe(true);
     });
 
     it("should configure PreToolUse hook for commit-author", async () => {
@@ -473,12 +421,12 @@ describe("hooksLoader", () => {
     it("should return invalid when required hooks are missing", async () => {
       const config: Config = { installDir: tempDir };
 
-      // Create settings.json with incomplete hooks
+      // Create settings.json with incomplete hooks (missing SessionEnd)
       const settings = {
         $schema: "https://json.schemastore.org/claude-code-settings.json",
         hooks: {
-          SessionEnd: [],
-          // Missing SessionStart
+          SessionStart: [],
+          // Missing SessionEnd
         },
       };
       await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2));
@@ -496,14 +444,14 @@ describe("hooksLoader", () => {
       expect(result.errors?.length).toBeGreaterThan(0);
     });
 
-    it("should return invalid when SessionStart hook is missing", async () => {
+    it("should return invalid when SessionEnd hook is missing", async () => {
       const config: Config = { installDir: tempDir };
 
-      // Create settings.json with hooks but missing SessionStart
+      // Create settings.json with hooks but missing SessionEnd
       const settings = {
         $schema: "https://json.schemastore.org/claude-code-settings.json",
         hooks: {
-          SessionEnd: [],
+          SessionStart: [],
           Notification: [],
         },
       };
@@ -520,7 +468,7 @@ describe("hooksLoader", () => {
       expect(result.message).toContain("has issues");
       expect(result.errors).not.toBeNull();
       expect(result.errors?.length).toBeGreaterThan(0);
-      expect(result.errors?.[0]).toContain("SessionStart");
+      expect(result.errors?.[0]).toContain("SessionEnd");
     });
 
     it("should handle invalid JSON in settings.json", async () => {

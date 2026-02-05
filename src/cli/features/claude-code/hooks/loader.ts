@@ -47,55 +47,6 @@ type HookInterface = {
 };
 
 /**
- * Autoupdate hook - checks for package updates
- */
-const autoupdateHook: HookInterface = {
-  name: "autoupdate",
-  description: "Check for Nori Profiles updates",
-  install: async () => {
-    const scriptPath = path.join(HOOKS_CONFIG_DIR, "autoupdate.js");
-    return [
-      {
-        event: "SessionStart",
-        matcher: "startup",
-        hooks: [
-          {
-            type: "command",
-            command: `node ${scriptPath}`,
-            description: "Check for Nori Profiles updates on session start",
-          },
-        ],
-      },
-    ];
-  },
-};
-
-/**
- * Nested install warning hook - warns about installations in ancestor directories
- */
-const nestedInstallWarningHook: HookInterface = {
-  name: "nested-install-warning",
-  description: "Warn about Nori installations in ancestor directories",
-  install: async () => {
-    const scriptPath = path.join(HOOKS_CONFIG_DIR, "nested-install-warning.js");
-    return [
-      {
-        event: "SessionStart",
-        matcher: "startup",
-        hooks: [
-          {
-            type: "command",
-            command: `node ${scriptPath}`,
-            description:
-              "Warn about Nori installations in ancestor directories on session start",
-          },
-        ],
-      },
-    ];
-  },
-};
-
-/**
  * Context usage warning hook - warns about excessive permissions context usage
  */
 const contextUsageWarningHook: HookInterface = {
@@ -137,33 +88,6 @@ const notifyHook: HookInterface = {
             type: "command",
             command: scriptPath,
             description: "Send desktop notification when Claude needs input",
-          },
-        ],
-      },
-    ];
-  },
-};
-
-/**
- * Slash command intercept hook - instant execution of slash commands without LLM inference
- */
-const slashCommandInterceptHook: HookInterface = {
-  name: "slash-command-intercept",
-  description: "Instant execution of intercepted slash commands",
-  install: async () => {
-    const scriptPath = path.join(
-      HOOKS_CONFIG_DIR,
-      "slash-command-intercept.js",
-    );
-    return [
-      {
-        event: "UserPromptSubmit",
-        matcher: "",
-        hooks: [
-          {
-            type: "command",
-            command: `node ${scriptPath}`,
-            description: "Intercept slash commands for instant execution",
           },
         ],
       },
@@ -248,59 +172,6 @@ const statisticsHook: HookInterface = {
 };
 
 /**
- * Onboarding wizard welcome hook - welcomes users to the onboarding wizard
- */
-const onboardingWizardWelcomeHook: HookInterface = {
-  name: "onboarding-wizard-welcome",
-  description: "Welcome users to the onboarding wizard profile",
-  install: async () => {
-    const scriptPath = path.join(
-      HOOKS_CONFIG_DIR,
-      "onboarding-wizard-welcome.js",
-    );
-    return [
-      {
-        event: "SessionStart",
-        matcher: "startup",
-        hooks: [
-          {
-            type: "command",
-            command: `node ${scriptPath}`,
-            description:
-              "Welcome users when onboarding-wizard profile is active",
-          },
-        ],
-      },
-    ];
-  },
-};
-
-/**
- * Worktree cleanup hook - warns about excessive git worktree disk usage
- */
-const worktreeCleanupHook: HookInterface = {
-  name: "worktree-cleanup",
-  description: "Warn about excessive git worktree disk usage",
-  install: async () => {
-    const scriptPath = path.join(HOOKS_CONFIG_DIR, "worktree-cleanup.js");
-    return [
-      {
-        event: "SessionStart",
-        matcher: "startup",
-        hooks: [
-          {
-            type: "command",
-            command: `node ${scriptPath}`,
-            description:
-              "Warn about excessive git worktree disk usage on session start",
-          },
-        ],
-      },
-    ];
-  },
-};
-
-/**
  * Configure hooks
  * @param args - Configuration arguments
  * @param args.config - Runtime configuration
@@ -332,13 +203,8 @@ const configureHooks = async (args: { config: Config }): Promise<void> => {
   const hooks = [
     statisticsNotificationHook,
     statisticsHook,
-    autoupdateHook,
-    nestedInstallWarningHook,
     contextUsageWarningHook,
-    worktreeCleanupHook,
-    onboardingWizardWelcomeHook,
     notifyHook,
-    slashCommandInterceptHook,
     commitAuthorHook,
   ];
   const hooksConfig: any = {};
@@ -458,7 +324,7 @@ const validate = async (args: {
   }
 
   // Check for required hook events
-  const requiredEvents = ["SessionEnd", "SessionStart"];
+  const requiredEvents = ["SessionEnd"];
   for (const event of requiredEvents) {
     if (!settings.hooks[event]) {
       errors.push(`Missing hook configuration for event: ${event}`);

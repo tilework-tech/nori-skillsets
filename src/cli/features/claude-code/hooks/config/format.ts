@@ -1,5 +1,5 @@
 /**
- * Formatting utilities for intercepted slash command output
+ * Formatting utilities for hook output
  */
 
 // ANSI color codes
