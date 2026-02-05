@@ -44,6 +44,7 @@ vi.mock("@/providers/firebase.js", () => ({
 // Mock prompt
 vi.mock("@/cli/prompt.js", () => ({
   promptUser: vi.fn(),
+  promptYesNo: vi.fn(),
 }));
 
 // Mock logger to suppress output during tests
@@ -341,6 +342,7 @@ describe("login command", () => {
         startAuthServer,
         exchangeCodeForTokens,
         generateState,
+        isHeadlessEnvironment,
       } = await import("./googleAuth.js");
 
       // Mock the Google OAuth flow
@@ -349,6 +351,7 @@ describe("login command", () => {
       vi.mocked(getGoogleAuthUrl).mockReturnValue(
         "https://accounts.google.com/o/oauth2/v2/auth?fake=true",
       );
+      vi.mocked(isHeadlessEnvironment).mockReturnValue(false); // Not headless
       vi.mocked(startAuthServer).mockResolvedValue({
         code: "google-auth-code-123",
         server: { close: vi.fn() } as any,
@@ -421,10 +424,12 @@ describe("login command", () => {
         startAuthServer,
         exchangeCodeForTokens,
         generateState,
+        isHeadlessEnvironment,
       } = await import("./googleAuth.js");
 
       vi.mocked(generateState).mockReturnValue("state");
       vi.mocked(findAvailablePort).mockResolvedValue(9876);
+      vi.mocked(isHeadlessEnvironment).mockReturnValue(false); // Not headless
       vi.mocked(startAuthServer).mockResolvedValue({
         code: "code",
         server: { close: vi.fn() } as any,
@@ -453,7 +458,7 @@ describe("login command", () => {
 
       await loginMain({ installDir: tempDir, google: true });
 
-      // promptUser should NOT have been called
+      // promptUser should NOT have been called (no email/password prompts in SSO flow)
       expect(promptUser).not.toHaveBeenCalled();
     });
 
@@ -515,11 +520,16 @@ describe("login command", () => {
 
     it("should handle auth server timeout gracefully", async () => {
       const { error } = await import("@/cli/logger.js");
-      const { findAvailablePort, startAuthServer, generateState } =
-        await import("./googleAuth.js");
+      const {
+        findAvailablePort,
+        startAuthServer,
+        generateState,
+        isHeadlessEnvironment,
+      } = await import("./googleAuth.js");
 
       vi.mocked(generateState).mockReturnValue("state");
       vi.mocked(findAvailablePort).mockResolvedValue(9876);
+      vi.mocked(isHeadlessEnvironment).mockReturnValue(false); // Not headless
       vi.mocked(startAuthServer).mockRejectedValue(
         new Error("Authentication timed out"),
       );
@@ -545,10 +555,12 @@ describe("login command", () => {
         startAuthServer,
         exchangeCodeForTokens,
         generateState,
+        isHeadlessEnvironment,
       } = await import("./googleAuth.js");
 
       vi.mocked(generateState).mockReturnValue("state");
       vi.mocked(findAvailablePort).mockResolvedValue(9876);
+      vi.mocked(isHeadlessEnvironment).mockReturnValue(false); // Not headless
       vi.mocked(startAuthServer).mockResolvedValue({
         code: "code",
         server: { close: vi.fn() } as any,
@@ -579,6 +591,7 @@ describe("login command", () => {
         startAuthServer,
         exchangeCodeForTokens,
         generateState,
+        isHeadlessEnvironment,
       } = await import("./googleAuth.js");
 
       // Create existing config with agents and settings
@@ -596,6 +609,7 @@ describe("login command", () => {
 
       vi.mocked(generateState).mockReturnValue("state");
       vi.mocked(findAvailablePort).mockResolvedValue(9876);
+      vi.mocked(isHeadlessEnvironment).mockReturnValue(false); // Not headless
       vi.mocked(startAuthServer).mockResolvedValue({
         code: "code",
         server: { close: vi.fn() } as any,
@@ -687,9 +701,73 @@ describe("login command", () => {
       );
     });
 
-    it("should display SSH port forwarding instructions in headless environment", async () => {
+    it("should prompt user in headless environment and use headless flow when confirmed", async () => {
+      const { signInWithCredential, GoogleAuthProvider } =
+        await import("firebase/auth");
+      const { info } = await import("@/cli/logger.js");
+      const { promptUser, promptYesNo } = await import("@/cli/prompt.js");
+      const { getGoogleAuthUrl, generateState, isHeadlessEnvironment } =
+        await import("./googleAuth.js");
+
+      vi.mocked(generateState).mockReturnValue("state");
+      vi.mocked(getGoogleAuthUrl).mockReturnValue(
+        "https://accounts.google.com/test",
+      );
+      vi.mocked(isHeadlessEnvironment).mockReturnValue(true); // Simulate SSH environment
+      vi.mocked(promptYesNo).mockResolvedValue(true); // User confirms headless flow
+      vi.mocked(promptUser).mockResolvedValue("id-token-from-server");
+      vi.mocked(signInWithCredential).mockResolvedValue({
+        user: {
+          refreshToken: "refresh",
+          email: "user@gmail.com",
+          getIdToken: vi.fn().mockResolvedValue("firebase-id-token"),
+        },
+      } as any);
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            authorized: true,
+            organizations: [],
+            isAdmin: false,
+          }),
+      });
+
+      await loginMain({ installDir: tempDir, google: true });
+
+      // Verify user was prompted about headless flow
+      expect(promptYesNo).toHaveBeenCalledWith(
+        expect.objectContaining({
+          prompt: expect.stringContaining("headless"),
+        }),
+      );
+
+      // Verify headless flow was used (promptUser for token)
+      expect(promptUser).toHaveBeenCalledWith(
+        expect.objectContaining({
+          prompt: expect.stringContaining("token"),
+          masked: true,
+        }),
+      );
+
+      // Verify GoogleAuthProvider.credential was called with the pasted token
+      expect(GoogleAuthProvider.credential).toHaveBeenCalledWith(
+        "id-token-from-server",
+      );
+
+      // Verify headless environment info was shown
+      const infoCalls = vi.mocked(info).mock.calls.map((call) => call[0]);
+      const hasHeadlessInfo = infoCalls.some((call) =>
+        call.message.includes("headless"),
+      );
+      expect(hasHeadlessInfo).toBe(true);
+    });
+
+    it("should display SSH port forwarding instructions when user declines headless flow", async () => {
       const { signInWithCredential } = await import("firebase/auth");
       const { info } = await import("@/cli/logger.js");
+      const { promptYesNo } = await import("@/cli/prompt.js");
       const {
         findAvailablePort,
         getGoogleAuthUrl,
@@ -705,6 +783,7 @@ describe("login command", () => {
         "https://accounts.google.com/test",
       );
       vi.mocked(isHeadlessEnvironment).mockReturnValue(true); // Simulate SSH environment
+      vi.mocked(promptYesNo).mockResolvedValue(false); // User declines headless flow
       vi.mocked(startAuthServer).mockResolvedValue({
         code: "code",
         server: { close: vi.fn() } as any,
@@ -784,10 +863,11 @@ describe("login command", () => {
         }),
       );
 
-      // Verify user was prompted to paste the token (not auth code)
+      // Verify user was prompted to paste the token with masked input
       expect(promptUser).toHaveBeenCalledWith(
         expect.objectContaining({
           prompt: expect.stringContaining("token"),
+          masked: true,
         }),
       );
 
