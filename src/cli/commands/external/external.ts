@@ -1,8 +1,7 @@
 /**
  * CLI command for installing skills from external GitHub repositories
  *
- * Handles: nori-ai external-skill <source> [options]
- *          nori-skillsets external <source> [options]
+ * Handles: nori-skillsets external <source> [options]
  */
 
 import * as fs from "fs/promises";
@@ -246,7 +245,7 @@ export const externalMain = async (args: {
   const { source, installDir, skillset, skill, all, ref, cliName } = args;
   const cwd = args.cwd ?? process.cwd();
   const commandNames = getCommandNames({ cliName });
-  const cliPrefix = cliName ?? "nori-ai";
+  const cliPrefix = cliName ?? "nori-skillsets";
 
   // 1. Parse source
   const parsed = parseGitHubSource({ source });
@@ -429,7 +428,7 @@ export const externalMain = async (args: {
 };
 
 /**
- * Register the 'external-skill' command with commander (for nori-ai CLI)
+ * Register the 'external-skill' command with commander
  *
  * @param args - Configuration arguments
  * @param args.program - Commander program instance
