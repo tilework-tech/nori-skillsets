@@ -78,10 +78,6 @@ describe("hooksLoader", () => {
       // Verify hooks are configured
       expect(settings.hooks).toBeDefined();
 
-      // Verify SessionEnd hooks (should have statistics-notification and statistics)
-      expect(settings.hooks.SessionEnd).toBeDefined();
-      expect(settings.hooks.SessionEnd.length).toBeGreaterThan(0);
-
       // Verify SessionStart hooks (context-usage-warning)
       expect(settings.hooks.SessionStart).toBeDefined();
       expect(settings.hooks.SessionStart.length).toBeGreaterThan(0);
@@ -101,6 +97,22 @@ describe("hooksLoader", () => {
       }
       expect(hasContextUsageWarningHook).toBe(true);
 
+      // Verify PreToolUse hooks (commit-author)
+      expect(settings.hooks.PreToolUse).toBeDefined();
+      expect(settings.hooks.PreToolUse.length).toBeGreaterThan(0);
+
+      let hasCommitAuthorHook = false;
+      for (const hookConfig of settings.hooks.PreToolUse) {
+        if (hookConfig.hooks) {
+          for (const hook of hookConfig.hooks) {
+            if (hook.command && hook.command.includes("commit-author")) {
+              hasCommitAuthorHook = true;
+            }
+          }
+        }
+      }
+      expect(hasCommitAuthorHook).toBe(true);
+
       // Verify Notification hooks
       expect(settings.hooks.Notification).toBeDefined();
       expect(settings.hooks.Notification.length).toBeGreaterThan(0);
@@ -116,6 +128,9 @@ describe("hooksLoader", () => {
         }
       }
       expect(hasNotifyHook).toBe(true);
+
+      // Should NOT have SessionEnd hooks (statistics hooks were removed)
+      expect(settings.hooks.SessionEnd).toBeUndefined();
 
       // Should NOT have PreCompact hooks (summarize hooks were removed)
       expect(settings.hooks.PreCompact).toBeUndefined();
@@ -168,6 +183,8 @@ describe("hooksLoader", () => {
 
       // Verify hooks still exist
       expect(settings.hooks).toBeDefined();
+      expect(settings.hooks.SessionStart).toBeDefined();
+      expect(settings.hooks.PreToolUse).toBeDefined();
       expect(settings.hooks.Notification).toBeDefined();
     });
 
@@ -198,7 +215,7 @@ describe("hooksLoader", () => {
       expect(hasCommitAuthorHook).toBe(true);
     });
 
-    it("should configure statistics-notification and statistics hooks", async () => {
+    it("should configure context-usage-warning hook", async () => {
       const config: Config = { installDir: tempDir };
 
       await hooksLoader.run({ config });
@@ -206,32 +223,23 @@ describe("hooksLoader", () => {
       const content = await fs.readFile(settingsPath, "utf-8");
       const settings = JSON.parse(content);
 
-      // Verify SessionEnd hooks include statistics hooks
-      expect(settings.hooks.SessionEnd).toBeDefined();
+      // Verify SessionStart hooks include context-usage-warning
+      expect(settings.hooks.SessionStart).toBeDefined();
 
-      let hasStatisticsNotificationHook = false;
-      let hasStatisticsHook = false;
-      for (const hookConfig of settings.hooks.SessionEnd) {
+      let hasContextUsageWarningHook = false;
+      for (const hookConfig of settings.hooks.SessionStart) {
         if (hookConfig.hooks) {
           for (const hook of hookConfig.hooks) {
             if (
               hook.command &&
-              hook.command.includes("statistics-notification")
+              hook.command.includes("context-usage-warning")
             ) {
-              hasStatisticsNotificationHook = true;
-            }
-            if (
-              hook.command &&
-              hook.command.includes("statistics.js") &&
-              !hook.command.includes("statistics-notification")
-            ) {
-              hasStatisticsHook = true;
+              hasContextUsageWarningHook = true;
             }
           }
         }
       }
-      expect(hasStatisticsNotificationHook).toBe(true);
-      expect(hasStatisticsHook).toBe(true);
+      expect(hasContextUsageWarningHook).toBe(true);
     });
   });
 
@@ -444,15 +452,26 @@ describe("hooksLoader", () => {
       expect(result.errors?.length).toBeGreaterThan(0);
     });
 
-    it("should return invalid when SessionEnd hook is missing", async () => {
+    it("should return invalid when PreToolUse hook is missing", async () => {
       const config: Config = { installDir: tempDir };
 
-      // Create settings.json with hooks but missing SessionEnd
+      // Create settings.json with hooks but missing PreToolUse
       const settings = {
         $schema: "https://json.schemastore.org/claude-code-settings.json",
+        includeCoAuthoredBy: false,
         hooks: {
-          SessionStart: [],
-          Notification: [],
+          SessionStart: [
+            {
+              matcher: "startup",
+              hooks: [
+                {
+                  type: "command",
+                  command: "node /path/to/context-usage-warning.js",
+                  description: "Test",
+                },
+              ],
+            },
+          ],
         },
       };
       await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2));
@@ -468,7 +487,7 @@ describe("hooksLoader", () => {
       expect(result.message).toContain("has issues");
       expect(result.errors).not.toBeNull();
       expect(result.errors?.length).toBeGreaterThan(0);
-      expect(result.errors?.[0]).toContain("SessionEnd");
+      expect(result.errors?.[0]).toContain("PreToolUse");
     });
 
     it("should handle invalid JSON in settings.json", async () => {

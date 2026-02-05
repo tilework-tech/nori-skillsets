@@ -200,7 +200,7 @@ ${stderr || "(empty)"}`,
       const pluginDir = process.cwd();
       const hookScript = path.join(
         pluginDir,
-        "build/src/cli/features/claude-code/hooks/config/statistics.js",
+        "build/src/cli/features/claude-code/hooks/config/commit-author.js",
       );
 
       // Verify the hook script exists
@@ -235,7 +235,7 @@ ${stderr || "(empty)"}`,
       expect(stderr).not.toContain("is not supported");
 
       // Script should exit cleanly (exit code 0)
-      // The statistics hook exits with 0 even on errors to not crash sessions
+      // The commit-author hook exits with 0 even on errors to not crash sessions
       expect(exitCode).toBe(0);
     });
   });

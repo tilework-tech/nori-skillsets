@@ -4,7 +4,7 @@ Path: @/src/cli/features/claude-code/hooks/config
 
 ### Overview
 
-Executable hook scripts for conversation summarization, session statistics, desktop notifications, context usage warnings, transcript completion markers, and commit attribution replacement. Contains hook implementations that Claude Code invokes at lifecycle events.
+Executable hook scripts for context usage warnings, desktop notifications, and commit attribution replacement. Contains hook implementations that Claude Code invokes at lifecycle events.
 
 ### How it fits into the larger codebase
 
@@ -14,7 +14,6 @@ These scripts are referenced by absolute paths in ~/.claude/settings.json, confi
 ┌──────────────────────────────────────────┐
 │  ~/.claude/settings.json                 │
 │  hooks: {                                │
-│    SessionEnd: [...],                    │
 │    SessionStart: [...],                  │
 │    Notification: [...],                  │
 │    PreToolUse: [...]                     │
@@ -24,15 +23,9 @@ These scripts are referenced by absolute paths in ~/.claude/settings.json, confi
                 ▼
 ┌──────────────────────────────────────────┐
 │  hooks/config/                           │
-│  ├── statistics-notification.ts          │
-│  ├── statistics.ts                       │
 │  ├── context-usage-warning.ts            │
 │  ├── notify-hook.sh                      │
-│  ├── commit-author.ts                    │
-│  ├── summarize-notification.ts           │
-│  ├── summarize.ts                        │
-│  ├── transcript-done-marker.ts           │
-│  └── format.ts (shared utility)          │
+│  └── commit-author.ts                    │
 └──────────────────────────────────────────┘
 ```
 
@@ -42,19 +35,9 @@ These scripts are referenced by absolute paths in ~/.claude/settings.json, confi
 
 | Script | Event | Purpose |
 |--------|-------|---------|
-| statistics-notification.ts | SessionEnd | Displays "Calculating Nori statistics..." message before statistics calculation |
-| statistics.ts | SessionEnd | Calculates and displays ASCII table with message counts, tool usage, skills, subagents |
 | context-usage-warning.ts | SessionStart | Warns when settings.local.json files exceed 10KB (~2.5k tokens) |
 | notify-hook.sh | Notification | Cross-platform desktop notifications with optional click-to-focus |
 | commit-author.ts | PreToolUse | Replaces Claude attribution with Nori in git commits |
-| summarize-notification.ts | SessionEnd | Displays notification before backend memorization |
-| summarize.ts | SessionEnd | Sends conversation summaries to Nori backend |
-| transcript-done-marker.ts | SessionEnd | Writes marker file for transcript upload triggering |
-
-**format.ts** - Shared formatting utilities:
-- `formatSuccess()` / `formatError()`: Apply green/red coloring with per-word wrapping
-- `calculatePrefixLines()`: Calculates how many terminal lines Claude Code's hook failure prefix occupies
-- `formatWithLineClear()`: Prepends ANSI escape codes to clear the Claude Code prefix before displaying colored output
 
 **context-usage-warning.ts** - Checks both `~/.claude/settings.local.json` and `{cwd}/.claude/settings.local.json` for excessive size. When total exceeds 10KB, outputs a systemMessage with manual cleanup instructions directing users to clear their `permissions.allow` array directly in settings.local.json.
 
@@ -62,11 +45,7 @@ These scripts are referenced by absolute paths in ~/.claude/settings.json, confi
 
 ### Things to Know
 
-**Exit codes and stderr output:** The statistics and notification hooks exit with code 2 to trigger Claude Code's failure display mechanism (which shows stderr to users). They use ANSI escape codes via `formatWithLineClear()` to clear the "SessionEnd hook [path] failed:" prefix before displaying their actual output.
-
-**isEmptyTranscript() validation:** The summarize.ts script uses strict content validation - parses newline-delimited JSON transcript, filters for user message types, and checks if message content contains non-whitespace. Only transcripts with at least one substantive user message are sent to backend.
-
-**Transcript handling:** summarize.ts and statistics.ts read the transcript via the `transcript_path` field from stdin JSON passed by Claude Code.
+All hooks gracefully handle errors and exit with code 0 to avoid disrupting Claude Code sessions.
 
 ### Optional Dependencies for Click-to-Focus Notifications
 

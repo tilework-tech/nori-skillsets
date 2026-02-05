@@ -121,57 +121,6 @@ const commitAuthorHook: HookInterface = {
 };
 
 /**
- * Statistics notification hook - displays user notification for statistics calculation
- */
-const statisticsNotificationHook: HookInterface = {
-  name: "statistics-notification",
-  description: "Notify user about statistics calculation",
-  install: async () => {
-    const scriptPath = path.join(
-      HOOKS_CONFIG_DIR,
-      "statistics-notification.js",
-    );
-    return [
-      {
-        event: "SessionEnd",
-        matcher: "*",
-        hooks: [
-          {
-            type: "command",
-            command: `node ${scriptPath}`,
-            description: "Notify user that statistics are being calculated",
-          },
-        ],
-      },
-    ];
-  },
-};
-
-/**
- * Statistics hook - calculates and displays session statistics
- */
-const statisticsHook: HookInterface = {
-  name: "statistics",
-  description: "Calculate and display session usage statistics",
-  install: async () => {
-    const scriptPath = path.join(HOOKS_CONFIG_DIR, "statistics.js");
-    return [
-      {
-        event: "SessionEnd",
-        matcher: "*",
-        hooks: [
-          {
-            type: "command",
-            command: `node ${scriptPath}`,
-            description: "Calculate and display session usage statistics",
-          },
-        ],
-      },
-    ];
-  },
-};
-
-/**
  * Configure hooks
  * @param args - Configuration arguments
  * @param args.config - Runtime configuration
@@ -200,13 +149,7 @@ const configureHooks = async (args: { config: Config }): Promise<void> => {
   // Disable Claude Code's built-in co-author byline
   settings.includeCoAuthoredBy = false;
 
-  const hooks = [
-    statisticsNotificationHook,
-    statisticsHook,
-    contextUsageWarningHook,
-    notifyHook,
-    commitAuthorHook,
-  ];
+  const hooks = [contextUsageWarningHook, notifyHook, commitAuthorHook];
   const hooksConfig: any = {};
 
   for (const hook of hooks) {
@@ -324,44 +267,53 @@ const validate = async (args: {
   }
 
   // Check for required hook events
-  const requiredEvents = ["SessionEnd"];
+  const requiredEvents = ["SessionStart", "PreToolUse"];
   for (const event of requiredEvents) {
     if (!settings.hooks[event]) {
       errors.push(`Missing hook configuration for event: ${event}`);
     }
   }
 
-  // Check if SessionEnd has required hooks (statistics)
-  if (settings.hooks.SessionEnd) {
-    const sessionEndHooks = settings.hooks.SessionEnd;
-    let hasStatisticsNotificationHook = false;
-    let hasStatisticsHook = false;
+  // Check if SessionStart has context-usage-warning hook
+  if (settings.hooks.SessionStart) {
+    const sessionStartHooks = settings.hooks.SessionStart;
+    let hasContextUsageWarningHook = false;
 
-    for (const hookConfig of sessionEndHooks) {
+    for (const hookConfig of sessionStartHooks) {
       if (hookConfig.hooks) {
         for (const hook of hookConfig.hooks) {
           if (
             hook.command &&
-            hook.command.includes("statistics-notification.js")
+            hook.command.includes("context-usage-warning.js")
           ) {
-            hasStatisticsNotificationHook = true;
-          }
-          if (
-            hook.command &&
-            hook.command.includes("statistics.js") &&
-            !hook.command.includes("statistics-notification")
-          ) {
-            hasStatisticsHook = true;
+            hasContextUsageWarningHook = true;
           }
         }
       }
     }
 
-    if (!hasStatisticsNotificationHook) {
-      errors.push("Missing statistics-notification hook for SessionEnd event");
+    if (!hasContextUsageWarningHook) {
+      errors.push("Missing context-usage-warning hook for SessionStart event");
     }
-    if (!hasStatisticsHook) {
-      errors.push("Missing statistics hook for SessionEnd event");
+  }
+
+  // Check if PreToolUse has commit-author hook
+  if (settings.hooks.PreToolUse) {
+    const preToolUseHooks = settings.hooks.PreToolUse;
+    let hasCommitAuthorHook = false;
+
+    for (const hookConfig of preToolUseHooks) {
+      if (hookConfig.hooks) {
+        for (const hook of hookConfig.hooks) {
+          if (hook.command && hook.command.includes("commit-author.js")) {
+            hasCommitAuthorHook = true;
+          }
+        }
+      }
+    }
+
+    if (!hasCommitAuthorHook) {
+      errors.push("Missing commit-author hook for PreToolUse event");
     }
   }
 
