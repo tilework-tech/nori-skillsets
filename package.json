@@ -1,17 +1,36 @@
 {
   "name": "nori-skillsets",
   "version": "19.1.8",
-  "keywords": [
-    "claude code",
-    "claude",
-    "agent",
-    "plugin",
-    "context engineering"
-  ],
   "description": "Nori Profiles plugin for Claude Code",
   "type": "module",
   "bin": {
     "nori-skillsets": "./build/src/cli/nori-skillsets.js"
+  },
+  "keywords": [
+    "claude",
+    "claude code",
+    "codex",
+    "skills",
+    "skillsets",
+    "profiles",
+    "registry",
+    "nori",
+    "agent",
+    "plugin",
+    "context engineering"
+  ],
+  "homepage": "https://github.com/tilework-tech/nori-skillsets/tree/main",
+  "bugs": {
+    "url": "https://github.com/tilework-tech/nori-skillsets/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tilework-tech/nori-skillsets"
+  },
+  "author": "Tilework <contact@tilework.tech>",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=18"
   },
   "scripts": {
     "build": "./scripts/build.sh",
@@ -31,17 +50,12 @@
     "format:eslint": "eslint . --fix"
   },
   "dependencies": {
-    "@types/semver": "^7.7.1",
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
-    "better-sqlite3": "^12.5.0",
     "chokidar": "^5.0.0",
     "commander": "^14.0.2",
     "firebase": "^12.3.0",
-    "firebase-admin": "^13.5.0",
     "glob": "^11.0.3",
-    "minimist": "^1.2.8",
-    "node-fetch": "^3.3.2",
     "open": "^11.0.0",
     "semver": "^7.7.3",
     "tar": "^7.5.2",
@@ -52,8 +66,10 @@
     "@types/better-sqlite3": "^7.6.13",
     "@types/minimist": "^1.2.5",
     "@types/node": "^22.19.7",
+    "@types/semver": "^7.7.1",
     "@typescript-eslint/eslint-plugin": "^5.28.0",
     "@typescript-eslint/parser": "^5.28.0",
+    "better-sqlite3": "^12.5.0",
     "concurrently": "^7.6.0",
     "esbuild": "^0.25.11",
     "eslint": "^8.35.0",
@@ -65,6 +81,9 @@
     "eslint-plugin-react": "^7.32.2",
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-vue": "^9.10.0",
+    "firebase-admin": "^13.5.0",
+    "minimist": "^1.2.8",
+    "node-fetch": "^3.3.2",
     "prettier": "^3.6.2",
     "tsc-alias": "^1.8.16",
     "typescript": "^5.7.3",

@@ -3,72 +3,16 @@
  *
  * These tests verify the packaging script that creates the nori-skillsets npm package:
  * 1. Creates a staging directory with the correct structure
- * 2. Generates a proper package.json for nori-skillsets
+ * 2. Generates a proper package.json for nori-skillsets from main package.json
  * 3. Includes the nori-skillsets CLI entry point
  * 4. Creates a valid npm tarball
  */
 
 import { execSync } from "child_process";
 import * as fs from "fs";
-import { builtinModules } from "module";
 import * as path from "path";
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-
-/**
- * Recursively collect all third-party (bare specifier) imports
- * reachable from a compiled JS entry point via static import statements.
- *
- * @param args - Configuration arguments
- * @param args.entryFile - Absolute path to the compiled JS entry point
- *
- * @returns Set of third-party package names found in the import tree
- */
-const collectThirdPartyImports = (args: { entryFile: string }): Set<string> => {
-  const { entryFile } = args;
-  const thirdParty = new Set<string>();
-  const visited = new Set<string>();
-  const builtins = new Set(builtinModules.flatMap((m) => [m, `node:${m}`]));
-
-  const visit = (filePath: string): void => {
-    const resolved = path.resolve(filePath);
-    if (visited.has(resolved)) return;
-    visited.add(resolved);
-
-    let content: string;
-    try {
-      content = fs.readFileSync(resolved, "utf-8");
-    } catch {
-      return;
-    }
-
-    // Match static import statements (not dynamic import())
-    const importRegex = /^\s*import\s+(?:.*?\s+from\s+)?["']([^"']+)["']/gm;
-    let match;
-    while ((match = importRegex.exec(content)) != null) {
-      const specifier = match[1];
-
-      if (specifier.startsWith(".") || specifier.startsWith("/")) {
-        // Relative or absolute import — follow it
-        const dir = path.dirname(resolved);
-        const target = path.resolve(dir, specifier);
-        visit(target);
-      } else if (
-        !builtins.has(specifier) &&
-        !builtins.has(specifier.split("/")[0])
-      ) {
-        // Bare specifier — extract package name (handle scoped packages)
-        const packageName = specifier.startsWith("@")
-          ? specifier.split("/").slice(0, 2).join("/")
-          : specifier.split("/")[0];
-        thirdParty.add(packageName);
-      }
-    }
-  };
-
-  visit(entryFile);
-  return thirdParty;
-};
 
 describe("scripts/package_skillsets.sh", () => {
   const projectRoot = process.cwd();
@@ -81,93 +25,45 @@ describe("scripts/package_skillsets.sh", () => {
   });
 });
 
-describe("packages/nori-skillsets template files", () => {
+describe("main package.json", () => {
   const projectRoot = process.cwd();
-  const templateDir = path.join(projectRoot, "packages", "nori-skillsets");
+  const mainPkgPath = path.join(projectRoot, "package.json");
 
-  describe("package.template.json", () => {
-    it("should exist", () => {
-      const templatePath = path.join(templateDir, "package.template.json");
-      expect(fs.existsSync(templatePath)).toBe(true);
-    });
-
-    it("should have name nori-skillsets", () => {
-      const templatePath = path.join(templateDir, "package.template.json");
-      const template = JSON.parse(fs.readFileSync(templatePath, "utf-8"));
-      expect(template.name).toBe("nori-skillsets");
-    });
-
-    it("should have version placeholder", () => {
-      const templatePath = path.join(templateDir, "package.template.json");
-      const template = JSON.parse(fs.readFileSync(templatePath, "utf-8"));
-      expect(template.version).toBe("{{VERSION}}");
-    });
-
-    it("should have correct bin entries", () => {
-      const templatePath = path.join(templateDir, "package.template.json");
-      const template = JSON.parse(fs.readFileSync(templatePath, "utf-8"));
-      expect(template.bin["nori-skillsets"]).toBe(
-        "./build/src/cli/nori-skillsets.js",
-      );
-    });
+  it("should exist", () => {
+    expect(fs.existsSync(mainPkgPath)).toBe(true);
   });
 
-  describe("dependencies.json", () => {
-    it("should exist", () => {
-      const depsPath = path.join(templateDir, "dependencies.json");
-      expect(fs.existsSync(depsPath)).toBe(true);
-    });
+  it("should have name nori-skillsets", () => {
+    const pkg = JSON.parse(fs.readFileSync(mainPkgPath, "utf-8"));
+    expect(pkg.name).toBe("nori-skillsets");
+  });
 
-    it("should have dependencies array", () => {
-      const depsPath = path.join(templateDir, "dependencies.json");
-      const depsConfig = JSON.parse(fs.readFileSync(depsPath, "utf-8"));
-      expect(Array.isArray(depsConfig.dependencies)).toBe(true);
-      expect(depsConfig.dependencies.length).toBeGreaterThan(0);
-    });
+  it("should have required metadata for publishing", () => {
+    const pkg = JSON.parse(fs.readFileSync(mainPkgPath, "utf-8"));
+    expect(pkg.description).toBeDefined();
+    expect(pkg.license).toBeDefined();
+    expect(pkg.author).toBeDefined();
+    expect(pkg.repository).toBeDefined();
+    expect(pkg.homepage).toBeDefined();
+    expect(pkg.engines).toBeDefined();
+  });
 
-    it("should include all third-party packages imported by the nori-skillsets CLI that are declared in the main package.json", () => {
-      const depsPath = path.join(templateDir, "dependencies.json");
-      const mainPkgPath = path.join(projectRoot, "package.json");
-      const depsConfig = JSON.parse(fs.readFileSync(depsPath, "utf-8"));
-      const mainPkg = JSON.parse(fs.readFileSync(mainPkgPath, "utf-8"));
-      const declared = new Set<string>(depsConfig.dependencies);
-      const mainDeps = new Set<string>(Object.keys(mainPkg.dependencies || {}));
+  it("should have correct bin entry for nori-skillsets", () => {
+    const pkg = JSON.parse(fs.readFileSync(mainPkgPath, "utf-8"));
+    expect(pkg.bin["nori-skillsets"]).toBe("./build/src/cli/nori-skillsets.js");
+  });
 
-      const entryFile = path.join(
-        projectRoot,
-        "build",
-        "src",
-        "cli",
-        "nori-skillsets.js",
-      );
-      const imported = collectThirdPartyImports({ entryFile });
+  it("should have type module", () => {
+    const pkg = JSON.parse(fs.readFileSync(mainPkgPath, "utf-8"));
+    expect(pkg.type).toBe("module");
+  });
 
-      // Only flag packages that are both imported AND in the main package.json
-      // dependencies but missing from dependencies.json. Transitive deps
-      // (like winston-transport via winston) are not flagged here.
-      const missing = [...imported].filter(
-        (pkg) => mainDeps.has(pkg) && !declared.has(pkg),
-      );
-
-      expect(
-        missing,
-        `These packages are imported by nori-skillsets and declared in the main package.json but missing from dependencies.json: ${missing.join(", ")}`,
-      ).toEqual([]);
-    });
-
-    it("should reference valid dependencies from main package.json", () => {
-      const depsPath = path.join(templateDir, "dependencies.json");
-      const mainPkgPath = path.join(projectRoot, "package.json");
-      const depsConfig = JSON.parse(fs.readFileSync(depsPath, "utf-8"));
-      const mainPkg = JSON.parse(fs.readFileSync(mainPkgPath, "utf-8"));
-
-      for (const depName of depsConfig.dependencies) {
-        expect(
-          mainPkg.dependencies[depName],
-          `Dependency "${depName}" should exist in main package.json`,
-        ).toBeDefined();
-      }
-    });
+  it("should have core runtime dependencies", () => {
+    const pkg = JSON.parse(fs.readFileSync(mainPkgPath, "utf-8"));
+    // Core dependencies needed by nori-skillsets
+    expect(pkg.dependencies["commander"]).toBeDefined();
+    expect(pkg.dependencies["semver"]).toBeDefined();
+    expect(pkg.dependencies["winston"]).toBeDefined();
   });
 });
 
@@ -251,33 +147,49 @@ describe("package_skillsets.sh execution", () => {
       const packageJsonPath = path.join(stagingDir, "package.json");
       const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf-8"));
       expect(packageJson.dependencies).toBeDefined();
-      // Core dependencies needed by nori-skillsets (as defined in packages/nori-skillsets/dependencies.json)
+      // Core dependencies needed by nori-skillsets
       expect(packageJson.dependencies["commander"]).toBeDefined();
       expect(packageJson.dependencies["semver"]).toBeDefined();
       expect(packageJson.dependencies["winston"]).toBeDefined();
-    });
-
-    it("should only include dependencies listed in dependencies.json", () => {
-      const packageJsonPath = path.join(stagingDir, "package.json");
-      const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf-8"));
-      const depsConfigPath = path.join(
-        projectRoot,
-        "packages",
-        "nori-skillsets",
-        "dependencies.json",
-      );
-      const depsConfig = JSON.parse(fs.readFileSync(depsConfigPath, "utf-8"));
-
-      const actualDeps = Object.keys(packageJson.dependencies);
-      const expectedDeps = depsConfig.dependencies;
-
-      expect(actualDeps.sort()).toEqual(expectedDeps.sort());
     });
 
     it("should use version from environment variable when provided", () => {
       const packageJsonPath = path.join(stagingDir, "package.json");
       const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf-8"));
       expect(packageJson.version).toBe("1.0.0-test");
+    });
+
+    it("should not include devDependencies", () => {
+      const packageJsonPath = path.join(stagingDir, "package.json");
+      const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf-8"));
+      expect(packageJson.devDependencies).toBeUndefined();
+    });
+
+    it("should not include scripts", () => {
+      const packageJsonPath = path.join(stagingDir, "package.json");
+      const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf-8"));
+      expect(packageJson.scripts).toBeUndefined();
+    });
+
+    it("should include publishing metadata", () => {
+      const packageJsonPath = path.join(stagingDir, "package.json");
+      const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf-8"));
+      expect(packageJson.license).toBeDefined();
+      expect(packageJson.author).toBeDefined();
+      expect(packageJson.repository).toBeDefined();
+      expect(packageJson.homepage).toBeDefined();
+    });
+
+    it("should match dependencies from main package.json", () => {
+      const packageJsonPath = path.join(stagingDir, "package.json");
+      const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf-8"));
+      const mainPkgPath = path.join(projectRoot, "package.json");
+      const mainPkg = JSON.parse(fs.readFileSync(mainPkgPath, "utf-8"));
+
+      // Staged package should have same dependencies as main
+      expect(Object.keys(packageJson.dependencies).sort()).toEqual(
+        Object.keys(mainPkg.dependencies).sort(),
+      );
     });
   });
 

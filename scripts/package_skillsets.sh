@@ -5,6 +5,10 @@
 # This script creates the nori-skillsets npm package from the build output.
 # It creates a minimal package containing only the nori-skillsets CLI.
 #
+# The script uses the main package.json directly, which now contains all
+# the necessary metadata for publishing. The only modification made is
+# overriding the version from the SKILLSETS_VERSION environment variable.
+#
 # Usage:
 #   SKILLSETS_VERSION=1.0.0 ./scripts/package_skillsets.sh
 #
@@ -22,11 +26,6 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 DIST_DIR="$PROJECT_ROOT/dist"
 STAGING_DIR="$DIST_DIR/nori-skillsets-staging"
 BUILD_DIR="$PROJECT_ROOT/build"
-
-# Template files
-TEMPLATE_DIR="$PROJECT_ROOT/packages/nori-skillsets"
-PACKAGE_TEMPLATE="$TEMPLATE_DIR/package.template.json"
-DEPS_CONFIG="$TEMPLATE_DIR/dependencies.json"
 MAIN_PACKAGE_JSON="$PROJECT_ROOT/package.json"
 
 # Color codes for output
@@ -64,13 +63,8 @@ if [[ ! -f "$BUILD_DIR/src/cli/nori-skillsets.js" ]]; then
   exit 1
 fi
 
-if [[ ! -f "$PACKAGE_TEMPLATE" ]]; then
-  echo -e "${RED}ERROR: Package template not found at $PACKAGE_TEMPLATE${NC}"
-  exit 1
-fi
-
-if [[ ! -f "$DEPS_CONFIG" ]]; then
-  echo -e "${RED}ERROR: Dependencies config not found at $DEPS_CONFIG${NC}"
+if [[ ! -f "$MAIN_PACKAGE_JSON" ]]; then
+  echo -e "${RED}ERROR: Main package.json not found at $MAIN_PACKAGE_JSON${NC}"
   exit 1
 fi
 
@@ -101,54 +95,39 @@ fi
 echo -e "${GREEN}✓ Build directory copied${NC}"
 
 # ============================================================================
-# Generate package.json from template
+# Generate package.json from main package.json
 # ============================================================================
 
-echo -e "${BLUE}[3/4] Generating package.json from template...${NC}"
+echo -e "${BLUE}[3/4] Generating package.json...${NC}"
 
 # Use node to:
-# 1. Read the template
-# 2. Read the dependencies list
-# 3. Look up versions from main package.json
-# 4. Substitute version and add dependencies
+# 1. Read the main package.json
+# 2. Override version with SKILLSETS_VERSION
+# 3. Remove devDependencies (not needed for published package)
+# 4. Remove scripts (not needed for published package)
+# 5. Write the result
 node -e "
 const fs = require('fs');
 
-// Read inputs
-const template = JSON.parse(fs.readFileSync('$PACKAGE_TEMPLATE', 'utf-8'));
-const depsConfig = JSON.parse(fs.readFileSync('$DEPS_CONFIG', 'utf-8'));
-const mainPkg = JSON.parse(fs.readFileSync('$MAIN_PACKAGE_JSON', 'utf-8'));
+// Read main package.json
+const pkg = JSON.parse(fs.readFileSync('$MAIN_PACKAGE_JSON', 'utf-8'));
 
-// Substitute version
-template.version = '$VERSION';
+// Override version
+pkg.version = '$VERSION';
 
-// Build dependencies object with versions from main package.json
-const dependencies = {};
-for (const depName of depsConfig.dependencies) {
-  const version = mainPkg.dependencies[depName];
-  if (!version) {
-    console.error('ERROR: Dependency \"' + depName + '\" not found in main package.json');
-    process.exit(1);
-  }
-  dependencies[depName] = version;
-}
-
-template.dependencies = dependencies;
+// Remove fields not needed in published package
+delete pkg.devDependencies;
+delete pkg.scripts;
 
 // Write output
-fs.writeFileSync('$STAGING_DIR/package.json', JSON.stringify(template, null, 2) + '\n');
+fs.writeFileSync('$STAGING_DIR/package.json', JSON.stringify(pkg, null, 2) + '\n');
 
+console.log('  Version: $VERSION');
 console.log('  Dependencies included:');
-for (const [name, ver] of Object.entries(dependencies)) {
+for (const [name, ver] of Object.entries(pkg.dependencies)) {
   console.log('    - ' + name + ': ' + ver);
 }
 "
-
-# Verify template placeholders were substituted
-if grep -q '{{VERSION}}' "$STAGING_DIR/package.json"; then
-  echo -e "${RED}ERROR: Version placeholder was not substituted in package.json${NC}"
-  exit 1
-fi
 
 echo -e "${GREEN}✓ Generated package.json (version: $VERSION)${NC}"
 
