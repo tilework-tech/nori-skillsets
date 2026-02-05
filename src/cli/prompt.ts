@@ -9,18 +9,20 @@ import * as readline from "readline";
  * Prompt user for input
  * @param args - Configuration arguments
  * @param args.prompt - Prompt text to display
- * @param args.hidden - Whether to hide input (for passwords)
+ * @param args.hidden - Whether to hide input completely (for passwords)
+ * @param args.masked - Whether to show stars for each character (for tokens)
  *
  * @returns User's input as a string
  */
 export const promptUser = async (args: {
   prompt: string;
   hidden?: boolean | null;
+  masked?: boolean | null;
 }): Promise<string> => {
-  const { prompt, hidden } = args;
+  const { prompt, hidden, masked } = args;
 
-  if (hidden) {
-    // Hidden password input - use raw mode without readline
+  if (hidden || masked) {
+    // Hidden/masked password input - use raw mode without readline
     const stdin = process.stdin;
 
     // Write prompt FIRST, before entering raw mode
@@ -50,11 +52,21 @@ export const promptUser = async (args: {
           (stdin as any).setRawMode?.(false);
           process.exit(1);
         } else if (char === "\u007f") {
-          // Backspace - remove last character (no visual feedback)
-          password = password.slice(0, -1);
+          // Backspace - remove last character
+          if (password.length > 0) {
+            password = password.slice(0, -1);
+            if (masked) {
+              // Erase the star from terminal: move cursor back, write space, move back again
+              process.stdout.write("\b \b");
+            }
+          }
         } else {
-          // Regular character - add to password (no visual feedback)
+          // Regular character - add to password
           password += char;
+          if (masked) {
+            // Show a star for each character
+            process.stdout.write("*");
+          }
         }
       };
 
@@ -74,4 +86,35 @@ export const promptUser = async (args: {
       });
     });
   }
+};
+
+/**
+ * Prompt user for yes/no confirmation
+ * @param args - Configuration arguments
+ * @param args.prompt - Prompt text to display (will append " (y/n): ")
+ * @param args.defaultValue - Default value if user just presses enter
+ *
+ * @returns true for yes, false for no
+ */
+export const promptYesNo = async (args: {
+  prompt: string;
+  defaultValue?: boolean | null;
+}): Promise<boolean> => {
+  const { prompt, defaultValue } = args;
+
+  const suffix =
+    defaultValue === true
+      ? " (Y/n): "
+      : defaultValue === false
+        ? " (y/N): "
+        : " (y/n): ";
+
+  const response = await promptUser({ prompt: prompt + suffix });
+  const normalized = response.trim().toLowerCase();
+
+  if (normalized === "") {
+    return defaultValue ?? false;
+  }
+
+  return normalized === "y" || normalized === "yes";
 };
