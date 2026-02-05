@@ -3,7 +3,7 @@
 /**
  * Nori Skillsets CLI - Registry Operations
  *
- * A CLI focused on registry operations and profile management.
+ * A CLI focused on registry operations and skillset management.
  */
 
 import { Command } from "commander";
