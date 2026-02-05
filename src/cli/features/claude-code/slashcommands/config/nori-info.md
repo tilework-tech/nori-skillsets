@@ -102,10 +102,9 @@ Real-time display of conversation metrics in your Claude Code interface.
 - Token usage and conversation costs
 - Lines changed
 
-### 6.2 Rotating Tips
+### 6.2 Promotional Tip
 
-- Tips cycling hourly
-- Best practices and feature reminders
+- Static promotional message for nori-ai-cli
 
 ## 7. CLAUDE.md Behavioral Instructions
 

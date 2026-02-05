@@ -311,6 +311,40 @@ describe("statuslineLoader", () => {
       }
     });
 
+    it("should display single nori-ai-cli promotion tip", async () => {
+      const config: Config = { installDir: claudeDir };
+
+      // Install statusline
+      await statuslineLoader.run({ config });
+
+      // Read settings to get the statusLine command
+      const content = await fs.readFile(settingsPath, "utf-8");
+      const settings = JSON.parse(content);
+      const statusLineCommand = settings.statusLine.command;
+
+      // Execute the statusline script with mock input
+      const { execSync } = await import("child_process");
+      const mockInput = JSON.stringify({
+        cwd: tempDir,
+        cost: {
+          total_cost_usd: 1.5,
+          total_lines_added: 10,
+          total_lines_removed: 5,
+        },
+        transcript_path: "",
+      });
+
+      const output = execSync(statusLineCommand, {
+        input: mockInput,
+        encoding: "utf-8",
+      });
+
+      // Verify output contains the single promotional tip
+      expect(output).toContain("npm install -g nori-ai-cli");
+      // Verify it does NOT have the old "Nori Tip:" prefix
+      expect(output).not.toContain("Nori Tip:");
+    });
+
     it("should display jq missing warning when jq is not available", async () => {
       const config: Config = { installDir: claudeDir };
 

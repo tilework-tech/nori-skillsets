@@ -4,17 +4,17 @@ Path: @/src/cli/features/claude-code/statusline
 
 ### Overview
 
-Feature loader for installing status line script into Claude Code, enabling real-time display of git branch, active profile name, token usage, conversation costs, and rotating tips about Nori features.
+Feature loader for installing status line script into Claude Code, enabling real-time display of git branch, active profile name, token usage, conversation costs, and a promotional tip for the Nori CLI.
 
 ### How it fits into the larger codebase
 
-This feature loader (loader.ts) is registered with @/src/cli/features/claude-code/loaderRegistry.ts and executed during installation. It copies and templates the status line script from @/src/cli/features/claude-code/statusline/config/nori-statusline.sh to ~/.claude/nori-statusline.sh, substituting {{install_dir}} with the absolute install directory path. The loader updates settings.json to point Claude Code at the copied script, enabling the status line display feature that shows conversation metrics and helpful tips at the bottom of the Claude Code interface.
+This feature loader (loader.ts) is registered with @/src/cli/features/claude-code/loaderRegistry.ts and executed during installation. It copies and templates the status line script from @/src/cli/features/claude-code/statusline/config/nori-statusline.sh to ~/.claude/nori-statusline.sh, substituting {{install_dir}} with the absolute install directory path. The loader updates settings.json to point Claude Code at the copied script, enabling the status line display feature that shows conversation metrics and a promotional tip at the bottom of the Claude Code interface.
 
 ### Core Implementation
 
 **Template Substitution Approach:** The loader reads the source script from @/src/cli/features/claude-code/statusline/config/nori-statusline.sh, replaces {{install_dir}} placeholders with the absolute path to the install root (path.dirname(config.installDir)), and writes the substituted script to ~/.claude/nori-statusline.sh. This approach "bakes in" the install directory at installation time, eliminating the need for runtime directory traversal in bash. The loader makes the copied script executable (chmod 0o755) and updates settings.json to point to it.
 
-**Script Execution:** The status line script is invoked by Claude Code during conversation updates and receives conversation data via stdin. The script locates .nori-config.json for reading profile information. The script displays three lines: metrics (git branch, optional profile name, cost, tokens, context, lines), branding (always "Augmented with Nori"), and a rotating tip. Profile name is read from .nori-config.json (profile.baseProfile field) and only displayed if set - when not set or config missing, the profile section is omitted entirely. Profile name appears in yellow between git branch and cost metrics to help users understand which behavioral preset (senior-swe, amol, product-manager) is currently active. Tips rotate deterministically every hour based on day_of_year * 24 + hour.
+**Script Execution:** The status line script is invoked by Claude Code during conversation updates and receives conversation data via stdin. The script locates .nori-config.json for reading profile information. The script displays three lines: metrics (git branch, optional profile name, cost, tokens, context, lines), branding (always "Augmented with Nori"), and a promotional tip for the Nori CLI. Profile name is read from .nori-config.json (profile.baseProfile field) and only displayed if set - when not set or config missing, the profile section is omitted entirely. Profile name appears in yellow between git branch and cost metrics to help users understand which behavioral preset (senior-swe, amol, product-manager) is currently active.
 
 **Uninstallation:** The uninstall method removes both the statusLine entry from settings.json and deletes the copied script from ~/.claude/nori-statusline.sh.
 
@@ -31,3 +31,7 @@ This feature loader (loader.ts) is registered with @/src/cli/features/claude-cod
 **Profile Display:** Profile name is conditionally displayed only when .nori-config.json exists in the install directory and contains a profile.baseProfile value. This helps users understand which behavioral preset is active without cluttering the display when no profile is configured.
 
 **Performance:** The script must be executable and fast to avoid UI lag. Changes to the statusline script source require reinstalling the feature or manually updating the copied script at ~/.claude/nori-statusline.sh. Cross-platform compatible (macOS and Linux).
+
+**Promotional Tip:** The third line displays a static promotional tip encouraging users to install the nori-ai-cli package via npm.
+
+Created and maintained by Nori.
