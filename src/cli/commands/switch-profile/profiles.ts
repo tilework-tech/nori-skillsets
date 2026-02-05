@@ -3,13 +3,22 @@
  * Handles skillset listing, loading, and switching
  */
 
+import { captureExistingConfigAsProfile } from "@/cli/commands/install/existingConfigCapture.js";
 import {
   loadConfig,
   getAgentProfile,
   getInstalledAgents,
 } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
-import { error, info, success, newline } from "@/cli/logger.js";
+import { getClaudeDir } from "@/cli/features/claude-code/paths.js";
+import {
+  readManifest,
+  compareManifest,
+  hasChanges,
+  getManifestPath,
+  type ManifestDiff,
+} from "@/cli/features/claude-code/profiles/manifest.js";
+import { error, info, success, newline, warn } from "@/cli/logger.js";
 import { promptUser } from "@/cli/prompt.js";
 import { normalizeInstallDir, getInstallDirs } from "@/utils/path.js";
 
@@ -74,6 +83,121 @@ const resolveAgent = async (args: {
   }
 
   return installedAgents[selectedIndex];
+};
+
+/**
+ * Detect local changes to installed files
+ *
+ * Compares the current state of ~/.claude/ against the stored manifest
+ * to detect any user modifications.
+ *
+ * @param args - Configuration arguments
+ * @param args.installDir - Installation directory
+ *
+ * @returns Manifest diff if changes detected, null otherwise
+ */
+const detectLocalChanges = async (args: {
+  installDir: string;
+}): Promise<ManifestDiff | null> => {
+  const { installDir } = args;
+
+  const manifestPath = getManifestPath({ installDir });
+  const manifest = await readManifest({ manifestPath });
+
+  // No manifest means first install or manual setup - no changes detectable
+  if (manifest == null) {
+    return null;
+  }
+
+  const claudeDir = getClaudeDir({ installDir });
+  const diff = await compareManifest({ manifest, currentDir: claudeDir });
+
+  return hasChanges(diff) ? diff : null;
+};
+
+/**
+ * Prompt user to handle detected local changes
+ *
+ * @param args - Configuration arguments
+ * @param args.diff - Detected changes
+ * @param args.installDir - Installation directory
+ * @param args.nonInteractive - Whether running in non-interactive mode
+ *
+ * @returns 'proceed' to continue, 'capture' to save first, 'abort' to cancel
+ */
+const promptForChangeHandling = async (args: {
+  diff: ManifestDiff;
+  installDir: string;
+  nonInteractive: boolean;
+}): Promise<"proceed" | "capture" | "abort"> => {
+  const { diff, nonInteractive } = args;
+
+  // In non-interactive mode, error out (safe default)
+  if (nonInteractive) {
+    throw new Error(
+      `Local changes detected in installed skillset files. ` +
+        `Cannot proceed in non-interactive mode. ` +
+        `Modified: ${diff.modified.length}, Added: ${diff.added.length}, Deleted: ${diff.deleted.length}. ` +
+        `Run interactively to choose how to handle these changes.`,
+    );
+  }
+
+  // Display detected changes
+  warn({ message: "\n⚠️  Local changes detected in your installed skillset:" });
+  newline();
+
+  if (diff.modified.length > 0) {
+    info({ message: `  Modified files (${diff.modified.length}):` });
+    for (const file of diff.modified.slice(0, 5)) {
+      info({ message: `    - ${file}` });
+    }
+    if (diff.modified.length > 5) {
+      info({ message: `    ... and ${diff.modified.length - 5} more` });
+    }
+  }
+
+  if (diff.added.length > 0) {
+    info({ message: `  Added files (${diff.added.length}):` });
+    for (const file of diff.added.slice(0, 5)) {
+      info({ message: `    - ${file}` });
+    }
+    if (diff.added.length > 5) {
+      info({ message: `    ... and ${diff.added.length - 5} more` });
+    }
+  }
+
+  if (diff.deleted.length > 0) {
+    info({ message: `  Deleted files (${diff.deleted.length}):` });
+    for (const file of diff.deleted.slice(0, 5)) {
+      info({ message: `    - ${file}` });
+    }
+    if (diff.deleted.length > 5) {
+      info({ message: `    ... and ${diff.deleted.length - 5} more` });
+    }
+  }
+
+  newline();
+  info({ message: "Switching skillsets will overwrite these changes." });
+  info({ message: "How would you like to proceed?" });
+  newline();
+  info({ message: "  1. Proceed anyway (changes will be lost)" });
+  info({ message: "  2. Save current config as new skillset first" });
+  info({ message: "  3. Abort" });
+  newline();
+
+  const selection = await promptUser({
+    prompt: "Select option (1-3): ",
+  });
+
+  switch (selection.trim()) {
+    case "1":
+      return "proceed";
+    case "2":
+      return "capture";
+    case "3":
+    default:
+      return "abort";
+  }
 };
 
 /**
@@ -167,6 +291,43 @@ export const switchSkillsetAction = async (args: {
     options.agent ?? (await resolveAgent({ installDir, nonInteractive }));
 
   const agent = AgentRegistry.getInstance().get({ name: agentName });
+
+  // Check for local changes before proceeding
+  const localChanges = await detectLocalChanges({ installDir });
+
+  if (localChanges != null) {
+    const changeAction = await promptForChangeHandling({
+      diff: localChanges,
+      installDir,
+      nonInteractive,
+    });
+
+    if (changeAction === "abort") {
+      info({ message: "Skillset switch cancelled." });
+      return;
+    }
+
+    if (changeAction === "capture") {
+      // Prompt for profile name and capture
+      info({ message: "\nSaving current configuration as a new skillset..." });
+      const profileName = await promptUser({
+        prompt:
+          "Enter a name for this skillset (lowercase letters, numbers, hyphens): ",
+      });
+
+      if (!/^[a-z0-9-]+$/.test(profileName)) {
+        error({ message: "Invalid skillset name. Skillset switch cancelled." });
+        return;
+      }
+
+      await captureExistingConfigAsProfile({ installDir, profileName });
+      success({
+        message: `Saved current configuration as skillset: ${profileName}`,
+      });
+      newline();
+    }
+    // If 'proceed', continue with the switch
+  }
 
   // Confirm before proceeding
   const confirmed = await confirmSwitchProfile({

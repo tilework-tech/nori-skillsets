@@ -59,7 +59,9 @@ Claude Code session ends
     |
     +-- transcript-done-marker hook writes .done marker to ~/.nori/transcripts/<agent>/<project>/
     +-- watch daemon detects marker via chokidar watcher on transcript directory
-    +-- handleMarkerEvent() derives transcript path from marker (.done -> .jsonl)
+    +-- handleMarkerEvent() derives transcript path from marker (.done -> .jsonl) BEFORE debounce check
+    |   +-- Debounce check uses transcriptPath (not markerPath) to prevent duplicates when
+    |       chokidar emits both 'add' and 'change' events for the same marker file creation
     |   +-- Checks uploadingFiles Set to prevent concurrent uploads of same file
     |   +-- Adds transcript path to uploadingFiles Set before upload
     +-- uploader.ts: processTranscriptForUpload({ transcriptPath, markerPath, orgId })
@@ -106,7 +108,7 @@ Claude Code session ends
 - Uploads are triggered exclusively by `.done` marker files (created when Claude Code sessions end via the session end hook)
 
 **Duplicate Upload Prevention:**
-- **Event debouncing:** `lastEventTime` Map tracks the timestamp of the last processed event per file path; events within `DEBOUNCE_MS` (500ms) are skipped to handle chokidar emitting duplicate file events
+- **Event debouncing:** `lastEventTime` Map tracks the timestamp of the last processed event per transcript path (derived from the marker path before debounce check). Events within `DEBOUNCE_MS` (500ms) are skipped. Using the transcript path as the debounce key (rather than the marker path) prevents duplicate uploads when chokidar emits both 'add' and 'change' events for the same marker file creation, which commonly occurs in polling mode.
 - **Upload locking:** `uploadingFiles` Set tracks transcripts currently being uploaded; concurrent upload attempts for the same file are skipped and logged
 - Both mechanisms are cleared in `cleanupWatch()` to ensure clean state for subsequent daemon runs
 
