@@ -174,7 +174,6 @@ BRANDING="${YELLOW}Augmented with Nori __VERSION__ ${NC}"
 TIPS=(
     "Nori Tip: Use the webapp-testing skill to write Playwright tests for your web UIs"
     "Nori Tip: You can tell Nori to run any skill by name. Just ask Nori what skills it has"
-    "Nori Tip: Want to learn more about Nori? Run /nori-info"
     "Nori Tip: Use the building-ui-ux skill to speed up your UI/UX iteration process"
     "Nori Tip: Nori can write PRs and get review using the github CLI"
     "Nori Tip: Run /nori-init-docs to create docs. Nori keeps them updated."
@@ -182,16 +181,14 @@ TIPS=(
     "Nori Tip: Try running Nori in parallel with git worktrees and multiple sessions"
     "Nori Tip: Keep an eye on your total context usage. Start new conversations regularly!"
     "Nori Tip: Agents love tests! Use Nori's built-in Test Driven Development to never have a regression."
-    "Nori Tip: Switch workflows with /nori-switch-skillset - try documenter, senior-swe, or product-manager"
+    "Nori Tip: Switch workflows by running 'nori-skillsets init' in a terminal"
     "Nori Tip: The nori-change-documenter subagent automatically updates docs when you make code changes"
     "Nori Tip: Use the systematic-debugging skill when bugs occur - it ensures root cause analysis"
     "Nori Tip: The root-cause-tracing skill helps trace errors backward through the call stack"
     "Nori Tip: Try using the webapp-testing skill to debug UI/UX failures"
-    "Nori Tip: Create custom skillsets with /nori-create-skillset - clone and customize to your workflow"
     "Nori Tip: Nori can take screenshots - ask it to analyze your screen for visual UI debugging"
     "Nori Tip: Get automated code review before PRs with the nori-code-reviewer subagent"
     "Nori Tip: Use the handle-large-tasks skill to split complex work for better context management"
-    "Nori Tip: Control automatic updates with /nori-toggle-autoupdate"
 )
 
 # Check for install-in-progress marker
