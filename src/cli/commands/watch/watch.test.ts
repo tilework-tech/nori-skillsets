@@ -174,6 +174,47 @@ describe("watch command", () => {
       // Should not throw when no daemon is running
       await expect(watchStopMain({ quiet: true })).resolves.not.toThrow();
     });
+
+    test("kills different-process daemon by reading PID file before cleanup", async () => {
+      // This test verifies the bug fix: watchStopMain must read the PID file
+      // BEFORE calling cleanupWatch, otherwise cleanupWatch deletes the PID file
+      // and the daemon becomes an orphan.
+
+      // Create a PID file with a fake PID (simulating a different process)
+      const pidFile = path.join(tempDir, ".nori", "watch.pid");
+      const fakePid = 999999;
+      await fs.writeFile(pidFile, fakePid.toString(), "utf-8");
+
+      // Track process.kill calls - the SIGTERM call is what kills the daemon
+      const killCalls: Array<{ pid: number; signal: string | number }> = [];
+      const originalKill = process.kill;
+      const killSpy = vi
+        .spyOn(process, "kill")
+        .mockImplementation((pid: number, signal?: string | number) => {
+          killCalls.push({ pid, signal: signal ?? 0 });
+          // Simulate ESRCH (no such process) for our fake PID
+          if (pid === fakePid) {
+            const err = new Error("ESRCH");
+            (err as NodeJS.ErrnoException).code = "ESRCH";
+            throw err;
+          }
+          // For other PIDs (like signal 0 checks), use original
+          return originalKill.call(process, pid, signal as NodeJS.Signals);
+        });
+
+      try {
+        await watchStopMain({ quiet: true });
+
+        // The key assertion: we must have attempted to kill the fake PID with SIGTERM
+        // This proves we read the PID file before cleanupWatch deleted it
+        const sigtermCall = killCalls.find(
+          (call) => call.pid === fakePid && call.signal === "SIGTERM",
+        );
+        expect(sigtermCall).toBeDefined();
+      } finally {
+        killSpy.mockRestore();
+      }
+    });
   });
 
   describe("isWatchRunning", () => {
@@ -618,6 +659,41 @@ describe("upload locking", () => {
     await new Promise((resolve) => setTimeout(resolve, 600));
 
     // Should only have uploaded once due to locking
+    expect(uploadMock.mock.calls.length).toBe(1);
+  });
+
+  test("debounces rapid marker events for same transcript (add+change scenario)", async () => {
+    // This test verifies that when chokidar emits both 'add' and 'change' events
+    // for the same marker file creation (which happens in polling mode), we only
+    // upload once. Events can be as close as 60ms apart.
+    const uploadMock = vi.mocked(processTranscriptForUpload);
+    uploadMock.mockResolvedValue(true);
+
+    void watchMain({
+      agent: "claude-code",
+      _background: true,
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    // Create a transcript file
+    const transcriptFile = path.join(transcriptDir, "rapid-test.jsonl");
+    await fs.writeFile(
+      transcriptFile,
+      JSON.stringify({ sessionId: "rapid-test", type: "init" }) + "\n",
+    );
+
+    // Create marker file - this may trigger both 'add' and 'change' events
+    const markerFile = path.join(transcriptDir, "rapid-test.done");
+    await fs.writeFile(markerFile, "");
+
+    // Immediately modify it to simulate chokidar emitting change after add
+    await fs.writeFile(markerFile, " ");
+
+    // Wait for events to be processed
+    await new Promise((resolve) => setTimeout(resolve, 400));
+
+    // Should only have uploaded once due to debouncing on transcriptPath
     expect(uploadMock.mock.calls.length).toBe(1);
   });
 
