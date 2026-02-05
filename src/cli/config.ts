@@ -45,6 +45,12 @@ export type AgentConfig = {
 };
 
 /**
+ * Valid agent names for configuration.
+ * Only "claude-code" is currently supported.
+ */
+export type ConfigAgentName = "claude-code";
+
+/**
  * Unified configuration type for Nori Profiles
  * Contains all persisted fields from disk plus required installDir
  *
@@ -56,8 +62,11 @@ export type Config = {
   sendSessionTranscript?: "enabled" | "disabled" | null;
   autoupdate?: "enabled" | "disabled" | null;
   installDir: string;
-  /** Per-agent configuration settings. Keys indicate which agents are installed. */
-  agents?: Record<string, AgentConfig> | null;
+  /**
+   * Per-agent configuration settings. Keys indicate which agents are installed.
+   * Note: Only "claude-code" is currently a valid agent name.
+   */
+  agents?: { [key in ConfigAgentName]?: AgentConfig } | null;
   /** Installed version of Nori */
   version?: string | null;
   /** Organization ID for transcript uploads (e.g., "myorg" -> https://myorg.noriskillsets.dev) */
@@ -90,7 +99,7 @@ type RawDiskConfig = {
   // Legacy profile field - kept for reading old configs (not written anymore)
   profile?: { baseProfile?: string | null } | null;
   installDir?: string | null;
-  agents?: Record<string, AgentConfig> | null;
+  agents?: { [key in ConfigAgentName]?: AgentConfig } | null;
   version?: string | null;
   // Transcript upload destination org ID
   transcriptDestination?: string | null;
@@ -212,7 +221,7 @@ export const getInstalledAgents = (args: { config: Config }): Array<string> => {
  */
 export const getAgentProfile = (args: {
   config: Config;
-  agentName: string;
+  agentName: ConfigAgentName;
 }): { baseProfile: string } | null => {
   const { config, agentName } = args;
 
@@ -364,7 +373,7 @@ export const saveConfig = async (args: {
   isAdmin?: boolean | null;
   sendSessionTranscript?: "enabled" | "disabled" | null;
   autoupdate?: "enabled" | "disabled" | null;
-  agents?: Record<string, AgentConfig> | null;
+  agents?: { [key in ConfigAgentName]?: AgentConfig } | null;
   version?: string | null;
   transcriptDestination?: string | null;
   installDir: string;

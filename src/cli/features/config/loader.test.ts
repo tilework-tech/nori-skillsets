@@ -120,8 +120,8 @@ describe("configLoader", () => {
       expect(Object.keys(fileContents.agents)).toEqual(["claude-code"]);
     });
 
-    it("should merge agents with existing config", async () => {
-      // Create existing config with agents (simulating old disk format)
+    it("should preserve existing agents when updating config", async () => {
+      // Create existing config with agents
       const configFile = getConfigPath({ installDir: tempDir });
       fs.writeFileSync(
         configFile,
@@ -134,21 +134,21 @@ describe("configLoader", () => {
         "utf-8",
       );
 
-      // Install another agent
+      // Update the same agent
       const config: Config = {
         installDir: tempDir,
         agents: {
-          "cursor-agent": { profile: { baseProfile: "senior-swe" } },
+          "claude-code": { profile: { baseProfile: "documenter" } },
         },
       };
 
       await configLoader.run({ config });
 
       const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
-      expect(Object.keys(fileContents.agents).sort()).toEqual([
-        "claude-code",
-        "cursor-agent",
-      ]);
+      expect(Object.keys(fileContents.agents)).toEqual(["claude-code"]);
+      expect(fileContents.agents["claude-code"].profile.baseProfile).toBe(
+        "documenter",
+      );
     });
 
     it("should not duplicate agents when re-installing", async () => {
@@ -183,7 +183,7 @@ describe("configLoader", () => {
       const config: Config = {
         installDir: tempDir,
         agents: {
-          "cursor-agent": {
+          "claude-code": {
             profile: { baseProfile: "none" },
           },
         },
@@ -194,7 +194,7 @@ describe("configLoader", () => {
       const configFile = getConfigPath({ installDir: tempDir });
       const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
       expect(fileContents.agents).toEqual({
-        "cursor-agent": {
+        "claude-code": {
           profile: { baseProfile: "none" },
         },
       });
@@ -208,7 +208,7 @@ describe("configLoader", () => {
         JSON.stringify({
           installDir: tempDir,
           agents: {
-            "cursor-agent": {
+            "claude-code": {
               profile: { baseProfile: "none" },
             },
           },
@@ -221,7 +221,7 @@ describe("configLoader", () => {
       const config: Config = {
         installDir: tempDir,
         agents: {
-          "cursor-agent": {},
+          "claude-code": {},
         },
       };
 
@@ -229,7 +229,7 @@ describe("configLoader", () => {
 
       const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
       // agents field should be merged - new config takes precedence
-      expect(Object.keys(fileContents.agents)).toEqual(["cursor-agent"]);
+      expect(Object.keys(fileContents.agents)).toEqual(["claude-code"]);
     });
 
     it("should convert password to refresh token when password is provided", async () => {
@@ -296,7 +296,7 @@ describe("configLoader", () => {
       await expect(configLoader.uninstall({ config })).resolves.not.toThrow();
     });
 
-    it("should remove agent from agents and keep config when other agents remain", async () => {
+    it("should delete config file when uninstalling the only agent", async () => {
       const configFile = getConfigPath({ installDir: tempDir });
       fs.writeFileSync(
         configFile,
@@ -304,26 +304,21 @@ describe("configLoader", () => {
           installDir: tempDir,
           agents: {
             "claude-code": { profile: { baseProfile: "senior-swe" } },
-            "cursor-agent": { profile: { baseProfile: "senior-swe" } },
           },
         }),
         "utf-8",
       );
 
-      // Uninstall only cursor-agent
+      // Uninstall claude-code (the only agent)
       const config: Config = {
         installDir: tempDir,
-        agents: { "cursor-agent": {} }, // Agent being uninstalled
+        agents: { "claude-code": {} }, // Agent being uninstalled
       };
 
       await configLoader.uninstall({ config });
 
-      // Config file should still exist
-      expect(fs.existsSync(configFile)).toBe(true);
-
-      // Should only have claude-code remaining
-      const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
-      expect(Object.keys(fileContents.agents)).toEqual(["claude-code"]);
+      // Config file should be deleted since no agents remain
+      expect(fs.existsSync(configFile)).toBe(false);
     });
 
     it("should delete config file when uninstalling last agent", async () => {
@@ -398,38 +393,32 @@ describe("configLoader", () => {
       expect(fs.existsSync(configFile)).toBe(false);
     });
 
-    it("should preserve version in config when other agents remain", async () => {
+    it("should delete config with version when uninstalling last agent", async () => {
       const configFile = getConfigPath({ installDir: tempDir });
 
-      // Create config with version and multiple agents
+      // Create config with version and single agent
       fs.writeFileSync(
         configFile,
         JSON.stringify({
           installDir: tempDir,
           agents: {
             "claude-code": { profile: { baseProfile: "senior-swe" } },
-            "cursor-agent": { profile: { baseProfile: "senior-swe" } },
           },
           version: "19.0.0",
         }),
         "utf-8",
       );
 
-      // Uninstall only cursor-agent
+      // Uninstall claude-code (the only agent)
       const config: Config = {
         installDir: tempDir,
-        agents: { "cursor-agent": {} },
+        agents: { "claude-code": {} },
       };
 
       await configLoader.uninstall({ config });
 
-      // Config file should still exist with remaining agent
-      expect(fs.existsSync(configFile)).toBe(true);
-      const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
-      expect(Object.keys(fileContents.agents)).toEqual(["claude-code"]);
-
-      // Version should be preserved in config
-      expect(fileContents.version).toBe("19.0.0");
+      // Config file should be deleted when no agents remain
+      expect(fs.existsSync(configFile)).toBe(false);
     });
 
     it("should delete config when no agents field exists (legacy behavior)", async () => {
@@ -454,42 +443,31 @@ describe("configLoader", () => {
       expect(fs.existsSync(configFile)).toBe(false);
     });
 
-    it("should preserve agents field when uninstalling one of multiple agents", async () => {
+    it("should delete config when uninstalling claude-code agent", async () => {
       const configFile = getConfigPath({ installDir: tempDir });
 
-      // Create config with multiple agents and per-agent profile settings
+      // Create config with claude-code agent
       fs.writeFileSync(
         configFile,
         JSON.stringify({
           installDir: tempDir,
           agents: {
             "claude-code": { profile: { baseProfile: "senior-swe" } },
-            "cursor-agent": { profile: { baseProfile: "none" } },
           },
         }),
         "utf-8",
       );
 
-      // Uninstall cursor-agent, leaving claude-code
+      // Uninstall claude-code
       const config: Config = {
         installDir: tempDir,
-        agents: { "cursor-agent": {} },
+        agents: { "claude-code": {} },
       };
 
       await configLoader.uninstall({ config });
 
-      // Config file should still exist
-      expect(fs.existsSync(configFile)).toBe(true);
-
-      const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
-
-      // agents should only have claude-code (cursor-agent was removed)
-      expect(Object.keys(fileContents.agents)).toEqual(["claude-code"]);
-
-      // claude-code agent config should be preserved
-      expect(fileContents.agents["claude-code"]).toEqual({
-        profile: { baseProfile: "senior-swe" },
-      });
+      // Config file should be deleted when no agents remain
+      expect(fs.existsSync(configFile)).toBe(false);
     });
   });
 });

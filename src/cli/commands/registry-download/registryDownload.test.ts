@@ -1218,59 +1218,6 @@ describe("registry-download", () => {
     });
   });
 
-  describe("cursor-agent validation", () => {
-    it("should succeed when only claude-code is installed", async () => {
-      vi.mocked(loadConfig).mockResolvedValue({
-        installDir: testDir,
-        agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
-      });
-
-      vi.mocked(registrarApi.getPackument).mockResolvedValue({
-        name: "test-profile",
-        "dist-tags": { latest: "1.0.0" },
-        versions: { "1.0.0": { name: "test-profile", version: "1.0.0" } },
-      });
-
-      const mockTarball = await createMockTarball();
-      vi.mocked(registrarApi.downloadTarball).mockResolvedValue(mockTarball);
-
-      await registryDownloadMain({
-        packageSpec: "test-profile",
-        cwd: testDir,
-      });
-
-      // Should make API calls since claude-code is installed
-      expect(registrarApi.getPackument).toHaveBeenCalled();
-    });
-
-    it("should succeed when both agents are installed", async () => {
-      vi.mocked(loadConfig).mockResolvedValue({
-        installDir: testDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-          "cursor-agent": { profile: { baseProfile: "amol" } },
-        },
-      });
-
-      vi.mocked(registrarApi.getPackument).mockResolvedValue({
-        name: "test-profile",
-        "dist-tags": { latest: "1.0.0" },
-        versions: { "1.0.0": { name: "test-profile", version: "1.0.0" } },
-      });
-
-      const mockTarball = await createMockTarball();
-      vi.mocked(registrarApi.downloadTarball).mockResolvedValue(mockTarball);
-
-      await registryDownloadMain({
-        packageSpec: "test-profile",
-        cwd: testDir,
-      });
-
-      // Should make API calls since claude-code is also installed
-      expect(registrarApi.getPackument).toHaveBeenCalled();
-    });
-  });
-
   describe("nori.json skill dependencies", () => {
     // Note: Skills are installed to {profileDir}/skills/, NOT to a global .nori/skills/ directory
 

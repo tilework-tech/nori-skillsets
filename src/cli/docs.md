@@ -4,7 +4,7 @@ Path: @/src/cli
 
 ### Overview
 
-CLI for Nori Profiles that installs features into Claude Code and Cursor, manages credentials, and tracks installation analytics via Google Analytics, with directory-based profile system. The CLI uses Commander.js for command routing, argument parsing, and help generation.
+CLI for Nori Profiles that installs features into Claude Code, manages credentials, and tracks installation analytics via Google Analytics, with directory-based profile system. The CLI uses Commander.js for command routing, argument parsing, and help generation.
 
 ### How it fits into the larger codebase
 
@@ -35,11 +35,10 @@ src/cli/
   logger.ts              # Console output formatting via Winston
   version.ts             # Version tracking for upgrades + package root discovery
   installTracking.ts     # Install lifecycle and session tracking to Nori backend
-  features/              # Multi-agent abstraction layer (see @/src/cli/features/docs.md)
+  features/              # Agent abstraction layer (see @/src/cli/features/docs.md)
     agentRegistry.ts     # AgentRegistry singleton + shared Loader/LoaderRegistry types
     config/              # Shared config loader (used by all agents)
     claude-code/         # Claude Code agent implementation (see @/src/cli/features/claude-code/docs.md)
-    cursor-agent/        # Cursor agent implementation (see @/src/cli/features/cursor-agent/docs.md)
   commands/              # Command implementations (see @/src/cli/commands/docs.md)
     install/             # Install command + asciiArt, installState utilities
     init/                # Initialize Nori configuration and directories
@@ -109,7 +108,7 @@ The config.ts module provides a unified `Config` type for both disk persistence 
 
 **transcriptDestination Config Field:** The `Config` type includes an optional `transcriptDestination` field that specifies which organization should receive transcript uploads. This is stored as an org ID string (e.g., `"myorg"`) which maps to a registry URL (e.g., `https://myorg.noriskillsets.dev`). The watch daemon sets this field on first run when the user selects a destination organization. This allows users with access to multiple private organizations to control where their transcripts are uploaded, independent of the `organizationUrl` used for authentication.
 
-**Multi-Agent Config Structure:** The config supports per-agent profiles via the `agents` field, a `Record<string, AgentConfig>` where each agent has its own profile. The keys of the `agents` object serve as the source of truth for which agents are installed (replacing the former `installedAgents` array). Use `getInstalledAgents({ config })` helper to get the list of installed agents.
+**Agent Config Structure:** The config supports per-agent profiles via the `agents` field, a `Record<ConfigAgentName, AgentConfig>` where only "claude-code" is currently valid. The keys of the `agents` object serve as the source of truth for which agents are installed. Use `getInstalledAgents({ config })` helper to get the list of installed agents.
 
 **Profile Lookup Pattern (CRITICAL):** Code that needs to read a profile MUST use `getAgentProfile({ config, agentName })` - never access agent profiles directly. The function returns the profile from `config.agents[agentName].profile` or null if not found.
 
@@ -119,7 +118,7 @@ The getConfigPath() function requires { installDir: string } and returns `<insta
 
 **Auth Format (Nested vs Flat):** The canonical auth format uses a nested `auth` object. The `saveConfig()` function always writes auth in this nested format. The `loadConfig()` function reads both formats for backwards compatibility with pre-v19.0.0 configs.
 
-**Installed Agents Tracking:** Installed agents are derived from the keys of the `agents` object (e.g., `{"claude-code": {...}, "cursor-agent": {...}}` means both agents are installed). This enables multi-agent installations at the same location. Use `getInstalledAgents({ config })` helper to get the list.
+**Installed Agents Tracking:** Installed agents are derived from the keys of the `agents` object. Use `getInstalledAgents({ config })` helper to get the list.
 
 **loadConfig() installDir Resolution:** The loadConfig() function returns a Config object where the installDir field comes from the JSON file (if present) rather than exclusively from the function parameter. The parameter provides a default, but the function prioritizes `config.installDir` from the saved JSON file if it exists. This is critical because hook scripts (like autoupdate.ts) search for the config file in parent directories - they must use the installDir from the config file itself, not the directory where the config was found.
 

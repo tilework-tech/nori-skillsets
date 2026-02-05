@@ -8,6 +8,7 @@ import {
   loadConfig,
   getAgentProfile,
   getInstalledAgents,
+  type ConfigAgentName,
 } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { getClaudeDir } from "@/cli/features/claude-code/paths.js";
@@ -226,7 +227,9 @@ const confirmSwitchProfile = async (args: {
   // Load config to get current skillset
   const config = await loadConfig({ installDir });
   const agentProfile =
-    config != null ? getAgentProfile({ config, agentName }) : null;
+    config != null
+      ? getAgentProfile({ config, agentName: agentName as ConfigAgentName })
+      : null;
   const currentProfile = agentProfile?.baseProfile ?? "(none)";
 
   // Get agent display info

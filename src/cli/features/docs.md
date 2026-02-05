@@ -4,11 +4,11 @@ Path: @/src/cli/features
 
 ### Overview
 
-Multi-agent abstraction layer that defines the Agent interface and registry for supporting multiple AI agents through a unified CLI interface. Currently supports Claude Code and Cursor. Contains shared types (`Loader`, `ValidationResult`, `LoaderRegistry`) that all agents implement, plus the shared config loader that all agents must include. Also contains shared test utilities (@/src/cli/features/test-utils/) used across agent and command tests.
+Agent abstraction layer that defines the Agent interface and registry for the Claude Code agent. Contains shared types (`Loader`, `ValidationResult`, `LoaderRegistry`) that agents implement, plus the shared config loader. Also contains shared test utilities (@/src/cli/features/test-utils/) used across agent and command tests.
 
 ### How it fits into the larger codebase
 
-The features directory sits between the CLI commands (@/src/cli/commands/) and agent-specific implementations (e.g., @/src/cli/features/claude-code/). CLI commands use the AgentRegistry to look up agent implementations by name, then delegate to the agent's loaders and profile methods.
+The features directory sits between the CLI commands (@/src/cli/commands/) and the Claude Code agent implementation (@/src/cli/features/claude-code/). CLI commands use the AgentRegistry to look up the agent implementation by name, then delegate to the agent's loaders and profile methods.
 
 ```
 CLI Commands (install, switch-profile)
@@ -36,16 +36,16 @@ The `--agent` global CLI option (default: "claude-code") determines which agent 
 
 | Type | Purpose |
 |------|---------|
-| `AgentName` | Type alias for canonical agent identifiers (`"claude-code" \| "cursor-agent"`). Used as the registry key and source of truth for agent identity. |
+| `AgentName` | Type alias for the canonical agent identifier `"claude-code"`. Used as the registry key and source of truth for agent identity. |
 | `Loader` | Interface for feature installation with `name`, `description`, `run()`, `uninstall()`, and optional `validate()` methods |
 | `ValidationResult` | Result type for loader validation checks (`valid`, `message`, `errors`) |
 | `LoaderRegistry` | Interface that agent-specific registry classes must implement (`getAll()`, `getAllReversed()`) |
 
 **Agent Interface** (agentRegistry.ts):
-- `name`: `AgentName` - canonical identifier used as the registry key (e.g., "claude-code")
-- `displayName`: Human-readable name (e.g., "Claude Code")
+- `name`: `AgentName` - canonical identifier used as the registry key ("claude-code")
+- `displayName`: Human-readable name ("Claude Code")
 - `getLoaderRegistry()`: Returns an object implementing the `LoaderRegistry` interface
-- `listProfiles({ installDir })`: Returns array of installed profile names (Claude Code uses `~/.nori/profiles/`)
+- `listProfiles({ installDir })`: Returns array of installed profile names (uses `~/.nori/profiles/`)
 - `switchProfile({ installDir, profileName })`: Validates profile exists, filters out config entries for uninstalled agents, and updates config
 - `getGlobalLoaders()`: Returns array of `GlobalLoader` objects with loader names and human-readable names
 
@@ -70,18 +70,18 @@ The `--agent` global CLI option (default: "claude-code") determines which agent 
 
 ### Things to Know
 
-**`AgentName` is the canonical UID for agents.** The `AgentName` type (`"claude-code" | "cursor-agent"`) is the source of truth for valid agent identifiers. CLI entry points parse the `--agent` option string, look up the `Agent` object once via `AgentRegistry.get({ name })`, then pass the `Agent` object around. Functions that need the agent identifier access `agent.name` rather than receiving a separate string parameter.
+**`AgentName` is the canonical UID for agents.** The `AgentName` type (`"claude-code"`) is the source of truth for valid agent identifiers. CLI entry points parse the `--agent` option string, look up the `Agent` object once via `AgentRegistry.get({ name })`, then pass the `Agent` object around. Functions that need the agent identifier access `agent.name` rather than receiving a separate string parameter.
 
 **Loader descriptions must be noun phrases.** Loader `description` fields are displayed in install contexts. Descriptions should be noun phrases (e.g., "Profile templates in ~/.claude/profiles/") not action verbs (e.g., "Install Nori profile templates...").
 
 **Critical: All agents must include the config loader.** The `configLoader` from @/src/cli/features/config/loader.ts manages the shared `.nori-config.json` file. Each agent's LoaderRegistry class must register this loader to ensure proper config file creation during install.
 
-The AgentRegistry auto-registers all agents in its constructor. Currently claude-code and cursor-agent are registered.
+The AgentRegistry auto-registers claude-code in its constructor.
 
 Profile management is owned by the Agent interface. The `listProfiles({ installDir })` method scans the agent's installed profiles directory for valid profiles (directories containing the agent's instruction file). Since no built-in profiles are shipped with the package, profiles are obtained exclusively from the registry or created by users.
 
 Agent implementations manage their own internal paths (config directories, instruction file names, etc.) without exposing them through the public interface. Claude Code's path helpers live in @/src/cli/features/claude-code/paths.ts. The env.ts file re-exports these functions for backward compatibility.
 
-Template substitution utilities are agent-specific. Claude Code (@/src/cli/features/claude-code/template.ts) uses `{{skills_dir}}` while Cursor (@/src/cli/features/cursor-agent/template.ts) uses `{{rules_dir}}`. Both support common placeholders: `{{profiles_dir}}`, `{{commands_dir}}`, and `{{install_dir}}`.
+Template substitution utilities are agent-specific. Claude Code (@/src/cli/features/claude-code/template.ts) uses `{{skills_dir}}` and supports common placeholders: `{{profiles_dir}}`, `{{commands_dir}}`, and `{{install_dir}}`.
 
 Created and maintained by Nori.

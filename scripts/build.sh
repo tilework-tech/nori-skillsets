@@ -122,14 +122,6 @@ cp src/cli/features/claude-code/slashcommands/config/*.md build/src/cli/features
 # Copy entire profile directories (which contain skills, subagents, slashcommands, CLAUDE.md)
 cp -r src/cli/features/claude-code/profiles/config/* build/src/cli/features/claude-code/profiles/config/ 2>/dev/null || true
 
-# Create cursor-agent directories and copy profile configs
-mkdir -p build/src/cli/features/cursor-agent/profiles/config
-cp -r src/cli/features/cursor-agent/profiles/config/* build/src/cli/features/cursor-agent/profiles/config/ 2>/dev/null || true
-
-# Copy cursor-agent slashcommands config
-mkdir -p build/src/cli/features/cursor-agent/slashcommands/config
-cp src/cli/features/cursor-agent/slashcommands/config/*.md build/src/cli/features/cursor-agent/slashcommands/config/ 2>/dev/null || true
-
 # Make shell scripts executable
 chmod +x build/src/cli/features/claude-code/hooks/config/*.sh 2>/dev/null || true
 chmod +x build/src/cli/features/claude-code/statusline/config/*.sh 2>/dev/null || true

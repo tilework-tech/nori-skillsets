@@ -123,42 +123,6 @@ describe("agent.switchProfile", () => {
     expect(updatedConfig.version).toBe("v19.0.0");
   });
 
-  it("should preserve version when switching profiles for cursor-agent", async () => {
-    // Create cursor profiles directory with test profiles
-    const profilesDir = path.join(testInstallDir, ".cursor", "profiles");
-    await fs.mkdir(profilesDir, { recursive: true });
-
-    for (const name of ["profile-a", "profile-b"]) {
-      const dir = path.join(profilesDir, name);
-      await fs.mkdir(dir, { recursive: true });
-      await fs.writeFile(path.join(dir, "AGENTS.md"), `# ${name}`);
-    }
-
-    // Create initial config with version
-    const configPath = path.join(testInstallDir, ".nori-config.json");
-    const initialConfig = {
-      agents: {
-        "cursor-agent": { profile: { baseProfile: "profile-a" } },
-      },
-      version: "v19.0.0",
-    };
-    await fs.writeFile(configPath, JSON.stringify(initialConfig, null, 2));
-
-    // Switch to profile-b using agent method
-    const agent = AgentRegistry.getInstance().get({ name: "cursor-agent" });
-    await agent.switchProfile({
-      installDir: testInstallDir,
-      profileName: "profile-b",
-    });
-
-    // Verify version was preserved
-    const updatedConfig = JSON.parse(await fs.readFile(configPath, "utf-8"));
-    expect(updatedConfig.agents?.["cursor-agent"]?.profile?.baseProfile).toBe(
-      "profile-b",
-    );
-    expect(updatedConfig.version).toBe("v19.0.0");
-  });
-
   it("should preserve refreshToken when switching profiles for claude-code", async () => {
     // Create profiles directory with test profiles
     const profilesDir = path.join(testInstallDir, ".nori", "profiles");
@@ -194,46 +158,6 @@ describe("agent.switchProfile", () => {
     // Verify refreshToken was preserved
     const updatedConfig = JSON.parse(await fs.readFile(configPath, "utf-8"));
     expect(updatedConfig.agents?.["claude-code"]?.profile?.baseProfile).toBe(
-      "profile-b",
-    );
-    expect(updatedConfig.auth?.refreshToken).toBe("test-refresh-token-12345");
-  });
-
-  it("should preserve refreshToken when switching profiles for cursor-agent", async () => {
-    // Create cursor profiles directory with test profiles
-    const profilesDir = path.join(testInstallDir, ".cursor", "profiles");
-    await fs.mkdir(profilesDir, { recursive: true });
-
-    for (const name of ["profile-a", "profile-b"]) {
-      const dir = path.join(profilesDir, name);
-      await fs.mkdir(dir, { recursive: true });
-      await fs.writeFile(path.join(dir, "AGENTS.md"), `# ${name}`);
-    }
-
-    // Create initial config with auth containing refreshToken
-    const configPath = path.join(testInstallDir, ".nori-config.json");
-    const initialConfig = {
-      agents: {
-        "cursor-agent": { profile: { baseProfile: "profile-a" } },
-      },
-      auth: {
-        username: "test@example.com",
-        refreshToken: "test-refresh-token-12345",
-        organizationUrl: "https://org.example.com",
-      },
-    };
-    await fs.writeFile(configPath, JSON.stringify(initialConfig, null, 2));
-
-    // Switch to profile-b using agent method
-    const agent = AgentRegistry.getInstance().get({ name: "cursor-agent" });
-    await agent.switchProfile({
-      installDir: testInstallDir,
-      profileName: "profile-b",
-    });
-
-    // Verify refreshToken was preserved
-    const updatedConfig = JSON.parse(await fs.readFile(configPath, "utf-8"));
-    expect(updatedConfig.agents?.["cursor-agent"]?.profile?.baseProfile).toBe(
       "profile-b",
     );
     expect(updatedConfig.auth?.refreshToken).toBe("test-refresh-token-12345");
@@ -298,7 +222,7 @@ describe("registerSwitchProfileCommand", () => {
         "switch-profile",
         "senior-swe",
         "--agent",
-        "cursor-agent",
+        "claude-code",
         "--install-dir",
         testInstallDir,
       ]);
@@ -314,109 +238,18 @@ describe("registerSwitchProfileCommand", () => {
     }
   });
 
-  it("should use the agent specified by --agent flag", async () => {
-    // Create cursor profiles directory
-    const cursorDir = path.join(testInstallDir, ".cursor");
-    const cursorProfilesDir = path.join(cursorDir, "profiles");
-    await fs.mkdir(cursorProfilesDir, { recursive: true });
-    for (const name of ["senior-swe"]) {
-      const dir = path.join(cursorProfilesDir, name);
-      await fs.mkdir(dir, { recursive: true });
-      await fs.writeFile(path.join(dir, "AGENTS.md"), `# ${name}`);
-    }
-
-    // Create config with cursor-agent as installed agent
-    const configPath = path.join(testInstallDir, ".nori-config.json");
-    await fs.writeFile(
-      configPath,
-      JSON.stringify({
-        agents: {
-          "cursor-agent": { profile: { baseProfile: "senior-swe" } },
-        },
-        installDir: testInstallDir,
-      }),
-    );
-
-    const program = new Command();
-    program.exitOverride();
-    let capturedErr = "";
-    program.configureOutput({
-      writeErr: (str) => {
-        capturedErr += str;
-      },
-    });
-    program
-      .option("-d, --install-dir <path>", "Custom installation directory")
-      .option("-n, --non-interactive", "Run without interactive prompts")
-      .option("-a, --agent <name>", "AI agent to use", "claude-code");
-
-    registerSwitchProfileCommand({ program });
-
-    // Mock confirmation prompt to return "y"
-    vi.mocked(promptUser).mockResolvedValueOnce("y");
-
-    // Mock the cursor-agent's switchProfile to track if it was called
-    const cursorAgent = AgentRegistry.getInstance().get({
-      name: "cursor-agent",
-    });
-    const switchProfileSpy = vi
-      .spyOn(cursorAgent, "switchProfile")
-      .mockResolvedValue(undefined);
-
-    let caughtError: Error | null = null;
-    try {
-      // Note: from: "node" means first two args are node and script path
-      await program.parseAsync([
-        "node",
-        "nori-skillsets",
-        "switch-profile",
-        "senior-swe",
-        "--agent",
-        "cursor-agent",
-        "--install-dir",
-        testInstallDir,
-      ]);
-    } catch (err) {
-      caughtError = err as Error;
-    }
-
-    // Log any error for debugging
-    if (caughtError) {
-      console.log("Caught error:", caughtError.message);
-    }
-    if (capturedErr) {
-      console.log("Captured stderr:", capturedErr);
-    }
-
-    // Verify cursor-agent's switchProfile was called
-    expect(switchProfileSpy).toHaveBeenCalledWith({
-      installDir: testInstallDir,
-      profileName: "senior-swe",
-    });
-  });
-
   it("should auto-select the only installed agent when --agent not provided", async () => {
-    // Create config with only cursor-agent installed
+    // Create config with only claude-code installed
     const configPath = path.join(testInstallDir, ".nori-config.json");
     await fs.writeFile(
       configPath,
       JSON.stringify({
         agents: {
-          "cursor-agent": { profile: { baseProfile: "senior-swe" } },
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
         },
         installDir: testInstallDir,
       }),
     );
-
-    // Create cursor profiles directory
-    const cursorDir = path.join(testInstallDir, ".cursor");
-    const cursorProfilesDir = path.join(cursorDir, "profiles");
-    await fs.mkdir(cursorProfilesDir, { recursive: true });
-    for (const name of ["senior-swe"]) {
-      const dir = path.join(cursorProfilesDir, name);
-      await fs.mkdir(dir, { recursive: true });
-      await fs.writeFile(path.join(dir, "AGENTS.md"), `# ${name}`);
-    }
 
     const program = new Command();
     program.exitOverride();
@@ -431,12 +264,12 @@ describe("registerSwitchProfileCommand", () => {
     // Mock confirmation prompt to return "y"
     vi.mocked(promptUser).mockResolvedValueOnce("y");
 
-    // Mock cursor-agent's switchProfile
-    const cursorAgent = AgentRegistry.getInstance().get({
-      name: "cursor-agent",
+    // Mock claude-code's switchProfile
+    const claudeAgent = AgentRegistry.getInstance().get({
+      name: "claude-code",
     });
     const switchProfileSpy = vi
-      .spyOn(cursorAgent, "switchProfile")
+      .spyOn(claudeAgent, "switchProfile")
       .mockResolvedValue(undefined);
 
     try {
@@ -457,59 +290,6 @@ describe("registerSwitchProfileCommand", () => {
       installDir: testInstallDir,
       profileName: "senior-swe",
     });
-  });
-
-  it("should error in non-interactive mode when multiple agents installed and no --agent provided", async () => {
-    // Create config with multiple agents installed
-    const configPath = path.join(testInstallDir, ".nori-config.json");
-    await fs.writeFile(
-      configPath,
-      JSON.stringify({
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-          "cursor-agent": { profile: { baseProfile: "senior-swe" } },
-        },
-        installDir: testInstallDir,
-      }),
-    );
-
-    const program = new Command();
-    program.exitOverride();
-    let errorMessage = "";
-    program.configureOutput({
-      writeErr: (str) => {
-        errorMessage += str;
-      },
-    });
-    program
-      .option("-d, --install-dir <path>", "Custom installation directory")
-      .option("-n, --non-interactive", "Run without interactive prompts")
-      .option("-a, --agent <name>", "AI agent to use");
-
-    registerSwitchProfileCommand({ program });
-
-    let thrownError: Error | null = null;
-    try {
-      await program.parseAsync([
-        "node",
-        "nori-skillsets",
-        "--non-interactive",
-        "switch-profile",
-        "senior-swe",
-        "--install-dir",
-        testInstallDir,
-      ]);
-    } catch (err) {
-      thrownError = err as Error;
-    }
-
-    // Should error because multiple agents are installed and no --agent specified in non-interactive mode
-    expect(thrownError).not.toBeNull();
-    // The error should mention needing to specify --agent
-    expect(
-      errorMessage.includes("--agent") ||
-        thrownError?.message.includes("agent"),
-    ).toBe(true);
   });
 
   it("should call installMain with silent: true", async () => {
@@ -570,76 +350,6 @@ describe("registerSwitchProfileCommand", () => {
         skipUninstall: true,
       }),
     );
-  });
-
-  it("should prompt user to select agent when multiple agents installed in interactive mode", async () => {
-    // Create config with multiple agents installed
-    const configPath = path.join(testInstallDir, ".nori-config.json");
-    await fs.writeFile(
-      configPath,
-      JSON.stringify({
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-          "cursor-agent": { profile: { baseProfile: "senior-swe" } },
-        },
-        installDir: testInstallDir,
-      }),
-    );
-
-    // Create cursor profiles directory
-    const cursorDir = path.join(testInstallDir, ".cursor");
-    const cursorProfilesDir = path.join(cursorDir, "profiles");
-    await fs.mkdir(cursorProfilesDir, { recursive: true });
-    for (const name of ["senior-swe"]) {
-      const dir = path.join(cursorProfilesDir, name);
-      await fs.mkdir(dir, { recursive: true });
-      await fs.writeFile(path.join(dir, "AGENTS.md"), `# ${name}`);
-    }
-
-    const program = new Command();
-    program.exitOverride();
-    program.configureOutput({ writeErr: () => undefined });
-    program
-      .option("-d, --install-dir <path>", "Custom installation directory")
-      .option("-n, --non-interactive", "Run without interactive prompts")
-      .option("-a, --agent <name>", "AI agent to use");
-
-    registerSwitchProfileCommand({ program });
-
-    // Mock user selecting cursor-agent (option 2), then confirming with "y"
-    vi.mocked(promptUser)
-      .mockResolvedValueOnce("2") // Agent selection
-      .mockResolvedValueOnce("y"); // Confirmation
-
-    // Mock cursor-agent's switchProfile
-    const cursorAgent = AgentRegistry.getInstance().get({
-      name: "cursor-agent",
-    });
-    const switchProfileSpy = vi
-      .spyOn(cursorAgent, "switchProfile")
-      .mockResolvedValue(undefined);
-
-    try {
-      await program.parseAsync([
-        "node",
-        "nori-skillsets",
-        "switch-profile",
-        "senior-swe",
-        "--install-dir",
-        testInstallDir,
-      ]);
-    } catch {
-      // May throw due to exit
-    }
-
-    // Verify promptUser was called (for agent selection and confirmation)
-    expect(promptUser).toHaveBeenCalled();
-
-    // Verify cursor-agent's switchProfile was called (user selected option 2)
-    expect(switchProfileSpy).toHaveBeenCalledWith({
-      installDir: testInstallDir,
-      profileName: "senior-swe",
-    });
   });
 });
 
@@ -841,23 +551,13 @@ describe("switch-profile confirmation", () => {
   });
 
   it("should show specified agent display name in confirmation prompt", async () => {
-    // Create cursor profiles directory
-    const cursorDir = path.join(testInstallDir, ".cursor");
-    const cursorProfilesDir = path.join(cursorDir, "profiles");
-    await fs.mkdir(cursorProfilesDir, { recursive: true });
-    for (const name of ["senior-swe", "product-manager"]) {
-      const dir = path.join(cursorProfilesDir, name);
-      await fs.mkdir(dir, { recursive: true });
-      await fs.writeFile(path.join(dir, "AGENTS.md"), `# ${name}`);
-    }
-
-    // Create config with cursor-agent
+    // Create config with claude-code
     const configPath = path.join(testInstallDir, ".nori-config.json");
     await fs.writeFile(
       configPath,
       JSON.stringify({
         agents: {
-          "cursor-agent": { profile: { baseProfile: "senior-swe" } },
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
         },
       }),
     );
@@ -883,11 +583,11 @@ describe("switch-profile confirmation", () => {
     vi.mocked(promptUser).mockResolvedValueOnce("y");
 
     // Mock switchProfile
-    const cursorAgent = AgentRegistry.getInstance().get({
-      name: "cursor-agent",
+    const claudeAgent = AgentRegistry.getInstance().get({
+      name: "claude-code",
     });
     const switchProfileSpy = vi
-      .spyOn(cursorAgent, "switchProfile")
+      .spyOn(claudeAgent, "switchProfile")
       .mockResolvedValue(undefined);
 
     try {
@@ -897,7 +597,7 @@ describe("switch-profile confirmation", () => {
         "switch-profile",
         "product-manager",
         "--agent",
-        "cursor-agent",
+        "claude-code",
         "--install-dir",
         testInstallDir,
       ]);
@@ -907,10 +607,10 @@ describe("switch-profile confirmation", () => {
       console.log = originalConsoleLog;
     }
 
-    // The output should mention cursor-agent or Cursor Agent
+    // The output should mention claude-code or Claude Code
     expect(
-      capturedOutput.includes("cursor-agent") ||
-        capturedOutput.includes("Cursor Agent"),
+      capturedOutput.includes("claude-code") ||
+        capturedOutput.includes("Claude Code"),
     ).toBe(true);
 
     // switchProfile should have been called
