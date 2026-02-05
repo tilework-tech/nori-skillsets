@@ -37,9 +37,10 @@ nori-skillsets watch [--set-destination]
 
 nori-skillsets watch stop
     |
-    +-- Read PID from ~/.nori/watch.pid
-    +-- Send SIGTERM to the daemon process
-    +-- Clean up PID file
+    +-- Remove transcript hook from Claude Code settings
+    +-- Read PID from ~/.nori/watch.pid (must happen BEFORE cleanup)
+    +-- Clean up local state via cleanupWatch() (deletes PID file)
+    +-- Kill daemon process using stored PID (if different process)
 ```
 
 **File Processing Pipeline:**
@@ -95,6 +96,7 @@ Claude Code session ends
 - PID file at `~/.nori/watch.pid` enables single-instance enforcement and remote stop capability
 - Log file at `~/.nori/logs/watch.log` captures daemon activity when running in background mode
 - The `getHomeDir()` function respects `process.env.HOME` for test isolation
+- `watchStopMain()` must read the PID file before calling `cleanupWatch()`, since cleanup deletes the PID file; otherwise the daemon becomes an orphan process
 
 **Transcript Upload Integration:**
 - On `watchMain()` startup, `installTranscriptHook()` is called to register the transcript-done-marker hook in `~/.claude/settings.json` (idempotent - won't duplicate if already present)

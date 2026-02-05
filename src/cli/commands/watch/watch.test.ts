@@ -174,6 +174,47 @@ describe("watch command", () => {
       // Should not throw when no daemon is running
       await expect(watchStopMain({ quiet: true })).resolves.not.toThrow();
     });
+
+    test("kills different-process daemon by reading PID file before cleanup", async () => {
+      // This test verifies the bug fix: watchStopMain must read the PID file
+      // BEFORE calling cleanupWatch, otherwise cleanupWatch deletes the PID file
+      // and the daemon becomes an orphan.
+
+      // Create a PID file with a fake PID (simulating a different process)
+      const pidFile = path.join(tempDir, ".nori", "watch.pid");
+      const fakePid = 999999;
+      await fs.writeFile(pidFile, fakePid.toString(), "utf-8");
+
+      // Track process.kill calls - the SIGTERM call is what kills the daemon
+      const killCalls: Array<{ pid: number; signal: string | number }> = [];
+      const originalKill = process.kill;
+      const killSpy = vi
+        .spyOn(process, "kill")
+        .mockImplementation((pid: number, signal?: string | number) => {
+          killCalls.push({ pid, signal: signal ?? 0 });
+          // Simulate ESRCH (no such process) for our fake PID
+          if (pid === fakePid) {
+            const err = new Error("ESRCH");
+            (err as NodeJS.ErrnoException).code = "ESRCH";
+            throw err;
+          }
+          // For other PIDs (like signal 0 checks), use original
+          return originalKill.call(process, pid, signal as NodeJS.Signals);
+        });
+
+      try {
+        await watchStopMain({ quiet: true });
+
+        // The key assertion: we must have attempted to kill the fake PID with SIGTERM
+        // This proves we read the PID file before cleanupWatch deleted it
+        const sigtermCall = killCalls.find(
+          (call) => call.pid === fakePid && call.signal === "SIGTERM",
+        );
+        expect(sigtermCall).toBeDefined();
+      } finally {
+        killSpy.mockRestore();
+      }
+    });
   });
 
   describe("isWatchRunning", () => {

@@ -608,60 +608,54 @@ export const watchStopMain = async (args?: {
     // Ignore errors - hook may not exist
   }
 
-  // First, try to clean up locally (for same-process tests)
-  await cleanupWatch({ exitProcess: false });
-
+  // Read PID file FIRST, before cleanupWatch deletes it
+  let daemonPid: number | null = null;
   try {
     const pidContent = await fs.readFile(pidFile, "utf-8");
     const pid = parseInt(pidContent.trim(), 10);
-
-    if (isNaN(pid)) {
-      if (!quiet) {
-        warn({ message: "Invalid PID file" });
-      }
-      return;
-    }
-
-    // Only try to kill if it's a different process
-    if (pid !== process.pid) {
-      // Send SIGTERM to the process
-      try {
-        process.kill(pid, "SIGTERM");
-
-        // Wait a bit for the process to exit
-        await new Promise((resolve) => setTimeout(resolve, 100));
-
-        // Clean up PID file if process exited
-        try {
-          process.kill(pid, 0);
-          // Process still running, wait a bit more
-          await new Promise((resolve) => setTimeout(resolve, 500));
-        } catch {
-          // Process exited
-        }
-
-        if (!quiet) {
-          success({ message: "Watch daemon stopped" });
-        }
-      } catch {
-        if (!quiet) {
-          warn({ message: "Watch daemon is not running" });
-        }
-      }
-    } else if (!quiet) {
-      // Same process, already cleaned up
-      success({ message: "Watch daemon stopped" });
-    }
-
-    // Remove PID file
-    try {
-      await fs.unlink(pidFile);
-    } catch {
-      // Ignore errors
+    if (!isNaN(pid)) {
+      daemonPid = pid;
     }
   } catch {
-    if (!quiet) {
-      info({ message: "No watch daemon running" });
+    // PID file doesn't exist - no daemon running
+  }
+
+  // Clean up local state (watchers, log stream, etc.)
+  // This also deletes the PID file, which is why we read it first
+  await cleanupWatch({ exitProcess: false });
+
+  // If we found a daemon PID and it's a different process, kill it
+  if (daemonPid != null && daemonPid !== process.pid) {
+    try {
+      process.kill(daemonPid, "SIGTERM");
+
+      // Wait a bit for the process to exit
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // Check if process exited
+      try {
+        process.kill(daemonPid, 0);
+        // Process still running, wait a bit more
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      } catch {
+        // Process exited
+      }
+
+      if (!quiet) {
+        success({ message: "Watch daemon stopped" });
+      }
+    } catch {
+      if (!quiet) {
+        warn({ message: "Watch daemon is not running" });
+      }
     }
+  } else if (daemonPid === process.pid) {
+    // Same process, already cleaned up
+    if (!quiet) {
+      success({ message: "Watch daemon stopped" });
+    }
+  } else if (!quiet) {
+    // No PID file found
+    info({ message: "No watch daemon running" });
   }
 };
