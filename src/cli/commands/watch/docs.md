@@ -8,6 +8,7 @@ Path: @/src/cli/commands/watch
 - Watches `~/.claude/projects/` for JSONL file changes using chokidar with polling mode
 - Uses stale-based uploads: files not modified for 30+ seconds are scanned periodically and uploaded
 - SQLite registry tracks uploaded transcripts to prevent duplicate uploads
+- Transcripts idle for 24+ hours are automatically deleted to prevent indefinite accumulation
 - Prompts user to select transcript destination organization on first run (if multiple orgs available)
 
 ### How it fits into the larger codebase
@@ -60,7 +61,9 @@ JSONL file change detected (in ~/.claude/projects/)
 Stale scanner runs every SCAN_INTERVAL_MS (10 seconds)
     |
     +-- staleScanner.ts: findStaleTranscripts() recursively scans transcript storage directory
-    |   +-- Returns .jsonl files not modified within STALE_THRESHOLD_MS (30 seconds)
+    |   +-- Returns staleFiles: .jsonl files older than STALE_THRESHOLD_MS (30s) but younger than EXPIRE_THRESHOLD_MS (24h)
+    |   +-- Returns expiredFiles: .jsonl files older than EXPIRE_THRESHOLD_MS (24 hours)
+    +-- Delete all expired files first (cleanup)
     +-- For each stale file:
     |   +-- Skip if already in uploadingFiles Set (concurrent upload in progress)
     |   +-- Extract sessionId from file content
@@ -70,7 +73,6 @@ Stale scanner runs every SCAN_INTERVAL_MS (10 seconds)
     |   +-- Add to uploadingFiles Set
     |   +-- uploader.ts: processTranscriptForUpload({ transcriptPath, orgId })
     |   +-- On success: registry.markUploaded({ sessionId, fileHash, transcriptPath })
-    |   +-- On success: uploader deletes transcript file
     |   +-- Remove from uploadingFiles Set
 ```
 
@@ -83,14 +85,14 @@ Stale scanner runs every SCAN_INTERVAL_MS (10 seconds)
 
 | Module | Purpose |
 |--------|---------|
-| `watch.ts` | Main daemon orchestration, signal handlers, logging, event debouncing, upload locking, stale scanning, transcript destination selection |
+| `watch.ts` | Main daemon orchestration, signal handlers, logging, event debouncing, upload locking, stale scanning, expired file cleanup, transcript destination selection |
 | `paths.ts` | Path utilities for Claude projects dir, transcript storage, registry database |
 | `parser.ts` | Extracts sessionId from JSONL using regex (avoids full JSON parsing) |
 | `storage.ts` | Copies transcript files to organized storage |
 | `watcher.ts` | Chokidar wrapper with polling mode for reliable cross-platform watching |
-| `staleScanner.ts` | Recursively finds .jsonl files older than a threshold |
+| `staleScanner.ts` | Recursively finds .jsonl files, categorizes as stale (ready for upload) or expired (should delete) |
 | `transcriptRegistry.ts` | SQLite-based registry for tracking uploaded transcripts by sessionId and content hash |
-| `uploader.ts` | Reads JSONL transcripts, parses messages, uploads via transcriptApi, deletes files on success |
+| `uploader.ts` | Reads JSONL transcripts, parses messages, uploads via transcriptApi |
 
 ### Things to Know
 
@@ -109,13 +111,16 @@ Stale scanner runs every SCAN_INTERVAL_MS (10 seconds)
 
 **Timing Constants:**
 - `DEBOUNCE_MS = 500` - Window for ignoring duplicate chokidar events
-- `STALE_THRESHOLD_MS = 30000` - Files must be unmodified for 30 seconds to be uploaded
+- `STALE_THRESHOLD_MS = 30000` - Files must be unmodified for 30 seconds to be considered for upload
+- `EXPIRE_THRESHOLD_MS = 86400000` (24 hours) - Files older than this are deleted
 - `SCAN_INTERVAL_MS = 10000` - Stale scanner runs every 10 seconds
 
 **File Lifecycle:**
-- Transcripts are copied from `~/.claude/projects/` to `~/.nori/transcripts/<agent>/<project>/`
-- After successful upload, the uploader deletes the transcript file from storage
-- The registry persists the upload record (sessionId, hash, path) even after file deletion
+1. Transcripts are copied from `~/.claude/projects/` to `~/.nori/transcripts/<agent>/<project>/`
+2. Files not modified for 30+ seconds are uploaded (if not already uploaded with same hash)
+3. Registry records the upload (sessionId, hash, path)
+4. Files idle for 24+ hours are deleted during the next scan
+5. If a file is modified (user resumes session), it can be re-uploaded with the new content
 
 **Concurrency Protection:**
 - `uploadingFiles` Set prevents concurrent uploads of the same file path

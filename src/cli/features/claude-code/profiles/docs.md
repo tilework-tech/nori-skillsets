@@ -8,7 +8,7 @@ Profile system that provides complete, self-contained Nori configurations for Cl
 
 ### How it fits into the larger codebase
 
-The profiles loader executes FIRST during installation (see @/src/cli/commands/install/install.ts). It ensures `~/.nori/profiles/` exists and configures permissions, but does not copy any profiles into it -- profiles arrive via registry download or user creation. All subsequent feature loaders (@/src/cli/features/claude-code/profiles/claudemd/loader.ts, @/src/cli/features/claude-code/profiles/skills/loader.ts, @/src/cli/features/claude-code/profiles/subagents/loader.ts, @/src/cli/features/claude-code/profiles/slashcommands/loader.ts) read from `~/.nori/profiles/{selectedProfile}/` to install their components. Profile switching is handled by @/src/cli/commands/switch-profile/profiles.ts which updates `.nori-config.json` while preserving auth credentials, then re-runs installation. The statusline (@/src/cli/features/claude-code/statusline) displays the active profile name. The `/nori-switch-profile` slash command provides informational guidance for profile switching (directs user to run the terminal command).
+The profiles loader executes FIRST during installation (see @/src/cli/commands/install/install.ts). It ensures `~/.nori/profiles/` exists and configures permissions, but does not copy any profiles into it -- profiles arrive via registry download or user creation. All subsequent feature loaders (@/src/cli/features/claude-code/profiles/claudemd/loader.ts, @/src/cli/features/claude-code/profiles/skills/loader.ts, @/src/cli/features/claude-code/profiles/subagents/loader.ts, @/src/cli/features/claude-code/profiles/slashcommands/loader.ts) read from `~/.nori/profiles/{selectedProfile}/` to install their components. Profile switching is handled by @/src/cli/commands/switch-profile/profiles.ts which detects local changes to `~/.claude/` before overwriting, then updates `.nori-config.json` while preserving auth credentials, and re-runs installation. The statusline (@/src/cli/features/claude-code/statusline) displays the active profile name. The `/nori-switch-profile` slash command provides informational guidance for profile switching (directs user to run the terminal command).
 
 ### Core Implementation
 
@@ -35,6 +35,23 @@ Markdown files use template placeholders like `{{skills_dir}}`, `{{profiles_dir}
 ```
 
 The `readProfileMetadata()` function reads `nori.json` first, falling back to legacy `profile.json` for backward compatibility with older profiles. The `writeProfileMetadata()` function writes a `ProfileMetadata` object to `nori.json`. The `addSkillToNoriJson()` function reads an existing `nori.json` (or auto-creates one using the profile directory basename and version `"1.0.0"`), adds/updates a skill in `dependencies.skills`, and writes it back.
+
+**Installation Manifest (manifest.ts)**: The manifest module (@/src/cli/features/claude-code/profiles/manifest.ts) tracks installed files for local change detection:
+
+| Type | Purpose |
+|------|---------|
+| `FileManifest` | Stores SHA-256 hashes of all files in `~/.claude/` at installation time |
+| `ManifestDiff` | Result of comparing current state against stored manifest (modified, added, deleted arrays) |
+
+Key functions:
+- `computeFileHash()` - Compute SHA-256 hash of a single file
+- `computeDirectoryManifest()` - Recursively hash all files in a directory, returning a `FileManifest`
+- `writeManifest()` / `readManifest()` - Persist/load manifest to/from `~/.nori/installed-manifest.json`
+- `compareManifest()` - Compare a stored manifest against the current directory state, returning a `ManifestDiff`
+- `hasChanges()` - Check if a `ManifestDiff` contains any changes
+- `getManifestPath()` - Returns the path to the manifest file (`~/.nori/installed-manifest.json`)
+
+The manifest is written after installation completes (via `writeInstalledManifest()` in @/src/cli/commands/install/install.ts) and checked before skillset switching (via `detectLocalChanges()` in @/src/cli/commands/switch-profile/profiles.ts).
 
 **Skills as First-Class Citizens**: Skills can be declared in two ways:
 1. **Inline skills**: Stored in profile's `skills/` folder, bundled with the profile
@@ -66,7 +83,7 @@ The `profiles/config/` directory in the package is empty -- no built-in profiles
 
 **No built-in profiles**: The package does not bundle any default profiles. The `profiles/config/` directory is empty. Users must download profiles from the registry or create their own. This means first-time installations will have no profiles until the user obtains one.
 
-**Directory Separation**: Profiles are stored in `~/.nori/profiles/` rather than `~/.claude/profiles/`. The `.nori/` directory contains Nori's internal data (profile repository), while `.claude/` contains only Claude Code's native artifacts (skills, agents, commands, CLAUDE.md, settings.json).
+**Directory Separation**: Profiles are stored in `~/.nori/profiles/` rather than `~/.claude/profiles/`. The `.nori/` directory contains Nori's internal data (profile repository, installation manifest), while `.claude/` contains only Claude Code's native artifacts (skills, agents, commands, CLAUDE.md, settings.json).
 
 **Self-contained profiles**: Each profile contains all content it needs directly. There is no mixin composition, inheritance, or conditional injection. The trade-off is content duplication across profiles that share common skills.
 
@@ -85,6 +102,8 @@ The `profiles/config/` directory in the package is empty -- no built-in profiles
 **Global vs profile slash commands**: Slash commands are split between two loaders:
 - **Global commands** (@/src/cli/features/claude-code/slashcommands/): Profile-agnostic utilities (nori-debug, nori-switch-profile, etc.)
 - **Profile commands** (@/src/cli/features/claude-code/profiles/slashcommands/): Commands that vary by profile
+
+**Installation manifest for change detection**: The manifest file (`~/.nori/installed-manifest.json`) stores SHA-256 hashes of all files installed to `~/.claude/`. This enables detection of local modifications before skillset switching. The manifest is only written for the `claude-code` agent. Manifest writing failures are non-fatal and do not block installation.
 
 ## Architecture
 
@@ -106,6 +125,7 @@ The `profiles/config/` directory in the package is empty -- no built-in profiles
     myorg/
       org-profile/      # Namespaced profile from organization registry
         ...
+  installed-manifest.json  # SHA-256 hashes of installed files for change detection
 
 ~/.claude/
   skills/             # Final installed skills (inline + external merged)
@@ -128,6 +148,10 @@ The `profiles/config/` directory in the package is empty -- no built-in profiles
 3. **Feature loaders run**
    - Read profile configuration from `~/.nori/profiles/${selectedProfile}/`
    - Install CLAUDE.md, skills, slashcommands, subagents to `~/.claude/` from that profile
+
+4. **Installation manifest written**
+   - Computes SHA-256 hashes of all files in `~/.claude/`
+   - Stores manifest at `~/.nori/installed-manifest.json`
 
 ### Skill Installation Flow
 
