@@ -33,9 +33,8 @@ Global slash commands loader that was previously used to register profile-agnost
 
 ### Core Implementation
 
-- **Loader interface**: Implements the standard `Loader` interface with `run()`, `uninstall()`, and `validate()` methods
+- **Loader interface**: Implements the standard `Loader` interface with `run()` and `uninstall()` methods
 - **All methods are no-ops**: `run()` logs "No global slash commands to register", `uninstall()` logs "No global slash commands to remove"
-- **validate() always succeeds**: Returns `{ valid: true, message: "No global slash commands configured" }`
 
 ### Things to Know
 

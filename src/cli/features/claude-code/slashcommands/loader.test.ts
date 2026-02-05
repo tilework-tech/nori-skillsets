@@ -129,17 +129,4 @@ describe("globalSlashCommandsLoader", () => {
       ).resolves.not.toThrow();
     });
   });
-
-  describe("validate", () => {
-    it("should return valid since no commands are configured", async () => {
-      const config: Config = { installDir: tempDir };
-
-      // Validate
-      const result = await globalSlashCommandsLoader.validate!({ config });
-
-      expect(result.valid).toBe(true);
-      expect(result.message).toContain("No global slash commands configured");
-      expect(result.errors).toBeNull();
-    });
-  });
 });

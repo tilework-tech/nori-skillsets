@@ -14,11 +14,9 @@ import {
   getClaudeSettingsFile,
   getNoriDir,
 } from "@/cli/features/claude-code/paths.js";
-import { readSkillsJson } from "@/cli/features/claude-code/profiles/skills/resolver.js";
 import { substituteTemplatePaths } from "@/cli/features/claude-code/template.js";
 import { success, info, warn } from "@/cli/logger.js";
 
-import type { ValidationResult } from "@/cli/features/agentRegistry.js";
 import type { ProfileLoader } from "@/cli/features/claude-code/profiles/profileLoaderRegistry.js";
 import type { Dirent } from "fs";
 
@@ -308,144 +306,6 @@ const removeSkillsPermissions = async (args: {
 };
 
 /**
- * Validate skills installation
- * @param args - Configuration arguments
- * @param args.config - Runtime configuration
- *
- * @returns Validation result
- */
-const validate = async (args: {
-  config: Config;
-}): Promise<ValidationResult> => {
-  const { config } = args;
-  const errors: Array<string> = [];
-
-  const claudeSkillsDir = getClaudeSkillsDir({ installDir: config.installDir });
-  const claudeSettingsFile = getClaudeSettingsFile({
-    installDir: config.installDir,
-  });
-
-  // Check if skills directory exists
-  try {
-    await fs.access(claudeSkillsDir);
-  } catch {
-    errors.push(`Skills directory not found at ${claudeSkillsDir}`);
-    errors.push('Run "nori-skillsets init" to install skills');
-    return {
-      valid: false,
-      message: "Skills directory not found",
-      errors,
-    };
-  }
-
-  // Verify expected skills exist
-  const profileName = getAgentProfile({
-    config,
-    agentName: "claude-code",
-  })?.baseProfile;
-  if (profileName == null) {
-    errors.push("No profile configured for claude-code");
-    errors.push("Run 'nori-skillsets init' to configure a profile");
-    return {
-      valid: false,
-      message: "No profile configured",
-      errors,
-    };
-  }
-  const configDir = getConfigDir({
-    profileName,
-    installDir: config.installDir,
-  });
-
-  // Check expected skills from profile config (if directory exists)
-  try {
-    const sourceEntries = await fs.readdir(configDir, { withFileTypes: true });
-
-    for (const entry of sourceEntries) {
-      if (!entry.isDirectory()) {
-        continue;
-      }
-
-      try {
-        await fs.access(path.join(claudeSkillsDir, entry.name));
-      } catch {
-        errors.push(`Expected skill '${entry.name}' not found`);
-      }
-    }
-
-    if (errors.length > 0) {
-      errors.push('Run "nori-skillsets init" to reinstall skills');
-      return {
-        valid: false,
-        message: "Skills directory incomplete",
-        errors,
-      };
-    }
-  } catch {
-    // Profile skills directory not found - continue to check external skills
-  }
-
-  // Also validate external skills from skills.json
-  const profileDir = getProfileDir({
-    profileName,
-    installDir: config.installDir,
-  });
-  const skillDependencies = await readSkillsJson({ profileDir });
-
-  if (skillDependencies != null) {
-    for (const dep of skillDependencies) {
-      try {
-        await fs.access(path.join(claudeSkillsDir, dep.name));
-      } catch {
-        errors.push(`Expected external skill '${dep.name}' not found`);
-      }
-    }
-
-    if (errors.length > 0) {
-      errors.push('Run "nori-skillsets init" to reinstall skills');
-      return {
-        valid: false,
-        message: "Skills directory incomplete",
-        errors,
-      };
-    }
-  }
-
-  // Check if permissions are configured in settings.json
-  try {
-    const content = await fs.readFile(claudeSettingsFile, "utf-8");
-    const settings = JSON.parse(content);
-
-    if (
-      !settings.permissions?.additionalDirectories?.includes(claudeSkillsDir)
-    ) {
-      errors.push(
-        "Skills directory not configured in permissions.additionalDirectories",
-      );
-      errors.push('Run "nori-skillsets init" to configure permissions');
-      return {
-        valid: false,
-        message: "Skills permissions not configured",
-        errors,
-      };
-    }
-  } catch {
-    errors.push("Could not read or parse settings.json");
-    return {
-      valid: false,
-      message: "Settings file error",
-      errors,
-    };
-  }
-
-  return {
-    valid: true,
-    message: "Skills are properly installed",
-    errors: null,
-  };
-};
-
-/**
  * Skills feature loader
  */
 export const skillsLoader: ProfileLoader = {
@@ -459,5 +319,4 @@ export const skillsLoader: ProfileLoader = {
     const { config } = args;
     await uninstallSkills({ config });
   },
-  validate,
 };

@@ -9,7 +9,7 @@
 import { info } from "@/cli/logger.js";
 
 import type { Config } from "@/cli/config.js";
-import type { Loader, ValidationResult } from "@/cli/features/agentRegistry.js";
+import type { Loader } from "@/cli/features/agentRegistry.js";
 
 /**
  * Register all global slash commands (no-op - commands removed)
@@ -36,25 +36,6 @@ const unregisterSlashCommands = async (args: {
 };
 
 /**
- * Validate global slash commands installation
- * @param args - Configuration arguments
- * @param args.config - Runtime configuration
- *
- * @returns Validation result
- */
-const validate = async (args: {
-  config: Config;
-}): Promise<ValidationResult> => {
-  const { config: _config } = args;
-
-  return {
-    valid: true,
-    message: "No global slash commands configured",
-    errors: null,
-  };
-};
-
-/**
  * Global slash commands feature loader
  */
 export const globalSlashCommandsLoader: Loader = {
@@ -68,5 +49,4 @@ export const globalSlashCommandsLoader: Loader = {
     const { config } = args;
     await unregisterSlashCommands({ config });
   },
-  validate,
 };

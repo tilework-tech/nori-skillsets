@@ -14,15 +14,6 @@ import type { Config } from "@/cli/config.js";
 export type AgentName = "claude-code";
 
 /**
- * Result of validation check
- */
-export type ValidationResult = {
-  valid: boolean;
-  message: string;
-  errors?: Array<string> | null;
-};
-
-/**
  * Loader interface for feature installation
  * Each loader handles installing/uninstalling a specific feature (config, profiles, hooks, etc.)
  */
@@ -31,7 +22,6 @@ export type Loader = {
   description: string;
   run: (args: { config: Config }) => Promise<void>;
   uninstall: (args: { config: Config }) => Promise<void>;
-  validate?: (args: { config: Config }) => Promise<ValidationResult>;
 };
 
 /**

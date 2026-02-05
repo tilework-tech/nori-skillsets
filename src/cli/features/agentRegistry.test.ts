@@ -124,10 +124,6 @@ describe("AgentRegistry", () => {
         expect(typeof loader.description).toBe("string");
         expect(typeof loader.run).toBe("function");
         expect(typeof loader.uninstall).toBe("function");
-        // validate is optional
-        if (loader.validate != null) {
-          expect(typeof loader.validate).toBe("function");
-        }
       }
     });
 

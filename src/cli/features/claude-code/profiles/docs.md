@@ -172,11 +172,5 @@ The resolver module (@/src/cli/features/claude-code/profiles/skills/resolver.ts)
 npx nori-skillsets switch-skillset my-custom-profile
 ```
 
-## Validation
-
-The `validate()` function checks:
-- `~/.nori/profiles/` directory exists
-- Profiles directory permissions are configured in settings.json
-
 
 Created and maintained by Nori.

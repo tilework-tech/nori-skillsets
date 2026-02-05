@@ -14,7 +14,7 @@ import {
 import { success, info, warn } from "@/cli/logger.js";
 
 import type { Config } from "@/cli/config.js";
-import type { Loader, ValidationResult } from "@/cli/features/agentRegistry.js";
+import type { Loader } from "@/cli/features/agentRegistry.js";
 
 // Get directory of this loader file
 const __filename = fileURLToPath(import.meta.url);
@@ -214,131 +214,6 @@ const removeHooks = async (args: { config: Config }): Promise<void> => {
 };
 
 /**
- * Validate hooks configuration
- * @param args - Configuration arguments
- * @param args.config - Runtime configuration
- *
- * @returns Validation result
- */
-const validate = async (args: {
-  config: Config;
-}): Promise<ValidationResult> => {
-  const { config: _config } = args;
-  const claudeSettingsFile = getClaudeHomeSettingsFile();
-  const errors: Array<string> = [];
-
-  // Check if settings file exists
-  try {
-    await fs.access(claudeSettingsFile);
-  } catch {
-    errors.push(`Settings file not found at ${claudeSettingsFile}`);
-    errors.push('Run "nori-skillsets init" to create the settings file');
-    return {
-      valid: false,
-      message: "Claude settings file not found",
-      errors,
-    };
-  }
-
-  // Read and parse settings
-  let settings: any;
-  try {
-    const content = await fs.readFile(claudeSettingsFile, "utf-8");
-    settings = JSON.parse(content);
-  } catch (err) {
-    errors.push("Failed to read or parse settings.json");
-    errors.push(`Error: ${err}`);
-    return {
-      valid: false,
-      message: "Invalid settings.json",
-      errors,
-    };
-  }
-
-  // Check if hooks are configured
-  if (!settings.hooks) {
-    errors.push("No hooks configured in settings.json");
-    errors.push('Run "nori-skillsets init" to configure hooks');
-    return {
-      valid: false,
-      message: "Hooks not configured",
-      errors,
-    };
-  }
-
-  // Check for required hook events
-  const requiredEvents = ["SessionStart", "PreToolUse"];
-  for (const event of requiredEvents) {
-    if (!settings.hooks[event]) {
-      errors.push(`Missing hook configuration for event: ${event}`);
-    }
-  }
-
-  // Check if SessionStart has context-usage-warning hook
-  if (settings.hooks.SessionStart) {
-    const sessionStartHooks = settings.hooks.SessionStart;
-    let hasContextUsageWarningHook = false;
-
-    for (const hookConfig of sessionStartHooks) {
-      if (hookConfig.hooks) {
-        for (const hook of hookConfig.hooks) {
-          if (
-            hook.command &&
-            hook.command.includes("context-usage-warning.js")
-          ) {
-            hasContextUsageWarningHook = true;
-          }
-        }
-      }
-    }
-
-    if (!hasContextUsageWarningHook) {
-      errors.push("Missing context-usage-warning hook for SessionStart event");
-    }
-  }
-
-  // Check if PreToolUse has commit-author hook
-  if (settings.hooks.PreToolUse) {
-    const preToolUseHooks = settings.hooks.PreToolUse;
-    let hasCommitAuthorHook = false;
-
-    for (const hookConfig of preToolUseHooks) {
-      if (hookConfig.hooks) {
-        for (const hook of hookConfig.hooks) {
-          if (hook.command && hook.command.includes("commit-author.js")) {
-            hasCommitAuthorHook = true;
-          }
-        }
-      }
-    }
-
-    if (!hasCommitAuthorHook) {
-      errors.push("Missing commit-author hook for PreToolUse event");
-    }
-  }
-
-  // Check includeCoAuthoredBy setting
-  if (settings.includeCoAuthoredBy !== false) {
-    errors.push("includeCoAuthoredBy should be set to false in settings.json");
-    errors.push('Run "nori-skillsets init" to configure git settings');
-  }
-
-  if (errors.length > 0) {
-    return {
-      valid: false,
-      message: "Hooks configuration has issues",
-      errors,
-    };
-  }
-
-  return {
-    valid: true,
-    message: "Hooks are properly configured",
-    errors: null,
-  };
-};
-
-/**
  * Hooks feature loader
  */
 export const hooksLoader: Loader = {
@@ -351,5 +226,4 @@ export const hooksLoader: Loader = {
   uninstall: async (args: { config: Config }) => {
     await removeHooks(args);
   },
-  validate,
 };

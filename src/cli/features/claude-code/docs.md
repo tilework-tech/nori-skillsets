@@ -20,13 +20,13 @@ The AgentRegistry (@/src/cli/features/agentRegistry.ts) registers this agent and
 
 The `LoaderRegistry` class (@/src/cli/features/claude-code/loaderRegistry.ts) implements the shared `LoaderRegistry` interface. Loaders execute in order: config, profiles, hooks, statusline, slashcommands, announcements. During uninstall, the order is reversed.
 
-Each loader implements the `Loader` interface with `run()`, `uninstall()`, and optional `validate()` methods. The shared `configLoader` (@/src/cli/features/config/loader.ts) serves as the single point of config persistence during installation.
+Each loader implements the `Loader` interface with `run()` and `uninstall()` methods. The shared `configLoader` (@/src/cli/features/config/loader.ts) serves as the single point of config persistence during installation.
 
 **Global settings** (hooks, statusline, slashcommands, announcements) install to `~/.claude/` and are shared across all Nori installations. Profile-dependent features (claudemd, skills, profile-specific slashcommands, subagents) are handled by sub-loaders within the profiles feature at @/src/cli/features/claude-code/profiles/.
 
 ### Core Implementation
 
-Each loader implements run(config) to install, uninstall(config) to remove, and validate(config) to check installation state. The profiles loader (@/src/cli/features/claude-code/profiles/loader.ts) orchestrates profile-dependent features through a ProfileLoaderRegistry that manages sub-loaders for claudemd, skills, slashcommands, and subagents within each profile.
+Each loader implements run(config) to install and uninstall(config) to remove. The profiles loader (@/src/cli/features/claude-code/profiles/loader.ts) orchestrates profile-dependent features through a ProfileLoaderRegistry that manages sub-loaders for claudemd, skills, slashcommands, and subagents within each profile.
 
 **Self-contained profiles**: Each profile is a complete, standalone directory containing all content directly (CLAUDE.md, skills/, subagents/, slashcommands/). No mixin composition or inheritance is used. The package does not ship any built-in profiles -- profiles are obtained from the registry or created by users.
 

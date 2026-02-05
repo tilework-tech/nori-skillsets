@@ -4,7 +4,7 @@ Path: @/src/cli/features
 
 ### Overview
 
-Agent abstraction layer that defines the Agent interface and registry for the Claude Code agent. Contains shared types (`Loader`, `ValidationResult`, `LoaderRegistry`) that agents implement, plus the shared config loader. Also contains shared test utilities (@/src/cli/features/test-utils/) used across agent and command tests.
+Agent abstraction layer that defines the Agent interface and registry for the Claude Code agent. Contains shared types (`Loader`, `LoaderRegistry`) that agents implement, plus the shared config loader. Also contains shared test utilities (@/src/cli/features/test-utils/) used across agent and command tests.
 
 ### How it fits into the larger codebase
 
@@ -23,7 +23,7 @@ CLI Commands (install, switch-profile)
 
 Shared Resources (@/src/cli/features/)
     |
-    +-- agentRegistry.ts: AgentName, Agent, Loader, ValidationResult, LoaderRegistry types
+    +-- agentRegistry.ts: AgentName, Agent, Loader, LoaderRegistry types
     +-- config/loader.ts: configLoader (shared across all agents)
     +-- test-utils/: Shared test utilities (stripAnsi, pathExists, createTempTestContext)
 ```
@@ -37,8 +37,7 @@ The `--agent` global CLI option (default: "claude-code") determines which agent 
 | Type | Purpose |
 |------|---------|
 | `AgentName` | Type alias for the canonical agent identifier `"claude-code"`. Used as the registry key and source of truth for agent identity. |
-| `Loader` | Interface for feature installation with `name`, `description`, `run()`, `uninstall()`, and optional `validate()` methods |
-| `ValidationResult` | Result type for loader validation checks (`valid`, `message`, `errors`) |
+| `Loader` | Interface for feature installation with `name`, `description`, `run()`, and `uninstall()` methods |
 | `LoaderRegistry` | Interface that agent-specific registry classes must implement (`getAll()`, `getAllReversed()`) |
 
 **Agent Interface** (agentRegistry.ts):
