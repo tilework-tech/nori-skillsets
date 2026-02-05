@@ -4,14 +4,14 @@ Path: @/src/cli/features/claude-code/slashcommands
 
 ### Overview
 
-Profile-agnostic slash commands installed directly to `~/.claude/commands/` independent of profile selection. These commands provide Nori system utilities that work the same regardless of which profile is active.
+Global slash commands loader that was previously used to register profile-agnostic Nori commands to `~/.claude/commands/`. This loader is now a no-op - global slash commands have been removed to reduce complexity and context token usage.
 
 ### How it fits into the larger codebase
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                      LoaderRegistry                             │
-│  (execution order: version → config → profiles → hooks →        │
+│  (execution order: config → profiles → hooks →                  │
 │   statusline → slashcommands → announcements)                   │
 └─────────────────────────────────────────────────────────────────┘
                               │
@@ -23,34 +23,26 @@ Profile-agnostic slash commands installed directly to `~/.claude/commands/` inde
           │                   │                   │
     ┌─────┴─────┐      ┌──────┴──────┐    ┌──────┴──────┐
     │   hooks   │      │ statusline  │    │slashcommands│
-    │  loader   │      │   loader    │    │   loader    │
+    │  loader   │      │   loader    │    │   (no-op)   │
     └───────────┘      └─────────────┘    └─────────────┘
 ```
 
 - **Registered in LoaderRegistry** (@/src/cli/features/claude-code/loaderRegistry.ts) after statusline loader
-- **Part of "global settings" group**: During uninstall, hooks, statusline, and slashcommands are treated as a unit that can be preserved together when `removeGlobalSettings` is false
-- **Separate from profile slash commands**: Profile-specific commands (like `nori-init-docs`) are inlined in each profile's `slashcommands/` directory and are handled by the profile slashcommands loader at @/src/cli/features/claude-code/profiles/slashcommands/loader.ts
-- **Template substitution**: Uses `substituteTemplatePaths()` to replace placeholders like `{{skills_dir}}`, `{{profiles_dir}}` with actual installation paths
+- **Part of "global settings" group**: During uninstall, hooks, statusline, and slashcommands are treated as a unit
+- **No-op implementation**: The loader exists for backwards compatibility but does not install any commands
 
 ### Core Implementation
 
 - **Loader interface**: Implements the standard `Loader` interface with `run()`, `uninstall()`, and `validate()` methods
-- **Static command list**: Commands are defined in `GLOBAL_SLASH_COMMANDS` array in @/src/cli/features/claude-code/slashcommands/loader.ts
-- **Source files**: Markdown command definitions stored in @/src/cli/features/claude-code/slashcommands/config/
-- **Installation target**: Commands are always copied to `~/.claude/commands/` using `getClaudeHomeCommandsDir()`
-- **Validation**: Checks that all expected global commands exist in the commands directory
+- **All methods are no-ops**: `run()` logs "No global slash commands to register", `uninstall()` logs "No global slash commands to remove"
+- **validate() always succeeds**: Returns `{ valid: true, message: "No global slash commands configured" }`
 
 ### Things to Know
 
-**Global commands vs profile commands**: Global commands are installed once and work identically regardless of profile. Profile commands vary based on the active profile's content.
+**Why commands were removed:** Global slash commands were removed to reduce complexity and context token usage. The previous implementation included commands like `/nori-install-location`, `/nori-switch-profile`, `/nori-toggle-autoupdate`, `/nori-toggle-session-transcripts`, and `/nori-prune-context`, which were executed via hook interception. These features are now either removed entirely or accessible through other means (e.g., terminal commands).
 
-| Command Type | Source Location | Loader | Examples |
-|-------------|-----------------|--------|----------|
-| Global | @/src/cli/features/claude-code/slashcommands/config/ | globalSlashCommandsLoader | nori-debug, nori-switch-profile, nori-info |
-| Profile | Each profile's `slashcommands/` directory | slashCommandsLoader (profiles) | nori-init-docs |
+**Profile commands still exist:** Profile-specific commands (like `nori-init-docs`) remain in each profile's `slashcommands/` directory and are handled by the profile slashcommands loader at @/src/cli/features/claude-code/profiles/slashcommands/loader.ts.
 
-**Hook-intercepted commands**: Several global commands (`nori-switch-profile`, `nori-toggle-autoupdate`, `nori-toggle-session-transcripts`, `nori-install-location`, `nori-prune-context`) are intercepted by the slash-command-intercept hook and executed directly by TypeScript code rather than by Claude. The markdown files still provide the `description` frontmatter for Claude Code's command palette.
-
-**Uninstall behavior**: When uninstalling, the loader only removes files matching the `GLOBAL_SLASH_COMMANDS` list. Custom user commands in `~/.claude/commands/` are preserved.
+**Config directory deleted:** The `slashcommands/config/` directory that previously contained command markdown files has been deleted.
 
 Created and maintained by Nori.

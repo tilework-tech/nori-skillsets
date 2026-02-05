@@ -8,7 +8,7 @@ Profile system that provides complete, self-contained Nori configurations for Cl
 
 ### How it fits into the larger codebase
 
-The profiles loader executes FIRST during installation (see @/src/cli/commands/install/install.ts). It ensures `~/.nori/profiles/` exists and configures permissions, but does not copy any profiles into it -- profiles arrive via registry download or user creation. All subsequent feature loaders (@/src/cli/features/claude-code/profiles/claudemd/loader.ts, @/src/cli/features/claude-code/profiles/skills/loader.ts, @/src/cli/features/claude-code/profiles/subagents/loader.ts, @/src/cli/features/claude-code/profiles/slashcommands/loader.ts) read from `~/.nori/profiles/{selectedProfile}/` to install their components. Profile switching is handled by @/src/cli/commands/switch-profile/profiles.ts which detects local changes to `~/.claude/` before overwriting, then updates `.nori-config.json` while preserving auth credentials, and re-runs installation. The statusline (@/src/cli/features/claude-code/statusline) displays the active profile name. The `/nori-switch-profile` slash command provides informational guidance for profile switching (directs user to run the terminal command).
+The profiles loader executes FIRST during installation (see @/src/cli/commands/install/install.ts). It ensures `~/.nori/profiles/` exists and configures permissions, but does not copy any profiles into it -- profiles arrive via registry download or user creation. All subsequent feature loaders (@/src/cli/features/claude-code/profiles/claudemd/loader.ts, @/src/cli/features/claude-code/profiles/skills/loader.ts, @/src/cli/features/claude-code/profiles/subagents/loader.ts, @/src/cli/features/claude-code/profiles/slashcommands/loader.ts) read from `~/.nori/profiles/{selectedProfile}/` to install their components. Profile switching is handled by @/src/cli/commands/switch-profile/profiles.ts which detects local changes to `~/.claude/` before overwriting, then updates `.nori-config.json` while preserving auth credentials, and re-runs installation. The statusline (@/src/cli/features/claude-code/statusline) displays the active profile name.
 
 ### Core Implementation
 
@@ -97,11 +97,7 @@ The `profiles/config/` directory in the package is empty -- no built-in profiles
 
 **Managed block marker idempotency**: The `insertClaudeMd()` function in @/src/cli/features/claude-code/profiles/claudemd/loader.ts strips any existing `# BEGIN NORI-AI MANAGED BLOCK` and `# END NORI-AI MANAGED BLOCK` markers from profile CLAUDE.md content before wrapping it with fresh markers. This ensures the final installed `~/.claude/CLAUDE.md` always has exactly one set of markers, even when the profile content was created by `captureExistingConfigAsProfile()` (which adds markers during capture). Without this stripping, captured profiles would end up with double-nested markers.
 
-**Hook-intercepted slash commands**: Several global slash commands (`nori-switch-profile`, `nori-toggle-autoupdate`, etc.) are intercepted by the slash-command-intercept hook and executed directly without LLM processing.
-
-**Global vs profile slash commands**: Slash commands are split between two loaders:
-- **Global commands** (@/src/cli/features/claude-code/slashcommands/): Profile-agnostic utilities (nori-debug, nori-switch-profile, etc.)
-- **Profile commands** (@/src/cli/features/claude-code/profiles/slashcommands/): Commands that vary by profile
+**Profile slash commands**: Profile-specific slash commands are installed by @/src/cli/features/claude-code/profiles/slashcommands/ loader from the active profile's slashcommands/ directory.
 
 **Installation manifest for change detection**: The manifest file (`~/.nori/installed-manifest.json`) stores SHA-256 hashes of all files installed to `~/.claude/`. This enables detection of local modifications before skillset switching. The manifest is only written for the `claude-code` agent. Manifest writing failures are non-fatal and do not block installation.
 
@@ -175,8 +171,6 @@ The resolver module (@/src/cli/features/claude-code/profiles/skills/resolver.ts)
 ```bash
 npx nori-skillsets switch-skillset my-custom-profile
 ```
-
-Or use `/nori-switch-profile` slash command in Claude Code.
 
 ## Validation
 

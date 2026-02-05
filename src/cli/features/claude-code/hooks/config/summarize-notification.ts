@@ -15,7 +15,7 @@ import { loadConfig } from "@/cli/config.js";
 import { debug, LOG_FILE } from "@/cli/logger.js";
 import { getInstallDirs } from "@/utils/path.js";
 
-import { formatWithLineClear } from "./intercepted-slashcommands/format.js";
+import { formatWithLineClear } from "./format.js";
 
 const ERROR_MESSAGE = `Error saving to Nori Watchtower. Check ${LOG_FILE} for details.\n`;
 
@@ -77,7 +77,7 @@ export const main = async (): Promise<void> => {
   if (diskConfig?.sendSessionTranscript === "disabled") {
     message = formatWithLineClear({
       message:
-        "Session transcripts disabled. Use /nori-toggle-session-transcripts to enable...\n",
+        "Session transcripts disabled. Edit .nori-config.json to set sendSessionTranscript to enable.\n",
       hookPath,
       isSuccess: true,
     });
