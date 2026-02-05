@@ -1,6 +1,6 @@
 {
   "name": "nori-skillsets",
-  "version": "19.1.8",
+  "version": "0.0.0",
   "description": "Nori Profiles plugin for Claude Code",
   "type": "module",
   "bin": {

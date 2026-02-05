@@ -1,5 +1,10 @@
 # Nori Skillsets Client
 
+[![CI](https://github.com/tilework-tech/nori-skillsets/actions/workflows/ci.yml/badge.svg)](https://github.com/tilework-tech/nori-skillsets/actions/workflows/ci.yml)
+[![npm version](https://img.shields.io/npm/v/nori-skillsets)](https://www.npmjs.com/package/nori-skillsets)
+[![npm license](https://img.shields.io/npm/l/nori-skillsets)](https://www.npmjs.com/package/nori-skillsets)
+[![npm downloads](https://img.shields.io/npm/dm/nori-skillsets)](https://www.npmjs.com/package/nori-skillsets)
+
 **CLI Client for installing and managing Nori Skillsets**
 
 The Nori Skillsets Client connects you to [noriskillsets.dev](https://noriskillsets.dev/), a registry of verified Claude Code Skills and packaged agent configurations. Install complete Skillsets or individual Skills that have been reviewed for effectiveness, clarity, and proper implementation.
