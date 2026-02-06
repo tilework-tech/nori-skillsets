@@ -81,7 +81,7 @@ The `logout` command removes auth credentials from config, preserving the profil
 
 ### Core Implementation
 
-**Command Naming Convention:** The nori-skillsets CLI uses simplified names without `registry-` prefix for read operations. The `noriSkillsetsCommands.ts` module defines register functions that create Commander commands with simplified names while delegating to the full implementation functions.
+**Command Naming Convention:** The nori-skillsets CLI uses simplified names without `registry-` prefix for read operations. The `noriSkillsetsCommands.ts` module defines register functions that create Commander commands with simplified names while delegating to the full implementation functions. Several commands also register hidden aliases as separate Commander commands (using `{ hidden: true }` so they do not appear in `--help` output). These aliases handle singular/plural variants and shorthand names, all delegating to the same action handler as the canonical command. For example, `switch-skillset` (canonical) has hidden aliases `switch-skillsets` (plural) and `switch` (shorthand), and `list-skillsets` (canonical) has a hidden alias `list-skillset` (singular).
 
 **install-location** (@/src/cli/commands/install-location/): Displays all Nori installation directories found from cwd upward. Supports `--installation-source` (source dirs only), `--installation-managed` (managed dirs only), and `--non-interactive` (plain output for scripts). Uses `getInstallDirs({ currentDir: process.cwd() })` to discover installations.
 
