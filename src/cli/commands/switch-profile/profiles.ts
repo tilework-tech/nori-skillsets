@@ -19,6 +19,7 @@ import {
   getManifestPath,
   type ManifestDiff,
 } from "@/cli/features/claude-code/profiles/manifest.js";
+import { listProfiles } from "@/cli/features/managedFolder.js";
 import { error, info, success, newline, warn } from "@/cli/logger.js";
 import { promptUser } from "@/cli/prompt.js";
 import { normalizeInstallDir, getInstallDirs } from "@/utils/path.js";
@@ -350,7 +351,7 @@ export const switchSkillsetAction = async (args: {
     await agent.switchProfile({ installDir, profileName: name });
   } catch (err) {
     // On failure, show available skillsets
-    const profiles = await agent.listProfiles({ installDir });
+    const profiles = await listProfiles({ installDir });
     if (profiles.length > 0) {
       error({ message: `Available skillsets: ${profiles.join(", ")}` });
     }
