@@ -343,49 +343,6 @@ const insertClaudeMd = async (args: { config: Config }): Promise<void> => {
 };
 
 /**
- * Remove nori-managed block from CLAUDE.md
- *
- * @param args - Configuration arguments
- * @param args.config - Runtime configuration
- */
-const removeClaudeMd = async (args: { config: Config }): Promise<void> => {
-  const { config } = args;
-  info({ message: "Removing nori instructions from CLAUDE.md..." });
-
-  const claudeMdFile = getClaudeMdFile({ installDir: config.installDir });
-
-  try {
-    const content = await fs.readFile(claudeMdFile, "utf-8");
-
-    // Check if managed block exists
-    if (!content.includes(BEGIN_MARKER)) {
-      info({ message: "No nori instructions found in CLAUDE.md" });
-      return;
-    }
-
-    // Remove managed block
-    const regex = new RegExp(
-      `\n?${BEGIN_MARKER}\n[\\s\\S]*?\n${END_MARKER}\n?`,
-      "g",
-    );
-    const updated = content.replace(regex, "");
-
-    // If file is empty after removal, delete it
-    if (updated.trim() === "") {
-      await fs.unlink(claudeMdFile);
-      success({ message: "✓ CLAUDE.md removed (was empty after cleanup)" });
-    } else {
-      await fs.writeFile(claudeMdFile, updated);
-      success({
-        message: "✓ Nori instructions removed from CLAUDE.md (file preserved)",
-      });
-    }
-  } catch {
-    info({ message: "CLAUDE.md not found (may not have been installed)" });
-  }
-};
-
-/**
  * CLAUDE.md feature loader
  */
 export const claudeMdLoader: ProfileLoader = {
@@ -394,9 +351,5 @@ export const claudeMdLoader: ProfileLoader = {
   install: async (args: { config: Config }) => {
     const { config } = args;
     await insertClaudeMd({ config });
-  },
-  uninstall: async (args: { config: Config }) => {
-    const { config } = args;
-    await removeClaudeMd({ config });
   },
 };

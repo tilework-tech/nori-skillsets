@@ -12,7 +12,7 @@ This feature loader (loader.ts) is registered with @/src/cli/features/claude-cod
 
 ### Core Implementation
 
-The loader.ts defines HookInterface objects (contextUsageWarningHook, notifyHook, commitAuthorHook), each providing an install() function that returns hook configurations. The loader installs hooks across SessionStart, Notification, and PreToolUse events, and also sets `settings.includeCoAuthoredBy = false` to disable Claude Code's built-in git co-author attribution. The loader reads existing settings.json, merges the hooks configuration and git settings into the settings object, and writes it back. The removeHooks() function removes both the hooks configuration and the includeCoAuthoredBy setting during uninstall. Each hook points to a compiled JavaScript file in @/src/cli/features/claude-code/hooks/config using Node.js to execute them.
+The loader.ts defines HookInterface objects (contextUsageWarningHook, notifyHook, commitAuthorHook), each providing an install() function that returns hook configurations. The loader installs hooks across SessionStart, Notification, and PreToolUse events, and also sets `settings.includeCoAuthoredBy = false` to disable Claude Code's built-in git co-author attribution. The loader reads existing settings.json, merges the hooks configuration and git settings into the settings object, and writes it back. Each hook points to a compiled JavaScript file in @/src/cli/features/claude-code/hooks/config using Node.js to execute them.
 
 ### Things to Know
 

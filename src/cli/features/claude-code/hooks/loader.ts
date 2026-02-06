@@ -11,7 +11,7 @@ import {
   getClaudeHomeDir,
   getClaudeHomeSettingsFile,
 } from "@/cli/features/claude-code/paths.js";
-import { success, info, warn } from "@/cli/logger.js";
+import { success, info } from "@/cli/logger.js";
 
 import type { Config } from "@/cli/config.js";
 import type { Loader } from "@/cli/features/agentRegistry.js";
@@ -173,47 +173,6 @@ const configureHooks = async (args: { config: Config }): Promise<void> => {
 };
 
 /**
- * Remove hooks from settings.json
- * @param args - Configuration arguments
- * @param args.config - Runtime configuration
- */
-const removeHooks = async (args: { config: Config }): Promise<void> => {
-  const { config: _config } = args;
-  const claudeSettingsFile = getClaudeHomeSettingsFile();
-
-  info({ message: "Removing hooks from Claude Code settings..." });
-
-  try {
-    const content = await fs.readFile(claudeSettingsFile, "utf-8");
-    const settings = JSON.parse(content);
-
-    let modified = false;
-
-    if (settings.hooks) {
-      delete settings.hooks;
-      modified = true;
-    }
-
-    // Remove includeCoAuthoredBy setting
-    if (settings.includeCoAuthoredBy === false) {
-      delete settings.includeCoAuthoredBy;
-      modified = true;
-    }
-
-    if (modified) {
-      await fs.writeFile(claudeSettingsFile, JSON.stringify(settings, null, 2));
-      success({ message: "✓ Hooks removed from settings.json" });
-    } else {
-      info({ message: "No hooks found in settings.json" });
-    }
-  } catch (err) {
-    warn({
-      message: `Could not remove hooks from settings.json: ${err}`,
-    });
-  }
-};
-
-/**
  * Hooks feature loader
  */
 export const hooksLoader: Loader = {
@@ -222,8 +181,5 @@ export const hooksLoader: Loader = {
   run: async (args: { config: Config }) => {
     const { config } = args;
     await configureHooks({ config });
-  },
-  uninstall: async (args: { config: Config }) => {
-    await removeHooks(args);
   },
 };

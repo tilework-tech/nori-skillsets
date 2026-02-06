@@ -9,7 +9,7 @@ import {
   getClaudeHomeDir,
   getClaudeHomeSettingsFile,
 } from "@/cli/features/claude-code/paths.js";
-import { success, info, warn } from "@/cli/logger.js";
+import { success, info } from "@/cli/logger.js";
 
 import type { Config } from "@/cli/config.js";
 import type { Loader } from "@/cli/features/agentRegistry.js";
@@ -54,39 +54,6 @@ const configureAnnouncements = async (args: {
 };
 
 /**
- * Remove companyAnnouncements from settings.json
- * @param args - Configuration arguments
- * @param args.config - Runtime configuration
- */
-const removeAnnouncements = async (args: { config: Config }): Promise<void> => {
-  const { config: _config } = args;
-  const claudeSettingsFile = getClaudeHomeSettingsFile();
-
-  info({
-    message: "Removing company announcements from Claude Code settings...",
-  });
-
-  try {
-    const content = await fs.readFile(claudeSettingsFile, "utf-8");
-    const settings = JSON.parse(content);
-
-    if (settings.companyAnnouncements) {
-      delete settings.companyAnnouncements;
-      await fs.writeFile(claudeSettingsFile, JSON.stringify(settings, null, 2));
-      success({
-        message: "✓ Company announcements removed from settings.json",
-      });
-    } else {
-      info({ message: "No company announcements found in settings.json" });
-    }
-  } catch (err) {
-    warn({
-      message: `Could not remove company announcements from settings.json: ${err}`,
-    });
-  }
-};
-
-/**
  * Announcements feature loader
  */
 export const announcementsLoader: Loader = {
@@ -94,8 +61,5 @@ export const announcementsLoader: Loader = {
   description: "Claude Code announcements configuration",
   run: async (args: { config: Config }) => {
     await configureAnnouncements(args);
-  },
-  uninstall: async (args: { config: Config }) => {
-    await removeAnnouncements(args);
   },
 };

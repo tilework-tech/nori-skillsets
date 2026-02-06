@@ -15,13 +15,12 @@ export type AgentName = "claude-code";
 
 /**
  * Loader interface for feature installation
- * Each loader handles installing/uninstalling a specific feature (config, profiles, hooks, etc.)
+ * Each loader handles installing a specific feature (config, profiles, hooks, etc.)
  */
 export type Loader = {
   name: string;
   description: string;
   run: (args: { config: Config }) => Promise<void>;
-  uninstall: (args: { config: Config }) => Promise<void>;
 };
 
 /**
@@ -30,23 +29,11 @@ export type Loader = {
  *
  * IMPORTANT: All agents MUST include the config loader in their registry.
  * The config loader (from @/cli/features/config/loader.js) manages the shared
- * .nori-config.json file and must be included for proper installation/uninstallation.
+ * .nori-config.json file and must be included for proper installation.
  */
 export type LoaderRegistry = {
   /** Get all registered loaders in installation order */
   getAll: () => Array<Loader>;
-  /** Get all registered loaders in reverse order (for uninstall) */
-  getAllReversed: () => Array<Loader>;
-};
-
-/**
- * Global loader metadata for uninstall prompts
- */
-export type GlobalLoader = {
-  /** Loader name (matches Loader.name) */
-  name: string;
-  /** Human-readable name for display in prompts */
-  humanReadableName: string;
 };
 
 /**
@@ -66,8 +53,6 @@ export type Agent = {
     installDir: string;
     profileName: string;
   }) => Promise<void>;
-  /** Get global loaders (installed to home directory) with their human-readable names */
-  getGlobalLoaders: () => Array<GlobalLoader>;
 };
 
 /**

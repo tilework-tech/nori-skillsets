@@ -65,7 +65,7 @@ beforeAll(() => {
       `CONTAINMENT BREAK: Nori installation files exist in CWD before tests run!\n` +
         `This indicates test pollution from a previous run.\n` +
         `Polluted files/directories:\n${pollution.map((p) => `  - ${p}`).join("\n")}\n` +
-        `Run the uninstall command or manually remove these files from ${cwdPath}`,
+        `Manually remove these files from ${cwdPath}`,
     );
   }
 });

@@ -148,7 +148,6 @@ describe("registry-install", () => {
     expect(installMain).toHaveBeenCalledTimes(1);
     expect(installMain).toHaveBeenCalledWith({
       nonInteractive: true,
-      skipUninstall: true,
       installDir: "/repo",
       agent: "claude-code",
       silent: true,

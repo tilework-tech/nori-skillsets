@@ -3,16 +3,9 @@
  * Manages the .nori-config.json file lifecycle
  */
 
-import { unlinkSync, existsSync } from "fs";
-
 import { signInWithEmailAndPassword, AuthErrorCodes } from "firebase/auth";
 
-import {
-  getConfigPath,
-  loadConfig,
-  saveConfig,
-  getInstalledAgents,
-} from "@/cli/config.js";
+import { getConfigPath, loadConfig, saveConfig } from "@/cli/config.js";
 import { info, success, error, warn, debug } from "@/cli/logger.js";
 import { getCurrentPackageVersion } from "@/cli/version.js";
 import { configureFirebase, getFirebase } from "@/providers/firebase.js";
@@ -137,81 +130,10 @@ const installConfig = async (args: { config: Config }): Promise<void> => {
 };
 
 /**
- * Uninstall config file - remove agent from agents object or delete file
- * @param args - Configuration arguments
- * @param args.config - Runtime configuration (agents contains agents being uninstalled)
- */
-const uninstallConfig = async (args: { config: Config }): Promise<void> => {
-  const { config } = args;
-  const configFile = getConfigPath({ installDir: config.installDir });
-
-  if (!existsSync(configFile)) {
-    info({ message: "Config file not found (may not exist)" });
-    return;
-  }
-
-  // Load existing config to check agents
-  const existingConfig = await loadConfig({
-    installDir: config.installDir,
-  });
-
-  // Get installed agents from the agents object
-  const installedAgents = existingConfig
-    ? getInstalledAgents({ config: existingConfig })
-    : [];
-
-  // If no agents in existing config, delete the entire file
-  if (installedAgents.length === 0) {
-    unlinkSync(configFile);
-    success({ message: `✓ Config file removed: ${configFile}` });
-    return;
-  }
-
-  // Determine which agents are being uninstalled
-  const agentsToRemove = config.agents ? Object.keys(config.agents) : [];
-
-  // Create new agents object without the agents being uninstalled
-  const remainingAgentsObj: { [key in ConfigAgentName]?: AgentConfig } = {};
-  for (const agentName of installedAgents) {
-    if (!agentsToRemove.includes(agentName) && existingConfig?.agents) {
-      const typedAgentName = agentName as ConfigAgentName;
-      remainingAgentsObj[typedAgentName] =
-        existingConfig.agents[typedAgentName];
-    }
-  }
-
-  const remainingAgentNames = Object.keys(remainingAgentsObj);
-
-  // If no agents remain, delete the config file
-  if (remainingAgentNames.length === 0) {
-    unlinkSync(configFile);
-    success({ message: `✓ Config file removed: ${configFile}` });
-    return;
-  }
-
-  // Otherwise, update the config with remaining agents (preserve version)
-  await saveConfig({
-    username: existingConfig?.auth?.username ?? null,
-    refreshToken: existingConfig?.auth?.refreshToken ?? null,
-    organizationUrl: existingConfig?.auth?.organizationUrl ?? null,
-    sendSessionTranscript: existingConfig?.sendSessionTranscript ?? null,
-    autoupdate: existingConfig?.autoupdate ?? null,
-    agents: remainingAgentsObj,
-    version: existingConfig?.version ?? null,
-    installDir: config.installDir,
-  });
-
-  success({
-    message: `✓ Agent removed from config. Remaining agents: ${remainingAgentNames.join(", ")}`,
-  });
-};
-
-/**
  * Config loader
  */
 export const configLoader: Loader = {
   name: "config",
   description: "Configuration file (.nori-config.json)",
   run: installConfig,
-  uninstall: uninstallConfig,
 };

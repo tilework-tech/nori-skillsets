@@ -37,8 +37,8 @@ The `--agent` global CLI option (default: "claude-code") determines which agent 
 | Type | Purpose |
 |------|---------|
 | `AgentName` | Type alias for the canonical agent identifier `"claude-code"`. Used as the registry key and source of truth for agent identity. |
-| `Loader` | Interface for feature installation with `name`, `description`, `run()`, and `uninstall()` methods |
-| `LoaderRegistry` | Interface that agent-specific registry classes must implement (`getAll()`, `getAllReversed()`) |
+| `Loader` | Interface for feature installation with `name`, `description`, and `run()` methods |
+| `LoaderRegistry` | Interface that agent-specific registry classes must implement (`getAll()`) |
 
 **Agent Interface** (agentRegistry.ts):
 - `name`: `AgentName` - canonical identifier used as the registry key ("claude-code")
@@ -46,7 +46,6 @@ The `--agent` global CLI option (default: "claude-code") determines which agent 
 - `getLoaderRegistry()`: Returns an object implementing the `LoaderRegistry` interface
 - `listProfiles({ installDir })`: Returns array of installed profile names (uses `~/.nori/profiles/`)
 - `switchProfile({ installDir, profileName })`: Validates profile exists, filters out config entries for uninstalled agents, and updates config
-- `getGlobalLoaders()`: Returns array of `GlobalLoader` objects with loader names and human-readable names
 
 **AgentRegistry** (agentRegistry.ts):
 - Singleton pattern with `getInstance()`

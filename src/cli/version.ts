@@ -1,8 +1,7 @@
 /**
  * Version tracking utilities for Nori Profiles installer
  *
- * Manages version tracking to ensure proper uninstallation of previous versions
- * before installing new versions.
+ * Manages version tracking for the Nori Profiles installer.
  */
 
 import { existsSync, readFileSync } from "fs";

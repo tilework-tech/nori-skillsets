@@ -18,7 +18,6 @@ export type ProfileLoader = {
   name: string;
   description: string;
   install: (args: { config: Config }) => Promise<void>;
-  uninstall: (args: { config: Config }) => Promise<void>;
 };
 
 /**
@@ -56,13 +55,5 @@ export class ProfileLoaderRegistry {
    */
   public getAll(): Array<ProfileLoader> {
     return Array.from(this.loaders.values());
-  }
-
-  /**
-   * Get all registered profile loaders in reverse order (for uninstall)
-   * @returns Array of all profile loaders in reverse order
-   */
-  public getAllReversed(): Array<ProfileLoader> {
-    return Array.from(this.loaders.values()).reverse();
   }
 }

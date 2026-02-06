@@ -1,6 +1,6 @@
 /**
  * Tests for profiles feature loader
- * Verifies install and uninstall operations
+ * Verifies install operations
  */
 
 import * as fs from "fs/promises";
@@ -213,57 +213,6 @@ describe("profilesLoader", () => {
     });
   });
 
-  describe("uninstall", () => {
-    it("should preserve all profiles during uninstall", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "test-profile" } },
-        },
-      };
-
-      // Install and add a user profile
-      await fs.mkdir(profilesDir, { recursive: true });
-      await createStubProfile({
-        profilesDir,
-        profileName: "test-profile",
-      });
-      await profilesLoader.run({ config });
-
-      const userProfile = path.join(profilesDir, "my-profile");
-      await fs.mkdir(userProfile, { recursive: true });
-      await fs.writeFile(path.join(userProfile, "CLAUDE.md"), "# My Profile");
-
-      // Uninstall profiles
-      await profilesLoader.uninstall({ config });
-
-      // Verify profiles are preserved (profiles are never deleted)
-      const testProfileExists = await fs
-        .access(path.join(profilesDir, "test-profile"))
-        .then(() => true)
-        .catch(() => false);
-      expect(testProfileExists).toBe(true);
-
-      const userProfileExists = await fs
-        .access(userProfile)
-        .then(() => true)
-        .catch(() => false);
-      expect(userProfileExists).toBe(true);
-    });
-
-    it("should not throw if profiles directory does not exist", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "test-profile" } },
-        },
-      };
-
-      // Uninstall without installing first
-      await expect(profilesLoader.uninstall({ config })).resolves.not.toThrow();
-    });
-  });
-
   describe("nori.json parsing", () => {
     it("should parse valid nori.json with name, version and description", async () => {
       const tempTestDir = await fs.mkdtemp(
@@ -470,102 +419,6 @@ describe("profilesLoader", () => {
         "/existing/path2",
       );
       expect(settings.permissions.additionalDirectories).toContain(profilesDir);
-    });
-
-    it("should remove permissions on uninstall", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "test-profile" } },
-        },
-      };
-      const settingsPath = path.join(claudeDir, "settings.json");
-
-      await fs.mkdir(profilesDir, { recursive: true });
-      await createStubProfile({
-        profilesDir,
-        profileName: "test-profile",
-      });
-
-      // Install first
-      await profilesLoader.run({ config });
-
-      // Verify permissions are configured
-      let content = await fs.readFile(settingsPath, "utf-8");
-      let settings = JSON.parse(content);
-      expect(settings.permissions.additionalDirectories).toContain(profilesDir);
-
-      // Uninstall
-      await profilesLoader.uninstall({ config });
-
-      // Verify permissions are removed
-      content = await fs.readFile(settingsPath, "utf-8");
-      settings = JSON.parse(content);
-
-      expect(
-        settings.permissions?.additionalDirectories?.includes(profilesDir),
-      ).toBeFalsy();
-    });
-
-    it("should preserve other additionalDirectories on uninstall", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "test-profile" } },
-        },
-      };
-      const settingsPath = path.join(claudeDir, "settings.json");
-
-      await fs.mkdir(profilesDir, { recursive: true });
-      await createStubProfile({
-        profilesDir,
-        profileName: "test-profile",
-      });
-
-      // Create settings.json with existing additionalDirectories
-      await fs.writeFile(
-        settingsPath,
-        JSON.stringify(
-          {
-            $schema: "https://json.schemastore.org/claude-code-settings.json",
-            permissions: {
-              additionalDirectories: ["/existing/path1", "/existing/path2"],
-            },
-          },
-          null,
-          2,
-        ),
-      );
-
-      // Install and then uninstall
-      await profilesLoader.run({ config });
-      await profilesLoader.uninstall({ config });
-
-      // Verify existing directories are preserved
-      const content = await fs.readFile(settingsPath, "utf-8");
-      const settings = JSON.parse(content);
-
-      expect(settings.permissions.additionalDirectories).toContain(
-        "/existing/path1",
-      );
-      expect(settings.permissions.additionalDirectories).toContain(
-        "/existing/path2",
-      );
-      expect(
-        settings.permissions.additionalDirectories.includes(profilesDir),
-      ).toBe(false);
-      expect(settings.permissions.additionalDirectories.length).toBe(2);
-    });
-
-    it("should handle missing settings.json on uninstall gracefully", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "test-profile" } },
-        },
-      };
-
-      await expect(profilesLoader.uninstall({ config })).resolves.not.toThrow();
     });
   });
 

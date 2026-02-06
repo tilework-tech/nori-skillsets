@@ -1,6 +1,6 @@
 /**
  * Tests for subagents feature loader
- * Verifies install and uninstall operations
+ * Verifies install operations
  */
 
 import * as fs from "fs/promises";
@@ -155,55 +155,6 @@ describe("subagentsLoader", () => {
 
       const secondFiles = await fs.readdir(agentsDir);
       expect(secondFiles.length).toBeGreaterThan(0);
-    });
-  });
-
-  describe("uninstall", () => {
-    it("should remove subagent files", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-      };
-
-      // Install first
-      await subagentsLoader.install({ config });
-
-      // Verify files exist
-      let files = await fs.readdir(agentsDir);
-      const initialCount = files.length;
-      expect(initialCount).toBeGreaterThan(0);
-
-      // Uninstall
-      await subagentsLoader.uninstall({ config });
-
-      // Verify nori subagent files are removed
-      const exists = await fs
-        .access(agentsDir)
-        .then(() => true)
-        .catch(() => false);
-
-      if (exists) {
-        files = await fs.readdir(agentsDir);
-        // Should have removed the nori-codebase-analyzer and other subagents
-        const hasCodebaseAnalyzer = files.includes("nori-codebase-analyzer.md");
-        expect(hasCodebaseAnalyzer).toBe(false);
-      }
-    });
-
-    it("should handle missing agents directory gracefully", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-      };
-
-      // Uninstall without installing first
-      await expect(
-        subagentsLoader.uninstall({ config }),
-      ).resolves.not.toThrow();
     });
   });
 

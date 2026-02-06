@@ -14,25 +14,24 @@ This `claude-code/` subdirectory implements the Agent interface defined in @/src
 - `getLoaderRegistry()`: Returns the LoaderRegistry singleton with all Claude Code loaders
 - `listProfiles({ installDir })`: Scans installed `.nori/profiles/` for both flat profiles (e.g., `my-skillset`) and namespaced profiles in nested directories (e.g., `myorg/my-skillset`). Returns an array of profile names in their canonical format.
 - `switchProfile({ installDir, profileName })`: Validates profile exists (handles both flat and namespaced paths via `path.join`), updates config with new profile, logs success message
-- `getGlobalLoaders()`: Returns loaders that write to `~/.claude/` global config (hooks, statusline, slashcommands, announcements)
 
 The AgentRegistry (@/src/cli/features/agentRegistry.ts) registers this agent and provides lookup by name. CLI commands use `AgentRegistry.getInstance().get({ name: "claude-code" })` to obtain the agent implementation.
 
-The `LoaderRegistry` class (@/src/cli/features/claude-code/loaderRegistry.ts) implements the shared `LoaderRegistry` interface. Loaders execute in order: config, profiles, hooks, statusline, slashcommands, announcements. During uninstall, the order is reversed.
+The `LoaderRegistry` class (@/src/cli/features/claude-code/loaderRegistry.ts) implements the shared `LoaderRegistry` interface. Loaders execute in order: config, profiles, hooks, statusline, slashcommands, announcements.
 
-Each loader implements the `Loader` interface with `run()` and `uninstall()` methods. The shared `configLoader` (@/src/cli/features/config/loader.ts) serves as the single point of config persistence during installation.
+Each loader implements the `Loader` interface with a `run()` method. The shared `configLoader` (@/src/cli/features/config/loader.ts) serves as the single point of config persistence during installation.
 
 **Global settings** (hooks, statusline, slashcommands, announcements) install to `~/.claude/` and are shared across all Nori installations. Profile-dependent features (claudemd, skills, profile-specific slashcommands, subagents) are handled by sub-loaders within the profiles feature at @/src/cli/features/claude-code/profiles/.
 
 ### Core Implementation
 
-Each loader implements run(config) to install and uninstall(config) to remove. The profiles loader (@/src/cli/features/claude-code/profiles/loader.ts) orchestrates profile-dependent features through a ProfileLoaderRegistry that manages sub-loaders for claudemd, skills, slashcommands, and subagents within each profile.
+Each loader implements run(config) to install. The profiles loader (@/src/cli/features/claude-code/profiles/loader.ts) orchestrates profile-dependent features through a ProfileLoaderRegistry that manages sub-loaders for claudemd, skills, slashcommands, and subagents within each profile.
 
 **Self-contained profiles**: Each profile is a complete, standalone directory containing all content directly (CLAUDE.md, skills/, subagents/, slashcommands/). No mixin composition or inheritance is used. The package does not ship any built-in profiles -- profiles are obtained from the registry or created by users.
 
 **Config Loader Token-Based Auth:** The configLoader handles credential persistence with automatic token conversion. During installation, if the config contains a password but no refreshToken, the loader authenticates via Firebase SDK to obtain a refresh token. The refresh token is then saved to `.nori-config.json` instead of the password.
 
-The LoaderRegistry provides getAll() for install order and getAllReversed() for uninstall order. The profiles loader must run first because other loaders read from the profile directories it creates.
+The LoaderRegistry provides getAll() for install order. The profiles loader must run first because other loaders read from the profile directories it creates.
 
 **Hooks loader** (@/src/cli/features/claude-code/hooks/loader.ts): Configures a minimal set of hooks: statisticsHook, statisticsNotificationHook, contextUsageWarningHook, notifyHook, and commitAuthorHook. Also sets `includeCoAuthoredBy = false` in settings.json.
 
