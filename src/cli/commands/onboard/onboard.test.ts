@@ -337,7 +337,7 @@ describe("onboard command", () => {
       const onboardCmd = program.commands.find((c) => c.name() === "onboard");
       expect(onboardCmd).toBeDefined();
       expect(onboardCmd?.description()).toBe(
-        "Select a profile and configure authentication",
+        "Select a skillset and configure authentication",
       );
     });
   });

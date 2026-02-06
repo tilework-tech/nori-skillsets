@@ -93,7 +93,7 @@ const displayProfilePersistenceWarning = async (args: {
   });
   newline();
   info({ message: "To persist your customizations across skillset switches:" });
-  info({ message: "  • Make changes in ~/.nori/profiles/<profile-name>/" });
+  info({ message: "  • Make changes in ~/.nori/profiles/<skillset-name>/" });
   info({ message: "  • Or create a new custom skillset" });
   newline();
 
@@ -196,7 +196,7 @@ export const initMain = async (args?: {
           profileName: capturedProfileName,
         });
         success({
-          message: `✓ Configuration saved as profile "${capturedProfileName}"`,
+          message: `✓ Configuration saved as skillset "${capturedProfileName}"`,
         });
       } else {
         // Interactive mode: require profile name
@@ -208,7 +208,7 @@ export const initMain = async (args?: {
           profileName: capturedProfileName,
         });
         success({
-          message: `✓ Configuration saved as profile "${capturedProfileName}"`,
+          message: `✓ Configuration saved as skillset "${capturedProfileName}"`,
         });
         newline();
       }
