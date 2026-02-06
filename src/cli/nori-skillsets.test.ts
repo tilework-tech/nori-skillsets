@@ -274,6 +274,61 @@ describe("nori-skillsets CLI", () => {
     expect(output).toContain("$ nori-skillsets download-skill");
   });
 
+  it("should accept 'switch' as a hidden alias for switch-skillset", () => {
+    let helpOutput = "";
+
+    try {
+      helpOutput = execSync("node build/src/cli/nori-skillsets.js --help", {
+        encoding: "utf-8",
+        stdio: "pipe",
+        env: { ...process.env, FORCE_COLOR: "0", HOME: tempDir },
+      });
+    } catch (error: unknown) {
+      if (error && typeof error === "object") {
+        const execError = error as { stdout?: string; stderr?: string };
+        helpOutput = execError.stdout || execError.stderr || "";
+      }
+    }
+
+    // 'switch' should NOT appear as its own command in help (it's hidden)
+    const lines = helpOutput.split("\n");
+    const hasSwitchAsOwnCommand = lines.some((line) => {
+      const trimmed = line.trim();
+      return (
+        (trimmed.startsWith("switch ") || trimmed.startsWith("switch\t")) &&
+        !trimmed.startsWith("switch-skillset") &&
+        !trimmed.startsWith("switch-skillsets")
+      );
+    });
+    expect(hasSwitchAsOwnCommand).toBe(false);
+
+    // 'switch --help' should show the switch command's own help (with <name> argument)
+    let switchOutput = "";
+
+    try {
+      switchOutput = execSync(
+        "node build/src/cli/nori-skillsets.js switch --help",
+        {
+          encoding: "utf-8",
+          stdio: "pipe",
+          env: { ...process.env, FORCE_COLOR: "0", HOME: tempDir },
+        },
+      );
+    } catch (error: unknown) {
+      if (error && typeof error === "object") {
+        const execError = error as {
+          stdout?: string;
+          stderr?: string;
+        };
+        switchOutput = execError.stdout || execError.stderr || "";
+      }
+    }
+
+    // Should show the switch subcommand's own help, not the top-level help
+    expect(switchOutput).toContain("nori-skillsets switch");
+    expect(switchOutput).toContain("<name>");
+  });
+
   it("should have list-skillsets command", () => {
     let output = "";
 

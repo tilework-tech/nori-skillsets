@@ -13,6 +13,7 @@ This `claude-code/` subdirectory implements the Agent interface defined in @/src
 - `displayName`: "Claude Code"
 - `getLoaderRegistry()`: Returns the LoaderRegistry singleton with all Claude Code loaders
 - `switchProfile({ installDir, profileName })`: Validates profile exists (handles both flat and namespaced paths via `path.join`), updates config with new profile, logs success message. Imports `INSTRUCTIONS_FILE` from @/src/cli/features/managedFolder.ts to identify valid profiles.
+- `factoryReset({ path })`: Delegates to `factoryResetClaudeCode` from @/src/cli/features/claude-code/factoryReset.ts. Discovers and removes all `.claude` directories and `CLAUDE.md` files by walking up the ancestor directory tree from the given path.
 
 Profile discovery (`listProfiles()`) is not part of the agent -- it lives in @/src/cli/features/managedFolder.ts as an agent-agnostic utility. CLI commands import it directly.
 
@@ -27,6 +28,10 @@ Each loader implements the `Loader` interface with a `run()` method. The shared 
 ### Core Implementation
 
 Each loader implements run(config) to install. The profiles loader (@/src/cli/features/claude-code/profiles/loader.ts) orchestrates profile-dependent features through a ProfileLoaderRegistry that manages sub-loaders for claudemd, skills, slashcommands, and subagents within each profile.
+
+**Factory Reset** (factoryReset.ts): Provides two exports:
+- `findClaudeCodeArtifacts({ startDir, stopDir })`: Walks up the ancestor tree from `startDir`, checking each directory for a `.claude` directory and a `CLAUDE.md` file. Returns an ordered array of `ClaudeCodeArtifact` objects (each with `path` and `type`). The `stopDir` parameter (inclusive) bounds the traversal for test isolation; when omitted, traversal continues to the filesystem root.
+- `factoryResetClaudeCode({ path })`: Lists discovered artifacts, warns the user, prompts for the literal string "confirm", then deletes directories with `fs.rm({ recursive: true })` and files with `fs.unlink`. Returns early with an info message if no artifacts are found.
 
 **Self-contained profiles**: Each profile is a complete, standalone directory containing all content directly (CLAUDE.md, skills/, subagents/, slashcommands/). No mixin composition or inheritance is used. The package does not ship any built-in profiles -- profiles are obtained from the registry or created by users.
 
