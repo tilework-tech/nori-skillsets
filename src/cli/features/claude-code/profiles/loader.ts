@@ -12,7 +12,7 @@ import {
   getClaudeSettingsFile,
 } from "@/cli/features/claude-code/paths.js";
 import { ProfileLoaderRegistry } from "@/cli/features/claude-code/profiles/profileLoaderRegistry.js";
-import { success, info, warn } from "@/cli/logger.js";
+import { success, info } from "@/cli/logger.js";
 
 import type { Loader } from "@/cli/features/agentRegistry.js";
 
@@ -96,73 +96,6 @@ const configureProfilesPermissions = async (args: {
 };
 
 /**
- * Uninstall profiles directory
- * Profiles are never deleted - users manage them via the registry
- * Only removes permissions configuration from settings.json
- * @param args - Configuration arguments
- * @param args.config - Runtime configuration
- */
-const uninstallProfiles = async (args: { config: Config }): Promise<void> => {
-  const { config } = args;
-
-  // Profiles are never deleted during uninstall
-  // Users manage their profiles via the registry and we preserve all customizations
-  info({ message: "Preserving Nori profiles (profiles are never deleted)" });
-
-  // Remove permissions configuration
-  await removeProfilesPermissions({ config });
-};
-
-/**
- * Remove profiles directory permissions
- * Removes profiles directory from permissions.additionalDirectories in settings.json
- * @param args - Configuration arguments
- * @param args.config - Runtime configuration
- */
-const removeProfilesPermissions = async (args: {
-  config: Config;
-}): Promise<void> => {
-  const { config } = args;
-
-  const claudeSettingsFile = getClaudeSettingsFile({
-    installDir: config.installDir,
-  });
-  const noriProfilesDir = getNoriProfilesDir({
-    installDir: config.installDir,
-  });
-
-  info({ message: "Removing profiles directory permissions..." });
-
-  try {
-    const content = await fs.readFile(claudeSettingsFile, "utf-8");
-    const settings = JSON.parse(content);
-
-    if (settings.permissions?.additionalDirectories) {
-      const profilesPath = noriProfilesDir;
-      settings.permissions.additionalDirectories =
-        settings.permissions.additionalDirectories.filter(
-          (dir: string) => dir !== profilesPath,
-        );
-
-      // Clean up empty arrays/objects
-      if (settings.permissions.additionalDirectories.length === 0) {
-        delete settings.permissions.additionalDirectories;
-      }
-      if (Object.keys(settings.permissions).length === 0) {
-        delete settings.permissions;
-      }
-
-      await fs.writeFile(claudeSettingsFile, JSON.stringify(settings, null, 2));
-      success({ message: "✓ Removed profiles directory permissions" });
-    } else {
-      info({ message: "No permissions found in settings.json" });
-    }
-  } catch (err) {
-    warn({ message: `Could not remove permissions: ${err}` });
-  }
-};
-
-/**
  * Profiles feature loader
  */
 export const profilesLoader: Loader = {
@@ -178,18 +111,6 @@ export const profilesLoader: Loader = {
     for (const loader of loaders) {
       await loader.install({ config });
     }
-  },
-  uninstall: async (args: { config: Config }) => {
-    const { config } = args;
-
-    // Uninstall profile-dependent features in reverse order
-    const registry = ProfileLoaderRegistry.getInstance();
-    const loaders = registry.getAllReversed();
-    for (const loader of loaders) {
-      await loader.uninstall({ config });
-    }
-
-    await uninstallProfiles({ config });
   },
 };
 

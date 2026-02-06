@@ -1,6 +1,6 @@
 /**
  * Tests for slash commands feature loader
- * Verifies install and uninstall operations
+ * Verifies install operations
  */
 
 import * as fs from "fs/promises";
@@ -147,56 +147,6 @@ describe("slashCommandsLoader", () => {
 
       const secondFiles = await fs.readdir(commandsDir);
       expect(secondFiles.length).toBeGreaterThan(0);
-    });
-  });
-
-  describe("uninstall", () => {
-    it("should remove slash command files", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-      };
-
-      // Install first
-      await slashCommandsLoader.install({ config });
-
-      // Verify files exist
-      let files = await fs.readdir(commandsDir);
-      expect(files.length).toBeGreaterThan(0);
-
-      // Uninstall
-      await slashCommandsLoader.uninstall({ config });
-
-      // Verify files are removed (or directory is empty/gone)
-      // The loader removes individual files, not the directory
-      const exists = await fs
-        .access(commandsDir)
-        .then(() => true)
-        .catch(() => false);
-
-      if (exists) {
-        files = await fs.readdir(commandsDir);
-        // All nori slash commands should be removed
-        // Check that no .md files remain
-        const mdFiles = files.filter((f) => f.endsWith(".md"));
-        expect(mdFiles.length).toBe(0);
-      }
-    });
-
-    it("should handle missing commands directory gracefully", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-      };
-
-      // Uninstall without installing first
-      await expect(
-        slashCommandsLoader.uninstall({ config }),
-      ).resolves.not.toThrow();
     });
   });
 

@@ -24,18 +24,6 @@ const registerSlashCommands = async (args: {
 };
 
 /**
- * Unregister all global slash commands (no-op - commands removed)
- * @param args - Configuration arguments
- * @param args.config - Runtime configuration
- */
-const unregisterSlashCommands = async (args: {
-  config: Config;
-}): Promise<void> => {
-  const { config: _config } = args;
-  info({ message: "No global slash commands to remove" });
-};
-
-/**
  * Global slash commands feature loader
  */
 export const globalSlashCommandsLoader: Loader = {
@@ -44,9 +32,5 @@ export const globalSlashCommandsLoader: Loader = {
   run: async (args: { config: Config }) => {
     const { config } = args;
     await registerSlashCommands({ config });
-  },
-  uninstall: async (args: { config: Config }) => {
-    const { config } = args;
-    await unregisterSlashCommands({ config });
   },
 };

@@ -172,7 +172,6 @@ export const registryInstallMain = async (
     // Step 4: Re-run install in silent mode to regenerate files with new profile
     await installMain({
       nonInteractive: true,
-      skipUninstall: true,
       installDir: targetInstallDir,
       agent: agentName,
       silent: true,

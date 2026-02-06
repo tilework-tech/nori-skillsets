@@ -28,13 +28,12 @@ Global slash commands loader that was previously used to register profile-agnost
 ```
 
 - **Registered in LoaderRegistry** (@/src/cli/features/claude-code/loaderRegistry.ts) after statusline loader
-- **Part of "global settings" group**: During uninstall, hooks, statusline, and slashcommands are treated as a unit
 - **No-op implementation**: The loader exists for backwards compatibility but does not install any commands
 
 ### Core Implementation
 
-- **Loader interface**: Implements the standard `Loader` interface with `run()` and `uninstall()` methods
-- **All methods are no-ops**: `run()` logs "No global slash commands to register", `uninstall()` logs "No global slash commands to remove"
+- **Loader interface**: Implements the standard `Loader` interface with a `run()` method
+- **run() is a no-op**: Logs "No global slash commands to register"
 
 ### Things to Know
 

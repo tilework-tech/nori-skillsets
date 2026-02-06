@@ -15,7 +15,7 @@ import {
   getNoriDir,
 } from "@/cli/features/claude-code/paths.js";
 import { substituteTemplatePaths } from "@/cli/features/claude-code/template.js";
-import { success, info, warn } from "@/cli/logger.js";
+import { success, info } from "@/cli/logger.js";
 
 import type { ProfileLoader } from "@/cli/features/claude-code/profiles/profileLoaderRegistry.js";
 import type { Dirent } from "fs";
@@ -234,78 +234,6 @@ const configureSkillsPermissions = async (args: {
 };
 
 /**
- * Uninstall skills
- *
- * @param args - Configuration arguments
- * @param args.config - Runtime configuration
- */
-const uninstallSkills = async (args: { config: Config }): Promise<void> => {
-  const { config } = args;
-  info({ message: "Removing Nori skills..." });
-
-  const claudeSkillsDir = getClaudeSkillsDir({ installDir: config.installDir });
-
-  try {
-    await fs.access(claudeSkillsDir);
-    await fs.rm(claudeSkillsDir, { recursive: true, force: true });
-    success({ message: "✓ Removed skills directory" });
-  } catch {
-    info({
-      message: "Skills directory not found (may not have been installed)",
-    });
-  }
-
-  // Remove permissions configuration
-  await removeSkillsPermissions({ config });
-};
-
-/**
- * Remove skills directory permissions
- * Removes skills directory from permissions.additionalDirectories in settings.json
- *
- * @param args - Configuration arguments
- * @param args.config - Runtime configuration
- */
-const removeSkillsPermissions = async (args: {
-  config: Config;
-}): Promise<void> => {
-  const { config } = args;
-  info({ message: "Removing skills directory permissions..." });
-
-  const claudeSettingsFile = getClaudeSettingsFile({
-    installDir: config.installDir,
-  });
-  const claudeSkillsDir = getClaudeSkillsDir({ installDir: config.installDir });
-
-  try {
-    const content = await fs.readFile(claudeSettingsFile, "utf-8");
-    const settings = JSON.parse(content);
-
-    if (settings.permissions?.additionalDirectories) {
-      settings.permissions.additionalDirectories =
-        settings.permissions.additionalDirectories.filter(
-          (dir: string) => dir !== claudeSkillsDir,
-        );
-
-      // Clean up empty arrays/objects
-      if (settings.permissions.additionalDirectories.length === 0) {
-        delete settings.permissions.additionalDirectories;
-      }
-      if (Object.keys(settings.permissions).length === 0) {
-        delete settings.permissions;
-      }
-
-      await fs.writeFile(claudeSettingsFile, JSON.stringify(settings, null, 2));
-      success({ message: "✓ Removed skills directory permissions" });
-    } else {
-      info({ message: "No permissions found in settings.json" });
-    }
-  } catch (err) {
-    warn({ message: `Could not remove permissions: ${err}` });
-  }
-};
-
-/**
  * Skills feature loader
  */
 export const skillsLoader: ProfileLoader = {
@@ -314,9 +242,5 @@ export const skillsLoader: ProfileLoader = {
   install: async (args: { config: Config }) => {
     const { config } = args;
     await installSkills({ config });
-  },
-  uninstall: async (args: { config: Config }) => {
-    const { config } = args;
-    await uninstallSkills({ config });
   },
 };

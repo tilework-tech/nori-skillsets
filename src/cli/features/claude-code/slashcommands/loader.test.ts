@@ -110,23 +110,4 @@ describe("globalSlashCommandsLoader", () => {
       ).resolves.not.toThrow();
     });
   });
-
-  describe("uninstall", () => {
-    it("should be a no-op and not throw errors", async () => {
-      const config: Config = { installDir: tempDir };
-
-      await expect(
-        globalSlashCommandsLoader.uninstall({ config }),
-      ).resolves.not.toThrow();
-    });
-
-    it("should handle missing commands directory gracefully", async () => {
-      const config: Config = { installDir: tempDir };
-
-      // Uninstall without installing first
-      await expect(
-        globalSlashCommandsLoader.uninstall({ config }),
-      ).resolves.not.toThrow();
-    });
-  });
 });

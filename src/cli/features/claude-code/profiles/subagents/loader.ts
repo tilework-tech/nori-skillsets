@@ -125,83 +125,6 @@ const registerSubagents = async (args: { config: Config }): Promise<void> => {
 };
 
 /**
- * Unregister all subagents
- * @param args - Configuration arguments
- * @param args.config - Runtime configuration
- */
-const unregisterSubagents = async (args: { config: Config }): Promise<void> => {
-  const { config } = args;
-  info({ message: "Removing Nori subagents..." });
-
-  let removedCount = 0;
-
-  // Get profile name from config - skip gracefully if not configured
-  // (uninstall should be permissive and clean up whatever is possible)
-  const profileName = getAgentProfile({
-    config,
-    agentName: "claude-code",
-  })?.baseProfile;
-  if (profileName == null) {
-    info({
-      message:
-        "No profile configured for claude-code, skipping subagents cleanup",
-    });
-    return;
-  }
-  const configDir = getConfigDir({
-    profileName,
-    installDir: config.installDir,
-  });
-  const claudeAgentsDir = getClaudeAgentsDir({ installDir: config.installDir });
-
-  // Read all .md files from the profile's subagents directory
-  try {
-    const files = await fs.readdir(configDir);
-    const mdFiles = files.filter(
-      (file) => file.endsWith(".md") && file !== "docs.md",
-    );
-
-    for (const file of mdFiles) {
-      const subagentPath = path.join(claudeAgentsDir, file);
-
-      try {
-        await fs.access(subagentPath);
-        await fs.unlink(subagentPath);
-        const subagentName = file.replace(/\.md$/, "");
-        success({ message: `✓ ${subagentName} subagent removed` });
-        removedCount++;
-      } catch {
-        const subagentName = file.replace(/\.md$/, "");
-        info({
-          message: `${subagentName} subagent not found (may not be installed)`,
-        });
-      }
-    }
-  } catch {
-    info({ message: "Profile subagents directory not found" });
-  }
-
-  if (removedCount > 0) {
-    success({
-      message: `Successfully removed ${removedCount} subagent${
-        removedCount === 1 ? "" : "s"
-      }`,
-    });
-  }
-
-  // Remove parent directory if empty
-  try {
-    const files = await fs.readdir(claudeAgentsDir);
-    if (files.length === 0) {
-      await fs.rmdir(claudeAgentsDir);
-      success({ message: `✓ Removed empty directory: ${claudeAgentsDir}` });
-    }
-  } catch {
-    // Directory doesn't exist or couldn't be removed, which is fine
-  }
-};
-
-/**
  * Subagents feature loader
  */
 export const subagentsLoader: ProfileLoader = {
@@ -210,9 +133,5 @@ export const subagentsLoader: ProfileLoader = {
   install: async (args: { config: Config }) => {
     const { config } = args;
     await registerSubagents({ config });
-  },
-  uninstall: async (args: { config: Config }) => {
-    const { config } = args;
-    await unregisterSubagents({ config });
   },
 };

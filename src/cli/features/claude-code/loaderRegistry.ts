@@ -27,7 +27,6 @@ export class LoaderRegistry {
     // - config must run before profiles (profiles may depend on config)
     // - configLoader also handles the version file lifecycle
     // - profilesLoader must run after config to compose profiles and install profile-dependent features
-    // - During uninstall, the order is reversed automatically
     this.loaders.set(configLoader.name, configLoader);
     this.loaders.set(profilesLoader.name, profilesLoader);
     this.loaders.set(hooksLoader.name, hooksLoader);
@@ -53,16 +52,5 @@ export class LoaderRegistry {
    */
   public getAll(): Array<Loader> {
     return Array.from(this.loaders.values());
-  }
-
-  /**
-   * Get all registered loaders in reverse order (for uninstall)
-   * During install, profiles must run first to create profile directories.
-   * During uninstall, profiles must run last so other loaders can still
-   * read from profile directories to know what files to remove.
-   * @returns Array of all loaders in reverse order
-   */
-  public getAllReversed(): Array<Loader> {
-    return Array.from(this.loaders.values()).reverse();
   }
 }

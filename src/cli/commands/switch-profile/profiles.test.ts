@@ -305,7 +305,6 @@ describe("registerSwitchProfileCommand", () => {
       expect.objectContaining({
         silent: true,
         nonInteractive: true,
-        skipUninstall: true,
       }),
     );
   });

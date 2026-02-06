@@ -311,7 +311,6 @@ export const noninteractive = async (args?: {
  * Main installer entry point
  * @param args - Configuration arguments
  * @param args.nonInteractive - Whether to run in non-interactive mode (kept for caller compatibility)
- * @param args.skipUninstall - Whether to skip uninstall step (kept for caller compatibility)
  * @param args.installDir - Custom installation directory (optional)
  * @param args.agent - AI agent to use (defaults to claude-code)
  * @param args.silent - Whether to suppress all output
@@ -319,7 +318,6 @@ export const noninteractive = async (args?: {
  */
 export const main = async (args?: {
   nonInteractive?: boolean | null;
-  skipUninstall?: boolean | null;
   installDir?: string | null;
   agent?: string | null;
   silent?: boolean | null;

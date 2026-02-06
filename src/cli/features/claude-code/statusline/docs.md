@@ -16,8 +16,6 @@ This feature loader (loader.ts) is registered with @/src/cli/features/claude-cod
 
 **Script Execution:** The status line script is invoked by Claude Code during conversation updates and receives conversation data via stdin. The script locates .nori-config.json for reading profile information. The script displays three lines: metrics (git branch, optional profile name, cost, tokens, context, lines), branding (always "Augmented with Nori"), and a promotional tip for the Nori CLI. Profile name is read from .nori-config.json (profile.baseProfile field) and only displayed if set - when not set or config missing, the profile section is omitted entirely. Profile name appears in yellow between git branch and cost metrics to help users understand which behavioral preset (senior-swe, amol, product-manager) is currently active.
 
-**Uninstallation:** The uninstall method removes both the statusLine entry from settings.json and deletes the copied script from ~/.claude/nori-statusline.sh.
-
 ### Things to Know
 
 **jq Dependency:** The script requires jq for JSON parsing (used extensively throughout). If jq is not installed, the script displays a warning message with installation instructions for both macOS (`brew install jq`) and Linux (`apt install jq`), shows Nori branding, and exits with code 0 to avoid Claude Code errors. Unlike notify-hook.sh which has fallback JSON parsers (python3, node, sed), statusline requires jq due to its extensive JSON manipulation throughout the script.

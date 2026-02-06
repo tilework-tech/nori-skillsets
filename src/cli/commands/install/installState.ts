@@ -1,7 +1,7 @@
 /**
  * Installation state utilities
  *
- * Functions for checking installation state that are used by both install.ts and uninstall.ts
+ * Functions for checking installation state
  */
 
 import { existsSync } from "fs";

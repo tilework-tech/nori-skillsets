@@ -83,22 +83,6 @@ describe("AgentRegistry", () => {
   });
 
   describe("agent interface", () => {
-    test("claude-code agent returns global loaders with human-readable names", () => {
-      const registry = AgentRegistry.getInstance();
-      const agent = registry.get({ name: "claude-code" });
-
-      const globalLoaders = agent.getGlobalLoaders();
-
-      // All loaders that write to ~/.claude/ (global config) must be included
-      // so they are preserved when uninstalling from subdirectories
-      expect(globalLoaders).toEqual([
-        { name: "hooks", humanReadableName: "hooks" },
-        { name: "statusline", humanReadableName: "statusline" },
-        { name: "slashcommands", humanReadableName: "global slash commands" },
-        { name: "announcements", humanReadableName: "announcements" },
-      ]);
-    });
-
     test("claude-code agent provides LoaderRegistry", () => {
       const registry = AgentRegistry.getInstance();
       const agent = registry.get({ name: "claude-code" });
@@ -106,7 +90,6 @@ describe("AgentRegistry", () => {
 
       // Verify it has the expected methods
       expect(loaderRegistry.getAll).toBeDefined();
-      expect(loaderRegistry.getAllReversed).toBeDefined();
 
       // Verify it returns loaders
       const loaders = loaderRegistry.getAll();
@@ -123,7 +106,6 @@ describe("AgentRegistry", () => {
         expect(typeof loader.name).toBe("string");
         expect(typeof loader.description).toBe("string");
         expect(typeof loader.run).toBe("function");
-        expect(typeof loader.uninstall).toBe("function");
       }
     });
 

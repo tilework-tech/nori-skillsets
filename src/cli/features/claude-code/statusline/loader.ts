@@ -84,47 +84,6 @@ const configureStatusLine = async (args: { config: Config }): Promise<void> => {
 };
 
 /**
- * Remove status line from settings.json and delete copied script
- * @param args - Configuration arguments
- * @param args.config - Runtime configuration
- */
-const removeStatusLine = async (args: { config: Config }): Promise<void> => {
-  const { config: _config } = args;
-  const claudeDir = getClaudeHomeDir();
-  const claudeSettingsFile = getClaudeHomeSettingsFile();
-  const destScript = path.join(claudeDir, "nori-statusline.sh");
-
-  info({ message: "Removing status line from Claude Code settings..." });
-
-  try {
-    const content = await fs.readFile(claudeSettingsFile, "utf-8");
-    const settings = JSON.parse(content);
-
-    if (settings.statusLine) {
-      delete settings.statusLine;
-      await fs.writeFile(claudeSettingsFile, JSON.stringify(settings, null, 2));
-      success({ message: "✓ Status line removed from settings.json" });
-    } else {
-      info({ message: "No status line found in settings.json" });
-    }
-  } catch (err) {
-    warn({
-      message: `Could not remove status line from settings.json: ${err}`,
-    });
-  }
-
-  // Remove copied script from .claude directory
-  try {
-    await fs.rm(destScript, { force: true });
-    success({ message: "✓ Status line script removed" });
-  } catch (err) {
-    warn({
-      message: `Could not remove status line script: ${err}`,
-    });
-  }
-};
-
-/**
  * Statusline feature loader
  */
 export const statuslineLoader: Loader = {
@@ -132,8 +91,5 @@ export const statuslineLoader: Loader = {
   description: "Claude Code status line configuration",
   run: async (args: { config: Config }) => {
     await configureStatusLine(args);
-  },
-  uninstall: async (args: { config: Config }) => {
-    await removeStatusLine(args);
   },
 };

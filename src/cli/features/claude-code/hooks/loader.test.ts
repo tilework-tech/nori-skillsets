@@ -1,6 +1,6 @@
 /**
  * Tests for hooks feature loader
- * Verifies install and uninstall operations
+ * Verifies install operations
  */
 
 import * as fs from "fs/promises";
@@ -240,76 +240,6 @@ describe("hooksLoader", () => {
         }
       }
       expect(hasContextUsageWarningHook).toBe(true);
-    });
-  });
-
-  describe("uninstall", () => {
-    it("should remove hooks from settings.json", async () => {
-      const config: Config = { installDir: tempDir };
-
-      // Install first
-      await hooksLoader.run({ config });
-
-      // Verify hooks exist
-      let content = await fs.readFile(settingsPath, "utf-8");
-      let settings = JSON.parse(content);
-      expect(settings.hooks).toBeDefined();
-
-      // Uninstall
-      await hooksLoader.uninstall({ config });
-
-      // Verify hooks are removed
-      content = await fs.readFile(settingsPath, "utf-8");
-      settings = JSON.parse(content);
-      expect(settings.hooks).toBeUndefined();
-    });
-
-    it("should preserve other settings when removing hooks", async () => {
-      const config: Config = { installDir: tempDir };
-
-      // Create settings with hooks and other content
-      await hooksLoader.run({ config });
-
-      let content = await fs.readFile(settingsPath, "utf-8");
-      let settings = JSON.parse(content);
-      settings.someOtherSetting = "preserved value";
-      await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2));
-
-      // Uninstall
-      await hooksLoader.uninstall({ config });
-
-      // Verify other settings are preserved
-      content = await fs.readFile(settingsPath, "utf-8");
-      settings = JSON.parse(content);
-      expect(settings.someOtherSetting).toBe("preserved value");
-      expect(settings.hooks).toBeUndefined();
-    });
-
-    it("should handle missing settings.json gracefully", async () => {
-      const config: Config = { installDir: tempDir };
-
-      // Uninstall without installing first
-      await expect(hooksLoader.uninstall({ config })).resolves.not.toThrow();
-    });
-
-    it("should handle settings.json without hooks gracefully", async () => {
-      const config: Config = { installDir: tempDir };
-
-      // Create settings.json without hooks
-      const settings = {
-        $schema: "https://json.schemastore.org/claude-code-settings.json",
-      };
-      await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2));
-
-      // Uninstall
-      await expect(hooksLoader.uninstall({ config })).resolves.not.toThrow();
-
-      // Verify settings.json still exists and is unchanged
-      const content = await fs.readFile(settingsPath, "utf-8");
-      const updatedSettings = JSON.parse(content);
-      expect(updatedSettings.$schema).toBe(
-        "https://json.schemastore.org/claude-code-settings.json",
-      );
     });
   });
 });

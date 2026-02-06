@@ -358,13 +358,11 @@ export const switchSkillsetAction = async (args: {
     throw err;
   }
 
-  // Run install in silent mode with skipUninstall
-  // This preserves custom user skillsets during the skillset switch
+  // Run install in silent mode to regenerate files with new skillset
   const { main: installMain } =
     await import("@/cli/commands/install/install.js");
   await installMain({
     nonInteractive: true,
-    skipUninstall: true,
     installDir,
     agent: agentName,
     silent: true,
