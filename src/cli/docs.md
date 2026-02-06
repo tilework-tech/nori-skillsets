@@ -50,6 +50,7 @@ src/cli/
     skill-download/      # Download a skill from registrar
     external/            # Install skills from external GitHub repos
     watch/               # Monitor Claude Code sessions and save transcripts
+    factory-reset/       # Remove all agent configuration
 ```
 
 **CLI Commands:**
@@ -68,6 +69,7 @@ src/cli/
 | `logout` | commands/logout/ | Remove authentication credentials |
 | `watch` | commands/watch/ | Monitor Claude Code sessions and save transcripts |
 | `install-location` | commands/install-location/ | Display installation directories |
+| `factory-reset` | commands/factory-reset/factoryReset.ts | Remove all agent configuration from the ancestor tree |
 
 The nori-skillsets CLI uses simplified command names (no `registry-` prefix for registry read operations, `download-skill` for skill downloads, `switch-skillset` for profile switching, `init` for initialization, and `watch` for session monitoring). The commands are defined in @/src/cli/commands/noriSkillsetsCommands.ts and delegate to the underlying implementation functions (`*Main` functions from registry-*, skill-*, watch, and init commands, plus `switchSkillsetAction` from profiles.ts).
 

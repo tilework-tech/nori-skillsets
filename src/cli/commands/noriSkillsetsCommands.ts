@@ -8,6 +8,7 @@
  */
 
 import { externalMain } from "@/cli/commands/external/external.js";
+import { factoryResetMain } from "@/cli/commands/factory-reset/factoryReset.js";
 import { initMain } from "@/cli/commands/init/init.js";
 import { installLocationMain } from "@/cli/commands/install-location/installLocation.js";
 import { listSkillsetsMain } from "@/cli/commands/list-skillsets/listSkillsets.js";
@@ -21,6 +22,30 @@ import { switchSkillsetAction } from "@/cli/commands/switch-profile/profiles.js"
 import { watchMain, watchStopMain } from "@/cli/commands/watch/watch.js";
 
 import type { Command } from "commander";
+
+/**
+ * Register the 'factory-reset' command for nori-skillsets CLI
+ * @param args - Configuration arguments
+ * @param args.program - Commander program instance
+ */
+export const registerNoriSkillsetsFactoryResetCommand = (args: {
+  program: Command;
+}): void => {
+  const { program } = args;
+
+  program
+    .command("factory-reset <agent-name>")
+    .description(
+      "Remove all configuration for a given agent (e.g., claude-code)",
+    )
+    .action(async (agentName: string) => {
+      const globalOpts = program.opts();
+      await factoryResetMain({
+        agentName,
+        nonInteractive: globalOpts.nonInteractive || null,
+      });
+    });
+};
 
 /**
  * Register the 'init' command for nori-skillsets CLI
