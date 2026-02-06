@@ -6,6 +6,7 @@ import * as fs from "fs/promises";
 import { tmpdir } from "os";
 import * as path from "path";
 
+import * as clack from "@clack/prompts";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 // Track the mock homedir value - will be set in beforeEach
@@ -83,6 +84,21 @@ vi.mock("@/utils/fetch.js", () => ({
   },
 }));
 
+// Mock @clack/prompts for spinner and interactive prompts
+vi.mock("@clack/prompts", () => ({
+  spinner: vi.fn(() => ({
+    start: vi.fn(),
+    stop: vi.fn(),
+    message: vi.fn(),
+  })),
+  isCancel: vi.fn(() => false),
+}));
+
+// Mock skill resolution prompt
+vi.mock("@/cli/prompts/skillResolution.js", () => ({
+  selectSkillResolution: vi.fn(),
+}));
+
 // Mock console methods to capture output
 const mockConsoleLog = vi
   .spyOn(console, "log")
@@ -94,6 +110,7 @@ const mockConsoleError = vi
 import { registrarApi } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
 import { loadConfig, getRegistryAuth } from "@/cli/config.js";
+import { selectSkillResolution } from "@/cli/prompts/skillResolution.js";
 
 import { registryUploadMain } from "./registryUpload.js";
 
@@ -762,6 +779,7 @@ describe("registry-upload", () => {
         const result = await registryUploadMain({
           profileSpec: "myorg/my-profile",
           cwd: testDir,
+          nonInteractive: true, // Non-interactive mode - should fail with error message
         });
 
         expect(result.success).toBe(false);
@@ -971,6 +989,719 @@ describe("registry-upload", () => {
           .map((call) => call.join(" "))
           .join("\n");
         expect(allErrorOutput.toLowerCase()).toContain("no authentication");
+      });
+    });
+
+    describe("--dry-run flag", () => {
+      it("should show target version without uploading", async () => {
+        // Create a profile to upload
+        const profileDir = path.join(profilesDir, "myorg", "my-profile");
+        await fs.mkdir(profileDir, { recursive: true });
+        await fs.writeFile(
+          path.join(profileDir, "CLAUDE.md"),
+          "# My Profile\n",
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+
+        // Existing package at version 1.2.3
+        vi.mocked(registrarApi.getPackument).mockResolvedValue({
+          name: "my-profile",
+          "dist-tags": { latest: "1.2.3" },
+          versions: {
+            "1.2.3": { name: "my-profile", version: "1.2.3" },
+          },
+        });
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+          dryRun: true,
+        });
+
+        expect(result.success).toBe(true);
+
+        // Verify no upload occurred
+        expect(registrarApi.uploadProfile).not.toHaveBeenCalled();
+
+        // Verify dry-run output shows version
+        const allOutput = mockConsoleLog.mock.calls
+          .map((call) => call.join(" "))
+          .join("\n");
+        expect(allOutput.toLowerCase()).toContain("dry run");
+        expect(allOutput).toContain("1.2.4"); // auto-bumped version
+      });
+
+      it("should display profile path and registry URL in dry-run", async () => {
+        // Create a profile to upload
+        const profileDir = path.join(profilesDir, "myorg", "my-profile");
+        await fs.mkdir(profileDir, { recursive: true });
+        await fs.writeFile(
+          path.join(profileDir, "CLAUDE.md"),
+          "# My Profile\n",
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+          dryRun: true,
+        });
+
+        expect(result.success).toBe(true);
+
+        const allOutput = mockConsoleLog.mock.calls
+          .map((call) => call.join(" "))
+          .join("\n");
+        expect(allOutput).toContain("myorg/my-profile");
+        expect(allOutput).toContain("myorg.noriskillsets.dev");
+      });
+
+      it("should show 1.0.0 for new packages in dry-run", async () => {
+        // Create a profile to upload
+        const profileDir = path.join(profilesDir, "myorg", "new-profile");
+        await fs.mkdir(profileDir, { recursive: true });
+        await fs.writeFile(
+          path.join(profileDir, "CLAUDE.md"),
+          "# New Profile\n",
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+
+        // New package - no existing versions
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/new-profile",
+          cwd: testDir,
+          dryRun: true,
+        });
+
+        expect(result.success).toBe(true);
+
+        const allOutput = mockConsoleLog.mock.calls
+          .map((call) => call.join(" "))
+          .join("\n");
+        expect(allOutput).toContain("1.0.0");
+      });
+    });
+
+    describe("--description option", () => {
+      it("should pass description to uploadProfile API", async () => {
+        // Create a profile to upload
+        const profileDir = path.join(profilesDir, "myorg", "my-profile");
+        await fs.mkdir(profileDir, { recursive: true });
+        await fs.writeFile(
+          path.join(profileDir, "CLAUDE.md"),
+          "# My Profile\n",
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+
+        vi.mocked(registrarApi.uploadProfile).mockResolvedValue({
+          name: "my-profile",
+          version: "1.0.0",
+          tarballSha: "abc123",
+          createdAt: new Date().toISOString(),
+        });
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+          description: "A helpful profile for testing",
+        });
+
+        expect(result.success).toBe(true);
+
+        expect(registrarApi.uploadProfile).toHaveBeenCalledWith(
+          expect.objectContaining({
+            description: "A helpful profile for testing",
+          }),
+        );
+      });
+
+      it("should work without description (undefined)", async () => {
+        // Create a profile to upload
+        const profileDir = path.join(profilesDir, "myorg", "my-profile");
+        await fs.mkdir(profileDir, { recursive: true });
+        await fs.writeFile(
+          path.join(profileDir, "CLAUDE.md"),
+          "# My Profile\n",
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+
+        vi.mocked(registrarApi.uploadProfile).mockResolvedValue({
+          name: "my-profile",
+          version: "1.0.0",
+          tarballSha: "abc123",
+          createdAt: new Date().toISOString(),
+        });
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+          // No description
+        });
+
+        expect(result.success).toBe(true);
+
+        // Verify description was not included or was undefined
+        const uploadCall = vi.mocked(registrarApi.uploadProfile).mock.calls[0];
+        expect(uploadCall[0].description).toBeUndefined();
+      });
+    });
+
+    describe("spinner progress indication", () => {
+      it("should show spinner during upload", async () => {
+        const spinnerMock = {
+          start: vi.fn(),
+          stop: vi.fn(),
+          message: vi.fn(),
+        };
+        vi.mocked(clack.spinner).mockReturnValue(spinnerMock);
+
+        // Create a profile to upload
+        const profileDir = path.join(profilesDir, "myorg", "my-profile");
+        await fs.mkdir(profileDir, { recursive: true });
+        await fs.writeFile(
+          path.join(profileDir, "CLAUDE.md"),
+          "# My Profile\n",
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+
+        vi.mocked(registrarApi.uploadProfile).mockResolvedValue({
+          name: "my-profile",
+          version: "1.0.0",
+          tarballSha: "abc123",
+          createdAt: new Date().toISOString(),
+        });
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+        });
+
+        expect(result.success).toBe(true);
+
+        expect(spinnerMock.start).toHaveBeenCalled();
+        expect(spinnerMock.stop).toHaveBeenCalled();
+      });
+
+      it("should stop spinner on failure", async () => {
+        const spinnerMock = {
+          start: vi.fn(),
+          stop: vi.fn(),
+          message: vi.fn(),
+        };
+        vi.mocked(clack.spinner).mockReturnValue(spinnerMock);
+
+        // Create a profile to upload
+        const profileDir = path.join(profilesDir, "myorg", "my-profile");
+        await fs.mkdir(profileDir, { recursive: true });
+        await fs.writeFile(
+          path.join(profileDir, "CLAUDE.md"),
+          "# My Profile\n",
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+
+        vi.mocked(registrarApi.uploadProfile).mockRejectedValue(
+          new Error("Upload failed"),
+        );
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+        });
+
+        expect(result.success).toBe(false);
+
+        expect(spinnerMock.start).toHaveBeenCalled();
+        expect(spinnerMock.stop).toHaveBeenCalled();
+      });
+
+      it("should not show spinner in silent mode", async () => {
+        const spinnerMock = {
+          start: vi.fn(),
+          stop: vi.fn(),
+          message: vi.fn(),
+        };
+        vi.mocked(clack.spinner).mockReturnValue(spinnerMock);
+
+        // Create a profile to upload
+        const profileDir = path.join(profilesDir, "myorg", "my-profile");
+        await fs.mkdir(profileDir, { recursive: true });
+        await fs.writeFile(
+          path.join(profileDir, "CLAUDE.md"),
+          "# My Profile\n",
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+
+        vi.mocked(registrarApi.uploadProfile).mockResolvedValue({
+          name: "my-profile",
+          version: "1.0.0",
+          tarballSha: "abc123",
+          createdAt: new Date().toISOString(),
+        });
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+          silent: true,
+        });
+
+        expect(result.success).toBe(true);
+
+        // Spinner should not be used in silent mode
+        expect(spinnerMock.start).not.toHaveBeenCalled();
+      });
+    });
+
+    describe("interactive conflict resolution", () => {
+      it("should prompt for resolution on conflicts in interactive mode", async () => {
+        // Create a profile to upload
+        const profileDir = path.join(profilesDir, "myorg", "my-profile");
+        await fs.mkdir(profileDir, { recursive: true });
+        await fs.writeFile(
+          path.join(profileDir, "CLAUDE.md"),
+          "# My Profile\n",
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+
+        // First upload fails with conflict that needs manual resolution
+        const collisionError = {
+          message: "Skill conflicts detected",
+          conflicts: [
+            {
+              skillId: "my-skill",
+              exists: true,
+              canPublish: true,
+              latestVersion: "1.0.0",
+              owner: "me@example.com",
+              availableActions: ["namespace", "updateVersion", "cancel"],
+              contentUnchanged: false,
+            },
+          ],
+        };
+
+        vi.mocked(registrarApi.uploadProfile)
+          .mockRejectedValueOnce(collisionError)
+          .mockResolvedValueOnce({
+            name: "my-profile",
+            version: "1.0.0",
+            tarballSha: "abc123",
+            createdAt: new Date().toISOString(),
+          });
+
+        // Mock the resolution prompt to return a strategy
+        vi.mocked(selectSkillResolution).mockResolvedValue({
+          "my-skill": { action: "namespace" },
+        });
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+          // interactive mode is default (nonInteractive: false)
+        });
+
+        expect(result.success).toBe(true);
+
+        // Verify prompt was called
+        expect(selectSkillResolution).toHaveBeenCalledWith(
+          expect.objectContaining({
+            conflicts: collisionError.conflicts,
+            profileName: "my-profile",
+          }),
+        );
+
+        // Verify retry with resolution strategy
+        expect(registrarApi.uploadProfile).toHaveBeenCalledTimes(2);
+        expect(registrarApi.uploadProfile).toHaveBeenLastCalledWith(
+          expect.objectContaining({
+            resolutionStrategy: {
+              "my-skill": { action: "namespace" },
+            },
+          }),
+        );
+      });
+
+      it("should not prompt in non-interactive mode", async () => {
+        // Create a profile to upload
+        const profileDir = path.join(profilesDir, "myorg", "my-profile");
+        await fs.mkdir(profileDir, { recursive: true });
+        await fs.writeFile(
+          path.join(profileDir, "CLAUDE.md"),
+          "# My Profile\n",
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+
+        // Upload fails with conflict that needs manual resolution
+        const collisionError = {
+          message: "Skill conflicts detected",
+          conflicts: [
+            {
+              skillId: "my-skill",
+              exists: true,
+              canPublish: false,
+              latestVersion: "1.0.0",
+              availableActions: ["namespace", "cancel"],
+              contentUnchanged: false, // Can't auto-resolve
+            },
+          ],
+        };
+
+        vi.mocked(registrarApi.uploadProfile).mockRejectedValue(collisionError);
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+          nonInteractive: true,
+        });
+
+        expect(result.success).toBe(false);
+
+        // Verify prompt was NOT called
+        expect(selectSkillResolution).not.toHaveBeenCalled();
+      });
+    });
+
+    describe("skill summary on success", () => {
+      it("should display uploaded skills summary on success", async () => {
+        // Create a profile to upload
+        const profileDir = path.join(profilesDir, "myorg", "my-profile");
+        await fs.mkdir(profileDir, { recursive: true });
+        await fs.writeFile(
+          path.join(profileDir, "CLAUDE.md"),
+          "# My Profile\n",
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+
+        vi.mocked(registrarApi.uploadProfile).mockResolvedValue({
+          name: "my-profile",
+          version: "1.0.0",
+          tarballSha: "abc123",
+          createdAt: new Date().toISOString(),
+          extractedSkills: {
+            succeeded: [
+              { name: "skill-a", version: "1.0.0" },
+              { name: "skill-b", version: "2.0.0" },
+            ],
+            failed: [],
+          },
+        });
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+        });
+
+        expect(result.success).toBe(true);
+
+        const allOutput = mockConsoleLog.mock.calls
+          .map((call) => call.join(" "))
+          .join("\n");
+        expect(allOutput).toContain("skill-a");
+        expect(allOutput).toContain("skill-b");
+      });
+
+      it("should show linked vs uploaded skills separately", async () => {
+        // Create a profile to upload
+        const profileDir = path.join(profilesDir, "myorg", "my-profile");
+        await fs.mkdir(profileDir, { recursive: true });
+        await fs.writeFile(
+          path.join(profileDir, "CLAUDE.md"),
+          "# My Profile\n",
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+
+        // First call fails with conflict, second succeeds with resolution
+        const collisionError = {
+          message: "Skill conflicts detected",
+          conflicts: [
+            {
+              skillId: "existing-skill",
+              exists: true,
+              canPublish: false,
+              latestVersion: "1.5.0",
+              availableActions: ["link", "namespace", "cancel"],
+              contentUnchanged: true,
+            },
+          ],
+        };
+
+        vi.mocked(registrarApi.uploadProfile)
+          .mockRejectedValueOnce(collisionError)
+          .mockResolvedValueOnce({
+            name: "my-profile",
+            version: "1.0.0",
+            tarballSha: "abc123",
+            createdAt: new Date().toISOString(),
+            extractedSkills: {
+              succeeded: [
+                { name: "new-skill", version: "1.0.0" },
+                { name: "existing-skill", version: "1.5.0" },
+              ],
+              failed: [],
+            },
+          });
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+        });
+
+        expect(result.success).toBe(true);
+
+        const allOutput = mockConsoleLog.mock.calls
+          .map((call) => call.join(" "))
+          .join("\n");
+        expect(allOutput).toContain("existing-skill");
+        // Should indicate it was linked
+        expect(allOutput.toLowerCase()).toContain("linked");
+      });
+
+      it("should show namespaced skills with their new names", async () => {
+        // Create a profile to upload
+        const profileDir = path.join(profilesDir, "myorg", "my-profile");
+        await fs.mkdir(profileDir, { recursive: true });
+        await fs.writeFile(
+          path.join(profileDir, "CLAUDE.md"),
+          "# My Profile\n",
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+
+        // First call fails with conflict, second succeeds with namespace resolution
+        const collisionError = {
+          message: "Skill conflicts detected",
+          conflicts: [
+            {
+              skillId: "conflicting-skill",
+              exists: true,
+              canPublish: false,
+              latestVersion: "1.0.0",
+              availableActions: ["namespace", "cancel"],
+              contentUnchanged: false,
+            },
+          ],
+        };
+
+        vi.mocked(registrarApi.uploadProfile)
+          .mockRejectedValueOnce(collisionError)
+          .mockResolvedValueOnce({
+            name: "my-profile",
+            version: "1.0.0",
+            tarballSha: "abc123",
+            createdAt: new Date().toISOString(),
+            extractedSkills: {
+              succeeded: [
+                { name: "my-profile-conflicting-skill", version: "1.0.0" },
+              ],
+              failed: [],
+            },
+          });
+
+        // Mock the resolution prompt to return namespace strategy
+        vi.mocked(selectSkillResolution).mockResolvedValue({
+          "conflicting-skill": { action: "namespace" },
+        });
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+        });
+
+        expect(result.success).toBe(true);
+
+        const allOutput = mockConsoleLog.mock.calls
+          .map((call) => call.join(" "))
+          .join("\n");
+        // Should show the namespaced name
+        expect(allOutput).toContain("my-profile-conflicting-skill");
       });
     });
   });

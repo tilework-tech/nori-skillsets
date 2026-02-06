@@ -125,12 +125,29 @@ export type UploadProfileRequest = {
   resolutionStrategy?: SkillResolutionStrategy | null;
 };
 
+/**
+ * Information about an extracted skill from a profile upload
+ */
+export type ExtractedSkillInfo = {
+  name: string;
+  version: string;
+};
+
+/**
+ * Summary of skills extracted during profile upload
+ */
+export type ExtractedSkillsSummary = {
+  succeeded: Array<ExtractedSkillInfo>;
+  failed: Array<{ name: string; error: string }>;
+};
+
 export type UploadProfileResponse = {
   name: string;
   version: string;
   description?: string | null;
   tarballSha: string;
   createdAt: string;
+  extractedSkills?: ExtractedSkillsSummary | null;
 };
 
 // Skill API types

@@ -6,6 +6,7 @@
 import * as fs from "fs/promises";
 import * as path from "path";
 
+import * as clack from "@clack/prompts";
 import * as semver from "semver";
 import * as tar from "tar";
 
@@ -13,11 +14,13 @@ import {
   registrarApi,
   type SkillConflict,
   type SkillResolutionStrategy,
+  type UploadProfileResponse,
 } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
 import { loadConfig, getRegistryAuth } from "@/cli/config.js";
 import { getNoriProfilesDir } from "@/cli/features/claude-code/paths.js";
 import { error, success, info, raw } from "@/cli/logger.js";
+import { selectSkillResolution } from "@/cli/prompts/skillResolution.js";
 import { isSkillCollisionError } from "@/utils/fetch.js";
 import { getInstallDirs } from "@/utils/path.js";
 import {
@@ -270,6 +273,60 @@ const formatVersionList = (args: {
 };
 
 /**
+ * Format skill summary for display
+ * @param args - The function arguments
+ * @param args.result - The upload response
+ * @param args.linkedSkillIds - Set of skill IDs that were linked (not uploaded fresh)
+ *
+ * @returns Formatted skill summary string or null if no skills
+ */
+const formatSkillSummary = (args: {
+  result: UploadProfileResponse;
+  linkedSkillIds: Set<string>;
+}): string | null => {
+  const { result, linkedSkillIds } = args;
+
+  if (result.extractedSkills == null) {
+    return null;
+  }
+
+  const { succeeded, failed } = result.extractedSkills;
+
+  if (succeeded.length === 0 && failed.length === 0) {
+    return null;
+  }
+
+  const lines: Array<string> = ["\nSkills:"];
+
+  // Separate linked vs newly uploaded skills
+  const linkedSkills = succeeded.filter((s) => linkedSkillIds.has(s.name));
+  const uploadedSkills = succeeded.filter((s) => !linkedSkillIds.has(s.name));
+
+  if (uploadedSkills.length > 0) {
+    lines.push("  Uploaded:");
+    for (const skill of uploadedSkills) {
+      lines.push(`    - ${skill.name}@${skill.version}`);
+    }
+  }
+
+  if (linkedSkills.length > 0) {
+    lines.push("  Linked (existing):");
+    for (const skill of linkedSkills) {
+      lines.push(`    - ${skill.name}@${skill.version}`);
+    }
+  }
+
+  if (failed.length > 0) {
+    lines.push("  Failed:");
+    for (const skill of failed) {
+      lines.push(`    - ${skill.name}: ${skill.error}`);
+    }
+  }
+
+  return lines.join("\n");
+};
+
+/**
  * Main upload function
  * @param args - The function arguments
  * @param args.profileSpec - Profile specification (name[@version] or org/name[@version])
@@ -279,6 +336,8 @@ const formatVersionList = (args: {
  * @param args.listVersions - If true, list versions instead of uploading
  * @param args.nonInteractive - Run without prompts
  * @param args.silent - Suppress output
+ * @param args.dryRun - Show what would happen without uploading
+ * @param args.description - Description for the profile version
  *
  * @returns Upload result
  */
@@ -290,8 +349,19 @@ export const registryUploadMain = async (args: {
   listVersions?: boolean | null;
   nonInteractive?: boolean | null;
   silent?: boolean | null;
+  dryRun?: boolean | null;
+  description?: string | null;
 }): Promise<RegistryUploadResult> => {
-  const { profileSpec, installDir, registryUrl, listVersions } = args;
+  const {
+    profileSpec,
+    installDir,
+    registryUrl,
+    listVersions,
+    nonInteractive,
+    silent,
+    dryRun,
+    description,
+  } = args;
   const cwd = args.cwd ?? process.cwd();
 
   // Parse profile spec using shared utility
@@ -486,30 +556,72 @@ export const registryUploadMain = async (args: {
     authToken,
   });
 
-  info({
-    message: `Uploading "${profileDisplayName}@${uploadVersion}" to ${targetRegistryUrl}...`,
-  });
+  // Handle dry-run mode
+  if (dryRun) {
+    info({
+      message: `[Dry run] Would upload "${profileDisplayName}@${uploadVersion}" to ${targetRegistryUrl}`,
+    });
+    info({
+      message: `[Dry run] Profile path: ${profileDir}`,
+    });
+    return { success: true };
+  }
 
-  // Create tarball and upload
-  try {
+  // Create spinner for progress (unless in silent mode)
+  const uploadSpinner = silent ? null : clack.spinner();
+
+  // Track linked skill IDs for summary
+  const linkedSkillIds = new Set<string>();
+
+  // Helper to perform upload with optional resolution strategy
+  const performUpload = async (args: {
+    resolutionStrategy?: SkillResolutionStrategy | null;
+  }): Promise<UploadProfileResponse> => {
     const tarballBuffer = await createProfileTarball({ profileDir });
     const archiveData = new ArrayBuffer(tarballBuffer.byteLength);
     new Uint8Array(archiveData).set(tarballBuffer);
 
-    const result = await registrarApi.uploadProfile({
+    return await registrarApi.uploadProfile({
       packageName,
       version: uploadVersion,
       archiveData,
       authToken,
       registryUrl: targetRegistryUrl,
+      description: description ?? undefined,
+      resolutionStrategy: args.resolutionStrategy ?? undefined,
     });
+  };
+
+  // Helper to display success and summary
+  const displaySuccess = (args: { result: UploadProfileResponse }): void => {
+    const { result } = args;
 
     success({
       message: `Successfully uploaded "${profileDisplayName}@${result.version}" to ${targetRegistryUrl}`,
     });
+
+    // Show skill summary if available
+    const skillSummary = formatSkillSummary({
+      result,
+      linkedSkillIds,
+    });
+    if (skillSummary != null) {
+      info({ message: skillSummary });
+    }
+
     info({
       message: `Others can install it with:\n  nori-skillsets download ${profileDisplayName}`,
     });
+  };
+
+  // Start spinner
+  uploadSpinner?.start(`Uploading "${profileDisplayName}@${uploadVersion}"...`);
+
+  try {
+    const result = await performUpload({});
+
+    uploadSpinner?.stop(`Upload complete`);
+    displaySuccess({ result });
 
     return { success: true };
   } catch (err) {
@@ -519,25 +631,25 @@ export const registryUploadMain = async (args: {
         conflicts: err.conflicts,
       });
 
+      // Track which skills were linked for summary
+      for (const [skillId, resolution] of Object.entries(strategy)) {
+        if (resolution.action === "link") {
+          linkedSkillIds.add(skillId);
+        }
+      }
+
       // Auto-resolve if all conflicts are resolvable
       if (unresolvedConflicts.length === 0) {
         try {
-          info({
-            message: `Auto-resolving ${Object.keys(strategy).length} unchanged skill conflict(s)...`,
-          });
+          uploadSpinner?.message(
+            `Auto-resolving ${Object.keys(strategy).length} unchanged skill conflict(s)...`,
+          );
 
-          const tarballBuffer = await createProfileTarball({ profileDir });
-          const archiveData = new ArrayBuffer(tarballBuffer.byteLength);
-          new Uint8Array(archiveData).set(tarballBuffer);
-
-          const retryResult = await registrarApi.uploadProfile({
-            packageName,
-            version: uploadVersion,
-            archiveData,
-            authToken,
-            registryUrl: targetRegistryUrl,
+          const retryResult = await performUpload({
             resolutionStrategy: strategy,
           });
+
+          uploadSpinner?.stop(`Upload complete`);
 
           success({
             message: `Successfully uploaded "${profileDisplayName}@${retryResult.version}" to ${targetRegistryUrl}`,
@@ -545,12 +657,23 @@ export const registryUploadMain = async (args: {
           info({
             message: `Auto-resolved ${Object.keys(strategy).length} skill(s) by linking to existing versions.`,
           });
+
+          // Show skill summary if available
+          const skillSummary = formatSkillSummary({
+            result: retryResult,
+            linkedSkillIds,
+          });
+          if (skillSummary != null) {
+            info({ message: skillSummary });
+          }
+
           info({
             message: `Others can install it with:\n  nori-skillsets download ${profileDisplayName}`,
           });
 
           return { success: true };
         } catch (retryErr) {
+          uploadSpinner?.stop(`Upload failed`);
           error({
             message: `Upload failed on retry: ${retryErr instanceof Error ? retryErr.message : String(retryErr)}`,
           });
@@ -558,11 +681,59 @@ export const registryUploadMain = async (args: {
         }
       }
 
-      // Manual resolution required
+      // Interactive resolution if not in non-interactive mode
+      if (!nonInteractive) {
+        uploadSpinner?.stop(`Skill conflicts detected`);
+
+        try {
+          // Prompt for resolution of unresolved conflicts
+          const interactiveStrategy = await selectSkillResolution({
+            conflicts: unresolvedConflicts,
+            profileName: packageName,
+          });
+
+          // Merge auto-resolved and interactive strategies
+          const combinedStrategy: SkillResolutionStrategy = {
+            ...strategy,
+            ...interactiveStrategy,
+          };
+
+          // Track linked skills from interactive resolution
+          for (const [skillId, resolution] of Object.entries(
+            interactiveStrategy,
+          )) {
+            if (resolution.action === "link") {
+              linkedSkillIds.add(skillId);
+            }
+          }
+
+          uploadSpinner?.start(`Uploading with resolution strategy...`);
+
+          const retryResult = await performUpload({
+            resolutionStrategy: combinedStrategy,
+          });
+
+          uploadSpinner?.stop(`Upload complete`);
+          displaySuccess({ result: retryResult });
+
+          return { success: true };
+        } catch (resolutionErr) {
+          // User cancelled or error during resolution
+          uploadSpinner?.stop(`Upload cancelled`);
+          error({
+            message: `Upload cancelled: ${resolutionErr instanceof Error ? resolutionErr.message : String(resolutionErr)}`,
+          });
+          return { success: false };
+        }
+      }
+
+      // Non-interactive mode - manual resolution required
+      uploadSpinner?.stop(`Upload failed`);
       error({ message: formatSkillConflicts({ conflicts: err.conflicts }) });
       return { success: false };
     }
 
+    uploadSpinner?.stop(`Upload failed`);
     error({
       message: `Upload failed: ${err instanceof Error ? err.message : String(err)}`,
     });
@@ -588,10 +759,17 @@ export const registerRegistryUploadCommand = (args: {
       "--list-versions",
       "List available versions for the profile instead of uploading",
     )
+    .option("--dry-run", "Show what would be uploaded without uploading")
+    .option("--description <text>", "Description for this version")
     .action(
       async (
         profileSpec: string,
-        options: { registry?: string; listVersions?: boolean },
+        options: {
+          registry?: string;
+          listVersions?: boolean;
+          dryRun?: boolean;
+          description?: string;
+        },
       ) => {
         const globalOpts = program.opts();
 
@@ -603,6 +781,8 @@ export const registerRegistryUploadCommand = (args: {
           listVersions: options.listVersions || null,
           nonInteractive: globalOpts.nonInteractive || null,
           silent: globalOpts.silent || null,
+          dryRun: options.dryRun || null,
+          description: options.description || null,
         });
 
         if (!result.success) {
