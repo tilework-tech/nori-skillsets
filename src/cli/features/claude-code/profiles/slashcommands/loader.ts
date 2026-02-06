@@ -16,7 +16,6 @@ import {
 import { substituteTemplatePaths } from "@/cli/features/claude-code/template.js";
 import { success, info, warn } from "@/cli/logger.js";
 
-import type { ValidationResult } from "@/cli/features/agentRegistry.js";
 import type { ProfileLoader } from "@/cli/features/claude-code/profiles/profileLoaderRegistry.js";
 
 // Get directory of this loader file
@@ -212,104 +211,6 @@ const unregisterSlashCommands = async (args: {
 };
 
 /**
- * Validate slash commands installation
- * @param args - Configuration arguments
- * @param args.config - Runtime configuration
- *
- * @returns Validation result
- */
-const validate = async (args: {
-  config: Config;
-}): Promise<ValidationResult> => {
-  const { config } = args;
-  const errors: Array<string> = [];
-
-  const claudeCommandsDir = getClaudeCommandsDir({
-    installDir: config.installDir,
-  });
-
-  // Check if commands directory exists
-  try {
-    await fs.access(claudeCommandsDir);
-  } catch {
-    errors.push(`Commands directory not found at ${claudeCommandsDir}`);
-    errors.push('Run "nori-skillsets init" to create the commands directory');
-    return {
-      valid: false,
-      message: "Commands directory not found",
-      errors,
-    };
-  }
-
-  // Get profile name from config - error if not configured
-  const profileName = getAgentProfile({
-    config,
-    agentName: "claude-code",
-  })?.baseProfile;
-  if (profileName == null) {
-    errors.push("No profile configured for claude-code");
-    errors.push("Run 'nori-skillsets init' to configure a profile");
-    return {
-      valid: false,
-      message: "No profile configured",
-      errors,
-    };
-  }
-  const configDir = getConfigDir({
-    profileName,
-    installDir: config.installDir,
-  });
-
-  // Check if all expected slash commands are present
-  const missingCommands: Array<string> = [];
-  let expectedCount = 0;
-
-  try {
-    const files = await fs.readdir(configDir);
-    const mdFiles = files.filter(
-      (file) => file.endsWith(".md") && file !== "docs.md",
-    );
-    expectedCount = mdFiles.length;
-
-    for (const file of mdFiles) {
-      const commandPath = path.join(claudeCommandsDir, file);
-      try {
-        await fs.access(commandPath);
-      } catch {
-        missingCommands.push(file.replace(/\.md$/, ""));
-      }
-    }
-  } catch {
-    // Profile slashcommands directory not found - this is valid (0 commands expected)
-    return {
-      valid: true,
-      message: "No slash commands configured for this profile",
-      errors: null,
-    };
-  }
-
-  if (missingCommands.length > 0) {
-    errors.push(
-      `Missing ${
-        missingCommands.length
-      } slash command(s): ${missingCommands.join(", ")}`,
-    );
-    errors.push('Run "nori-skillsets init" to register missing commands');
-    return {
-      valid: false,
-      message: "Some slash commands are not installed",
-      errors,
-    };
-  }
-
-  return {
-    valid: true,
-    message: `All ${expectedCount} slash commands are properly installed`,
-    errors: null,
-  };
-};
-
-/**
  * Slash commands feature loader
  */
 export const slashCommandsLoader: ProfileLoader = {
@@ -323,5 +224,4 @@ export const slashCommandsLoader: ProfileLoader = {
     const { config } = args;
     await unregisterSlashCommands({ config });
   },
-  validate,
 };

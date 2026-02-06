@@ -256,7 +256,7 @@ describe("skill-download", () => {
 
         await skillDownloadMain({
           skillSpec: "test-skill",
-          cwd: noInstallDir,
+          installDir: noInstallDir,
         });
 
         // Verify skill was installed (directory should be created)
@@ -307,7 +307,7 @@ describe("skill-download", () => {
 
         await skillDownloadMain({
           skillSpec: "new-skill",
-          cwd: noInstallDir,
+          installDir: noInstallDir,
         });
 
         // Verify skills directory was created
@@ -919,6 +919,12 @@ describe("--skillset option and manifest updates", () => {
     await fs.mkdir(skillsDir, { recursive: true });
     await fs.mkdir(profilesDir, { recursive: true });
 
+    // Create config file so getInstallDirs() can find this installation
+    await fs.writeFile(
+      path.join(testDir, ".nori-config.json"),
+      JSON.stringify({}),
+    );
+
     // Create a test profile with CLAUDE.md
     const testProfileDir = path.join(profilesDir, "test-profile");
     await fs.mkdir(testProfileDir, { recursive: true });
@@ -1183,6 +1189,12 @@ describe("profile directory persistence", () => {
 
     await fs.mkdir(skillsDir, { recursive: true });
     await fs.mkdir(profilesDir, { recursive: true });
+
+    // Create config file so getInstallDirs() can find this installation
+    await fs.writeFile(
+      path.join(testDir, ".nori-config.json"),
+      JSON.stringify({}),
+    );
 
     // Create active profile directory with CLAUDE.md
     const activeProfileDir = path.join(profilesDir, "active-profile");
@@ -1550,6 +1562,12 @@ describe("nori.json updates on skill download", () => {
 
     await fs.mkdir(skillsDir, { recursive: true });
     await fs.mkdir(profilesDir, { recursive: true });
+
+    // Create config file so getInstallDirs() can find this installation
+    await fs.writeFile(
+      path.join(testDir, ".nori-config.json"),
+      JSON.stringify({}),
+    );
   });
 
   afterEach(async () => {

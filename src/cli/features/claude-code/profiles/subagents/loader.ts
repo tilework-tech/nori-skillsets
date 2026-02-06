@@ -16,7 +16,6 @@ import {
 import { substituteTemplatePaths } from "@/cli/features/claude-code/template.js";
 import { success, info, warn } from "@/cli/logger.js";
 
-import type { ValidationResult } from "@/cli/features/agentRegistry.js";
 import type { ProfileLoader } from "@/cli/features/claude-code/profiles/profileLoaderRegistry.js";
 
 // Get directory of this loader file
@@ -203,102 +202,6 @@ const unregisterSubagents = async (args: { config: Config }): Promise<void> => {
 };
 
 /**
- * Validate subagents installation
- * @param args - Configuration arguments
- * @param args.config - Runtime configuration
- *
- * @returns Validation result
- */
-const validate = async (args: {
-  config: Config;
-}): Promise<ValidationResult> => {
-  const { config } = args;
-  const errors: Array<string> = [];
-
-  const claudeAgentsDir = getClaudeAgentsDir({ installDir: config.installDir });
-
-  // Check if agents directory exists
-  try {
-    await fs.access(claudeAgentsDir);
-  } catch {
-    errors.push(`Agents directory not found at ${claudeAgentsDir}`);
-    errors.push('Run "nori-skillsets init" to create the agents directory');
-    return {
-      valid: false,
-      message: "Agents directory not found",
-      errors,
-    };
-  }
-
-  // Get profile name from config - error if not configured
-  const profileName = getAgentProfile({
-    config,
-    agentName: "claude-code",
-  })?.baseProfile;
-  if (profileName == null) {
-    errors.push("No profile configured for claude-code");
-    errors.push("Run 'nori-skillsets init' to configure a profile");
-    return {
-      valid: false,
-      message: "No profile configured",
-      errors,
-    };
-  }
-  const configDir = getConfigDir({
-    profileName,
-    installDir: config.installDir,
-  });
-
-  // Check if all expected subagents are present
-  const missingSubagents: Array<string> = [];
-  let expectedCount = 0;
-
-  try {
-    const files = await fs.readdir(configDir);
-    const mdFiles = files.filter(
-      (file) => file.endsWith(".md") && file !== "docs.md",
-    );
-
-    for (const file of mdFiles) {
-      expectedCount++;
-      const subagentPath = path.join(claudeAgentsDir, file);
-      try {
-        await fs.access(subagentPath);
-      } catch {
-        missingSubagents.push(file.replace(/\.md$/, ""));
-      }
-    }
-  } catch {
-    // Profile subagents directory not found - this is valid (0 subagents expected)
-    return {
-      valid: true,
-      message: "No subagents configured for this profile",
-      errors: null,
-    };
-  }
-
-  if (missingSubagents.length > 0) {
-    errors.push(
-      `Missing ${missingSubagents.length} subagent(s): ${missingSubagents.join(
-        ", ",
-      )}`,
-    );
-    errors.push('Run "nori-skillsets init" to register missing subagents');
-    return {
-      valid: false,
-      message: "Some subagents are not installed",
-      errors,
-    };
-  }
-
-  return {
-    valid: true,
-    message: `All ${expectedCount} subagents are properly installed`,
-    errors: null,
-  };
-};
-
-/**
  * Subagents feature loader
  */
 export const subagentsLoader: ProfileLoader = {
@@ -312,5 +215,4 @@ export const subagentsLoader: ProfileLoader = {
     const { config } = args;
     await unregisterSubagents({ config });
   },
-  validate,
 };

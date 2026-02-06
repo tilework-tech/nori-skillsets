@@ -9,7 +9,6 @@ import { slashCommandsLoader } from "@/cli/features/claude-code/profiles/slashco
 import { subagentsLoader } from "@/cli/features/claude-code/profiles/subagents/loader.js";
 
 import type { Config } from "@/cli/config.js";
-import type { ValidationResult } from "@/cli/features/agentRegistry.js";
 
 /**
  * Profile loader interface for profile-dependent feature installation
@@ -20,7 +19,6 @@ export type ProfileLoader = {
   description: string;
   install: (args: { config: Config }) => Promise<void>;
   uninstall: (args: { config: Config }) => Promise<void>;
-  validate?: (args: { config: Config }) => Promise<ValidationResult>;
 };
 
 /**

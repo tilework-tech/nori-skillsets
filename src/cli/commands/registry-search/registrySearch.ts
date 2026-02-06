@@ -298,7 +298,7 @@ const formatUnifiedSearchResults = (args: {
   }
 
   if (profileSections.length > 0) {
-    sections.push(`Profiles:\n${profileSections.join("\n\n")}`);
+    sections.push(`Skillsets:\n${profileSections.join("\n\n")}`);
   }
 
   if (skillSections.length > 0) {
@@ -329,7 +329,7 @@ const buildDownloadHints = (args: {
 
   if (hasProfiles) {
     hints.push(
-      `To install a profile, run: ${cliPrefix} ${commandNames.download} <package-name>`,
+      `To install a skillset, run: ${cliPrefix} ${commandNames.download} <package-name>`,
     );
   }
   if (hasSkills) {
@@ -377,7 +377,7 @@ export const registrySearchMain = async (args: {
     } else {
       error({
         message:
-          "No Nori installation found.\n\nRun 'npx nori-skillsets init' to install Nori Profiles.",
+          "No Nori installation found.\n\nRun 'npx nori-skillsets init' to install Nori Skillsets.",
       });
       return;
     }
@@ -513,7 +513,7 @@ export const registrySearchMain = async (args: {
     !hasAnyProfileError &&
     !hasAnySkillError
   ) {
-    info({ message: `No profiles or skills found matching "${query}".` });
+    info({ message: `No skillsets or skills found matching "${query}".` });
     return;
   }
 
@@ -547,7 +547,7 @@ export const registerRegistrySearchCommand = (args: {
 
   program
     .command("registry-search <query>")
-    .description("Search for profiles and skills in Nori registries")
+    .description("Search for skillsets and skills in Nori registries")
     .action(async (query: string) => {
       // Get global options from parent
       const globalOpts = program.opts();

@@ -17,7 +17,7 @@ import { info, success, error, warn, debug } from "@/cli/logger.js";
 import { getCurrentPackageVersion } from "@/cli/version.js";
 import { configureFirebase, getFirebase } from "@/providers/firebase.js";
 
-import type { Config, AgentConfig } from "@/cli/config.js";
+import type { Config, AgentConfig, ConfigAgentName } from "@/cli/config.js";
 import type { Loader } from "@/cli/features/agentRegistry.js";
 import type { AuthError } from "firebase/auth";
 
@@ -44,7 +44,7 @@ const installConfig = async (args: { config: Config }): Promise<void> => {
 
   // Merge agents from existing config and new config
   // The keys of the agents object indicate which agents are installed
-  const mergedAgents: Record<string, AgentConfig> = {
+  const mergedAgents: { [key in ConfigAgentName]?: AgentConfig } = {
     ...(existingConfig?.agents ?? {}),
     ...(config.agents ?? {}),
   };
@@ -171,10 +171,12 @@ const uninstallConfig = async (args: { config: Config }): Promise<void> => {
   const agentsToRemove = config.agents ? Object.keys(config.agents) : [];
 
   // Create new agents object without the agents being uninstalled
-  const remainingAgentsObj: Record<string, AgentConfig> = {};
+  const remainingAgentsObj: { [key in ConfigAgentName]?: AgentConfig } = {};
   for (const agentName of installedAgents) {
     if (!agentsToRemove.includes(agentName) && existingConfig?.agents) {
-      remainingAgentsObj[agentName] = existingConfig.agents[agentName];
+      const typedAgentName = agentName as ConfigAgentName;
+      remainingAgentsObj[typedAgentName] =
+        existingConfig.agents[typedAgentName];
     }
   }
 

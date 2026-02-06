@@ -1,6 +1,6 @@
 /**
  * Tests for profiles feature loader
- * Verifies install, uninstall, and validate operations
+ * Verifies install and uninstall operations
  */
 
 import * as fs from "fs/promises";
@@ -261,78 +261,6 @@ describe("profilesLoader", () => {
 
       // Uninstall without installing first
       await expect(profilesLoader.uninstall({ config })).resolves.not.toThrow();
-    });
-  });
-
-  describe("validate", () => {
-    it("should pass validation when profiles directory exists and permissions are configured", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "test-profile" } },
-        },
-      };
-
-      // Create stub profile and install
-      await fs.mkdir(profilesDir, { recursive: true });
-      await createStubProfile({
-        profilesDir,
-        profileName: "test-profile",
-      });
-      await profilesLoader.run({ config });
-
-      // Validate
-      const result = await profilesLoader.validate!({ config });
-
-      expect(result.valid).toBe(true);
-      expect(result.errors).toBeNull();
-    });
-
-    it("should fail validation when profiles directory does not exist", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "test-profile" } },
-        },
-      };
-
-      // Validate without installing
-      const result = await profilesLoader.validate!({ config });
-
-      expect(result.valid).toBe(false);
-      expect(result.errors).toBeDefined();
-      expect(result.errors!.length).toBeGreaterThan(0);
-    });
-
-    it("should return invalid when permissions are not configured", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "test-profile" } },
-        },
-      };
-      const settingsPath = path.join(claudeDir, "settings.json");
-
-      // Create stub profile and install
-      await fs.mkdir(profilesDir, { recursive: true });
-      await createStubProfile({
-        profilesDir,
-        profileName: "test-profile",
-      });
-      await profilesLoader.run({ config });
-
-      // Manually remove permissions
-      const content = await fs.readFile(settingsPath, "utf-8");
-      const settings = JSON.parse(content);
-      delete settings.permissions;
-      await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2));
-
-      // Validate
-      const result = await profilesLoader.validate!({ config });
-
-      expect(result.valid).toBe(false);
-      expect(result.errors).not.toBeNull();
-      expect(result.errors?.some((e) => e.includes("permissions"))).toBe(true);
     });
   });
 
@@ -638,30 +566,6 @@ describe("profilesLoader", () => {
       };
 
       await expect(profilesLoader.uninstall({ config })).resolves.not.toThrow();
-    });
-
-    it("should validate permissions configuration", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "test-profile" } },
-        },
-      };
-
-      await fs.mkdir(profilesDir, { recursive: true });
-      await createStubProfile({
-        profilesDir,
-        profileName: "test-profile",
-      });
-
-      // Install
-      await profilesLoader.run({ config });
-
-      // Validate
-      const result = await profilesLoader.validate!({ config });
-
-      expect(result.valid).toBe(true);
-      expect(result.errors).toBeNull();
     });
   });
 

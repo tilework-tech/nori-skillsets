@@ -18,7 +18,6 @@ import {
 import { substituteTemplatePaths } from "@/cli/features/claude-code/template.js";
 import { success, info } from "@/cli/logger.js";
 
-import type { ValidationResult } from "@/cli/features/agentRegistry.js";
 import type { ProfileLoader } from "@/cli/features/claude-code/profiles/profileLoaderRegistry.js";
 
 // Get directory of this loader file
@@ -387,67 +386,6 @@ const removeClaudeMd = async (args: { config: Config }): Promise<void> => {
 };
 
 /**
- * Validate CLAUDE.md configuration
- *
- * @param args - Configuration arguments
- * @param args.config - Runtime configuration
- *
- * @returns Validation result
- */
-const validate = async (args: {
-  config: Config;
-}): Promise<ValidationResult> => {
-  const { config } = args;
-  const errors: Array<string> = [];
-
-  const claudeMdFile = getClaudeMdFile({ installDir: config.installDir });
-
-  // Check if CLAUDE.md exists
-  try {
-    await fs.access(claudeMdFile);
-  } catch {
-    errors.push(`CLAUDE.md not found at ${claudeMdFile}`);
-    errors.push('Run "nori-skillsets init" to create CLAUDE.md');
-    return {
-      valid: false,
-      message: "CLAUDE.md not found",
-      errors,
-    };
-  }
-
-  // Read and check for managed block
-  let content: string;
-  try {
-    content = await fs.readFile(claudeMdFile, "utf-8");
-  } catch (err) {
-    errors.push("Failed to read CLAUDE.md");
-    errors.push(`Error: ${err}`);
-    return {
-      valid: false,
-      message: "Unable to read CLAUDE.md",
-      errors,
-    };
-  }
-
-  // Check if managed block exists
-  if (!content.includes(BEGIN_MARKER) || !content.includes(END_MARKER)) {
-    errors.push("Nori managed block not found in CLAUDE.md");
-    errors.push('Run "nori-skillsets init" to add managed block');
-    return {
-      valid: false,
-      message: "Nori managed block missing",
-      errors,
-    };
-  }
-
-  return {
-    valid: true,
-    message: "CLAUDE.md is properly configured",
-    errors: null,
-  };
-};
-
-/**
  * CLAUDE.md feature loader
  */
 export const claudeMdLoader: ProfileLoader = {
@@ -461,5 +399,4 @@ export const claudeMdLoader: ProfileLoader = {
     const { config } = args;
     await removeClaudeMd({ config });
   },
-  validate,
 };

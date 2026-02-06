@@ -79,7 +79,7 @@ const configureStatusLine = async (args: { config: Config }): Promise<void> => {
   success({ message: `✓ Status line configured in ${claudeSettingsFile}` });
   info({
     message:
-      "Status line will display: git branch, session cost, tokens, rotating tips, and Nori branding",
+      "Status line will display: git branch, session cost, tokens, promotional tip, and Nori branding",
   });
 };
 

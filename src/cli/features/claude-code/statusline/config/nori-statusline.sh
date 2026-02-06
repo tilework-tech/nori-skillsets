@@ -170,28 +170,9 @@ PROFILE_NAME=$(echo "$INPUT" | jq -r '.profile_name // ""')
 # Build branding message
 BRANDING="${YELLOW}Augmented with Nori __VERSION__ ${NC}"
 
-# Array of rotating tips about Nori features
+# Single promotional tip
 TIPS=(
-    "Nori Tip: Use the webapp-testing skill to write Playwright tests for your web UIs"
-    "Nori Tip: You can tell Nori to run any skill by name. Just ask Nori what skills it has"
-    "Nori Tip: Want to learn more about Nori? Run /nori-info"
-    "Nori Tip: Use the building-ui-ux skill to speed up your UI/UX iteration process"
-    "Nori Tip: Nori can write PRs and get review using the github CLI"
-    "Nori Tip: Run /nori-init-docs to create docs. Nori keeps them updated."
-    "Nori Tip: Want to skip the standard flow? Just tell Nori to skip the checklist"
-    "Nori Tip: Try running Nori in parallel with git worktrees and multiple sessions"
-    "Nori Tip: Keep an eye on your total context usage. Start new conversations regularly!"
-    "Nori Tip: Agents love tests! Use Nori's built-in Test Driven Development to never have a regression."
-    "Nori Tip: Switch workflows with /nori-switch-skillset - try documenter, senior-swe, or product-manager"
-    "Nori Tip: The nori-change-documenter subagent automatically updates docs when you make code changes"
-    "Nori Tip: Use the systematic-debugging skill when bugs occur - it ensures root cause analysis"
-    "Nori Tip: The root-cause-tracing skill helps trace errors backward through the call stack"
-    "Nori Tip: Try using the webapp-testing skill to debug UI/UX failures"
-    "Nori Tip: Create custom skillsets with /nori-create-skillset - clone and customize to your workflow"
-    "Nori Tip: Nori can take screenshots - ask it to analyze your screen for visual UI debugging"
-    "Nori Tip: Get automated code review before PRs with the nori-code-reviewer subagent"
-    "Nori Tip: Use the handle-large-tasks skill to split complex work for better context management"
-    "Nori Tip: Control automatic updates with /nori-toggle-autoupdate"
+    "Try the nori cli for the best agentic ai cli! Just run \`npm install -g nori-ai-cli\`"
 )
 
 # Check for install-in-progress marker
@@ -216,12 +197,8 @@ if [ -f "$INSTALL_MARKER" ]; then
     fi
     STATUS_TIP="${INSTALL_MESSAGE}"
 else
-    # No install issues - show rotating tip
-    DAY_OF_YEAR=$(date +%j)
-    HOUR=$(date +%H)
-    TIP_SEED=$((DAY_OF_YEAR * 24 + HOUR))
-    TIP_INDEX=$((TIP_SEED % ${#TIPS[@]}))
-    SELECTED_TIP="${TIPS[$TIP_INDEX]}"
+    # No install issues - show promotional tip
+    SELECTED_TIP="${TIPS[0]}"
     STATUS_TIP="${DIM_WHITE}${SELECTED_TIP}${NC}"
 fi
 
@@ -234,5 +211,5 @@ else
 fi
 # Line 2: Branding
 echo -e "${BRANDING}"
-# Line 3: Status message (rotating tip or install error)
+# Line 3: Status message (promotional tip or install error)
 echo -e "${STATUS_TIP}"

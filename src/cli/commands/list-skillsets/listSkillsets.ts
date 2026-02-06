@@ -1,10 +1,11 @@
 /**
  * List skillsets command for Nori Skillsets CLI
- * Lists locally available profiles for programmatic use
+ * Lists locally available skillsets for programmatic use
  */
 
 import { loadConfig, getInstalledAgents } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
+import { listProfiles } from "@/cli/features/managedFolder.js";
 import { error, raw } from "@/cli/logger.js";
 import { normalizeInstallDir, getInstallDirs } from "@/utils/path.js";
 
@@ -70,7 +71,7 @@ export const listSkillsetsMain = async (args: {
   }
 
   // Get and output profiles - one per line for easy parsing
-  const profiles = await agent.listProfiles({ installDir });
+  const profiles = await listProfiles({ installDir });
 
   if (profiles.length === 0) {
     error({

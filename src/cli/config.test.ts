@@ -382,16 +382,13 @@ describe("agent-specific profiles", () => {
       });
     });
 
-    it("should support multiple agents with different profiles", async () => {
+    it("should load claude-code agent config", async () => {
       await fs.writeFile(
         mockConfigPath,
         JSON.stringify({
           agents: {
             "claude-code": {
               profile: { baseProfile: "senior-swe" },
-            },
-            cursor: {
-              profile: { baseProfile: "documenter" },
             },
           },
         }),
@@ -401,9 +398,6 @@ describe("agent-specific profiles", () => {
 
       expect(loaded?.agents?.["claude-code"]?.profile?.baseProfile).toBe(
         "senior-swe",
-      );
-      expect(loaded?.agents?.["cursor"]?.profile?.baseProfile).toBe(
-        "documenter",
       );
     });
 
@@ -527,7 +521,7 @@ describe("agent-specific profiles", () => {
       expect(config.profile).toBeUndefined();
     });
 
-    it("should save multiple agents without legacy profile", async () => {
+    it("should save claude-code agent without legacy profile", async () => {
       await saveConfig({
         username: null,
         password: null,
@@ -535,9 +529,6 @@ describe("agent-specific profiles", () => {
         agents: {
           "claude-code": {
             profile: { baseProfile: "senior-swe" },
-          },
-          cursor: {
-            profile: { baseProfile: "documenter" },
           },
         },
         installDir: tempDir,
@@ -549,7 +540,6 @@ describe("agent-specific profiles", () => {
       expect(config.agents["claude-code"].profile.baseProfile).toBe(
         "senior-swe",
       );
-      expect(config.agents.cursor.profile.baseProfile).toBe("documenter");
       expect(config.profile).toBeUndefined();
     });
   });
@@ -564,9 +554,6 @@ describe("agent-specific profiles", () => {
           "claude-code": {
             profile: { baseProfile: "senior-swe" },
           },
-          cursor: {
-            profile: { baseProfile: "documenter" },
-          },
         },
       };
 
@@ -574,10 +561,8 @@ describe("agent-specific profiles", () => {
         config,
         agentName: "claude-code",
       });
-      const cursorProfile = getAgentProfile({ config, agentName: "cursor" });
 
       expect(claudeProfile?.baseProfile).toBe("senior-swe");
-      expect(cursorProfile?.baseProfile).toBe("documenter");
     });
 
     it("should return null when agents field is missing", async () => {
@@ -607,23 +592,6 @@ describe("agent-specific profiles", () => {
 
       expect(profile).toBeNull();
     });
-
-    it("should return null when agent not in agents field", async () => {
-      const { getAgentProfile } = await import("./config.js");
-
-      const config: Config = {
-        installDir: "/test",
-        agents: {
-          "claude-code": {
-            profile: { baseProfile: "senior-swe" },
-          },
-        },
-      };
-
-      const profile = getAgentProfile({ config, agentName: "cursor" });
-
-      expect(profile).toBeNull();
-    });
   });
 });
 
@@ -633,16 +601,13 @@ describe("getInstalledAgents", () => {
       installDir: "/test",
       agents: {
         "claude-code": { profile: { baseProfile: "senior-swe" } },
-        "cursor-agent": { profile: { baseProfile: "documenter" } },
       },
     };
 
     const installedAgents = getInstalledAgents({ config });
 
-    expect(installedAgents).toEqual(
-      expect.arrayContaining(["claude-code", "cursor-agent"]),
-    );
-    expect(installedAgents).toHaveLength(2);
+    expect(installedAgents).toEqual(["claude-code"]);
+    expect(installedAgents).toHaveLength(1);
   });
 
   it("should return claude-code by default when agents is null (backwards compatibility)", () => {

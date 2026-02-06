@@ -133,7 +133,10 @@ describe("context-usage-warning hook", () => {
     const output = JSON.parse(consoleOutput[0]);
     expect(output).toHaveProperty("systemMessage");
     expect(output.systemMessage).toContain("⚠️");
-    expect(output.systemMessage).toContain("/nori-prune-context");
+    // Should contain manual cleanup instructions, not /nori-prune-context
+    expect(output.systemMessage).toContain("settings.local.json");
+    expect(output.systemMessage).toContain("permissions");
+    expect(output.systemMessage).toContain("allow");
   });
 
   it("should output warning when project settings.local.json is large", async () => {
@@ -166,7 +169,10 @@ describe("context-usage-warning hook", () => {
     const output = JSON.parse(consoleOutput[0]);
     expect(output).toHaveProperty("systemMessage");
     expect(output.systemMessage).toContain("⚠️");
-    expect(output.systemMessage).toContain("/nori-prune-context");
+    // Should contain manual cleanup instructions, not /nori-prune-context
+    expect(output.systemMessage).toContain("settings.local.json");
+    expect(output.systemMessage).toContain("permissions");
+    expect(output.systemMessage).toContain("allow");
   });
 
   it("should combine sizes from both home and project settings.local.json", async () => {

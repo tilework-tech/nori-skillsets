@@ -245,17 +245,15 @@ export const getUserId = async (args?: {
  * Loads config and install state to populate fields automatically.
  * @param args - Optional arguments
  * @param args.config - Pre-loaded config (optional, will load if not provided)
- * @param args.agentName - Agent name for profile lookup (default: "claude-code")
  * @param args.currentVersion - Current CLI version (optional, reads from package if not provided)
  *
  * @returns CLI event params including base params and all tilework_cli_* fields
  */
 export const buildCLIEventParams = async (args?: {
   config?: Config | null;
-  agentName?: string | null;
   currentVersion?: string | null;
 }): Promise<CLIEventParams> => {
-  const { config: providedConfig, agentName, currentVersion } = args ?? {};
+  const { config: providedConfig, currentVersion } = args ?? {};
 
   // Load config if not provided
   const config = providedConfig ?? (await loadConfigForAnalytics());
@@ -275,9 +273,8 @@ export const buildCLIEventParams = async (args?: {
         )
       : 0;
 
-  // Get profile from config
-  const agent = agentName ?? "claude-code";
-  const profile = config?.agents?.[agent]?.profile?.baseProfile ?? null;
+  // Get profile from config (only claude-code is supported)
+  const profile = config?.agents?.["claude-code"]?.profile?.baseProfile ?? null;
 
   // Determine install type
   const installType: "authenticated" | "unauthenticated" =

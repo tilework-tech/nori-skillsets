@@ -1,6 +1,6 @@
 /**
  * Tests for hooks feature loader
- * Verifies install, uninstall, and validate operations
+ * Verifies install and uninstall operations
  */
 
 import * as fs from "fs/promises";
@@ -78,25 +78,40 @@ describe("hooksLoader", () => {
       // Verify hooks are configured
       expect(settings.hooks).toBeDefined();
 
-      // Verify SessionEnd hooks (should have statistics-notification and statistics)
-      expect(settings.hooks.SessionEnd).toBeDefined();
-      expect(settings.hooks.SessionEnd.length).toBeGreaterThan(0);
-
-      // Verify SessionStart hooks (autoupdate)
+      // Verify SessionStart hooks (context-usage-warning)
       expect(settings.hooks.SessionStart).toBeDefined();
       expect(settings.hooks.SessionStart.length).toBeGreaterThan(0);
 
-      let hasAutoupdateHook = false;
+      let hasContextUsageWarningHook = false;
       for (const hookConfig of settings.hooks.SessionStart) {
         if (hookConfig.hooks) {
           for (const hook of hookConfig.hooks) {
-            if (hook.command && hook.command.includes("autoupdate")) {
-              hasAutoupdateHook = true;
+            if (
+              hook.command &&
+              hook.command.includes("context-usage-warning")
+            ) {
+              hasContextUsageWarningHook = true;
             }
           }
         }
       }
-      expect(hasAutoupdateHook).toBe(true);
+      expect(hasContextUsageWarningHook).toBe(true);
+
+      // Verify PreToolUse hooks (commit-author)
+      expect(settings.hooks.PreToolUse).toBeDefined();
+      expect(settings.hooks.PreToolUse.length).toBeGreaterThan(0);
+
+      let hasCommitAuthorHook = false;
+      for (const hookConfig of settings.hooks.PreToolUse) {
+        if (hookConfig.hooks) {
+          for (const hook of hookConfig.hooks) {
+            if (hook.command && hook.command.includes("commit-author")) {
+              hasCommitAuthorHook = true;
+            }
+          }
+        }
+      }
+      expect(hasCommitAuthorHook).toBe(true);
 
       // Verify Notification hooks
       expect(settings.hooks.Notification).toBeDefined();
@@ -114,8 +129,14 @@ describe("hooksLoader", () => {
       }
       expect(hasNotifyHook).toBe(true);
 
+      // Should NOT have SessionEnd hooks (statistics hooks were removed)
+      expect(settings.hooks.SessionEnd).toBeUndefined();
+
       // Should NOT have PreCompact hooks (summarize hooks were removed)
       expect(settings.hooks.PreCompact).toBeUndefined();
+
+      // Should NOT have UserPromptSubmit hooks (slash command intercept was removed)
+      expect(settings.hooks.UserPromptSubmit).toBeUndefined();
     });
 
     it("should preserve existing settings when adding hooks", async () => {
@@ -162,65 +183,9 @@ describe("hooksLoader", () => {
 
       // Verify hooks still exist
       expect(settings.hooks).toBeDefined();
-      expect(settings.hooks.Notification).toBeDefined();
-    });
-
-    it("should configure UserPromptSubmit hook for slash command interception", async () => {
-      const config: Config = { installDir: tempDir };
-
-      await hooksLoader.run({ config });
-
-      const content = await fs.readFile(settingsPath, "utf-8");
-      const settings = JSON.parse(content);
-
-      // Verify UserPromptSubmit hooks are configured
-      expect(settings.hooks.UserPromptSubmit).toBeDefined();
-      expect(settings.hooks.UserPromptSubmit.length).toBeGreaterThan(0);
-
-      // Find slash-command-intercept hook
-      let hasSlashCommandInterceptHook = false;
-      for (const hookConfig of settings.hooks.UserPromptSubmit) {
-        if (hookConfig.hooks) {
-          for (const hook of hookConfig.hooks) {
-            if (
-              hook.command &&
-              hook.command.includes("slash-command-intercept")
-            ) {
-              hasSlashCommandInterceptHook = true;
-            }
-          }
-        }
-      }
-      expect(hasSlashCommandInterceptHook).toBe(true);
-    });
-
-    it("should configure nested-install-warning hook", async () => {
-      const config: Config = { installDir: tempDir };
-
-      await hooksLoader.run({ config });
-
-      const content = await fs.readFile(settingsPath, "utf-8");
-      const settings = JSON.parse(content);
-
-      // Verify SessionStart hooks include nested-install-warning
       expect(settings.hooks.SessionStart).toBeDefined();
-      expect(settings.hooks.SessionStart.length).toBeGreaterThan(0);
-
-      // Find nested-install-warning hook
-      let hasNestedWarningHook = false;
-      for (const hookConfig of settings.hooks.SessionStart) {
-        if (hookConfig.hooks) {
-          for (const hook of hookConfig.hooks) {
-            if (
-              hook.command &&
-              hook.command.includes("nested-install-warning")
-            ) {
-              hasNestedWarningHook = true;
-            }
-          }
-        }
-      }
-      expect(hasNestedWarningHook).toBe(true);
+      expect(settings.hooks.PreToolUse).toBeDefined();
+      expect(settings.hooks.Notification).toBeDefined();
     });
 
     it("should configure PreToolUse hook for commit-author", async () => {
@@ -250,7 +215,7 @@ describe("hooksLoader", () => {
       expect(hasCommitAuthorHook).toBe(true);
     });
 
-    it("should configure statistics-notification and statistics hooks", async () => {
+    it("should configure context-usage-warning hook", async () => {
       const config: Config = { installDir: tempDir };
 
       await hooksLoader.run({ config });
@@ -258,32 +223,23 @@ describe("hooksLoader", () => {
       const content = await fs.readFile(settingsPath, "utf-8");
       const settings = JSON.parse(content);
 
-      // Verify SessionEnd hooks include statistics hooks
-      expect(settings.hooks.SessionEnd).toBeDefined();
+      // Verify SessionStart hooks include context-usage-warning
+      expect(settings.hooks.SessionStart).toBeDefined();
 
-      let hasStatisticsNotificationHook = false;
-      let hasStatisticsHook = false;
-      for (const hookConfig of settings.hooks.SessionEnd) {
+      let hasContextUsageWarningHook = false;
+      for (const hookConfig of settings.hooks.SessionStart) {
         if (hookConfig.hooks) {
           for (const hook of hookConfig.hooks) {
             if (
               hook.command &&
-              hook.command.includes("statistics-notification")
+              hook.command.includes("context-usage-warning")
             ) {
-              hasStatisticsNotificationHook = true;
-            }
-            if (
-              hook.command &&
-              hook.command.includes("statistics.js") &&
-              !hook.command.includes("statistics-notification")
-            ) {
-              hasStatisticsHook = true;
+              hasContextUsageWarningHook = true;
             }
           }
         }
       }
-      expect(hasStatisticsNotificationHook).toBe(true);
-      expect(hasStatisticsHook).toBe(true);
+      expect(hasContextUsageWarningHook).toBe(true);
     });
   });
 
@@ -354,191 +310,6 @@ describe("hooksLoader", () => {
       expect(updatedSettings.$schema).toBe(
         "https://json.schemastore.org/claude-code-settings.json",
       );
-    });
-  });
-
-  describe("validate", () => {
-    it("should return valid for properly installed hooks", async () => {
-      const config: Config = { installDir: tempDir };
-
-      // Install
-      await hooksLoader.run({ config });
-
-      // Validate
-      if (hooksLoader.validate == null) {
-        throw new Error("validate method not implemented");
-      }
-
-      const result = await hooksLoader.validate({ config });
-
-      expect(result.valid).toBe(true);
-      expect(result.message).toContain("properly configured");
-      expect(result.errors).toBeNull();
-    });
-
-    it("should return invalid when settings.json does not exist", async () => {
-      const config: Config = { installDir: tempDir };
-
-      // Validate without installing
-      if (hooksLoader.validate == null) {
-        throw new Error("validate method not implemented");
-      }
-
-      const result = await hooksLoader.validate({ config });
-
-      expect(result.valid).toBe(false);
-      expect(result.message).toContain("not found");
-      expect(result.errors).not.toBeNull();
-      expect(result.errors?.length).toBeGreaterThan(0);
-      expect(result.errors?.[0]).toContain("Settings file not found");
-    });
-
-    it("should return invalid when includeCoAuthoredBy is not set to false", async () => {
-      const config: Config = { installDir: tempDir };
-
-      // Install hooks
-      await hooksLoader.run({ config });
-
-      // Modify settings to remove includeCoAuthoredBy
-      const content = await fs.readFile(settingsPath, "utf-8");
-      const settings = JSON.parse(content);
-      delete settings.includeCoAuthoredBy;
-      await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2));
-
-      // Validate
-      if (hooksLoader.validate == null) {
-        throw new Error("validate method not implemented");
-      }
-
-      const result = await hooksLoader.validate({ config });
-
-      expect(result.valid).toBe(false);
-      expect(result.message).toContain("issues");
-      expect(result.errors).not.toBeNull();
-      expect(
-        result.errors?.some((e) => e.includes("includeCoAuthoredBy")),
-      ).toBe(true);
-    });
-
-    it("should return invalid when includeCoAuthoredBy is set to true", async () => {
-      const config: Config = { installDir: tempDir };
-
-      // Install hooks
-      await hooksLoader.run({ config });
-
-      // Modify settings to set includeCoAuthoredBy to true
-      const content = await fs.readFile(settingsPath, "utf-8");
-      const settings = JSON.parse(content);
-      settings.includeCoAuthoredBy = true;
-      await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2));
-
-      // Validate
-      if (hooksLoader.validate == null) {
-        throw new Error("validate method not implemented");
-      }
-
-      const result = await hooksLoader.validate({ config });
-
-      expect(result.valid).toBe(false);
-      expect(result.message).toContain("issues");
-      expect(result.errors).not.toBeNull();
-      expect(
-        result.errors?.some((e) => e.includes("includeCoAuthoredBy")),
-      ).toBe(true);
-    });
-
-    it("should return invalid when hooks are not configured", async () => {
-      const config: Config = { installDir: tempDir };
-
-      // Create settings.json without hooks
-      const settings = {
-        $schema: "https://json.schemastore.org/claude-code-settings.json",
-      };
-      await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2));
-
-      // Validate
-      if (hooksLoader.validate == null) {
-        throw new Error("validate method not implemented");
-      }
-
-      const result = await hooksLoader.validate({ config });
-
-      expect(result.valid).toBe(false);
-      expect(result.message).toContain("not configured");
-      expect(result.errors).not.toBeNull();
-      expect(result.errors?.length).toBeGreaterThan(0);
-      expect(result.errors?.[0]).toContain("No hooks configured");
-    });
-
-    it("should return invalid when required hooks are missing", async () => {
-      const config: Config = { installDir: tempDir };
-
-      // Create settings.json with incomplete hooks
-      const settings = {
-        $schema: "https://json.schemastore.org/claude-code-settings.json",
-        hooks: {
-          SessionEnd: [],
-          // Missing SessionStart
-        },
-      };
-      await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2));
-
-      // Validate
-      if (hooksLoader.validate == null) {
-        throw new Error("validate method not implemented");
-      }
-
-      const result = await hooksLoader.validate({ config });
-
-      expect(result.valid).toBe(false);
-      expect(result.message).toContain("has issues");
-      expect(result.errors).not.toBeNull();
-      expect(result.errors?.length).toBeGreaterThan(0);
-    });
-
-    it("should return invalid when SessionStart hook is missing", async () => {
-      const config: Config = { installDir: tempDir };
-
-      // Create settings.json with hooks but missing SessionStart
-      const settings = {
-        $schema: "https://json.schemastore.org/claude-code-settings.json",
-        hooks: {
-          SessionEnd: [],
-          Notification: [],
-        },
-      };
-      await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2));
-
-      // Validate
-      if (hooksLoader.validate == null) {
-        throw new Error("validate method not implemented");
-      }
-
-      const result = await hooksLoader.validate({ config });
-
-      expect(result.valid).toBe(false);
-      expect(result.message).toContain("has issues");
-      expect(result.errors).not.toBeNull();
-      expect(result.errors?.length).toBeGreaterThan(0);
-      expect(result.errors?.[0]).toContain("SessionStart");
-    });
-
-    it("should handle invalid JSON in settings.json", async () => {
-      const config: Config = { installDir: tempDir };
-
-      // Create settings.json with invalid JSON
-      await fs.writeFile(settingsPath, "not valid json");
-
-      // Validate
-      if (hooksLoader.validate == null) {
-        throw new Error("validate method not implemented");
-      }
-
-      const result = await hooksLoader.validate({ config });
-
-      expect(result.valid).toBe(false);
-      expect(result.message).toContain("Invalid settings.json");
-      expect(result.errors).not.toBeNull();
     });
   });
 });
