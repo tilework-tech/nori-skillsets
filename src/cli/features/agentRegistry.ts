@@ -51,6 +51,8 @@ export type Agent = {
     installDir: string;
     profileName: string;
   }) => Promise<void>;
+  /** Factory reset: remove all agent configuration from the filesystem */
+  factoryReset?: ((args: { path: string }) => Promise<void>) | null;
 };
 
 /**

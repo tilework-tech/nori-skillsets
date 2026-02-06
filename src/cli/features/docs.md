@@ -19,6 +19,7 @@ CLI Commands (install, switch-profile, onboard, list-skillsets)
     |           |
     |           +-- getLoaderRegistry() --> LoaderRegistry (interface)
     |           +-- switchProfile({ installDir, profileName }) --> Validate and switch
+    |           +-- factoryReset({ path }) --> Remove all agent config (optional)
     |
     +-- listProfiles({ installDir }) --> Available profile names (from managedFolder.ts)
 
@@ -47,6 +48,7 @@ The `--agent` global CLI option (default: "claude-code") determines which agent 
 - `displayName`: Human-readable name ("Claude Code")
 - `getLoaderRegistry()`: Returns an object implementing the `LoaderRegistry` interface
 - `switchProfile({ installDir, profileName })`: Validates profile exists, filters out config entries for uninstalled agents, and updates config
+- `factoryReset({ path })`: Optional. Removes all agent configuration from the filesystem starting at the given path. The CLI command layer handles non-interactive blocking and confirmation; the agent method handles discovery and deletion.
 
 **AgentRegistry** (agentRegistry.ts):
 - Singleton pattern with `getInstance()`
