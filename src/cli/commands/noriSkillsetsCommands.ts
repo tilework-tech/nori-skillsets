@@ -197,6 +197,14 @@ export const registerNoriSkillsetsSwitchSkillsetCommand = (args: {
     .action(async (name: string, options: { agent?: string }) => {
       await switchSkillsetAction({ name, options, program });
     });
+
+  // Hidden alias: switch (shorthand)
+  program
+    .command("switch <name>", { hidden: true })
+    .option("-a, --agent <name>", "AI agent to switch skillset for")
+    .action(async (name: string, options: { agent?: string }) => {
+      await switchSkillsetAction({ name, options, program });
+    });
 };
 
 /**
