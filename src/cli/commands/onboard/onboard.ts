@@ -51,7 +51,7 @@ const getAvailableProfiles = async (args: {
 
   return installedProfileNames.map((name) => ({
     name,
-    description: "Installed profile",
+    description: "Installed skillset",
   }));
 };
 
@@ -71,7 +71,7 @@ const promptForAuth = async (): Promise<{
   newline();
   info({
     message: wrapText({
-      text: "Nori Web provides a context engine for enhancing your coding agent with additional knowledge and enables sharing custom profiles across your team.",
+      text: "Nori Web provides a context engine for enhancing your coding agent with additional knowledge and enables sharing custom skillsets across your team.",
     }),
   });
   newline();
@@ -85,7 +85,7 @@ const promptForAuth = async (): Promise<{
   });
 
   if (!username || username.trim() === "") {
-    info({ message: "Great. Let's move on to selecting your profile." });
+    info({ message: "Great. Let's move on to selecting your skillset." });
     newline();
     return null;
   }
@@ -159,7 +159,7 @@ const promptForProfile = async (args: {
   if (profiles.length === 0) {
     error({
       message:
-        "No profiles found. Download a profile from the registry first using 'nori-skillsets download'.",
+        "No skillsets found. Download a skillset from the registry first using 'nori-skillsets download'.",
     });
     process.exit(1);
   }
@@ -167,7 +167,7 @@ const promptForProfile = async (args: {
   // Display available profiles
   info({
     message: wrapText({
-      text: "Nori profiles contain a complete configuration for customizing your coding agent, including a CLAUDE/AGENT.md, skills, subagents, and commands.",
+      text: "Nori skillsets contain a complete configuration for customizing your coding agent, including a CLAUDE/AGENT.md, skills, subagents, and commands.",
     }),
   });
   newline();
@@ -184,7 +184,7 @@ const promptForProfile = async (args: {
 
   info({
     message: wrapText({
-      text: "If you would like to customize a profile, you can prompt your coding agent to do so in session or use the slash command /nori-create-profile.",
+      text: "If you would like to customize a skillset, you can prompt your coding agent to do so in session or use the slash command /nori-create-skillset.",
     }),
   });
   newline();
@@ -193,13 +193,13 @@ const promptForProfile = async (args: {
   let selectedProfileName: string;
   while (true) {
     const response = await promptUser({
-      prompt: `Select a profile (1-${profiles.length}): `,
+      prompt: `Select a skillset (1-${profiles.length}): `,
     });
 
     const selectedIndex = parseInt(response) - 1;
     if (selectedIndex >= 0 && selectedIndex < profiles.length) {
       const selected = profiles[selectedIndex];
-      info({ message: `Loading "${selected.name}" profile...` });
+      info({ message: `Loading "${selected.name}" skillset...` });
       selectedProfileName = selected.name;
       break;
     }
@@ -264,7 +264,7 @@ export const onboardMain = async (args?: {
     if (profile == null && existingProfile == null) {
       error({
         message:
-          "Non-interactive onboard requires --profile flag when no existing profile is set",
+          "Non-interactive onboard requires --profile flag when no existing skillset is set",
       });
       info({
         message:
@@ -296,7 +296,7 @@ export const onboardMain = async (args?: {
     });
     if (existingProfile != null) {
       info({
-        message: `  Profile: ${existingProfile.baseProfile}`,
+        message: `  Skillset: ${existingProfile.baseProfile}`,
       });
     }
     newline();
@@ -365,10 +365,10 @@ export const registerOnboardCommand = (args: { program: Command }): void => {
 
   program
     .command("onboard")
-    .description("Select a profile and configure authentication")
+    .description("Select a skillset and configure authentication")
     .option(
       "-p, --profile <name>",
-      "Profile to use (required for non-interactive mode without existing profile)",
+      "Skillset to use (required for non-interactive mode without existing skillset)",
     )
     .action(async (options) => {
       // Get global options from parent

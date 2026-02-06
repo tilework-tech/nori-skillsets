@@ -1,6 +1,6 @@
 /**
  * List skillsets command for Nori Skillsets CLI
- * Lists locally available profiles for programmatic use
+ * Lists locally available skillsets for programmatic use
  */
 
 import { loadConfig, getInstalledAgents } from "@/cli/config.js";

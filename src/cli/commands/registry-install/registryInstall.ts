@@ -89,8 +89,8 @@ export type RegistryInstallResult = {
 const displaySuccessMessage = (args: { profileName: string }): void => {
   const { profileName } = args;
   newline();
-  success({ message: `Profile "${profileName}" is now active.` });
-  info({ message: "Restart Claude Code to apply the new profile." });
+  success({ message: `Skillset "${profileName}" is now active.` });
+  info({ message: "Restart Claude Code to apply the new skillset." });
 };
 
 /**
@@ -143,7 +143,7 @@ export const registryInstallMain = async (
     }
 
     warn({
-      message: `Profile "${profileName}" not found in registry. Using locally installed version.`,
+      message: `Skillset "${profileName}" not found in registry. Using locally installed version.`,
     });
   }
 
@@ -183,7 +183,7 @@ export const registryInstallMain = async (
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
     error({
-      message: `Failed to install profile "${profileName}": ${errorMessage}`,
+      message: `Failed to install skillset "${profileName}": ${errorMessage}`,
     });
     return { success: false };
   }
@@ -202,7 +202,7 @@ export const registerRegistryInstallCommand = (args: {
   program
     .command("registry-install <package>")
     .description(
-      "Download, install, and activate a profile from the public registry in one step",
+      "Download, install, and activate a skillset from the public registry in one step",
     )
     .option("--user", "Install to the user home directory")
     .action(async (packageSpec: string, options: { user?: boolean }) => {
