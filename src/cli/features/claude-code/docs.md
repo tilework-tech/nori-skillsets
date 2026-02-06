@@ -12,9 +12,10 @@ This `claude-code/` subdirectory implements the Agent interface defined in @/src
 - `name`: "claude-code"
 - `displayName`: "Claude Code"
 - `getLoaderRegistry()`: Returns the LoaderRegistry singleton with all Claude Code loaders
-- `listProfiles({ installDir })`: Scans installed `.nori/profiles/` for both flat profiles (e.g., `my-skillset`) and namespaced profiles in nested directories (e.g., `myorg/my-skillset`). Returns an array of profile names in their canonical format.
-- `switchProfile({ installDir, profileName })`: Validates profile exists (handles both flat and namespaced paths via `path.join`), updates config with new profile, logs success message
+- `switchProfile({ installDir, profileName })`: Validates profile exists (handles both flat and namespaced paths via `path.join`), updates config with new profile, logs success message. Imports `INSTRUCTIONS_FILE` from @/src/cli/features/managedFolder.ts to identify valid profiles.
 - `getGlobalLoaders()`: Returns loaders that write to `~/.claude/` global config (hooks, statusline, slashcommands, announcements)
+
+Profile discovery (`listProfiles()`) is not part of the agent -- it lives in @/src/cli/features/managedFolder.ts as an agent-agnostic utility. CLI commands import it directly.
 
 The AgentRegistry (@/src/cli/features/agentRegistry.ts) registers this agent and provides lookup by name. CLI commands use `AgentRegistry.getInstance().get({ name: "claude-code" })` to obtain the agent implementation.
 
@@ -77,7 +78,7 @@ Global features (hooks, statusline) use home-based paths because Claude Code rea
 - Flat profiles: `~/.nori/profiles/{profile-name}/` - for public registry packages
 - Namespaced profiles: `~/.nori/profiles/{org}/{profile-name}/` - for organization-specific registry packages
 
-The `listProfiles()` method discovers both layouts by first checking if a directory contains `CLAUDE.md` (flat profile), and if not, checking for subdirectories that contain `CLAUDE.md` (org directory with nested profiles). Namespaced profiles are returned in `org/profile-name` format.
+The `listProfiles()` function in @/src/cli/features/managedFolder.ts discovers both layouts by first checking if a directory contains `CLAUDE.md` (flat profile), and if not, checking for subdirectories that contain `CLAUDE.md` (org directory with nested profiles). Namespaced profiles are returned in `org/profile-name` format.
 
 **Profile structure**: Each profile directory contains CLAUDE.md, skills/, subagents/, slashcommands/, and nori.json (unified manifest). All content is self-contained - no mixin composition or inheritance.
 

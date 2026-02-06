@@ -26,48 +26,6 @@ vi.mock("@/cli/prompt.js", () => ({
   promptUser: vi.fn(),
 }));
 
-describe("agent.listProfiles", () => {
-  let testInstallDir: string;
-
-  beforeEach(async () => {
-    testInstallDir = await fs.mkdtemp(path.join(tmpdir(), "profiles-test-"));
-    const testClaudeDir = path.join(testInstallDir, ".claude");
-    const testNoriDir = path.join(testInstallDir, ".nori");
-    await fs.mkdir(testClaudeDir, { recursive: true });
-    await fs.mkdir(testNoriDir, { recursive: true });
-    AgentRegistry.resetInstance();
-  });
-
-  afterEach(async () => {
-    if (testInstallDir) {
-      await fs.rm(testInstallDir, { recursive: true, force: true });
-    }
-    AgentRegistry.resetInstance();
-  });
-
-  it("should list all installed profiles", async () => {
-    const profilesDir = path.join(testInstallDir, ".nori", "profiles");
-    await fs.mkdir(profilesDir, { recursive: true });
-
-    // Create user-facing profiles
-    for (const name of ["amol", "senior-swe"]) {
-      const dir = path.join(profilesDir, name);
-      await fs.mkdir(dir, { recursive: true });
-      await fs.writeFile(path.join(dir, "CLAUDE.md"), `# ${name}`);
-      await fs.writeFile(
-        path.join(dir, "profile.json"),
-        JSON.stringify({ extends: "_base", name, description: "Test" }),
-      );
-    }
-
-    const agent = AgentRegistry.getInstance().get({ name: "claude-code" });
-    const profiles = await agent.listProfiles({ installDir: testInstallDir });
-
-    expect(profiles).toContain("amol");
-    expect(profiles).toContain("senior-swe");
-  });
-});
-
 describe("agent.switchProfile", () => {
   let testInstallDir: string;
 

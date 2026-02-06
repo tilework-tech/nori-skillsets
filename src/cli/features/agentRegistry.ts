@@ -59,8 +59,6 @@ export type Agent = {
   displayName: string;
   /** Get the LoaderRegistry for this agent */
   getLoaderRegistry: () => LoaderRegistry;
-  /** List installed profiles for this agent (from ~/.{agent}/profiles/) */
-  listProfiles: (args: { installDir: string }) => Promise<Array<string>>;
   /** Switch to a profile (validates and updates config) */
   switchProfile: (args: {
     installDir: string;

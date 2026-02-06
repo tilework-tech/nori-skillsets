@@ -75,7 +75,7 @@ The `profiles/config/` directory in the package is empty -- no built-in profiles
 
 **Profile Lookup in Loaders**: All feature loaders use `getAgentProfile({ config, agentName: "claude-code" })` from @/src/cli/config.ts to determine the active profile name. This function returns the agent-specific profile from `config.agents["claude-code"].profile`, falling back to the legacy `config.profile` field for backwards compatibility.
 
-**Profile Discovery**: The `claudeCodeAgent.listProfiles()` method in @/src/cli/features/claude-code/agent.ts scans `~/.nori/profiles/` for directories containing CLAUDE.md (supports both flat and namespaced org/profile layouts). The `switchProfile()` method validates the profile exists, loads current config, preserves auth credentials, updates the profile field, and prompts user to restart Claude Code.
+**Profile Discovery**: The `listProfiles()` function in @/src/cli/features/managedFolder.ts scans `~/.nori/profiles/` for directories containing CLAUDE.md (supports both flat and namespaced org/profile layouts). This is an agent-agnostic utility imported directly by CLI commands. The `switchProfile()` method on `claudeCodeAgent` validates the profile exists, loads current config, preserves auth credentials, updates the profile field, and prompts user to restart Claude Code.
 
 ### Things to Know
 
