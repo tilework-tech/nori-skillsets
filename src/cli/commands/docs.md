@@ -12,33 +12,32 @@ The CLI entry point (@/src/cli/nori-skillsets.ts) imports `registerXCommand` fun
 
 Commands that interact with agent-specific features (install, switch-profile) use the AgentRegistry (@/src/cli/features/agentRegistry.ts) to look up the agent implementation by name. The agent provides access to its LoaderRegistry, environment paths, and global feature declarations. Commands pass the `--agent` option through their call chain to ensure consistent agent context.
 
-**Installation Flow Architecture:** The installation process is split into three steps orchestrated by install.ts:
+**Installation Flow Architecture:** The installation process is orchestrated by install.ts:
 
 ```
 nori-skillsets install (orchestrator)
     |
     +-- init        (Step 1: Set up directories and config)
     |
-    +-- onboard     (Step 2: Select profile and configure auth)
+    +-- resolve profile + save config (Step 2: Profile resolution inline in install.ts)
     |
     +-- loaders     (Step 3: Run feature loaders to install components)
     |
     +-- manifest    (Step 4: Write installation manifest for change detection)
 ```
 
-The `install` command in @/src/cli/commands/registry-install/registryInstall.ts is a high-level wrapper that downloads from the public registrar and then runs `noninteractive()` from install.ts. The `install.ts` module in @/src/cli/commands/install/ contains the `noninteractive()` function which orchestrates init, onboard, and loader execution. After loaders complete, `writeInstalledManifest()` creates a manifest of all installed files in `~/.claude/` for later change detection by `switch-skillset`.
+The `install` command in @/src/cli/commands/registry-install/registryInstall.ts is a high-level wrapper that downloads from the public registrar and then runs `noninteractive()` from install.ts. The `install.ts` module in @/src/cli/commands/install/ contains the `noninteractive()` function which orchestrates init, profile resolution, and loader execution. After loaders complete, `writeInstalledManifest()` creates a manifest of all installed files in `~/.claude/` for later change detection by `switch-skillset`.
 
 **init** (@/src/cli/commands/init/init.ts): Creates the `.nori` directory structure and initializes `.nori-config.json`. If existing Claude Code config exists and no Nori config is present, captures the existing config as a profile:
   - Non-interactive mode: auto-captures as "my-skillset"
 
-**onboard** (@/src/cli/commands/onboard/onboard.ts): Configures the profile selection and auth credentials:
-- Non-interactive mode requires `--profile` flag if no existing profile is set
+**Profile Resolution (in install.ts):** After init, `noninteractive()` loads the existing config, resolves the profile from the `--profile` flag or the existing agent config, preserves auth credentials, and saves the merged config. Non-interactive mode requires `--profile` flag if no existing profile is set.
 
 **Multi-Agent Support:** The `--agent` flag defaults to `"claude-code"` and determines which agent's loaders run during installation. Agent resolution uses `AgentRegistry.getInstance().get({ name: agentName })` to obtain the agent implementation. Each agent provides its own LoaderRegistry with agent-specific loaders.
 
 The install command sets `agents: { [agentName]: { profile } }` in the config, where the keys of the `agents` object indicate which agents are installed. The config loader merges `agents` objects with any existing config.
 
-**install.ts Architecture:** The install.ts module contains only the `noninteractive()` flow and the `main()` entry point. The `noninteractive()` function orchestrates: (1) `initMain()`, (2) `onboardMain()`, (3) `completeInstallation()` which runs feature loaders, writes the installation manifest, tracks analytics, and displays completion banners. The `main()` function wraps `noninteractive()` with silent mode support.
+**install.ts Architecture:** The install.ts module contains only the `noninteractive()` flow and the `main()` entry point. The `noninteractive()` function orchestrates: (1) `initMain()`, (2) inline profile resolution and config save via `loadConfig()`/`saveConfig()`, (3) `completeInstallation()` which runs feature loaders, writes the installation manifest, tracks analytics, and displays completion banners. The `main()` function wraps `noninteractive()` with silent mode support.
 
 **cliCommandNames.ts:** The `CliName` type is a single literal `"nori-skillsets"` (not a union). The `getCommandNames()` function returns the `NORI_SKILLSETS_COMMANDS` constant, which maps logical command names (download, search, switchProfile, etc.) to their CLI command strings.
 

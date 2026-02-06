@@ -17,7 +17,7 @@ Path: @/src/cli/commands/registry-download
 - Calls `initMain()` from @/src/cli/commands/init/init.ts when no installation is found, to bootstrap Nori config before downloading
 - Calls `registrarApi.getPackument()` and `registrarApi.downloadTarball()` from @/src/api/registrar.ts to fetch package metadata and tarballs
 - Uses `parseNamespacedPackage()` and `buildOrganizationRegistryUrl()` from @/src/utils/url.ts to resolve org-scoped package names to registry URLs
-- Does NOT activate the downloaded profile -- the user must separately run `switch-profile` to activate it. This differs from `registry-install` (@/src/cli/commands/registry-install/) which orchestrates init, onboard, and loaders in one step
+- Does NOT activate the downloaded profile -- the user must separately run `switch-profile` to activate it. This differs from `registry-install` (@/src/cli/commands/registry-install/) which orchestrates init, profile resolution, and loaders in one step
 
 ### Core Implementation
 

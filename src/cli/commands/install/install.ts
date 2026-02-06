@@ -3,10 +3,10 @@
 /**
  * Nori Profiles Installer
  *
- * Orchestrates the installation process by delegating to:
+ * Orchestrates the installation process:
  * 1. init - Set up folders and capture existing config
- * 2. onboard - Select profile and configure authentication
- * 3. switch-profile - Apply the profile (runs feature loaders)
+ * 2. Resolve profile and save to config
+ * 3. Run feature loaders, write manifest, display banners
  */
 
 import { writeFileSync, unlinkSync, existsSync } from "fs";
@@ -18,8 +18,12 @@ import {
   displayWelcomeBanner,
   displaySeaweedBed,
 } from "@/cli/commands/install/asciiArt.js";
-import { onboardMain } from "@/cli/commands/onboard/onboard.js";
-import { loadConfig, getAgentProfile, type Config } from "@/cli/config.js";
+import {
+  loadConfig,
+  saveConfig,
+  getAgentProfile,
+  type Config,
+} from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { getClaudeDir } from "@/cli/features/claude-code/paths.js";
 import {
@@ -218,7 +222,7 @@ const completeInstallation = async (args: {
 
 /**
  * Non-interactive installation mode
- * Delegates to init → onboard → feature loaders
+ * Runs init, resolves profile and saves config, then runs feature loaders
  *
  * @param args - Configuration arguments
  * @param args.installDir - Installation directory (optional)
@@ -242,18 +246,56 @@ export const noninteractive = async (args?: {
     nonInteractive: true,
   });
 
-  // Step 2: Onboard - Set profile from flag (non-interactive requires --profile)
-  await onboardMain({
-    installDir: normalizedInstallDir,
-    nonInteractive: true,
-    profile,
-    agent: agentImpl.name,
+  // Step 2: Resolve profile and save to config
+  const existingConfig = await loadConfig({ installDir: normalizedInstallDir });
+  if (existingConfig == null) {
+    error({
+      message:
+        "No Nori configuration found. Please run 'nori-skillsets init' first.",
+    });
+    process.exit(1);
+  }
+
+  const existingProfile = getAgentProfile({
+    config: existingConfig,
+    agentName: agentImpl.name,
   });
 
-  // Load the updated config after onboard
+  if (profile == null && existingProfile == null) {
+    error({
+      message:
+        "Non-interactive install requires --profile flag when no existing profile is set",
+    });
+    info({
+      message:
+        "Example: nori-skillsets install --non-interactive --profile <profile-name>",
+    });
+    process.exit(1);
+  }
+
+  const selectedProfile = profile ? { baseProfile: profile } : existingProfile!;
+
+  const agents = {
+    ...(existingConfig.agents ?? {}),
+    [agentImpl.name]: { profile: selectedProfile },
+  };
+
+  await saveConfig({
+    username: existingConfig.auth?.username ?? null,
+    password: existingConfig.auth?.password ?? null,
+    refreshToken: existingConfig.auth?.refreshToken ?? null,
+    organizationUrl: existingConfig.auth?.organizationUrl ?? null,
+    sendSessionTranscript: existingConfig.sendSessionTranscript ?? null,
+    autoupdate: existingConfig.autoupdate ?? null,
+    agents,
+    version: existingConfig.version ?? null,
+    installDir: normalizedInstallDir,
+  });
+
+  // Reload config after saving
   const config = await loadConfig({ installDir: normalizedInstallDir });
   if (config == null) {
-    error({ message: "Failed to load configuration after onboarding." });
+    error({ message: "Failed to load configuration after setup." });
     process.exit(1);
   }
 
