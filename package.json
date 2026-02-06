@@ -5,7 +5,8 @@
   "type": "module",
   "bin": {
     "nori-skillsets": "./build/src/cli/nori-skillsets.js",
-    "nori-skillset": "./build/src/cli/nori-skillsets.js"
+    "nori-skillset": "./build/src/cli/nori-skillsets.js",
+    "sks": "./build/src/cli/nori-skillsets.js"
   },
   "keywords": [
     "claude",
