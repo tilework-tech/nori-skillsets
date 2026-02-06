@@ -1,6 +1,6 @@
 /**
  * Tests for slash commands feature loader
- * Verifies install, uninstall, and validate operations
+ * Verifies install and uninstall operations
  */
 
 import * as fs from "fs/promises";
@@ -266,33 +266,6 @@ describe("slashCommandsLoader", () => {
         .then(() => true)
         .catch(() => false);
       expect(exists).toBe(true);
-    });
-
-    it("should return valid when profile slashcommands directory is missing during validate", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-      };
-
-      // First install to create commands directory
-      await slashCommandsLoader.install({ config });
-
-      // Remove the slashcommands directory from the installed profile
-      const profileSlashCommandsDir = path.join(
-        noriProfilesDir,
-        "senior-swe",
-        "slashcommands",
-      );
-      await fs.rm(profileSlashCommandsDir, { recursive: true, force: true });
-
-      // Validate should return valid:true (0 commands expected)
-      if (slashCommandsLoader.validate == null) {
-        throw new Error("validate method not implemented");
-      }
-      const result = await slashCommandsLoader.validate({ config });
-      expect(result.valid).toBe(true);
     });
   });
 });

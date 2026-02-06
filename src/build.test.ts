@@ -200,7 +200,7 @@ ${stderr || "(empty)"}`,
       const pluginDir = process.cwd();
       const hookScript = path.join(
         pluginDir,
-        "build/src/cli/features/claude-code/hooks/config/statistics.js",
+        "build/src/cli/features/claude-code/hooks/config/commit-author.js",
       );
 
       // Verify the hook script exists
@@ -235,33 +235,9 @@ ${stderr || "(empty)"}`,
       expect(stderr).not.toContain("is not supported");
 
       // Script should exit cleanly (exit code 0)
-      // The statistics hook exits with 0 even on errors to not crash sessions
+      // The commit-author hook exits with 0 even on errors to not crash sessions
       expect(exitCode).toBe(0);
     });
-  });
-
-  it("should copy cursor-agent slashcommands config files to build", () => {
-    // This test verifies that the build script copies cursor-agent slash command
-    // markdown files to the build directory. Without this, running
-    // `nori-skillsets install --agent cursor-agent` fails with ENOENT error when
-    // the loader tries to read from the config directory.
-
-    const pluginDir = process.cwd();
-    const configDir = path.join(
-      pluginDir,
-      "build/src/cli/features/cursor-agent/slashcommands/config",
-    );
-
-    // Check that the config directory exists
-    expect(fs.existsSync(configDir)).toBe(true);
-
-    // Check that at least one .md file exists
-    const files = fs.readdirSync(configDir);
-    const mdFiles = files.filter((f) => f.endsWith(".md"));
-    expect(mdFiles.length).toBeGreaterThan(0);
-
-    // Specifically check for nori-info.md which should always be present
-    expect(mdFiles).toContain("nori-info.md");
   });
 
   it("should register nori-skillsets binary in package.json", () => {

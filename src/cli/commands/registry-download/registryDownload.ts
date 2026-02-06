@@ -533,7 +533,7 @@ export const registryDownloadMain = async (args: {
   const parsed = parseNamespacedPackage({ packageSpec });
   if (parsed == null) {
     error({
-      message: `Invalid package specification: "${packageSpec}".\nExpected format: profile-name or org/profile-name[@version]`,
+      message: `Invalid package specification: "${packageSpec}".\nExpected format: skillset-name or org/skillset-name[@version]`,
     });
     return { success: false };
   }
@@ -814,7 +814,7 @@ export const registryDownloadMain = async (args: {
       // No auth anywhere - require login
       const displayName = `${orgId}/${packageName}`;
       error({
-        message: `Profile "${displayName}" not found. To download from organization "${orgId}", log in with:\n\n  nori-skillsets login`,
+        message: `Skillset "${displayName}" not found. To download from organization "${orgId}", log in with:\n\n  nori-skillsets login`,
       });
       return { success: false };
     }
@@ -823,7 +823,7 @@ export const registryDownloadMain = async (args: {
   // Handle search results
   if (searchResults.length === 0) {
     error({
-      message: `Profile "${profileDisplayName}" not found in any registry.`,
+      message: `Skillset "${profileDisplayName}" not found in any registry.`,
     });
     return { success: false };
   }
@@ -864,7 +864,7 @@ export const registryDownloadMain = async (args: {
     if (existingVersionInfo == null) {
       // Profile exists but has no .nori-version - manual install
       error({
-        message: `Profile "${packageName}" already exists at:\n${targetDir}\n\nThis profile has no version information (.nori-version file).\nIt may have been installed manually or with an older version of Nori.\n\nTo reinstall:\n  rm -rf "${targetDir}"\n  ${cliPrefix} ${commandNames.download} ${packageName}`,
+        message: `Skillset "${packageName}" already exists at:\n${targetDir}\n\nThis skillset has no version information (.nori-version file).\nIt may have been installed manually or with an older version of Nori.\n\nTo reinstall:\n  rm -rf "${targetDir}"\n  ${cliPrefix} ${commandNames.download} ${packageName}`,
       });
       return { success: false };
     }
@@ -891,18 +891,18 @@ export const registryDownloadMain = async (args: {
 
         if (installedVersion === targetVersion) {
           success({
-            message: `Profile "${packageName}" is already at version ${installedVersion}.`,
+            message: `Skillset "${packageName}" is already at version ${installedVersion}.`,
           });
         } else {
           success({
-            message: `Profile "${packageName}" is already at version ${installedVersion} (requested ${targetVersion}).`,
+            message: `Skillset "${packageName}" is already at version ${installedVersion} (requested ${targetVersion}).`,
           });
         }
         return { success: true };
       }
       // Newer version available - will proceed to update
       info({
-        message: `Updating profile "${packageName}" from ${installedVersion} to ${targetVersion}...`,
+        message: `Updating skillset "${packageName}" from ${installedVersion} to ${targetVersion}...`,
       });
     } else if (installedVersion === targetVersion) {
       // Fallback for non-semver versions - still check skill dependencies
@@ -918,7 +918,7 @@ export const registryDownloadMain = async (args: {
       }
 
       success({
-        message: `Profile "${packageName}" is already at version ${installedVersion}.`,
+        message: `Skillset "${packageName}" is already at version ${installedVersion}.`,
       });
       return { success: true };
     }
@@ -927,7 +927,7 @@ export const registryDownloadMain = async (args: {
   // Download and extract the tarball
   try {
     if (!profileExists) {
-      info({ message: `Downloading profile "${profileDisplayName}"...` });
+      info({ message: `Downloading skillset "${profileDisplayName}"...` });
     }
 
     const tarballData = await registrarApi.downloadTarball({
@@ -1022,24 +1022,24 @@ export const registryDownloadMain = async (args: {
     newline();
     if (profileExists) {
       success({
-        message: `Updated profile "${profileDisplayName}" to ${targetVersion}`,
+        message: `Updated skillset "${profileDisplayName}" to ${targetVersion}`,
       });
     } else {
       success({
-        message: `Downloaded and installed profile "${profileDisplayName}"${versionStr}`,
+        message: `Downloaded and installed skillset "${profileDisplayName}"${versionStr}`,
       });
     }
     info({ message: `Installed to: ${targetDir}` });
     newline();
     info({
-      message: `You can now use this profile with '${cliPrefix} ${commandNames.switchProfile} ${profileDisplayName}'.`,
+      message: `You can now use this skillset with '${cliPrefix} ${commandNames.switchProfile} ${profileDisplayName}'.`,
     });
 
     return { success: true };
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
     error({
-      message: `Failed to download profile "${profileDisplayName}": ${errorMessage}`,
+      message: `Failed to download skillset "${profileDisplayName}": ${errorMessage}`,
     });
     return { success: false };
   }
@@ -1058,7 +1058,7 @@ export const registerRegistryDownloadCommand = (args: {
   program
     .command("registry-download <package>")
     .description(
-      "Download and install a profile package from the Nori registrar",
+      "Download and install a skillset package from the Nori registrar",
     )
     .option(
       "--registry <url>",

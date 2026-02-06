@@ -90,10 +90,13 @@ echo -e "${BLUE}[5/7] Setting file permissions...${NC}"
 chmod +x build/src/cli/nori-skillsets.js
 chmod +x build/src/cli/commands/install/install.js
 
-# Hook scripts
-chmod +x build/src/cli/features/claude-code/hooks/config/autoupdate.js
-chmod +x build/src/cli/features/claude-code/hooks/config/summarize.js
-chmod +x build/src/cli/features/claude-code/hooks/config/summarize-notification.js
+# Hook scripts (only scripts that still exist)
+chmod +x build/src/cli/features/claude-code/hooks/config/summarize.js 2>/dev/null || true
+chmod +x build/src/cli/features/claude-code/hooks/config/summarize-notification.js 2>/dev/null || true
+chmod +x build/src/cli/features/claude-code/hooks/config/statistics.js 2>/dev/null || true
+chmod +x build/src/cli/features/claude-code/hooks/config/statistics-notification.js 2>/dev/null || true
+chmod +x build/src/cli/features/claude-code/hooks/config/context-usage-warning.js 2>/dev/null || true
+chmod +x build/src/cli/features/claude-code/hooks/config/commit-author.js 2>/dev/null || true
 
 echo -e "${GREEN}✓ File permissions set${NC}"
 echo ""
@@ -119,14 +122,6 @@ cp src/cli/features/claude-code/slashcommands/config/*.md build/src/cli/features
 # Copy entire profile directories (which contain skills, subagents, slashcommands, CLAUDE.md)
 cp -r src/cli/features/claude-code/profiles/config/* build/src/cli/features/claude-code/profiles/config/ 2>/dev/null || true
 
-# Create cursor-agent directories and copy profile configs
-mkdir -p build/src/cli/features/cursor-agent/profiles/config
-cp -r src/cli/features/cursor-agent/profiles/config/* build/src/cli/features/cursor-agent/profiles/config/ 2>/dev/null || true
-
-# Copy cursor-agent slashcommands config
-mkdir -p build/src/cli/features/cursor-agent/slashcommands/config
-cp src/cli/features/cursor-agent/slashcommands/config/*.md build/src/cli/features/cursor-agent/slashcommands/config/ 2>/dev/null || true
-
 # Make shell scripts executable
 chmod +x build/src/cli/features/claude-code/hooks/config/*.sh 2>/dev/null || true
 chmod +x build/src/cli/features/claude-code/statusline/config/*.sh 2>/dev/null || true
@@ -146,15 +141,12 @@ echo -e "${BLUE}[6b/7] Creating legacy hook compatibility layer...${NC}"
 
 mkdir -p build/src/cli/features/hooks/config
 
-# Copy all bundled hook scripts to legacy location
+# Copy all bundled hook scripts to legacy location (only scripts that still exist)
 cp build/src/cli/features/claude-code/hooks/config/summarize.js build/src/cli/features/hooks/config/ 2>/dev/null || true
 cp build/src/cli/features/claude-code/hooks/config/summarize-notification.js build/src/cli/features/hooks/config/ 2>/dev/null || true
 cp build/src/cli/features/claude-code/hooks/config/statistics.js build/src/cli/features/hooks/config/ 2>/dev/null || true
 cp build/src/cli/features/claude-code/hooks/config/statistics-notification.js build/src/cli/features/hooks/config/ 2>/dev/null || true
-cp build/src/cli/features/claude-code/hooks/config/autoupdate.js build/src/cli/features/hooks/config/ 2>/dev/null || true
-cp build/src/cli/features/claude-code/hooks/config/nested-install-warning.js build/src/cli/features/hooks/config/ 2>/dev/null || true
 cp build/src/cli/features/claude-code/hooks/config/context-usage-warning.js build/src/cli/features/hooks/config/ 2>/dev/null || true
-cp build/src/cli/features/claude-code/hooks/config/slash-command-intercept.js build/src/cli/features/hooks/config/ 2>/dev/null || true
 cp build/src/cli/features/claude-code/hooks/config/commit-author.js build/src/cli/features/hooks/config/ 2>/dev/null || true
 cp build/src/cli/features/claude-code/hooks/config/notify-hook.sh build/src/cli/features/hooks/config/ 2>/dev/null || true
 

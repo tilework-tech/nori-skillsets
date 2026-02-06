@@ -45,7 +45,7 @@ This allows commands to provide business logic (Firebase auth, API calls) while 
 - `isCancel({ value })` wraps @clack/prompts isCancel to match the codebase's named args pattern
 - Flow modules return null on cancellation or failure (the flow handles displaying error UI)
 - The `ValidateFunction` type in text.ts follows the pattern `(args: { value: string }) => string | undefined` where undefined means valid and a string is the error message
-- `promptForAuth()` returns null if user enters empty email, allowing auth to be skipped during onboarding
+- `promptForAuth()` returns null if user enters empty email, allowing auth to be skipped during interactive flows
 - Flow modules are exported both from flows/index.ts and re-exported from prompts/index.ts for convenient access
 
 Created and maintained by Nori.

@@ -14,7 +14,7 @@ import {
 import { ProfileLoaderRegistry } from "@/cli/features/claude-code/profiles/profileLoaderRegistry.js";
 import { success, info, warn } from "@/cli/logger.js";
 
-import type { Loader, ValidationResult } from "@/cli/features/agentRegistry.js";
+import type { Loader } from "@/cli/features/agentRegistry.js";
 
 /**
  * Install profiles directory and configure permissions
@@ -163,74 +163,6 @@ const removeProfilesPermissions = async (args: {
 };
 
 /**
- * Validate profiles installation
- * @param args - Configuration arguments
- * @param args.config - Runtime configuration
- *
- * @returns Validation result
- */
-const validate = async (args: {
-  config: Config;
-}): Promise<ValidationResult> => {
-  const { config } = args;
-
-  const noriProfilesDir = getNoriProfilesDir({
-    installDir: config.installDir,
-  });
-  const claudeSettingsFile = getClaudeSettingsFile({
-    installDir: config.installDir,
-  });
-
-  const errors: Array<string> = [];
-
-  // Check if profiles directory exists
-  try {
-    await fs.access(noriProfilesDir);
-  } catch {
-    errors.push(`Profiles directory not found at ${noriProfilesDir}`);
-    errors.push('Run "nori-skillsets init" to create the profiles directory');
-    return {
-      valid: false,
-      message: "Profiles directory not found",
-      errors,
-    };
-  }
-
-  // Check if permissions are configured in settings.json
-  try {
-    const content = await fs.readFile(claudeSettingsFile, "utf-8");
-    const settings = JSON.parse(content);
-
-    if (
-      !settings.permissions?.additionalDirectories?.includes(noriProfilesDir)
-    ) {
-      errors.push(
-        "Profiles directory not configured in permissions.additionalDirectories",
-      );
-      errors.push('Run "nori-skillsets init" to configure permissions');
-      return {
-        valid: false,
-        message: "Profiles permissions not configured",
-        errors,
-      };
-    }
-  } catch {
-    errors.push("Could not read or parse settings.json");
-    return {
-      valid: false,
-      message: "Settings file error",
-      errors,
-    };
-  }
-
-  return {
-    valid: true,
-    message: `Profiles directory exists and permissions are configured`,
-    errors: null,
-  };
-};
-
-/**
  * Profiles feature loader
  */
 export const profilesLoader: Loader = {
@@ -259,7 +191,6 @@ export const profilesLoader: Loader = {
 
     await uninstallProfiles({ config });
   },
-  validate,
 };
 
 /**
