@@ -32,7 +32,7 @@ Path: @/src/cli/commands/registry-download
             YES --> targetInstallDir = homeDir (e.g., ~)
             NO  --> Check cwd via getInstallDirs({ currentDir: cwd })
                     |
-                    0 installations --> auto-init at cwd
+                    0 installations --> auto-init at home directory
                     1 installation  --> use it
                     2+ installations --> error, ask user to specify --install-dir
 ```

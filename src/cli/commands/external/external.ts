@@ -5,6 +5,7 @@
  */
 
 import * as fs from "fs/promises";
+import * as os from "os";
 import * as path from "path";
 
 import {
@@ -266,7 +267,7 @@ export const externalMain = async (args: {
   } else {
     const allInstallations = getInstallDirs({ currentDir: cwd });
     if (allInstallations.length === 0) {
-      targetInstallDir = cwd;
+      targetInstallDir = os.homedir();
     } else if (allInstallations.length > 1) {
       const installList = allInstallations
         .map((dir, index) => `${index + 1}. ${dir}`)

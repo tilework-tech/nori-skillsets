@@ -4,6 +4,7 @@
  */
 
 import * as fs from "fs/promises";
+import * as os from "os";
 import * as path from "path";
 import { Readable } from "stream";
 import { pipeline } from "stream/promises";
@@ -388,8 +389,8 @@ export const skillDownloadMain = async (args: {
     const allInstallations = getInstallDirs({ currentDir: cwd });
 
     if (allInstallations.length === 0) {
-      // No installation - use cwd as target
-      targetInstallDir = cwd;
+      // No installation - use home directory as target
+      targetInstallDir = os.homedir();
     } else if (allInstallations.length > 1) {
       const installList = allInstallations
         .map((dir, index) => `${index + 1}. ${dir}`)

@@ -37,7 +37,7 @@ const resolveInstallDir = (args: {
   installDir?: string | null;
   useHomeDir?: boolean | null;
 }): string => {
-  const { cwd, installDir, useHomeDir } = args;
+  const { installDir, useHomeDir } = args;
 
   if (installDir) {
     return normalizeInstallDir({ installDir });
@@ -47,7 +47,7 @@ const resolveInstallDir = (args: {
     return normalizeInstallDir({ installDir: os.homedir() });
   }
 
-  return normalizeInstallDir({ installDir: cwd ?? process.cwd() });
+  return normalizeInstallDir({ installDir: os.homedir() });
 };
 
 /**

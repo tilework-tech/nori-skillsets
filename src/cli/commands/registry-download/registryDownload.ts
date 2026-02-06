@@ -579,12 +579,12 @@ export const registryDownloadMain = async (args: {
     if (homeInstallations.includes(homeDir)) {
       targetInstallDir = homeDir;
     } else if (allInstallations.length === 0) {
-      // No installation found - auto-init at cwd (interactive to allow user prompts)
+      // No installation found - auto-init at home directory (interactive to allow user prompts)
       // Skip the profile persistence warning since users are just trying to download a profile
       info({ message: "Setting up Nori for first time use..." });
       try {
         await initMain({
-          installDir: cwd,
+          installDir: homeDir,
           nonInteractive: false,
           skipWarning: true,
         });
@@ -594,7 +594,7 @@ export const registryDownloadMain = async (args: {
         });
         return { success: false };
       }
-      targetInstallDir = cwd;
+      targetInstallDir = homeDir;
     } else if (allInstallations.length > 1) {
       const installList = allInstallations
         .map((dir, index) => `${index + 1}. ${dir}`)

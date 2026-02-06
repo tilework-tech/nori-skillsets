@@ -284,9 +284,9 @@ describe("registry-download", () => {
           cwd: noInstallDir,
         });
 
-        // Verify initMain was called with correct args (interactive mode for user prompts, skip warning for download flow)
+        // Verify initMain was called with home dir (interactive mode for user prompts, skip warning for download flow)
         expect(initMain).toHaveBeenCalledWith({
-          installDir: noInstallDir,
+          installDir: emptyHomeDir,
           nonInteractive: false,
           skipWarning: true,
         });
@@ -482,9 +482,9 @@ describe("registry-download", () => {
         // Verify failure was returned
         expect(result.success).toBe(false);
 
-        // Verify initMain was called (interactive mode for user prompts, skip warning for download flow)
+        // Verify initMain was called with home dir (interactive mode for user prompts, skip warning for download flow)
         expect(initMain).toHaveBeenCalledWith({
-          installDir: noInstallDir,
+          installDir: emptyHomeDir,
           nonInteractive: false,
           skipWarning: true,
         });
