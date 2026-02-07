@@ -65,7 +65,7 @@ AuthManager in base.ts prefers refresh token auth via `exchangeRefreshToken()` w
 - `searchPackages()` - Search for profiles in the registrar
 - `getPackument()` - Get profile metadata including versions
 - `downloadTarball()` - Download profile tarball (resolves latest if no version specified)
-- `uploadProfile()` - Upload profile to registrar (requires auth)
+- `uploadProfile()` - Upload profile to registrar (requires auth). Accepts optional `resolutionStrategy` parameter for resolving skill conflicts. When the server returns a 409 response with a `conflicts` array (indicating inline skills that conflict with existing registry skills), throws `SkillCollisionError` from @/utils/fetch.ts containing conflict details and available resolution actions
 
 **Skill API Methods:**
 - `searchSkills()` - Search for skills in the registrar
