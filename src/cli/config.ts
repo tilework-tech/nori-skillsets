@@ -4,6 +4,7 @@
  */
 
 import * as fs from "fs/promises";
+import * as os from "os";
 import * as path from "path";
 
 import Ajv from "ajv";
@@ -107,14 +108,12 @@ type RawDiskConfig = {
 
 /**
  * Get the path to the config file
- * @param args - Configuration arguments
- * @param args.installDir - Installation directory
+ * Always returns ~/.nori-config.json (centralized location)
  *
- * @returns The absolute path to .nori-config.json
+ * @returns The absolute path to ~/.nori-config.json
  */
-export const getConfigPath = (args: { installDir: string }): string => {
-  const { installDir } = args;
-  return path.join(installDir, ".nori-config.json");
+export const getConfigPath = (): string => {
+  return path.join(os.homedir(), ".nori-config.json");
 };
 
 /**
@@ -240,16 +239,12 @@ export const getAgentProfile = (args: {
 /**
  * Load existing configuration from disk
  * Uses JSON schema validation for strict type checking.
- * @param args - Configuration arguments
- * @param args.installDir - Installation directory
+ * Always reads from ~/.nori-config.json
  *
  * @returns The config if valid, null otherwise
  */
-export const loadConfig = async (args: {
-  installDir: string;
-}): Promise<Config | null> => {
-  const { installDir } = args;
-  const configPath = getConfigPath({ installDir });
+export const loadConfig = async (): Promise<Config | null> => {
+  const configPath = getConfigPath();
 
   try {
     await fs.access(configPath);
@@ -285,7 +280,7 @@ export const loadConfig = async (args: {
     // After schema validation, types are guaranteed - only need null checks
     const result: Config = {
       auth: null,
-      installDir: validated.installDir ?? installDir,
+      installDir: validated.installDir ?? os.homedir(),
       sendSessionTranscript: validated.sendSessionTranscript,
       autoupdate: validated.autoupdate,
       version: validated.version,
@@ -392,7 +387,7 @@ export const saveConfig = async (args: {
     transcriptDestination,
     installDir,
   } = args;
-  const configPath = getConfigPath({ installDir });
+  const configPath = getConfigPath();
 
   const config: any = {};
 
@@ -532,16 +527,12 @@ const validateConfigSchema = ajv.compile(configSchema);
 
 /**
  * Validate configuration file
- * @param args - Configuration arguments
- * @param args.installDir - Installation directory
+ * Always validates ~/.nori-config.json
  *
  * @returns Validation result with details
  */
-export const validateConfig = async (args: {
-  installDir: string;
-}): Promise<ConfigValidationResult> => {
-  const { installDir } = args;
-  const configPath = getConfigPath({ installDir });
+export const validateConfig = async (): Promise<ConfigValidationResult> => {
+  const configPath = getConfigPath();
   const errors: Array<string> = [];
 
   // Check if config file exists

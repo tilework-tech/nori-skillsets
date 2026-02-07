@@ -3,11 +3,21 @@
  */
 
 import * as fs from "fs/promises";
+import * as os from "os";
 import { tmpdir } from "os";
 import * as path from "path";
 
 import * as tar from "tar";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+
+// Mock os.homedir so getNoriProfilesDir resolves to the test directory
+vi.mock("os", async (importOriginal) => {
+  const actual = await importOriginal<typeof os>();
+  return {
+    ...actual,
+    homedir: vi.fn().mockReturnValue(actual.homedir()),
+  };
+});
 
 // Mock the registrar API
 vi.mock("@/api/registrar.js", () => ({
@@ -912,6 +922,7 @@ describe("--skillset option and manifest updates", () => {
 
     // Create test directory structure simulating a Nori installation
     testDir = await fs.mkdtemp(path.join(tmpdir(), "nori-skillset-test-"));
+    vi.mocked(os.homedir).mockReturnValue(testDir);
     skillsDir = path.join(testDir, ".claude", "skills");
     profilesDir = path.join(testDir, ".nori", "profiles");
 
@@ -1184,6 +1195,7 @@ describe("profile directory persistence", () => {
     testDir = await fs.mkdtemp(
       path.join(tmpdir(), "nori-profile-persist-test-"),
     );
+    vi.mocked(os.homedir).mockReturnValue(testDir);
     skillsDir = path.join(testDir, ".claude", "skills");
     profilesDir = path.join(testDir, ".nori", "profiles");
 
@@ -1557,6 +1569,7 @@ describe("nori.json updates on skill download", () => {
     vi.clearAllMocks();
 
     testDir = await fs.mkdtemp(path.join(tmpdir(), "nori-json-update-test-"));
+    vi.mocked(os.homedir).mockReturnValue(testDir);
     skillsDir = path.join(testDir, ".claude", "skills");
     profilesDir = path.join(testDir, ".nori", "profiles");
 

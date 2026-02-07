@@ -37,14 +37,10 @@ const MANIFEST_FILENAME = "installed-manifest.json";
 /**
  * Get the path to the manifest file
  *
- * @param args - Configuration arguments
- * @param args.installDir - Installation directory
- *
  * @returns Absolute path to the manifest file
  */
-export const getManifestPath = (args: { installDir: string }): string => {
-  const { installDir } = args;
-  const noriDir = getNoriDir({ installDir });
+export const getManifestPath = (): string => {
+  const noriDir = getNoriDir();
   return path.join(noriDir, MANIFEST_FILENAME);
 };
 

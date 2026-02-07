@@ -18,16 +18,10 @@ export const INSTRUCTIONS_FILE = "CLAUDE.md";
  * (e.g., "myorg/my-profile"). A directory is considered a valid profile if it
  * contains a CLAUDE.md file.
  *
- * @param args - Configuration arguments
- * @param args.installDir - Installation directory
- *
  * @returns Sorted array of profile names
  */
-export const listProfiles = async (args: {
-  installDir: string;
-}): Promise<Array<string>> => {
-  const { installDir } = args;
-  const profilesDir = getNoriProfilesDir({ installDir });
+export const listProfiles = async (): Promise<Array<string>> => {
+  const profilesDir = getNoriProfilesDir();
   const profiles: Array<string> = [];
 
   try {

@@ -29,7 +29,6 @@ import type { Command } from "commander";
 /**
  * Determine which agent to use for switch-skillset command when no --agent flag provided
  * @param args - Configuration arguments
- * @param args.installDir - Installation directory
  * @param args.nonInteractive - Whether running in non-interactive mode
  *
  * @throws Error if in non-interactive mode with multiple agents installed
@@ -37,13 +36,12 @@ import type { Command } from "commander";
  * @returns The agent name to use
  */
 const resolveAgent = async (args: {
-  installDir: string;
   nonInteractive: boolean;
 }): Promise<string> => {
-  const { installDir, nonInteractive } = args;
+  const { nonInteractive } = args;
 
   // Load config to check installed agents
-  const config = await loadConfig({ installDir });
+  const config = await loadConfig();
   const installedAgents = config ? getInstalledAgents({ config }) : [];
 
   // No agents installed - default to claude-code
@@ -103,7 +101,7 @@ const detectLocalChanges = async (args: {
 }): Promise<ManifestDiff | null> => {
   const { installDir } = args;
 
-  const manifestPath = getManifestPath({ installDir });
+  const manifestPath = getManifestPath();
   const manifest = await readManifest({ manifestPath });
 
   // No manifest means first install or manual setup - no changes detectable
@@ -226,7 +224,7 @@ const confirmSwitchProfile = async (args: {
   }
 
   // Load config to get current skillset
-  const config = await loadConfig({ installDir });
+  const config = await loadConfig();
   const agentProfile =
     config != null
       ? getAgentProfile({ config, agentName: agentName as ConfigAgentName })
@@ -291,8 +289,7 @@ export const switchSkillsetAction = async (args: {
   // Use local --agent option if provided, otherwise auto-detect
   // We don't use globalOpts.agent because it has a default value ("claude-code")
   // which would prevent auto-detection from working
-  const agentName =
-    options.agent ?? (await resolveAgent({ installDir, nonInteractive }));
+  const agentName = options.agent ?? (await resolveAgent({ nonInteractive }));
 
   const agent = AgentRegistry.getInstance().get({ name: agentName });
 
@@ -351,7 +348,7 @@ export const switchSkillsetAction = async (args: {
     await agent.switchProfile({ installDir, profileName: name });
   } catch (err) {
     // On failure, show available skillsets
-    const profiles = await listProfiles({ installDir });
+    const profiles = await listProfiles();
     if (profiles.length > 0) {
       error({ message: `Available skillsets: ${profiles.join(", ")}` });
     }

@@ -126,9 +126,7 @@ describe("registry-install", () => {
       cwd: "/repo",
     });
 
-    expect(hasExistingInstallation).toHaveBeenCalledWith({
-      installDir: "/mock-home",
-    });
+    expect(hasExistingInstallation).toHaveBeenCalledWith();
 
     // Step 1: Download profile from registry - should use homedir
     expect(registryDownloadMain).toHaveBeenCalledWith({

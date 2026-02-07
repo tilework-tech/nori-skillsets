@@ -29,16 +29,12 @@ const __dirname = path.dirname(__filename);
  *
  * @param args - Function arguments
  * @param args.profileName - Name of the profile to load CLAUDE.md from
- * @param args.installDir - Installation directory
  *
  * @returns Path to the CLAUDE.md file for the profile
  */
-const getProfileClaudeMd = (args: {
-  profileName: string;
-  installDir: string;
-}): string => {
-  const { profileName, installDir } = args;
-  const noriDir = getNoriDir({ installDir });
+const getProfileClaudeMd = (args: { profileName: string }): string => {
+  const { profileName } = args;
+  const noriDir = getNoriDir();
   return path.join(noriDir, "profiles", profileName, "CLAUDE.md");
 };
 
@@ -191,7 +187,7 @@ const generateSkillsList = async (args: {
 
   try {
     // Get skills directory for the profile from installed profiles in .nori
-    const noriDir = getNoriDir({ installDir });
+    const noriDir = getNoriDir();
     const skillsDir = path.join(noriDir, "profiles", profileName, "skills");
 
     // Find all skill files
@@ -278,7 +274,6 @@ const insertClaudeMd = async (args: { config: Config }): Promise<void> => {
   // Read CLAUDE.md from the selected profile
   const profileClaudeMdPath = getProfileClaudeMd({
     profileName,
-    installDir: config.installDir,
   });
   let instructions = await fs.readFile(profileClaudeMdPath, "utf-8");
 

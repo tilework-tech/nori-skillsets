@@ -49,7 +49,7 @@ Key functions:
 - `writeManifest()` / `readManifest()` - Persist/load manifest to/from `~/.nori/installed-manifest.json`
 - `compareManifest()` - Compare a stored manifest against the current directory state, returning a `ManifestDiff`
 - `hasChanges()` - Check if a `ManifestDiff` contains any changes
-- `getManifestPath()` - Returns the path to the manifest file (`~/.nori/installed-manifest.json`)
+- `getManifestPath()` - Zero-arg function that returns the path to the manifest file (`~/.nori/installed-manifest.json`) via `getNoriDir()`
 
 The manifest is written after installation completes (via `writeInstalledManifest()` in @/src/cli/commands/install/install.ts) and checked before skillset switching (via `detectLocalChanges()` in @/src/cli/commands/switch-profile/profiles.ts).
 

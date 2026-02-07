@@ -7,6 +7,7 @@ import * as fs from "fs/promises";
 import * as path from "path";
 
 import { loadConfig, saveConfig } from "@/cli/config.js";
+import { factoryResetClaudeCode } from "@/cli/features/claude-code/factoryReset.js";
 import { LoaderRegistry } from "@/cli/features/claude-code/loaderRegistry.js";
 import { getNoriProfilesDir } from "@/cli/features/claude-code/paths.js";
 import { INSTRUCTIONS_FILE } from "@/cli/features/managedFolder.js";
@@ -25,12 +26,14 @@ export const claudeCodeAgent: Agent = {
     return LoaderRegistry.getInstance();
   },
 
+  factoryReset: factoryResetClaudeCode,
+
   switchProfile: async (args: {
     installDir: string;
     profileName: string;
   }): Promise<void> => {
     const { installDir, profileName } = args;
-    const profilesDir = getNoriProfilesDir({ installDir });
+    const profilesDir = getNoriProfilesDir();
 
     // Verify profile exists
     // profileName can be flat (e.g., "senior-swe") or namespaced (e.g., "myorg/my-profile")
@@ -45,7 +48,7 @@ export const claudeCodeAgent: Agent = {
     }
 
     // Load current config
-    const currentConfig = await loadConfig({ installDir });
+    const currentConfig = await loadConfig();
 
     // Get existing agents config (agents keys are the source of truth for installed agents)
     const existingAgents = currentConfig?.agents ?? {};

@@ -32,11 +32,9 @@ vi.mock("@/cli/features/claude-code/paths.js", () => {
       `${testClaudeDir}/skills`,
     getClaudeProfilesDir: (_args: { installDir: string }) =>
       `${testClaudeDir}/profiles`,
-    getNoriDir: (_args: { installDir: string }) => testNoriDir,
-    getNoriProfilesDir: (_args: { installDir: string }) =>
-      `${testNoriDir}/profiles`,
-    getNoriConfigFile: (_args: { installDir: string }) =>
-      `${testNoriDir}/config.json`,
+    getNoriDir: () => testNoriDir,
+    getNoriProfilesDir: () => `${testNoriDir}/profiles`,
+    getNoriConfigFile: () => `${testNoriDir}/config.json`,
   };
 });
 
@@ -162,7 +160,7 @@ describe("install noninteractive", () => {
       profile: "senior-swe",
     });
 
-    const configPath = getConfigPath({ installDir: tempDir });
+    const configPath = getConfigPath();
     const config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
     expect(config.agents["claude-code"].profile).toEqual({
       baseProfile: "senior-swe",
@@ -210,7 +208,7 @@ describe("install noninteractive", () => {
       installDir: tempDir,
     });
 
-    const configPath = getConfigPath({ installDir: tempDir });
+    const configPath = getConfigPath();
     const config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
     expect(config.agents["claude-code"].profile).toEqual({
       baseProfile: "amol",
@@ -233,7 +231,7 @@ describe("install noninteractive", () => {
       profile: "senior-swe",
     });
 
-    const configPath = getConfigPath({ installDir: tempDir });
+    const configPath = getConfigPath();
     const config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
     expect(config.auth.username).toBe("test@example.com");
     expect(config.auth.organizationUrl).toBe("https://myorg.tilework.tech");

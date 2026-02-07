@@ -210,7 +210,7 @@ export const captureExistingConfigAsProfile = async (args: {
 }): Promise<void> => {
   const { installDir, profileName } = args;
 
-  const profilesDir = getNoriProfilesDir({ installDir });
+  const profilesDir = getNoriProfilesDir();
   const profileDir = path.join(profilesDir, profileName);
 
   // Create profile directory

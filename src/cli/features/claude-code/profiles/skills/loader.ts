@@ -70,16 +70,12 @@ const copyDirWithTemplateSubstitution = async (args: {
  *
  * @param args - Configuration arguments
  * @param args.profileName - Name of the profile
- * @param args.installDir - Installation directory
  *
  * @returns Path to the profile directory
  */
-const getProfileDir = (args: {
-  profileName: string;
-  installDir: string;
-}): string => {
-  const { profileName, installDir } = args;
-  const noriDir = getNoriDir({ installDir });
+const getProfileDir = (args: { profileName: string }): string => {
+  const { profileName } = args;
+  const noriDir = getNoriDir();
   return path.join(noriDir, "profiles", profileName);
 };
 
@@ -88,16 +84,12 @@ const getProfileDir = (args: {
  *
  * @param args - Configuration arguments
  * @param args.profileName - Name of the profile to load skills from
- * @param args.installDir - Installation directory
  *
  * @returns Path to the skills config directory for the profile
  */
-const getConfigDir = (args: {
-  profileName: string;
-  installDir: string;
-}): string => {
-  const { profileName, installDir } = args;
-  return path.join(getProfileDir({ profileName, installDir }), "skills");
+const getConfigDir = (args: { profileName: string }): string => {
+  const { profileName } = args;
+  return path.join(getProfileDir({ profileName }), "skills");
 };
 
 /**
@@ -121,7 +113,6 @@ const installSkills = async (args: { config: Config }): Promise<void> => {
   }
   const configDir = getConfigDir({
     profileName,
-    installDir: config.installDir,
   });
   const claudeDir = getClaudeDir({ installDir: config.installDir });
   const claudeSkillsDir = getClaudeSkillsDir({ installDir: config.installDir });

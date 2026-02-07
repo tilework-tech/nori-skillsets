@@ -170,13 +170,13 @@ export const initMain = async (args?: {
   }
 
   // Create ~/.nori/profiles/ directory
-  const profilesDir = getNoriProfilesDir({ installDir: normalizedInstallDir });
+  const profilesDir = getNoriProfilesDir();
   if (!(await directoryExists(profilesDir))) {
     await fs.mkdir(profilesDir, { recursive: true });
   }
 
   // Load existing config (if any)
-  const existingConfig = await loadConfig({ installDir: normalizedInstallDir });
+  const existingConfig = await loadConfig();
   const currentVersion = getCurrentPackageVersion();
 
   // Track captured profile name for setting in config

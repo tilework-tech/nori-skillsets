@@ -19,8 +19,9 @@ CLI Commands (install, switch-profile, onboard, list-skillsets)
     |           |
     |           +-- getLoaderRegistry() --> LoaderRegistry (interface)
     |           +-- switchProfile({ installDir, profileName }) --> Validate and switch
+    |           +-- factoryReset({ path }) --> Remove all agent config (optional)
     |
-    +-- listProfiles({ installDir }) --> Available profile names (from managedFolder.ts)
+    +-- listProfiles() --> Available profile names (from managedFolder.ts)
 
 Shared Resources (@/src/cli/features/)
     |
@@ -47,6 +48,7 @@ The `--agent` global CLI option (default: "claude-code") determines which agent 
 - `displayName`: Human-readable name ("Claude Code")
 - `getLoaderRegistry()`: Returns an object implementing the `LoaderRegistry` interface
 - `switchProfile({ installDir, profileName })`: Validates profile exists, filters out config entries for uninstalled agents, and updates config
+- `factoryReset({ path })`: Optional. Removes all agent configuration from the filesystem starting at the given path. The CLI command layer handles non-interactive blocking and confirmation; the agent method handles discovery and deletion.
 
 **AgentRegistry** (agentRegistry.ts):
 - Singleton pattern with `getInstance()`
@@ -62,9 +64,9 @@ The `--agent` global CLI option (default: "claude-code") determines which agent 
 
 **Managed Folder Utilities** (managedFolder.ts):
 - Agent-agnostic profile discovery extracted from the Agent interface
-- `listProfiles({ installDir })`: Scans `~/.nori/profiles/` for directories containing `CLAUDE.md`, supporting both flat profiles (e.g., `senior-swe`) and namespaced profiles (e.g., `myorg/my-profile`). Returns a sorted array of profile names.
+- `listProfiles()`: Zero-arg function that scans `~/.nori/profiles/` for directories containing `CLAUDE.md`, supporting both flat profiles (e.g., `senior-swe`) and namespaced profiles (e.g., `myorg/my-profile`). Uses `getNoriProfilesDir()` internally. Returns a sorted array of profile names.
 - `INSTRUCTIONS_FILE`: Constant (`"CLAUDE.md"`) used by both this module and `claudeCodeAgent.switchProfile()` to identify valid profiles
-- Imported directly by CLI commands (`list-skillsets`, `switch-profile`, `onboard`) rather than going through the Agent interface
+- Imported directly by CLI commands (`list-skillsets`, `switch-profile`) rather than going through the Agent interface
 
 **Migration System** (migration.ts):
 - Versioned migration system for transforming config between formats during installation
@@ -83,7 +85,7 @@ The `--agent` global CLI option (default: "claude-code") determines which agent 
 
 The AgentRegistry auto-registers claude-code in its constructor.
 
-Profile discovery is handled by the standalone `listProfiles()` function in @/src/cli/features/managedFolder.ts, not by the Agent interface. This function scans `~/.nori/profiles/` for valid profiles (directories containing `CLAUDE.md`). Profile switching remains on the Agent interface via `switchProfile()`. Since no built-in profiles are shipped with the package, profiles are obtained exclusively from the registry or created by users.
+Profile discovery is handled by the standalone `listProfiles()` function (zero-arg) in @/src/cli/features/managedFolder.ts, not by the Agent interface. This function uses `getNoriProfilesDir()` to scan `~/.nori/profiles/` for valid profiles (directories containing `CLAUDE.md`). Profile switching remains on the Agent interface via `switchProfile()`. Since no built-in profiles are shipped with the package, profiles are obtained exclusively from the registry or created by users.
 
 Agent implementations manage their own internal paths (config directories, instruction file names, etc.) without exposing them through the public interface. Claude Code's path helpers live in @/src/cli/features/claude-code/paths.ts. The env.ts file re-exports these functions for backward compatibility.
 

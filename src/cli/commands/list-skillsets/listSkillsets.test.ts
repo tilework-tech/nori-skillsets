@@ -4,7 +4,7 @@
  */
 
 import * as fs from "fs/promises";
-import { tmpdir } from "os";
+import * as os from "os";
 import * as path from "path";
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
@@ -12,6 +12,15 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 
 import { listSkillsetsMain } from "./listSkillsets.js";
+
+// Mock os.homedir so getNoriProfilesDir() resolves to the test directory
+vi.mock("os", async (importOriginal) => {
+  const actual = await importOriginal<typeof os>();
+  return {
+    ...actual,
+    homedir: vi.fn().mockReturnValue(actual.homedir()),
+  };
+});
 
 // Mock logger to capture output
 const mockRaw = vi.fn();
@@ -31,8 +40,9 @@ describe("listSkillsetsMain", () => {
 
   beforeEach(async () => {
     testInstallDir = await fs.mkdtemp(
-      path.join(tmpdir(), "list-skillsets-test-"),
+      path.join(os.tmpdir(), "list-skillsets-test-"),
     );
+    vi.mocked(os.homedir).mockReturnValue(testInstallDir);
     const testNoriDir = path.join(testInstallDir, ".nori");
     await fs.mkdir(testNoriDir, { recursive: true });
     AgentRegistry.resetInstance();
@@ -152,8 +162,9 @@ describe("listSkillsetsMain output format", () => {
 
   beforeEach(async () => {
     testInstallDir = await fs.mkdtemp(
-      path.join(tmpdir(), "list-skillsets-format-test-"),
+      path.join(os.tmpdir(), "list-skillsets-format-test-"),
     );
+    vi.mocked(os.homedir).mockReturnValue(testInstallDir);
     const testNoriDir = path.join(testInstallDir, ".nori");
     await fs.mkdir(testNoriDir, { recursive: true });
     AgentRegistry.resetInstance();
@@ -195,8 +206,9 @@ describe("listSkillsetsMain error messages", () => {
 
   beforeEach(async () => {
     testInstallDir = await fs.mkdtemp(
-      path.join(tmpdir(), "list-skillsets-error-test-"),
+      path.join(os.tmpdir(), "list-skillsets-error-test-"),
     );
+    vi.mocked(os.homedir).mockReturnValue(testInstallDir);
     AgentRegistry.resetInstance();
     mockRaw.mockClear();
     mockError.mockClear();

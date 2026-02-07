@@ -53,6 +53,7 @@ src/cli/
     skill-download/      # Download a skill from registrar
     external/            # Install skills from external GitHub repos
     watch/               # Monitor Claude Code sessions and save transcripts
+    factory-reset/       # Remove all agent configuration
 ```
 
 **CLI Commands:**
@@ -71,18 +72,21 @@ src/cli/
 | `logout` | commands/logout/ | Remove authentication credentials |
 | `watch` | commands/watch/ | Monitor Claude Code sessions and save transcripts |
 | `install-location` | commands/install-location/ | Display installation directories |
+| `factory-reset` | commands/factory-reset/factoryReset.ts | Remove all agent configuration from the ancestor tree |
 
-The nori-skillsets CLI uses simplified command names (no `registry-` prefix for registry read operations, `download-skill` for skill downloads, `switch-skillset` for profile switching, `init` for initialization, and `watch` for session monitoring). The commands are defined in @/src/cli/commands/noriSkillsetsCommands.ts and delegate to the underlying implementation functions (`*Main` functions from registry-*, skill-*, watch, and init commands, plus `switchSkillsetAction` from profiles.ts).
+The nori-skillsets CLI uses simplified command names (no `registry-` prefix for registry read operations, `download-skill` for skill downloads, `switch-skillset` for profile switching, `init` for initialization, and `watch` for session monitoring). The commands are defined in @/src/cli/commands/noriSkillsetsCommands.ts and delegate to the underlying implementation functions (`*Main` functions from registry-*, skill-*, watch, and init commands, plus `switchSkillsetAction` from profiles.ts). Some commands have hidden aliases registered as separate Commander commands with `{ hidden: true }` -- these provide singular/plural variants (e.g., `list-skillset` for `list-skillsets`) and shorthand names (e.g., `switch` for `switch-skillset`). Hidden aliases do not appear in `--help` output but are fully functional commands that delegate to the same action handler.
 
 Each command directory contains the command implementation, its tests, and any command-specific utilities (e.g., `install/` contains `asciiArt.ts` and `installState.ts`).
 
-**Installation Flow:** The installer (install.ts) orchestrates the installation process in non-interactive mode. It runs: (1) `initMain()` to set up directories and config, (2) inline profile resolution — loads existing config, resolves profile from `--profile` flag or existing agent config, preserves auth credentials, and saves merged config via `saveConfig()`, (3) runs feature loaders from the agent's LoaderRegistry. The installer creates `<installDir>/.nori-config.json` containing auth credentials and selected profile name, and installs components into `<installDir>/.claude/`. By default, installDir is `process.cwd()`, so running `cd /project && npx nori-skillsets init` creates files in `/project/`. The profile selection determines which complete directory structure (CLAUDE.md, skills/, subagents/, slashcommands/) gets installed from the user's profiles directory at `<installDir>/.nori/profiles/{profileName}/`. Each profile is a self-contained directory with a CLAUDE.md file that defines the profile. Profiles are obtained from the registry or created by users; no built-in profiles are bundled with the package. The installTracking.ts module tracks installation and session events to the Nori backend.
+**Installation Flow:** The installer (install.ts) orchestrates the installation process in non-interactive mode. It runs: (1) `initMain()` to set up directories and config, (2) inline profile resolution -- loads existing config, resolves profile from `--profile` flag or existing agent config, preserves auth credentials, and saves merged config via `saveConfig()`, (3) runs feature loaders from the agent's LoaderRegistry. The installer creates `~/.nori-config.json` containing auth credentials and selected profile name, and installs components into `<installDir>/.claude/`. The profile selection determines which complete directory structure (CLAUDE.md, skills/, subagents/, slashcommands/) gets installed from the user's profiles directory at `~/.nori/profiles/{profileName}/`. Each profile is a self-contained directory with a CLAUDE.md file that defines the profile. Profiles are obtained from the registry or created by users; no built-in profiles are bundled with the package. The installTracking.ts module tracks installation and session events to the Nori backend.
 
-**installDir Architecture:** The codebase follows a strict pattern where `installDir` is a required parameter for all internal functions. CLI entry points are the ONLY places that accept optional installDir. These entry points either call normalizeInstallDir() from @/src/utils/path.ts or use getInstallDirs() to auto-detect installations. The `installDir` is the BASE directory (e.g., `/home/user/project`), NOT the `.claude` directory. All files are stored relative to this base:
-- `<installDir>/.nori-config.json` - config file with version tracking (via getConfigPath)
-- `<installDir>/.claude/` - Claude Code configuration (via getClaudeDir)
+**Centralized Config and Nori Directory:** The `.nori` directory and config file are centralized to the user's home directory. Core path and config functions are zero-arg and always resolve relative to `os.homedir()`:
+- `getConfigPath()` returns `~/.nori-config.json`
+- `getNoriDir()` returns `~/.nori`
+- `getNoriProfilesDir()` returns `~/.nori/profiles`
+- `loadConfig()` and `validateConfig()` always read from `~/.nori-config.json`
 
-This ensures that when running `cd /foo/bar && npx nori-skillsets init`, all files are created in `/foo/bar/` rather than the user's home directory.
+The `installDir` parameter is still used by Claude-specific path functions (`getClaudeDir`, `getClaudeMdFile`, etc.) for the `.claude/` directory, which is project-relative. The `--install-dir` CLI option controls where `.claude/` is created, but config and profiles are always in the home directory.
 
 **Config Migration During Install:** The installation flow uses the `loadAndMigrateConfig({ installDir })` helper early in the flow. This helper:
 1. Loads the existing config via `loadConfig()`
@@ -114,7 +118,7 @@ The config.ts module provides a unified `Config` type for both disk persistence 
 
 **Profile Lookup Pattern (CRITICAL):** Code that needs to read a profile MUST use `getAgentProfile({ config, agentName })` - never access agent profiles directly. The function returns the profile from `config.agents[agentName].profile` or null if not found.
 
-The getConfigPath() function requires { installDir: string } and returns `<installDir>/.nori-config.json`. All config operations (loadConfig, saveConfig, validateConfig) require installDir as a parameter, ensuring consistent path resolution throughout the codebase.
+The `getConfigPath()` function is zero-arg and always returns `~/.nori-config.json`. The `loadConfig()` and `validateConfig()` functions are also zero-arg and always operate on the centralized config file. The `saveConfig()` function still accepts parameters for the config data to write (including `installDir` as a data field stored in the JSON), but always writes to `~/.nori-config.json`.
 
 **JSON Schema Validation Architecture:** The config.ts module uses JSON schema (via Ajv with ajv-formats) as the single source of truth for configuration validation. The Ajv instance is configured with `useDefaults: true` (applies default values), `removeAdditional: true` (strips unknown properties), and ajv-formats for URI validation. A single compiled validator (`validateConfigSchema`) is used by both `loadConfig()` and `validateConfig()`.
 
@@ -122,13 +126,13 @@ The getConfigPath() function requires { installDir: string } and returns `<insta
 
 **Installed Agents Tracking:** Installed agents are derived from the keys of the `agents` object. Use `getInstalledAgents({ config })` helper to get the list.
 
-**loadConfig() installDir Resolution:** The loadConfig() function returns a Config object where the installDir field comes from the JSON file (if present) rather than exclusively from the function parameter. The parameter provides a default, but the function prioritizes `config.installDir` from the saved JSON file if it exists. This is critical because hook scripts (like autoupdate.ts) search for the config file in parent directories - they must use the installDir from the config file itself, not the directory where the config was found.
+**loadConfig() installDir Resolution:** The `loadConfig()` function is zero-arg and always reads from `~/.nori-config.json`. The returned Config object's `installDir` field comes from the JSON file (if present), defaulting to `os.homedir()` when not specified in the file.
 
 **CliName Type:** The `CliName` type in @/src/cli/commands/cliCommandNames.ts is a single literal type `"nori-skillsets"` (not a union). The `getCommandNames()` function always returns the same `NORI_SKILLSETS_COMMANDS` constant regardless of input.
 
 ### Things to Know
 
-The installer modifies several Claude Code configuration files and directories: CLAUDE.md, ~/.claude/hooks, ~/.claude/subagents, ~/.claude/slash-commands, ~/.claude/status-line, ~/.claude/profiles, ~/.claude/skills. Profiles are complete, self-contained directory structures at `<installDir>/.nori/profiles/{profileName}/` containing: CLAUDE.md (base instructions), nori.json (metadata), skills/ (skill directories with SKILL.md files), subagents/ (subagent .md files), slashcommands/ (slash command .md files). No built-in profiles are bundled with the package; profiles are obtained from the registry or created by users.
+The installer modifies several Claude Code configuration files and directories: CLAUDE.md, ~/.claude/hooks, ~/.claude/subagents, ~/.claude/slash-commands, ~/.claude/status-line, ~/.claude/profiles, ~/.claude/skills. Profiles are complete, self-contained directory structures at `~/.nori/profiles/{profileName}/` containing: CLAUDE.md (base instructions), nori.json (metadata), skills/ (skill directories with SKILL.md files), subagents/ (subagent .md files), slashcommands/ (slash command .md files). No built-in profiles are bundled with the package; profiles are obtained from the registry or created by users.
 
 The installer creates an install-in-progress marker file at ~/.nori-install-in-progress at the start of installation and deletes it on successful completion. This marker contains the version being installed and is checked by the statusline to display error messages if installation fails.
 
@@ -138,6 +142,6 @@ Install lifecycle tracking (installTracking.ts) is called at CLI startup via `tr
 
 **installTracking.ts default tileworkSource:** The default value of `tileworkSource` is `"nori-skillsets"`. The `setTileworkSource()` is called by the CLI entry point, but the default ensures correct behavior even before explicit initialization.
 
-**Test Isolation:** Tests that perform file operations pass a temp directory as installDir to all functions. Since all functions now require installDir as a parameter, tests can directly pass a temporary directory path rather than mocking process.env.HOME.
+**Test Isolation:** Tests that need to control the centralized config and profiles directories mock `os.homedir()` via `vi.mock("os")` to return a temp directory. This redirects all zero-arg path functions (`getConfigPath()`, `getNoriDir()`, `getNoriProfilesDir()`, `loadConfig()`) to the test's temp directory. Functions that still take `installDir` (e.g., `getClaudeDir`) receive the temp directory directly.
 
 Created and maintained by Nori.

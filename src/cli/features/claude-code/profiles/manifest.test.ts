@@ -353,10 +353,12 @@ describe("manifest", () => {
   });
 
   describe("getManifestPath", () => {
-    it("should return path in .nori directory", () => {
-      const manifestPath = getManifestPath({ installDir: "/home/user" });
+    it("should return path in ~/.nori directory", () => {
+      const manifestPath = getManifestPath();
 
-      expect(manifestPath).toBe("/home/user/.nori/installed-manifest.json");
+      expect(manifestPath).toBe(
+        path.join(os.homedir(), ".nori", "installed-manifest.json"),
+      );
     });
   });
 });

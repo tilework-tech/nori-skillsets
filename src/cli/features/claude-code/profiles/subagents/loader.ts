@@ -27,16 +27,12 @@ const __dirname = path.dirname(__filename);
  *
  * @param args - Configuration arguments
  * @param args.profileName - Name of the profile to load subagents from
- * @param args.installDir - Installation directory
  *
  * @returns Path to the subagents config directory for the profile
  */
-const getConfigDir = (args: {
-  profileName: string;
-  installDir: string;
-}): string => {
-  const { profileName, installDir } = args;
-  const noriDir = getNoriDir({ installDir });
+const getConfigDir = (args: { profileName: string }): string => {
+  const { profileName } = args;
+  const noriDir = getNoriDir();
   return path.join(noriDir, "profiles", profileName, "subagents");
 };
 
@@ -61,7 +57,6 @@ const registerSubagents = async (args: { config: Config }): Promise<void> => {
   }
   const configDir = getConfigDir({
     profileName,
-    installDir: config.installDir,
   });
   const claudeAgentsDir = getClaudeAgentsDir({ installDir: config.installDir });
 

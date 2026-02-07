@@ -11,16 +11,10 @@ import { getConfigPath } from "@/cli/config.js";
 /**
  * Check if there's an existing installation
  * An installation exists if:
- * - Config file exists at <installDir>/.nori-config.json
- *
- * @param args - Configuration arguments
- * @param args.installDir - Installation directory
+ * - Config file exists at ~/.nori-config.json
  *
  * @returns true if an installation exists, false otherwise
  */
-export const hasExistingInstallation = (args: {
-  installDir: string;
-}): boolean => {
-  const { installDir } = args;
-  return existsSync(getConfigPath({ installDir }));
+export const hasExistingInstallation = (): boolean => {
+  return existsSync(getConfigPath());
 };

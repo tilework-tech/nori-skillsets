@@ -29,9 +29,7 @@ import type { Loader } from "@/cli/features/agentRegistry.js";
 const installProfiles = async (args: { config: Config }): Promise<void> => {
   const { config } = args;
 
-  const noriProfilesDir = getNoriProfilesDir({
-    installDir: config.installDir,
-  });
+  const noriProfilesDir = getNoriProfilesDir();
 
   // Create profiles directory if it doesn't exist
   await fs.mkdir(noriProfilesDir, { recursive: true });
@@ -54,9 +52,7 @@ const configureProfilesPermissions = async (args: {
   const claudeSettingsFile = getClaudeSettingsFile({
     installDir: config.installDir,
   });
-  const noriProfilesDir = getNoriProfilesDir({
-    installDir: config.installDir,
-  });
+  const noriProfilesDir = getNoriProfilesDir();
 
   info({ message: "Configuring permissions for profiles directory..." });
 

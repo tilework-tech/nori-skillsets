@@ -4,6 +4,7 @@
  */
 
 import * as fs from "fs/promises";
+import * as os from "os";
 import { tmpdir } from "os";
 import * as path from "path";
 
@@ -14,6 +15,15 @@ import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { promptUser } from "@/cli/prompt.js";
 
 import { registerSwitchProfileCommand } from "./profiles.js";
+
+// Mock os.homedir so getNoriDir/getNoriProfilesDir resolve to the test directory
+vi.mock("os", async (importOriginal) => {
+  const actual = await importOriginal<typeof os>();
+  return {
+    ...actual,
+    homedir: vi.fn().mockReturnValue(actual.homedir()),
+  };
+});
 
 // Mock install to avoid side effects - track calls for verification
 const mockInstallMain = vi.fn().mockResolvedValue(undefined);
@@ -31,6 +41,7 @@ describe("agent.switchProfile", () => {
 
   beforeEach(async () => {
     testInstallDir = await fs.mkdtemp(path.join(tmpdir(), "switch-test-"));
+    vi.mocked(os.homedir).mockReturnValue(testInstallDir);
     const testClaudeDir = path.join(testInstallDir, ".claude");
     const testNoriDir = path.join(testInstallDir, ".nori");
     await fs.mkdir(testClaudeDir, { recursive: true });
@@ -43,6 +54,7 @@ describe("agent.switchProfile", () => {
       await fs.rm(testInstallDir, { recursive: true, force: true });
     }
     AgentRegistry.resetInstance();
+    vi.restoreAllMocks();
   });
 
   it("should preserve version when switching profiles for claude-code", async () => {
@@ -129,6 +141,7 @@ describe("registerSwitchProfileCommand", () => {
     testInstallDir = await fs.mkdtemp(
       path.join(tmpdir(), "switch-profile-cmd-test-"),
     );
+    vi.mocked(os.homedir).mockReturnValue(testInstallDir);
     const testClaudeDir = path.join(testInstallDir, ".claude");
     const testNoriDir = path.join(testInstallDir, ".nori");
     await fs.mkdir(testClaudeDir, { recursive: true });
@@ -317,6 +330,7 @@ describe("switch-profile confirmation", () => {
     testInstallDir = await fs.mkdtemp(
       path.join(tmpdir(), "switch-profile-confirm-test-"),
     );
+    vi.mocked(os.homedir).mockReturnValue(testInstallDir);
     const testClaudeDir = path.join(testInstallDir, ".claude");
     const testNoriDir = path.join(testInstallDir, ".nori");
     await fs.mkdir(testClaudeDir, { recursive: true });
@@ -585,6 +599,7 @@ describe("switch-profile getInstallDirs auto-detection", () => {
     testInstallDir = await fs.realpath(
       await fs.mkdtemp(path.join(tmpdir(), "switch-profile-autodetect-test-")),
     );
+    vi.mocked(os.homedir).mockReturnValue(testInstallDir);
 
     // Create profiles directory with test profiles
     const noriDir = path.join(testInstallDir, ".nori");
@@ -772,6 +787,7 @@ describe("switch-profile local change detection", () => {
     testInstallDir = await fs.mkdtemp(
       path.join(tmpdir(), "switch-profile-change-detection-test-"),
     );
+    vi.mocked(os.homedir).mockReturnValue(testInstallDir);
     const testClaudeDir = path.join(testInstallDir, ".claude");
     const testNoriDir = path.join(testInstallDir, ".nori");
     await fs.mkdir(testClaudeDir, { recursive: true });

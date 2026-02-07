@@ -23,9 +23,7 @@ const installConfig = async (args: { config: Config }): Promise<void> => {
   const { config } = args;
 
   // Load existing config to preserve user preferences (sendSessionTranscript, autoupdate)
-  const existingConfig = await loadConfig({
-    installDir: config.installDir,
-  });
+  const existingConfig = await loadConfig();
 
   // Extract auth credentials from config
   const username = config.auth?.username ?? null;
@@ -122,7 +120,7 @@ const installConfig = async (args: { config: Config }): Promise<void> => {
     installDir: config.installDir,
   });
 
-  const configPath = getConfigPath({ installDir: config.installDir });
+  const configPath = getConfigPath();
   success({ message: `✓ Config file created: ${configPath}` });
   if (currentVersion != null) {
     success({ message: `✓ Version ${currentVersion} saved to config` });

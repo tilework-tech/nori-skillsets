@@ -47,7 +47,7 @@ export const listSkillsetsMain = async (args: {
     agentName = agentOption;
   } else {
     // Auto-detect from config
-    const config = await loadConfig({ installDir });
+    const config = await loadConfig();
     const installedAgents = config ? getInstalledAgents({ config }) : [];
 
     if (installedAgents.length === 0) {
@@ -71,7 +71,7 @@ export const listSkillsetsMain = async (args: {
   }
 
   // Get and output profiles - one per line for easy parsing
-  const profiles = await listProfiles({ installDir });
+  const profiles = await listProfiles();
 
   if (profiles.length === 0) {
     error({

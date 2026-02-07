@@ -406,12 +406,12 @@ export const skillDownloadMain = async (args: {
   }
 
   // Load config if it exists (for private registry auth)
-  const config = await loadConfig({ installDir: targetInstallDir });
+  const config = await loadConfig();
 
   // Resolve target skillset for manifest update
   // Priority: --skillset option > active profile from config > no manifest update
   let targetSkillset: string | null = null;
-  const profilesDir = getNoriProfilesDir({ installDir: targetInstallDir });
+  const profilesDir = getNoriProfilesDir();
 
   if (skillset != null) {
     // User specified a skillset - verify it exists

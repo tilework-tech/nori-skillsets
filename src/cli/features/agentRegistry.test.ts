@@ -4,16 +4,26 @@
  */
 
 import * as fs from "fs/promises";
+import * as os from "os";
 import { tmpdir } from "os";
 import * as path from "path";
 
-import { describe, test, expect, beforeEach, afterEach } from "vitest";
+import { describe, test, expect, beforeEach, afterEach, vi } from "vitest";
 
 import {
   AgentRegistry,
   type Loader,
   type LoaderRegistry,
 } from "@/cli/features/agentRegistry.js";
+
+// Mock os.homedir so getNoriProfilesDir() resolves to test directories
+vi.mock("os", async (importOriginal) => {
+  const actual = await importOriginal<typeof os>();
+  return {
+    ...actual,
+    homedir: vi.fn().mockReturnValue(actual.homedir()),
+  };
+});
 
 describe("AgentRegistry", () => {
   // Reset singleton between tests
@@ -127,9 +137,12 @@ describe("AgentRegistry", () => {
       testInstallDir = await fs.mkdtemp(
         path.join(tmpdir(), "agent-switch-test-"),
       );
+      // Mock os.homedir so getNoriProfilesDir() resolves to testInstallDir/.nori/profiles
+      vi.mocked(os.homedir).mockReturnValue(testInstallDir);
     });
 
     afterEach(async () => {
+      vi.restoreAllMocks();
       if (testInstallDir) {
         await fs.rm(testInstallDir, { recursive: true, force: true });
       }

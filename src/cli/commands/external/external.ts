@@ -282,9 +282,9 @@ export const externalMain = async (args: {
   }
 
   // 3. Load config and resolve target skillset
-  const config = await loadConfig({ installDir: targetInstallDir });
+  const config = await loadConfig();
   let targetSkillset: string | null = null;
-  const profilesDir = getNoriProfilesDir({ installDir: targetInstallDir });
+  const profilesDir = getNoriProfilesDir();
 
   if (skillset != null) {
     const skillsetDir = path.join(profilesDir, skillset);
