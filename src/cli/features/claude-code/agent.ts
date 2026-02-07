@@ -7,25 +7,13 @@ import * as fs from "fs/promises";
 import * as path from "path";
 
 import { loadConfig, saveConfig } from "@/cli/config.js";
+import { factoryResetClaudeCode } from "@/cli/features/claude-code/factoryReset.js";
 import { LoaderRegistry } from "@/cli/features/claude-code/loaderRegistry.js";
 import { getNoriProfilesDir } from "@/cli/features/claude-code/paths.js";
+import { INSTRUCTIONS_FILE } from "@/cli/features/managedFolder.js";
 import { success, info } from "@/cli/logger.js";
 
 import type { Agent } from "@/cli/features/agentRegistry.js";
-
-/** Instructions file name for Claude Code */
-const INSTRUCTIONS_FILE = "CLAUDE.md";
-
-/**
- * Get the profiles directory path for Claude Code
- * @param args - Configuration arguments
- * @param args.installDir - Installation directory
- *
- * @returns Path to the profiles directory (in .nori/profiles/)
- */
-const getProfilesDir = (args: { installDir: string }): string => {
-  return getNoriProfilesDir(args);
-};
 
 /**
  * Claude Code agent implementation
@@ -38,81 +26,14 @@ export const claudeCodeAgent: Agent = {
     return LoaderRegistry.getInstance();
   },
 
-  getGlobalLoaders: () => {
-    return [
-      { name: "hooks", humanReadableName: "hooks" },
-      { name: "statusline", humanReadableName: "statusline" },
-      { name: "slashcommands", humanReadableName: "global slash commands" },
-      { name: "announcements", humanReadableName: "announcements" },
-    ];
-  },
-
-  listProfiles: async (args: {
-    installDir: string;
-  }): Promise<Array<string>> => {
-    const { installDir } = args;
-    const profilesDir = getProfilesDir({ installDir });
-    const profiles: Array<string> = [];
-
-    try {
-      await fs.access(profilesDir);
-      const entries = await fs.readdir(profilesDir, { withFileTypes: true });
-
-      for (const entry of entries) {
-        if (entry.isDirectory()) {
-          const instructionsPath = path.join(
-            profilesDir,
-            entry.name,
-            INSTRUCTIONS_FILE,
-          );
-          try {
-            // Check if this is a flat profile (has CLAUDE.md directly)
-            await fs.access(instructionsPath);
-            profiles.push(entry.name);
-          } catch {
-            // Not a flat profile - check if it's an org directory with nested profiles
-            // Org directories contain subdirectories with CLAUDE.md files
-            try {
-              const orgDir = path.join(profilesDir, entry.name);
-              const subEntries = await fs.readdir(orgDir, {
-                withFileTypes: true,
-              });
-
-              for (const subEntry of subEntries) {
-                if (subEntry.isDirectory()) {
-                  const nestedInstructionsPath = path.join(
-                    orgDir,
-                    subEntry.name,
-                    INSTRUCTIONS_FILE,
-                  );
-                  try {
-                    await fs.access(nestedInstructionsPath);
-                    // Found a nested profile - use org/profile format
-                    profiles.push(`${entry.name}/${subEntry.name}`);
-                  } catch {
-                    // Skip subdirectories without instructions file
-                  }
-                }
-              }
-            } catch {
-              // Skip directories that can't be read
-            }
-          }
-        }
-      }
-    } catch {
-      // Profiles directory doesn't exist
-    }
-
-    return profiles.sort();
-  },
+  factoryReset: factoryResetClaudeCode,
 
   switchProfile: async (args: {
     installDir: string;
     profileName: string;
   }): Promise<void> => {
     const { installDir, profileName } = args;
-    const profilesDir = getProfilesDir({ installDir });
+    const profilesDir = getNoriProfilesDir();
 
     // Verify profile exists
     // profileName can be flat (e.g., "senior-swe") or namespaced (e.g., "myorg/my-profile")
@@ -127,7 +48,7 @@ export const claudeCodeAgent: Agent = {
     }
 
     // Load current config
-    const currentConfig = await loadConfig({ installDir });
+    const currentConfig = await loadConfig();
 
     // Get existing agents config (agents keys are the source of truth for installed agents)
     const existingAgents = currentConfig?.agents ?? {};

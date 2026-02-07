@@ -209,7 +209,7 @@ describe("registry-search", () => {
       await registrySearchMain({ query: "my", installDir: testDir });
 
       const output = getAllOutput();
-      expect(output).toContain("Profiles:");
+      expect(output).toContain("Skillsets:");
       expect(output).toContain("my-profile");
       expect(output).toContain("Skills:");
       expect(output).toContain("my-skill");
@@ -234,7 +234,7 @@ describe("registry-search", () => {
       await registrySearchMain({ query: "only", installDir: testDir });
 
       const output = getAllOutput();
-      expect(output).toContain("Profiles:");
+      expect(output).toContain("Skillsets:");
       expect(output).toContain("only-profile");
       expect(output).not.toContain("Skills:");
     });
@@ -261,7 +261,7 @@ describe("registry-search", () => {
       await registrySearchMain({ query: "only", installDir: testDir });
 
       const output = getAllOutput();
-      expect(output).not.toContain("Profiles:");
+      expect(output).not.toContain("Skillsets:");
       expect(output).toContain("Skills:");
       expect(output).toContain("only-skill");
     });
@@ -300,7 +300,7 @@ describe("registry-search", () => {
       await registrySearchMain({ query: "test", installDir: testDir });
 
       const output = getAllOutput();
-      expect(output).toContain("Profiles:");
+      expect(output).toContain("Skillsets:");
       expect(output).toContain("good-profile");
       // Errors are now hidden for cleaner output
       expect(output).not.toContain("Skills API error");

@@ -1,8 +1,7 @@
 /**
  * Version tracking utilities for Nori Profiles installer
  *
- * Manages version tracking to ensure proper uninstallation of previous versions
- * before installing new versions.
+ * Manages version tracking for the Nori Profiles installer.
  */
 
 import { existsSync, readFileSync } from "fs";
@@ -110,7 +109,7 @@ export const getInstalledVersion = async (args: {
   installDir: string;
 }): Promise<string> => {
   const { installDir } = args;
-  const config = await loadConfig({ installDir });
+  const config = await loadConfig();
 
   // If config has version, use it
   if (config?.version != null) {

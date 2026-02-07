@@ -12,9 +12,9 @@ import {
   getClaudeSettingsFile,
 } from "@/cli/features/claude-code/paths.js";
 import { ProfileLoaderRegistry } from "@/cli/features/claude-code/profiles/profileLoaderRegistry.js";
-import { success, info, warn } from "@/cli/logger.js";
+import { success, info } from "@/cli/logger.js";
 
-import type { Loader, ValidationResult } from "@/cli/features/agentRegistry.js";
+import type { Loader } from "@/cli/features/agentRegistry.js";
 
 /**
  * Install profiles directory and configure permissions
@@ -29,9 +29,7 @@ import type { Loader, ValidationResult } from "@/cli/features/agentRegistry.js";
 const installProfiles = async (args: { config: Config }): Promise<void> => {
   const { config } = args;
 
-  const noriProfilesDir = getNoriProfilesDir({
-    installDir: config.installDir,
-  });
+  const noriProfilesDir = getNoriProfilesDir();
 
   // Create profiles directory if it doesn't exist
   await fs.mkdir(noriProfilesDir, { recursive: true });
@@ -54,9 +52,7 @@ const configureProfilesPermissions = async (args: {
   const claudeSettingsFile = getClaudeSettingsFile({
     installDir: config.installDir,
   });
-  const noriProfilesDir = getNoriProfilesDir({
-    installDir: config.installDir,
-  });
+  const noriProfilesDir = getNoriProfilesDir();
 
   info({ message: "Configuring permissions for profiles directory..." });
 
@@ -96,141 +92,6 @@ const configureProfilesPermissions = async (args: {
 };
 
 /**
- * Uninstall profiles directory
- * Profiles are never deleted - users manage them via the registry
- * Only removes permissions configuration from settings.json
- * @param args - Configuration arguments
- * @param args.config - Runtime configuration
- */
-const uninstallProfiles = async (args: { config: Config }): Promise<void> => {
-  const { config } = args;
-
-  // Profiles are never deleted during uninstall
-  // Users manage their profiles via the registry and we preserve all customizations
-  info({ message: "Preserving Nori profiles (profiles are never deleted)" });
-
-  // Remove permissions configuration
-  await removeProfilesPermissions({ config });
-};
-
-/**
- * Remove profiles directory permissions
- * Removes profiles directory from permissions.additionalDirectories in settings.json
- * @param args - Configuration arguments
- * @param args.config - Runtime configuration
- */
-const removeProfilesPermissions = async (args: {
-  config: Config;
-}): Promise<void> => {
-  const { config } = args;
-
-  const claudeSettingsFile = getClaudeSettingsFile({
-    installDir: config.installDir,
-  });
-  const noriProfilesDir = getNoriProfilesDir({
-    installDir: config.installDir,
-  });
-
-  info({ message: "Removing profiles directory permissions..." });
-
-  try {
-    const content = await fs.readFile(claudeSettingsFile, "utf-8");
-    const settings = JSON.parse(content);
-
-    if (settings.permissions?.additionalDirectories) {
-      const profilesPath = noriProfilesDir;
-      settings.permissions.additionalDirectories =
-        settings.permissions.additionalDirectories.filter(
-          (dir: string) => dir !== profilesPath,
-        );
-
-      // Clean up empty arrays/objects
-      if (settings.permissions.additionalDirectories.length === 0) {
-        delete settings.permissions.additionalDirectories;
-      }
-      if (Object.keys(settings.permissions).length === 0) {
-        delete settings.permissions;
-      }
-
-      await fs.writeFile(claudeSettingsFile, JSON.stringify(settings, null, 2));
-      success({ message: "✓ Removed profiles directory permissions" });
-    } else {
-      info({ message: "No permissions found in settings.json" });
-    }
-  } catch (err) {
-    warn({ message: `Could not remove permissions: ${err}` });
-  }
-};
-
-/**
- * Validate profiles installation
- * @param args - Configuration arguments
- * @param args.config - Runtime configuration
- *
- * @returns Validation result
- */
-const validate = async (args: {
-  config: Config;
-}): Promise<ValidationResult> => {
-  const { config } = args;
-
-  const noriProfilesDir = getNoriProfilesDir({
-    installDir: config.installDir,
-  });
-  const claudeSettingsFile = getClaudeSettingsFile({
-    installDir: config.installDir,
-  });
-
-  const errors: Array<string> = [];
-
-  // Check if profiles directory exists
-  try {
-    await fs.access(noriProfilesDir);
-  } catch {
-    errors.push(`Profiles directory not found at ${noriProfilesDir}`);
-    errors.push('Run "nori-skillsets init" to create the profiles directory');
-    return {
-      valid: false,
-      message: "Profiles directory not found",
-      errors,
-    };
-  }
-
-  // Check if permissions are configured in settings.json
-  try {
-    const content = await fs.readFile(claudeSettingsFile, "utf-8");
-    const settings = JSON.parse(content);
-
-    if (
-      !settings.permissions?.additionalDirectories?.includes(noriProfilesDir)
-    ) {
-      errors.push(
-        "Profiles directory not configured in permissions.additionalDirectories",
-      );
-      errors.push('Run "nori-skillsets init" to configure permissions');
-      return {
-        valid: false,
-        message: "Profiles permissions not configured",
-        errors,
-      };
-    }
-  } catch {
-    errors.push("Could not read or parse settings.json");
-    return {
-      valid: false,
-      message: "Settings file error",
-      errors,
-    };
-  }
-
-  return {
-    valid: true,
-    message: `Profiles directory exists and permissions are configured`,
-    errors: null,
-  };
-};
-
-/**
  * Profiles feature loader
  */
 export const profilesLoader: Loader = {
@@ -247,19 +108,6 @@ export const profilesLoader: Loader = {
       await loader.install({ config });
     }
   },
-  uninstall: async (args: { config: Config }) => {
-    const { config } = args;
-
-    // Uninstall profile-dependent features in reverse order
-    const registry = ProfileLoaderRegistry.getInstance();
-    const loaders = registry.getAllReversed();
-    for (const loader of loaders) {
-      await loader.uninstall({ config });
-    }
-
-    await uninstallProfiles({ config });
-  },
-  validate,
 };
 
 /**

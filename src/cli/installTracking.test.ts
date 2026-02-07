@@ -883,7 +883,6 @@ describe("buildCLIEventParams", () => {
           },
         },
       } as any,
-      agentName: "claude-code",
     });
 
     expect(params.tilework_cli_profile).toBe("senior-swe");

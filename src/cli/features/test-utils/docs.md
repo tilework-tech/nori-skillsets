@@ -6,13 +6,13 @@ Path: @/src/cli/features/test-utils
 
 - Shared test utilities for consistent test patterns across the codebase
 - Provides three core utilities: `stripAnsi`, `pathExists`, and `createTempTestContext`
-- Reduces code duplication across test files in claude-code, cursor-agent, and CLI commands
+- Reduces code duplication across test files in claude-code and CLI commands
 
 ### How it fits into the larger codebase
 
 - Located in @/src/cli/features/ because utilities are shared across multiple feature modules (not agent-specific)
 - Imported by test files via `@/cli/features/test-utils/index.js`
-- Used by intercepted slash command tests in both @/src/cli/features/claude-code/ and @/src/cli/features/cursor-agent/
+- Used by intercepted slash command tests in @/src/cli/features/claude-code/
 - Used by CLI command tests in @/src/cli/commands/
 
 ```

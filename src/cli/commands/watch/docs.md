@@ -6,7 +6,9 @@ Path: @/src/cli/commands/watch
 
 - Background daemon that monitors Claude Code sessions, saves transcripts to `~/.nori/transcripts/`, and uploads them to a user-selected private organization
 - Watches `~/.claude/projects/` for JSONL file changes using chokidar with polling mode
-- Uses marker-based uploads: uploads are triggered exclusively when `.done` marker files are created by the Claude Code session end hook
+- Uses stale-based uploads: files not modified for 30+ seconds are scanned periodically and uploaded
+- SQLite registry tracks uploaded transcripts to prevent duplicate uploads
+- Transcripts idle for 24+ hours are automatically deleted to prevent indefinite accumulation
 - Prompts user to select transcript destination organization on first run (if multiple orgs available)
 
 ### How it fits into the larger codebase
@@ -33,11 +35,12 @@ nori-skillsets watch [--set-destination]
     +-- Create PID file at ~/.nori/watch.pid
     +-- Open log file at ~/.nori/logs/watch.log
     +-- Start chokidar watcher on ~/.claude/projects/
+    +-- Initialize SQLite transcript registry at ~/.nori/transcripts/registry.db
+    +-- Start stale transcript scanner (10 second interval)
     +-- Register SIGTERM/SIGINT handlers for graceful shutdown
 
 nori-skillsets watch stop
     |
-    +-- Remove transcript hook from Claude Code settings
     +-- Read PID from ~/.nori/watch.pid (must happen BEFORE cleanup)
     +-- Clean up local state via cleanupWatch() (deletes PID file)
     +-- Kill daemon process using stored PID (if different process)
@@ -45,7 +48,7 @@ nori-skillsets watch stop
 
 **File Processing Pipeline:**
 ```
-JSONL file change detected
+JSONL file change detected (in ~/.claude/projects/)
     |
     +-- Debounce check: skip if lastEventTime for this file < DEBOUNCE_MS (500ms) ago
     +-- paths.ts: Extract project name from file path
@@ -53,20 +56,24 @@ JSONL file change detected
     +-- storage.ts: Copy to ~/.nori/transcripts/<agent>/<project>/<sessionId>.jsonl
 ```
 
-**Transcript Upload Pipeline (marker-based):**
+**Transcript Upload Pipeline (stale-based):**
 ```
-Claude Code session ends
+Stale scanner runs every SCAN_INTERVAL_MS (10 seconds)
     |
-    +-- transcript-done-marker hook writes .done marker to ~/.nori/transcripts/<agent>/<project>/
-    +-- watch daemon detects marker via chokidar watcher on transcript directory
-    +-- handleMarkerEvent() derives transcript path from marker (.done -> .jsonl)
-    |   +-- Checks uploadingFiles Set to prevent concurrent uploads of same file
-    |   +-- Adds transcript path to uploadingFiles Set before upload
-    +-- uploader.ts: processTranscriptForUpload({ transcriptPath, markerPath, orgId })
-    |   +-- Reads and parses JSONL transcript
-    |   +-- Uploads via transcriptApi.upload() with orgId for org-specific URL targeting
-    +-- On success: delete both transcript and marker files
-    +-- Finally: removes transcript path from uploadingFiles Set (whether success or failure)
+    +-- staleScanner.ts: findStaleTranscripts() recursively scans transcript storage directory
+    |   +-- Returns staleFiles: .jsonl files older than STALE_THRESHOLD_MS (30s) but younger than EXPIRE_THRESHOLD_MS (24h)
+    |   +-- Returns expiredFiles: .jsonl files older than EXPIRE_THRESHOLD_MS (24 hours)
+    +-- Delete all expired files first (cleanup)
+    +-- For each stale file:
+    |   +-- Skip if already in uploadingFiles Set (concurrent upload in progress)
+    |   +-- Extract sessionId from file content
+    |   +-- Compute MD5 hash of file content
+    |   +-- Check registry: isUploaded({ sessionId, fileHash })
+    |   +-- If already uploaded with same hash, skip
+    |   +-- Add to uploadingFiles Set
+    |   +-- uploader.ts: processTranscriptForUpload({ transcriptPath, orgId })
+    |   +-- On success: registry.markUploaded({ sessionId, fileHash, transcriptPath })
+    |   +-- Remove from uploadingFiles Set
 ```
 
 **Claude Code Session Format:**
@@ -78,59 +85,59 @@ Claude Code session ends
 
 | Module | Purpose |
 |--------|---------|
-| `watch.ts` | Main daemon orchestration, signal handlers, logging, event debouncing, upload locking, transcript destination selection |
-| `paths.ts` | Path utilities for Claude projects dir and transcript storage |
+| `watch.ts` | Main daemon orchestration, signal handlers, logging, event debouncing, upload locking, stale scanning, expired file cleanup, transcript destination selection |
+| `paths.ts` | Path utilities for Claude projects dir, transcript storage, registry database |
 | `parser.ts` | Extracts sessionId from JSONL using regex (avoids full JSON parsing) |
 | `storage.ts` | Copies transcript files to organized storage |
 | `watcher.ts` | Chokidar wrapper with polling mode for reliable cross-platform watching |
-| `hookInstaller.ts` | Manages installation/removal of transcript-done-marker hook in Claude Code settings.json |
-| `uploader.ts` | Reads JSONL transcripts, parses messages, uploads via transcriptApi, cleans up files on success |
+| `staleScanner.ts` | Recursively finds .jsonl files, categorizes as stale (ready for upload) or expired (should delete) |
+| `transcriptRegistry.ts` | SQLite-based registry for tracking uploaded transcripts by sessionId and content hash |
+| `uploader.ts` | Reads JSONL transcripts, parses messages, uploads via transcriptApi |
 
 ### Things to Know
 
+**Why Stale-Based Instead of Event-Driven:**
+- The previous hook-based system relied on Claude Code SessionEnd hooks to create `.done` marker files
+- If hooks failed to fire or markers weren't detected, transcripts wouldn't upload
+- The stale-based approach is self-healing: any transcript not modified for 30 seconds gets picked up on the next scan
+- Polling-based scanning trades slight latency for reliability
+
+**Transcript Registry (SQLite):**
+- Database location: `~/.nori/transcripts/registry.db`
+- Schema: `uploads` table with `session_id` (PRIMARY KEY), `file_hash`, `uploaded_at`, `transcript_path`
+- Tracks uploads by sessionId AND content hash, enabling re-upload detection when content changes
+- `isUploaded()` returns true only if sessionId exists AND hash matches (same content)
+- `INSERT OR REPLACE` handles content updates - if a transcript is re-uploaded with different content, the registry updates
+
+**Timing Constants:**
+- `DEBOUNCE_MS = 500` - Window for ignoring duplicate chokidar events
+- `STALE_THRESHOLD_MS = 30000` - Files must be unmodified for 30 seconds to be considered for upload
+- `EXPIRE_THRESHOLD_MS = 86400000` (24 hours) - Files older than this are deleted
+- `SCAN_INTERVAL_MS = 10000` - Stale scanner runs every 10 seconds
+
+**File Lifecycle:**
+1. Transcripts are copied from `~/.claude/projects/` to `~/.nori/transcripts/<agent>/<project>/`
+2. Files not modified for 30+ seconds are uploaded (if not already uploaded with same hash)
+3. Registry records the upload (sessionId, hash, path)
+4. Files idle for 24+ hours are deleted during the next scan
+5. If a file is modified (user resumes session), it can be re-uploaded with the new content
+
+**Concurrency Protection:**
+- `uploadingFiles` Set prevents concurrent uploads of the same file path
+- `lastEventTime` Map debounces rapid file change events
+- Both are cleared in `cleanupWatch()` to ensure clean state for subsequent daemon runs
+
+**Platform Considerations:**
 - Uses chokidar with `usePolling: true` for reliability across platforms (native fsevents can be flaky in temp directories)
-- The `isShuttingDown` flag prevents race conditions during cleanup
-- `cleanupWatch()` accepts `exitProcess` parameter for testability (tests pass `false` to avoid calling `process.exit()`)
-- The `--agent` flag allows future extensibility for watching other agents (e.g., Cursor), but currently only claude-code is supported
-- The `--set-destination` flag forces re-selection of the transcript destination organization, even if one is already configured
-- PID file at `~/.nori/watch.pid` enables single-instance enforcement and remote stop capability
-- Log file at `~/.nori/logs/watch.log` captures daemon activity when running in background mode
 - The `getHomeDir()` function respects `process.env.HOME` for test isolation
+
+**PID File Management:**
 - `watchStopMain()` must read the PID file before calling `cleanupWatch()`, since cleanup deletes the PID file; otherwise the daemon becomes an orphan process
 
-**Transcript Upload Integration:**
-- On `watchMain()` startup, `installTranscriptHook()` is called to register the transcript-done-marker hook in `~/.claude/settings.json` (idempotent - won't duplicate if already present)
-- On `watchStopMain()`, `removeTranscriptHook()` is called before cleanup to unregister the hook
-- The daemon watches two directories: (1) `~/.claude/projects/` for raw session files, (2) `~/.nori/transcripts/<agent>/` for .done marker files
-- Upload failures preserve files for retry; successful uploads delete both transcript and marker files
-- Uploads are triggered exclusively by `.done` marker files (created when Claude Code sessions end via the session end hook)
-
-**Duplicate Upload Prevention:**
-- **Event debouncing:** `lastEventTime` Map tracks the timestamp of the last processed event per file path; events within `DEBOUNCE_MS` (500ms) are skipped to handle chokidar emitting duplicate file events
-- **Upload locking:** `uploadingFiles` Set tracks transcripts currently being uploaded; concurrent upload attempts for the same file are skipped and logged
-- Both mechanisms are cleared in `cleanupWatch()` to ensure clean state for subsequent daemon runs
-
-**hookInstaller.ts Implementation:**
-- Reads/writes `~/.claude/settings.json` directly (via `getClaudeHomeSettingsFile()` from @/src/cli/features/claude-code/paths.ts)
-- Creates `hooks.SessionEnd` array if missing, appends matcher with hook command `node {path}/transcript-done-marker.js`
-- Uses `hasOurHook()` to check for existing installation by matching "transcript-done-marker" in command strings
-- `removeTranscriptHook()` filters out the hook entry while preserving other SessionEnd hooks
-
-**uploader.ts Implementation:**
-- `parseTranscript({ content })` splits JSONL by newlines, parses each line, skips invalid JSON
-- `extractSessionId({ messages })` iterates messages looking for first truthy `sessionId` field
-- `processTranscriptForUpload({ transcriptPath, markerPath?, orgId? })` orchestrates the full upload flow: read -> parse -> validate -> upload -> cleanup
-- The `orgId` parameter is passed through to `transcriptApi.upload()` to target the selected organization's registry
-- Returns `true` on successful upload, `false` on any failure (preserves files for retry)
-
 **Transcript Destination Selection:**
-- `selectTranscriptDestination({ privateOrgs, currentDestination?, forceSelection? })` determines which org receives uploads
+- `selectTranscriptDestination()` determines which org receives uploads
 - Filters out "public" from available organizations (only private orgs can receive transcripts)
-- If current destination is valid and not forcing re-selection, uses existing selection
-- Single private org: auto-selects without prompting
-- Multiple private orgs: displays numbered list and prompts user for selection
-- Invalid selection defaults to first org in list
-- Selection is persisted to `config.transcriptDestination` and stored in module-level `transcriptOrgId` variable for use during uploads
 - If configured destination is no longer in user's organization list (lost access), triggers re-selection
+- In daemon mode with multiple orgs, auto-selects first org with a warning
 
 Created and maintained by Nori.

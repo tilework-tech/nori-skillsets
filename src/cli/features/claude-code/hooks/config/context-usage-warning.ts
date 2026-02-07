@@ -96,7 +96,11 @@ export const main = async (args?: { cwd?: string | null }): Promise<void> => {
 
       let message = `⚠️ **High Context Usage from Permissions**\n\n`;
       message += `Your settings.local.json files are consuming ~${estimatedTokens.toLocaleString()} tokens.\n\n`;
-      message += `Run \`/nori-prune-context\` to clear accumulated permissions and reduce context usage.`;
+      message += `Your \`permissions.allow\` array in settings.local.json has grown large.\n\n`;
+      message += `**To fix:** Open \`~/.claude/settings.local.json\` (and \`.claude/settings.local.json\` if present) and clear the \`permissions.allow\` array:\n\n`;
+      message += `\`\`\`json\n{\n  "permissions": {\n    "allow": []\n  }\n}\n\`\`\`\n\n`;
+      message += `Consider using broader permission patterns in \`settings.json\` instead:\n\n`;
+      message += `\`\`\`json\n{\n  "permissions": {\n    "allow": ["Bash(git:*)", "Bash(npm:*)"]\n  }\n}\n\`\`\``;
 
       logToClaudeSession({ message });
     }

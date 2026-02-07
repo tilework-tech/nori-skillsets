@@ -1,6 +1,6 @@
 /**
  * Tests for CLAUDE.md feature loader
- * Verifies install, uninstall, and validate operations
+ * Verifies install and validate operations
  */
 
 import * as fs from "fs/promises";
@@ -306,104 +306,6 @@ More user instructions.
       expect(amolContent).toContain("# END NORI-AI MANAGED BLOCK");
     });
   });
-
-  describe("uninstall", () => {
-    it("should remove managed block from CLAUDE.md", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-      };
-
-      // First install
-      await claudeMdLoader.install({ config });
-
-      // Add some user content before uninstalling
-      let content = await fs.readFile(claudeMdPath, "utf-8");
-      content = `# My Custom Instructions\n\n${content}\n\n# More Custom Stuff\n`;
-      await fs.writeFile(claudeMdPath, content);
-
-      // Uninstall
-      await claudeMdLoader.uninstall({ config });
-
-      // Verify managed block is removed
-      const finalContent = await fs.readFile(claudeMdPath, "utf-8");
-
-      expect(finalContent).not.toContain("# BEGIN NORI-AI MANAGED BLOCK");
-      expect(finalContent).not.toContain("# END NORI-AI MANAGED BLOCK");
-      expect(finalContent).not.toContain("# Tone");
-
-      // User content should be preserved
-      expect(finalContent).toContain("# My Custom Instructions");
-      expect(finalContent).toContain("# More Custom Stuff");
-    });
-
-    it("should delete CLAUDE.md if empty after removing managed block", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-      };
-
-      // Install (creates CLAUDE.md with only managed block)
-      await claudeMdLoader.install({ config });
-
-      // Uninstall
-      await claudeMdLoader.uninstall({ config });
-
-      // Verify file is deleted
-      const exists = await fs
-        .access(claudeMdPath)
-        .then(() => true)
-        .catch(() => false);
-
-      expect(exists).toBe(false);
-    });
-
-    it("should handle missing CLAUDE.md gracefully", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-      };
-
-      // Uninstall without installing first (no CLAUDE.md exists)
-      await expect(claudeMdLoader.uninstall({ config })).resolves.not.toThrow();
-
-      // Verify file still doesn't exist
-      const exists = await fs
-        .access(claudeMdPath)
-        .then(() => true)
-        .catch(() => false);
-
-      expect(exists).toBe(false);
-    });
-
-    it("should handle CLAUDE.md without managed block gracefully", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-      };
-
-      // Create CLAUDE.md without managed block
-      const userContent = "# User Instructions\n\nNo nori content here.\n";
-      await fs.writeFile(claudeMdPath, userContent);
-
-      // Uninstall
-      await claudeMdLoader.uninstall({ config });
-
-      // Verify content is unchanged
-      const content = await fs.readFile(claudeMdPath, "utf-8");
-      expect(content).toBe(userContent);
-    });
-  });
-
-  // Validate tests removed - validation is now handled at profilesLoader level
 
   describe("managed block marker handling", () => {
     it("should not produce double-nested markers when profile CLAUDE.md already has markers", async () => {

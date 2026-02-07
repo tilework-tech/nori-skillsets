@@ -15,10 +15,8 @@ import {
   getClaudeHomeDir,
   getClaudeHomeSettingsFile,
   getClaudeHomeCommandsDir,
-  // New Nori path helpers
   getNoriDir,
   getNoriProfilesDir,
-  getNoriConfigFile,
 } from "./paths.js";
 
 describe("Claude Code paths", () => {
@@ -74,41 +72,16 @@ describe("Claude Code paths", () => {
 
 describe("Nori paths", () => {
   describe("getNoriDir", () => {
-    it("should return .nori directory under installDir for project-level installs", () => {
-      const result = getNoriDir({ installDir: "/projects/myapp" });
-      expect(result).toBe("/projects/myapp/.nori");
-    });
-
-    it("should return ~/.nori for home directory installs", () => {
-      const homeDir = os.homedir();
-      const result = getNoriDir({ installDir: homeDir });
-      expect(result).toBe(path.join(homeDir, ".nori"));
+    it("should always return ~/.nori regardless of any context", () => {
+      const result = getNoriDir();
+      expect(result).toBe(path.join(os.homedir(), ".nori"));
     });
   });
 
   describe("getNoriProfilesDir", () => {
-    it("should return profiles directory under .nori for project-level installs", () => {
-      const result = getNoriProfilesDir({ installDir: "/projects/myapp" });
-      expect(result).toBe("/projects/myapp/.nori/profiles");
-    });
-
-    it("should return ~/.nori/profiles for home directory installs", () => {
-      const homeDir = os.homedir();
-      const result = getNoriProfilesDir({ installDir: homeDir });
-      expect(result).toBe(path.join(homeDir, ".nori", "profiles"));
-    });
-  });
-
-  describe("getNoriConfigFile", () => {
-    it("should return config.json under .nori for project-level installs", () => {
-      const result = getNoriConfigFile({ installDir: "/projects/myapp" });
-      expect(result).toBe("/projects/myapp/.nori/config.json");
-    });
-
-    it("should return ~/.nori/config.json for home directory installs", () => {
-      const homeDir = os.homedir();
-      const result = getNoriConfigFile({ installDir: homeDir });
-      expect(result).toBe(path.join(homeDir, ".nori", "config.json"));
+    it("should always return ~/.nori/profiles regardless of any context", () => {
+      const result = getNoriProfilesDir();
+      expect(result).toBe(path.join(os.homedir(), ".nori", "profiles"));
     });
   });
 });

@@ -4,7 +4,7 @@
  */
 
 import * as fs from "fs/promises";
-import { tmpdir } from "os";
+import * as os from "os";
 import * as path from "path";
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
@@ -12,6 +12,15 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 
 import { listSkillsetsMain } from "./listSkillsets.js";
+
+// Mock os.homedir so getNoriProfilesDir() resolves to the test directory
+vi.mock("os", async (importOriginal) => {
+  const actual = await importOriginal<typeof os>();
+  return {
+    ...actual,
+    homedir: vi.fn().mockReturnValue(actual.homedir()),
+  };
+});
 
 // Mock logger to capture output
 const mockRaw = vi.fn();
@@ -31,8 +40,9 @@ describe("listSkillsetsMain", () => {
 
   beforeEach(async () => {
     testInstallDir = await fs.mkdtemp(
-      path.join(tmpdir(), "list-skillsets-test-"),
+      path.join(os.tmpdir(), "list-skillsets-test-"),
     );
+    vi.mocked(os.homedir).mockReturnValue(testInstallDir);
     const testNoriDir = path.join(testInstallDir, ".nori");
     await fs.mkdir(testNoriDir, { recursive: true });
     AgentRegistry.resetInstance();
@@ -101,28 +111,6 @@ describe("listSkillsetsMain", () => {
     expect(mockExit).toHaveBeenCalledWith(1);
   });
 
-  it("should use specified agent when provided", async () => {
-    // Create cursor profiles directory
-    const cursorProfilesDir = path.join(testInstallDir, ".cursor", "profiles");
-    await fs.mkdir(cursorProfilesDir, { recursive: true });
-
-    for (const name of ["cursor-profile-a", "cursor-profile-b"]) {
-      const dir = path.join(cursorProfilesDir, name);
-      await fs.mkdir(dir, { recursive: true });
-      await fs.writeFile(path.join(dir, "AGENTS.md"), `# ${name}`);
-    }
-
-    await listSkillsetsMain({
-      installDir: testInstallDir,
-      agent: "cursor-agent",
-    });
-
-    // Should list cursor-agent profiles
-    expect(mockRaw).toHaveBeenCalledWith({ message: "cursor-profile-a" });
-    expect(mockRaw).toHaveBeenCalledWith({ message: "cursor-profile-b" });
-    expect(mockRaw).toHaveBeenCalledTimes(2);
-  });
-
   it("should auto-detect agent from config when not specified", async () => {
     // Create config with claude-code
     const configPath = path.join(testInstallDir, ".nori-config.json");
@@ -174,8 +162,9 @@ describe("listSkillsetsMain output format", () => {
 
   beforeEach(async () => {
     testInstallDir = await fs.mkdtemp(
-      path.join(tmpdir(), "list-skillsets-format-test-"),
+      path.join(os.tmpdir(), "list-skillsets-format-test-"),
     );
+    vi.mocked(os.homedir).mockReturnValue(testInstallDir);
     const testNoriDir = path.join(testInstallDir, ".nori");
     await fs.mkdir(testNoriDir, { recursive: true });
     AgentRegistry.resetInstance();
@@ -217,8 +206,9 @@ describe("listSkillsetsMain error messages", () => {
 
   beforeEach(async () => {
     testInstallDir = await fs.mkdtemp(
-      path.join(tmpdir(), "list-skillsets-error-test-"),
+      path.join(os.tmpdir(), "list-skillsets-error-test-"),
     );
+    vi.mocked(os.homedir).mockReturnValue(testInstallDir);
     AgentRegistry.resetInstance();
     mockRaw.mockClear();
     mockError.mockClear();
@@ -275,7 +265,7 @@ describe("listSkillsetsMain error messages", () => {
 
     // Error message should list available agents
     expect(mockError).toHaveBeenCalledWith({
-      message: expect.stringMatching(/Available:.*claude-code.*cursor-agent/),
+      message: expect.stringMatching(/Available:.*claude-code/),
     });
     expect(mockExit).toHaveBeenCalledWith(1);
   });

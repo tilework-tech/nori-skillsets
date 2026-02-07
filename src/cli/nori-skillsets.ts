@@ -3,7 +3,7 @@
 /**
  * Nori Skillsets CLI - Registry Operations
  *
- * A CLI focused on registry operations and profile management.
+ * A CLI focused on registry operations and skillset management.
  */
 
 import { Command } from "commander";
@@ -12,6 +12,7 @@ import {
   registerNoriSkillsetsDownloadCommand,
   registerNoriSkillsetsDownloadSkillCommand,
   registerNoriSkillsetsExternalCommand,
+  registerNoriSkillsetsFactoryResetCommand,
   registerNoriSkillsetsInitCommand,
   registerNoriSkillsetsInstallCommand,
   registerNoriSkillsetsInstallLocationCommand,
@@ -84,6 +85,7 @@ Examples:
   $ nori-skillsets install-location --installation-source  # show only source dirs
   $ nori-skillsets install-location --installation-managed # show only managed dirs
   $ nori-skillsets install-location --non-interactive      # plain output for scripts
+  $ nori-skillsets factory-reset claude-code               # remove all Claude Code config
 `,
   );
 
@@ -100,6 +102,7 @@ registerNoriSkillsetsDownloadSkillCommand({ program });
 registerNoriSkillsetsExternalCommand({ program });
 registerNoriSkillsetsWatchCommand({ program });
 registerNoriSkillsetsInstallLocationCommand({ program });
+registerNoriSkillsetsFactoryResetCommand({ program });
 
 program.parse(process.argv);
 

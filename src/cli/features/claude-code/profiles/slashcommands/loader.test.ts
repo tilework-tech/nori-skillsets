@@ -1,6 +1,6 @@
 /**
  * Tests for slash commands feature loader
- * Verifies install, uninstall, and validate operations
+ * Verifies install operations
  */
 
 import * as fs from "fs/promises";
@@ -150,56 +150,6 @@ describe("slashCommandsLoader", () => {
     });
   });
 
-  describe("uninstall", () => {
-    it("should remove slash command files", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-      };
-
-      // Install first
-      await slashCommandsLoader.install({ config });
-
-      // Verify files exist
-      let files = await fs.readdir(commandsDir);
-      expect(files.length).toBeGreaterThan(0);
-
-      // Uninstall
-      await slashCommandsLoader.uninstall({ config });
-
-      // Verify files are removed (or directory is empty/gone)
-      // The loader removes individual files, not the directory
-      const exists = await fs
-        .access(commandsDir)
-        .then(() => true)
-        .catch(() => false);
-
-      if (exists) {
-        files = await fs.readdir(commandsDir);
-        // All nori slash commands should be removed
-        // Check that no .md files remain
-        const mdFiles = files.filter((f) => f.endsWith(".md"));
-        expect(mdFiles.length).toBe(0);
-      }
-    });
-
-    it("should handle missing commands directory gracefully", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-      };
-
-      // Uninstall without installing first
-      await expect(
-        slashCommandsLoader.uninstall({ config }),
-      ).resolves.not.toThrow();
-    });
-  });
-
   // Validate tests removed - validation is now handled at profilesLoader level
 
   // Note: Template substitution tests for global commands (like nori-create-profile.md)
@@ -266,33 +216,6 @@ describe("slashCommandsLoader", () => {
         .then(() => true)
         .catch(() => false);
       expect(exists).toBe(true);
-    });
-
-    it("should return valid when profile slashcommands directory is missing during validate", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-      };
-
-      // First install to create commands directory
-      await slashCommandsLoader.install({ config });
-
-      // Remove the slashcommands directory from the installed profile
-      const profileSlashCommandsDir = path.join(
-        noriProfilesDir,
-        "senior-swe",
-        "slashcommands",
-      );
-      await fs.rm(profileSlashCommandsDir, { recursive: true, force: true });
-
-      // Validate should return valid:true (0 commands expected)
-      if (slashCommandsLoader.validate == null) {
-        throw new Error("validate method not implemented");
-      }
-      const result = await slashCommandsLoader.validate({ config });
-      expect(result.valid).toBe(true);
     });
   });
 });

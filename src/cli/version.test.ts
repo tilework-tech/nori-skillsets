@@ -3,7 +3,7 @@ import * as fsPromises from "fs/promises";
 import * as os from "os";
 import * as path from "path";
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 import { hasExistingInstallation } from "@/cli/commands/install/installState.js";
 
@@ -13,6 +13,15 @@ import {
   getInstalledVersion,
   supportsAgentFlag,
 } from "./version.js";
+
+// Mock os.homedir so getConfigPath resolves to test directories
+vi.mock("os", async (importOriginal) => {
+  const actual = await importOriginal<typeof os>();
+  return {
+    ...actual,
+    homedir: vi.fn().mockReturnValue(actual.homedir()),
+  };
+});
 
 describe("version", () => {
   describe("getCurrentPackageVersion", () => {
@@ -119,6 +128,9 @@ describe("version", () => {
       tempDir = await fsPromises.mkdtemp(
         path.join(os.tmpdir(), "version-test-getInstalledVersion-"),
       );
+
+      // Mock os.homedir to return temp directory
+      vi.mocked(os.homedir).mockReturnValue(tempDir);
 
       // Save original cwd
       originalCwd = process.cwd;
@@ -311,12 +323,15 @@ describe("version", () => {
         path.join(os.tmpdir(), "version-test-"),
       );
 
+      // Mock os.homedir to return temp directory
+      vi.mocked(os.homedir).mockReturnValue(tempDir);
+
       // Mock cwd
       originalCwd = process.cwd;
       process.cwd = () => tempDir;
 
       // Now paths point to temp directory
-      CONFIG_PATH = getConfigPath({ installDir: tempDir });
+      CONFIG_PATH = getConfigPath();
 
       // Clean up any existing files in temp dir
       try {
@@ -335,12 +350,12 @@ describe("version", () => {
     });
 
     it("should return false when config does not exist", () => {
-      expect(hasExistingInstallation({ installDir: tempDir })).toBe(false);
+      expect(hasExistingInstallation()).toBe(false);
     });
 
     it("should return true when config file exists", () => {
       fs.writeFileSync(CONFIG_PATH, "{}");
-      expect(hasExistingInstallation({ installDir: tempDir })).toBe(true);
+      expect(hasExistingInstallation()).toBe(true);
     });
 
     it("should never delete real user config file", () => {
@@ -367,7 +382,7 @@ describe("version", () => {
       } catch {}
 
       fs.writeFileSync(CONFIG_PATH, "{}");
-      hasExistingInstallation({ installDir: tempDir });
+      hasExistingInstallation();
 
       try {
         fs.unlinkSync(CONFIG_PATH);

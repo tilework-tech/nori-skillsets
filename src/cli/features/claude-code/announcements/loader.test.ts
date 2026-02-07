@@ -1,6 +1,6 @@
 /**
  * Tests for announcements feature loader
- * Verifies install and uninstall operations for companyAnnouncements
+ * Verifies install operations for companyAnnouncements
  */
 
 import * as fs from "fs/promises";
@@ -139,80 +139,6 @@ describe("announcementsLoader", () => {
       expect(settings.companyAnnouncements).toBeDefined();
       expect(settings.companyAnnouncements).toContain(
         "🍙🍙🍙 Powered by Nori AI 🍙🍙🍙",
-      );
-    });
-  });
-
-  describe("uninstall", () => {
-    it("should remove companyAnnouncements from settings.json", async () => {
-      const config: Config = { installDir: tempDir };
-
-      // Install first
-      await announcementsLoader.run({ config });
-
-      // Verify companyAnnouncements exists
-      let content = await fs.readFile(settingsPath, "utf-8");
-      let settings = JSON.parse(content);
-      expect(settings.companyAnnouncements).toBeDefined();
-
-      // Uninstall
-      await announcementsLoader.uninstall({ config });
-
-      // Verify companyAnnouncements is removed
-      content = await fs.readFile(settingsPath, "utf-8");
-      settings = JSON.parse(content);
-      expect(settings.companyAnnouncements).toBeUndefined();
-    });
-
-    it("should preserve other settings when removing companyAnnouncements", async () => {
-      const config: Config = { installDir: tempDir };
-
-      // Create settings with companyAnnouncements and other content
-      await announcementsLoader.run({ config });
-
-      let content = await fs.readFile(settingsPath, "utf-8");
-      let settings = JSON.parse(content);
-      settings.someOtherSetting = "preserved value";
-      await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2));
-
-      // Uninstall
-      await announcementsLoader.uninstall({ config });
-
-      // Verify other settings are preserved
-      content = await fs.readFile(settingsPath, "utf-8");
-      settings = JSON.parse(content);
-      expect(settings.someOtherSetting).toBe("preserved value");
-      expect(settings.companyAnnouncements).toBeUndefined();
-    });
-
-    it("should handle missing settings.json gracefully", async () => {
-      const config: Config = { installDir: tempDir };
-
-      // Uninstall without installing first
-      await expect(
-        announcementsLoader.uninstall({ config }),
-      ).resolves.not.toThrow();
-    });
-
-    it("should handle settings.json without companyAnnouncements gracefully", async () => {
-      const config: Config = { installDir: tempDir };
-
-      // Create settings.json without companyAnnouncements
-      const settings = {
-        $schema: "https://json.schemastore.org/claude-code-settings.json",
-      };
-      await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2));
-
-      // Uninstall
-      await expect(
-        announcementsLoader.uninstall({ config }),
-      ).resolves.not.toThrow();
-
-      // Verify settings.json still exists and is unchanged
-      const content = await fs.readFile(settingsPath, "utf-8");
-      const updatedSettings = JSON.parse(content);
-      expect(updatedSettings.$schema).toBe(
-        "https://json.schemastore.org/claude-code-settings.json",
       );
     });
   });

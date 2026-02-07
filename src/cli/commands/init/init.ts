@@ -93,7 +93,7 @@ const displayProfilePersistenceWarning = async (args: {
   });
   newline();
   info({ message: "To persist your customizations across skillset switches:" });
-  info({ message: "  • Make changes in ~/.nori/profiles/<profile-name>/" });
+  info({ message: "  • Make changes in ~/.nori/profiles/<skillset-name>/" });
   info({ message: "  • Or create a new custom skillset" });
   newline();
 
@@ -170,13 +170,13 @@ export const initMain = async (args?: {
   }
 
   // Create ~/.nori/profiles/ directory
-  const profilesDir = getNoriProfilesDir({ installDir: normalizedInstallDir });
+  const profilesDir = getNoriProfilesDir();
   if (!(await directoryExists(profilesDir))) {
     await fs.mkdir(profilesDir, { recursive: true });
   }
 
   // Load existing config (if any)
-  const existingConfig = await loadConfig({ installDir: normalizedInstallDir });
+  const existingConfig = await loadConfig();
   const currentVersion = getCurrentPackageVersion();
 
   // Track captured profile name for setting in config
@@ -196,7 +196,7 @@ export const initMain = async (args?: {
           profileName: capturedProfileName,
         });
         success({
-          message: `✓ Configuration saved as profile "${capturedProfileName}"`,
+          message: `✓ Configuration saved as skillset "${capturedProfileName}"`,
         });
       } else {
         // Interactive mode: require profile name
@@ -208,7 +208,7 @@ export const initMain = async (args?: {
           profileName: capturedProfileName,
         });
         success({
-          message: `✓ Configuration saved as profile "${capturedProfileName}"`,
+          message: `✓ Configuration saved as skillset "${capturedProfileName}"`,
         });
         newline();
       }

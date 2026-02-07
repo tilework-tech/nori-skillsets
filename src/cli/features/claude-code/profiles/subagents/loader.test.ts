@@ -1,6 +1,6 @@
 /**
  * Tests for subagents feature loader
- * Verifies install, uninstall, and validate operations
+ * Verifies install operations
  */
 
 import * as fs from "fs/promises";
@@ -158,55 +158,6 @@ describe("subagentsLoader", () => {
     });
   });
 
-  describe("uninstall", () => {
-    it("should remove subagent files", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-      };
-
-      // Install first
-      await subagentsLoader.install({ config });
-
-      // Verify files exist
-      let files = await fs.readdir(agentsDir);
-      const initialCount = files.length;
-      expect(initialCount).toBeGreaterThan(0);
-
-      // Uninstall
-      await subagentsLoader.uninstall({ config });
-
-      // Verify nori subagent files are removed
-      const exists = await fs
-        .access(agentsDir)
-        .then(() => true)
-        .catch(() => false);
-
-      if (exists) {
-        files = await fs.readdir(agentsDir);
-        // Should have removed the nori-codebase-analyzer and other subagents
-        const hasCodebaseAnalyzer = files.includes("nori-codebase-analyzer.md");
-        expect(hasCodebaseAnalyzer).toBe(false);
-      }
-    });
-
-    it("should handle missing agents directory gracefully", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-      };
-
-      // Uninstall without installing first
-      await expect(
-        subagentsLoader.uninstall({ config }),
-      ).resolves.not.toThrow();
-    });
-  });
-
   describe("template substitution", () => {
     it("should substitute template placeholders in subagent files", async () => {
       const config: Config = {
@@ -310,33 +261,6 @@ describe("subagentsLoader", () => {
         .then(() => true)
         .catch(() => false);
       expect(exists).toBe(true);
-    });
-
-    it("should return valid when profile subagents directory is missing during validate", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-      };
-
-      // First install to create agents directory
-      await subagentsLoader.install({ config });
-
-      // Remove the subagents directory from the installed profile
-      const profileSubagentsDir = path.join(
-        noriProfilesDir,
-        "senior-swe",
-        "subagents",
-      );
-      await fs.rm(profileSubagentsDir, { recursive: true, force: true });
-
-      // Validate should return valid:true (0 subagents expected)
-      if (subagentsLoader.validate == null) {
-        throw new Error("validate method not implemented");
-      }
-      const result = await subagentsLoader.validate({ config });
-      expect(result.valid).toBe(true);
     });
   });
 });

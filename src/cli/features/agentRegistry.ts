@@ -4,7 +4,6 @@
  */
 
 import { claudeCodeAgent } from "@/cli/features/claude-code/agent.js";
-import { cursorAgent } from "@/cli/features/cursor-agent/agent.js";
 
 import type { Config } from "@/cli/config.js";
 
@@ -12,27 +11,16 @@ import type { Config } from "@/cli/config.js";
  * Canonical agent names used as UIDs in the registry.
  * Each Agent.name must match one of these values.
  */
-export type AgentName = "claude-code" | "cursor-agent";
-
-/**
- * Result of validation check
- */
-export type ValidationResult = {
-  valid: boolean;
-  message: string;
-  errors?: Array<string> | null;
-};
+export type AgentName = "claude-code";
 
 /**
  * Loader interface for feature installation
- * Each loader handles installing/uninstalling a specific feature (config, profiles, hooks, etc.)
+ * Each loader handles installing a specific feature (config, profiles, hooks, etc.)
  */
 export type Loader = {
   name: string;
   description: string;
   run: (args: { config: Config }) => Promise<void>;
-  uninstall: (args: { config: Config }) => Promise<void>;
-  validate?: (args: { config: Config }) => Promise<ValidationResult>;
 };
 
 /**
@@ -41,23 +29,11 @@ export type Loader = {
  *
  * IMPORTANT: All agents MUST include the config loader in their registry.
  * The config loader (from @/cli/features/config/loader.js) manages the shared
- * .nori-config.json file and must be included for proper installation/uninstallation.
+ * .nori-config.json file and must be included for proper installation.
  */
 export type LoaderRegistry = {
   /** Get all registered loaders in installation order */
   getAll: () => Array<Loader>;
-  /** Get all registered loaders in reverse order (for uninstall) */
-  getAllReversed: () => Array<Loader>;
-};
-
-/**
- * Global loader metadata for uninstall prompts
- */
-export type GlobalLoader = {
-  /** Loader name (matches Loader.name) */
-  name: string;
-  /** Human-readable name for display in prompts */
-  humanReadableName: string;
 };
 
 /**
@@ -70,15 +46,13 @@ export type Agent = {
   displayName: string;
   /** Get the LoaderRegistry for this agent */
   getLoaderRegistry: () => LoaderRegistry;
-  /** List installed profiles for this agent (from ~/.{agent}/profiles/) */
-  listProfiles: (args: { installDir: string }) => Promise<Array<string>>;
   /** Switch to a profile (validates and updates config) */
   switchProfile: (args: {
     installDir: string;
     profileName: string;
   }) => Promise<void>;
-  /** Get global loaders (installed to home directory) with their human-readable names */
-  getGlobalLoaders: () => Array<GlobalLoader>;
+  /** Factory reset: remove all agent configuration from the filesystem */
+  factoryReset?: ((args: { path: string }) => Promise<void>) | null;
 };
 
 /**
@@ -91,7 +65,6 @@ export class AgentRegistry {
   private constructor() {
     this.agents = new Map();
     this.agents.set(claudeCodeAgent.name, claudeCodeAgent);
-    this.agents.set(cursorAgent.name, cursorAgent);
   }
 
   /**

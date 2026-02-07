@@ -2,6 +2,9 @@
  * Tests for Claude Code template substitution
  */
 
+import * as os from "os";
+import * as path from "path";
+
 import { describe, it, expect } from "vitest";
 
 import { substituteTemplatePaths } from "./template.js";
@@ -34,14 +37,15 @@ describe("substituteTemplatePaths", () => {
   });
 
   describe("profiles_dir placeholder", () => {
-    it("should replace {{profiles_dir}} with absolute path to .nori/profiles", () => {
+    it("should replace {{profiles_dir}} with ~/.nori/profiles regardless of installDir", () => {
       const content = "Check `{{profiles_dir}}/amol/CLAUDE.md`";
       const result = substituteTemplatePaths({
         content,
         installDir: "/project/.claude",
       });
-      // Profiles are now stored in .nori/profiles, not .claude/profiles
-      expect(result).toBe("Check `/project/.nori/profiles/amol/CLAUDE.md`");
+      // Profiles are always in ~/.nori/profiles
+      const expectedProfilesDir = path.join(os.homedir(), ".nori", "profiles");
+      expect(result).toBe(`Check \`${expectedProfilesDir}/amol/CLAUDE.md\``);
     });
   });
 
@@ -79,9 +83,10 @@ Install root: {{install_dir}}
         content,
         installDir: "/project/.claude",
       });
+      const expectedProfilesDir = path.join(os.homedir(), ".nori", "profiles");
       expect(result).toContain("/project/.claude/skills/foo/SKILL.md");
-      // Profiles are in .nori/profiles, not .claude/profiles
-      expect(result).toContain("/project/.nori/profiles/bar");
+      // Profiles are always in ~/.nori/profiles
+      expect(result).toContain(`${expectedProfilesDir}/bar`);
       expect(result).toContain("/project/.claude/commands");
       expect(result).toContain("Install root: /project");
     });

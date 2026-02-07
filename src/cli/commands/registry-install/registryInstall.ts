@@ -37,7 +37,7 @@ const resolveInstallDir = (args: {
   installDir?: string | null;
   useHomeDir?: boolean | null;
 }): string => {
-  const { cwd, installDir, useHomeDir } = args;
+  const { installDir, useHomeDir } = args;
 
   if (installDir) {
     return normalizeInstallDir({ installDir });
@@ -47,23 +47,21 @@ const resolveInstallDir = (args: {
     return normalizeInstallDir({ installDir: os.homedir() });
   }
 
-  return normalizeInstallDir({ installDir: cwd ?? process.cwd() });
+  return normalizeInstallDir({ installDir: os.homedir() });
 };
 
 /**
  * Check if a profile exists locally in the profiles directory
  * @param args - Function arguments
- * @param args.installDir - Installation directory
  * @param args.profileName - Name of the profile to check
  *
  * @returns True if the profile directory exists locally
  */
 const checkLocalProfileExists = async (args: {
-  installDir: string;
   profileName: string;
 }): Promise<boolean> => {
-  const { installDir, profileName } = args;
-  const profilesDir = getNoriProfilesDir({ installDir });
+  const { profileName } = args;
+  const profilesDir = getNoriProfilesDir();
   const profilePath = path.join(profilesDir, profileName);
 
   try {
@@ -89,8 +87,8 @@ export type RegistryInstallResult = {
 const displaySuccessMessage = (args: { profileName: string }): void => {
   const { profileName } = args;
   newline();
-  success({ message: `Profile "${profileName}" is now active.` });
-  info({ message: "Restart Claude Code to apply the new profile." });
+  success({ message: `Skillset "${profileName}" is now active.` });
+  info({ message: "Restart Claude Code to apply the new skillset." });
 };
 
 /**
@@ -134,7 +132,6 @@ export const registryInstallMain = async (
   // If download failed, check if profile exists locally as fallback
   if (!downloadResult.success) {
     const localExists = await checkLocalProfileExists({
-      installDir: targetInstallDir,
       profileName,
     });
 
@@ -143,13 +140,13 @@ export const registryInstallMain = async (
     }
 
     warn({
-      message: `Profile "${profileName}" not found in registry. Using locally installed version.`,
+      message: `Skillset "${profileName}" not found in registry. Using locally installed version.`,
     });
   }
 
   try {
     // Step 2: Run initial install if no existing installation
-    if (!hasExistingInstallation({ installDir: targetInstallDir })) {
+    if (!hasExistingInstallation()) {
       await installMain({
         nonInteractive: true,
         installDir: targetInstallDir,
@@ -172,7 +169,6 @@ export const registryInstallMain = async (
     // Step 4: Re-run install in silent mode to regenerate files with new profile
     await installMain({
       nonInteractive: true,
-      skipUninstall: true,
       installDir: targetInstallDir,
       agent: agentName,
       silent: true,
@@ -183,7 +179,7 @@ export const registryInstallMain = async (
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
     error({
-      message: `Failed to install profile "${profileName}": ${errorMessage}`,
+      message: `Failed to install skillset "${profileName}": ${errorMessage}`,
     });
     return { success: false };
   }
@@ -202,7 +198,7 @@ export const registerRegistryInstallCommand = (args: {
   program
     .command("registry-install <package>")
     .description(
-      "Download, install, and activate a profile from the public registry in one step",
+      "Download, install, and activate a skillset from the public registry in one step",
     )
     .option("--user", "Install to the user home directory")
     .action(async (packageSpec: string, options: { user?: boolean }) => {

@@ -6,7 +6,6 @@ import { exchangeRefreshToken } from "@/api/refreshToken.js";
 import { getConfigPath } from "@/cli/config.js";
 import { getFirebase, configureFirebase } from "@/providers/firebase.js";
 import { formatNetworkError } from "@/utils/fetch.js";
-import { getInstallDirs } from "@/utils/path.js";
 import { normalizeUrl } from "@/utils/url.js";
 
 export type NoriConfig = {
@@ -18,26 +17,7 @@ export type NoriConfig = {
 
 export class ConfigManager {
   static loadConfig = (): NoriConfig | null => {
-    // Find installation directory using getInstallDirs
-    const allInstallations = getInstallDirs({ currentDir: process.cwd() });
-
-    if (allInstallations.length === 0) {
-      return null;
-    }
-
-    const installDir = allInstallations[0]; // Use closest installation
-
-    // Log when multiple installations found
-    if (allInstallations.length > 1) {
-      console.error(
-        `Multiple Nori installations found. Using closest: ${installDir}`,
-      );
-      console.error(
-        `Other installations: ${allInstallations.slice(1).join(", ")}`,
-      );
-    }
-
-    const configPath = getConfigPath({ installDir });
+    const configPath = getConfigPath();
 
     if (existsSync(configPath)) {
       const content = readFileSync(configPath, "utf8");
@@ -83,7 +63,7 @@ export class ConfigManager {
       }
     }
 
-    return {};
+    return null;
   };
 
   static isConfigured = (): boolean => {

@@ -2,7 +2,7 @@ import { apiRequest } from "@/api/base.js";
 
 export type SummarizeRequest = {
   content: string;
-  actor?: "claude-code" | "cursor-agent";
+  actor?: "claude-code";
 };
 
 export type SummarizeResponse = {

@@ -4,6 +4,7 @@
  */
 
 import * as fs from "fs/promises";
+import * as os from "os";
 import * as path from "path";
 
 import Ajv from "ajv";
@@ -45,6 +46,12 @@ export type AgentConfig = {
 };
 
 /**
+ * Valid agent names for configuration.
+ * Only "claude-code" is currently supported.
+ */
+export type ConfigAgentName = "claude-code";
+
+/**
  * Unified configuration type for Nori Profiles
  * Contains all persisted fields from disk plus required installDir
  *
@@ -56,8 +63,11 @@ export type Config = {
   sendSessionTranscript?: "enabled" | "disabled" | null;
   autoupdate?: "enabled" | "disabled" | null;
   installDir: string;
-  /** Per-agent configuration settings. Keys indicate which agents are installed. */
-  agents?: Record<string, AgentConfig> | null;
+  /**
+   * Per-agent configuration settings. Keys indicate which agents are installed.
+   * Note: Only "claude-code" is currently a valid agent name.
+   */
+  agents?: { [key in ConfigAgentName]?: AgentConfig } | null;
   /** Installed version of Nori */
   version?: string | null;
   /** Organization ID for transcript uploads (e.g., "myorg" -> https://myorg.noriskillsets.dev) */
@@ -90,7 +100,7 @@ type RawDiskConfig = {
   // Legacy profile field - kept for reading old configs (not written anymore)
   profile?: { baseProfile?: string | null } | null;
   installDir?: string | null;
-  agents?: Record<string, AgentConfig> | null;
+  agents?: { [key in ConfigAgentName]?: AgentConfig } | null;
   version?: string | null;
   // Transcript upload destination org ID
   transcriptDestination?: string | null;
@@ -98,14 +108,12 @@ type RawDiskConfig = {
 
 /**
  * Get the path to the config file
- * @param args - Configuration arguments
- * @param args.installDir - Installation directory
+ * Always returns ~/.nori-config.json (centralized location)
  *
- * @returns The absolute path to .nori-config.json
+ * @returns The absolute path to ~/.nori-config.json
  */
-export const getConfigPath = (args: { installDir: string }): string => {
-  const { installDir } = args;
-  return path.join(installDir, ".nori-config.json");
+export const getConfigPath = (): string => {
+  return path.join(os.homedir(), ".nori-config.json");
 };
 
 /**
@@ -212,7 +220,7 @@ export const getInstalledAgents = (args: { config: Config }): Array<string> => {
  */
 export const getAgentProfile = (args: {
   config: Config;
-  agentName: string;
+  agentName: ConfigAgentName;
 }): { baseProfile: string } | null => {
   const { config, agentName } = args;
 
@@ -231,16 +239,12 @@ export const getAgentProfile = (args: {
 /**
  * Load existing configuration from disk
  * Uses JSON schema validation for strict type checking.
- * @param args - Configuration arguments
- * @param args.installDir - Installation directory
+ * Always reads from ~/.nori-config.json
  *
  * @returns The config if valid, null otherwise
  */
-export const loadConfig = async (args: {
-  installDir: string;
-}): Promise<Config | null> => {
-  const { installDir } = args;
-  const configPath = getConfigPath({ installDir });
+export const loadConfig = async (): Promise<Config | null> => {
+  const configPath = getConfigPath();
 
   try {
     await fs.access(configPath);
@@ -276,7 +280,7 @@ export const loadConfig = async (args: {
     // After schema validation, types are guaranteed - only need null checks
     const result: Config = {
       auth: null,
-      installDir: validated.installDir ?? installDir,
+      installDir: validated.installDir ?? os.homedir(),
       sendSessionTranscript: validated.sendSessionTranscript,
       autoupdate: validated.autoupdate,
       version: validated.version,
@@ -364,7 +368,7 @@ export const saveConfig = async (args: {
   isAdmin?: boolean | null;
   sendSessionTranscript?: "enabled" | "disabled" | null;
   autoupdate?: "enabled" | "disabled" | null;
-  agents?: Record<string, AgentConfig> | null;
+  agents?: { [key in ConfigAgentName]?: AgentConfig } | null;
   version?: string | null;
   transcriptDestination?: string | null;
   installDir: string;
@@ -383,7 +387,7 @@ export const saveConfig = async (args: {
     transcriptDestination,
     installDir,
   } = args;
-  const configPath = getConfigPath({ installDir });
+  const configPath = getConfigPath();
 
   const config: any = {};
 
@@ -523,16 +527,12 @@ const validateConfigSchema = ajv.compile(configSchema);
 
 /**
  * Validate configuration file
- * @param args - Configuration arguments
- * @param args.installDir - Installation directory
+ * Always validates ~/.nori-config.json
  *
  * @returns Validation result with details
  */
-export const validateConfig = async (args: {
-  installDir: string;
-}): Promise<ConfigValidationResult> => {
-  const { installDir } = args;
-  const configPath = getConfigPath({ installDir });
+export const validateConfig = async (): Promise<ConfigValidationResult> => {
+  const configPath = getConfigPath();
   const errors: Array<string> = [];
 
   // Check if config file exists

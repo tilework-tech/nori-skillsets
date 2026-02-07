@@ -1,6 +1,6 @@
 /**
  * Tests for skills feature loader
- * Verifies install, uninstall, and validate operations
+ * Verifies install operations
  */
 
 import * as fs from "fs/promises";
@@ -192,57 +192,6 @@ describe("skillsLoader", () => {
         .then(() => true)
         .catch(() => false);
       expect(secondCheck).toBe(true);
-    });
-  });
-
-  describe("uninstall", () => {
-    it("should remove skills directory", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-      };
-
-      // Install first
-      await skillsLoader.install({ config });
-
-      // Verify it exists
-      let exists = await fs
-        .access(skillsDir)
-        .then(() => true)
-        .catch(() => false);
-      expect(exists).toBe(true);
-
-      // Uninstall
-      await skillsLoader.uninstall({ config });
-
-      // Verify it's removed
-      exists = await fs
-        .access(skillsDir)
-        .then(() => true)
-        .catch(() => false);
-      expect(exists).toBe(false);
-    });
-
-    it("should handle missing skills directory gracefully", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-      };
-
-      // Uninstall without installing first
-      await expect(skillsLoader.uninstall({ config })).resolves.not.toThrow();
-
-      // Verify directory still doesn't exist
-      const exists = await fs
-        .access(skillsDir)
-        .then(() => true)
-        .catch(() => false);
-
-      expect(exists).toBe(false);
     });
   });
 
@@ -567,93 +516,6 @@ describe("skillsLoader", () => {
       expect(settings.permissions.additionalDirectories.length).toBe(3);
     });
 
-    it("should remove permissions on uninstall", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-      };
-      const settingsPath = path.join(claudeDir, "settings.json");
-
-      // Install first
-      await skillsLoader.install({ config });
-
-      // Verify permissions are configured
-      let content = await fs.readFile(settingsPath, "utf-8");
-      let settings = JSON.parse(content);
-      expect(settings.permissions.additionalDirectories).toContain(skillsDir);
-
-      // Uninstall
-      await skillsLoader.uninstall({ config });
-
-      // Verify permissions are removed
-      content = await fs.readFile(settingsPath, "utf-8");
-      settings = JSON.parse(content);
-
-      expect(
-        settings.permissions?.additionalDirectories?.includes(skillsDir),
-      ).toBeFalsy();
-    });
-
-    it("should preserve other additionalDirectories on uninstall", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-      };
-      const settingsPath = path.join(claudeDir, "settings.json");
-
-      // Create settings.json with existing additionalDirectories
-      await fs.writeFile(
-        settingsPath,
-        JSON.stringify(
-          {
-            $schema: "https://json.schemastore.org/claude-code-settings.json",
-            permissions: {
-              additionalDirectories: ["/existing/path1", "/existing/path2"],
-            },
-          },
-          null,
-          2,
-        ),
-      );
-
-      // Install (adds skills directory)
-      await skillsLoader.install({ config });
-
-      // Uninstall
-      await skillsLoader.uninstall({ config });
-
-      // Verify existing paths are preserved, skills directory is removed
-      const content = await fs.readFile(settingsPath, "utf-8");
-      const settings = JSON.parse(content);
-
-      expect(settings.permissions.additionalDirectories).toContain(
-        "/existing/path1",
-      );
-      expect(settings.permissions.additionalDirectories).toContain(
-        "/existing/path2",
-      );
-      expect(
-        settings.permissions.additionalDirectories.includes(skillsDir),
-      ).toBe(false);
-      expect(settings.permissions.additionalDirectories.length).toBe(2);
-    });
-
-    it("should handle missing settings.json on uninstall gracefully", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-      };
-
-      // Uninstall without settings.json
-      await expect(skillsLoader.uninstall({ config })).resolves.not.toThrow();
-    });
-
     it("should handle missing profile skills directory gracefully during install", async () => {
       const config: Config = {
         installDir: tempDir,
@@ -680,85 +542,6 @@ describe("skillsLoader", () => {
         .then(() => true)
         .catch(() => false);
       expect(exists).toBe(true);
-    });
-
-    it("should return valid when profile skills directory is missing during validate", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-      };
-
-      // First install to create skills directory and settings.json
-      await skillsLoader.install({ config });
-
-      // Remove the skills directory from the installed profile
-      const profileSkillsDir = path.join(
-        claudeDir,
-        "profiles",
-        "senior-swe",
-        "skills",
-      );
-      await fs.rm(profileSkillsDir, { recursive: true, force: true });
-
-      // Validate should return valid:true (0 skills expected)
-      if (skillsLoader.validate == null) {
-        throw new Error("validate method not implemented");
-      }
-      const result = await skillsLoader.validate({ config });
-      expect(result.valid).toBe(true);
-    });
-
-    it("should validate permissions configuration", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-      };
-
-      // Install
-      await skillsLoader.install({ config });
-
-      // Validate
-      if (skillsLoader.validate == null) {
-        throw new Error("validate method not implemented");
-      }
-
-      const result = await skillsLoader.validate({ config });
-
-      expect(result.valid).toBe(true);
-      expect(result.errors).toBeNull();
-    });
-
-    it("should return invalid when permissions are not configured", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-      };
-      const settingsPath = path.join(claudeDir, "settings.json");
-
-      // Install skills but manually remove permissions
-      await skillsLoader.install({ config });
-
-      const content = await fs.readFile(settingsPath, "utf-8");
-      const settings = JSON.parse(content);
-      delete settings.permissions;
-      await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2));
-
-      // Validate
-      if (skillsLoader.validate == null) {
-        throw new Error("validate method not implemented");
-      }
-
-      const result = await skillsLoader.validate({ config });
-
-      expect(result.valid).toBe(false);
-      expect(result.errors).not.toBeNull();
-      expect(result.errors?.some((e) => e.includes("permissions"))).toBe(true);
     });
   });
 

@@ -16,7 +16,6 @@ import {
 import { substituteTemplatePaths } from "@/cli/features/claude-code/template.js";
 import { success, info, warn } from "@/cli/logger.js";
 
-import type { ValidationResult } from "@/cli/features/agentRegistry.js";
 import type { ProfileLoader } from "@/cli/features/claude-code/profiles/profileLoaderRegistry.js";
 
 // Get directory of this loader file
@@ -28,16 +27,12 @@ const __dirname = path.dirname(__filename);
  *
  * @param args - Configuration arguments
  * @param args.profileName - Name of the profile to load subagents from
- * @param args.installDir - Installation directory
  *
  * @returns Path to the subagents config directory for the profile
  */
-const getConfigDir = (args: {
-  profileName: string;
-  installDir: string;
-}): string => {
-  const { profileName, installDir } = args;
-  const noriDir = getNoriDir({ installDir });
+const getConfigDir = (args: { profileName: string }): string => {
+  const { profileName } = args;
+  const noriDir = getNoriDir();
   return path.join(noriDir, "profiles", profileName, "subagents");
 };
 
@@ -62,7 +57,6 @@ const registerSubagents = async (args: { config: Config }): Promise<void> => {
   }
   const configDir = getConfigDir({
     profileName,
-    installDir: config.installDir,
   });
   const claudeAgentsDir = getClaudeAgentsDir({ installDir: config.installDir });
 
@@ -126,179 +120,6 @@ const registerSubagents = async (args: { config: Config }): Promise<void> => {
 };
 
 /**
- * Unregister all subagents
- * @param args - Configuration arguments
- * @param args.config - Runtime configuration
- */
-const unregisterSubagents = async (args: { config: Config }): Promise<void> => {
-  const { config } = args;
-  info({ message: "Removing Nori subagents..." });
-
-  let removedCount = 0;
-
-  // Get profile name from config - skip gracefully if not configured
-  // (uninstall should be permissive and clean up whatever is possible)
-  const profileName = getAgentProfile({
-    config,
-    agentName: "claude-code",
-  })?.baseProfile;
-  if (profileName == null) {
-    info({
-      message:
-        "No profile configured for claude-code, skipping subagents cleanup",
-    });
-    return;
-  }
-  const configDir = getConfigDir({
-    profileName,
-    installDir: config.installDir,
-  });
-  const claudeAgentsDir = getClaudeAgentsDir({ installDir: config.installDir });
-
-  // Read all .md files from the profile's subagents directory
-  try {
-    const files = await fs.readdir(configDir);
-    const mdFiles = files.filter(
-      (file) => file.endsWith(".md") && file !== "docs.md",
-    );
-
-    for (const file of mdFiles) {
-      const subagentPath = path.join(claudeAgentsDir, file);
-
-      try {
-        await fs.access(subagentPath);
-        await fs.unlink(subagentPath);
-        const subagentName = file.replace(/\.md$/, "");
-        success({ message: `✓ ${subagentName} subagent removed` });
-        removedCount++;
-      } catch {
-        const subagentName = file.replace(/\.md$/, "");
-        info({
-          message: `${subagentName} subagent not found (may not be installed)`,
-        });
-      }
-    }
-  } catch {
-    info({ message: "Profile subagents directory not found" });
-  }
-
-  if (removedCount > 0) {
-    success({
-      message: `Successfully removed ${removedCount} subagent${
-        removedCount === 1 ? "" : "s"
-      }`,
-    });
-  }
-
-  // Remove parent directory if empty
-  try {
-    const files = await fs.readdir(claudeAgentsDir);
-    if (files.length === 0) {
-      await fs.rmdir(claudeAgentsDir);
-      success({ message: `✓ Removed empty directory: ${claudeAgentsDir}` });
-    }
-  } catch {
-    // Directory doesn't exist or couldn't be removed, which is fine
-  }
-};
-
-/**
- * Validate subagents installation
- * @param args - Configuration arguments
- * @param args.config - Runtime configuration
- *
- * @returns Validation result
- */
-const validate = async (args: {
-  config: Config;
-}): Promise<ValidationResult> => {
-  const { config } = args;
-  const errors: Array<string> = [];
-
-  const claudeAgentsDir = getClaudeAgentsDir({ installDir: config.installDir });
-
-  // Check if agents directory exists
-  try {
-    await fs.access(claudeAgentsDir);
-  } catch {
-    errors.push(`Agents directory not found at ${claudeAgentsDir}`);
-    errors.push('Run "nori-skillsets init" to create the agents directory');
-    return {
-      valid: false,
-      message: "Agents directory not found",
-      errors,
-    };
-  }
-
-  // Get profile name from config - error if not configured
-  const profileName = getAgentProfile({
-    config,
-    agentName: "claude-code",
-  })?.baseProfile;
-  if (profileName == null) {
-    errors.push("No profile configured for claude-code");
-    errors.push("Run 'nori-skillsets init' to configure a profile");
-    return {
-      valid: false,
-      message: "No profile configured",
-      errors,
-    };
-  }
-  const configDir = getConfigDir({
-    profileName,
-    installDir: config.installDir,
-  });
-
-  // Check if all expected subagents are present
-  const missingSubagents: Array<string> = [];
-  let expectedCount = 0;
-
-  try {
-    const files = await fs.readdir(configDir);
-    const mdFiles = files.filter(
-      (file) => file.endsWith(".md") && file !== "docs.md",
-    );
-
-    for (const file of mdFiles) {
-      expectedCount++;
-      const subagentPath = path.join(claudeAgentsDir, file);
-      try {
-        await fs.access(subagentPath);
-      } catch {
-        missingSubagents.push(file.replace(/\.md$/, ""));
-      }
-    }
-  } catch {
-    // Profile subagents directory not found - this is valid (0 subagents expected)
-    return {
-      valid: true,
-      message: "No subagents configured for this profile",
-      errors: null,
-    };
-  }
-
-  if (missingSubagents.length > 0) {
-    errors.push(
-      `Missing ${missingSubagents.length} subagent(s): ${missingSubagents.join(
-        ", ",
-      )}`,
-    );
-    errors.push('Run "nori-skillsets init" to register missing subagents');
-    return {
-      valid: false,
-      message: "Some subagents are not installed",
-      errors,
-    };
-  }
-
-  return {
-    valid: true,
-    message: `All ${expectedCount} subagents are properly installed`,
-    errors: null,
-  };
-};
-
-/**
  * Subagents feature loader
  */
 export const subagentsLoader: ProfileLoader = {
@@ -308,9 +129,4 @@ export const subagentsLoader: ProfileLoader = {
     const { config } = args;
     await registerSubagents({ config });
   },
-  uninstall: async (args: { config: Config }) => {
-    const { config } = args;
-    await unregisterSubagents({ config });
-  },
-  validate,
 };

@@ -1,6 +1,6 @@
 /**
  * Tests for statusline feature loader
- * Verifies install and uninstall operations
+ * Verifies install operations
  */
 
 import * as fs from "fs/promises";
@@ -311,6 +311,40 @@ describe("statuslineLoader", () => {
       }
     });
 
+    it("should display single nori-ai-cli promotion tip", async () => {
+      const config: Config = { installDir: claudeDir };
+
+      // Install statusline
+      await statuslineLoader.run({ config });
+
+      // Read settings to get the statusLine command
+      const content = await fs.readFile(settingsPath, "utf-8");
+      const settings = JSON.parse(content);
+      const statusLineCommand = settings.statusLine.command;
+
+      // Execute the statusline script with mock input
+      const { execSync } = await import("child_process");
+      const mockInput = JSON.stringify({
+        cwd: tempDir,
+        cost: {
+          total_cost_usd: 1.5,
+          total_lines_added: 10,
+          total_lines_removed: 5,
+        },
+        transcript_path: "",
+      });
+
+      const output = execSync(statusLineCommand, {
+        input: mockInput,
+        encoding: "utf-8",
+      });
+
+      // Verify output contains the single promotional tip
+      expect(output).toContain("npm install -g nori-ai-cli");
+      // Verify it does NOT have the old "Nori Tip:" prefix
+      expect(output).not.toContain("Nori Tip:");
+    });
+
     it("should display jq missing warning when jq is not available", async () => {
       const config: Config = { installDir: claudeDir };
 
@@ -361,80 +395,6 @@ ${scriptContent}
       expect(output).toContain("apt install jq");
       // Should still show Nori branding
       expect(output).toContain("Augmented with Nori");
-    });
-  });
-
-  describe("uninstall", () => {
-    it("should remove statusLine from settings.json", async () => {
-      const config: Config = { installDir: tempDir };
-
-      // Install first
-      await statuslineLoader.run({ config });
-
-      // Verify statusLine exists
-      let content = await fs.readFile(settingsPath, "utf-8");
-      let settings = JSON.parse(content);
-      expect(settings.statusLine).toBeDefined();
-
-      // Uninstall
-      await statuslineLoader.uninstall({ config });
-
-      // Verify statusLine is removed
-      content = await fs.readFile(settingsPath, "utf-8");
-      settings = JSON.parse(content);
-      expect(settings.statusLine).toBeUndefined();
-    });
-
-    it("should preserve other settings when removing statusLine", async () => {
-      const config: Config = { installDir: tempDir };
-
-      // Create settings with statusLine and other content
-      await statuslineLoader.run({ config });
-
-      let content = await fs.readFile(settingsPath, "utf-8");
-      let settings = JSON.parse(content);
-      settings.someOtherSetting = "preserved value";
-      await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2));
-
-      // Uninstall
-      await statuslineLoader.uninstall({ config });
-
-      // Verify other settings are preserved
-      content = await fs.readFile(settingsPath, "utf-8");
-      settings = JSON.parse(content);
-      expect(settings.someOtherSetting).toBe("preserved value");
-      expect(settings.statusLine).toBeUndefined();
-    });
-
-    it("should handle missing settings.json gracefully", async () => {
-      const config: Config = { installDir: tempDir };
-
-      // Uninstall without installing first
-      await expect(
-        statuslineLoader.uninstall({ config }),
-      ).resolves.not.toThrow();
-    });
-
-    it("should handle settings.json without statusLine gracefully", async () => {
-      const config: Config = { installDir: tempDir };
-
-      // Create settings.json without statusLine
-      const settings = {
-        $schema: "https://json.schemastore.org/claude-code-settings.json",
-      };
-      await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2));
-
-      // Uninstall
-      await expect(
-        statuslineLoader.uninstall({ config }),
-      ).resolves.not.toThrow();
-
-      // Verify settings.json still exists and is unchanged
-      const content = await fs.readFile(settingsPath, "utf-8");
-      const updatedSettings = JSON.parse(content);
-      expect(updatedSettings.$schema).toBe(
-        "https://json.schemastore.org/claude-code-settings.json",
-      );
     });
   });
 });

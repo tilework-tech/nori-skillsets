@@ -3,11 +3,21 @@
  */
 
 import * as fs from "fs/promises";
+import * as os from "os";
 import { tmpdir } from "os";
 import * as path from "path";
 
 import * as tar from "tar";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+
+// Mock os.homedir so getNoriProfilesDir resolves to the test directory
+vi.mock("os", async (importOriginal) => {
+  const actual = await importOriginal<typeof os>();
+  return {
+    ...actual,
+    homedir: vi.fn().mockReturnValue(actual.homedir()),
+  };
+});
 
 // Mock the registrar API
 vi.mock("@/api/registrar.js", () => ({
@@ -256,7 +266,7 @@ describe("skill-download", () => {
 
         await skillDownloadMain({
           skillSpec: "test-skill",
-          cwd: noInstallDir,
+          installDir: noInstallDir,
         });
 
         // Verify skill was installed (directory should be created)
@@ -307,7 +317,7 @@ describe("skill-download", () => {
 
         await skillDownloadMain({
           skillSpec: "new-skill",
-          cwd: noInstallDir,
+          installDir: noInstallDir,
         });
 
         // Verify skills directory was created
@@ -912,12 +922,19 @@ describe("--skillset option and manifest updates", () => {
 
     // Create test directory structure simulating a Nori installation
     testDir = await fs.mkdtemp(path.join(tmpdir(), "nori-skillset-test-"));
+    vi.mocked(os.homedir).mockReturnValue(testDir);
     skillsDir = path.join(testDir, ".claude", "skills");
     profilesDir = path.join(testDir, ".nori", "profiles");
 
     // Create directories
     await fs.mkdir(skillsDir, { recursive: true });
     await fs.mkdir(profilesDir, { recursive: true });
+
+    // Create config file so getInstallDirs() can find this installation
+    await fs.writeFile(
+      path.join(testDir, ".nori-config.json"),
+      JSON.stringify({}),
+    );
 
     // Create a test profile with CLAUDE.md
     const testProfileDir = path.join(profilesDir, "test-profile");
@@ -1178,11 +1195,18 @@ describe("profile directory persistence", () => {
     testDir = await fs.mkdtemp(
       path.join(tmpdir(), "nori-profile-persist-test-"),
     );
+    vi.mocked(os.homedir).mockReturnValue(testDir);
     skillsDir = path.join(testDir, ".claude", "skills");
     profilesDir = path.join(testDir, ".nori", "profiles");
 
     await fs.mkdir(skillsDir, { recursive: true });
     await fs.mkdir(profilesDir, { recursive: true });
+
+    // Create config file so getInstallDirs() can find this installation
+    await fs.writeFile(
+      path.join(testDir, ".nori-config.json"),
+      JSON.stringify({}),
+    );
 
     // Create active profile directory with CLAUDE.md
     const activeProfileDir = path.join(profilesDir, "active-profile");
@@ -1545,11 +1569,18 @@ describe("nori.json updates on skill download", () => {
     vi.clearAllMocks();
 
     testDir = await fs.mkdtemp(path.join(tmpdir(), "nori-json-update-test-"));
+    vi.mocked(os.homedir).mockReturnValue(testDir);
     skillsDir = path.join(testDir, ".claude", "skills");
     profilesDir = path.join(testDir, ".nori", "profiles");
 
     await fs.mkdir(skillsDir, { recursive: true });
     await fs.mkdir(profilesDir, { recursive: true });
+
+    // Create config file so getInstallDirs() can find this installation
+    await fs.writeFile(
+      path.join(testDir, ".nori-config.json"),
+      JSON.stringify({}),
+    );
   });
 
   afterEach(async () => {
