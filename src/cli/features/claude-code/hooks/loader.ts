@@ -96,6 +96,31 @@ const notifyHook: HookInterface = {
 };
 
 /**
+ * Update check hook - notify about available updates at session start
+ */
+const updateCheckHook: HookInterface = {
+  name: "update-check",
+  description: "Check for nori-skillsets updates at session start",
+  install: async () => {
+    const scriptPath = path.join(HOOKS_CONFIG_DIR, "update-check.js");
+    return [
+      {
+        event: "SessionStart",
+        matcher: "startup",
+        hooks: [
+          {
+            type: "command",
+            command: `node ${scriptPath}`,
+            description:
+              "Check for nori-skillsets updates and notify if available",
+          },
+        ],
+      },
+    ];
+  },
+};
+
+/**
  * Commit-author hook - replace Claude attribution with Nori in git commits
  */
 const commitAuthorHook: HookInterface = {
@@ -149,7 +174,12 @@ const configureHooks = async (args: { config: Config }): Promise<void> => {
   // Disable Claude Code's built-in co-author byline
   settings.includeCoAuthoredBy = false;
 
-  const hooks = [contextUsageWarningHook, notifyHook, commitAuthorHook];
+  const hooks = [
+    contextUsageWarningHook,
+    updateCheckHook,
+    notifyHook,
+    commitAuthorHook,
+  ];
   const hooksConfig: any = {};
 
   for (const hook of hooks) {

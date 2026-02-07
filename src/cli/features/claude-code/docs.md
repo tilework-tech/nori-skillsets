@@ -39,7 +39,7 @@ Each loader implements run(config) to install. The profiles loader (@/src/cli/fe
 
 The LoaderRegistry provides getAll() for install order. The profiles loader must run first because other loaders read from the profile directories it creates.
 
-**Hooks loader** (@/src/cli/features/claude-code/hooks/loader.ts): Configures a minimal set of hooks: statisticsHook, statisticsNotificationHook, contextUsageWarningHook, notifyHook, and commitAuthorHook. Also sets `includeCoAuthoredBy = false` in settings.json.
+**Hooks loader** (@/src/cli/features/claude-code/hooks/loader.ts): Configures hooks: contextUsageWarningHook, updateCheckHook, notifyHook, and commitAuthorHook. Also sets `includeCoAuthoredBy = false` in settings.json. The updateCheckHook is a SessionStart hook that reads the version cache (populated by @/src/cli/updates/) and outputs a systemMessage if an update is available.
 
 **Slashcommands loader** (@/src/cli/features/claude-code/slashcommands/loader.ts): Now a no-op. Global slash commands have been removed to reduce complexity.
 

@@ -30,6 +30,6 @@ This feature loader (loader.ts) is registered with @/src/cli/features/claude-cod
 
 **Performance:** The script must be executable and fast to avoid UI lag. Changes to the statusline script source require reinstalling the feature or manually updating the copied script at ~/.claude/nori-statusline.sh. Cross-platform compatible (macOS and Linux).
 
-**Promotional Tip:** The third line displays a static promotional tip encouraging users to install the nori-ai-cli package via npm.
+**Tip Line / Update Notification:** The third line conditionally displays either an update notification or a static promotional tip. The script reads the version cache at `~/.nori/profiles/nori-skillsets-version.json` (populated by the CLI auto-update system at @/src/cli/updates/). If a newer version is available (not dismissed, not the same as current, passes a node-based semver comparison), it shows an update message in yellow with the current and latest versions plus the install command. If no update is available, it falls back to the static promotional tip encouraging users to install the nori-ai-cli package via npm.
 
 Created and maintained by Nori.

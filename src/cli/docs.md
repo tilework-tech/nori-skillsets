@@ -16,6 +16,8 @@ CLI for Nori Profiles that installs features into Claude Code, manages credentia
 
 The CLI uses Commander.js for command routing, argument parsing, validation, and help generation. It defines global options (`--install-dir`, `--non-interactive`, `--silent`, `--agent`) on the main program. Each command lives in its own subdirectory under @/src/cli/commands/ and exports a `registerXCommand({ program })` function that the entry point imports and calls. Commands access global options via `program.opts()`. The CLI provides automatic `--help`, `--version`, and unknown command detection. Running the binary with no arguments shows help. The CLI layer is responsible ONLY for parsing and routing - all business logic remains in the command modules. The entry point configures analytics tracking by calling `setTileworkSource()` and `trackInstallLifecycle()` at startup before any commands are registered, setting source to "nori-skillsets" to identify CLI usage in analytics data.
 
+**Auto-update check at startup:** Before `program.parse()`, the entry point calls `checkForUpdateAndPrompt()` from @/src/cli/updates/checkForUpdate.ts. This reads `--silent` and `--non-interactive` flags from `process.argv` (before Commander parses them) and passes them along. The update check uses cached version data and may show an interactive prompt, a non-interactive one-liner, or nothing depending on flags and cache state. See @/src/cli/updates/docs.md for the full stale-while-revalidate architecture.
+
 **Global Options:**
 
 | Option | Description |
@@ -35,6 +37,7 @@ src/cli/
   logger.ts              # Console output formatting via Winston
   version.ts             # Version tracking for upgrades + package root discovery
   installTracking.ts     # Install lifecycle and session tracking to Nori backend
+  updates/               # Auto-update check system (see @/src/cli/updates/docs.md)
   features/              # Agent abstraction layer (see @/src/cli/features/docs.md)
     agentRegistry.ts     # AgentRegistry singleton + shared Loader/LoaderRegistry types
     config/              # Shared config loader (used by all agents)

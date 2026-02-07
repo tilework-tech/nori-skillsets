@@ -20,10 +20,13 @@ The loader.ts defines HookInterface objects (contextUsageWarningHook, notifyHook
 | Hook | Event | Matcher | Purpose |
 |------|-------|---------|---------|
 | contextUsageWarningHook | SessionStart | `startup` | Warns when settings.local.json files are consuming excessive tokens |
+| updateCheckHook | SessionStart | `startup` | Reads version cache and outputs a systemMessage if a nori-skillsets update is available |
 | notifyHook | Notification | `` | Sends cross-platform desktop notifications |
 | commitAuthorHook | PreToolUse | `Bash` | Replaces Claude attribution with Nori in git commits |
 
 The `includeCoAuthoredBy = false` setting disables Claude Code's built-in git co-author attribution, while the commitAuthorHook intercepts Bash tool calls for git commit commands and programmatically replaces any Claude attribution with "Co-Authored-By: Nori <contact@tilework.tech>" and "Generated with [Nori](https://nori.ai)".
+
+The updateCheckHook reads the version cache at `~/.nori/profiles/nori-skillsets-version.json` (no network call) and outputs a systemMessage if a newer version is available. It also triggers a background cache refresh if the cache is stale. The hook script lives at @/src/cli/features/claude-code/hooks/config/update-check.ts and relies on the cache populated by the CLI auto-update system at @/src/cli/updates/.
 
 The settings.json structure uses event matchers (`startup` for session start, empty string for Notification events, `Bash` for PreToolUse) to control when hooks fire. All hooks gracefully handle errors and exit with code 0 to avoid disrupting Claude Code sessions.
 
