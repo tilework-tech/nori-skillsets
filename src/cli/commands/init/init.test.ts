@@ -552,9 +552,139 @@ describe("init command", () => {
       expect(fs.existsSync(CONFIG_PATH)).toBe(true);
     });
   });
+
+  describe("initMain with --experimental-ui", () => {
+    it("should proceed with init when confirmPersistenceWarning returns true", async () => {
+      const CONFIG_PATH = getConfigPath();
+
+      expect(fs.existsSync(CONFIG_PATH)).toBe(false);
+
+      const { confirmPersistenceWarning } =
+        await import("@/cli/prompts/flows/init.js");
+      vi.mocked(confirmPersistenceWarning).mockResolvedValueOnce(true);
+
+      await initMain({ installDir: tempDir, experimentalUi: true });
+
+      // Config should be created (init proceeded)
+      expect(fs.existsSync(CONFIG_PATH)).toBe(true);
+
+      // Should have called the experimental UI flow, not legacy promptUser
+      expect(confirmPersistenceWarning).toHaveBeenCalledTimes(1);
+    });
+
+    it("should cancel init when confirmPersistenceWarning returns false", async () => {
+      const CONFIG_PATH = getConfigPath();
+
+      expect(fs.existsSync(CONFIG_PATH)).toBe(false);
+
+      const { confirmPersistenceWarning } =
+        await import("@/cli/prompts/flows/init.js");
+      vi.mocked(confirmPersistenceWarning).mockResolvedValueOnce(false);
+
+      await initMain({ installDir: tempDir, experimentalUi: true });
+
+      // Config should NOT be created (init cancelled)
+      expect(fs.existsSync(CONFIG_PATH)).toBe(false);
+    });
+
+    it("should use existingConfigCaptureFlow for existing config when experimentalUi is true", async () => {
+      // Create existing Claude Code config
+      const claudeMdPath = path.join(TEST_CLAUDE_DIR, "CLAUDE.md");
+      fs.writeFileSync(claudeMdPath, "# My Custom Config\n\nSome content");
+
+      const skillsDir = path.join(TEST_CLAUDE_DIR, "skills");
+      fs.mkdirSync(skillsDir, { recursive: true });
+      fs.mkdirSync(path.join(skillsDir, "my-skill"));
+      fs.writeFileSync(path.join(skillsDir, "my-skill", "SKILL.md"), "# Skill");
+
+      const { confirmPersistenceWarning, existingConfigCaptureFlow } =
+        await import("@/cli/prompts/flows/init.js");
+      vi.mocked(confirmPersistenceWarning).mockResolvedValueOnce(true);
+      vi.mocked(existingConfigCaptureFlow).mockResolvedValueOnce(
+        "my-expui-profile",
+      );
+
+      await initMain({ installDir: tempDir, experimentalUi: true });
+
+      // Verify the experimental flow was used for config capture with detected config
+      expect(existingConfigCaptureFlow).toHaveBeenCalledTimes(1);
+      expect(existingConfigCaptureFlow).toHaveBeenCalledWith({
+        existingConfig: expect.objectContaining({
+          hasClaudeMd: true,
+          hasSkills: true,
+          skillCount: 1,
+        }),
+      });
+
+      // Verify profile was captured
+      const capturedProfileDir = path.join(
+        TEST_NORI_DIR,
+        "profiles",
+        "my-expui-profile",
+      );
+      expect(fs.existsSync(capturedProfileDir)).toBe(true);
+
+      // Verify .nori-config.json has the profile set
+      const CONFIG_PATH = getConfigPath();
+      const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
+      expect(config.agents).toEqual({
+        "claude-code": { profile: { baseProfile: "my-expui-profile" } },
+      });
+    });
+
+    it("should still skip warning when skipWarning is true even with experimentalUi", async () => {
+      const CONFIG_PATH = getConfigPath();
+
+      expect(fs.existsSync(CONFIG_PATH)).toBe(false);
+
+      const { confirmPersistenceWarning } =
+        await import("@/cli/prompts/flows/init.js");
+      vi.mocked(confirmPersistenceWarning).mockClear();
+
+      await initMain({
+        installDir: tempDir,
+        skipWarning: true,
+        experimentalUi: true,
+      });
+
+      // Config should be created (skipWarning bypasses the warning entirely)
+      expect(fs.existsSync(CONFIG_PATH)).toBe(true);
+
+      // Neither legacy nor experimental warning should have been called
+      expect(confirmPersistenceWarning).not.toHaveBeenCalled();
+    });
+
+    it("should still work in non-interactive mode regardless of experimentalUi", async () => {
+      const CONFIG_PATH = getConfigPath();
+
+      expect(fs.existsSync(CONFIG_PATH)).toBe(false);
+
+      const { confirmPersistenceWarning } =
+        await import("@/cli/prompts/flows/init.js");
+      vi.mocked(confirmPersistenceWarning).mockClear();
+
+      await initMain({
+        installDir: tempDir,
+        nonInteractive: true,
+        experimentalUi: true,
+      });
+
+      // Config should be created (nonInteractive skips all prompts)
+      expect(fs.existsSync(CONFIG_PATH)).toBe(true);
+
+      // No prompts should have been called
+      expect(confirmPersistenceWarning).not.toHaveBeenCalled();
+    });
+  });
 });
 
 // Mock promptUser
 vi.mock("@/cli/prompt.js", () => ({
   promptUser: vi.fn().mockResolvedValue("n"),
+}));
+
+// Mock init flow module for experimental UI tests
+vi.mock("@/cli/prompts/flows/init.js", () => ({
+  confirmPersistenceWarning: vi.fn().mockResolvedValue(false),
+  existingConfigCaptureFlow: vi.fn().mockResolvedValue("my-profile"),
 }));

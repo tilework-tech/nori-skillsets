@@ -26,6 +26,10 @@ import {
 import { claudeMdLoader } from "@/cli/features/claude-code/profiles/claudemd/loader.js";
 import { info, warn, newline, success } from "@/cli/logger.js";
 import { promptUser } from "@/cli/prompt.js";
+import {
+  confirmPersistenceWarning,
+  existingConfigCaptureFlow,
+} from "@/cli/prompts/flows/init.js";
 import { getCurrentPackageVersion } from "@/cli/version.js";
 import { normalizeInstallDir, getInstallDirs } from "@/utils/path.js";
 
@@ -118,20 +122,31 @@ const displayProfilePersistenceWarning = async (args: {
  * @param args.installDir - Installation directory
  * @param args.nonInteractive - Whether to run in non-interactive mode
  * @param args.skipWarning - Whether to skip the profile persistence warning (useful for auto-init in download flows)
+ * @param args.experimentalUi - Whether to use new interactive TUI flows
  */
 export const initMain = async (args?: {
   installDir?: string | null;
   nonInteractive?: boolean | null;
   skipWarning?: boolean | null;
+  experimentalUi?: boolean | null;
 }): Promise<void> => {
-  const { installDir, nonInteractive, skipWarning } = args ?? {};
+  const { installDir, nonInteractive, skipWarning, experimentalUi } =
+    args ?? {};
   const normalizedInstallDir = normalizeInstallDir({ installDir });
 
   // Show profile persistence warning and get confirmation (unless skipped)
   if (!skipWarning) {
-    const confirmed = await displayProfilePersistenceWarning({
-      nonInteractive: nonInteractive ?? false,
-    });
+    let confirmed: boolean;
+
+    if (nonInteractive) {
+      confirmed = true;
+    } else if (experimentalUi) {
+      confirmed = await confirmPersistenceWarning();
+    } else {
+      confirmed = await displayProfilePersistenceWarning({
+        nonInteractive: false,
+      });
+    }
 
     if (!confirmed) {
       return;
@@ -189,27 +204,25 @@ export const initMain = async (args?: {
     });
     if (detectedConfig != null) {
       if (nonInteractive) {
-        // Non-interactive mode: auto-capture as "my-profile"
         capturedProfileName = "my-profile";
-        await captureExistingConfigAsProfile({
-          installDir: normalizedInstallDir,
-          profileName: capturedProfileName,
-        });
-        success({
-          message: `✓ Configuration saved as skillset "${capturedProfileName}"`,
+      } else if (experimentalUi) {
+        capturedProfileName = await existingConfigCaptureFlow({
+          existingConfig: detectedConfig,
         });
       } else {
-        // Interactive mode: require profile name
         capturedProfileName = await promptForExistingConfigCapture({
           existingConfig: detectedConfig,
         });
-        await captureExistingConfigAsProfile({
-          installDir: normalizedInstallDir,
-          profileName: capturedProfileName,
-        });
-        success({
-          message: `✓ Configuration saved as skillset "${capturedProfileName}"`,
-        });
+      }
+
+      await captureExistingConfigAsProfile({
+        installDir: normalizedInstallDir,
+        profileName: capturedProfileName,
+      });
+      success({
+        message: `✓ Configuration saved as skillset "${capturedProfileName}"`,
+      });
+      if (!nonInteractive && !experimentalUi) {
         newline();
       }
 
@@ -293,6 +306,7 @@ export const registerInitCommand = (args: { program: Command }): void => {
       await initMain({
         installDir: globalOpts.installDir || null,
         nonInteractive: globalOpts.nonInteractive || null,
+        experimentalUi: globalOpts.experimentalUi || null,
       });
     });
 };

@@ -11,3 +11,8 @@ export {
   type LoginFlowCallbacks,
   type LoginFlowResult,
 } from "./login.js";
+
+export {
+  confirmPersistenceWarning,
+  existingConfigCaptureFlow,
+} from "./init.js";

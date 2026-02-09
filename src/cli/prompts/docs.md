@@ -27,6 +27,8 @@ Path: @/src/cli/prompts
 **Flow Modules (flows/):**
 Flows provide complete interactive experiences that compose multiple prompts with visual feedback:
 - `loginFlow` - Complete login UX with intro message, grouped email/password collection, spinner during authentication, note box for organization info, and outro message
+- `confirmPersistenceWarning` - Displays a note explaining skillset persistence behavior and prompts for yes/no confirmation before init proceeds
+- `existingConfigCaptureFlow` - Detects existing Claude Code configuration, displays a summary of what was found (CLAUDE.md, skills, subagents, slash commands), and collects a profile name with validation
 
 **Callback Pattern:**
 Flows use a callbacks pattern to separate UI handling from business logic:

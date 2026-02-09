@@ -109,3 +109,39 @@ const promptForAuth = async (): Promise<AuthCredentials | null>;
 ```
 
 Returns `null` when user skips auth by entering empty email.
+
+## Completed: Command Migration - init.ts + existingConfigCapture.ts (2026-02-09)
+
+### Files Created
+
+- `src/cli/prompts/flows/init.ts` - `confirmPersistenceWarning()` and `existingConfigCaptureFlow()` using @clack/prompts
+- `src/cli/prompts/flows/init.test.ts` - 15 unit tests for both flow functions
+
+### Files Modified
+
+- `src/cli/commands/init/init.ts` - Added `experimentalUi` parameter, routing to new flows when flag is set
+- `src/cli/commands/init/init.test.ts` - Added 6 integration tests for `--experimental-ui` path
+- `src/cli/commands/noriSkillsetsCommands.ts` - Passes `experimentalUi` from global opts to `initMain()`
+- `src/cli/prompts/flows/index.ts` - Re-exports init flow functions
+- `src/cli/prompts/index.ts` - Re-exports init flow functions
+
+### Architecture Decisions
+
+1. **Flow functions use @clack/prompts directly**: Unlike the login flow which uses the wrapper modules (`confirmAction`, `promptText`), the init flow calls `confirm()`, `text()`, `note()`, and `log.warn()` from `@clack/prompts` directly. This is because the flow functions ARE the wrappers for this command — they encapsulate the complete UI experience.
+
+2. **UX change from legacy**: The legacy init requires typing the exact word "yes" for the persistence warning. The experimental UI uses `confirm()` (y/n), which is the standard @clack pattern and more user-friendly.
+
+3. **Priority chain for routing**: `skipWarning` > `nonInteractive` > `experimentalUi` > legacy. This ensures auto-init flows (from `registryDownload`) and non-interactive mode are unaffected by the experimental UI flag.
+
+4. **Refactored config capture deduplication**: The three branches (nonInteractive, experimentalUi, legacy) only differ in how the profile name is obtained. The shared `captureExistingConfigAsProfile()` call and success message were extracted after the branches.
+
+### Integration Test Pattern for --experimental-ui
+
+Tests mock the flow module at the top level alongside the legacy prompt mock:
+```typescript
+vi.mock("@/cli/prompts/flows/init.js", () => ({
+  confirmPersistenceWarning: vi.fn().mockResolvedValue(false),
+  existingConfigCaptureFlow: vi.fn().mockResolvedValue("my-profile"),
+}));
+```
+Then each test overrides with `mockResolvedValueOnce` for its specific scenario. This pattern should be reused for other command migrations.

@@ -27,4 +27,6 @@ export {
   type AuthenticateResult,
   type LoginFlowCallbacks,
   type LoginFlowResult,
+  confirmPersistenceWarning,
+  existingConfigCaptureFlow,
 } from "./flows/index.js";
