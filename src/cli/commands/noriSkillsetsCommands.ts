@@ -7,6 +7,7 @@
  * The registry-* prefixed commands are also available as aliases.
  */
 
+import { editSkillsetMain } from "@/cli/commands/edit-skillset/editSkillset.js";
 import { externalMain } from "@/cli/commands/external/external.js";
 import { factoryResetMain } from "@/cli/commands/factory-reset/factoryReset.js";
 import { initMain } from "@/cli/commands/init/init.js";
@@ -43,6 +44,44 @@ export const registerNoriSkillsetsFactoryResetCommand = (args: {
       await factoryResetMain({
         agentName,
         nonInteractive: globalOpts.nonInteractive || null,
+      });
+    });
+};
+
+/**
+ * Register the 'edit-skillset' command for nori-skillsets CLI
+ * @param args - Configuration arguments
+ * @param args.program - Commander program instance
+ */
+export const registerNoriSkillsetsEditSkillsetCommand = (args: {
+  program: Command;
+}): void => {
+  const { program } = args;
+
+  // Primary command: edit-skillset (with optional name argument)
+  program
+    .command("edit-skillset [name]")
+    .description(
+      "Open the active skillset folder in VS Code (or a specified skillset)",
+    )
+    .option("-a, --agent <name>", "AI agent to get skillset for")
+    .action(async (name: string | undefined, options: { agent?: string }) => {
+      const globalOpts = program.opts();
+      await editSkillsetMain({
+        name: name || null,
+        agent: options.agent || globalOpts.agent || null,
+      });
+    });
+
+  // Hidden alias: edit (shorthand)
+  program
+    .command("edit [name]", { hidden: true })
+    .option("-a, --agent <name>", "AI agent to get skillset for")
+    .action(async (name: string | undefined, options: { agent?: string }) => {
+      const globalOpts = program.opts();
+      await editSkillsetMain({
+        name: name || null,
+        agent: options.agent || globalOpts.agent || null,
       });
     });
 };

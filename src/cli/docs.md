@@ -54,6 +54,7 @@ src/cli/
     external/            # Install skills from external GitHub repos
     watch/               # Monitor Claude Code sessions and save transcripts
     factory-reset/       # Remove all agent configuration
+    edit-skillset/       # Open skillset profile folder in VS Code
 ```
 
 **CLI Commands:**
@@ -73,8 +74,9 @@ src/cli/
 | `watch` | commands/watch/ | Monitor Claude Code sessions and save transcripts |
 | `install-location` | commands/install-location/ | Display installation directories |
 | `factory-reset` | commands/factory-reset/factoryReset.ts | Remove all agent configuration from the ancestor tree |
+| `edit-skillset` | commands/edit-skillset/editSkillset.ts | Open active (or specified) skillset profile folder in VS Code |
 
-The nori-skillsets CLI uses simplified command names (no `registry-` prefix for registry read operations, `download-skill` for skill downloads, `switch-skillset` for profile switching, `init` for initialization, and `watch` for session monitoring). The commands are defined in @/src/cli/commands/noriSkillsetsCommands.ts and delegate to the underlying implementation functions (`*Main` functions from registry-*, skill-*, watch, and init commands, plus `switchSkillsetAction` from profiles.ts). Some commands have hidden aliases registered as separate Commander commands with `{ hidden: true }` -- these provide singular/plural variants (e.g., `list-skillset` for `list-skillsets`) and shorthand names (e.g., `switch` for `switch-skillset`). Hidden aliases do not appear in `--help` output but are fully functional commands that delegate to the same action handler.
+The nori-skillsets CLI uses simplified command names (no `registry-` prefix for registry read operations, `download-skill` for skill downloads, `switch-skillset` for profile switching, `init` for initialization, and `watch` for session monitoring). The commands are defined in @/src/cli/commands/noriSkillsetsCommands.ts and delegate to the underlying implementation functions (`*Main` functions from registry-*, skill-*, watch, and init commands, plus `switchSkillsetAction` from profiles.ts). Some commands have hidden aliases registered as separate Commander commands with `{ hidden: true }` -- these provide singular/plural variants (e.g., `list-skillset` for `list-skillsets`) and shorthand names (e.g., `switch` for `switch-skillset`, `edit` for `edit-skillset`). Hidden aliases do not appear in `--help` output but are fully functional commands that delegate to the same action handler.
 
 Each command directory contains the command implementation, its tests, and any command-specific utilities (e.g., `install/` contains `asciiArt.ts` and `installState.ts`).
 

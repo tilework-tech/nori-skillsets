@@ -11,6 +11,7 @@ import { Command } from "commander";
 import {
   registerNoriSkillsetsDownloadCommand,
   registerNoriSkillsetsDownloadSkillCommand,
+  registerNoriSkillsetsEditSkillsetCommand,
   registerNoriSkillsetsExternalCommand,
   registerNoriSkillsetsFactoryResetCommand,
   registerNoriSkillsetsInitCommand,
@@ -105,6 +106,8 @@ Examples:
   $ nori-skillsets install-location --installation-source  # show only source dirs
   $ nori-skillsets install-location --installation-managed # show only managed dirs
   $ nori-skillsets install-location --non-interactive      # plain output for scripts
+  $ nori-skillsets edit-skillset                            # open active skillset in VS Code
+  $ nori-skillsets edit-skillset my-profile                 # open a specific skillset
   $ nori-skillsets factory-reset claude-code               # remove all Claude Code config
 `,
   );
@@ -122,6 +125,7 @@ registerNoriSkillsetsDownloadSkillCommand({ program });
 registerNoriSkillsetsExternalCommand({ program });
 registerNoriSkillsetsWatchCommand({ program });
 registerNoriSkillsetsInstallLocationCommand({ program });
+registerNoriSkillsetsEditSkillsetCommand({ program });
 registerNoriSkillsetsFactoryResetCommand({ program });
 
 program.parse(process.argv);
