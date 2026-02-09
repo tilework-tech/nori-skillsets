@@ -217,11 +217,13 @@ export const switchSkillsetFlow = async (args: {
   const currentDisplay = currentProfile ?? "(none)";
 
   const bold = (s: string) => `\x1b[1m${s}\x1b[22m`;
+  const blue = (s: string) => `\x1b[34m${s}\x1b[39m`;
+  const green = (s: string) => `\x1b[32m${s}\x1b[39m`;
   const detailLines = [
     `Install directory: ${installDir}`,
     `Agent: ${agentName}`,
-    `Current skillset: ${bold(currentDisplay)}`,
-    `New skillset: ${bold(profileName)}`,
+    `Current skillset: ${blue(bold(currentDisplay))}`,
+    `New skillset: ${green(bold(profileName))}`,
   ];
   note(detailLines.join("\n"), "Switching Skillset");
 
@@ -252,12 +254,12 @@ export const switchSkillsetFlow = async (args: {
   s.stop("Skillset switched");
 
   const successLines = [
-    `Switched to ${bold(profileName)} skillset for ${agentName}.`,
+    green(`Switched to ${bold(profileName)} skillset for ${agentName}.`),
     `Restart ${agentName} to apply the new configuration.`,
   ];
   note(successLines.join("\n"), "Success");
 
-  outro("Done");
+  outro(blue(`Restart ${agentName} to apply`));
 
   return {
     agentName,
