@@ -20,7 +20,15 @@ import {
   type ManifestDiff,
 } from "@/cli/features/claude-code/profiles/manifest.js";
 import { listProfiles } from "@/cli/features/managedFolder.js";
-import { error, info, success, newline, warn } from "@/cli/logger.js";
+import {
+  error,
+  info,
+  success,
+  newline,
+  warn,
+  setSilentMode,
+  isSilentMode,
+} from "@/cli/logger.js";
 import { promptUser } from "@/cli/prompt.js";
 import { switchSkillsetFlow } from "@/cli/prompts/flows/switchSkillset.js";
 import { normalizeInstallDir, getInstallDirs } from "@/utils/path.js";
@@ -332,9 +340,12 @@ export const switchSkillsetAction = async (args: {
           profileName: pName,
         }) => {
           const agent = AgentRegistry.getInstance().get({ name: agentName });
+          const wasSilent = isSilentMode();
+          setSilentMode({ silent: true });
           try {
             await agent.switchProfile({ installDir: dir, profileName: pName });
           } catch (err) {
+            setSilentMode({ silent: wasSilent });
             const profiles = await listProfiles();
             if (profiles.length > 0) {
               error({
@@ -343,6 +354,7 @@ export const switchSkillsetAction = async (args: {
             }
             throw err;
           }
+          setSilentMode({ silent: wasSilent });
         },
         onReinstall: async ({ installDir: dir, agentName }) => {
           const { main: installMain } =
