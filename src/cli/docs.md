@@ -72,6 +72,7 @@ src/cli/
 | `logout` | commands/logout/ | Remove authentication credentials |
 | `watch` | commands/watch/ | Monitor Claude Code sessions and save transcripts |
 | `install-location` | commands/install-location/ | Display installation directories |
+| `fork` | commands/fork-skillset/forkSkillset.ts | Fork an existing skillset to a new name |
 | `factory-reset` | commands/factory-reset/factoryReset.ts | Remove all agent configuration from the ancestor tree |
 
 The nori-skillsets CLI uses simplified command names (no `registry-` prefix for registry read operations, `download-skill` for skill downloads, `switch-skillset` for profile switching, `init` for initialization, and `watch` for session monitoring). The commands are defined in @/src/cli/commands/noriSkillsetsCommands.ts and delegate to the underlying implementation functions (`*Main` functions from registry-*, skill-*, watch, and init commands, plus `switchSkillsetAction` from profiles.ts). Some commands have hidden aliases registered as separate Commander commands with `{ hidden: true }` -- these provide singular/plural variants (e.g., `list-skillset` for `list-skillsets`) and shorthand names (e.g., `switch` for `switch-skillset`). Hidden aliases do not appear in `--help` output but are fully functional commands that delegate to the same action handler.

@@ -71,7 +71,7 @@ External skills are downloaded to the profile's own `skills/` directory by both 
 1. Creates the `~/.nori/profiles/` directory if it does not exist
 2. Configures permissions for the profiles directory in `~/.claude/settings.json`
 
-The `profiles/config/` directory in the package is empty -- no built-in profiles are shipped. First-time installations will have no profiles until the user downloads or creates one.
+No built-in profiles are shipped with the package. First-time installations will have no profiles until the user downloads or creates one.
 
 **Profile Lookup in Loaders**: All feature loaders use `getAgentProfile({ config, agentName: "claude-code" })` from @/src/cli/config.ts to determine the active profile name. This function returns the agent-specific profile from `config.agents["claude-code"].profile`, falling back to the legacy `config.profile` field for backwards compatibility.
 
@@ -81,7 +81,7 @@ The `profiles/config/` directory in the package is empty -- no built-in profiles
 
 **~/.nori/profiles/ is the single source of truth**: All feature loaders read from `~/.nori/profiles/` instead of the npx package location. This enables users to create custom profiles or modify existing ones. The profiles loader must run FIRST to ensure this directory exists before other loaders attempt to read from it.
 
-**No built-in profiles**: The package does not bundle any default profiles. The `profiles/config/` directory is empty. Users must download profiles from the registry or create their own. This means first-time installations will have no profiles until the user obtains one.
+**No built-in profiles**: The package does not bundle any default profiles. Users must download profiles from the registry or create their own. This means first-time installations will have no profiles until the user obtains one.
 
 **Directory Separation**: Profiles are stored in `~/.nori/profiles/` rather than `~/.claude/profiles/`. The `.nori/` directory contains Nori's internal data (profile repository, installation manifest), while `.claude/` contains only Claude Code's native artifacts (skills, agents, commands, CLAUDE.md, settings.json).
 
