@@ -27,6 +27,7 @@ Path: @/src/cli/prompts
 **Flow Modules (flows/):**
 Flows provide complete interactive experiences that compose multiple prompts with visual feedback:
 - `loginFlow` - Complete login UX with intro message, grouped email/password collection, spinner during authentication, note box for organization info, and outro message
+- `switchSkillsetFlow` - Multi-step skillset switching UX with agent selection, local change detection and handling (proceed/capture/abort), switch confirmation via note box, and spinner during switch and reinstall
 
 **Callback Pattern:**
 Flows use a callbacks pattern to separate UI handling from business logic:
@@ -37,7 +38,7 @@ loginFlow({
   }
 })
 ```
-This allows commands to provide business logic (Firebase auth, API calls) while the flow handles all UI details.
+This allows commands to provide business logic (Firebase auth, API calls, config mutation) while the flow handles all UI details. The switchSkillsetFlow extends this pattern with 6 callbacks covering the full switch lifecycle (resolveAgents, detectLocalChanges, getCurrentProfile, captureConfig, switchProfile, reinstall).
 
 ### Things to Know
 
@@ -46,6 +47,7 @@ This allows commands to provide business logic (Firebase auth, API calls) while 
 - Flow modules return null on cancellation or failure (the flow handles displaying error UI)
 - The `ValidateFunction` type in text.ts follows the pattern `(args: { value: string }) => string | undefined` where undefined means valid and a string is the error message
 - `promptForAuth()` returns null if user enters empty email, allowing auth to be skipped during interactive flows
-- Flow modules are exported both from flows/index.ts and re-exported from prompts/index.ts for convenient access
+- Flow modules (loginFlow, switchSkillsetFlow, and their associated types) are exported both from flows/index.ts and re-exported from prompts/index.ts for convenient access
+- Flows return null on cancellation; the command should treat null as a clean exit since the flow has already displayed cancel UI to the user
 
 Created and maintained by Nori.
