@@ -65,6 +65,25 @@ describe("loginFlow", () => {
       expect(clack.intro).toHaveBeenCalledWith("Login to Nori Skillsets");
     });
 
+    it("should skip intro when skipIntro is true", async () => {
+      vi.mocked(clack.group).mockResolvedValueOnce({
+        email: "test@example.com",
+        password: "secret123",
+      });
+      vi.mocked(mockCallbacks.onAuthenticate).mockResolvedValueOnce({
+        success: true,
+        userEmail: "test@example.com",
+        organizations: [],
+        isAdmin: false,
+        refreshToken: "mock-refresh-token",
+        idToken: "mock-id-token",
+      });
+
+      await loginFlow({ callbacks: mockCallbacks, skipIntro: true });
+
+      expect(clack.intro).not.toHaveBeenCalled();
+    });
+
     it("should use group to collect email and password together", async () => {
       vi.mocked(clack.group).mockResolvedValueOnce({
         email: "test@example.com",

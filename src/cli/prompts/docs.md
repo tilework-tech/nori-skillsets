@@ -26,12 +26,13 @@ Path: @/src/cli/prompts
 
 **Flow Modules (flows/):**
 Flows provide complete interactive experiences that compose multiple prompts with visual feedback:
-- `loginFlow` - Complete login UX with intro message, grouped email/password collection, spinner during authentication, note box for organization info, and outro message
+- `loginFlow` - Complete login UX with grouped email/password collection, spinner during authentication, note box for organization info, and outro message. Supports `skipIntro` to allow callers to manage the intro message externally (e.g., when loginFlow is used as a sub-flow after an auth method selection prompt)
 
 **Callback Pattern:**
 Flows use a callbacks pattern to separate UI handling from business logic:
 ```typescript
 loginFlow({
+  skipIntro: true,
   callbacks: {
     onAuthenticate: async ({ email, password }) => AuthenticateResult
   }

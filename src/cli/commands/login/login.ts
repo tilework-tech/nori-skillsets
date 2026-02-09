@@ -7,6 +7,7 @@
 
 import * as os from "os";
 
+import { select, isCancel, cancel, intro, outro } from "@clack/prompts";
 import {
   signInWithEmailAndPassword,
   signInWithCredential,
@@ -18,7 +19,11 @@ import open from "open";
 import { loadConfig, saveConfig } from "@/cli/config.js";
 import { error, info, success, warn, newline } from "@/cli/logger.js";
 import { promptUser, promptYesNo } from "@/cli/prompt.js";
-import { loginFlow, type AuthenticateResult } from "@/cli/prompts/index.js";
+import {
+  loginFlow,
+  confirmAction,
+  type AuthenticateResult,
+} from "@/cli/prompts/index.js";
 import { configureFirebase, getFirebase } from "@/providers/firebase.js";
 import { formatNetworkError } from "@/utils/fetch.js";
 
@@ -274,17 +279,19 @@ const authenticateWithGoogleLocalhost = async (args?: {
  *
  * @param args - Configuration arguments
  * @param args.noLocalhost - If true, force use of headless flow (skips environment detection)
+ * @param args.confirmHeadless - Optional function to confirm headless flow (replaces legacy promptYesNo)
  *
  * @returns Firebase credentials (refreshToken, idToken, email)
  */
 const authenticateWithGoogle = async (args?: {
   noLocalhost?: boolean | null;
+  confirmHeadless?: ((args: { message: string }) => Promise<boolean>) | null;
 }): Promise<{
   refreshToken: string;
   idToken: string;
   email: string;
 }> => {
-  const { noLocalhost } = args ?? {};
+  const { noLocalhost, confirmHeadless } = args ?? {};
 
   // If --no-localhost flag is explicitly set, use headless flow directly
   if (noLocalhost) {
@@ -301,10 +308,18 @@ const authenticateWithGoogle = async (args?: {
     });
     newline();
 
-    const useHeadlessFlow = await promptYesNo({
-      prompt: "Use headless authentication flow?",
-      defaultValue: true,
-    });
+    let useHeadlessFlow: boolean;
+
+    if (confirmHeadless != null) {
+      useHeadlessFlow = await confirmHeadless({
+        message: "Use headless authentication flow?",
+      });
+    } else {
+      useHeadlessFlow = await promptYesNo({
+        prompt: "Use headless authentication flow?",
+        defaultValue: true,
+      });
+    }
 
     if (useHeadlessFlow) {
       return authenticateWithGoogleHeadless();
@@ -502,7 +517,7 @@ export const loginMain = async (args?: {
     return;
   }
 
-  if (noLocalhost && !useGoogle) {
+  if (noLocalhost && !useGoogle && !experimentalUi) {
     error({
       message:
         "Cannot use --no-localhost without --google. This flag is only for Google SSO.",
@@ -510,14 +525,26 @@ export const loginMain = async (args?: {
     return;
   }
 
+  const clackConfirmHeadless = async (args: {
+    message: string;
+  }): Promise<boolean> => {
+    return confirmAction({
+      message: args.message,
+      initialValue: true,
+    });
+  };
+
   let refreshToken: string;
   let idToken: string;
   let userEmail: string;
 
   if (useGoogle) {
-    // Google SSO flow
+    // Google SSO flow (explicit --google flag)
     try {
-      const result = await authenticateWithGoogle({ noLocalhost });
+      const result = await authenticateWithGoogle({
+        noLocalhost,
+        confirmHeadless: experimentalUi ? clackConfirmHeadless : null,
+      });
       refreshToken = result.refreshToken;
       idToken = result.idToken;
       userEmail = result.email;
@@ -566,97 +593,140 @@ export const loginMain = async (args?: {
       return;
     }
   } else if (experimentalUi) {
-    // Interactive mode with experimental UI: use loginFlow for grouped prompts UX
-    const result = await loginFlow({
-      callbacks: {
-        onAuthenticate: async (args): Promise<AuthenticateResult> => {
-          const { email: inputEmail, password: inputPassword } = args;
+    // Interactive mode with experimental UI: show auth method selection
+    intro("Login to Nori Skillsets");
 
-          try {
-            configureFirebase();
-            const firebase = getFirebase();
-
-            const userCredential = await signInWithEmailAndPassword(
-              firebase.auth,
-              inputEmail,
-              inputPassword,
-            );
-
-            const token = await userCredential.user.getIdToken();
-
-            // Fetch user's organizations and admin status
-            const accessInfo = await fetchUserAccess({ idToken: token });
-
-            return {
-              success: true,
-              userEmail: inputEmail,
-              organizations: accessInfo?.organizations ?? [],
-              isAdmin: accessInfo?.isAdmin ?? false,
-              refreshToken: userCredential.user.refreshToken,
-              idToken: token,
-            };
-          } catch (err) {
-            const authError = err as AuthError;
-            let hint: string | null = null;
-
-            if (
-              authError.code === AuthErrorCodes.INVALID_PASSWORD ||
-              authError.code === AuthErrorCodes.INVALID_LOGIN_CREDENTIALS ||
-              authError.code === "auth/invalid-credential"
-            ) {
-              hint = "Check that your email and password are correct.";
-            } else if (authError.code === AuthErrorCodes.USER_DELETED) {
-              hint = "This email is not registered. Contact support.";
-            } else if (
-              authError.code === AuthErrorCodes.TOO_MANY_ATTEMPTS_TRY_LATER
-            ) {
-              hint =
-                "Too many failed attempts. Wait a few minutes and try again.";
-            } else if (
-              authError.code === AuthErrorCodes.NETWORK_REQUEST_FAILED
-            ) {
-              hint = "Network error. Check your internet connection.";
-            }
-
-            return {
-              success: false,
-              error: authError.message,
-              hint,
-            };
-          }
-        },
-      },
+    const authMethod = await select({
+      message: "Authentication method",
+      options: [
+        { value: "email", label: "Email / Password" },
+        { value: "google", label: "Google SSO" },
+      ],
     });
 
-    if (result == null) {
-      // User cancelled or auth failed (flow handles the UI)
+    if (isCancel(authMethod)) {
+      cancel("Login cancelled.");
       return;
     }
 
-    // Use the tokens from the flow result (no need to re-authenticate)
-    refreshToken = result.refreshToken;
-    idToken = result.idToken;
-    userEmail = result.email;
+    if (authMethod === "email") {
+      // Email/password flow via loginFlow (skip intro since we already showed it)
+      const result = await loginFlow({
+        skipIntro: true,
+        callbacks: {
+          onAuthenticate: async (args): Promise<AuthenticateResult> => {
+            const { email: inputEmail, password: inputPassword } = args;
 
-    // Load existing config to preserve other fields
-    const existingConfig = await loadConfig();
+            try {
+              configureFirebase();
+              const firebase = getFirebase();
 
-    // Save credentials to config (using access info from flow result)
-    await saveConfig({
-      username: userEmail,
-      refreshToken,
-      organizationUrl: NORI_SKILLSETS_API_URL,
-      organizations: result.organizations,
-      isAdmin: result.isAdmin,
-      sendSessionTranscript: existingConfig?.sendSessionTranscript ?? null,
-      autoupdate: existingConfig?.autoupdate ?? null,
-      agents: existingConfig?.agents ?? null,
-      version: existingConfig?.version ?? null,
-      installDir: configDir,
-    });
+              const userCredential = await signInWithEmailAndPassword(
+                firebase.auth,
+                inputEmail,
+                inputPassword,
+              );
 
-    // Flow already showed intro/outro, so we're done
-    return;
+              const token = await userCredential.user.getIdToken();
+
+              // Fetch user's organizations and admin status
+              const accessInfo = await fetchUserAccess({ idToken: token });
+
+              return {
+                success: true,
+                userEmail: inputEmail,
+                organizations: accessInfo?.organizations ?? [],
+                isAdmin: accessInfo?.isAdmin ?? false,
+                refreshToken: userCredential.user.refreshToken,
+                idToken: token,
+              };
+            } catch (err) {
+              const authError = err as AuthError;
+              let hint: string | null = null;
+
+              if (
+                authError.code === AuthErrorCodes.INVALID_PASSWORD ||
+                authError.code === AuthErrorCodes.INVALID_LOGIN_CREDENTIALS ||
+                authError.code === "auth/invalid-credential"
+              ) {
+                hint = "Check that your email and password are correct.";
+              } else if (authError.code === AuthErrorCodes.USER_DELETED) {
+                hint = "This email is not registered. Contact support.";
+              } else if (
+                authError.code === AuthErrorCodes.TOO_MANY_ATTEMPTS_TRY_LATER
+              ) {
+                hint =
+                  "Too many failed attempts. Wait a few minutes and try again.";
+              } else if (
+                authError.code === AuthErrorCodes.NETWORK_REQUEST_FAILED
+              ) {
+                hint = "Network error. Check your internet connection.";
+              }
+
+              return {
+                success: false,
+                error: authError.message,
+                hint,
+              };
+            }
+          },
+        },
+      });
+
+      if (result == null) {
+        // User cancelled or auth failed (flow handles the UI)
+        return;
+      }
+
+      // Use the tokens from the flow result (no need to re-authenticate)
+      refreshToken = result.refreshToken;
+      idToken = result.idToken;
+      userEmail = result.email;
+
+      // Load existing config to preserve other fields
+      const existingConfig = await loadConfig();
+
+      // Save credentials to config (using access info from flow result)
+      await saveConfig({
+        username: userEmail,
+        refreshToken,
+        organizationUrl: NORI_SKILLSETS_API_URL,
+        organizations: result.organizations,
+        isAdmin: result.isAdmin,
+        sendSessionTranscript: existingConfig?.sendSessionTranscript ?? null,
+        autoupdate: existingConfig?.autoupdate ?? null,
+        agents: existingConfig?.agents ?? null,
+        version: existingConfig?.version ?? null,
+        installDir: configDir,
+      });
+
+      // Flow already showed outro, so we're done
+      return;
+    } else {
+      // Google SSO flow selected from experimental UI
+      try {
+        const result = await authenticateWithGoogle({
+          noLocalhost,
+          confirmHeadless: clackConfirmHeadless,
+        });
+        refreshToken = result.refreshToken;
+        idToken = result.idToken;
+        userEmail = result.email;
+      } catch (err) {
+        const authError = err as AuthError;
+        error({ message: "Authentication failed" });
+        error({ message: `  Error: ${authError.message}` });
+
+        if ((authError as AuthError).code === "auth/operation-not-allowed") {
+          error({
+            message:
+              "  Hint: Google sign-in may not be enabled for this project. Contact your administrator.",
+          });
+        }
+
+        return;
+      }
+    }
   } else {
     // Interactive mode with legacy prompts (default)
     const result = await authenticateWithLegacyPrompts({ configDir });
@@ -702,8 +772,13 @@ export const loginMain = async (args?: {
     installDir: configDir,
   });
 
-  newline();
-  success({ message: `Logged in as ${userEmail}` });
+  if (experimentalUi) {
+    // Use clack outro to balance the intro shown earlier
+    outro(`Logged in as ${userEmail}`);
+  } else {
+    newline();
+    success({ message: `Logged in as ${userEmail}` });
+  }
 
   if (organizations.length > 0) {
     info({ message: `Organizations: ${organizations.join(", ")}` });
