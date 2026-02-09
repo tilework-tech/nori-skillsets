@@ -7,6 +7,7 @@
  * The registry-* prefixed commands are also available as aliases.
  */
 
+import { dirMain } from "@/cli/commands/dir/dir.js";
 import { editSkillsetMain } from "@/cli/commands/edit-skillset/editSkillset.js";
 import { externalMain } from "@/cli/commands/external/external.js";
 import { factoryResetMain } from "@/cli/commands/factory-reset/factoryReset.js";
@@ -477,6 +478,27 @@ export const registerNoriSkillsetsExternalCommand = (args: {
         });
       },
     );
+};
+
+/**
+ * Register the 'dir' command for nori-skillsets CLI
+ * @param args - Configuration arguments
+ * @param args.program - Commander program instance
+ */
+export const registerNoriSkillsetsDirCommand = (args: {
+  program: Command;
+}): void => {
+  const { program } = args;
+
+  program
+    .command("dir")
+    .description("Open the Nori profiles directory")
+    .action(async () => {
+      const globalOpts = program.opts();
+      await dirMain({
+        nonInteractive: globalOpts.nonInteractive || null,
+      });
+    });
 };
 
 /**
