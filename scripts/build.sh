@@ -90,13 +90,10 @@ echo -e "${BLUE}[5/7] Setting file permissions...${NC}"
 chmod +x build/src/cli/nori-skillsets.js
 chmod +x build/src/cli/commands/install/install.js
 
-# Hook scripts (only scripts that still exist)
-chmod +x build/src/cli/features/claude-code/hooks/config/summarize.js 2>/dev/null || true
-chmod +x build/src/cli/features/claude-code/hooks/config/summarize-notification.js 2>/dev/null || true
-chmod +x build/src/cli/features/claude-code/hooks/config/statistics.js 2>/dev/null || true
-chmod +x build/src/cli/features/claude-code/hooks/config/statistics-notification.js 2>/dev/null || true
+# Hook scripts
 chmod +x build/src/cli/features/claude-code/hooks/config/context-usage-warning.js 2>/dev/null || true
 chmod +x build/src/cli/features/claude-code/hooks/config/commit-author.js 2>/dev/null || true
+chmod +x build/src/cli/features/claude-code/hooks/config/update-check.js 2>/dev/null || true
 
 echo -e "${GREEN}✓ File permissions set${NC}"
 echo ""
@@ -141,13 +138,10 @@ echo -e "${BLUE}[6b/7] Creating legacy hook compatibility layer...${NC}"
 
 mkdir -p build/src/cli/features/hooks/config
 
-# Copy all bundled hook scripts to legacy location (only scripts that still exist)
-cp build/src/cli/features/claude-code/hooks/config/summarize.js build/src/cli/features/hooks/config/ 2>/dev/null || true
-cp build/src/cli/features/claude-code/hooks/config/summarize-notification.js build/src/cli/features/hooks/config/ 2>/dev/null || true
-cp build/src/cli/features/claude-code/hooks/config/statistics.js build/src/cli/features/hooks/config/ 2>/dev/null || true
-cp build/src/cli/features/claude-code/hooks/config/statistics-notification.js build/src/cli/features/hooks/config/ 2>/dev/null || true
+# Copy all bundled hook scripts to legacy location
 cp build/src/cli/features/claude-code/hooks/config/context-usage-warning.js build/src/cli/features/hooks/config/ 2>/dev/null || true
 cp build/src/cli/features/claude-code/hooks/config/commit-author.js build/src/cli/features/hooks/config/ 2>/dev/null || true
+cp build/src/cli/features/claude-code/hooks/config/update-check.js build/src/cli/features/hooks/config/ 2>/dev/null || true
 cp build/src/cli/features/claude-code/hooks/config/notify-hook.sh build/src/cli/features/hooks/config/ 2>/dev/null || true
 
 # Make legacy scripts executable
