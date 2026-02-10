@@ -241,4 +241,30 @@ describe("install noninteractive", () => {
     expect(config.auth.organizationUrl).toBe("https://myorg.tilework.tech");
     expect(config.auth.refreshToken).toBe("test-refresh-token");
   });
+
+  it("should preserve organizations, isAdmin, and transcriptDestination through install", async () => {
+    // Create config with organizations, isAdmin, and transcriptDestination
+    await saveConfig({
+      username: "test@example.com",
+      organizationUrl: "https://myorg.tilework.tech",
+      refreshToken: "test-refresh-token",
+      organizations: ["org-alpha", "org-beta"],
+      isAdmin: true,
+      agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
+      version: "20.0.0",
+      transcriptDestination: "myorg",
+      installDir: tempDir,
+    });
+
+    await noninteractive({
+      installDir: tempDir,
+      profile: "senior-swe",
+    });
+
+    const configPath = getConfigPath();
+    const config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+    expect(config.auth.organizations).toEqual(["org-alpha", "org-beta"]);
+    expect(config.auth.isAdmin).toBe(true);
+    expect(config.transcriptDestination).toBe("myorg");
+  });
 });

@@ -264,6 +264,52 @@ describe("configLoader", () => {
       expect(fileContents.auth.username).toBe("test@example.com");
     });
 
+    it("should preserve organizations, isAdmin, and transcriptDestination from existing config", async () => {
+      // Create existing config with organizations, isAdmin, and transcriptDestination
+      const configFile = getConfigPath();
+      fs.writeFileSync(
+        configFile,
+        JSON.stringify({
+          installDir: tempDir,
+          agents: {
+            "claude-code": { profile: { baseProfile: "senior-swe" } },
+          },
+          auth: {
+            username: "test@example.com",
+            organizationUrl: "https://example.tilework.tech",
+            refreshToken: "existing-token",
+            organizations: ["org-alpha", "org-beta"],
+            isAdmin: true,
+          },
+          transcriptDestination: "myorg",
+        }),
+        "utf-8",
+      );
+
+      // Run configLoader with config that has auth but no organizations
+      const config: Config = {
+        installDir: tempDir,
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
+        auth: {
+          username: "test@example.com",
+          organizationUrl: "https://example.tilework.tech",
+          refreshToken: "existing-token",
+        },
+      };
+
+      await configLoader.run({ config });
+
+      const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
+      expect(fileContents.auth.organizations).toEqual([
+        "org-alpha",
+        "org-beta",
+      ]);
+      expect(fileContents.auth.isAdmin).toBe(true);
+      expect(fileContents.transcriptDestination).toBe("myorg");
+    });
+
     it("should use existing refresh token when provided instead of password", async () => {
       const config: Config = {
         installDir: tempDir,

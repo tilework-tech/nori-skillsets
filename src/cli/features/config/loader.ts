@@ -107,16 +107,28 @@ const installConfig = async (args: { config: Config }): Promise<void> => {
   // Get current package version to save in config
   const currentVersion = getCurrentPackageVersion();
 
+  // Preserve organizations, isAdmin, and transcriptDestination from existing config
+  const organizations =
+    config.auth?.organizations ?? existingConfig?.auth?.organizations ?? null;
+  const isAdmin = config.auth?.isAdmin ?? existingConfig?.auth?.isAdmin ?? null;
+  const transcriptDestination =
+    config.transcriptDestination ??
+    existingConfig?.transcriptDestination ??
+    null;
+
   // Save config to disk with refresh token (not password)
   // This ensures we never store passwords, only secure tokens
   await saveConfig({
     username,
     refreshToken: tokenToSave,
     organizationUrl,
+    organizations,
+    isAdmin,
     agents: Object.keys(mergedAgents).length > 0 ? mergedAgents : null,
     sendSessionTranscript,
     autoupdate: existingConfig?.autoupdate,
     version: currentVersion,
+    transcriptDestination,
     installDir: config.installDir,
   });
 

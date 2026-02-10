@@ -67,10 +67,13 @@ export const claudeCodeAgent: Agent = {
       password: currentConfig?.auth?.password ?? null,
       refreshToken: currentConfig?.auth?.refreshToken ?? null,
       organizationUrl: currentConfig?.auth?.organizationUrl ?? null,
+      organizations: currentConfig?.auth?.organizations ?? null,
+      isAdmin: currentConfig?.auth?.isAdmin ?? null,
       agents: updatedAgents,
       sendSessionTranscript: currentConfig?.sendSessionTranscript ?? null,
       autoupdate: currentConfig?.autoupdate,
       version: currentConfig?.version ?? null,
+      transcriptDestination: currentConfig?.transcriptDestination ?? null,
       installDir,
     });
 
