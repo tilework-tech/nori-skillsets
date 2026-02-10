@@ -298,7 +298,7 @@ export const switchSkillsetAction = async (args: {
 
   // Experimental UI flow (interactive only)
   if (experimentalUi && !nonInteractive) {
-    const result = await switchSkillsetFlow({
+    await switchSkillsetFlow({
       profileName: name,
       installDir,
       agentOverride: options.agent ?? null,
@@ -316,17 +316,18 @@ export const switchSkillsetAction = async (args: {
             return { name: agentName, displayName: agent.displayName };
           });
         },
-        onDetectLocalChanges: async ({ installDir: dir }) => {
-          return detectLocalChanges({ installDir: dir });
-        },
-        onGetCurrentProfile: async ({ agentName }) => {
+        onPrepareSwitchInfo: async ({ installDir: dir, agentName }) => {
+          const localChanges = await detectLocalChanges({ installDir: dir });
           const config = await loadConfig();
-          if (config == null) return null;
-          const agentProfile = getAgentProfile({
-            config,
-            agentName: agentName as ConfigAgentName,
-          });
-          return agentProfile?.baseProfile ?? null;
+          let currentProfile: string | null = null;
+          if (config != null) {
+            const agentProfile = getAgentProfile({
+              config,
+              agentName: agentName as ConfigAgentName,
+            });
+            currentProfile = agentProfile?.baseProfile ?? null;
+          }
+          return { currentProfile, localChanges };
         },
         onCaptureConfig: async ({ installDir: dir, profileName: pName }) => {
           await captureExistingConfigAsProfile({
@@ -334,7 +335,7 @@ export const switchSkillsetAction = async (args: {
             profileName: pName,
           });
         },
-        onSwitchProfile: async ({
+        onExecuteSwitch: async ({
           installDir: dir,
           agentName,
           profileName: pName,
@@ -355,8 +356,6 @@ export const switchSkillsetAction = async (args: {
             throw err;
           }
           setSilentMode({ silent: wasSilent });
-        },
-        onReinstall: async ({ installDir: dir, agentName }) => {
           const { main: installMain } =
             await import("@/cli/commands/install/install.js");
           await installMain({
@@ -369,9 +368,8 @@ export const switchSkillsetAction = async (args: {
       },
     });
 
-    if (result == null) {
-      return;
-    }
+    // Flow handles all UI (cancel messages, success notes) internally.
+    // result is null on cancel, non-null on success — either way we're done.
     return;
   }
 

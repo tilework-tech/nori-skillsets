@@ -210,6 +210,30 @@ export const raw = (args: { message: string }): void => {
 };
 
 /**
+ * Wrap text in green (for positive/new values)
+ * @param args - Configuration arguments
+ * @param args.text - Text to display
+ *
+ * @returns Text wrapped in green ANSI color codes
+ */
+export const green = (args: { text: string }): string => {
+  const { text } = args;
+  return `${colors.GREEN}${text}${colors.NC}`;
+};
+
+/**
+ * Wrap text in bold (for emphasis)
+ * @param args - Configuration arguments
+ * @param args.text - Text to display
+ *
+ * @returns Text wrapped in bold ANSI color codes
+ */
+export const bold = (args: { text: string }): string => {
+  const { text } = args;
+  return `${formatColors.BOLD}${text}\x1b[22m`;
+};
+
+/**
  * Print text in bright cyan (for numbers/indices)
  * @param args - Configuration arguments
  * @param args.text - Text to display

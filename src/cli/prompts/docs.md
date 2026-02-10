@@ -38,7 +38,7 @@ loginFlow({
   }
 })
 ```
-This allows commands to provide business logic (Firebase auth, API calls, config mutation) while the flow handles all UI details. The switchSkillsetFlow extends this pattern with 6 callbacks covering the full switch lifecycle (resolveAgents, detectLocalChanges, getCurrentProfile, captureConfig, switchProfile, reinstall).
+This allows commands to provide business logic (Firebase auth, API calls, config mutation) while the flow handles all UI details. The switchSkillsetFlow uses 4 coarse-grained callbacks (resolveAgents, prepareSwitchInfo, captureConfig, executeSwitch). See `flows/clack-prompts-usage.md` for guidelines on callback design.
 
 ### Things to Know
 
@@ -48,6 +48,7 @@ This allows commands to provide business logic (Firebase auth, API calls, config
 - The `ValidateFunction` type in text.ts follows the pattern `(args: { value: string }) => string | undefined` where undefined means valid and a string is the error message
 - `promptForAuth()` returns null if user enters empty email, allowing auth to be skipped during interactive flows
 - Flow modules (loginFlow, switchSkillsetFlow, and their associated types) are exported both from flows/index.ts and re-exported from prompts/index.ts for convenient access
+- Flows use `unwrapPrompt` from flows/utils.ts for cancel handling; standalone wrappers use `handleCancel` which calls `process.exit(0)` — these are separate patterns for separate use cases
 - Flows return null on cancellation; the command should treat null as a clean exit since the flow has already displayed cancel UI to the user
 
 Created and maintained by Nori.

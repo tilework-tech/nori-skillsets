@@ -17,3 +17,5 @@ export {
   type SwitchSkillsetCallbacks,
   type SwitchSkillsetFlowResult,
 } from "./switchSkillset.js";
+
+export { unwrapPrompt } from "./utils.js";

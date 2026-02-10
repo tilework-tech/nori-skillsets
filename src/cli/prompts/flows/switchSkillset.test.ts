@@ -53,11 +53,12 @@ describe("switchSkillsetFlow", () => {
         .mockResolvedValue([
           { name: "claude-code", displayName: "Claude Code" },
         ]),
-      onDetectLocalChanges: vi.fn().mockResolvedValue(null),
-      onGetCurrentProfile: vi.fn().mockResolvedValue("senior-swe"),
+      onPrepareSwitchInfo: vi.fn().mockResolvedValue({
+        currentProfile: "senior-swe",
+        localChanges: null,
+      }),
       onCaptureConfig: vi.fn().mockResolvedValue(undefined),
-      onSwitchProfile: vi.fn().mockResolvedValue(undefined),
-      onReinstall: vi.fn().mockResolvedValue(undefined),
+      onExecuteSwitch: vi.fn().mockResolvedValue(undefined),
     };
   });
 
@@ -108,7 +109,7 @@ describe("switchSkillsetFlow", () => {
       );
     });
 
-    it("should call onSwitchProfile and onReinstall when confirmed", async () => {
+    it("should call onExecuteSwitch when confirmed", async () => {
       vi.mocked(clack.confirm).mockResolvedValueOnce(true);
 
       await switchSkillsetFlow({
@@ -117,14 +118,10 @@ describe("switchSkillsetFlow", () => {
         callbacks: mockCallbacks,
       });
 
-      expect(mockCallbacks.onSwitchProfile).toHaveBeenCalledWith({
+      expect(mockCallbacks.onExecuteSwitch).toHaveBeenCalledWith({
         installDir: "/test/dir",
         agentName: "claude-code",
         profileName: "product-manager",
-      });
-      expect(mockCallbacks.onReinstall).toHaveBeenCalledWith({
-        installDir: "/test/dir",
-        agentName: "claude-code",
       });
     });
 
@@ -157,7 +154,7 @@ describe("switchSkillsetFlow", () => {
 
       expect(mockCallbacks.onResolveAgents).not.toHaveBeenCalled();
       expect(clack.select).not.toHaveBeenCalled();
-      expect(mockCallbacks.onSwitchProfile).toHaveBeenCalledWith(
+      expect(mockCallbacks.onExecuteSwitch).toHaveBeenCalledWith(
         expect.objectContaining({ agentName: "cursor-agent" }),
       );
       expect(result).toEqual({
@@ -212,10 +209,7 @@ describe("switchSkillsetFlow", () => {
         callbacks: mockCallbacks,
       });
 
-      expect(mockCallbacks.onSwitchProfile).toHaveBeenCalledWith(
-        expect.objectContaining({ agentName: "cursor-agent" }),
-      );
-      expect(mockCallbacks.onReinstall).toHaveBeenCalledWith(
+      expect(mockCallbacks.onExecuteSwitch).toHaveBeenCalledWith(
         expect.objectContaining({ agentName: "cursor-agent" }),
       );
     });
@@ -223,10 +217,13 @@ describe("switchSkillsetFlow", () => {
 
   describe("local changes detected - proceed", () => {
     it("should show note with changed files when changes detected", async () => {
-      vi.mocked(mockCallbacks.onDetectLocalChanges).mockResolvedValueOnce({
-        modified: ["skills/my-skill/SKILL.md"],
-        added: ["skills/new-skill/SKILL.md"],
-        deleted: [],
+      vi.mocked(mockCallbacks.onPrepareSwitchInfo).mockResolvedValueOnce({
+        currentProfile: "senior-swe",
+        localChanges: {
+          modified: ["skills/my-skill/SKILL.md"],
+          added: ["skills/new-skill/SKILL.md"],
+          deleted: [],
+        },
       });
       // First select: change handling (proceed)
       vi.mocked(clack.select).mockResolvedValueOnce("proceed");
@@ -246,10 +243,13 @@ describe("switchSkillsetFlow", () => {
     });
 
     it("should show select with proceed/capture/abort options", async () => {
-      vi.mocked(mockCallbacks.onDetectLocalChanges).mockResolvedValueOnce({
-        modified: ["skills/my-skill/SKILL.md"],
-        added: [],
-        deleted: [],
+      vi.mocked(mockCallbacks.onPrepareSwitchInfo).mockResolvedValueOnce({
+        currentProfile: "senior-swe",
+        localChanges: {
+          modified: ["skills/my-skill/SKILL.md"],
+          added: [],
+          deleted: [],
+        },
       });
       vi.mocked(clack.select).mockResolvedValueOnce("proceed");
       vi.mocked(clack.confirm).mockResolvedValueOnce(true);
@@ -271,10 +271,13 @@ describe("switchSkillsetFlow", () => {
     });
 
     it("should continue to confirmation after selecting proceed", async () => {
-      vi.mocked(mockCallbacks.onDetectLocalChanges).mockResolvedValueOnce({
-        modified: ["skills/my-skill/SKILL.md"],
-        added: [],
-        deleted: [],
+      vi.mocked(mockCallbacks.onPrepareSwitchInfo).mockResolvedValueOnce({
+        currentProfile: "senior-swe",
+        localChanges: {
+          modified: ["skills/my-skill/SKILL.md"],
+          added: [],
+          deleted: [],
+        },
       });
       vi.mocked(clack.select).mockResolvedValueOnce("proceed");
       vi.mocked(clack.confirm).mockResolvedValueOnce(true);
@@ -286,16 +289,19 @@ describe("switchSkillsetFlow", () => {
       });
 
       expect(clack.confirm).toHaveBeenCalledTimes(1);
-      expect(mockCallbacks.onSwitchProfile).toHaveBeenCalled();
+      expect(mockCallbacks.onExecuteSwitch).toHaveBeenCalled();
     });
   });
 
   describe("local changes detected - capture", () => {
     it("should prompt for skillset name when capture selected", async () => {
-      vi.mocked(mockCallbacks.onDetectLocalChanges).mockResolvedValueOnce({
-        modified: ["skills/my-skill/SKILL.md"],
-        added: [],
-        deleted: [],
+      vi.mocked(mockCallbacks.onPrepareSwitchInfo).mockResolvedValueOnce({
+        currentProfile: "senior-swe",
+        localChanges: {
+          modified: ["skills/my-skill/SKILL.md"],
+          added: [],
+          deleted: [],
+        },
       });
       vi.mocked(clack.select).mockResolvedValueOnce("capture");
       vi.mocked(clack.text).mockResolvedValueOnce("my-custom-skillset");
@@ -313,10 +319,13 @@ describe("switchSkillsetFlow", () => {
     });
 
     it("should call onCaptureConfig with entered name", async () => {
-      vi.mocked(mockCallbacks.onDetectLocalChanges).mockResolvedValueOnce({
-        modified: ["skills/my-skill/SKILL.md"],
-        added: [],
-        deleted: [],
+      vi.mocked(mockCallbacks.onPrepareSwitchInfo).mockResolvedValueOnce({
+        currentProfile: "senior-swe",
+        localChanges: {
+          modified: ["skills/my-skill/SKILL.md"],
+          added: [],
+          deleted: [],
+        },
       });
       vi.mocked(clack.select).mockResolvedValueOnce("capture");
       vi.mocked(clack.text).mockResolvedValueOnce("my-custom-skillset");
@@ -335,10 +344,13 @@ describe("switchSkillsetFlow", () => {
     });
 
     it("should continue to confirmation after capture", async () => {
-      vi.mocked(mockCallbacks.onDetectLocalChanges).mockResolvedValueOnce({
-        modified: ["skills/my-skill/SKILL.md"],
-        added: [],
-        deleted: [],
+      vi.mocked(mockCallbacks.onPrepareSwitchInfo).mockResolvedValueOnce({
+        currentProfile: "senior-swe",
+        localChanges: {
+          modified: ["skills/my-skill/SKILL.md"],
+          added: [],
+          deleted: [],
+        },
       });
       vi.mocked(clack.select).mockResolvedValueOnce("capture");
       vi.mocked(clack.text).mockResolvedValueOnce("my-custom-skillset");
@@ -351,16 +363,19 @@ describe("switchSkillsetFlow", () => {
       });
 
       expect(clack.confirm).toHaveBeenCalledTimes(1);
-      expect(mockCallbacks.onSwitchProfile).toHaveBeenCalled();
+      expect(mockCallbacks.onExecuteSwitch).toHaveBeenCalled();
     });
   });
 
   describe("local changes detected - abort", () => {
     it("should return null when user selects abort", async () => {
-      vi.mocked(mockCallbacks.onDetectLocalChanges).mockResolvedValueOnce({
-        modified: ["skills/my-skill/SKILL.md"],
-        added: [],
-        deleted: [],
+      vi.mocked(mockCallbacks.onPrepareSwitchInfo).mockResolvedValueOnce({
+        currentProfile: "senior-swe",
+        localChanges: {
+          modified: ["skills/my-skill/SKILL.md"],
+          added: [],
+          deleted: [],
+        },
       });
       vi.mocked(clack.select).mockResolvedValueOnce("abort");
 
@@ -373,11 +388,14 @@ describe("switchSkillsetFlow", () => {
       expect(result).toBeNull();
     });
 
-    it("should not call onSwitchProfile when user aborts", async () => {
-      vi.mocked(mockCallbacks.onDetectLocalChanges).mockResolvedValueOnce({
-        modified: ["skills/my-skill/SKILL.md"],
-        added: [],
-        deleted: [],
+    it("should not call onExecuteSwitch when user aborts", async () => {
+      vi.mocked(mockCallbacks.onPrepareSwitchInfo).mockResolvedValueOnce({
+        currentProfile: "senior-swe",
+        localChanges: {
+          modified: ["skills/my-skill/SKILL.md"],
+          added: [],
+          deleted: [],
+        },
       });
       vi.mocked(clack.select).mockResolvedValueOnce("abort");
 
@@ -387,7 +405,7 @@ describe("switchSkillsetFlow", () => {
         callbacks: mockCallbacks,
       });
 
-      expect(mockCallbacks.onSwitchProfile).not.toHaveBeenCalled();
+      expect(mockCallbacks.onExecuteSwitch).not.toHaveBeenCalled();
       expect(clack.confirm).not.toHaveBeenCalled();
     });
   });
@@ -425,7 +443,7 @@ describe("switchSkillsetFlow", () => {
       });
 
       expect(result).toBeNull();
-      expect(mockCallbacks.onSwitchProfile).not.toHaveBeenCalled();
+      expect(mockCallbacks.onExecuteSwitch).not.toHaveBeenCalled();
     });
 
     it("should return null when user cancels at confirmation", async () => {
@@ -442,14 +460,17 @@ describe("switchSkillsetFlow", () => {
       });
 
       expect(result).toBeNull();
-      expect(mockCallbacks.onSwitchProfile).not.toHaveBeenCalled();
+      expect(mockCallbacks.onExecuteSwitch).not.toHaveBeenCalled();
     });
 
     it("should return null when user cancels at change handling select", async () => {
-      vi.mocked(mockCallbacks.onDetectLocalChanges).mockResolvedValueOnce({
-        modified: ["skills/my-skill/SKILL.md"],
-        added: [],
-        deleted: [],
+      vi.mocked(mockCallbacks.onPrepareSwitchInfo).mockResolvedValueOnce({
+        currentProfile: "senior-swe",
+        localChanges: {
+          modified: ["skills/my-skill/SKILL.md"],
+          added: [],
+          deleted: [],
+        },
       });
       const cancelSymbol = Symbol.for("cancel");
       vi.mocked(clack.select).mockResolvedValueOnce(cancelSymbol as any);
@@ -464,7 +485,7 @@ describe("switchSkillsetFlow", () => {
       });
 
       expect(result).toBeNull();
-      expect(mockCallbacks.onSwitchProfile).not.toHaveBeenCalled();
+      expect(mockCallbacks.onExecuteSwitch).not.toHaveBeenCalled();
     });
   });
 
@@ -480,7 +501,7 @@ describe("switchSkillsetFlow", () => {
       });
 
       expect(clack.select).not.toHaveBeenCalled();
-      expect(mockCallbacks.onSwitchProfile).toHaveBeenCalledWith(
+      expect(mockCallbacks.onExecuteSwitch).toHaveBeenCalledWith(
         expect.objectContaining({ agentName: "claude-code" }),
       );
     });

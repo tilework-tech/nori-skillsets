@@ -19,34 +19,35 @@ import {
   spinner,
   note,
   cancel,
-  isCancel,
 } from "@clack/prompts";
 
+import { bold, brightCyan, green } from "@/cli/logger.js";
 import { validateProfileName } from "@/cli/prompts/validators.js";
 
 import type { ManifestDiff } from "@/cli/features/claude-code/profiles/manifest.js";
+
+import { unwrapPrompt } from "./utils.js";
 
 /**
  * Callbacks for the switch skillset flow
  */
 export type SwitchSkillsetCallbacks = {
   onResolveAgents: () => Promise<Array<{ name: string; displayName: string }>>;
-  onDetectLocalChanges: (args: {
+  onPrepareSwitchInfo: (args: {
     installDir: string;
-  }) => Promise<ManifestDiff | null>;
-  onGetCurrentProfile: (args: { agentName: string }) => Promise<string | null>;
+    agentName: string;
+  }) => Promise<{
+    currentProfile: string | null;
+    localChanges: ManifestDiff | null;
+  }>;
   onCaptureConfig: (args: {
     installDir: string;
     profileName: string;
   }) => Promise<void>;
-  onSwitchProfile: (args: {
+  onExecuteSwitch: (args: {
     installDir: string;
     agentName: string;
     profileName: string;
-  }) => Promise<void>;
-  onReinstall: (args: {
-    installDir: string;
-    agentName: string;
   }) => Promise<void>;
 };
 
@@ -121,6 +122,7 @@ export const switchSkillsetFlow = async (args: {
   callbacks: SwitchSkillsetCallbacks;
 }): Promise<SwitchSkillsetFlowResult> => {
   const { profileName, installDir, agentOverride, callbacks } = args;
+  const cancelMsg = "Skillset switch cancelled.";
 
   intro("Switch Skillset");
 
@@ -133,79 +135,81 @@ export const switchSkillsetFlow = async (args: {
     const agents = await callbacks.onResolveAgents();
 
     if (agents.length > 1) {
-      const selected = await select({
-        message: "Select agent to switch skillset",
-        options: agents.map((a) => ({
-          value: a.name,
-          label: `${a.displayName} (${a.name})`,
-        })),
+      const selected = unwrapPrompt({
+        value: await select({
+          message: "Select agent to switch skillset",
+          options: agents.map((a) => ({
+            value: a.name,
+            label: `${a.displayName} (${a.name})`,
+          })),
+        }),
+        cancelMessage: cancelMsg,
       });
 
-      if (isCancel(selected)) {
-        cancel("Skillset switch cancelled.");
-        return null;
-      }
+      if (selected == null) return null;
 
-      agentName = selected as string;
+      agentName = selected;
     } else if (agents.length === 1) {
       agentName = agents[0].name;
     } else {
-      // No agents installed — default to claude-code
       agentName = "claude-code";
     }
   }
 
-  // Step 2: Detect local changes
-  const localChanges = await callbacks.onDetectLocalChanges({ installDir });
+  // Step 2: Prepare switch info (detect local changes + get current profile)
+  const { currentProfile, localChanges } = await callbacks.onPrepareSwitchInfo({
+    installDir,
+    agentName,
+  });
 
   if (localChanges != null) {
     const summary = buildChangesSummary({ diff: localChanges });
     note(summary, "Local Changes Detected");
 
-    const changeAction = await select({
-      message: "How would you like to proceed?",
-      options: [
-        {
-          value: "proceed" as const,
-          label: "Proceed anyway",
-          hint: "changes will be lost",
-        },
-        {
-          value: "capture" as const,
-          label: "Save current config as new skillset first",
-        },
-        { value: "abort" as const, label: "Abort" },
-      ],
+    const changeAction = unwrapPrompt({
+      value: await select({
+        message: "How would you like to proceed?",
+        options: [
+          {
+            value: "proceed" as const,
+            label: "Proceed anyway",
+            hint: "changes will be lost",
+          },
+          {
+            value: "capture" as const,
+            label: "Save current config as new skillset first",
+          },
+          { value: "abort" as const, label: "Abort" },
+        ],
+      }),
+      cancelMessage: cancelMsg,
     });
 
-    if (isCancel(changeAction)) {
-      cancel("Skillset switch cancelled.");
-      return null;
-    }
+    if (changeAction == null) return null;
 
     if (changeAction === "abort") {
-      cancel("Skillset switch cancelled.");
+      cancel(cancelMsg);
       return null;
     }
 
     if (changeAction === "capture") {
-      const skillsetName = await text({
-        message: "Enter a name for this skillset",
-        placeholder: "my-skillset",
-        validate: (value) => validateProfileName({ value: value ?? "" }),
+      const skillsetName = unwrapPrompt({
+        value: await text({
+          message: "Enter a name for this skillset",
+          placeholder: "my-skillset",
+          validate: (value) => validateProfileName({ value: value ?? "" }),
+        }),
+        cancelMessage: cancelMsg,
       });
 
-      if (isCancel(skillsetName)) {
-        cancel("Skillset switch cancelled.");
-        return null;
-      }
+      if (skillsetName == null) return null;
 
       const captureSpinner = spinner();
       captureSpinner.start("Saving current configuration...");
 
       await callbacks.onCaptureConfig({
         installDir,
-        profileName: skillsetName as string,
+        profileName: skillsetName,
       });
 
       captureSpinner.stop(`Saved as skillset: ${skillsetName}`);
@@ -213,26 +217,27 @@ export const switchSkillsetFlow = async (args: {
   }
 
   // Step 3: Show switch details and confirm
-  const currentProfile = await callbacks.onGetCurrentProfile({ agentName });
   const currentDisplay = currentProfile ?? "(none)";
 
-  const bold = (s: string) => `\x1b[1m${s}\x1b[22m`;
-  const blue = (s: string) => `\x1b[34m${s}\x1b[39m`;
-  const green = (s: string) => `\x1b[32m${s}\x1b[39m`;
   const detailLines = [
     `Install directory: ${installDir}`,
     `Agent: ${agentName}`,
-    `Current skillset: ${blue(bold(currentDisplay))}`,
-    `New skillset: ${green(bold(profileName))}`,
+    `Current skillset: ${brightCyan({ text: bold({ text: currentDisplay }) })}`,
+    `New skillset: ${green({ text: bold({ text: profileName }) })}`,
   ];
   note(detailLines.join("\n"), "Switching Skillset");
 
-  const confirmed = await confirm({
-    message: `Switch to ${profileName}?`,
+  const confirmed = unwrapPrompt({
+    value: await confirm({
+      message: `Switch to ${profileName}?`,
+    }),
+    cancelMessage: cancelMsg,
   });
 
-  if (isCancel(confirmed) || !confirmed) {
-    cancel("Skillset switch cancelled.");
+  if (confirmed == null || !confirmed) {
+    if (confirmed === false) {
+      cancel(cancelMsg);
+    }
     return null;
   }
 
@@ -240,26 +245,23 @@ export const switchSkillsetFlow = async (args: {
   const s = spinner();
   s.start("Switching skillset...");
 
-  await callbacks.onSwitchProfile({
+  await callbacks.onExecuteSwitch({
     installDir,
     agentName,
     profileName,
   });
 
-  await callbacks.onReinstall({
-    installDir,
-    agentName,
-  });
-
   s.stop("Skillset switched");
 
   const successLines = [
-    green(`Switched to ${bold(profileName)} skillset for ${agentName}.`),
+    green({
+      text: `Switched to ${bold({ text: profileName })} skillset for ${agentName}.`,
+    }),
     `Restart ${agentName} to apply the new configuration.`,
   ];
   note(successLines.join("\n"), "Success");
 
-  outro(blue(`Restart ${agentName} to apply`));
+  outro(brightCyan({ text: `Restart ${agentName} to apply` }));
 
   return {
     agentName,
