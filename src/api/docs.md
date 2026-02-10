@@ -4,11 +4,11 @@ Path: @/src/api
 
 ### Overview
 
-Client API for communicating with the Nori Profiles backend server, providing typed interfaces for artifacts, queries, conversation operations, analytics event tracking, and the public Nori registrar (skillset package registry).
+Client API for communicating with the Nori Profiles backend server, providing typed interfaces for analytics event tracking, the public Nori registrar (skillset package registry), and transcript upload.
 
 ### How it fits into the larger codebase
 
-This folder contains the API client used by hook scripts and other components to communicate with @/server/src/endpoints. It mirrors the API structure in @/ui/src/api/apiClient but uses Firebase Authentication with cached tokens via @/src/providers/firebase.ts instead of direct Firebase UI integration. The base.ts module handles authentication via AuthManager and request formatting via apiRequest, while artifacts.ts, query.ts, conversation.ts, and analytics.ts provide typed methods for specific endpoints. The registrar.ts module is a standalone API client for the public Nori registrar (https://noriskillsets.dev) used by profile-related slash commands. The API contracts here must stay in sync with @/server/src/endpoints and @/ui/src/api/apiClient.
+This folder contains the API client used by hook scripts and other components to communicate with @/server/src/endpoints. It mirrors the API structure in @/ui/src/api/apiClient but uses Firebase Authentication with cached tokens via @/src/providers/firebase.ts instead of direct Firebase UI integration. The base.ts module handles authentication via AuthManager and request formatting via apiRequest, while analytics.ts provides typed methods for event tracking. The registrar.ts module is a standalone API client for the public Nori registrar (https://noriskillsets.dev) used by profile-related slash commands. The transcript.ts module handles session transcript uploads. The API contracts here must stay in sync with @/server/src/endpoints and @/ui/src/api/apiClient.
 
 ### Core Implementation
 
@@ -24,11 +24,9 @@ ConfigManager.isConfigured() checks for either `refreshToken` or `password` (plu
 
 **Refresh Token Module:** The refreshToken.ts module exchanges Firebase refresh tokens for ID tokens via REST API. `exchangeRefreshToken({ refreshToken })` sends POST to `https://securetoken.googleapis.com/v1/token` using the tilework-e18c5 Firebase project API key. ID tokens are cached in a Map keyed by refresh token, with expiry set to 5 minutes before actual expiry. The `clearRefreshTokenCache()` function is exported for testing. Note: The Firebase SDK doesn't expose refresh token exchange for stateless CLI use (it handles this internally via `user.getIdToken()`), so we use the REST API directly. Sign-in with email/password uses the Firebase SDK directly (see claude-code/config/loader.ts).
 
-**API Modules:** Each module in this folder corresponds to a specific domain: artifacts (memory/recall), analytics (event tracking), conversation (summarization), query (semantic search), registrar (package registry), and transcript (session transcript upload). The index.ts aggregates all APIs into a single apiClient export and provides a handshake() function for auth testing. Each module provides typed methods that map to @/server/src/endpoints.
+**API Modules:** Each module in this folder corresponds to a specific domain: analytics (event tracking), registrar (package registry), and transcript (session transcript upload). The index.ts aggregates all APIs into a single apiClient export and provides a handshake() function for auth testing. Each module provides typed methods that map to @/server/src/endpoints.
 
-**Artifacts:** The artifacts module defines an ArtifactType enum for categorizing stored content (memories, summaries, transcripts, etc.). All Artifact types include a repository field that scopes artifacts to specific repositories - the server extracts repository from paths using the format @<repository>/path. This enables multi-repository support where the same path can exist in different repositories without conflicts. The module supports CRUD operations with actor tracking for analytics.
-
-**Analytics:** Proxies analytics events to the server which forwards to GA4, keeping the GA4 API secret secure server-side. The trackEvent method is a special case that works without authentication (so unauthenticated users can be tracked).
+**Analytics:** Proxies analytics events to the server which forwards to GA4, keeping the GA4 API secret secure server-side. The trackEvent method works without authentication (so unauthenticated users can be tracked).
 
 ### Things to Know
 
@@ -57,7 +55,7 @@ AuthManager in base.ts prefers refresh token auth via `exchangeRefreshToken()` w
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-**Analytics Exception:** The trackEvent() method in analytics.ts is the sole exception to the apiRequest() pattern - it makes direct fetch() calls without authentication. This is intentional: analytics must work for all users (including unauthenticated users without organizationUrl configured). The method falls back to DEFAULT_ANALYTICS_URL when no organizationUrl is present, ensuring analytics are never silently dropped. The generateDailyReport() and generateUserReport() methods continue to use apiRequest() with authentication since they are privileged operations.
+**Analytics Exception:** The trackEvent() method in analytics.ts is the sole exception to the apiRequest() pattern - it makes direct fetch() calls without authentication. This is intentional: analytics must work for all users (including unauthenticated users without organizationUrl configured). The method falls back to DEFAULT_ANALYTICS_URL when no organizationUrl is present, ensuring analytics are never silently dropped.
 
 **Registrar API:** The registrar.ts module is a standalone API client for Nori package registries (npm-compatible). Unlike other API modules that use apiRequest() with Firebase authentication, the registrar uses direct fetch() calls. It supports both profiles and skills as first-class registry entities. All functions support multi-registry configurations - read operations accept optional `registryUrl` and `authToken` parameters (defaulting to the public registry), while write operations require authentication. When targeting private registries, the authToken is sent as a Bearer token. The registrar API is consumed by the `nori-registry-*` intercepted slash commands and CLI commands.
 
@@ -74,12 +72,6 @@ AuthManager in base.ts prefers refresh token auth via `exchangeRefreshToken()` w
 - `uploadSkill()` - Upload skill to registrar (requires auth)
 
 **Registry Authentication:** The registryAuth.ts module handles Firebase authentication for authenticated registry operations (profile uploads, org registry search). It exports `getRegistryAuthToken()` which accepts a `RegistryAuth` object (username, refreshToken, registryUrl) and exchanges the refresh token for a Firebase ID token via `exchangeRefreshToken()` from refreshToken.ts. Tokens are cached per registry URL with 55-minute expiry (5 minutes before Firebase's 1-hour token expiry). The module uses the unified Nori authentication (same refresh token as Watchtower) - the `config.auth` credentials are reused for registry operations. The `clearRegistryAuthCache()` function is exported for testing.
-
-**Type Synchronization:** The ArtifactType enum in artifacts.ts must stay synchronized with @/server/src/persistence/Artifact.ts and @/ui/src/api/apiClient/artifacts.ts. All three locations define the same types to maintain contract compatibility. The type field enables distinction between user-created content (memories), system-generated content (summaries, transcripts), and external content (webhooks).
-
-**Repository Scoping:** All Artifact types include a repository field that scopes artifacts to specific repositories. The server extracts repository from paths using regex /^@([a-z0-9-]+)\/(.+)/ - paths like "@nori-watchtower/server/src/api" are scoped to repository "nori-watchtower", while paths without repository prefix (e.g., "@/path" or "path") default to "no-repository". This enables multi-repository support where the same path can exist in different repositories without conflicts. Repository names must be lowercase alphanumeric with hyphens only.
-
-**Actor Field:** All artifact mutations (create) and conversation operations (summarize) include actor: 'claude-code' to identify the plugin as the source. This differs from the UI which may use different actor values.
 
 **Transcript API:** The transcript.ts module uploads session transcripts to the user's private registry. It exports `transcriptApi.upload({ sessionId, messages, title?, orgId? })` which posts to `/transcripts` endpoint using the standard apiRequest pattern with Firebase authentication. The `TranscriptMessage` type is a flexible structure containing optional fields: `type`, `sessionId`, `message` (with role/content), `summary`, and arbitrary additional fields via index signature. When `orgId` is provided, the upload targets that specific organization's registry URL (e.g., `orgId: "myorg"` -> `https://myorg.noriskillsets.dev`); otherwise it uses the default `config.organizationUrl`. The upload response returns `{ id, title, sessionId, createdAt }`. This API is consumed by the watch daemon's uploader module (@/src/cli/commands/watch/uploader.ts) for automatic transcript persistence.
 

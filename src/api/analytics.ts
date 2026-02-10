@@ -4,29 +4,6 @@ import { ConfigManager } from "./base.js";
 
 const DEFAULT_ANALYTICS_URL = "https://demo.tilework.tech";
 
-export type GenerateDailyReportRequest = {
-  date?: string | null;
-};
-
-export type GenerateDailyReportResponse = {
-  reportId: string;
-  content: string;
-  artifactCount: number;
-  tokensUsed?: number | null;
-};
-
-export type GenerateUserReportRequest = {
-  userEmail: string;
-};
-
-export type GenerateUserReportResponse = {
-  content: string;
-  artifactCount: number;
-  tokensUsed?: number | null;
-  firstActivityDate?: string | null;
-  lastActivityDate?: string | null;
-};
-
 export type TrackEventRequest = {
   clientId: string;
   userId?: string | null;
