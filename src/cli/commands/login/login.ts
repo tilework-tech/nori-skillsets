@@ -395,6 +395,7 @@ const authenticateWithLegacyPrompts = async (args: {
       autoupdate: existingConfig?.autoupdate ?? null,
       agents: existingConfig?.agents ?? null,
       version: existingConfig?.version ?? null,
+      transcriptDestination: existingConfig?.transcriptDestination ?? null,
       installDir: configDir,
     });
 
@@ -652,6 +653,7 @@ export const loginMain = async (args?: {
       autoupdate: existingConfig?.autoupdate ?? null,
       agents: existingConfig?.agents ?? null,
       version: existingConfig?.version ?? null,
+      transcriptDestination: existingConfig?.transcriptDestination ?? null,
       installDir: configDir,
     });
 
@@ -699,6 +701,7 @@ export const loginMain = async (args?: {
     autoupdate: existingConfig?.autoupdate ?? null,
     agents: existingConfig?.agents ?? null,
     version: existingConfig?.version ?? null,
+    transcriptDestination: existingConfig?.transcriptDestination ?? null,
     installDir: configDir,
   });
 
