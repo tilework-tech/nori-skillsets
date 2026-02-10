@@ -281,25 +281,34 @@ export const registerNoriSkillsetsSwitchSkillsetCommand = (args: {
     .command("switch-skillset <name>")
     .description("Switch to a different skillset and reinstall")
     .option("-a, --agent <name>", "AI agent to switch skillset for")
-    .action(async (name: string, options: { agent?: string }) => {
-      await switchSkillsetAction({ name, options, program });
-    });
+    .option("--force", "Force switch even when local changes are detected")
+    .action(
+      async (name: string, options: { agent?: string; force?: boolean }) => {
+        await switchSkillsetAction({ name, options, program });
+      },
+    );
 
   // Hidden alias: switch-skillsets (plural)
   program
     .command("switch-skillsets <name>", { hidden: true })
     .option("-a, --agent <name>", "AI agent to switch skillset for")
-    .action(async (name: string, options: { agent?: string }) => {
-      await switchSkillsetAction({ name, options, program });
-    });
+    .option("--force", "Force switch even when local changes are detected")
+    .action(
+      async (name: string, options: { agent?: string; force?: boolean }) => {
+        await switchSkillsetAction({ name, options, program });
+      },
+    );
 
   // Hidden alias: switch (shorthand)
   program
     .command("switch <name>", { hidden: true })
     .option("-a, --agent <name>", "AI agent to switch skillset for")
-    .action(async (name: string, options: { agent?: string }) => {
-      await switchSkillsetAction({ name, options, program });
-    });
+    .option("--force", "Force switch even when local changes are detected")
+    .action(
+      async (name: string, options: { agent?: string; force?: boolean }) => {
+        await switchSkillsetAction({ name, options, program });
+      },
+    );
 };
 
 /**
