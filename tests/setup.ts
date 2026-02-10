@@ -1,7 +1,30 @@
+import { execSync } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
 
 import { afterAll, afterEach, beforeAll, vi } from "vitest";
+
+/**
+ * Check if a file is tracked by git
+ * @param args - Function arguments
+ * @param args.filePath - Relative path to the file
+ * @param args.cwd - Working directory for the git command
+ *
+ * @returns True if the file is tracked by git
+ */
+const isGitTracked = (args: { filePath: string; cwd: string }): boolean => {
+  const { filePath, cwd } = args;
+  try {
+    const result = execSync(`git ls-files -- "${filePath}"`, {
+      cwd,
+      encoding: "utf-8",
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    return result.trim().length > 0;
+  } catch {
+    return false;
+  }
+};
 
 /**
  * Detect Nori installation pollution in a directory
@@ -18,7 +41,10 @@ export const detectNoriPollution = (cwdPath: string): Array<string> => {
 
   for (const file of noriFiles) {
     const filePath = path.join(cwdPath, file);
-    if (fs.existsSync(filePath)) {
+    if (
+      fs.existsSync(filePath) &&
+      !isGitTracked({ filePath: file, cwd: cwdPath })
+    ) {
       pollutionMarkers.push(file);
     }
   }
@@ -30,14 +56,20 @@ export const detectNoriPollution = (cwdPath: string): Array<string> => {
 
     for (const dir of noriDirs) {
       const dirPath = path.join(claudePath, dir);
-      if (fs.existsSync(dirPath)) {
+      if (
+        fs.existsSync(dirPath) &&
+        !isGitTracked({ filePath: `.claude/${dir}`, cwd: cwdPath })
+      ) {
         pollutionMarkers.push(`.claude/${dir}`);
       }
     }
 
     // Check for Nori-generated CLAUDE.md (contains managed block marker)
     const claudeMdPath = path.join(claudePath, "CLAUDE.md");
-    if (fs.existsSync(claudeMdPath)) {
+    if (
+      fs.existsSync(claudeMdPath) &&
+      !isGitTracked({ filePath: ".claude/CLAUDE.md", cwd: cwdPath })
+    ) {
       try {
         const content = fs.readFileSync(claudeMdPath, "utf-8");
         if (content.includes("BEGIN NORI-AI MANAGED BLOCK")) {
