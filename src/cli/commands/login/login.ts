@@ -147,7 +147,7 @@ const authenticateWithGoogleHeadless = async (args?: {
 
   // Display instructions
   if (experimentalUi) {
-    note(authUrl, "Authentication URL");
+    log.step(authUrl);
     note(
       [
         "1. Open the URL above in any browser",
@@ -254,7 +254,7 @@ const authenticateWithGoogleLocalhost = async (args?: {
 
   // Always display the auth URL
   if (experimentalUi) {
-    note(authUrl, "Authentication URL");
+    log.step(authUrl);
   } else {
     newline();
     info({ message: "Authentication URL:" });
@@ -870,14 +870,6 @@ export const loginMain = async (args?: {
   });
 
   if (experimentalUi) {
-    // Use clack outro to balance the intro shown earlier
-    outro(`Logged in as ${userEmail}`);
-  } else {
-    newline();
-    success({ message: `Logged in as ${userEmail}` });
-  }
-
-  if (experimentalUi) {
     if (organizations.length > 0) {
       const lines = [`Organizations: ${organizations.join(", ")}`];
       if (isAdmin) {
@@ -890,15 +882,22 @@ export const loginMain = async (args?: {
         "Account Info",
       );
     }
-  } else if (organizations.length > 0) {
-    info({ message: `Organizations: ${organizations.join(", ")}` });
-    if (isAdmin) {
-      info({ message: "Admin: Yes" });
-    }
+    // Use clack outro to balance the intro shown earlier
+    outro(`Logged in as ${userEmail}`);
   } else {
-    info({
-      message: "No private organizations found. Using public registry.",
-    });
+    newline();
+    success({ message: `Logged in as ${userEmail}` });
+
+    if (organizations.length > 0) {
+      info({ message: `Organizations: ${organizations.join(", ")}` });
+      if (isAdmin) {
+        info({ message: "Admin: Yes" });
+      }
+    } else {
+      info({
+        message: "No private organizations found. Using public registry.",
+      });
+    }
   }
 };
 

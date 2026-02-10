@@ -44,6 +44,7 @@ vi.mock("@clack/prompts", () => ({
     warn: vi.fn(),
     error: vi.fn(),
     message: vi.fn(),
+    step: vi.fn(),
   },
 }));
 
@@ -1660,10 +1661,9 @@ describe("login command", () => {
 
       await loginMain({ installDir: tempDir, experimentalUi: true });
 
-      // Auth URL should be shown in a clack note, not via legacy info()
-      expect(clack.note).toHaveBeenCalledWith(
+      // Auth URL should be shown via log.step for wrapping/clickability, not in a note box
+      expect(clack.log.step).toHaveBeenCalledWith(
         expect.stringContaining("https://accounts.google.com/test-auth-url"),
-        expect.stringContaining("Authentication URL"),
       );
     });
 
@@ -1815,12 +1815,11 @@ describe("login command", () => {
 
       await loginMain({ installDir: tempDir, experimentalUi: true });
 
-      // Auth URL should be in a clack note
-      expect(clack.note).toHaveBeenCalledWith(
+      // Auth URL should be shown via log.step for wrapping/clickability, not in a note box
+      expect(clack.log.step).toHaveBeenCalledWith(
         expect.stringContaining(
           "https://accounts.google.com/localhost-auth-url",
         ),
-        expect.stringContaining("Authentication URL"),
       );
     });
 
