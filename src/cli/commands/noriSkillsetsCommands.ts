@@ -476,6 +476,7 @@ export const registerNoriSkillsetsExternalCommand = (args: {
       "--skillset <name>",
       "Add skill to the specified skillset's manifest (defaults to active skillset)",
     )
+    .option("--new <name>", "Create a new skillset and install skills into it")
     .option(
       "--skill <name>",
       "Install only the named skill from the repository",
@@ -487,6 +488,7 @@ export const registerNoriSkillsetsExternalCommand = (args: {
         source: string,
         options: {
           skillset?: string;
+          new?: string;
           skill?: string;
           all?: boolean;
           ref?: string;
@@ -498,6 +500,7 @@ export const registerNoriSkillsetsExternalCommand = (args: {
           source,
           installDir: globalOpts.installDir || null,
           skillset: options.skillset || null,
+          newSkillset: options.new || null,
           skill: options.skill || null,
           all: options.all || null,
           ref: options.ref || null,
