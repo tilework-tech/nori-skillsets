@@ -37,6 +37,8 @@ export type {
   SearchPackagesRequest,
   GetPackumentRequest,
   DownloadTarballRequest,
+  UploadSkillsetRequest,
+  UploadSkillsetResponse,
 } from "@/api/registrar.js";
 export type {
   TranscriptMessage,
