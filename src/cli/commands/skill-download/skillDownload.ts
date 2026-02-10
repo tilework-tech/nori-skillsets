@@ -416,13 +416,13 @@ export const skillDownloadMain = async (args: {
   if (skillset != null) {
     // User specified a skillset - verify it exists
     const skillsetDir = path.join(profilesDir, skillset);
-    const skillsetClaudeMd = path.join(skillsetDir, "CLAUDE.md");
+    const skillsetMarker = path.join(skillsetDir, "nori.json");
     try {
-      await fs.access(skillsetClaudeMd);
+      await fs.access(skillsetMarker);
       targetSkillset = skillset;
     } catch {
       error({
-        message: `Skillset "${skillset}" not found at: ${skillsetDir}\n\nMake sure the skillset exists and contains a CLAUDE.md file.`,
+        message: `Skillset "${skillset}" not found at: ${skillsetDir}\n\nMake sure the skillset exists and contains a nori.json file.`,
       });
       return;
     }

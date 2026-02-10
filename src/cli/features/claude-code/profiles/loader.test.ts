@@ -191,8 +191,8 @@ describe("profilesLoader", () => {
       const userProfile = path.join(profilesDir, "my-custom-profile");
       await fs.mkdir(userProfile, { recursive: true });
       await fs.writeFile(
-        path.join(userProfile, "CLAUDE.md"),
-        "# Custom Profile",
+        path.join(userProfile, "nori.json"),
+        JSON.stringify({ name: "my-custom-profile", version: "1.0.0" }),
       );
 
       // Second installation (update)
@@ -206,10 +206,10 @@ describe("profilesLoader", () => {
       expect(customExists).toBe(true);
 
       const content = await fs.readFile(
-        path.join(userProfile, "CLAUDE.md"),
+        path.join(userProfile, "nori.json"),
         "utf-8",
       );
-      expect(content).toBe("# Custom Profile");
+      expect(JSON.parse(content).name).toBe("my-custom-profile");
     });
   });
 

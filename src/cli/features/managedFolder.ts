@@ -8,15 +8,15 @@ import * as path from "path";
 
 import { getNoriProfilesDir } from "@/cli/features/claude-code/paths.js";
 
-/** Instructions file name used to identify valid profiles */
-export const INSTRUCTIONS_FILE = "CLAUDE.md";
+/** Manifest file name used to identify valid profiles */
+export const MANIFEST_FILE = "nori.json";
 
 /**
  * List installed profiles from the .nori/profiles/ directory
  *
  * Discovers both flat profiles (e.g., "senior-swe") and namespaced profiles
  * (e.g., "myorg/my-profile"). A directory is considered a valid profile if it
- * contains a CLAUDE.md file.
+ * contains a nori.json file.
  *
  * @returns Sorted array of profile names
  */
@@ -33,15 +33,15 @@ export const listProfiles = async (): Promise<Array<string>> => {
         const instructionsPath = path.join(
           profilesDir,
           entry.name,
-          INSTRUCTIONS_FILE,
+          MANIFEST_FILE,
         );
         try {
-          // Check if this is a flat profile (has CLAUDE.md directly)
+          // Check if this is a flat profile (has nori.json directly)
           await fs.access(instructionsPath);
           profiles.push(entry.name);
         } catch {
           // Not a flat profile - check if it's an org directory with nested profiles
-          // Org directories contain subdirectories with CLAUDE.md files
+          // Org directories contain subdirectories with nori.json files
           try {
             const orgDir = path.join(profilesDir, entry.name);
             const subEntries = await fs.readdir(orgDir, {
@@ -53,7 +53,7 @@ export const listProfiles = async (): Promise<Array<string>> => {
                 const nestedInstructionsPath = path.join(
                   orgDir,
                   subEntry.name,
-                  INSTRUCTIONS_FILE,
+                  MANIFEST_FILE,
                 );
                 try {
                   await fs.access(nestedInstructionsPath);

@@ -101,7 +101,10 @@ describe("editSkillsetMain", () => {
     const profilesDir = path.join(testHomeDir, ".nori", "profiles");
     const profileDir = path.join(profilesDir, "senior-swe");
     await fs.mkdir(profileDir, { recursive: true });
-    await fs.writeFile(path.join(profileDir, "CLAUDE.md"), "# senior-swe");
+    await fs.writeFile(
+      path.join(profileDir, "nori.json"),
+      JSON.stringify({ name: "senior-swe", version: "1.0.0" }),
+    );
 
     // Mock execFile to succeed
     mockExecFile.mockImplementation((_cmd, _args, callback) => {
@@ -146,7 +149,10 @@ describe("editSkillsetMain", () => {
     await fs.mkdir(path.join(profileDir, "skills", "my-skill"), {
       recursive: true,
     });
-    await fs.writeFile(path.join(profileDir, "CLAUDE.md"), "# senior-swe");
+    await fs.writeFile(
+      path.join(profileDir, "nori.json"),
+      JSON.stringify({ name: "senior-swe", version: "1.0.0" }),
+    );
     await fs.writeFile(
       path.join(profileDir, "skills", "my-skill", "SKILL.md"),
       "# my-skill",
@@ -176,7 +182,7 @@ describe("editSkillsetMain", () => {
     expect(allMessages.some((m) => m.includes(profileDir))).toBe(true);
 
     // Should list directory contents
-    expect(allRawMessages.some((m) => m.includes("CLAUDE.md"))).toBe(true);
+    expect(allRawMessages.some((m) => m.includes("nori.json"))).toBe(true);
     expect(allRawMessages.some((m) => m.includes("skills"))).toBe(true);
 
     // Should NOT exit with error
@@ -244,7 +250,10 @@ describe("editSkillsetMain", () => {
     const profilesDir = path.join(testHomeDir, ".nori", "profiles");
     const profileDir = path.join(profilesDir, "senior-swe");
     await fs.mkdir(profileDir, { recursive: true });
-    await fs.writeFile(path.join(profileDir, "CLAUDE.md"), "# senior-swe");
+    await fs.writeFile(
+      path.join(profileDir, "nori.json"),
+      JSON.stringify({ name: "senior-swe", version: "1.0.0" }),
+    );
 
     // Mock execFile to succeed
     mockExecFile.mockImplementation((_cmd, _args, callback) => {
@@ -284,7 +293,10 @@ describe("editSkillsetMain", () => {
     const profilesDir = path.join(testHomeDir, ".nori", "profiles");
     const profileDir = path.join(profilesDir, "myorg", "my-profile");
     await fs.mkdir(profileDir, { recursive: true });
-    await fs.writeFile(path.join(profileDir, "CLAUDE.md"), "# my-profile");
+    await fs.writeFile(
+      path.join(profileDir, "nori.json"),
+      JSON.stringify({ name: "my-profile", version: "1.0.0" }),
+    );
 
     // Mock execFile to succeed
     mockExecFile.mockImplementation((_cmd, _args, callback) => {
@@ -325,7 +337,10 @@ describe("editSkillsetMain", () => {
     for (const name of ["senior-swe", "product-manager"]) {
       const dir = path.join(profilesDir, name);
       await fs.mkdir(dir, { recursive: true });
-      await fs.writeFile(path.join(dir, "CLAUDE.md"), `# ${name}`);
+      await fs.writeFile(
+        path.join(dir, "nori.json"),
+        JSON.stringify({ name, version: "1.0.0" }),
+      );
     }
 
     // Mock execFile to succeed
@@ -368,7 +383,10 @@ describe("editSkillsetMain", () => {
     const profilesDir = path.join(testHomeDir, ".nori", "profiles");
     const profileDir = path.join(profilesDir, "senior-swe");
     await fs.mkdir(profileDir, { recursive: true });
-    await fs.writeFile(path.join(profileDir, "CLAUDE.md"), "# senior-swe");
+    await fs.writeFile(
+      path.join(profileDir, "nori.json"),
+      JSON.stringify({ name: "senior-swe", version: "1.0.0" }),
+    );
 
     // Mock execFile to succeed
     mockExecFile.mockImplementation((_cmd, _args, callback) => {

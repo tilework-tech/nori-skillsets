@@ -126,6 +126,10 @@ describe("install noninteractive", () => {
         path.join(profileDir, "CLAUDE.md"),
         `# ${profileName}\n`,
       );
+      fs.writeFileSync(
+        path.join(profileDir, "nori.json"),
+        JSON.stringify({ name: profileName, version: "1.0.0" }),
+      );
     }
 
     vi.clearAllMocks();

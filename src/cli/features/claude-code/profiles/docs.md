@@ -13,8 +13,8 @@ The profiles loader executes FIRST during installation (see @/src/cli/commands/i
 ### Core Implementation
 
 **Profile Structure**: Each profile directory is self-contained with:
-- `CLAUDE.md` (behavioral instructions, required for profile to be valid)
-- `nori.json` (unified manifest with name, version, description, and optional dependencies)
+- `CLAUDE.md` (behavioral instructions content, installed to `~/.claude/CLAUDE.md`)
+- `nori.json` (unified manifest and profile marker; contains name, version, description, and optional dependencies)
 - `skills/` (inline skill directories, each containing SKILL.md)
 - `skills.json` (optional external skill dependencies)
 - `subagents/` (subagent .md files)
@@ -75,7 +75,7 @@ No built-in profiles are shipped with the package. First-time installations will
 
 **Profile Lookup in Loaders**: All feature loaders use `getAgentProfile({ config, agentName: "claude-code" })` from @/src/cli/config.ts to determine the active profile name. This function returns the agent-specific profile from `config.agents["claude-code"].profile`, falling back to the legacy `config.profile` field for backwards compatibility.
 
-**Profile Discovery**: The `listProfiles()` function in @/src/cli/features/managedFolder.ts scans `~/.nori/profiles/` for directories containing CLAUDE.md (supports both flat and namespaced org/profile layouts). This is an agent-agnostic utility imported directly by CLI commands. The `switchProfile()` method on `claudeCodeAgent` validates the profile exists, loads current config, preserves auth credentials, updates the profile field, and prompts user to restart Claude Code.
+**Profile Discovery**: The `listProfiles()` function in @/src/cli/features/managedFolder.ts scans `~/.nori/profiles/` for directories containing `nori.json` (supports both flat and namespaced org/profile layouts). This is an agent-agnostic utility imported directly by CLI commands. The `switchProfile()` method on `claudeCodeAgent` validates the profile exists, loads current config, preserves auth credentials, updates the profile field, and prompts user to restart Claude Code.
 
 ### Things to Know
 
@@ -91,7 +91,7 @@ No built-in profiles are shipped with the package. First-time installations will
 
 **Profile preservation**: Profiles are NEVER deleted during install operations. All profiles remain in `~/.nori/profiles/`.
 
-**CLAUDE.md as validation marker**: A directory is only a valid profile if it contains CLAUDE.md.
+**nori.json as validation marker**: A directory is only a valid profile if it contains `nori.json`. The `nori.json` file serves as both the unified profile manifest and the profile presence marker. `CLAUDE.md` files in profiles are purely behavioral instructions content, not structural markers.
 
 **Template placeholders in profile files**: Source markdown files use placeholders like `{{skills_dir}}` instead of hardcoded paths. Template substitution is applied by sub-loaders during installation via @/src/cli/features/claude-code/template.ts. The `substituteTemplatePaths()` function in template.ts expects its `installDir` parameter to be the `.claude` directory (e.g., `~/.claude`), NOT the `Config.installDir` value which is the parent directory (e.g., `~`). All callers must compute the `.claude` directory first using `getClaudeDir({ installDir: config.installDir })` from @/src/cli/features/claude-code/paths.ts before passing it to template substitution functions.
 

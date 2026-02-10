@@ -33,7 +33,7 @@ vi.mock("@/cli/features/claude-code/paths.js", () => ({
 import { skillsLoader } from "./loader.js";
 
 /**
- * Create a stub profile directory with CLAUDE.md and optional skills/skills.json
+ * Create a stub profile directory with nori.json and optional skills/skills.json
  *
  * @param args - Function arguments
  * @param args.profilesDir - Path to the profiles directory
@@ -48,7 +48,10 @@ const createStubProfile = async (args: {
   const { profilesDir, profileName, skills } = args;
   const profileDir = path.join(profilesDir, profileName);
   await fs.mkdir(profileDir, { recursive: true });
-  await fs.writeFile(path.join(profileDir, "CLAUDE.md"), "# Test Profile\n");
+  await fs.writeFile(
+    path.join(profileDir, "nori.json"),
+    JSON.stringify({ name: "Test Profile", version: "1.0.0" }),
+  );
 
   if (skills != null && Object.keys(skills).length > 0) {
     for (const [skillName, skillContent] of Object.entries(skills)) {

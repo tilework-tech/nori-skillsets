@@ -153,7 +153,10 @@ describe("AgentRegistry", () => {
       const profilesDir = path.join(testInstallDir, ".nori", "profiles");
       const profileDir = path.join(profilesDir, "test-profile");
       await fs.mkdir(profileDir, { recursive: true });
-      await fs.writeFile(path.join(profileDir, "CLAUDE.md"), "# Test Profile");
+      await fs.writeFile(
+        path.join(profileDir, "nori.json"),
+        JSON.stringify({ name: "test-profile", version: "1.0.0" }),
+      );
 
       // Create initial config
       const configPath = path.join(testInstallDir, ".nori-config.json");
@@ -182,7 +185,10 @@ describe("AgentRegistry", () => {
       const profilesDir = path.join(testInstallDir, ".nori", "profiles");
       const profileDir = path.join(profilesDir, "new-profile");
       await fs.mkdir(profileDir, { recursive: true });
-      await fs.writeFile(path.join(profileDir, "CLAUDE.md"), "# New Profile");
+      await fs.writeFile(
+        path.join(profileDir, "nori.json"),
+        JSON.stringify({ name: "new-profile", version: "1.0.0" }),
+      );
 
       // Create initial config with auth and other fields
       const configPath = path.join(testInstallDir, ".nori-config.json");
@@ -241,8 +247,8 @@ describe("AgentRegistry", () => {
       const profileDir = path.join(orgDir, "my-profile");
       await fs.mkdir(profileDir, { recursive: true });
       await fs.writeFile(
-        path.join(profileDir, "CLAUDE.md"),
-        "# myorg/my-profile",
+        path.join(profileDir, "nori.json"),
+        JSON.stringify({ name: "myorg/my-profile", version: "1.0.0" }),
       );
 
       // Create initial config

@@ -1029,8 +1029,8 @@ describe("registry-download", () => {
       const existingProfileDir = path.join(profilesDir, "test-profile");
       await fs.mkdir(existingProfileDir, { recursive: true });
       await fs.writeFile(
-        path.join(existingProfileDir, "CLAUDE.md"),
-        "# Old version",
+        path.join(existingProfileDir, "nori.json"),
+        JSON.stringify({ name: "test-profile", version: "1.0.0" }),
       );
       await fs.writeFile(
         path.join(existingProfileDir, ".nori-version"),
@@ -1074,8 +1074,8 @@ describe("registry-download", () => {
       const existingProfileDir = path.join(profilesDir, "test-profile");
       await fs.mkdir(existingProfileDir, { recursive: true });
       await fs.writeFile(
-        path.join(existingProfileDir, "CLAUDE.md"),
-        "# Current version",
+        path.join(existingProfileDir, "nori.json"),
+        JSON.stringify({ name: "test-profile", version: "1.0.0" }),
       );
       await fs.writeFile(
         path.join(existingProfileDir, ".nori-version"),
@@ -1115,8 +1115,8 @@ describe("registry-download", () => {
       const existingProfileDir = path.join(profilesDir, "test-profile");
       await fs.mkdir(existingProfileDir, { recursive: true });
       await fs.writeFile(
-        path.join(existingProfileDir, "CLAUDE.md"),
-        "# Manual install",
+        path.join(existingProfileDir, "nori.json"),
+        JSON.stringify({ name: "test-profile", version: "1.0.0" }),
       );
 
       vi.mocked(loadConfig).mockResolvedValue({
@@ -1152,8 +1152,8 @@ describe("registry-download", () => {
       const existingProfileDir = path.join(profilesDir, "test-profile");
       await fs.mkdir(existingProfileDir, { recursive: true });
       await fs.writeFile(
-        path.join(existingProfileDir, "CLAUDE.md"),
-        "# Newer version",
+        path.join(existingProfileDir, "nori.json"),
+        JSON.stringify({ name: "test-profile", version: "1.0.0" }),
       );
       await fs.writeFile(
         path.join(existingProfileDir, ".nori-version"),
@@ -1969,8 +1969,8 @@ describe("registry-download", () => {
       const existingProfileDir = path.join(profilesDir, "myorg", "my-profile");
       await fs.mkdir(existingProfileDir, { recursive: true });
       await fs.writeFile(
-        path.join(existingProfileDir, "CLAUDE.md"),
-        "# Old version",
+        path.join(existingProfileDir, "nori.json"),
+        JSON.stringify({ name: "my-profile", version: "1.0.0" }),
       );
       await fs.writeFile(
         path.join(existingProfileDir, ".nori-version"),
