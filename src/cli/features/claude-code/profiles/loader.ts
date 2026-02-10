@@ -6,12 +6,13 @@
 import * as fs from "fs/promises";
 import * as path from "path";
 
-import { type Config } from "@/cli/config.js";
+import { type Config, getAgentProfile } from "@/cli/config.js";
 import {
   getNoriProfilesDir,
   getClaudeSettingsFile,
+  getClaudeSkillsDir,
 } from "@/cli/features/claude-code/paths.js";
-import { ProfileLoaderRegistry } from "@/cli/features/claude-code/profiles/profileLoaderRegistry.js";
+import { installProfile } from "@/cli/features/pipeline/installProfile.js";
 import { success, info } from "@/cli/logger.js";
 
 import type { Loader } from "@/cli/features/agentRegistry.js";
@@ -90,6 +91,14 @@ const configureProfilesPermissions = async (args: {
     settings.permissions.additionalDirectories.push(profilesPath);
   }
 
+  // Add skills directory if not already present
+  const claudeSkillsDir = getClaudeSkillsDir({
+    installDir: config.installDir,
+  });
+  if (!settings.permissions.additionalDirectories.includes(claudeSkillsDir)) {
+    settings.permissions.additionalDirectories.push(claudeSkillsDir);
+  }
+
   // Write back to file
   await fs.writeFile(claudeSettingsFile, JSON.stringify(settings, null, 2));
   success({ message: `✓ Configured permissions for ${noriProfilesDir}` });
@@ -105,12 +114,17 @@ export const profilesLoader: Loader = {
     const { config } = args;
     await installProfiles({ config });
 
-    // Install all profile-dependent features
-    const registry = ProfileLoaderRegistry.getInstance();
-    const loaders = registry.getAll();
-    for (const loader of loaders) {
-      await loader.install({ config });
+    // Delegate to the generic install pipeline
+    const profile = getAgentProfile({ config, agentName: "claude-code" });
+    if (profile == null) {
+      return;
     }
+
+    await installProfile({
+      agentName: "claude-code",
+      profileName: profile.baseProfile,
+      installDir: config.installDir,
+    });
   },
 };
 
