@@ -14,9 +14,10 @@ tools that may behave differently on different systems.
 
 **Examples:**
 
-- "Update the writing-plans skill" → Modify `src/cli/features/claude-code/profiles/config/senior-swe/skills/writing-plans/SKILL.md` (and other profiles that include this skill)
 - "Change the status line" → Modify `src/cli/features/claude-code/statusline/`
 - "Add a new global slash command" → Modify `src/cli/features/claude-code/slashcommands/config/`
+
+**Note:** No built-in profiles are shipped with the package. Profiles (skillsets) are stored at `~/.nori/profiles/` and are obtained from the registry or created by users.
 
 **Only modify `~/.claude/` when:**
 
@@ -25,7 +26,7 @@ tools that may behave differently on different systems.
 
 # Skills documentation.
 
-Skills in src/cli/features/claude-code/profiles/config/ are self-explanatory. Do not create docs.md files in skill directories unless the skill is particularly complex and requires additional context files.
+Skills in `~/.nori/profiles/<skillset>/skills/` are self-explanatory. Do not create docs.md files in skill directories unless the skill is particularly complex and requires additional context files.
 
 # Style guide.
 

@@ -101,6 +101,9 @@ The change detection uses the manifest module from @/src/cli/features/claude-cod
 
 **watch** (@/src/cli/commands/watch/): Monitors Claude Code sessions by tailing transcript files. Supports `watch` (start) and `watch stop` (stop daemon).
 
+
+**fork** (@/src/cli/commands/fork-skillset/forkSkillset.ts): The `forkSkillsetMain` function copies an existing skillset directory to a new name under `~/.nori/profiles/`. Validates the source is a valid skillset by checking for `CLAUDE.md` (using the same `INSTRUCTIONS_FILE` constant from @/src/cli/features/managedFolder.ts used by `listProfiles()`), validates the destination does not already exist, creates parent directories for namespaced profiles (e.g., `org/name`), and copies recursively via `fs.cp`. The primary command is `fork` with a hidden alias `fork-skillset`, following the same alias pattern as other commands.
+
 **factory-reset** (@/src/cli/commands/factory-reset/factoryReset.ts): The `factoryResetMain` function removes all configuration for a given agent. It blocks non-interactive mode (prints an error and returns), looks up the agent by name via `AgentRegistry.getInstance().get({ name })`, checks that the agent supports `factoryReset`, and delegates to the agent's `factoryReset({ path })` method. Defaults `path` to `process.cwd()` if not provided. This follows the same pattern as `switch-skillset` for refusing destructive operations in non-interactive mode.
 
 **dir** (@/src/cli/commands/dir/dir.ts): Opens the Nori profiles directory (`~/.nori/profiles`) in the system file explorer. In non-interactive mode, outputs the plain path via `raw()` for scripting use. In interactive mode, uses `execFile` to invoke platform-specific open commands (`open` on macOS, `xdg-open` on Linux). Falls back to printing the path if the open command fails. Uses `getNoriProfilesDir()` from @/src/cli/features/claude-code/paths.ts for the directory path.

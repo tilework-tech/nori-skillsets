@@ -11,6 +11,7 @@ import { dirMain } from "@/cli/commands/dir/dir.js";
 import { editSkillsetMain } from "@/cli/commands/edit-skillset/editSkillset.js";
 import { externalMain } from "@/cli/commands/external/external.js";
 import { factoryResetMain } from "@/cli/commands/factory-reset/factoryReset.js";
+import { forkSkillsetMain } from "@/cli/commands/fork-skillset/forkSkillset.js";
 import { initMain } from "@/cli/commands/init/init.js";
 import { installLocationMain } from "@/cli/commands/install-location/installLocation.js";
 import { listSkillsetsMain } from "@/cli/commands/list-skillsets/listSkillsets.js";
@@ -46,6 +47,32 @@ export const registerNoriSkillsetsFactoryResetCommand = (args: {
         agentName,
         nonInteractive: globalOpts.nonInteractive || null,
       });
+    });
+};
+
+/**
+ * Register the 'fork' command for nori-skillsets CLI
+ * @param args - Configuration arguments
+ * @param args.program - Commander program instance
+ */
+export const registerNoriSkillsetsForkCommand = (args: {
+  program: Command;
+}): void => {
+  const { program } = args;
+
+  // Primary command: fork
+  program
+    .command("fork <base-skillset> <new-skillset>")
+    .description("Fork an existing skillset to a new name")
+    .action(async (baseSkillset: string, newSkillset: string) => {
+      await forkSkillsetMain({ baseSkillset, newSkillset });
+    });
+
+  // Hidden alias: fork-skillset
+  program
+    .command("fork-skillset <base-skillset> <new-skillset>", { hidden: true })
+    .action(async (baseSkillset: string, newSkillset: string) => {
+      await forkSkillsetMain({ baseSkillset, newSkillset });
     });
 };
 

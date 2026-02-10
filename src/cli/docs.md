@@ -74,6 +74,7 @@ src/cli/
 | `logout` | commands/logout/ | Remove authentication credentials |
 | `watch` | commands/watch/ | Monitor Claude Code sessions and save transcripts |
 | `install-location` | commands/install-location/ | Display installation directories |
+| `fork` | commands/fork-skillset/forkSkillset.ts | Fork an existing skillset to a new name |
 | `factory-reset` | commands/factory-reset/factoryReset.ts | Remove all agent configuration from the ancestor tree |
 | `dir` | commands/dir/dir.ts | Open the Nori profiles directory in the system file explorer |
 | `edit-skillset` | commands/edit-skillset/editSkillset.ts | Open active (or specified) skillset profile folder in VS Code |
