@@ -8,7 +8,7 @@ import * as fs from "fs/promises";
 import * as path from "path";
 
 import { getNoriProfilesDir } from "@/cli/features/claude-code/paths.js";
-import { INSTRUCTIONS_FILE } from "@/cli/features/managedFolder.js";
+import { MANIFEST_FILE } from "@/cli/features/managedFolder.js";
 import { error, info, newline, success } from "@/cli/logger.js";
 
 export const forkSkillsetMain = async (args: {
@@ -20,9 +20,9 @@ export const forkSkillsetMain = async (args: {
   const sourcePath = path.join(profilesDir, baseSkillset);
   const destPath = path.join(profilesDir, newSkillset);
 
-  // Validate source exists and is a valid skillset (has CLAUDE.md)
+  // Validate source exists and is a valid skillset (has nori.json)
   try {
-    await fs.access(path.join(sourcePath, INSTRUCTIONS_FILE));
+    await fs.access(path.join(sourcePath, MANIFEST_FILE));
   } catch {
     error({
       message: `Skillset '${baseSkillset}' not found. Run 'nori-skillsets list-skillsets' to see available skillsets.`,

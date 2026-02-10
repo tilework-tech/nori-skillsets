@@ -177,6 +177,35 @@ describe("init command", () => {
       expect(config.version).toBe("20.0.0");
     });
 
+    it("should preserve organizations, isAdmin, and transcriptDestination from existing config", async () => {
+      const CONFIG_PATH = getConfigPath();
+
+      // Create existing config with organizations, isAdmin, and transcriptDestination
+      const existingConfig = {
+        version: "19.0.0",
+        agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
+        auth: {
+          username: "test@example.com",
+          organizationUrl: "https://example.tilework.tech",
+          refreshToken: "test-refresh-token",
+          organizations: ["org-one", "org-two"],
+          isAdmin: true,
+        },
+        transcriptDestination: "myorg",
+        installDir: tempDir,
+      };
+      fs.writeFileSync(CONFIG_PATH, JSON.stringify(existingConfig, null, 2));
+
+      // Run init
+      await initMain({ installDir: tempDir, nonInteractive: true });
+
+      // Verify organizations, isAdmin, and transcriptDestination are preserved
+      const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
+      expect(config.auth.organizations).toEqual(["org-one", "org-two"]);
+      expect(config.auth.isAdmin).toBe(true);
+      expect(config.transcriptDestination).toBe("myorg");
+    });
+
     it("should detect existing Claude Code config and capture as profile in interactive mode", async () => {
       // Create existing Claude Code config
       const claudeMdPath = path.join(TEST_CLAUDE_DIR, "CLAUDE.md");

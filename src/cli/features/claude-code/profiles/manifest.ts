@@ -35,6 +35,50 @@ export type ManifestDiff = {
 const MANIFEST_FILENAME = "installed-manifest.json";
 
 /**
+ * Root-level files within ~/.claude/ that Nori manages.
+ * Only these files are tracked in the manifest.
+ */
+export const MANAGED_FILES: ReadonlyArray<string> = [
+  "CLAUDE.md",
+  "settings.json",
+  "nori-statusline.sh",
+];
+
+/**
+ * Top-level directories within ~/.claude/ that Nori manages.
+ * All files recursively within these directories are tracked in the manifest.
+ */
+export const MANAGED_DIRS: ReadonlyArray<string> = [
+  "skills",
+  "commands",
+  "agents",
+];
+
+const managedFileSet = new Set(MANAGED_FILES);
+const managedDirSet = new Set(MANAGED_DIRS);
+
+/**
+ * Check if a relative path is within the Nori-managed whitelist
+ *
+ * @param args - Configuration arguments
+ * @param args.relativePath - Relative path from the base directory
+ *
+ * @returns True if the path is managed by Nori
+ */
+const isManagedPath = (args: { relativePath: string }): boolean => {
+  const { relativePath } = args;
+
+  // Check if it's a managed root file
+  if (managedFileSet.has(relativePath)) {
+    return true;
+  }
+
+  // Check if it's under a managed directory
+  const topDir = relativePath.split(path.sep)[0];
+  return managedDirSet.has(topDir);
+};
+
+/**
  * Get the path to the manifest file
  *
  * @returns Absolute path to the manifest file
@@ -63,6 +107,10 @@ export const computeFileHash = async (args: {
 /**
  * Recursively collect all files in a directory
  *
+ * When called at the top level (dir === baseDir), only includes files and
+ * directories that are in the Nori-managed whitelist. Within whitelisted
+ * directories, all files are collected recursively.
+ *
  * @param args - Configuration arguments
  * @param args.dir - Directory to scan
  * @param args.baseDir - Base directory for relative paths
@@ -75,6 +123,7 @@ const collectFiles = async (args: {
 }): Promise<Array<string>> => {
   const { dir, baseDir } = args;
   const files: Array<string> = [];
+  const isTopLevel = dir === baseDir;
 
   let entries;
   try {
@@ -88,9 +137,15 @@ const collectFiles = async (args: {
     const relativePath = path.relative(baseDir, fullPath);
 
     if (entry.isDirectory()) {
+      if (isTopLevel && !managedDirSet.has(entry.name)) {
+        continue;
+      }
       const subFiles = await collectFiles({ dir: fullPath, baseDir });
       files.push(...subFiles);
     } else if (entry.isFile()) {
+      if (isTopLevel && !managedFileSet.has(entry.name)) {
+        continue;
+      }
       files.push(relativePath);
     }
   }
@@ -199,8 +254,12 @@ export const compareManifest = async (args: {
   const currentFileSet = new Set(currentFiles);
   const manifestFileSet = new Set(Object.keys(manifest.files));
 
-  // Check for modified and deleted files
+  // Check for modified and deleted files (only for managed paths)
   for (const [relativePath, expectedHash] of Object.entries(manifest.files)) {
+    if (!isManagedPath({ relativePath })) {
+      continue;
+    }
+
     if (!currentFileSet.has(relativePath)) {
       deleted.push(relativePath);
       continue;

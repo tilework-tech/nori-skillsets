@@ -1,6 +1,6 @@
 /**
  * Tests for new-skillset command
- * Tests that the command creates a new empty skillset directory with nori.json and CLAUDE.md
+ * Tests that the command creates a new empty skillset directory with nori.json
  */
 
 import * as fs from "fs/promises";
@@ -64,7 +64,7 @@ describe("newSkillsetMain", () => {
     }
   });
 
-  it("should create a flat skillset with nori.json and CLAUDE.md", async () => {
+  it("should create a flat skillset with nori.json", async () => {
     await newSkillsetMain({ name: "my-new-skillset" });
 
     const destDir = path.join(profilesDir, "my-new-skillset");
@@ -77,13 +77,6 @@ describe("newSkillsetMain", () => {
       name: "my-new-skillset",
       version: "1.0.0",
     });
-
-    // Verify CLAUDE.md exists and is empty
-    const claudeMd = await fs.readFile(
-      path.join(destDir, "CLAUDE.md"),
-      "utf-8",
-    );
-    expect(claudeMd).toBe("");
 
     // Verify success message
     expect(mockSuccess).toHaveBeenCalledWith({
@@ -105,13 +98,6 @@ describe("newSkillsetMain", () => {
       name: "custom-profile",
       version: "1.0.0",
     });
-
-    // Verify CLAUDE.md exists
-    const claudeMd = await fs.readFile(
-      path.join(destDir, "CLAUDE.md"),
-      "utf-8",
-    );
-    expect(claudeMd).toBe("");
 
     expect(mockExit).not.toHaveBeenCalled();
   });

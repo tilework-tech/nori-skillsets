@@ -57,13 +57,13 @@ AuthManager in base.ts prefers refresh token auth via `exchangeRefreshToken()` w
 
 **Analytics Exception:** The trackEvent() method in analytics.ts is the sole exception to the apiRequest() pattern - it makes direct fetch() calls without authentication. This is intentional: analytics must work for all users (including unauthenticated users without organizationUrl configured). The method falls back to DEFAULT_ANALYTICS_URL when no organizationUrl is present, ensuring analytics are never silently dropped.
 
-**Registrar API:** The registrar.ts module is a standalone API client for Nori package registries (npm-compatible). Unlike other API modules that use apiRequest() with Firebase authentication, the registrar uses direct fetch() calls. It supports both profiles and skills as first-class registry entities. All functions support multi-registry configurations - read operations accept optional `registryUrl` and `authToken` parameters (defaulting to the public registry), while write operations require authentication. When targeting private registries, the authToken is sent as a Bearer token. The registrar API is consumed by the `nori-registry-*` intercepted slash commands and CLI commands.
+**Registrar API:** The registrar.ts module is a standalone API client for Nori package registries (npm-compatible). Unlike other API modules that use apiRequest() with Firebase authentication, the registrar uses direct fetch() calls. It supports both skillsets and skills as first-class registry entities. Skillset methods use `/api/skillsets/` as the primary endpoint path, with a silent fallback to `/api/profiles/` on HTTP 404 for backward compatibility with older registrar instances that have not been updated. The `fetchWithFallback()` helper handles this: it tries the primary URL, and if the response is 404, computes a fallback URL via `buildFallbackUrl()` (which replaces `/api/skillsets/` with `/api/profiles/` and `/skillset` sub-resource with `/profile`) and retries. Non-404 errors are not retried. Skill methods (`/api/skills/*`) do not use this fallback mechanism and call fetch() directly. All functions support multi-registry configurations - read operations accept optional `registryUrl` and `authToken` parameters (defaulting to the public registry), while write operations require authentication. When targeting private registries, the authToken is sent as a Bearer token. The registrar API is consumed by the `nori-registry-*` intercepted slash commands and CLI commands.
 
-**Profile API Methods:**
-- `searchPackages()` - Search for profiles in the registrar
-- `getPackument()` - Get profile metadata including versions
-- `downloadTarball()` - Download profile tarball (resolves latest if no version specified)
-- `uploadProfile()` - Upload profile to registrar (requires auth)
+**Skillset API Methods:**
+- `searchPackages()` - Search for skillsets in the registrar
+- `getPackument()` - Get skillset metadata including versions
+- `downloadTarball()` - Download skillset tarball (resolves latest if no version specified)
+- `uploadSkillset()` - Upload skillset to registrar (requires auth)
 
 **Skill API Methods:**
 - `searchSkills()` - Search for skills in the registrar

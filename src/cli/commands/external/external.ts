@@ -12,6 +12,7 @@ import {
   getCommandNames,
   type CliName,
 } from "@/cli/commands/cliCommandNames.js";
+import { createEmptySkillset } from "@/cli/commands/new-skillset/newSkillset.js";
 import { loadConfig, getAgentProfile } from "@/cli/config.js";
 import {
   getClaudeSkillsDir,
@@ -228,6 +229,7 @@ const installSkill = async (args: {
  * @param args.cwd - Current working directory
  * @param args.installDir - Optional explicit install directory
  * @param args.skillset - Optional skillset name to add skills to
+ * @param args.newSkillset - Optional name for a new skillset to create and install skills into
  * @param args.skill - Optional specific skill name to install
  * @param args.all - Install all discovered skills without prompting
  * @param args.ref - Optional branch/tag to checkout
@@ -238,12 +240,22 @@ export const externalMain = async (args: {
   cwd?: string | null;
   installDir?: string | null;
   skillset?: string | null;
+  newSkillset?: string | null;
   skill?: string | null;
   all?: boolean | null;
   ref?: string | null;
   cliName?: CliName | null;
 }): Promise<void> => {
-  const { source, installDir, skillset, skill, all, ref, cliName } = args;
+  const {
+    source,
+    installDir,
+    skillset,
+    newSkillset,
+    skill,
+    all,
+    ref,
+    cliName,
+  } = args;
   const cwd = args.cwd ?? process.cwd();
   const commandNames = getCommandNames({ cliName });
   const cliPrefix = cliName ?? "nori-skillsets";
@@ -259,6 +271,22 @@ export const externalMain = async (args: {
 
   // Use --ref flag if provided, otherwise use ref from URL
   const effectiveRef = ref ?? parsed.ref;
+
+  // 1b. Validate --new and --skillset mutual exclusivity
+  if (newSkillset != null && skillset != null) {
+    error({
+      message: `Cannot use --new and --skillset together. Use --new to create a new skillset, or --skillset to target an existing one.`,
+    });
+    return;
+  }
+
+  // 1c. Validate --new name
+  if (newSkillset != null && newSkillset.trim().length === 0) {
+    error({
+      message: `The --new flag requires a non-empty skillset name.`,
+    });
+    return;
+  }
 
   // 2. Resolve install directory
   let targetInstallDir: string;
@@ -286,15 +314,31 @@ export const externalMain = async (args: {
   let targetSkillset: string | null = null;
   const profilesDir = getNoriProfilesDir();
 
-  if (skillset != null) {
-    const skillsetDir = path.join(profilesDir, skillset);
-    const skillsetClaudeMd = path.join(skillsetDir, "CLAUDE.md");
+  // 3a. Handle --new: create a new skillset
+  if (newSkillset != null) {
+    const newSkillsetDir = path.join(profilesDir, newSkillset);
     try {
-      await fs.access(skillsetClaudeMd);
+      await fs.access(newSkillsetDir);
+      error({
+        message: `Skillset "${newSkillset}" already exists at: ${newSkillsetDir}\n\nChoose a different name or use --skillset to target the existing one.`,
+      });
+      return;
+    } catch {
+      // Expected — directory should not exist
+    }
+
+    await createEmptySkillset({ destPath: newSkillsetDir, name: newSkillset });
+    targetSkillset = newSkillset;
+    success({ message: `Created new skillset "${newSkillset}"` });
+  } else if (skillset != null) {
+    const skillsetDir = path.join(profilesDir, skillset);
+    const skillsetMarker = path.join(skillsetDir, "nori.json");
+    try {
+      await fs.access(skillsetMarker);
       targetSkillset = skillset;
     } catch {
       error({
-        message: `Skillset "${skillset}" not found at: ${skillsetDir}\n\nMake sure the skillset exists and contains a CLAUDE.md file.`,
+        message: `Skillset "${skillset}" not found at: ${skillsetDir}\n\nMake sure the skillset exists and contains a nori.json file.`,
       });
       return;
     }
@@ -446,6 +490,7 @@ export const registerExternalSkillCommand = (args: {
       "--skillset <name>",
       "Add skill to the specified skillset's manifest (defaults to active skillset)",
     )
+    .option("--new <name>", "Create a new skillset and install skills into it")
     .option(
       "--skill <name>",
       "Install only the named skill from the repository",
@@ -457,6 +502,7 @@ export const registerExternalSkillCommand = (args: {
         source: string,
         options: {
           skillset?: string;
+          new?: string;
           skill?: string;
           all?: boolean;
           ref?: string;
@@ -468,6 +514,7 @@ export const registerExternalSkillCommand = (args: {
           source,
           installDir: globalOpts.installDir || null,
           skillset: options.skillset || null,
+          newSkillset: options.new || null,
           skill: options.skill || null,
           all: options.all || null,
           ref: options.ref || null,

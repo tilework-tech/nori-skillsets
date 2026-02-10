@@ -1,7 +1,7 @@
 /**
  * New skillset command
  *
- * Creates a new empty skillset folder under ~/.nori/profiles/ with nori.json and CLAUDE.md.
+ * Creates a new empty skillset folder under ~/.nori/profiles/ with nori.json.
  */
 
 import * as fs from "fs/promises";
@@ -9,8 +9,42 @@ import * as path from "path";
 
 import { getNoriProfilesDir } from "@/cli/features/claude-code/paths.js";
 import { writeProfileMetadata } from "@/cli/features/claude-code/profiles/metadata.js";
-import { INSTRUCTIONS_FILE } from "@/cli/features/managedFolder.js";
 import { error, info, newline, success } from "@/cli/logger.js";
+
+/**
+ * Create the directory and nori.json for a new skillset.
+ *
+ * This is the core creation logic shared by `nori-skillsets new` and
+ * the `--new` flag on `nori-skillsets external`.  Callers are responsible
+ * for validation (e.g. checking the directory does not already exist)
+ * and any user-facing messaging beyond what this function does.
+ *
+ * @param args - The function arguments
+ * @param args.destPath - Absolute path to the new skillset directory
+ * @param args.name - Skillset name (used as the `name` field in nori.json)
+ */
+export const createEmptySkillset = async (args: {
+  destPath: string;
+  name: string;
+}): Promise<void> => {
+  const { destPath, name } = args;
+
+  // Create parent directory if needed (for namespaced profiles like org/name)
+  const parentDir = path.dirname(destPath);
+  await fs.mkdir(parentDir, { recursive: true });
+
+  // Create the skillset directory
+  await fs.mkdir(destPath);
+
+  // Write nori.json (serves as the skillset marker for list-skillsets)
+  await writeProfileMetadata({
+    profileDir: destPath,
+    metadata: {
+      name: path.basename(name),
+      version: "1.0.0",
+    },
+  });
+};
 
 export const newSkillsetMain = async (args: {
   name: string;
@@ -31,24 +65,7 @@ export const newSkillsetMain = async (args: {
     // Expected — destination should not exist
   }
 
-  // Create parent directory if needed (for namespaced profiles like org/name)
-  const parentDir = path.dirname(destPath);
-  await fs.mkdir(parentDir, { recursive: true });
-
-  // Create the skillset directory
-  await fs.mkdir(destPath);
-
-  // Write nori.json
-  await writeProfileMetadata({
-    profileDir: destPath,
-    metadata: {
-      name: path.basename(name),
-      version: "1.0.0",
-    },
-  });
-
-  // Write empty CLAUDE.md so the skillset is recognized by list-skillsets
-  await fs.writeFile(path.join(destPath, INSTRUCTIONS_FILE), "");
+  await createEmptySkillset({ destPath, name });
 
   newline();
   success({

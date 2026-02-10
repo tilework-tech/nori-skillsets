@@ -222,10 +222,13 @@ describe("externalMain with --skillset", () => {
     await fs.mkdir(skillsDir, { recursive: true });
     await fs.mkdir(profilesDir, { recursive: true });
 
-    // Create a test skillset with CLAUDE.md
+    // Create a test skillset with nori.json
     const skillsetDir = path.join(profilesDir, "my-skillset");
     await fs.mkdir(skillsetDir, { recursive: true });
-    await fs.writeFile(path.join(skillsetDir, "CLAUDE.md"), "# My Skillset");
+    await fs.writeFile(
+      path.join(skillsetDir, "nori.json"),
+      JSON.stringify({ name: "my-skillset", version: "1.0.0" }),
+    );
   });
 
   afterEach(async () => {

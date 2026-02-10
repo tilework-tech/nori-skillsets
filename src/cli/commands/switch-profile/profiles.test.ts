@@ -65,7 +65,10 @@ describe("agent.switchProfile", () => {
     for (const name of ["profile-a", "profile-b"]) {
       const dir = path.join(profilesDir, name);
       await fs.mkdir(dir, { recursive: true });
-      await fs.writeFile(path.join(dir, "CLAUDE.md"), `# ${name}`);
+      await fs.writeFile(
+        path.join(dir, "nori.json"),
+        JSON.stringify({ name, version: "1.0.0" }),
+      );
     }
 
     // Create initial config with version
@@ -101,7 +104,10 @@ describe("agent.switchProfile", () => {
     for (const name of ["profile-a", "profile-b"]) {
       const dir = path.join(profilesDir, name);
       await fs.mkdir(dir, { recursive: true });
-      await fs.writeFile(path.join(dir, "CLAUDE.md"), `# ${name}`);
+      await fs.writeFile(
+        path.join(dir, "nori.json"),
+        JSON.stringify({ name, version: "1.0.0" }),
+      );
     }
 
     // Create initial config with auth containing refreshToken
@@ -153,7 +159,10 @@ describe("registerSwitchProfileCommand", () => {
     for (const name of ["senior-swe", "product-manager"]) {
       const dir = path.join(profilesDir, name);
       await fs.mkdir(dir, { recursive: true });
-      await fs.writeFile(path.join(dir, "CLAUDE.md"), `# ${name}`);
+      await fs.writeFile(
+        path.join(dir, "nori.json"),
+        JSON.stringify({ name, version: "1.0.0" }),
+      );
     }
 
     AgentRegistry.resetInstance();
@@ -342,7 +351,10 @@ describe("switch-profile confirmation", () => {
     for (const name of ["senior-swe", "product-manager"]) {
       const dir = path.join(profilesDir, name);
       await fs.mkdir(dir, { recursive: true });
-      await fs.writeFile(path.join(dir, "CLAUDE.md"), `# ${name}`);
+      await fs.writeFile(
+        path.join(dir, "nori.json"),
+        JSON.stringify({ name, version: "1.0.0" }),
+      );
     }
 
     AgentRegistry.resetInstance();
@@ -608,7 +620,10 @@ describe("switch-profile getInstallDirs auto-detection", () => {
     for (const name of ["senior-swe", "product-manager"]) {
       const dir = path.join(profilesDir, name);
       await fs.mkdir(dir, { recursive: true });
-      await fs.writeFile(path.join(dir, "CLAUDE.md"), `# ${name}`);
+      await fs.writeFile(
+        path.join(dir, "nori.json"),
+        JSON.stringify({ name, version: "1.0.0" }),
+      );
     }
 
     // Create config file to mark this as a Nori installation
@@ -799,7 +814,10 @@ describe("switch-profile local change detection", () => {
     for (const name of ["senior-swe", "product-manager"]) {
       const dir = path.join(profilesDir, name);
       await fs.mkdir(dir, { recursive: true });
-      await fs.writeFile(path.join(dir, "CLAUDE.md"), `# ${name}`);
+      await fs.writeFile(
+        path.join(dir, "nori.json"),
+        JSON.stringify({ name, version: "1.0.0" }),
+      );
     }
 
     // Create config with current profile

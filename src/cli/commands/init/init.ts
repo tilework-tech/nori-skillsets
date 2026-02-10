@@ -242,8 +242,11 @@ export const initMain = async (args?: {
   const password = existingConfig?.auth?.password ?? null;
   const refreshToken = existingConfig?.auth?.refreshToken ?? null;
   const organizationUrl = existingConfig?.auth?.organizationUrl ?? null;
+  const organizations = existingConfig?.auth?.organizations ?? null;
+  const isAdmin = existingConfig?.auth?.isAdmin ?? null;
   const sendSessionTranscript = existingConfig?.sendSessionTranscript ?? null;
   const autoupdate = existingConfig?.autoupdate ?? null;
+  const transcriptDestination = existingConfig?.transcriptDestination ?? null;
   const version = currentVersion ?? null;
 
   // Set agents - if a profile was captured, set it as the active profile for claude-code
@@ -261,10 +264,13 @@ export const initMain = async (args?: {
     password,
     refreshToken,
     organizationUrl,
+    organizations,
+    isAdmin,
     sendSessionTranscript,
     autoupdate,
     agents,
     version,
+    transcriptDestination,
     installDir: normalizedInstallDir,
   });
 
