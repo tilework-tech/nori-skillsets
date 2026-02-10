@@ -26,6 +26,7 @@ import {
 import { claudeMdLoader } from "@/cli/features/claude-code/profiles/claudemd/loader.js";
 import { info, warn, newline, success } from "@/cli/logger.js";
 import { promptUser } from "@/cli/prompt.js";
+import { initFlow } from "@/cli/prompts/flows/init.js";
 import { getCurrentPackageVersion } from "@/cli/version.js";
 import { normalizeInstallDir, getInstallDirsWithTypes } from "@/utils/path.js";
 
@@ -118,14 +119,106 @@ const displayProfilePersistenceWarning = async (args: {
  * @param args.installDir - Installation directory
  * @param args.nonInteractive - Whether to run in non-interactive mode
  * @param args.skipWarning - Whether to skip the profile persistence warning (useful for auto-init in download flows)
+ * @param args.experimentalUi - Whether to use the experimental clack-based UI
  */
 export const initMain = async (args?: {
   installDir?: string | null;
   nonInteractive?: boolean | null;
   skipWarning?: boolean | null;
+  experimentalUi?: boolean | null;
 }): Promise<void> => {
-  const { installDir, nonInteractive, skipWarning } = args ?? {};
+  const { installDir, nonInteractive, skipWarning, experimentalUi } =
+    args ?? {};
   const normalizedInstallDir = normalizeInstallDir({ installDir });
+
+  // Experimental UI flow (interactive only)
+  if (experimentalUi && !nonInteractive) {
+    await initFlow({
+      installDir: normalizedInstallDir,
+      skipWarning: skipWarning ?? null,
+      callbacks: {
+        onCheckAncestors: async ({ installDir: dir }) => {
+          const allInstallations = getInstallDirsWithTypes({
+            currentDir: dir,
+          });
+          return allInstallations
+            .filter(
+              (installation) =>
+                installation.path !== dir &&
+                (installation.type === "managed" ||
+                  installation.type === "both"),
+            )
+            .map((installation) => installation.path);
+        },
+        onDetectExistingConfig: async ({ installDir: dir }) => {
+          const existingConfig = await loadConfig();
+          if (existingConfig != null) return null;
+          return detectExistingConfig({ installDir: dir });
+        },
+        onCaptureConfig: async ({ installDir: dir, profileName }) => {
+          await captureExistingConfigAsProfile({
+            installDir: dir,
+            profileName,
+          });
+          // Clear original CLAUDE.md to prevent content duplication
+          const claudeMdPath = getClaudeMdFile({ installDir: dir });
+          try {
+            await fs.unlink(claudeMdPath);
+          } catch {
+            // File may not exist, which is fine
+          }
+        },
+        onInit: async ({ installDir: dir, capturedProfileName }) => {
+          // Create ~/.nori/profiles/ directory
+          const profilesDir = getNoriProfilesDir();
+          if (!(await directoryExists(profilesDir))) {
+            await fs.mkdir(profilesDir, { recursive: true });
+          }
+
+          // Load existing config
+          const existingConfig = await loadConfig();
+          const currentVersion = getCurrentPackageVersion();
+
+          const username = existingConfig?.auth?.username ?? null;
+          const password = existingConfig?.auth?.password ?? null;
+          const refreshToken = existingConfig?.auth?.refreshToken ?? null;
+          const organizationUrl = existingConfig?.auth?.organizationUrl ?? null;
+          const sendSessionTranscript =
+            existingConfig?.sendSessionTranscript ?? null;
+          const autoupdate = existingConfig?.autoupdate ?? null;
+          const version = currentVersion ?? null;
+
+          let agents = existingConfig?.agents ?? {};
+          if (capturedProfileName != null) {
+            agents = {
+              ...agents,
+              "claude-code": {
+                profile: { baseProfile: capturedProfileName },
+              },
+            };
+          }
+
+          await saveConfig({
+            username,
+            password,
+            refreshToken,
+            organizationUrl,
+            sendSessionTranscript,
+            autoupdate,
+            agents,
+            version,
+            installDir: dir,
+          });
+
+          if (capturedProfileName != null) {
+            const config: Config = { installDir: dir, agents };
+            await claudeMdLoader.install({ config });
+          }
+        },
+      },
+    });
+    return;
+  }
 
   // Show profile persistence warning and get confirmation (unless skipped)
   if (!skipWarning) {

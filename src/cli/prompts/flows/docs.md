@@ -6,7 +6,7 @@ Path: @/src/cli/prompts/flows
 
 - Complete interactive flow modules built on @clack/prompts that compose multiple prompts, spinners, notes, and intro/outro into cohesive CLI experiences
 - Each flow uses a callbacks pattern to separate UI handling from business logic, making flows testable and reusable
-- Currently provides loginFlow (authentication) and switchSkillsetFlow (skillset switching with local change detection)
+- Currently provides loginFlow (authentication), switchSkillsetFlow (skillset switching with local change detection), and initFlow (initialization with optional existing config capture)
 - The `clack-prompts-usage.md` file in this directory documents prescriptive patterns for building new flows
 
 ### How it fits into the larger codebase
@@ -17,6 +17,7 @@ Path: @/src/cli/prompts/flows
 - Flows use text formatting helpers from @/cli/logger.js (`bold`, `green`, `brightCyan`) for styled text inside clack `note()` boxes
 - Flows are re-exported through @/cli/prompts/flows/index.ts and again through @/cli/prompts/index.ts so commands can import from either level
 - The switchSkillsetFlow is consumed by the switch-profile command (@/cli/commands/switch-profile/profiles.ts) when the --experimental-ui flag is active
+- The initFlow is consumed by the init command (@/cli/commands/init/init.ts) when the --experimental-ui flag is active
 - Validators from @/cli/prompts/validators.ts are used within flows for input validation (e.g., validateProfileName in switchSkillsetFlow)
 
 ### Core Implementation
@@ -26,6 +27,7 @@ Path: @/src/cli/prompts/flows
 - **Cancel handling:** The `unwrapPrompt<T>()` utility in `utils.ts` wraps clack's `isCancel` check — returns `T` if not cancelled, `null` if cancelled (after displaying the cancel message). Flows use this instead of inline cancel boilerplate.
 - **loginFlow:** Collects email/password credentials via `group()`, runs authentication via a single callback, displays organization info in a note box, and returns the auth result.
 - **switchSkillsetFlow:** Multi-step flow that resolves which agent to switch, prepares switch info (detects local changes + gets current profile), handles local changes (proceed/capture/abort), shows switch details in a note, confirms with the user, then executes the switch via spinner. Accepts 4 callbacks: `onResolveAgents`, `onPrepareSwitchInfo`, `onCaptureConfig`, `onExecuteSwitch`.
+- **initFlow:** Multi-step initialization flow that checks for parent Nori installations, detects existing Claude Code config, optionally captures existing config as a profile, shows persistence warnings, and performs initialization. Accepts 4 callbacks: `onCheckAncestors`, `onDetectExistingConfig`, `onCaptureConfig`, `onInit`. The existingConfigCapture prompt is integrated into the flow rather than delegated to legacy modules. Persistence warnings use note() + confirm() instead of legacy "type yes" text prompts.
 
 ### Things to Know
 

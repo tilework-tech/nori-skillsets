@@ -30,6 +30,7 @@ The `install` command in @/src/cli/commands/registry-install/registryInstall.ts 
 
 **init** (@/src/cli/commands/init/init.ts): Creates the `.nori` directory structure and initializes `.nori-config.json`. If existing Claude Code config exists and no Nori config is present, captures the existing config as a profile:
   - Non-interactive mode: auto-captures as "my-skillset"
+  - Experimental UI mode (`--experimental-ui`): Uses `initFlow` from @/cli/prompts/flows for a polished interactive experience with intro/outro, note boxes, and modern prompts. The flow handles ancestor checks, existing config detection, profile name capture, persistence warnings, and initialization spinner. Legacy readline-based prompts are bypassed when experimental UI is enabled.
 
 **Profile Resolution (in install.ts):** After init, `noninteractive()` loads the existing config, resolves the profile from the `--profile` flag or the existing agent config, preserves auth credentials, and saves the merged config. Non-interactive mode requires `--profile` flag if no existing profile is set.
 

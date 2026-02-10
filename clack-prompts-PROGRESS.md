@@ -168,3 +168,52 @@ const switchSkillsetFlow = async (args: {
   callbacks: SwitchSkillsetCallbacks;
 }): Promise<SwitchSkillsetFlowResult>;
 ```
+
+## Completed: Flow Module - init.ts (2026-02-10)
+
+### Files Created
+
+- `src/cli/prompts/flows/init.ts` - Complete init flow using @clack/prompts
+- `src/cli/prompts/flows/init.test.ts` - 25 tests for the flow
+
+### Files Modified
+
+- `src/cli/prompts/flows/index.ts` - Added initFlow exports
+- `src/cli/commands/init/init.ts` - Added `experimentalUi` parameter and routing to initFlow
+- `src/cli/commands/noriSkillsetsCommands.ts` - Passes `experimentalUi` global option to initMain
+
+### Architecture Decisions
+
+1. **Combined init + existingConfigCapture into one flow**: The legacy code has `initMain()` calling `promptForExistingConfigCapture()` from a separate module. In the experimental UI, the entire init experience (persistence warning, ancestor check, config detection, profile naming, initialization) is handled by a single `initFlow()`. The existing config capture prompt is folded into the flow as a conditional step rather than delegating to the legacy `promptForExistingConfigCapture()`.
+
+2. **Persistence warning → confirm() replacement**: The legacy flow uses a "type 'yes' to confirm" text prompt with exact-match validation. The clack flow replaces this with a `note()` displaying the warning details followed by a standard `confirm()` prompt. This is a deliberate UX improvement — the "type yes" gate was an unusual pattern that clack's confirm handles more naturally.
+
+3. **Ancestor warning is informational only**: The ancestor installation warning uses `log.warn()` (not a blocking prompt) because the legacy behavior also warns but continues. This is informational — it does not block initialization.
+
+4. **4 coarse callbacks**: The flow uses 4 callbacks matching the flow usage guide's recommendation of 1-3 (stretching to 4 because init has 4 distinct operations):
+   - `onCheckAncestors` - Returns ancestor managed installation paths
+   - `onDetectExistingConfig` - Returns ExistingConfig or null (also handles the "skip if config already exists" check)
+   - `onCaptureConfig` - Captures config + cleans up original CLAUDE.md
+   - `onInit` - Creates profiles dir, saves config, installs managed block
+
+5. **ExistingConfig type reused**: The `ExistingConfig` type from `existingConfigCapture.ts` is imported as a type-only import. No runtime dependency on the legacy prompt function.
+
+### API
+
+```typescript
+type InitFlowCallbacks = {
+  onCheckAncestors: (args: { installDir: string }) => Promise<Array<string>>;
+  onDetectExistingConfig: (args: { installDir: string }) => Promise<ExistingConfig | null>;
+  onCaptureConfig: (args: { installDir: string; profileName: string }) => Promise<void>;
+  onInit: (args: { installDir: string; capturedProfileName: string | null }) => Promise<void>;
+};
+
+type InitFlowResult = { capturedProfileName: string | null };
+
+const initFlow = async (args: {
+  installDir: string;
+  skipWarning?: boolean | null;
+  skipIntro?: boolean | null;
+  callbacks: InitFlowCallbacks;
+}): Promise<InitFlowResult | null>;
+```
