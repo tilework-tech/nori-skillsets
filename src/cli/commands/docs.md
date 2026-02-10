@@ -89,7 +89,8 @@ The `logout` command removes auth credentials from the centralized `~/.nori-conf
 
 1. **Detect local changes**: Calls `detectLocalChanges()` which reads the installation manifest from `~/.nori/installed-manifest.json` and compares current `~/.claude/` file hashes against stored hashes
 2. **Handle changes** (if detected):
-   - In non-interactive mode: throws an error (safe default prevents data loss)
+   - With `--force` flag: skips change handling entirely and proceeds (discards local changes)
+   - In non-interactive mode (without `--force`): throws an error (safe default prevents data loss)
    - In interactive mode: displays modified/added/deleted files and prompts user to choose:
      - Proceed anyway (changes will be lost)
      - Save current config as new skillset first (uses `captureExistingConfigAsProfile()`)
