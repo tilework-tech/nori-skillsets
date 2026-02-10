@@ -56,6 +56,7 @@ src/cli/
     factory-reset/       # Remove all agent configuration
     dir/                 # Open Nori profiles directory in file explorer
     edit-skillset/       # Open skillset profile folder in VS Code
+    new-skillset/        # Create a new empty skillset
 ```
 
 **CLI Commands:**
@@ -75,6 +76,7 @@ src/cli/
 | `watch` | commands/watch/ | Monitor Claude Code sessions and save transcripts |
 | `install-location` | commands/install-location/ | Display installation directories |
 | `fork` | commands/fork-skillset/forkSkillset.ts | Fork an existing skillset to a new name |
+| `new` | commands/new-skillset/newSkillset.ts | Create a new empty skillset |
 | `factory-reset` | commands/factory-reset/factoryReset.ts | Remove all agent configuration from the ancestor tree |
 | `dir` | commands/dir/dir.ts | Open the Nori profiles directory in the system file explorer |
 | `edit-skillset` | commands/edit-skillset/editSkillset.ts | Open active (or specified) skillset profile folder in VS Code |
