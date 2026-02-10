@@ -23,7 +23,7 @@ const NORI_SKILLSETS_COMMANDS: CommandNames = {
   download: "download",
   downloadSkill: "download-skill",
   externalSkill: "external",
-  fork: "fork",
+  fork: "fork-skillset",
   search: "search",
   update: "update",
   upload: "upload",
