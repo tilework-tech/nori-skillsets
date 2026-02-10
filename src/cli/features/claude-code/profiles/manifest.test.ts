@@ -17,6 +17,8 @@ import {
   compareManifest,
   getManifestPath,
   hasChanges,
+  MANAGED_FILES,
+  MANAGED_DIRS,
   type FileManifest,
   type ManifestDiff,
 } from "./manifest.js";
@@ -82,40 +84,39 @@ describe("manifest", () => {
 
   describe("computeDirectoryManifest", () => {
     it("should include all files recursively", async () => {
-      // Create nested structure
-      const subDir = path.join(tempDir, "sub");
-      await fs.mkdir(subDir, { recursive: true });
+      // Create nested structure using managed paths
+      const skillDir = path.join(tempDir, "skills", "my-skill");
+      await fs.mkdir(skillDir, { recursive: true });
 
-      await fs.writeFile(path.join(tempDir, "root.txt"), "root content");
-      await fs.writeFile(path.join(subDir, "nested.txt"), "nested content");
+      await fs.writeFile(path.join(tempDir, "CLAUDE.md"), "root content");
+      await fs.writeFile(path.join(skillDir, "SKILL.md"), "nested content");
 
       const manifest = await computeDirectoryManifest({
         dir: tempDir,
         profileName: "test-profile",
       });
 
-      expect(manifest.files["root.txt"]).toBeDefined();
-      expect(manifest.files["sub/nested.txt"]).toBeDefined();
+      expect(manifest.files["CLAUDE.md"]).toBeDefined();
+      expect(manifest.files["skills/my-skill/SKILL.md"]).toBeDefined();
       expect(Object.keys(manifest.files)).toHaveLength(2);
     });
 
     it("should use relative paths from base directory", async () => {
-      const skillsDir = path.join(tempDir, "skills");
-      const mySkill = path.join(skillsDir, "my-skill");
-      await fs.mkdir(mySkill, { recursive: true });
-      await fs.writeFile(path.join(mySkill, "SKILL.md"), "content");
+      const agentsDir = path.join(tempDir, "agents");
+      await fs.mkdir(agentsDir, { recursive: true });
+      await fs.writeFile(path.join(agentsDir, "my-agent.md"), "content");
 
       const manifest = await computeDirectoryManifest({
-        dir: skillsDir,
+        dir: tempDir,
         profileName: "test-profile",
       });
 
-      // Should be relative to skillsDir
-      expect(manifest.files["my-skill/SKILL.md"]).toBeDefined();
+      // Should be relative to tempDir
+      expect(manifest.files["agents/my-agent.md"]).toBeDefined();
     });
 
     it("should include profile name and version in manifest", async () => {
-      await fs.writeFile(path.join(tempDir, "test.txt"), "content");
+      await fs.writeFile(path.join(tempDir, "CLAUDE.md"), "content");
 
       const manifest = await computeDirectoryManifest({
         dir: tempDir,
@@ -140,9 +141,9 @@ describe("manifest", () => {
     });
 
     it("should skip directories and only hash files", async () => {
-      const subDir = path.join(tempDir, "subdir");
-      await fs.mkdir(subDir, { recursive: true });
-      await fs.writeFile(path.join(subDir, "file.txt"), "content");
+      const commandsDir = path.join(tempDir, "commands");
+      await fs.mkdir(commandsDir, { recursive: true });
+      await fs.writeFile(path.join(commandsDir, "test.md"), "content");
 
       const manifest = await computeDirectoryManifest({
         dir: tempDir,
@@ -150,8 +151,91 @@ describe("manifest", () => {
       });
 
       // Should only have the file, not the directory itself
-      expect(manifest.files["subdir"]).toBeUndefined();
-      expect(manifest.files["subdir/file.txt"]).toBeDefined();
+      expect(manifest.files["commands"]).toBeUndefined();
+      expect(manifest.files["commands/test.md"]).toBeDefined();
+    });
+
+    it("should only include files in Nori-managed paths", async () => {
+      // Create Nori-managed files
+      await fs.writeFile(path.join(tempDir, "CLAUDE.md"), "managed block");
+      await fs.writeFile(path.join(tempDir, "settings.json"), '{"hooks":{}}');
+      await fs.writeFile(
+        path.join(tempDir, "nori-statusline.sh"),
+        "#!/bin/bash",
+      );
+      const skillsDir = path.join(tempDir, "skills", "my-skill");
+      await fs.mkdir(skillsDir, { recursive: true });
+      await fs.writeFile(path.join(skillsDir, "SKILL.md"), "skill content");
+
+      // Create non-Nori files (Claude Code runtime)
+      const debugDir = path.join(tempDir, "debug");
+      await fs.mkdir(debugDir, { recursive: true });
+      await fs.writeFile(path.join(debugDir, "uuid.txt"), "debug log");
+      const todosDir = path.join(tempDir, "todos");
+      await fs.mkdir(todosDir, { recursive: true });
+      await fs.writeFile(path.join(todosDir, "bar.json"), '{"todo":true}');
+      const projectsDir = path.join(tempDir, "projects");
+      await fs.mkdir(projectsDir, { recursive: true });
+      await fs.writeFile(path.join(projectsDir, "proj.json"), "{}");
+
+      const manifest = await computeDirectoryManifest({
+        dir: tempDir,
+        profileName: "test-profile",
+      });
+
+      // Nori-managed files should be present
+      expect(manifest.files["CLAUDE.md"]).toBeDefined();
+      expect(manifest.files["settings.json"]).toBeDefined();
+      expect(manifest.files["nori-statusline.sh"]).toBeDefined();
+      expect(manifest.files["skills/my-skill/SKILL.md"]).toBeDefined();
+
+      // Non-Nori files should be excluded
+      expect(manifest.files["debug/uuid.txt"]).toBeUndefined();
+      expect(manifest.files["todos/bar.json"]).toBeUndefined();
+      expect(manifest.files["projects/proj.json"]).toBeUndefined();
+    });
+
+    it("should include all files recursively under whitelisted directories", async () => {
+      const skillA = path.join(tempDir, "skills", "a");
+      const skillB = path.join(tempDir, "skills", "b");
+      const agentsDir = path.join(tempDir, "agents");
+      const commandsDir = path.join(tempDir, "commands");
+      await fs.mkdir(skillA, { recursive: true });
+      await fs.mkdir(skillB, { recursive: true });
+      await fs.mkdir(agentsDir, { recursive: true });
+      await fs.mkdir(commandsDir, { recursive: true });
+
+      await fs.writeFile(path.join(skillA, "SKILL.md"), "skill a");
+      await fs.writeFile(path.join(skillB, "SKILL.md"), "skill b");
+      await fs.writeFile(path.join(agentsDir, "foo.md"), "agent foo");
+      await fs.writeFile(path.join(commandsDir, "bar.md"), "command bar");
+
+      const manifest = await computeDirectoryManifest({
+        dir: tempDir,
+        profileName: "test-profile",
+      });
+
+      expect(manifest.files["skills/a/SKILL.md"]).toBeDefined();
+      expect(manifest.files["skills/b/SKILL.md"]).toBeDefined();
+      expect(manifest.files["agents/foo.md"]).toBeDefined();
+      expect(manifest.files["commands/bar.md"]).toBeDefined();
+      expect(Object.keys(manifest.files)).toHaveLength(4);
+    });
+
+    it("should exclude unknown root-level files", async () => {
+      await fs.writeFile(path.join(tempDir, "CLAUDE.md"), "managed");
+      await fs.writeFile(path.join(tempDir, "some-random-file.txt"), "random");
+      await fs.writeFile(path.join(tempDir, "keybindings.json"), "{}");
+
+      const manifest = await computeDirectoryManifest({
+        dir: tempDir,
+        profileName: "test-profile",
+      });
+
+      expect(manifest.files["CLAUDE.md"]).toBeDefined();
+      expect(manifest.files["some-random-file.txt"]).toBeUndefined();
+      expect(manifest.files["keybindings.json"]).toBeUndefined();
+      expect(Object.keys(manifest.files)).toHaveLength(1);
     });
   });
 
@@ -208,75 +292,75 @@ describe("manifest", () => {
 
   describe("compareManifest", () => {
     it("should detect modified files", async () => {
-      // Create original file and manifest
-      await fs.writeFile(path.join(tempDir, "file.txt"), "original content");
+      // Create original file and manifest using a managed file
+      await fs.writeFile(path.join(tempDir, "CLAUDE.md"), "original content");
       const manifest: FileManifest = {
         version: 1,
         createdAt: "2024-01-01T00:00:00.000Z",
         profileName: "test-profile",
         files: {
-          "file.txt": await computeFileHash({
-            filePath: path.join(tempDir, "file.txt"),
+          "CLAUDE.md": await computeFileHash({
+            filePath: path.join(tempDir, "CLAUDE.md"),
           }),
         },
       };
 
       // Modify the file
-      await fs.writeFile(path.join(tempDir, "file.txt"), "modified content");
+      await fs.writeFile(path.join(tempDir, "CLAUDE.md"), "modified content");
 
       const diff = await compareManifest({ manifest, currentDir: tempDir });
 
-      expect(diff.modified).toContain("file.txt");
+      expect(diff.modified).toContain("CLAUDE.md");
       expect(diff.added).toHaveLength(0);
       expect(diff.deleted).toHaveLength(0);
     });
 
     it("should detect added files", async () => {
-      // Create manifest with one file
-      await fs.writeFile(path.join(tempDir, "original.txt"), "original");
+      // Create manifest with one managed file
+      await fs.writeFile(path.join(tempDir, "CLAUDE.md"), "original");
       const manifest: FileManifest = {
         version: 1,
         createdAt: "2024-01-01T00:00:00.000Z",
         profileName: "test-profile",
         files: {
-          "original.txt": await computeFileHash({
-            filePath: path.join(tempDir, "original.txt"),
+          "CLAUDE.md": await computeFileHash({
+            filePath: path.join(tempDir, "CLAUDE.md"),
           }),
         },
       };
 
-      // Add a new file
-      await fs.writeFile(path.join(tempDir, "new-file.txt"), "new content");
+      // Add a new managed file
+      await fs.writeFile(path.join(tempDir, "settings.json"), '{"new": true}');
 
       const diff = await compareManifest({ manifest, currentDir: tempDir });
 
-      expect(diff.added).toContain("new-file.txt");
+      expect(diff.added).toContain("settings.json");
       expect(diff.modified).toHaveLength(0);
       expect(diff.deleted).toHaveLength(0);
     });
 
     it("should detect deleted files", async () => {
-      // Create manifest with a file that no longer exists
+      // Create manifest with a managed file that no longer exists
       const manifest: FileManifest = {
         version: 1,
         createdAt: "2024-01-01T00:00:00.000Z",
         profileName: "test-profile",
         files: {
-          "deleted-file.txt": "somehash123",
+          "settings.json": "somehash123",
         },
       };
 
       const diff = await compareManifest({ manifest, currentDir: tempDir });
 
-      expect(diff.deleted).toContain("deleted-file.txt");
+      expect(diff.deleted).toContain("settings.json");
       expect(diff.modified).toHaveLength(0);
       expect(diff.added).toHaveLength(0);
     });
 
     it("should return empty diff when no changes", async () => {
-      await fs.writeFile(path.join(tempDir, "file.txt"), "content");
+      await fs.writeFile(path.join(tempDir, "CLAUDE.md"), "content");
       const hash = await computeFileHash({
-        filePath: path.join(tempDir, "file.txt"),
+        filePath: path.join(tempDir, "CLAUDE.md"),
       });
 
       const manifest: FileManifest = {
@@ -284,7 +368,7 @@ describe("manifest", () => {
         createdAt: "2024-01-01T00:00:00.000Z",
         profileName: "test-profile",
         files: {
-          "file.txt": hash,
+          "CLAUDE.md": hash,
         },
       };
 
@@ -296,59 +380,120 @@ describe("manifest", () => {
     });
 
     it("should detect multiple changes at once", async () => {
-      // Set up initial state
-      await fs.writeFile(path.join(tempDir, "keep.txt"), "unchanged");
-      await fs.writeFile(path.join(tempDir, "modify.txt"), "original");
+      // Set up initial state with managed paths
+      await fs.writeFile(path.join(tempDir, "CLAUDE.md"), "unchanged");
+      await fs.writeFile(
+        path.join(tempDir, "settings.json"),
+        '{"original": true}',
+      );
 
       const manifest: FileManifest = {
         version: 1,
         createdAt: "2024-01-01T00:00:00.000Z",
         profileName: "test-profile",
         files: {
-          "keep.txt": await computeFileHash({
-            filePath: path.join(tempDir, "keep.txt"),
+          "CLAUDE.md": await computeFileHash({
+            filePath: path.join(tempDir, "CLAUDE.md"),
           }),
-          "modify.txt": await computeFileHash({
-            filePath: path.join(tempDir, "modify.txt"),
+          "settings.json": await computeFileHash({
+            filePath: path.join(tempDir, "settings.json"),
           }),
-          "deleted.txt": "somehash",
+          "nori-statusline.sh": "somehash",
         },
       };
 
       // Make changes
-      await fs.writeFile(path.join(tempDir, "modify.txt"), "changed");
-      await fs.writeFile(path.join(tempDir, "added.txt"), "new file");
+      await fs.writeFile(
+        path.join(tempDir, "settings.json"),
+        '{"changed": true}',
+      );
+      const agentsDir = path.join(tempDir, "agents");
+      await fs.mkdir(agentsDir, { recursive: true });
+      await fs.writeFile(path.join(agentsDir, "new.md"), "new agent");
 
       const diff = await compareManifest({ manifest, currentDir: tempDir });
 
-      expect(diff.modified).toContain("modify.txt");
-      expect(diff.added).toContain("added.txt");
-      expect(diff.deleted).toContain("deleted.txt");
-      expect(diff.modified).not.toContain("keep.txt");
+      expect(diff.modified).toContain("settings.json");
+      expect(diff.added).toContain("agents/new.md");
+      expect(diff.deleted).toContain("nori-statusline.sh");
+      expect(diff.modified).not.toContain("CLAUDE.md");
     });
 
     it("should handle nested directory changes", async () => {
-      const subDir = path.join(tempDir, "nested");
-      await fs.mkdir(subDir, { recursive: true });
-      await fs.writeFile(path.join(subDir, "file.txt"), "original");
+      const skillDir = path.join(tempDir, "skills", "my-skill");
+      await fs.mkdir(skillDir, { recursive: true });
+      await fs.writeFile(path.join(skillDir, "SKILL.md"), "original");
 
       const manifest: FileManifest = {
         version: 1,
         createdAt: "2024-01-01T00:00:00.000Z",
         profileName: "test-profile",
         files: {
-          "nested/file.txt": await computeFileHash({
-            filePath: path.join(subDir, "file.txt"),
+          "skills/my-skill/SKILL.md": await computeFileHash({
+            filePath: path.join(skillDir, "SKILL.md"),
           }),
         },
       };
 
       // Modify nested file
-      await fs.writeFile(path.join(subDir, "file.txt"), "modified");
+      await fs.writeFile(path.join(skillDir, "SKILL.md"), "modified");
 
       const diff = await compareManifest({ manifest, currentDir: tempDir });
 
-      expect(diff.modified).toContain("nested/file.txt");
+      expect(diff.modified).toContain("skills/my-skill/SKILL.md");
+    });
+
+    it("should not report non-whitelisted files as added", async () => {
+      // Manifest tracks only CLAUDE.md
+      await fs.writeFile(path.join(tempDir, "CLAUDE.md"), "content");
+      const manifest: FileManifest = {
+        version: 1,
+        createdAt: "2024-01-01T00:00:00.000Z",
+        profileName: "test-profile",
+        files: {
+          "CLAUDE.md": await computeFileHash({
+            filePath: path.join(tempDir, "CLAUDE.md"),
+          }),
+        },
+      };
+
+      // Claude Code creates runtime files on disk
+      const debugDir = path.join(tempDir, "debug");
+      await fs.mkdir(debugDir, { recursive: true });
+      await fs.writeFile(path.join(debugDir, "foo.txt"), "debug log");
+      await fs.writeFile(path.join(tempDir, "keybindings.json"), "{}");
+
+      const diff = await compareManifest({ manifest, currentDir: tempDir });
+
+      // Non-whitelisted files should not appear as added
+      expect(diff.added).toHaveLength(0);
+      expect(diff.modified).toHaveLength(0);
+      expect(diff.deleted).toHaveLength(0);
+    });
+
+    it("should ignore old manifest entries for non-whitelisted paths", async () => {
+      // Old manifest that tracked everything (before whitelist fix)
+      await fs.writeFile(path.join(tempDir, "CLAUDE.md"), "content");
+      const manifest: FileManifest = {
+        version: 1,
+        createdAt: "2024-01-01T00:00:00.000Z",
+        profileName: "test-profile",
+        files: {
+          "CLAUDE.md": await computeFileHash({
+            filePath: path.join(tempDir, "CLAUDE.md"),
+          }),
+          "debug/old-session.txt": "somehash",
+          "todos/old-todo.json": "somehash",
+          "projects/old-project.json": "somehash",
+        },
+      };
+
+      const diff = await compareManifest({ manifest, currentDir: tempDir });
+
+      // Old non-whitelisted entries should NOT appear as deleted
+      expect(diff.deleted).toHaveLength(0);
+      expect(diff.modified).toHaveLength(0);
+      expect(diff.added).toHaveLength(0);
     });
   });
 
@@ -360,6 +505,20 @@ describe("manifest", () => {
         path.join(os.homedir(), ".nori", "installed-manifest.json"),
       );
     });
+  });
+});
+
+describe("manifest managed paths", () => {
+  it("should define the Nori-managed root files", () => {
+    expect(MANAGED_FILES).toContain("CLAUDE.md");
+    expect(MANAGED_FILES).toContain("settings.json");
+    expect(MANAGED_FILES).toContain("nori-statusline.sh");
+  });
+
+  it("should define the Nori-managed directories", () => {
+    expect(MANAGED_DIRS).toContain("skills");
+    expect(MANAGED_DIRS).toContain("commands");
+    expect(MANAGED_DIRS).toContain("agents");
   });
 });
 
