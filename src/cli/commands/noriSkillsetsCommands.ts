@@ -62,17 +62,24 @@ export const registerNoriSkillsetsForkCommand = (args: {
 }): void => {
   const { program } = args;
 
-  // Primary command: fork
+  // Primary command: fork-skillset (canonical)
   program
-    .command("fork <base-skillset> <new-skillset>")
+    .command("fork-skillset <base-skillset> <new-skillset>")
     .description("Fork an existing skillset to a new name")
     .action(async (baseSkillset: string, newSkillset: string) => {
       await forkSkillsetMain({ baseSkillset, newSkillset });
     });
 
-  // Hidden alias: fork-skillset
+  // Hidden alias: fork (shorthand)
   program
-    .command("fork-skillset <base-skillset> <new-skillset>", { hidden: true })
+    .command("fork <base-skillset> <new-skillset>", { hidden: true })
+    .action(async (baseSkillset: string, newSkillset: string) => {
+      await forkSkillsetMain({ baseSkillset, newSkillset });
+    });
+
+  // Hidden alias: fork-skillsets (plural)
+  program
+    .command("fork-skillsets <base-skillset> <new-skillset>", { hidden: true })
     .action(async (baseSkillset: string, newSkillset: string) => {
       await forkSkillsetMain({ baseSkillset, newSkillset });
     });
@@ -132,6 +139,18 @@ export const registerNoriSkillsetsEditSkillsetCommand = (args: {
   // Hidden alias: edit (shorthand)
   program
     .command("edit [name]", { hidden: true })
+    .option("-a, --agent <name>", "AI agent to get skillset for")
+    .action(async (name: string | undefined, options: { agent?: string }) => {
+      const globalOpts = program.opts();
+      await editSkillsetMain({
+        name: name || null,
+        agent: options.agent || globalOpts.agent || null,
+      });
+    });
+
+  // Hidden alias: edit-skillsets (plural)
+  program
+    .command("edit-skillsets [name]", { hidden: true })
     .option("-a, --agent <name>", "AI agent to get skillset for")
     .action(async (name: string | undefined, options: { agent?: string }) => {
       const globalOpts = program.opts();
@@ -300,6 +319,14 @@ export const registerNoriSkillsetsSwitchSkillsetCommand = (args: {
     .action(async (name: string, options: { agent?: string }) => {
       await switchSkillsetAction({ name, options, program });
     });
+
+  // Hidden alias: use (semantic shorthand, like nvm use)
+  program
+    .command("use <name>", { hidden: true })
+    .option("-a, --agent <name>", "AI agent to switch skillset for")
+    .action(async (name: string, options: { agent?: string }) => {
+      await switchSkillsetAction({ name, options, program });
+    });
 };
 
 /**
@@ -374,6 +401,24 @@ export const registerNoriSkillsetsListSkillsetsCommand = (args: {
 
   // Hidden alias: list-skillset (singular)
   program.command("list-skillset", { hidden: true }).action(async () => {
+    const globalOpts = program.opts();
+    await listSkillsetsMain({
+      installDir: globalOpts.installDir || null,
+      agent: globalOpts.agent || null,
+    });
+  });
+
+  // Hidden alias: list (shorthand)
+  program.command("list", { hidden: true }).action(async () => {
+    const globalOpts = program.opts();
+    await listSkillsetsMain({
+      installDir: globalOpts.installDir || null,
+      agent: globalOpts.agent || null,
+    });
+  });
+
+  // Hidden alias: ls (Unix convention)
+  program.command("ls", { hidden: true }).action(async () => {
     const globalOpts = program.opts();
     await listSkillsetsMain({
       installDir: globalOpts.installDir || null,
@@ -572,6 +617,32 @@ export const registerNoriSkillsetsInstallLocationCommand = (args: {
   program
     .command("install-location")
     .description("Display Nori installation directories")
+    .option(
+      "--installation-source",
+      "Show only installation source directories (containing .nori-config.json)",
+    )
+    .option(
+      "--installation-managed",
+      "Show only managed installation directories (containing CLAUDE.md with managed block)",
+    )
+    .action(
+      async (options: {
+        installationSource?: boolean;
+        managedInstallation?: boolean;
+      }) => {
+        const globalOpts = program.opts();
+        await installLocationMain({
+          currentDir: process.cwd(),
+          installationSource: options.installationSource || null,
+          managedInstallation: options.managedInstallation || null,
+          nonInteractive: globalOpts.nonInteractive || null,
+        });
+      },
+    );
+
+  // Hidden alias: location (shorthand)
+  program
+    .command("location", { hidden: true })
     .option(
       "--installation-source",
       "Show only installation source directories (containing .nori-config.json)",
