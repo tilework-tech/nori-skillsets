@@ -27,4 +27,7 @@ export {
   type AuthenticateResult,
   type LoginFlowCallbacks,
   type LoginFlowResult,
+  switchSkillsetFlow,
+  type SwitchSkillsetCallbacks,
+  type SwitchSkillsetFlowResult,
 } from "./flows/index.js";

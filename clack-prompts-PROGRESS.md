@@ -109,3 +109,62 @@ const promptForAuth = async (): Promise<AuthCredentials | null>;
 ```
 
 Returns `null` when user skips auth by entering empty email.
+
+## Completed: Flow Module - switchSkillset.ts (2026-02-09)
+
+### Files Created
+
+- `src/cli/prompts/flows/switchSkillset.ts` - Complete switch-skillset flow using @clack/prompts
+- `src/cli/prompts/flows/switchSkillset.test.ts` - 25 tests for the flow
+
+### Files Modified
+
+- `src/cli/prompts/flows/index.ts` - Added switchSkillset exports
+- `src/cli/prompts/index.ts` - Added re-exports for switchSkillsetFlow, SwitchSkillsetCallbacks, SwitchSkillsetFlowResult
+- `src/cli/commands/switch-profile/profiles.ts` - Added experimentalUi routing to switchSkillsetFlow
+- `src/cli/commands/switch-profile/profiles.test.ts` - Added 3 experimental UI routing tests
+
+### Architecture Decisions
+
+1. **Flow pattern (not wrapper)**: Unlike the core prompt modules (confirm.ts, text.ts) which wrap individual @clack/prompts calls, switchSkillsetFlow is a self-contained flow module that orchestrates multiple @clack/prompts primitives (intro, outro, select, confirm, text, spinner, note, cancel). This follows the same pattern as loginFlow.
+
+2. **Callback-based architecture**: The flow accepts a `SwitchSkillsetCallbacks` object with 6 callbacks:
+   - `onResolveAgents` - Lists installed agents
+   - `onDetectLocalChanges` - Compares manifest to detect user modifications
+   - `onGetCurrentProfile` - Gets current profile name for display
+   - `onCaptureConfig` - Saves current config as a new skillset
+   - `onSwitchProfile` - Delegates to agent.switchProfile()
+   - `onReinstall` - Runs silent install to regenerate files
+
+   This keeps the flow pure of business logic, making it fully testable without filesystem, config, or agent dependencies.
+
+3. **Direct @clack/prompts usage**: The flow uses select(), confirm(), text(), spinner(), note() directly rather than through wrapper modules. This is intentional — flows are the composition layer that uses primitives directly, while wrapper modules are for simple one-off prompts.
+
+4. **experimentalUi routing**: The routing gate in `switchSkillsetAction` checks `experimentalUi && !nonInteractive` before dispatching to the flow. This matches the login command's pattern. The experimental UI path is completely independent — it reads globalOpts.experimentalUi directly from program.opts().
+
+5. **Null return = cancellation**: The flow returns `SwitchSkillsetFlowResult | null`. Null means the user cancelled at any point (agent select, change handling, confirmation). The caller simply returns without side effects.
+
+### Test Pattern
+
+Tests mock `@clack/prompts` at module level, providing controllable return values for each prompt. Callbacks are mock functions that verify the flow orchestrates correctly. This pattern tests the flow's control logic without testing mocked behavior — assertions verify callback invocations with correct arguments.
+
+### API
+
+```typescript
+type SwitchSkillsetCallbacks = {
+  onResolveAgents: () => Promise<Array<{ name: string; displayName: string }>>;
+  onDetectLocalChanges: (args: { installDir: string }) => Promise<ManifestDiff | null>;
+  onGetCurrentProfile: (args: { agentName: string }) => Promise<string | null>;
+  onCaptureConfig: (args: { installDir: string; profileName: string }) => Promise<void>;
+  onSwitchProfile: (args: { installDir: string; agentName: string; profileName: string }) => Promise<void>;
+  onReinstall: (args: { installDir: string; agentName: string }) => Promise<void>;
+};
+
+type SwitchSkillsetFlowResult = { agentName: string; profileName: string } | null;
+
+const switchSkillsetFlow = async (args: {
+  profileName: string;
+  installDir: string;
+  callbacks: SwitchSkillsetCallbacks;
+}): Promise<SwitchSkillsetFlowResult>;
+```

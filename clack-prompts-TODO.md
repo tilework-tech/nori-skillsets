@@ -21,7 +21,7 @@ Ordered approximately from smallest to largest effort.
 - [ ] Migrate login.ts to use new prompt modules (simplest: 2 prompts)
 - [ ] Migrate init.ts to use new prompt modules (single confirmation)
 - [ ] Migrate existingConfigCapture.ts to use new prompt modules (text with validation)
-- [ ] Migrate switch-profile/profiles.ts to use new prompt modules (select + confirm)
+- [x] Migrate switch-profile/profiles.ts to use new prompt modules (select + confirm)
 - [ ] Migrate onboard.ts to use new prompt modules (full flow, most complex)
 
 ## Cleanup & Polish

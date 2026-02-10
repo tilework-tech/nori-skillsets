@@ -11,3 +11,11 @@ export {
   type LoginFlowCallbacks,
   type LoginFlowResult,
 } from "./login.js";
+
+export {
+  switchSkillsetFlow,
+  type SwitchSkillsetCallbacks,
+  type SwitchSkillsetFlowResult,
+} from "./switchSkillset.js";
+
+export { unwrapPrompt } from "./utils.js";

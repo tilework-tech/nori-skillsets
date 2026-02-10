@@ -27,7 +27,7 @@ import { claudeMdLoader } from "@/cli/features/claude-code/profiles/claudemd/loa
 import { info, warn, newline, success } from "@/cli/logger.js";
 import { promptUser } from "@/cli/prompt.js";
 import { getCurrentPackageVersion } from "@/cli/version.js";
-import { normalizeInstallDir, getInstallDirs } from "@/utils/path.js";
+import { normalizeInstallDir, getInstallDirsWithTypes } from "@/utils/path.js";
 
 import type { Command } from "commander";
 
@@ -138,33 +138,41 @@ export const initMain = async (args?: {
     }
   }
 
-  // Check for ancestor installations
-  const allInstallations = getInstallDirs({
+  // Check for ancestor managed installations
+  // Only managed installations (those with CLAUDE.md managed blocks) cause conflicts,
+  // because Claude Code loads CLAUDE.md files from all parent directories.
+  // Source-only installations (just .nori-config.json) don't inject into CLAUDE.md.
+  const allInstallations = getInstallDirsWithTypes({
     currentDir: normalizedInstallDir,
   });
-  const ancestorInstallations = allInstallations.filter(
-    (dir) => dir !== normalizedInstallDir,
+  const ancestorManagedInstallations = allInstallations.filter(
+    (installation) =>
+      installation.path !== normalizedInstallDir &&
+      (installation.type === "managed" || installation.type === "both"),
   );
 
-  if (ancestorInstallations.length > 0) {
+  if (ancestorManagedInstallations.length > 0) {
     newline();
-    warn({ message: "⚠️  Nori installation detected in ancestor directory!" });
+    warn({
+      message: "⚠️  Nori managed installation detected in ancestor directory!",
+    });
     newline();
     info({
       message: "Claude Code loads CLAUDE.md files from all parent directories.",
     });
     info({
       message:
-        "Having multiple Nori installations can cause duplicate or conflicting configurations.",
+        "Having multiple Nori managed installations can cause duplicate or conflicting configurations.",
     });
     newline();
-    info({ message: "Existing Nori installations found at:" });
-    for (const ancestorPath of ancestorInstallations) {
-      info({ message: `  • ${ancestorPath}` });
+    info({ message: "Existing Nori managed installations found at:" });
+    for (const ancestor of ancestorManagedInstallations) {
+      info({ message: `  • ${ancestor.path}` });
     }
     newline();
     info({
-      message: "Please remove the conflicting installation before continuing.",
+      message:
+        "Please remove the conflicting managed installation before continuing.",
     });
     newline();
   }
