@@ -9,6 +9,7 @@
 import { Command } from "commander";
 
 import {
+  registerNoriSkillsetsCompletionCommand,
   registerNoriSkillsetsDirCommand,
   registerNoriSkillsetsDownloadCommand,
   registerNoriSkillsetsDownloadSkillCommand,
@@ -132,6 +133,7 @@ registerNoriSkillsetsExternalCommand({ program });
 registerNoriSkillsetsWatchCommand({ program });
 registerNoriSkillsetsDirCommand({ program });
 registerNoriSkillsetsInstallLocationCommand({ program });
+registerNoriSkillsetsCompletionCommand({ program });
 registerNoriSkillsetsForkCommand({ program });
 registerNoriSkillsetsNewCommand({ program });
 registerNoriSkillsetsEditSkillsetCommand({ program });
