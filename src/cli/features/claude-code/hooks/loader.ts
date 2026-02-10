@@ -7,6 +7,7 @@ import * as fs from "fs/promises";
 import * as path from "path";
 import { fileURLToPath } from "url";
 
+import { cleanupLegacyHooks } from "@/cli/features/claude-code/hooks/cleanupLegacyHooks.js";
 import {
   getClaudeHomeDir,
   getClaudeHomeSettingsFile,
@@ -152,6 +153,10 @@ const commitAuthorHook: HookInterface = {
  */
 const configureHooks = async (args: { config: Config }): Promise<void> => {
   const { config: _config } = args;
+
+  // Remove stale hooks from previous versions before writing new ones
+  await cleanupLegacyHooks();
+
   const claudeDir = getClaudeHomeDir();
   const claudeSettingsFile = getClaudeHomeSettingsFile();
 
