@@ -108,8 +108,8 @@ export const getClaudeHomeSettingsFile = (): string => {
 
 /**
  * Get the Claude home commands directory path (always ~/.claude/commands)
- * This is where global slash commands should be installed
- * to ensure Claude Code picks them up from any subdirectory.
+ * This is where slash commands are installed so Claude Code
+ * picks them up from any subdirectory.
  *
  * @returns Absolute path to ~/.claude/commands
  */

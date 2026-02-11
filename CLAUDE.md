@@ -15,7 +15,6 @@ tools that may behave differently on different systems.
 **Examples:**
 
 - "Change the status line" → Modify `src/cli/features/claude-code/statusline/`
-- "Add a new global slash command" → Modify `src/cli/features/claude-code/slashcommands/config/`
 
 **Note:** No built-in profiles are shipped with the package. Profiles (skillsets) are stored at `~/.nori/profiles/` and are obtained from the registry or created by users.
 

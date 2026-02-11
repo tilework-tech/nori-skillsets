@@ -13,7 +13,7 @@
 # 4. Hook scripts bundling (esbuild)
 # 5. File permissions setup
 # 6. Configuration file copying
-# 7. Version substitution
+# 7. (removed - version now read at runtime from .nori-config.json)
 
 set -e  # Exit on any error
 
@@ -151,19 +151,6 @@ chmod +x build/src/cli/features/hooks/config/*.sh 2>/dev/null || true
 echo -e "${GREEN}✓ Legacy hook compatibility layer created${NC}"
 
 echo -e "${GREEN}✓ Configuration files copied${NC}"
-echo ""
-
-# ============================================================================
-# STEP 7: Version Substitution
-# ============================================================================
-# Replace __VERSION__ placeholder with actual version from package.json
-# This allows the status line to display the current package version
-echo -e "${BLUE}[7/7] Substituting version strings...${NC}"
-
-VERSION=$(jq -r .version package.json)
-perl -pi -e "s/__VERSION__/v${VERSION}/g" build/src/cli/features/claude-code/statusline/config/nori-statusline.sh
-
-echo -e "${GREEN}✓ Version substituted (v${VERSION})${NC}"
 echo ""
 
 # ============================================================================

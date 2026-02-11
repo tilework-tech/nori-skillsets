@@ -13,7 +13,7 @@ if ! command -v jq >/dev/null 2>&1; then
     NC='\033[0m'
 
     echo -e "${YELLOW}⚠️  Nori statusline requires jq. Install: brew install jq (macOS) or apt install jq (Linux)${NC}"
-    echo -e "${YELLOW}Augmented with Nori __VERSION__${NC}"
+    echo -e "${YELLOW}Augmented with Nori${NC}"
     exit 0
 fi
 
@@ -73,6 +73,9 @@ PROFILE_NAME=""  # default to empty (don't show if not set)
 if [ -f "$CONFIG_FILE" ]; then
     # Read profile from agents.claude-code first (new format), fall back to legacy profile
     PROFILE_NAME=$(jq -r '.agents["claude-code"].profile.baseProfile // .profile.baseProfile // ""' "$CONFIG_FILE" 2>/dev/null)
+
+    # Read version from config
+    NORI_VERSION=$(jq -r '.version // ""' "$CONFIG_FILE" 2>/dev/null)
 fi
 
 # Inject profile into the JSON (can be empty string)
@@ -168,7 +171,11 @@ LINES_FORMATTED="+${LINES_ADDED}/-${LINES_REMOVED}"
 PROFILE_NAME=$(echo "$INPUT" | jq -r '.profile_name // ""')
 
 # Build branding message
-BRANDING="${YELLOW}Augmented with Nori __VERSION__ ${NC}"
+if [ -n "$NORI_VERSION" ]; then
+    BRANDING="${YELLOW}Augmented with Nori v${NORI_VERSION} ${NC}"
+else
+    BRANDING="${YELLOW}Augmented with Nori ${NC}"
+fi
 
 # Single promotional tip
 TIPS=(
@@ -203,9 +210,9 @@ else
     if [ -f "$VERSION_CACHE" ]; then
         LATEST_VERSION=$(jq -r '.latest_version // empty' "$VERSION_CACHE" 2>/dev/null)
         DISMISSED_VERSION=$(jq -r '.dismissed_version // empty' "$VERSION_CACHE" 2>/dev/null)
-        if [ -n "$LATEST_VERSION" ] && [ "$LATEST_VERSION" != "__VERSION__" ] && [ "$LATEST_VERSION" != "$DISMISSED_VERSION" ]; then
+        if [ -n "$LATEST_VERSION" ] && [ -n "$NORI_VERSION" ] && [ "$LATEST_VERSION" != "$NORI_VERSION" ] && [ "$LATEST_VERSION" != "$DISMISSED_VERSION" ]; then
             # Compare versions: check if latest is newer than current
-            CURRENT_SEMVER="__VERSION__"
+            CURRENT_SEMVER="$NORI_VERSION"
             if [ -n "$CURRENT_SEMVER" ] && [ "$CURRENT_SEMVER" != "0.0.0" ]; then
                 # Cross-platform version comparison using node (sort -V not available on macOS)
                 IS_NEWER=$(node -e "const [a,b]=['$CURRENT_SEMVER','$LATEST_VERSION'].map(v=>v.split('.').map(Number));process.stdout.write(a[0]<b[0]||(a[0]===b[0]&&a[1]<b[1])||(a[0]===b[0]&&a[1]===b[1]&&a[2]<b[2])?'1':'0')" 2>/dev/null || echo "0")
