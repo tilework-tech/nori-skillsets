@@ -36,6 +36,13 @@ vi.mock("@/cli/prompt.js", () => ({
   promptUser: vi.fn(),
 }));
 
+// Mock switchSkillsetFlow for experimental UI tests
+const mockSwitchSkillsetFlow = vi.fn();
+vi.mock("@/cli/prompts/flows/switchSkillset.js", () => ({
+  switchSkillsetFlow: (...args: Array<unknown>) =>
+    mockSwitchSkillsetFlow(...args),
+}));
+
 describe("agent.switchProfile", () => {
   let testInstallDir: string;
 
@@ -1284,5 +1291,192 @@ describe("switch-profile local change detection", () => {
     expect(promptCall.prompt).toContain("y/n");
     // switchProfile should have been called
     expect(switchProfileSpy).toHaveBeenCalled();
+  });
+});
+
+describe("switch-profile experimental UI routing", () => {
+  let testInstallDir: string;
+
+  beforeEach(async () => {
+    testInstallDir = await fs.mkdtemp(
+      path.join(tmpdir(), "switch-profile-expui-test-"),
+    );
+    vi.mocked(os.homedir).mockReturnValue(testInstallDir);
+    const testClaudeDir = path.join(testInstallDir, ".claude");
+    const testNoriDir = path.join(testInstallDir, ".nori");
+    await fs.mkdir(testClaudeDir, { recursive: true });
+    await fs.mkdir(testNoriDir, { recursive: true });
+
+    // Create profiles directory with test profiles
+    const profilesDir = path.join(testNoriDir, "profiles");
+    await fs.mkdir(profilesDir, { recursive: true });
+    for (const name of ["senior-swe", "product-manager"]) {
+      const dir = path.join(profilesDir, name);
+      await fs.mkdir(dir, { recursive: true });
+      await fs.writeFile(path.join(dir, "CLAUDE.md"), `# ${name}`);
+    }
+
+    // Create config with current profile
+    const configPath = path.join(testInstallDir, ".nori-config.json");
+    await fs.writeFile(
+      configPath,
+      JSON.stringify({
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
+      }),
+    );
+
+    AgentRegistry.resetInstance();
+    vi.mocked(promptUser).mockReset();
+    mockSwitchSkillsetFlow.mockReset();
+  });
+
+  afterEach(async () => {
+    if (testInstallDir) {
+      await fs.rm(testInstallDir, { recursive: true, force: true });
+    }
+    AgentRegistry.resetInstance();
+    vi.restoreAllMocks();
+  });
+
+  it("should use switchSkillsetFlow when --experimental-ui is passed", async () => {
+    mockSwitchSkillsetFlow.mockResolvedValueOnce({
+      agentName: "claude-code",
+      profileName: "product-manager",
+    });
+
+    const program = new Command();
+    program.exitOverride();
+    program.configureOutput({ writeErr: () => undefined });
+    program
+      .option("-d, --install-dir <path>", "Custom installation directory")
+      .option("-n, --non-interactive", "Run without interactive prompts")
+      .option("-a, --agent <name>", "AI agent to use")
+      .option(
+        "--experimental-ui",
+        "Use new interactive TUI flows (experimental)",
+      );
+
+    registerSwitchProfileCommand({ program });
+
+    // Mock switchProfile on the agent
+    const claudeAgent = AgentRegistry.getInstance().get({
+      name: "claude-code",
+    });
+    vi.spyOn(claudeAgent, "switchProfile").mockResolvedValue(undefined);
+
+    try {
+      await program.parseAsync([
+        "node",
+        "nori-skillsets",
+        "--experimental-ui",
+        "switch-profile",
+        "product-manager",
+        "--install-dir",
+        testInstallDir,
+      ]);
+    } catch {
+      // May throw due to exit
+    }
+
+    // switchSkillsetFlow should have been called
+    expect(mockSwitchSkillsetFlow).toHaveBeenCalledTimes(1);
+    expect(mockSwitchSkillsetFlow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        profileName: "product-manager",
+        installDir: testInstallDir,
+      }),
+    );
+
+    // Legacy promptUser should NOT have been called
+    expect(promptUser).not.toHaveBeenCalled();
+  });
+
+  it("should use legacy prompts when --experimental-ui is not passed", async () => {
+    // Mock confirmation prompt to return "y" for legacy flow
+    vi.mocked(promptUser).mockResolvedValueOnce("y");
+
+    const program = new Command();
+    program.exitOverride();
+    program.configureOutput({ writeErr: () => undefined });
+    program
+      .option("-d, --install-dir <path>", "Custom installation directory")
+      .option("-n, --non-interactive", "Run without interactive prompts")
+      .option("-a, --agent <name>", "AI agent to use")
+      .option(
+        "--experimental-ui",
+        "Use new interactive TUI flows (experimental)",
+      );
+
+    registerSwitchProfileCommand({ program });
+
+    // Mock switchProfile on the agent
+    const claudeAgent = AgentRegistry.getInstance().get({
+      name: "claude-code",
+    });
+    vi.spyOn(claudeAgent, "switchProfile").mockResolvedValue(undefined);
+
+    try {
+      await program.parseAsync([
+        "node",
+        "nori-skillsets",
+        "switch-profile",
+        "product-manager",
+        "--install-dir",
+        testInstallDir,
+      ]);
+    } catch {
+      // May throw due to exit
+    }
+
+    // switchSkillsetFlow should NOT have been called
+    expect(mockSwitchSkillsetFlow).not.toHaveBeenCalled();
+
+    // Legacy promptUser SHOULD have been called
+    expect(promptUser).toHaveBeenCalled();
+  });
+
+  it("should not use switchSkillsetFlow in non-interactive mode even with --experimental-ui", async () => {
+    const program = new Command();
+    program.exitOverride();
+    program.configureOutput({ writeErr: () => undefined });
+    program
+      .option("-d, --install-dir <path>", "Custom installation directory")
+      .option("-n, --non-interactive", "Run without interactive prompts")
+      .option("-a, --agent <name>", "AI agent to use")
+      .option(
+        "--experimental-ui",
+        "Use new interactive TUI flows (experimental)",
+      );
+
+    registerSwitchProfileCommand({ program });
+
+    // Mock switchProfile on the agent
+    const claudeAgent = AgentRegistry.getInstance().get({
+      name: "claude-code",
+    });
+    vi.spyOn(claudeAgent, "switchProfile").mockResolvedValue(undefined);
+
+    try {
+      await program.parseAsync([
+        "node",
+        "nori-skillsets",
+        "--experimental-ui",
+        "--non-interactive",
+        "switch-profile",
+        "product-manager",
+        "--install-dir",
+        testInstallDir,
+      ]);
+    } catch {
+      // May throw due to exit
+    }
+
+    // switchSkillsetFlow should NOT have been called in non-interactive mode
+    expect(mockSwitchSkillsetFlow).not.toHaveBeenCalled();
+
+    // Legacy promptUser should also NOT have been called (non-interactive skips prompts)
+    expect(promptUser).not.toHaveBeenCalled();
   });
 });

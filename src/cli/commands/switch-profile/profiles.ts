@@ -20,8 +20,17 @@ import {
   type ManifestDiff,
 } from "@/cli/features/claude-code/profiles/manifest.js";
 import { listProfiles } from "@/cli/features/managedFolder.js";
-import { error, info, success, newline, warn } from "@/cli/logger.js";
+import {
+  error,
+  info,
+  success,
+  newline,
+  warn,
+  setSilentMode,
+  isSilentMode,
+} from "@/cli/logger.js";
 import { promptUser } from "@/cli/prompt.js";
+import { switchSkillsetFlow } from "@/cli/prompts/flows/switchSkillset.js";
 import { normalizeInstallDir, getInstallDirs } from "@/utils/path.js";
 
 import type { Command } from "commander";
@@ -275,6 +284,7 @@ export const switchSkillsetAction = async (args: {
   // Get global options from parent
   const globalOpts = program.opts();
   const nonInteractive = globalOpts.nonInteractive ?? false;
+  const experimentalUi = globalOpts.experimentalUi ?? false;
   const force = options.force ?? false;
 
   // Determine installation directory
@@ -295,6 +305,84 @@ export const switchSkillsetAction = async (args: {
     installDir = installations[0]; // Use closest installation
   }
 
+  // Experimental UI flow (interactive only)
+  if (experimentalUi && !nonInteractive) {
+    await switchSkillsetFlow({
+      profileName: name,
+      installDir,
+      agentOverride: options.agent ?? null,
+      callbacks: {
+        onResolveAgents: async () => {
+          const config = await loadConfig();
+          const installedAgents = config ? getInstalledAgents({ config }) : [];
+          if (installedAgents.length === 0) {
+            return [{ name: "claude-code", displayName: "Claude Code" }];
+          }
+          return installedAgents.map((agentName) => {
+            const agent = AgentRegistry.getInstance().get({
+              name: agentName,
+            });
+            return { name: agentName, displayName: agent.displayName };
+          });
+        },
+        onPrepareSwitchInfo: async ({ installDir: dir, agentName }) => {
+          const localChanges = await detectLocalChanges({ installDir: dir });
+          const config = await loadConfig();
+          let currentProfile: string | null = null;
+          if (config != null) {
+            const agentProfile = getAgentProfile({
+              config,
+              agentName: agentName as ConfigAgentName,
+            });
+            currentProfile = agentProfile?.baseProfile ?? null;
+          }
+          return { currentProfile, localChanges };
+        },
+        onCaptureConfig: async ({ installDir: dir, profileName: pName }) => {
+          await captureExistingConfigAsProfile({
+            installDir: dir,
+            profileName: pName,
+          });
+        },
+        onExecuteSwitch: async ({
+          installDir: dir,
+          agentName,
+          profileName: pName,
+        }) => {
+          const agent = AgentRegistry.getInstance().get({ name: agentName });
+          const wasSilent = isSilentMode();
+          setSilentMode({ silent: true });
+          try {
+            await agent.switchProfile({ installDir: dir, profileName: pName });
+          } catch (err) {
+            setSilentMode({ silent: wasSilent });
+            const profiles = await listProfiles();
+            if (profiles.length > 0) {
+              error({
+                message: `Available skillsets: ${profiles.join(", ")}`,
+              });
+            }
+            throw err;
+          }
+          setSilentMode({ silent: wasSilent });
+          const { main: installMain } =
+            await import("@/cli/commands/install/install.js");
+          await installMain({
+            nonInteractive: true,
+            installDir: dir,
+            agent: agentName,
+            silent: true,
+          });
+        },
+      },
+    });
+
+    // Flow handles all UI (cancel messages, success notes) internally.
+    // result is null on cancel, non-null on success — either way we're done.
+    return;
+  }
+
+  // Legacy flow
   // Use local --agent option if provided, otherwise auto-detect
   // We don't use globalOpts.agent because it has a default value ("claude-code")
   // which would prevent auto-detection from working

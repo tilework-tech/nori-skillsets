@@ -74,15 +74,19 @@ export type LoginFlowResult = {
  *
  * @param args - Flow configuration
  * @param args.callbacks - Callback functions for authentication
+ * @param args.skipIntro - If true, skip the intro message (useful when called after another prompt)
  *
  * @returns Credentials on success, null on failure or cancellation
  */
 export const loginFlow = async (args: {
   callbacks: LoginFlowCallbacks;
+  skipIntro?: boolean | null;
 }): Promise<LoginFlowResult> => {
-  const { callbacks } = args;
+  const { callbacks, skipIntro } = args;
 
-  intro("Login to Nori Skillsets");
+  if (skipIntro !== true) {
+    intro("Log in to Nori Skillsets");
+  }
 
   const credentials = await group(
     {

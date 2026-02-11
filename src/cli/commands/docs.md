@@ -30,6 +30,7 @@ The `install` command in @/src/cli/commands/registry-install/registryInstall.ts 
 
 **init** (@/src/cli/commands/init/init.ts): Creates the `.nori` directory structure and initializes `.nori-config.json`. If existing Claude Code config exists and no Nori config is present, captures the existing config as a profile:
   - Non-interactive mode: auto-captures as "my-skillset"
+  - Experimental UI mode (`--experimental-ui`): Uses `initFlow` from @/cli/prompts/flows for a polished interactive experience with intro/outro, note boxes, and modern prompts. The flow handles ancestor checks, existing config detection, profile name capture, persistence warnings, and initialization spinner. Legacy readline-based prompts are bypassed when experimental UI is enabled.
 
 **Profile Resolution (in install.ts):** After init, `noninteractive()` loads the existing config, resolves the profile from the `--profile` flag or the existing agent config, preserves auth credentials, and saves the merged config. Non-interactive mode requires `--profile` flag if no existing profile is set.
 
@@ -62,12 +63,21 @@ The install command sets `agents: { [agentName]: { profile } }` in the config, w
    - Always displays the OAuth URL before attempting to open the browser, enabling manual copy-paste in environments where browser opening fails
    - In SSH environments, displays port forwarding instructions: `ssh -L <port>:localhost:<port> <user>@<server>`
    - With `--no-localhost` flag, uses a hosted callback page at `https://noriskillsets.dev/oauth/callback` for environments where SSH port forwarding isn't possible
+   - All Google SSO functions (`authenticateWithGoogle`, `authenticateWithGoogleLocalhost`, `authenticateWithGoogleHeadless`) accept an `experimentalUi` parameter; when enabled, output uses `@clack/prompts` constructs (`note()`, `log.info()`, `log.warn()`, `spinner()`, `promptPassword()`) instead of legacy logger calls (`info()`, `warn()`, `newline()`, `promptUser()`)
 
-3. **Headless Mode** (`--google --no-localhost` flags):
+4. **Headless Mode** (`--google --no-localhost` flags):
    - For environments where SSH port forwarding isn't possible, uses a hosted callback page at `https://noriskillsets.dev/oauth/callback`
    - Uses a separate Web Application OAuth client (`GOOGLE_OAUTH_WEB_CLIENT_ID`) instead of the Desktop client; the client secret is kept server-side on `noriskillsets.dev`
    - Instead of starting a localhost server, the server handles the OAuth code-to-token exchange and displays the resulting `id_token` for copy-paste
    - The CLI prompts the user to paste this token directly, which is then used with `GoogleAuthProvider.credential()` to sign in to Firebase (no client-side token exchange needed)
+
+5. **Experimental UI** (`--experimental-ui` flag):
+   - When enabled, `loginMain` presents an auth method selection using `@clack/prompts` `select()` with Email/Password and Google SSO options
+   - Email/Password selection delegates to the existing `loginFlow` (with `skipIntro: true` since the experimental UI already showed `intro()`)
+   - Google SSO selection routes through `authenticateWithGoogle` with `experimentalUi: true`, which propagates to the localhost and headless sub-flows
+   - After Google SSO authentication, organization and admin info are displayed via `note()` with an "Account Info" title, and login completion uses `outro()` instead of the legacy `success()` logger
+   - The `--no-localhost` flag validation is relaxed when `experimentalUi` is true (since the user can select Google SSO from the interactive menu without passing `--google`)
+   - Headless environment confirmation uses `@clack/prompts` `confirm()` (via `confirmAction`) instead of the legacy `promptYesNo`
 
 After authentication (either method):
 - Calls `/api/auth/check-access` to verify organization access and retrieve organization list

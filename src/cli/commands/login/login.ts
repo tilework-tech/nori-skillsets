@@ -8,6 +8,16 @@
 import * as os from "os";
 
 import {
+  select,
+  isCancel,
+  cancel,
+  intro,
+  outro,
+  note,
+  log,
+  spinner,
+} from "@clack/prompts";
+import {
   signInWithEmailAndPassword,
   signInWithCredential,
   GoogleAuthProvider,
@@ -18,7 +28,12 @@ import open from "open";
 import { loadConfig, saveConfig } from "@/cli/config.js";
 import { error, info, success, warn, newline } from "@/cli/logger.js";
 import { promptUser, promptYesNo } from "@/cli/prompt.js";
-import { loginFlow, type AuthenticateResult } from "@/cli/prompts/index.js";
+import {
+  loginFlow,
+  confirmAction,
+  promptPassword,
+  type AuthenticateResult,
+} from "@/cli/prompts/index.js";
 import { configureFirebase, getFirebase } from "@/providers/firebase.js";
 import { formatNetworkError } from "@/utils/fetch.js";
 
@@ -103,13 +118,20 @@ const DEFAULT_CONFIG_DIR = os.homedir();
  * Authenticate via Google SSO using the headless flow with manual token entry.
  * The server exchanges the code for tokens, and the user pastes the id_token.
  *
+ * @param args - Configuration arguments
+ * @param args.experimentalUi - Whether to use clack prompts instead of legacy output
+ *
  * @returns Firebase credentials (refreshToken, idToken, email)
  */
-const authenticateWithGoogleHeadless = async (): Promise<{
+const authenticateWithGoogleHeadless = async (args?: {
+  experimentalUi?: boolean | null;
+}): Promise<{
   refreshToken: string;
   idToken: string;
   email: string;
 }> => {
+  const { experimentalUi } = args ?? {};
+
   // Headless mode: use Web Application client, server handles token exchange
   validateWebOAuthCredentials();
 
@@ -124,30 +146,54 @@ const authenticateWithGoogleHeadless = async (): Promise<{
   });
 
   // Display instructions
-  newline();
-  info({ message: "Authentication URL:" });
-  info({ message: `  ${authUrl}` });
-  newline();
-  info({ message: "Instructions:" });
-  info({ message: "  1. Open the URL above in any browser" });
-  info({ message: "  2. Complete the Google sign-in" });
-  info({ message: "  3. Copy the token from the page" });
-  info({ message: "  4. Paste it below" });
-  newline();
+  if (experimentalUi) {
+    log.step(authUrl);
+    note(
+      [
+        "1. Open the URL above in any browser",
+        "2. Complete the Google sign-in",
+        "3. Copy the token from the page",
+        "4. Paste it below",
+      ].join("\n"),
+      "Instructions",
+    );
+  } else {
+    newline();
+    info({ message: "Authentication URL:" });
+    info({ message: `  ${authUrl}` });
+    newline();
+    info({ message: "Instructions:" });
+    info({ message: "  1. Open the URL above in any browser" });
+    info({ message: "  2. Complete the Google sign-in" });
+    info({ message: "  3. Copy the token from the page" });
+    info({ message: "  4. Paste it below" });
+    newline();
+  }
 
   // Prompt user to paste the id_token (server already exchanged the code)
   // Use masked input to hide the sensitive token
-  const inputToken = await promptUser({
-    prompt: "Paste token: ",
-    masked: true,
-  });
+  let inputToken: string;
+  if (experimentalUi) {
+    inputToken = await promptPassword({ message: "Paste token" });
+  } else {
+    inputToken = await promptUser({
+      prompt: "Paste token: ",
+      masked: true,
+    });
+  }
 
   if (inputToken == null || inputToken.trim() === "") {
     throw new Error("No token provided.");
   }
 
   // Use the id_token directly with Firebase (no exchange needed)
-  info({ message: "Signing in..." });
+  const s = experimentalUi ? spinner() : null;
+  if (s != null) {
+    s.start("Signing in...");
+  } else {
+    info({ message: "Signing in..." });
+  }
+
   configureFirebase();
   const firebase = getFirebase();
   const credential = GoogleAuthProvider.credential(inputToken.trim());
@@ -155,9 +201,15 @@ const authenticateWithGoogleHeadless = async (): Promise<{
 
   const email = userCredential.user.email;
   if (email == null) {
+    if (s != null) {
+      s.stop("Sign in failed");
+    }
     throw new Error("No email address associated with Google account.");
   }
 
+  if (s != null) {
+    s.stop("Signed in");
+  }
   return {
     refreshToken: userCredential.user.refreshToken,
     idToken: await userCredential.user.getIdToken(),
@@ -170,17 +222,19 @@ const authenticateWithGoogleHeadless = async (): Promise<{
  *
  * @param args - Configuration arguments
  * @param args.showPortForwardingInstructions - If true, show SSH port forwarding instructions
+ * @param args.experimentalUi - Whether to use clack prompts instead of legacy output
  *
  * @returns Firebase credentials (refreshToken, idToken, email)
  */
 const authenticateWithGoogleLocalhost = async (args?: {
   showPortForwardingInstructions?: boolean | null;
+  experimentalUi?: boolean | null;
 }): Promise<{
   refreshToken: string;
   idToken: string;
   email: string;
 }> => {
-  const { showPortForwardingInstructions } = args ?? {};
+  const { showPortForwardingInstructions, experimentalUi } = args ?? {};
 
   // Standard mode: use Desktop client with localhost callback server
   validateOAuthCredentials();
@@ -199,20 +253,35 @@ const authenticateWithGoogleLocalhost = async (args?: {
   });
 
   // Always display the auth URL
-  newline();
-  info({ message: "Authentication URL:" });
-  info({ message: `  ${authUrl}` });
-  newline();
+  if (experimentalUi) {
+    log.step(authUrl);
+  } else {
+    newline();
+    info({ message: "Authentication URL:" });
+    info({ message: `  ${authUrl}` });
+    newline();
+  }
 
   // Show port forwarding instructions if requested (user is in headless but chose localhost flow)
   if (showPortForwardingInstructions) {
-    info({ message: "To authenticate from this remote session:" });
-    info({ message: `  1. Run this on your local machine:` });
-    info({
-      message: `     ssh -L ${port}:localhost:${port} <user>@<server>`,
-    });
-    info({ message: `  2. Open the URL above in your local browser` });
-    newline();
+    if (experimentalUi) {
+      note(
+        [
+          "1. Run this on your local machine:",
+          `   ssh -L ${port}:localhost:${port} <user>@<server>`,
+          "2. Open the URL above in your local browser",
+        ].join("\n"),
+        "SSH Port Forwarding",
+      );
+    } else {
+      info({ message: "To authenticate from this remote session:" });
+      info({ message: `  1. Run this on your local machine:` });
+      info({
+        message: `     ssh -L ${port}:localhost:${port} <user>@<server>`,
+      });
+      info({ message: `  2. Open the URL above in your local browser` });
+      newline();
+    }
   }
 
   // Start the local server to capture the callback
@@ -221,15 +290,25 @@ const authenticateWithGoogleLocalhost = async (args?: {
     expectedState: state,
     warningMs: AUTH_WARNING_MS,
     onTimeoutWarning: () => {
-      warn({
-        message:
+      if (experimentalUi) {
+        log.warn(
           "Authentication will timeout in 1 minute. Please complete the browser flow.",
-      });
+        );
+      } else {
+        warn({
+          message:
+            "Authentication will timeout in 1 minute. Please complete the browser flow.",
+        });
+      }
     },
   });
 
   // Attempt to open browser (may fail silently in headless)
-  info({ message: "Attempting to open browser..." });
+  if (experimentalUi) {
+    log.info("Attempting to open browser...");
+  } else {
+    info({ message: "Attempting to open browser..." });
+  }
   try {
     await open(authUrl);
   } catch {
@@ -242,7 +321,13 @@ const authenticateWithGoogleLocalhost = async (args?: {
   result.server.close();
 
   // Exchange the authorization code for Google tokens
-  info({ message: "Exchanging authorization code..." });
+  const s = experimentalUi ? spinner() : null;
+  if (s != null) {
+    s.start("Exchanging authorization code...");
+  } else {
+    info({ message: "Exchanging authorization code..." });
+  }
+
   const googleTokens = await exchangeCodeForTokens({
     code,
     clientId: GOOGLE_OAUTH_CLIENT_ID,
@@ -258,9 +343,15 @@ const authenticateWithGoogleLocalhost = async (args?: {
 
   const email = userCredential.user.email;
   if (email == null) {
+    if (s != null) {
+      s.stop("Sign in failed");
+    }
     throw new Error("No email address associated with Google account.");
   }
 
+  if (s != null) {
+    s.stop("Signed in");
+  }
   return {
     refreshToken: userCredential.user.refreshToken,
     idToken: await userCredential.user.getIdToken(),
@@ -274,50 +365,69 @@ const authenticateWithGoogleLocalhost = async (args?: {
  *
  * @param args - Configuration arguments
  * @param args.noLocalhost - If true, force use of headless flow (skips environment detection)
+ * @param args.confirmHeadless - Optional function to confirm headless flow (replaces legacy promptYesNo)
+ * @param args.experimentalUi - Whether to use clack prompts instead of legacy output
  *
  * @returns Firebase credentials (refreshToken, idToken, email)
  */
 const authenticateWithGoogle = async (args?: {
   noLocalhost?: boolean | null;
+  confirmHeadless?: ((args: { message: string }) => Promise<boolean>) | null;
+  experimentalUi?: boolean | null;
 }): Promise<{
   refreshToken: string;
   idToken: string;
   email: string;
 }> => {
-  const { noLocalhost } = args ?? {};
+  const { noLocalhost, confirmHeadless, experimentalUi } = args ?? {};
 
   // If --no-localhost flag is explicitly set, use headless flow directly
   if (noLocalhost) {
-    return authenticateWithGoogleHeadless();
+    return authenticateWithGoogleHeadless({ experimentalUi });
   }
 
   // Detect headless/SSH environment
   if (isHeadlessEnvironment()) {
-    newline();
-    info({ message: "Detected SSH/headless environment." });
-    info({
-      message:
-        "You can use a simplified headless flow that works without port forwarding.",
-    });
-    newline();
+    if (experimentalUi) {
+      log.warn(
+        "Detected SSH/headless environment. You can use a simplified headless flow that works without port forwarding.",
+      );
+    } else {
+      newline();
+      info({ message: "Detected SSH/headless environment." });
+      info({
+        message:
+          "You can use a simplified headless flow that works without port forwarding.",
+      });
+      newline();
+    }
 
-    const useHeadlessFlow = await promptYesNo({
-      prompt: "Use headless authentication flow?",
-      defaultValue: true,
-    });
+    let useHeadlessFlow: boolean;
+
+    if (confirmHeadless != null) {
+      useHeadlessFlow = await confirmHeadless({
+        message: "Use headless authentication flow?",
+      });
+    } else {
+      useHeadlessFlow = await promptYesNo({
+        prompt: "Use headless authentication flow?",
+        defaultValue: true,
+      });
+    }
 
     if (useHeadlessFlow) {
-      return authenticateWithGoogleHeadless();
+      return authenticateWithGoogleHeadless({ experimentalUi });
     } else {
       // User chose localhost flow in headless environment - show port forwarding instructions
       return authenticateWithGoogleLocalhost({
         showPortForwardingInstructions: true,
+        experimentalUi,
       });
     }
   }
 
   // Standard local environment - use localhost flow without port forwarding instructions
-  return authenticateWithGoogleLocalhost();
+  return authenticateWithGoogleLocalhost({ experimentalUi });
 };
 
 /**
@@ -503,7 +613,7 @@ export const loginMain = async (args?: {
     return;
   }
 
-  if (noLocalhost && !useGoogle) {
+  if (noLocalhost && !useGoogle && !experimentalUi) {
     error({
       message:
         "Cannot use --no-localhost without --google. This flag is only for Google SSO.",
@@ -511,14 +621,27 @@ export const loginMain = async (args?: {
     return;
   }
 
+  const clackConfirmHeadless = async (args: {
+    message: string;
+  }): Promise<boolean> => {
+    return confirmAction({
+      message: args.message,
+      initialValue: true,
+    });
+  };
+
   let refreshToken: string;
   let idToken: string;
   let userEmail: string;
 
   if (useGoogle) {
-    // Google SSO flow
+    // Google SSO flow (explicit --google flag)
     try {
-      const result = await authenticateWithGoogle({ noLocalhost });
+      const result = await authenticateWithGoogle({
+        noLocalhost,
+        confirmHeadless: experimentalUi ? clackConfirmHeadless : null,
+        experimentalUi,
+      });
       refreshToken = result.refreshToken;
       idToken = result.idToken;
       userEmail = result.email;
@@ -567,98 +690,142 @@ export const loginMain = async (args?: {
       return;
     }
   } else if (experimentalUi) {
-    // Interactive mode with experimental UI: use loginFlow for grouped prompts UX
-    const result = await loginFlow({
-      callbacks: {
-        onAuthenticate: async (args): Promise<AuthenticateResult> => {
-          const { email: inputEmail, password: inputPassword } = args;
+    // Interactive mode with experimental UI: show auth method selection
+    intro("Login to Nori Skillsets");
 
-          try {
-            configureFirebase();
-            const firebase = getFirebase();
-
-            const userCredential = await signInWithEmailAndPassword(
-              firebase.auth,
-              inputEmail,
-              inputPassword,
-            );
-
-            const token = await userCredential.user.getIdToken();
-
-            // Fetch user's organizations and admin status
-            const accessInfo = await fetchUserAccess({ idToken: token });
-
-            return {
-              success: true,
-              userEmail: inputEmail,
-              organizations: accessInfo?.organizations ?? [],
-              isAdmin: accessInfo?.isAdmin ?? false,
-              refreshToken: userCredential.user.refreshToken,
-              idToken: token,
-            };
-          } catch (err) {
-            const authError = err as AuthError;
-            let hint: string | null = null;
-
-            if (
-              authError.code === AuthErrorCodes.INVALID_PASSWORD ||
-              authError.code === AuthErrorCodes.INVALID_LOGIN_CREDENTIALS ||
-              authError.code === "auth/invalid-credential"
-            ) {
-              hint = "Check that your email and password are correct.";
-            } else if (authError.code === AuthErrorCodes.USER_DELETED) {
-              hint = "This email is not registered. Contact support.";
-            } else if (
-              authError.code === AuthErrorCodes.TOO_MANY_ATTEMPTS_TRY_LATER
-            ) {
-              hint =
-                "Too many failed attempts. Wait a few minutes and try again.";
-            } else if (
-              authError.code === AuthErrorCodes.NETWORK_REQUEST_FAILED
-            ) {
-              hint = "Network error. Check your internet connection.";
-            }
-
-            return {
-              success: false,
-              error: authError.message,
-              hint,
-            };
-          }
-        },
-      },
+    const authMethod = await select({
+      message: "Authentication method",
+      options: [
+        { value: "email", label: "Email / Password" },
+        { value: "google", label: "Google SSO" },
+      ],
     });
 
-    if (result == null) {
-      // User cancelled or auth failed (flow handles the UI)
+    if (isCancel(authMethod)) {
+      cancel("Login cancelled.");
       return;
     }
 
-    // Use the tokens from the flow result (no need to re-authenticate)
-    refreshToken = result.refreshToken;
-    idToken = result.idToken;
-    userEmail = result.email;
+    if (authMethod === "email") {
+      // Email/password flow via loginFlow (skip intro since we already showed it)
+      const result = await loginFlow({
+        skipIntro: true,
+        callbacks: {
+          onAuthenticate: async (args): Promise<AuthenticateResult> => {
+            const { email: inputEmail, password: inputPassword } = args;
 
-    // Load existing config to preserve other fields
-    const existingConfig = await loadConfig();
+            try {
+              configureFirebase();
+              const firebase = getFirebase();
 
-    // Save credentials to config (using access info from flow result)
-    await saveConfig({
-      username: userEmail,
-      refreshToken,
-      organizationUrl: NORI_SKILLSETS_API_URL,
-      organizations: result.organizations,
-      isAdmin: result.isAdmin,
-      sendSessionTranscript: existingConfig?.sendSessionTranscript ?? null,
-      autoupdate: existingConfig?.autoupdate ?? null,
-      agents: existingConfig?.agents ?? null,
-      version: existingConfig?.version ?? null,
-      transcriptDestination: existingConfig?.transcriptDestination ?? null,
-      installDir: configDir,
-    });
+              const userCredential = await signInWithEmailAndPassword(
+                firebase.auth,
+                inputEmail,
+                inputPassword,
+              );
 
-    // Flow already showed intro/outro, so we're done
-    return;
+              const token = await userCredential.user.getIdToken();
+
+              // Fetch user's organizations and admin status
+              const accessInfo = await fetchUserAccess({ idToken: token });
+
+              return {
+                success: true,
+                userEmail: inputEmail,
+                organizations: accessInfo?.organizations ?? [],
+                isAdmin: accessInfo?.isAdmin ?? false,
+                refreshToken: userCredential.user.refreshToken,
+                idToken: token,
+              };
+            } catch (err) {
+              const authError = err as AuthError;
+              let hint: string | null = null;
+
+              if (
+                authError.code === AuthErrorCodes.INVALID_PASSWORD ||
+                authError.code === AuthErrorCodes.INVALID_LOGIN_CREDENTIALS ||
+                authError.code === "auth/invalid-credential"
+              ) {
+                hint = "Check that your email and password are correct.";
+              } else if (authError.code === AuthErrorCodes.USER_DELETED) {
+                hint = "This email is not registered. Contact support.";
+              } else if (
+                authError.code === AuthErrorCodes.TOO_MANY_ATTEMPTS_TRY_LATER
+              ) {
+                hint =
+                  "Too many failed attempts. Wait a few minutes and try again.";
+              } else if (
+                authError.code === AuthErrorCodes.NETWORK_REQUEST_FAILED
+              ) {
+                hint = "Network error. Check your internet connection.";
+              }
+
+              return {
+                success: false,
+                error: authError.message,
+                hint,
+              };
+            }
+          },
+        },
+      });
+
+      if (result == null) {
+        // User cancelled or auth failed (flow handles the UI)
+        return;
+      }
+
+      // Use the tokens from the flow result (no need to re-authenticate)
+      refreshToken = result.refreshToken;
+      idToken = result.idToken;
+      userEmail = result.email;
+
+      // Load existing config to preserve other fields
+      const existingConfig = await loadConfig();
+
+      // Save credentials to config (using access info from flow result)
+      await saveConfig({
+        username: userEmail,
+        refreshToken,
+        organizationUrl: NORI_SKILLSETS_API_URL,
+        organizations: result.organizations,
+        isAdmin: result.isAdmin,
+        sendSessionTranscript: existingConfig?.sendSessionTranscript ?? null,
+        autoupdate: existingConfig?.autoupdate ?? null,
+        agents: existingConfig?.agents ?? null,
+        version: existingConfig?.version ?? null,
+        transcriptDestination: existingConfig?.transcriptDestination ?? null,
+        installDir: configDir,
+      });
+
+      // Flow already showed outro, so we're done
+      return;
+    } else {
+      // Google SSO flow selected from experimental UI
+      try {
+        const result = await authenticateWithGoogle({
+          noLocalhost,
+          confirmHeadless: clackConfirmHeadless,
+          experimentalUi,
+        });
+        refreshToken = result.refreshToken;
+        idToken = result.idToken;
+        userEmail = result.email;
+      } catch (err) {
+        const authError = err as AuthError;
+        error({ message: "Authentication failed" });
+        error({ message: `  Error: ${authError.message}` });
+
+        if ((authError as AuthError).code === "auth/operation-not-allowed") {
+          error({
+            message:
+              "  Hint: Google sign-in may not be enabled for this project. Contact your administrator.",
+          });
+        }
+
+        return;
+      }
+    }
   } else {
     // Interactive mode with legacy prompts (default)
     const result = await authenticateWithLegacyPrompts({ configDir });
@@ -705,18 +872,35 @@ export const loginMain = async (args?: {
     installDir: configDir,
   });
 
-  newline();
-  success({ message: `Logged in as ${userEmail}` });
-
-  if (organizations.length > 0) {
-    info({ message: `Organizations: ${organizations.join(", ")}` });
-    if (isAdmin) {
-      info({ message: "Admin: Yes" });
+  if (experimentalUi) {
+    if (organizations.length > 0) {
+      const lines = [`Organizations: ${organizations.join(", ")}`];
+      if (isAdmin) {
+        lines.push("Admin: Yes");
+      }
+      note(lines.join("\n"), "Account Info");
+    } else {
+      note(
+        "No private organizations found. Using public registry.",
+        "Account Info",
+      );
     }
+    // Use clack outro to balance the intro shown earlier
+    outro(`Logged in as ${userEmail}`);
   } else {
-    info({
-      message: "No private organizations found. Using public registry.",
-    });
+    newline();
+    success({ message: `Logged in as ${userEmail}` });
+
+    if (organizations.length > 0) {
+      info({ message: `Organizations: ${organizations.join(", ")}` });
+      if (isAdmin) {
+        info({ message: "Admin: Yes" });
+      }
+    } else {
+      info({
+        message: "No private organizations found. Using public registry.",
+      });
+    }
   }
 };
 
