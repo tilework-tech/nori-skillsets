@@ -66,7 +66,10 @@ describe("listSkillsetsMain", () => {
     for (const name of ["senior-swe", "product-manager", "custom-profile"]) {
       const dir = path.join(profilesDir, name);
       await fs.mkdir(dir, { recursive: true });
-      await fs.writeFile(path.join(dir, "CLAUDE.md"), `# ${name}`);
+      await fs.writeFile(
+        path.join(dir, "nori.json"),
+        JSON.stringify({ name, version: "1.0.0" }),
+      );
     }
 
     await listSkillsetsMain({
@@ -128,7 +131,10 @@ describe("listSkillsetsMain", () => {
     await fs.mkdir(profilesDir, { recursive: true });
     const dir = path.join(profilesDir, "senior-swe");
     await fs.mkdir(dir, { recursive: true });
-    await fs.writeFile(path.join(dir, "CLAUDE.md"), "# senior-swe");
+    await fs.writeFile(
+      path.join(dir, "nori.json"),
+      JSON.stringify({ name: "senior-swe", version: "1.0.0" }),
+    );
 
     await listSkillsetsMain({
       installDir: testInstallDir,
@@ -145,7 +151,10 @@ describe("listSkillsetsMain", () => {
     await fs.mkdir(profilesDir, { recursive: true });
     const dir = path.join(profilesDir, "test-profile");
     await fs.mkdir(dir, { recursive: true });
-    await fs.writeFile(path.join(dir, "CLAUDE.md"), "# test-profile");
+    await fs.writeFile(
+      path.join(dir, "nori.json"),
+      JSON.stringify({ name: "test-profile", version: "1.0.0" }),
+    );
 
     await listSkillsetsMain({
       installDir: testInstallDir,
@@ -186,7 +195,10 @@ describe("listSkillsetsMain output format", () => {
 
     const dir = path.join(profilesDir, "my-profile");
     await fs.mkdir(dir, { recursive: true });
-    await fs.writeFile(path.join(dir, "CLAUDE.md"), "# my-profile");
+    await fs.writeFile(
+      path.join(dir, "nori.json"),
+      JSON.stringify({ name: "my-profile", version: "1.0.0" }),
+    );
 
     await listSkillsetsMain({
       installDir: testInstallDir,

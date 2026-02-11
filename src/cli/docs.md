@@ -56,6 +56,7 @@ src/cli/
     factory-reset/       # Remove all agent configuration
     dir/                 # Open Nori profiles directory in file explorer
     edit-skillset/       # Open skillset profile folder in VS Code
+    new-skillset/        # Create a new empty skillset
 ```
 
 **CLI Commands:**
@@ -75,6 +76,7 @@ src/cli/
 | `watch` | commands/watch/ | Monitor Claude Code sessions and save transcripts |
 | `install-location` | commands/install-location/ | Display installation directories |
 | `fork` | commands/fork-skillset/forkSkillset.ts | Fork an existing skillset to a new name |
+| `new` | commands/new-skillset/newSkillset.ts | Create a new empty skillset |
 | `factory-reset` | commands/factory-reset/factoryReset.ts | Remove all agent configuration from the ancestor tree |
 | `dir` | commands/dir/dir.ts | Open the Nori profiles directory in the system file explorer |
 | `edit-skillset` | commands/edit-skillset/editSkillset.ts | Open active (or specified) skillset profile folder in VS Code |
@@ -83,7 +85,7 @@ The nori-skillsets CLI uses simplified command names (no `registry-` prefix for 
 
 Each command directory contains the command implementation, its tests, and any command-specific utilities (e.g., `install/` contains `asciiArt.ts` and `installState.ts`).
 
-**Installation Flow:** The installer (install.ts) orchestrates the installation process in non-interactive mode. It runs: (1) `initMain()` to set up directories and config, (2) inline profile resolution -- loads existing config, resolves profile from `--profile` flag or existing agent config, preserves auth credentials, and saves merged config via `saveConfig()`, (3) runs feature loaders from the agent's LoaderRegistry. The installer creates `~/.nori-config.json` containing auth credentials and selected profile name, and installs components into `<installDir>/.claude/`. The profile selection determines which complete directory structure (CLAUDE.md, skills/, subagents/, slashcommands/) gets installed from the user's profiles directory at `~/.nori/profiles/{profileName}/`. Each profile is a self-contained directory with a CLAUDE.md file that defines the profile. Profiles are obtained from the registry or created by users; no built-in profiles are bundled with the package. The installTracking.ts module tracks installation and session events to the Nori backend.
+**Installation Flow:** The installer (install.ts) orchestrates the installation process in non-interactive mode. It runs: (1) `initMain()` to set up directories and config, (2) inline profile resolution -- loads existing config, resolves profile from `--profile` flag or existing agent config, preserves auth credentials, and saves merged config via `saveConfig()`, (3) runs feature loaders from the agent's LoaderRegistry. The installer creates `~/.nori-config.json` containing auth credentials and selected profile name, and installs components into `<installDir>/.claude/`. The profile selection determines which complete directory structure (CLAUDE.md, skills/, subagents/, slashcommands/) gets installed from the user's profiles directory at `~/.nori/profiles/{profileName}/`. Each profile is a self-contained directory identified by a `nori.json` manifest file. Profiles are obtained from the registry or created by users; no built-in profiles are bundled with the package. The installTracking.ts module tracks installation and session events to the Nori backend.
 
 **Centralized Config and Nori Directory:** The `.nori` directory and config file are centralized to the user's home directory. Core path and config functions are zero-arg and always resolve relative to `os.homedir()`:
 - `getConfigPath()` returns `~/.nori-config.json`

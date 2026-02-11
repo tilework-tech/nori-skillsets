@@ -69,16 +69,12 @@ describe("forkSkillsetMain", () => {
     const sourceDir = path.join(profilesDir, "senior-swe");
     await fs.mkdir(sourceDir, { recursive: true });
     await fs.writeFile(
-      path.join(sourceDir, "CLAUDE.md"),
-      "# Senior SWE Profile",
+      path.join(sourceDir, "nori.json"),
+      JSON.stringify({ name: "senior-swe", version: "1.0.0" }),
     );
     const skillsDir = path.join(sourceDir, "skills", "my-skill");
     await fs.mkdir(skillsDir, { recursive: true });
     await fs.writeFile(path.join(skillsDir, "SKILL.md"), "# My Skill");
-    await fs.writeFile(
-      path.join(sourceDir, "nori.json"),
-      JSON.stringify({ name: "senior-swe" }),
-    );
 
     await forkSkillsetMain({
       baseSkillset: "senior-swe",
@@ -87,11 +83,6 @@ describe("forkSkillsetMain", () => {
 
     // Verify destination exists with all contents
     const destDir = path.join(profilesDir, "my-custom");
-    const claudeMd = await fs.readFile(
-      path.join(destDir, "CLAUDE.md"),
-      "utf-8",
-    );
-    expect(claudeMd).toBe("# Senior SWE Profile");
 
     const skillMd = await fs.readFile(
       path.join(destDir, "skills", "my-skill", "SKILL.md"),
@@ -103,7 +94,9 @@ describe("forkSkillsetMain", () => {
       path.join(destDir, "nori.json"),
       "utf-8",
     );
-    expect(noriJson).toBe(JSON.stringify({ name: "senior-swe" }));
+    expect(noriJson).toBe(
+      JSON.stringify({ name: "senior-swe", version: "1.0.0" }),
+    );
 
     // Verify success message
     expect(mockSuccess).toHaveBeenCalledWith({
@@ -127,7 +120,7 @@ describe("forkSkillsetMain", () => {
     expect(mockExit).toHaveBeenCalledWith(1);
   });
 
-  it("should error when base skillset directory exists but has no CLAUDE.md", async () => {
+  it("should error when base skillset directory exists but has no nori.json", async () => {
     // Create a directory that is not a valid skillset
     const invalidDir = path.join(profilesDir, "not-a-skillset");
     await fs.mkdir(invalidDir, { recursive: true });
@@ -148,12 +141,18 @@ describe("forkSkillsetMain", () => {
     // Create source
     const sourceDir = path.join(profilesDir, "base-profile");
     await fs.mkdir(sourceDir, { recursive: true });
-    await fs.writeFile(path.join(sourceDir, "CLAUDE.md"), "# Base");
+    await fs.writeFile(
+      path.join(sourceDir, "nori.json"),
+      JSON.stringify({ name: "base-profile", version: "1.0.0" }),
+    );
 
     // Create destination that already exists
     const destDir = path.join(profilesDir, "existing-profile");
     await fs.mkdir(destDir, { recursive: true });
-    await fs.writeFile(path.join(destDir, "CLAUDE.md"), "# Existing");
+    await fs.writeFile(
+      path.join(destDir, "nori.json"),
+      JSON.stringify({ name: "existing-profile", version: "1.0.0" }),
+    );
 
     await forkSkillsetMain({
       baseSkillset: "base-profile",
@@ -173,7 +172,10 @@ describe("forkSkillsetMain", () => {
     // Create a namespaced source skillset
     const sourceDir = path.join(profilesDir, "myorg", "base-profile");
     await fs.mkdir(sourceDir, { recursive: true });
-    await fs.writeFile(path.join(sourceDir, "CLAUDE.md"), "# Org Profile");
+    await fs.writeFile(
+      path.join(sourceDir, "nori.json"),
+      JSON.stringify({ name: "base-profile", version: "1.0.0" }),
+    );
 
     await forkSkillsetMain({
       baseSkillset: "myorg/base-profile",
@@ -182,11 +184,13 @@ describe("forkSkillsetMain", () => {
 
     // Verify destination exists
     const destDir = path.join(profilesDir, "myorg", "forked-profile");
-    const claudeMd = await fs.readFile(
-      path.join(destDir, "CLAUDE.md"),
+    const noriJson = await fs.readFile(
+      path.join(destDir, "nori.json"),
       "utf-8",
     );
-    expect(claudeMd).toBe("# Org Profile");
+    expect(noriJson).toBe(
+      JSON.stringify({ name: "base-profile", version: "1.0.0" }),
+    );
     expect(mockExit).not.toHaveBeenCalled();
   });
 
@@ -194,7 +198,10 @@ describe("forkSkillsetMain", () => {
     // Create a flat source
     const sourceDir = path.join(profilesDir, "senior-swe");
     await fs.mkdir(sourceDir, { recursive: true });
-    await fs.writeFile(path.join(sourceDir, "CLAUDE.md"), "# SWE");
+    await fs.writeFile(
+      path.join(sourceDir, "nori.json"),
+      JSON.stringify({ name: "senior-swe", version: "1.0.0" }),
+    );
 
     // Fork to a new org namespace that doesn't exist yet
     await forkSkillsetMain({
@@ -203,18 +210,23 @@ describe("forkSkillsetMain", () => {
     });
 
     const destDir = path.join(profilesDir, "neworg", "my-fork");
-    const claudeMd = await fs.readFile(
-      path.join(destDir, "CLAUDE.md"),
+    const noriJson = await fs.readFile(
+      path.join(destDir, "nori.json"),
       "utf-8",
     );
-    expect(claudeMd).toBe("# SWE");
+    expect(noriJson).toBe(
+      JSON.stringify({ name: "senior-swe", version: "1.0.0" }),
+    );
     expect(mockExit).not.toHaveBeenCalled();
   });
 
   it("should print instructions for switching and editing after fork", async () => {
     const sourceDir = path.join(profilesDir, "senior-swe");
     await fs.mkdir(sourceDir, { recursive: true });
-    await fs.writeFile(path.join(sourceDir, "CLAUDE.md"), "# SWE");
+    await fs.writeFile(
+      path.join(sourceDir, "nori.json"),
+      JSON.stringify({ name: "senior-swe", version: "1.0.0" }),
+    );
 
     await forkSkillsetMain({
       baseSkillset: "senior-swe",
