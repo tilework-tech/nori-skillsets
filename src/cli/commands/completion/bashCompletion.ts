@@ -10,7 +10,7 @@ _nori_skillsets_completions() {
   cur="\${COMP_WORDS[COMP_CWORD]}"
   prev="\${COMP_WORDS[COMP_CWORD-1]}"
 
-  commands="login logout init search download install switch-skillset list-skillsets download-skill external watch dir fork edit-skillset install-location factory-reset completion help"
+  commands="login logout init search download install switch-skillset list-skillsets download-skill external watch dir fork-skillset edit-skillset install-location factory-reset completion help"
   global_opts="--install-dir --non-interactive --silent --agent --experimental-ui --help --version"
 
   # Complete subcommand at position 1
@@ -28,7 +28,7 @@ _nori_skillsets_completions() {
     logout|init|list-skillsets|dir|factory-reset|help)
       COMPREPLY=( $(compgen -W "\${global_opts}" -- "\${cur}") )
       ;;
-    fork)
+    fork-skillset)
       COMPREPLY=( $(compgen -W "\${global_opts}" -- "\${cur}") )
       ;;
     edit-skillset)

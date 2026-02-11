@@ -35,7 +35,7 @@ const VISIBLE_SUBCOMMANDS = [
   "external",
   "watch",
   "dir",
-  "fork",
+  "fork-skillset",
   "edit-skillset",
   "install-location",
   "factory-reset",
@@ -46,9 +46,15 @@ const VISIBLE_SUBCOMMANDS = [
 const HIDDEN_ALIASES = [
   "switch-skillsets",
   "switch",
+  "use",
   "list-skillset",
-  "fork-skillset",
+  "list",
+  "ls",
+  "fork",
+  "fork-skillsets",
   "edit",
+  "edit-skillsets",
+  "location",
 ];
 
 const GLOBAL_FLAGS = [

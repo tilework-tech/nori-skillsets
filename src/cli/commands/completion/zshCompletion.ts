@@ -31,7 +31,7 @@ _nori_skillsets() {
     'external:Install skills from an external GitHub repository'
     'watch:Watch Claude Code sessions and save transcripts'
     'dir:Open the Nori profiles directory'
-    'fork:Fork an existing skillset to a new name'
+    'fork-skillset:Fork an existing skillset to a new name'
     'edit-skillset:Open a skillset folder in VS Code'
     'install-location:Display Nori installation directories'
     'factory-reset:Remove all configuration for a given agent'
@@ -61,7 +61,7 @@ _nori_skillsets() {
         logout|init|list-skillsets|dir|factory-reset|help)
           _arguments \$global_opts
           ;;
-        fork)
+        fork-skillset)
           _arguments \\
             '1:base-skillset:' \\
             '2:new-skillset:' \\
