@@ -4,7 +4,7 @@ Path: @/src/cli/features/claude-code
 
 ### Overview
 
-Claude Code agent implementation that satisfies the Agent interface from @/src/cli/features/agentRegistry.ts. Contains feature loaders and configurations for installing Nori components into Anthropic's Claude Code CLI tool. Uses a directory-based profile system where each profile is self-contained with CLAUDE.md, skills, subagents, and slash commands. Contains loaders for: config, profiles, hooks, statusline, global slashcommands (no-op), and announcements. Claude-specific path helpers are encapsulated in paths.ts within this directory.
+Claude Code agent implementation that satisfies the Agent interface from @/src/cli/features/agentRegistry.ts. Contains feature loaders and configurations for installing Nori components into Anthropic's Claude Code CLI tool. Uses a directory-based profile system where each profile is self-contained with CLAUDE.md, skills, subagents, and slash commands. Contains loaders for: config, profiles, hooks, statusline, and announcements. Claude-specific path helpers are encapsulated in paths.ts within this directory.
 
 ### How it fits into the larger codebase
 
@@ -19,11 +19,11 @@ Profile discovery (`listProfiles()`) is not part of the agent -- it lives in @/s
 
 The AgentRegistry (@/src/cli/features/agentRegistry.ts) registers this agent and provides lookup by name. CLI commands use `AgentRegistry.getInstance().get({ name: "claude-code" })` to obtain the agent implementation.
 
-The `LoaderRegistry` class (@/src/cli/features/claude-code/loaderRegistry.ts) implements the shared `LoaderRegistry` interface. Loaders execute in order: config, profiles, hooks, statusline, slashcommands, announcements.
+The `LoaderRegistry` class (@/src/cli/features/claude-code/loaderRegistry.ts) implements the shared `LoaderRegistry` interface. Loaders execute in order: config, profiles, hooks, statusline, announcements.
 
 Each loader implements the `Loader` interface with a `run()` method. The shared `configLoader` (@/src/cli/features/config/loader.ts) serves as the single point of config persistence during installation.
 
-**Global settings** (hooks, statusline, slashcommands, announcements) install to `~/.claude/` and are shared across all Nori installations. Profile-dependent features (claudemd, skills, profile-specific slashcommands, subagents) are handled by sub-loaders within the profiles feature at @/src/cli/features/claude-code/profiles/.
+**Global settings** (hooks, statusline, announcements) install to `~/.claude/` and are shared across all Nori installations. Profile-dependent features (claudemd, skills, slashcommands, subagents) are handled by sub-loaders within the profiles feature at @/src/cli/features/claude-code/profiles/.
 
 ### Core Implementation
 
@@ -40,8 +40,6 @@ Each loader implements run(config) to install. The profiles loader (@/src/cli/fe
 The LoaderRegistry provides getAll() for install order. The profiles loader must run first because other loaders read from the profile directories it creates.
 
 **Hooks loader** (@/src/cli/features/claude-code/hooks/loader.ts): Configures hooks: contextUsageWarningHook, updateCheckHook, notifyHook, and commitAuthorHook. Also sets `includeCoAuthoredBy = false` in settings.json. The updateCheckHook is a SessionStart hook that reads the version cache (populated by @/src/cli/updates/) and outputs a systemMessage if an update is available.
-
-**Slashcommands loader** (@/src/cli/features/claude-code/slashcommands/loader.ts): Now a no-op. Global slash commands have been removed to reduce complexity.
 
 ### Things to Know
 
