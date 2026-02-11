@@ -6,7 +6,6 @@
 import { announcementsLoader } from "@/cli/features/claude-code/announcements/loader.js";
 import { hooksLoader } from "@/cli/features/claude-code/hooks/loader.js";
 import { profilesLoader } from "@/cli/features/claude-code/profiles/loader.js";
-import { globalSlashCommandsLoader } from "@/cli/features/claude-code/slashcommands/loader.js";
 import { statuslineLoader } from "@/cli/features/claude-code/statusline/loader.js";
 import { configLoader } from "@/cli/features/config/loader.js";
 
@@ -31,7 +30,6 @@ export class LoaderRegistry {
     this.loaders.set(profilesLoader.name, profilesLoader);
     this.loaders.set(hooksLoader.name, hooksLoader);
     this.loaders.set(statuslineLoader.name, statuslineLoader);
-    this.loaders.set(globalSlashCommandsLoader.name, globalSlashCommandsLoader);
     this.loaders.set(announcementsLoader.name, announcementsLoader);
   }
 
