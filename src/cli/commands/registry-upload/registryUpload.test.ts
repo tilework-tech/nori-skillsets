@@ -27,7 +27,7 @@ vi.mock("@/api/registrar.js", () => ({
   REGISTRAR_URL: "https://noriskillsets.dev",
   registrarApi: {
     getPackument: vi.fn(),
-    uploadProfile: vi.fn(),
+    uploadSkillset: vi.fn(),
   },
   NetworkError: class NetworkError extends Error {
     readonly isNetworkError = true;
@@ -390,7 +390,7 @@ describe("registry-upload", () => {
           new Error("Not found"),
         );
 
-        vi.mocked(registrarApi.uploadProfile).mockResolvedValue({
+        vi.mocked(registrarApi.uploadSkillset).mockResolvedValue({
           name: "my-profile",
           version: "1.0.0",
           tarballSha: "abc123",
@@ -444,7 +444,7 @@ describe("registry-upload", () => {
           new Error("Not found"),
         );
 
-        vi.mocked(registrarApi.uploadProfile).mockResolvedValue({
+        vi.mocked(registrarApi.uploadSkillset).mockResolvedValue({
           name: "my-profile",
           version: "1.0.0",
           tarballSha: "abc123",
@@ -459,7 +459,7 @@ describe("registry-upload", () => {
         expect(result.success).toBe(true);
 
         // Verify upload was called with correct params
-        expect(registrarApi.uploadProfile).toHaveBeenCalledWith(
+        expect(registrarApi.uploadSkillset).toHaveBeenCalledWith(
           expect.objectContaining({
             packageName: "my-profile",
             version: "1.0.0",
@@ -506,7 +506,7 @@ describe("registry-upload", () => {
           },
         });
 
-        vi.mocked(registrarApi.uploadProfile).mockResolvedValue({
+        vi.mocked(registrarApi.uploadSkillset).mockResolvedValue({
           name: "my-profile",
           version: "1.2.4",
           tarballSha: "abc123",
@@ -521,7 +521,7 @@ describe("registry-upload", () => {
         expect(result.success).toBe(true);
 
         // Verify version was auto-bumped to 1.2.4
-        expect(registrarApi.uploadProfile).toHaveBeenCalledWith(
+        expect(registrarApi.uploadSkillset).toHaveBeenCalledWith(
           expect.objectContaining({
             version: "1.2.4",
           }),
@@ -549,7 +549,7 @@ describe("registry-upload", () => {
 
         vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
 
-        vi.mocked(registrarApi.uploadProfile).mockResolvedValue({
+        vi.mocked(registrarApi.uploadSkillset).mockResolvedValue({
           name: "my-profile",
           version: "2.0.0",
           tarballSha: "abc123",
@@ -564,7 +564,7 @@ describe("registry-upload", () => {
         expect(result.success).toBe(true);
 
         // Verify explicit version was used
-        expect(registrarApi.uploadProfile).toHaveBeenCalledWith(
+        expect(registrarApi.uploadSkillset).toHaveBeenCalledWith(
           expect.objectContaining({
             version: "2.0.0",
           }),
@@ -613,7 +613,7 @@ describe("registry-upload", () => {
         expect(result.success).toBe(true);
 
         // Verify no upload occurred
-        expect(registrarApi.uploadProfile).not.toHaveBeenCalled();
+        expect(registrarApi.uploadSkillset).not.toHaveBeenCalled();
 
         // Verify version list was displayed
         const allOutput = mockConsoleLog.mock.calls
@@ -699,7 +699,7 @@ describe("registry-upload", () => {
           ],
         };
 
-        vi.mocked(registrarApi.uploadProfile)
+        vi.mocked(registrarApi.uploadSkillset)
           .mockRejectedValueOnce(collisionError)
           .mockResolvedValueOnce({
             name: "my-profile",
@@ -716,8 +716,8 @@ describe("registry-upload", () => {
         expect(result.success).toBe(true);
 
         // Verify retry was attempted with resolution strategy
-        expect(registrarApi.uploadProfile).toHaveBeenCalledTimes(2);
-        expect(registrarApi.uploadProfile).toHaveBeenLastCalledWith(
+        expect(registrarApi.uploadSkillset).toHaveBeenCalledTimes(2);
+        expect(registrarApi.uploadSkillset).toHaveBeenLastCalledWith(
           expect.objectContaining({
             resolutionStrategy: {
               "writing-plans": { action: "link" },
@@ -774,7 +774,9 @@ describe("registry-upload", () => {
           ],
         };
 
-        vi.mocked(registrarApi.uploadProfile).mockRejectedValue(collisionError);
+        vi.mocked(registrarApi.uploadSkillset).mockRejectedValue(
+          collisionError,
+        );
 
         const result = await registryUploadMain({
           profileSpec: "myorg/my-profile",
@@ -885,7 +887,7 @@ describe("registry-upload", () => {
           new Error("Not found"),
         );
 
-        vi.mocked(registrarApi.uploadProfile).mockRejectedValue(
+        vi.mocked(registrarApi.uploadSkillset).mockRejectedValue(
           new Error("Network error: connection refused"),
         );
 
@@ -938,7 +940,7 @@ describe("registry-upload", () => {
           new Error("Not found"),
         );
 
-        vi.mocked(registrarApi.uploadProfile).mockResolvedValue({
+        vi.mocked(registrarApi.uploadSkillset).mockResolvedValue({
           name: "my-profile",
           version: "1.0.0",
           tarballSha: "abc123",
@@ -954,7 +956,7 @@ describe("registry-upload", () => {
         expect(result.success).toBe(true);
 
         // Verify upload was to custom registry
-        expect(registrarApi.uploadProfile).toHaveBeenCalledWith(
+        expect(registrarApi.uploadSkillset).toHaveBeenCalledWith(
           expect.objectContaining({
             registryUrl: customRegistryUrl,
           }),
@@ -1032,7 +1034,7 @@ describe("registry-upload", () => {
         expect(result.success).toBe(true);
 
         // Verify no upload occurred
-        expect(registrarApi.uploadProfile).not.toHaveBeenCalled();
+        expect(registrarApi.uploadSkillset).not.toHaveBeenCalled();
 
         // Verify dry-run output shows version
         const allOutput = mockConsoleLog.mock.calls
@@ -1124,7 +1126,7 @@ describe("registry-upload", () => {
     });
 
     describe("--description option", () => {
-      it("should pass description to uploadProfile API", async () => {
+      it("should pass description to uploadSkillset API", async () => {
         // Create a profile to upload
         const profileDir = path.join(profilesDir, "myorg", "my-profile");
         await fs.mkdir(profileDir, { recursive: true });
@@ -1149,7 +1151,7 @@ describe("registry-upload", () => {
           new Error("Not found"),
         );
 
-        vi.mocked(registrarApi.uploadProfile).mockResolvedValue({
+        vi.mocked(registrarApi.uploadSkillset).mockResolvedValue({
           name: "my-profile",
           version: "1.0.0",
           tarballSha: "abc123",
@@ -1164,7 +1166,7 @@ describe("registry-upload", () => {
 
         expect(result.success).toBe(true);
 
-        expect(registrarApi.uploadProfile).toHaveBeenCalledWith(
+        expect(registrarApi.uploadSkillset).toHaveBeenCalledWith(
           expect.objectContaining({
             description: "A helpful profile for testing",
           }),
@@ -1196,7 +1198,7 @@ describe("registry-upload", () => {
           new Error("Not found"),
         );
 
-        vi.mocked(registrarApi.uploadProfile).mockResolvedValue({
+        vi.mocked(registrarApi.uploadSkillset).mockResolvedValue({
           name: "my-profile",
           version: "1.0.0",
           tarballSha: "abc123",
@@ -1212,7 +1214,7 @@ describe("registry-upload", () => {
         expect(result.success).toBe(true);
 
         // Verify description was not included or was undefined
-        const uploadCall = vi.mocked(registrarApi.uploadProfile).mock.calls[0];
+        const uploadCall = vi.mocked(registrarApi.uploadSkillset).mock.calls[0];
         expect(uploadCall[0].description).toBeUndefined();
       });
     });
@@ -1254,7 +1256,7 @@ describe("registry-upload", () => {
           new Error("Not found"),
         );
 
-        vi.mocked(registrarApi.uploadProfile).mockResolvedValue({
+        vi.mocked(registrarApi.uploadSkillset).mockResolvedValue({
           name: "my-profile",
           version: "1.0.0",
           tarballSha: "abc123",
@@ -1308,7 +1310,7 @@ describe("registry-upload", () => {
           new Error("Not found"),
         );
 
-        vi.mocked(registrarApi.uploadProfile).mockRejectedValue(
+        vi.mocked(registrarApi.uploadSkillset).mockRejectedValue(
           new Error("Upload failed"),
         );
 
@@ -1359,7 +1361,7 @@ describe("registry-upload", () => {
           new Error("Not found"),
         );
 
-        vi.mocked(registrarApi.uploadProfile).mockResolvedValue({
+        vi.mocked(registrarApi.uploadSkillset).mockResolvedValue({
           name: "my-profile",
           version: "1.0.0",
           tarballSha: "abc123",
@@ -1421,7 +1423,7 @@ describe("registry-upload", () => {
           ],
         };
 
-        vi.mocked(registrarApi.uploadProfile)
+        vi.mocked(registrarApi.uploadSkillset)
           .mockRejectedValueOnce(collisionError)
           .mockResolvedValueOnce({
             name: "my-profile",
@@ -1452,8 +1454,8 @@ describe("registry-upload", () => {
         );
 
         // Verify retry with resolution strategy
-        expect(registrarApi.uploadProfile).toHaveBeenCalledTimes(2);
-        expect(registrarApi.uploadProfile).toHaveBeenLastCalledWith(
+        expect(registrarApi.uploadSkillset).toHaveBeenCalledTimes(2);
+        expect(registrarApi.uploadSkillset).toHaveBeenLastCalledWith(
           expect.objectContaining({
             resolutionStrategy: {
               "my-skill": { action: "namespace" },
@@ -1502,7 +1504,9 @@ describe("registry-upload", () => {
           ],
         };
 
-        vi.mocked(registrarApi.uploadProfile).mockRejectedValue(collisionError);
+        vi.mocked(registrarApi.uploadSkillset).mockRejectedValue(
+          collisionError,
+        );
 
         const result = await registryUploadMain({
           profileSpec: "myorg/my-profile",
@@ -1543,7 +1547,7 @@ describe("registry-upload", () => {
           new Error("Not found"),
         );
 
-        vi.mocked(registrarApi.uploadProfile).mockResolvedValue({
+        vi.mocked(registrarApi.uploadSkillset).mockResolvedValue({
           name: "my-profile",
           version: "1.0.0",
           tarballSha: "abc123",
@@ -1611,7 +1615,7 @@ describe("registry-upload", () => {
           ],
         };
 
-        vi.mocked(registrarApi.uploadProfile)
+        vi.mocked(registrarApi.uploadSkillset)
           .mockRejectedValueOnce(collisionError)
           .mockResolvedValueOnce({
             name: "my-profile",
@@ -1682,7 +1686,7 @@ describe("registry-upload", () => {
           ],
         };
 
-        vi.mocked(registrarApi.uploadProfile)
+        vi.mocked(registrarApi.uploadSkillset)
           .mockRejectedValueOnce(collisionError)
           .mockResolvedValueOnce({
             name: "my-profile",

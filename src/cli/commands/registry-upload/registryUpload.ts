@@ -12,9 +12,10 @@ import * as tar from "tar";
 
 import {
   registrarApi,
+  type ExtractedSkillInfo,
   type SkillConflict,
   type SkillResolutionStrategy,
-  type UploadProfileResponse,
+  type UploadSkillsetResponse,
 } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
 import { loadConfig, getRegistryAuth } from "@/cli/config.js";
@@ -281,7 +282,7 @@ const formatVersionList = (args: {
  * @returns Formatted skill summary string or null if no skills
  */
 const formatSkillSummary = (args: {
-  result: UploadProfileResponse;
+  result: UploadSkillsetResponse;
   linkedSkillIds: Set<string>;
 }): string | null => {
   const { result, linkedSkillIds } = args;
@@ -299,8 +300,12 @@ const formatSkillSummary = (args: {
   const lines: Array<string> = ["\nSkills:"];
 
   // Separate linked vs newly uploaded skills
-  const linkedSkills = succeeded.filter((s) => linkedSkillIds.has(s.name));
-  const uploadedSkills = succeeded.filter((s) => !linkedSkillIds.has(s.name));
+  const linkedSkills = succeeded.filter((s: ExtractedSkillInfo) =>
+    linkedSkillIds.has(s.name),
+  );
+  const uploadedSkills = succeeded.filter(
+    (s: ExtractedSkillInfo) => !linkedSkillIds.has(s.name),
+  );
 
   if (uploadedSkills.length > 0) {
     lines.push("  Uploaded:");
@@ -570,12 +575,12 @@ export const registryUploadMain = async (args: {
   // Helper to perform upload with optional resolution strategy
   const performUpload = async (args: {
     resolutionStrategy?: SkillResolutionStrategy | null;
-  }): Promise<UploadProfileResponse> => {
+  }): Promise<UploadSkillsetResponse> => {
     const tarballBuffer = await createProfileTarball({ profileDir });
     const archiveData = new ArrayBuffer(tarballBuffer.byteLength);
     new Uint8Array(archiveData).set(tarballBuffer);
 
-    return await registrarApi.uploadProfile({
+    return await registrarApi.uploadSkillset({
       packageName,
       version: uploadVersion,
       archiveData,
@@ -587,7 +592,7 @@ export const registryUploadMain = async (args: {
   };
 
   // Helper to display success and summary
-  const displaySuccess = (args: { result: UploadProfileResponse }): void => {
+  const displaySuccess = (args: { result: UploadSkillsetResponse }): void => {
     const { result } = args;
 
     success({
