@@ -105,7 +105,7 @@ export const registerNoriSkillsetsNewCommand = (args: {
 };
 
 /**
- * Register the 'edit-skillset' command for nori-skillsets CLI
+ * Register the 'edit' command for nori-skillsets CLI
  * @param args - Configuration arguments
  * @param args.program - Commander program instance
  */
@@ -114,9 +114,9 @@ export const registerNoriSkillsetsEditSkillsetCommand = (args: {
 }): void => {
   const { program } = args;
 
-  // Primary command: edit-skillset (with optional name argument)
+  // Primary command: edit (shorthand, canonical)
   program
-    .command("edit-skillset [name]")
+    .command("edit [name]")
     .description(
       "Open the active skillset folder in VS Code (or a specified skillset)",
     )
@@ -129,9 +129,9 @@ export const registerNoriSkillsetsEditSkillsetCommand = (args: {
       });
     });
 
-  // Hidden alias: edit (shorthand)
+  // Hidden alias: edit-skillset (long form)
   program
-    .command("edit [name]", { hidden: true })
+    .command("edit-skillset [name]", { hidden: true })
     .option("-a, --agent <name>", "AI agent to get skillset for")
     .action(async (name: string | undefined, options: { agent?: string }) => {
       const globalOpts = program.opts();
@@ -267,7 +267,7 @@ export const registerNoriSkillsetsInstallCommand = (args: {
 };
 
 /**
- * Register the 'switch-skillset' command for nori-skillsets CLI
+ * Register the 'switch' command for nori-skillsets CLI
  * @param args - Configuration arguments
  * @param args.program - Commander program instance
  */
@@ -276,10 +276,18 @@ export const registerNoriSkillsetsSwitchSkillsetCommand = (args: {
 }): void => {
   const { program } = args;
 
-  // Primary command: switch-skillset (singular, canonical)
+  // Primary command: switch (shorthand, canonical)
   program
-    .command("switch-skillset <name>")
+    .command("switch <name>")
     .description("Switch to a different skillset and reinstall")
+    .option("-a, --agent <name>", "AI agent to switch skillset for")
+    .action(async (name: string, options: { agent?: string }) => {
+      await switchSkillsetAction({ name, options, program });
+    });
+
+  // Hidden alias: switch-skillset (long form)
+  program
+    .command("switch-skillset <name>", { hidden: true })
     .option("-a, --agent <name>", "AI agent to switch skillset for")
     .action(async (name: string, options: { agent?: string }) => {
       await switchSkillsetAction({ name, options, program });
@@ -288,14 +296,6 @@ export const registerNoriSkillsetsSwitchSkillsetCommand = (args: {
   // Hidden alias: switch-skillsets (plural)
   program
     .command("switch-skillsets <name>", { hidden: true })
-    .option("-a, --agent <name>", "AI agent to switch skillset for")
-    .action(async (name: string, options: { agent?: string }) => {
-      await switchSkillsetAction({ name, options, program });
-    });
-
-  // Hidden alias: switch (shorthand)
-  program
-    .command("switch <name>", { hidden: true })
     .option("-a, --agent <name>", "AI agent to switch skillset for")
     .action(async (name: string, options: { agent?: string }) => {
       await switchSkillsetAction({ name, options, program });
@@ -351,7 +351,7 @@ export const registerNoriSkillsetsDownloadSkillCommand = (args: {
 };
 
 /**
- * Register the 'list-skillsets' command for nori-skillsets CLI
+ * Register the 'list' command for nori-skillsets CLI
  * @param args - Configuration arguments
  * @param args.program - Commander program instance
  */
@@ -360,9 +360,9 @@ export const registerNoriSkillsetsListSkillsetsCommand = (args: {
 }): void => {
   const { program } = args;
 
-  // Primary command: list-skillsets (plural, canonical)
+  // Primary command: list (shorthand, canonical)
   program
-    .command("list-skillsets")
+    .command("list")
     .description("List locally available skillsets (one per line)")
     .action(async () => {
       const globalOpts = program.opts();
@@ -372,7 +372,16 @@ export const registerNoriSkillsetsListSkillsetsCommand = (args: {
       });
     });
 
-  // Hidden alias: list-skillset (singular)
+  // Hidden alias: list-skillsets (long form, plural)
+  program.command("list-skillsets", { hidden: true }).action(async () => {
+    const globalOpts = program.opts();
+    await listSkillsetsMain({
+      installDir: globalOpts.installDir || null,
+      agent: globalOpts.agent || null,
+    });
+  });
+
+  // Hidden alias: list-skillset (long form, singular)
   program.command("list-skillset", { hidden: true }).action(async () => {
     const globalOpts = program.opts();
     await listSkillsetsMain({

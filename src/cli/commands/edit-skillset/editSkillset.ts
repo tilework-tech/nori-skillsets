@@ -52,7 +52,7 @@ export const editSkillsetMain = async (args: {
     if (profile == null) {
       error({
         message:
-          "No active skillset configured. Use 'nori-skillsets switch-skillset <name>' to set one.",
+          "No active skillset configured. Use 'nori-skillsets switch <name>' to set one.",
       });
       process.exit(1);
       return;

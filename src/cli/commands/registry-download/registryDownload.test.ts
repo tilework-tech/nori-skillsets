@@ -2046,7 +2046,7 @@ describe("registry-download", () => {
       const allOutput = mockConsoleLog.mock.calls
         .map((call) => call.join(" "))
         .join("\n");
-      expect(allOutput).toContain("nori-skillsets switch-skillset");
+      expect(allOutput).toContain("nori-skillsets switch");
       expect(allOutput).not.toContain("nori-skillsets switch-profile");
     });
 
@@ -2073,7 +2073,7 @@ describe("registry-download", () => {
       const allOutput = mockConsoleLog.mock.calls
         .map((call) => call.join(" "))
         .join("\n");
-      expect(allOutput).toContain("switch-skillset");
+      expect(allOutput).toContain("switch");
     });
 
     it("should use nori-skillsets command names in version list hint when cliName is nori-skillsets", async () => {

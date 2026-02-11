@@ -11,7 +11,7 @@ Agent abstraction layer that defines the Agent interface and registry for the Cl
 The features directory sits between the CLI commands (@/src/cli/commands/) and the Claude Code agent implementation (@/src/cli/features/claude-code/). CLI commands use the AgentRegistry to look up the agent implementation by name, then delegate to the agent's loaders and profile methods.
 
 ```
-CLI Commands (install, switch-profile, onboard, list-skillsets)
+CLI Commands (install, switch-profile, onboard, list)
     |
     +-- AgentRegistry.getInstance().get({ name: agentName })
     |       |
@@ -66,7 +66,7 @@ The `--agent` global CLI option (default: "claude-code") determines which agent 
 - Agent-agnostic profile discovery extracted from the Agent interface
 - `listProfiles()`: Zero-arg function that scans `~/.nori/profiles/` for directories containing `nori.json`, supporting both flat profiles (e.g., `senior-swe`) and namespaced profiles (e.g., `myorg/my-profile`). Uses `getNoriProfilesDir()` internally. Returns a sorted array of profile names.
 - `MANIFEST_FILE`: Constant (`"nori.json"`) used by both this module and `claudeCodeAgent.switchProfile()` to identify valid profiles
-- Imported directly by CLI commands (`list-skillsets`, `switch-profile`) rather than going through the Agent interface
+- Imported directly by CLI commands (`list`, `switch-profile`) rather than going through the Agent interface
 
 **Migration System** (migration.ts):
 - Versioned migration system for transforming config between formats during installation

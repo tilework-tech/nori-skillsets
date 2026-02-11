@@ -235,7 +235,7 @@ describe("forkSkillsetMain", () => {
 
     // Should print switch instruction
     expect(mockInfo).toHaveBeenCalledWith({
-      message: expect.stringContaining("switch-skillset my-fork"),
+      message: expect.stringContaining("switch my-fork"),
     });
 
     // Should print edit location

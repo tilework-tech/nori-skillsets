@@ -9,7 +9,7 @@ The profiles module manages Nori skillsets (profiles) for the claude-code agent.
 ### How it fits into the larger codebase
 
 - Feature loaders throughout @/src/cli/features/claude-code/ read from profile directories in `~/.nori/profiles/` to install content into `~/.claude/`. This profiles module ensures those directories exist and are properly structured.
-- The CLI commands layer (@/src/cli/commands/) invokes profile operations: `install` triggers the installation flow and writes the manifest, `switch-skillset` reads the manifest for change detection, and `registry-download`/`skill-download` populate profile directories with external content.
+- The CLI commands layer (@/src/cli/commands/) invokes profile operations: `install` triggers the installation flow and writes the manifest, `switch` reads the manifest for change detection, and `registry-download`/`skill-download` populate profile directories with external content.
 - Profile discovery (`listProfiles()` in @/src/cli/features/managedFolder.ts) and profile switching (`switchProfile()` on `claudeCodeAgent`) depend on the `nori.json` marker that this module defines and reads.
 
 ### Core Implementation
@@ -177,7 +177,7 @@ The resolver module (@/src/cli/features/claude-code/profiles/skills/resolver.ts)
 ## Usage
 
 ```bash
-npx nori-skillsets switch-skillset my-custom-profile
+npx nori-skillsets switch my-custom-profile
 ```
 
 

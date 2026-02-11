@@ -25,7 +25,7 @@ export const forkSkillsetMain = async (args: {
     await fs.access(path.join(sourcePath, MANIFEST_FILE));
   } catch {
     error({
-      message: `Skillset '${baseSkillset}' not found. Run 'nori-skillsets list-skillsets' to see available skillsets.`,
+      message: `Skillset '${baseSkillset}' not found. Run 'nori-skillsets list' to see available skillsets.`,
     });
     process.exit(1);
     return;
@@ -56,7 +56,7 @@ export const forkSkillsetMain = async (args: {
   });
   newline();
   info({
-    message: `To switch:  nori-skillsets switch-skillset ${newSkillset}`,
+    message: `To switch:  nori-skillsets switch ${newSkillset}`,
   });
   info({
     message: `To edit:    ~/.nori/profiles/${newSkillset}/`,
