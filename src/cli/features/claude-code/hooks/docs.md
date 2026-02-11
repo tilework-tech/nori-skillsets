@@ -4,7 +4,7 @@ Path: @/src/cli/features/claude-code/hooks
 
 ### Overview
 
-Feature loader that configures Claude Code hooks by writing hook configurations directly into ~/.claude/settings.json. Manages hooks for: context usage warnings, desktop notifications, and commit-author replacement. Also configures git settings to disable Claude Code's built-in co-author byline in favor of Nori attribution.
+Feature loader that configures Claude Code hooks by writing hook configurations directly into ~/.claude/settings.json. Manages hooks for: context usage warnings, desktop notifications, and commit-author replacement. Also configures git settings to disable Claude Code's built-in co-author byline in favor of Nori attribution. Includes a legacy hooks cleanup mechanism that removes stale hook entries from settings.json when users upgrade the package.
 
 ### How it fits into the larger codebase
 
@@ -29,6 +29,8 @@ The `includeCoAuthoredBy = false` setting disables Claude Code's built-in git co
 The updateCheckHook reads the version cache at `~/.nori/profiles/nori-skillsets-version.json` (no network call) and outputs a systemMessage if a newer version is available. It also triggers a background cache refresh if the cache is stale. The hook script lives at @/src/cli/features/claude-code/hooks/config/update-check.ts and relies on the cache populated by the CLI auto-update system at @/src/cli/updates/.
 
 The settings.json structure uses event matchers (`startup` for session start, empty string for Notification events, `Bash` for PreToolUse) to control when hooks fire. All hooks gracefully handle errors and exit with code 0 to avoid disrupting Claude Code sessions.
+
+**Legacy hooks cleanup (cleanupLegacyHooks.ts):** When hook scripts are removed from the package, stale entries may persist in users' ~/.claude/settings.json causing MODULE_NOT_FOUND errors. The cleanup module maintains a `REMOVED_HOOK_SCRIPTS` list of known removed filenames and removes matching entries from settings.json. It runs in two places: (1) as an npm postinstall script on package upgrade, and (2) at the start of `configureHooks()` during `nori-skillsets install`. The cleanup only targets hooks whose command contains "nori-skillsets" AND ends with a filename in the removed list. When removing a hook script in the future, add its filename to the REMOVED_HOOK_SCRIPTS array in cleanupLegacyHooks.ts.
 
 Desktop notifications support click-to-focus functionality on Linux X11 and macOS when optional dependencies are installed (see @/src/cli/features/claude-code/hooks/config/docs.md for installation instructions).
 

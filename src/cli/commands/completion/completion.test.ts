@@ -46,10 +46,15 @@ const VISIBLE_SUBCOMMANDS = [
 const HIDDEN_ALIASES = [
   "switch-skillset",
   "switch-skillsets",
+  "use",
   "list-skillsets",
   "list-skillset",
+  "ls",
   "fork-skillset",
+  "fork-skillsets",
   "edit-skillset",
+  "edit-skillsets",
+  "location",
 ];
 
 const GLOBAL_FLAGS = [

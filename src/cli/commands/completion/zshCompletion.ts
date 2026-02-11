@@ -61,7 +61,7 @@ _nori_skillsets() {
         logout|init|list|dir|factory-reset|help)
           _arguments \$global_opts
           ;;
-        fork)
+        fork-skillset)
           _arguments \\
             '1:base-skillset:' \\
             '2:new-skillset:' \\

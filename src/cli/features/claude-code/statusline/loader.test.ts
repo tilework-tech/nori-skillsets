@@ -345,6 +345,93 @@ describe("statuslineLoader", () => {
       expect(output).not.toContain("Nori Tip:");
     });
 
+    it("should display version from nori-config.json in branding line", async () => {
+      const config: Config = { installDir: claudeDir };
+
+      // Install statusline
+      await statuslineLoader.run({ config });
+
+      // Create mock .nori-config.json with version
+      const noriConfigPath = path.join(tempDir, ".nori-config.json");
+      const noriConfigContent = JSON.stringify({
+        version: "1.2.3",
+      });
+      await fs.writeFile(noriConfigPath, noriConfigContent);
+
+      try {
+        // Read settings to get the statusLine command
+        const content = await fs.readFile(settingsPath, "utf-8");
+        const settings = JSON.parse(content);
+        const statusLineCommand = settings.statusLine.command;
+
+        // Execute the statusline script with mock input
+        const { execSync } = await import("child_process");
+        const mockInput = JSON.stringify({
+          cwd: tempDir,
+          cost: {
+            total_cost_usd: 1.5,
+            total_lines_added: 10,
+            total_lines_removed: 5,
+          },
+          transcript_path: "",
+        });
+
+        const output = execSync(statusLineCommand, {
+          input: mockInput,
+          encoding: "utf-8",
+        });
+
+        // Verify branding line includes version from config
+        expect(output).toContain("Augmented with Nori v1.2.3");
+      } finally {
+        await fs.rm(noriConfigPath, { force: true });
+      }
+    });
+
+    it("should display branding without version when nori-config.json has no version field", async () => {
+      const config: Config = { installDir: claudeDir };
+
+      // Install statusline
+      await statuslineLoader.run({ config });
+
+      // Create mock .nori-config.json without version field
+      const noriConfigPath = path.join(tempDir, ".nori-config.json");
+      const noriConfigContent = JSON.stringify({
+        profile: { baseProfile: "test" },
+      });
+      await fs.writeFile(noriConfigPath, noriConfigContent);
+
+      try {
+        // Read settings to get the statusLine command
+        const content = await fs.readFile(settingsPath, "utf-8");
+        const settings = JSON.parse(content);
+        const statusLineCommand = settings.statusLine.command;
+
+        // Execute the statusline script with mock input
+        const { execSync } = await import("child_process");
+        const mockInput = JSON.stringify({
+          cwd: tempDir,
+          cost: {
+            total_cost_usd: 1.5,
+            total_lines_added: 10,
+            total_lines_removed: 5,
+          },
+          transcript_path: "",
+        });
+
+        const output = execSync(statusLineCommand, {
+          input: mockInput,
+          encoding: "utf-8",
+        });
+
+        // Verify branding line shows without version but no __VERSION__ placeholder
+        expect(output).toContain("Augmented with Nori");
+        expect(output).not.toContain("__VERSION__");
+      } finally {
+        await fs.rm(noriConfigPath, { force: true });
+      }
+    });
+
     it("should display jq missing warning when jq is not available", async () => {
       const config: Config = { installDir: claudeDir };
 

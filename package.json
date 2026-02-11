@@ -36,6 +36,7 @@
   },
   "scripts": {
     "build": "./scripts/build.sh",
+    "postinstall": "node build/src/cli/features/claude-code/hooks/cleanupLegacyHooks.js 2>/dev/null || true",
     "prepare": "npm run build",
     "prepublishOnly": "./scripts/prepublish.sh",
     "watch": "tsc --watch",

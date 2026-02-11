@@ -104,7 +104,7 @@ echo -e "${BLUE}[3/4] Generating package.json...${NC}"
 # 1. Read the main package.json
 # 2. Override version with SKILLSETS_VERSION
 # 3. Remove devDependencies (not needed for published package)
-# 4. Remove scripts (not needed for published package)
+# 4. Keep only lifecycle scripts (postinstall, preinstall, install)
 # 5. Write the result
 node -e "
 const fs = require('fs');
@@ -115,9 +115,24 @@ const pkg = JSON.parse(fs.readFileSync('$MAIN_PACKAGE_JSON', 'utf-8'));
 // Override version
 pkg.version = '$VERSION';
 
-// Remove fields not needed in published package
+// Remove devDependencies
 delete pkg.devDependencies;
-delete pkg.scripts;
+
+// Keep only lifecycle scripts needed at install time
+const lifecycleScripts = ['preinstall', 'install', 'postinstall'];
+if (pkg.scripts) {
+  const newScripts = {};
+  for (const key of lifecycleScripts) {
+    if (pkg.scripts[key]) {
+      newScripts[key] = pkg.scripts[key];
+    }
+  }
+  if (Object.keys(newScripts).length > 0) {
+    pkg.scripts = newScripts;
+  } else {
+    delete pkg.scripts;
+  }
+}
 
 // Write output
 fs.writeFileSync('$STAGING_DIR/package.json', JSON.stringify(pkg, null, 2) + '\n');

@@ -28,7 +28,7 @@ _nori_skillsets_completions() {
     logout|init|list|dir|factory-reset|help)
       COMPREPLY=( $(compgen -W "\${global_opts}" -- "\${cur}") )
       ;;
-    fork)
+    fork-skillset)
       COMPREPLY=( $(compgen -W "\${global_opts}" -- "\${cur}") )
       ;;
     edit)

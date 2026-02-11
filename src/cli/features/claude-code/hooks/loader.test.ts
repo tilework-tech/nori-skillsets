@@ -27,6 +27,11 @@ vi.mock("@/cli/features/claude-code/paths.js", () => ({
   getClaudeProfilesDir: () => path.join(mockClaudeDir, "profiles"),
 }));
 
+// Mock cleanupLegacyHooks to prevent it from touching real ~/.claude/settings.json
+vi.mock("@/cli/features/claude-code/hooks/cleanupLegacyHooks.js", () => ({
+  cleanupLegacyHooks: vi.fn().mockResolvedValue(undefined),
+}));
+
 // Import loader after mocking env
 import { hooksLoader } from "./loader.js";
 
