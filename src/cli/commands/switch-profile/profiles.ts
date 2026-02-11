@@ -122,6 +122,7 @@ const detectLocalChanges = async (args: {
  * @param args.diff - Detected changes
  * @param args.installDir - Installation directory
  * @param args.nonInteractive - Whether running in non-interactive mode
+ * @param args.force - Whether to force through local changes without prompting
  *
  * @returns 'proceed' to continue, 'capture' to save first, 'abort' to cancel
  */
@@ -129,8 +130,14 @@ const promptForChangeHandling = async (args: {
   diff: ManifestDiff;
   installDir: string;
   nonInteractive: boolean;
+  force: boolean;
 }): Promise<"proceed" | "capture" | "abort"> => {
-  const { diff, nonInteractive } = args;
+  const { diff, nonInteractive, force } = args;
+
+  // --force skips the change-handling prompt entirely
+  if (force) {
+    return "proceed";
+  }
 
   // In non-interactive mode, error out (safe default)
   if (nonInteractive) {
@@ -138,7 +145,7 @@ const promptForChangeHandling = async (args: {
       `Local changes detected in installed skillset files. ` +
         `Cannot proceed in non-interactive mode. ` +
         `Modified: ${diff.modified.length}, Added: ${diff.added.length}, Deleted: ${diff.deleted.length}. ` +
-        `Run interactively to choose how to handle these changes.`,
+        `Run interactively to choose how to handle these changes, or use --force to discard them.`,
     );
   }
 
@@ -256,10 +263,11 @@ const confirmSwitchProfile = async (args: {
  * @param args.options - Command options
  * @param args.options.agent - Optional agent name override
  * @param args.program - Commander program instance
+ * @param args.options.force - Whether to force through local changes without prompting
  */
 export const switchSkillsetAction = async (args: {
   name: string;
-  options: { agent?: string };
+  options: { agent?: string; force?: boolean };
   program: Command;
 }): Promise<void> => {
   const { name, options, program } = args;
@@ -267,6 +275,7 @@ export const switchSkillsetAction = async (args: {
   // Get global options from parent
   const globalOpts = program.opts();
   const nonInteractive = globalOpts.nonInteractive ?? false;
+  const force = options.force ?? false;
 
   // Determine installation directory
   let installDir: string;
@@ -301,6 +310,7 @@ export const switchSkillsetAction = async (args: {
       diff: localChanges,
       installDir,
       nonInteractive,
+      force,
     });
 
     if (changeAction === "abort") {
@@ -383,9 +393,12 @@ export const registerSwitchProfileCommand = (args: {
     .command("switch-skillset <name>")
     .description("Switch to a different skillset and reinstall")
     .option("-a, --agent <name>", "AI agent to switch skillset for")
-    .action(async (name: string, options: { agent?: string }) => {
-      await switchSkillsetAction({ name, options, program });
-    });
+    .option("--force", "Force switch even when local changes are detected")
+    .action(
+      async (name: string, options: { agent?: string; force?: boolean }) => {
+        await switchSkillsetAction({ name, options, program });
+      },
+    );
 
   // Alias command: switch-profile (for backward compatibility)
   program
@@ -394,7 +407,10 @@ export const registerSwitchProfileCommand = (args: {
       "Alias for switch-skillset - Switch to a different skillset and reinstall",
     )
     .option("-a, --agent <name>", "AI agent to switch skillset for")
-    .action(async (name: string, options: { agent?: string }) => {
-      await switchSkillsetAction({ name, options, program });
-    });
+    .option("--force", "Force switch even when local changes are detected")
+    .action(
+      async (name: string, options: { agent?: string; force?: boolean }) => {
+        await switchSkillsetAction({ name, options, program });
+      },
+    );
 };

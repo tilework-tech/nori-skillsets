@@ -1,8 +1,5 @@
 import { analyticsApi } from "@/api/analytics.js";
-import { artifactsApi } from "@/api/artifacts.js";
 import { apiRequest } from "@/api/base.js";
-import { conversationApi } from "@/api/conversation.js";
-import { queryApi } from "@/api/query.js";
 import { registrarApi } from "@/api/registrar.js";
 import { transcriptApi } from "@/api/transcript.js";
 
@@ -28,20 +25,11 @@ export const handshake = async (): Promise<HandshakeResponse> => {
 
 export const apiClient = {
   analytics: analyticsApi,
-  artifacts: artifactsApi,
-  conversation: conversationApi,
-  query: queryApi,
   registrar: registrarApi,
   transcript: transcriptApi,
   handshake,
 };
 
-export type { Artifact } from "@/api/artifacts.js";
-export type { QueryResponse, QueryRequest } from "@/api/query.js";
-export type {
-  SummarizeRequest,
-  SummarizeResponse,
-} from "@/api/conversation.js";
 export { ConfigManager } from "@/api/base.js";
 export type {
   Package,
@@ -49,6 +37,8 @@ export type {
   SearchPackagesRequest,
   GetPackumentRequest,
   DownloadTarballRequest,
+  UploadSkillsetRequest,
+  UploadSkillsetResponse,
 } from "@/api/registrar.js";
 export type {
   TranscriptMessage,

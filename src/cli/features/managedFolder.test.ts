@@ -52,17 +52,20 @@ describe("listProfiles", () => {
     expect(profiles).toEqual([]);
   });
 
-  test("returns profile names for directories containing CLAUDE.md", async () => {
+  test("returns profile names for directories containing nori.json", async () => {
     const profilesDir = path.join(testHomeDir, ".nori", "profiles");
 
-    // Create valid profiles (with CLAUDE.md)
+    // Create valid profiles (with nori.json)
     for (const name of ["amol", "senior-swe"]) {
       const dir = path.join(profilesDir, name);
       await fs.mkdir(dir, { recursive: true });
-      await fs.writeFile(path.join(dir, "CLAUDE.md"), `# ${name}`);
+      await fs.writeFile(
+        path.join(dir, "nori.json"),
+        JSON.stringify({ name, version: "1.0.0" }),
+      );
     }
 
-    // Create invalid profile (no CLAUDE.md)
+    // Create invalid profile (no nori.json)
     const invalidDir = path.join(profilesDir, "invalid-profile");
     await fs.mkdir(invalidDir, { recursive: true });
     await fs.writeFile(path.join(invalidDir, "readme.txt"), "not a profile");
@@ -81,7 +84,10 @@ describe("listProfiles", () => {
     // Create flat profile (e.g., profiles/amol)
     const flatDir = path.join(profilesDir, "amol");
     await fs.mkdir(flatDir, { recursive: true });
-    await fs.writeFile(path.join(flatDir, "CLAUDE.md"), "# amol");
+    await fs.writeFile(
+      path.join(flatDir, "nori.json"),
+      JSON.stringify({ name: "amol", version: "1.0.0" }),
+    );
 
     // Create org directory with nested profiles (e.g., profiles/myorg/my-profile)
     const orgDir = path.join(profilesDir, "myorg");
@@ -90,12 +96,12 @@ describe("listProfiles", () => {
     await fs.mkdir(nestedProfile1, { recursive: true });
     await fs.mkdir(nestedProfile2, { recursive: true });
     await fs.writeFile(
-      path.join(nestedProfile1, "CLAUDE.md"),
-      "# myorg/my-profile",
+      path.join(nestedProfile1, "nori.json"),
+      JSON.stringify({ name: "myorg/my-profile", version: "1.0.0" }),
     );
     await fs.writeFile(
-      path.join(nestedProfile2, "CLAUDE.md"),
-      "# myorg/other-profile",
+      path.join(nestedProfile2, "nori.json"),
+      JSON.stringify({ name: "myorg/other-profile", version: "1.0.0" }),
     );
 
     const profiles = await listProfiles();
@@ -106,16 +112,16 @@ describe("listProfiles", () => {
     expect(profiles.length).toBe(3);
   });
 
-  test("org directory without CLAUDE.md is treated as org, not profile", async () => {
+  test("org directory without nori.json is treated as org, not profile", async () => {
     const profilesDir = path.join(testHomeDir, ".nori", "profiles");
 
-    // Create org directory without CLAUDE.md but with nested profile
+    // Create org directory without nori.json but with nested profile
     const orgDir = path.join(profilesDir, "myorg");
     const nestedProfile = path.join(orgDir, "my-profile");
     await fs.mkdir(nestedProfile, { recursive: true });
     await fs.writeFile(
-      path.join(nestedProfile, "CLAUDE.md"),
-      "# myorg/my-profile",
+      path.join(nestedProfile, "nori.json"),
+      JSON.stringify({ name: "myorg/my-profile", version: "1.0.0" }),
     );
 
     // Also create readme.txt in org dir to simulate a non-profile directory

@@ -197,9 +197,32 @@ if [ -f "$INSTALL_MARKER" ]; then
     fi
     STATUS_TIP="${INSTALL_MESSAGE}"
 else
-    # No install issues - show promotional tip
-    SELECTED_TIP="${TIPS[0]}"
-    STATUS_TIP="${DIM_WHITE}${SELECTED_TIP}${NC}"
+    # Check for available updates from version cache
+    VERSION_CACHE="$HOME/.nori/profiles/nori-skillsets-version.json"
+    UPDATE_MESSAGE=""
+    if [ -f "$VERSION_CACHE" ]; then
+        LATEST_VERSION=$(jq -r '.latest_version // empty' "$VERSION_CACHE" 2>/dev/null)
+        DISMISSED_VERSION=$(jq -r '.dismissed_version // empty' "$VERSION_CACHE" 2>/dev/null)
+        if [ -n "$LATEST_VERSION" ] && [ "$LATEST_VERSION" != "__VERSION__" ] && [ "$LATEST_VERSION" != "$DISMISSED_VERSION" ]; then
+            # Compare versions: check if latest is newer than current
+            CURRENT_SEMVER="__VERSION__"
+            if [ -n "$CURRENT_SEMVER" ] && [ "$CURRENT_SEMVER" != "0.0.0" ]; then
+                # Cross-platform version comparison using node (sort -V not available on macOS)
+                IS_NEWER=$(node -e "const [a,b]=['$CURRENT_SEMVER','$LATEST_VERSION'].map(v=>v.split('.').map(Number));process.stdout.write(a[0]<b[0]||(a[0]===b[0]&&a[1]<b[1])||(a[0]===b[0]&&a[1]===b[1]&&a[2]<b[2])?'1':'0')" 2>/dev/null || echo "0")
+                if [ "$IS_NEWER" = "1" ]; then
+                    UPDATE_MESSAGE="🍙 Update available: ${CURRENT_SEMVER} → ${LATEST_VERSION}. Run: npm install -g nori-skillsets@latest"
+                fi
+            fi
+        fi
+    fi
+
+    if [ -n "$UPDATE_MESSAGE" ]; then
+        STATUS_TIP="${YELLOW}${UPDATE_MESSAGE}${NC}"
+    else
+        # No install issues, no updates - show promotional tip
+        SELECTED_TIP="${TIPS[0]}"
+        STATUS_TIP="${DIM_WHITE}${SELECTED_TIP}${NC}"
+    fi
 fi
 
 # Build status line with colors - split into three lines

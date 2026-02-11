@@ -424,6 +424,67 @@ describe("login command", () => {
       expect(config?.auth?.username).toBe("user@example.com");
     });
 
+    it("should preserve transcriptDestination when logging in", async () => {
+      const { signInWithEmailAndPassword } = await import("firebase/auth");
+      const { loginFlow } = await import("@/cli/prompts/index.js");
+
+      // Create existing config with transcriptDestination
+      const existingConfigPath = getConfigPath();
+      await fs.writeFile(
+        existingConfigPath,
+        JSON.stringify({
+          agents: {
+            "claude-code": { profile: { baseProfile: "senior-swe" } },
+          },
+          transcriptDestination: "myorg",
+          installDir: tempDir,
+        }),
+      );
+
+      // Mock loginFlow
+      vi.mocked(loginFlow).mockImplementation(async (args) => {
+        const result = await args.callbacks.onAuthenticate({
+          email: "user@example.com",
+          password: "password123",
+        });
+        if (!result.success) {
+          return null;
+        }
+        return {
+          email: "user@example.com",
+          refreshToken: result.refreshToken,
+          idToken: result.idToken,
+          organizations: result.organizations,
+          isAdmin: result.isAdmin,
+        };
+      });
+
+      vi.mocked(signInWithEmailAndPassword).mockResolvedValue({
+        user: {
+          refreshToken: "mock-refresh-token",
+          getIdToken: vi.fn().mockResolvedValue("mock-id-token"),
+        },
+      } as any);
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            authorized: true,
+            organizations: ["acme"],
+            isAdmin: false,
+          }),
+      });
+
+      await loginMain({ installDir: tempDir, experimentalUi: true });
+
+      // Verify transcriptDestination was preserved
+      const config = await loadConfig();
+      expect(config?.transcriptDestination).toBe("myorg");
+      // And new auth was added
+      expect(config?.auth?.username).toBe("user@example.com");
+    });
+
     it("should save auth with empty organizations if check-access fails", async () => {
       const { signInWithEmailAndPassword } = await import("firebase/auth");
       const { loginFlow } = await import("@/cli/prompts/index.js");

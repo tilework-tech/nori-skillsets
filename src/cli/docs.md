@@ -16,6 +16,8 @@ CLI for Nori Profiles that installs features into Claude Code, manages credentia
 
 The CLI uses Commander.js for command routing, argument parsing, validation, and help generation. It defines global options (`--install-dir`, `--non-interactive`, `--silent`, `--agent`) on the main program. Each command lives in its own subdirectory under @/src/cli/commands/ and exports a `registerXCommand({ program })` function that the entry point imports and calls. Commands access global options via `program.opts()`. The CLI provides automatic `--help`, `--version`, and unknown command detection. Running the binary with no arguments shows help. The CLI layer is responsible ONLY for parsing and routing - all business logic remains in the command modules. The entry point configures analytics tracking by calling `setTileworkSource()` and `trackInstallLifecycle()` at startup before any commands are registered, setting source to "nori-skillsets" to identify CLI usage in analytics data.
 
+**Auto-update check at startup:** Before `program.parse()`, the entry point calls `checkForUpdateAndPrompt()` from @/src/cli/updates/checkForUpdate.ts. This reads `--silent` and `--non-interactive` flags from `process.argv` (before Commander parses them) and passes them along. The update check uses cached version data and may show an interactive prompt, a non-interactive one-liner, or nothing depending on flags and cache state. See @/src/cli/updates/docs.md for the full stale-while-revalidate architecture.
+
 **Global Options:**
 
 | Option | Description |
@@ -35,6 +37,7 @@ src/cli/
   logger.ts              # Console output formatting via Winston
   version.ts             # Version tracking for upgrades + package root discovery
   installTracking.ts     # Install lifecycle and session tracking to Nori backend
+  updates/               # Auto-update check system (see @/src/cli/updates/docs.md)
   features/              # Agent abstraction layer (see @/src/cli/features/docs.md)
     agentRegistry.ts     # AgentRegistry singleton + shared Loader/LoaderRegistry types
     config/              # Shared config loader (used by all agents)
@@ -51,6 +54,9 @@ src/cli/
     external/            # Install skills from external GitHub repos
     watch/               # Monitor Claude Code sessions and save transcripts
     factory-reset/       # Remove all agent configuration
+    dir/                 # Open Nori profiles directory in file explorer
+    edit-skillset/       # Open skillset profile folder in VS Code
+    new-skillset/        # Create a new empty skillset
 ```
 
 **CLI Commands:**
@@ -69,13 +75,17 @@ src/cli/
 | `logout` | commands/logout/ | Remove authentication credentials |
 | `watch` | commands/watch/ | Monitor Claude Code sessions and save transcripts |
 | `install-location` | commands/install-location/ | Display installation directories |
+| `fork` | commands/fork-skillset/forkSkillset.ts | Fork an existing skillset to a new name |
+| `new` | commands/new-skillset/newSkillset.ts | Create a new empty skillset |
 | `factory-reset` | commands/factory-reset/factoryReset.ts | Remove all agent configuration from the ancestor tree |
+| `dir` | commands/dir/dir.ts | Open the Nori profiles directory in the system file explorer |
+| `edit-skillset` | commands/edit-skillset/editSkillset.ts | Open active (or specified) skillset profile folder in VS Code |
 
-The nori-skillsets CLI uses simplified command names (no `registry-` prefix for registry read operations, `download-skill` for skill downloads, `switch-skillset` for profile switching, `init` for initialization, and `watch` for session monitoring). The commands are defined in @/src/cli/commands/noriSkillsetsCommands.ts and delegate to the underlying implementation functions (`*Main` functions from registry-*, skill-*, watch, and init commands, plus `switchSkillsetAction` from profiles.ts). Some commands have hidden aliases registered as separate Commander commands with `{ hidden: true }` -- these provide singular/plural variants (e.g., `list-skillset` for `list-skillsets`) and shorthand names (e.g., `switch` for `switch-skillset`). Hidden aliases do not appear in `--help` output but are fully functional commands that delegate to the same action handler.
+The nori-skillsets CLI uses simplified command names (no `registry-` prefix for registry read operations, `download-skill` for skill downloads, `switch-skillset` for profile switching, `init` for initialization, and `watch` for session monitoring). The commands are defined in @/src/cli/commands/noriSkillsetsCommands.ts and delegate to the underlying implementation functions (`*Main` functions from registry-*, skill-*, watch, and init commands, plus `switchSkillsetAction` from profiles.ts). Some commands have hidden aliases registered as separate Commander commands with `{ hidden: true }` -- these provide singular/plural variants (e.g., `list-skillset` for `list-skillsets`) and shorthand names (e.g., `switch` for `switch-skillset`, `edit` for `edit-skillset`). Hidden aliases do not appear in `--help` output but are fully functional commands that delegate to the same action handler.
 
 Each command directory contains the command implementation, its tests, and any command-specific utilities (e.g., `install/` contains `asciiArt.ts` and `installState.ts`).
 
-**Installation Flow:** The installer (install.ts) orchestrates the installation process in non-interactive mode. It runs: (1) `initMain()` to set up directories and config, (2) inline profile resolution -- loads existing config, resolves profile from `--profile` flag or existing agent config, preserves auth credentials, and saves merged config via `saveConfig()`, (3) runs feature loaders from the agent's LoaderRegistry. The installer creates `~/.nori-config.json` containing auth credentials and selected profile name, and installs components into `<installDir>/.claude/`. The profile selection determines which complete directory structure (CLAUDE.md, skills/, subagents/, slashcommands/) gets installed from the user's profiles directory at `~/.nori/profiles/{profileName}/`. Each profile is a self-contained directory with a CLAUDE.md file that defines the profile. Profiles are obtained from the registry or created by users; no built-in profiles are bundled with the package. The installTracking.ts module tracks installation and session events to the Nori backend.
+**Installation Flow:** The installer (install.ts) orchestrates the installation process in non-interactive mode. It runs: (1) `initMain()` to set up directories and config, (2) inline profile resolution -- loads existing config, resolves profile from `--profile` flag or existing agent config, preserves auth credentials, and saves merged config via `saveConfig()`, (3) runs feature loaders from the agent's LoaderRegistry. The installer creates `~/.nori-config.json` containing auth credentials and selected profile name, and installs components into `<installDir>/.claude/`. The profile selection determines which complete directory structure (CLAUDE.md, skills/, subagents/, slashcommands/) gets installed from the user's profiles directory at `~/.nori/profiles/{profileName}/`. Each profile is a self-contained directory identified by a `nori.json` manifest file. Profiles are obtained from the registry or created by users; no built-in profiles are bundled with the package. The installTracking.ts module tracks installation and session events to the Nori backend.
 
 **Centralized Config and Nori Directory:** The `.nori` directory and config file are centralized to the user's home directory. Core path and config functions are zero-arg and always resolve relative to `os.homedir()`:
 - `getConfigPath()` returns `~/.nori-config.json`

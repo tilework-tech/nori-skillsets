@@ -10,7 +10,7 @@ import { loadConfig, saveConfig } from "@/cli/config.js";
 import { factoryResetClaudeCode } from "@/cli/features/claude-code/factoryReset.js";
 import { LoaderRegistry } from "@/cli/features/claude-code/loaderRegistry.js";
 import { getNoriProfilesDir } from "@/cli/features/claude-code/paths.js";
-import { INSTRUCTIONS_FILE } from "@/cli/features/managedFolder.js";
+import { MANIFEST_FILE } from "@/cli/features/managedFolder.js";
 import { success, info } from "@/cli/logger.js";
 
 import type { Agent } from "@/cli/features/agentRegistry.js";
@@ -39,7 +39,7 @@ export const claudeCodeAgent: Agent = {
     // profileName can be flat (e.g., "senior-swe") or namespaced (e.g., "myorg/my-profile")
     // path.join handles both cases correctly since it just joins the path components
     const profileDir = path.join(profilesDir, profileName);
-    const instructionsPath = path.join(profileDir, INSTRUCTIONS_FILE);
+    const instructionsPath = path.join(profileDir, MANIFEST_FILE);
 
     try {
       await fs.access(instructionsPath);
@@ -67,10 +67,13 @@ export const claudeCodeAgent: Agent = {
       password: currentConfig?.auth?.password ?? null,
       refreshToken: currentConfig?.auth?.refreshToken ?? null,
       organizationUrl: currentConfig?.auth?.organizationUrl ?? null,
+      organizations: currentConfig?.auth?.organizations ?? null,
+      isAdmin: currentConfig?.auth?.isAdmin ?? null,
       agents: updatedAgents,
       sendSessionTranscript: currentConfig?.sendSessionTranscript ?? null,
       autoupdate: currentConfig?.autoupdate,
       version: currentConfig?.version ?? null,
+      transcriptDestination: currentConfig?.transcriptDestination ?? null,
       installDir,
     });
 

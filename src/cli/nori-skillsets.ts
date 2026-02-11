@@ -9,15 +9,20 @@
 import { Command } from "commander";
 
 import {
+  registerNoriSkillsetsCompletionCommand,
+  registerNoriSkillsetsDirCommand,
   registerNoriSkillsetsDownloadCommand,
   registerNoriSkillsetsDownloadSkillCommand,
+  registerNoriSkillsetsEditSkillsetCommand,
   registerNoriSkillsetsExternalCommand,
   registerNoriSkillsetsFactoryResetCommand,
+  registerNoriSkillsetsForkCommand,
   registerNoriSkillsetsInitCommand,
   registerNoriSkillsetsInstallCommand,
   registerNoriSkillsetsInstallLocationCommand,
   registerNoriSkillsetsListSkillsetsCommand,
   registerNoriSkillsetsLoginCommand,
+  registerNoriSkillsetsNewCommand,
   registerNoriSkillsetsLogoutCommand,
   registerNoriSkillsetsSearchCommand,
   registerNoriSkillsetsSwitchSkillsetCommand,
@@ -28,6 +33,7 @@ import {
   setTileworkSource,
   trackInstallLifecycle,
 } from "@/cli/installTracking.js";
+import { checkForUpdateAndPrompt } from "@/cli/updates/checkForUpdate.js";
 import { getCurrentPackageVersion } from "@/cli/version.js";
 import { initializeProxySupport } from "@/utils/fetch.js";
 import { normalizeInstallDir } from "@/utils/path.js";
@@ -42,6 +48,25 @@ const version = getCurrentPackageVersion() || "unknown";
 setTileworkSource({ source: "nori-skillsets" });
 
 void trackInstallLifecycle({ currentVersion: version });
+
+// Check for updates before parsing commands (skip for informational flags)
+const isSilent =
+  process.argv.includes("--silent") || process.argv.includes("-s");
+const isNonInteractive =
+  process.argv.includes("--non-interactive") || process.argv.includes("-n");
+const isInfoOnly =
+  process.argv.includes("--help") ||
+  process.argv.includes("-h") ||
+  process.argv.includes("--version") ||
+  process.argv.includes("-V");
+
+if (!isInfoOnly) {
+  await checkForUpdateAndPrompt({
+    currentVersion: version,
+    isInteractive: !isNonInteractive && !isSilent,
+    isSilent,
+  });
+}
 
 program
   .name("nori-skillsets")
@@ -84,13 +109,18 @@ Examples:
   $ nori-skillsets external owner/repo
   $ nori-skillsets external https://github.com/owner/repo --skill my-skill
   $ nori-skillsets external owner/repo --all --ref main
-  $ nori-skillsets watch              # start watching Claude Code sessions
-  $ nori-skillsets watch stop         # stop the watch daemon
-  $ nori-skillsets install-location   # show all installation directories
-  $ nori-skillsets install-location --installation-source  # show only source dirs
-  $ nori-skillsets install-location --installation-managed # show only managed dirs
-  $ nori-skillsets install-location --non-interactive      # plain output for scripts
-  $ nori-skillsets factory-reset claude-code               # remove all Claude Code config
+  $ nori-skillsets watch                                    # start watching Claude Code sessions
+  $ nori-skillsets watch stop                               # stop the watch daemon
+  $ nori-skillsets dir                                      # open the profiles directory
+  $ nori-skillsets install-location                         # show all installation directories
+  $ nori-skillsets install-location --installation-source   # show only source dirs
+  $ nori-skillsets install-location --installation-managed  # show only managed dirs
+  $ nori-skillsets install-location --non-interactive       # plain output for scripts
+  $ nori-skillsets new my-skillset                          # create a new empty skillset
+  $ nori-skillsets fork-skillset senior-swe my-custom       # fork a skillset to a new name
+  $ nori-skillsets edit-skillset                            # open active skillset in VS Code
+  $ nori-skillsets edit-skillset my-profile                 # open a specific skillset
+  $ nori-skillsets factory-reset claude-code                # remove all Claude Code config
 `,
   );
 
@@ -107,7 +137,12 @@ registerNoriSkillsetsListSkillsetsCommand({ program });
 registerNoriSkillsetsDownloadSkillCommand({ program });
 registerNoriSkillsetsExternalCommand({ program });
 registerNoriSkillsetsWatchCommand({ program });
+registerNoriSkillsetsDirCommand({ program });
 registerNoriSkillsetsInstallLocationCommand({ program });
+registerNoriSkillsetsCompletionCommand({ program });
+registerNoriSkillsetsForkCommand({ program });
+registerNoriSkillsetsNewCommand({ program });
+registerNoriSkillsetsEditSkillsetCommand({ program });
 registerNoriSkillsetsFactoryResetCommand({ program });
 
 program.parse(process.argv);

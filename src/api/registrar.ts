@@ -1,9 +1,12 @@
 /**
  * API client for the Nori registrar
  *
- * The registrar is a package registry for Nori profiles.
+ * The registrar is a package registry for Nori skillsets.
  * Read operations (search, packument, download) are public.
  * Write operations (upload) require authentication.
+ *
+ * Uses /api/skillsets/ as the primary endpoint path, with silent
+ * fallback to /api/profiles/ for older registrar instances.
  */
 
 import { ApiError, SkillCollisionError } from "@/utils/fetch.js";
@@ -51,6 +54,49 @@ export type SkillResolution = {
 export type SkillResolutionStrategy = Record<string, SkillResolution>;
 
 export const REGISTRAR_URL = "https://noriskillsets.dev";
+
+/**
+ * Compute the fallback URL by replacing /api/skillsets/ with /api/profiles/
+ * and /skillset sub-resource with /profile for upload endpoints.
+ *
+ * @param args - The function arguments
+ * @param args.url - The primary URL to compute fallback for
+ *
+ * @returns The fallback URL with /api/profiles/ path
+ */
+const buildFallbackUrl = (args: { url: string }): string => {
+  const { url } = args;
+  return url
+    .replace("/api/skillsets/", "/api/profiles/")
+    .replace(/\/skillset$/, "/profile");
+};
+
+/**
+ * Execute a fetch with silent fallback to old /api/profiles/ path on 404.
+ * Non-404 errors are thrown immediately without retry.
+ *
+ * @param args - The function arguments
+ * @param args.url - The primary URL to fetch
+ * @param args.init - The fetch request init options
+ *
+ * @returns The fetch response from primary or fallback URL
+ */
+const fetchWithFallback = async (args: {
+  url: string;
+  init: RequestInit;
+}): Promise<Response> => {
+  const { url, init } = args;
+  const response = await fetch(url, init);
+
+  if (response.status === 404) {
+    const fallbackUrl = buildFallbackUrl({ url });
+    if (fallbackUrl !== url) {
+      return fetch(fallbackUrl, init);
+    }
+  }
+
+  return response;
+};
 
 /**
  * Package metadata from the registrar
@@ -115,7 +161,7 @@ export type DownloadTarballRequest = {
   authToken?: string | null;
 };
 
-export type UploadProfileRequest = {
+export type UploadSkillsetRequest = {
   packageName: string;
   version: string;
   archiveData: ArrayBuffer;
@@ -141,7 +187,7 @@ export type ExtractedSkillsSummary = {
   failed: Array<{ name: string; error: string }>;
 };
 
-export type UploadProfileResponse = {
+export type UploadSkillsetResponse = {
   name: string;
   version: string;
   description?: string | null;
@@ -210,16 +256,19 @@ export const registrarApi = {
       params.set("offset", offset.toString());
     }
 
-    const url = `${baseUrl}/api/profiles/search?${params.toString()}`;
+    const url = `${baseUrl}/api/skillsets/search?${params.toString()}`;
 
     const headers: Record<string, string> = {};
     if (authToken != null) {
       headers.Authorization = `Bearer ${authToken}`;
     }
 
-    const response = await fetch(url, {
-      method: "GET",
-      ...(Object.keys(headers).length > 0 ? { headers } : {}),
+    const response = await fetchWithFallback({
+      url,
+      init: {
+        method: "GET",
+        ...(Object.keys(headers).length > 0 ? { headers } : {}),
+      },
     });
 
     if (!response.ok) {
@@ -254,16 +303,19 @@ export const registrarApi = {
       params.set("offset", offset.toString());
     }
 
-    const url = `${registryUrl}/api/profiles/search?${params.toString()}`;
+    const url = `${registryUrl}/api/skillsets/search?${params.toString()}`;
 
     const headers: Record<string, string> = {};
     if (authToken != null) {
       headers["Authorization"] = `Bearer ${authToken}`;
     }
 
-    const response = await fetch(url, {
-      method: "GET",
-      headers,
+    const response = await fetchWithFallback({
+      url,
+      init: {
+        method: "GET",
+        headers,
+      },
     });
 
     if (!response.ok) {
@@ -289,16 +341,19 @@ export const registrarApi = {
     const { packageName, registryUrl, authToken } = args;
     const baseUrl = registryUrl ?? REGISTRAR_URL;
 
-    const url = `${baseUrl}/api/profiles/${packageName}`;
+    const url = `${baseUrl}/api/skillsets/${packageName}`;
 
     const headers: Record<string, string> = {};
     if (authToken != null) {
       headers.Authorization = `Bearer ${authToken}`;
     }
 
-    const response = await fetch(url, {
-      method: "GET",
-      ...(Object.keys(headers).length > 0 ? { headers } : {}),
+    const response = await fetchWithFallback({
+      url,
+      init: {
+        method: "GET",
+        ...(Object.keys(headers).length > 0 ? { headers } : {}),
+      },
     });
 
     if (!response.ok) {
@@ -344,16 +399,19 @@ export const registrarApi = {
     }
 
     const tarballFilename = `${packageName}-${version}.tgz`;
-    const url = `${baseUrl}/api/profiles/${packageName}/tarball/${tarballFilename}`;
+    const url = `${baseUrl}/api/skillsets/${packageName}/tarball/${tarballFilename}`;
 
     const headers: Record<string, string> = {};
     if (authToken != null) {
       headers.Authorization = `Bearer ${authToken}`;
     }
 
-    const response = await fetch(url, {
-      method: "GET",
-      ...(Object.keys(headers).length > 0 ? { headers } : {}),
+    const response = await fetchWithFallback({
+      url,
+      init: {
+        method: "GET",
+        ...(Object.keys(headers).length > 0 ? { headers } : {}),
+      },
     });
 
     if (!response.ok) {
@@ -370,14 +428,14 @@ export const registrarApi = {
   },
 
   /**
-   * Upload a profile to the registrar
+   * Upload a skillset to the registrar
    * @param args - The upload parameters
    *
    * @returns The upload response with package metadata
    */
-  uploadProfile: async (
-    args: UploadProfileRequest,
-  ): Promise<UploadProfileResponse> => {
+  uploadSkillset: async (
+    args: UploadSkillsetRequest,
+  ): Promise<UploadSkillsetResponse> => {
     const {
       packageName,
       version,
@@ -399,14 +457,17 @@ export const registrarApi = {
       formData.append("resolutionStrategy", JSON.stringify(resolutionStrategy));
     }
 
-    const url = `${baseUrl}/api/profiles/${packageName}/profile`;
+    const url = `${baseUrl}/api/skillsets/${packageName}/skillset`;
 
-    const response = await fetch(url, {
-      method: "PUT",
-      headers: {
-        Authorization: `Bearer ${authToken}`,
+    const response = await fetchWithFallback({
+      url,
+      init: {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: formData,
       },
-      body: formData,
     });
 
     if (!response.ok) {
@@ -437,7 +498,7 @@ export const registrarApi = {
       );
     }
 
-    return (await response.json()) as UploadProfileResponse;
+    return (await response.json()) as UploadSkillsetResponse;
   },
 
   // Skill API methods

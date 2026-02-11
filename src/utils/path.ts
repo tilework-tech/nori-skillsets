@@ -34,9 +34,9 @@ export const normalizeInstallDir = (args: {
 }): string => {
   const { installDir } = args;
 
-  // Use home directory if no installDir provided or empty
+  // Use current working directory if no installDir provided or empty
   if (installDir == null || installDir === "") {
-    return os.homedir();
+    return process.cwd();
   }
 
   let normalizedPath = installDir;

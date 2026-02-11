@@ -177,6 +177,35 @@ describe("init command", () => {
       expect(config.version).toBe("20.0.0");
     });
 
+    it("should preserve organizations, isAdmin, and transcriptDestination from existing config", async () => {
+      const CONFIG_PATH = getConfigPath();
+
+      // Create existing config with organizations, isAdmin, and transcriptDestination
+      const existingConfig = {
+        version: "19.0.0",
+        agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
+        auth: {
+          username: "test@example.com",
+          organizationUrl: "https://example.tilework.tech",
+          refreshToken: "test-refresh-token",
+          organizations: ["org-one", "org-two"],
+          isAdmin: true,
+        },
+        transcriptDestination: "myorg",
+        installDir: tempDir,
+      };
+      fs.writeFileSync(CONFIG_PATH, JSON.stringify(existingConfig, null, 2));
+
+      // Run init
+      await initMain({ installDir: tempDir, nonInteractive: true });
+
+      // Verify organizations, isAdmin, and transcriptDestination are preserved
+      const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
+      expect(config.auth.organizations).toEqual(["org-one", "org-two"]);
+      expect(config.auth.isAdmin).toBe(true);
+      expect(config.transcriptDestination).toBe("myorg");
+    });
+
     it("should detect existing Claude Code config and capture as profile in interactive mode", async () => {
       // Create existing Claude Code config
       const claudeMdPath = path.join(TEST_CLAUDE_DIR, "CLAUDE.md");
@@ -325,16 +354,18 @@ describe("init command", () => {
       ).toBe(true);
     });
 
-    it("should warn about ancestor installations", async () => {
-      // Create parent directory with nori installation
+    it("should warn about ancestor managed installations", async () => {
+      // Create parent directory with a managed nori installation
       const parentDir = path.join(tempDir, "parent");
       const childDir = path.join(parentDir, "child");
+      const parentClaudeDir = path.join(parentDir, ".claude");
       fs.mkdirSync(childDir, { recursive: true });
+      fs.mkdirSync(parentClaudeDir, { recursive: true });
 
-      // Create nori config in parent
+      // Create managed CLAUDE.md in parent (this is what causes actual conflicts)
       fs.writeFileSync(
-        path.join(parentDir, ".nori-config.json"),
-        JSON.stringify({ version: "19.0.0" }),
+        path.join(parentClaudeDir, "CLAUDE.md"),
+        "# BEGIN NORI-AI MANAGED BLOCK\nsome content\n# END NORI-AI MANAGED BLOCK",
       );
 
       // Capture console output
@@ -356,6 +387,42 @@ describe("init command", () => {
           (line) => line.includes("⚠️") && line.includes("ancestor"),
         );
         expect(hasAncestorWarning).toBe(true);
+      } finally {
+        console.log = originalConsoleLog;
+      }
+    });
+
+    it("should not warn about source-only ancestor installations", async () => {
+      // Create parent directory with only a source installation (no managed CLAUDE.md)
+      const parentDir = path.join(tempDir, "parent");
+      const childDir = path.join(parentDir, "child");
+      fs.mkdirSync(childDir, { recursive: true });
+
+      // Create only .nori-config.json in parent (source-only, no managed block)
+      fs.writeFileSync(
+        path.join(parentDir, ".nori-config.json"),
+        JSON.stringify({ version: "19.0.0" }),
+      );
+
+      // Capture console output
+      const consoleOutput: Array<string> = [];
+      const originalConsoleLog = console.log;
+      console.log = (...args: Array<unknown>) => {
+        consoleOutput.push(args.map(String).join(" "));
+      };
+
+      try {
+        // Run init in child directory
+        await initMain({
+          installDir: path.join(childDir, ".claude"),
+          nonInteractive: true,
+        });
+
+        // Verify NO ancestor warning was displayed
+        const hasAncestorWarning = consoleOutput.some(
+          (line) => line.includes("⚠️") && line.includes("ancestor"),
+        );
+        expect(hasAncestorWarning).toBe(false);
       } finally {
         console.log = originalConsoleLog;
       }

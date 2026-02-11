@@ -12,7 +12,7 @@ This `claude-code/` subdirectory implements the Agent interface defined in @/src
 - `name`: "claude-code"
 - `displayName`: "Claude Code"
 - `getLoaderRegistry()`: Returns the LoaderRegistry singleton with all Claude Code loaders
-- `switchProfile({ installDir, profileName })`: Validates profile exists (handles both flat and namespaced paths via `path.join`), updates config with new profile, logs success message. Imports `INSTRUCTIONS_FILE` from @/src/cli/features/managedFolder.ts to identify valid profiles.
+- `switchProfile({ installDir, profileName })`: Validates profile exists (handles both flat and namespaced paths via `path.join`), updates config with new profile, logs success message. Imports `MANIFEST_FILE` from @/src/cli/features/managedFolder.ts to identify valid profiles.
 - `factoryReset({ path })`: Delegates to `factoryResetClaudeCode` from @/src/cli/features/claude-code/factoryReset.ts. Discovers and removes all `.claude` directories and `CLAUDE.md` files by walking up the ancestor directory tree from the given path.
 
 Profile discovery (`listProfiles()`) is not part of the agent -- it lives in @/src/cli/features/managedFolder.ts as an agent-agnostic utility. CLI commands import it directly.
@@ -39,7 +39,7 @@ Each loader implements run(config) to install. The profiles loader (@/src/cli/fe
 
 The LoaderRegistry provides getAll() for install order. The profiles loader must run first because other loaders read from the profile directories it creates.
 
-**Hooks loader** (@/src/cli/features/claude-code/hooks/loader.ts): Configures a minimal set of hooks: statisticsHook, statisticsNotificationHook, contextUsageWarningHook, notifyHook, and commitAuthorHook. Also sets `includeCoAuthoredBy = false` in settings.json.
+**Hooks loader** (@/src/cli/features/claude-code/hooks/loader.ts): Configures hooks: contextUsageWarningHook, updateCheckHook, notifyHook, and commitAuthorHook. Also sets `includeCoAuthoredBy = false` in settings.json. The updateCheckHook is a SessionStart hook that reads the version cache (populated by @/src/cli/updates/) and outputs a systemMessage if an update is available.
 
 **Slashcommands loader** (@/src/cli/features/claude-code/slashcommands/loader.ts): Now a no-op. Global slash commands have been removed to reduce complexity.
 
@@ -81,7 +81,7 @@ Global features (hooks, statusline) use home-based paths because Claude Code rea
 - Flat profiles: `~/.nori/profiles/{profile-name}/` - for public registry packages
 - Namespaced profiles: `~/.nori/profiles/{org}/{profile-name}/` - for organization-specific registry packages
 
-The `listProfiles()` function in @/src/cli/features/managedFolder.ts discovers both layouts by first checking if a directory contains `CLAUDE.md` (flat profile), and if not, checking for subdirectories that contain `CLAUDE.md` (org directory with nested profiles). Namespaced profiles are returned in `org/profile-name` format.
+The `listProfiles()` function in @/src/cli/features/managedFolder.ts discovers both layouts by first checking if a directory contains `nori.json` (flat profile), and if not, checking for subdirectories that contain `nori.json` (org directory with nested profiles). Namespaced profiles are returned in `org/profile-name` format.
 
 **Profile structure**: Each profile directory contains CLAUDE.md, skills/, subagents/, slashcommands/, and nori.json (unified manifest). All content is self-contained - no mixin composition or inheritance.
 
