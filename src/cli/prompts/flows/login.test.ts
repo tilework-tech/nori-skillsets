@@ -62,7 +62,7 @@ describe("loginFlow", () => {
 
       await loginFlow({ callbacks: mockCallbacks });
 
-      expect(clack.intro).toHaveBeenCalledWith("Login to Nori Skillsets");
+      expect(clack.intro).toHaveBeenCalledWith("Log in to Nori Skillsets");
     });
 
     it("should skip intro when skipIntro is true", async () => {

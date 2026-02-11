@@ -85,7 +85,7 @@ export const loginFlow = async (args: {
   const { callbacks, skipIntro } = args;
 
   if (skipIntro !== true) {
-    intro("Login to Nori Skillsets");
+    intro("Log in to Nori Skillsets");
   }
 
   const credentials = await group(
