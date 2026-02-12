@@ -7,8 +7,9 @@
 
 import { execFile } from "child_process";
 
+import { log } from "@clack/prompts";
+
 import { getNoriProfilesDir } from "@/cli/features/claude-code/paths.js";
-import { info, newline, raw, success } from "@/cli/logger.js";
 
 const openInExplorer = (args: { dirPath: string }): Promise<void> => {
   const { dirPath } = args;
@@ -40,20 +41,15 @@ export const dirMain = async (args?: {
   const profilesDir = getNoriProfilesDir();
 
   if (nonInteractive) {
-    raw({ message: profilesDir });
+    // Plain output for scripting
+    process.stdout.write(profilesDir + "\n");
     return;
   }
 
   try {
     await openInExplorer({ dirPath: profilesDir });
-    newline();
-    success({ message: `Opened ${profilesDir}` });
-    newline();
+    log.success(`Opened ${profilesDir}`);
   } catch {
-    newline();
-    info({ message: "Nori profiles directory:" });
-    newline();
-    success({ message: `  ${profilesDir}` });
-    newline();
+    log.step(`Nori profiles directory: ${profilesDir}`);
   }
 };

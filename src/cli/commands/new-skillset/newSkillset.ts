@@ -7,9 +7,10 @@
 import * as fs from "fs/promises";
 import * as path from "path";
 
+import { log, note } from "@clack/prompts";
+
 import { getNoriProfilesDir } from "@/cli/features/claude-code/paths.js";
 import { writeProfileMetadata } from "@/cli/features/claude-code/profiles/metadata.js";
-import { error, info, newline, success } from "@/cli/logger.js";
 
 /**
  * Create the directory and nori.json for a new skillset.
@@ -56,9 +57,7 @@ export const newSkillsetMain = async (args: {
   // Validate destination does not already exist
   try {
     await fs.access(destPath);
-    error({
-      message: `Skillset '${name}' already exists. Choose a different name.`,
-    });
+    log.error(`Skillset '${name}' already exists. Choose a different name.`);
     process.exit(1);
     return;
   } catch {
@@ -67,15 +66,11 @@ export const newSkillsetMain = async (args: {
 
   await createEmptySkillset({ destPath, name });
 
-  newline();
-  success({
-    message: `Created new skillset '${name}'`,
-  });
-  newline();
-  info({
-    message: `To switch:  nori-skillsets switch ${name}`,
-  });
-  info({
-    message: `To edit:    ~/.nori/profiles/${name}/`,
-  });
+  log.success(`Created new skillset '${name}'`);
+
+  const nextSteps = [
+    `To switch:  nori-skillsets switch ${name}`,
+    `To edit:    ~/.nori/profiles/${name}/`,
+  ].join("\n");
+  note(nextSteps, "Next Steps");
 };

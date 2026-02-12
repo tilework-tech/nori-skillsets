@@ -7,9 +7,10 @@
 import * as fs from "fs/promises";
 import * as path from "path";
 
+import { log, note } from "@clack/prompts";
+
 import { getNoriProfilesDir } from "@/cli/features/claude-code/paths.js";
 import { MANIFEST_FILE } from "@/cli/features/managedFolder.js";
-import { error, info, newline, success } from "@/cli/logger.js";
 
 export const forkSkillsetMain = async (args: {
   baseSkillset: string;
@@ -24,9 +25,9 @@ export const forkSkillsetMain = async (args: {
   try {
     await fs.access(path.join(sourcePath, MANIFEST_FILE));
   } catch {
-    error({
-      message: `Skillset '${baseSkillset}' not found. Run 'nori-skillsets list' to see available skillsets.`,
-    });
+    log.error(
+      `Skillset '${baseSkillset}' not found. Run 'nori-skillsets list' to see available skillsets.`,
+    );
     process.exit(1);
     return;
   }
@@ -34,9 +35,9 @@ export const forkSkillsetMain = async (args: {
   // Validate destination does not already exist
   try {
     await fs.access(destPath);
-    error({
-      message: `Skillset '${newSkillset}' already exists. Choose a different name.`,
-    });
+    log.error(
+      `Skillset '${newSkillset}' already exists. Choose a different name.`,
+    );
     process.exit(1);
     return;
   } catch {
@@ -50,15 +51,11 @@ export const forkSkillsetMain = async (args: {
   // Copy the skillset
   await fs.cp(sourcePath, destPath, { recursive: true });
 
-  newline();
-  success({
-    message: `Forked '${baseSkillset}' to '${newSkillset}'`,
-  });
-  newline();
-  info({
-    message: `To switch:  nori-skillsets switch ${newSkillset}`,
-  });
-  info({
-    message: `To edit:    ~/.nori/profiles/${newSkillset}/`,
-  });
+  log.success(`Forked '${baseSkillset}' to '${newSkillset}'`);
+
+  const nextSteps = [
+    `To switch:  nori-skillsets switch ${newSkillset}`,
+    `To edit:    ~/.nori/profiles/${newSkillset}/`,
+  ].join("\n");
+  note(nextSteps, "Next Steps");
 };

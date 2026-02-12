@@ -3,10 +3,11 @@
  * Lists locally available skillsets for programmatic use
  */
 
+import { log } from "@clack/prompts";
+
 import { loadConfig, getInstalledAgents } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { listProfiles } from "@/cli/features/managedFolder.js";
-import { error, raw } from "@/cli/logger.js";
 import { normalizeInstallDir, getInstallDirs } from "@/utils/path.js";
 
 import type { Command } from "commander";
@@ -31,10 +32,9 @@ export const listSkillsetsMain = async (args: {
   } else {
     const installations = getInstallDirs({ currentDir: process.cwd() });
     if (installations.length === 0) {
-      error({
-        message:
-          "No Nori installation found in current directory or ancestors.",
-      });
+      log.error(
+        "No Nori installation found in current directory or ancestors.",
+      );
       process.exit(1);
     }
     installDir = installations[0];
@@ -63,9 +63,7 @@ export const listSkillsetsMain = async (args: {
     agent = AgentRegistry.getInstance().get({ name: agentName });
   } catch {
     const availableAgents = AgentRegistry.getInstance().list().join(", ");
-    error({
-      message: `Unknown agent '${agentName}'. Available: ${availableAgents}`,
-    });
+    log.error(`Unknown agent '${agentName}'. Available: ${availableAgents}`);
     process.exit(1);
     return;
   }
@@ -74,14 +72,15 @@ export const listSkillsetsMain = async (args: {
   const profiles = await listProfiles();
 
   if (profiles.length === 0) {
-    error({
-      message: `No skillsets installed for ${agent.displayName} at ${installDir}.`,
-    });
+    log.error(
+      `No skillsets installed for ${agent.displayName} at ${installDir}.`,
+    );
     process.exit(1);
   }
 
+  // Output raw lines for scripting
   for (const profile of profiles) {
-    raw({ message: profile });
+    process.stdout.write(profile + "\n");
   }
 };
 

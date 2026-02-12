@@ -9,13 +9,18 @@ import { generateBashCompletion } from "./bashCompletion.js";
 import { completionMain } from "./completion.js";
 import { generateZshCompletion } from "./zshCompletion.js";
 
-// Mock logger to capture output
-const mockRaw = vi.fn();
-const mockError = vi.fn();
-vi.mock("@/cli/logger.js", () => ({
-  raw: (args: { message: string }) => mockRaw(args),
-  error: (args: { message: string }) => mockError(args),
+// Mock @clack/prompts for error output
+const mockLogError = vi.fn();
+vi.mock("@clack/prompts", () => ({
+  log: {
+    error: (msg: string) => mockLogError(msg),
+  },
 }));
+
+// Mock process.stdout.write to capture raw output
+const mockStdoutWrite = vi
+  .spyOn(process.stdout, "write")
+  .mockImplementation(() => true);
 
 // Mock process.exit
 const mockExit = vi
@@ -269,33 +274,31 @@ describe("generateZshCompletion", () => {
 
 describe("completionMain", () => {
   beforeEach(() => {
-    mockRaw.mockClear();
-    mockError.mockClear();
+    mockStdoutWrite.mockClear();
+    mockLogError.mockClear();
     mockExit.mockClear();
   });
 
   it("should output bash completion script when shell is bash", () => {
     completionMain({ shell: "bash" });
-    expect(mockRaw).toHaveBeenCalledTimes(1);
-    const output = mockRaw.mock.calls[0][0].message;
+    expect(mockStdoutWrite).toHaveBeenCalledTimes(1);
+    const output = mockStdoutWrite.mock.calls[0][0] as string;
     expect(output).toContain("complete");
     expect(output).toContain("nori-skillsets");
   });
 
   it("should output zsh completion script when shell is zsh", () => {
     completionMain({ shell: "zsh" });
-    expect(mockRaw).toHaveBeenCalledTimes(1);
-    const output = mockRaw.mock.calls[0][0].message;
+    expect(mockStdoutWrite).toHaveBeenCalledTimes(1);
+    const output = mockStdoutWrite.mock.calls[0][0] as string;
     expect(output).toContain("compdef");
     expect(output).toContain("nori-skillsets");
   });
 
   it("should error and exit 1 for unsupported shell", () => {
     completionMain({ shell: "fish" });
-    expect(mockError).toHaveBeenCalledTimes(1);
-    expect(mockError).toHaveBeenCalledWith({
-      message: expect.stringContaining("fish"),
-    });
+    expect(mockLogError).toHaveBeenCalledTimes(1);
+    expect(mockLogError).toHaveBeenCalledWith(expect.stringContaining("fish"));
     expect(mockExit).toHaveBeenCalledWith(1);
   });
 });

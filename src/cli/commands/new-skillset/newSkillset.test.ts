@@ -20,19 +20,16 @@ vi.mock("os", async (importOriginal) => {
   };
 });
 
-// Mock logger to capture output
-const mockSuccess = vi.fn();
-const mockInfo = vi.fn();
-const mockError = vi.fn();
-const mockNewline = vi.fn();
-vi.mock("@/cli/logger.js", () => ({
-  success: (args: { message: string }) => mockSuccess(args),
-  info: (args: { message: string }) => mockInfo(args),
-  error: (args: { message: string }) => mockError(args),
-  newline: () => mockNewline(),
-  raw: vi.fn(),
-  warn: vi.fn(),
-  debug: vi.fn(),
+// Mock @clack/prompts for output
+const mockLogSuccess = vi.fn();
+const mockLogError = vi.fn();
+const mockNote = vi.fn();
+vi.mock("@clack/prompts", () => ({
+  log: {
+    success: (msg: string) => mockLogSuccess(msg),
+    error: (msg: string) => mockLogError(msg),
+  },
+  note: (content: string, title: string) => mockNote(content, title),
 }));
 
 // Mock process.exit
@@ -51,10 +48,9 @@ describe("newSkillsetMain", () => {
     vi.mocked(os.homedir).mockReturnValue(testHomeDir);
     profilesDir = path.join(testHomeDir, ".nori", "profiles");
     await fs.mkdir(profilesDir, { recursive: true });
-    mockSuccess.mockClear();
-    mockInfo.mockClear();
-    mockError.mockClear();
-    mockNewline.mockClear();
+    mockLogSuccess.mockClear();
+    mockLogError.mockClear();
+    mockNote.mockClear();
     mockExit.mockClear();
   });
 
@@ -79,9 +75,9 @@ describe("newSkillsetMain", () => {
     });
 
     // Verify success message
-    expect(mockSuccess).toHaveBeenCalledWith({
-      message: expect.stringContaining("my-new-skillset"),
-    });
+    expect(mockLogSuccess).toHaveBeenCalledWith(
+      expect.stringContaining("my-new-skillset"),
+    );
     expect(mockExit).not.toHaveBeenCalled();
   });
 
@@ -109,26 +105,26 @@ describe("newSkillsetMain", () => {
 
     await newSkillsetMain({ name: "existing-skillset" });
 
-    expect(mockError).toHaveBeenCalledWith({
-      message: expect.stringContaining("existing-skillset"),
-    });
-    expect(mockError).toHaveBeenCalledWith({
-      message: expect.stringContaining("already exists"),
-    });
+    expect(mockLogError).toHaveBeenCalledWith(
+      expect.stringContaining("existing-skillset"),
+    );
+    expect(mockLogError).toHaveBeenCalledWith(
+      expect.stringContaining("already exists"),
+    );
     expect(mockExit).toHaveBeenCalledWith(1);
   });
 
   it("should print instructions for switching and editing after creation", async () => {
     await newSkillsetMain({ name: "my-skillset" });
 
-    // Should print switch instruction
-    expect(mockInfo).toHaveBeenCalledWith({
-      message: expect.stringContaining("switch my-skillset"),
-    });
-
-    // Should print edit location
-    expect(mockInfo).toHaveBeenCalledWith({
-      message: expect.stringContaining("~/.nori/profiles/my-skillset"),
-    });
+    // Should show note with next steps containing switch and edit instructions
+    expect(mockNote).toHaveBeenCalledWith(
+      expect.stringContaining("switch my-skillset"),
+      "Next Steps",
+    );
+    expect(mockNote).toHaveBeenCalledWith(
+      expect.stringContaining("~/.nori/profiles/my-skillset"),
+      "Next Steps",
+    );
   });
 });

@@ -9,18 +9,21 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 
 import { dirMain } from "./dir.js";
 
-// Mock logger to capture output
-const mockRaw = vi.fn();
-const mockInfo = vi.fn();
-const mockSuccess = vi.fn();
-const mockNewline = vi.fn();
+// Mock @clack/prompts for output
+const mockLogSuccess = vi.fn();
+const mockLogStep = vi.fn();
 
-vi.mock("@/cli/logger.js", () => ({
-  raw: (args: { message: string }) => mockRaw(args),
-  info: (args: { message: string }) => mockInfo(args),
-  success: (args: { message: string }) => mockSuccess(args),
-  newline: () => mockNewline(),
+vi.mock("@clack/prompts", () => ({
+  log: {
+    success: (msg: string) => mockLogSuccess(msg),
+    step: (msg: string) => mockLogStep(msg),
+  },
 }));
+
+// Mock process.stdout.write for non-interactive output
+const mockStdoutWrite = vi
+  .spyOn(process.stdout, "write")
+  .mockImplementation(() => true);
 
 // Mock getNoriProfilesDir
 const MOCK_PROFILES_DIR = "/home/testuser/.nori/profiles";
@@ -35,10 +38,9 @@ vi.mock("child_process", () => ({
 
 describe("dirMain", () => {
   beforeEach(() => {
-    mockRaw.mockClear();
-    mockInfo.mockClear();
-    mockSuccess.mockClear();
-    mockNewline.mockClear();
+    mockStdoutWrite.mockClear();
+    mockLogSuccess.mockClear();
+    mockLogStep.mockClear();
     vi.mocked(childProcess.execFile).mockReset();
   });
 
@@ -46,11 +48,10 @@ describe("dirMain", () => {
     it("should output plain path without formatting and without opening explorer", async () => {
       await dirMain({ nonInteractive: true });
 
-      expect(mockRaw).toHaveBeenCalledWith({ message: MOCK_PROFILES_DIR });
-      expect(mockRaw).toHaveBeenCalledTimes(1);
-      expect(mockInfo).not.toHaveBeenCalled();
-      expect(mockSuccess).not.toHaveBeenCalled();
-      expect(mockNewline).not.toHaveBeenCalled();
+      expect(mockStdoutWrite).toHaveBeenCalledWith(MOCK_PROFILES_DIR + "\n");
+      expect(mockStdoutWrite).toHaveBeenCalledTimes(1);
+      expect(mockLogSuccess).not.toHaveBeenCalled();
+      expect(mockLogStep).not.toHaveBeenCalled();
       expect(childProcess.execFile).not.toHaveBeenCalled();
     });
   });
@@ -76,9 +77,9 @@ describe("dirMain", () => {
         [MOCK_PROFILES_DIR],
         expect.any(Function),
       );
-      expect(mockSuccess).toHaveBeenCalledWith({
-        message: expect.stringContaining(MOCK_PROFILES_DIR),
-      });
+      expect(mockLogSuccess).toHaveBeenCalledWith(
+        expect.stringContaining(MOCK_PROFILES_DIR),
+      );
 
       Object.defineProperty(process, "platform", { value: originalPlatform });
     });
@@ -126,10 +127,10 @@ describe("dirMain", () => {
 
       await dirMain();
 
-      // Should fall back to printing the path
-      expect(mockSuccess).toHaveBeenCalledWith({
-        message: expect.stringContaining(MOCK_PROFILES_DIR),
-      });
+      // Should fall back to printing the path via log.step
+      expect(mockLogStep).toHaveBeenCalledWith(
+        expect.stringContaining(MOCK_PROFILES_DIR),
+      );
 
       Object.defineProperty(process, "platform", { value: originalPlatform });
     });

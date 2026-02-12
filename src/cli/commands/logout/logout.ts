@@ -4,8 +4,9 @@
  * Clears stored authentication credentials.
  */
 
+import { log } from "@clack/prompts";
+
 import { loadConfig, saveConfig } from "@/cli/config.js";
-import { info, success } from "@/cli/logger.js";
 
 import type { Command } from "commander";
 
@@ -50,14 +51,14 @@ export const logoutMain = async (args?: {
   const existingConfig = await loadConfig();
 
   if (existingConfig?.auth == null) {
-    info({ message: "Not currently logged in." });
+    log.info("Not currently logged in.");
     return;
   }
 
   await clearAuthFromConfig({
     installDir: installDir ?? existingConfig.installDir,
   });
-  success({ message: "Logged out successfully." });
+  log.success("Logged out successfully.");
 };
 
 /**

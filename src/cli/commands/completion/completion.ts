@@ -1,4 +1,4 @@
-import { error, raw } from "@/cli/logger.js";
+import { log } from "@clack/prompts";
 
 import { generateBashCompletion } from "./bashCompletion.js";
 import { generateZshCompletion } from "./zshCompletion.js";
@@ -8,15 +8,15 @@ export const completionMain = (args: { shell: string }): void => {
 
   switch (shell) {
     case "bash":
-      raw({ message: generateBashCompletion() });
+      // Output raw script for shell sourcing
+      process.stdout.write(generateBashCompletion());
       break;
     case "zsh":
-      raw({ message: generateZshCompletion() });
+      // Output raw script for shell sourcing
+      process.stdout.write(generateZshCompletion());
       break;
     default:
-      error({
-        message: `Unsupported shell: ${shell}. Supported shells: bash, zsh`,
-      });
+      log.error(`Unsupported shell: ${shell}. Supported shells: bash, zsh`);
       process.exit(1);
   }
 };
