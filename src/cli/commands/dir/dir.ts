@@ -5,25 +5,23 @@
  * falling back to printing the path if opening fails.
  */
 
-import { execFile } from "child_process";
+import { spawn } from "child_process";
 
-import { log } from "@clack/prompts";
+import { log, outro } from "@clack/prompts";
 
 import { getNoriProfilesDir } from "@/cli/features/claude-code/paths.js";
 
-const openInExplorer = (args: { dirPath: string }): Promise<void> => {
+const openInExplorer = (args: { dirPath: string }): void => {
   const { dirPath } = args;
   const command = process.platform === "darwin" ? "open" : "xdg-open";
 
-  return new Promise((resolve, reject) => {
-    execFile(command, [dirPath], (error) => {
-      if (error != null) {
-        reject(error);
-      } else {
-        resolve();
-      }
-    });
-  });
+  const child = spawn(command, [dirPath], { detached: true, stdio: "ignore" });
+
+  if (child.pid == null) {
+    throw new Error(`Failed to spawn ${command}`);
+  }
+
+  child.unref();
 };
 
 /**
@@ -46,10 +44,18 @@ export const dirMain = async (args?: {
     return;
   }
 
+  let opened = false;
   try {
-    await openInExplorer({ dirPath: profilesDir });
-    log.success(`Opened ${profilesDir}`);
+    openInExplorer({ dirPath: profilesDir });
+    opened = true;
   } catch {
+    // Fall through to fallback
+  }
+
+  if (opened) {
+    log.success(`Opened ${profilesDir}`);
+  } else {
     log.step(`Nori profiles directory: ${profilesDir}`);
   }
+  outro("Done");
 };

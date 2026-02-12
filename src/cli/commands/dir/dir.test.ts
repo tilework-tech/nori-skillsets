@@ -12,12 +12,14 @@ import { dirMain } from "./dir.js";
 // Mock @clack/prompts for output
 const mockLogSuccess = vi.fn();
 const mockLogStep = vi.fn();
+const mockOutro = vi.fn();
 
 vi.mock("@clack/prompts", () => ({
   log: {
     success: (msg: string) => mockLogSuccess(msg),
     step: (msg: string) => mockLogStep(msg),
   },
+  outro: (msg: string) => mockOutro(msg),
 }));
 
 // Mock process.stdout.write for non-interactive output
@@ -31,17 +33,28 @@ vi.mock("@/cli/features/claude-code/paths.js", () => ({
   getNoriProfilesDir: () => MOCK_PROFILES_DIR,
 }));
 
-// Mock child_process.execFile
+// Mock child_process.spawn
 vi.mock("child_process", () => ({
-  execFile: vi.fn(),
+  spawn: vi.fn(),
 }));
+
+const createMockChild = (args: {
+  pid?: number | null;
+}): childProcess.ChildProcess => {
+  const { pid } = args;
+  return {
+    pid: pid ?? undefined,
+    unref: vi.fn(),
+  } as unknown as childProcess.ChildProcess;
+};
 
 describe("dirMain", () => {
   beforeEach(() => {
     mockStdoutWrite.mockClear();
     mockLogSuccess.mockClear();
     mockLogStep.mockClear();
-    vi.mocked(childProcess.execFile).mockReset();
+    mockOutro.mockClear();
+    vi.mocked(childProcess.spawn).mockReset();
   });
 
   describe("non-interactive mode", () => {
@@ -52,34 +65,31 @@ describe("dirMain", () => {
       expect(mockStdoutWrite).toHaveBeenCalledTimes(1);
       expect(mockLogSuccess).not.toHaveBeenCalled();
       expect(mockLogStep).not.toHaveBeenCalled();
-      expect(childProcess.execFile).not.toHaveBeenCalled();
+      expect(mockOutro).not.toHaveBeenCalled();
+      expect(childProcess.spawn).not.toHaveBeenCalled();
     });
   });
 
   describe("interactive mode - file explorer opens successfully", () => {
-    it("should attempt to open the profiles directory with platform open command on darwin", async () => {
+    it("should spawn detached process with platform open command on darwin", async () => {
       const originalPlatform = process.platform;
       Object.defineProperty(process, "platform", { value: "darwin" });
 
-      vi.mocked(childProcess.execFile).mockImplementation(
-        (_cmd, _args, callback) => {
-          if (typeof callback === "function") {
-            (callback as (error: Error | null) => void)(null);
-          }
-          return {} as childProcess.ChildProcess;
-        },
-      );
+      const mockChild = createMockChild({ pid: 12345 });
+      vi.mocked(childProcess.spawn).mockReturnValue(mockChild);
 
       await dirMain();
 
-      expect(childProcess.execFile).toHaveBeenCalledWith(
+      expect(childProcess.spawn).toHaveBeenCalledWith(
         "open",
         [MOCK_PROFILES_DIR],
-        expect.any(Function),
+        { detached: true, stdio: "ignore" },
       );
+      expect(mockChild.unref).toHaveBeenCalled();
       expect(mockLogSuccess).toHaveBeenCalledWith(
         expect.stringContaining(MOCK_PROFILES_DIR),
       );
+      expect(mockOutro).toHaveBeenCalled();
 
       Object.defineProperty(process, "platform", { value: originalPlatform });
     });
@@ -88,42 +98,31 @@ describe("dirMain", () => {
       const originalPlatform = process.platform;
       Object.defineProperty(process, "platform", { value: "linux" });
 
-      vi.mocked(childProcess.execFile).mockImplementation(
-        (_cmd, _args, callback) => {
-          if (typeof callback === "function") {
-            (callback as (error: Error | null) => void)(null);
-          }
-          return {} as childProcess.ChildProcess;
-        },
-      );
+      const mockChild = createMockChild({ pid: 12345 });
+      vi.mocked(childProcess.spawn).mockReturnValue(mockChild);
 
       await dirMain();
 
-      expect(childProcess.execFile).toHaveBeenCalledWith(
+      expect(childProcess.spawn).toHaveBeenCalledWith(
         "xdg-open",
         [MOCK_PROFILES_DIR],
-        expect.any(Function),
+        { detached: true, stdio: "ignore" },
       );
+      expect(mockChild.unref).toHaveBeenCalled();
+      expect(mockOutro).toHaveBeenCalled();
 
       Object.defineProperty(process, "platform", { value: originalPlatform });
     });
   });
 
   describe("interactive mode - file explorer fails to open", () => {
-    it("should fall back to printing the path when open command fails", async () => {
+    it("should fall back to printing the path when spawn fails", async () => {
       const originalPlatform = process.platform;
       Object.defineProperty(process, "platform", { value: "darwin" });
 
-      vi.mocked(childProcess.execFile).mockImplementation(
-        (_cmd, _args, callback) => {
-          if (typeof callback === "function") {
-            (callback as (error: Error | null) => void)(
-              new Error("command not found"),
-            );
-          }
-          return {} as childProcess.ChildProcess;
-        },
-      );
+      vi.mocked(childProcess.spawn).mockImplementation(() => {
+        throw new Error("spawn ENOENT");
+      });
 
       await dirMain();
 
@@ -131,6 +130,27 @@ describe("dirMain", () => {
       expect(mockLogStep).toHaveBeenCalledWith(
         expect.stringContaining(MOCK_PROFILES_DIR),
       );
+      expect(mockLogSuccess).not.toHaveBeenCalled();
+      expect(mockOutro).toHaveBeenCalled();
+
+      Object.defineProperty(process, "platform", { value: originalPlatform });
+    });
+
+    it("should fall back when spawn returns null pid", async () => {
+      const originalPlatform = process.platform;
+      Object.defineProperty(process, "platform", { value: "darwin" });
+
+      const mockChild = createMockChild({ pid: null });
+      vi.mocked(childProcess.spawn).mockReturnValue(mockChild);
+
+      await dirMain();
+
+      // Should fall back to printing the path via log.step
+      expect(mockLogStep).toHaveBeenCalledWith(
+        expect.stringContaining(MOCK_PROFILES_DIR),
+      );
+      expect(mockLogSuccess).not.toHaveBeenCalled();
+      expect(mockOutro).toHaveBeenCalled();
 
       Object.defineProperty(process, "platform", { value: originalPlatform });
     });
@@ -138,19 +158,14 @@ describe("dirMain", () => {
 
   describe("default args", () => {
     it("should work when called with no arguments", async () => {
-      vi.mocked(childProcess.execFile).mockImplementation(
-        (_cmd, _args, callback) => {
-          if (typeof callback === "function") {
-            (callback as (error: Error | null) => void)(null);
-          }
-          return {} as childProcess.ChildProcess;
-        },
-      );
+      const mockChild = createMockChild({ pid: 12345 });
+      vi.mocked(childProcess.spawn).mockReturnValue(mockChild);
 
       await dirMain();
 
       // Should attempt to open (interactive by default)
-      expect(childProcess.execFile).toHaveBeenCalled();
+      expect(childProcess.spawn).toHaveBeenCalled();
+      expect(mockOutro).toHaveBeenCalled();
     });
   });
 });
