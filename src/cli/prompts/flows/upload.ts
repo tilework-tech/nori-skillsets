@@ -495,21 +495,16 @@ export const uploadFlow = async (args: {
   const linkedSkillIds = new Set<string>();
   const namespacedSkillIds = new Set<string>();
 
-  // Step 1: Determine version
-  const s = spinner();
-  s.start("Checking versions...");
+  // Show intro first
+  intro(`Upload ${profileDisplayName} to ${registryUrl}`);
 
-  const versionResult = await callbacks.onDetermineVersion();
-  const version = versionResult.version;
-
-  s.stop(`Version: ${version}${versionResult.isNewPackage ? " (new)" : ""}`);
-
-  // Now show intro with version
-  intro(`Upload ${profileDisplayName}@${version} to ${registryUrl}`);
-
-  // Step 2: Attempt upload
+  // Determine version and upload with a single spinner
   const uploadSpinner = spinner();
-  uploadSpinner.start("Uploading...");
+  uploadSpinner.start("Preparing upload...");
+
+  await callbacks.onDetermineVersion();
+
+  uploadSpinner.message("Uploading...");
 
   let result = await callbacks.onUpload({});
 
