@@ -453,7 +453,22 @@ Delete after all commands are migrated.
 
 ## Migration TODO
 
-### Completed Migrations
+### Completed Work
+
+Documentation consolidation:
+
+- [x] Delete `clack-prompts-PROGRESS.md` (outdated, conflicted with code)
+- [x] Consolidate into single authoritative `clack-prompts-usage.md`
+- [x] Document non-interactive output patterns (log.*, note, outro, stdout)
+- [x] Document output ordering (note before outro)
+- [x] Catalog all remaining commands for migration
+
+Interactive flows migrated:
+
+- [x] `flows/init.ts` - Full flow with 4 callbacks
+- [x] `flows/login.ts` - Full flow with 1 callback
+- [x] `flows/switchSkillset.ts` - Full flow with 4 callbacks
+- [x] `flows/upload.ts` - Full flow with 2 callbacks
 
 Non-interactive commands migrated to clack output:
 
