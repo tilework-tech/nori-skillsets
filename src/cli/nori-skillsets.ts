@@ -28,6 +28,7 @@ import {
   registerNoriSkillsetsSwitchSkillsetCommand,
   registerNoriSkillsetsWatchCommand,
 } from "@/cli/commands/noriSkillsetsCommands.js";
+import { shouldAutoEnableExperimentalUi } from "@/cli/experimentalUi.js";
 import {
   setTileworkSource,
   trackInstallLifecycle,
@@ -138,6 +139,17 @@ registerNoriSkillsetsForkCommand({ program });
 registerNoriSkillsetsNewCommand({ program });
 registerNoriSkillsetsEditSkillsetCommand({ program });
 registerNoriSkillsetsFactoryResetCommand({ program });
+
+// Auto-enable --experimental-ui when not explicitly passed:
+// 1. Config file: ~/.nori-config.json { "experimentalUi": true }
+// 2. Version contains "next" (e.g., "0.7.0-next.1")
+const hasExplicitExperimentalUi = process.argv.includes("--experimental-ui");
+if (!hasExplicitExperimentalUi && !isInfoOnly) {
+  const shouldEnable = await shouldAutoEnableExperimentalUi({ version });
+  if (shouldEnable) {
+    process.argv.push("--experimental-ui");
+  }
+}
 
 program.parse(process.argv);
 
