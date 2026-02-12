@@ -27,6 +27,10 @@ type ResolutionOption = {
 
 /**
  * Build resolution options based on available actions for a conflict
+ *
+ * When content is unchanged, all three options are available (if the API allows them).
+ * When content has changed, only "updateVersion" (if canPublish) and "namespace" are allowed.
+ *
  * @param args - The function arguments
  * @param args.conflict - The skill conflict
  * @param args.profileName - The profile name (used for namespace preview)
@@ -40,15 +44,9 @@ const buildResolutionOptions = (args: {
   const { conflict, profileName } = args;
   const options: Array<ResolutionOption> = [];
 
-  // Add options based on availableActions (excluding 'cancel' which is handled via Ctrl+C)
-  if (conflict.availableActions.includes("namespace")) {
-    options.push({
-      value: "namespace",
-      label: "Namespace",
-      hint: `Rename to ${profileName}-${conflict.skillId}`,
-    });
-  }
+  const contentUnchanged = conflict.contentUnchanged === true;
 
+  // Add options based on availableActions (excluding 'cancel' which is handled via Ctrl+C)
   if (conflict.availableActions.includes("updateVersion")) {
     options.push({
       value: "updateVersion",
@@ -57,7 +55,16 @@ const buildResolutionOptions = (args: {
     });
   }
 
-  if (conflict.availableActions.includes("link")) {
+  if (conflict.availableActions.includes("namespace")) {
+    options.push({
+      value: "namespace",
+      label: "Namespace",
+      hint: `Rename to ${profileName}-${conflict.skillId}`,
+    });
+  }
+
+  // "link" is only available when content is unchanged
+  if (contentUnchanged && conflict.availableActions.includes("link")) {
     options.push({
       value: "link",
       label: "Use Existing",
@@ -70,6 +77,12 @@ const buildResolutionOptions = (args: {
 
 /**
  * Determine the default selection for a conflict
+ *
+ * When content is unchanged and link is available, default to "link".
+ * When content has changed:
+ *   - Default to "updateVersion" if user can publish (canPublish === true)
+ *   - Otherwise default to "namespace"
+ *
  * @param args - The function arguments
  * @param args.conflict - The skill conflict
  *
@@ -80,7 +93,7 @@ const getDefaultAction = (args: {
 }): SkillResolutionAction => {
   const { conflict } = args;
 
-  // If content is unchanged and link is available, default to link
+  // Content unchanged - default to link if available
   if (
     conflict.contentUnchanged === true &&
     conflict.availableActions.includes("link")
@@ -88,7 +101,14 @@ const getDefaultAction = (args: {
     return "link";
   }
 
-  // Otherwise default to namespace
+  // Content changed - default to updateVersion if user can publish
+  if (
+    conflict.canPublish === true &&
+    conflict.availableActions.includes("updateVersion")
+  ) {
+    return "updateVersion";
+  }
+
   return "namespace";
 };
 

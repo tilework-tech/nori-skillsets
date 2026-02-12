@@ -92,7 +92,7 @@ describe("selectSkillResolution", () => {
       expect(optionValues).not.toContain("cancel"); // cancel is handled via Ctrl+C
     });
 
-    it("should show link option only when available in availableActions", async () => {
+    it("should show link option only when content is unchanged", async () => {
       const conflicts: Array<SkillConflict> = [
         {
           skillId: "unchanged-skill",
@@ -120,6 +120,35 @@ describe("selectSkillResolution", () => {
       expect(result).toEqual({
         "unchanged-skill": { action: "link" },
       });
+    });
+
+    it("should NOT show link option when content has changed even if API allows it", async () => {
+      const conflicts: Array<SkillConflict> = [
+        {
+          skillId: "changed-skill",
+          exists: true,
+          canPublish: true,
+          latestVersion: "1.5.0",
+          owner: "other@example.com",
+          availableActions: ["cancel", "namespace", "updateVersion", "link"],
+          contentUnchanged: false,
+        },
+      ];
+
+      vi.mocked(clack.select).mockResolvedValueOnce("namespace");
+
+      await selectSkillResolution({
+        conflicts,
+        profileName: "my-profile",
+      });
+
+      const selectCall = vi.mocked(clack.select).mock.calls[0][0];
+      const options = selectCall.options as Array<{ value: string }>;
+      const optionValues = options.map((o) => o.value);
+
+      expect(optionValues).not.toContain("link");
+      expect(optionValues).toContain("namespace");
+      expect(optionValues).toContain("updateVersion");
     });
   });
 
@@ -345,7 +374,7 @@ describe("selectSkillResolution", () => {
       );
     });
 
-    it("should default to namespace when content has changed", async () => {
+    it("should default to updateVersion when content has changed and canPublish is true", async () => {
       const conflicts: Array<SkillConflict> = [
         {
           skillId: "changed-skill",
@@ -353,6 +382,32 @@ describe("selectSkillResolution", () => {
           canPublish: true,
           latestVersion: "1.0.0",
           availableActions: ["cancel", "namespace", "updateVersion"],
+          contentUnchanged: false,
+        },
+      ];
+
+      vi.mocked(clack.select).mockResolvedValueOnce("updateVersion");
+
+      await selectSkillResolution({
+        conflicts,
+        profileName: "my-profile",
+      });
+
+      expect(clack.select).toHaveBeenCalledWith(
+        expect.objectContaining({
+          initialValue: "updateVersion",
+        }),
+      );
+    });
+
+    it("should default to namespace when content has changed and canPublish is false", async () => {
+      const conflicts: Array<SkillConflict> = [
+        {
+          skillId: "changed-skill",
+          exists: true,
+          canPublish: false,
+          latestVersion: "1.0.0",
+          availableActions: ["cancel", "namespace"],
           contentUnchanged: false,
         },
       ];

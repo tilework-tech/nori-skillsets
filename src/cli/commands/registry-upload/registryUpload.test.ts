@@ -86,6 +86,19 @@ vi.mock("@/utils/fetch.js", () => ({
 
 // Mock @clack/prompts for spinner and interactive prompts
 vi.mock("@clack/prompts", () => ({
+  intro: vi.fn(),
+  outro: vi.fn(),
+  note: vi.fn(),
+  log: {
+    info: vi.fn(),
+    success: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    message: vi.fn(),
+    step: vi.fn(),
+  },
+  select: vi.fn(),
+  text: vi.fn(),
   spinner: vi.fn(() => ({
     start: vi.fn(),
     stop: vi.fn(),
@@ -94,12 +107,12 @@ vi.mock("@clack/prompts", () => ({
   isCancel: vi.fn(() => false),
 }));
 
-// Mock skill resolution prompt
+// Mock skill resolution prompt (no longer used by new flow, but kept for reference)
 vi.mock("@/cli/prompts/skillResolution.js", () => ({
   selectSkillResolution: vi.fn(),
 }));
 
-// Mock console methods to capture output
+// Mock console methods to capture output (for early validation errors before flow starts)
 const mockConsoleLog = vi
   .spyOn(console, "log")
   .mockImplementation(() => undefined);
@@ -113,6 +126,34 @@ import { loadConfig, getRegistryAuth } from "@/cli/config.js";
 import { selectSkillResolution } from "@/cli/prompts/skillResolution.js";
 
 import { registryUploadMain } from "./registryUpload.js";
+
+/**
+ * Helper to get all text output from clack prompts mocks
+ * Combines outro and note calls into a searchable string
+ *
+ * @returns Combined output string from all clack prompt mocks
+ */
+const getClackOutput = (): string => {
+  const outroMock = vi.mocked(clack.outro);
+  const noteMock = vi.mocked(clack.note);
+  const logInfoMock = vi.mocked(clack.log.info);
+  const logErrorMock = vi.mocked(clack.log.error);
+
+  const outroTexts = outroMock.mock.calls.map((call) => String(call[0] ?? ""));
+  const noteTexts = noteMock.mock.calls.map(
+    (call) => `${call[0] ?? ""} ${call[1] ?? ""}`,
+  );
+  const logInfoTexts = logInfoMock.mock.calls.map((call) =>
+    String(call[0] ?? ""),
+  );
+  const logErrorTexts = logErrorMock.mock.calls.map((call) =>
+    String(call[0] ?? ""),
+  );
+
+  return [...outroTexts, ...noteTexts, ...logInfoTexts, ...logErrorTexts].join(
+    "\n",
+  );
+};
 
 describe("registry-upload", () => {
   let testDir: string;
@@ -468,12 +509,10 @@ describe("registry-upload", () => {
           }),
         );
 
-        // Verify success message
-        const allOutput = mockConsoleLog.mock.calls
-          .map((call) => call.join(" "))
-          .join("\n");
-        expect(allOutput.toLowerCase()).toContain("success");
-        expect(allOutput).toContain("my-profile@1.0.0");
+        // Verify success message from clack prompts
+        const clackOutput = getClackOutput();
+        expect(clackOutput.toLowerCase()).toContain("uploaded");
+        expect(clackOutput).toContain("my-profile@1.0.0");
       });
 
       it("should auto-bump version when not specified", async () => {
@@ -615,13 +654,11 @@ describe("registry-upload", () => {
         // Verify no upload occurred
         expect(registrarApi.uploadSkillset).not.toHaveBeenCalled();
 
-        // Verify version list was displayed
-        const allOutput = mockConsoleLog.mock.calls
-          .map((call) => call.join(" "))
-          .join("\n");
-        expect(allOutput).toContain("my-profile");
-        expect(allOutput).toContain("latest");
-        expect(allOutput).toContain("2.0.0");
+        // Verify version list was displayed via clack prompts
+        const clackOutput = getClackOutput();
+        expect(clackOutput).toContain("my-profile");
+        expect(clackOutput).toContain("latest");
+        expect(clackOutput).toContain("2.0.0");
       });
 
       it("should fail gracefully when package not found with --list-versions", async () => {
