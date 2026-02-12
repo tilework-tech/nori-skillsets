@@ -275,7 +275,43 @@ const insertClaudeMd = async (args: { config: Config }): Promise<void> => {
   const profileClaudeMdPath = getProfileClaudeMd({
     profileName,
   });
-  let instructions = await fs.readFile(profileClaudeMdPath, "utf-8");
+
+  let instructions: string | null = null;
+  try {
+    instructions = await fs.readFile(profileClaudeMdPath, "utf-8");
+  } catch {
+    // Profile has no CLAUDE.md (e.g. empty skillset created by `nori-skillsets new`)
+    info({
+      message: "Profile CLAUDE.md not found, clearing managed block",
+    });
+  }
+
+  if (instructions == null) {
+    // No profile CLAUDE.md — clear the managed block from existing CLAUDE.md if present
+    let existingContent: string;
+    try {
+      existingContent = await fs.readFile(claudeMdFile, "utf-8");
+    } catch {
+      // No existing CLAUDE.md either — nothing to do
+      return;
+    }
+
+    if (existingContent.includes(BEGIN_MARKER)) {
+      const regex = new RegExp(
+        `${BEGIN_MARKER}\n[\\s\\S]*?\n${END_MARKER}\n?`,
+        "g",
+      );
+      const cleared = existingContent.replace(
+        regex,
+        `${BEGIN_MARKER}\n\n${END_MARKER}\n`,
+      );
+      await fs.writeFile(claudeMdFile, cleared);
+      success({
+        message: `✓ Cleared managed block in ${claudeMdFile}`,
+      });
+    }
+    return;
+  }
 
   // Strip existing managed block markers from instructions if present
   // This handles the case where captureExistingConfigAsProfile wrapped content with markers

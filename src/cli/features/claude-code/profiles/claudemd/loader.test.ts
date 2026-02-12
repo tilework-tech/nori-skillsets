@@ -428,6 +428,116 @@ hello world
     });
   });
 
+  describe("missing profile CLAUDE.md", () => {
+    it("should remove managed block when profile has no CLAUDE.md and existing CLAUDE.md has managed block", async () => {
+      // Create a profile with no CLAUDE.md (just nori.json, like `nori-skillsets new none`)
+      const emptyProfileDir = path.join(noriProfilesDir, "empty-profile");
+      await fs.mkdir(emptyProfileDir, { recursive: true });
+      await fs.writeFile(
+        path.join(emptyProfileDir, "nori.json"),
+        JSON.stringify({ name: "empty-profile", version: "1.0.0" }),
+      );
+
+      // Create existing CLAUDE.md with user content and a managed block
+      const existingContent = `# My Custom Instructions
+
+User-specific content here.
+
+# BEGIN NORI-AI MANAGED BLOCK
+Old nori instructions that should be cleared.
+# END NORI-AI MANAGED BLOCK
+
+# More User Content
+
+Additional user instructions.
+`;
+      await fs.writeFile(claudeMdPath, existingContent);
+
+      const config: Config = {
+        installDir: tempDir,
+        agents: {
+          "claude-code": { profile: { baseProfile: "empty-profile" } },
+        },
+      };
+
+      // Should NOT throw
+      await claudeMdLoader.install({ config });
+
+      const content = await fs.readFile(claudeMdPath, "utf-8");
+
+      // User content outside managed block should be preserved
+      expect(content).toContain("# My Custom Instructions");
+      expect(content).toContain("User-specific content here.");
+      expect(content).toContain("# More User Content");
+      expect(content).toContain("Additional user instructions.");
+
+      // Old managed block content should be gone
+      expect(content).not.toContain(
+        "Old nori instructions that should be cleared.",
+      );
+
+      // Empty managed block markers should remain
+      expect(content).toContain("# BEGIN NORI-AI MANAGED BLOCK");
+      expect(content).toContain("# END NORI-AI MANAGED BLOCK");
+    });
+
+    it("should not crash and not create file when profile has no CLAUDE.md and no existing CLAUDE.md", async () => {
+      // Create a profile with no CLAUDE.md
+      const emptyProfileDir = path.join(noriProfilesDir, "bare-profile");
+      await fs.mkdir(emptyProfileDir, { recursive: true });
+      await fs.writeFile(
+        path.join(emptyProfileDir, "nori.json"),
+        JSON.stringify({ name: "bare-profile", version: "1.0.0" }),
+      );
+
+      // Ensure no CLAUDE.md exists at destination
+      await fs.rm(claudeMdPath, { force: true });
+
+      const config: Config = {
+        installDir: tempDir,
+        agents: {
+          "claude-code": { profile: { baseProfile: "bare-profile" } },
+        },
+      };
+
+      // Should NOT throw
+      await claudeMdLoader.install({ config });
+
+      // CLAUDE.md should not have been created
+      await expect(fs.access(claudeMdPath)).rejects.toThrow();
+    });
+
+    it("should leave existing CLAUDE.md untouched when profile has no CLAUDE.md and no managed block exists", async () => {
+      // Create a profile with no CLAUDE.md
+      const emptyProfileDir = path.join(noriProfilesDir, "minimal-profile");
+      await fs.mkdir(emptyProfileDir, { recursive: true });
+      await fs.writeFile(
+        path.join(emptyProfileDir, "nori.json"),
+        JSON.stringify({ name: "minimal-profile", version: "1.0.0" }),
+      );
+
+      // Create existing CLAUDE.md with only user content (no managed block)
+      const userContent = `# My Project Instructions
+
+Some custom instructions here.
+`;
+      await fs.writeFile(claudeMdPath, userContent);
+
+      const config: Config = {
+        installDir: tempDir,
+        agents: {
+          "claude-code": { profile: { baseProfile: "minimal-profile" } },
+        },
+      };
+
+      await claudeMdLoader.install({ config });
+
+      // File should be completely unchanged
+      const content = await fs.readFile(claudeMdPath, "utf-8");
+      expect(content).toBe(userContent);
+    });
+  });
+
   describe("skills list generation", () => {
     it("should include skills list in installed CLAUDE.md", async () => {
       const config: Config = {

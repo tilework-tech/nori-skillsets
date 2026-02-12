@@ -17,21 +17,21 @@ describe("cliCommandNames", () => {
       expect(names.update).toBe("update");
       expect(names.upload).toBe("upload");
       expect(names.uploadSkill).toBe("upload-skill");
-      expect(names.switchProfile).toBe("switch-skillset");
+      expect(names.switchProfile).toBe("switch");
     });
 
     it("should default to nori-skillsets command names when cliName is null", () => {
       const names = getCommandNames({ cliName: null });
 
       expect(names.download).toBe("download");
-      expect(names.switchProfile).toBe("switch-skillset");
+      expect(names.switchProfile).toBe("switch");
     });
 
     it("should default to nori-skillsets command names when cliName is undefined", () => {
       const names = getCommandNames({});
 
       expect(names.download).toBe("download");
-      expect(names.switchProfile).toBe("switch-skillset");
+      expect(names.switchProfile).toBe("switch");
     });
   });
 });

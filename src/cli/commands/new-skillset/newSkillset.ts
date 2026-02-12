@@ -73,7 +73,7 @@ export const newSkillsetMain = async (args: {
   });
   newline();
   info({
-    message: `To switch:  nori-skillsets switch-skillset ${name}`,
+    message: `To switch:  nori-skillsets switch ${name}`,
   });
   info({
     message: `To edit:    ~/.nori/profiles/${name}/`,

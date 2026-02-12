@@ -467,7 +467,7 @@ export const switchSkillsetAction = async (args: {
 };
 
 /**
- * Register the 'switch-skillset' and 'switch-profile' (alias) commands with commander
+ * Register the 'switch' and 'switch-profile' (alias) commands with commander
  * @param args - Configuration arguments
  * @param args.program - Commander program instance
  */
