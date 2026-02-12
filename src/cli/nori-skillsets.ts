@@ -26,6 +26,7 @@ import {
   registerNoriSkillsetsLogoutCommand,
   registerNoriSkillsetsSearchCommand,
   registerNoriSkillsetsSwitchSkillsetCommand,
+  registerNoriSkillsetsUploadCommand,
   registerNoriSkillsetsWatchCommand,
 } from "@/cli/commands/noriSkillsetsCommands.js";
 import {
@@ -94,6 +95,10 @@ Examples:
   $ nori-skillsets download my-skillset
   $ nori-skillsets download my-skillset@1.0.0
   $ nori-skillsets download my-skillset --list-versions
+  $ nori-skillsets upload my-skillset
+  $ nori-skillsets upload my-skillset@2.0.0
+  $ nori-skillsets upload myorg/my-skillset
+  $ nori-skillsets upload my-skillset --list-versions
   $ nori-skillsets install my-skillset
   $ nori-skillsets install my-skillset --user
   $ nori-skillsets switch senior-swe
@@ -125,6 +130,7 @@ registerNoriSkillsetsLogoutCommand({ program });
 registerNoriSkillsetsInitCommand({ program });
 registerNoriSkillsetsSearchCommand({ program });
 registerNoriSkillsetsDownloadCommand({ program });
+registerNoriSkillsetsUploadCommand({ program });
 registerNoriSkillsetsInstallCommand({ program });
 registerNoriSkillsetsSwitchSkillsetCommand({ program });
 registerNoriSkillsetsListSkillsetsCommand({ program });

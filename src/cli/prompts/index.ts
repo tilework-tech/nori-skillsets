@@ -20,6 +20,7 @@ export {
 } from "./profile.js";
 export { promptForAuth, type AuthCredentials } from "./auth.js";
 export { promptPassword } from "./password.js";
+export { selectSkillResolution } from "./skillResolution.js";
 
 // Flow modules - complete interactive experiences
 export {
@@ -30,4 +31,12 @@ export {
   switchSkillsetFlow,
   type SwitchSkillsetCallbacks,
   type SwitchSkillsetFlowResult,
+  uploadFlow,
+  type UploadFlowCallbacks,
+  type UploadFlowResult,
+  type UploadResult,
+  type DetermineVersionResult,
+  listVersionsFlow,
+  type ListVersionsFlowCallbacks,
+  type ListVersionsFlowResult,
 } from "./flows/index.js";

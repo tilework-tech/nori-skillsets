@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
+import { isSkillCollisionError } from "@/utils/fetch.js";
+
 import { registrarApi } from "./registrar.js";
 
 // Mock global fetch
@@ -1229,6 +1231,196 @@ describe("registrarApi", () => {
           authToken: "invalid-token",
         }),
       ).rejects.toThrow("Unauthorized");
+    });
+  });
+
+  describe("uploadSkillset skill collision handling", () => {
+    it("should throw SkillCollisionError when 409 response contains conflicts array", async () => {
+      const conflictResponse = {
+        error:
+          "Skill conflicts detected: skill-a, skill-b. Resolution required.",
+        conflicts: [
+          {
+            skillId: "skill-a",
+            exists: true,
+            canPublish: true,
+            latestVersion: "1.0.0",
+            owner: "user@example.com",
+            availableActions: ["cancel", "namespace", "link", "updateVersion"],
+            contentUnchanged: true,
+          },
+          {
+            skillId: "skill-b",
+            exists: true,
+            canPublish: false,
+            latestVersion: "2.0.0",
+            owner: "other@example.com",
+            availableActions: ["cancel", "namespace", "link"],
+            contentUnchanged: false,
+          },
+        ],
+        requiresVersions: true,
+      };
+
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 409,
+        json: () => Promise.resolve(conflictResponse),
+      });
+
+      const archiveData = new ArrayBuffer(100);
+
+      await expect(
+        registrarApi.uploadSkillset({
+          packageName: "test-profile",
+          version: "1.0.0",
+          archiveData,
+          authToken: "test-token",
+        }),
+      ).rejects.toThrow("Skill conflicts detected");
+
+      // Verify it throws SkillCollisionError with correct properties
+      try {
+        await registrarApi.uploadSkillset({
+          packageName: "test-profile",
+          version: "1.0.0",
+          archiveData,
+          authToken: "test-token",
+        });
+      } catch (err) {
+        expect(isSkillCollisionError(err)).toBe(true);
+        if (isSkillCollisionError(err)) {
+          expect(err.conflicts).toHaveLength(2);
+          expect(err.conflicts[0].skillId).toBe("skill-a");
+          expect(err.conflicts[0].contentUnchanged).toBe(true);
+          expect(err.conflicts[1].skillId).toBe("skill-b");
+          expect(err.conflicts[1].contentUnchanged).toBe(false);
+          expect(err.requiresVersions).toBe(true);
+        }
+      }
+    });
+
+    it("should throw regular ApiError when 409 response has no conflicts array", async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 409,
+        json: () =>
+          Promise.resolve({
+            error: "Version 1.0.0 already exists for package test-profile",
+          }),
+      });
+
+      const archiveData = new ArrayBuffer(100);
+
+      await expect(
+        registrarApi.uploadSkillset({
+          packageName: "test-profile",
+          version: "1.0.0",
+          archiveData,
+          authToken: "test-token",
+        }),
+      ).rejects.toThrow("already exists");
+
+      // Verify it does NOT throw SkillCollisionError
+      try {
+        await registrarApi.uploadSkillset({
+          packageName: "test-profile",
+          version: "1.0.0",
+          archiveData,
+          authToken: "test-token",
+        });
+      } catch (err) {
+        expect(isSkillCollisionError(err)).toBe(false);
+      }
+    });
+
+    it("should throw regular ApiError when 409 response has empty conflicts array", async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 409,
+        json: () =>
+          Promise.resolve({
+            error: "Version conflict",
+            conflicts: [],
+          }),
+      });
+
+      const archiveData = new ArrayBuffer(100);
+
+      try {
+        await registrarApi.uploadSkillset({
+          packageName: "test-profile",
+          version: "1.0.0",
+          archiveData,
+          authToken: "test-token",
+        });
+      } catch (err) {
+        expect(isSkillCollisionError(err)).toBe(false);
+      }
+    });
+
+    it("should include resolutionStrategy in FormData when provided", async () => {
+      const mockResponse = {
+        name: "test-profile",
+        version: "1.0.0",
+        tarballSha: "sha512-abc123",
+        createdAt: "2024-01-01T00:00:00.000Z",
+      };
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(mockResponse),
+      });
+
+      const archiveData = new ArrayBuffer(100);
+      const resolutionStrategy = {
+        "skill-a": { action: "link" as const },
+        "skill-b": { action: "namespace" as const },
+      };
+
+      await registrarApi.uploadSkillset({
+        packageName: "test-profile",
+        version: "1.0.0",
+        archiveData,
+        authToken: "test-token",
+        resolutionStrategy,
+      });
+
+      // Verify FormData includes resolutionStrategy as JSON string
+      const callArgs = mockFetch.mock.calls[0];
+      const formData = callArgs[1].body as FormData;
+      expect(formData.get("resolutionStrategy")).toBe(
+        JSON.stringify(resolutionStrategy),
+      );
+    });
+
+    it("should not include resolutionStrategy in FormData when null", async () => {
+      const mockResponse = {
+        name: "test-profile",
+        version: "1.0.0",
+        tarballSha: "sha512-abc123",
+        createdAt: "2024-01-01T00:00:00.000Z",
+      };
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(mockResponse),
+      });
+
+      const archiveData = new ArrayBuffer(100);
+
+      await registrarApi.uploadSkillset({
+        packageName: "test-profile",
+        version: "1.0.0",
+        archiveData,
+        authToken: "test-token",
+        resolutionStrategy: null,
+      });
+
+      // Verify FormData does NOT include resolutionStrategy
+      const callArgs = mockFetch.mock.calls[0];
+      const formData = callArgs[1].body as FormData;
+      expect(formData.get("resolutionStrategy")).toBeNull();
     });
   });
 });

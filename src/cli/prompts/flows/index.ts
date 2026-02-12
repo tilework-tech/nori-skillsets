@@ -24,4 +24,18 @@ export {
   type InitFlowResult,
 } from "./init.js";
 
+export {
+  uploadFlow,
+  type UploadFlowCallbacks,
+  type UploadFlowResult,
+  type UploadResult,
+  type DetermineVersionResult,
+} from "./upload.js";
+
+export {
+  listVersionsFlow,
+  type ListVersionsFlowCallbacks,
+  type ListVersionsFlowResult,
+} from "./listVersions.js";
+
 export { unwrapPrompt } from "./utils.js";

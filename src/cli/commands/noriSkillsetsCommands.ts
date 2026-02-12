@@ -22,6 +22,7 @@ import { newSkillsetMain } from "@/cli/commands/new-skillset/newSkillset.js";
 import { registryDownloadMain } from "@/cli/commands/registry-download/registryDownload.js";
 import { registryInstallMain } from "@/cli/commands/registry-install/registryInstall.js";
 import { registrySearchMain } from "@/cli/commands/registry-search/registrySearch.js";
+import { registryUploadMain } from "@/cli/commands/registry-upload/registryUpload.js";
 import { skillDownloadMain } from "@/cli/commands/skill-download/skillDownload.js";
 import { switchSkillsetAction } from "@/cli/commands/switch-profile/profiles.js";
 import { watchMain, watchStopMain } from "@/cli/commands/watch/watch.js";
@@ -243,6 +244,57 @@ export const registerNoriSkillsetsDownloadCommand = (args: {
           registryUrl: options.registry || null,
           listVersions: options.listVersions || null,
           cliName: "nori-skillsets",
+        });
+
+        if (!result.success) {
+          process.exit(1);
+        }
+      },
+    );
+};
+
+/**
+ * Register the 'upload' command for nori-skillsets CLI
+ * @param args - Configuration arguments
+ * @param args.program - Commander program instance
+ */
+export const registerNoriSkillsetsUploadCommand = (args: {
+  program: Command;
+}): void => {
+  const { program } = args;
+
+  program
+    .command("upload <profile>")
+    .description("Upload a profile to the Nori registry")
+    .option("--registry <url>", "Upload to a specific registry URL")
+    .option(
+      "--list-versions",
+      "List available versions for the profile instead of uploading",
+    )
+    .option("--dry-run", "Show what would be uploaded without uploading")
+    .option("--description <text>", "Description for this version")
+    .action(
+      async (
+        profileSpec: string,
+        options: {
+          registry?: string;
+          listVersions?: boolean;
+          dryRun?: boolean;
+          description?: string;
+        },
+      ) => {
+        const globalOpts = program.opts();
+
+        const result = await registryUploadMain({
+          profileSpec,
+          cwd: process.cwd(),
+          installDir: globalOpts.installDir || null,
+          registryUrl: options.registry || null,
+          listVersions: options.listVersions || null,
+          nonInteractive: globalOpts.nonInteractive || null,
+          silent: globalOpts.silent || null,
+          dryRun: options.dryRun || null,
+          description: options.description || null,
         });
 
         if (!result.success) {

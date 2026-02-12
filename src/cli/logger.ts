@@ -222,6 +222,18 @@ export const green = (args: { text: string }): string => {
 };
 
 /**
+ * Wrap text in red (for errors/negative values)
+ * @param args - Configuration arguments
+ * @param args.text - Text to display
+ *
+ * @returns Text wrapped in red ANSI color codes
+ */
+export const red = (args: { text: string }): string => {
+  const { text } = args;
+  return `${colors.RED}${text}${colors.NC}`;
+};
+
+/**
  * Wrap text in bold (for emphasis)
  * @param args - Configuration arguments
  * @param args.text - Text to display

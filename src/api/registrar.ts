@@ -9,9 +9,49 @@
  * fallback to /api/profiles/ for older registrar instances.
  */
 
-import { ApiError } from "@/utils/fetch.js";
+import { ApiError, SkillCollisionError } from "@/utils/fetch.js";
 
-export { NetworkError, ApiError } from "@/utils/fetch.js";
+export {
+  NetworkError,
+  ApiError,
+  SkillCollisionError,
+  isSkillCollisionError,
+} from "@/utils/fetch.js";
+
+/**
+ * Resolution actions for skill collisions
+ */
+export type SkillResolutionAction =
+  | "cancel"
+  | "namespace"
+  | "updateVersion"
+  | "link";
+
+/**
+ * Conflict information for a single skill
+ */
+export type SkillConflict = {
+  skillId: string;
+  exists: boolean;
+  canPublish: boolean;
+  latestVersion?: string | null;
+  owner?: string | null;
+  availableActions: Array<SkillResolutionAction>;
+  contentUnchanged?: boolean | null;
+};
+
+/**
+ * Resolution decision for a single skill
+ */
+export type SkillResolution = {
+  action: SkillResolutionAction;
+  version?: string | null;
+};
+
+/**
+ * Map of skill IDs to resolution decisions
+ */
+export type SkillResolutionStrategy = Record<string, SkillResolution>;
 
 export const REGISTRAR_URL = "https://noriskillsets.dev";
 
@@ -128,6 +168,23 @@ export type UploadSkillsetRequest = {
   description?: string | null;
   authToken: string;
   registryUrl?: string | null;
+  resolutionStrategy?: SkillResolutionStrategy | null;
+};
+
+/**
+ * Information about an extracted skill from a profile upload
+ */
+export type ExtractedSkillInfo = {
+  name: string;
+  version: string;
+};
+
+/**
+ * Summary of skills extracted during profile upload
+ */
+export type ExtractedSkillsSummary = {
+  succeeded: Array<ExtractedSkillInfo>;
+  failed: Array<{ name: string; error: string }>;
 };
 
 export type UploadSkillsetResponse = {
@@ -136,6 +193,7 @@ export type UploadSkillsetResponse = {
   description?: string | null;
   tarballSha: string;
   createdAt: string;
+  extractedSkills?: ExtractedSkillsSummary | null;
 };
 
 // Skill API types
@@ -385,6 +443,7 @@ export const registrarApi = {
       description,
       authToken,
       registryUrl,
+      resolutionStrategy,
     } = args;
     const baseUrl = registryUrl ?? REGISTRAR_URL;
 
@@ -393,6 +452,9 @@ export const registrarApi = {
     formData.append("version", version);
     if (description != null) {
       formData.append("description", description);
+    }
+    if (resolutionStrategy != null) {
+      formData.append("resolutionStrategy", JSON.stringify(resolutionStrategy));
     }
 
     const url = `${baseUrl}/api/skillsets/${packageName}/skillset`;
@@ -411,7 +473,25 @@ export const registrarApi = {
     if (!response.ok) {
       const errorData = (await response.json().catch(() => ({
         error: `HTTP ${response.status}`,
-      }))) as { error?: string };
+      }))) as {
+        error?: string;
+        conflicts?: Array<SkillConflict>;
+        requiresVersions?: boolean;
+      };
+
+      // Check for skill collision response (409 with conflicts array)
+      if (
+        response.status === 409 &&
+        Array.isArray(errorData.conflicts) &&
+        errorData.conflicts.length > 0
+      ) {
+        throw new SkillCollisionError({
+          message: errorData.error ?? "Skill conflicts detected",
+          conflicts: errorData.conflicts,
+          requiresVersions: errorData.requiresVersions,
+        });
+      }
+
       throw new ApiError(
         errorData.error ?? `HTTP ${response.status}`,
         response.status,

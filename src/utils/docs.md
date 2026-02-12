@@ -4,11 +4,13 @@ Path: @/src/utils
 
 ### Overview
 
-Shared utility functions for the plugin package, containing URL utilities for normalization and service URL construction, plus path utilities for installation directory management and ancestor installation detection.
+Shared utility functions for the plugin package, containing URL utilities for normalization and service URL construction, path utilities for installation directory management and ancestor installation detection, and network/API error handling utilities including custom error classes for network failures, API errors, and skill collision conflicts.
 
 ### How it fits into the larger codebase
 
 This folder provides utilities used throughout the plugin package at multiple system boundaries. The normalizeUrl function is used in @/src/api/base.ts to construct API request URLs (combining organizationUrl from config with endpoint paths), in @/src/cli/config.ts to normalize user-provided organizationUrl values before saving to `.nori-config.json`, and is used by the API client throughout the codebase. The identical implementation exists in @/ui/src/utils/url.ts for the web UI, maintaining consistent URL handling across all client packages.
+
+The fetch.ts module provides network error handling utilities used by @/src/api/registrar.ts for registry API operations. It exports custom error classes (`NetworkError`, `ApiError`, `SkillCollisionError`) and type guards (`isNetworkError`, `isApiError`, `isSkillCollisionError`) that enable callers to distinguish between different failure modes. The `SkillCollisionError` is specifically used when uploading skillsets with inline skills that conflict with existing registry skills - it contains conflict details and available resolution actions, enabling the CLI layer (@/src/cli/features/claude-code/hooks/config/intercepted-slashcommands/nori-registry-upload.ts) to implement auto-resolution for unchanged skills.
 
 The path.ts module provides installation directory utilities used by both the installer (@/src/cli/commands/install/install.ts) and the nested-install-warning hook (@/src/cli/features/claude-code/hooks/config/nested-install-warning.ts). The normalizeInstallDir function converts user-provided paths (tilde-prefixed, relative, or absolute) to absolute paths, defaulting to `process.cwd()` if no path is provided. The config file and `.nori` directory are centralized to the home directory -- `getConfigPath()` is zero-arg and always returns `~/.nori-config.json`, and `getNoriDir()`/`getNoriProfilesDir()` are zero-arg and always return `~/.nori` and `~/.nori/profiles` respectively. The findAncestorInstallations function is used during installation and session start to detect conflicting Nori installations in parent directories, which would cause Claude Code to load duplicate or conflicting CLAUDE.md configurations due to its recursive parent directory loading behavior.
 

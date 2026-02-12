@@ -85,9 +85,16 @@ After authentication (either method):
 
 The `logout` command removes auth credentials from the centralized `~/.nori-config.json`, preserving the profile selection and other settings. The `logoutMain` function loads the single centralized config via `loadConfig()` (zero-arg), clears the `auth` field, and saves back via `saveConfig()`.
 
-**Registry Commands:** The `registry-search`, `registry-download`, and `registry-install` commands provide terminal access to Nori package registries. These commands use the `registrarApi` from @/src/api/registrar.ts. Registry commands work without any agent gate -- they operate on the profiles directory structure independently of which agent is installed.
+**Registry Commands:** The `registry-search`, `registry-download`, `registry-upload`, and `registry-install` commands provide terminal access to Nori package registries. These commands use the `registrarApi` from @/src/api/registrar.ts. Registry commands work without any agent gate -- they operate on the profiles directory structure independently of which agent is installed.
 
 **Namespace-Based Download:** The `registry-download` command uses package namespaces to determine the target registry. Unnamespaced packages (e.g., `my-skillset`) are downloaded from the public registry without authentication. Namespaced packages (e.g., `myorg/my-skillset`) use `buildOrganizationRegistryUrl({ orgId })` to derive the registry URL and require unified auth.
+
+**Namespace-Based Upload:** The `registry-upload` command (@/src/cli/commands/registry-upload/) mirrors `registry-download` for publishing profiles. It uses the same namespace-based registry resolution: unnamespaced packages target the public registry, namespaced packages (e.g., `myorg/my-skillset`) target the organization registry. Authentication is always required for uploads. The command supports:
+- Auto version bumping: If no version is specified via `@version` syntax, auto-increments the patch version of the latest published version (or starts at 1.0.0 if first publish)
+- Explicit versioning: Specify exact version with `profile@1.2.3` syntax
+- Version listing: `--list-versions` flag shows all published versions without uploading
+- Registry override: `--registry <url>` flag uploads to a specific registry URL
+- Skill collision detection and auto-resolution: When skills in the profile conflict with existing skills in the registry, unchanged skills are automatically linked to existing versions; modified skills require manual resolution (rename or coordinate with skill owner)
 
 ### Core Implementation
 
@@ -132,6 +139,7 @@ The change detection uses the manifest module from @/src/cli/features/claude-cod
 - The `external` command (@/src/cli/commands/external/) installs skills directly from GitHub repositories. It clones the repo, discovers SKILL.md files, and installs them following the same dual-installation pattern as `skill-download` (live copy to `~/.claude/skills/` with template substitution, raw copy to profile's `skills/` directory). Supports `--new <name>` to create a brand-new skillset and install skills into it in a single step, or `--skillset <name>` to target an existing one. Writes a `nori.json` provenance file (instead of `.nori-version`) to track the GitHub source URL, ref, subpath, and installation timestamp. See @/src/cli/commands/external/docs.md for details.
 - The `registry-install` command combines `registry-download` with `noninteractive()` install to provide a single-step "download and activate" flow from the public registrar.
 - The `registry-search` command always queries the public registry without authentication; if org auth is configured, it also searches the org registry with authentication (org results displayed first).
+- The `registry-upload` command creates a gzipped tarball from the local profile directory before uploading. Skill collision errors from the API include conflict metadata (skillId, latestVersion, owner, contentUnchanged, availableActions) that enables auto-resolution for unchanged skills.
 - Google OAuth uses Desktop app client credentials; the client secret is not truly secret (same as firebase-tools, gcloud CLI, etc.). CSRF protection uses a cryptographic nonce (`generateState()`) verified in the callback.
 - Installation manifest is only written for the `claude-code` agent; other agents do not track installed files for change detection.
 - Manifest writing failures are non-fatal and do not block installation.
