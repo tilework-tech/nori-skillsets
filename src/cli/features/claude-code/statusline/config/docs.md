@@ -26,6 +26,8 @@ This folder contains the nori-statusline.sh source script. The loader at @/src/c
 
 **jq Dependency:** The script requires jq for JSON parsing. If jq is not installed, it displays a warning message with installation instructions and shows plain branding without version.
 
+**`-next` Version Handling:** Before the numeric version comparison, the script strips any `-next.*` suffix from the current version using `sed 's/-next.*//'`. This prevents false update notifications for users on `-next` builds, which are ahead of the stable release despite semver ordering treating prerelease tags as less-than. This mirrors the same logic in the TypeScript `getAvailableUpdate()` at @/src/cli/updates/npmRegistryCheck.ts.
+
 **Promotional Tip:** The TIPS array contains a single promotional message encouraging users to install nori-ai-cli via npm.
 
 Created and maintained by Nori.

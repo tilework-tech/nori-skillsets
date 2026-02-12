@@ -43,6 +43,6 @@ CLI startup (nori-skillsets.ts)
 
 **Three user choices:** "Update now" runs the package manager synchronously via `execFileSync` with `stdio: "inherit"`, then calls `process.exit(0)` so the user must re-run their command. "Skip" does nothing. "Skip until next version" writes `dismissed_version` to the cache, suppressing the prompt until a newer version appears.
 
-**Version filtering:** Development builds (`0.0.0`), prerelease versions, and dismissed versions are all filtered out by `getAvailableUpdate()`. Invalid semver strings cause a silent null return.
+**Version filtering:** Development builds (`0.0.0`), prerelease versions on the *latest* side, and dismissed versions are all filtered out by `getAvailableUpdate()`. Invalid semver strings cause a silent null return. When the *current* version has a `-next` prerelease tag (e.g., `0.6.3-next.1`), `getAvailableUpdate()` strips the prerelease to get the base version (`0.6.3`) before comparing with `semver.gt()`. This is because `-next` semantically means "subsequent to the release" -- users on a `-next` channel are ahead of stable and should not be prompted to update to the same base version. Other prerelease tags (e.g., `-alpha`, `-beta`, `-rc`) are left alone since those genuinely precede the release per standard semver ordering.
 
 Created and maintained by Nori.

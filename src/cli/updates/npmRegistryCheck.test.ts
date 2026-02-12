@@ -235,6 +235,71 @@ describe("npmRegistryCheck", () => {
       });
       expect(result).toBeNull();
     });
+
+    it("should return null when current version is -next and latest is same base version", async () => {
+      const cachePath = path.join(
+        tempDir,
+        ".nori",
+        "profiles",
+        "nori-skillsets-version.json",
+      );
+      fs.writeFileSync(
+        cachePath,
+        JSON.stringify({
+          latest_version: "0.6.3",
+          last_checked_at: new Date().toISOString(),
+        }),
+      );
+
+      const result = await getAvailableUpdate({
+        currentVersion: "0.6.3-next.1",
+      });
+      expect(result).toBeNull();
+    });
+
+    it("should return update when current version is -next and latest is a newer version", async () => {
+      const cachePath = path.join(
+        tempDir,
+        ".nori",
+        "profiles",
+        "nori-skillsets-version.json",
+      );
+      fs.writeFileSync(
+        cachePath,
+        JSON.stringify({
+          latest_version: "0.6.4",
+          last_checked_at: new Date().toISOString(),
+        }),
+      );
+
+      const result = await getAvailableUpdate({
+        currentVersion: "0.6.3-next.1",
+      });
+      expect(result).not.toBeNull();
+      expect(result!.latestVersion).toBe("0.6.4");
+    });
+
+    it("should return update when current version is -next and latest is a newer major version", async () => {
+      const cachePath = path.join(
+        tempDir,
+        ".nori",
+        "profiles",
+        "nori-skillsets-version.json",
+      );
+      fs.writeFileSync(
+        cachePath,
+        JSON.stringify({
+          latest_version: "0.7.0",
+          last_checked_at: new Date().toISOString(),
+        }),
+      );
+
+      const result = await getAvailableUpdate({
+        currentVersion: "0.6.3-next.1",
+      });
+      expect(result).not.toBeNull();
+      expect(result!.latestVersion).toBe("0.7.0");
+    });
   });
 
   describe("refreshVersionCache", () => {

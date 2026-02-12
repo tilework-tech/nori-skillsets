@@ -26,6 +26,6 @@ This feature loader (loader.ts) is registered with @/src/cli/features/claude-cod
 
 **Profile Display:** Profile name is conditionally displayed only when .nori-config.json contains a `profile.baseProfile` value (checking `agents.claude-code.profile.baseProfile` first, then legacy path). When not set, the profile section is omitted from the metrics line.
 
-**Tip Line / Update Notification:** The third line conditionally displays either an update notification or a static promotional tip. The script reads the version cache at `~/.nori/profiles/nori-skillsets-version.json` (populated by the CLI auto-update system at @/src/cli/updates/). If a newer version is available (not dismissed, passes a node-based semver comparison against `NORI_VERSION` from config), it shows an update message. Otherwise it falls back to the static promotional tip.
+**Tip Line / Update Notification:** The third line conditionally displays either an update notification or a static promotional tip. The script reads the version cache at `~/.nori/profiles/nori-skillsets-version.json` (populated by the CLI auto-update system at @/src/cli/updates/). If a newer version is available (not dismissed, passes a node-based semver comparison against `NORI_VERSION` from config), it shows an update message. Otherwise it falls back to the static promotional tip. The version comparison strips `-next.*` suffixes before comparing, so users on `-next` builds are not prompted to "update" to the same base version.
 
 Created and maintained by Nori.
