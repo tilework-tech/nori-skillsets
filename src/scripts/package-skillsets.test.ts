@@ -165,10 +165,20 @@ describe("package_skillsets.sh execution", () => {
       expect(packageJson.devDependencies).toBeUndefined();
     });
 
-    it("should not include scripts", () => {
+    it("should only include lifecycle scripts", () => {
       const packageJsonPath = path.join(stagingDir, "package.json");
       const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf-8"));
-      expect(packageJson.scripts).toBeUndefined();
+      // Should preserve lifecycle scripts (postinstall) but remove dev scripts
+      const allowedScripts = ["preinstall", "install", "postinstall"];
+      if (packageJson.scripts) {
+        for (const key of Object.keys(packageJson.scripts)) {
+          expect(allowedScripts).toContain(key);
+        }
+      }
+      // Dev scripts should not be present
+      expect(packageJson.scripts?.build).toBeUndefined();
+      expect(packageJson.scripts?.test).toBeUndefined();
+      expect(packageJson.scripts?.lint).toBeUndefined();
     });
 
     it("should include publishing metadata", () => {

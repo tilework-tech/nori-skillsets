@@ -32,11 +32,9 @@ vi.mock("@/cli/features/claude-code/paths.js", () => {
       `${testClaudeDir}/skills`,
     getClaudeProfilesDir: (_args: { installDir: string }) =>
       `${testClaudeDir}/profiles`,
-    getNoriDir: (_args: { installDir: string }) => testNoriDir,
-    getNoriProfilesDir: (_args: { installDir: string }) =>
-      `${testNoriDir}/profiles`,
-    getNoriConfigFile: (_args: { installDir: string }) =>
-      `${testNoriDir}/config.json`,
+    getNoriDir: () => testNoriDir,
+    getNoriProfilesDir: () => `${testNoriDir}/profiles`,
+    getNoriConfigFile: () => `${testNoriDir}/config.json`,
   };
 });
 
@@ -133,6 +131,10 @@ describe("install noninteractive", () => {
         path.join(profileDir, "CLAUDE.md"),
         `# ${profileName}\n`,
       );
+      fs.writeFileSync(
+        path.join(profileDir, "nori.json"),
+        JSON.stringify({ name: profileName, version: "1.0.0" }),
+      );
     }
 
     vi.clearAllMocks();
@@ -167,7 +169,7 @@ describe("install noninteractive", () => {
       profile: "senior-swe",
     });
 
-    const configPath = getConfigPath({ installDir: tempDir });
+    const configPath = getConfigPath();
     const config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
     expect(config.agents["claude-code"].profile).toEqual({
       baseProfile: "senior-swe",
@@ -215,7 +217,7 @@ describe("install noninteractive", () => {
       installDir: tempDir,
     });
 
-    const configPath = getConfigPath({ installDir: tempDir });
+    const configPath = getConfigPath();
     const config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
     expect(config.agents["claude-code"].profile).toEqual({
       baseProfile: "amol",
@@ -238,10 +240,36 @@ describe("install noninteractive", () => {
       profile: "senior-swe",
     });
 
-    const configPath = getConfigPath({ installDir: tempDir });
+    const configPath = getConfigPath();
     const config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
     expect(config.auth.username).toBe("test@example.com");
     expect(config.auth.organizationUrl).toBe("https://myorg.tilework.tech");
     expect(config.auth.refreshToken).toBe("test-refresh-token");
+  });
+
+  it("should preserve organizations, isAdmin, and transcriptDestination through install", async () => {
+    // Create config with organizations, isAdmin, and transcriptDestination
+    await saveConfig({
+      username: "test@example.com",
+      organizationUrl: "https://myorg.tilework.tech",
+      refreshToken: "test-refresh-token",
+      organizations: ["org-alpha", "org-beta"],
+      isAdmin: true,
+      agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
+      version: "20.0.0",
+      transcriptDestination: "myorg",
+      installDir: tempDir,
+    });
+
+    await noninteractive({
+      installDir: tempDir,
+      profile: "senior-swe",
+    });
+
+    const configPath = getConfigPath();
+    const config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+    expect(config.auth.organizations).toEqual(["org-alpha", "org-beta"]);
+    expect(config.auth.isAdmin).toBe(true);
+    expect(config.transcriptDestination).toBe("myorg");
   });
 });

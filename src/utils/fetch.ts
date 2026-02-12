@@ -39,6 +39,51 @@ export class ApiError extends Error {
 }
 
 /**
+ * Resolution action for skill conflicts
+ * Must match SkillResolutionAction in registrar.ts
+ */
+export type SkillResolutionAction =
+  | "cancel"
+  | "namespace"
+  | "updateVersion"
+  | "link";
+
+/**
+ * Conflict information for a single skill (used in SkillCollisionError)
+ */
+export type SkillConflictInfo = {
+  skillId: string;
+  exists: boolean;
+  canPublish: boolean;
+  latestVersion?: string | null;
+  owner?: string | null;
+  availableActions: Array<SkillResolutionAction>;
+  contentUnchanged?: boolean | null;
+};
+
+/**
+ * Custom error class for skill collision errors during profile upload
+ * Thrown when inline skills in a profile conflict with existing registry skills
+ */
+export class SkillCollisionError extends Error {
+  readonly conflicts: Array<SkillConflictInfo>;
+  readonly requiresVersions: boolean;
+  readonly isSkillCollisionError = true;
+
+  constructor(args: {
+    message: string;
+    conflicts: Array<SkillConflictInfo>;
+    requiresVersions?: boolean | null;
+  }) {
+    const { message, conflicts, requiresVersions } = args;
+    super(message);
+    this.name = "SkillCollisionError";
+    this.conflicts = conflicts;
+    this.requiresVersions = requiresVersions ?? false;
+  }
+}
+
+/**
  * Get the proxy URL from environment variables (for error messages)
  *
  * @returns The proxy URL or null if no proxy is configured
@@ -174,4 +219,20 @@ export const isNetworkError = (error: unknown): error is NetworkError => {
  */
 export const isApiError = (error: unknown): error is ApiError => {
   return error instanceof ApiError || (error as ApiError)?.isApiError === true;
+};
+
+/**
+ * Check if an error is a skill collision error
+ *
+ * @param error - The error to check
+ *
+ * @returns True if the error is a skill collision error
+ */
+export const isSkillCollisionError = (
+  error: unknown,
+): error is SkillCollisionError => {
+  return (
+    error instanceof SkillCollisionError ||
+    (error as SkillCollisionError)?.isSkillCollisionError === true
+  );
 };

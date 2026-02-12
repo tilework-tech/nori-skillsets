@@ -4,16 +4,26 @@
  */
 
 import * as fs from "fs/promises";
+import * as os from "os";
 import { tmpdir } from "os";
 import * as path from "path";
 
-import { describe, test, expect, beforeEach, afterEach } from "vitest";
+import { describe, test, expect, beforeEach, afterEach, vi } from "vitest";
 
 import {
   AgentRegistry,
   type Loader,
   type LoaderRegistry,
 } from "@/cli/features/agentRegistry.js";
+
+// Mock os.homedir so getNoriProfilesDir() resolves to test directories
+vi.mock("os", async (importOriginal) => {
+  const actual = await importOriginal<typeof os>();
+  return {
+    ...actual,
+    homedir: vi.fn().mockReturnValue(actual.homedir()),
+  };
+});
 
 describe("AgentRegistry", () => {
   // Reset singleton between tests
@@ -127,9 +137,12 @@ describe("AgentRegistry", () => {
       testInstallDir = await fs.mkdtemp(
         path.join(tmpdir(), "agent-switch-test-"),
       );
+      // Mock os.homedir so getNoriProfilesDir() resolves to testInstallDir/.nori/profiles
+      vi.mocked(os.homedir).mockReturnValue(testInstallDir);
     });
 
     afterEach(async () => {
+      vi.restoreAllMocks();
       if (testInstallDir) {
         await fs.rm(testInstallDir, { recursive: true, force: true });
       }
@@ -140,7 +153,10 @@ describe("AgentRegistry", () => {
       const profilesDir = path.join(testInstallDir, ".nori", "profiles");
       const profileDir = path.join(profilesDir, "test-profile");
       await fs.mkdir(profileDir, { recursive: true });
-      await fs.writeFile(path.join(profileDir, "CLAUDE.md"), "# Test Profile");
+      await fs.writeFile(
+        path.join(profileDir, "nori.json"),
+        JSON.stringify({ name: "test-profile", version: "1.0.0" }),
+      );
 
       // Create initial config
       const configPath = path.join(testInstallDir, ".nori-config.json");
@@ -169,7 +185,10 @@ describe("AgentRegistry", () => {
       const profilesDir = path.join(testInstallDir, ".nori", "profiles");
       const profileDir = path.join(profilesDir, "new-profile");
       await fs.mkdir(profileDir, { recursive: true });
-      await fs.writeFile(path.join(profileDir, "CLAUDE.md"), "# New Profile");
+      await fs.writeFile(
+        path.join(profileDir, "nori.json"),
+        JSON.stringify({ name: "new-profile", version: "1.0.0" }),
+      );
 
       // Create initial config with auth and other fields
       const configPath = path.join(testInstallDir, ".nori-config.json");
@@ -228,8 +247,8 @@ describe("AgentRegistry", () => {
       const profileDir = path.join(orgDir, "my-profile");
       await fs.mkdir(profileDir, { recursive: true });
       await fs.writeFile(
-        path.join(profileDir, "CLAUDE.md"),
-        "# myorg/my-profile",
+        path.join(profileDir, "nori.json"),
+        JSON.stringify({ name: "myorg/my-profile", version: "1.0.0" }),
       );
 
       // Create initial config

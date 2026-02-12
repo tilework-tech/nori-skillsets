@@ -9,23 +9,32 @@
 import { Command } from "commander";
 
 import {
+  registerNoriSkillsetsCompletionCommand,
+  registerNoriSkillsetsDirCommand,
   registerNoriSkillsetsDownloadCommand,
   registerNoriSkillsetsDownloadSkillCommand,
+  registerNoriSkillsetsEditSkillsetCommand,
   registerNoriSkillsetsExternalCommand,
+  registerNoriSkillsetsFactoryResetCommand,
+  registerNoriSkillsetsForkCommand,
   registerNoriSkillsetsInitCommand,
   registerNoriSkillsetsInstallCommand,
   registerNoriSkillsetsInstallLocationCommand,
   registerNoriSkillsetsListSkillsetsCommand,
   registerNoriSkillsetsLoginCommand,
+  registerNoriSkillsetsNewCommand,
   registerNoriSkillsetsLogoutCommand,
   registerNoriSkillsetsSearchCommand,
   registerNoriSkillsetsSwitchSkillsetCommand,
+  registerNoriSkillsetsUploadCommand,
   registerNoriSkillsetsWatchCommand,
 } from "@/cli/commands/noriSkillsetsCommands.js";
+import { shouldAutoEnableExperimentalUi } from "@/cli/experimentalUi.js";
 import {
   setTileworkSource,
   trackInstallLifecycle,
 } from "@/cli/installTracking.js";
+import { checkForUpdateAndPrompt } from "@/cli/updates/checkForUpdate.js";
 import { getCurrentPackageVersion } from "@/cli/version.js";
 import { initializeProxySupport } from "@/utils/fetch.js";
 import { normalizeInstallDir } from "@/utils/path.js";
@@ -40,6 +49,25 @@ const version = getCurrentPackageVersion() || "unknown";
 setTileworkSource({ source: "nori-skillsets" });
 
 void trackInstallLifecycle({ currentVersion: version });
+
+// Check for updates before parsing commands (skip for informational flags)
+const isSilent =
+  process.argv.includes("--silent") || process.argv.includes("-s");
+const isNonInteractive =
+  process.argv.includes("--non-interactive") || process.argv.includes("-n");
+const isInfoOnly =
+  process.argv.includes("--help") ||
+  process.argv.includes("-h") ||
+  process.argv.includes("--version") ||
+  process.argv.includes("-V");
+
+if (!isInfoOnly) {
+  await checkForUpdateAndPrompt({
+    currentVersion: version,
+    isInteractive: !isNonInteractive && !isSilent,
+    isSilent,
+  });
+}
 
 program
   .name("nori-skillsets")
@@ -68,22 +96,32 @@ Examples:
   $ nori-skillsets download my-skillset
   $ nori-skillsets download my-skillset@1.0.0
   $ nori-skillsets download my-skillset --list-versions
+  $ nori-skillsets upload my-skillset
+  $ nori-skillsets upload my-skillset@2.0.0
+  $ nori-skillsets upload myorg/my-skillset
+  $ nori-skillsets upload my-skillset --list-versions
   $ nori-skillsets install my-skillset
   $ nori-skillsets install my-skillset --user
-  $ nori-skillsets switch-skillset senior-swe
-  $ nori-skillsets list-skillsets
+  $ nori-skillsets switch senior-swe
+  $ nori-skillsets list
   $ nori-skillsets download-skill my-skill
   $ nori-skillsets download-skill my-skill@1.0.0
   $ nori-skillsets download-skill my-skill --list-versions
   $ nori-skillsets external owner/repo
   $ nori-skillsets external https://github.com/owner/repo --skill my-skill
   $ nori-skillsets external owner/repo --all --ref main
-  $ nori-skillsets watch              # start watching Claude Code sessions
-  $ nori-skillsets watch stop         # stop the watch daemon
-  $ nori-skillsets install-location   # show all installation directories
-  $ nori-skillsets install-location --installation-source  # show only source dirs
-  $ nori-skillsets install-location --installation-managed # show only managed dirs
-  $ nori-skillsets install-location --non-interactive      # plain output for scripts
+  $ nori-skillsets watch                                    # start watching Claude Code sessions
+  $ nori-skillsets watch stop                               # stop the watch daemon
+  $ nori-skillsets dir                                      # open the profiles directory
+  $ nori-skillsets install-location                         # show all installation directories
+  $ nori-skillsets install-location --installation-source   # show only source dirs
+  $ nori-skillsets install-location --installation-managed  # show only managed dirs
+  $ nori-skillsets install-location --non-interactive       # plain output for scripts
+  $ nori-skillsets new my-skillset                          # create a new empty skillset
+  $ nori-skillsets fork senior-swe my-custom                # fork a skillset to a new name
+  $ nori-skillsets edit                                     # open active skillset in VS Code
+  $ nori-skillsets edit my-profile                          # open a specific skillset
+  $ nori-skillsets factory-reset claude-code                # remove all Claude Code config
 `,
   );
 
@@ -93,13 +131,31 @@ registerNoriSkillsetsLogoutCommand({ program });
 registerNoriSkillsetsInitCommand({ program });
 registerNoriSkillsetsSearchCommand({ program });
 registerNoriSkillsetsDownloadCommand({ program });
+registerNoriSkillsetsUploadCommand({ program });
 registerNoriSkillsetsInstallCommand({ program });
 registerNoriSkillsetsSwitchSkillsetCommand({ program });
 registerNoriSkillsetsListSkillsetsCommand({ program });
 registerNoriSkillsetsDownloadSkillCommand({ program });
 registerNoriSkillsetsExternalCommand({ program });
 registerNoriSkillsetsWatchCommand({ program });
+registerNoriSkillsetsDirCommand({ program });
 registerNoriSkillsetsInstallLocationCommand({ program });
+registerNoriSkillsetsCompletionCommand({ program });
+registerNoriSkillsetsForkCommand({ program });
+registerNoriSkillsetsNewCommand({ program });
+registerNoriSkillsetsEditSkillsetCommand({ program });
+registerNoriSkillsetsFactoryResetCommand({ program });
+
+// Auto-enable --experimental-ui when not explicitly passed:
+// 1. Config file: ~/.nori-config.json { "experimentalUi": true }
+// 2. Version contains "next" (e.g., "0.7.0-next.1")
+const hasExplicitExperimentalUi = process.argv.includes("--experimental-ui");
+if (!hasExplicitExperimentalUi && !isInfoOnly) {
+  const shouldEnable = await shouldAutoEnableExperimentalUi({ version });
+  if (shouldEnable) {
+    process.argv.push("--experimental-ui");
+  }
+}
 
 program.parse(process.argv);
 

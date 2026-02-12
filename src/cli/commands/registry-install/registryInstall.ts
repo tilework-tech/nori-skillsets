@@ -37,7 +37,7 @@ const resolveInstallDir = (args: {
   installDir?: string | null;
   useHomeDir?: boolean | null;
 }): string => {
-  const { installDir, useHomeDir } = args;
+  const { cwd, installDir, useHomeDir } = args;
 
   if (installDir) {
     return normalizeInstallDir({ installDir });
@@ -47,23 +47,21 @@ const resolveInstallDir = (args: {
     return normalizeInstallDir({ installDir: os.homedir() });
   }
 
-  return normalizeInstallDir({ installDir: os.homedir() });
+  return normalizeInstallDir({ installDir: cwd ?? process.cwd() });
 };
 
 /**
  * Check if a profile exists locally in the profiles directory
  * @param args - Function arguments
- * @param args.installDir - Installation directory
  * @param args.profileName - Name of the profile to check
  *
  * @returns True if the profile directory exists locally
  */
 const checkLocalProfileExists = async (args: {
-  installDir: string;
   profileName: string;
 }): Promise<boolean> => {
-  const { installDir, profileName } = args;
-  const profilesDir = getNoriProfilesDir({ installDir });
+  const { profileName } = args;
+  const profilesDir = getNoriProfilesDir();
   const profilePath = path.join(profilesDir, profileName);
 
   try {
@@ -134,7 +132,6 @@ export const registryInstallMain = async (
   // If download failed, check if profile exists locally as fallback
   if (!downloadResult.success) {
     const localExists = await checkLocalProfileExists({
-      installDir: targetInstallDir,
       profileName,
     });
 
@@ -149,7 +146,7 @@ export const registryInstallMain = async (
 
   try {
     // Step 2: Run initial install if no existing installation
-    if (!hasExistingInstallation({ installDir: targetInstallDir })) {
+    if (!hasExistingInstallation()) {
       await installMain({
         nonInteractive: true,
         installDir: targetInstallDir,

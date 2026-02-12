@@ -151,7 +151,7 @@ describe("nori-skillsets CLI", () => {
     expect(hasInstallCommand).toBe(true);
   });
 
-  it("should have switch-skillset command", () => {
+  it("should have switch command (shorthand for switch-skillset)", () => {
     let output = "";
 
     try {
@@ -167,14 +167,16 @@ describe("nori-skillsets CLI", () => {
       }
     }
 
-    // Should have "switch-skillset" as a command
+    // Should have "switch" as a visible command (not "switch-skillset")
     const lines = output.split("\n");
-    const hasSwitchSkillsetCommand = lines.some(
-      (line) =>
-        line.trim().startsWith("switch-skillset ") ||
-        line.trim().startsWith("switch-skillset\t"),
-    );
-    expect(hasSwitchSkillsetCommand).toBe(true);
+    const hasSwitchCommand = lines.some((line) => {
+      const trimmed = line.trim();
+      return (
+        (trimmed.startsWith("switch ") || trimmed.startsWith("switch\t")) &&
+        !trimmed.startsWith("switch-skillset")
+      );
+    });
+    expect(hasSwitchCommand).toBe(true);
   });
 
   it("should have download-skill command", () => {
@@ -264,17 +266,75 @@ describe("nori-skillsets CLI", () => {
       }
     }
 
-    // Help examples should use simplified command names
+    // Help examples should use simplified command names (shorthands)
     expect(output).toContain("$ nori-skillsets init");
     expect(output).toContain("$ nori-skillsets search");
     expect(output).toContain("$ nori-skillsets download");
     expect(output).toContain("$ nori-skillsets install");
-    expect(output).toContain("$ nori-skillsets switch-skillset");
-    expect(output).toContain("$ nori-skillsets list-skillsets");
+    expect(output).toContain("$ nori-skillsets switch");
+    expect(output).toContain("$ nori-skillsets list");
     expect(output).toContain("$ nori-skillsets download-skill");
+    expect(output).toContain("$ nori-skillsets edit");
+    // Should NOT have long-form names in examples
+    expect(output).not.toContain("$ nori-skillsets switch-skillset");
+    expect(output).not.toContain("$ nori-skillsets list-skillsets");
+    expect(output).not.toContain("$ nori-skillsets edit-skillset");
   });
 
-  it("should have list-skillsets command", () => {
+  it("should accept 'switch-skillset' as a hidden alias for switch", () => {
+    let helpOutput = "";
+
+    try {
+      helpOutput = execSync("node build/src/cli/nori-skillsets.js --help", {
+        encoding: "utf-8",
+        stdio: "pipe",
+        env: { ...process.env, FORCE_COLOR: "0", HOME: tempDir },
+      });
+    } catch (error: unknown) {
+      if (error && typeof error === "object") {
+        const execError = error as { stdout?: string; stderr?: string };
+        helpOutput = execError.stdout || execError.stderr || "";
+      }
+    }
+
+    // 'switch-skillset' should NOT appear as its own command in help (it's hidden)
+    const lines = helpOutput.split("\n");
+    const hasSwitchSkillsetAsOwnCommand = lines.some((line) => {
+      const trimmed = line.trim();
+      return (
+        trimmed.startsWith("switch-skillset ") ||
+        trimmed.startsWith("switch-skillset\t")
+      );
+    });
+    expect(hasSwitchSkillsetAsOwnCommand).toBe(false);
+
+    // 'switch-skillset --help' should still work (hidden alias)
+    let switchSkillsetOutput = "";
+
+    try {
+      switchSkillsetOutput = execSync(
+        "node build/src/cli/nori-skillsets.js switch-skillset --help",
+        {
+          encoding: "utf-8",
+          stdio: "pipe",
+          env: { ...process.env, FORCE_COLOR: "0", HOME: tempDir },
+        },
+      );
+    } catch (error: unknown) {
+      if (error && typeof error === "object") {
+        const execError = error as {
+          stdout?: string;
+          stderr?: string;
+        };
+        switchSkillsetOutput = execError.stdout || execError.stderr || "";
+      }
+    }
+
+    // Should show help with <name> argument (still works as alias)
+    expect(switchSkillsetOutput).toContain("<name>");
+  });
+
+  it("should have list command (shorthand for list-skillsets)", () => {
     let output = "";
 
     try {
@@ -290,8 +350,16 @@ describe("nori-skillsets CLI", () => {
       }
     }
 
-    // Should have "list-skillsets" as a command
-    expect(output).toContain("list-skillsets");
+    // Should have "list" as a visible command
+    const lines = output.split("\n");
+    const hasListCommand = lines.some((line) => {
+      const trimmed = line.trim();
+      return (
+        (trimmed.startsWith("list ") || trimmed.startsWith("list\t")) &&
+        !trimmed.startsWith("list-")
+      );
+    });
+    expect(hasListCommand).toBe(true);
     expect(output).toContain("List locally available skillsets");
   });
 });

@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
+import { isSkillCollisionError } from "@/utils/fetch.js";
+
 import { registrarApi } from "./registrar.js";
 
 // Mock global fetch
@@ -46,7 +48,7 @@ describe("registrarApi", () => {
       expect(result).toEqual(mockPackages);
       expect(mockFetch).toHaveBeenCalledTimes(1);
       expect(mockFetch).toHaveBeenCalledWith(
-        "https://noriskillsets.dev/api/profiles/search?q=test",
+        "https://noriskillsets.dev/api/skillsets/search?q=test",
         expect.objectContaining({
           method: "GET",
         }),
@@ -79,7 +81,7 @@ describe("registrarApi", () => {
       });
 
       expect(mockFetch).toHaveBeenCalledWith(
-        "https://noriskillsets.dev/api/profiles/search?q=test&limit=10&offset=20",
+        "https://noriskillsets.dev/api/skillsets/search?q=test&limit=10&offset=20",
         expect.objectContaining({
           method: "GET",
         }),
@@ -98,7 +100,7 @@ describe("registrarApi", () => {
       });
 
       expect(mockFetch).toHaveBeenCalledWith(
-        "https://private-registry.example.com/api/profiles/search?q=test",
+        "https://private-registry.example.com/api/skillsets/search?q=test",
         expect.objectContaining({
           method: "GET",
         }),
@@ -118,7 +120,7 @@ describe("registrarApi", () => {
       });
 
       expect(mockFetch).toHaveBeenCalledWith(
-        "https://private-registry.example.com/api/profiles/search?q=test",
+        "https://private-registry.example.com/api/skillsets/search?q=test",
         expect.objectContaining({
           method: "GET",
           headers: expect.objectContaining({
@@ -126,6 +128,58 @@ describe("registrarApi", () => {
           }),
         }),
       );
+    });
+
+    it("should fall back to /api/profiles/ on 404", async () => {
+      const mockPackages = [
+        {
+          id: "pkg-1",
+          name: "test-profile",
+          description: "A test profile",
+          authorEmail: "test@example.com",
+          createdAt: "2024-01-01T00:00:00.000Z",
+          updatedAt: "2024-01-01T00:00:00.000Z",
+        },
+      ];
+
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 404,
+          json: () => Promise.resolve({ error: "Not found" }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve(mockPackages),
+        });
+
+      const result = await registrarApi.searchPackages({ query: "test" });
+
+      expect(result).toEqual(mockPackages);
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      expect(mockFetch).toHaveBeenNthCalledWith(
+        1,
+        "https://noriskillsets.dev/api/skillsets/search?q=test",
+        expect.objectContaining({ method: "GET" }),
+      );
+      expect(mockFetch).toHaveBeenNthCalledWith(
+        2,
+        "https://noriskillsets.dev/api/profiles/search?q=test",
+        expect.objectContaining({ method: "GET" }),
+      );
+    });
+
+    it("should not fall back on non-404 errors", async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 500,
+        json: () => Promise.resolve({ error: "Internal server error" }),
+      });
+
+      await expect(
+        registrarApi.searchPackages({ query: "test" }),
+      ).rejects.toThrow("Internal server error");
+      expect(mockFetch).toHaveBeenCalledTimes(1);
     });
 
     it("should throw error on non-OK response", async () => {
@@ -169,23 +223,68 @@ describe("registrarApi", () => {
 
       expect(result).toEqual(mockPackument);
       expect(mockFetch).toHaveBeenCalledWith(
-        "https://noriskillsets.dev/api/profiles/test-profile",
+        "https://noriskillsets.dev/api/skillsets/test-profile",
         expect.objectContaining({
           method: "GET",
         }),
       );
     });
 
-    it("should throw error when package not found", async () => {
-      mockFetch.mockResolvedValue({
-        ok: false,
-        status: 404,
-        json: () => Promise.resolve({ error: "Package not found" }),
-      });
+    it("should throw error when package not found on both endpoints", async () => {
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 404,
+          json: () => Promise.resolve({ error: "Package not found" }),
+        })
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 404,
+          json: () => Promise.resolve({ error: "Package not found" }),
+        });
 
       await expect(
         registrarApi.getPackument({ packageName: "nonexistent" }),
       ).rejects.toThrow("Package not found");
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+
+    it("should fall back to /api/profiles/ on 404", async () => {
+      const mockPackument = {
+        name: "test-profile",
+        "dist-tags": { latest: "1.0.0" },
+        versions: {
+          "1.0.0": { name: "test-profile", version: "1.0.0" },
+        },
+      };
+
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 404,
+          json: () => Promise.resolve({ error: "Not found" }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve(mockPackument),
+        });
+
+      const result = await registrarApi.getPackument({
+        packageName: "test-profile",
+      });
+
+      expect(result).toEqual(mockPackument);
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      expect(mockFetch).toHaveBeenNthCalledWith(
+        1,
+        "https://noriskillsets.dev/api/skillsets/test-profile",
+        expect.objectContaining({ method: "GET" }),
+      );
+      expect(mockFetch).toHaveBeenNthCalledWith(
+        2,
+        "https://noriskillsets.dev/api/profiles/test-profile",
+        expect.objectContaining({ method: "GET" }),
+      );
     });
 
     it("should use custom registryUrl when provided", async () => {
@@ -208,7 +307,7 @@ describe("registrarApi", () => {
       });
 
       expect(mockFetch).toHaveBeenCalledWith(
-        "https://private-registry.example.com/api/profiles/test-profile",
+        "https://private-registry.example.com/api/skillsets/test-profile",
         expect.objectContaining({
           method: "GET",
         }),
@@ -236,7 +335,7 @@ describe("registrarApi", () => {
       });
 
       expect(mockFetch).toHaveBeenCalledWith(
-        "https://private-registry.example.com/api/profiles/test-profile",
+        "https://private-registry.example.com/api/skillsets/test-profile",
         expect.objectContaining({
           method: "GET",
           headers: expect.objectContaining({
@@ -263,19 +362,25 @@ describe("registrarApi", () => {
 
       expect(result).toBe(mockTarballData);
       expect(mockFetch).toHaveBeenCalledWith(
-        "https://noriskillsets.dev/api/profiles/test-profile/tarball/test-profile-1.0.0.tgz",
+        "https://noriskillsets.dev/api/skillsets/test-profile/tarball/test-profile-1.0.0.tgz",
         expect.objectContaining({
           method: "GET",
         }),
       );
     });
 
-    it("should throw error when tarball not found", async () => {
-      mockFetch.mockResolvedValue({
-        ok: false,
-        status: 404,
-        json: () => Promise.resolve({ error: "Tarball not found" }),
-      });
+    it("should throw error when tarball not found on both endpoints", async () => {
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 404,
+          json: () => Promise.resolve({ error: "Tarball not found" }),
+        })
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 404,
+          json: () => Promise.resolve({ error: "Tarball not found" }),
+        });
 
       await expect(
         registrarApi.downloadTarball({
@@ -283,6 +388,40 @@ describe("registrarApi", () => {
           version: "1.0.0",
         }),
       ).rejects.toThrow("Tarball not found");
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+
+    it("should fall back to /api/profiles/ on 404", async () => {
+      const mockTarballData = new ArrayBuffer(100);
+
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 404,
+          json: () => Promise.resolve({ error: "Not found" }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          arrayBuffer: () => Promise.resolve(mockTarballData),
+        });
+
+      const result = await registrarApi.downloadTarball({
+        packageName: "test-profile",
+        version: "1.0.0",
+      });
+
+      expect(result).toBe(mockTarballData);
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      expect(mockFetch).toHaveBeenNthCalledWith(
+        1,
+        "https://noriskillsets.dev/api/skillsets/test-profile/tarball/test-profile-1.0.0.tgz",
+        expect.objectContaining({ method: "GET" }),
+      );
+      expect(mockFetch).toHaveBeenNthCalledWith(
+        2,
+        "https://noriskillsets.dev/api/profiles/test-profile/tarball/test-profile-1.0.0.tgz",
+        expect.objectContaining({ method: "GET" }),
+      );
     });
 
     it("should fetch latest version when no version specified", async () => {
@@ -317,7 +456,7 @@ describe("registrarApi", () => {
       // First call should be to get packument
       expect(mockFetch).toHaveBeenNthCalledWith(
         1,
-        "https://noriskillsets.dev/api/profiles/test-profile",
+        "https://noriskillsets.dev/api/skillsets/test-profile",
         expect.objectContaining({
           method: "GET",
         }),
@@ -326,7 +465,7 @@ describe("registrarApi", () => {
       // Second call should be to download tarball with resolved version
       expect(mockFetch).toHaveBeenNthCalledWith(
         2,
-        "https://noriskillsets.dev/api/profiles/test-profile/tarball/test-profile-2.0.0.tgz",
+        "https://noriskillsets.dev/api/skillsets/test-profile/tarball/test-profile-2.0.0.tgz",
         expect.objectContaining({
           method: "GET",
         }),
@@ -348,7 +487,7 @@ describe("registrarApi", () => {
       });
 
       expect(mockFetch).toHaveBeenCalledWith(
-        "https://private-registry.example.com/api/profiles/test-profile/tarball/test-profile-1.0.0.tgz",
+        "https://private-registry.example.com/api/skillsets/test-profile/tarball/test-profile-1.0.0.tgz",
         expect.objectContaining({
           method: "GET",
         }),
@@ -371,7 +510,7 @@ describe("registrarApi", () => {
       });
 
       expect(mockFetch).toHaveBeenCalledWith(
-        "https://private-registry.example.com/api/profiles/test-profile/tarball/test-profile-1.0.0.tgz",
+        "https://private-registry.example.com/api/skillsets/test-profile/tarball/test-profile-1.0.0.tgz",
         expect.objectContaining({
           method: "GET",
           headers: expect.objectContaining({
@@ -411,7 +550,7 @@ describe("registrarApi", () => {
       // First call should be to get packument with auth
       expect(mockFetch).toHaveBeenNthCalledWith(
         1,
-        "https://private-registry.example.com/api/profiles/test-profile",
+        "https://private-registry.example.com/api/skillsets/test-profile",
         expect.objectContaining({
           method: "GET",
           headers: expect.objectContaining({
@@ -423,7 +562,7 @@ describe("registrarApi", () => {
       // Second call should be to download tarball with auth
       expect(mockFetch).toHaveBeenNthCalledWith(
         2,
-        "https://private-registry.example.com/api/profiles/test-profile/tarball/test-profile-2.0.0.tgz",
+        "https://private-registry.example.com/api/skillsets/test-profile/tarball/test-profile-2.0.0.tgz",
         expect.objectContaining({
           method: "GET",
           headers: expect.objectContaining({
@@ -459,7 +598,7 @@ describe("registrarApi", () => {
 
       expect(result).toEqual(mockPackages);
       expect(mockFetch).toHaveBeenCalledWith(
-        "https://custom.registry.com/api/profiles/search?q=custom",
+        "https://custom.registry.com/api/skillsets/search?q=custom",
         expect.objectContaining({
           method: "GET",
         }),
@@ -479,7 +618,7 @@ describe("registrarApi", () => {
       });
 
       expect(mockFetch).toHaveBeenCalledWith(
-        "https://private.registry.com/api/profiles/search?q=test",
+        "https://private.registry.com/api/skillsets/search?q=test",
         expect.objectContaining({
           method: "GET",
           headers: expect.objectContaining({
@@ -519,8 +658,50 @@ describe("registrarApi", () => {
       });
 
       expect(mockFetch).toHaveBeenCalledWith(
-        "https://custom.registry.com/api/profiles/search?q=test&limit=5&offset=10",
+        "https://custom.registry.com/api/skillsets/search?q=test&limit=5&offset=10",
         expect.anything(),
+      );
+    });
+
+    it("should fall back to /api/profiles/ on 404", async () => {
+      const mockPackages = [
+        {
+          id: "pkg-1",
+          name: "custom-profile",
+          description: "A custom profile",
+          authorEmail: "test@example.com",
+          createdAt: "2024-01-01T00:00:00.000Z",
+          updatedAt: "2024-01-01T00:00:00.000Z",
+        },
+      ];
+
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 404,
+          json: () => Promise.resolve({ error: "Not found" }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve(mockPackages),
+        });
+
+      const result = await registrarApi.searchPackagesOnRegistry({
+        query: "custom",
+        registryUrl: "https://custom.registry.com",
+      });
+
+      expect(result).toEqual(mockPackages);
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      expect(mockFetch).toHaveBeenNthCalledWith(
+        1,
+        "https://custom.registry.com/api/skillsets/search?q=custom",
+        expect.objectContaining({ method: "GET" }),
+      );
+      expect(mockFetch).toHaveBeenNthCalledWith(
+        2,
+        "https://custom.registry.com/api/profiles/search?q=custom",
+        expect.objectContaining({ method: "GET" }),
       );
     });
 
@@ -541,8 +722,8 @@ describe("registrarApi", () => {
     });
   });
 
-  describe("uploadProfile", () => {
-    it("should upload profile with multipart form data", async () => {
+  describe("uploadSkillset", () => {
+    it("should upload skillset with multipart form data", async () => {
       const mockResponse = {
         name: "test-profile",
         version: "1.0.0",
@@ -557,7 +738,7 @@ describe("registrarApi", () => {
       });
 
       const archiveData = new ArrayBuffer(100);
-      const result = await registrarApi.uploadProfile({
+      const result = await registrarApi.uploadSkillset({
         packageName: "test-profile",
         version: "1.0.0",
         archiveData,
@@ -566,7 +747,7 @@ describe("registrarApi", () => {
 
       expect(result).toEqual(mockResponse);
       expect(mockFetch).toHaveBeenCalledWith(
-        "https://noriskillsets.dev/api/profiles/test-profile/profile",
+        "https://noriskillsets.dev/api/skillsets/test-profile/skillset",
         expect.objectContaining({
           method: "PUT",
           headers: expect.objectContaining({
@@ -595,7 +776,7 @@ describe("registrarApi", () => {
       });
 
       const archiveData = new ArrayBuffer(100);
-      await registrarApi.uploadProfile({
+      await registrarApi.uploadSkillset({
         packageName: "test-profile",
         version: "1.0.0",
         archiveData,
@@ -618,7 +799,7 @@ describe("registrarApi", () => {
 
       const archiveData = new ArrayBuffer(100);
       await expect(
-        registrarApi.uploadProfile({
+        registrarApi.uploadSkillset({
           packageName: "test-profile",
           version: "1.0.0",
           archiveData,
@@ -639,7 +820,7 @@ describe("registrarApi", () => {
 
       const archiveData = new ArrayBuffer(100);
       await expect(
-        registrarApi.uploadProfile({
+        registrarApi.uploadSkillset({
           packageName: "test-profile",
           version: "1.0.0",
           archiveData,
@@ -660,7 +841,7 @@ describe("registrarApi", () => {
 
       const archiveData = new ArrayBuffer(100);
       await expect(
-        registrarApi.uploadProfile({
+        registrarApi.uploadSkillset({
           packageName: "test-profile",
           version: "1.0.0",
           archiveData,
@@ -679,7 +860,7 @@ describe("registrarApi", () => {
 
       const archiveData = new ArrayBuffer(100);
       await expect(
-        registrarApi.uploadProfile({
+        registrarApi.uploadSkillset({
           packageName: "test-profile",
           version: "1.0.0",
           archiveData,
@@ -702,7 +883,7 @@ describe("registrarApi", () => {
       });
 
       const archiveData = new ArrayBuffer(100);
-      await registrarApi.uploadProfile({
+      await registrarApi.uploadSkillset({
         packageName: "test-profile",
         version: "1.0.0",
         archiveData,
@@ -711,7 +892,7 @@ describe("registrarApi", () => {
       });
 
       expect(mockFetch).toHaveBeenCalledWith(
-        "https://private-registry.example.com/api/profiles/test-profile/profile",
+        "https://private-registry.example.com/api/skillsets/test-profile/skillset",
         expect.objectContaining({
           method: "PUT",
           headers: expect.objectContaining({
@@ -735,7 +916,7 @@ describe("registrarApi", () => {
       });
 
       const archiveData = new ArrayBuffer(100);
-      await registrarApi.uploadProfile({
+      await registrarApi.uploadSkillset({
         packageName: "test-profile",
         version: "1.0.0",
         archiveData,
@@ -743,8 +924,49 @@ describe("registrarApi", () => {
       });
 
       expect(mockFetch).toHaveBeenCalledWith(
-        "https://noriskillsets.dev/api/profiles/test-profile/profile",
+        "https://noriskillsets.dev/api/skillsets/test-profile/skillset",
         expect.anything(),
+      );
+    });
+
+    it("should fall back to /api/profiles/ on 404", async () => {
+      const mockResponse = {
+        name: "test-profile",
+        version: "1.0.0",
+        tarballSha: "sha512-abc123",
+        createdAt: "2024-01-01T00:00:00.000Z",
+      };
+
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 404,
+          json: () => Promise.resolve({ error: "Not found" }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve(mockResponse),
+        });
+
+      const archiveData = new ArrayBuffer(100);
+      const result = await registrarApi.uploadSkillset({
+        packageName: "test-profile",
+        version: "1.0.0",
+        archiveData,
+        authToken: "test-token",
+      });
+
+      expect(result).toEqual(mockResponse);
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      expect(mockFetch).toHaveBeenNthCalledWith(
+        1,
+        "https://noriskillsets.dev/api/skillsets/test-profile/skillset",
+        expect.objectContaining({ method: "PUT" }),
+      );
+      expect(mockFetch).toHaveBeenNthCalledWith(
+        2,
+        "https://noriskillsets.dev/api/profiles/test-profile/profile",
+        expect.objectContaining({ method: "PUT" }),
       );
     });
   });
@@ -1009,6 +1231,196 @@ describe("registrarApi", () => {
           authToken: "invalid-token",
         }),
       ).rejects.toThrow("Unauthorized");
+    });
+  });
+
+  describe("uploadSkillset skill collision handling", () => {
+    it("should throw SkillCollisionError when 409 response contains conflicts array", async () => {
+      const conflictResponse = {
+        error:
+          "Skill conflicts detected: skill-a, skill-b. Resolution required.",
+        conflicts: [
+          {
+            skillId: "skill-a",
+            exists: true,
+            canPublish: true,
+            latestVersion: "1.0.0",
+            owner: "user@example.com",
+            availableActions: ["cancel", "namespace", "link", "updateVersion"],
+            contentUnchanged: true,
+          },
+          {
+            skillId: "skill-b",
+            exists: true,
+            canPublish: false,
+            latestVersion: "2.0.0",
+            owner: "other@example.com",
+            availableActions: ["cancel", "namespace", "link"],
+            contentUnchanged: false,
+          },
+        ],
+        requiresVersions: true,
+      };
+
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 409,
+        json: () => Promise.resolve(conflictResponse),
+      });
+
+      const archiveData = new ArrayBuffer(100);
+
+      await expect(
+        registrarApi.uploadSkillset({
+          packageName: "test-profile",
+          version: "1.0.0",
+          archiveData,
+          authToken: "test-token",
+        }),
+      ).rejects.toThrow("Skill conflicts detected");
+
+      // Verify it throws SkillCollisionError with correct properties
+      try {
+        await registrarApi.uploadSkillset({
+          packageName: "test-profile",
+          version: "1.0.0",
+          archiveData,
+          authToken: "test-token",
+        });
+      } catch (err) {
+        expect(isSkillCollisionError(err)).toBe(true);
+        if (isSkillCollisionError(err)) {
+          expect(err.conflicts).toHaveLength(2);
+          expect(err.conflicts[0].skillId).toBe("skill-a");
+          expect(err.conflicts[0].contentUnchanged).toBe(true);
+          expect(err.conflicts[1].skillId).toBe("skill-b");
+          expect(err.conflicts[1].contentUnchanged).toBe(false);
+          expect(err.requiresVersions).toBe(true);
+        }
+      }
+    });
+
+    it("should throw regular ApiError when 409 response has no conflicts array", async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 409,
+        json: () =>
+          Promise.resolve({
+            error: "Version 1.0.0 already exists for package test-profile",
+          }),
+      });
+
+      const archiveData = new ArrayBuffer(100);
+
+      await expect(
+        registrarApi.uploadSkillset({
+          packageName: "test-profile",
+          version: "1.0.0",
+          archiveData,
+          authToken: "test-token",
+        }),
+      ).rejects.toThrow("already exists");
+
+      // Verify it does NOT throw SkillCollisionError
+      try {
+        await registrarApi.uploadSkillset({
+          packageName: "test-profile",
+          version: "1.0.0",
+          archiveData,
+          authToken: "test-token",
+        });
+      } catch (err) {
+        expect(isSkillCollisionError(err)).toBe(false);
+      }
+    });
+
+    it("should throw regular ApiError when 409 response has empty conflicts array", async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 409,
+        json: () =>
+          Promise.resolve({
+            error: "Version conflict",
+            conflicts: [],
+          }),
+      });
+
+      const archiveData = new ArrayBuffer(100);
+
+      try {
+        await registrarApi.uploadSkillset({
+          packageName: "test-profile",
+          version: "1.0.0",
+          archiveData,
+          authToken: "test-token",
+        });
+      } catch (err) {
+        expect(isSkillCollisionError(err)).toBe(false);
+      }
+    });
+
+    it("should include resolutionStrategy in FormData when provided", async () => {
+      const mockResponse = {
+        name: "test-profile",
+        version: "1.0.0",
+        tarballSha: "sha512-abc123",
+        createdAt: "2024-01-01T00:00:00.000Z",
+      };
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(mockResponse),
+      });
+
+      const archiveData = new ArrayBuffer(100);
+      const resolutionStrategy = {
+        "skill-a": { action: "link" as const },
+        "skill-b": { action: "namespace" as const },
+      };
+
+      await registrarApi.uploadSkillset({
+        packageName: "test-profile",
+        version: "1.0.0",
+        archiveData,
+        authToken: "test-token",
+        resolutionStrategy,
+      });
+
+      // Verify FormData includes resolutionStrategy as JSON string
+      const callArgs = mockFetch.mock.calls[0];
+      const formData = callArgs[1].body as FormData;
+      expect(formData.get("resolutionStrategy")).toBe(
+        JSON.stringify(resolutionStrategy),
+      );
+    });
+
+    it("should not include resolutionStrategy in FormData when null", async () => {
+      const mockResponse = {
+        name: "test-profile",
+        version: "1.0.0",
+        tarballSha: "sha512-abc123",
+        createdAt: "2024-01-01T00:00:00.000Z",
+      };
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(mockResponse),
+      });
+
+      const archiveData = new ArrayBuffer(100);
+
+      await registrarApi.uploadSkillset({
+        packageName: "test-profile",
+        version: "1.0.0",
+        archiveData,
+        authToken: "test-token",
+        resolutionStrategy: null,
+      });
+
+      // Verify FormData does NOT include resolutionStrategy
+      const callArgs = mockFetch.mock.calls[0];
+      const formData = callArgs[1].body as FormData;
+      expect(formData.get("resolutionStrategy")).toBeNull();
     });
   });
 });

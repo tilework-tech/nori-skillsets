@@ -20,8 +20,17 @@ import {
   type ManifestDiff,
 } from "@/cli/features/claude-code/profiles/manifest.js";
 import { listProfiles } from "@/cli/features/managedFolder.js";
-import { error, info, success, newline, warn } from "@/cli/logger.js";
+import {
+  error,
+  info,
+  success,
+  newline,
+  warn,
+  setSilentMode,
+  isSilentMode,
+} from "@/cli/logger.js";
 import { promptUser } from "@/cli/prompt.js";
+import { switchSkillsetFlow } from "@/cli/prompts/flows/switchSkillset.js";
 import { normalizeInstallDir, getInstallDirs } from "@/utils/path.js";
 
 import type { Command } from "commander";
@@ -29,7 +38,6 @@ import type { Command } from "commander";
 /**
  * Determine which agent to use for switch-skillset command when no --agent flag provided
  * @param args - Configuration arguments
- * @param args.installDir - Installation directory
  * @param args.nonInteractive - Whether running in non-interactive mode
  *
  * @throws Error if in non-interactive mode with multiple agents installed
@@ -37,13 +45,12 @@ import type { Command } from "commander";
  * @returns The agent name to use
  */
 const resolveAgent = async (args: {
-  installDir: string;
   nonInteractive: boolean;
 }): Promise<string> => {
-  const { installDir, nonInteractive } = args;
+  const { nonInteractive } = args;
 
   // Load config to check installed agents
-  const config = await loadConfig({ installDir });
+  const config = await loadConfig();
   const installedAgents = config ? getInstalledAgents({ config }) : [];
 
   // No agents installed - default to claude-code
@@ -103,7 +110,7 @@ const detectLocalChanges = async (args: {
 }): Promise<ManifestDiff | null> => {
   const { installDir } = args;
 
-  const manifestPath = getManifestPath({ installDir });
+  const manifestPath = getManifestPath();
   const manifest = await readManifest({ manifestPath });
 
   // No manifest means first install or manual setup - no changes detectable
@@ -124,6 +131,7 @@ const detectLocalChanges = async (args: {
  * @param args.diff - Detected changes
  * @param args.installDir - Installation directory
  * @param args.nonInteractive - Whether running in non-interactive mode
+ * @param args.force - Whether to force through local changes without prompting
  *
  * @returns 'proceed' to continue, 'capture' to save first, 'abort' to cancel
  */
@@ -131,8 +139,14 @@ const promptForChangeHandling = async (args: {
   diff: ManifestDiff;
   installDir: string;
   nonInteractive: boolean;
+  force: boolean;
 }): Promise<"proceed" | "capture" | "abort"> => {
-  const { diff, nonInteractive } = args;
+  const { diff, nonInteractive, force } = args;
+
+  // --force skips the change-handling prompt entirely
+  if (force) {
+    return "proceed";
+  }
 
   // In non-interactive mode, error out (safe default)
   if (nonInteractive) {
@@ -140,7 +154,7 @@ const promptForChangeHandling = async (args: {
       `Local changes detected in installed skillset files. ` +
         `Cannot proceed in non-interactive mode. ` +
         `Modified: ${diff.modified.length}, Added: ${diff.added.length}, Deleted: ${diff.deleted.length}. ` +
-        `Run interactively to choose how to handle these changes.`,
+        `Run interactively to choose how to handle these changes, or use --force to discard them.`,
     );
   }
 
@@ -226,7 +240,7 @@ const confirmSwitchProfile = async (args: {
   }
 
   // Load config to get current skillset
-  const config = await loadConfig({ installDir });
+  const config = await loadConfig();
   const agentProfile =
     config != null
       ? getAgentProfile({ config, agentName: agentName as ConfigAgentName })
@@ -258,10 +272,11 @@ const confirmSwitchProfile = async (args: {
  * @param args.options - Command options
  * @param args.options.agent - Optional agent name override
  * @param args.program - Commander program instance
+ * @param args.options.force - Whether to force through local changes without prompting
  */
 export const switchSkillsetAction = async (args: {
   name: string;
-  options: { agent?: string };
+  options: { agent?: string; force?: boolean };
   program: Command;
 }): Promise<void> => {
   const { name, options, program } = args;
@@ -269,6 +284,8 @@ export const switchSkillsetAction = async (args: {
   // Get global options from parent
   const globalOpts = program.opts();
   const nonInteractive = globalOpts.nonInteractive ?? false;
+  const experimentalUi = globalOpts.experimentalUi ?? false;
+  const force = options.force ?? false;
 
   // Determine installation directory
   let installDir: string;
@@ -288,11 +305,88 @@ export const switchSkillsetAction = async (args: {
     installDir = installations[0]; // Use closest installation
   }
 
+  // Experimental UI flow (interactive only)
+  if (experimentalUi && !nonInteractive) {
+    await switchSkillsetFlow({
+      profileName: name,
+      installDir,
+      agentOverride: options.agent ?? null,
+      callbacks: {
+        onResolveAgents: async () => {
+          const config = await loadConfig();
+          const installedAgents = config ? getInstalledAgents({ config }) : [];
+          if (installedAgents.length === 0) {
+            return [{ name: "claude-code", displayName: "Claude Code" }];
+          }
+          return installedAgents.map((agentName) => {
+            const agent = AgentRegistry.getInstance().get({
+              name: agentName,
+            });
+            return { name: agentName, displayName: agent.displayName };
+          });
+        },
+        onPrepareSwitchInfo: async ({ installDir: dir, agentName }) => {
+          const localChanges = await detectLocalChanges({ installDir: dir });
+          const config = await loadConfig();
+          let currentProfile: string | null = null;
+          if (config != null) {
+            const agentProfile = getAgentProfile({
+              config,
+              agentName: agentName as ConfigAgentName,
+            });
+            currentProfile = agentProfile?.baseProfile ?? null;
+          }
+          return { currentProfile, localChanges };
+        },
+        onCaptureConfig: async ({ installDir: dir, profileName: pName }) => {
+          await captureExistingConfigAsProfile({
+            installDir: dir,
+            profileName: pName,
+          });
+        },
+        onExecuteSwitch: async ({
+          installDir: dir,
+          agentName,
+          profileName: pName,
+        }) => {
+          const agent = AgentRegistry.getInstance().get({ name: agentName });
+          const wasSilent = isSilentMode();
+          setSilentMode({ silent: true });
+          try {
+            await agent.switchProfile({ installDir: dir, profileName: pName });
+          } catch (err) {
+            setSilentMode({ silent: wasSilent });
+            const profiles = await listProfiles();
+            if (profiles.length > 0) {
+              error({
+                message: `Available skillsets: ${profiles.join(", ")}`,
+              });
+            }
+            throw err;
+          }
+          setSilentMode({ silent: wasSilent });
+          const { main: installMain } =
+            await import("@/cli/commands/install/install.js");
+          await installMain({
+            nonInteractive: true,
+            installDir: dir,
+            agent: agentName,
+            silent: true,
+          });
+        },
+      },
+    });
+
+    // Flow handles all UI (cancel messages, success notes) internally.
+    // result is null on cancel, non-null on success — either way we're done.
+    return;
+  }
+
+  // Legacy flow
   // Use local --agent option if provided, otherwise auto-detect
   // We don't use globalOpts.agent because it has a default value ("claude-code")
   // which would prevent auto-detection from working
-  const agentName =
-    options.agent ?? (await resolveAgent({ installDir, nonInteractive }));
+  const agentName = options.agent ?? (await resolveAgent({ nonInteractive }));
 
   const agent = AgentRegistry.getInstance().get({ name: agentName });
 
@@ -304,6 +398,7 @@ export const switchSkillsetAction = async (args: {
       diff: localChanges,
       installDir,
       nonInteractive,
+      force,
     });
 
     if (changeAction === "abort") {
@@ -351,7 +446,7 @@ export const switchSkillsetAction = async (args: {
     await agent.switchProfile({ installDir, profileName: name });
   } catch (err) {
     // On failure, show available skillsets
-    const profiles = await listProfiles({ installDir });
+    const profiles = await listProfiles();
     if (profiles.length > 0) {
       error({ message: `Available skillsets: ${profiles.join(", ")}` });
     }
@@ -372,7 +467,7 @@ export const switchSkillsetAction = async (args: {
 };
 
 /**
- * Register the 'switch-skillset' and 'switch-profile' (alias) commands with commander
+ * Register the 'switch' and 'switch-profile' (alias) commands with commander
  * @param args - Configuration arguments
  * @param args.program - Commander program instance
  */
@@ -386,9 +481,12 @@ export const registerSwitchProfileCommand = (args: {
     .command("switch-skillset <name>")
     .description("Switch to a different skillset and reinstall")
     .option("-a, --agent <name>", "AI agent to switch skillset for")
-    .action(async (name: string, options: { agent?: string }) => {
-      await switchSkillsetAction({ name, options, program });
-    });
+    .option("--force", "Force switch even when local changes are detected")
+    .action(
+      async (name: string, options: { agent?: string; force?: boolean }) => {
+        await switchSkillsetAction({ name, options, program });
+      },
+    );
 
   // Alias command: switch-profile (for backward compatibility)
   program
@@ -397,7 +495,10 @@ export const registerSwitchProfileCommand = (args: {
       "Alias for switch-skillset - Switch to a different skillset and reinstall",
     )
     .option("-a, --agent <name>", "AI agent to switch skillset for")
-    .action(async (name: string, options: { agent?: string }) => {
-      await switchSkillsetAction({ name, options, program });
-    });
+    .option("--force", "Force switch even when local changes are detected")
+    .action(
+      async (name: string, options: { agent?: string; force?: boolean }) => {
+        await switchSkillsetAction({ name, options, program });
+      },
+    );
 };

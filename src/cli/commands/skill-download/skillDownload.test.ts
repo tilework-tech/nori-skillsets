@@ -3,11 +3,21 @@
  */
 
 import * as fs from "fs/promises";
+import * as os from "os";
 import { tmpdir } from "os";
 import * as path from "path";
 
 import * as tar from "tar";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+
+// Mock os.homedir so getNoriProfilesDir resolves to the test directory
+vi.mock("os", async (importOriginal) => {
+  const actual = await importOriginal<typeof os>();
+  return {
+    ...actual,
+    homedir: vi.fn().mockReturnValue(actual.homedir()),
+  };
+});
 
 // Mock the registrar API
 vi.mock("@/api/registrar.js", () => ({
@@ -912,6 +922,7 @@ describe("--skillset option and manifest updates", () => {
 
     // Create test directory structure simulating a Nori installation
     testDir = await fs.mkdtemp(path.join(tmpdir(), "nori-skillset-test-"));
+    vi.mocked(os.homedir).mockReturnValue(testDir);
     skillsDir = path.join(testDir, ".claude", "skills");
     profilesDir = path.join(testDir, ".nori", "profiles");
 
@@ -925,12 +936,12 @@ describe("--skillset option and manifest updates", () => {
       JSON.stringify({}),
     );
 
-    // Create a test profile with CLAUDE.md
+    // Create a test profile with nori.json
     const testProfileDir = path.join(profilesDir, "test-profile");
     await fs.mkdir(testProfileDir, { recursive: true });
     await fs.writeFile(
-      path.join(testProfileDir, "CLAUDE.md"),
-      "# Test Profile",
+      path.join(testProfileDir, "nori.json"),
+      JSON.stringify({ name: "test-profile", version: "1.0.0" }),
     );
   });
 
@@ -988,8 +999,8 @@ describe("--skillset option and manifest updates", () => {
     const activeProfileDir = path.join(profilesDir, "active-profile");
     await fs.mkdir(activeProfileDir, { recursive: true });
     await fs.writeFile(
-      path.join(activeProfileDir, "CLAUDE.md"),
-      "# Active Profile",
+      path.join(activeProfileDir, "nori.json"),
+      JSON.stringify({ name: "active-profile", version: "1.0.0" }),
     );
 
     vi.mocked(loadConfig).mockResolvedValue({
@@ -1184,6 +1195,7 @@ describe("profile directory persistence", () => {
     testDir = await fs.mkdtemp(
       path.join(tmpdir(), "nori-profile-persist-test-"),
     );
+    vi.mocked(os.homedir).mockReturnValue(testDir);
     skillsDir = path.join(testDir, ".claude", "skills");
     profilesDir = path.join(testDir, ".nori", "profiles");
 
@@ -1196,12 +1208,12 @@ describe("profile directory persistence", () => {
       JSON.stringify({}),
     );
 
-    // Create active profile directory with CLAUDE.md
+    // Create active profile directory with nori.json
     const activeProfileDir = path.join(profilesDir, "active-profile");
     await fs.mkdir(activeProfileDir, { recursive: true });
     await fs.writeFile(
-      path.join(activeProfileDir, "CLAUDE.md"),
-      "# Active Profile",
+      path.join(activeProfileDir, "nori.json"),
+      JSON.stringify({ name: "active-profile", version: "1.0.0" }),
     );
   });
 
@@ -1275,8 +1287,8 @@ describe("profile directory persistence", () => {
     const specifiedProfileDir = path.join(profilesDir, "specified-profile");
     await fs.mkdir(specifiedProfileDir, { recursive: true });
     await fs.writeFile(
-      path.join(specifiedProfileDir, "CLAUDE.md"),
-      "# Specified Profile",
+      path.join(specifiedProfileDir, "nori.json"),
+      JSON.stringify({ name: "specified-profile", version: "1.0.0" }),
     );
 
     vi.mocked(loadConfig).mockResolvedValue({
@@ -1557,6 +1569,7 @@ describe("nori.json updates on skill download", () => {
     vi.clearAllMocks();
 
     testDir = await fs.mkdtemp(path.join(tmpdir(), "nori-json-update-test-"));
+    vi.mocked(os.homedir).mockReturnValue(testDir);
     skillsDir = path.join(testDir, ".claude", "skills");
     profilesDir = path.join(testDir, ".nori", "profiles");
 
@@ -1581,7 +1594,6 @@ describe("nori.json updates on skill download", () => {
     // Create profile with existing nori.json
     const profileDir = path.join(profilesDir, "my-profile");
     await fs.mkdir(profileDir, { recursive: true });
-    await fs.writeFile(path.join(profileDir, "CLAUDE.md"), "# My Profile");
     await fs.writeFile(
       path.join(profileDir, "nori.json"),
       JSON.stringify({
@@ -1626,12 +1638,12 @@ describe("nori.json updates on skill download", () => {
   });
 
   it("should auto-create nori.json when it does not exist", async () => {
-    // Create profile WITHOUT nori.json
+    // Create profile WITHOUT nori.json (only directory exists)
     const profileDir = path.join(profilesDir, "no-nori-json-profile");
     await fs.mkdir(profileDir, { recursive: true });
     await fs.writeFile(
-      path.join(profileDir, "CLAUDE.md"),
-      "# No Nori JSON Profile",
+      path.join(profileDir, "nori.json"),
+      JSON.stringify({ name: "no-nori-json-profile", version: "1.0.0" }),
     );
 
     vi.mocked(loadConfig).mockResolvedValue({
@@ -1671,7 +1683,6 @@ describe("nori.json updates on skill download", () => {
     // Create profile with nori.json that has existing skill dependencies
     const profileDir = path.join(profilesDir, "deps-profile");
     await fs.mkdir(profileDir, { recursive: true });
-    await fs.writeFile(path.join(profileDir, "CLAUDE.md"), "# Deps Profile");
     await fs.writeFile(
       path.join(profileDir, "nori.json"),
       JSON.stringify({

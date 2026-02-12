@@ -6,9 +6,14 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 import { ConfigManager } from "./base.js";
+
+vi.mock("os", async (importOriginal) => {
+  const actual = await importOriginal<typeof os>();
+  return { ...actual, homedir: vi.fn().mockReturnValue(actual.homedir()) };
+});
 
 describe("ConfigManager", () => {
   let tempDir: string;
@@ -18,6 +23,7 @@ describe("ConfigManager", () => {
     // Create a unique temp directory for each test
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "nori-test-"));
     originalCwd = process.cwd();
+    vi.mocked(os.homedir).mockReturnValue(tempDir);
   });
 
   afterEach(() => {
@@ -28,12 +34,9 @@ describe("ConfigManager", () => {
   });
 
   describe("loadConfig", () => {
-    it("should load config from current directory when .nori-config.json exists", () => {
-      // Setup: Create project with config
-      const projectDir = path.join(tempDir, "project");
-      fs.mkdirSync(projectDir, { recursive: true });
-
-      const configPath = path.join(projectDir, ".nori-config.json");
+    it("should load config from centralized ~/.nori-config.json", () => {
+      // Setup: Write config at centralized location (homedir)
+      const configPath = path.join(tempDir, ".nori-config.json");
       const configData = {
         username: "test@example.com",
         password: "testpass",
@@ -41,7 +44,9 @@ describe("ConfigManager", () => {
       };
       fs.writeFileSync(configPath, JSON.stringify(configData, null, 2));
 
-      // Change to project directory
+      // Change to a subdirectory (getInstallDirs walks up and finds config at tempDir)
+      const projectDir = path.join(tempDir, "project");
+      fs.mkdirSync(projectDir, { recursive: true });
       process.chdir(projectDir);
 
       // Execute
@@ -51,13 +56,9 @@ describe("ConfigManager", () => {
       expect(result).toEqual(configData);
     });
 
-    it("should load config from parent directory when running from subdirectory", () => {
-      // Setup: Create project with config and subdirectory
-      const projectDir = path.join(tempDir, "project");
-      const srcDir = path.join(projectDir, "src");
-      fs.mkdirSync(srcDir, { recursive: true });
-
-      const configPath = path.join(projectDir, ".nori-config.json");
+    it("should load config when running from subdirectory", () => {
+      // Setup: Write config at centralized location
+      const configPath = path.join(tempDir, ".nori-config.json");
       const configData = {
         username: "test@example.com",
         password: "testpass",
@@ -65,7 +66,9 @@ describe("ConfigManager", () => {
       };
       fs.writeFileSync(configPath, JSON.stringify(configData, null, 2));
 
-      // Change to subdirectory
+      // Change to a nested subdirectory
+      const srcDir = path.join(tempDir, "project", "src");
+      fs.mkdirSync(srcDir, { recursive: true });
       process.chdir(srcDir);
 
       // Execute
@@ -80,7 +83,7 @@ describe("ConfigManager", () => {
       const emptyDir = path.join(tempDir, "empty");
       fs.mkdirSync(emptyDir, { recursive: true });
 
-      // Change to empty directory
+      // Change to empty directory (no config anywhere in tree)
       process.chdir(emptyDir);
 
       // Execute & Verify
@@ -89,15 +92,12 @@ describe("ConfigManager", () => {
     });
 
     it("should handle empty config file gracefully (race condition)", () => {
-      // Setup: Create project with empty config file
-      const projectDir = path.join(tempDir, "project");
-      fs.mkdirSync(projectDir, { recursive: true });
-
-      const configPath = path.join(projectDir, ".nori-config.json");
+      // Setup: Write empty config at centralized location
+      const configPath = path.join(tempDir, ".nori-config.json");
       fs.writeFileSync(configPath, ""); // Empty file
 
-      // Change to project directory
-      process.chdir(projectDir);
+      // Change to tempDir so getInstallDirs finds it
+      process.chdir(tempDir);
 
       // Execute
       const result = ConfigManager.loadConfig();
@@ -106,31 +106,32 @@ describe("ConfigManager", () => {
       expect(result).toEqual({});
     });
 
-    it("should prefer closest installation when multiple exist", () => {
-      // Setup: Create nested installations
-      const rootDir = path.join(tempDir, "root");
-      const projectDir = path.join(rootDir, "project");
+    it("should always read from centralized config regardless of cwd config", () => {
+      // Setup: Create a project-level config and a centralized config
+      const projectDir = path.join(tempDir, "project");
       fs.mkdirSync(projectDir, { recursive: true });
 
-      // Root config
-      const rootConfigPath = path.join(rootDir, ".nori-config.json");
-      const rootConfigData = {
-        username: "root@example.com",
-        password: "rootpass",
-        organizationUrl: "https://root.nori.ai",
-      };
-      fs.writeFileSync(rootConfigPath, JSON.stringify(rootConfigData, null, 2));
-
-      // Project config (should be preferred)
+      // Write project-level config (used by getInstallDirs to detect installation)
       const projectConfigPath = path.join(projectDir, ".nori-config.json");
-      const projectConfigData = {
-        username: "project@example.com",
-        password: "projectpass",
-        organizationUrl: "https://project.nori.ai",
-      };
       fs.writeFileSync(
         projectConfigPath,
-        JSON.stringify(projectConfigData, null, 2),
+        JSON.stringify({
+          username: "project@example.com",
+          password: "projectpass",
+          organizationUrl: "https://project.nori.ai",
+        }),
+      );
+
+      // Write centralized config at homedir
+      const centralConfigPath = path.join(tempDir, ".nori-config.json");
+      const centralConfigData = {
+        username: "central@example.com",
+        password: "centralpass",
+        organizationUrl: "https://central.nori.ai",
+      };
+      fs.writeFileSync(
+        centralConfigPath,
+        JSON.stringify(centralConfigData, null, 2),
       );
 
       // Change to project directory
@@ -139,16 +140,13 @@ describe("ConfigManager", () => {
       // Execute
       const result = ConfigManager.loadConfig();
 
-      // Verify - should use closest (project) config
-      expect(result).toEqual(projectConfigData);
+      // Verify - should use centralized config (getConfigPath() = ~/.nori-config.json)
+      expect(result).toEqual(centralConfigData);
     });
 
     it("should extract auth from nested format with refreshToken (v19+)", () => {
-      // Setup: Create project with nested auth config (v19+ format)
-      const projectDir = path.join(tempDir, "project");
-      fs.mkdirSync(projectDir, { recursive: true });
-
-      const configPath = path.join(projectDir, ".nori-config.json");
+      // Setup: Write nested auth config at centralized location
+      const configPath = path.join(tempDir, ".nori-config.json");
       const configData = {
         auth: {
           username: "test@example.com",
@@ -158,8 +156,8 @@ describe("ConfigManager", () => {
       };
       fs.writeFileSync(configPath, JSON.stringify(configData, null, 2));
 
-      // Change to project directory
-      process.chdir(projectDir);
+      // Change to tempDir so getInstallDirs finds it
+      process.chdir(tempDir);
 
       // Execute
       const result = ConfigManager.loadConfig();
@@ -174,11 +172,8 @@ describe("ConfigManager", () => {
     });
 
     it("should extract auth from nested format with password (v19+)", () => {
-      // Setup: Create project with nested auth config using password
-      const projectDir = path.join(tempDir, "project");
-      fs.mkdirSync(projectDir, { recursive: true });
-
-      const configPath = path.join(projectDir, ".nori-config.json");
+      // Setup: Write nested auth config at centralized location
+      const configPath = path.join(tempDir, ".nori-config.json");
       const configData = {
         auth: {
           username: "test@example.com",
@@ -188,8 +183,8 @@ describe("ConfigManager", () => {
       };
       fs.writeFileSync(configPath, JSON.stringify(configData, null, 2));
 
-      // Change to project directory
-      process.chdir(projectDir);
+      // Change to tempDir so getInstallDirs finds it
+      process.chdir(tempDir);
 
       // Execute
       const result = ConfigManager.loadConfig();
@@ -206,11 +201,8 @@ describe("ConfigManager", () => {
 
   describe("isConfigured", () => {
     it("should return true for nested auth format with refreshToken", () => {
-      // Setup: Create project with nested auth config
-      const projectDir = path.join(tempDir, "project");
-      fs.mkdirSync(projectDir, { recursive: true });
-
-      const configPath = path.join(projectDir, ".nori-config.json");
+      // Setup: Write config at centralized location
+      const configPath = path.join(tempDir, ".nori-config.json");
       const configData = {
         auth: {
           username: "test@example.com",
@@ -220,19 +212,15 @@ describe("ConfigManager", () => {
       };
       fs.writeFileSync(configPath, JSON.stringify(configData, null, 2));
 
-      // Change to project directory
-      process.chdir(projectDir);
+      process.chdir(tempDir);
 
       // Execute & Verify
       expect(ConfigManager.isConfigured()).toBe(true);
     });
 
     it("should return true for nested auth format with password", () => {
-      // Setup: Create project with nested auth config using password
-      const projectDir = path.join(tempDir, "project");
-      fs.mkdirSync(projectDir, { recursive: true });
-
-      const configPath = path.join(projectDir, ".nori-config.json");
+      // Setup: Write config at centralized location
+      const configPath = path.join(tempDir, ".nori-config.json");
       const configData = {
         auth: {
           username: "test@example.com",
@@ -242,19 +230,15 @@ describe("ConfigManager", () => {
       };
       fs.writeFileSync(configPath, JSON.stringify(configData, null, 2));
 
-      // Change to project directory
-      process.chdir(projectDir);
+      process.chdir(tempDir);
 
       // Execute & Verify
       expect(ConfigManager.isConfigured()).toBe(true);
     });
 
     it("should return true for legacy flat auth format (backwards compat)", () => {
-      // Setup: Create project with legacy flat config
-      const projectDir = path.join(tempDir, "project");
-      fs.mkdirSync(projectDir, { recursive: true });
-
-      const configPath = path.join(projectDir, ".nori-config.json");
+      // Setup: Write config at centralized location
+      const configPath = path.join(tempDir, ".nori-config.json");
       const configData = {
         username: "test@example.com",
         password: "test-password",
@@ -262,19 +246,15 @@ describe("ConfigManager", () => {
       };
       fs.writeFileSync(configPath, JSON.stringify(configData, null, 2));
 
-      // Change to project directory
-      process.chdir(projectDir);
+      process.chdir(tempDir);
 
       // Execute & Verify
       expect(ConfigManager.isConfigured()).toBe(true);
     });
 
     it("should return false when auth is incomplete", () => {
-      // Setup: Create project with incomplete auth
-      const projectDir = path.join(tempDir, "project");
-      fs.mkdirSync(projectDir, { recursive: true });
-
-      const configPath = path.join(projectDir, ".nori-config.json");
+      // Setup: Write incomplete config at centralized location
+      const configPath = path.join(tempDir, ".nori-config.json");
       const configData = {
         auth: {
           username: "test@example.com",
@@ -283,8 +263,7 @@ describe("ConfigManager", () => {
       };
       fs.writeFileSync(configPath, JSON.stringify(configData, null, 2));
 
-      // Change to project directory
-      process.chdir(projectDir);
+      process.chdir(tempDir);
 
       // Execute & Verify
       expect(ConfigManager.isConfigured()).toBe(false);

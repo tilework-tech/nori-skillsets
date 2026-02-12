@@ -15,6 +15,15 @@ import type * as firebaseAuth from "firebase/auth";
 
 import { configLoader } from "./loader.js";
 
+// Mock os.homedir so getConfigPath resolves to test directories
+vi.mock("os", async (importOriginal) => {
+  const actual = await importOriginal<typeof os>();
+  return {
+    ...actual,
+    homedir: vi.fn().mockReturnValue(actual.homedir()),
+  };
+});
+
 // Mock Firebase SDK to avoid hitting real Firebase API
 vi.mock("firebase/auth", async (importOriginal) => {
   const actual = (await importOriginal()) as typeof firebaseAuth;
@@ -39,6 +48,7 @@ describe("configLoader", () => {
 
   beforeEach(() => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "config-loader-test-"));
+    vi.mocked(os.homedir).mockReturnValue(tempDir);
   });
 
   afterEach(() => {
@@ -55,7 +65,7 @@ describe("configLoader", () => {
 
       await configLoader.run({ config });
 
-      const configFile = getConfigPath({ installDir: tempDir });
+      const configFile = getConfigPath();
       expect(fs.existsSync(configFile)).toBe(true);
 
       // Verify file contents
@@ -75,7 +85,7 @@ describe("configLoader", () => {
 
       await configLoader.run({ config });
 
-      const configFile = getConfigPath({ installDir: tempDir });
+      const configFile = getConfigPath();
       const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
       expect(fileContents.sendSessionTranscript).toBe("enabled");
     });
@@ -88,7 +98,7 @@ describe("configLoader", () => {
 
       await configLoader.run({ config });
 
-      const configFile = getConfigPath({ installDir: tempDir });
+      const configFile = getConfigPath();
       const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
       expect(fileContents.sendSessionTranscript).toBeUndefined();
     });
@@ -102,7 +112,7 @@ describe("configLoader", () => {
 
       await configLoader.run({ config });
 
-      const configFile = getConfigPath({ installDir: tempDir });
+      const configFile = getConfigPath();
       const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
       expect(fileContents.sendSessionTranscript).toBe("disabled");
     });
@@ -115,14 +125,14 @@ describe("configLoader", () => {
 
       await configLoader.run({ config });
 
-      const configFile = getConfigPath({ installDir: tempDir });
+      const configFile = getConfigPath();
       const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
       expect(Object.keys(fileContents.agents)).toEqual(["claude-code"]);
     });
 
     it("should preserve existing agents when updating config", async () => {
       // Create existing config with agents
-      const configFile = getConfigPath({ installDir: tempDir });
+      const configFile = getConfigPath();
       fs.writeFileSync(
         configFile,
         JSON.stringify({
@@ -153,7 +163,7 @@ describe("configLoader", () => {
 
     it("should not duplicate agents when re-installing", async () => {
       // Create existing config with agents
-      const configFile = getConfigPath({ installDir: tempDir });
+      const configFile = getConfigPath();
       fs.writeFileSync(
         configFile,
         JSON.stringify({
@@ -191,7 +201,7 @@ describe("configLoader", () => {
 
       await configLoader.run({ config });
 
-      const configFile = getConfigPath({ installDir: tempDir });
+      const configFile = getConfigPath();
       const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
       expect(fileContents.agents).toEqual({
         "claude-code": {
@@ -202,7 +212,7 @@ describe("configLoader", () => {
 
     it("should preserve agents field from existing config when not provided in new config", async () => {
       // Create existing config with agents field (e.g., from switchProfile)
-      const configFile = getConfigPath({ installDir: tempDir });
+      const configFile = getConfigPath();
       fs.writeFileSync(
         configFile,
         JSON.stringify({
@@ -245,13 +255,59 @@ describe("configLoader", () => {
 
       await configLoader.run({ config });
 
-      const configFile = getConfigPath({ installDir: tempDir });
+      const configFile = getConfigPath();
       const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
 
       // Should have refreshToken in nested auth, not password
       expect(fileContents.auth.refreshToken).toBe("mock-refresh-token");
       expect(fileContents.auth.password).toBeNull();
       expect(fileContents.auth.username).toBe("test@example.com");
+    });
+
+    it("should preserve organizations, isAdmin, and transcriptDestination from existing config", async () => {
+      // Create existing config with organizations, isAdmin, and transcriptDestination
+      const configFile = getConfigPath();
+      fs.writeFileSync(
+        configFile,
+        JSON.stringify({
+          installDir: tempDir,
+          agents: {
+            "claude-code": { profile: { baseProfile: "senior-swe" } },
+          },
+          auth: {
+            username: "test@example.com",
+            organizationUrl: "https://example.tilework.tech",
+            refreshToken: "existing-token",
+            organizations: ["org-alpha", "org-beta"],
+            isAdmin: true,
+          },
+          transcriptDestination: "myorg",
+        }),
+        "utf-8",
+      );
+
+      // Run configLoader with config that has auth but no organizations
+      const config: Config = {
+        installDir: tempDir,
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
+        auth: {
+          username: "test@example.com",
+          organizationUrl: "https://example.tilework.tech",
+          refreshToken: "existing-token",
+        },
+      };
+
+      await configLoader.run({ config });
+
+      const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
+      expect(fileContents.auth.organizations).toEqual([
+        "org-alpha",
+        "org-beta",
+      ]);
+      expect(fileContents.auth.isAdmin).toBe(true);
+      expect(fileContents.transcriptDestination).toBe("myorg");
     });
 
     it("should use existing refresh token when provided instead of password", async () => {
@@ -267,7 +323,7 @@ describe("configLoader", () => {
 
       await configLoader.run({ config });
 
-      const configFile = getConfigPath({ installDir: tempDir });
+      const configFile = getConfigPath();
       const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
 
       // Should preserve existing refreshToken in nested auth

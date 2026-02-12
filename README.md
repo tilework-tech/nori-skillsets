@@ -46,7 +46,7 @@ nori-skillsets download senior-swe
 Switch to using the new skillset.
 
 ```bash
-nori-skillsets switch-skillset senior-swe
+nori-skillsets switch senior-swe
 ```
 
 ## How Skillsets Work
@@ -99,7 +99,7 @@ This separation lets you maintain multiple Skillsets and switch between them wit
 
 3. Activate your skillset:
    ```bash
-   nori-skillsets switch-skillset my-skillset
+   nori-skillsets switch my-skillset
    ```
 
 Manual changes made to a `.claude/` directory will be removed when switching skillsets. Manual changes should be made in the .nori/profile/ directory instead.

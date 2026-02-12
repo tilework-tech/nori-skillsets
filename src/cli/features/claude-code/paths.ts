@@ -108,8 +108,8 @@ export const getClaudeHomeSettingsFile = (): string => {
 
 /**
  * Get the Claude home commands directory path (always ~/.claude/commands)
- * This is where global slash commands should be installed
- * to ensure Claude Code picks them up from any subdirectory.
+ * This is where slash commands are installed so Claude Code
+ * picks them up from any subdirectory.
  *
  * @returns Absolute path to ~/.claude/commands
  */
@@ -119,41 +119,20 @@ export const getClaudeHomeCommandsDir = (): string => {
 
 /**
  * Get the Nori directory path
- * For project-level installs, returns {installDir}/.nori
- * For home directory installs, returns ~/.nori
- *
- * @param args - Configuration arguments
- * @param args.installDir - Installation directory
+ * Always returns ~/.nori (centralized location)
  *
  * @returns Absolute path to the .nori directory
  */
-export const getNoriDir = (args: { installDir: string }): string => {
-  const { installDir } = args;
-  return path.join(installDir, ".nori");
+export const getNoriDir = (): string => {
+  return path.join(os.homedir(), ".nori");
 };
 
 /**
  * Get the Nori profiles directory path
  * This is where all profile templates are stored
  *
- * @param args - Configuration arguments
- * @param args.installDir - Installation directory
- *
  * @returns Absolute path to the profiles directory
  */
-export const getNoriProfilesDir = (args: { installDir: string }): string => {
-  return path.join(getNoriDir(args), "profiles");
-};
-
-/**
- * Get the Nori config file path
- * This is where Nori configuration is stored
- *
- * @param args - Configuration arguments
- * @param args.installDir - Installation directory
- *
- * @returns Absolute path to config.json
- */
-export const getNoriConfigFile = (args: { installDir: string }): string => {
-  return path.join(getNoriDir(args), "config.json");
+export const getNoriProfilesDir = (): string => {
+  return path.join(getNoriDir(), "profiles");
 };

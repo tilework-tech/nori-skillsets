@@ -4,7 +4,7 @@
  */
 
 import * as fs from "fs/promises";
-import { tmpdir } from "os";
+import * as os from "os";
 import * as path from "path";
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
@@ -12,6 +12,15 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 
 import { listSkillsetsMain } from "./listSkillsets.js";
+
+// Mock os.homedir so getNoriProfilesDir() resolves to the test directory
+vi.mock("os", async (importOriginal) => {
+  const actual = await importOriginal<typeof os>();
+  return {
+    ...actual,
+    homedir: vi.fn().mockReturnValue(actual.homedir()),
+  };
+});
 
 // Mock logger to capture output
 const mockRaw = vi.fn();
@@ -31,8 +40,9 @@ describe("listSkillsetsMain", () => {
 
   beforeEach(async () => {
     testInstallDir = await fs.mkdtemp(
-      path.join(tmpdir(), "list-skillsets-test-"),
+      path.join(os.tmpdir(), "list-skillsets-test-"),
     );
+    vi.mocked(os.homedir).mockReturnValue(testInstallDir);
     const testNoriDir = path.join(testInstallDir, ".nori");
     await fs.mkdir(testNoriDir, { recursive: true });
     AgentRegistry.resetInstance();
@@ -56,7 +66,10 @@ describe("listSkillsetsMain", () => {
     for (const name of ["senior-swe", "product-manager", "custom-profile"]) {
       const dir = path.join(profilesDir, name);
       await fs.mkdir(dir, { recursive: true });
-      await fs.writeFile(path.join(dir, "CLAUDE.md"), `# ${name}`);
+      await fs.writeFile(
+        path.join(dir, "nori.json"),
+        JSON.stringify({ name, version: "1.0.0" }),
+      );
     }
 
     await listSkillsetsMain({
@@ -118,7 +131,10 @@ describe("listSkillsetsMain", () => {
     await fs.mkdir(profilesDir, { recursive: true });
     const dir = path.join(profilesDir, "senior-swe");
     await fs.mkdir(dir, { recursive: true });
-    await fs.writeFile(path.join(dir, "CLAUDE.md"), "# senior-swe");
+    await fs.writeFile(
+      path.join(dir, "nori.json"),
+      JSON.stringify({ name: "senior-swe", version: "1.0.0" }),
+    );
 
     await listSkillsetsMain({
       installDir: testInstallDir,
@@ -135,7 +151,10 @@ describe("listSkillsetsMain", () => {
     await fs.mkdir(profilesDir, { recursive: true });
     const dir = path.join(profilesDir, "test-profile");
     await fs.mkdir(dir, { recursive: true });
-    await fs.writeFile(path.join(dir, "CLAUDE.md"), "# test-profile");
+    await fs.writeFile(
+      path.join(dir, "nori.json"),
+      JSON.stringify({ name: "test-profile", version: "1.0.0" }),
+    );
 
     await listSkillsetsMain({
       installDir: testInstallDir,
@@ -152,8 +171,9 @@ describe("listSkillsetsMain output format", () => {
 
   beforeEach(async () => {
     testInstallDir = await fs.mkdtemp(
-      path.join(tmpdir(), "list-skillsets-format-test-"),
+      path.join(os.tmpdir(), "list-skillsets-format-test-"),
     );
+    vi.mocked(os.homedir).mockReturnValue(testInstallDir);
     const testNoriDir = path.join(testInstallDir, ".nori");
     await fs.mkdir(testNoriDir, { recursive: true });
     AgentRegistry.resetInstance();
@@ -175,7 +195,10 @@ describe("listSkillsetsMain output format", () => {
 
     const dir = path.join(profilesDir, "my-profile");
     await fs.mkdir(dir, { recursive: true });
-    await fs.writeFile(path.join(dir, "CLAUDE.md"), "# my-profile");
+    await fs.writeFile(
+      path.join(dir, "nori.json"),
+      JSON.stringify({ name: "my-profile", version: "1.0.0" }),
+    );
 
     await listSkillsetsMain({
       installDir: testInstallDir,
@@ -195,8 +218,9 @@ describe("listSkillsetsMain error messages", () => {
 
   beforeEach(async () => {
     testInstallDir = await fs.mkdtemp(
-      path.join(tmpdir(), "list-skillsets-error-test-"),
+      path.join(os.tmpdir(), "list-skillsets-error-test-"),
     );
+    vi.mocked(os.homedir).mockReturnValue(testInstallDir);
     AgentRegistry.resetInstance();
     mockRaw.mockClear();
     mockError.mockClear();

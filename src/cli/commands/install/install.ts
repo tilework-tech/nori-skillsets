@@ -147,7 +147,7 @@ const writeInstalledManifest = async (args: {
   }
 
   const claudeDir = getClaudeDir({ installDir: config.installDir });
-  const manifestPath = getManifestPath({ installDir: config.installDir });
+  const manifestPath = getManifestPath();
 
   try {
     const manifest = await computeDirectoryManifest({
@@ -247,7 +247,7 @@ export const noninteractive = async (args?: {
   });
 
   // Step 2: Resolve profile and save to config
-  const existingConfig = await loadConfig({ installDir: normalizedInstallDir });
+  const existingConfig = await loadConfig();
   if (existingConfig == null) {
     error({
       message:
@@ -285,15 +285,18 @@ export const noninteractive = async (args?: {
     password: existingConfig.auth?.password ?? null,
     refreshToken: existingConfig.auth?.refreshToken ?? null,
     organizationUrl: existingConfig.auth?.organizationUrl ?? null,
+    organizations: existingConfig.auth?.organizations ?? null,
+    isAdmin: existingConfig.auth?.isAdmin ?? null,
     sendSessionTranscript: existingConfig.sendSessionTranscript ?? null,
     autoupdate: existingConfig.autoupdate ?? null,
     agents,
     version: existingConfig.version ?? null,
+    transcriptDestination: existingConfig.transcriptDestination ?? null,
     installDir: normalizedInstallDir,
   });
 
   // Reload config after saving
-  const config = await loadConfig({ installDir: normalizedInstallDir });
+  const config = await loadConfig();
   if (config == null) {
     error({ message: "Failed to load configuration after setup." });
     process.exit(1);

@@ -109,7 +109,7 @@ export const getInstalledVersion = async (args: {
   installDir: string;
 }): Promise<string> => {
   const { installDir } = args;
-  const config = await loadConfig({ installDir });
+  const config = await loadConfig();
 
   // If config has version, use it
   if (config?.version != null) {

@@ -4,6 +4,7 @@
  */
 
 import * as fs from "fs/promises";
+import * as os from "os";
 import { tmpdir } from "os";
 import * as path from "path";
 
@@ -14,6 +15,15 @@ import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { promptUser } from "@/cli/prompt.js";
 
 import { registerSwitchProfileCommand } from "./profiles.js";
+
+// Mock os.homedir so getNoriDir/getNoriProfilesDir resolve to the test directory
+vi.mock("os", async (importOriginal) => {
+  const actual = await importOriginal<typeof os>();
+  return {
+    ...actual,
+    homedir: vi.fn().mockReturnValue(actual.homedir()),
+  };
+});
 
 // Mock install to avoid side effects - track calls for verification
 const mockInstallMain = vi.fn().mockResolvedValue(undefined);
@@ -26,11 +36,19 @@ vi.mock("@/cli/prompt.js", () => ({
   promptUser: vi.fn(),
 }));
 
+// Mock switchSkillsetFlow for experimental UI tests
+const mockSwitchSkillsetFlow = vi.fn();
+vi.mock("@/cli/prompts/flows/switchSkillset.js", () => ({
+  switchSkillsetFlow: (...args: Array<unknown>) =>
+    mockSwitchSkillsetFlow(...args),
+}));
+
 describe("agent.switchProfile", () => {
   let testInstallDir: string;
 
   beforeEach(async () => {
     testInstallDir = await fs.mkdtemp(path.join(tmpdir(), "switch-test-"));
+    vi.mocked(os.homedir).mockReturnValue(testInstallDir);
     const testClaudeDir = path.join(testInstallDir, ".claude");
     const testNoriDir = path.join(testInstallDir, ".nori");
     await fs.mkdir(testClaudeDir, { recursive: true });
@@ -43,6 +61,7 @@ describe("agent.switchProfile", () => {
       await fs.rm(testInstallDir, { recursive: true, force: true });
     }
     AgentRegistry.resetInstance();
+    vi.restoreAllMocks();
   });
 
   it("should preserve version when switching profiles for claude-code", async () => {
@@ -53,7 +72,10 @@ describe("agent.switchProfile", () => {
     for (const name of ["profile-a", "profile-b"]) {
       const dir = path.join(profilesDir, name);
       await fs.mkdir(dir, { recursive: true });
-      await fs.writeFile(path.join(dir, "CLAUDE.md"), `# ${name}`);
+      await fs.writeFile(
+        path.join(dir, "nori.json"),
+        JSON.stringify({ name, version: "1.0.0" }),
+      );
     }
 
     // Create initial config with version
@@ -89,7 +111,10 @@ describe("agent.switchProfile", () => {
     for (const name of ["profile-a", "profile-b"]) {
       const dir = path.join(profilesDir, name);
       await fs.mkdir(dir, { recursive: true });
-      await fs.writeFile(path.join(dir, "CLAUDE.md"), `# ${name}`);
+      await fs.writeFile(
+        path.join(dir, "nori.json"),
+        JSON.stringify({ name, version: "1.0.0" }),
+      );
     }
 
     // Create initial config with auth containing refreshToken
@@ -129,6 +154,7 @@ describe("registerSwitchProfileCommand", () => {
     testInstallDir = await fs.mkdtemp(
       path.join(tmpdir(), "switch-profile-cmd-test-"),
     );
+    vi.mocked(os.homedir).mockReturnValue(testInstallDir);
     const testClaudeDir = path.join(testInstallDir, ".claude");
     const testNoriDir = path.join(testInstallDir, ".nori");
     await fs.mkdir(testClaudeDir, { recursive: true });
@@ -140,7 +166,10 @@ describe("registerSwitchProfileCommand", () => {
     for (const name of ["senior-swe", "product-manager"]) {
       const dir = path.join(profilesDir, name);
       await fs.mkdir(dir, { recursive: true });
-      await fs.writeFile(path.join(dir, "CLAUDE.md"), `# ${name}`);
+      await fs.writeFile(
+        path.join(dir, "nori.json"),
+        JSON.stringify({ name, version: "1.0.0" }),
+      );
     }
 
     AgentRegistry.resetInstance();
@@ -317,6 +346,7 @@ describe("switch-profile confirmation", () => {
     testInstallDir = await fs.mkdtemp(
       path.join(tmpdir(), "switch-profile-confirm-test-"),
     );
+    vi.mocked(os.homedir).mockReturnValue(testInstallDir);
     const testClaudeDir = path.join(testInstallDir, ".claude");
     const testNoriDir = path.join(testInstallDir, ".nori");
     await fs.mkdir(testClaudeDir, { recursive: true });
@@ -328,7 +358,10 @@ describe("switch-profile confirmation", () => {
     for (const name of ["senior-swe", "product-manager"]) {
       const dir = path.join(profilesDir, name);
       await fs.mkdir(dir, { recursive: true });
-      await fs.writeFile(path.join(dir, "CLAUDE.md"), `# ${name}`);
+      await fs.writeFile(
+        path.join(dir, "nori.json"),
+        JSON.stringify({ name, version: "1.0.0" }),
+      );
     }
 
     AgentRegistry.resetInstance();
@@ -585,6 +618,7 @@ describe("switch-profile getInstallDirs auto-detection", () => {
     testInstallDir = await fs.realpath(
       await fs.mkdtemp(path.join(tmpdir(), "switch-profile-autodetect-test-")),
     );
+    vi.mocked(os.homedir).mockReturnValue(testInstallDir);
 
     // Create profiles directory with test profiles
     const noriDir = path.join(testInstallDir, ".nori");
@@ -593,7 +627,10 @@ describe("switch-profile getInstallDirs auto-detection", () => {
     for (const name of ["senior-swe", "product-manager"]) {
       const dir = path.join(profilesDir, name);
       await fs.mkdir(dir, { recursive: true });
-      await fs.writeFile(path.join(dir, "CLAUDE.md"), `# ${name}`);
+      await fs.writeFile(
+        path.join(dir, "nori.json"),
+        JSON.stringify({ name, version: "1.0.0" }),
+      );
     }
 
     // Create config file to mark this as a Nori installation
@@ -772,6 +809,7 @@ describe("switch-profile local change detection", () => {
     testInstallDir = await fs.mkdtemp(
       path.join(tmpdir(), "switch-profile-change-detection-test-"),
     );
+    vi.mocked(os.homedir).mockReturnValue(testInstallDir);
     const testClaudeDir = path.join(testInstallDir, ".claude");
     const testNoriDir = path.join(testInstallDir, ".nori");
     await fs.mkdir(testClaudeDir, { recursive: true });
@@ -783,7 +821,10 @@ describe("switch-profile local change detection", () => {
     for (const name of ["senior-swe", "product-manager"]) {
       const dir = path.join(profilesDir, name);
       await fs.mkdir(dir, { recursive: true });
-      await fs.writeFile(path.join(dir, "CLAUDE.md"), `# ${name}`);
+      await fs.writeFile(
+        path.join(dir, "nori.json"),
+        JSON.stringify({ name, version: "1.0.0" }),
+      );
     }
 
     // Create config with current profile
@@ -1112,5 +1153,330 @@ describe("switch-profile local change detection", () => {
     expect(promptUser).toHaveBeenCalledTimes(1);
     // switchProfile should NOT have been called since user aborted
     expect(switchProfileSpy).not.toHaveBeenCalled();
+  });
+
+  it("should proceed in non-interactive mode when --force is used with local changes", async () => {
+    // Create skills directory with a file
+    const skillsDir = path.join(testInstallDir, ".claude", "skills");
+    const mySkillDir = path.join(skillsDir, "my-skill");
+    await fs.mkdir(mySkillDir, { recursive: true });
+    await fs.writeFile(path.join(mySkillDir, "SKILL.md"), "modified content");
+
+    // Create manifest with different hash (simulating user modification)
+    const manifestPath = path.join(
+      testInstallDir,
+      ".nori",
+      "installed-manifest.json",
+    );
+    await fs.writeFile(
+      manifestPath,
+      JSON.stringify({
+        version: 1,
+        createdAt: new Date().toISOString(),
+        profileName: "senior-swe",
+        files: {
+          "skills/my-skill/SKILL.md": "different-hash-representing-original",
+        },
+      }),
+    );
+
+    const program = new Command();
+    program.exitOverride();
+    program.configureOutput({ writeErr: () => undefined });
+    program
+      .option("-d, --install-dir <path>", "Custom installation directory")
+      .option("-n, --non-interactive", "Run without interactive prompts")
+      .option("-a, --agent <name>", "AI agent to use");
+
+    registerSwitchProfileCommand({ program });
+
+    // Mock switchProfile
+    const claudeAgent = AgentRegistry.getInstance().get({
+      name: "claude-code",
+    });
+    const switchProfileSpy = vi
+      .spyOn(claudeAgent, "switchProfile")
+      .mockResolvedValue(undefined);
+
+    let thrownError: Error | null = null;
+    try {
+      await program.parseAsync([
+        "node",
+        "nori-skillsets",
+        "--non-interactive",
+        "switch-profile",
+        "product-manager",
+        "--install-dir",
+        testInstallDir,
+        "--force",
+      ]);
+    } catch (err) {
+      thrownError = err as Error;
+    }
+
+    // Should NOT error — --force bypasses the local changes check
+    expect(thrownError).toBeNull();
+    // promptUser should NOT have been called (non-interactive + force)
+    expect(promptUser).not.toHaveBeenCalled();
+    // switchProfile SHOULD have been called
+    expect(switchProfileSpy).toHaveBeenCalledWith({
+      installDir: testInstallDir,
+      profileName: "product-manager",
+    });
+  });
+
+  it("should skip change-handling prompt in interactive mode when --force is used", async () => {
+    // Create skills directory with a file
+    const skillsDir = path.join(testInstallDir, ".claude", "skills");
+    const mySkillDir = path.join(skillsDir, "my-skill");
+    await fs.mkdir(mySkillDir, { recursive: true });
+    await fs.writeFile(path.join(mySkillDir, "SKILL.md"), "modified content");
+
+    // Create manifest with different hash (simulating user modification)
+    const manifestPath = path.join(
+      testInstallDir,
+      ".nori",
+      "installed-manifest.json",
+    );
+    await fs.writeFile(
+      manifestPath,
+      JSON.stringify({
+        version: 1,
+        createdAt: new Date().toISOString(),
+        profileName: "senior-swe",
+        files: {
+          "skills/my-skill/SKILL.md": "different-hash-representing-original",
+        },
+      }),
+    );
+
+    const program = new Command();
+    program.exitOverride();
+    program.configureOutput({ writeErr: () => undefined });
+    program
+      .option("-d, --install-dir <path>", "Custom installation directory")
+      .option("-n, --non-interactive", "Run without interactive prompts")
+      .option("-a, --agent <name>", "AI agent to use");
+
+    registerSwitchProfileCommand({ program });
+
+    // Mock confirmation prompt to return "y" — only one prompt expected
+    vi.mocked(promptUser).mockResolvedValueOnce("y");
+
+    // Mock switchProfile
+    const claudeAgent = AgentRegistry.getInstance().get({
+      name: "claude-code",
+    });
+    const switchProfileSpy = vi
+      .spyOn(claudeAgent, "switchProfile")
+      .mockResolvedValue(undefined);
+
+    try {
+      await program.parseAsync([
+        "node",
+        "nori-skillsets",
+        "switch-profile",
+        "product-manager",
+        "--install-dir",
+        testInstallDir,
+        "--force",
+      ]);
+    } catch {
+      // May throw due to exit
+    }
+
+    // Should have prompted only once — for confirmation, NOT for change handling
+    expect(promptUser).toHaveBeenCalledTimes(1);
+    const promptCall = vi.mocked(promptUser).mock.calls[0][0];
+    expect(promptCall.prompt).toContain("y/n");
+    // switchProfile should have been called
+    expect(switchProfileSpy).toHaveBeenCalled();
+  });
+});
+
+describe("switch-profile experimental UI routing", () => {
+  let testInstallDir: string;
+
+  beforeEach(async () => {
+    testInstallDir = await fs.mkdtemp(
+      path.join(tmpdir(), "switch-profile-expui-test-"),
+    );
+    vi.mocked(os.homedir).mockReturnValue(testInstallDir);
+    const testClaudeDir = path.join(testInstallDir, ".claude");
+    const testNoriDir = path.join(testInstallDir, ".nori");
+    await fs.mkdir(testClaudeDir, { recursive: true });
+    await fs.mkdir(testNoriDir, { recursive: true });
+
+    // Create profiles directory with test profiles
+    const profilesDir = path.join(testNoriDir, "profiles");
+    await fs.mkdir(profilesDir, { recursive: true });
+    for (const name of ["senior-swe", "product-manager"]) {
+      const dir = path.join(profilesDir, name);
+      await fs.mkdir(dir, { recursive: true });
+      await fs.writeFile(path.join(dir, "CLAUDE.md"), `# ${name}`);
+    }
+
+    // Create config with current profile
+    const configPath = path.join(testInstallDir, ".nori-config.json");
+    await fs.writeFile(
+      configPath,
+      JSON.stringify({
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
+      }),
+    );
+
+    AgentRegistry.resetInstance();
+    vi.mocked(promptUser).mockReset();
+    mockSwitchSkillsetFlow.mockReset();
+  });
+
+  afterEach(async () => {
+    if (testInstallDir) {
+      await fs.rm(testInstallDir, { recursive: true, force: true });
+    }
+    AgentRegistry.resetInstance();
+    vi.restoreAllMocks();
+  });
+
+  it("should use switchSkillsetFlow when --experimental-ui is passed", async () => {
+    mockSwitchSkillsetFlow.mockResolvedValueOnce({
+      agentName: "claude-code",
+      profileName: "product-manager",
+    });
+
+    const program = new Command();
+    program.exitOverride();
+    program.configureOutput({ writeErr: () => undefined });
+    program
+      .option("-d, --install-dir <path>", "Custom installation directory")
+      .option("-n, --non-interactive", "Run without interactive prompts")
+      .option("-a, --agent <name>", "AI agent to use")
+      .option(
+        "--experimental-ui",
+        "Use new interactive TUI flows (experimental)",
+      );
+
+    registerSwitchProfileCommand({ program });
+
+    // Mock switchProfile on the agent
+    const claudeAgent = AgentRegistry.getInstance().get({
+      name: "claude-code",
+    });
+    vi.spyOn(claudeAgent, "switchProfile").mockResolvedValue(undefined);
+
+    try {
+      await program.parseAsync([
+        "node",
+        "nori-skillsets",
+        "--experimental-ui",
+        "switch-profile",
+        "product-manager",
+        "--install-dir",
+        testInstallDir,
+      ]);
+    } catch {
+      // May throw due to exit
+    }
+
+    // switchSkillsetFlow should have been called
+    expect(mockSwitchSkillsetFlow).toHaveBeenCalledTimes(1);
+    expect(mockSwitchSkillsetFlow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        profileName: "product-manager",
+        installDir: testInstallDir,
+      }),
+    );
+
+    // Legacy promptUser should NOT have been called
+    expect(promptUser).not.toHaveBeenCalled();
+  });
+
+  it("should use legacy prompts when --experimental-ui is not passed", async () => {
+    // Mock confirmation prompt to return "y" for legacy flow
+    vi.mocked(promptUser).mockResolvedValueOnce("y");
+
+    const program = new Command();
+    program.exitOverride();
+    program.configureOutput({ writeErr: () => undefined });
+    program
+      .option("-d, --install-dir <path>", "Custom installation directory")
+      .option("-n, --non-interactive", "Run without interactive prompts")
+      .option("-a, --agent <name>", "AI agent to use")
+      .option(
+        "--experimental-ui",
+        "Use new interactive TUI flows (experimental)",
+      );
+
+    registerSwitchProfileCommand({ program });
+
+    // Mock switchProfile on the agent
+    const claudeAgent = AgentRegistry.getInstance().get({
+      name: "claude-code",
+    });
+    vi.spyOn(claudeAgent, "switchProfile").mockResolvedValue(undefined);
+
+    try {
+      await program.parseAsync([
+        "node",
+        "nori-skillsets",
+        "switch-profile",
+        "product-manager",
+        "--install-dir",
+        testInstallDir,
+      ]);
+    } catch {
+      // May throw due to exit
+    }
+
+    // switchSkillsetFlow should NOT have been called
+    expect(mockSwitchSkillsetFlow).not.toHaveBeenCalled();
+
+    // Legacy promptUser SHOULD have been called
+    expect(promptUser).toHaveBeenCalled();
+  });
+
+  it("should not use switchSkillsetFlow in non-interactive mode even with --experimental-ui", async () => {
+    const program = new Command();
+    program.exitOverride();
+    program.configureOutput({ writeErr: () => undefined });
+    program
+      .option("-d, --install-dir <path>", "Custom installation directory")
+      .option("-n, --non-interactive", "Run without interactive prompts")
+      .option("-a, --agent <name>", "AI agent to use")
+      .option(
+        "--experimental-ui",
+        "Use new interactive TUI flows (experimental)",
+      );
+
+    registerSwitchProfileCommand({ program });
+
+    // Mock switchProfile on the agent
+    const claudeAgent = AgentRegistry.getInstance().get({
+      name: "claude-code",
+    });
+    vi.spyOn(claudeAgent, "switchProfile").mockResolvedValue(undefined);
+
+    try {
+      await program.parseAsync([
+        "node",
+        "nori-skillsets",
+        "--experimental-ui",
+        "--non-interactive",
+        "switch-profile",
+        "product-manager",
+        "--install-dir",
+        testInstallDir,
+      ]);
+    } catch {
+      // May throw due to exit
+    }
+
+    // switchSkillsetFlow should NOT have been called in non-interactive mode
+    expect(mockSwitchSkillsetFlow).not.toHaveBeenCalled();
+
+    // Legacy promptUser should also NOT have been called (non-interactive skips prompts)
+    expect(promptUser).not.toHaveBeenCalled();
   });
 });

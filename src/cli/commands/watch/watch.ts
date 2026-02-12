@@ -591,7 +591,7 @@ export const watchMain = async (args?: {
   // INTERACTIVE MODE: Do setup, then spawn background daemon
   if (!_background) {
     // Load config and handle transcript destination selection (interactive)
-    const config = await loadConfig({ installDir });
+    const config = await loadConfig();
 
     // Get user's organizations (filter out "public")
     const userOrgs = config?.auth?.organizations ?? [];
@@ -641,7 +641,7 @@ export const watchMain = async (args?: {
   isShuttingDown = false;
 
   // Load config to get saved transcript destination
-  const config = await loadConfig({ installDir });
+  const config = await loadConfig();
   transcriptOrgId = config?.transcriptDestination ?? null;
 
   const pidFile = getWatchPidFile();

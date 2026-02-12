@@ -11,6 +11,15 @@ import type * as versionModule from "@/cli/version.js";
 
 import { initMain, registerInitCommand } from "./init.js";
 
+// Mock os.homedir so getConfigPath resolves to test directories
+vi.mock("os", async (importOriginal) => {
+  const actual = await importOriginal<typeof os>();
+  return {
+    ...actual,
+    homedir: vi.fn().mockReturnValue(actual.homedir()),
+  };
+});
+
 // Mock paths module to use test directory
 vi.mock("@/cli/features/claude-code/paths.js", () => {
   const testClaudeDir = "/tmp/init-test-claude";
@@ -32,11 +41,9 @@ vi.mock("@/cli/features/claude-code/paths.js", () => {
       `${testClaudeDir}/skills`,
     getClaudeProfilesDir: (_args: { installDir: string }) =>
       `${testClaudeDir}/profiles`,
-    getNoriDir: (_args: { installDir: string }) => testNoriDir,
-    getNoriProfilesDir: (_args: { installDir: string }) =>
-      `${testNoriDir}/profiles`,
-    getNoriConfigFile: (_args: { installDir: string }) =>
-      `${testNoriDir}/config.json`,
+    getNoriDir: () => testNoriDir,
+    getNoriProfilesDir: () => `${testNoriDir}/profiles`,
+    getNoriConfigFile: () => `${testNoriDir}/config.json`,
   };
 });
 
@@ -65,6 +72,9 @@ describe("init command", () => {
   beforeEach(async () => {
     // Create temp directory
     tempDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "init-test-"));
+
+    // Mock os.homedir to return temp directory
+    vi.mocked(os.homedir).mockReturnValue(tempDir);
 
     // Mock process.cwd
     originalCwd = process.cwd;
@@ -103,7 +113,7 @@ describe("init command", () => {
 
   describe("initMain", () => {
     it("should create .nori-config.json with minimal structure on first run", async () => {
-      const CONFIG_PATH = getConfigPath({ installDir: tempDir });
+      const CONFIG_PATH = getConfigPath();
 
       // Ensure no existing config
       expect(fs.existsSync(CONFIG_PATH)).toBe(false);
@@ -138,7 +148,7 @@ describe("init command", () => {
     });
 
     it("should be idempotent - not overwrite existing config", async () => {
-      const CONFIG_PATH = getConfigPath({ installDir: tempDir });
+      const CONFIG_PATH = getConfigPath();
 
       // Create existing config with custom data
       // Note: loadConfig requires auth to have username + organizationUrl for it to be recognized
@@ -165,6 +175,35 @@ describe("init command", () => {
       expect(config.auth.organizationUrl).toBe("https://example.tilework.tech");
       // Version should be updated to current
       expect(config.version).toBe("20.0.0");
+    });
+
+    it("should preserve organizations, isAdmin, and transcriptDestination from existing config", async () => {
+      const CONFIG_PATH = getConfigPath();
+
+      // Create existing config with organizations, isAdmin, and transcriptDestination
+      const existingConfig = {
+        version: "19.0.0",
+        agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
+        auth: {
+          username: "test@example.com",
+          organizationUrl: "https://example.tilework.tech",
+          refreshToken: "test-refresh-token",
+          organizations: ["org-one", "org-two"],
+          isAdmin: true,
+        },
+        transcriptDestination: "myorg",
+        installDir: tempDir,
+      };
+      fs.writeFileSync(CONFIG_PATH, JSON.stringify(existingConfig, null, 2));
+
+      // Run init
+      await initMain({ installDir: tempDir, nonInteractive: true });
+
+      // Verify organizations, isAdmin, and transcriptDestination are preserved
+      const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
+      expect(config.auth.organizations).toEqual(["org-one", "org-two"]);
+      expect(config.auth.isAdmin).toBe(true);
+      expect(config.transcriptDestination).toBe("myorg");
     });
 
     it("should detect existing Claude Code config and capture as profile in interactive mode", async () => {
@@ -206,7 +245,7 @@ describe("init command", () => {
       ).toBe(true);
 
       // Verify .nori-config.json has the profile set
-      const CONFIG_PATH = getConfigPath({ installDir: tempDir });
+      const CONFIG_PATH = getConfigPath();
       const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
       expect(config.agents).toEqual({
         "claude-code": { profile: { baseProfile: "my-captured-profile" } },
@@ -249,7 +288,7 @@ describe("init command", () => {
       ).toBe(true);
 
       // Verify .nori-config.json has the profile set
-      const CONFIG_PATH = getConfigPath({ installDir: tempDir });
+      const CONFIG_PATH = getConfigPath();
       const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
       expect(config.agents).toEqual({
         "claude-code": { profile: { baseProfile: "my-profile" } },
@@ -315,16 +354,18 @@ describe("init command", () => {
       ).toBe(true);
     });
 
-    it("should warn about ancestor installations", async () => {
-      // Create parent directory with nori installation
+    it("should warn about ancestor managed installations", async () => {
+      // Create parent directory with a managed nori installation
       const parentDir = path.join(tempDir, "parent");
       const childDir = path.join(parentDir, "child");
+      const parentClaudeDir = path.join(parentDir, ".claude");
       fs.mkdirSync(childDir, { recursive: true });
+      fs.mkdirSync(parentClaudeDir, { recursive: true });
 
-      // Create nori config in parent
+      // Create managed CLAUDE.md in parent (this is what causes actual conflicts)
       fs.writeFileSync(
-        path.join(parentDir, ".nori-config.json"),
-        JSON.stringify({ version: "19.0.0" }),
+        path.join(parentClaudeDir, "CLAUDE.md"),
+        "# BEGIN NORI-AI MANAGED BLOCK\nsome content\n# END NORI-AI MANAGED BLOCK",
       );
 
       // Capture console output
@@ -350,6 +391,42 @@ describe("init command", () => {
         console.log = originalConsoleLog;
       }
     });
+
+    it("should not warn about source-only ancestor installations", async () => {
+      // Create parent directory with only a source installation (no managed CLAUDE.md)
+      const parentDir = path.join(tempDir, "parent");
+      const childDir = path.join(parentDir, "child");
+      fs.mkdirSync(childDir, { recursive: true });
+
+      // Create only .nori-config.json in parent (source-only, no managed block)
+      fs.writeFileSync(
+        path.join(parentDir, ".nori-config.json"),
+        JSON.stringify({ version: "19.0.0" }),
+      );
+
+      // Capture console output
+      const consoleOutput: Array<string> = [];
+      const originalConsoleLog = console.log;
+      console.log = (...args: Array<unknown>) => {
+        consoleOutput.push(args.map(String).join(" "));
+      };
+
+      try {
+        // Run init in child directory
+        await initMain({
+          installDir: path.join(childDir, ".claude"),
+          nonInteractive: true,
+        });
+
+        // Verify NO ancestor warning was displayed
+        const hasAncestorWarning = consoleOutput.some(
+          (line) => line.includes("⚠️") && line.includes("ancestor"),
+        );
+        expect(hasAncestorWarning).toBe(false);
+      } finally {
+        console.log = originalConsoleLog;
+      }
+    });
   });
 
   describe("registerInitCommand", () => {
@@ -370,7 +447,7 @@ describe("init command", () => {
 
   describe("profile persistence warning gate", () => {
     it("should proceed with init when user types 'yes' in interactive mode", async () => {
-      const CONFIG_PATH = getConfigPath({ installDir: tempDir });
+      const CONFIG_PATH = getConfigPath();
 
       // Ensure no existing config
       expect(fs.existsSync(CONFIG_PATH)).toBe(false);
@@ -387,7 +464,7 @@ describe("init command", () => {
     });
 
     it("should proceed with init when user types 'YES' (case insensitive)", async () => {
-      const CONFIG_PATH = getConfigPath({ installDir: tempDir });
+      const CONFIG_PATH = getConfigPath();
 
       // Ensure no existing config
       expect(fs.existsSync(CONFIG_PATH)).toBe(false);
@@ -404,7 +481,7 @@ describe("init command", () => {
     });
 
     it("should cancel init when user types 'y' (must be full word yes)", async () => {
-      const CONFIG_PATH = getConfigPath({ installDir: tempDir });
+      const CONFIG_PATH = getConfigPath();
 
       // Ensure no existing config
       expect(fs.existsSync(CONFIG_PATH)).toBe(false);
@@ -421,7 +498,7 @@ describe("init command", () => {
     });
 
     it("should cancel init when user types 'no'", async () => {
-      const CONFIG_PATH = getConfigPath({ installDir: tempDir });
+      const CONFIG_PATH = getConfigPath();
 
       // Ensure no existing config
       expect(fs.existsSync(CONFIG_PATH)).toBe(false);
@@ -438,7 +515,7 @@ describe("init command", () => {
     });
 
     it("should cancel init when user types empty string", async () => {
-      const CONFIG_PATH = getConfigPath({ installDir: tempDir });
+      const CONFIG_PATH = getConfigPath();
 
       // Ensure no existing config
       expect(fs.existsSync(CONFIG_PATH)).toBe(false);
@@ -455,7 +532,7 @@ describe("init command", () => {
     });
 
     it("should skip warning in non-interactive mode and proceed", async () => {
-      const CONFIG_PATH = getConfigPath({ installDir: tempDir });
+      const CONFIG_PATH = getConfigPath();
 
       // Ensure no existing config
       expect(fs.existsSync(CONFIG_PATH)).toBe(false);
@@ -498,18 +575,18 @@ describe("init command", () => {
         );
         expect(hasProfilesWarning).toBe(true);
 
-        // Verify warning mentions switch-skillset (not switch-profile)
-        const hasSwitchSkillsetWarning = consoleOutput.some((line) =>
-          line.includes("switch-skillset"),
+        // Verify warning mentions switch command
+        const hasSwitchWarning = consoleOutput.some((line) =>
+          line.includes("run switch"),
         );
-        expect(hasSwitchSkillsetWarning).toBe(true);
+        expect(hasSwitchWarning).toBe(true);
       } finally {
         console.log = originalConsoleLog;
       }
     });
 
     it("should accept 'yes' with leading/trailing whitespace", async () => {
-      const CONFIG_PATH = getConfigPath({ installDir: tempDir });
+      const CONFIG_PATH = getConfigPath();
 
       // Ensure no existing config
       expect(fs.existsSync(CONFIG_PATH)).toBe(false);
@@ -526,7 +603,7 @@ describe("init command", () => {
     });
 
     it("should skip warning when skipWarning is true", async () => {
-      const CONFIG_PATH = getConfigPath({ installDir: tempDir });
+      const CONFIG_PATH = getConfigPath();
 
       // Ensure no existing config
       expect(fs.existsSync(CONFIG_PATH)).toBe(false);

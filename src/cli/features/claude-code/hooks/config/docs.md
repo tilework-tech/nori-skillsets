@@ -4,7 +4,7 @@ Path: @/src/cli/features/claude-code/hooks/config
 
 ### Overview
 
-Executable hook scripts for context usage warnings, desktop notifications, and commit attribution replacement. Contains hook implementations that Claude Code invokes at lifecycle events.
+Executable hook scripts for context usage warnings, update availability checks, desktop notifications, and commit attribution replacement. Contains hook implementations that Claude Code invokes at lifecycle events.
 
 ### How it fits into the larger codebase
 
@@ -24,6 +24,7 @@ These scripts are referenced by absolute paths in ~/.claude/settings.json, confi
 ┌──────────────────────────────────────────┐
 │  hooks/config/                           │
 │  ├── context-usage-warning.ts            │
+│  ├── update-check.ts                     │
 │  ├── notify-hook.sh                      │
 │  └── commit-author.ts                    │
 └──────────────────────────────────────────┘
@@ -36,10 +37,13 @@ These scripts are referenced by absolute paths in ~/.claude/settings.json, confi
 | Script | Event | Purpose |
 |--------|-------|---------|
 | context-usage-warning.ts | SessionStart | Warns when settings.local.json files exceed 10KB (~2.5k tokens) |
+| update-check.ts | SessionStart | Outputs a systemMessage if a nori-skillsets update is available |
 | notify-hook.sh | Notification | Cross-platform desktop notifications with optional click-to-focus |
 | commit-author.ts | PreToolUse | Replaces Claude attribution with Nori in git commits |
 
 **context-usage-warning.ts** - Checks both `~/.claude/settings.local.json` and `{cwd}/.claude/settings.local.json` for excessive size. When total exceeds 10KB, outputs a systemMessage with manual cleanup instructions directing users to clear their `permissions.allow` array directly in settings.local.json.
+
+**update-check.ts** - Reads the version cache at `~/.nori/profiles/nori-skillsets-version.json` (populated by the CLI auto-update system at @/src/cli/updates/). If a newer non-prerelease version is found (and not dismissed), outputs a `systemMessage` JSON object to stdout telling Claude about the available update. Also triggers a fire-and-forget `refreshVersionCache()` if the cache is stale. Respects the `autoupdate` config field from `.nori-config.json`.
 
 **commit-author.ts** - Uses PreToolUse's updatedInput capability (introduced in Claude Code v2.0.10) to modify git commit commands before execution. Handles both simple `-m "message"` format and heredoc `$(cat <<'EOF' ... EOF)` format commits, preserving all original git flags.
 

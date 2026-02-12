@@ -31,7 +31,7 @@ export const substituteTemplatePaths = (args: {
   // The installDir is the .claude directory, but profiles are in .nori/profiles
   // We need to get the parent directory to compute the nori profiles path
   const parentDir = path.dirname(installDir);
-  const profilesDir = getNoriProfilesDir({ installDir: parentDir });
+  const profilesDir = getNoriProfilesDir();
 
   // Use a placeholder to protect escaped variables (wrapped in backticks)
   // e.g., `{{skills_dir}}` should not be substituted

@@ -5,15 +5,15 @@ Path: @/src/cli/commands/registry-download
 ### Overview
 
 - Implements `nori-skillsets download <package>[@version]` CLI command
-- Downloads profile packages from the Nori registrar, extracts them to the local profiles directory, and recursively installs skill dependencies
-- Handles installation directory discovery with a preference for the home directory installation, auto-initialization when no installation exists, and namespaced (organization-scoped) packages
+- Downloads profile packages from the Nori registrar, extracts them to `~/.nori/profiles/`, and recursively installs skill dependencies
+- Handles installation existence checking with auto-initialization when no installation exists, and namespaced (organization-scoped) packages
 
 ### How it fits into the larger codebase
 
 - Registered with Commander.js by `registerNoriSkillsetsDownloadCommand` (called from @/src/cli/commands/noriSkillsetsCommands.ts)
 - Uses `getInstallDirs()` from @/src/utils/path.ts to discover existing Nori installations by walking the directory tree
-- Uses `getNoriProfilesDir()` from @/src/cli/features/claude-code/paths.ts to construct the profiles output directory from `installDir`. **The `installDir` passed here must be the parent of `.nori`, not `.nori` itself** -- `getNoriProfilesDir` appends `.nori/profiles` to it
-- Uses `loadConfig()` from @/src/cli/config.ts to load Nori config (auth, profile, registries) from the resolved installation
+- Uses `getNoriProfilesDir()` from @/src/cli/features/claude-code/paths.ts to get the centralized profiles directory (`~/.nori/profiles/`). This is a zero-arg function that always resolves to the home directory
+- Uses `loadConfig()` from @/src/cli/config.ts to load Nori config (auth, profile, registries) from the centralized `~/.nori-config.json`
 - Calls `initMain()` from @/src/cli/commands/init/init.ts when no installation is found, to bootstrap Nori config before downloading
 - Calls `registrarApi.getPackument()` and `registrarApi.downloadTarball()` from @/src/api/registrar.ts to fetch package metadata and tarballs
 - Uses `parseNamespacedPackage()` and `buildOrganizationRegistryUrl()` from @/src/utils/url.ts to resolve org-scoped package names to registry URLs
@@ -21,52 +21,40 @@ Path: @/src/cli/commands/registry-download
 
 ### Core Implementation
 
-**Installation directory resolution** (`registryDownloadMain` in `registryDownload.ts`):
+**Installation existence checking** (`registryDownloadMain` in `registryDownload.ts`):
+
+The command verifies that a Nori installation exists before proceeding. Since config and profiles are centralized at `~/.nori-config.json` and `~/.nori/profiles/`, the installation check ensures the home directory has been initialized:
 
 ```
 --install-dir provided?
-  YES --> Use that directory (auto-init if no installation exists there)
+  YES --> Check that installation exists at that directory via getInstallDirs()
+          Not found? --> auto-init at that directory
   NO  --> Check home directory via getInstallDirs({ currentDir: os.homedir() })
           |
-          Home dir has installation? (homeInstallations.includes(homeDir))
-            YES --> targetInstallDir = homeDir (e.g., ~)
+          Home dir has installation?
+            YES --> proceed (config is centralized)
             NO  --> Check cwd via getInstallDirs({ currentDir: cwd })
                     |
                     0 installations --> auto-init at home directory
-                    1 installation  --> use it
+                    1 installation  --> proceed (config is centralized)
                     2+ installations --> error, ask user to specify --install-dir
 ```
 
-The home directory preference exists because `nori-skillsets login` stores auth credentials at `~/.nori/.nori-config.json`, so the home installation typically has registry auth configured for authenticated downloads.
+After the installation check, auth is always loaded from the single centralized config via `loadConfig()` (zero-arg). The profiles directory is always `getNoriProfilesDir()` (zero-arg, returns `~/.nori/profiles/`).
 
-**Home directory auth fallback** for namespaced packages:
+**Namespaced package auth:** For namespaced packages (e.g., `myorg/my-skillset`), if the centralized config has no unified auth credentials, the command errors with a message directing the user to log in. There is no fallback -- all auth lives in `~/.nori-config.json`.
 
-When an explicit `--install-dir` is provided (or passed programmatically from `registry-install`), the code loads auth from that directory's config. If the package is namespaced (e.g., `pangram/high-autonomy`) and the explicit install dir has no unified auth credentials, the code falls back to checking the home directory for auth:
-
-```
-Namespaced package with no auth in explicit installDir?
-  YES --> Load config from os.homedir()
-          |
-          Home dir has unified auth with organizations?
-            YES --> Use home dir auth for registry access
-                    (but still install profile to explicit installDir)
-            NO  --> Error: "Profile not found. To download from organization, log in"
-```
-
-This fallback enables users who have logged in at the user level (`nori-skillsets login` stores auth in `~`) to install namespaced packages to any project directory without re-authenticating.
-
-**Download flow** after installation directory is resolved:
+**Download flow** after installation check:
 1. Resolve the package version (latest if unspecified, or semver-matched from available versions)
 2. Check if profile already exists locally and compare versions (skip if same version, prompt for upgrade/downgrade)
 3. Download the tarball via `registrarApi.downloadTarball()` with auth token from `getRegistryAuthToken()`
-4. Extract tarball to `<installDir>/.nori/profiles/<packageName>/` (or `<installDir>/.nori/profiles/<orgId>/<packageName>/` for namespaced packages)
+4. Extract tarball to `~/.nori/profiles/<packageName>/` (or `~/.nori/profiles/<orgId>/<packageName>/` for namespaced packages)
 5. Write a `.nori-version` file tracking installed version and source registry
 6. Parse `nori.json` manifest for skill dependencies, then recursively download each skill dependency via `skillDownloadMain()` from @/src/cli/commands/skill-download/
 
 ### Things to Know
 
-- The `installDir` invariant is critical here: `targetInstallDir` is always the directory that *contains* `.nori`, not the `.nori` folder itself. For a home directory installation, this means `targetInstallDir = os.homedir()` (e.g., `/home/user`), which produces profiles at `/home/user/.nori/profiles/`. Previously this code incorrectly set `targetInstallDir = path.join(os.homedir(), ".nori")` which produced the doubled path `/home/user/.nori/.nori/profiles/`.
-- `getInstallDirs()` detects home directory installations by checking for `~/.nori/.nori-config.json` (the `.nori` subdirectory config pattern), and returns `~` (the home directory) as the installation path -- not `~/.nori`. This is consistent with the `installDir` convention used throughout the codebase.
-- The `registry-install` command (@/src/cli/commands/registry-install/) is NOT affected by the same `installDir` issue because it receives its `installDir` from `resolveInstallDir()`, which uses `getInstallDirs()` and `normalizeInstallDir()` -- both of which return correctly-formatted paths.
+- The `installDir` parameter to `registryDownloadMain` still exists but is only used for the installation existence check and for `initMain()`. Config and profiles are always read from/written to the centralized home directory locations.
+- `getInstallDirs()` detects installations by checking for `.nori-config.json` at a given directory. It returns the directory containing the config file, not the `.nori` folder.
 
 Created and maintained by Nori.

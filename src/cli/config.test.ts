@@ -12,60 +12,41 @@ import {
   loadConfig,
   saveConfig,
   getConfigPath,
+  validateConfig,
   getInstalledAgents,
   type Config,
 } from "./config.js";
 
+// Mock os.homedir so getConfigPath resolves to test directories
+vi.mock("os", async (importOriginal) => {
+  const actual = await importOriginal<typeof os>();
+  return {
+    ...actual,
+    homedir: vi.fn().mockReturnValue(actual.homedir()),
+  };
+});
+
 describe("getConfigPath", () => {
-  let originalCwd: () => string;
-
-  beforeEach(() => {
-    originalCwd = process.cwd;
-  });
-
-  afterEach(() => {
-    process.cwd = originalCwd;
-  });
-
-  describe("default behavior", () => {
-    it("should return installDir/.nori-config.json when valid installDir is provided", () => {
-      const result = getConfigPath({ installDir: "/mock/project/dir" });
-      expect(result).toBe("/mock/project/dir/.nori-config.json");
-    });
-
-    it("should handle relative path", () => {
-      const result = getConfigPath({ installDir: "relative/path" });
-      expect(result).toBe("relative/path/.nori-config.json");
-    });
-  });
-
-  describe("custom installDir", () => {
-    it("should return <installDir>/.nori-config.json when custom installDir provided", () => {
-      const result = getConfigPath({ installDir: "/custom/path" });
-      expect(result).toBe("/custom/path/.nori-config.json");
-    });
+  it("should always return ~/.nori-config.json", () => {
+    const result = getConfigPath();
+    expect(result).toBe(path.join(os.homedir(), ".nori-config.json"));
   });
 });
 
 describe("config with profile-based system", () => {
   let tempDir: string;
   let mockConfigPath: string;
-  let originalCwd: () => string;
 
   beforeEach(async () => {
     // Create temp directory for testing
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "config-test-"));
     mockConfigPath = path.join(tempDir, ".nori-config.json");
 
-    // Mock process.cwd() to return temp directory
-    originalCwd = process.cwd;
-    process.cwd = () => tempDir;
+    // Mock os.homedir to return temp directory so getConfigPath resolves there
+    vi.mocked(os.homedir).mockReturnValue(tempDir);
   });
 
   afterEach(async () => {
-    // Restore process.cwd
-    process.cwd = originalCwd;
-
     // Clean up temp directory
     await fs.rm(tempDir, { recursive: true, force: true });
 
@@ -85,7 +66,7 @@ describe("config with profile-based system", () => {
         installDir: tempDir,
       });
 
-      const loaded = await loadConfig({ installDir: tempDir });
+      const loaded = await loadConfig();
 
       expect(loaded?.auth).toEqual({
         username: "test@example.com",
@@ -108,7 +89,7 @@ describe("config with profile-based system", () => {
         installDir: tempDir,
       });
 
-      const loaded = await loadConfig({ installDir: tempDir });
+      const loaded = await loadConfig();
 
       expect(loaded?.auth).toEqual({
         username: "test@example.com",
@@ -132,7 +113,7 @@ describe("config with profile-based system", () => {
         installDir: tempDir,
       });
 
-      const loaded = await loadConfig({ installDir: tempDir });
+      const loaded = await loadConfig();
 
       expect(loaded?.auth).toBeNull();
       expect(loaded?.agents).toEqual({
@@ -141,14 +122,14 @@ describe("config with profile-based system", () => {
     });
 
     it("should return null when config file does not exist", async () => {
-      const loaded = await loadConfig({ installDir: tempDir });
+      const loaded = await loadConfig();
       expect(loaded).toBeNull();
     });
 
     it("should handle malformed config gracefully", async () => {
       await fs.writeFile(mockConfigPath, "invalid json {");
 
-      const loaded = await loadConfig({ installDir: tempDir });
+      const loaded = await loadConfig();
       expect(loaded).toBeNull();
     });
 
@@ -158,7 +139,7 @@ describe("config with profile-based system", () => {
         JSON.stringify({ sendSessionTranscript: "enabled" }),
       );
 
-      const loaded = await loadConfig({ installDir: tempDir });
+      const loaded = await loadConfig();
 
       expect(loaded?.sendSessionTranscript).toBe("enabled");
     });
@@ -169,7 +150,7 @@ describe("config with profile-based system", () => {
         JSON.stringify({ sendSessionTranscript: "disabled" }),
       );
 
-      const loaded = await loadConfig({ installDir: tempDir });
+      const loaded = await loadConfig();
 
       expect(loaded?.sendSessionTranscript).toBe("disabled");
     });
@@ -177,7 +158,7 @@ describe("config with profile-based system", () => {
     it("should default sendSessionTranscript to enabled when field is missing", async () => {
       await fs.writeFile(mockConfigPath, JSON.stringify({}));
 
-      const loaded = await loadConfig({ installDir: tempDir });
+      const loaded = await loadConfig();
 
       expect(loaded?.sendSessionTranscript).toBe("enabled");
     });
@@ -191,7 +172,7 @@ describe("config with profile-based system", () => {
         installDir: tempDir,
       });
 
-      const loaded = await loadConfig({ installDir: tempDir });
+      const loaded = await loadConfig();
 
       expect(loaded?.sendSessionTranscript).toBe("disabled");
     });
@@ -202,7 +183,7 @@ describe("config with profile-based system", () => {
         JSON.stringify({ autoupdate: "enabled" }),
       );
 
-      const loaded = await loadConfig({ installDir: tempDir });
+      const loaded = await loadConfig();
 
       expect(loaded?.autoupdate).toBe("enabled");
     });
@@ -213,7 +194,7 @@ describe("config with profile-based system", () => {
         JSON.stringify({ autoupdate: "disabled" }),
       );
 
-      const loaded = await loadConfig({ installDir: tempDir });
+      const loaded = await loadConfig();
 
       expect(loaded?.autoupdate).toBe("disabled");
     });
@@ -221,7 +202,7 @@ describe("config with profile-based system", () => {
     it("should default autoupdate to disabled when field is missing", async () => {
       await fs.writeFile(mockConfigPath, JSON.stringify({}));
 
-      const loaded = await loadConfig({ installDir: tempDir });
+      const loaded = await loadConfig();
 
       expect(loaded?.autoupdate).toBe("disabled");
     });
@@ -235,77 +216,31 @@ describe("config with profile-based system", () => {
         installDir: tempDir,
       });
 
-      const loaded = await loadConfig({ installDir: tempDir });
+      const loaded = await loadConfig();
 
       expect(loaded?.autoupdate).toBe("disabled");
     });
   });
 
   describe("installDir configuration", () => {
-    it("should save config to custom installDir as .nori-config.json", async () => {
-      const customDir = path.join(tempDir, "custom-project");
-      await fs.mkdir(customDir, { recursive: true });
-
+    it("should always save config to ~/.nori-config.json", async () => {
       await saveConfig({
         username: "test@example.com",
         password: "password123",
         organizationUrl: "https://example.com",
-        installDir: customDir,
+        installDir: tempDir,
       });
 
-      // Config should be at customDir/.nori-config.json
-      const configPath = path.join(customDir, ".nori-config.json");
+      // Config should be at ~/.nori-config.json (mocked homedir is tempDir)
       const exists = await fs
-        .access(configPath)
+        .access(mockConfigPath)
         .then(() => true)
         .catch(() => false);
       expect(exists).toBe(true);
-
-      // Should NOT be at HOME/nori-config.json
-      const homeConfig = path.join(tempDir, "nori-config.json");
-      const homeExists = await fs
-        .access(homeConfig)
-        .then(() => true)
-        .catch(() => false);
-      expect(homeExists).toBe(false);
     });
 
-    it("should load config from custom installDir", async () => {
-      const customDir = path.join(tempDir, "custom-project");
-      await fs.mkdir(customDir, { recursive: true });
-
-      // Write config to custom location
-      const configPath = path.join(customDir, ".nori-config.json");
-      await fs.writeFile(
-        configPath,
-        JSON.stringify({
-          username: "custom@example.com",
-          password: "custompass",
-          organizationUrl: "https://custom.com",
-        }),
-      );
-
-      const loaded = await loadConfig({ installDir: customDir });
-
-      expect(loaded?.auth).toEqual({
-        username: "custom@example.com",
-        password: "custompass",
-        refreshToken: null,
-        organizationUrl: "https://custom.com",
-      });
-    });
-
-    it("should return null when config does not exist in custom installDir", async () => {
-      const customDir = path.join(tempDir, "empty-project");
-      await fs.mkdir(customDir, { recursive: true });
-
-      const loaded = await loadConfig({ installDir: customDir });
-      expect(loaded).toBeNull();
-    });
-
-    it("should save installDir in config for persistence", async () => {
-      const customDir = path.join(tempDir, "custom-project");
-      await fs.mkdir(customDir, { recursive: true });
+    it("should save installDir in config as a data field", async () => {
+      const customDir = "/some/custom/path";
 
       await saveConfig({
         username: null,
@@ -317,22 +252,19 @@ describe("config with profile-based system", () => {
         installDir: customDir,
       });
 
-      // Read the raw config to verify installDir is saved
-      const configPath = path.join(customDir, ".nori-config.json");
-      const content = await fs.readFile(configPath, "utf-8");
+      // Read the raw config to verify installDir is saved as data
+      const content = await fs.readFile(mockConfigPath, "utf-8");
       const config = JSON.parse(content);
 
       expect(config.installDir).toBe(customDir);
     });
 
     it("should load installDir from config", async () => {
-      const customDir = path.join(tempDir, "custom-project");
-      await fs.mkdir(customDir, { recursive: true });
+      const customDir = "/some/custom/path";
 
       // Write config with installDir
-      const configPath = path.join(customDir, ".nori-config.json");
       await fs.writeFile(
-        configPath,
+        mockConfigPath,
         JSON.stringify({
           agents: {
             "claude-code": { profile: { baseProfile: "senior-swe" } },
@@ -341,7 +273,7 @@ describe("config with profile-based system", () => {
         }),
       );
 
-      const loaded = await loadConfig({ installDir: customDir });
+      const loaded = await loadConfig();
       expect(loaded?.installDir).toBe(customDir);
     });
   });
@@ -354,10 +286,12 @@ describe("agent-specific profiles", () => {
   beforeEach(async () => {
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "config-agents-test-"));
     mockConfigPath = path.join(tempDir, ".nori-config.json");
+    vi.mocked(os.homedir).mockReturnValue(tempDir);
   });
 
   afterEach(async () => {
     await fs.rm(tempDir, { recursive: true, force: true });
+    vi.clearAllMocks();
   });
 
   describe("loadConfig with agents field", () => {
@@ -373,7 +307,7 @@ describe("agent-specific profiles", () => {
         }),
       );
 
-      const loaded = await loadConfig({ installDir: tempDir });
+      const loaded = await loadConfig();
 
       expect(loaded?.agents).toEqual({
         "claude-code": {
@@ -394,7 +328,7 @@ describe("agent-specific profiles", () => {
         }),
       );
 
-      const loaded = await loadConfig({ installDir: tempDir });
+      const loaded = await loadConfig();
 
       expect(loaded?.agents?.["claude-code"]?.profile?.baseProfile).toBe(
         "senior-swe",
@@ -412,7 +346,7 @@ describe("agent-specific profiles", () => {
         }),
       );
 
-      const loaded = await loadConfig({ installDir: tempDir });
+      const loaded = await loadConfig();
 
       // Legacy profile should be converted to agents.claude-code.profile
       expect(loaded?.agents?.["claude-code"]?.profile?.baseProfile).toBe(
@@ -433,7 +367,7 @@ describe("agent-specific profiles", () => {
         }),
       );
 
-      const loaded = await loadConfig({ installDir: tempDir });
+      const loaded = await loadConfig();
 
       // agents field should take precedence
       expect(loaded?.agents?.["claude-code"]?.profile?.baseProfile).toBe(
@@ -453,7 +387,7 @@ describe("agent-specific profiles", () => {
         }),
       );
 
-      const loaded = await loadConfig({ installDir: tempDir });
+      const loaded = await loadConfig();
 
       expect(loaded?.agents?.["claude-code"]?.profile).toBeNull();
     });
@@ -468,7 +402,7 @@ describe("agent-specific profiles", () => {
         }),
       );
 
-      const loaded = await loadConfig({ installDir: tempDir });
+      const loaded = await loadConfig();
 
       expect(loaded?.agents?.["claude-code"]).toEqual({});
     });
@@ -691,10 +625,12 @@ describe("saveConfig should not write installedAgents", () => {
       path.join(os.tmpdir(), "config-no-installed-agents-test-"),
     );
     mockConfigPath = path.join(tempDir, ".nori-config.json");
+    vi.mocked(os.homedir).mockReturnValue(tempDir);
   });
 
   afterEach(async () => {
     await fs.rm(tempDir, { recursive: true, force: true });
+    vi.clearAllMocks();
   });
 
   it("should not write installedAgents field to disk", async () => {
@@ -812,10 +748,12 @@ describe("token-based auth", () => {
   beforeEach(async () => {
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "config-token-test-"));
     mockConfigPath = path.join(tempDir, ".nori-config.json");
+    vi.mocked(os.homedir).mockReturnValue(tempDir);
   });
 
   afterEach(async () => {
     await fs.rm(tempDir, { recursive: true, force: true });
+    vi.clearAllMocks();
   });
 
   describe("saveConfig with refreshToken", () => {
@@ -866,7 +804,7 @@ describe("token-based auth", () => {
         }),
       );
 
-      const loaded = await loadConfig({ installDir: tempDir });
+      const loaded = await loadConfig();
 
       expect(loaded?.auth?.refreshToken).toBe("stored-refresh-token");
       expect(loaded?.auth?.username).toBe("test@example.com");
@@ -884,7 +822,7 @@ describe("token-based auth", () => {
         }),
       );
 
-      const loaded = await loadConfig({ installDir: tempDir });
+      const loaded = await loadConfig();
       const isLegacy = isLegacyPasswordConfig({ config: loaded! });
 
       expect(isLegacy).toBe(true);
@@ -902,7 +840,7 @@ describe("token-based auth", () => {
         }),
       );
 
-      const loaded = await loadConfig({ installDir: tempDir });
+      const loaded = await loadConfig();
       const isLegacy = isLegacyPasswordConfig({ config: loaded! });
 
       expect(isLegacy).toBe(false);
@@ -919,10 +857,12 @@ describe("transcriptDestination config", () => {
       path.join(os.tmpdir(), "config-transcript-dest-test-"),
     );
     mockConfigPath = path.join(tempDir, ".nori-config.json");
+    vi.mocked(os.homedir).mockReturnValue(tempDir);
   });
 
   afterEach(async () => {
     await fs.rm(tempDir, { recursive: true, force: true });
+    vi.clearAllMocks();
   });
 
   it("should save and load transcriptDestination", async () => {
@@ -935,7 +875,7 @@ describe("transcriptDestination config", () => {
       installDir: tempDir,
     });
 
-    const loaded = await loadConfig({ installDir: tempDir });
+    const loaded = await loadConfig();
 
     expect(loaded?.transcriptDestination).toBe("myorg");
   });
@@ -949,7 +889,7 @@ describe("transcriptDestination config", () => {
       }),
     );
 
-    const loaded = await loadConfig({ installDir: tempDir });
+    const loaded = await loadConfig();
 
     expect(loaded?.transcriptDestination).toBe("acme-corp");
   });
@@ -963,7 +903,7 @@ describe("transcriptDestination config", () => {
       }),
     );
 
-    const loaded = await loadConfig({ installDir: tempDir });
+    const loaded = await loadConfig();
 
     expect(loaded?.transcriptDestination).toBeUndefined();
   });
@@ -980,7 +920,7 @@ describe("transcriptDestination config", () => {
     });
 
     // Load and verify
-    const loaded = await loadConfig({ installDir: tempDir });
+    const loaded = await loadConfig();
     expect(loaded?.transcriptDestination).toBe("myorg");
   });
 });
@@ -992,10 +932,12 @@ describe("schema validation", () => {
   beforeEach(async () => {
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "config-schema-test-"));
     mockConfigPath = path.join(tempDir, ".nori-config.json");
+    vi.mocked(os.homedir).mockReturnValue(tempDir);
   });
 
   afterEach(async () => {
     await fs.rm(tempDir, { recursive: true, force: true });
+    vi.clearAllMocks();
   });
 
   describe("enum validation", () => {
@@ -1010,7 +952,7 @@ describe("schema validation", () => {
         }),
       );
 
-      const loaded = await loadConfig({ installDir: tempDir });
+      const loaded = await loadConfig();
 
       // Invalid enum value should cause config to be rejected
       expect(loaded).toBeNull();
@@ -1027,7 +969,7 @@ describe("schema validation", () => {
         }),
       );
 
-      const loaded = await loadConfig({ installDir: tempDir });
+      const loaded = await loadConfig();
 
       // Invalid enum value should cause config to be rejected
       expect(loaded).toBeNull();
@@ -1036,8 +978,6 @@ describe("schema validation", () => {
 
   describe("URL format validation", () => {
     it("should reject config with malformed organizationUrl", async () => {
-      const { validateConfig } = await import("./config.js");
-
       await fs.writeFile(
         mockConfigPath,
         JSON.stringify({
@@ -1047,7 +987,7 @@ describe("schema validation", () => {
         }),
       );
 
-      const result = await validateConfig({ installDir: tempDir });
+      const result = await validateConfig();
 
       expect(result.valid).toBe(false);
       expect(result.errors).toBeDefined();
@@ -1070,7 +1010,7 @@ describe("schema validation", () => {
         }),
       );
 
-      const loaded = await loadConfig({ installDir: tempDir });
+      const loaded = await loadConfig();
 
       expect(loaded).not.toBeNull();
       expect(loaded?.agents?.["claude-code"]?.profile?.baseProfile).toBe(

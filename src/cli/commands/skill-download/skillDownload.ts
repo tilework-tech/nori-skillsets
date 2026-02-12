@@ -406,23 +406,23 @@ export const skillDownloadMain = async (args: {
   }
 
   // Load config if it exists (for private registry auth)
-  const config = await loadConfig({ installDir: targetInstallDir });
+  const config = await loadConfig();
 
   // Resolve target skillset for manifest update
   // Priority: --skillset option > active profile from config > no manifest update
   let targetSkillset: string | null = null;
-  const profilesDir = getNoriProfilesDir({ installDir: targetInstallDir });
+  const profilesDir = getNoriProfilesDir();
 
   if (skillset != null) {
     // User specified a skillset - verify it exists
     const skillsetDir = path.join(profilesDir, skillset);
-    const skillsetClaudeMd = path.join(skillsetDir, "CLAUDE.md");
+    const skillsetMarker = path.join(skillsetDir, "nori.json");
     try {
-      await fs.access(skillsetClaudeMd);
+      await fs.access(skillsetMarker);
       targetSkillset = skillset;
     } catch {
       error({
-        message: `Skillset "${skillset}" not found at: ${skillsetDir}\n\nMake sure the skillset exists and contains a CLAUDE.md file.`,
+        message: `Skillset "${skillset}" not found at: ${skillsetDir}\n\nMake sure the skillset exists and contains a nori.json file.`,
       });
       return;
     }
