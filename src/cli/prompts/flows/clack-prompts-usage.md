@@ -241,6 +241,72 @@ and optionally `note()` for a hint or additional context.
 
 ---
 
+## Non-Interactive Command Output
+
+For commands that don't have interactive prompts but need to display output,
+use clack primitives instead of the legacy logger:
+
+### Single-line output
+
+- `log.info()` - Informational messages
+- `log.success()` - Success confirmations
+- `log.error()` - Error messages
+- `log.step()` - Neutral status/progress messages
+
+### Multi-line output
+
+Use `note(content, title)` for multi-line blocks like "Next Steps":
+
+```ts
+const nextSteps = [
+  `To switch:  nori-skillsets switch ${name}`,
+  `To edit:    ~/.nori/profiles/${name}/`,
+].join("\n");
+note(nextSteps, "Next Steps");
+```
+
+### Output ordering with `outro()`
+
+When a command completes successfully and shows both a note and a final
+message, display the note first, then end with `outro()`:
+
+```ts
+// GOOD - note first, outro closes the flow
+note(nextSteps, "Next Steps");
+outro(`Created new skillset '${name}'`);
+```
+
+This produces cleaner visual output:
+
+```
+│
+◆  Next Steps ──────────────────────────────────╮
+│                                               │
+│  To switch:  nori-skillsets switch my-skill   │
+│  To edit:    ~/.nori/profiles/my-skill/       │
+│                                               │
+├───────────────────────────────────────────────╯
+│
+└  Created new skillset 'my-skill'
+```
+
+### Raw scripting output
+
+For commands that may be piped or used in scripts (e.g. `list`, `completion`,
+`dir --no-open`), use `process.stdout.write()` directly:
+
+```ts
+// Output raw lines for scripting
+for (const profile of profiles) {
+  process.stdout.write(profile + "\n");
+}
+```
+
+This keeps output clean without clack formatting, suitable for `$(...)` or
+pipe chains.
+
+---
+
 ## Data Formatting Helpers
 
 If a flow needs to format a data structure for display (e.g. a list of changed
@@ -380,11 +446,52 @@ prompts in the right order and passes the right data to callbacks.
 `src/cli/prompt.ts` contains the old `promptUser` and `promptYesNo` functions.
 Delete after all commands are migrated.
 
-### Pending Migration
+`src/cli/logger.ts` contains legacy output functions (`info`, `success`,
+`error`, `raw`). Non-interactive commands should migrate to clack primitives.
 
-Commands still using legacy `promptUser`:
+---
 
-- `login.ts` - Legacy path (flow exists, routing incomplete)
-- `onboard.ts` - Full flow migration needed
-- `watch.ts` - Uses legacy `promptUser`
-- `existingConfigCapture.ts` - Legacy path (initFlow handles this now)
+## Migration TODO
+
+### Completed Migrations
+
+Non-interactive commands migrated to clack output:
+
+- [x] `logout/logout.ts` - `log.info()`, `log.success()`
+- [x] `completion/completion.ts` - `process.stdout.write()`, `log.error()`
+- [x] `dir/dir.ts` - `process.stdout.write()`, `log.success()`, `log.step()`
+- [x] `new-skillset/newSkillset.ts` - `note()`, `outro()`, `log.error()`
+- [x] `fork-skillset/forkSkillset.ts` - `note()`, `outro()`, `log.error()`
+- [x] `list-skillsets/listSkillsets.ts` - `process.stdout.write()`, `log.error()`
+
+### Command Migration (Interactive)
+
+Commands with interactive prompts that need full flow migration:
+
+- [ ] `login/login.ts` - Legacy path still uses `promptUser` (flow exists)
+- [ ] `watch/watch.ts` - Uses legacy `promptUser` for transcript destination
+- [ ] `install/existingConfigCapture.ts` - Legacy path (initFlow handles this)
+- [ ] `registry-download/registryDownload.ts` - Multiple `promptUser` calls
+- [ ] `registry-install/registryInstall.ts` - Interactive install prompts
+- [ ] `registry-search/registrySearch.ts` - Search result selection
+- [ ] `skill-download/skillDownload.ts` - Skill resolution prompts
+- [ ] `switch-profile/profiles.ts` - Profile switching (flow exists, routing incomplete)
+- [ ] `edit-skillset/editSkillset.ts` - Editor selection prompt
+- [ ] `external/external.ts` - External skill installation prompts
+- [ ] `install/install.ts` - Main installation flow
+- [ ] `factory-reset/factoryReset.ts` - Confirmation prompt
+
+### Noninteractive Migration
+
+Commands with legacy `info()`/`error()`/`raw()` output patterns:
+
+- [ ] `install-location/installLocation.ts` - Simple output migration
+- [ ] `registry-upload/registryUpload.ts` - Upload progress and results
+
+### Final Cleanup
+
+After all commands are migrated:
+
+- [ ] Delete `src/cli/prompt.ts` (legacy `promptUser`, `promptYesNo`)
+- [ ] Remove legacy output functions from `src/cli/logger.ts`
+- [ ] Update tests to consistently mock `@clack/prompts`
