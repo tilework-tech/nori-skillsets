@@ -162,7 +162,7 @@ export const registryUploadMain = async (args: {
     registryUrl,
     listVersions,
     nonInteractive,
-    silent: _silent,
+    silent,
     dryRun,
     description,
   } = args;
@@ -401,6 +401,22 @@ export const registryUploadMain = async (args: {
       };
     }
   };
+
+  // Silent mode: direct upload without UI
+  if (silent) {
+    const versionResult = await determineUploadVersion({
+      profileName: packageName,
+      explicitVersion: version,
+      registryUrl: targetRegistryUrl,
+      authToken,
+    });
+
+    const uploadResult = await performUpload({
+      uploadVersion: versionResult.version,
+    });
+
+    return { success: uploadResult.success };
+  }
 
   // Use the upload flow for interactive upload
   // Store upload version for callbacks closure

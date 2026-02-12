@@ -84,6 +84,20 @@ vi.mock("@/utils/fetch.js", () => ({
   },
 }));
 
+// Create a shared spinner mock that tracks all message calls
+const createSpinnerMock = () => ({
+  start: vi.fn(),
+  stop: vi.fn(),
+  message: vi.fn(),
+  cancel: vi.fn(),
+  error: vi.fn(),
+  clear: vi.fn(),
+  isCancelled: false,
+});
+
+// Shared spinner mock instance
+let sharedSpinnerMock = createSpinnerMock();
+
 // Mock @clack/prompts for spinner and interactive prompts
 vi.mock("@clack/prompts", () => ({
   intro: vi.fn(),
@@ -99,17 +113,8 @@ vi.mock("@clack/prompts", () => ({
   },
   select: vi.fn(),
   text: vi.fn(),
-  spinner: vi.fn(() => ({
-    start: vi.fn(),
-    stop: vi.fn(),
-    message: vi.fn(),
-  })),
+  spinner: vi.fn(() => sharedSpinnerMock),
   isCancel: vi.fn(() => false),
-}));
-
-// Mock skill resolution prompt (no longer used by new flow, but kept for reference)
-vi.mock("@/cli/prompts/skillResolution.js", () => ({
-  selectSkillResolution: vi.fn(),
 }));
 
 // Mock console methods to capture output (for early validation errors before flow starts)
@@ -123,22 +128,24 @@ const mockConsoleError = vi
 import { registrarApi } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
 import { loadConfig, getRegistryAuth } from "@/cli/config.js";
-import { selectSkillResolution } from "@/cli/prompts/skillResolution.js";
+import { isSkillCollisionError } from "@/utils/fetch.js";
 
 import { registryUploadMain } from "./registryUpload.js";
 
 /**
  * Helper to get all text output from clack prompts mocks
- * Combines outro and note calls into a searchable string
+ * Combines outro, note, intro, log calls into a searchable string
  *
  * @returns Combined output string from all clack prompt mocks
  */
 const getClackOutput = (): string => {
+  const introMock = vi.mocked(clack.intro);
   const outroMock = vi.mocked(clack.outro);
   const noteMock = vi.mocked(clack.note);
   const logInfoMock = vi.mocked(clack.log.info);
   const logErrorMock = vi.mocked(clack.log.error);
 
+  const introTexts = introMock.mock.calls.map((call) => String(call[0] ?? ""));
   const outroTexts = outroMock.mock.calls.map((call) => String(call[0] ?? ""));
   const noteTexts = noteMock.mock.calls.map(
     (call) => `${call[0] ?? ""} ${call[1] ?? ""}`,
@@ -150,8 +157,23 @@ const getClackOutput = (): string => {
     String(call[0] ?? ""),
   );
 
-  return [...outroTexts, ...noteTexts, ...logInfoTexts, ...logErrorTexts].join(
-    "\n",
+  return [
+    ...introTexts,
+    ...outroTexts,
+    ...noteTexts,
+    ...logInfoTexts,
+    ...logErrorTexts,
+  ].join("\n");
+};
+
+/**
+ * Helper to get spinner message calls from the shared spinner mock
+ *
+ * @returns Array of spinner message strings
+ */
+const getSpinnerMessages = (): Array<string> => {
+  return sharedSpinnerMock.message.mock.calls.map((call) =>
+    String(call[0] ?? ""),
   );
 };
 
@@ -161,7 +183,17 @@ describe("registry-upload", () => {
   let profilesDir: string;
 
   beforeEach(async () => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
+
+    // Reset the shared spinner mock and re-establish the mock implementation
+    sharedSpinnerMock = createSpinnerMock();
+    vi.mocked(clack.spinner).mockReturnValue(sharedSpinnerMock);
+
+    // Re-establish isSkillCollisionError mock implementation
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (vi.mocked(isSkillCollisionError) as any).mockImplementation(
+      (err: unknown) => err && typeof err === "object" && "conflicts" in err,
+    );
 
     // Create test directory structure simulating a Nori installation
     testDir = await fs.mkdtemp(
@@ -686,10 +718,9 @@ describe("registry-upload", () => {
 
         expect(result.success).toBe(false);
 
-        const allErrorOutput = mockConsoleError.mock.calls
-          .map((call) => call.join(" "))
-          .join("\n");
-        expect(allErrorOutput.toLowerCase()).toContain("not found");
+        // Output now goes through clack prompts
+        const clackOutput = getClackOutput();
+        expect(clackOutput.toLowerCase()).toContain("not found");
       });
     });
 
@@ -762,11 +793,11 @@ describe("registry-upload", () => {
           }),
         );
 
-        // Verify success message mentions auto-resolution
-        const allOutput = mockConsoleLog.mock.calls
-          .map((call) => call.join(" "))
-          .join("\n");
-        expect(allOutput.toLowerCase()).toContain("auto-resolved");
+        // Verify auto-resolution message was shown in spinner
+        const spinnerMessages = getSpinnerMessages();
+        expect(spinnerMessages.join("\n").toLowerCase()).toContain(
+          "auto-resolv",
+        );
       });
 
       it("should fail for modified skill conflicts requiring manual resolution", async () => {
@@ -823,13 +854,11 @@ describe("registry-upload", () => {
 
         expect(result.success).toBe(false);
 
-        // Verify error message shows conflict details
-        const allErrorOutput = mockConsoleError.mock.calls
-          .map((call) => call.join(" "))
-          .join("\n");
-        expect(allErrorOutput).toContain("writing-plans");
-        expect(allErrorOutput.toLowerCase()).toContain("modified");
-        expect(allErrorOutput.toLowerCase()).toContain("manual resolution");
+        // Verify error message shows conflict details (now via clack note)
+        const clackOutput = getClackOutput();
+        expect(clackOutput).toContain("writing-plans");
+        expect(clackOutput.toLowerCase()).toContain("modified");
+        expect(clackOutput.toLowerCase()).toContain("manual resolution");
       });
     });
 
@@ -935,11 +964,10 @@ describe("registry-upload", () => {
 
         expect(result.success).toBe(false);
 
-        const allErrorOutput = mockConsoleError.mock.calls
-          .map((call) => call.join(" "))
-          .join("\n");
-        expect(allErrorOutput.toLowerCase()).toContain("upload failed");
-        expect(allErrorOutput).toContain("Network error");
+        // Error output now goes through clack prompts
+        const clackOutput = getClackOutput();
+        expect(clackOutput.toLowerCase()).toContain("upload failed");
+        expect(clackOutput).toContain("Network error");
       });
     });
 
@@ -1469,10 +1497,8 @@ describe("registry-upload", () => {
             createdAt: new Date().toISOString(),
           });
 
-        // Mock the resolution prompt to return a strategy
-        vi.mocked(selectSkillResolution).mockResolvedValue({
-          "my-skill": { action: "namespace" },
-        });
+        // Mock clack.select to return the namespace action
+        vi.mocked(clack.select).mockResolvedValue("namespace");
 
         const result = await registryUploadMain({
           profileSpec: "myorg/my-profile",
@@ -1482,13 +1508,8 @@ describe("registry-upload", () => {
 
         expect(result.success).toBe(true);
 
-        // Verify prompt was called
-        expect(selectSkillResolution).toHaveBeenCalledWith(
-          expect.objectContaining({
-            conflicts: collisionError.conflicts,
-            profileName: "my-profile",
-          }),
-        );
+        // Verify clack.select was called for conflict resolution
+        expect(clack.select).toHaveBeenCalled();
 
         // Verify retry with resolution strategy
         expect(registrarApi.uploadSkillset).toHaveBeenCalledTimes(2);
@@ -1553,8 +1574,8 @@ describe("registry-upload", () => {
 
         expect(result.success).toBe(false);
 
-        // Verify prompt was NOT called
-        expect(selectSkillResolution).not.toHaveBeenCalled();
+        // Verify clack.select was NOT called (no interactive prompt in non-interactive mode)
+        expect(clack.select).not.toHaveBeenCalled();
       });
     });
 
@@ -1605,11 +1626,10 @@ describe("registry-upload", () => {
 
         expect(result.success).toBe(true);
 
-        const allOutput = mockConsoleLog.mock.calls
-          .map((call) => call.join(" "))
-          .join("\n");
-        expect(allOutput).toContain("skill-a");
-        expect(allOutput).toContain("skill-b");
+        // Output now goes through clack note
+        const clackOutput = getClackOutput();
+        expect(clackOutput).toContain("skill-a");
+        expect(clackOutput).toContain("skill-b");
       });
 
       it("should show linked vs uploaded skills separately", async () => {
@@ -1675,12 +1695,11 @@ describe("registry-upload", () => {
 
         expect(result.success).toBe(true);
 
-        const allOutput = mockConsoleLog.mock.calls
-          .map((call) => call.join(" "))
-          .join("\n");
-        expect(allOutput).toContain("existing-skill");
+        // Output now goes through clack note
+        const clackOutput = getClackOutput();
+        expect(clackOutput).toContain("existing-skill");
         // Should indicate it was linked
-        expect(allOutput.toLowerCase()).toContain("linked");
+        expect(clackOutput.toLowerCase()).toContain("linked");
       });
 
       it("should show namespaced skills with their new names", async () => {
@@ -1738,10 +1757,8 @@ describe("registry-upload", () => {
             },
           });
 
-        // Mock the resolution prompt to return namespace strategy
-        vi.mocked(selectSkillResolution).mockResolvedValue({
-          "conflicting-skill": { action: "namespace" },
-        });
+        // Mock clack.select to return namespace action
+        vi.mocked(clack.select).mockResolvedValue("namespace");
 
         const result = await registryUploadMain({
           profileSpec: "myorg/my-profile",
@@ -1750,11 +1767,10 @@ describe("registry-upload", () => {
 
         expect(result.success).toBe(true);
 
-        const allOutput = mockConsoleLog.mock.calls
-          .map((call) => call.join(" "))
-          .join("\n");
+        // Output now goes through clack note
+        const clackOutput = getClackOutput();
         // Should show the namespaced name
-        expect(allOutput).toContain("my-profile-conflicting-skill");
+        expect(clackOutput).toContain("my-profile-conflicting-skill");
       });
     });
   });
