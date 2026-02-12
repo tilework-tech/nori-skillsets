@@ -15,7 +15,7 @@ The profiles module manages Nori skillsets (profiles) for the claude-code agent.
 ### Core Implementation
 
 **Profile Structure**: Each profile directory is self-contained with:
-- `CLAUDE.md` (behavioral instructions content, installed to `~/.claude/CLAUDE.md`)
+- `CLAUDE.md` (optional; behavioral instructions content, installed to `~/.claude/CLAUDE.md`)
 - `nori.json` (unified manifest and profile marker; contains name, version, description, and optional dependencies)
 - `skills/` (inline skill directories, each containing SKILL.md)
 - `skills.json` (optional external skill dependencies)
@@ -90,7 +90,7 @@ No built-in profiles are shipped with the package. First-time installations will
 
 **Self-contained profiles**: Each profile contains all content it needs directly. There is no mixin composition, inheritance, or conditional injection. The trade-off is content duplication across profiles that share common skills.
 
-**Missing profile directories are valid**: Feature loaders (skills, slashcommands, subagents) treat missing profile directories as valid with zero items. When `fs.readdir()` fails on a profile's subdirectory (e.g., `~/.nori/profiles/none/skills/` doesn't exist), the install functions return early with an info message rather than throwing ENOENT.
+**Missing profile content is valid**: All four feature loaders (claudemd, skills, slashcommands, subagents) handle missing source content gracefully rather than throwing ENOENT. The directory-based loaders (skills, slashcommands, subagents) return early with an info message when `fs.readdir()` fails on a profile's subdirectory. The claudemd loader (`insertClaudeMd()` in @/src/cli/features/claude-code/profiles/claudemd/loader.ts) catches `fs.readFile()` failures when the profile has no `CLAUDE.md` (e.g., a minimal skillset created by `nori-skillsets new`); if an existing `~/.claude/CLAUDE.md` has a managed block, it replaces the block contents with empty markers while preserving user content outside the block. If there is no existing `~/.claude/CLAUDE.md` either, it returns without creating one. This ensures switching to an empty/minimal skillset does not crash the install pipeline and allows subsequent loaders to run.
 
 **Profile preservation**: Profiles are NEVER deleted during install operations. All profiles remain in `~/.nori/profiles/`.
 
