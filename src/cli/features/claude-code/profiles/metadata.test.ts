@@ -12,6 +12,7 @@ import {
   readProfileMetadata,
   writeProfileMetadata,
   addSkillToNoriJson,
+  ensureNoriJson,
 } from "./metadata.js";
 
 describe("writeProfileMetadata", () => {
@@ -177,5 +178,77 @@ describe("addSkillToNoriJson", () => {
 
     const metadata = await readProfileMetadata({ profileDir });
     expect(metadata.dependencies?.skills).toEqual({ "my-skill": "*" });
+  });
+});
+
+describe("ensureNoriJson", () => {
+  let profileDir: string;
+
+  beforeEach(async () => {
+    profileDir = await fs.mkdtemp(path.join(tmpdir(), "nori-metadata-test-"));
+  });
+
+  afterEach(async () => {
+    await fs.rm(profileDir, { recursive: true, force: true });
+  });
+
+  it("should create nori.json when directory has CLAUDE.md but no nori.json", async () => {
+    await fs.writeFile(path.join(profileDir, "CLAUDE.md"), "# My Profile");
+
+    await ensureNoriJson({ profileDir });
+
+    const metadata = await readProfileMetadata({ profileDir });
+    expect(metadata.name).toBe(path.basename(profileDir));
+    expect(metadata.version).toBe("0.0.1");
+  });
+
+  it("should create nori.json when directory has skills and subagents dirs but no nori.json", async () => {
+    await fs.mkdir(path.join(profileDir, "skills"));
+    await fs.mkdir(path.join(profileDir, "subagents"));
+
+    await ensureNoriJson({ profileDir });
+
+    const metadata = await readProfileMetadata({ profileDir });
+    expect(metadata.name).toBe(path.basename(profileDir));
+    expect(metadata.version).toBe("0.0.1");
+  });
+
+  it("should not create nori.json when directory has no profile markers", async () => {
+    await fs.writeFile(path.join(profileDir, "readme.txt"), "not a profile");
+
+    await ensureNoriJson({ profileDir });
+
+    const noriJsonPath = path.join(profileDir, "nori.json");
+    await expect(fs.access(noriJsonPath)).rejects.toThrow();
+  });
+
+  it("should not create nori.json when only skills dir exists without subagents", async () => {
+    await fs.mkdir(path.join(profileDir, "skills"));
+
+    await ensureNoriJson({ profileDir });
+
+    const noriJsonPath = path.join(profileDir, "nori.json");
+    await expect(fs.access(noriJsonPath)).rejects.toThrow();
+  });
+
+  it("should not overwrite existing nori.json", async () => {
+    const existing = { name: "my-profile", version: "2.0.0" };
+    await writeProfileMetadata({ profileDir, metadata: existing });
+    await fs.writeFile(path.join(profileDir, "CLAUDE.md"), "# My Profile");
+
+    await ensureNoriJson({ profileDir });
+
+    const metadata = await readProfileMetadata({ profileDir });
+    expect(metadata.name).toBe("my-profile");
+    expect(metadata.version).toBe("2.0.0");
+  });
+
+  it("should do nothing when directory does not exist", async () => {
+    const nonExistentDir = path.join(profileDir, "does-not-exist");
+
+    await ensureNoriJson({ profileDir: nonExistentDir });
+
+    const noriJsonPath = path.join(nonExistentDir, "nori.json");
+    await expect(fs.access(noriJsonPath)).rejects.toThrow();
   });
 });

@@ -7,6 +7,7 @@ import * as fs from "fs/promises";
 import * as path from "path";
 
 import { getNoriProfilesDir } from "@/cli/features/claude-code/paths.js";
+import { ensureNoriJson } from "@/cli/features/claude-code/profiles/metadata.js";
 
 /** Manifest file name used to identify valid profiles */
 export const MANIFEST_FILE = "nori.json";
@@ -30,11 +31,9 @@ export const listProfiles = async (): Promise<Array<string>> => {
 
     for (const entry of entries) {
       if (entry.isDirectory()) {
-        const instructionsPath = path.join(
-          profilesDir,
-          entry.name,
-          MANIFEST_FILE,
-        );
+        const entryDir = path.join(profilesDir, entry.name);
+        await ensureNoriJson({ profileDir: entryDir });
+        const instructionsPath = path.join(entryDir, MANIFEST_FILE);
         try {
           // Check if this is a flat profile (has nori.json directly)
           await fs.access(instructionsPath);
@@ -50,9 +49,10 @@ export const listProfiles = async (): Promise<Array<string>> => {
 
             for (const subEntry of subEntries) {
               if (subEntry.isDirectory()) {
+                const nestedDir = path.join(orgDir, subEntry.name);
+                await ensureNoriJson({ profileDir: nestedDir });
                 const nestedInstructionsPath = path.join(
-                  orgDir,
-                  subEntry.name,
+                  nestedDir,
                   MANIFEST_FILE,
                 );
                 try {

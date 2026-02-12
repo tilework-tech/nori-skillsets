@@ -134,4 +134,79 @@ describe("listProfiles", () => {
     expect(profiles).not.toContain("myorg");
     expect(profiles.length).toBe(1);
   });
+
+  test("auto-creates nori.json for flat profile with CLAUDE.md but no nori.json", async () => {
+    const profilesDir = path.join(testHomeDir, ".nori", "profiles");
+
+    // Create a user-made profile with CLAUDE.md but no nori.json
+    const profileDir = path.join(profilesDir, "my-custom-profile");
+    await fs.mkdir(profileDir, { recursive: true });
+    await fs.writeFile(path.join(profileDir, "CLAUDE.md"), "# My Profile");
+
+    const profiles = await listProfiles();
+
+    expect(profiles).toContain("my-custom-profile");
+
+    // Verify nori.json was auto-created with correct defaults
+    const noriJson = JSON.parse(
+      await fs.readFile(path.join(profileDir, "nori.json"), "utf-8"),
+    );
+    expect(noriJson.name).toBe("my-custom-profile");
+    expect(noriJson.version).toBe("0.0.1");
+  });
+
+  test("auto-creates nori.json for flat profile with skills and subagents dirs but no nori.json", async () => {
+    const profilesDir = path.join(testHomeDir, ".nori", "profiles");
+
+    // Create a profile with skills/ and subagents/ but no nori.json
+    const profileDir = path.join(profilesDir, "dev-profile");
+    await fs.mkdir(path.join(profileDir, "skills"), { recursive: true });
+    await fs.mkdir(path.join(profileDir, "subagents"), { recursive: true });
+
+    const profiles = await listProfiles();
+
+    expect(profiles).toContain("dev-profile");
+
+    // Verify nori.json was auto-created
+    const noriJson = JSON.parse(
+      await fs.readFile(path.join(profileDir, "nori.json"), "utf-8"),
+    );
+    expect(noriJson.name).toBe("dev-profile");
+    expect(noriJson.version).toBe("0.0.1");
+  });
+
+  test("does not auto-create nori.json for directories without profile markers", async () => {
+    const profilesDir = path.join(testHomeDir, ".nori", "profiles");
+
+    // Create a directory with no profile markers
+    const randomDir = path.join(profilesDir, "random-dir");
+    await fs.mkdir(randomDir, { recursive: true });
+    await fs.writeFile(path.join(randomDir, "readme.txt"), "not a profile");
+
+    const profiles = await listProfiles();
+
+    expect(profiles).not.toContain("random-dir");
+    await expect(
+      fs.access(path.join(randomDir, "nori.json")),
+    ).rejects.toThrow();
+  });
+
+  test("does not auto-create nori.json in org directory, preserving nested profile discovery", async () => {
+    const profilesDir = path.join(testHomeDir, ".nori", "profiles");
+
+    // Create org directory without nori.json, with a nested profile that has CLAUDE.md
+    const orgDir = path.join(profilesDir, "myorg");
+    const nestedProfile = path.join(orgDir, "team-profile");
+    await fs.mkdir(nestedProfile, { recursive: true });
+    await fs.writeFile(path.join(nestedProfile, "CLAUDE.md"), "# Team Profile");
+
+    const profiles = await listProfiles();
+
+    // Nested profile should be discovered via auto-created nori.json
+    expect(profiles).toContain("myorg/team-profile");
+    // Org directory should NOT become a flat profile
+    expect(profiles).not.toContain("myorg");
+    // Org directory should NOT have nori.json created
+    await expect(fs.access(path.join(orgDir, "nori.json"))).rejects.toThrow();
+  });
 });

@@ -10,6 +10,7 @@ import { loadConfig, saveConfig } from "@/cli/config.js";
 import { factoryResetClaudeCode } from "@/cli/features/claude-code/factoryReset.js";
 import { LoaderRegistry } from "@/cli/features/claude-code/loaderRegistry.js";
 import { getNoriProfilesDir } from "@/cli/features/claude-code/paths.js";
+import { ensureNoriJson } from "@/cli/features/claude-code/profiles/metadata.js";
 import { MANIFEST_FILE } from "@/cli/features/managedFolder.js";
 import { success, info } from "@/cli/logger.js";
 
@@ -39,6 +40,7 @@ export const claudeCodeAgent: Agent = {
     // profileName can be flat (e.g., "senior-swe") or namespaced (e.g., "myorg/my-profile")
     // path.join handles both cases correctly since it just joins the path components
     const profileDir = path.join(profilesDir, profileName);
+    await ensureNoriJson({ profileDir });
     const instructionsPath = path.join(profileDir, MANIFEST_FILE);
 
     try {

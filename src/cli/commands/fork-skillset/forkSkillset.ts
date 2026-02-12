@@ -10,6 +10,7 @@ import * as path from "path";
 import { log, note, outro } from "@clack/prompts";
 
 import { getNoriProfilesDir } from "@/cli/features/claude-code/paths.js";
+import { ensureNoriJson } from "@/cli/features/claude-code/profiles/metadata.js";
 import { MANIFEST_FILE } from "@/cli/features/managedFolder.js";
 
 export const forkSkillsetMain = async (args: {
@@ -22,6 +23,7 @@ export const forkSkillsetMain = async (args: {
   const destPath = path.join(profilesDir, newSkillset);
 
   // Validate source exists and is a valid skillset (has nori.json)
+  await ensureNoriJson({ profileDir: sourcePath });
   try {
     await fs.access(path.join(sourcePath, MANIFEST_FILE));
   } catch {

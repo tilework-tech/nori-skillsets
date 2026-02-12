@@ -64,7 +64,7 @@ The `--agent` global CLI option (default: "claude-code") determines which agent 
 
 **Managed Folder Utilities** (managedFolder.ts):
 - Agent-agnostic profile discovery extracted from the Agent interface
-- `listProfiles()`: Zero-arg function that scans `~/.nori/profiles/` for directories containing `nori.json`, supporting both flat profiles (e.g., `senior-swe`) and namespaced profiles (e.g., `myorg/my-profile`). Uses `getNoriProfilesDir()` internally. Returns a sorted array of profile names.
+- `listProfiles()`: Zero-arg function that scans `~/.nori/profiles/` for directories containing `nori.json`, supporting both flat profiles (e.g., `senior-swe`) and namespaced profiles (e.g., `myorg/my-profile`). Uses `getNoriProfilesDir()` internally. Returns a sorted array of profile names. Before checking each directory for `nori.json`, calls `ensureNoriJson()` from @/src/cli/features/claude-code/profiles/metadata.ts to auto-create the manifest for user-created skillsets that lack one (applies to both flat and nested org profile directories).
 - `MANIFEST_FILE`: Constant (`"nori.json"`) used by both this module and `claudeCodeAgent.switchProfile()` to identify valid profiles
 - Imported directly by CLI commands (`list`, `switch-profile`) rather than going through the Agent interface
 
@@ -85,7 +85,7 @@ The `--agent` global CLI option (default: "claude-code") determines which agent 
 
 The AgentRegistry auto-registers claude-code in its constructor.
 
-Profile discovery is handled by the standalone `listProfiles()` function (zero-arg) in @/src/cli/features/managedFolder.ts, not by the Agent interface. This function uses `getNoriProfilesDir()` to scan `~/.nori/profiles/` for valid profiles (directories containing `nori.json`). Profile switching remains on the Agent interface via `switchProfile()`. Since no built-in profiles are shipped with the package, profiles are obtained exclusively from the registry or created by users.
+Profile discovery is handled by the standalone `listProfiles()` function (zero-arg) in @/src/cli/features/managedFolder.ts, not by the Agent interface. This function uses `getNoriProfilesDir()` to scan `~/.nori/profiles/` for valid profiles (directories containing `nori.json`). Before checking each directory, it calls `ensureNoriJson()` to auto-create `nori.json` for user-created skillsets that look like profiles but lack the manifest. Profile switching remains on the Agent interface via `switchProfile()`. Since no built-in profiles are shipped with the package, profiles are obtained exclusively from the registry or created by users.
 
 Agent implementations manage their own internal paths (config directories, instruction file names, etc.) without exposing them through the public interface. Claude Code's path helpers live in @/src/cli/features/claude-code/paths.ts. The env.ts file re-exports these functions for backward compatibility.
 
