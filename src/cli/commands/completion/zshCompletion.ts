@@ -25,14 +25,14 @@ _nori_skillsets() {
     'search:Search for skillsets and skills in registry'
     'download:Download and install a skillset package'
     'install:Download, install, and activate a skillset'
-    'switch-skillset:Switch to a different skillset and reinstall'
-    'list-skillsets:List locally available skillsets'
+    'switch:Switch to a different skillset and reinstall'
+    'list:List locally available skillsets'
     'download-skill:Download and install a skill package'
     'external:Install skills from an external GitHub repository'
     'watch:Watch Claude Code sessions and save transcripts'
     'dir:Open the Nori profiles directory'
-    'fork-skillset:Fork an existing skillset to a new name'
-    'edit-skillset:Open a skillset folder in VS Code'
+    'fork:Fork an existing skillset to a new name'
+    'edit:Open a skillset folder in VS Code'
     'install-location:Display Nori installation directories'
     'factory-reset:Remove all configuration for a given agent'
     'completion:Generate shell completion script'
@@ -58,7 +58,7 @@ _nori_skillsets() {
             '--no-localhost[Use hosted callback page]' \\
             \$global_opts
           ;;
-        logout|init|list-skillsets|dir|factory-reset|help)
+        logout|init|list|dir|factory-reset|help)
           _arguments \$global_opts
           ;;
         fork-skillset)
@@ -67,7 +67,7 @@ _nori_skillsets() {
             '2:new-skillset:' \\
             \$global_opts
           ;;
-        edit-skillset)
+        edit)
           _arguments \\
             '1:name:' \\
             '(-a --agent)'{-a,--agent}'[AI agent to get skillset for]:name:' \\
@@ -91,14 +91,14 @@ _nori_skillsets() {
             '--user[Install to user home directory]' \\
             \$global_opts
           ;;
-        switch-skillset)
+        switch)
           _arguments \\
             '1:name:->skillset_name' \\
             '(-a --agent)'{-a,--agent}'[AI agent to switch skillset for]:name:' \\
             \$global_opts
           if [[ \$state == skillset_name ]]; then
             local -a skillsets
-            skillsets=(\${(f)"$(nori-skillsets list-skillsets 2>/dev/null)"})
+            skillsets=(\${(f)"$(nori-skillsets list 2>/dev/null)"})
             compadd -a skillsets
           fi
           ;;

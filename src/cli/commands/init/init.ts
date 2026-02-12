@@ -90,7 +90,7 @@ const displayProfilePersistenceWarning = async (args: {
       "to ~/.claude/skills/, ~/.claude/CLAUDE.md, or other configuration",
   });
   info({
-    message: "files will be OVERWRITTEN the next time you run switch-skillset.",
+    message: "files will be OVERWRITTEN the next time you run switch.",
   });
   newline();
   info({ message: "To persist your customizations across skillset switches:" });

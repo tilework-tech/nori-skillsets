@@ -29,14 +29,14 @@ const VISIBLE_SUBCOMMANDS = [
   "search",
   "download",
   "install",
-  "switch-skillset",
-  "list-skillsets",
+  "switch",
+  "list",
   "download-skill",
   "external",
   "watch",
   "dir",
-  "fork-skillset",
-  "edit-skillset",
+  "fork",
+  "edit",
   "install-location",
   "factory-reset",
   "completion",
@@ -44,15 +44,15 @@ const VISIBLE_SUBCOMMANDS = [
 ];
 
 const HIDDEN_ALIASES = [
+  "switch-skillset",
   "switch-skillsets",
-  "switch",
   "use",
+  "list-skillsets",
   "list-skillset",
-  "list",
   "ls",
-  "fork",
+  "fork-skillset",
   "fork-skillsets",
-  "edit",
+  "edit-skillset",
   "edit-skillsets",
   "location",
 ];
@@ -127,10 +127,10 @@ describe("generateBashCompletion", () => {
     expect(result).toContain("--ref");
   });
 
-  it("should contain edit-skillset-specific flags", () => {
+  it("should contain edit-specific flags", () => {
     const result = generateBashCompletion();
-    // edit-skillset should offer --agent flag
-    expect(result).toMatch(/edit-skillset[\s\S]*--agent/);
+    // edit should offer --agent flag
+    expect(result).toMatch(/edit[\s\S]*--agent/);
   });
 
   it("should contain install-location-specific flags", () => {
@@ -139,13 +139,11 @@ describe("generateBashCompletion", () => {
     expect(result).toContain("--installation-managed");
   });
 
-  it("should reference list-skillsets for dynamic switch-skillset completion", () => {
+  it("should reference list for dynamic switch completion", () => {
     const result = generateBashCompletion();
-    expect(result).toContain("list-skillsets");
-    // Should be used in the switch-skillset case for dynamic completion
-    expect(result).toMatch(
-      /switch-skillset.*list-skillsets|list-skillsets.*switch-skillset/s,
-    );
+    expect(result).toContain("list");
+    // Should be used in the switch case for dynamic completion
+    expect(result).toMatch(/switch.*list|list.*switch/s);
   });
 
   it("should include stop subcommand for watch", () => {
@@ -234,9 +232,9 @@ describe("generateZshCompletion", () => {
     expect(result).toContain("--installation-managed");
   });
 
-  it("should reference list-skillsets for dynamic switch-skillset completion", () => {
+  it("should reference list for dynamic switch completion", () => {
     const result = generateZshCompletion();
-    expect(result).toContain("list-skillsets");
+    expect(result).toContain("list");
   });
 
   it("should include stop subcommand for watch", () => {

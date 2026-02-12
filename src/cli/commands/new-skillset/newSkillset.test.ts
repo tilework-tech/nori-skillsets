@@ -123,7 +123,7 @@ describe("newSkillsetMain", () => {
 
     // Should print switch instruction
     expect(mockInfo).toHaveBeenCalledWith({
-      message: expect.stringContaining("switch-skillset my-skillset"),
+      message: expect.stringContaining("switch my-skillset"),
     });
 
     // Should print edit location

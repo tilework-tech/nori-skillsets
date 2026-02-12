@@ -30,7 +30,7 @@ const NORI_SKILLSETS_COMMANDS: CommandNames = {
   update: "update",
   upload: "upload",
   uploadSkill: "upload-skill",
-  switchProfile: "switch-skillset",
+  switchProfile: "switch",
 };
 
 /**
