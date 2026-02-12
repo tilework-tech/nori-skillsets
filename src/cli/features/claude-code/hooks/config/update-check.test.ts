@@ -184,6 +184,29 @@ describe("update-check hook", () => {
     expect(consoleOutput).toHaveLength(0);
   });
 
+  it("should output nothing when current version is -next and latest is same base version", async () => {
+    const cachePath = path.join(
+      tempDir,
+      ".nori",
+      "profiles",
+      "nori-skillsets-version.json",
+    );
+    fs.writeFileSync(
+      cachePath,
+      JSON.stringify({
+        latest_version: "0.6.3",
+        last_checked_at: new Date().toISOString(),
+      }),
+    );
+
+    const configPath = path.join(tempDir, ".nori-config.json");
+    fs.writeFileSync(configPath, JSON.stringify({ version: "0.6.3-next.1" }));
+
+    await main({ installDir: tempDir });
+
+    expect(consoleOutput).toHaveLength(0);
+  });
+
   it("should not throw on any error", async () => {
     // Corrupt cache
     const cachePath = path.join(

@@ -118,7 +118,16 @@ export const getAvailableUpdate = async (args: {
     return null;
   }
 
-  if (!semver.gt(latestVersion, currentVersion)) {
+  // Treat -next prerelease versions as at least equal to their base version.
+  // In semver, 0.6.3-next.1 < 0.6.3, but -next means "subsequent to the
+  // release" so users on -next should not be prompted to downgrade.
+  const prerelease = semver.prerelease(currentVersion);
+  const effectiveCurrentVersion =
+    prerelease != null && prerelease[0] === "next"
+      ? `${semver.major(currentVersion)}.${semver.minor(currentVersion)}.${semver.patch(currentVersion)}`
+      : currentVersion;
+
+  if (!semver.gt(latestVersion, effectiveCurrentVersion)) {
     return null;
   }
 
