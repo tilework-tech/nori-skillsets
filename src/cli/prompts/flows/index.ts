@@ -24,6 +24,8 @@ export {
   type InitFlowResult,
 } from "./init.js";
 
+export { newSkillsetFlow, type NewSkillsetFlowResult } from "./newSkillset.js";
+
 export {
   uploadFlow,
   type UploadFlowCallbacks,

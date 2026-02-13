@@ -99,18 +99,16 @@ export const registerNoriSkillsetsNewCommand = (args: {
 
   // Primary command: new
   program
-    .command("new <name>")
+    .command("new")
     .description("Create a new empty skillset")
-    .action(async (name: string) => {
-      await newSkillsetMain({ name });
+    .action(async () => {
+      await newSkillsetMain();
     });
 
   // Hidden alias: new-skillset
-  program
-    .command("new-skillset <name>", { hidden: true })
-    .action(async (name: string) => {
-      await newSkillsetMain({ name });
-    });
+  program.command("new-skillset", { hidden: true }).action(async () => {
+    await newSkillsetMain();
+  });
 };
 
 /**

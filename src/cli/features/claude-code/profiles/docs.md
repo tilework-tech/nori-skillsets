@@ -30,13 +30,19 @@ Markdown files use template placeholders like `{{skills_dir}}`, `{{profiles_dir}
   "name": "profile-name",
   "version": "1.0.0",
   "description": "Human-readable description",
+  "license": "MIT",
+  "keywords": ["cli", "automation", "skills"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/user/repo"
+  },
   "dependencies": {
     "skills": { "skill-name": "*" }
   }
 }
 ```
 
-The `readProfileMetadata()` function reads `nori.json` first, falling back to legacy `profile.json` for backward compatibility with older profiles. The `writeProfileMetadata()` function writes a `ProfileMetadata` object to `nori.json`. The `addSkillToNoriJson()` function reads an existing `nori.json` (or auto-creates one using the profile directory basename and version `"1.0.0"`), adds/updates a skill in `dependencies.skills`, and writes it back.
+All fields except `name` are optional. The `license` field follows SPDX license identifiers (e.g., "MIT", "Apache-2.0"). The `keywords` field is an array of strings for registry discoverability. The `repository` field follows package.json conventions with `type` and `url` properties.
 
 The `ensureNoriJson()` function is a backwards-compatibility shim for user-created skillsets that lack a `nori.json` manifest. It checks whether the directory already has `nori.json` (no-op if so), whether the directory exists (no-op if not), and whether the directory looks like a profile via the private `looksLikeProfile()` helper. If all conditions pass, it writes a minimal `nori.json` with `{ name: <folder-basename>, version: "0.0.1" }`. The `looksLikeProfile()` heuristic returns true if the directory contains a `CLAUDE.md` file OR both `skills/` and `subagents/` subdirectories -- requiring both prevents org namespace directories (which may contain only `skills/`) from being incorrectly marked as profiles. `ensureNoriJson()` is called at every entry point that validates profile existence: `listProfiles()` in @/src/cli/features/managedFolder.ts (for both flat and nested org profiles), `switchProfile()` in @/src/cli/features/claude-code/agent.ts, `forkSkillsetMain()` in @/src/cli/commands/fork-skillset/forkSkillset.ts, `skillDownloadMain()` in @/src/cli/commands/skill-download/skillDownload.ts, and `externalMain()` in @/src/cli/commands/external/external.ts.
 

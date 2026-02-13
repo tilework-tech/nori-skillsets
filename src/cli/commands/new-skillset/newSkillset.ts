@@ -10,7 +10,11 @@ import * as path from "path";
 import { log, note, outro } from "@clack/prompts";
 
 import { getNoriProfilesDir } from "@/cli/features/claude-code/paths.js";
-import { writeProfileMetadata } from "@/cli/features/claude-code/profiles/metadata.js";
+import {
+  writeProfileMetadata,
+  type ProfileMetadata,
+} from "@/cli/features/claude-code/profiles/metadata.js";
+import { newSkillsetFlow } from "@/cli/prompts/flows/newSkillset.js";
 
 /**
  * Create the directory and nori.json for a new skillset.
@@ -47,10 +51,17 @@ export const createEmptySkillset = async (args: {
   });
 };
 
-export const newSkillsetMain = async (args: {
-  name: string;
-}): Promise<void> => {
-  const { name } = args;
+export const newSkillsetMain = async (): Promise<void> => {
+  // Collect metadata from user
+  const flowResult = await newSkillsetFlow();
+
+  if (flowResult == null) {
+    // User cancelled
+    return;
+  }
+
+  const { name, description, license, keywords, version, repository } =
+    flowResult;
   const profilesDir = getNoriProfilesDir();
   const destPath = path.join(profilesDir, name);
 
@@ -64,7 +75,43 @@ export const newSkillsetMain = async (args: {
     // Expected — destination should not exist
   }
 
-  await createEmptySkillset({ destPath, name });
+  // Build metadata object
+  const metadata: ProfileMetadata = {
+    name: path.basename(name),
+    version: version ?? "1.0.0",
+  };
+
+  if (description != null) {
+    metadata.description = description;
+  }
+
+  if (license != null) {
+    metadata.license = license;
+  }
+
+  if (keywords != null) {
+    metadata.keywords = keywords;
+  }
+
+  if (repository != null) {
+    metadata.repository = {
+      type: "git",
+      url: repository,
+    };
+  }
+
+  // Create parent directory if needed (for namespaced profiles like org/name)
+  const parentDir = path.dirname(destPath);
+  await fs.mkdir(parentDir, { recursive: true });
+
+  // Create the skillset directory
+  await fs.mkdir(destPath);
+
+  // Write nori.json
+  await writeProfileMetadata({
+    profileDir: destPath,
+    metadata,
+  });
 
   const nextSteps = [
     `To switch:  nori-skillsets switch ${name}`,
