@@ -4,6 +4,7 @@
  */
 
 import * as fs from "fs/promises";
+import * as os from "os";
 import * as path from "path";
 
 import * as semver from "semver";
@@ -204,8 +205,8 @@ export const registryUploadMain = async (args: {
     }
   }
 
-  // Load config
-  const config = await loadConfig();
+  // Load config - use os.homedir() since registry upload needs global auth
+  const config = await loadConfig({ startDir: os.homedir() });
   if (config == null) {
     error({ message: `Could not load Nori configuration.` });
     return { success: false };

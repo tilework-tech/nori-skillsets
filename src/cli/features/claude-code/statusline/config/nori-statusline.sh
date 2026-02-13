@@ -58,9 +58,10 @@ if [ -n "$CWD_FROM_JSON" ] && [ -d "$CWD_FROM_JSON" ]; then
     INSTALL_DIR=$(find_install_dir "$CWD_FROM_JSON")
 fi
 
-# If we still don't have an install dir, use CWD as fallback
+# If we still don't have an install dir, fall back to HOME
+# This ensures the statusline reads ~/.nori-config.json when no project-local config exists
 if [ -z "$INSTALL_DIR" ]; then
-    INSTALL_DIR="${CWD_FROM_JSON:-$(pwd)}"
+    INSTALL_DIR="$HOME"
 fi
 
 # === CONFIG FILE LOCATION ===

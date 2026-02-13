@@ -3,6 +3,8 @@
  * Manages the .nori-config.json file lifecycle
  */
 
+import * as os from "os";
+
 import { signInWithEmailAndPassword, AuthErrorCodes } from "firebase/auth";
 
 import { getConfigPath, loadConfig, saveConfig } from "@/cli/config.js";
@@ -23,7 +25,8 @@ const installConfig = async (args: { config: Config }): Promise<void> => {
   const { config } = args;
 
   // Load existing config to preserve user preferences (sendSessionTranscript, autoupdate)
-  const existingConfig = await loadConfig();
+  // Use os.homedir() since this writes to global config
+  const existingConfig = await loadConfig({ startDir: os.homedir() });
 
   // Extract auth credentials from config
   const username = config.auth?.username ?? null;

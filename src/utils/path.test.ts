@@ -16,19 +16,19 @@ import {
 
 describe("normalizeInstallDir", () => {
   describe("default behavior", () => {
-    it("should return process.cwd() when no installDir provided", () => {
+    it("should return os.homedir() when no installDir provided", () => {
       const result = normalizeInstallDir({});
-      expect(result).toBe(process.cwd());
+      expect(result).toBe(os.homedir());
     });
 
-    it("should return process.cwd() when installDir is null", () => {
+    it("should return os.homedir() when installDir is null", () => {
       const result = normalizeInstallDir({ installDir: null });
-      expect(result).toBe(process.cwd());
+      expect(result).toBe(os.homedir());
     });
 
-    it("should return process.cwd() when installDir is undefined", () => {
+    it("should return os.homedir() when installDir is undefined", () => {
       const result = normalizeInstallDir({ installDir: undefined });
-      expect(result).toBe(process.cwd());
+      expect(result).toBe(os.homedir());
     });
   });
 
@@ -62,9 +62,9 @@ describe("normalizeInstallDir", () => {
   });
 
   describe("edge cases", () => {
-    it("should handle empty string by using cwd", () => {
+    it("should handle empty string by using home directory", () => {
       const result = normalizeInstallDir({ installDir: "" });
-      expect(result).toBe(process.cwd());
+      expect(result).toBe(os.homedir());
     });
 
     it("should handle paths with spaces", () => {

@@ -8,6 +8,7 @@
  */
 
 import { completionMain } from "@/cli/commands/completion/completion.js";
+import { currentSkillsetMain } from "@/cli/commands/current-skillset/currentSkillset.js";
 import { dirMain } from "@/cli/commands/dir/dir.js";
 import { editSkillsetMain } from "@/cli/commands/edit-skillset/editSkillset.js";
 import { externalMain } from "@/cli/commands/external/external.js";
@@ -488,6 +489,40 @@ export const registerNoriSkillsetsListSkillsetsCommand = (args: {
       agent: globalOpts.agent || null,
     });
   });
+};
+
+/**
+ * Register the 'current' command for nori-skillsets CLI
+ * @param args - Configuration arguments
+ * @param args.program - Commander program instance
+ */
+export const registerNoriSkillsetsCurrentCommand = (args: {
+  program: Command;
+}): void => {
+  const { program } = args;
+
+  // Primary command: current (shorthand, canonical)
+  program
+    .command("current")
+    .description("Show the currently active skillset")
+    .option("-a, --agent <name>", "AI agent to get skillset for")
+    .action(async (options: { agent?: string }) => {
+      const globalOpts = program.opts();
+      await currentSkillsetMain({
+        agent: options.agent || globalOpts.agent || null,
+      });
+    });
+
+  // Hidden alias: current-skillset (long form)
+  program
+    .command("current-skillset", { hidden: true })
+    .option("-a, --agent <name>", "AI agent to get skillset for")
+    .action(async (options: { agent?: string }) => {
+      const globalOpts = program.opts();
+      await currentSkillsetMain({
+        agent: options.agent || globalOpts.agent || null,
+      });
+    });
 };
 
 /**

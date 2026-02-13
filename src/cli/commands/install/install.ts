@@ -247,7 +247,8 @@ export const noninteractive = async (args?: {
   });
 
   // Step 2: Resolve profile and save to config
-  const existingConfig = await loadConfig();
+  // Use os.homedir() since install is home-directory-based
+  const existingConfig = await loadConfig({ startDir: os.homedir() });
   if (existingConfig == null) {
     error({
       message:
@@ -296,7 +297,7 @@ export const noninteractive = async (args?: {
   });
 
   // Reload config after saving
-  const config = await loadConfig();
+  const config = await loadConfig({ startDir: os.homedir() });
   if (config == null) {
     error({ message: "Failed to load configuration after setup." });
     process.exit(1);
