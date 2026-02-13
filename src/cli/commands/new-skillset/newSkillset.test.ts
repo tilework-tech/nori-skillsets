@@ -257,8 +257,8 @@ describe("newSkillsetMain", () => {
     const files = await fs.readdir(profilesDir);
     expect(files).toEqual([]);
 
-    // Should not print success message
-    expect(mockSuccess).not.toHaveBeenCalled();
+    // Should not print outro message
+    expect(mockOutro).not.toHaveBeenCalled();
   });
 
   it("should write repository as object with type and url", async () => {
