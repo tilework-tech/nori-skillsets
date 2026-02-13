@@ -60,6 +60,7 @@ src/cli/
     dir/                 # Open Nori profiles directory in file explorer
     edit-skillset/       # Open skillset profile folder in VS Code
     new-skillset/        # Create a new empty skillset
+    current-skillset/    # Display currently active skillset
 ```
 
 **CLI Commands:**
@@ -74,6 +75,7 @@ src/cli/
 | `external` | commands/external/external.ts | Install skills from an external GitHub repository |
 | `switch` | commands/switch-profile/profiles.ts | Switch the active skillset |
 | `list` | commands/list-skillsets/ | List available skillsets |
+| `current` | commands/current-skillset/currentSkillset.ts | Display the currently active skillset |
 | `login` | commands/login/ | Authenticate with Nori backend |
 | `logout` | commands/logout/ | Remove authentication credentials |
 | `watch` | commands/watch/ | Monitor Claude Code sessions and save transcripts |

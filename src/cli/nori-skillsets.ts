@@ -10,6 +10,7 @@ import { Command } from "commander";
 
 import {
   registerNoriSkillsetsCompletionCommand,
+  registerNoriSkillsetsCurrentCommand,
   registerNoriSkillsetsDirCommand,
   registerNoriSkillsetsDownloadCommand,
   registerNoriSkillsetsDownloadSkillCommand,
@@ -104,6 +105,7 @@ Examples:
   $ nori-skillsets install my-skillset --user
   $ nori-skillsets switch senior-swe
   $ nori-skillsets list
+  $ nori-skillsets current
   $ nori-skillsets download-skill my-skill
   $ nori-skillsets download-skill my-skill@1.0.0
   $ nori-skillsets download-skill my-skill --list-versions
@@ -135,6 +137,7 @@ registerNoriSkillsetsUploadCommand({ program });
 registerNoriSkillsetsInstallCommand({ program });
 registerNoriSkillsetsSwitchSkillsetCommand({ program });
 registerNoriSkillsetsListSkillsetsCommand({ program });
+registerNoriSkillsetsCurrentCommand({ program });
 registerNoriSkillsetsDownloadSkillCommand({ program });
 registerNoriSkillsetsExternalCommand({ program });
 registerNoriSkillsetsWatchCommand({ program });
