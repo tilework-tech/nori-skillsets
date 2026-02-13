@@ -54,17 +54,19 @@ consistent visual style.
 
 ### Output Commands (display-focused)
 
-- [ ] `list-skillsets/listSkillsets.ts`
-  - Current: `error()` for failures
-  - Needs: `log.error()`, consider `note()` for skillset list display
+- [x] `list-skillsets/listSkillsets.ts`
+  - Uses `log.error()` from @clack/prompts
+
+- [ ] `current-skillset/currentSkillset.ts`
+  - Current: `error()`, `raw()` from logger
+  - Needs: `log.error()`, direct stdout for scripting output
 
 - [ ] `install-location/installLocation.ts`
   - Current: `info()`, `success()`, `error()` scattered throughout
   - Needs: `note()` for installation info, `log.*` for messages
 
-- [ ] `dir/dir.ts`
-  - Current: `info()`, `success()`
-  - Needs: `note()` or `log.info()` for directory path
+- [x] `dir/dir.ts`
+  - Uses `log.success()`, `log.step()`, `outro()` from @clack/prompts
 
 - [ ] `edit-skillset/editSkillset.ts`
   - Current: `info()`, `success()`, `error()`
@@ -99,25 +101,21 @@ consistent visual style.
 
 ### Create/Modify Commands
 
-- [ ] `fork-skillset/forkSkillset.ts`
-  - Current: `success()`, `info()`, `error()`
-  - Needs: `spinner()` for copy operation, `note()` for result
+- [x] `fork-skillset/forkSkillset.ts`
+  - Uses `log.error()`, `note()`, `outro()` from @clack/prompts
 
-- [ ] `new-skillset/newSkillset.ts`
-  - Current: `success()`, `info()`, `error()`
-  - Needs: `spinner()` for creation, `note()` for result
+- [x] `new-skillset/newSkillset.ts`
+  - Uses `log.error()`, `note()`, `outro()` from @clack/prompts
 
 ### Auth Commands
 
-- [ ] `logout/logout.ts`
-  - Current: `info()`, `success()`
-  - Needs: `log.info()`, `log.success()` (simple, low priority)
+- [x] `logout/logout.ts`
+  - Uses `log.info()`, `log.success()` from @clack/prompts
 
 ### Utility Commands
 
-- [ ] `completion/completion.ts`
-  - Current: `error()` only
-  - Needs: `log.error()` (minimal change)
+- [x] `completion/completion.ts`
+  - Uses `log.error()` from @clack/prompts
 
 ---
 
