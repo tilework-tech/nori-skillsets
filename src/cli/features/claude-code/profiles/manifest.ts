@@ -54,8 +54,18 @@ export const MANAGED_DIRS: ReadonlyArray<string> = [
   "agents",
 ];
 
+/**
+ * Files to exclude from manifest tracking regardless of location.
+ * These are metadata files that should not trigger "local changes detected" warnings.
+ */
+export const EXCLUDED_FILES: ReadonlyArray<string> = [
+  ".nori-version",
+  "nori.json",
+];
+
 const managedFileSet = new Set(MANAGED_FILES);
 const managedDirSet = new Set(MANAGED_DIRS);
+const excludedFileSet = new Set(EXCLUDED_FILES);
 
 /**
  * Check if a relative path is within the Nori-managed whitelist
@@ -144,6 +154,10 @@ const collectFiles = async (args: {
       files.push(...subFiles);
     } else if (entry.isFile()) {
       if (isTopLevel && !managedFileSet.has(entry.name)) {
+        continue;
+      }
+      // Skip excluded files (like .nori-version and nori.json)
+      if (excludedFileSet.has(entry.name)) {
         continue;
       }
       files.push(relativePath);
