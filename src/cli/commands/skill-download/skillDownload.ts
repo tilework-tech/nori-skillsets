@@ -31,6 +31,7 @@ import {
 import { addSkillDependency } from "@/cli/features/claude-code/profiles/skills/resolver.js";
 import { substituteTemplatePaths } from "@/cli/features/claude-code/template.js";
 import { error, success, info, newline, raw, warn } from "@/cli/logger.js";
+import { skillDownloadFlow } from "@/cli/prompts/flows/index.js";
 import { getInstallDirs } from "@/utils/path.js";
 import {
   parseNamespacedPackage,
@@ -39,6 +40,10 @@ import {
 
 import type { Packument } from "@/api/registrar.js";
 import type { Config } from "@/cli/config.js";
+import type {
+  SkillSearchResult,
+  SkillDownloadActionResult,
+} from "@/cli/prompts/flows/index.js";
 import type { Command } from "commander";
 
 /**
@@ -338,6 +343,7 @@ const formatMultipleSkillsError = (args: {
  * @param args.listVersions - If true, list available versions instead of downloading
  * @param args.skillset - Optional skillset name to add skill to (defaults to active profile)
  * @param args.cliName - CLI name for user-facing messages (defaults to nori-skillsets)
+ * @param args.experimentalUi - If true, use the clack prompts flow UI
  */
 export const skillDownloadMain = async (args: {
   skillSpec: string;
@@ -347,6 +353,7 @@ export const skillDownloadMain = async (args: {
   listVersions?: boolean | null;
   skillset?: string | null;
   cliName?: CliName | null;
+  experimentalUi?: boolean | null;
 }): Promise<void> => {
   const {
     skillSpec,
@@ -355,6 +362,7 @@ export const skillDownloadMain = async (args: {
     listVersions,
     skillset,
     cliName,
+    experimentalUi,
   } = args;
   const cwd = args.cwd ?? process.cwd();
   const commandNames = getCommandNames({ cliName });
@@ -464,6 +472,354 @@ export const skillDownloadMain = async (args: {
     existingVersionInfo = await readVersionInfo({ skillDir: targetDir });
   } catch {
     // Directory doesn't exist - continue
+  }
+
+  if (experimentalUi) {
+    // Closure variables shared between onSearch and onDownload callbacks
+    let foundRegistry: RegistrySearchResult | null = null;
+    let resolvedTargetVersion = "";
+
+    await skillDownloadFlow({
+      skillDisplayName,
+      callbacks: {
+        onSearch: async (): Promise<SkillSearchResult> => {
+          // Inline search logic - mirrors the legacy path below
+          let flowSearchResults: Array<RegistrySearchResult>;
+
+          const hasUnifiedAuth =
+            config?.auth != null &&
+            config.auth.refreshToken != null &&
+            config.auth.organizations != null;
+
+          if (registryUrl != null) {
+            if (registryUrl !== REGISTRAR_URL) {
+              const registryAuth =
+                config != null
+                  ? getRegistryAuth({ config, registryUrl })
+                  : null;
+              if (registryAuth == null) {
+                return {
+                  status: "error",
+                  error: `No authentication configured for registry: ${registryUrl}`,
+                  hint: "Add registry credentials to your .nori-config.json file.",
+                };
+              }
+            }
+
+            const searchResult = await searchSpecificRegistry({
+              skillName,
+              registryUrl,
+              config,
+            });
+            flowSearchResults = searchResult != null ? [searchResult] : [];
+          } else if (hasUnifiedAuth) {
+            const targetRegistryUrl = buildOrganizationRegistryUrl({ orgId });
+            const userOrgs = config.auth!.organizations!;
+
+            if (!userOrgs.includes(orgId)) {
+              return {
+                status: "error",
+                error: `You do not have access to organization "${orgId}".`,
+                hint: `Your available organizations: ${userOrgs.length > 0 ? userOrgs.join(", ") : "(none)"}`,
+              };
+            }
+
+            const registryAuth = {
+              registryUrl: targetRegistryUrl,
+              username: config.auth!.username,
+              refreshToken: config.auth!.refreshToken,
+            };
+
+            try {
+              const authToken = await getRegistryAuthToken({ registryAuth });
+              const packument = await registrarApi.getSkillPackument({
+                skillName,
+                registryUrl: targetRegistryUrl,
+                authToken,
+              });
+              flowSearchResults = [
+                { registryUrl: targetRegistryUrl, packument, authToken },
+              ];
+            } catch {
+              flowSearchResults = [];
+            }
+          } else if (orgId === "public") {
+            try {
+              const packument = await registrarApi.getSkillPackument({
+                skillName,
+                registryUrl: REGISTRAR_URL,
+              });
+              flowSearchResults = [{ registryUrl: REGISTRAR_URL, packument }];
+            } catch {
+              flowSearchResults = [];
+            }
+          } else {
+            return {
+              status: "error",
+              error: `Skill "${orgId}/${skillName}" not found.`,
+              hint: `To download from organization "${orgId}", log in with:\n  nori-skillsets login`,
+            };
+          }
+
+          if (flowSearchResults.length === 0) {
+            return {
+              status: "error",
+              error: `Skill "${skillDisplayName}" not found in any registry.`,
+            };
+          }
+
+          if (flowSearchResults.length > 1) {
+            return {
+              status: "error",
+              error: formatMultipleSkillsError({
+                skillName,
+                results: flowSearchResults,
+                cliName,
+              }),
+            };
+          }
+
+          foundRegistry = flowSearchResults[0];
+
+          if (listVersions) {
+            return {
+              status: "list-versions",
+              formattedVersionList: formatVersionList({
+                skillName,
+                packument: foundRegistry.packument,
+                registryUrl: foundRegistry.registryUrl,
+                cliName,
+              }),
+              versionCount: Object.keys(foundRegistry.packument.versions)
+                .length,
+            };
+          }
+
+          resolvedTargetVersion =
+            version ?? foundRegistry.packument["dist-tags"].latest;
+
+          if (skillExists && existingVersionInfo != null) {
+            const installedVersion = existingVersionInfo.version;
+            const installedValid = semver.valid(installedVersion) != null;
+            const targetValid = semver.valid(resolvedTargetVersion) != null;
+
+            if (installedValid && targetValid) {
+              if (semver.gte(installedVersion, resolvedTargetVersion)) {
+                return {
+                  status: "already-current",
+                  version: installedVersion,
+                };
+              }
+              return {
+                status: "ready",
+                targetVersion: resolvedTargetVersion,
+                isUpdate: true,
+                currentVersion: installedVersion,
+              };
+            } else if (installedVersion === resolvedTargetVersion) {
+              return {
+                status: "already-current",
+                version: installedVersion,
+              };
+            }
+          }
+
+          if (skillExists && existingVersionInfo == null) {
+            return {
+              status: "error",
+              error: `Skill "${skillDisplayName}" already exists at:\n${targetDir}\n\nThis skill has no version information (.nori-version file).`,
+              hint: `To reinstall:\n  rm -rf "${targetDir}"\n  ${cliPrefix} ${commandNames.downloadSkill} ${skillDisplayName}`,
+            };
+          }
+
+          return {
+            status: "ready",
+            targetVersion: resolvedTargetVersion,
+            isUpdate: false,
+          };
+        },
+        onDownload: async (): Promise<SkillDownloadActionResult> => {
+          const selectedRegistry = foundRegistry!;
+          const warnings: Array<string> = [];
+
+          try {
+            const tarballData = await registrarApi.downloadSkillTarball({
+              skillName,
+              version: version ?? undefined,
+              registryUrl: selectedRegistry.registryUrl,
+              authToken: selectedRegistry.authToken ?? undefined,
+            });
+
+            if (skillExists) {
+              const tempDir = path.join(
+                skillsDir,
+                `.${skillName}-download-temp`,
+              );
+              const backupDir = path.join(skillsDir, `.${skillName}-backup`);
+              await fs.mkdir(tempDir, { recursive: true });
+
+              try {
+                await extractTarball({ tarballData, targetDir: tempDir });
+              } catch (extractErr) {
+                await fs.rm(tempDir, { recursive: true, force: true });
+                throw extractErr;
+              }
+
+              try {
+                await fs.rename(targetDir, backupDir);
+                await fs.rename(tempDir, targetDir);
+
+                const backupVersionFile = path.join(backupDir, ".nori-version");
+                try {
+                  await fs.access(backupVersionFile);
+                  await fs.copyFile(
+                    backupVersionFile,
+                    path.join(targetDir, ".nori-version"),
+                  );
+                } catch {
+                  // No .nori-version in backup
+                }
+
+                await fs.rm(backupDir, { recursive: true, force: true });
+              } catch (swapErr) {
+                try {
+                  await fs.access(backupDir);
+                  await fs
+                    .rm(targetDir, { recursive: true, force: true })
+                    .catch(() => {
+                      // Target may not exist
+                    });
+                  await fs.rename(backupDir, targetDir);
+                } catch {
+                  // Restore failed
+                }
+                await fs
+                  .rm(tempDir, { recursive: true, force: true })
+                  .catch(() => {
+                    // Temp may not exist
+                  });
+                throw swapErr;
+              }
+            } else {
+              await fs.mkdir(targetDir, { recursive: true });
+
+              try {
+                await extractTarball({ tarballData, targetDir });
+              } catch (extractErr) {
+                await fs.rm(targetDir, { recursive: true, force: true });
+                throw extractErr;
+              }
+            }
+
+            // Write .nori-version file
+            const versionData = JSON.stringify(
+              {
+                version: resolvedTargetVersion,
+                registryUrl: selectedRegistry.registryUrl,
+                orgId,
+              },
+              null,
+              2,
+            );
+            await fs.writeFile(
+              path.join(targetDir, ".nori-version"),
+              versionData,
+            );
+
+            // Persist skill to profile's skills directory
+            if (targetSkillset != null) {
+              const profileSkillDir = path.join(
+                profilesDir,
+                targetSkillset,
+                "skills",
+                skillName,
+              );
+              try {
+                await fs.rm(profileSkillDir, {
+                  recursive: true,
+                  force: true,
+                });
+                await copyDirRecursive({
+                  src: targetDir,
+                  dest: profileSkillDir,
+                });
+              } catch (profileCopyErr) {
+                const msg =
+                  profileCopyErr instanceof Error
+                    ? profileCopyErr.message
+                    : String(profileCopyErr);
+                warnings.push(
+                  `Warning: Could not persist skill to profile: ${msg}`,
+                );
+              }
+            }
+
+            // Apply template substitution
+            const claudeDir = path.join(targetInstallDir, ".claude");
+            await applyTemplateSubstitutionToDir({
+              dir: targetDir,
+              installDir: claudeDir,
+            });
+
+            // Update skillset manifest
+            let profileUpdateMessage: string | null = null;
+            if (targetSkillset != null) {
+              try {
+                await addSkillDependency({
+                  profileDir: path.join(profilesDir, targetSkillset),
+                  skillName,
+                  version: "*",
+                });
+                profileUpdateMessage = `Added "${skillDisplayName}" to ${targetSkillset} skillset manifest`;
+              } catch (manifestErr) {
+                const msg =
+                  manifestErr instanceof Error
+                    ? manifestErr.message
+                    : String(manifestErr);
+                warnings.push(
+                  `Warning: Could not update skillset manifest: ${msg}`,
+                );
+              }
+            }
+
+            // Update nori.json
+            if (targetSkillset != null) {
+              try {
+                await addSkillToNoriJson({
+                  profileDir: path.join(profilesDir, targetSkillset),
+                  skillName,
+                  version: "*",
+                });
+              } catch (noriJsonErr) {
+                const msg =
+                  noriJsonErr instanceof Error
+                    ? noriJsonErr.message
+                    : String(noriJsonErr);
+                warnings.push(`Warning: Could not update nori.json: ${msg}`);
+              }
+            }
+
+            return {
+              success: true,
+              version: resolvedTargetVersion,
+              isUpdate: skillExists,
+              installedTo: targetDir,
+              skillDisplayName,
+              profileUpdateMessage,
+              warnings,
+            };
+          } catch (err) {
+            const errorMessage =
+              err instanceof Error ? err.message : String(err);
+            return {
+              success: false,
+              error: `Failed to download skill "${skillDisplayName}": ${errorMessage}`,
+            };
+          }
+        },
+      },
+    });
+    return;
   }
 
   // Search for the skill

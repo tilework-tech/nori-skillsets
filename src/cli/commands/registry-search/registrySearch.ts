@@ -20,6 +20,7 @@ import {
 } from "@/cli/commands/cliCommandNames.js";
 import { loadConfig } from "@/cli/config.js";
 import { error, info, newline, raw } from "@/cli/logger.js";
+import { registrySearchFlow } from "@/cli/prompts/flows/index.js";
 import { getInstallDirs } from "@/utils/path.js";
 import {
   extractOrgId,
@@ -28,6 +29,7 @@ import {
 } from "@/utils/url.js";
 
 import type { RegistryAuth } from "@/cli/config.js";
+import type { SearchFlowResult } from "@/cli/prompts/flows/index.js";
 import type { Command } from "commander";
 
 /**
@@ -342,18 +344,169 @@ const buildDownloadHints = (args: {
 };
 
 /**
+ * Perform the actual search across registries and return a flow-compatible result
+ * @param args - The search parameters
+ * @param args.query - The search query
+ * @param args.config - The loaded Nori config
+ * @param args.cliName - CLI name for command hints
+ *
+ * @returns Search result for the flow
+ */
+const performSearch = async (args: {
+  query: string;
+  config: Awaited<ReturnType<typeof loadConfig>>;
+  cliName?: CliName | null;
+}): Promise<SearchFlowResult> => {
+  const { query, config, cliName } = args;
+
+  // Collect results from all registries
+  const results: Array<RegistrySearchResult> = [];
+
+  // Check for unified auth with organizations (new multi-org flow)
+  const hasUnifiedAuthWithOrgs =
+    config?.auth != null &&
+    config.auth.refreshToken != null &&
+    config.auth.organizations != null;
+
+  if (hasUnifiedAuthWithOrgs) {
+    const userOrgs = config.auth!.organizations!;
+    const orgSearchPromises: Array<Promise<RegistrySearchResult>> = [];
+
+    for (const orgId of userOrgs) {
+      if (orgId === "public") {
+        continue;
+      }
+
+      const registryUrl = buildOrganizationRegistryUrl({ orgId });
+      const registryAuth: RegistryAuth = {
+        registryUrl,
+        username: config.auth!.username,
+        refreshToken: config.auth!.refreshToken,
+      };
+
+      const orgSearchPromise = (async (): Promise<RegistrySearchResult> => {
+        const [profileResult, skillResult] = await Promise.all([
+          searchOrgRegistryProfiles({ query, registryUrl, registryAuth }),
+          searchOrgRegistrySkills({ query, registryUrl, registryAuth }),
+        ]);
+        return { registryUrl, profileResult, skillResult };
+      })();
+
+      orgSearchPromises.push(orgSearchPromise);
+    }
+
+    const orgResults = await Promise.all(orgSearchPromises);
+    results.push(...orgResults);
+  } else if (
+    config?.auth != null &&
+    config.auth.organizationUrl != null &&
+    config.auth.refreshToken != null
+  ) {
+    const orgId = extractOrgId({ url: config.auth.organizationUrl });
+    if (orgId != null) {
+      const registryUrl = buildRegistryUrl({ orgId });
+      const registryAuth: RegistryAuth = {
+        registryUrl,
+        username: config.auth.username,
+        refreshToken: config.auth.refreshToken,
+      };
+
+      const [profileResult, skillResult] = await Promise.all([
+        searchOrgRegistryProfiles({ query, registryUrl, registryAuth }),
+        searchOrgRegistrySkills({ query, registryUrl, registryAuth }),
+      ]);
+
+      results.push({ registryUrl, profileResult, skillResult });
+    }
+  }
+
+  // Always search public registry
+  const [publicProfileResult, publicSkillResult] = await Promise.all([
+    searchPublicRegistryProfiles({ query }),
+    searchPublicRegistrySkills({ query }),
+  ]);
+
+  results.push({
+    registryUrl: REGISTRAR_URL,
+    profileResult: publicProfileResult,
+    skillResult: publicSkillResult,
+  });
+
+  // Check if we have any results or all errors
+  const hasProfileResults = results.some(
+    (r) => r.profileResult.error == null && r.profileResult.packages.length > 0,
+  );
+  const hasSkillResults = results.some(
+    (r) => r.skillResult.error == null && r.skillResult.skills.length > 0,
+  );
+  const allProfileErrors = results.every(
+    (r) =>
+      r.profileResult.error != null || r.profileResult.packages.length === 0,
+  );
+  const allSkillErrors = results.every(
+    (r) => r.skillResult.error != null || r.skillResult.skills.length === 0,
+  );
+
+  const hasAnyProfileError = results.some((r) => r.profileResult.error != null);
+  const hasAnySkillError = results.some((r) => r.skillResult.error != null);
+  const hasNetworkError = results.some(
+    (r) => r.profileResult.isNetworkError || r.skillResult.isNetworkError,
+  );
+
+  if (
+    allProfileErrors &&
+    allSkillErrors &&
+    hasAnyProfileError &&
+    hasAnySkillError
+  ) {
+    const errorPrefix = hasNetworkError
+      ? "Failed to search due to network connectivity issues:\n\n"
+      : "Failed to search:\n\n";
+    return {
+      success: false,
+      error: `${errorPrefix}${formatUnifiedSearchResults({ results })}`,
+    };
+  }
+
+  if (
+    !hasProfileResults &&
+    !hasSkillResults &&
+    !hasAnyProfileError &&
+    !hasAnySkillError
+  ) {
+    return { success: true, hasResults: false, query };
+  }
+
+  const formattedResults = formatUnifiedSearchResults({ results });
+  const downloadHints = buildDownloadHints({
+    hasProfiles: hasProfileResults,
+    hasSkills: hasSkillResults,
+    cliName,
+  });
+
+  return {
+    success: true,
+    hasResults: true,
+    formattedResults,
+    downloadHints,
+  };
+};
+
+/**
  * Search for profiles and skills in registries (org + public)
  * @param args - The search parameters
  * @param args.query - The search query
  * @param args.installDir - Optional installation directory (detected if not provided)
  * @param args.cliName - CLI name for user-facing messages (defaults to nori-skillsets)
+ * @param args.experimentalUi - Whether to use the clack flow-based UI
  */
 export const registrySearchMain = async (args: {
   query: string;
   installDir?: string | null;
   cliName?: CliName | null;
+  experimentalUi?: boolean | null;
 }): Promise<void> => {
-  const { query, installDir, cliName } = args;
+  const { query, installDir, cliName, experimentalUi } = args;
 
   // Verify an installation exists (needed for registry auth discovery)
   if (installDir == null) {
@@ -372,6 +525,18 @@ export const registrySearchMain = async (args: {
 
   // Load config to check for org auth
   const config = await loadConfig();
+
+  if (experimentalUi) {
+    await registrySearchFlow({
+      callbacks: {
+        onSearch: async (): Promise<SearchFlowResult> => {
+          const searchResults = await performSearch({ query, config, cliName });
+          return searchResults;
+        },
+      },
+    });
+    return;
+  }
 
   // Collect results from all registries
   const results: Array<RegistrySearchResult> = [];

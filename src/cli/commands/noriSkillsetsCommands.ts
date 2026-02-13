@@ -205,6 +205,7 @@ export const registerNoriSkillsetsSearchCommand = (args: {
         query,
         installDir: globalOpts.installDir || null,
         cliName: "nori-skillsets",
+        experimentalUi: globalOpts.experimentalUi || null,
       });
     });
 };
@@ -245,6 +246,7 @@ export const registerNoriSkillsetsDownloadCommand = (args: {
           registryUrl: options.registry || null,
           listVersions: options.listVersions || null,
           cliName: "nori-skillsets",
+          experimentalUi: globalOpts.experimentalUi || null,
         });
 
         if (!result.success) {
@@ -438,6 +440,7 @@ export const registerNoriSkillsetsDownloadSkillCommand = (args: {
           listVersions: options.listVersions || null,
           skillset: options.skillset || null,
           cliName: "nori-skillsets",
+          experimentalUi: globalOpts.experimentalUi || null,
         });
       },
     );

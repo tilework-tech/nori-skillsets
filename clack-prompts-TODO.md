@@ -72,15 +72,13 @@ consistent visual style.
 
 ### Download/Install Commands
 
-- [ ] `registry-download/registryDownload.ts`
-  - Current: Heavy use of `info()`, `success()`, `error()` (30+ calls)
-  - Needs: `spinner()` for download progress, `note()` for summary, `log.*`
-  - Complexity: High (many output points)
+- [x] `registry-download/registryDownload.ts`
+  - Flow: `registryDownloadFlow` - routed via `experimentalUi` flag
+  - Uses: `spinner()` for search/download, `note()` for next steps & warnings, `log.*`
 
-- [ ] `skill-download/skillDownload.ts`
-  - Current: Similar pattern to registry-download (25+ calls)
-  - Needs: `spinner()`, `note()`, `log.*`
-  - Complexity: High
+- [x] `skill-download/skillDownload.ts`
+  - Flow: `skillDownloadFlow` - routed via `experimentalUi` flag
+  - Uses: `spinner()` for search/download, `note()` for next steps & warnings, `log.*`
 
 - [ ] `registry-install/registryInstall.ts`
   - Current: `success()`, `info()`, `warn()`, `error()`
@@ -93,9 +91,9 @@ consistent visual style.
 
 ### Search/Query Commands
 
-- [ ] `registry-search/registrySearch.ts`
-  - Current: `info()`, `error()` for results/errors
-  - Needs: `note()` for search results, `log.error()` for failures
+- [x] `registry-search/registrySearch.ts`
+  - Flow: `registrySearchFlow` - routed via `experimentalUi` flag
+  - Uses: `spinner()` for search, `note()` for results, `log.info()` for hints
 
 ### Create/Modify Commands
 
