@@ -9,6 +9,8 @@
  * 3. Version auto-detection — enabled when version contains "next"
  */
 
+import * as os from "os";
+
 import { loadConfig } from "@/cli/config.js";
 
 /**
@@ -30,7 +32,8 @@ export const shouldAutoEnableExperimentalUi = async (args: {
   const { version } = args;
 
   // Check config file for manual override
-  const config = await loadConfig();
+  // Use os.homedir() since this is a user preference setting
+  const config = await loadConfig({ startDir: os.homedir() });
   if (config?.experimentalUi === true) {
     return true;
   }

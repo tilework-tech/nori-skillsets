@@ -27,9 +27,196 @@ vi.mock("os", async (importOriginal) => {
 });
 
 describe("getConfigPath", () => {
-  it("should always return ~/.nori-config.json", () => {
+  it("should return ~/.nori-config.json when no installDir provided", () => {
     const result = getConfigPath();
     expect(result).toBe(path.join(os.homedir(), ".nori-config.json"));
+  });
+
+  it("should return project-local config path when installDir provided", () => {
+    const result = getConfigPath({ installDir: "/some/project" });
+    expect(result).toBe("/some/project/.nori-config.json");
+  });
+
+  it("should return home config when installDir is home directory", () => {
+    const homeDir = os.homedir();
+    const result = getConfigPath({ installDir: homeDir });
+    expect(result).toBe(path.join(homeDir, ".nori-config.json"));
+  });
+});
+
+describe("findConfigPath", () => {
+  let tempDir: string;
+  let projectDir: string;
+  let nestedDir: string;
+
+  beforeEach(async () => {
+    // Create temp directory structure for testing
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "find-config-test-"));
+    projectDir = path.join(tempDir, "project");
+    nestedDir = path.join(projectDir, "src", "deep", "nested");
+    await fs.mkdir(nestedDir, { recursive: true });
+
+    // Mock os.homedir to return temp directory
+    vi.mocked(os.homedir).mockReturnValue(tempDir);
+  });
+
+  afterEach(async () => {
+    await fs.rm(tempDir, { recursive: true, force: true });
+    vi.clearAllMocks();
+  });
+
+  it("should find config in current directory", async () => {
+    const { findConfigPath } = await import("./config.js");
+
+    // Create config in project directory
+    await fs.writeFile(
+      path.join(projectDir, ".nori-config.json"),
+      JSON.stringify({ agents: { "claude-code": {} } }),
+    );
+
+    const result = await findConfigPath({ startDir: projectDir });
+    expect(result).toBe(path.join(projectDir, ".nori-config.json"));
+  });
+
+  it("should find config in ancestor directory when searching from nested dir", async () => {
+    const { findConfigPath } = await import("./config.js");
+
+    // Create config in project directory (ancestor of nestedDir)
+    await fs.writeFile(
+      path.join(projectDir, ".nori-config.json"),
+      JSON.stringify({ agents: { "claude-code": {} } }),
+    );
+
+    const result = await findConfigPath({ startDir: nestedDir });
+    expect(result).toBe(path.join(projectDir, ".nori-config.json"));
+  });
+
+  it("should fall back to home directory config when no project config found", async () => {
+    const { findConfigPath } = await import("./config.js");
+
+    // Create config only in home directory (tempDir)
+    await fs.writeFile(
+      path.join(tempDir, ".nori-config.json"),
+      JSON.stringify({ agents: { "claude-code": {} } }),
+    );
+
+    // Search from nested dir with no project config
+    const result = await findConfigPath({ startDir: nestedDir });
+    expect(result).toBe(path.join(tempDir, ".nori-config.json"));
+  });
+
+  it("should return home config path when no config exists anywhere", async () => {
+    const { findConfigPath } = await import("./config.js");
+
+    // No config files created anywhere
+    const result = await findConfigPath({ startDir: nestedDir });
+    expect(result).toBe(path.join(tempDir, ".nori-config.json"));
+  });
+
+  it("should use process.cwd() when no startDir provided", async () => {
+    const { findConfigPath } = await import("./config.js");
+
+    // This test verifies the default behavior
+    const result = await findConfigPath();
+    // Should return some path ending in .nori-config.json
+    expect(result).toMatch(/\.nori-config\.json$/);
+  });
+
+  it("should prefer closer config over ancestor config", async () => {
+    const { findConfigPath } = await import("./config.js");
+
+    // Create config in both project and home
+    await fs.writeFile(
+      path.join(projectDir, ".nori-config.json"),
+      JSON.stringify({
+        agents: { "claude-code": { profile: { baseProfile: "project" } } },
+      }),
+    );
+    await fs.writeFile(
+      path.join(tempDir, ".nori-config.json"),
+      JSON.stringify({
+        agents: { "claude-code": { profile: { baseProfile: "home" } } },
+      }),
+    );
+
+    const result = await findConfigPath({ startDir: nestedDir });
+    // Should find project config (closer) not home config
+    expect(result).toBe(path.join(projectDir, ".nori-config.json"));
+  });
+});
+
+describe("loadConfig with config discovery", () => {
+  let tempDir: string;
+  let projectDir: string;
+  let nestedDir: string;
+
+  beforeEach(async () => {
+    // Create temp directory structure for testing
+    tempDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), "loadconfig-discovery-test-"),
+    );
+    projectDir = path.join(tempDir, "project");
+    nestedDir = path.join(projectDir, "src", "deep", "nested");
+    await fs.mkdir(nestedDir, { recursive: true });
+
+    // Mock os.homedir to return temp directory
+    vi.mocked(os.homedir).mockReturnValue(tempDir);
+  });
+
+  afterEach(async () => {
+    await fs.rm(tempDir, { recursive: true, force: true });
+    vi.clearAllMocks();
+  });
+
+  it("should load project-local config when searching from nested directory", async () => {
+    // Create project-local config
+    await fs.writeFile(
+      path.join(projectDir, ".nori-config.json"),
+      JSON.stringify({
+        agents: {
+          "claude-code": { profile: { baseProfile: "project-profile" } },
+        },
+      }),
+    );
+
+    // Create home config with different profile
+    await fs.writeFile(
+      path.join(tempDir, ".nori-config.json"),
+      JSON.stringify({
+        agents: { "claude-code": { profile: { baseProfile: "home-profile" } } },
+      }),
+    );
+
+    // Load config starting from nested directory - should find project config
+    const loaded = await loadConfig({ startDir: nestedDir });
+
+    expect(loaded?.agents?.["claude-code"]?.profile?.baseProfile).toBe(
+      "project-profile",
+    );
+  });
+
+  it("should fall back to home config when no project config exists", async () => {
+    // Create only home config
+    await fs.writeFile(
+      path.join(tempDir, ".nori-config.json"),
+      JSON.stringify({
+        agents: { "claude-code": { profile: { baseProfile: "home-profile" } } },
+      }),
+    );
+
+    // Load config starting from nested directory - should fall back to home
+    const loaded = await loadConfig({ startDir: nestedDir });
+
+    expect(loaded?.agents?.["claude-code"]?.profile?.baseProfile).toBe(
+      "home-profile",
+    );
+  });
+
+  it("should return null when no config exists anywhere", async () => {
+    // No config files created
+    const loaded = await loadConfig({ startDir: nestedDir });
+
+    expect(loaded).toBeNull();
   });
 });
 
@@ -66,7 +253,7 @@ describe("config with profile-based system", () => {
         installDir: tempDir,
       });
 
-      const loaded = await loadConfig();
+      const loaded = await loadConfig({ startDir: tempDir });
 
       expect(loaded?.auth).toEqual({
         username: "test@example.com",
@@ -89,7 +276,7 @@ describe("config with profile-based system", () => {
         installDir: tempDir,
       });
 
-      const loaded = await loadConfig();
+      const loaded = await loadConfig({ startDir: tempDir });
 
       expect(loaded?.auth).toEqual({
         username: "test@example.com",
@@ -113,7 +300,7 @@ describe("config with profile-based system", () => {
         installDir: tempDir,
       });
 
-      const loaded = await loadConfig();
+      const loaded = await loadConfig({ startDir: tempDir });
 
       expect(loaded?.auth).toBeNull();
       expect(loaded?.agents).toEqual({
@@ -122,14 +309,14 @@ describe("config with profile-based system", () => {
     });
 
     it("should return null when config file does not exist", async () => {
-      const loaded = await loadConfig();
+      const loaded = await loadConfig({ startDir: tempDir });
       expect(loaded).toBeNull();
     });
 
     it("should handle malformed config gracefully", async () => {
       await fs.writeFile(mockConfigPath, "invalid json {");
 
-      const loaded = await loadConfig();
+      const loaded = await loadConfig({ startDir: tempDir });
       expect(loaded).toBeNull();
     });
 
@@ -139,7 +326,7 @@ describe("config with profile-based system", () => {
         JSON.stringify({ sendSessionTranscript: "enabled" }),
       );
 
-      const loaded = await loadConfig();
+      const loaded = await loadConfig({ startDir: tempDir });
 
       expect(loaded?.sendSessionTranscript).toBe("enabled");
     });
@@ -150,7 +337,7 @@ describe("config with profile-based system", () => {
         JSON.stringify({ sendSessionTranscript: "disabled" }),
       );
 
-      const loaded = await loadConfig();
+      const loaded = await loadConfig({ startDir: tempDir });
 
       expect(loaded?.sendSessionTranscript).toBe("disabled");
     });
@@ -158,7 +345,7 @@ describe("config with profile-based system", () => {
     it("should default sendSessionTranscript to enabled when field is missing", async () => {
       await fs.writeFile(mockConfigPath, JSON.stringify({}));
 
-      const loaded = await loadConfig();
+      const loaded = await loadConfig({ startDir: tempDir });
 
       expect(loaded?.sendSessionTranscript).toBe("enabled");
     });
@@ -172,7 +359,7 @@ describe("config with profile-based system", () => {
         installDir: tempDir,
       });
 
-      const loaded = await loadConfig();
+      const loaded = await loadConfig({ startDir: tempDir });
 
       expect(loaded?.sendSessionTranscript).toBe("disabled");
     });
@@ -183,7 +370,7 @@ describe("config with profile-based system", () => {
         JSON.stringify({ autoupdate: "enabled" }),
       );
 
-      const loaded = await loadConfig();
+      const loaded = await loadConfig({ startDir: tempDir });
 
       expect(loaded?.autoupdate).toBe("enabled");
     });
@@ -194,7 +381,7 @@ describe("config with profile-based system", () => {
         JSON.stringify({ autoupdate: "disabled" }),
       );
 
-      const loaded = await loadConfig();
+      const loaded = await loadConfig({ startDir: tempDir });
 
       expect(loaded?.autoupdate).toBe("disabled");
     });
@@ -202,7 +389,7 @@ describe("config with profile-based system", () => {
     it("should default autoupdate to disabled when field is missing", async () => {
       await fs.writeFile(mockConfigPath, JSON.stringify({}));
 
-      const loaded = await loadConfig();
+      const loaded = await loadConfig({ startDir: tempDir });
 
       expect(loaded?.autoupdate).toBe("disabled");
     });
@@ -216,7 +403,7 @@ describe("config with profile-based system", () => {
         installDir: tempDir,
       });
 
-      const loaded = await loadConfig();
+      const loaded = await loadConfig({ startDir: tempDir });
 
       expect(loaded?.autoupdate).toBe("disabled");
     });
@@ -273,7 +460,7 @@ describe("config with profile-based system", () => {
         }),
       );
 
-      const loaded = await loadConfig();
+      const loaded = await loadConfig({ startDir: tempDir });
       expect(loaded?.installDir).toBe(customDir);
     });
   });
@@ -307,7 +494,7 @@ describe("agent-specific profiles", () => {
         }),
       );
 
-      const loaded = await loadConfig();
+      const loaded = await loadConfig({ startDir: tempDir });
 
       expect(loaded?.agents).toEqual({
         "claude-code": {
@@ -328,7 +515,7 @@ describe("agent-specific profiles", () => {
         }),
       );
 
-      const loaded = await loadConfig();
+      const loaded = await loadConfig({ startDir: tempDir });
 
       expect(loaded?.agents?.["claude-code"]?.profile?.baseProfile).toBe(
         "senior-swe",
@@ -346,7 +533,7 @@ describe("agent-specific profiles", () => {
         }),
       );
 
-      const loaded = await loadConfig();
+      const loaded = await loadConfig({ startDir: tempDir });
 
       // Legacy profile should be converted to agents.claude-code.profile
       expect(loaded?.agents?.["claude-code"]?.profile?.baseProfile).toBe(
@@ -367,7 +554,7 @@ describe("agent-specific profiles", () => {
         }),
       );
 
-      const loaded = await loadConfig();
+      const loaded = await loadConfig({ startDir: tempDir });
 
       // agents field should take precedence
       expect(loaded?.agents?.["claude-code"]?.profile?.baseProfile).toBe(
@@ -387,7 +574,7 @@ describe("agent-specific profiles", () => {
         }),
       );
 
-      const loaded = await loadConfig();
+      const loaded = await loadConfig({ startDir: tempDir });
 
       expect(loaded?.agents?.["claude-code"]?.profile).toBeNull();
     });
@@ -402,7 +589,7 @@ describe("agent-specific profiles", () => {
         }),
       );
 
-      const loaded = await loadConfig();
+      const loaded = await loadConfig({ startDir: tempDir });
 
       expect(loaded?.agents?.["claude-code"]).toEqual({});
     });
@@ -804,7 +991,7 @@ describe("token-based auth", () => {
         }),
       );
 
-      const loaded = await loadConfig();
+      const loaded = await loadConfig({ startDir: tempDir });
 
       expect(loaded?.auth?.refreshToken).toBe("stored-refresh-token");
       expect(loaded?.auth?.username).toBe("test@example.com");
@@ -822,7 +1009,7 @@ describe("token-based auth", () => {
         }),
       );
 
-      const loaded = await loadConfig();
+      const loaded = await loadConfig({ startDir: tempDir });
       const isLegacy = isLegacyPasswordConfig({ config: loaded! });
 
       expect(isLegacy).toBe(true);
@@ -840,7 +1027,7 @@ describe("token-based auth", () => {
         }),
       );
 
-      const loaded = await loadConfig();
+      const loaded = await loadConfig({ startDir: tempDir });
       const isLegacy = isLegacyPasswordConfig({ config: loaded! });
 
       expect(isLegacy).toBe(false);
@@ -875,7 +1062,7 @@ describe("transcriptDestination config", () => {
       installDir: tempDir,
     });
 
-    const loaded = await loadConfig();
+    const loaded = await loadConfig({ startDir: tempDir });
 
     expect(loaded?.transcriptDestination).toBe("myorg");
   });
@@ -889,7 +1076,7 @@ describe("transcriptDestination config", () => {
       }),
     );
 
-    const loaded = await loadConfig();
+    const loaded = await loadConfig({ startDir: tempDir });
 
     expect(loaded?.transcriptDestination).toBe("acme-corp");
   });
@@ -903,7 +1090,7 @@ describe("transcriptDestination config", () => {
       }),
     );
 
-    const loaded = await loadConfig();
+    const loaded = await loadConfig({ startDir: tempDir });
 
     expect(loaded?.transcriptDestination).toBeUndefined();
   });
@@ -920,7 +1107,7 @@ describe("transcriptDestination config", () => {
     });
 
     // Load and verify
-    const loaded = await loadConfig();
+    const loaded = await loadConfig({ startDir: tempDir });
     expect(loaded?.transcriptDestination).toBe("myorg");
   });
 });
@@ -952,7 +1139,7 @@ describe("schema validation", () => {
         }),
       );
 
-      const loaded = await loadConfig();
+      const loaded = await loadConfig({ startDir: tempDir });
 
       // Invalid enum value should cause config to be rejected
       expect(loaded).toBeNull();
@@ -969,7 +1156,7 @@ describe("schema validation", () => {
         }),
       );
 
-      const loaded = await loadConfig();
+      const loaded = await loadConfig({ startDir: tempDir });
 
       // Invalid enum value should cause config to be rejected
       expect(loaded).toBeNull();
@@ -1010,7 +1197,7 @@ describe("schema validation", () => {
         }),
       );
 
-      const loaded = await loadConfig();
+      const loaded = await loadConfig({ startDir: tempDir });
 
       expect(loaded).not.toBeNull();
       expect(loaded?.agents?.["claude-code"]?.profile?.baseProfile).toBe(

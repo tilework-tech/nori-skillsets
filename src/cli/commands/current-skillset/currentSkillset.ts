@@ -3,6 +3,8 @@
  * Displays the currently active skillset name
  */
 
+import * as os from "os";
+
 import {
   loadConfig,
   getAgentProfile,
@@ -22,8 +24,8 @@ export const currentSkillsetMain = async (args: {
 }): Promise<void> => {
   const { agent: agentOption } = args;
 
-  // Load config
-  const config = await loadConfig();
+  // Load config from home directory (centralized config location)
+  const config = await loadConfig({ startDir: os.homedir() });
 
   if (config == null) {
     error({

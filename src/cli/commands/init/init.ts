@@ -12,6 +12,7 @@
  */
 
 import * as fs from "fs/promises";
+import * as os from "os";
 
 import {
   detectExistingConfig,
@@ -151,7 +152,8 @@ export const initMain = async (args?: {
             .map((installation) => installation.path);
         },
         onDetectExistingConfig: async ({ installDir: dir }) => {
-          const existingConfig = await loadConfig();
+          // Use os.homedir() since init is home-directory-based
+          const existingConfig = await loadConfig({ startDir: os.homedir() });
           if (existingConfig != null) return null;
           return detectExistingConfig({ installDir: dir });
         },
@@ -175,8 +177,8 @@ export const initMain = async (args?: {
             await fs.mkdir(profilesDir, { recursive: true });
           }
 
-          // Load existing config
-          const existingConfig = await loadConfig();
+          // Load existing config - use os.homedir() since init is home-directory-based
+          const existingConfig = await loadConfig({ startDir: os.homedir() });
           const currentVersion = getCurrentPackageVersion();
 
           const username = existingConfig?.auth?.username ?? null;
@@ -276,8 +278,8 @@ export const initMain = async (args?: {
     await fs.mkdir(profilesDir, { recursive: true });
   }
 
-  // Load existing config (if any)
-  const existingConfig = await loadConfig();
+  // Load existing config (if any) - use os.homedir() since init is home-directory-based
+  const existingConfig = await loadConfig({ startDir: os.homedir() });
   const currentVersion = getCurrentPackageVersion();
 
   // Track captured profile name for setting in config
