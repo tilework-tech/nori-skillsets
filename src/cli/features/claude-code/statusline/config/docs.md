@@ -12,7 +12,7 @@ This folder contains the nori-statusline.sh source script. The loader at @/src/c
 
 ### Core Implementation
 
-**Install Directory Discovery:** The script searches upward from the CWD (extracted from JSON input) to find .nori-config.json, using a `find_install_dir()` function that walks parent directories. This makes the script portable across installations without requiring any install-time path substitution.
+**Install Directory Discovery:** The script searches upward from the CWD (extracted from JSON input) to find .nori-config.json, using a `find_install_dir()` function that walks parent directories. If no config is found in the directory tree, it falls back to HOME (`$HOME/.nori-config.json`). This ensures the statusline reads the user-global config when working in directories without project-local configs, enabling consistent display after skillset switches.
 
 **Config Reading:** Once `.nori-config.json` is located, the script reads two pieces of data from it: the profile name (`agents.claude-code.profile.baseProfile` with fallback to legacy `profile.baseProfile`) and the installed version (`.version` field). Both are used downstream -- profile for the metrics line, version for the branding line and update comparison.
 
@@ -25,6 +25,8 @@ This folder contains the nori-statusline.sh source script. The loader at @/src/c
 **Profile Display:** The profile name is conditionally displayed only when profile.baseProfile exists in .nori-config.json. Profile name appears in yellow between git branch and cost metrics.
 
 **jq Dependency:** The script requires jq for JSON parsing. If jq is not installed, it displays a warning message with installation instructions and shows plain branding without version.
+
+**`-next` Version Handling:** Before the numeric version comparison, the script strips any `-next.*` suffix from the current version using `sed 's/-next.*//'`. This prevents false update notifications for users on `-next` builds, which are ahead of the stable release despite semver ordering treating prerelease tags as less-than. This mirrors the same logic in the TypeScript `getAvailableUpdate()` at @/src/cli/updates/npmRegistryCheck.ts.
 
 **Promotional Tip:** The TIPS array contains a single promotional message encouraging users to install nori-ai-cli via npm.
 

@@ -492,7 +492,8 @@ const authenticateWithLegacyPrompts = async (args: {
     const isAdmin = accessInfo?.isAdmin ?? false;
 
     // Load existing config to preserve other fields
-    const existingConfig = await loadConfig();
+    // Use os.homedir() as startDir since login is home-directory-based
+    const existingConfig = await loadConfig({ startDir: os.homedir() });
 
     // Save credentials to config
     await saveConfig({
@@ -781,7 +782,8 @@ export const loginMain = async (args?: {
       userEmail = result.email;
 
       // Load existing config to preserve other fields
-      const existingConfig = await loadConfig();
+      // Use os.homedir() as startDir since login is home-directory-based
+      const existingConfig = await loadConfig({ startDir: os.homedir() });
 
       // Save credentials to config (using access info from flow result)
       await saveConfig({
@@ -855,7 +857,8 @@ export const loginMain = async (args?: {
   }
 
   // Load existing config to preserve other fields
-  const existingConfig = await loadConfig();
+  // Use os.homedir() as startDir since login is home-directory-based
+  const existingConfig = await loadConfig({ startDir: os.homedir() });
 
   // Save credentials to config
   await saveConfig({

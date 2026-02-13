@@ -20,25 +20,28 @@ vi.mock("os", async (importOriginal) => {
   };
 });
 
-// Mock logger to capture output
-const mockSuccess = vi.fn();
-const mockInfo = vi.fn();
-const mockError = vi.fn();
-const mockNewline = vi.fn();
-vi.mock("@/cli/logger.js", () => ({
-  success: (args: { message: string }) => mockSuccess(args),
-  info: (args: { message: string }) => mockInfo(args),
-  error: (args: { message: string }) => mockError(args),
-  newline: () => mockNewline(),
-  raw: vi.fn(),
-  warn: vi.fn(),
-  debug: vi.fn(),
+// Mock @clack/prompts for output
+const mockLogError = vi.fn();
+const mockNote = vi.fn();
+const mockOutro = vi.fn();
+vi.mock("@clack/prompts", () => ({
+  log: {
+    error: (msg: string) => mockLogError(msg),
+  },
+  note: (content: string, title: string) => mockNote(content, title),
+  outro: (msg: string) => mockOutro(msg),
 }));
 
 // Mock process.exit
 const mockExit = vi
   .spyOn(process, "exit")
   .mockImplementation(() => undefined as never);
+
+// Mock newSkillsetFlow
+const mockNewSkillsetFlow = vi.fn();
+vi.mock("@/cli/prompts/flows/newSkillset.js", () => ({
+  newSkillsetFlow: () => mockNewSkillsetFlow(),
+}));
 
 describe("newSkillsetMain", () => {
   let testHomeDir: string;
@@ -51,11 +54,11 @@ describe("newSkillsetMain", () => {
     vi.mocked(os.homedir).mockReturnValue(testHomeDir);
     profilesDir = path.join(testHomeDir, ".nori", "profiles");
     await fs.mkdir(profilesDir, { recursive: true });
-    mockSuccess.mockClear();
-    mockInfo.mockClear();
-    mockError.mockClear();
-    mockNewline.mockClear();
+    mockLogError.mockClear();
+    mockNote.mockClear();
+    mockOutro.mockClear();
     mockExit.mockClear();
+    mockNewSkillsetFlow.mockClear();
   });
 
   afterEach(async () => {
@@ -65,7 +68,16 @@ describe("newSkillsetMain", () => {
   });
 
   it("should create a flat skillset with nori.json", async () => {
-    await newSkillsetMain({ name: "my-new-skillset" });
+    mockNewSkillsetFlow.mockResolvedValueOnce({
+      name: "my-new-skillset",
+      description: null,
+      license: null,
+      keywords: null,
+      version: null,
+      repository: null,
+    });
+
+    await newSkillsetMain();
 
     const destDir = path.join(profilesDir, "my-new-skillset");
 
@@ -78,15 +90,24 @@ describe("newSkillsetMain", () => {
       version: "1.0.0",
     });
 
-    // Verify success message
-    expect(mockSuccess).toHaveBeenCalledWith({
-      message: expect.stringContaining("my-new-skillset"),
-    });
+    // Verify outro message
+    expect(mockOutro).toHaveBeenCalledWith(
+      expect.stringContaining("my-new-skillset"),
+    );
     expect(mockExit).not.toHaveBeenCalled();
   });
 
   it("should create a namespaced skillset with parent directories", async () => {
-    await newSkillsetMain({ name: "myorg/custom-profile" });
+    mockNewSkillsetFlow.mockResolvedValueOnce({
+      name: "myorg/custom-profile",
+      description: null,
+      license: null,
+      keywords: null,
+      version: null,
+      repository: null,
+    });
+
+    await newSkillsetMain();
 
     const destDir = path.join(profilesDir, "myorg", "custom-profile");
 
@@ -107,28 +128,159 @@ describe("newSkillsetMain", () => {
     const existingDir = path.join(profilesDir, "existing-skillset");
     await fs.mkdir(existingDir, { recursive: true });
 
-    await newSkillsetMain({ name: "existing-skillset" });
+    mockNewSkillsetFlow.mockResolvedValueOnce({
+      name: "existing-skillset",
+      description: null,
+      license: null,
+      keywords: null,
+      version: null,
+      repository: null,
+    });
 
-    expect(mockError).toHaveBeenCalledWith({
-      message: expect.stringContaining("existing-skillset"),
-    });
-    expect(mockError).toHaveBeenCalledWith({
-      message: expect.stringContaining("already exists"),
-    });
+    await newSkillsetMain();
+
+    expect(mockLogError).toHaveBeenCalledWith(
+      expect.stringContaining("existing-skillset"),
+    );
+    expect(mockLogError).toHaveBeenCalledWith(
+      expect.stringContaining("already exists"),
+    );
     expect(mockExit).toHaveBeenCalledWith(1);
   });
 
   it("should print instructions for switching and editing after creation", async () => {
-    await newSkillsetMain({ name: "my-skillset" });
-
-    // Should print switch instruction
-    expect(mockInfo).toHaveBeenCalledWith({
-      message: expect.stringContaining("switch my-skillset"),
+    mockNewSkillsetFlow.mockResolvedValueOnce({
+      name: "my-skillset",
+      description: null,
+      license: null,
+      keywords: null,
+      version: null,
+      repository: null,
     });
 
-    // Should print edit location
-    expect(mockInfo).toHaveBeenCalledWith({
-      message: expect.stringContaining("~/.nori/profiles/my-skillset"),
+    await newSkillsetMain();
+
+    // Should show note with next steps containing switch and edit instructions
+    expect(mockNote).toHaveBeenCalledWith(
+      expect.stringContaining("switch my-skillset"),
+      "Next Steps",
+    );
+    expect(mockNote).toHaveBeenCalledWith(
+      expect.stringContaining("~/.nori/profiles/my-skillset"),
+      "Next Steps",
+    );
+  });
+
+  it("should write all metadata fields to nori.json when provided", async () => {
+    mockNewSkillsetFlow.mockResolvedValueOnce({
+      name: "full-metadata",
+      description: "A skillset with full metadata",
+      license: "Apache-2.0",
+      keywords: ["testing", "automation"],
+      version: "2.1.0",
+      repository: "https://github.com/user/repo",
+    });
+
+    await newSkillsetMain();
+
+    const destDir = path.join(profilesDir, "full-metadata");
+    const noriJson = JSON.parse(
+      await fs.readFile(path.join(destDir, "nori.json"), "utf-8"),
+    );
+
+    expect(noriJson).toEqual({
+      name: "full-metadata",
+      version: "2.1.0",
+      description: "A skillset with full metadata",
+      license: "Apache-2.0",
+      keywords: ["testing", "automation"],
+      repository: {
+        type: "git",
+        url: "https://github.com/user/repo",
+      },
+    });
+  });
+
+  it("should use default version 1.0.0 when version is null", async () => {
+    mockNewSkillsetFlow.mockResolvedValueOnce({
+      name: "default-version",
+      description: "Test",
+      license: null,
+      keywords: null,
+      version: null,
+      repository: null,
+    });
+
+    await newSkillsetMain();
+
+    const destDir = path.join(profilesDir, "default-version");
+    const noriJson = JSON.parse(
+      await fs.readFile(path.join(destDir, "nori.json"), "utf-8"),
+    );
+
+    expect(noriJson.version).toBe("1.0.0");
+  });
+
+  it("should omit optional fields from nori.json when they are null", async () => {
+    mockNewSkillsetFlow.mockResolvedValueOnce({
+      name: "minimal-metadata",
+      description: null,
+      license: null,
+      keywords: null,
+      version: "1.5.0",
+      repository: null,
+    });
+
+    await newSkillsetMain();
+
+    const destDir = path.join(profilesDir, "minimal-metadata");
+    const noriJson = JSON.parse(
+      await fs.readFile(path.join(destDir, "nori.json"), "utf-8"),
+    );
+
+    expect(noriJson).toEqual({
+      name: "minimal-metadata",
+      version: "1.5.0",
+    });
+    expect(noriJson.description).toBeUndefined();
+    expect(noriJson.license).toBeUndefined();
+    expect(noriJson.keywords).toBeUndefined();
+    expect(noriJson.repository).toBeUndefined();
+  });
+
+  it("should handle flow cancellation gracefully", async () => {
+    mockNewSkillsetFlow.mockResolvedValueOnce(null);
+
+    await newSkillsetMain();
+
+    // Should not create any directory
+    const files = await fs.readdir(profilesDir);
+    expect(files).toEqual([]);
+
+    // Should not print outro message
+    expect(mockOutro).not.toHaveBeenCalled();
+  });
+
+  it("should write repository as object with type and url", async () => {
+    mockNewSkillsetFlow.mockResolvedValueOnce({
+      name: "repo-test",
+      description: null,
+      license: null,
+      keywords: null,
+      version: null,
+      repository: "https://github.com/example/repo",
+    });
+
+    await newSkillsetMain();
+
+    const destDir = path.join(profilesDir, "repo-test");
+    const noriJson = JSON.parse(
+      await fs.readFile(path.join(destDir, "nori.json"), "utf-8"),
+    );
+
+    expect(noriJson.repository).toEqual({
+      type: "git",
+      url: "https://github.com/example/repo",
     });
   });
 });

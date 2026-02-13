@@ -21,15 +21,15 @@ vi.mock("os", async (importOriginal) => {
 
 import { logoutMain } from "./logout.js";
 
-// Mock logger to suppress output during tests
-vi.mock("@/cli/logger.js", () => ({
-  info: vi.fn(),
-  success: vi.fn(),
-  error: vi.fn(),
-  warn: vi.fn(),
-  debug: vi.fn(),
-  newline: vi.fn(),
-  raw: vi.fn(),
+// Mock @clack/prompts for output
+vi.mock("@clack/prompts", () => ({
+  log: {
+    info: vi.fn(),
+    success: vi.fn(),
+    error: vi.fn(),
+    warn: vi.fn(),
+    step: vi.fn(),
+  },
 }));
 
 describe("logout command", () => {
@@ -60,14 +60,14 @@ describe("logout command", () => {
       });
 
       // Verify auth exists before logout
-      const beforeLogout = await loadConfig();
+      const beforeLogout = await loadConfig({ startDir: tempDir });
       expect(beforeLogout?.auth).not.toBeNull();
 
       // Perform logout
-      await logoutMain({ installDir: tempDir });
+      await logoutMain({ installDir: tempDir, startDir: tempDir });
 
       // Verify auth is cleared
-      const afterLogout = await loadConfig();
+      const afterLogout = await loadConfig({ startDir: tempDir });
       expect(afterLogout?.auth).toBeNull();
 
       // Verify other fields are preserved
@@ -78,7 +78,7 @@ describe("logout command", () => {
     });
 
     it("should show info message when not logged in", async () => {
-      const { info } = await import("@/cli/logger.js");
+      const { log } = await import("@clack/prompts");
 
       // Create config without auth
       await saveConfig({
@@ -88,29 +88,25 @@ describe("logout command", () => {
         installDir: tempDir,
       });
 
-      await logoutMain({ installDir: tempDir });
+      await logoutMain({ installDir: tempDir, startDir: tempDir });
 
-      expect(info).toHaveBeenCalledWith(
-        expect.objectContaining({
-          message: expect.stringContaining("Not currently logged in"),
-        }),
+      expect(log.info).toHaveBeenCalledWith(
+        expect.stringContaining("Not currently logged in"),
       );
     });
 
     it("should show info message when no config exists", async () => {
-      const { info } = await import("@/cli/logger.js");
+      const { log } = await import("@clack/prompts");
 
-      await logoutMain({ installDir: tempDir });
+      await logoutMain({ installDir: tempDir, startDir: tempDir });
 
-      expect(info).toHaveBeenCalledWith(
-        expect.objectContaining({
-          message: expect.stringContaining("Not currently logged in"),
-        }),
+      expect(log.info).toHaveBeenCalledWith(
+        expect.stringContaining("Not currently logged in"),
       );
     });
 
     it("should show success message after logging out", async () => {
-      const { success } = await import("@/cli/logger.js");
+      const { log } = await import("@clack/prompts");
 
       // Create config with auth
       await saveConfig({
@@ -120,12 +116,10 @@ describe("logout command", () => {
         installDir: tempDir,
       });
 
-      await logoutMain({ installDir: tempDir });
+      await logoutMain({ installDir: tempDir, startDir: tempDir });
 
-      expect(success).toHaveBeenCalledWith(
-        expect.objectContaining({
-          message: expect.stringContaining("Logged out"),
-        }),
+      expect(log.success).toHaveBeenCalledWith(
+        expect.stringContaining("Logged out"),
       );
     });
 
@@ -144,17 +138,17 @@ describe("logout command", () => {
       });
 
       // Verify auth exists before logout
-      const beforeLogout = await loadConfig();
+      const beforeLogout = await loadConfig({ startDir: tempDir });
       expect(beforeLogout?.auth?.username).toBe("googleuser@gmail.com");
       expect(beforeLogout?.auth?.refreshToken).toBe(
         "firebase-refresh-token-from-google-sso",
       );
 
       // Perform logout
-      await logoutMain({ installDir: tempDir });
+      await logoutMain({ installDir: tempDir, startDir: tempDir });
 
       // Verify auth is cleared
-      const afterLogout = await loadConfig();
+      const afterLogout = await loadConfig({ startDir: tempDir });
       expect(afterLogout?.auth).toBeNull();
 
       // Verify other fields are preserved
@@ -165,7 +159,7 @@ describe("logout command", () => {
     });
 
     it("should clear auth when no installDir provided and config exists at homedir", async () => {
-      const { success } = await import("@/cli/logger.js");
+      const { log } = await import("@clack/prompts");
 
       // Create config with auth at home directory (centralized config)
       await saveConfig({
@@ -177,22 +171,20 @@ describe("logout command", () => {
       });
 
       // Verify auth exists before logout
-      const beforeLogout = await loadConfig();
+      const beforeLogout = await loadConfig({ startDir: tempDir });
       expect(beforeLogout?.auth?.username).toBe("user@example.com");
 
       // Perform logout without installDir - should find config at homedir
       // Config is centralized at ~/.nori-config.json (os.homedir() mocked to tempDir)
-      await logoutMain();
+      await logoutMain({ startDir: tempDir });
 
       // Verify auth is cleared
-      const afterLogout = await loadConfig();
+      const afterLogout = await loadConfig({ startDir: tempDir });
       expect(afterLogout?.auth).toBeNull();
 
       // Verify success message was shown
-      expect(success).toHaveBeenCalledWith(
-        expect.objectContaining({
-          message: expect.stringContaining("Logged out"),
-        }),
+      expect(log.success).toHaveBeenCalledWith(
+        expect.stringContaining("Logged out"),
       );
     });
   });

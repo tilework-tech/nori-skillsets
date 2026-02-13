@@ -5,6 +5,7 @@
  */
 
 import { existsSync, readFileSync } from "fs";
+import * as os from "os";
 import { dirname, join, parse, resolve } from "path";
 import { fileURLToPath } from "url";
 
@@ -109,7 +110,8 @@ export const getInstalledVersion = async (args: {
   installDir: string;
 }): Promise<string> => {
   const { installDir } = args;
-  const config = await loadConfig();
+  // Use os.homedir() since version is stored in global config
+  const config = await loadConfig({ startDir: os.homedir() });
 
   // If config has version, use it
   if (config?.version != null) {

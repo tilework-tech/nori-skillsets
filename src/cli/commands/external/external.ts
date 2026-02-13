@@ -18,7 +18,10 @@ import {
   getClaudeSkillsDir,
   getNoriProfilesDir,
 } from "@/cli/features/claude-code/paths.js";
-import { addSkillToNoriJson } from "@/cli/features/claude-code/profiles/metadata.js";
+import {
+  addSkillToNoriJson,
+  ensureNoriJson,
+} from "@/cli/features/claude-code/profiles/metadata.js";
 import { substituteTemplatePaths } from "@/cli/features/claude-code/template.js";
 import { error, success, info, newline, warn } from "@/cli/logger.js";
 import { getInstallDirs } from "@/utils/path.js";
@@ -332,6 +335,7 @@ export const externalMain = async (args: {
     success({ message: `Created new skillset "${newSkillset}"` });
   } else if (skillset != null) {
     const skillsetDir = path.join(profilesDir, skillset);
+    await ensureNoriJson({ profileDir: skillsetDir });
     const skillsetMarker = path.join(skillsetDir, "nori.json");
     try {
       await fs.access(skillsetMarker);

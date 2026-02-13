@@ -8,6 +8,7 @@
  */
 
 import { completionMain } from "@/cli/commands/completion/completion.js";
+import { currentSkillsetMain } from "@/cli/commands/current-skillset/currentSkillset.js";
 import { dirMain } from "@/cli/commands/dir/dir.js";
 import { editSkillsetMain } from "@/cli/commands/edit-skillset/editSkillset.js";
 import { externalMain } from "@/cli/commands/external/external.js";
@@ -19,6 +20,7 @@ import { listSkillsetsMain } from "@/cli/commands/list-skillsets/listSkillsets.j
 import { loginMain } from "@/cli/commands/login/login.js";
 import { logoutMain } from "@/cli/commands/logout/logout.js";
 import { newSkillsetMain } from "@/cli/commands/new-skillset/newSkillset.js";
+import { registerSkillsetMain } from "@/cli/commands/register-skillset/registerSkillset.js";
 import { registryDownloadMain } from "@/cli/commands/registry-download/registryDownload.js";
 import { registryInstallMain } from "@/cli/commands/registry-install/registryInstall.js";
 import { registrySearchMain } from "@/cli/commands/registry-search/registrySearch.js";
@@ -98,17 +100,43 @@ export const registerNoriSkillsetsNewCommand = (args: {
 
   // Primary command: new
   program
-    .command("new <name>")
+    .command("new")
     .description("Create a new empty skillset")
-    .action(async (name: string) => {
-      await newSkillsetMain({ name });
+    .action(async () => {
+      await newSkillsetMain();
     });
 
   // Hidden alias: new-skillset
+  program.command("new-skillset", { hidden: true }).action(async () => {
+    await newSkillsetMain();
+  });
+};
+
+/**
+ * Register the 'register' command for nori-skillsets CLI
+ * @param args - Configuration arguments
+ * @param args.program - Commander program instance
+ */
+export const registerNoriSkillsetsRegisterCommand = (args: {
+  program: Command;
+}): void => {
+  const { program } = args;
+
+  // Primary command: register
   program
-    .command("new-skillset <name>", { hidden: true })
-    .action(async (name: string) => {
-      await newSkillsetMain({ name });
+    .command("register [name]")
+    .description(
+      "Create nori.json for an existing skillset (defaults to current active skillset)",
+    )
+    .action(async (name: string | undefined) => {
+      await registerSkillsetMain({ skillsetName: name || null });
+    });
+
+  // Hidden alias: register-skillset
+  program
+    .command("register-skillset [name]", { hidden: true })
+    .action(async (name: string | undefined) => {
+      await registerSkillsetMain({ skillsetName: name || null });
     });
 };
 
@@ -490,6 +518,40 @@ export const registerNoriSkillsetsListSkillsetsCommand = (args: {
       agent: globalOpts.agent || null,
     });
   });
+};
+
+/**
+ * Register the 'current' command for nori-skillsets CLI
+ * @param args - Configuration arguments
+ * @param args.program - Commander program instance
+ */
+export const registerNoriSkillsetsCurrentCommand = (args: {
+  program: Command;
+}): void => {
+  const { program } = args;
+
+  // Primary command: current (shorthand, canonical)
+  program
+    .command("current")
+    .description("Show the currently active skillset")
+    .option("-a, --agent <name>", "AI agent to get skillset for")
+    .action(async (options: { agent?: string }) => {
+      const globalOpts = program.opts();
+      await currentSkillsetMain({
+        agent: options.agent || globalOpts.agent || null,
+      });
+    });
+
+  // Hidden alias: current-skillset (long form)
+  program
+    .command("current-skillset", { hidden: true })
+    .option("-a, --agent <name>", "AI agent to get skillset for")
+    .action(async (options: { agent?: string }) => {
+      const globalOpts = program.opts();
+      await currentSkillsetMain({
+        agent: options.agent || globalOpts.agent || null,
+      });
+    });
 };
 
 /**

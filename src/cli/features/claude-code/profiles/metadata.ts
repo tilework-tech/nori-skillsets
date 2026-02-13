@@ -21,6 +21,18 @@ export type ProfileMetadata = {
   /** Human-readable description */
   description?: string;
 
+  /** License (e.g., "MIT", "Apache-2.0") */
+  license?: string;
+
+  /** Keywords for discoverability */
+  keywords?: Array<string>;
+
+  /** Repository information */
+  repository?: {
+    type: string;
+    url: string;
+  };
+
   /** Skill dependencies (skill name -> version range) */
   dependencies?: {
     skills?: Record<string, string>;
@@ -121,5 +133,80 @@ export const addSkillToNoriJson = async (args: {
 
   metadata.dependencies.skills[skillName] = version;
 
+  await writeProfileMetadata({ profileDir, metadata });
+};
+
+/**
+ * Check whether a directory looks like a profile (has CLAUDE.md, or both
+ * skills/ and subagents/ subdirectories).
+ *
+ * @param args - Function arguments
+ * @param args.profileDir - Path to the directory to check
+ *
+ * @returns True if the directory has profile markers
+ */
+const looksLikeProfile = async (args: {
+  profileDir: string;
+}): Promise<boolean> => {
+  const { profileDir } = args;
+
+  try {
+    await fs.access(path.join(profileDir, "CLAUDE.md"));
+    return true;
+  } catch {
+    // no CLAUDE.md — check for skills + subagents dirs
+  }
+
+  try {
+    const [skillsStat, subagentsStat] = await Promise.all([
+      fs.stat(path.join(profileDir, "skills")),
+      fs.stat(path.join(profileDir, "subagents")),
+    ]);
+    return skillsStat.isDirectory() && subagentsStat.isDirectory();
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Ensure a nori.json manifest exists for a profile directory.
+ *
+ * If the directory exists and looks like a profile (has CLAUDE.md, or both
+ * skills/ and subagents/ subdirectories) but has no nori.json, creates one
+ * with the folder name as `name` and version "0.0.1".
+ *
+ * This is a backwards-compatibility shim for user-created skillsets that
+ * were never given a nori.json manifest.
+ *
+ * @param args - Function arguments
+ * @param args.profileDir - Path to profile directory
+ */
+export const ensureNoriJson = async (args: {
+  profileDir: string;
+}): Promise<void> => {
+  const { profileDir } = args;
+  const noriJsonPath = path.join(profileDir, "nori.json");
+
+  try {
+    await fs.access(noriJsonPath);
+    return;
+  } catch {
+    // nori.json missing — check if we should create it
+  }
+
+  try {
+    await fs.access(profileDir);
+  } catch {
+    return;
+  }
+
+  if (!(await looksLikeProfile({ profileDir }))) {
+    return;
+  }
+
+  const metadata: ProfileMetadata = {
+    name: path.basename(profileDir),
+    version: "0.0.1",
+  };
   await writeProfileMetadata({ profileDir, metadata });
 };

@@ -10,6 +10,7 @@ import { Command } from "commander";
 
 import {
   registerNoriSkillsetsCompletionCommand,
+  registerNoriSkillsetsCurrentCommand,
   registerNoriSkillsetsDirCommand,
   registerNoriSkillsetsDownloadCommand,
   registerNoriSkillsetsDownloadSkillCommand,
@@ -23,6 +24,7 @@ import {
   registerNoriSkillsetsListSkillsetsCommand,
   registerNoriSkillsetsLoginCommand,
   registerNoriSkillsetsNewCommand,
+  registerNoriSkillsetsRegisterCommand,
   registerNoriSkillsetsLogoutCommand,
   registerNoriSkillsetsSearchCommand,
   registerNoriSkillsetsSwitchSkillsetCommand,
@@ -104,6 +106,7 @@ Examples:
   $ nori-skillsets install my-skillset --user
   $ nori-skillsets switch senior-swe
   $ nori-skillsets list
+  $ nori-skillsets current
   $ nori-skillsets download-skill my-skill
   $ nori-skillsets download-skill my-skill@1.0.0
   $ nori-skillsets download-skill my-skill --list-versions
@@ -118,6 +121,8 @@ Examples:
   $ nori-skillsets install-location --installation-managed  # show only managed dirs
   $ nori-skillsets install-location --non-interactive       # plain output for scripts
   $ nori-skillsets new my-skillset                          # create a new empty skillset
+  $ nori-skillsets register my-skillset                     # create nori.json for existing skillset
+  $ nori-skillsets register                                 # create nori.json for current skillset
   $ nori-skillsets fork senior-swe my-custom                # fork a skillset to a new name
   $ nori-skillsets edit                                     # open active skillset in VS Code
   $ nori-skillsets edit my-profile                          # open a specific skillset
@@ -135,6 +140,7 @@ registerNoriSkillsetsUploadCommand({ program });
 registerNoriSkillsetsInstallCommand({ program });
 registerNoriSkillsetsSwitchSkillsetCommand({ program });
 registerNoriSkillsetsListSkillsetsCommand({ program });
+registerNoriSkillsetsCurrentCommand({ program });
 registerNoriSkillsetsDownloadSkillCommand({ program });
 registerNoriSkillsetsExternalCommand({ program });
 registerNoriSkillsetsWatchCommand({ program });
@@ -143,6 +149,7 @@ registerNoriSkillsetsInstallLocationCommand({ program });
 registerNoriSkillsetsCompletionCommand({ program });
 registerNoriSkillsetsForkCommand({ program });
 registerNoriSkillsetsNewCommand({ program });
+registerNoriSkillsetsRegisterCommand({ program });
 registerNoriSkillsetsEditSkillsetCommand({ program });
 registerNoriSkillsetsFactoryResetCommand({ program });
 

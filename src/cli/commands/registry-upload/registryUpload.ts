@@ -4,6 +4,7 @@
  */
 
 import * as fs from "fs/promises";
+import * as os from "os";
 import * as path from "path";
 
 import * as semver from "semver";
@@ -84,6 +85,12 @@ const determineUploadVersion = async (args: {
 };
 
 /**
+ * Files to exclude from upload tarballs.
+ * .nori-version contains local download metadata that should not be distributed.
+ */
+const UPLOAD_EXCLUDED_FILES = new Set([".nori-version"]);
+
+/**
  * Create a gzipped tarball from a profile directory
  * @param args - The function arguments
  * @param args.profileDir - The profile directory to pack
@@ -102,6 +109,11 @@ const createProfileTarball = async (args: {
     const filePath = path.join(profileDir, file);
     const stat = await fs.stat(filePath);
     if (stat.isFile()) {
+      // Skip excluded files (like .nori-version)
+      const filename = path.basename(file);
+      if (UPLOAD_EXCLUDED_FILES.has(filename)) {
+        continue;
+      }
       filesToPack.push(file);
     }
   }
@@ -204,8 +216,8 @@ export const registryUploadMain = async (args: {
     }
   }
 
-  // Load config
-  const config = await loadConfig();
+  // Load config - use os.homedir() since registry upload needs global auth
+  const config = await loadConfig({ startDir: os.homedir() });
   if (config == null) {
     error({ message: `Could not load Nori configuration.` });
     return { success: false };
