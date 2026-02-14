@@ -24,7 +24,11 @@ export type DownloadSearchResult =
       isUpdate: boolean;
       currentVersion?: string | null;
     }
-  | { status: "already-current"; version: string }
+  | {
+      status: "already-current";
+      version: string;
+      warnings?: Array<string> | null;
+    }
   | {
       status: "list-versions";
       formattedVersionList: string;
@@ -106,6 +110,9 @@ export const registryDownloadFlow = async (args: {
   s.stop("Found");
 
   if (searchResult.status === "already-current") {
+    if (searchResult.warnings != null && searchResult.warnings.length > 0) {
+      note(searchResult.warnings.join("\n"), "Skill Dependency Warnings");
+    }
     log.success(
       `Skillset "${packageDisplayName}" is already at version ${searchResult.version}.`,
     );

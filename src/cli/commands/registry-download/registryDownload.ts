@@ -104,22 +104,32 @@ const readNoriJson = async (args: {
 };
 
 /**
+ * Result of downloading a single skill dependency
+ */
+type SkillDependencyResult = {
+  downloaded: boolean;
+  warning?: string | null;
+};
+
+/**
  * Download and install a single skill dependency (always uses latest version)
  * @param args - The download parameters
  * @param args.skillName - The name of the skill to download
  * @param args.skillsDir - The directory where skills are installed
  * @param args.registryUrl - The registry URL to download from
  * @param args.authToken - Optional authentication token for private registries
+ * @param args.silent - If true, collect warnings as return values instead of logging
  *
- * @returns True if skill was downloaded/updated, false if skipped or failed
+ * @returns Result indicating whether the skill was downloaded and any warning
  */
 const downloadSkillDependency = async (args: {
   skillName: string;
   skillsDir: string;
   registryUrl: string;
   authToken?: string | null;
-}): Promise<boolean> => {
-  const { skillName, skillsDir, registryUrl, authToken } = args;
+  silent?: boolean | null;
+}): Promise<SkillDependencyResult> => {
+  const { skillName, skillsDir, registryUrl, authToken, silent } = args;
   const skillDir = path.join(skillsDir, skillName);
 
   try {
@@ -132,10 +142,11 @@ const downloadSkillDependency = async (args: {
 
     const latestVersion = packument["dist-tags"].latest;
     if (latestVersion == null) {
-      info({
-        message: `Warning: No latest version found for skill "${skillName}"`,
-      });
-      return false;
+      const warning = `Warning: No latest version found for skill "${skillName}"`;
+      if (!silent) {
+        info({ message: warning });
+      }
+      return { downloaded: false, warning };
     }
 
     // Check if skill already exists with same version
@@ -152,7 +163,7 @@ const downloadSkillDependency = async (args: {
       if (existingVersionInfo != null) {
         // Skip if already at latest version
         if (existingVersionInfo.version === latestVersion) {
-          return false; // Already installed with latest version
+          return { downloaded: false }; // Already installed with latest version
         }
       }
     }
@@ -214,13 +225,14 @@ const downloadSkillDependency = async (args: {
       ),
     );
 
-    return true;
+    return { downloaded: true };
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
-    info({
-      message: `Warning: Failed to download skill "${skillName}": ${errorMessage}`,
-    });
-    return false;
+    const warning = `Warning: Failed to download skill "${skillName}": ${errorMessage}`;
+    if (!silent) {
+      info({ message: warning });
+    }
+    return { downloaded: false, warning };
   }
 };
 
@@ -231,7 +243,9 @@ const downloadSkillDependency = async (args: {
  * @param args.skillsDir - The directory where skills are installed
  * @param args.registryUrl - The registry URL to download from
  * @param args.authToken - Optional authentication token for private registries
- * @param args.silent - If true, suppress log output (used when clack spinner is active)
+ * @param args.silent - If true, suppress log output and return warnings instead
+ *
+ * @returns Array of warning messages from failed dependency downloads
  */
 const downloadSkillDependencies = async (args: {
   noriJson: NoriJson;
@@ -239,26 +253,32 @@ const downloadSkillDependencies = async (args: {
   registryUrl: string;
   authToken?: string | null;
   silent?: boolean | null;
-}): Promise<void> => {
+}): Promise<Array<string>> => {
   const { noriJson, skillsDir, registryUrl, authToken, silent } = args;
 
   const skillDeps = noriJson.dependencies?.skills;
   if (skillDeps == null || Object.keys(skillDeps).length === 0) {
-    return;
+    return [];
   }
 
   if (!silent) {
     info({ message: "Installing skill dependencies..." });
   }
 
+  const warnings: Array<string> = [];
   for (const skillName of Object.keys(skillDeps)) {
-    await downloadSkillDependency({
+    const result = await downloadSkillDependency({
       skillName,
       skillsDir,
       registryUrl,
       authToken,
+      silent,
     });
+    if (result.warning != null) {
+      warnings.push(result.warning);
+    }
   }
+  return warnings;
 };
 
 /**
@@ -810,10 +830,11 @@ export const registryDownloadMain = async (args: {
 
             if (installedValid && targetValid) {
               if (semver.gte(installedVersion, resolvedTargetVersion)) {
+                let depWarnings: Array<string> = [];
                 const noriJson = await readNoriJson({ profileDir: targetDir });
                 if (noriJson != null) {
                   const profileSkillsDir = path.join(targetDir, "skills");
-                  await downloadSkillDependencies({
+                  depWarnings = await downloadSkillDependencies({
                     noriJson,
                     skillsDir: profileSkillsDir,
                     registryUrl: foundRegistry.registryUrl,
@@ -824,6 +845,7 @@ export const registryDownloadMain = async (args: {
                 return {
                   status: "already-current",
                   version: installedVersion,
+                  warnings: depWarnings,
                 };
               }
               return {
@@ -833,10 +855,11 @@ export const registryDownloadMain = async (args: {
                 currentVersion: installedVersion,
               };
             } else if (installedVersion === resolvedTargetVersion) {
+              let depWarnings: Array<string> = [];
               const noriJson = await readNoriJson({ profileDir: targetDir });
               if (noriJson != null) {
                 const profileSkillsDir = path.join(targetDir, "skills");
-                await downloadSkillDependencies({
+                depWarnings = await downloadSkillDependencies({
                   noriJson,
                   skillsDir: profileSkillsDir,
                   registryUrl: foundRegistry.registryUrl,
@@ -847,6 +870,7 @@ export const registryDownloadMain = async (args: {
               return {
                 status: "already-current",
                 version: installedVersion,
+                warnings: depWarnings,
               };
             }
           }
@@ -940,11 +964,11 @@ export const registryDownloadMain = async (args: {
             );
 
             // Download skill dependencies and collect warnings
-            const warnings: Array<string> = [];
+            let warnings: Array<string> = [];
             const noriJson = await readNoriJson({ profileDir: targetDir });
             if (noriJson != null) {
               const profileSkillsDir = path.join(targetDir, "skills");
-              await downloadSkillDependencies({
+              warnings = await downloadSkillDependencies({
                 noriJson,
                 skillsDir: profileSkillsDir,
                 registryUrl: selectedRegistry.registryUrl,
