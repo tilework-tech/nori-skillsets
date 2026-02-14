@@ -57,20 +57,18 @@ consistent visual style.
 - [x] `list-skillsets/listSkillsets.ts`
   - Uses `log.error()` from @clack/prompts
 
-- [ ] `current-skillset/currentSkillset.ts`
-  - Current: `error()`, `raw()` from logger
-  - Needs: `log.error()`, direct stdout for scripting output
+- [x] `current-skillset/currentSkillset.ts`
+  - Uses `log.error()`, `process.stdout.write()` for scripting output
 
-- [ ] `install-location/installLocation.ts`
-  - Current: `info()`, `success()`, `error()` scattered throughout
-  - Needs: `note()` for installation info, `log.*` for messages
+- [x] `install-location/installLocation.ts`
+  - Uses `log.error()`, `note()`, `outro()` for interactive output
+  - Uses `process.stdout.write()` for non-interactive output
 
 - [x] `dir/dir.ts`
   - Uses `log.success()`, `log.step()`, `outro()` from @clack/prompts
 
-- [ ] `edit-skillset/editSkillset.ts`
-  - Current: `info()`, `success()`, `error()`
-  - Needs: `log.*` and `note()` for skillset contents
+- [x] `edit-skillset/editSkillset.ts`
+  - Uses `log.error()`, `log.success()`, `log.info()`, `note()`, `outro()`
 
 ### Download/Install Commands
 

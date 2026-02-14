@@ -9,6 +9,7 @@ import * as fs from "fs/promises";
 import * as os from "os";
 import * as path from "path";
 
+import { log, note, outro } from "@clack/prompts";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
@@ -24,18 +25,15 @@ vi.mock("os", async (importOriginal) => {
   };
 });
 
-// Mock logger to capture output
-const mockRaw = vi.fn();
-const mockError = vi.fn();
-const mockInfo = vi.fn();
-const mockSuccess = vi.fn();
-const mockNewline = vi.fn();
-vi.mock("@/cli/logger.js", () => ({
-  raw: (args: { message: string }) => mockRaw(args),
-  error: (args: { message: string }) => mockError(args),
-  info: (args: { message: string }) => mockInfo(args),
-  success: (args: { message: string }) => mockSuccess(args),
-  newline: () => mockNewline(),
+// Mock @clack/prompts
+vi.mock("@clack/prompts", () => ({
+  log: {
+    error: vi.fn(),
+    info: vi.fn(),
+    success: vi.fn(),
+  },
+  note: vi.fn(),
+  outro: vi.fn(),
 }));
 
 // Mock child_process.execFile
@@ -68,11 +66,11 @@ describe("editSkillsetMain", () => {
     const testNoriDir = path.join(testHomeDir, ".nori");
     await fs.mkdir(testNoriDir, { recursive: true });
     AgentRegistry.resetInstance();
-    mockRaw.mockClear();
-    mockError.mockClear();
-    mockInfo.mockClear();
-    mockSuccess.mockClear();
-    mockNewline.mockClear();
+    vi.mocked(log.error).mockClear();
+    vi.mocked(log.info).mockClear();
+    vi.mocked(log.success).mockClear();
+    vi.mocked(note).mockClear();
+    vi.mocked(outro).mockClear();
     mockExit.mockClear();
     mockExecFile.mockReset();
   });
@@ -123,14 +121,16 @@ describe("editSkillsetMain", () => {
       expect.any(Function),
     );
 
-    // Should print a success message
-    expect(mockSuccess).toHaveBeenCalledWith({
-      message: expect.stringContaining("senior-swe"),
-    });
+    // Should print a success message using log.success
+    expect(log.success).toHaveBeenCalledWith(
+      expect.stringContaining("senior-swe"),
+    );
+    // Should end with outro
+    expect(outro).toHaveBeenCalled();
     expect(mockExit).not.toHaveBeenCalled();
   });
 
-  it("should fall back to listing directory contents when VS Code is not available", async () => {
+  it("should fall back to using note for directory contents when VS Code is not available", async () => {
     // Set up config with active profile
     const configPath = path.join(testHomeDir, ".nori-config.json");
     await fs.writeFile(
@@ -170,20 +170,24 @@ describe("editSkillsetMain", () => {
 
     await editSkillsetMain({ agent: "claude-code" });
 
-    // Should print the profile directory path
-    const allRawMessages = mockRaw.mock.calls.map(
-      (call) => (call[0] as { message: string }).message,
+    // Should use note for directory contents
+    expect(note).toHaveBeenCalledWith(
+      expect.stringContaining(profileDir),
+      expect.stringContaining("senior-swe"),
     );
-    const allInfoMessages = mockInfo.mock.calls.map(
-      (call) => (call[0] as { message: string }).message,
-    );
-    const allMessages = [...allRawMessages, ...allInfoMessages];
 
-    expect(allMessages.some((m) => m.includes(profileDir))).toBe(true);
+    // Note should contain directory contents
+    const noteCall = vi.mocked(note).mock.calls[0];
+    const noteContent = noteCall[0] as string;
+    expect(noteContent).toContain("nori.json");
+    expect(noteContent).toContain("skills");
 
-    // Should list directory contents
-    expect(allRawMessages.some((m) => m.includes("nori.json"))).toBe(true);
-    expect(allRawMessages.some((m) => m.includes("skills"))).toBe(true);
+    // Should show instructions using log.info
+    expect(log.info).toHaveBeenCalledWith(expect.stringContaining("code"));
+    expect(log.info).toHaveBeenCalledWith(expect.stringContaining("cd"));
+
+    // Should end with outro
+    expect(outro).toHaveBeenCalled();
 
     // Should NOT exit with error
     expect(mockExit).not.toHaveBeenCalled();
@@ -202,9 +206,9 @@ describe("editSkillsetMain", () => {
 
     await editSkillsetMain({ agent: "claude-code" });
 
-    expect(mockError).toHaveBeenCalledWith({
-      message: expect.stringContaining("No active skillset"),
-    });
+    expect(log.error).toHaveBeenCalledWith(
+      expect.stringContaining("No active skillset"),
+    );
     expect(mockExit).toHaveBeenCalledWith(1);
   });
 
@@ -227,9 +231,9 @@ describe("editSkillsetMain", () => {
 
     await editSkillsetMain({ agent: "claude-code" });
 
-    expect(mockError).toHaveBeenCalledWith({
-      message: expect.stringContaining("nonexistent"),
-    });
+    expect(log.error).toHaveBeenCalledWith(
+      expect.stringContaining("nonexistent"),
+    );
     expect(mockExit).toHaveBeenCalledWith(1);
   });
 
@@ -271,9 +275,10 @@ describe("editSkillsetMain", () => {
       expect.any(Function),
     );
 
-    expect(mockSuccess).toHaveBeenCalledWith({
-      message: expect.stringContaining("senior-swe"),
-    });
+    expect(log.success).toHaveBeenCalledWith(
+      expect.stringContaining("senior-swe"),
+    );
+    expect(outro).toHaveBeenCalled();
   });
 
   it("should resolve namespaced profiles correctly", async () => {
@@ -314,9 +319,10 @@ describe("editSkillsetMain", () => {
       expect.any(Function),
     );
 
-    expect(mockSuccess).toHaveBeenCalledWith({
-      message: expect.stringContaining("myorg/my-profile"),
-    });
+    expect(log.success).toHaveBeenCalledWith(
+      expect.stringContaining("myorg/my-profile"),
+    );
+    expect(outro).toHaveBeenCalled();
   });
 
   it("should open specified profile when name argument is provided", async () => {
@@ -361,9 +367,10 @@ describe("editSkillsetMain", () => {
       expect.any(Function),
     );
 
-    expect(mockSuccess).toHaveBeenCalledWith({
-      message: expect.stringContaining("product-manager"),
-    });
+    expect(log.success).toHaveBeenCalledWith(
+      expect.stringContaining("product-manager"),
+    );
+    expect(outro).toHaveBeenCalled();
   });
 
   it("should auto-detect agent and use its active profile when no agent or name is given", async () => {
@@ -405,18 +412,19 @@ describe("editSkillsetMain", () => {
       expect.any(Function),
     );
 
-    expect(mockSuccess).toHaveBeenCalledWith({
-      message: expect.stringContaining("senior-swe"),
-    });
+    expect(log.success).toHaveBeenCalledWith(
+      expect.stringContaining("senior-swe"),
+    );
+    expect(outro).toHaveBeenCalled();
   });
 
   it("should error when no config exists and no name argument is given", async () => {
     // No config file at all
     await editSkillsetMain({ agent: "claude-code" });
 
-    expect(mockError).toHaveBeenCalledWith({
-      message: expect.stringContaining("No active skillset"),
-    });
+    expect(log.error).toHaveBeenCalledWith(
+      expect.stringContaining("No active skillset"),
+    );
     expect(mockExit).toHaveBeenCalledWith(1);
   });
 });

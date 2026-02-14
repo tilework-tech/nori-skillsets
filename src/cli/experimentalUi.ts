@@ -19,7 +19,7 @@ import { loadConfig } from "@/cli/config.js";
  *
  * Resolution order:
  * 1. Config file: ~/.nori-config.json { "experimentalUi": true }
- * 2. Version string: contains "next" (e.g., "0.7.0-next.1")
+ * 2. Version string: contains "next" (e.g., "0.7.0-next.1") or is "0.0.0"
  *
  * @param args - Resolution arguments
  * @param args.version - The current package version string
@@ -38,8 +38,9 @@ export const shouldAutoEnableExperimentalUi = async (args: {
     return true;
   }
 
-  // Auto-detect from version string containing "next"
-  if (version.includes("next")) {
+  // Auto-detect from override version strings
+  const overrideVersions = ["next", "0.0.0"];
+  if (overrideVersions.some((v) => version.includes(v))) {
     return true;
   }
 

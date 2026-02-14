@@ -5,12 +5,13 @@
 
 import * as os from "os";
 
+import { log } from "@clack/prompts";
+
 import {
   loadConfig,
   getAgentProfile,
   getInstalledAgents,
 } from "@/cli/config.js";
-import { error, raw } from "@/cli/logger.js";
 
 import type { ConfigAgentName } from "@/cli/config.js";
 
@@ -28,10 +29,9 @@ export const currentSkillsetMain = async (args: {
   const config = await loadConfig({ startDir: os.homedir() });
 
   if (config == null) {
-    error({
-      message:
-        "No active skillset configured. Use 'nori-skillsets switch <name>' to set one.",
-    });
+    log.error(
+      "No active skillset configured. Use 'nori-skillsets switch <name>' to set one.",
+    );
     process.exit(1);
     return;
   }
@@ -49,14 +49,13 @@ export const currentSkillsetMain = async (args: {
   const profile = getAgentProfile({ config, agentName });
 
   if (profile == null) {
-    error({
-      message:
-        "No active skillset configured. Use 'nori-skillsets switch <name>' to set one.",
-    });
+    log.error(
+      "No active skillset configured. Use 'nori-skillsets switch <name>' to set one.",
+    );
     process.exit(1);
     return;
   }
 
-  // Output the skillset name
-  raw({ message: profile.baseProfile });
+  // Output the skillset name (plain stdout for scripting use)
+  process.stdout.write(profile.baseProfile + "\n");
 };

@@ -16,7 +16,7 @@ Path: @/src/cli/commands/watch
 - Registered via `registerNoriSkillsetsWatchCommand()` in @/src/cli/commands/noriSkillsetsCommands.ts
 - Available as `nori-skillsets watch` and `nori-skillsets watch stop` commands
 - Does not require Nori installation - operates independently on Claude Code session files
-- Uses the shared logger from @/src/cli/logger.ts for console output (`info`, `success`, `warn`)
+- Uses the shared logger from @/src/cli/logger.ts for console output (`info`, `success`, `warn`); when `experimentalUi` is enabled, `watchStopMain` swaps log calls to `@clack/prompts` equivalents (`clack.log.success`, `clack.log.warn`, `clack.log.info`) and `watchMain` delegates to `watchFlow` from @/src/cli/prompts/flows/watch.ts
 - Follows the standard command pattern: exports `watchMain()` and `watchStopMain()` functions that the registration wrapper calls
 
 ### Core Implementation
@@ -135,9 +135,14 @@ Stale scanner runs every SCAN_INTERVAL_MS (10 seconds)
 - `watchStopMain()` must read the PID file before calling `cleanupWatch()`, since cleanup deletes the PID file; otherwise the daemon becomes an orphan process
 
 **Transcript Destination Selection:**
-- `selectTranscriptDestination()` determines which org receives uploads
+- `selectTranscriptDestination()` determines which org receives uploads (legacy path)
 - Filters out "public" from available organizations (only private orgs can receive transcripts)
 - If configured destination is no longer in user's organization list (lost access), triggers re-selection
 - In daemon mode with multiple orgs, auto-selects first org with a warning
+
+**Experimental UI (`experimentalUi`):**
+- `watchMain` accepts an `experimentalUi` parameter. When enabled and not in background daemon mode (`!_background`), it delegates the entire interactive flow to `watchFlow` from @/src/cli/prompts/flows/watch.ts via dynamic import. The flow handles org selection via `@clack/prompts` `select()` instead of the legacy `promptUser` readline approach. Two callbacks are provided: `onPrepare` (stops existing daemon, loads config, returns private orgs) and `onStartDaemon` (saves config if destination changed, spawns the daemon process).
+- `watchStopMain` accepts an `experimentalUi` parameter. When enabled, it replaces `success()`, `warn()`, `info()` calls with dynamically imported `@clack/prompts` `log.success()`, `log.warn()`, `log.info()`. This is a simpler approach than a full flow since `watchStopMain` has no interactive prompts.
+- The `experimentalUi` flag is wired from the global `--experimental-ui` option in `registerNoriSkillsetsWatchCommand()` in @/src/cli/commands/noriSkillsetsCommands.ts for both `watch` and `watch stop` subcommands.
 
 Created and maintained by Nori.

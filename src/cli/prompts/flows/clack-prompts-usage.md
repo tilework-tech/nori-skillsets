@@ -419,6 +419,7 @@ prompts in the right order and passes the right data to callbacks.
 | `loginFlow`           | 1         | `flows/login.ts`       |
 | `switchSkillsetFlow`  | 4         | `flows/switchSkillset.ts` |
 | `uploadFlow`          | 2         | `flows/upload.ts`      |
+| `factoryResetFlow`    | 2         | `flows/factoryReset.ts` |
 
 ### Standalone Wrappers
 
@@ -469,6 +470,7 @@ Interactive flows migrated:
 - [x] `flows/login.ts` - Full flow with 1 callback
 - [x] `flows/switchSkillset.ts` - Full flow with 4 callbacks
 - [x] `flows/upload.ts` - Full flow with 2 callbacks
+- [x] `flows/factoryReset.ts` - Full flow with 2 callbacks
 
 Non-interactive commands migrated to clack output:
 
@@ -484,7 +486,7 @@ Non-interactive commands migrated to clack output:
 Commands with interactive prompts that need full flow migration:
 
 - [ ] `login/login.ts` - Legacy path still uses `promptUser` (flow exists)
-- [ ] `watch/watch.ts` - Uses legacy `promptUser` for transcript destination
+- [x] `watch/watch.ts` - Uses legacy `promptUser` for transcript destination (flow exists, `watchStopMain` also migrated)
 - [ ] `install/existingConfigCapture.ts` - Legacy path (initFlow handles this)
 - [ ] `registry-download/registryDownload.ts` - Multiple `promptUser` calls
 - [ ] `registry-install/registryInstall.ts` - Interactive install prompts
@@ -494,7 +496,7 @@ Commands with interactive prompts that need full flow migration:
 - [ ] `edit-skillset/editSkillset.ts` - Editor selection prompt
 - [ ] `external/external.ts` - External skill installation prompts
 - [ ] `install/install.ts` - Main installation flow
-- [ ] `factory-reset/factoryReset.ts` - Confirmation prompt
+- [x] `factory-reset/factoryReset.ts` - Confirmation prompt (factoryResetFlow)
 
 ### Noninteractive Migration
 

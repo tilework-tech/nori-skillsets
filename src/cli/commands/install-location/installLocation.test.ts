@@ -7,23 +7,18 @@ import * as fs from "fs/promises";
 import { tmpdir } from "os";
 import * as path from "path";
 
+import { log, note, outro } from "@clack/prompts";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 import { installLocationMain } from "./installLocation.js";
 
-// Mock logger to capture output
-const mockRaw = vi.fn();
-const mockError = vi.fn();
-const mockInfo = vi.fn();
-const mockSuccess = vi.fn();
-const mockNewline = vi.fn();
-
-vi.mock("@/cli/logger.js", () => ({
-  raw: (args: { message: string }) => mockRaw(args),
-  error: (args: { message: string }) => mockError(args),
-  info: (args: { message: string }) => mockInfo(args),
-  success: (args: { message: string }) => mockSuccess(args),
-  newline: () => mockNewline(),
+// Mock @clack/prompts
+vi.mock("@clack/prompts", () => ({
+  log: {
+    error: vi.fn(),
+  },
+  note: vi.fn(),
+  outro: vi.fn(),
 }));
 
 // Mock process.exit
@@ -31,17 +26,21 @@ const mockExit = vi
   .spyOn(process, "exit")
   .mockImplementation(() => undefined as never);
 
+// Mock process.stdout.write for non-interactive output
+const mockStdoutWrite = vi
+  .spyOn(process.stdout, "write")
+  .mockImplementation(() => true);
+
 describe("installLocationMain", () => {
   let tempDir: string;
 
   beforeEach(async () => {
     tempDir = await fs.mkdtemp(path.join(tmpdir(), "install-location-test-"));
-    mockRaw.mockClear();
-    mockError.mockClear();
-    mockInfo.mockClear();
-    mockSuccess.mockClear();
-    mockNewline.mockClear();
+    vi.mocked(log.error).mockClear();
+    vi.mocked(note).mockClear();
+    vi.mocked(outro).mockClear();
     mockExit.mockClear();
+    mockStdoutWrite.mockClear();
   });
 
   afterEach(async () => {
@@ -51,7 +50,7 @@ describe("installLocationMain", () => {
   });
 
   describe("default behavior (no flags)", () => {
-    it("should display all installations with formatted output", async () => {
+    it("should display all installations with formatted output using note", async () => {
       const projectDir = path.join(tempDir, "project");
       const claudeDir = path.join(projectDir, ".claude");
       await fs.mkdir(claudeDir, { recursive: true });
@@ -64,14 +63,14 @@ describe("installLocationMain", () => {
 
       await installLocationMain({ currentDir: projectDir });
 
-      // Should use formatted output (info, success, newline)
-      expect(mockInfo).toHaveBeenCalled();
-      expect(mockSuccess).toHaveBeenCalled();
-      expect(mockNewline).toHaveBeenCalled();
+      // Should use note for formatted output
+      expect(note).toHaveBeenCalled();
+      // Should end with outro
+      expect(outro).toHaveBeenCalled();
       expect(mockExit).not.toHaveBeenCalled();
     });
 
-    it("should show both source and managed installations grouped by category", async () => {
+    it("should show both source and managed installations in separate notes", async () => {
       // Setup: parent (source), current (managed)
       const parentDir = path.join(tempDir, "parent");
       const currentDir = path.join(parentDir, "current");
@@ -93,13 +92,22 @@ describe("installLocationMain", () => {
 
       await installLocationMain({ currentDir });
 
-      // Should show category headers
-      expect(mockInfo).toHaveBeenCalledWith({
-        message: expect.stringContaining("Installation source"),
-      });
-      expect(mockInfo).toHaveBeenCalledWith({
-        message: expect.stringContaining("Managed installation"),
-      });
+      // Should have two notes - one for source, one for managed
+      expect(note).toHaveBeenCalledTimes(2);
+
+      // First note should be for source installations
+      expect(note).toHaveBeenCalledWith(
+        expect.stringContaining(parentDir),
+        expect.stringMatching(/Installation source/i),
+      );
+
+      // Second note should be for managed installations
+      expect(note).toHaveBeenCalledWith(
+        expect.stringContaining(currentDir),
+        expect.stringMatching(/Managed installation/i),
+      );
+
+      expect(outro).toHaveBeenCalled();
     });
   });
 
@@ -129,15 +137,14 @@ describe("installLocationMain", () => {
         installationSource: true,
       });
 
-      // Should only show the source installation (parent)
-      expect(mockSuccess).toHaveBeenCalledWith({
-        message: expect.stringContaining(parentDir),
-      });
-      // Should NOT show the managed-only installation (current)
-      const successCalls = mockSuccess.mock.calls.map((c) => c[0].message);
-      expect(successCalls.some((m: string) => m.includes(currentDir))).toBe(
-        false,
+      // Should show note with the source installation (parent)
+      expect(note).toHaveBeenCalledWith(
+        expect.stringContaining(parentDir),
+        expect.stringMatching(/Installation source/i),
       );
+      // Should only have one note
+      expect(note).toHaveBeenCalledTimes(1);
+      expect(outro).toHaveBeenCalled();
     });
 
     it("should include 'both' type installations when filtering by source", async () => {
@@ -161,9 +168,11 @@ describe("installLocationMain", () => {
       });
 
       // Should include the "both" installation since it qualifies as source
-      expect(mockSuccess).toHaveBeenCalledWith({
-        message: expect.stringContaining(projectDir),
-      });
+      expect(note).toHaveBeenCalledWith(
+        expect.stringContaining(projectDir),
+        expect.stringMatching(/Installation source/i),
+      );
+      expect(outro).toHaveBeenCalled();
     });
   });
 
@@ -193,19 +202,14 @@ describe("installLocationMain", () => {
         managedInstallation: true,
       });
 
-      // Should only show the managed installation (current)
-      expect(mockSuccess).toHaveBeenCalledWith({
-        message: expect.stringContaining(currentDir),
-      });
-      // Should NOT show the source-only installation (parent) as a standalone path
-      // Note: currentDir contains parentDir as a prefix, so we check for exact path matches
-      const successCalls = mockSuccess.mock.calls.map(
-        (c) => c[0].message as string,
+      // Should show note with the managed installation (current)
+      expect(note).toHaveBeenCalledWith(
+        expect.stringContaining(currentDir),
+        expect.stringMatching(/Managed installation/i),
       );
-      const hasParentDirExact = successCalls.some(
-        (m) => m.includes(parentDir) && !m.includes(currentDir),
-      );
-      expect(hasParentDirExact).toBe(false);
+      // Should only have one note
+      expect(note).toHaveBeenCalledTimes(1);
+      expect(outro).toHaveBeenCalled();
     });
 
     it("should include 'both' type installations when filtering by managed", async () => {
@@ -229,9 +233,11 @@ describe("installLocationMain", () => {
       });
 
       // Should include the "both" installation since it qualifies as managed
-      expect(mockSuccess).toHaveBeenCalledWith({
-        message: expect.stringContaining(projectDir),
-      });
+      expect(note).toHaveBeenCalledWith(
+        expect.stringContaining(projectDir),
+        expect.stringMatching(/Managed installation/i),
+      );
+      expect(outro).toHaveBeenCalled();
     });
   });
 
@@ -250,12 +256,11 @@ describe("installLocationMain", () => {
         nonInteractive: true,
       });
 
-      // Should use raw output only
-      expect(mockRaw).toHaveBeenCalledWith({ message: projectDir });
-      // Should NOT use formatted output
-      expect(mockInfo).not.toHaveBeenCalled();
-      expect(mockSuccess).not.toHaveBeenCalled();
-      expect(mockNewline).not.toHaveBeenCalled();
+      // Should use stdout.write for output
+      expect(mockStdoutWrite).toHaveBeenCalledWith(projectDir + "\n");
+      // Should NOT use clack formatted output
+      expect(note).not.toHaveBeenCalled();
+      expect(outro).not.toHaveBeenCalled();
     });
 
     it("should output multiple paths one per line", async () => {
@@ -278,10 +283,10 @@ describe("installLocationMain", () => {
         nonInteractive: true,
       });
 
-      // Should output both paths via raw
-      expect(mockRaw).toHaveBeenCalledWith({ message: currentDir });
-      expect(mockRaw).toHaveBeenCalledWith({ message: parentDir });
-      expect(mockRaw).toHaveBeenCalledTimes(2);
+      // Should output both paths via stdout.write
+      expect(mockStdoutWrite).toHaveBeenCalledWith(currentDir + "\n");
+      expect(mockStdoutWrite).toHaveBeenCalledWith(parentDir + "\n");
+      expect(mockStdoutWrite).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -311,9 +316,9 @@ describe("installLocationMain", () => {
         nonInteractive: true,
       });
 
-      // Should output only source installation via raw
-      expect(mockRaw).toHaveBeenCalledWith({ message: parentDir });
-      expect(mockRaw).toHaveBeenCalledTimes(1);
+      // Should output only source installation via stdout.write
+      expect(mockStdoutWrite).toHaveBeenCalledWith(parentDir + "\n");
+      expect(mockStdoutWrite).toHaveBeenCalledTimes(1);
     });
 
     it("should apply --installation-managed with --non-interactive", async () => {
@@ -341,9 +346,9 @@ describe("installLocationMain", () => {
         nonInteractive: true,
       });
 
-      // Should output only managed installation via raw
-      expect(mockRaw).toHaveBeenCalledWith({ message: currentDir });
-      expect(mockRaw).toHaveBeenCalledTimes(1);
+      // Should output only managed installation via stdout.write
+      expect(mockStdoutWrite).toHaveBeenCalledWith(currentDir + "\n");
+      expect(mockStdoutWrite).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -358,9 +363,9 @@ describe("installLocationMain", () => {
         managedInstallation: true,
       });
 
-      expect(mockError).toHaveBeenCalledWith({
-        message: expect.stringContaining("Cannot use both"),
-      });
+      expect(log.error).toHaveBeenCalledWith(
+        expect.stringContaining("Cannot use both"),
+      );
       expect(mockExit).toHaveBeenCalledWith(1);
     });
   });
@@ -372,9 +377,9 @@ describe("installLocationMain", () => {
 
       await installLocationMain({ currentDir: emptyDir });
 
-      expect(mockError).toHaveBeenCalledWith({
-        message: expect.stringContaining("No Nori installation"),
-      });
+      expect(log.error).toHaveBeenCalledWith(
+        expect.stringContaining("No Nori installation"),
+      );
       expect(mockExit).toHaveBeenCalledWith(1);
     });
 
@@ -394,9 +399,7 @@ describe("installLocationMain", () => {
         managedInstallation: true,
       });
 
-      expect(mockError).toHaveBeenCalledWith({
-        message: expect.stringContaining("No"),
-      });
+      expect(log.error).toHaveBeenCalledWith(expect.stringContaining("No"));
       expect(mockExit).toHaveBeenCalledWith(1);
     });
   });

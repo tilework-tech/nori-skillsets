@@ -29,6 +29,7 @@ Flows provide complete interactive experiences that compose multiple prompts wit
 - `loginFlow` - Complete login UX with grouped email/password collection, spinner during authentication, note box for organization info, and outro message. Supports `skipIntro` to allow callers to manage the intro message externally (e.g., when loginFlow is used as a sub-flow after an auth method selection prompt)
 - `switchSkillsetFlow` - Multi-step skillset switching UX with agent selection, local change detection and handling (proceed/capture/abort), switch confirmation via note box, and spinner during switch and reinstall
 - `uploadFlow` - Multi-step upload UX with version determination, upload attempt, and skill conflict resolution. Auto-resolves unchanged skills, then prompts for remaining conflicts with batch ("Resolve all the same way") or individual ("Choose one-by-one") resolution modes. The `link` action is presented as "Use Existing" for unchanged skills or "Skip Upload" for changed skills. Returns `UploadFlowResult` with `linkedSkillIds`, `namespacedSkillIds`, and `skippedSkillIds`
+- `watchFlow` - Watch daemon startup UX with transcript destination org selection (auto-select for single org, `select()` prompt for multiple orgs), spinner during preparation and daemon spawning, and outro with PID/log file info. Uses 2 callbacks: `onPrepare` and `onStartDaemon`
 
 **Callback Pattern:**
 Flows use a callbacks pattern to separate UI handling from business logic:
@@ -49,7 +50,7 @@ This allows commands to provide business logic (Firebase auth, API calls, config
 - Flow modules return null on cancellation or failure (the flow handles displaying error UI)
 - The `ValidateFunction` type in text.ts follows the pattern `(args: { value: string }) => string | undefined` where undefined means valid and a string is the error message
 - `promptForAuth()` returns null if user enters empty email, allowing auth to be skipped during interactive flows
-- Flow modules (loginFlow, switchSkillsetFlow, uploadFlow, and their associated types) are exported both from flows/index.ts and re-exported from prompts/index.ts for convenient access
+- Flow modules (loginFlow, switchSkillsetFlow, uploadFlow, watchFlow, and their associated types) are exported both from flows/index.ts and re-exported from prompts/index.ts for convenient access
 - Flows use `unwrapPrompt` from flows/utils.ts for cancel handling; standalone wrappers use `handleCancel` which calls `process.exit(0)` — these are separate patterns for separate use cases
 - Flows return null on cancellation; the command should treat null as a clean exit since the flow has already displayed cancel UI to the user
 

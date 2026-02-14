@@ -19,6 +19,7 @@ import {
   hasChanges,
   MANAGED_FILES,
   MANAGED_DIRS,
+  EXCLUDED_FILES,
   type FileManifest,
   type ManifestDiff,
 } from "./manifest.js";
@@ -543,5 +544,157 @@ describe("manifest hasChanges helper", () => {
     for (const diff of diffs) {
       expect(hasChanges(diff)).toBe(true);
     }
+  });
+});
+
+describe("manifest excluded files", () => {
+  let tempDir: string;
+
+  beforeEach(async () => {
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "manifest-excluded-"));
+  });
+
+  afterEach(async () => {
+    await fs.rm(tempDir, { recursive: true, force: true });
+  });
+
+  it("should define .nori-version and nori.json as excluded files", () => {
+    expect(EXCLUDED_FILES).toContain(".nori-version");
+    expect(EXCLUDED_FILES).toContain("nori.json");
+  });
+
+  describe("computeDirectoryManifest", () => {
+    it("should exclude .nori-version files from manifest", async () => {
+      const skillDir = path.join(tempDir, "skills", "my-skill");
+      await fs.mkdir(skillDir, { recursive: true });
+
+      await fs.writeFile(path.join(skillDir, "SKILL.md"), "skill content");
+      await fs.writeFile(
+        path.join(skillDir, ".nori-version"),
+        JSON.stringify({
+          version: "1.0.0",
+          registryUrl: "https://example.com",
+        }),
+      );
+
+      const manifest = await computeDirectoryManifest({
+        dir: tempDir,
+        profileName: "test-profile",
+      });
+
+      expect(manifest.files["skills/my-skill/SKILL.md"]).toBeDefined();
+      expect(manifest.files["skills/my-skill/.nori-version"]).toBeUndefined();
+    });
+
+    it("should exclude nori.json files from manifest", async () => {
+      const skillDir = path.join(tempDir, "skills", "my-skill");
+      await fs.mkdir(skillDir, { recursive: true });
+
+      await fs.writeFile(path.join(skillDir, "SKILL.md"), "skill content");
+      await fs.writeFile(
+        path.join(skillDir, "nori.json"),
+        JSON.stringify({ name: "my-skill", version: "1.0.0" }),
+      );
+
+      const manifest = await computeDirectoryManifest({
+        dir: tempDir,
+        profileName: "test-profile",
+      });
+
+      expect(manifest.files["skills/my-skill/SKILL.md"]).toBeDefined();
+      expect(manifest.files["skills/my-skill/nori.json"]).toBeUndefined();
+    });
+
+    it("should exclude .nori-version files in deeply nested skill directories", async () => {
+      const nestedSkillDir = path.join(
+        tempDir,
+        "skills",
+        "parent-skill",
+        "nested",
+      );
+      await fs.mkdir(nestedSkillDir, { recursive: true });
+
+      await fs.writeFile(path.join(nestedSkillDir, "SKILL.md"), "nested skill");
+      await fs.writeFile(
+        path.join(nestedSkillDir, ".nori-version"),
+        JSON.stringify({ version: "2.0.0" }),
+      );
+
+      const manifest = await computeDirectoryManifest({
+        dir: tempDir,
+        profileName: "test-profile",
+      });
+
+      expect(
+        manifest.files["skills/parent-skill/nested/SKILL.md"],
+      ).toBeDefined();
+      expect(
+        manifest.files["skills/parent-skill/nested/.nori-version"],
+      ).toBeUndefined();
+    });
+  });
+
+  describe("compareManifest", () => {
+    it("should not report .nori-version files as added", async () => {
+      const skillDir = path.join(tempDir, "skills", "my-skill");
+      await fs.mkdir(skillDir, { recursive: true });
+
+      await fs.writeFile(path.join(skillDir, "SKILL.md"), "skill content");
+
+      const manifest: FileManifest = {
+        version: 1,
+        createdAt: "2024-01-01T00:00:00.000Z",
+        profileName: "test-profile",
+        files: {
+          "skills/my-skill/SKILL.md": await computeFileHash({
+            filePath: path.join(skillDir, "SKILL.md"),
+          }),
+        },
+      };
+
+      // Add .nori-version file after manifest was created
+      await fs.writeFile(
+        path.join(skillDir, ".nori-version"),
+        JSON.stringify({ version: "1.0.0" }),
+      );
+
+      const diff = await compareManifest({ manifest, currentDir: tempDir });
+
+      expect(diff.added).not.toContain("skills/my-skill/.nori-version");
+      expect(diff.added).toHaveLength(0);
+      expect(diff.modified).toHaveLength(0);
+      expect(diff.deleted).toHaveLength(0);
+    });
+
+    it("should not report nori.json files as added", async () => {
+      const skillDir = path.join(tempDir, "skills", "my-skill");
+      await fs.mkdir(skillDir, { recursive: true });
+
+      await fs.writeFile(path.join(skillDir, "SKILL.md"), "skill content");
+
+      const manifest: FileManifest = {
+        version: 1,
+        createdAt: "2024-01-01T00:00:00.000Z",
+        profileName: "test-profile",
+        files: {
+          "skills/my-skill/SKILL.md": await computeFileHash({
+            filePath: path.join(skillDir, "SKILL.md"),
+          }),
+        },
+      };
+
+      // Add nori.json file after manifest was created
+      await fs.writeFile(
+        path.join(skillDir, "nori.json"),
+        JSON.stringify({ name: "my-skill" }),
+      );
+
+      const diff = await compareManifest({ manifest, currentDir: tempDir });
+
+      expect(diff.added).not.toContain("skills/my-skill/nori.json");
+      expect(diff.added).toHaveLength(0);
+      expect(diff.modified).toHaveLength(0);
+      expect(diff.deleted).toHaveLength(0);
+    });
   });
 });
