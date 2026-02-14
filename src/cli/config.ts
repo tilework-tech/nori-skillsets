@@ -111,13 +111,56 @@ type RawDiskConfig = {
 };
 
 /**
- * Get the path to the config file
- * Always returns ~/.nori-config.json (centralized location)
+ * Get the path to the config file for a given install directory
+ * Returns ~/.nori-config.json when no installDir provided (user-global config)
+ * Returns $installDir/.nori-config.json when installDir provided (project-local config)
  *
- * @returns The absolute path to ~/.nori-config.json
+ * @param args - Optional configuration arguments
+ * @param args.installDir - Installation directory (null/undefined for user-global config)
+ *
+ * @returns The absolute path to the config file
  */
-export const getConfigPath = (): string => {
-  return path.join(os.homedir(), ".nori-config.json");
+export const getConfigPath = (args?: {
+  installDir?: string | null;
+}): string => {
+  const baseDir = args?.installDir ?? os.homedir();
+  return path.join(baseDir, ".nori-config.json");
+};
+
+/**
+ * Find the config file by searching upward from a starting directory
+ * Searches current directory, then ancestors, falling back to ~/.nori-config.json
+ *
+ * @param args - Optional configuration arguments
+ * @param args.startDir - Directory to start searching from (defaults to process.cwd())
+ *
+ * @returns The path to the found config file, or ~/.nori-config.json if none found
+ */
+export const findConfigPath = async (args?: {
+  startDir?: string | null;
+}): Promise<string> => {
+  const startDir = args?.startDir ?? process.cwd();
+  const homeDir = os.homedir();
+
+  let currentDir = startDir;
+  let previousDir = "";
+
+  // Search upward from startDir
+  while (currentDir !== previousDir) {
+    const configPath = path.join(currentDir, ".nori-config.json");
+    try {
+      await fs.access(configPath);
+      return configPath;
+    } catch {
+      // Config doesn't exist here, continue searching
+    }
+
+    previousDir = currentDir;
+    currentDir = path.dirname(currentDir);
+  }
+
+  // Fall back to user-global config
+  return path.join(homeDir, ".nori-config.json");
 };
 
 /**
@@ -243,12 +286,18 @@ export const getAgentProfile = (args: {
 /**
  * Load existing configuration from disk
  * Uses JSON schema validation for strict type checking.
- * Always reads from ~/.nori-config.json
+ * Searches upward from startDir to find the nearest config file,
+ * falling back to ~/.nori-config.json if none found.
+ *
+ * @param args - Optional configuration arguments
+ * @param args.startDir - Directory to start searching from (defaults to process.cwd())
  *
  * @returns The config if valid, null otherwise
  */
-export const loadConfig = async (): Promise<Config | null> => {
-  const configPath = getConfigPath();
+export const loadConfig = async (args?: {
+  startDir?: string | null;
+}): Promise<Config | null> => {
+  const configPath = await findConfigPath({ startDir: args?.startDir });
 
   try {
     await fs.access(configPath);

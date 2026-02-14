@@ -49,8 +49,8 @@ export const claudeCodeAgent: Agent = {
       throw new Error(`Profile "${profileName}" not found in ${profilesDir}`);
     }
 
-    // Load current config
-    const currentConfig = await loadConfig();
+    // Load current config - use installDir as starting point for config search
+    const currentConfig = await loadConfig({ startDir: installDir });
 
     // Get existing agents config (agents keys are the source of truth for installed agents)
     const existingAgents = currentConfig?.agents ?? {};

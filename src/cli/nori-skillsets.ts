@@ -24,6 +24,7 @@ import {
   registerNoriSkillsetsListSkillsetsCommand,
   registerNoriSkillsetsLoginCommand,
   registerNoriSkillsetsNewCommand,
+  registerNoriSkillsetsRegisterCommand,
   registerNoriSkillsetsLogoutCommand,
   registerNoriSkillsetsSearchCommand,
   registerNoriSkillsetsSwitchSkillsetCommand,
@@ -120,6 +121,8 @@ Examples:
   $ nori-skillsets install-location --installation-managed  # show only managed dirs
   $ nori-skillsets install-location --non-interactive       # plain output for scripts
   $ nori-skillsets new my-skillset                          # create a new empty skillset
+  $ nori-skillsets register my-skillset                     # create nori.json for existing skillset
+  $ nori-skillsets register                                 # create nori.json for current skillset
   $ nori-skillsets fork senior-swe my-custom                # fork a skillset to a new name
   $ nori-skillsets edit                                     # open active skillset in VS Code
   $ nori-skillsets edit my-profile                          # open a specific skillset
@@ -146,12 +149,13 @@ registerNoriSkillsetsInstallLocationCommand({ program });
 registerNoriSkillsetsCompletionCommand({ program });
 registerNoriSkillsetsForkCommand({ program });
 registerNoriSkillsetsNewCommand({ program });
+registerNoriSkillsetsRegisterCommand({ program });
 registerNoriSkillsetsEditSkillsetCommand({ program });
 registerNoriSkillsetsFactoryResetCommand({ program });
 
 // Auto-enable --experimental-ui when not explicitly passed:
 // 1. Config file: ~/.nori-config.json { "experimentalUi": true }
-// 2. Version contains "next" (e.g., "0.7.0-next.1")
+// 2. Version contains "next" (e.g., "0.7.0-next.1") or is "0.0.0"
 const hasExplicitExperimentalUi = process.argv.includes("--experimental-ui");
 if (!hasExplicitExperimentalUi && !isInfoOnly) {
   const shouldEnable = await shouldAutoEnableExperimentalUi({ version });

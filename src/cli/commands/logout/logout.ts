@@ -4,9 +4,12 @@
  * Clears stored authentication credentials.
  */
 
+import * as os from "os";
+import * as path from "path";
+
 import { log } from "@clack/prompts";
 
-import { loadConfig, saveConfig } from "@/cli/config.js";
+import { findConfigPath, loadConfig, saveConfig } from "@/cli/config.js";
 
 import type { Command } from "commander";
 
@@ -15,12 +18,14 @@ import type { Command } from "commander";
  *
  * @param args - Configuration arguments
  * @param args.installDir - Directory containing the config
+ * @param args.startDir - Directory to start config search from
  */
 const clearAuthFromConfig = async (args: {
   installDir: string;
+  startDir?: string | null;
 }): Promise<void> => {
-  const { installDir } = args;
-  const existingConfig = await loadConfig();
+  const { installDir, startDir } = args;
+  const existingConfig = await loadConfig({ startDir });
 
   if (existingConfig == null) {
     return;
@@ -42,21 +47,28 @@ const clearAuthFromConfig = async (args: {
  *
  * @param args - Configuration arguments
  * @param args.installDir - Installation directory (stored as data in config)
+ * @param args.startDir - Directory to start config search from (defaults to cwd)
  */
 export const logoutMain = async (args?: {
   installDir?: string | null;
+  startDir?: string | null;
 }): Promise<void> => {
-  const { installDir } = args ?? {};
+  const { installDir, startDir } = args ?? {};
 
-  const existingConfig = await loadConfig();
+  const existingConfig = await loadConfig({ startDir });
 
   if (existingConfig?.auth == null) {
     log.info("Not currently logged in.");
     return;
   }
 
+  // Get the actual config path that was found to determine installDir
+  const configPath = await findConfigPath({ startDir });
+  const configDir = path.dirname(configPath);
+
   await clearAuthFromConfig({
-    installDir: installDir ?? existingConfig.installDir,
+    installDir: installDir ?? configDir,
+    startDir,
   });
   log.success("Logged out successfully.");
 };
@@ -78,6 +90,7 @@ export const registerLogoutCommand = (args: { program: Command }): void => {
 
       await logoutMain({
         installDir: globalOpts.installDir || null,
+        startDir: os.homedir(),
       });
     });
 };

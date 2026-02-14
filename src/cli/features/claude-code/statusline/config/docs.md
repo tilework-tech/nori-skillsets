@@ -12,7 +12,7 @@ This folder contains the nori-statusline.sh source script. The loader at @/src/c
 
 ### Core Implementation
 
-**Install Directory Discovery:** The script searches upward from the CWD (extracted from JSON input) to find .nori-config.json, using a `find_install_dir()` function that walks parent directories. This makes the script portable across installations without requiring any install-time path substitution.
+**Install Directory Discovery:** The script searches upward from the CWD (extracted from JSON input) to find .nori-config.json, using a `find_install_dir()` function that walks parent directories. If no config is found in the directory tree, it falls back to HOME (`$HOME/.nori-config.json`). This ensures the statusline reads the user-global config when working in directories without project-local configs, enabling consistent display after skillset switches.
 
 **Config Reading:** Once `.nori-config.json` is located, the script reads two pieces of data from it: the profile name (`agents.claude-code.profile.baseProfile` with fallback to legacy `profile.baseProfile`) and the installed version (`.version` field). Both are used downstream -- profile for the metrics line, version for the branding line and update comparison.
 

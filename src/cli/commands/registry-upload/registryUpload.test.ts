@@ -1773,5 +1773,98 @@ describe("registry-upload", () => {
         expect(clackOutput).toContain("my-profile-conflicting-skill");
       });
     });
+
+    describe("tarball file exclusion", () => {
+      it("should exclude .nori-version files from upload tarball", async () => {
+        // Create a profile with .nori-version file (simulating a previously downloaded profile)
+        const profileDir = path.join(profilesDir, "myorg", "my-profile");
+        await fs.mkdir(profileDir, { recursive: true });
+        await fs.writeFile(
+          path.join(profileDir, "CLAUDE.md"),
+          "# My Profile\n",
+        );
+        await fs.writeFile(
+          path.join(profileDir, "nori.json"),
+          JSON.stringify({ name: "my-profile", version: "1.0.0" }),
+        );
+        // This file should NOT be included in the tarball
+        await fs.writeFile(
+          path.join(profileDir, ".nori-version"),
+          JSON.stringify({
+            version: "0.5.0",
+            registryUrl: "https://old.registry.com",
+          }),
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+
+        // Capture the tarball data to verify contents
+        let capturedArchiveData: ArrayBuffer | null = null;
+        vi.mocked(registrarApi.uploadSkillset).mockImplementation(
+          async (args) => {
+            capturedArchiveData = args.archiveData;
+            return {
+              name: "my-profile",
+              version: "1.0.0",
+              tarballSha: "abc123",
+              createdAt: new Date().toISOString(),
+            };
+          },
+        );
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+        });
+
+        expect(result.success).toBe(true);
+        expect(capturedArchiveData).not.toBeNull();
+
+        // Extract the tarball and verify .nori-version is not present
+        const tar = await import("tar");
+        const extractDir = await fs.mkdtemp(
+          path.join(tmpdir(), "tarball-extract-"),
+        );
+
+        try {
+          const tarballBuffer = Buffer.from(capturedArchiveData!);
+          const tarballPath = path.join(extractDir, "upload.tgz");
+          await fs.writeFile(tarballPath, tarballBuffer);
+
+          await tar.extract({
+            file: tarballPath,
+            cwd: extractDir,
+          });
+
+          // List extracted files
+          const extractedFiles = await fs.readdir(extractDir, {
+            recursive: true,
+          });
+
+          // CLAUDE.md and nori.json should be present
+          expect(extractedFiles).toContain("CLAUDE.md");
+          expect(extractedFiles).toContain("nori.json");
+
+          // .nori-version should NOT be present
+          expect(extractedFiles).not.toContain(".nori-version");
+        } finally {
+          await fs.rm(extractDir, { recursive: true, force: true });
+        }
+      });
+    });
   });
 });

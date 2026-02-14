@@ -9,6 +9,8 @@
  * 3. Version auto-detection — enabled when version contains "next"
  */
 
+import * as os from "os";
+
 import { loadConfig } from "@/cli/config.js";
 
 /**
@@ -17,7 +19,7 @@ import { loadConfig } from "@/cli/config.js";
  *
  * Resolution order:
  * 1. Config file: ~/.nori-config.json { "experimentalUi": true }
- * 2. Version string: contains "next" (e.g., "0.7.0-next.1")
+ * 2. Version string: contains "next" (e.g., "0.7.0-next.1") or is "0.0.0"
  *
  * @param args - Resolution arguments
  * @param args.version - The current package version string
@@ -30,13 +32,15 @@ export const shouldAutoEnableExperimentalUi = async (args: {
   const { version } = args;
 
   // Check config file for manual override
-  const config = await loadConfig();
+  // Use os.homedir() since this is a user preference setting
+  const config = await loadConfig({ startDir: os.homedir() });
   if (config?.experimentalUi === true) {
     return true;
   }
 
-  // Auto-detect from version string containing "next"
-  if (version.includes("next")) {
+  // Auto-detect from override version strings
+  const overrideVersions = ["next", "0.0.0"];
+  if (overrideVersions.some((v) => version.includes(v))) {
     return true;
   }
 

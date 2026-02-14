@@ -92,13 +92,20 @@ Each command directory contains the command implementation, its tests, and any c
 
 **Installation Flow:** The installer (install.ts) orchestrates the installation process in non-interactive mode. It runs: (1) `initMain()` to set up directories and config, (2) inline profile resolution -- loads existing config, resolves profile from `--profile` flag or existing agent config, preserves auth credentials, and saves merged config via `saveConfig()`, (3) runs feature loaders from the agent's LoaderRegistry. The installer creates `~/.nori-config.json` containing auth credentials and selected profile name, and installs components into `<installDir>/.claude/`. The profile selection determines which complete directory structure (CLAUDE.md, skills/, subagents/, slashcommands/) gets installed from the user's profiles directory at `~/.nori/profiles/{profileName}/`. Each profile is a self-contained directory identified by a `nori.json` manifest file. Profiles are obtained from the registry or created by users; no built-in profiles are bundled with the package. The installTracking.ts module tracks installation and session events to the Nori backend.
 
-**Centralized Config and Nori Directory:** The `.nori` directory and config file are centralized to the user's home directory. Core path and config functions are zero-arg and always resolve relative to `os.homedir()`:
-- `getConfigPath()` returns `~/.nori-config.json`
+**Centralized Config and Nori Directory:** The `.nori` directory is centralized to the user's home directory. The config system supports both user-global (`~/.nori-config.json`) and project-local (`.nori-config.json` in any directory) config files, with upward directory search.
+
+**Config Path Resolution:**
+- `getConfigPath({ installDir })` returns `$installDir/.nori-config.json` when provided, or `~/.nori-config.json` when not provided
+- `findConfigPath({ startDir })` searches upward from `startDir` for `.nori-config.json`, falling back to `~/.nori-config.json` if none found
+- `loadConfig({ startDir })` uses `findConfigPath()` to discover the config file before loading it
+
+**Centralized Paths (zero-arg, always resolve to home):**
 - `getNoriDir()` returns `~/.nori`
 - `getNoriProfilesDir()` returns `~/.nori/profiles`
-- `loadConfig()` and `validateConfig()` always read from `~/.nori-config.json`
 
-The `installDir` parameter is still used by Claude-specific path functions (`getClaudeDir`, `getClaudeMdFile`, etc.) for the `.claude/` directory, which is project-relative. The `--install-dir` CLI option controls where `.claude/` is created, but config and profiles are always in the home directory.
+**Command startDir Conventions:** Commands that are home-directory-based (login, logout, edit-skillset) pass `os.homedir()` as `startDir` to `loadConfig()` to ensure they always read `~/.nori-config.json`. Commands that are directory-specific (watch, agent) pass the relevant directory as `startDir` to enable project-local config discovery.
+
+The `installDir` parameter is still used by Claude-specific path functions (`getClaudeDir`, `getClaudeMdFile`, etc.) for the `.claude/` directory, which is project-relative. The `--install-dir` CLI option controls where `.claude/` is created, but profiles are always in the home directory at `~/.nori/profiles/`.
 
 **Config Migration During Install:** The installation flow uses the `loadAndMigrateConfig({ installDir })` helper early in the flow. This helper:
 1. Loads the existing config via `loadConfig()`
@@ -132,7 +139,7 @@ The config.ts module provides a unified `Config` type for both disk persistence 
 
 **Profile Lookup Pattern (CRITICAL):** Code that needs to read a profile MUST use `getAgentProfile({ config, agentName })` - never access agent profiles directly. The function returns the profile from `config.agents[agentName].profile` or null if not found.
 
-The `getConfigPath()` function is zero-arg and always returns `~/.nori-config.json`. The `loadConfig()` and `validateConfig()` functions are also zero-arg and always operate on the centralized config file. The `saveConfig()` function still accepts parameters for the config data to write (including `installDir` as a data field stored in the JSON), but always writes to `~/.nori-config.json`.
+The `getConfigPath({ installDir })` function returns `$installDir/.nori-config.json` when an `installDir` is provided, or `~/.nori-config.json` when not provided. The `loadConfig({ startDir })` function uses `findConfigPath()` to search upward from `startDir` for a config file, falling back to `~/.nori-config.json`. The `validateConfig()` function validates a config object in memory. The `saveConfig()` function always writes to `~/.nori-config.json` (user-global config).
 
 **JSON Schema Validation Architecture:** The config.ts module uses JSON schema (via Ajv with ajv-formats) as the single source of truth for configuration validation. The Ajv instance is configured with `useDefaults: true` (applies default values), `removeAdditional: true` (strips unknown properties), and ajv-formats for URI validation. A single compiled validator (`validateConfigSchema`) is used by both `loadConfig()` and `validateConfig()`.
 
@@ -140,7 +147,7 @@ The `getConfigPath()` function is zero-arg and always returns `~/.nori-config.js
 
 **Installed Agents Tracking:** Installed agents are derived from the keys of the `agents` object. Use `getInstalledAgents({ config })` helper to get the list.
 
-**loadConfig() installDir Resolution:** The `loadConfig()` function is zero-arg and always reads from `~/.nori-config.json`. The returned Config object's `installDir` field comes from the JSON file (if present), defaulting to `os.homedir()` when not specified in the file.
+**loadConfig() Config Discovery:** The `loadConfig({ startDir })` function uses `findConfigPath({ startDir })` to search upward from `startDir` for `.nori-config.json`, falling back to `~/.nori-config.json` if none found in the directory tree. If `startDir` is not provided, it defaults to `process.cwd()`. The returned Config object's `installDir` field comes from the JSON file (if present), defaulting to `os.homedir()` when not specified in the file.
 
 **CliName Type:** The `CliName` type in @/src/cli/commands/cliCommandNames.ts is a single literal type `"nori-skillsets"` (not a union). The `getCommandNames()` function always returns the same `NORI_SKILLSETS_COMMANDS` constant regardless of input.
 
@@ -156,6 +163,6 @@ Install lifecycle tracking (installTracking.ts) is called at CLI startup via `tr
 
 **installTracking.ts default tileworkSource:** The default value of `tileworkSource` is `"nori-skillsets"`. The `setTileworkSource()` is called by the CLI entry point, but the default ensures correct behavior even before explicit initialization.
 
-**Test Isolation:** Tests that need to control the centralized config and profiles directories mock `os.homedir()` via `vi.mock("os")` to return a temp directory. This redirects all zero-arg path functions (`getConfigPath()`, `getNoriDir()`, `getNoriProfilesDir()`, `loadConfig()`) to the test's temp directory. Functions that still take `installDir` (e.g., `getClaudeDir`) receive the temp directory directly.
+**Test Isolation:** Tests that need to control the centralized config and profiles directories mock `os.homedir()` via `vi.mock("os")` to return a temp directory. This redirects centralized path functions (`getNoriDir()`, `getNoriProfilesDir()`) to the test's temp directory. For `loadConfig()`, tests pass the temp directory as `startDir` to control config discovery. Functions that still take `installDir` (e.g., `getClaudeDir`) receive the temp directory directly.
 
 Created and maintained by Nori.

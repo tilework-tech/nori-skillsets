@@ -31,6 +31,15 @@ vi.mock("child_process", () => ({
   }),
 }));
 
+// Mock os.homedir so config loading finds the test directory
+vi.mock("os", async (importOriginal) => {
+  const actual = await importOriginal<typeof os>();
+  return {
+    ...actual,
+    homedir: vi.fn().mockReturnValue(actual.homedir()),
+  };
+});
+
 import { copyTranscript } from "@/cli/commands/watch/storage.js";
 import { processTranscriptForUpload } from "@/cli/commands/watch/uploader.js";
 import {
@@ -57,6 +66,9 @@ describe("watch command", () => {
     // Save original HOME and override for tests
     originalHome = process.env.HOME;
     process.env.HOME = tempDir;
+
+    // Mock os.homedir to return tempDir for config loading
+    vi.mocked(os.homedir).mockReturnValue(tempDir);
   });
 
   afterEach(async () => {
@@ -73,6 +85,7 @@ describe("watch command", () => {
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     await fs.rm(tempDir, { recursive: true, force: true });
+    vi.clearAllMocks();
   });
 
   describe("watchMain", () => {
@@ -263,6 +276,9 @@ describe("transcript destination selection", () => {
     // Save original HOME and override for tests
     originalHome = process.env.HOME;
     process.env.HOME = tempDir;
+
+    // Mock os.homedir to return tempDir for config loading
+    vi.mocked(os.homedir).mockReturnValue(tempDir);
   });
 
   afterEach(async () => {
@@ -277,6 +293,7 @@ describe("transcript destination selection", () => {
 
     await new Promise((resolve) => setTimeout(resolve, 100));
     await fs.rm(tempDir, { recursive: true, force: true });
+    vi.clearAllMocks();
   });
 
   test("auto-selects single org without prompting", async () => {
@@ -491,6 +508,9 @@ describe("event debouncing", () => {
     // Save original HOME and override for tests
     originalHome = process.env.HOME;
     process.env.HOME = tempDir;
+
+    // Mock os.homedir to return tempDir for config loading
+    vi.mocked(os.homedir).mockReturnValue(tempDir);
   });
 
   afterEach(async () => {
@@ -503,6 +523,7 @@ describe("event debouncing", () => {
 
     await new Promise((resolve) => setTimeout(resolve, 100));
     await fs.rm(tempDir, { recursive: true, force: true });
+    vi.clearAllMocks();
   });
 
   test("debounces rapid duplicate file events for the same file", async () => {
@@ -609,6 +630,9 @@ describe("stale transcript upload", () => {
     // Save original HOME and override for tests
     originalHome = process.env.HOME;
     process.env.HOME = tempDir;
+
+    // Mock os.homedir to return tempDir for config loading
+    vi.mocked(os.homedir).mockReturnValue(tempDir);
   });
 
   afterEach(async () => {
@@ -621,6 +645,7 @@ describe("stale transcript upload", () => {
 
     await new Promise((resolve) => setTimeout(resolve, 100));
     await fs.rm(tempDir, { recursive: true, force: true });
+    vi.clearAllMocks();
   });
 
   test("uploads stale transcript that has not been modified recently", async () => {

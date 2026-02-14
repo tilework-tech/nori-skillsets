@@ -208,13 +208,14 @@ export const sendAnalyticsEvent = (args: {
 
 /**
  * Load config for analytics without failing.
+ * Uses os.homedir() since analytics needs global auth credentials.
  * @returns Config or null if not found
  */
 const loadConfigForAnalytics = async (): Promise<Config | null> => {
   try {
     const installations = getInstallDirs({ currentDir: process.cwd() });
     if (installations.length === 0) return null;
-    return await loadConfig();
+    return await loadConfig({ startDir: os.homedir() });
   } catch {
     return null;
   }

@@ -8,6 +8,7 @@
 import { spawn } from "child_process";
 import { createHash } from "crypto";
 import * as fs from "fs/promises";
+import * as os from "os";
 import * as path from "path";
 
 import { extractSessionId } from "@/cli/commands/watch/parser.js";
@@ -591,7 +592,8 @@ export const watchMain = async (args?: {
   // INTERACTIVE MODE: Do setup, then spawn background daemon
   if (!_background) {
     // Load config and handle transcript destination selection (interactive)
-    const config = await loadConfig();
+    // Use os.homedir() as startDir since watch is home-directory-based
+    const config = await loadConfig({ startDir: os.homedir() });
 
     // Get user's organizations (filter out "public")
     const userOrgs = config?.auth?.organizations ?? [];
@@ -641,7 +643,8 @@ export const watchMain = async (args?: {
   isShuttingDown = false;
 
   // Load config to get saved transcript destination
-  const config = await loadConfig();
+  // Use os.homedir() as startDir since watch is home-directory-based
+  const config = await loadConfig({ startDir: os.homedir() });
   transcriptOrgId = config?.transcriptDestination ?? null;
 
   const pidFile = getWatchPidFile();

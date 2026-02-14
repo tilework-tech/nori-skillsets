@@ -5,6 +5,7 @@
 
 import { execFile } from "child_process";
 import * as fs from "fs/promises";
+import * as os from "os";
 import * as path from "path";
 
 import {
@@ -36,7 +37,8 @@ export const editSkillsetMain = async (args: {
     profileName = name;
   } else {
     // Load config to find the active profile
-    const config = await loadConfig();
+    // Use os.homedir() as startDir since edit-skillset is home-directory-based
+    const config = await loadConfig({ startDir: os.homedir() });
 
     // Determine agent name
     let agentName: ConfigAgentName;

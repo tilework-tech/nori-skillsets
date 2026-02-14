@@ -60,14 +60,14 @@ describe("logout command", () => {
       });
 
       // Verify auth exists before logout
-      const beforeLogout = await loadConfig();
+      const beforeLogout = await loadConfig({ startDir: tempDir });
       expect(beforeLogout?.auth).not.toBeNull();
 
       // Perform logout
-      await logoutMain({ installDir: tempDir });
+      await logoutMain({ installDir: tempDir, startDir: tempDir });
 
       // Verify auth is cleared
-      const afterLogout = await loadConfig();
+      const afterLogout = await loadConfig({ startDir: tempDir });
       expect(afterLogout?.auth).toBeNull();
 
       // Verify other fields are preserved
@@ -88,7 +88,7 @@ describe("logout command", () => {
         installDir: tempDir,
       });
 
-      await logoutMain({ installDir: tempDir });
+      await logoutMain({ installDir: tempDir, startDir: tempDir });
 
       expect(log.info).toHaveBeenCalledWith(
         expect.stringContaining("Not currently logged in"),
@@ -98,7 +98,7 @@ describe("logout command", () => {
     it("should show info message when no config exists", async () => {
       const { log } = await import("@clack/prompts");
 
-      await logoutMain({ installDir: tempDir });
+      await logoutMain({ installDir: tempDir, startDir: tempDir });
 
       expect(log.info).toHaveBeenCalledWith(
         expect.stringContaining("Not currently logged in"),
@@ -116,7 +116,7 @@ describe("logout command", () => {
         installDir: tempDir,
       });
 
-      await logoutMain({ installDir: tempDir });
+      await logoutMain({ installDir: tempDir, startDir: tempDir });
 
       expect(log.success).toHaveBeenCalledWith(
         expect.stringContaining("Logged out"),
@@ -138,17 +138,17 @@ describe("logout command", () => {
       });
 
       // Verify auth exists before logout
-      const beforeLogout = await loadConfig();
+      const beforeLogout = await loadConfig({ startDir: tempDir });
       expect(beforeLogout?.auth?.username).toBe("googleuser@gmail.com");
       expect(beforeLogout?.auth?.refreshToken).toBe(
         "firebase-refresh-token-from-google-sso",
       );
 
       // Perform logout
-      await logoutMain({ installDir: tempDir });
+      await logoutMain({ installDir: tempDir, startDir: tempDir });
 
       // Verify auth is cleared
-      const afterLogout = await loadConfig();
+      const afterLogout = await loadConfig({ startDir: tempDir });
       expect(afterLogout?.auth).toBeNull();
 
       // Verify other fields are preserved
@@ -171,15 +171,15 @@ describe("logout command", () => {
       });
 
       // Verify auth exists before logout
-      const beforeLogout = await loadConfig();
+      const beforeLogout = await loadConfig({ startDir: tempDir });
       expect(beforeLogout?.auth?.username).toBe("user@example.com");
 
       // Perform logout without installDir - should find config at homedir
       // Config is centralized at ~/.nori-config.json (os.homedir() mocked to tempDir)
-      await logoutMain();
+      await logoutMain({ startDir: tempDir });
 
       // Verify auth is cleared
-      const afterLogout = await loadConfig();
+      const afterLogout = await loadConfig({ startDir: tempDir });
       expect(afterLogout?.auth).toBeNull();
 
       // Verify success message was shown
