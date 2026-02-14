@@ -155,7 +155,7 @@ registerNoriSkillsetsFactoryResetCommand({ program });
 
 // Auto-enable --experimental-ui when not explicitly passed:
 // 1. Config file: ~/.nori-config.json { "experimentalUi": true }
-// 2. Version contains "next" (e.g., "0.7.0-next.1")
+// 2. Version contains "next" (e.g., "0.7.0-next.1") or is "0.0.0"
 const hasExplicitExperimentalUi = process.argv.includes("--experimental-ui");
 if (!hasExplicitExperimentalUi && !isInfoOnly) {
   const shouldEnable = await shouldAutoEnableExperimentalUi({ version });

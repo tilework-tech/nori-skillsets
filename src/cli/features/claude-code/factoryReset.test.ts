@@ -6,6 +6,7 @@ import * as fs from "fs/promises";
 import * as os from "os";
 import * as path from "path";
 
+import * as clack from "@clack/prompts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -13,15 +14,17 @@ import {
   factoryResetClaudeCode,
 } from "./factoryReset.js";
 
-// Mock logger to suppress output during tests
-vi.mock("@/cli/logger.js", () => ({
-  info: vi.fn(),
-  success: vi.fn(),
-  error: vi.fn(),
-  warn: vi.fn(),
-  debug: vi.fn(),
-  newline: vi.fn(),
-  raw: vi.fn(),
+vi.mock("@clack/prompts", () => ({
+  intro: vi.fn(),
+  outro: vi.fn(),
+  note: vi.fn(),
+  log: {
+    info: vi.fn(),
+    success: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    message: vi.fn(),
+  },
 }));
 
 // Mock promptText so we can control user input
@@ -237,22 +240,16 @@ describe("factoryResetClaudeCode", () => {
 
   it("should log info and return without prompting when no artifacts found", async () => {
     const { promptText } = await import("@/cli/prompts/text.js");
-    const { info } = await import("@/cli/logger.js");
 
     await factoryResetClaudeCode({ path: tempDir });
 
-    expect(info).toHaveBeenCalledWith(
-      expect.objectContaining({
-        message: expect.stringContaining("No Claude Code configuration found"),
-      }),
-    );
+    expect(clack.log.info).toHaveBeenCalledWith(expect.stringContaining("No"));
     // Should never prompt the user
     expect(promptText).not.toHaveBeenCalled();
   });
 
-  it("should list artifacts before asking for confirmation", async () => {
+  it("should list artifacts in a note before asking for confirmation", async () => {
     const { promptText } = await import("@/cli/prompts/text.js");
-    const { warn } = await import("@/cli/logger.js");
     vi.mocked(promptText).mockResolvedValue("cancel");
 
     const claudeDir = path.join(tempDir, ".claude");
@@ -260,12 +257,10 @@ describe("factoryResetClaudeCode", () => {
 
     await factoryResetClaudeCode({ path: tempDir });
 
-    // Should have logged the artifact path before prompting
-    expect(warn).toHaveBeenCalledWith(
-      expect.objectContaining({
-        message: expect.stringContaining(claudeDir),
-      }),
-    );
+    // Should have shown the artifact path in a note before prompting
+    expect(clack.note).toHaveBeenCalledTimes(1);
+    const noteContent = vi.mocked(clack.note).mock.calls[0][0];
+    expect(noteContent).toContain(claudeDir);
   });
 
   it("should delete both directories and files", async () => {

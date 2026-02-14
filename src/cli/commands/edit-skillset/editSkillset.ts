@@ -8,13 +8,14 @@ import * as fs from "fs/promises";
 import * as os from "os";
 import * as path from "path";
 
+import { log, note, outro } from "@clack/prompts";
+
 import {
   loadConfig,
   getAgentProfile,
   getInstalledAgents,
 } from "@/cli/config.js";
 import { getNoriProfilesDir } from "@/cli/features/claude-code/paths.js";
-import { error, info, newline, raw, success } from "@/cli/logger.js";
 
 import type { ConfigAgentName } from "@/cli/config.js";
 
@@ -52,10 +53,9 @@ export const editSkillsetMain = async (args: {
     const profile = config ? getAgentProfile({ config, agentName }) : null;
 
     if (profile == null) {
-      error({
-        message:
-          "No active skillset configured. Use 'nori-skillsets switch <name>' to set one.",
-      });
+      log.error(
+        "No active skillset configured. Use 'nori-skillsets switch <name>' to set one.",
+      );
       process.exit(1);
       return;
     }
@@ -71,9 +71,7 @@ export const editSkillsetMain = async (args: {
   try {
     await fs.access(profileDir);
   } catch {
-    error({
-      message: `Skillset '${profileName}' not found at ${profileDir}`,
-    });
+    log.error(`Skillset '${profileName}' not found at ${profileDir}`);
     process.exit(1);
     return;
   }
@@ -82,13 +80,11 @@ export const editSkillsetMain = async (args: {
   const opened = await tryOpenInVsCode({ profileDir });
 
   if (opened) {
-    success({ message: `Opened '${profileName}' in VS Code` });
+    log.success(`Opened '${profileName}' in VS Code`);
+    outro("Done");
   } else {
-    // Fallback: print the directory path and contents
-    info({ message: `Skillset '${profileName}' is located at:` });
-    newline();
-    raw({ message: profileDir });
-    newline();
+    // Fallback: show directory contents in a note
+    let noteContent = profileDir;
 
     // List directory contents
     try {
@@ -98,23 +94,21 @@ export const editSkillsetMain = async (args: {
         .map((e) => e.name + "/");
       const files = entries.filter((e) => e.isFile()).map((e) => e.name);
 
-      info({ message: "Contents:" });
-      for (const d of dirs.sort()) {
-        raw({ message: `  ${d}` });
-      }
-      for (const f of files.sort()) {
-        raw({ message: `  ${f}` });
-      }
-      newline();
+      const contentsList = [
+        ...dirs.sort().map((d) => `  ${d}`),
+        ...files.sort().map((f) => `  ${f}`),
+      ].join("\n");
+
+      noteContent = `${profileDir}\n\nContents:\n${contentsList}`;
     } catch {
-      // Directory listing failed; still show navigation instructions
+      // Directory listing failed; just show the path
     }
-    info({
-      message: `To open in VS Code: code ${profileDir}`,
-    });
-    info({
-      message: `To navigate there:  cd ${profileDir}`,
-    });
+
+    note(noteContent, `Skillset '${profileName}'`);
+
+    log.info(`To open in VS Code: code ${profileDir}`);
+    log.info(`To navigate there:  cd ${profileDir}`);
+    outro("Done");
   }
 };
 

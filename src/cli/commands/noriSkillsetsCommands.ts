@@ -51,6 +51,7 @@ export const registerNoriSkillsetsFactoryResetCommand = (args: {
       await factoryResetMain({
         agentName,
         nonInteractive: globalOpts.nonInteractive || null,
+        experimentalUi: globalOpts.experimentalUi || null,
       });
     });
 };
@@ -584,10 +585,12 @@ export const registerNoriSkillsetsWatchCommand = (args: {
         setDestination?: boolean;
         _background?: boolean;
       }) => {
+        const globalOpts = program.opts();
         await watchMain({
           agent: options.agent,
           setDestination: options.setDestination ?? false,
           _background: options._background ?? false,
+          experimentalUi: globalOpts.experimentalUi || null,
         });
       },
     );
@@ -596,7 +599,11 @@ export const registerNoriSkillsetsWatchCommand = (args: {
     .command("stop")
     .description("Stop the watch daemon")
     .action(async () => {
-      await watchStopMain({ quiet: false });
+      const globalOpts = program.opts();
+      await watchStopMain({
+        quiet: false,
+        experimentalUi: globalOpts.experimentalUi || null,
+      });
     });
 };
 
