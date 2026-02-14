@@ -27,6 +27,11 @@ export {
 export { newSkillsetFlow, type NewSkillsetFlowResult } from "./newSkillset.js";
 
 export {
+  registerSkillsetFlow,
+  type RegisterSkillsetFlowResult,
+} from "./registerSkillset.js";
+
+export {
   uploadFlow,
   type UploadFlowCallbacks,
   type UploadFlowResult,
