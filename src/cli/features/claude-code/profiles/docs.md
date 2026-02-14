@@ -30,13 +30,19 @@ Markdown files use template placeholders like `{{skills_dir}}`, `{{profiles_dir}
   "name": "profile-name",
   "version": "1.0.0",
   "description": "Human-readable description",
+  "license": "MIT",
+  "keywords": ["cli", "automation", "skills"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/user/repo"
+  },
   "dependencies": {
     "skills": { "skill-name": "*" }
   }
 }
 ```
 
-The `readProfileMetadata()` function reads `nori.json` first, falling back to legacy `profile.json` for backward compatibility with older profiles. The `writeProfileMetadata()` function writes a `ProfileMetadata` object to `nori.json`. The `addSkillToNoriJson()` function reads an existing `nori.json` (or auto-creates one using the profile directory basename and version `"1.0.0"`), adds/updates a skill in `dependencies.skills`, and writes it back.
+All fields except `name` are optional. The `license` field follows SPDX license identifiers (e.g., "MIT", "Apache-2.0"). The `keywords` field is an array of strings for registry discoverability. The `repository` field follows package.json conventions with `type` and `url` properties.
 
 The `ensureNoriJson()` function is a backwards-compatibility shim for user-created skillsets that lack a `nori.json` manifest. It checks whether the directory already has `nori.json` (no-op if so), whether the directory exists (no-op if not), and whether the directory looks like a profile via the private `looksLikeProfile()` helper. If all conditions pass, it writes a minimal `nori.json` with `{ name: <folder-basename>, version: "0.0.1" }`. The `looksLikeProfile()` heuristic returns true if the directory contains a `CLAUDE.md` file OR both `skills/` and `subagents/` subdirectories -- requiring both prevents org namespace directories (which may contain only `skills/`) from being incorrectly marked as profiles. `ensureNoriJson()` is called at every entry point that validates profile existence: `listProfiles()` in @/src/cli/features/managedFolder.ts (for both flat and nested org profiles), `switchProfile()` in @/src/cli/features/claude-code/agent.ts, `forkSkillsetMain()` in @/src/cli/commands/fork-skillset/forkSkillset.ts, `skillDownloadMain()` in @/src/cli/commands/skill-download/skillDownload.ts, and `externalMain()` in @/src/cli/commands/external/external.ts.
 
@@ -46,13 +52,14 @@ The `ensureNoriJson()` function is a backwards-compatibility shim for user-creat
 |----------|--------|---------|
 | `MANAGED_FILES` | `CLAUDE.md`, `settings.json`, `nori-statusline.sh` | Root-level files Nori installs |
 | `MANAGED_DIRS` | `skills`, `commands`, `agents` | Directories whose contents Nori installs (recursively tracked) |
+| `EXCLUDED_FILES` | `.nori-version`, `nori.json` | Metadata files excluded from manifest tracking regardless of location |
 
 | Type | Purpose |
 |------|---------|
 | `FileManifest` | Stores SHA-256 hashes of Nori-managed files in `~/.claude/` at installation time |
 | `ManifestDiff` | Result of comparing current state against stored manifest (modified, added, deleted arrays) |
 
-The `collectFiles()` function filters at the top level only -- when scanning `~/.claude/`, it skips any file or directory not in the whitelist. Within whitelisted directories (e.g., `skills/`), all nested files are collected recursively without further filtering. The `isManagedPath()` helper checks whether a relative path is a whitelisted root file or falls under a whitelisted directory by examining the first path segment.
+The `collectFiles()` function filters at two levels: (1) at the top level, it skips any file or directory not in the managed whitelist, and (2) at all levels, it skips files in `EXCLUDED_FILES`. Within whitelisted directories (e.g., `skills/`), all nested files are collected recursively. The `isManagedPath()` helper checks whether a relative path is a whitelisted root file or falls under a whitelisted directory by examining the first path segment.
 
 The `compareManifest()` function also uses `isManagedPath()` when iterating over stored manifest entries, skipping any entry for a non-whitelisted path. This handles the transition from older manifests that tracked everything in `~/.claude/` -- old entries for runtime directories like `debug/` or `todos/` are silently ignored rather than reported as "deleted".
 
@@ -104,7 +111,7 @@ No built-in profiles are shipped with the package. First-time installations will
 
 **Profile slash commands**: Profile-specific slash commands are installed by @/src/cli/features/claude-code/profiles/slashcommands/ loader from the active profile's slashcommands/ directory.
 
-**Manifest whitelist for change detection**: The manifest file (`~/.nori/installed-manifest.json`) only tracks Nori-managed paths within `~/.claude/` (`MANAGED_FILES` and `MANAGED_DIRS` in manifest.ts). Claude Code creates many runtime directories (`debug/`, `todos/`, `projects/`, `plugins/`, `session-env/`, `shell-snapshots/`, `statsig/`, `telemetry/`, `tasks/`, `cache/`, etc.) that change between sessions. The whitelist prevents these from appearing as false positive "local changes detected" during skillset switching. The `compareManifest()` function also filters out stale entries from older manifests that tracked non-whitelisted paths, enabling graceful transition without requiring users to reinstall.
+**Manifest whitelist for change detection**: The manifest file (`~/.nori/installed-manifest.json`) only tracks Nori-managed paths within `~/.claude/` (`MANAGED_FILES` and `MANAGED_DIRS` in manifest.ts), excluding metadata files listed in `EXCLUDED_FILES` (`.nori-version`, `nori.json`). These excluded files are local metadata created when downloading from the registry and should not trigger "local changes detected" warnings. Claude Code creates many runtime directories (`debug/`, `todos/`, `projects/`, `plugins/`, `session-env/`, `shell-snapshots/`, `statsig/`, `telemetry/`, `tasks/`, `cache/`, etc.) that change between sessions. The whitelist prevents these from appearing as false positive changes during skillset switching. The `compareManifest()` function also filters out stale entries from older manifests that tracked non-whitelisted paths, enabling graceful transition without requiring users to reinstall.
 
 ## Architecture
 

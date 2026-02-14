@@ -21,6 +21,18 @@ export type ProfileMetadata = {
   /** Human-readable description */
   description?: string;
 
+  /** License (e.g., "MIT", "Apache-2.0") */
+  license?: string;
+
+  /** Keywords for discoverability */
+  keywords?: Array<string>;
+
+  /** Repository information */
+  repository?: {
+    type: string;
+    url: string;
+  };
+
   /** Skill dependencies (skill name -> version range) */
   dependencies?: {
     skills?: Record<string, string>;

@@ -18,6 +18,7 @@ import { watchFlow, type WatchFlowCallbacks } from "./watch.js";
 
 vi.mock("@clack/prompts", () => ({
   intro: vi.fn(),
+  note: vi.fn(),
   outro: vi.fn(),
   select: vi.fn(),
   spinner: vi.fn(() => ({
@@ -57,6 +58,7 @@ describe("watchFlow", () => {
         success: true,
         pid: 12345,
         logFile: "/tmp/watch.log",
+        transcriptsDir: "/home/test/.nori/transcripts",
       }),
     };
   });
@@ -82,9 +84,11 @@ describe("watchFlow", () => {
       await watchFlow({ callbacks: mockCallbacks });
 
       expect(clack.intro).toHaveBeenCalledWith("nori watch");
-      expect(clack.outro).toHaveBeenCalledWith(
-        expect.stringContaining("Watch daemon started"),
+      expect(clack.note).toHaveBeenCalledWith(
+        expect.stringContaining("12345"),
+        "Watch Details",
       );
+      expect(clack.outro).toHaveBeenCalledWith("Watching for sessions.");
     });
 
     it("should not prompt for org selection with single org", async () => {

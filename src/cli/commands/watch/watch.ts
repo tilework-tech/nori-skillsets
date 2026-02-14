@@ -647,7 +647,12 @@ export const watchMain = async (args?: {
 
           try {
             const pid = await spawnDaemonProcess({ agent });
-            return { success: true as const, pid, logFile };
+            const transcriptsDir = path.join(
+              os.homedir(),
+              ".nori",
+              "transcripts",
+            );
+            return { success: true as const, pid, logFile, transcriptsDir };
           } catch (err) {
             return {
               success: false as const,

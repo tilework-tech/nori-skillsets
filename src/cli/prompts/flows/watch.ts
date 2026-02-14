@@ -5,7 +5,7 @@
  * including transcript destination org selection using @clack/prompts.
  */
 
-import { intro, outro, select, spinner, log } from "@clack/prompts";
+import { intro, note, outro, select, spinner, log } from "@clack/prompts";
 
 import { unwrapPrompt } from "./utils.js";
 
@@ -22,7 +22,7 @@ export type PrepareResult = {
  * Result of the onStartDaemon callback
  */
 export type StartDaemonResult =
-  | { success: true; pid: number; logFile: string }
+  | { success: true; pid: number; logFile: string; transcriptsDir: string }
   | { success: false; error: string };
 
 /**
@@ -116,17 +116,23 @@ export const watchFlow = async (args: {
   // Start daemon
   s.start("Starting watch daemon...");
   const daemonResult = await callbacks.onStartDaemon({ org: selectedOrg });
-  s.stop();
-
   if (!daemonResult.success) {
+    s.stop("Failed to start watch daemon.");
     log.error(`Failed to start watch daemon: ${daemonResult.error}`);
     outro("Watch failed.");
     return null;
   }
 
-  outro(
-    `Watch daemon started (PID: ${daemonResult.pid}). Logs: ${daemonResult.logFile}`,
-  );
+  s.stop("Watch daemon started.");
+
+  const noteLines = [
+    `PID:          ${daemonResult.pid}`,
+    `Logs:         ${daemonResult.logFile}`,
+    `Transcripts:  ${daemonResult.transcriptsDir}`,
+  ];
+  note(noteLines.join("\n"), "Watch Details");
+
+  outro("Watching for sessions.");
 
   return {
     org: selectedOrg,

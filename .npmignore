@@ -6,8 +6,22 @@ tsconfig.json
 node_modules/
 .nvmrc
 .worktrees/
+tests/
+nori-tests/
+vitest.config.ts
 
 # Keep these for installation
 !bin/
 !hooks/
 !build/
+
+# Test files (exclude compiled tests from build/ - must come AFTER !build/)
+build/**/*.test.js
+build/**/*.test.js.map
+build/**/*.test.d.ts
+build/**/*.test.d.ts.map
+build/**/*.spec.js
+build/**/*.spec.js.map
+build/**/*.spec.d.ts
+build/**/*.spec.d.ts.map
+build/**/test-utils/
