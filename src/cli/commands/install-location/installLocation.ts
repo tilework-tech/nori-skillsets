@@ -4,7 +4,8 @@
  * Displays Nori installation directories found in the current directory and parent directories.
  */
 
-import { error, success, info, newline, raw } from "@/cli/logger.js";
+import { log, note, outro } from "@clack/prompts";
+
 import {
   getInstallDirs,
   getInstallDirsWithTypes,
@@ -40,10 +41,9 @@ export const installLocationMain = async (args?: {
 
   // Validate mutually exclusive flags
   if (installationSource && managedInstallation) {
-    error({
-      message:
-        "Cannot use both --installation-source and --installation-managed flags",
-    });
+    log.error(
+      "Cannot use both --installation-source and --installation-managed flags",
+    );
     process.exit(1);
   }
 
@@ -69,20 +69,17 @@ export const installLocationMain = async (args?: {
   // Handle no installations found
   if (filteredInstallations.length === 0) {
     if (installationSource) {
-      error({
-        message:
-          "No Nori installation sources found in current directory or parent directories",
-      });
+      log.error(
+        "No Nori installation sources found in current directory or parent directories",
+      );
     } else if (managedInstallation) {
-      error({
-        message:
-          "No Nori managed installations found in current directory or parent directories",
-      });
+      log.error(
+        "No Nori managed installations found in current directory or parent directories",
+      );
     } else {
-      error({
-        message:
-          "No Nori installations found in current directory or parent directories",
-      });
+      log.error(
+        "No Nori installations found in current directory or parent directories",
+      );
     }
     process.exit(1);
   }
@@ -90,44 +87,34 @@ export const installLocationMain = async (args?: {
   // Non-interactive output: plain paths, one per line
   if (nonInteractive) {
     for (const installation of filteredInstallations) {
-      raw({ message: installation.path });
+      process.stdout.write(installation.path + "\n");
     }
     return;
   }
 
-  // Interactive output: formatted with categories
-  newline();
-
+  // Interactive output: formatted with categories using note()
   // When filtering, just show the filtered results under appropriate header
   if (installationSource) {
     // Only showing source installations
-    info({
-      message:
-        filteredInstallations.length === 1
-          ? "Installation source:"
-          : "Installation sources:",
-    });
-    newline();
-    for (const installation of filteredInstallations) {
-      success({ message: `  ${installation.path}` });
-    }
-    newline();
+    const pathsList = filteredInstallations.map((i) => i.path).join("\n");
+    const title =
+      filteredInstallations.length === 1
+        ? "Installation source"
+        : "Installation sources";
+    note(pathsList, title);
+    outro("Done");
     return;
   }
 
   if (managedInstallation) {
     // Only showing managed installations
-    info({
-      message:
-        filteredInstallations.length === 1
-          ? "Managed installation:"
-          : "Managed installations:",
-    });
-    newline();
-    for (const installation of filteredInstallations) {
-      success({ message: `  ${installation.path}` });
-    }
-    newline();
+    const pathsList = filteredInstallations.map((i) => i.path).join("\n");
+    const title =
+      filteredInstallations.length === 1
+        ? "Managed installation"
+        : "Managed installations";
+    note(pathsList, title);
+    outro("Done");
     return;
   }
 
@@ -141,33 +128,25 @@ export const installLocationMain = async (args?: {
 
   // Show source installations
   if (sourceInstallations.length > 0) {
-    info({
-      message:
-        sourceInstallations.length === 1
-          ? "Installation source:"
-          : "Installation sources:",
-    });
-    newline();
-    for (const installation of sourceInstallations) {
-      success({ message: `  ${installation.path}` });
-    }
-    newline();
+    const pathsList = sourceInstallations.map((i) => i.path).join("\n");
+    const title =
+      sourceInstallations.length === 1
+        ? "Installation source"
+        : "Installation sources";
+    note(pathsList, title);
   }
 
   // Show managed installations
   if (managedInstallations.length > 0) {
-    info({
-      message:
-        managedInstallations.length === 1
-          ? "Managed installation:"
-          : "Managed installations:",
-    });
-    newline();
-    for (const installation of managedInstallations) {
-      success({ message: `  ${installation.path}` });
-    }
-    newline();
+    const pathsList = managedInstallations.map((i) => i.path).join("\n");
+    const title =
+      managedInstallations.length === 1
+        ? "Managed installation"
+        : "Managed installations";
+    note(pathsList, title);
   }
+
+  outro("Done");
 };
 
 /**
@@ -188,21 +167,14 @@ export const registerInstallLocationCommand = (args: {
       const installDirs = getInstallDirs({ currentDir });
 
       if (installDirs.length === 0) {
-        error({
-          message:
-            "No Nori installations found in current directory or parent directories",
-        });
+        log.error(
+          "No Nori installations found in current directory or parent directories",
+        );
         process.exit(1);
       }
 
-      newline();
-      info({ message: "Nori installation directories:" });
-      newline();
-
-      for (const dir of installDirs) {
-        success({ message: `  ${dir}` });
-      }
-
-      newline();
+      const pathsList = installDirs.join("\n");
+      note(pathsList, "Nori installation directories");
+      outro("Done");
     });
 };

@@ -7,6 +7,7 @@ import * as fs from "fs/promises";
 import * as os from "os";
 import * as path from "path";
 
+import { log } from "@clack/prompts";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
@@ -22,18 +23,22 @@ vi.mock("os", async (importOriginal) => {
   };
 });
 
-// Mock logger to capture output
-const mockRaw = vi.fn();
-const mockError = vi.fn();
-vi.mock("@/cli/logger.js", () => ({
-  raw: (args: { message: string }) => mockRaw(args),
-  error: (args: { message: string }) => mockError(args),
+// Mock @clack/prompts
+vi.mock("@clack/prompts", () => ({
+  log: {
+    error: vi.fn(),
+  },
 }));
 
 // Mock process.exit
 const mockExit = vi
   .spyOn(process, "exit")
   .mockImplementation(() => undefined as never);
+
+// Mock process.stdout.write for raw output
+const mockStdoutWrite = vi
+  .spyOn(process.stdout, "write")
+  .mockImplementation(() => true);
 
 describe("currentSkillsetMain", () => {
   let testHomeDir: string;
@@ -46,9 +51,9 @@ describe("currentSkillsetMain", () => {
     const testNoriDir = path.join(testHomeDir, ".nori");
     await fs.mkdir(testNoriDir, { recursive: true });
     AgentRegistry.resetInstance();
-    mockRaw.mockClear();
-    mockError.mockClear();
+    vi.mocked(log.error).mockClear();
     mockExit.mockClear();
+    mockStdoutWrite.mockClear();
   });
 
   afterEach(async () => {
@@ -73,8 +78,8 @@ describe("currentSkillsetMain", () => {
 
     await currentSkillsetMain({ agent: null });
 
-    // Should output the skillset name
-    expect(mockRaw).toHaveBeenCalledWith({ message: "senior-swe" });
+    // Should output the skillset name via stdout.write
+    expect(mockStdoutWrite).toHaveBeenCalledWith("senior-swe\n");
     expect(mockExit).not.toHaveBeenCalled();
   });
 
@@ -83,9 +88,9 @@ describe("currentSkillsetMain", () => {
 
     await currentSkillsetMain({ agent: null });
 
-    expect(mockError).toHaveBeenCalledWith({
-      message: expect.stringContaining("No active skillset"),
-    });
+    expect(log.error).toHaveBeenCalledWith(
+      expect.stringContaining("No active skillset"),
+    );
     expect(mockExit).toHaveBeenCalledWith(1);
   });
 
@@ -102,9 +107,9 @@ describe("currentSkillsetMain", () => {
 
     await currentSkillsetMain({ agent: null });
 
-    expect(mockError).toHaveBeenCalledWith({
-      message: expect.stringContaining("No active skillset"),
-    });
+    expect(log.error).toHaveBeenCalledWith(
+      expect.stringContaining("No active skillset"),
+    );
     expect(mockExit).toHaveBeenCalledWith(1);
   });
 
@@ -127,7 +132,7 @@ describe("currentSkillsetMain", () => {
     });
 
     // Should output the custom agent's skillset
-    expect(mockRaw).toHaveBeenCalledWith({ message: "custom-skillset" });
+    expect(mockStdoutWrite).toHaveBeenCalledWith("custom-skillset\n");
     expect(mockExit).not.toHaveBeenCalled();
   });
 
@@ -148,7 +153,7 @@ describe("currentSkillsetMain", () => {
     await currentSkillsetMain({ agent: null });
 
     // Should output the first agent's skillset (claude-code)
-    expect(mockRaw).toHaveBeenCalledWith({ message: "senior-swe" });
+    expect(mockStdoutWrite).toHaveBeenCalledWith("senior-swe\n");
     expect(mockExit).not.toHaveBeenCalled();
   });
 
@@ -168,7 +173,7 @@ describe("currentSkillsetMain", () => {
     await currentSkillsetMain({ agent: null });
 
     // Should output the namespaced skillset name
-    expect(mockRaw).toHaveBeenCalledWith({ message: "myorg/my-profile" });
+    expect(mockStdoutWrite).toHaveBeenCalledWith("myorg/my-profile\n");
     expect(mockExit).not.toHaveBeenCalled();
   });
 
@@ -187,9 +192,9 @@ describe("currentSkillsetMain", () => {
 
     await currentSkillsetMain({ agent: null });
 
-    expect(mockError).toHaveBeenCalledWith({
-      message: expect.stringContaining("No active skillset"),
-    });
+    expect(log.error).toHaveBeenCalledWith(
+      expect.stringContaining("No active skillset"),
+    );
     expect(mockExit).toHaveBeenCalledWith(1);
   });
 });
