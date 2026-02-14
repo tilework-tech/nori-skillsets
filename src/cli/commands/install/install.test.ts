@@ -78,6 +78,11 @@ vi.mock("@/cli/features/claude-code/profiles/manifest.js", () => ({
   getManifestPath: vi.fn().mockReturnValue("/mock/manifest.json"),
 }));
 
+// Mock installProfile pipeline to avoid file system side effects
+vi.mock("@/cli/features/pipeline/installProfile.js", () => ({
+  installProfile: vi.fn().mockResolvedValue(undefined),
+}));
+
 // Mock logger to suppress output
 vi.mock("@/cli/logger.js", () => ({
   error: vi.fn(),

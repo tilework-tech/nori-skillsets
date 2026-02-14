@@ -47,9 +47,8 @@ export type AgentConfig = {
 
 /**
  * Valid agent names for configuration.
- * Only "claude-code" is currently supported.
  */
-export type ConfigAgentName = "claude-code";
+export type ConfigAgentName = "claude-code" | "codex";
 
 /**
  * Unified configuration type for Nori Profiles

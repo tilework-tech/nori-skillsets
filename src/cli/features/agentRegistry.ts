@@ -11,7 +11,15 @@ import type { Config } from "@/cli/config.js";
  * Canonical agent names used as UIDs in the registry.
  * Each Agent.name must match one of these values.
  */
-export type AgentName = "claude-code";
+export type AgentName = "claude-code" | "codex";
+
+/**
+ * Lightweight agent definition for use outside the full Agent interface
+ */
+export type AgentDefinition = {
+  name: AgentName;
+  displayName: string;
+};
 
 /**
  * Loader interface for feature installation
