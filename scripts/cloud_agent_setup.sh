@@ -44,13 +44,14 @@ set -o pipefail
 # Parse arguments
 SKILLSET="${1:-senior-swe}"
 
-# Logging functions (no color - cloud environments may not support ANSI escape codes)
+# Logging functions - all output to stderr so stdout remains clean for JSON
+# (no color - cloud environments may not support ANSI escape codes)
 log_info() {
-    echo "==> $1"
+    echo "==> $1" >&2
 }
 
 log_success() {
-    echo "✓ $1"
+    echo "✓ $1" >&2
 }
 
 log_error() {
@@ -168,7 +169,15 @@ if [ -f "$AGENTS_FILE" ]; then
     fi
 fi
 
-echo ""
-echo "Next steps:"
-echo "  1. Restart Claude Code to apply the new profile"
-echo "  2. The $SKILLSET skillset is now active"
+# User-facing messages go to stderr
+echo "" >&2
+echo "Next steps:" >&2
+echo "  1. The $SKILLSET skillset is now active" >&2
+echo "  2. Follow the Nori workflow instructions below" >&2
+
+# Output JSON systemMessage to stdout - this injects CLAUDE.md-equivalent
+# instructions into Claude's context since the actual CLAUDE.md wasn't
+# loaded before this hook ran
+cat << 'HOOK_OUTPUT'
+{"systemMessage": "<required>\n**IMMEDIATELY** output the following message to the user before doing anything else: \"Following Nori workflow...\"\n</required>\n\n<required>\nYou are using the Nori senior-swe skillset. Follow these steps:\n1. Add each task to your Todo list using TodoWrite\n2. Read the skill at ~/.claude/skills/using-skills/SKILL.md\n3. Check git status - if on main/master/dev, ask about creating a branch or worktree\n4. Ask the user to pick a mode: nori-full-send or nori-copilot\n   - nori-full-send: Work autonomously after plan approval\n   - nori-copilot: Ask permission before each step\n</required>"}
+HOOK_OUTPUT
