@@ -28,6 +28,11 @@ vi.mock("@/cli/prompts/text.js", () => ({
   promptText: vi.fn(),
 }));
 
+// Mock the factory reset flow
+vi.mock("@/cli/prompts/flows/factoryReset.js", () => ({
+  factoryResetFlow: vi.fn().mockResolvedValue({ deletedCount: 0 }),
+}));
+
 // Mock process.exit
 const mockExit = vi
   .spyOn(process, "exit")
@@ -117,5 +122,44 @@ describe("factoryResetMain", () => {
       }),
     );
     expect(mockExit).toHaveBeenCalledWith(1);
+  });
+
+  it("should use factoryResetFlow when experimentalUi is true", async () => {
+    const { factoryResetFlow } =
+      await import("@/cli/prompts/flows/factoryReset.js");
+
+    await factoryResetMain({
+      agentName: "claude-code",
+      path: tempDir,
+      experimentalUi: true,
+    });
+
+    expect(factoryResetFlow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentName: "Claude Code",
+        path: tempDir,
+        callbacks: expect.objectContaining({
+          onFindArtifacts: expect.any(Function),
+          onDeleteArtifacts: expect.any(Function),
+        }),
+      }),
+    );
+  });
+
+  it("should not use factoryResetFlow when experimentalUi is false", async () => {
+    const { promptText } = await import("@/cli/prompts/text.js");
+    const { factoryResetFlow } =
+      await import("@/cli/prompts/flows/factoryReset.js");
+    vi.mocked(promptText).mockResolvedValue("confirm");
+
+    const claudeDir = path.join(tempDir, ".claude");
+    await fs.mkdir(claudeDir, { recursive: true });
+
+    await factoryResetMain({
+      agentName: "claude-code",
+      path: tempDir,
+    });
+
+    expect(factoryResetFlow).not.toHaveBeenCalled();
   });
 });

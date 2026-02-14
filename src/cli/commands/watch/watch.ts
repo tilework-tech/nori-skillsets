@@ -525,6 +525,38 @@ const selectTranscriptDestination = async (args: {
 };
 
 /**
+ * Save transcript destination to config if changed
+ *
+ * @param args - Configuration arguments
+ * @param args.org - Organization ID to save
+ * @param args.installDir - Installation directory for config
+ */
+const saveTranscriptDestination = async (args: {
+  org: string;
+  installDir: string;
+}): Promise<void> => {
+  const { org, installDir } = args;
+  const config = await loadConfig({ startDir: os.homedir() });
+  if (org === config?.transcriptDestination) {
+    return;
+  }
+  await saveConfig({
+    username: config?.auth?.username ?? null,
+    password: config?.auth?.password ?? null,
+    refreshToken: config?.auth?.refreshToken ?? null,
+    organizationUrl: config?.auth?.organizationUrl ?? null,
+    organizations: config?.auth?.organizations ?? null,
+    isAdmin: config?.auth?.isAdmin ?? null,
+    sendSessionTranscript: config?.sendSessionTranscript ?? null,
+    autoupdate: config?.autoupdate ?? null,
+    agents: config?.agents ?? null,
+    version: config?.version ?? null,
+    transcriptDestination: org,
+    installDir,
+  });
+};
+
+/**
  * Spawn the watch daemon as a detached background process
  *
  * @param args - Configuration arguments
@@ -567,12 +599,14 @@ const spawnDaemonProcess = async (args: { agent: string }): Promise<number> => {
  * @param args.daemon - Whether to run as daemon (deprecated, kept for compatibility)
  * @param args.setDestination - Force re-selection of transcript destination
  * @param args._background - Internal flag: run as background daemon (set by spawn)
+ * @param args.experimentalUi - Whether to use the experimental clack-based UI
  */
 export const watchMain = async (args?: {
   agent?: string | null;
   daemon?: boolean | null;
   _background?: boolean | null;
   setDestination?: boolean | null;
+  experimentalUi?: boolean | null;
 }): Promise<void> => {
   const agent = args?.agent ?? "claude-code";
   const _background = args?._background ?? false;
@@ -581,6 +615,56 @@ export const watchMain = async (args?: {
   const homeDir = process.env.HOME ?? "";
   const installDir = homeDir; // Config is at ~/.nori-config.json (home dir is base)
   const logFile = getWatchLogFile();
+
+  // Experimental UI flow (interactive only, not in background daemon mode)
+  if (args?.experimentalUi && !_background) {
+    const { watchFlow } = await import("@/cli/prompts/flows/watch.js");
+
+    await watchFlow({
+      forceSelection: setDestination,
+      callbacks: {
+        onPrepare: async () => {
+          const running = await isWatchRunning();
+          if (running) {
+            await watchStopMain({ quiet: true });
+          }
+
+          const config = await loadConfig({ startDir: os.homedir() });
+          const userOrgs = config?.auth?.organizations ?? [];
+          const privateOrgs = userOrgs.filter((org) => org !== "public");
+
+          return {
+            privateOrgs,
+            currentDestination: config?.transcriptDestination ?? null,
+            isRunning: running,
+          };
+        },
+        onStartDaemon: async ({ org }) => {
+          await saveTranscriptDestination({ org, installDir });
+
+          // Ensure log directory exists before spawning
+          await fs.mkdir(path.dirname(logFile), { recursive: true });
+
+          try {
+            const pid = await spawnDaemonProcess({ agent });
+            const transcriptsDir = path.join(
+              os.homedir(),
+              ".nori",
+              "transcripts",
+            );
+            return { success: true as const, pid, logFile, transcriptsDir };
+          } catch (err) {
+            return {
+              success: false as const,
+              error: err instanceof Error ? err.message : String(err),
+            };
+          }
+        },
+      },
+    });
+
+    return;
+  }
 
   // Stop any existing daemon before starting a new one
   // This ensures we always run the latest code and prevents duplicate daemons
@@ -608,21 +692,8 @@ export const watchMain = async (args?: {
     });
 
     // Save selection if it changed
-    if (selectedOrg != null && selectedOrg !== config?.transcriptDestination) {
-      await saveConfig({
-        username: config?.auth?.username ?? null,
-        password: config?.auth?.password ?? null,
-        refreshToken: config?.auth?.refreshToken ?? null,
-        organizationUrl: config?.auth?.organizationUrl ?? null,
-        organizations: config?.auth?.organizations ?? null,
-        isAdmin: config?.auth?.isAdmin ?? null,
-        sendSessionTranscript: config?.sendSessionTranscript ?? null,
-        autoupdate: config?.autoupdate ?? null,
-        agents: config?.agents ?? null,
-        version: config?.version ?? null,
-        transcriptDestination: selectedOrg,
-        installDir,
-      });
+    if (selectedOrg != null) {
+      await saveTranscriptDestination({ org: selectedOrg, installDir });
     }
 
     // Ensure log directory exists before spawning
@@ -737,11 +808,26 @@ export const watchMain = async (args?: {
  *
  * @param args - Configuration arguments
  * @param args.quiet - Suppress output
+ * @param args.experimentalUi - Whether to use the experimental clack-based UI
  */
 export const watchStopMain = async (args?: {
   quiet?: boolean | null;
+  experimentalUi?: boolean | null;
 }): Promise<void> => {
   const quiet = args?.quiet ?? false;
+  const experimentalUi = args?.experimentalUi ?? false;
+
+  // Resolve output functions based on UI mode
+  let logSuccess = (msg: string) => success({ message: msg });
+  let logWarn = (msg: string) => warn({ message: msg });
+  let logInfo = (msg: string) => info({ message: msg });
+
+  if (experimentalUi) {
+    const clack = await import("@clack/prompts");
+    logSuccess = (msg: string) => clack.log.success(msg);
+    logWarn = (msg: string) => clack.log.warn(msg);
+    logInfo = (msg: string) => clack.log.info(msg);
+  }
 
   const pidFile = getWatchPidFile();
 
@@ -779,20 +865,20 @@ export const watchStopMain = async (args?: {
       }
 
       if (!quiet) {
-        success({ message: "Watch daemon stopped" });
+        logSuccess("Watch daemon stopped");
       }
     } catch {
       if (!quiet) {
-        warn({ message: "Watch daemon is not running" });
+        logWarn("Watch daemon is not running");
       }
     }
   } else if (daemonPid === process.pid) {
     // Same process, already cleaned up
     if (!quiet) {
-      success({ message: "Watch daemon stopped" });
+      logSuccess("Watch daemon stopped");
     }
   } else if (!quiet) {
     // No PID file found
-    info({ message: "No watch daemon running" });
+    logInfo("No watch daemon running");
   }
 };

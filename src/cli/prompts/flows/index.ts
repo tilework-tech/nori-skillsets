@@ -45,4 +45,20 @@ export {
   type ListVersionsFlowResult,
 } from "./listVersions.js";
 
+export {
+  factoryResetFlow,
+  type FactoryResetFlowCallbacks,
+  type FactoryResetFlowResult,
+  type FactoryResetArtifact,
+  type FindArtifactsResult,
+} from "./factoryReset.js";
+
+export {
+  watchFlow,
+  type WatchFlowCallbacks,
+  type WatchFlowResult,
+  type PrepareResult,
+  type StartDaemonResult,
+} from "./watch.js";
+
 export { unwrapPrompt } from "./utils.js";

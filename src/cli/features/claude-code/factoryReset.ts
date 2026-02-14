@@ -6,7 +6,8 @@
 import * as fs from "fs/promises";
 import * as path from "path";
 
-import { info, warn, success, newline } from "@/cli/logger.js";
+import { intro, outro, note, log } from "@clack/prompts";
+
 import { promptText } from "@/cli/prompts/text.js";
 
 export type ClaudeCodeArtifact = {
@@ -81,28 +82,29 @@ export const factoryResetClaudeCode = async (args: {
 }): Promise<void> => {
   const artifacts = await findClaudeCodeArtifacts({ startDir: args.path });
 
+  intro("Factory Reset Claude Code");
+
   if (artifacts.length === 0) {
-    info({ message: "No Claude Code configuration found." });
+    log.info("No Claude Code configuration found.");
+    outro("Nothing to reset");
     return;
   }
 
-  newline();
-  warn({ message: "The following Claude Code configuration will be deleted:" });
-  newline();
+  const listing = artifacts
+    .map((artifact) => {
+      const label = artifact.type === "directory" ? "[dir] " : "[file]";
+      return `${label} ${artifact.path}`;
+    })
+    .join("\n");
 
-  for (const artifact of artifacts) {
-    const label = artifact.type === "directory" ? "[dir] " : "[file]";
-    warn({ message: `  ${label} ${artifact.path}` });
-  }
-
-  newline();
+  note(listing, "The following will be deleted");
 
   const answer = await promptText({
     message: "Type 'confirm' to proceed with factory reset",
   });
 
   if (answer !== "confirm") {
-    info({ message: "Factory reset cancelled." });
+    log.info("Factory reset cancelled.");
     return;
   }
 
@@ -114,9 +116,7 @@ export const factoryResetClaudeCode = async (args: {
     }
   }
 
-  newline();
-  success({
-    message:
-      "Factory reset complete. All Claude Code configuration has been removed.",
-  });
+  outro(
+    "Factory reset complete. All Claude Code configuration has been removed.",
+  );
 };
