@@ -67,7 +67,6 @@ const GLOBAL_FLAGS = [
   "--non-interactive",
   "--silent",
   "--agent",
-  "--experimental-ui",
 ];
 
 describe("generateBashCompletion", () => {

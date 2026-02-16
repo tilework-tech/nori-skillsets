@@ -30,8 +30,6 @@ import {
   type WatcherInstance,
 } from "@/cli/commands/watch/watcher.js";
 import { loadConfig, saveConfig } from "@/cli/config.js";
-import { info, success, warn } from "@/cli/logger.js";
-import { promptUser } from "@/cli/prompt.js";
 
 /**
  * Debounce window in milliseconds for file events
@@ -454,77 +452,6 @@ export const cleanupWatch = async (args?: {
 };
 
 /**
- * Select transcript destination organization
- *
- * @param args - Configuration arguments
- * @param args.privateOrgs - List of private orgs the user has access to
- * @param args.currentDestination - Current transcript destination (if any)
- * @param args.forceSelection - Force re-selection even if destination is set
- * @param args.isDaemon - Whether running in daemon mode (no TTY for prompts)
- *
- * @returns Selected org ID or null if no selection possible
- */
-const selectTranscriptDestination = async (args: {
-  privateOrgs: Array<string>;
-  currentDestination?: string | null;
-  forceSelection?: boolean | null;
-  isDaemon?: boolean | null;
-}): Promise<string | null> => {
-  const { privateOrgs, currentDestination, forceSelection, isDaemon } = args;
-
-  // If current destination is valid and not forcing re-selection, use it
-  if (
-    !forceSelection &&
-    currentDestination != null &&
-    privateOrgs.includes(currentDestination)
-  ) {
-    return currentDestination;
-  }
-
-  // No private orgs - can't upload transcripts
-  if (privateOrgs.length === 0) {
-    return null;
-  }
-
-  // Single org - auto-select
-  if (privateOrgs.length === 1) {
-    return privateOrgs[0];
-  }
-
-  // Multiple orgs in daemon mode - auto-select first with warning
-  if (isDaemon) {
-    warn({
-      message: `Multiple organizations available but running in daemon mode. Using first org: ${privateOrgs[0]}. Run 'nori-skillsets watch --set-destination' interactively to change.`,
-    });
-    return privateOrgs[0];
-  }
-
-  // Multiple orgs - prompt user
-  info({ message: "\nSelect organization for transcript uploads:" });
-  for (let i = 0; i < privateOrgs.length; i++) {
-    info({ message: `  ${i + 1}. ${privateOrgs[i]}` });
-  }
-
-  let response: string;
-  try {
-    response = await promptUser({
-      prompt: `Enter number (1-${privateOrgs.length}): `,
-    });
-  } catch {
-    warn({ message: "Unable to prompt for selection, using first org" });
-    return privateOrgs[0];
-  }
-
-  const choice = parseInt(response.trim(), 10);
-  if (isNaN(choice) || choice < 1 || choice > privateOrgs.length) {
-    warn({ message: "Invalid selection, using first org" });
-    return privateOrgs[0];
-  }
-
-  return privateOrgs[choice - 1];
-};
-
-/**
  * Save transcript destination to config if changed
  *
  * @param args - Configuration arguments
@@ -599,14 +526,12 @@ const spawnDaemonProcess = async (args: { agent: string }): Promise<number> => {
  * @param args.daemon - Whether to run as daemon (deprecated, kept for compatibility)
  * @param args.setDestination - Force re-selection of transcript destination
  * @param args._background - Internal flag: run as background daemon (set by spawn)
- * @param args.experimentalUi - Whether to use the experimental clack-based UI
  */
 export const watchMain = async (args?: {
   agent?: string | null;
   daemon?: boolean | null;
   _background?: boolean | null;
   setDestination?: boolean | null;
-  experimentalUi?: boolean | null;
 }): Promise<void> => {
   const agent = args?.agent ?? "claude-code";
   const _background = args?._background ?? false;
@@ -616,8 +541,8 @@ export const watchMain = async (args?: {
   const installDir = homeDir; // Config is at ~/.nori-config.json (home dir is base)
   const logFile = getWatchLogFile();
 
-  // Experimental UI flow (interactive only, not in background daemon mode)
-  if (args?.experimentalUi && !_background) {
+  // Interactive flow (not in background daemon mode)
+  if (!_background) {
     const { watchFlow } = await import("@/cli/prompts/flows/watch.js");
 
     await watchFlow({
@@ -663,49 +588,6 @@ export const watchMain = async (args?: {
       },
     });
 
-    return;
-  }
-
-  // Stop any existing daemon before starting a new one
-  // This ensures we always run the latest code and prevents duplicate daemons
-  if (await isWatchRunning()) {
-    info({ message: "Stopping existing watch daemon..." });
-    await watchStopMain({ quiet: true });
-  }
-
-  // INTERACTIVE MODE: Do setup, then spawn background daemon
-  if (!_background) {
-    // Load config and handle transcript destination selection (interactive)
-    // Use os.homedir() as startDir since watch is home-directory-based
-    const config = await loadConfig({ startDir: os.homedir() });
-
-    // Get user's organizations (filter out "public")
-    const userOrgs = config?.auth?.organizations ?? [];
-    const privateOrgs = userOrgs.filter((org) => org !== "public");
-
-    // Select transcript destination (interactive - will prompt if needed)
-    const selectedOrg = await selectTranscriptDestination({
-      privateOrgs,
-      currentDestination: config?.transcriptDestination,
-      forceSelection: setDestination,
-      isDaemon: false, // Always interactive in this mode
-    });
-
-    // Save selection if it changed
-    if (selectedOrg != null) {
-      await saveTranscriptDestination({ org: selectedOrg, installDir });
-    }
-
-    // Ensure log directory exists before spawning
-    await fs.mkdir(path.dirname(logFile), { recursive: true });
-
-    // Spawn the background daemon process
-    const pid = await spawnDaemonProcess({ agent });
-    success({
-      message: `Watch daemon started (PID: ${pid}). Logs: ${logFile}`,
-    });
-
-    // Parent process exits here, child continues in background
     return;
   }
 
@@ -808,26 +690,16 @@ export const watchMain = async (args?: {
  *
  * @param args - Configuration arguments
  * @param args.quiet - Suppress output
- * @param args.experimentalUi - Whether to use the experimental clack-based UI
  */
 export const watchStopMain = async (args?: {
   quiet?: boolean | null;
-  experimentalUi?: boolean | null;
 }): Promise<void> => {
   const quiet = args?.quiet ?? false;
-  const experimentalUi = args?.experimentalUi ?? false;
 
-  // Resolve output functions based on UI mode
-  let logSuccess = (msg: string) => success({ message: msg });
-  let logWarn = (msg: string) => warn({ message: msg });
-  let logInfo = (msg: string) => info({ message: msg });
-
-  if (experimentalUi) {
-    const clack = await import("@clack/prompts");
-    logSuccess = (msg: string) => clack.log.success(msg);
-    logWarn = (msg: string) => clack.log.warn(msg);
-    logInfo = (msg: string) => clack.log.info(msg);
-  }
+  const clack = await import("@clack/prompts");
+  const logSuccess = (msg: string) => clack.log.success(msg);
+  const logWarn = (msg: string) => clack.log.warn(msg);
+  const logInfo = (msg: string) => clack.log.info(msg);
 
   const pidFile = getWatchPidFile();
 

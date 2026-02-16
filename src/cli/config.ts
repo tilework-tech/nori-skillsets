@@ -72,8 +72,6 @@ export type Config = {
   version?: string | null;
   /** Organization ID for transcript uploads (e.g., "myorg" -> https://myorg.noriskillsets.dev) */
   transcriptDestination?: string | null;
-  /** Manually enable the experimental UI (clack-based TUI flows) */
-  experimentalUi?: boolean | null;
 };
 
 /**
@@ -106,8 +104,6 @@ type RawDiskConfig = {
   version?: string | null;
   // Transcript upload destination org ID
   transcriptDestination?: string | null;
-  // Manually enable experimental UI
-  experimentalUi?: boolean | null;
 };
 
 /**
@@ -338,7 +334,6 @@ export const loadConfig = async (args?: {
       autoupdate: validated.autoupdate,
       version: validated.version,
       transcriptDestination: validated.transcriptDestination,
-      experimentalUi: validated.experimentalUi,
     };
 
     // Build auth - handle both nested format (v19+) and flat format (legacy)
@@ -386,8 +381,7 @@ export const loadConfig = async (args?: {
     if (
       result.auth != null ||
       result.agents != null ||
-      result.sendSessionTranscript != null ||
-      result.experimentalUi != null
+      result.sendSessionTranscript != null
     ) {
       return result;
     }
@@ -413,7 +407,6 @@ export const loadConfig = async (args?: {
  * @param args.organizations - List of organizations the user has access to (null to skip)
  * @param args.isAdmin - Whether the user is an admin for their organization (null to skip)
  * @param args.transcriptDestination - Organization ID for transcript uploads (null to skip)
- * @param args.experimentalUi - Manually enable the experimental UI (null to skip)
  */
 export const saveConfig = async (args: {
   username: string | null;
@@ -427,7 +420,6 @@ export const saveConfig = async (args: {
   agents?: { [key in ConfigAgentName]?: AgentConfig } | null;
   version?: string | null;
   transcriptDestination?: string | null;
-  experimentalUi?: boolean | null;
   installDir: string;
 }): Promise<void> => {
   const {
@@ -442,7 +434,6 @@ export const saveConfig = async (args: {
     agents,
     version,
     transcriptDestination,
-    experimentalUi,
     installDir,
   } = args;
   const configPath = getConfigPath();
@@ -492,11 +483,6 @@ export const saveConfig = async (args: {
   // Add transcriptDestination if provided
   if (transcriptDestination != null) {
     config.transcriptDestination = transcriptDestination;
-  }
-
-  // Add experimentalUi if provided
-  if (experimentalUi != null) {
-    config.experimentalUi = experimentalUi;
   }
 
   // Always save installDir
@@ -573,7 +559,6 @@ const configSchema = {
     },
     version: { type: "string" },
     transcriptDestination: { type: "string" },
-    experimentalUi: { type: ["boolean", "null"] },
   },
   additionalProperties: false,
 };

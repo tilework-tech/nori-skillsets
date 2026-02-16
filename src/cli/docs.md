@@ -18,8 +18,6 @@ The CLI uses Commander.js for command routing, argument parsing, validation, and
 
 **Auto-update check at startup:** Before `program.parse()`, the entry point calls `checkForUpdateAndPrompt()` from @/src/cli/updates/checkForUpdate.ts. This reads `--silent` and `--non-interactive` flags from `process.argv` (before Commander parses them) and passes them along. The update check uses cached version data and may show an interactive prompt, a non-interactive one-liner, or nothing depending on flags and cache state. See @/src/cli/updates/docs.md for the full stale-while-revalidate architecture.
 
-**Experimental UI auto-enable:** After command registration but before `program.parse()`, the entry point checks whether `--experimental-ui` should be auto-injected into `process.argv`. This is handled by `shouldAutoEnableExperimentalUi()` in @/src/cli/experimentalUi.ts. The flag is auto-enabled when either: (1) the `experimentalUi` field is `true` in `~/.nori-config.json`, or (2) the current version string contains "next" (e.g., `0.7.0-next.1`). If `--experimental-ui` was already explicitly passed on the command line, auto-detection is skipped. Informational commands (`--help`, `--version`) also skip auto-detection.
-
 **Global Options:**
 
 | Option | Description |
@@ -28,7 +26,6 @@ The CLI uses Commander.js for command routing, argument parsing, validation, and
 | `-n, --non-interactive` | Run without interactive prompts |
 | `-s, --silent` | Suppress all output (implies non-interactive) |
 | `-a, --agent <name>` | AI agent to use (auto-detected from config, or claude-code) |
-| `--experimental-ui` | Use new interactive TUI flows (experimental) |
 
 **Directory Structure:**
 
@@ -132,8 +129,6 @@ The config.ts module provides a unified `Config` type for both disk persistence 
 - `isAdmin` - whether the user has admin privileges for their organization
 
 **transcriptDestination Config Field:** The `Config` type includes an optional `transcriptDestination` field that specifies which organization should receive transcript uploads. This is stored as an org ID string (e.g., `"myorg"`) which maps to a registry URL (e.g., `https://myorg.noriskillsets.dev`). The watch daemon sets this field on first run when the user selects a destination organization. This allows users with access to multiple private organizations to control where their transcripts are uploaded, independent of the `organizationUrl` used for authentication.
-
-**experimentalUi Config Field:** The `Config` type includes an optional `experimentalUi` boolean field that manually enables the experimental UI (clack-based TUI flows). When set to `true` in `~/.nori-config.json`, the CLI auto-injects `--experimental-ui` into `process.argv` before Commander parses it. This field is also considered as a "meaningful config data" condition -- a config with only `experimentalUi` set (no auth, agents, or transcript preference) is still returned by `loadConfig()` rather than being discarded as empty.
 
 **Agent Config Structure:** The config supports per-agent profiles via the `agents` field, a `Record<ConfigAgentName, AgentConfig>` where only "claude-code" is currently valid. The keys of the `agents` object serve as the source of truth for which agents are installed. Use `getInstalledAgents({ config })` helper to get the list of installed agents.
 

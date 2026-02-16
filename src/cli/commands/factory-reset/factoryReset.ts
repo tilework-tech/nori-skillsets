@@ -18,15 +18,13 @@ import { factoryResetFlow } from "@/cli/prompts/flows/factoryReset.js";
  * @param args.agentName - Name of the agent to factory reset
  * @param args.path - Directory to start searching from (defaults to cwd)
  * @param args.nonInteractive - Whether running in non-interactive mode
- * @param args.experimentalUi - Whether to use the experimental clack-based UI
  */
 export const factoryResetMain = async (args: {
   agentName: string;
   path?: string | null;
   nonInteractive?: boolean | null;
-  experimentalUi?: boolean | null;
 }): Promise<void> => {
-  const { agentName, nonInteractive, experimentalUi } = args;
+  const { agentName, nonInteractive } = args;
   const effectivePath = args.path ?? process.cwd();
 
   if (nonInteractive) {
@@ -48,29 +46,23 @@ export const factoryResetMain = async (args: {
     return;
   }
 
-  // Experimental UI flow (interactive only)
-  if (experimentalUi) {
-    await factoryResetFlow({
-      agentName: agent.displayName,
-      path: effectivePath,
-      callbacks: {
-        onFindArtifacts: async ({ path }) => {
-          const artifacts = await findClaudeCodeArtifacts({ startDir: path });
-          return { artifacts };
-        },
-        onDeleteArtifacts: async ({ artifacts }) => {
-          for (const artifact of artifacts) {
-            if (artifact.type === "directory") {
-              await fs.rm(artifact.path, { recursive: true, force: true });
-            } else {
-              await fs.rm(artifact.path, { force: true });
-            }
-          }
-        },
+  await factoryResetFlow({
+    agentName: agent.displayName,
+    path: effectivePath,
+    callbacks: {
+      onFindArtifacts: async ({ path }) => {
+        const artifacts = await findClaudeCodeArtifacts({ startDir: path });
+        return { artifacts };
       },
-    });
-    return;
-  }
-
-  await agent.factoryReset({ path: effectivePath });
+      onDeleteArtifacts: async ({ artifacts }) => {
+        for (const artifact of artifacts) {
+          if (artifact.type === "directory") {
+            await fs.rm(artifact.path, { recursive: true, force: true });
+          } else {
+            await fs.rm(artifact.path, { force: true });
+          }
+        }
+      },
+    },
+  });
 };

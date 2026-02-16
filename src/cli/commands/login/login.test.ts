@@ -25,7 +25,7 @@ vi.stubGlobal("fetch", mockFetch);
 
 import { loginMain } from "./login.js";
 
-// Mock @clack/prompts for experimental UI direct usage in loginMain
+// Mock @clack/prompts for interactive UI in loginMain
 vi.mock("@clack/prompts", () => ({
   select: vi.fn(),
   isCancel: vi.fn(() => false),
@@ -53,12 +53,6 @@ vi.mock("@/cli/prompts/index.js", () => ({
   loginFlow: vi.fn(),
   confirmAction: vi.fn(),
   promptPassword: vi.fn(),
-}));
-
-// Mock prompt
-vi.mock("@/cli/prompt.js", () => ({
-  promptUser: vi.fn(),
-  promptYesNo: vi.fn(),
 }));
 
 // Mock Firebase SDK
@@ -135,126 +129,7 @@ describe("login command", () => {
     await fs.rm(tempDir, { recursive: true, force: true });
   });
 
-  describe("loginMain with legacy prompts (default)", () => {
-    it("should use legacy prompts when experimentalUi is not set", async () => {
-      const { signInWithEmailAndPassword } = await import("firebase/auth");
-      const { promptUser } = await import("@/cli/prompt.js");
-      const { loginFlow } = await import("@/cli/prompts/index.js");
-
-      // Mock promptUser for email and password
-      vi.mocked(promptUser)
-        .mockResolvedValueOnce("user@example.com") // email
-        .mockResolvedValueOnce("password123"); // password
-
-      // Mock Firebase sign in
-      vi.mocked(signInWithEmailAndPassword).mockResolvedValue({
-        user: {
-          refreshToken: "mock-refresh-token",
-          getIdToken: vi.fn().mockResolvedValue("mock-id-token"),
-        },
-      } as any);
-
-      // Mock check-access endpoint
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            authorized: true,
-            organizations: ["acme", "orderco"],
-            isAdmin: true,
-          }),
-      });
-
-      await loginMain({ installDir: tempDir });
-
-      // Verify promptUser was called for email and password
-      expect(promptUser).toHaveBeenCalledTimes(2);
-      expect(promptUser).toHaveBeenNthCalledWith(1, { prompt: "Email: " });
-      expect(promptUser).toHaveBeenNthCalledWith(2, {
-        prompt: "Password: ",
-        masked: true,
-      });
-
-      // Verify loginFlow was NOT called
-      expect(loginFlow).not.toHaveBeenCalled();
-
-      // Verify config was saved correctly
-      const config = await loadConfig({ startDir: tempDir });
-      expect(config).not.toBeNull();
-      expect(config?.auth?.username).toBe("user@example.com");
-      expect(config?.auth?.refreshToken).toBe("mock-refresh-token");
-    });
-
-    it("should handle empty email input with legacy prompts", async () => {
-      const { promptUser } = await import("@/cli/prompt.js");
-      const { error: logError } = await import("@/cli/logger.js");
-
-      // Mock promptUser to return empty email
-      vi.mocked(promptUser).mockResolvedValueOnce("");
-
-      await loginMain({ installDir: tempDir });
-
-      // Verify error was logged
-      expect(logError).toHaveBeenCalledWith({
-        message: "Email is required.",
-      });
-
-      // No config should be saved
-      const config = await loadConfig({ startDir: tempDir });
-      expect(config?.auth).toBeUndefined();
-    });
-
-    it("should handle empty password input with legacy prompts", async () => {
-      const { promptUser } = await import("@/cli/prompt.js");
-      const { error: logError } = await import("@/cli/logger.js");
-
-      // Mock promptUser for email then empty password
-      vi.mocked(promptUser)
-        .mockResolvedValueOnce("user@example.com")
-        .mockResolvedValueOnce("");
-
-      await loginMain({ installDir: tempDir });
-
-      // Verify error was logged
-      expect(logError).toHaveBeenCalledWith({
-        message: "Password is required.",
-      });
-
-      // No config should be saved
-      const config = await loadConfig({ startDir: tempDir });
-      expect(config?.auth).toBeUndefined();
-    });
-
-    it("should show auth errors with legacy prompts", async () => {
-      const { signInWithEmailAndPassword, AuthErrorCodes } =
-        await import("firebase/auth");
-      const { promptUser } = await import("@/cli/prompt.js");
-      const { error: logError } = await import("@/cli/logger.js");
-
-      // Mock promptUser
-      vi.mocked(promptUser)
-        .mockResolvedValueOnce("user@example.com")
-        .mockResolvedValueOnce("wrongpassword");
-
-      // Mock Firebase to throw invalid credentials error
-      const authError = new Error("Invalid credentials");
-      (authError as any).code = AuthErrorCodes.INVALID_LOGIN_CREDENTIALS;
-      vi.mocked(signInWithEmailAndPassword).mockRejectedValue(authError);
-
-      await loginMain({ installDir: tempDir });
-
-      // Verify error was logged
-      expect(logError).toHaveBeenCalledWith({
-        message: "Authentication failed",
-      });
-
-      // No config should be saved
-      const config = await loadConfig({ startDir: tempDir });
-      expect(config?.auth).toBeUndefined();
-    });
-  });
-
-  describe("loginMain with --experimental-ui", () => {
+  describe("loginMain interactive mode", () => {
     it("should authenticate with Firebase and save credentials to config", async () => {
       const { signInWithEmailAndPassword } = await import("firebase/auth");
       const { loginFlow } = await import("@/cli/prompts/index.js");
@@ -300,7 +175,7 @@ describe("login command", () => {
           }),
       });
 
-      await loginMain({ installDir: tempDir, experimentalUi: true });
+      await loginMain({ installDir: tempDir });
 
       // Verify loginFlow was called
       expect(loginFlow).toHaveBeenCalled();
@@ -389,7 +264,7 @@ describe("login command", () => {
         };
       });
 
-      await loginMain({ installDir: tempDir, experimentalUi: true });
+      await loginMain({ installDir: tempDir });
 
       // Verify loginFlow was called and returned null (indicating failure)
       expect(loginFlow).toHaveBeenCalled();
@@ -453,7 +328,7 @@ describe("login command", () => {
           }),
       });
 
-      await loginMain({ installDir: tempDir, experimentalUi: true });
+      await loginMain({ installDir: tempDir });
 
       // Verify existing fields are preserved
       const config = await loadConfig({ startDir: tempDir });
@@ -517,7 +392,7 @@ describe("login command", () => {
           }),
       });
 
-      await loginMain({ installDir: tempDir, experimentalUi: true });
+      await loginMain({ installDir: tempDir });
 
       // Verify transcriptDestination was preserved
       const config = await loadConfig({ startDir: tempDir });
@@ -566,7 +441,7 @@ describe("login command", () => {
         json: () => Promise.resolve({ error: "Internal server error" }),
       });
 
-      await loginMain({ installDir: tempDir, experimentalUi: true });
+      await loginMain({ installDir: tempDir });
 
       // Verify auth was saved with empty organizations
       const config = await loadConfig({ startDir: tempDir });
@@ -611,7 +486,7 @@ describe("login command", () => {
       // Mock fetch to throw network error
       mockFetch.mockRejectedValue(new Error("Network error"));
 
-      await loginMain({ installDir: tempDir, experimentalUi: true });
+      await loginMain({ installDir: tempDir });
 
       // Verify auth was saved with empty organizations
       const config = await loadConfig({ startDir: tempDir });
@@ -645,7 +520,7 @@ describe("login command", () => {
       // Mock loginFlow to return null (cancelled)
       vi.mocked(loginFlow).mockResolvedValue(null);
 
-      await loginMain({ installDir: tempDir, experimentalUi: true });
+      await loginMain({ installDir: tempDir });
 
       // Verify loginFlow was called
       expect(loginFlow).toHaveBeenCalled();
@@ -698,7 +573,7 @@ describe("login command", () => {
           }),
       });
 
-      await loginMain({ installDir: tempDir, experimentalUi: true });
+      await loginMain({ installDir: tempDir });
 
       // Verify loginFlow was called with skipIntro: true since intro already shown
       expect(loginFlow).toHaveBeenCalledWith(
@@ -708,7 +583,7 @@ describe("login command", () => {
       );
     });
 
-    it("should show select prompt for auth method when experimentalUi is set", async () => {
+    it("should show select prompt for auth method", async () => {
       const { loginFlow } = await import("@/cli/prompts/index.js");
       const clack = await import("@clack/prompts");
 
@@ -718,7 +593,7 @@ describe("login command", () => {
       // Mock loginFlow to return null
       vi.mocked(loginFlow).mockResolvedValue(null);
 
-      await loginMain({ installDir: tempDir, experimentalUi: true });
+      await loginMain({ installDir: tempDir });
 
       // Verify intro was called
       expect(clack.intro).toHaveBeenCalledWith("Login to Nori Skillsets");
@@ -744,7 +619,7 @@ describe("login command", () => {
       vi.mocked(clack.select).mockResolvedValue(cancelSymbol as any);
       vi.mocked(clack.isCancel).mockReturnValue(true);
 
-      await loginMain({ installDir: tempDir, experimentalUi: true });
+      await loginMain({ installDir: tempDir });
 
       // Verify cancel was called
       expect(clack.cancel).toHaveBeenCalled();
@@ -802,7 +677,7 @@ describe("login command", () => {
           }),
       });
 
-      await loginMain({ installDir: tempDir, experimentalUi: true });
+      await loginMain({ installDir: tempDir });
 
       // Verify loginFlow was NOT called (SSO path, not email/password)
       expect(loginFlow).not.toHaveBeenCalled();
@@ -816,12 +691,11 @@ describe("login command", () => {
       expect(config?.auth?.username).toBe("user@gmail.com");
     });
 
-    it("should use confirmAction for headless detection when SSO selected via experimental UI", async () => {
+    it("should use confirmAction for headless detection when SSO selected via interactive UI", async () => {
       const { signInWithCredential, GoogleAuthProvider } =
         await import("firebase/auth");
       const { confirmAction, promptPassword } =
         await import("@/cli/prompts/index.js");
-      const { promptYesNo } = await import("@/cli/prompt.js");
       const clack = await import("@clack/prompts");
       const { getGoogleAuthUrl, generateState, isHeadlessEnvironment } =
         await import("./googleAuth.js");
@@ -854,15 +728,14 @@ describe("login command", () => {
           }),
       });
 
-      await loginMain({ installDir: tempDir, experimentalUi: true });
+      await loginMain({ installDir: tempDir });
 
-      // Verify confirmAction was used (not legacy promptYesNo)
+      // Verify confirmAction was used
       expect(confirmAction).toHaveBeenCalledWith(
         expect.objectContaining({
           message: expect.stringContaining("headless"),
         }),
       );
-      expect(promptYesNo).not.toHaveBeenCalled();
 
       // Verify headless flow was used
       expect(GoogleAuthProvider.credential).toHaveBeenCalledWith(
@@ -870,11 +743,10 @@ describe("login command", () => {
       );
     });
 
-    it("should use confirmAction for headless when --google flag used with --experimental-ui", async () => {
+    it("should use confirmAction for headless when --google flag is used", async () => {
       const { signInWithCredential } = await import("firebase/auth");
       const { confirmAction, promptPassword } =
         await import("@/cli/prompts/index.js");
-      const { promptYesNo } = await import("@/cli/prompt.js");
       const clack = await import("@clack/prompts");
       const { getGoogleAuthUrl, generateState, isHeadlessEnvironment } =
         await import("./googleAuth.js");
@@ -904,79 +776,40 @@ describe("login command", () => {
           }),
       });
 
-      // Use both --google and --experimental-ui
       await loginMain({
         installDir: tempDir,
         google: true,
-        experimentalUi: true,
       });
 
-      // Verify confirmAction was used instead of legacy promptYesNo
+      // Verify confirmAction was used
       expect(confirmAction).toHaveBeenCalledWith(
         expect.objectContaining({
           message: expect.stringContaining("headless"),
         }),
       );
-      expect(promptYesNo).not.toHaveBeenCalled();
 
       // Verify select was NOT called (--google flag bypasses the select prompt)
       expect(clack.select).not.toHaveBeenCalled();
     });
 
-    it("should allow --no-localhost with --experimental-ui even without --google", async () => {
-      const { signInWithCredential } = await import("firebase/auth");
-      const { promptPassword } = await import("@/cli/prompts/index.js");
-      const clack = await import("@clack/prompts");
-      const { getGoogleAuthUrl, generateState } =
-        await import("./googleAuth.js");
+    it("should show error when --no-localhost is used without --google", async () => {
       const { error: logError } = await import("@/cli/logger.js");
 
-      // Mock select to choose google SSO
-      vi.mocked(clack.select).mockResolvedValue("google");
-
-      vi.mocked(generateState).mockReturnValue("state");
-      vi.mocked(getGoogleAuthUrl).mockReturnValue(
-        "https://accounts.google.com/test",
-      );
-      vi.mocked(promptPassword).mockResolvedValue("id-token-from-server");
-      vi.mocked(signInWithCredential).mockResolvedValue({
-        user: {
-          refreshToken: "refresh",
-          email: "user@gmail.com",
-          getIdToken: vi.fn().mockResolvedValue("firebase-id-token"),
-        },
-      } as any);
-
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            authorized: true,
-            organizations: [],
-            isAdmin: false,
-          }),
-      });
-
-      // --no-localhost + --experimental-ui (no --google) should work
       await loginMain({
         installDir: tempDir,
-        experimentalUi: true,
         noLocalhost: true,
       });
 
-      // Should NOT show the --no-localhost error
-      const errorCalls = vi.mocked(logError).mock.calls.map((call) => call[0]);
-      const hasNoLocalhostError = errorCalls.some(
-        (call) =>
-          typeof call === "object" &&
-          "message" in call &&
-          call.message.includes("--no-localhost"),
+      // Should show the --no-localhost error
+      expect(logError).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.stringContaining("--no-localhost"),
+        }),
       );
-      expect(hasNoLocalhostError).toBe(false);
 
-      // Verify config was saved (auth succeeded)
+      // No config should be saved
       const config = await loadConfig({ startDir: tempDir });
-      expect(config?.auth?.username).toBe("user@gmail.com");
+      expect(config?.auth).toBeUndefined();
     });
   });
 
@@ -1066,7 +899,7 @@ describe("login command", () => {
 
     it("should not prompt for email or password when --google is used", async () => {
       const { signInWithCredential } = await import("firebase/auth");
-      const { promptUser } = await import("@/cli/prompt.js");
+      const { loginFlow } = await import("@/cli/prompts/index.js");
       const {
         findAvailablePort,
         startAuthServer,
@@ -1106,8 +939,8 @@ describe("login command", () => {
 
       await loginMain({ installDir: tempDir, google: true });
 
-      // promptUser should NOT have been called (no email/password prompts in SSO flow)
-      expect(promptUser).not.toHaveBeenCalled();
+      // loginFlow should NOT have been called (SSO path, not email/password)
+      expect(loginFlow).not.toHaveBeenCalled();
     });
 
     it("should show error when --google is used with --email", async () => {
@@ -1296,7 +1129,7 @@ describe("login command", () => {
 
     it("should always display auth URL before opening browser", async () => {
       const { signInWithCredential } = await import("firebase/auth");
-      const { info } = await import("@/cli/logger.js");
+      const clack = await import("@clack/prompts");
       const {
         findAvailablePort,
         getGoogleAuthUrl,
@@ -1341,19 +1174,18 @@ describe("login command", () => {
 
       await loginMain({ installDir: tempDir, google: true });
 
-      // Verify the auth URL was displayed
-      expect(info).toHaveBeenCalledWith(
-        expect.objectContaining({
-          message: expect.stringContaining(testAuthUrl),
-        }),
+      // Verify the auth URL was displayed via log.step
+      expect(clack.log.step).toHaveBeenCalledWith(
+        expect.stringContaining(testAuthUrl),
       );
     });
 
     it("should prompt user in headless environment and use headless flow when confirmed", async () => {
       const { signInWithCredential, GoogleAuthProvider } =
         await import("firebase/auth");
-      const { info } = await import("@/cli/logger.js");
-      const { promptUser, promptYesNo } = await import("@/cli/prompt.js");
+      const { confirmAction, promptPassword } =
+        await import("@/cli/prompts/index.js");
+      const clack = await import("@clack/prompts");
       const { getGoogleAuthUrl, generateState, isHeadlessEnvironment } =
         await import("./googleAuth.js");
 
@@ -1362,8 +1194,8 @@ describe("login command", () => {
         "https://accounts.google.com/test",
       );
       vi.mocked(isHeadlessEnvironment).mockReturnValue(true); // Simulate SSH environment
-      vi.mocked(promptYesNo).mockResolvedValue(true); // User confirms headless flow
-      vi.mocked(promptUser).mockResolvedValue("id-token-from-server");
+      vi.mocked(confirmAction).mockResolvedValue(true); // User confirms headless flow
+      vi.mocked(promptPassword).mockResolvedValue("id-token-from-server");
       vi.mocked(signInWithCredential).mockResolvedValue({
         user: {
           refreshToken: "refresh",
@@ -1384,18 +1216,17 @@ describe("login command", () => {
 
       await loginMain({ installDir: tempDir, google: true });
 
-      // Verify user was prompted about headless flow
-      expect(promptYesNo).toHaveBeenCalledWith(
+      // Verify user was prompted about headless flow via confirmAction
+      expect(confirmAction).toHaveBeenCalledWith(
         expect.objectContaining({
-          prompt: expect.stringContaining("headless"),
+          message: expect.stringContaining("headless"),
         }),
       );
 
-      // Verify headless flow was used (promptUser for token)
-      expect(promptUser).toHaveBeenCalledWith(
+      // Verify headless flow was used (promptPassword for token)
+      expect(promptPassword).toHaveBeenCalledWith(
         expect.objectContaining({
-          prompt: expect.stringContaining("token"),
-          masked: true,
+          message: expect.stringContaining("token"),
         }),
       );
 
@@ -1404,18 +1235,16 @@ describe("login command", () => {
         "id-token-from-server",
       );
 
-      // Verify headless environment info was shown
-      const infoCalls = vi.mocked(info).mock.calls.map((call) => call[0]);
-      const hasHeadlessInfo = infoCalls.some((call) =>
-        call.message.includes("headless"),
+      // Verify headless environment warning was shown via clack
+      expect(clack.log.warn).toHaveBeenCalledWith(
+        expect.stringContaining("headless"),
       );
-      expect(hasHeadlessInfo).toBe(true);
     });
 
     it("should display SSH port forwarding instructions when user declines headless flow", async () => {
       const { signInWithCredential } = await import("firebase/auth");
-      const { info } = await import("@/cli/logger.js");
-      const { promptYesNo } = await import("@/cli/prompt.js");
+      const { confirmAction } = await import("@/cli/prompts/index.js");
+      const clack = await import("@clack/prompts");
       const {
         findAvailablePort,
         getGoogleAuthUrl,
@@ -1431,7 +1260,7 @@ describe("login command", () => {
         "https://accounts.google.com/test",
       );
       vi.mocked(isHeadlessEnvironment).mockReturnValue(true); // Simulate SSH environment
-      vi.mocked(promptYesNo).mockResolvedValue(false); // User declines headless flow
+      vi.mocked(confirmAction).mockResolvedValue(false); // User declines headless flow
       vi.mocked(startAuthServer).mockResolvedValue({
         code: "code",
         server: { close: vi.fn() } as any,
@@ -1460,12 +1289,15 @@ describe("login command", () => {
 
       await loginMain({ installDir: tempDir, google: true });
 
-      // Verify SSH port forwarding instructions were displayed
-      const infoCalls = vi.mocked(info).mock.calls.map((call) => call[0]);
-      const hasPortForwardingInstruction = infoCalls.some(
-        (call) => call.message.includes("ssh") && call.message.includes("9876"),
+      // Verify SSH port forwarding instructions were displayed in a note
+      const noteCalls = vi.mocked(clack.note).mock.calls;
+      const portForwardingNote = noteCalls.find(
+        (call) =>
+          typeof call[0] === "string" &&
+          call[0].includes("ssh") &&
+          call[0].includes("9876"),
       );
-      expect(hasPortForwardingInstruction).toBe(true);
+      expect(portForwardingNote).toBeDefined();
     });
   });
 
@@ -1473,7 +1305,7 @@ describe("login command", () => {
     it("should use web client ID and noriskillsets.dev callback URL when --no-localhost is set", async () => {
       const { signInWithCredential, GoogleAuthProvider } =
         await import("firebase/auth");
-      const { promptUser } = await import("@/cli/prompt.js");
+      const { promptPassword } = await import("@/cli/prompts/index.js");
       const { getGoogleAuthUrl, generateState } =
         await import("./googleAuth.js");
 
@@ -1482,7 +1314,7 @@ describe("login command", () => {
         "https://accounts.google.com/test?redirect_uri=https://noriskillsets.dev/oauth/callback",
       );
       // User pastes the id_token from the server (not an auth code)
-      vi.mocked(promptUser).mockResolvedValue("id-token-from-server-page");
+      vi.mocked(promptPassword).mockResolvedValue("id-token-from-server-page");
       vi.mocked(signInWithCredential).mockResolvedValue({
         user: {
           refreshToken: "refresh-token",
@@ -1512,10 +1344,9 @@ describe("login command", () => {
       );
 
       // Verify user was prompted to paste the token with masked input
-      expect(promptUser).toHaveBeenCalledWith(
+      expect(promptPassword).toHaveBeenCalledWith(
         expect.objectContaining({
-          prompt: expect.stringContaining("token"),
-          masked: true,
+          message: expect.stringContaining("token"),
         }),
       );
 
@@ -1538,13 +1369,13 @@ describe("login command", () => {
         startAuthServer,
         findAvailablePort,
       } = await import("./googleAuth.js");
-      const { promptUser } = await import("@/cli/prompt.js");
+      const { promptPassword } = await import("@/cli/prompts/index.js");
 
       vi.mocked(generateState).mockReturnValue("test-state");
       vi.mocked(getGoogleAuthUrl).mockReturnValue(
         "https://accounts.google.com/test",
       );
-      vi.mocked(promptUser).mockResolvedValue("id-token-from-server");
+      vi.mocked(promptPassword).mockResolvedValue("id-token-from-server");
       vi.mocked(signInWithCredential).mockResolvedValue({
         user: {
           refreshToken: "refresh-token",
@@ -1590,8 +1421,8 @@ describe("login command", () => {
 
     it("should display instructions to copy the token from the callback page", async () => {
       const { signInWithCredential } = await import("firebase/auth");
-      const { info } = await import("@/cli/logger.js");
-      const { promptUser } = await import("@/cli/prompt.js");
+      const { promptPassword } = await import("@/cli/prompts/index.js");
+      const clack = await import("@clack/prompts");
       const { getGoogleAuthUrl, generateState } =
         await import("./googleAuth.js");
 
@@ -1599,7 +1430,7 @@ describe("login command", () => {
       vi.mocked(getGoogleAuthUrl).mockReturnValue(
         "https://accounts.google.com/test",
       );
-      vi.mocked(promptUser).mockResolvedValue("id-token");
+      vi.mocked(promptPassword).mockResolvedValue("id-token");
       vi.mocked(signInWithCredential).mockResolvedValue({
         user: {
           refreshToken: "refresh-token",
@@ -1620,11 +1451,12 @@ describe("login command", () => {
 
       await loginMain({ installDir: tempDir, google: true, noLocalhost: true });
 
-      // Verify instructions were displayed
-      const infoCalls = vi.mocked(info).mock.calls.map((call) => call[0]);
-      const hasInstructions = infoCalls.some(
+      // Verify instructions were displayed in a note
+      const noteCalls = vi.mocked(clack.note).mock.calls;
+      const hasInstructions = noteCalls.some(
         (call) =>
-          call.message.includes("Copy") || call.message.includes("token"),
+          typeof call[0] === "string" &&
+          (call[0].includes("Copy") || call[0].includes("token")),
       );
       expect(hasInstructions).toBe(true);
     });
@@ -1633,13 +1465,13 @@ describe("login command", () => {
       const { error } = await import("@/cli/logger.js");
       const { getGoogleAuthUrl, generateState } =
         await import("./googleAuth.js");
-      const { promptUser } = await import("@/cli/prompt.js");
+      const { promptPassword } = await import("@/cli/prompts/index.js");
 
       vi.mocked(generateState).mockReturnValue("test-state");
       vi.mocked(getGoogleAuthUrl).mockReturnValue(
         "https://accounts.google.com/test",
       );
-      vi.mocked(promptUser).mockResolvedValue(""); // Empty input
+      vi.mocked(promptPassword).mockResolvedValue(""); // Empty input
 
       await loginMain({ installDir: tempDir, google: true, noLocalhost: true });
 
@@ -1656,10 +1488,10 @@ describe("login command", () => {
 
     it("should validate web OAuth credentials for headless flow", async () => {
       const { validateWebOAuthCredentials } = await import("./googleAuth.js");
-      const { promptUser } = await import("@/cli/prompt.js");
+      const { promptPassword } = await import("@/cli/prompts/index.js");
       const { signInWithCredential } = await import("firebase/auth");
 
-      vi.mocked(promptUser).mockResolvedValue("id-token");
+      vi.mocked(promptPassword).mockResolvedValue("id-token");
       vi.mocked(signInWithCredential).mockResolvedValue({
         user: {
           refreshToken: "refresh-token",
@@ -1685,8 +1517,8 @@ describe("login command", () => {
     });
   });
 
-  describe("experimental UI clack output for Google SSO flows", () => {
-    it("should show auth URL in a note when using headless flow with experimental UI", async () => {
+  describe("clack output for Google SSO flows", () => {
+    it("should show auth URL via log.step when using headless flow", async () => {
       const { signInWithCredential } = await import("firebase/auth");
       const { confirmAction, promptPassword } =
         await import("@/cli/prompts/index.js");
@@ -1720,7 +1552,7 @@ describe("login command", () => {
           }),
       });
 
-      await loginMain({ installDir: tempDir, experimentalUi: true });
+      await loginMain({ installDir: tempDir });
 
       // Auth URL should be shown via log.step for wrapping/clickability, not in a note box
       expect(clack.log.step).toHaveBeenCalledWith(
@@ -1728,12 +1560,11 @@ describe("login command", () => {
       );
     });
 
-    it("should use promptPassword for token input in headless flow with experimental UI", async () => {
+    it("should use promptPassword for token input in headless flow", async () => {
       const { signInWithCredential, GoogleAuthProvider } =
         await import("firebase/auth");
       const { confirmAction, promptPassword } =
         await import("@/cli/prompts/index.js");
-      const { promptUser } = await import("@/cli/prompt.js");
       const clack = await import("@clack/prompts");
       const { getGoogleAuthUrl, generateState, isHeadlessEnvironment } =
         await import("./googleAuth.js");
@@ -1764,15 +1595,14 @@ describe("login command", () => {
           }),
       });
 
-      await loginMain({ installDir: tempDir, experimentalUi: true });
+      await loginMain({ installDir: tempDir });
 
-      // Should use clack promptPassword, not legacy promptUser
+      // Should use clack promptPassword for token input
       expect(promptPassword).toHaveBeenCalledWith(
         expect.objectContaining({
           message: expect.stringContaining("token"),
         }),
       );
-      expect(promptUser).not.toHaveBeenCalled();
 
       // Token should be passed to Firebase
       expect(GoogleAuthProvider.credential).toHaveBeenCalledWith(
@@ -1780,7 +1610,7 @@ describe("login command", () => {
       );
     });
 
-    it("should use spinner for signing in during headless flow with experimental UI", async () => {
+    it("should use spinner for signing in during headless flow", async () => {
       const { signInWithCredential } = await import("firebase/auth");
       const { confirmAction, promptPassword } =
         await import("@/cli/prompts/index.js");
@@ -1820,7 +1650,7 @@ describe("login command", () => {
           }),
       });
 
-      await loginMain({ installDir: tempDir, experimentalUi: true });
+      await loginMain({ installDir: tempDir });
 
       // Should use spinner for "Signing in..."
       expect(spinnerMock.start).toHaveBeenCalledWith(
@@ -1829,7 +1659,7 @@ describe("login command", () => {
       expect(spinnerMock.stop).toHaveBeenCalled();
     });
 
-    it("should show auth URL in a note for localhost flow with experimental UI", async () => {
+    it("should show auth URL via log.step for localhost flow", async () => {
       const { signInWithCredential } = await import("firebase/auth");
       const clack = await import("@clack/prompts");
       const {
@@ -1874,7 +1704,7 @@ describe("login command", () => {
           }),
       });
 
-      await loginMain({ installDir: tempDir, experimentalUi: true });
+      await loginMain({ installDir: tempDir });
 
       // Auth URL should be shown via log.step for wrapping/clickability, not in a note box
       expect(clack.log.step).toHaveBeenCalledWith(
@@ -1884,7 +1714,7 @@ describe("login command", () => {
       );
     });
 
-    it("should use spinner for exchanging authorization code in localhost flow with experimental UI", async () => {
+    it("should use spinner for exchanging authorization code in localhost flow", async () => {
       const { signInWithCredential } = await import("firebase/auth");
       const clack = await import("@clack/prompts");
       const {
@@ -1935,7 +1765,7 @@ describe("login command", () => {
           }),
       });
 
-      await loginMain({ installDir: tempDir, experimentalUi: true });
+      await loginMain({ installDir: tempDir });
 
       // Should use spinner for exchanging code
       expect(spinnerMock.start).toHaveBeenCalledWith(
@@ -1943,7 +1773,7 @@ describe("login command", () => {
       );
     });
 
-    it("should show headless detection warning via clack log.warn with experimental UI", async () => {
+    it("should show headless detection warning via clack log.warn", async () => {
       const { signInWithCredential } = await import("firebase/auth");
       const { confirmAction, promptPassword } =
         await import("@/cli/prompts/index.js");
@@ -1977,7 +1807,7 @@ describe("login command", () => {
           }),
       });
 
-      await loginMain({ installDir: tempDir, experimentalUi: true });
+      await loginMain({ installDir: tempDir });
 
       // Headless detection should use clack log.warn
       expect(clack.log.warn).toHaveBeenCalledWith(
@@ -1985,7 +1815,7 @@ describe("login command", () => {
       );
     });
 
-    it("should show port forwarding instructions in a note when user declines headless with experimental UI", async () => {
+    it("should show port forwarding instructions in a note when user declines headless", async () => {
       const { signInWithCredential } = await import("firebase/auth");
       const { confirmAction } = await import("@/cli/prompts/index.js");
       const clack = await import("@clack/prompts");
@@ -2032,7 +1862,7 @@ describe("login command", () => {
           }),
       });
 
-      await loginMain({ installDir: tempDir, experimentalUi: true });
+      await loginMain({ installDir: tempDir });
 
       // Port forwarding instructions should be in a note
       const noteCalls = vi.mocked(clack.note).mock.calls;
@@ -2045,7 +1875,7 @@ describe("login command", () => {
       expect(portForwardingNote).toBeDefined();
     });
 
-    it("should use clack log.warn for timeout warning in localhost flow with experimental UI", async () => {
+    it("should use clack log.warn for timeout warning in localhost flow", async () => {
       const { signInWithCredential } = await import("firebase/auth");
       const clack = await import("@clack/prompts");
       const {
@@ -2097,7 +1927,7 @@ describe("login command", () => {
           }),
       });
 
-      await loginMain({ installDir: tempDir, experimentalUi: true });
+      await loginMain({ installDir: tempDir });
 
       // Timeout warning should use clack log.warn
       expect(clack.log.warn).toHaveBeenCalledWith(

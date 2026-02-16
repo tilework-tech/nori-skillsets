@@ -7,6 +7,7 @@ import * as os from "os";
 import { tmpdir } from "os";
 import * as path from "path";
 
+import * as clack from "@clack/prompts";
 import * as tar from "tar";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
@@ -79,10 +80,27 @@ vi.mock("@/api/registryAuth.js", () => ({
   getRegistryAuthToken: vi.fn(),
 }));
 
-// Mock console methods to capture output
-const mockConsoleLog = vi
-  .spyOn(console, "log")
-  .mockImplementation(() => undefined);
+// Mock @clack/prompts to capture flow output
+vi.mock("@clack/prompts", () => ({
+  intro: vi.fn(),
+  outro: vi.fn(),
+  spinner: vi.fn(() => ({
+    start: vi.fn(),
+    stop: vi.fn(),
+    message: vi.fn(),
+  })),
+  note: vi.fn(),
+  log: {
+    info: vi.fn(),
+    success: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    message: vi.fn(),
+  },
+}));
+
+// Suppress direct console output from logger (used for pre-flow errors)
+vi.spyOn(console, "log").mockImplementation(() => undefined);
 const mockConsoleError = vi
   .spyOn(console, "error")
   .mockImplementation(() => undefined);
@@ -93,6 +111,53 @@ import { loadConfig, getRegistryAuth } from "@/cli/config.js";
 
 import { skillDownloadMain } from "./skillDownload.js";
 
+/**
+ * Helper to collect all text passed to clack output functions (outro, note, log.success, log.info, etc.)
+ * This replaces the old mockConsoleLog checks.
+ *
+ * @returns All clack log output joined as a single string
+ */
+const getClackLogOutput = (): string => {
+  const parts: Array<string> = [];
+  for (const call of vi.mocked(clack.outro).mock.calls) {
+    parts.push(String(call[0]));
+  }
+  for (const call of vi.mocked(clack.note).mock.calls) {
+    parts.push(String(call[0]));
+    if (call[1] != null) parts.push(String(call[1]));
+  }
+  for (const call of vi.mocked(clack.log.success).mock.calls) {
+    parts.push(String(call[0]));
+  }
+  for (const call of vi.mocked(clack.log.info).mock.calls) {
+    parts.push(String(call[0]));
+  }
+  for (const call of vi.mocked(clack.log.message).mock.calls) {
+    parts.push(String(call[0]));
+  }
+  return parts.join("\n");
+};
+
+/**
+ * Helper to collect all text passed to clack error output functions (log.error, note with "Hint")
+ * This replaces the old mockConsoleError checks.
+ *
+ * @returns All clack error output joined as a single string
+ */
+const getClackErrorOutput = (): string => {
+  const parts: Array<string> = [];
+  for (const call of vi.mocked(clack.log.error).mock.calls) {
+    parts.push(String(call[0]));
+  }
+  // Also include hint notes as they were previously error output
+  for (const call of vi.mocked(clack.note).mock.calls) {
+    if (call[1] === "Hint") {
+      parts.push(String(call[0]));
+    }
+  }
+  return parts.join("\n");
+};
+
 describe("skill-download", () => {
   let testDir: string;
   let configPath: string;
@@ -100,6 +165,13 @@ describe("skill-download", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
+
+    // Set up spinner mock for @clack/prompts
+    vi.mocked(clack.spinner).mockReturnValue({
+      start: vi.fn(),
+      stop: vi.fn(),
+      message: vi.fn(),
+    } as any);
 
     // Create test directory structure simulating a Nori installation
     testDir = await fs.mkdtemp(
@@ -174,10 +246,8 @@ describe("skill-download", () => {
       );
       expect(skillMd).toContain("test-skill");
 
-      // Verify success message
-      const allOutput = mockConsoleLog.mock.calls
-        .map((call) => call.join(" "))
-        .join("\n");
+      // Verify success message via clack output
+      const allOutput = getClackLogOutput();
       expect(allOutput.toLowerCase()).toContain("download");
       expect(allOutput).toContain("test-skill");
 
@@ -235,10 +305,8 @@ describe("skill-download", () => {
         cwd: testDir,
       });
 
-      // Verify error message about already existing
-      const allErrorOutput = mockConsoleError.mock.calls
-        .map((call) => call.join(" "))
-        .join("\n");
+      // Verify error message about already existing via clack output
+      const allErrorOutput = getClackErrorOutput();
       expect(allErrorOutput.toLowerCase()).toContain("already exists");
     });
 
@@ -343,10 +411,8 @@ describe("skill-download", () => {
         cwd: testDir,
       });
 
-      // Verify error message
-      const allErrorOutput = mockConsoleError.mock.calls
-        .map((call) => call.join(" "))
-        .join("\n");
+      // Verify error message via clack output
+      const allErrorOutput = getClackErrorOutput();
       expect(allErrorOutput.toLowerCase()).toContain("error");
       expect(allErrorOutput).toContain("Network error");
     });
@@ -469,10 +535,8 @@ describe("skill-download", () => {
         cwd: testDir,
       });
 
-      // Verify error message about authentication required
-      const allErrorOutput = mockConsoleError.mock.calls
-        .map((call) => call.join(" "))
-        .join("\n");
+      // Verify error message about authentication required via clack output
+      const allErrorOutput = getClackErrorOutput();
       expect(allErrorOutput.toLowerCase()).toContain("not found");
 
       // Verify no download occurred
@@ -589,10 +653,8 @@ describe("skill-download", () => {
         registryUrl: privateRegistryUrl,
       });
 
-      // Verify error about no auth configured
-      const allErrorOutput = mockConsoleError.mock.calls
-        .map((call) => call.join(" "))
-        .join("\n");
+      // Verify error about no auth configured via clack output
+      const allErrorOutput = getClackErrorOutput();
       expect(allErrorOutput.toLowerCase()).toContain("auth");
 
       // Verify no download occurred
@@ -649,10 +711,8 @@ describe("skill-download", () => {
         cwd: testDir,
       });
 
-      // Verify error message about not found
-      const allErrorOutput = mockConsoleError.mock.calls
-        .map((call) => call.join(" "))
-        .join("\n");
+      // Verify error message about not found via clack output
+      const allErrorOutput = getClackErrorOutput();
       expect(allErrorOutput.toLowerCase()).toContain("not found");
 
       // Verify no download occurred
@@ -693,10 +753,8 @@ describe("skill-download", () => {
       // Verify no download occurred
       expect(registrarApi.downloadSkillTarball).not.toHaveBeenCalled();
 
-      // Verify version list was displayed
-      const allOutput = mockConsoleLog.mock.calls
-        .map((call) => call.join(" "))
-        .join("\n");
+      // Verify version list was displayed via clack note
+      const allOutput = getClackLogOutput();
       expect(allOutput).toContain("test-skill");
       expect(allOutput).toContain("latest");
       expect(allOutput).toContain("2.0.0");
@@ -718,10 +776,8 @@ describe("skill-download", () => {
         listVersions: true,
       });
 
-      // Verify error message about not found
-      const allErrorOutput = mockConsoleError.mock.calls
-        .map((call) => call.join(" "))
-        .join("\n");
+      // Verify error message about not found via clack output
+      const allErrorOutput = getClackErrorOutput();
       expect(allErrorOutput.toLowerCase()).toContain("not found");
     });
   });
@@ -767,10 +823,8 @@ describe("skill-download", () => {
       // Verify download occurred
       expect(registrarApi.downloadSkillTarball).toHaveBeenCalled();
 
-      // Verify success message about update
-      const allOutput = mockConsoleLog.mock.calls
-        .map((call) => call.join(" "))
-        .join("\n");
+      // Verify success message about update via clack output
+      const allOutput = getClackLogOutput();
       expect(allOutput.toLowerCase()).toContain("updated");
     });
 
@@ -808,10 +862,8 @@ describe("skill-download", () => {
       // Verify no download occurred
       expect(registrarApi.downloadSkillTarball).not.toHaveBeenCalled();
 
-      // Verify message about already at version
-      const allOutput = mockConsoleLog.mock.calls
-        .map((call) => call.join(" "))
-        .join("\n");
+      // Verify message about already at version via clack output
+      const allOutput = getClackLogOutput();
       expect(allOutput.toLowerCase()).toContain("already");
     });
 
@@ -850,10 +902,8 @@ describe("skill-download", () => {
       // Verify no download occurred
       expect(registrarApi.downloadSkillTarball).not.toHaveBeenCalled();
 
-      // Verify message about already at newer version
-      const allOutput = mockConsoleLog.mock.calls
-        .map((call) => call.join(" "))
-        .join("\n");
+      // Verify message about already at newer version via clack output
+      const allOutput = getClackLogOutput();
       expect(allOutput.toLowerCase()).toContain("already");
       expect(allOutput).toContain("2.0.0");
     });
@@ -878,10 +928,8 @@ describe("skill-download", () => {
         cliName: "nori-skillsets",
       });
 
-      // Verify version hint uses nori-skillsets command names
-      const allOutput = mockConsoleLog.mock.calls
-        .map((call) => call.join(" "))
-        .join("\n");
+      // Verify version hint uses nori-skillsets command names via clack output
+      const allOutput = getClackLogOutput();
       expect(allOutput).toContain("nori-skillsets download-skill");
       expect(allOutput).not.toContain("nori-skillsets skill-download");
     });
@@ -903,10 +951,8 @@ describe("skill-download", () => {
         listVersions: true,
       });
 
-      // When no cliName is provided, prefix defaults to nori-skillsets
-      const allOutput = mockConsoleLog.mock.calls
-        .map((call) => call.join(" "))
-        .join("\n");
+      // When no cliName is provided, prefix defaults to nori-skillsets via clack output
+      const allOutput = getClackLogOutput();
       expect(allOutput).toContain("nori-skillsets download-skill");
     });
   });
@@ -919,6 +965,13 @@ describe("--skillset option and manifest updates", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
+
+    // Set up spinner mock for @clack/prompts
+    vi.mocked(clack.spinner).mockReturnValue({
+      start: vi.fn(),
+      stop: vi.fn(),
+      message: vi.fn(),
+    } as any);
 
     // Create test directory structure simulating a Nori installation
     testDir = await fs.mkdtemp(path.join(tmpdir(), "nori-skillset-test-"));
@@ -1055,12 +1108,12 @@ describe("--skillset option and manifest updates", () => {
       skillset: "nonexistent-profile",
     });
 
-    // Verify error message about profile not found
-    const allErrorOutput = mockConsoleError.mock.calls
+    // This error comes from the direct logger (before the flow is entered)
+    const consoleErrorOutput = mockConsoleError.mock.calls
       .map((call) => call.join(" "))
       .join("\n");
-    expect(allErrorOutput.toLowerCase()).toContain("not found");
-    expect(allErrorOutput).toContain("nonexistent-profile");
+    expect(consoleErrorOutput.toLowerCase()).toContain("not found");
+    expect(consoleErrorOutput).toContain("nonexistent-profile");
 
     // Verify no download occurred
     expect(registrarApi.downloadSkillTarball).not.toHaveBeenCalled();
@@ -1092,11 +1145,15 @@ describe("--skillset option and manifest updates", () => {
     const stats = await fs.stat(skillDir);
     expect(stats.isDirectory()).toBe(true);
 
-    // Verify info message about skipping manifest update
-    const allOutput = mockConsoleLog.mock.calls
-      .map((call) => call.join(" "))
-      .join("\n");
-    expect(allOutput.toLowerCase()).toMatch(/no.*profile|no.*skillset/i);
+    // Verify download succeeded but no profile update message was included
+    const allOutput = getClackLogOutput();
+    expect(allOutput.toLowerCase()).toContain("download");
+    // The "Next Steps" note should not contain profile update info
+    const nextStepsCall = vi
+      .mocked(clack.note)
+      .mock.calls.find((call) => call[1] === "Next Steps");
+    expect(nextStepsCall).toBeDefined();
+    expect(nextStepsCall![0]).not.toContain("Added");
   });
 
   it("should not update manifest when --list-versions flag is used", async () => {
@@ -1191,6 +1248,13 @@ describe("profile directory persistence", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
+
+    // Set up spinner mock for @clack/prompts
+    vi.mocked(clack.spinner).mockReturnValue({
+      start: vi.fn(),
+      stop: vi.fn(),
+      message: vi.fn(),
+    } as any);
 
     testDir = await fs.mkdtemp(
       path.join(tmpdir(), "nori-profile-persist-test-"),
@@ -1568,6 +1632,13 @@ describe("nori.json updates on skill download", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
 
+    // Set up spinner mock for @clack/prompts
+    vi.mocked(clack.spinner).mockReturnValue({
+      start: vi.fn(),
+      stop: vi.fn(),
+      message: vi.fn(),
+    } as any);
+
     testDir = await fs.mkdtemp(path.join(tmpdir(), "nori-json-update-test-"));
     vi.mocked(os.homedir).mockReturnValue(testDir);
     skillsDir = path.join(testDir, ".claude", "skills");
@@ -1771,6 +1842,13 @@ describe("namespaced package support", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
 
+    // Set up spinner mock for @clack/prompts
+    vi.mocked(clack.spinner).mockReturnValue({
+      start: vi.fn(),
+      stop: vi.fn(),
+      message: vi.fn(),
+    } as any);
+
     // Create test directory structure simulating a Nori installation
     testDir = await fs.mkdtemp(path.join(tmpdir(), "nori-namespace-test-"));
     skillsDir = path.join(testDir, ".claude", "skills");
@@ -1924,10 +2002,8 @@ describe("namespaced package support", () => {
         cwd: testDir,
       });
 
-      // Verify error message about no access to org
-      const allErrorOutput = mockConsoleError.mock.calls
-        .map((call) => call.join(" "))
-        .join("\n");
+      // Verify error message about no access to org via clack output
+      const allErrorOutput = getClackErrorOutput();
       expect(allErrorOutput).toContain("myorg");
       expect(allErrorOutput.toLowerCase()).toContain("access");
 
@@ -1999,10 +2075,8 @@ describe("namespaced package support", () => {
         cwd: testDir,
       });
 
-      // Verify success message includes namespaced format
-      const allOutput = mockConsoleLog.mock.calls
-        .map((call) => call.join(" "))
-        .join("\n");
+      // Verify success message includes namespaced format via clack output
+      const allOutput = getClackLogOutput();
       expect(allOutput).toContain("myorg/my-skill");
     });
   });

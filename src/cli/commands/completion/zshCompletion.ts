@@ -13,7 +13,6 @@ _nori_skillsets() {
     '(-n --non-interactive)'{-n,--non-interactive}'[Run without interactive prompts]'
     '(-s --silent)'{-s,--silent}'[Suppress all output]'
     '(-a --agent)'{-a,--agent}'[AI agent to use]:name:'
-    '--experimental-ui[Use new interactive TUI flows]'
     '(-h --help)'{-h,--help}'[Display help]'
     '(-V --version)'{-V,--version}'[Output version]'
   )

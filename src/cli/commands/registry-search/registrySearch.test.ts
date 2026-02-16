@@ -2,6 +2,10 @@
  * Tests for registry-search CLI command
  * Searches both public registry (no auth) and org registry (with auth)
  * Returns both profiles and skills from each registry
+ *
+ * Since registrySearchMain always delegates to registrySearchFlow (from @clack/prompts),
+ * these tests mock the flow to capture the onSearch callback result (SearchFlowResult)
+ * and assert on the data returned by the internal performSearch logic.
  */
 
 import * as fs from "fs/promises";
@@ -58,33 +62,66 @@ vi.mock("@/cli/config.js", async () => {
   };
 });
 
-// Mock console methods to capture output
-const mockConsoleLog = vi
-  .spyOn(console, "log")
-  .mockImplementation(() => undefined);
-const mockConsoleError = vi
-  .spyOn(console, "error")
-  .mockImplementation(() => undefined);
+/**
+ * Captured search result from the registrySearchFlow mock.
+ * Each test invocation of registrySearchMain will populate this via the onSearch callback.
+ */
+let capturedSearchResult: SearchFlowResult | null = null;
+
+// Mock the registrySearchFlow to capture the onSearch callback result
+vi.mock("@/cli/prompts/flows/index.js", async (importOriginal) => {
+  const original = (await importOriginal()) as Record<string, unknown>;
+  return {
+    ...original,
+    registrySearchFlow: vi.fn(
+      async (args: {
+        callbacks: { onSearch: () => Promise<SearchFlowResult> };
+      }) => {
+        capturedSearchResult = await args.callbacks.onSearch();
+        if (!capturedSearchResult.success) {
+          return null;
+        }
+        if (!capturedSearchResult.hasResults) {
+          return { found: false };
+        }
+        return { found: true };
+      },
+    ),
+  };
+});
 
 import { registrarApi } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
 import { loadConfig } from "@/cli/config.js";
-import { stripAnsi } from "@/cli/features/test-utils/index.js";
+
+import type { SearchFlowResult } from "@/cli/prompts/flows/index.js";
 
 import { registrySearchMain } from "./registrySearch.js";
 
 /**
- * Get all console output as a single string with ANSI codes stripped
- * @returns Combined log and error output with ANSI codes stripped
+ * Get the formatted results string from the captured search result.
+ * This replaces the old getAllOutput() approach that relied on console.log spying.
+ *
+ * @returns The formatted results and download hints combined, or empty strings for no-result/error cases
  */
-const getAllOutput = (): string => {
-  const logOutput = mockConsoleLog.mock.calls
-    .map((call) => call.join(" "))
-    .join("\n");
-  const errorOutput = mockConsoleError.mock.calls
-    .map((call) => call.join(" "))
-    .join("\n");
-  return stripAnsi(logOutput + "\n" + errorOutput);
+const getSearchOutput = (): string => {
+  if (capturedSearchResult == null) {
+    return "";
+  }
+  if (!capturedSearchResult.success) {
+    return capturedSearchResult.error;
+  }
+  if (!capturedSearchResult.hasResults) {
+    return `No skillsets or skills found matching "${capturedSearchResult.query}".`;
+  }
+  const parts: Array<string> = [];
+  if (capturedSearchResult.formattedResults) {
+    parts.push(capturedSearchResult.formattedResults);
+  }
+  if (capturedSearchResult.downloadHints) {
+    parts.push(capturedSearchResult.downloadHints);
+  }
+  return parts.join("\n");
 };
 
 describe("registry-search", () => {
@@ -92,6 +129,7 @@ describe("registry-search", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    capturedSearchResult = null;
     testDir = await fs.mkdtemp(path.join(tmpdir(), "nori-cli-search-test-"));
     await fs.writeFile(
       path.join(testDir, ".nori-config.json"),
@@ -208,7 +246,7 @@ describe("registry-search", () => {
 
       await registrySearchMain({ query: "my", installDir: testDir });
 
-      const output = getAllOutput();
+      const output = getSearchOutput();
       expect(output).toContain("Skillsets:");
       expect(output).toContain("my-profile");
       expect(output).toContain("Skills:");
@@ -233,7 +271,7 @@ describe("registry-search", () => {
 
       await registrySearchMain({ query: "only", installDir: testDir });
 
-      const output = getAllOutput();
+      const output = getSearchOutput();
       expect(output).toContain("Skillsets:");
       expect(output).toContain("only-profile");
       expect(output).not.toContain("Skills:");
@@ -260,7 +298,7 @@ describe("registry-search", () => {
 
       await registrySearchMain({ query: "only", installDir: testDir });
 
-      const output = getAllOutput();
+      const output = getSearchOutput();
       expect(output).not.toContain("Skillsets:");
       expect(output).toContain("Skills:");
       expect(output).toContain("only-skill");
@@ -273,7 +311,7 @@ describe("registry-search", () => {
 
       await registrySearchMain({ query: "nonexistent", installDir: testDir });
 
-      const output = getAllOutput();
+      const output = getSearchOutput();
       expect(output.toLowerCase()).toContain("no");
       expect(output).toContain("nonexistent");
     });
@@ -299,7 +337,7 @@ describe("registry-search", () => {
 
       await registrySearchMain({ query: "test", installDir: testDir });
 
-      const output = getAllOutput();
+      const output = getSearchOutput();
       expect(output).toContain("Skillsets:");
       expect(output).toContain("good-profile");
       // Errors are now hidden for cleaner output
@@ -330,7 +368,7 @@ describe("registry-search", () => {
 
       await registrySearchMain({ query: "test", installDir: testDir });
 
-      const output = getAllOutput();
+      const output = getSearchOutput();
       expect(output).toContain("Skills:");
       expect(output).toContain("good-skill");
       // Errors are now hidden for cleaner output
@@ -370,7 +408,7 @@ describe("registry-search", () => {
 
       await registrySearchMain({ query: "test", installDir: testDir });
 
-      const output = getAllOutput();
+      const output = getSearchOutput();
       // getCommandNames() now returns nori-skillsets commands: "download" and "download-skill"
       expect(output).toContain("download");
       expect(output).toContain("download-skill");
@@ -394,7 +432,7 @@ describe("registry-search", () => {
 
       await registrySearchMain({ query: "test", installDir: testDir });
 
-      const output = getAllOutput();
+      const output = getSearchOutput();
       expect(output).toContain("download");
       expect(output).not.toContain("download-skill");
     });
@@ -420,7 +458,7 @@ describe("registry-search", () => {
 
       await registrySearchMain({ query: "test", installDir: testDir });
 
-      const output = getAllOutput();
+      const output = getSearchOutput();
       expect(output).toContain("download-skill");
     });
   });
@@ -461,7 +499,7 @@ describe("registry-search", () => {
       );
       // Should NOT search org registry since no auth
       expect(registrarApi.searchPackagesOnRegistry).not.toHaveBeenCalled();
-      const output = getAllOutput();
+      const output = getSearchOutput();
       expect(output).toContain("public:");
       expect(output).toContain("public-profile");
     });
@@ -497,7 +535,7 @@ describe("registry-search", () => {
           authToken: expect.any(String),
         }),
       );
-      const output = getAllOutput();
+      const output = getSearchOutput();
       expect(output).toContain("public:");
       expect(output).toContain("public-skill");
     });
@@ -548,7 +586,7 @@ describe("registry-search", () => {
           query: "profile",
         }),
       );
-      const output = getAllOutput();
+      const output = getSearchOutput();
       // Org results should appear first (private first, then public)
       expect(output).toContain("myorg:");
       expect(output).toContain("myorg/org-profile");
@@ -586,7 +624,7 @@ describe("registry-search", () => {
 
       await registrySearchMain({ query: "profile", installDir: testDir });
 
-      const output = getAllOutput();
+      const output = getSearchOutput();
       // Org label should appear before public label
       const orgIndex = output.indexOf("myorg:");
       const publicIndex = output.indexOf("public:");
@@ -613,7 +651,7 @@ describe("registry-search", () => {
 
       await registrySearchMain({ query: "profile", installDir: testDir });
 
-      const output = getAllOutput();
+      const output = getSearchOutput();
       expect(output).toContain("public:");
       expect(output).toContain("public-profile");
     });
@@ -638,7 +676,7 @@ describe("registry-search", () => {
 
       await registrySearchMain({ query: "profile", installDir: testDir });
 
-      const output = getAllOutput();
+      const output = getSearchOutput();
       expect(output).toContain("myorg:");
       expect(output).toContain("myorg/org-profile");
     });
@@ -650,7 +688,7 @@ describe("registry-search", () => {
 
       await registrySearchMain({ query: "nonexistent", installDir: testDir });
 
-      const output = getAllOutput();
+      const output = getSearchOutput();
       expect(output.toLowerCase()).toContain("no");
     });
   });
@@ -690,7 +728,7 @@ describe("registry-search", () => {
         cliName: "nori-skillsets",
       });
 
-      const output = getAllOutput();
+      const output = getSearchOutput();
       expect(output).toContain("nori-skillsets download");
       expect(output).toContain("nori-skillsets download-skill");
       expect(output).not.toContain("nori-skillsets registry-download");
@@ -722,7 +760,7 @@ describe("registry-search", () => {
       });
 
       // When no cliName is provided, prefix defaults to nori-skillsets
-      const output = getAllOutput();
+      const output = getSearchOutput();
       expect(output).toContain("nori-skillsets download");
     });
   });

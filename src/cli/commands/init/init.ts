@@ -17,7 +17,6 @@ import * as os from "os";
 import {
   detectExistingConfig,
   captureExistingConfigAsProfile,
-  promptForExistingConfigCapture,
 } from "@/cli/commands/install/existingConfigCapture.js";
 import { loadConfig, saveConfig, type Config } from "@/cli/config.js";
 import {
@@ -26,7 +25,6 @@ import {
 } from "@/cli/features/claude-code/paths.js";
 import { claudeMdLoader } from "@/cli/features/claude-code/profiles/claudemd/loader.js";
 import { info, warn, newline, success } from "@/cli/logger.js";
-import { promptUser } from "@/cli/prompt.js";
 import { initFlow } from "@/cli/prompts/flows/init.js";
 import { getCurrentPackageVersion } from "@/cli/version.js";
 import { normalizeInstallDir, getInstallDirsWithTypes } from "@/utils/path.js";
@@ -50,90 +48,23 @@ const directoryExists = async (dirPath: string): Promise<boolean> => {
 };
 
 /**
- * Display profile persistence warning and require "yes" confirmation
- *
- * @param args - Configuration arguments
- * @param args.nonInteractive - Whether to run in non-interactive mode
- *
- * @returns True if user confirmed, false if cancelled
- */
-const displayProfilePersistenceWarning = async (args: {
-  nonInteractive: boolean;
-}): Promise<boolean> => {
-  const { nonInteractive } = args;
-
-  // Skip warning in non-interactive mode
-  if (nonInteractive) {
-    return true;
-  }
-
-  // Display prominent warning
-  newline();
-  warn({
-    message:
-      "╔════════════════════════════════════════════════════════════════╗",
-  });
-  warn({
-    message:
-      "║                   IMPORTANT: Skillset Persistence              ║",
-  });
-  warn({
-    message:
-      "╚════════════════════════════════════════════════════════════════╝",
-  });
-  newline();
-  info({
-    message:
-      "By running init, nori will manage your config. From here on, any changes",
-  });
-  info({
-    message:
-      "to ~/.claude/skills/, ~/.claude/CLAUDE.md, or other configuration",
-  });
-  info({
-    message: "files will be OVERWRITTEN the next time you run switch.",
-  });
-  newline();
-  info({ message: "To persist your customizations across skillset switches:" });
-  info({ message: "  • Make changes in ~/.nori/profiles/<skillset-name>/" });
-  info({ message: "  • Or create a new custom skillset" });
-  newline();
-
-  const response = await promptUser({
-    prompt: "Type 'yes' to confirm you understand: ",
-  });
-
-  if (response.trim().toLowerCase() !== "yes") {
-    newline();
-    info({ message: "Initialization cancelled." });
-    return false;
-  }
-
-  newline();
-  return true;
-};
-
-/**
  * Main init function
  *
  * @param args - Configuration arguments
  * @param args.installDir - Installation directory
  * @param args.nonInteractive - Whether to run in non-interactive mode
  * @param args.skipWarning - Whether to skip the profile persistence warning (useful for auto-init in download flows)
- * @param args.experimentalUi - Whether to use the experimental clack-based UI
  */
 export const initMain = async (args?: {
   installDir?: string | null;
   nonInteractive?: boolean | null;
   skipWarning?: boolean | null;
-  experimentalUi?: boolean | null;
 }): Promise<void> => {
-  const { installDir, nonInteractive, skipWarning, experimentalUi } =
-    args ?? {};
+  const { installDir, nonInteractive, skipWarning } = args ?? {};
   const normalizedInstallDir = normalizeInstallDir({ installDir });
 
-  // Experimental UI flow (interactive only)
-  if (experimentalUi && !nonInteractive) {
+  // Interactive flow
+  if (!nonInteractive) {
     await initFlow({
       installDir: normalizedInstallDir,
       skipWarning: skipWarning ?? null,
@@ -222,21 +153,9 @@ export const initMain = async (args?: {
     return;
   }
 
-  // Show profile persistence warning and get confirmation (unless skipped)
-  if (!skipWarning) {
-    const confirmed = await displayProfilePersistenceWarning({
-      nonInteractive: nonInteractive ?? false,
-    });
+  // Non-interactive path
 
-    if (!confirmed) {
-      return;
-    }
-  }
-
-  // Check for ancestor managed installations
-  // Only managed installations (those with CLAUDE.md managed blocks) cause conflicts,
-  // because Claude Code loads CLAUDE.md files from all parent directories.
-  // Source-only installations (just .nori-config.json) don't inject into CLAUDE.md.
+  // Check for ancestor managed installations (warn only)
   const allInstallations = getInstallDirsWithTypes({
     currentDir: normalizedInstallDir,
   });
@@ -291,30 +210,15 @@ export const initMain = async (args?: {
       installDir: normalizedInstallDir,
     });
     if (detectedConfig != null) {
-      if (nonInteractive) {
-        // Non-interactive mode: auto-capture as "my-profile"
-        capturedProfileName = "my-profile";
-        await captureExistingConfigAsProfile({
-          installDir: normalizedInstallDir,
-          profileName: capturedProfileName,
-        });
-        success({
-          message: `✓ Configuration saved as skillset "${capturedProfileName}"`,
-        });
-      } else {
-        // Interactive mode: require profile name
-        capturedProfileName = await promptForExistingConfigCapture({
-          existingConfig: detectedConfig,
-        });
-        await captureExistingConfigAsProfile({
-          installDir: normalizedInstallDir,
-          profileName: capturedProfileName,
-        });
-        success({
-          message: `✓ Configuration saved as skillset "${capturedProfileName}"`,
-        });
-        newline();
-      }
+      // Non-interactive mode: auto-capture as "my-profile"
+      capturedProfileName = "my-profile";
+      await captureExistingConfigAsProfile({
+        installDir: normalizedInstallDir,
+        profileName: capturedProfileName,
+      });
+      success({
+        message: `✓ Configuration saved as skillset "${capturedProfileName}"`,
+      });
 
       // Clear the original CLAUDE.md to prevent content duplication when the
       // managed block is installed. The content has already been captured to
@@ -376,10 +280,6 @@ export const initMain = async (args?: {
       agents,
     };
     await claudeMdLoader.install({ config });
-  }
-
-  if (!nonInteractive) {
-    success({ message: "✓ Nori initialized successfully" });
   }
 };
 

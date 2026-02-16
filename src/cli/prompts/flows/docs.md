@@ -16,9 +16,9 @@ Path: @/src/cli/prompts/flows
 - Flows use `unwrapPrompt` from `utils.ts` for cancel handling instead of repeating inline `isCancel` + `cancel` + `return null` at each prompt step
 - Flows use text formatting helpers from @/cli/logger.js (`bold`, `green`, `brightCyan`) for styled text inside clack `note()` boxes
 - Flows are re-exported through @/cli/prompts/flows/index.ts and again through @/cli/prompts/index.ts so commands can import from either level
-- The switchSkillsetFlow is consumed by the switch-profile command (@/cli/commands/switch-profile/profiles.ts) when the --experimental-ui flag is active
-- The initFlow is consumed by the init command (@/cli/commands/init/init.ts) when the --experimental-ui flag is active
-- The factoryResetFlow is consumed by the factory-reset command (@/cli/commands/factory-reset/factoryReset.ts) when the --experimental-ui flag is active
+- The switchSkillsetFlow is consumed by the switch-profile command (@/cli/commands/switch-profile/profiles.ts) in interactive mode
+- The initFlow is consumed by the init command (@/cli/commands/init/init.ts) in interactive mode
+- The factoryResetFlow is consumed by the factory-reset command (@/cli/commands/factory-reset/factoryReset.ts) in interactive mode
 - The newSkillsetFlow is consumed by the new command (@/cli/commands/new-skillset/newSkillset.ts) to collect metadata interactively
 - The registerSkillsetFlow is consumed by the register command (@/cli/commands/register-skillset/registerSkillset.ts) to collect metadata for existing skillsets
 - The uploadFlow is consumed by the registry-upload command (@/cli/commands/registry-upload/registryUpload.ts) to handle the complete upload UX including skill conflict resolution
@@ -48,7 +48,7 @@ Path: @/src/cli/prompts/flows
 - The `unwrapPrompt` utility in `utils.ts` is the standard way to handle cancellation in flows — it wraps `isCancel` + `cancel` into a single call that returns `T | null`
 - The switchSkillsetFlow's buildChangesSummary helper truncates file lists to 5 entries per category (modified/added/deleted) with a "... and N more" overflow message
 - When a flow returns null, the command should treat it as a clean cancellation — the flow has already displayed the appropriate cancel message to the user
-- The experimental UI gate (`experimentalUi && !nonInteractive`) lives in the command handler, not in the flow itself. Flows have no awareness of feature flags
+- The interactive mode gate (`!nonInteractive`) lives in the command handler, not in the flow itself. Flows have no awareness of feature flags
 - The uploadFlow contains parallel resolution logic in both `upload.ts` (flow-based, uses `unwrapPrompt`) and @/cli/prompts/skillResolution.ts (standalone, uses `handleCancel` + `process.exit`). Both modules share the same `link` action dual-presentation pattern ("Use Existing" vs "Skip Upload") based on `contentUnchanged`, but they are independent implementations
 - In the uploadFlow, batch resolution via `buildCommonResolutionOptions` only offers actions that are available across ALL unresolved conflicts (set intersection). When `updateVersion` is selected in batch mode, each skill automatically receives its own suggested next patch version via `getSuggestedVersion` without individual version prompts
 - See `clack-prompts-usage.md` in this directory for the full guide on building new flows

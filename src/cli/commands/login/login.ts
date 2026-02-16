@@ -26,8 +26,7 @@ import {
 import open from "open";
 
 import { loadConfig, saveConfig } from "@/cli/config.js";
-import { error, info, success, warn, newline } from "@/cli/logger.js";
-import { promptUser, promptYesNo } from "@/cli/prompt.js";
+import { error, warn } from "@/cli/logger.js";
 import {
   loginFlow,
   confirmAction,
@@ -118,20 +117,13 @@ const DEFAULT_CONFIG_DIR = os.homedir();
  * Authenticate via Google SSO using the headless flow with manual token entry.
  * The server exchanges the code for tokens, and the user pastes the id_token.
  *
- * @param args - Configuration arguments
- * @param args.experimentalUi - Whether to use clack prompts instead of legacy output
- *
  * @returns Firebase credentials (refreshToken, idToken, email)
  */
-const authenticateWithGoogleHeadless = async (args?: {
-  experimentalUi?: boolean | null;
-}): Promise<{
+const authenticateWithGoogleHeadless = async (): Promise<{
   refreshToken: string;
   idToken: string;
   email: string;
 }> => {
-  const { experimentalUi } = args ?? {};
-
   // Headless mode: use Web Application client, server handles token exchange
   validateWebOAuthCredentials();
 
@@ -146,53 +138,28 @@ const authenticateWithGoogleHeadless = async (args?: {
   });
 
   // Display instructions
-  if (experimentalUi) {
-    log.step(authUrl);
-    note(
-      [
-        "1. Open the URL above in any browser",
-        "2. Complete the Google sign-in",
-        "3. Copy the token from the page",
-        "4. Paste it below",
-      ].join("\n"),
-      "Instructions",
-    );
-  } else {
-    newline();
-    info({ message: "Authentication URL:" });
-    info({ message: `  ${authUrl}` });
-    newline();
-    info({ message: "Instructions:" });
-    info({ message: "  1. Open the URL above in any browser" });
-    info({ message: "  2. Complete the Google sign-in" });
-    info({ message: "  3. Copy the token from the page" });
-    info({ message: "  4. Paste it below" });
-    newline();
-  }
+  log.step(authUrl);
+  note(
+    [
+      "1. Open the URL above in any browser",
+      "2. Complete the Google sign-in",
+      "3. Copy the token from the page",
+      "4. Paste it below",
+    ].join("\n"),
+    "Instructions",
+  );
 
   // Prompt user to paste the id_token (server already exchanged the code)
   // Use masked input to hide the sensitive token
-  let inputToken: string;
-  if (experimentalUi) {
-    inputToken = await promptPassword({ message: "Paste token" });
-  } else {
-    inputToken = await promptUser({
-      prompt: "Paste token: ",
-      masked: true,
-    });
-  }
+  const inputToken = await promptPassword({ message: "Paste token" });
 
   if (inputToken == null || inputToken.trim() === "") {
     throw new Error("No token provided.");
   }
 
   // Use the id_token directly with Firebase (no exchange needed)
-  const s = experimentalUi ? spinner() : null;
-  if (s != null) {
-    s.start("Signing in...");
-  } else {
-    info({ message: "Signing in..." });
-  }
+  const s = spinner();
+  s.start("Signing in...");
 
   configureFirebase();
   const firebase = getFirebase();
@@ -201,15 +168,11 @@ const authenticateWithGoogleHeadless = async (args?: {
 
   const email = userCredential.user.email;
   if (email == null) {
-    if (s != null) {
-      s.stop("Sign in failed");
-    }
+    s.stop("Sign in failed");
     throw new Error("No email address associated with Google account.");
   }
 
-  if (s != null) {
-    s.stop("Signed in");
-  }
+  s.stop("Signed in");
   return {
     refreshToken: userCredential.user.refreshToken,
     idToken: await userCredential.user.getIdToken(),
@@ -222,19 +185,17 @@ const authenticateWithGoogleHeadless = async (args?: {
  *
  * @param args - Configuration arguments
  * @param args.showPortForwardingInstructions - If true, show SSH port forwarding instructions
- * @param args.experimentalUi - Whether to use clack prompts instead of legacy output
  *
  * @returns Firebase credentials (refreshToken, idToken, email)
  */
 const authenticateWithGoogleLocalhost = async (args?: {
   showPortForwardingInstructions?: boolean | null;
-  experimentalUi?: boolean | null;
 }): Promise<{
   refreshToken: string;
   idToken: string;
   email: string;
 }> => {
-  const { showPortForwardingInstructions, experimentalUi } = args ?? {};
+  const { showPortForwardingInstructions } = args ?? {};
 
   // Standard mode: use Desktop client with localhost callback server
   validateOAuthCredentials();
@@ -253,35 +214,18 @@ const authenticateWithGoogleLocalhost = async (args?: {
   });
 
   // Always display the auth URL
-  if (experimentalUi) {
-    log.step(authUrl);
-  } else {
-    newline();
-    info({ message: "Authentication URL:" });
-    info({ message: `  ${authUrl}` });
-    newline();
-  }
+  log.step(authUrl);
 
   // Show port forwarding instructions if requested (user is in headless but chose localhost flow)
   if (showPortForwardingInstructions) {
-    if (experimentalUi) {
-      note(
-        [
-          "1. Run this on your local machine:",
-          `   ssh -L ${port}:localhost:${port} <user>@<server>`,
-          "2. Open the URL above in your local browser",
-        ].join("\n"),
-        "SSH Port Forwarding",
-      );
-    } else {
-      info({ message: "To authenticate from this remote session:" });
-      info({ message: `  1. Run this on your local machine:` });
-      info({
-        message: `     ssh -L ${port}:localhost:${port} <user>@<server>`,
-      });
-      info({ message: `  2. Open the URL above in your local browser` });
-      newline();
-    }
+    note(
+      [
+        "1. Run this on your local machine:",
+        `   ssh -L ${port}:localhost:${port} <user>@<server>`,
+        "2. Open the URL above in your local browser",
+      ].join("\n"),
+      "SSH Port Forwarding",
+    );
   }
 
   // Start the local server to capture the callback
@@ -290,25 +234,14 @@ const authenticateWithGoogleLocalhost = async (args?: {
     expectedState: state,
     warningMs: AUTH_WARNING_MS,
     onTimeoutWarning: () => {
-      if (experimentalUi) {
-        log.warn(
-          "Authentication will timeout in 1 minute. Please complete the browser flow.",
-        );
-      } else {
-        warn({
-          message:
-            "Authentication will timeout in 1 minute. Please complete the browser flow.",
-        });
-      }
+      log.warn(
+        "Authentication will timeout in 1 minute. Please complete the browser flow.",
+      );
     },
   });
 
   // Attempt to open browser (may fail silently in headless)
-  if (experimentalUi) {
-    log.info("Attempting to open browser...");
-  } else {
-    info({ message: "Attempting to open browser..." });
-  }
+  log.info("Attempting to open browser...");
   try {
     await open(authUrl);
   } catch {
@@ -321,12 +254,8 @@ const authenticateWithGoogleLocalhost = async (args?: {
   result.server.close();
 
   // Exchange the authorization code for Google tokens
-  const s = experimentalUi ? spinner() : null;
-  if (s != null) {
-    s.start("Exchanging authorization code...");
-  } else {
-    info({ message: "Exchanging authorization code..." });
-  }
+  const s = spinner();
+  s.start("Exchanging authorization code...");
 
   const googleTokens = await exchangeCodeForTokens({
     code,
@@ -343,15 +272,11 @@ const authenticateWithGoogleLocalhost = async (args?: {
 
   const email = userCredential.user.email;
   if (email == null) {
-    if (s != null) {
-      s.stop("Sign in failed");
-    }
+    s.stop("Sign in failed");
     throw new Error("No email address associated with Google account.");
   }
 
-  if (s != null) {
-    s.stop("Signed in");
-  }
+  s.stop("Signed in");
   return {
     refreshToken: userCredential.user.refreshToken,
     idToken: await userCredential.user.getIdToken(),
@@ -365,203 +290,46 @@ const authenticateWithGoogleLocalhost = async (args?: {
  *
  * @param args - Configuration arguments
  * @param args.noLocalhost - If true, force use of headless flow (skips environment detection)
- * @param args.confirmHeadless - Optional function to confirm headless flow (replaces legacy promptYesNo)
- * @param args.experimentalUi - Whether to use clack prompts instead of legacy output
  *
  * @returns Firebase credentials (refreshToken, idToken, email)
  */
 const authenticateWithGoogle = async (args?: {
   noLocalhost?: boolean | null;
-  confirmHeadless?: ((args: { message: string }) => Promise<boolean>) | null;
-  experimentalUi?: boolean | null;
 }): Promise<{
   refreshToken: string;
   idToken: string;
   email: string;
 }> => {
-  const { noLocalhost, confirmHeadless, experimentalUi } = args ?? {};
+  const { noLocalhost } = args ?? {};
 
   // If --no-localhost flag is explicitly set, use headless flow directly
   if (noLocalhost) {
-    return authenticateWithGoogleHeadless({ experimentalUi });
+    return authenticateWithGoogleHeadless();
   }
 
   // Detect headless/SSH environment
   if (isHeadlessEnvironment()) {
-    if (experimentalUi) {
-      log.warn(
-        "Detected SSH/headless environment. You can use a simplified headless flow that works without port forwarding.",
-      );
-    } else {
-      newline();
-      info({ message: "Detected SSH/headless environment." });
-      info({
-        message:
-          "You can use a simplified headless flow that works without port forwarding.",
-      });
-      newline();
-    }
+    log.warn(
+      "Detected SSH/headless environment. You can use a simplified headless flow that works without port forwarding.",
+    );
 
-    let useHeadlessFlow: boolean;
-
-    if (confirmHeadless != null) {
-      useHeadlessFlow = await confirmHeadless({
-        message: "Use headless authentication flow?",
-      });
-    } else {
-      useHeadlessFlow = await promptYesNo({
-        prompt: "Use headless authentication flow?",
-        defaultValue: true,
-      });
-    }
+    const useHeadlessFlow = await confirmAction({
+      message: "Use headless authentication flow?",
+      initialValue: true,
+    });
 
     if (useHeadlessFlow) {
-      return authenticateWithGoogleHeadless({ experimentalUi });
+      return authenticateWithGoogleHeadless();
     } else {
       // User chose localhost flow in headless environment - show port forwarding instructions
       return authenticateWithGoogleLocalhost({
         showPortForwardingInstructions: true,
-        experimentalUi,
       });
     }
   }
 
   // Standard local environment - use localhost flow without port forwarding instructions
-  return authenticateWithGoogleLocalhost({ experimentalUi });
-};
-
-/**
- * Authenticate with email/password using legacy prompts (basic readline).
- * Used when --experimental-ui is not enabled.
- *
- * @param args - Configuration arguments
- * @param args.configDir - Directory to save config to
- *
- * @returns Authentication result with tokens and user info, or null if cancelled/failed
- */
-const authenticateWithLegacyPrompts = async (args: {
-  configDir: string;
-}): Promise<{
-  refreshToken: string;
-  idToken: string;
-  email: string;
-  organizations: Array<string>;
-  isAdmin: boolean;
-} | null> => {
-  const { configDir } = args;
-
-  // Prompt for email
-  const inputEmail = await promptUser({
-    prompt: "Email: ",
-  });
-
-  if (inputEmail == null || inputEmail.trim() === "") {
-    error({ message: "Email is required." });
-    return null;
-  }
-
-  // Prompt for password (masked)
-  const inputPassword = await promptUser({
-    prompt: "Password: ",
-    masked: true,
-  });
-
-  if (inputPassword == null || inputPassword.trim() === "") {
-    error({ message: "Password is required." });
-    return null;
-  }
-
-  info({ message: "Authenticating..." });
-
-  try {
-    configureFirebase();
-    const firebase = getFirebase();
-
-    const userCredential = await signInWithEmailAndPassword(
-      firebase.auth,
-      inputEmail.trim(),
-      inputPassword,
-    );
-
-    const idToken = await userCredential.user.getIdToken();
-
-    // Fetch user's organizations and admin status
-    const accessInfo = await fetchUserAccess({ idToken });
-
-    const organizations = accessInfo?.organizations ?? [];
-    const isAdmin = accessInfo?.isAdmin ?? false;
-
-    // Load existing config to preserve other fields
-    // Use os.homedir() as startDir since login is home-directory-based
-    const existingConfig = await loadConfig({ startDir: os.homedir() });
-
-    // Save credentials to config
-    await saveConfig({
-      username: inputEmail.trim(),
-      refreshToken: userCredential.user.refreshToken,
-      organizationUrl: NORI_SKILLSETS_API_URL,
-      organizations,
-      isAdmin,
-      sendSessionTranscript: existingConfig?.sendSessionTranscript ?? null,
-      autoupdate: existingConfig?.autoupdate ?? null,
-      agents: existingConfig?.agents ?? null,
-      version: existingConfig?.version ?? null,
-      transcriptDestination: existingConfig?.transcriptDestination ?? null,
-      installDir: configDir,
-    });
-
-    newline();
-    success({ message: `Logged in as ${inputEmail.trim()}` });
-
-    if (organizations.length > 0) {
-      info({ message: `Organizations: ${organizations.join(", ")}` });
-      if (isAdmin) {
-        info({ message: "Admin: Yes" });
-      }
-    } else {
-      info({
-        message: "No private organizations found. Using public registry.",
-      });
-    }
-
-    return {
-      refreshToken: userCredential.user.refreshToken,
-      idToken,
-      email: inputEmail.trim(),
-      organizations,
-      isAdmin,
-    };
-  } catch (err) {
-    const authError = err as AuthError;
-    error({ message: "Authentication failed" });
-    error({ message: `  Error: ${authError.message}` });
-
-    // Provide helpful hints for common errors
-    if (
-      authError.code === AuthErrorCodes.INVALID_PASSWORD ||
-      authError.code === AuthErrorCodes.INVALID_LOGIN_CREDENTIALS ||
-      authError.code === "auth/invalid-credential"
-    ) {
-      error({
-        message: "  Hint: Check that your email and password are correct.",
-      });
-    } else if (authError.code === AuthErrorCodes.USER_DELETED) {
-      error({
-        message: "  Hint: This email is not registered. Contact support.",
-      });
-    } else if (authError.code === AuthErrorCodes.TOO_MANY_ATTEMPTS_TRY_LATER) {
-      error({
-        message:
-          "  Hint: Too many failed attempts. Wait a few minutes and try again.",
-      });
-    } else if (authError.code === AuthErrorCodes.NETWORK_REQUEST_FAILED) {
-      error({
-        message: "  Hint: Network error. Check your internet connection.",
-      });
-    }
-
-    return null;
-  }
+  return authenticateWithGoogleLocalhost();
 };
 
 /**
@@ -570,7 +338,6 @@ const authenticateWithLegacyPrompts = async (args: {
  * @param args - Configuration arguments
  * @param args.installDir - Installation directory
  * @param args.nonInteractive - Whether to run in non-interactive mode
- * @param args.experimentalUi - Whether to use new interactive TUI flows
  * @param args.email - Email address (for non-interactive mode)
  * @param args.password - Password (for non-interactive mode)
  * @param args.google - Whether to use Google SSO
@@ -579,7 +346,6 @@ const authenticateWithLegacyPrompts = async (args: {
 export const loginMain = async (args?: {
   installDir?: string | null;
   nonInteractive?: boolean | null;
-  experimentalUi?: boolean | null;
   email?: string | null;
   password?: string | null;
   google?: boolean | null;
@@ -588,7 +354,6 @@ export const loginMain = async (args?: {
   const {
     installDir,
     nonInteractive,
-    experimentalUi,
     email,
     password,
     google: useGoogle,
@@ -614,22 +379,13 @@ export const loginMain = async (args?: {
     return;
   }
 
-  if (noLocalhost && !useGoogle && !experimentalUi) {
+  if (noLocalhost && !useGoogle) {
     error({
       message:
         "Cannot use --no-localhost without --google. This flag is only for Google SSO.",
     });
     return;
   }
-
-  const clackConfirmHeadless = async (args: {
-    message: string;
-  }): Promise<boolean> => {
-    return confirmAction({
-      message: args.message,
-      initialValue: true,
-    });
-  };
 
   let refreshToken: string;
   let idToken: string;
@@ -640,8 +396,6 @@ export const loginMain = async (args?: {
     try {
       const result = await authenticateWithGoogle({
         noLocalhost,
-        confirmHeadless: experimentalUi ? clackConfirmHeadless : null,
-        experimentalUi,
       });
       refreshToken = result.refreshToken;
       idToken = result.idToken;
@@ -669,7 +423,7 @@ export const loginMain = async (args?: {
       return;
     }
 
-    info({ message: "Authenticating..." });
+    log.info("Authenticating...");
 
     try {
       configureFirebase();
@@ -690,8 +444,8 @@ export const loginMain = async (args?: {
       error({ message: `  Error: ${authError.message}` });
       return;
     }
-  } else if (experimentalUi) {
-    // Interactive mode with experimental UI: show auth method selection
+  } else {
+    // Interactive mode: show auth method selection
     intro("Login to Nori Skillsets");
 
     const authMethod = await select({
@@ -803,12 +557,10 @@ export const loginMain = async (args?: {
       // Flow already showed outro, so we're done
       return;
     } else {
-      // Google SSO flow selected from experimental UI
+      // Google SSO flow selected from interactive UI
       try {
         const result = await authenticateWithGoogle({
           noLocalhost,
-          confirmHeadless: clackConfirmHeadless,
-          experimentalUi,
         });
         refreshToken = result.refreshToken;
         idToken = result.idToken;
@@ -828,16 +580,6 @@ export const loginMain = async (args?: {
         return;
       }
     }
-  } else {
-    // Interactive mode with legacy prompts (default)
-    const result = await authenticateWithLegacyPrompts({ configDir });
-    if (result == null) {
-      // User cancelled or auth failed
-      return;
-    }
-
-    // Legacy flow already saved config and showed success message
-    return;
   }
 
   // For Google SSO and non-interactive flows, fetch and display access info
@@ -875,36 +617,20 @@ export const loginMain = async (args?: {
     installDir: configDir,
   });
 
-  if (experimentalUi) {
-    if (organizations.length > 0) {
-      const lines = [`Organizations: ${organizations.join(", ")}`];
-      if (isAdmin) {
-        lines.push("Admin: Yes");
-      }
-      note(lines.join("\n"), "Account Info");
-    } else {
-      note(
-        "No private organizations found. Using public registry.",
-        "Account Info",
-      );
+  if (organizations.length > 0) {
+    const lines = [`Organizations: ${organizations.join(", ")}`];
+    if (isAdmin) {
+      lines.push("Admin: Yes");
     }
-    // Use clack outro to balance the intro shown earlier
-    outro(`Logged in as ${userEmail}`);
+    note(lines.join("\n"), "Account Info");
   } else {
-    newline();
-    success({ message: `Logged in as ${userEmail}` });
-
-    if (organizations.length > 0) {
-      info({ message: `Organizations: ${organizations.join(", ")}` });
-      if (isAdmin) {
-        info({ message: "Admin: Yes" });
-      }
-    } else {
-      info({
-        message: "No private organizations found. Using public registry.",
-      });
-    }
+    note(
+      "No private organizations found. Using public registry.",
+      "Account Info",
+    );
   }
+  // Use clack outro to balance the intro shown earlier
+  outro(`Logged in as ${userEmail}`);
 };
 
 /**
@@ -938,7 +664,6 @@ export const registerLoginCommand = (args: { program: Command }): void => {
         await loginMain({
           installDir: globalOpts.installDir || null,
           nonInteractive: globalOpts.nonInteractive || null,
-          experimentalUi: globalOpts.experimentalUi || null,
           email: options.email || null,
           password: options.password || null,
           google: options.google || null,

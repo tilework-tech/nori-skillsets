@@ -31,7 +31,6 @@ import {
   registerNoriSkillsetsUploadCommand,
   registerNoriSkillsetsWatchCommand,
 } from "@/cli/commands/noriSkillsetsCommands.js";
-import { shouldAutoEnableExperimentalUi } from "@/cli/experimentalUi.js";
 import {
   setTileworkSource,
   trackInstallLifecycle,
@@ -86,7 +85,6 @@ program
     "-a, --agent <name>",
     "AI agent to use (auto-detected from config, or claude-code)",
   )
-  .option("--experimental-ui", "Use new interactive TUI flows (experimental)")
   .addHelpText(
     "after",
     `
@@ -152,17 +150,6 @@ registerNoriSkillsetsNewCommand({ program });
 registerNoriSkillsetsRegisterCommand({ program });
 registerNoriSkillsetsEditSkillsetCommand({ program });
 registerNoriSkillsetsFactoryResetCommand({ program });
-
-// Auto-enable --experimental-ui when not explicitly passed:
-// 1. Config file: ~/.nori-config.json { "experimentalUi": true }
-// 2. Version contains "next" (e.g., "0.7.0-next.1") or is "0.0.0"
-const hasExplicitExperimentalUi = process.argv.includes("--experimental-ui");
-if (!hasExplicitExperimentalUi && !isInfoOnly) {
-  const shouldEnable = await shouldAutoEnableExperimentalUi({ version });
-  if (shouldEnable) {
-    process.argv.push("--experimental-ui");
-  }
-}
 
 program.parse(process.argv);
 

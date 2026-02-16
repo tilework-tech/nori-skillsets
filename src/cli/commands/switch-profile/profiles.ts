@@ -22,79 +22,11 @@ import {
   type ManifestDiff,
 } from "@/cli/features/claude-code/profiles/manifest.js";
 import { listProfiles } from "@/cli/features/managedFolder.js";
-import {
-  error,
-  info,
-  success,
-  newline,
-  warn,
-  setSilentMode,
-  isSilentMode,
-} from "@/cli/logger.js";
-import { promptUser } from "@/cli/prompt.js";
+import { error, setSilentMode, isSilentMode } from "@/cli/logger.js";
 import { switchSkillsetFlow } from "@/cli/prompts/flows/switchSkillset.js";
 import { normalizeInstallDir, getInstallDirs } from "@/utils/path.js";
 
 import type { Command } from "commander";
-
-/**
- * Determine which agent to use for switch-skillset command when no --agent flag provided
- * @param args - Configuration arguments
- * @param args.nonInteractive - Whether running in non-interactive mode
- *
- * @throws Error if in non-interactive mode with multiple agents installed
- *
- * @returns The agent name to use
- */
-const resolveAgent = async (args: {
-  nonInteractive: boolean;
-}): Promise<string> => {
-  const { nonInteractive } = args;
-
-  // Load config to check installed agents - use home directory for global settings
-  const config = await loadConfig({ startDir: os.homedir() });
-  const installedAgents = config ? getInstalledAgents({ config }) : [];
-
-  // No agents installed - default to claude-code
-  if (installedAgents.length === 0) {
-    return "claude-code";
-  }
-
-  // Single agent installed - use it
-  if (installedAgents.length === 1) {
-    return installedAgents[0];
-  }
-
-  // Multiple agents installed
-  if (nonInteractive) {
-    throw new Error(
-      `Multiple agents installed (${installedAgents.join(", ")}). ` +
-        `Please specify which agent to switch with --agent <name>.`,
-    );
-  }
-
-  // Interactive mode - prompt user to select agent
-  info({ message: "\nMultiple agents are installed:" });
-  installedAgents.forEach((agent, index) => {
-    const agentImpl = AgentRegistry.getInstance().get({ name: agent });
-    info({ message: `  ${index + 1}. ${agentImpl.displayName} (${agent})` });
-  });
-
-  const selection = await promptUser({
-    prompt: `Select agent to switch skillset (1-${installedAgents.length}): `,
-  });
-
-  const selectedIndex = parseInt(selection, 10) - 1;
-  if (
-    isNaN(selectedIndex) ||
-    selectedIndex < 0 ||
-    selectedIndex >= installedAgents.length
-  ) {
-    throw new Error("Invalid selection. Skillset switch cancelled.");
-  }
-
-  return installedAgents[selectedIndex];
-};
 
 /**
  * Detect local changes to installed files
@@ -127,147 +59,6 @@ const detectLocalChanges = async (args: {
 };
 
 /**
- * Prompt user to handle detected local changes
- *
- * @param args - Configuration arguments
- * @param args.diff - Detected changes
- * @param args.installDir - Installation directory
- * @param args.nonInteractive - Whether running in non-interactive mode
- * @param args.force - Whether to force through local changes without prompting
- *
- * @returns 'proceed' to continue, 'capture' to save first, 'abort' to cancel
- */
-const promptForChangeHandling = async (args: {
-  diff: ManifestDiff;
-  installDir: string;
-  nonInteractive: boolean;
-  force: boolean;
-}): Promise<"proceed" | "capture" | "abort"> => {
-  const { diff, nonInteractive, force } = args;
-
-  // --force skips the change-handling prompt entirely
-  if (force) {
-    return "proceed";
-  }
-
-  // In non-interactive mode, error out (safe default)
-  if (nonInteractive) {
-    throw new Error(
-      `Local changes detected in installed skillset files. ` +
-        `Cannot proceed in non-interactive mode. ` +
-        `Modified: ${diff.modified.length}, Added: ${diff.added.length}, Deleted: ${diff.deleted.length}. ` +
-        `Run interactively to choose how to handle these changes, or use --force to discard them.`,
-    );
-  }
-
-  // Display detected changes
-  warn({ message: "\n⚠️  Local changes detected in your installed skillset:" });
-  newline();
-
-  if (diff.modified.length > 0) {
-    info({ message: `  Modified files (${diff.modified.length}):` });
-    for (const file of diff.modified.slice(0, 5)) {
-      info({ message: `    - ${file}` });
-    }
-    if (diff.modified.length > 5) {
-      info({ message: `    ... and ${diff.modified.length - 5} more` });
-    }
-  }
-
-  if (diff.added.length > 0) {
-    info({ message: `  Added files (${diff.added.length}):` });
-    for (const file of diff.added.slice(0, 5)) {
-      info({ message: `    - ${file}` });
-    }
-    if (diff.added.length > 5) {
-      info({ message: `    ... and ${diff.added.length - 5} more` });
-    }
-  }
-
-  if (diff.deleted.length > 0) {
-    info({ message: `  Deleted files (${diff.deleted.length}):` });
-    for (const file of diff.deleted.slice(0, 5)) {
-      info({ message: `    - ${file}` });
-    }
-    if (diff.deleted.length > 5) {
-      info({ message: `    ... and ${diff.deleted.length - 5} more` });
-    }
-  }
-
-  newline();
-  info({ message: "Switching skillsets will overwrite these changes." });
-  info({ message: "How would you like to proceed?" });
-  newline();
-  info({ message: "  1. Proceed anyway (changes will be lost)" });
-  info({ message: "  2. Save current config as new skillset first" });
-  info({ message: "  3. Abort" });
-  newline();
-
-  const selection = await promptUser({
-    prompt: "Select option (1-3): ",
-  });
-
-  switch (selection.trim()) {
-    case "1":
-      return "proceed";
-    case "2":
-      return "capture";
-    case "3":
-    default:
-      return "abort";
-  }
-};
-
-/**
- * Prompt user to confirm skillset switch
- * @param args - Configuration arguments
- * @param args.installDir - Installation directory
- * @param args.profileName - New skillset name to switch to
- * @param args.agentName - Agent name
- * @param args.nonInteractive - Whether running in non-interactive mode
- *
- * @returns True if user confirms, false otherwise
- */
-const confirmSwitchProfile = async (args: {
-  installDir: string;
-  profileName: string;
-  agentName: string;
-  nonInteractive: boolean;
-}): Promise<boolean> => {
-  const { installDir, profileName, agentName, nonInteractive } = args;
-
-  // Skip confirmation in non-interactive mode
-  if (nonInteractive) {
-    return true;
-  }
-
-  // Load config to get current skillset - use home directory for global settings
-  const config = await loadConfig({ startDir: os.homedir() });
-  const agentProfile =
-    config != null
-      ? getAgentProfile({ config, agentName: agentName as ConfigAgentName })
-      : null;
-  const currentProfile = agentProfile?.baseProfile ?? "(none)";
-
-  // Get agent display info
-  const agent = AgentRegistry.getInstance().get({ name: agentName });
-
-  // Display confirmation info
-  info({ message: "\nSwitching skillset configuration:" });
-  info({ message: `  Install directory: ${installDir}` });
-  info({ message: `  Agent: ${agent.displayName} (${agentName})` });
-  info({ message: `  Current skillset: ${currentProfile}` });
-  info({ message: `  New skillset: ${profileName}` });
-  newline();
-
-  const proceed = await promptUser({
-    prompt: "Proceed with skillset switch? (y/n): ",
-  });
-
-  return proceed.match(/^[Yy]$/) != null;
-};
-
-/**
  * Shared action handler for switch-skillset and switch-profile commands
  * @param args - Configuration arguments
  * @param args.name - The skillset name to switch to
@@ -286,7 +77,6 @@ export const switchSkillsetAction = async (args: {
   // Get global options from parent
   const globalOpts = program.opts();
   const nonInteractive = globalOpts.nonInteractive ?? false;
-  const experimentalUi = globalOpts.experimentalUi ?? false;
   const force = options.force ?? false;
 
   // Determine installation directory
@@ -314,8 +104,8 @@ export const switchSkillsetAction = async (args: {
     }
   }
 
-  // Experimental UI flow (interactive only)
-  if (experimentalUi && !nonInteractive) {
+  // Interactive flow
+  if (!nonInteractive) {
     await switchSkillsetFlow({
       profileName: name,
       installDir,
@@ -391,63 +181,20 @@ export const switchSkillsetAction = async (args: {
     return;
   }
 
-  // Legacy flow
-  // Use local --agent option if provided, otherwise auto-detect
-  // We don't use globalOpts.agent because it has a default value ("claude-code")
-  // which would prevent auto-detection from working
-  const agentName = options.agent ?? (await resolveAgent({ nonInteractive }));
-
+  // Non-interactive flow
+  const agentName = options.agent ?? "claude-code";
   const agent = AgentRegistry.getInstance().get({ name: agentName });
 
   // Check for local changes before proceeding
   const localChanges = await detectLocalChanges({ installDir });
 
-  if (localChanges != null) {
-    const changeAction = await promptForChangeHandling({
-      diff: localChanges,
-      installDir,
-      nonInteractive,
-      force,
-    });
-
-    if (changeAction === "abort") {
-      info({ message: "Skillset switch cancelled." });
-      return;
-    }
-
-    if (changeAction === "capture") {
-      // Prompt for profile name and capture
-      info({ message: "\nSaving current configuration as a new skillset..." });
-      const profileName = await promptUser({
-        prompt:
-          "Enter a name for this skillset (lowercase letters, numbers, hyphens): ",
-      });
-
-      if (!/^[a-z0-9-]+$/.test(profileName)) {
-        error({ message: "Invalid skillset name. Skillset switch cancelled." });
-        return;
-      }
-
-      await captureExistingConfigAsProfile({ installDir, profileName });
-      success({
-        message: `Saved current configuration as skillset: ${profileName}`,
-      });
-      newline();
-    }
-    // If 'proceed', continue with the switch
-  }
-
-  // Confirm before proceeding
-  const confirmed = await confirmSwitchProfile({
-    installDir,
-    profileName: name,
-    agentName,
-    nonInteractive,
-  });
-
-  if (!confirmed) {
-    info({ message: "Skillset switch cancelled." });
-    return;
+  if (localChanges != null && !force) {
+    throw new Error(
+      `Local changes detected in installed skillset files. ` +
+        `Cannot proceed in non-interactive mode. ` +
+        `Modified: ${localChanges.modified.length}, Added: ${localChanges.added.length}, Deleted: ${localChanges.deleted.length}. ` +
+        `Run interactively to choose how to handle these changes, or use --force to discard them.`,
+    );
   }
 
   try {
@@ -471,8 +218,6 @@ export const switchSkillsetAction = async (args: {
     agent: agentName,
     silent: true,
   });
-
-  success({ message: `Switched to skillset: ${name}` });
 };
 
 /**

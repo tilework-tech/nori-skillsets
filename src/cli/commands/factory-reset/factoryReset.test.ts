@@ -61,20 +61,31 @@ describe("factoryResetMain", () => {
     ).rejects.toThrow("Unknown agent");
   });
 
-  it("should call factoryReset on the claude-code agent", async () => {
-    const { promptText } = await import("@/cli/prompts/text.js");
-    vi.mocked(promptText).mockResolvedValue("confirm");
+  it("should call factoryResetFlow and delete artifacts via callbacks", async () => {
+    const { factoryResetFlow } =
+      await import("@/cli/prompts/flows/factoryReset.js");
 
-    // Create artifacts so the reset has something to do
+    // Create artifacts so we can verify the delete callback works
     const claudeDir = path.join(tempDir, ".claude");
     await fs.mkdir(claudeDir, { recursive: true });
+
+    // Make factoryResetFlow invoke the callbacks so we can verify they work
+    vi.mocked(factoryResetFlow).mockImplementation(async (args) => {
+      const { artifacts } = await args.callbacks.onFindArtifacts({
+        path: tempDir,
+      });
+      await args.callbacks.onDeleteArtifacts({ artifacts });
+      return { deletedCount: artifacts.length };
+    });
 
     await factoryResetMain({
       agentName: "claude-code",
       path: tempDir,
     });
 
-    // Verify the .claude directory was deleted
+    expect(factoryResetFlow).toHaveBeenCalled();
+
+    // Verify the .claude directory was deleted by the onDeleteArtifacts callback
     await expect(fs.access(claudeDir)).rejects.toThrow();
   });
 
@@ -124,14 +135,13 @@ describe("factoryResetMain", () => {
     expect(mockExit).toHaveBeenCalledWith(1);
   });
 
-  it("should use factoryResetFlow when experimentalUi is true", async () => {
+  it("should use factoryResetFlow", async () => {
     const { factoryResetFlow } =
       await import("@/cli/prompts/flows/factoryReset.js");
 
     await factoryResetMain({
       agentName: "claude-code",
       path: tempDir,
-      experimentalUi: true,
     });
 
     expect(factoryResetFlow).toHaveBeenCalledWith(
@@ -144,22 +154,5 @@ describe("factoryResetMain", () => {
         }),
       }),
     );
-  });
-
-  it("should not use factoryResetFlow when experimentalUi is false", async () => {
-    const { promptText } = await import("@/cli/prompts/text.js");
-    const { factoryResetFlow } =
-      await import("@/cli/prompts/flows/factoryReset.js");
-    vi.mocked(promptText).mockResolvedValue("confirm");
-
-    const claudeDir = path.join(tempDir, ".claude");
-    await fs.mkdir(claudeDir, { recursive: true });
-
-    await factoryResetMain({
-      agentName: "claude-code",
-      path: tempDir,
-    });
-
-    expect(factoryResetFlow).not.toHaveBeenCalled();
   });
 });

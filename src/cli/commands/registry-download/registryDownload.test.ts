@@ -6,11 +6,31 @@ import * as fs from "fs/promises";
 import { tmpdir } from "os";
 import * as path from "path";
 
+import * as clack from "@clack/prompts";
 import * as tar from "tar";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 // Track the mock homedir value - will be set in beforeEach
 let mockHomedir = "";
+
+// Mock @clack/prompts used by registryDownloadFlow
+vi.mock("@clack/prompts", () => ({
+  intro: vi.fn(),
+  outro: vi.fn(),
+  spinner: vi.fn(() => ({
+    start: vi.fn(),
+    stop: vi.fn(),
+    message: vi.fn(),
+  })),
+  note: vi.fn(),
+  log: {
+    info: vi.fn(),
+    success: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    message: vi.fn(),
+  },
+}));
 
 // Mock the os module to control homedir() return value
 vi.mock("node:os", async (importOriginal) => {
@@ -91,6 +111,45 @@ import { initMain } from "@/cli/commands/init/init.js";
 import { loadConfig, getRegistryAuth } from "@/cli/config.js";
 
 import { registryDownloadMain } from "./registryDownload.js";
+
+/**
+ * Collect all clack output (log.error, log.success, log.info, log.warn, note, outro)
+ * into a single string for assertion convenience.
+ *
+ * @returns Combined clack output as a single string
+ */
+const getAllClackOutput = (): string => {
+  const parts: Array<string> = [];
+  for (const fn of [
+    clack.log.error,
+    clack.log.success,
+    clack.log.info,
+    clack.log.warn,
+    clack.log.message,
+  ]) {
+    const mock = vi.mocked(fn);
+    for (const call of mock.mock.calls) {
+      parts.push(call.map(String).join(" "));
+    }
+  }
+  for (const fn of [clack.note, clack.outro, clack.intro]) {
+    const mock = vi.mocked(fn);
+    for (const call of mock.mock.calls) {
+      parts.push(call.map(String).join(" "));
+    }
+  }
+  return parts.join("\n");
+};
+
+/**
+ * Collect all clack error output (log.error calls) into a single string.
+ *
+ * @returns Combined clack error output as a single string
+ */
+const getClackErrorOutput = (): string => {
+  const mock = vi.mocked(clack.log.error);
+  return mock.mock.calls.map((call) => call.map(String).join(" ")).join("\n");
+};
 
 describe("registry-download", () => {
   let testDir: string;
@@ -174,10 +233,8 @@ describe("registry-download", () => {
       );
       expect(JSON.parse(packageJson).name).toBe("test-profile");
 
-      // Verify success message
-      const allOutput = mockConsoleLog.mock.calls
-        .map((call) => call.join(" "))
-        .join("\n");
+      // Verify success message via clack prompts
+      const allOutput = getAllClackOutput();
       expect(allOutput.toLowerCase()).toContain("download");
       expect(allOutput).toContain("test-profile");
 
@@ -229,10 +286,8 @@ describe("registry-download", () => {
         cwd: testDir,
       });
 
-      // Verify error message about already existing
-      const allErrorOutput = mockConsoleError.mock.calls
-        .map((call) => call.join(" "))
-        .join("\n");
+      // Verify error message about already existing (via clack prompts)
+      const allErrorOutput = getClackErrorOutput();
       expect(allErrorOutput.toLowerCase()).toContain("already exists");
     });
 
@@ -546,10 +601,8 @@ describe("registry-download", () => {
         cwd: testDir,
       });
 
-      // Verify error message
-      const allErrorOutput = mockConsoleError.mock.calls
-        .map((call) => call.join(" "))
-        .join("\n");
+      // Verify error message (via clack prompts)
+      const allErrorOutput = getClackErrorOutput();
       expect(allErrorOutput.toLowerCase()).toContain("error");
       expect(allErrorOutput).toContain("Network error");
     });
@@ -655,10 +708,8 @@ describe("registry-download", () => {
       // Verify failure
       expect(result.success).toBe(false);
 
-      // Verify error message about authentication required
-      const allErrorOutput = mockConsoleError.mock.calls
-        .map((call) => call.join(" "))
-        .join("\n");
+      // Verify error message about authentication required (via clack prompts)
+      const allErrorOutput = getClackErrorOutput();
       expect(allErrorOutput.toLowerCase()).toContain("not found");
 
       // Verify no download occurred
@@ -847,10 +898,8 @@ describe("registry-download", () => {
         registryUrl: privateRegistryUrl,
       });
 
-      // Verify error about no auth configured
-      const allErrorOutput = mockConsoleError.mock.calls
-        .map((call) => call.join(" "))
-        .join("\n");
+      // Verify error about no auth configured (via clack prompts)
+      const allErrorOutput = getClackErrorOutput();
       expect(allErrorOutput.toLowerCase()).toContain("auth");
 
       // Verify no download occurred
@@ -905,10 +954,8 @@ describe("registry-download", () => {
         cwd: testDir,
       });
 
-      // Verify error message about not found
-      const allErrorOutput = mockConsoleError.mock.calls
-        .map((call) => call.join(" "))
-        .join("\n");
+      // Verify error message about not found (via clack prompts)
+      const allErrorOutput = getClackErrorOutput();
       expect(allErrorOutput.toLowerCase()).toContain("not found");
 
       // Verify no download occurred
@@ -949,10 +996,8 @@ describe("registry-download", () => {
       // Verify no download occurred
       expect(registrarApi.downloadTarball).not.toHaveBeenCalled();
 
-      // Verify version list was displayed
-      const allOutput = mockConsoleLog.mock.calls
-        .map((call) => call.join(" "))
-        .join("\n");
+      // Verify version list was displayed (via clack prompts)
+      const allOutput = getAllClackOutput();
       expect(allOutput).toContain("test-profile");
       expect(allOutput).toContain("latest");
       expect(allOutput).toContain("2.0.0");
@@ -992,10 +1037,8 @@ describe("registry-download", () => {
       // Verify no download occurred
       expect(registrarApi.downloadTarball).not.toHaveBeenCalled();
 
-      // Verify version list was displayed
-      const allOutput = mockConsoleLog.mock.calls
-        .map((call) => call.join(" "))
-        .join("\n");
+      // Verify version list was displayed (via clack prompts)
+      const allOutput = getAllClackOutput();
       expect(allOutput).toContain("private-profile");
       expect(allOutput).toContain(privateRegistryUrl);
     });
@@ -1015,10 +1058,8 @@ describe("registry-download", () => {
         listVersions: true,
       });
 
-      // Verify error message about not found
-      const allErrorOutput = mockConsoleError.mock.calls
-        .map((call) => call.join(" "))
-        .join("\n");
+      // Verify error message about not found (via clack prompts)
+      const allErrorOutput = getClackErrorOutput();
       expect(allErrorOutput.toLowerCase()).toContain("not found");
     });
   });
@@ -1062,10 +1103,8 @@ describe("registry-download", () => {
       // Verify download occurred
       expect(registrarApi.downloadTarball).toHaveBeenCalled();
 
-      // Verify success message about update
-      const allOutput = mockConsoleLog.mock.calls
-        .map((call) => call.join(" "))
-        .join("\n");
+      // Verify success message about update (via clack prompts)
+      const allOutput = getAllClackOutput();
       expect(allOutput.toLowerCase()).toContain("updated");
     });
 
@@ -1103,10 +1142,8 @@ describe("registry-download", () => {
       // Verify no download occurred
       expect(registrarApi.downloadTarball).not.toHaveBeenCalled();
 
-      // Verify message about already at version
-      const allOutput = mockConsoleLog.mock.calls
-        .map((call) => call.join(" "))
-        .join("\n");
+      // Verify message about already at version (via clack prompts)
+      const allOutput = getAllClackOutput();
       expect(allOutput.toLowerCase()).toContain("already");
     });
 
@@ -1140,10 +1177,8 @@ describe("registry-download", () => {
       // Verify no download occurred
       expect(registrarApi.downloadTarball).not.toHaveBeenCalled();
 
-      // Verify error message about no version info
-      const allErrorOutput = mockConsoleError.mock.calls
-        .map((call) => call.join(" "))
-        .join("\n");
+      // Verify error message about no version info (via clack prompts)
+      const allErrorOutput = getClackErrorOutput();
       expect(allErrorOutput).toContain(".nori-version");
     });
 
@@ -1182,10 +1217,8 @@ describe("registry-download", () => {
       // Verify no download occurred
       expect(registrarApi.downloadTarball).not.toHaveBeenCalled();
 
-      // Verify message about already at newer version
-      const allOutput = mockConsoleLog.mock.calls
-        .map((call) => call.join(" "))
-        .join("\n");
+      // Verify message about already at newer version (via clack prompts)
+      const allOutput = getAllClackOutput();
       expect(allOutput.toLowerCase()).toContain("already");
       expect(allOutput).toContain("2.0.0");
     });
@@ -1444,10 +1477,8 @@ describe("registry-download", () => {
       const profileDir = path.join(profilesDir, "test-profile");
       expect((await fs.stat(profileDir)).isDirectory()).toBe(true);
 
-      // Verify warning was shown
-      const allOutput = mockConsoleLog.mock.calls
-        .map((call) => call.join(" "))
-        .join("\n");
+      // Verify warning was shown (via clack prompts note for skill dependency warnings)
+      const allOutput = getAllClackOutput();
       expect(allOutput.toLowerCase()).toContain("missing-skill");
     });
 
@@ -1883,10 +1914,8 @@ describe("registry-download", () => {
         cwd: testDir,
       });
 
-      // Verify error about not having access
-      const allErrorOutput = mockConsoleError.mock.calls
-        .map((call) => call.join(" "))
-        .join("\n");
+      // Verify error about not having access (via clack prompts)
+      const allErrorOutput = getClackErrorOutput();
       expect(allErrorOutput.toLowerCase()).toContain("access");
       expect(allErrorOutput).toContain("myorg");
 
@@ -2042,10 +2071,8 @@ describe("registry-download", () => {
         cliName: "nori-skillsets",
       });
 
-      // Verify success message uses nori-skillsets command names
-      const allOutput = mockConsoleLog.mock.calls
-        .map((call) => call.join(" "))
-        .join("\n");
+      // Verify success message uses nori-skillsets command names (via clack prompts)
+      const allOutput = getAllClackOutput();
       expect(allOutput).toContain("nori-skillsets switch");
       expect(allOutput).not.toContain("nori-skillsets switch-profile");
     });
@@ -2069,10 +2096,8 @@ describe("registry-download", () => {
         cwd: testDir,
       });
 
-      // When no cliName is provided, prefix defaults to nori-skillsets
-      const allOutput = mockConsoleLog.mock.calls
-        .map((call) => call.join(" "))
-        .join("\n");
+      // When no cliName is provided, prefix defaults to nori-skillsets (via clack prompts)
+      const allOutput = getAllClackOutput();
       expect(allOutput).toContain("switch");
     });
 
@@ -2094,10 +2119,8 @@ describe("registry-download", () => {
         cliName: "nori-skillsets",
       });
 
-      // Verify version hint uses nori-skillsets command names
-      const allOutput = mockConsoleLog.mock.calls
-        .map((call) => call.join(" "))
-        .join("\n");
+      // Verify version hint uses nori-skillsets command names (via clack prompts)
+      const allOutput = getAllClackOutput();
       expect(allOutput).toContain("nori-skillsets download");
       expect(allOutput).not.toContain("nori-skillsets registry-download");
     });
@@ -2118,10 +2141,8 @@ describe("registry-download", () => {
         cliName: "nori-skillsets",
       });
 
-      // Verify error message uses nori-skillsets command names
-      const allErrorOutput = mockConsoleError.mock.calls
-        .map((call) => call.join(" "))
-        .join("\n");
+      // Verify error message uses nori-skillsets command names (via clack prompts)
+      const allErrorOutput = getClackErrorOutput();
       expect(allErrorOutput.toLowerCase()).toContain("not found");
     });
   });

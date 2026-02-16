@@ -9,14 +9,10 @@ import * as path from "path";
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
-import { promptUser } from "@/cli/prompt.js";
-
-// Mock the prompt module
-vi.mock("@/cli/prompt.js", () => ({
-  promptUser: vi.fn(),
-}));
-
-const mockedPromptUser = vi.mocked(promptUser);
+import {
+  detectExistingConfig,
+  captureExistingConfigAsProfile,
+} from "./existingConfigCapture.js";
 
 // Mock paths module to use temp directories
 let mockClaudeDir = "";
@@ -33,11 +29,6 @@ vi.mock("@/cli/features/claude-code/paths.js", () => ({
 }));
 
 // Import after mocking
-import {
-  detectExistingConfig,
-  captureExistingConfigAsProfile,
-  promptForExistingConfigCapture,
-} from "./existingConfigCapture.js";
 
 describe("existingConfigCapture", () => {
   let tempDir: string;
@@ -722,135 +713,6 @@ Managed content here
       expect(noriJson.dependencies.skills).toEqual({
         "valid-skill": "*",
       });
-    });
-  });
-
-  describe("promptForExistingConfigCapture", () => {
-    it("should display what was detected and prompt for profile name", async () => {
-      mockedPromptUser.mockResolvedValueOnce("my-profile"); // Profile name directly
-
-      const result = await promptForExistingConfigCapture({
-        existingConfig: {
-          hasClaudeMd: true,
-          hasManagedBlock: false,
-          hasSkills: true,
-          skillCount: 3,
-          hasAgents: true,
-          agentCount: 2,
-          hasCommands: true,
-          commandCount: 1,
-        },
-      });
-
-      // Should prompt only once for profile name (no "save?" question)
-      expect(mockedPromptUser).toHaveBeenCalledTimes(1);
-      expect(result).toBe("my-profile");
-    });
-
-    it("should show warning when managed block is detected and still require profile name", async () => {
-      mockedPromptUser.mockResolvedValueOnce("my-profile"); // Profile name directly
-
-      const result = await promptForExistingConfigCapture({
-        existingConfig: {
-          hasClaudeMd: true,
-          hasManagedBlock: true,
-          hasSkills: false,
-          skillCount: 0,
-          hasAgents: false,
-          agentCount: 0,
-          hasCommands: false,
-          commandCount: 0,
-        },
-      });
-
-      // Should prompt only once for profile name
-      expect(mockedPromptUser).toHaveBeenCalledTimes(1);
-      expect(result).toBe("my-profile");
-    });
-
-    it("should return profile name when user provides valid name", async () => {
-      mockedPromptUser.mockResolvedValueOnce("my-profile"); // Profile name directly
-
-      const result = await promptForExistingConfigCapture({
-        existingConfig: {
-          hasClaudeMd: true,
-          hasManagedBlock: false,
-          hasSkills: false,
-          skillCount: 0,
-          hasAgents: false,
-          agentCount: 0,
-          hasCommands: false,
-          commandCount: 0,
-        },
-      });
-
-      expect(result).toBe("my-profile");
-      expect(mockedPromptUser).toHaveBeenCalledTimes(1);
-    });
-
-    it("should re-prompt for empty profile name", async () => {
-      mockedPromptUser
-        .mockResolvedValueOnce("") // Empty name (invalid)
-        .mockResolvedValueOnce("valid-name"); // Valid name
-
-      const result = await promptForExistingConfigCapture({
-        existingConfig: {
-          hasClaudeMd: true,
-          hasManagedBlock: false,
-          hasSkills: false,
-          skillCount: 0,
-          hasAgents: false,
-          agentCount: 0,
-          hasCommands: false,
-          commandCount: 0,
-        },
-      });
-
-      expect(result).toBe("valid-name");
-      // Should have been called 2 times: empty name, valid name
-      expect(mockedPromptUser).toHaveBeenCalledTimes(2);
-    });
-
-    it("should re-prompt for profile name with invalid characters", async () => {
-      mockedPromptUser
-        .mockResolvedValueOnce("Invalid Name!") // Invalid (has spaces and !)
-        .mockResolvedValueOnce("valid-name"); // Valid name
-
-      const result = await promptForExistingConfigCapture({
-        existingConfig: {
-          hasClaudeMd: true,
-          hasManagedBlock: false,
-          hasSkills: false,
-          skillCount: 0,
-          hasAgents: false,
-          agentCount: 0,
-          hasCommands: false,
-          commandCount: 0,
-        },
-      });
-
-      expect(result).toBe("valid-name");
-      expect(mockedPromptUser).toHaveBeenCalledTimes(2);
-    });
-
-    it("should accept profile name with hyphens and numbers", async () => {
-      mockedPromptUser.mockResolvedValueOnce("my-profile-123"); // Valid name with hyphens and numbers
-
-      const result = await promptForExistingConfigCapture({
-        existingConfig: {
-          hasClaudeMd: true,
-          hasManagedBlock: false,
-          hasSkills: false,
-          skillCount: 0,
-          hasAgents: false,
-          agentCount: 0,
-          hasCommands: false,
-          commandCount: 0,
-        },
-      });
-
-      expect(result).toBe("my-profile-123");
-      expect(mockedPromptUser).toHaveBeenCalledTimes(1);
     });
   });
 });

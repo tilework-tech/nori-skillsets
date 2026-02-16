@@ -11,7 +11,7 @@ _nori_skillsets_completions() {
   prev="\${COMP_WORDS[COMP_CWORD-1]}"
 
   commands="login logout init search download install switch list download-skill external watch dir fork edit install-location factory-reset completion help"
-  global_opts="--install-dir --non-interactive --silent --agent --experimental-ui --help --version"
+  global_opts="--install-dir --non-interactive --silent --agent --help --version"
 
   # Complete subcommand at position 1
   if [[ \${COMP_CWORD} -eq 1 ]]; then

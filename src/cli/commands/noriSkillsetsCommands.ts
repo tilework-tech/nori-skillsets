@@ -51,7 +51,6 @@ export const registerNoriSkillsetsFactoryResetCommand = (args: {
       await factoryResetMain({
         agentName,
         nonInteractive: globalOpts.nonInteractive || null,
-        experimentalUi: globalOpts.experimentalUi || null,
       });
     });
 };
@@ -209,7 +208,6 @@ export const registerNoriSkillsetsInitCommand = (args: {
       await initMain({
         installDir: globalOpts.installDir || null,
         nonInteractive: globalOpts.nonInteractive || null,
-        experimentalUi: globalOpts.experimentalUi || null,
       });
     });
 };
@@ -233,7 +231,6 @@ export const registerNoriSkillsetsSearchCommand = (args: {
         query,
         installDir: globalOpts.installDir || null,
         cliName: "nori-skillsets",
-        experimentalUi: globalOpts.experimentalUi || null,
       });
     });
 };
@@ -274,7 +271,6 @@ export const registerNoriSkillsetsDownloadCommand = (args: {
           registryUrl: options.registry || null,
           listVersions: options.listVersions || null,
           cliName: "nori-skillsets",
-          experimentalUi: globalOpts.experimentalUi || null,
         });
 
         if (!result.success) {
@@ -467,7 +463,6 @@ export const registerNoriSkillsetsDownloadSkillCommand = (args: {
           listVersions: options.listVersions || null,
           skillset: options.skillset || null,
           cliName: "nori-skillsets",
-          experimentalUi: globalOpts.experimentalUi || null,
         });
       },
     );
@@ -580,12 +575,10 @@ export const registerNoriSkillsetsWatchCommand = (args: {
         setDestination?: boolean;
         _background?: boolean;
       }) => {
-        const globalOpts = program.opts();
         await watchMain({
           agent: options.agent,
           setDestination: options.setDestination ?? false,
           _background: options._background ?? false,
-          experimentalUi: globalOpts.experimentalUi || null,
         });
       },
     );
@@ -594,10 +587,8 @@ export const registerNoriSkillsetsWatchCommand = (args: {
     .command("stop")
     .description("Stop the watch daemon")
     .action(async () => {
-      const globalOpts = program.opts();
       await watchStopMain({
         quiet: false,
-        experimentalUi: globalOpts.experimentalUi || null,
       });
     });
 };
@@ -633,7 +624,6 @@ export const registerNoriSkillsetsLoginCommand = (args: {
         await loginMain({
           installDir: globalOpts.installDir || null,
           nonInteractive: globalOpts.nonInteractive || null,
-          experimentalUi: globalOpts.experimentalUi || null,
           email: options.email || null,
           password: options.password || null,
           google: options.google || null,

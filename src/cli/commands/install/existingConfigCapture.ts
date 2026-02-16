@@ -16,9 +16,6 @@ import {
   getClaudeCommandsDir,
   getNoriProfilesDir,
 } from "@/cli/features/claude-code/paths.js";
-import { error, info, newline, warn } from "@/cli/logger.js";
-import { promptUser } from "@/cli/prompt.js";
-
 // Managed block markers
 const BEGIN_MARKER = "# BEGIN NORI-AI MANAGED BLOCK";
 const END_MARKER = "# END NORI-AI MANAGED BLOCK";
@@ -276,100 +273,5 @@ export const captureExistingConfigAsProfile = async (args: {
   if (await fileExists(commandsDir)) {
     const destSlashcommandsDir = path.join(profileDir, "slashcommands");
     await fs.cp(commandsDir, destSlashcommandsDir, { recursive: true });
-  }
-};
-
-/**
- * Validate profile name
- * Must be lowercase alphanumeric with hyphens, not empty
- *
- * @param name - Profile name to validate
- *
- * @returns True if valid, false otherwise
- */
-const isValidProfileName = (name: string): boolean => {
-  if (!name || name.trim() === "") {
-    return false;
-  }
-  // Allow lowercase letters, numbers, and hyphens
-  return /^[a-z0-9-]+$/.test(name);
-};
-
-/**
- * Prompt user to capture existing configuration
- *
- * Displays what was detected and requires a profile name.
- * The user must provide a valid profile name or abort with Ctrl+C.
- *
- * @param args - Configuration arguments
- * @param args.existingConfig - Detected existing configuration
- *
- * @returns Profile name (always returns a valid name)
- */
-export const promptForExistingConfigCapture = async (args: {
-  existingConfig: ExistingConfig;
-}): Promise<string> => {
-  const { existingConfig } = args;
-
-  // Display what was found
-  info({ message: "Found existing Claude Code configuration:" });
-  newline();
-
-  if (existingConfig.hasClaudeMd) {
-    info({ message: "  • CLAUDE.md found" });
-  }
-  if (existingConfig.hasSkills) {
-    info({
-      message: `  • ${existingConfig.skillCount} skill${existingConfig.skillCount === 1 ? "" : "s"} found`,
-    });
-  }
-  if (existingConfig.hasAgents) {
-    info({
-      message: `  • ${existingConfig.agentCount} subagent${existingConfig.agentCount === 1 ? "" : "s"} found`,
-    });
-  }
-  if (existingConfig.hasCommands) {
-    info({
-      message: `  • ${existingConfig.commandCount} slash command${existingConfig.commandCount === 1 ? "" : "s"} found`,
-    });
-  }
-  newline();
-
-  // Show warning if managed block detected
-  if (existingConfig.hasManagedBlock) {
-    warn({
-      message:
-        "⚠️  Your CLAUDE.md contains a Nori managed block, which suggests",
-    });
-    warn({
-      message:
-        "   a previous Nori installation. The captured profile will preserve this content.",
-    });
-    newline();
-  }
-
-  // Inform user that config will be saved locally as a skillset
-  info({
-    message:
-      "This configuration will be saved locally as a skillset in ~/.nori/profiles/.",
-  });
-  info({ message: "(Press Ctrl+C to abort if you do not want to save it.)" });
-  newline();
-
-  // Prompt for skillset name with validation (required)
-  while (true) {
-    const nameResponse = await promptUser({
-      prompt:
-        "Enter a name for this skillset (lowercase letters, numbers, hyphens): ",
-    });
-
-    if (isValidProfileName(nameResponse)) {
-      return nameResponse;
-    }
-
-    error({
-      message:
-        "Invalid skillset name. Use only lowercase letters, numbers, and hyphens.",
-    });
   }
 };
