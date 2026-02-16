@@ -2,7 +2,7 @@
  * Tests for upload flow
  *
  * Tests the interactive upload flow including batch conflict resolution,
- * skip upload option, and one-by-one resolution.
+ * use existing option, and one-by-one resolution.
  */
 import * as clack from "@clack/prompts";
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -80,8 +80,8 @@ describe("uploadFlow", () => {
     vi.clearAllMocks();
   });
 
-  describe("skip upload option", () => {
-    it("should show skip option for changed skills", async () => {
+  describe("use existing option", () => {
+    it("should show use existing option for changed skills", async () => {
       const conflicts: Array<SkillConflict> = [
         {
           skillId: "changed-skill",
@@ -105,7 +105,7 @@ describe("uploadFlow", () => {
         ],
       });
 
-      // User selects "link" (which is the "Skip Upload" option for changed skills)
+      // User selects "link" (which is the "Use Existing" option for changed skills)
       vi.mocked(clack.select).mockResolvedValueOnce("link");
 
       await uploadFlow({
@@ -115,18 +115,20 @@ describe("uploadFlow", () => {
         callbacks,
       });
 
-      // Verify the select prompt included a "Skip Upload" labeled option
+      // Verify the select prompt included a "Use Existing" labeled option
       const selectCall = vi.mocked(clack.select).mock.calls[0][0];
       const options = selectCall.options as Array<{
         value: string;
         label: string;
+        hint?: string;
       }>;
-      const skipOption = options.find((o) => o.value === "link");
-      expect(skipOption).toBeDefined();
-      expect(skipOption?.label).toBe("Skip Upload");
+      const useExistingOption = options.find((o) => o.value === "link");
+      expect(useExistingOption).toBeDefined();
+      expect(useExistingOption?.label).toBe("Use Existing");
+      expect(useExistingOption?.hint).toContain("discard any local changes");
     });
 
-    it("should NOT show skip option for unchanged skills", async () => {
+    it("should NOT show use existing option for unchanged skills", async () => {
       const conflicts: Array<SkillConflict> = [
         {
           skillId: "unchanged-skill",
@@ -162,16 +164,8 @@ describe("uploadFlow", () => {
       expect(clack.select).not.toHaveBeenCalled();
     });
 
-    it("should show 'Use Existing' label for unchanged skills when link is available in one-by-one mode", async () => {
-      // Mix of changed and unchanged — unchanged ones won't auto-resolve if link not in availableActions
-      // Actually let's create a scenario with an unchanged skill that does NOT auto-resolve
-      // because it doesn't have "link" in availableActions, but then gets shown in interactive mode.
-      // Wait — actually if contentUnchanged is true AND link is in availableActions, it auto-resolves.
-      // So for an unchanged skill to reach interactive resolution, it must NOT have link in availableActions.
-      // That means the "Use Existing" label for unchanged skills wouldn't show up in interactive.
-      // Let's test the case where both changed and unchanged are shown in interactive and verify labels differ.
-
-      // A changed skill that has link in availableActions (but content changed, so "Skip Upload")
+    it("should show 'Use Existing' label for changed skills when link is available in one-by-one mode", async () => {
+      // A changed skill that has link in availableActions (content changed, so "Use Existing" with discard warning)
       // + an unchanged skill without link in availableActions (so it goes to interactive with only namespace/updateVersion)
       const conflicts: Array<SkillConflict> = [
         {
@@ -216,15 +210,17 @@ describe("uploadFlow", () => {
         callbacks,
       });
 
-      // The first conflict (changed) should have "Skip Upload" for the link option
+      // The first conflict (changed) should have "Use Existing" for the link option
       const firstConflictCall = vi.mocked(clack.select).mock.calls[1][0];
       const firstOptions = firstConflictCall.options as Array<{
         value: string;
         label: string;
+        hint?: string;
       }>;
-      const skipOption = firstOptions.find((o) => o.value === "link");
-      expect(skipOption).toBeDefined();
-      expect(skipOption?.label).toBe("Skip Upload");
+      const useExistingOption = firstOptions.find((o) => o.value === "link");
+      expect(useExistingOption).toBeDefined();
+      expect(useExistingOption?.label).toBe("Use Existing");
+      expect(useExistingOption?.hint).toContain("discard any local changes");
     });
 
     it("should track skipped skills in the result", async () => {
@@ -253,7 +249,7 @@ describe("uploadFlow", () => {
         ],
       });
 
-      // User picks "link" (skip upload)
+      // User picks "link" (use existing)
       vi.mocked(clack.select).mockResolvedValueOnce("link");
 
       const result = await uploadFlow({
@@ -713,7 +709,7 @@ describe("uploadFlow", () => {
 
       // namespace and link (skip) are common, updateVersion is NOT (skill-b can't publish)
       expect(actionValues).toContain("namespace");
-      expect(actionValues).toContain("link"); // skip option
+      expect(actionValues).toContain("link"); // use existing option
       expect(actionValues).not.toContain("updateVersion");
     });
 

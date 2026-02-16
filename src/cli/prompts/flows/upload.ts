@@ -124,8 +124,8 @@ const buildResolutionOptions = (args: {
     } else {
       options.push({
         value: "link",
-        label: "Skip Upload",
-        hint: "Keep in manifest at current version",
+        label: "Use Existing",
+        hint: "Use existing version already on registry. Note that this will discard any local changes.",
       });
     }
   }
@@ -391,12 +391,12 @@ const buildCommonResolutionOptions = (args: {
     });
   }
 
-  // All unresolved conflicts here have changed content, so "link" = "Skip Upload"
+  // All unresolved conflicts here have changed content, so "link" = "Use Existing"
   if (commonActions.has("link")) {
     options.push({
       value: "link",
-      label: "Skip Upload",
-      hint: "Keep all in manifest at current version",
+      label: "Use Existing",
+      hint: "Use existing version already on registry. Note that this will discard any local changes.",
     });
   }
 
@@ -762,7 +762,7 @@ export const uploadFlow = async (args: {
       // Track resolution actions
       for (const [skillId, resolution] of Object.entries(interactiveStrategy)) {
         if (resolution.action === "link") {
-          // Determine if this is a "skip" (changed content) or genuine link (unchanged)
+          // Determine if this is "use existing" with discarded changes or genuine link (unchanged)
           const conflict = unresolvedConflicts.find(
             (c) => c.skillId === skillId,
           );

@@ -74,8 +74,8 @@ const buildResolutionOptions = (args: {
     } else {
       options.push({
         value: "link",
-        label: "Skip Upload",
-        hint: "Keep in manifest at current version",
+        label: "Use Existing",
+        hint: "Use existing version already on registry. Note that this will discard any local changes.",
       });
     }
   }
