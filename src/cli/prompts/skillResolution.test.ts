@@ -122,7 +122,7 @@ describe("selectSkillResolution", () => {
       });
     });
 
-    it("should show link as 'Skip Upload' when content has changed and API allows link", async () => {
+    it("should show link as 'Use Existing' when content has changed and API allows link", async () => {
       const conflicts: Array<SkillConflict> = [
         {
           skillId: "changed-skill",
@@ -154,7 +154,7 @@ describe("selectSkillResolution", () => {
       expect(optionValues).toContain("updateVersion");
 
       const linkOption = options.find((o) => o.value === "link");
-      expect(linkOption?.label).toBe("Skip Upload");
+      expect(linkOption?.label).toBe("Use Existing");
     });
   });
 
@@ -488,8 +488,8 @@ describe("selectSkillResolution", () => {
     });
   });
 
-  describe("skip upload option", () => {
-    it("should show skip option for changed skills when link is in availableActions", async () => {
+  describe("use existing option", () => {
+    it("should show use existing option for changed skills when link is in availableActions", async () => {
       const conflicts: Array<SkillConflict> = [
         {
           skillId: "changed-skill",
@@ -513,16 +513,18 @@ describe("selectSkillResolution", () => {
       const options = selectCall.options as Array<{
         value: string;
         label: string;
+        hint?: string;
       }>;
-      const skipOption = options.find((o) => o.value === "link");
-      expect(skipOption).toBeDefined();
-      expect(skipOption?.label).toBe("Skip Upload");
+      const useExistingOption = options.find((o) => o.value === "link");
+      expect(useExistingOption).toBeDefined();
+      expect(useExistingOption?.label).toBe("Use Existing");
+      expect(useExistingOption?.hint).toContain("discard any local changes");
       expect(result).toEqual({
         "changed-skill": { action: "link" },
       });
     });
 
-    it("should NOT show skip option for unchanged skills", async () => {
+    it("should NOT show use existing option for unchanged skills", async () => {
       const conflicts: Array<SkillConflict> = [
         {
           skillId: "unchanged-skill",
@@ -549,7 +551,7 @@ describe("selectSkillResolution", () => {
       }>;
       const linkOption = options.find((o) => o.value === "link");
       expect(linkOption).toBeDefined();
-      // For unchanged skills, it should say "Use Existing", not "Skip Upload"
+      // For unchanged skills, it should say "Use Existing" (same label, different hint)
       expect(linkOption?.label).toBe("Use Existing");
     });
   });
