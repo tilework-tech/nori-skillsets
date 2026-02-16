@@ -19,7 +19,6 @@ import type { Command } from "commander";
 
 type RegistryInstallArgs = {
   packageSpec: string;
-  cwd?: string | null;
   installDir?: string | null;
   useHomeDir?: boolean | null;
   silent?: boolean | null;
@@ -33,11 +32,10 @@ const parsePackageName = (args: { packageSpec: string }): string => {
 };
 
 const resolveInstallDir = (args: {
-  cwd?: string | null;
   installDir?: string | null;
   useHomeDir?: boolean | null;
 }): string => {
-  const { cwd, installDir, useHomeDir } = args;
+  const { installDir, useHomeDir } = args;
 
   if (installDir) {
     return normalizeInstallDir({ installDir });
@@ -47,7 +45,8 @@ const resolveInstallDir = (args: {
     return normalizeInstallDir({ installDir: os.homedir() });
   }
 
-  return normalizeInstallDir({ installDir: cwd ?? process.cwd() });
+  // Default to home directory when no existing installation is detected
+  return normalizeInstallDir({ installDir: os.homedir() });
 };
 
 /**
@@ -97,7 +96,6 @@ const displaySuccessMessage = (args: { profileName: string }): void => {
  * switches to the profile and regenerates files.
  * @param args - The install parameters
  * @param args.packageSpec - Package specification (name or name@version)
- * @param args.cwd - Current working directory
  * @param args.installDir - Optional explicit install directory
  * @param args.useHomeDir - If true, install to user home directory
  * @param args.silent - If true, suppress output
@@ -108,10 +106,9 @@ const displaySuccessMessage = (args: { profileName: string }): void => {
 export const registryInstallMain = async (
   args: RegistryInstallArgs,
 ): Promise<RegistryInstallResult> => {
-  const { packageSpec, cwd, installDir, useHomeDir, silent, agent } = args;
+  const { packageSpec, installDir, useHomeDir, silent, agent } = args;
 
   const targetInstallDir = resolveInstallDir({
-    cwd,
     installDir,
     useHomeDir,
   });
@@ -208,7 +205,6 @@ export const registerRegistryInstallCommand = (args: {
         packageSpec,
         useHomeDir: options.user ?? null,
         installDir: globalOpts.installDir || null,
-        cwd: process.cwd(),
         silent: globalOpts.silent || null,
         agent: globalOpts.agent || null,
       });

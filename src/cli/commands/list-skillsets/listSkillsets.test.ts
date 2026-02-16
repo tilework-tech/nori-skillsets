@@ -78,7 +78,6 @@ describe("listSkillsetsMain", () => {
     }
 
     await listSkillsetsMain({
-      installDir: testInstallDir,
       agent: "claude-code",
     });
 
@@ -94,7 +93,6 @@ describe("listSkillsetsMain", () => {
     await fs.mkdir(profilesDir, { recursive: true });
 
     await listSkillsetsMain({
-      installDir: testInstallDir,
       agent: "claude-code",
     });
 
@@ -108,7 +106,6 @@ describe("listSkillsetsMain", () => {
 
   it("should error with exit code 1 when unknown agent is specified", async () => {
     await listSkillsetsMain({
-      installDir: testInstallDir,
       agent: "unknown-agent",
     });
 
@@ -142,7 +139,6 @@ describe("listSkillsetsMain", () => {
     );
 
     await listSkillsetsMain({
-      installDir: testInstallDir,
       agent: null,
     });
 
@@ -162,7 +158,6 @@ describe("listSkillsetsMain", () => {
     );
 
     await listSkillsetsMain({
-      installDir: testInstallDir,
       agent: null,
     });
 
@@ -206,7 +201,6 @@ describe("listSkillsetsMain output format", () => {
     );
 
     await listSkillsetsMain({
-      installDir: testInstallDir,
       agent: "claude-code",
     });
 
@@ -239,20 +233,19 @@ describe("listSkillsetsMain error messages", () => {
     AgentRegistry.resetInstance();
   });
 
-  it("should include install path in no skillsets error message", async () => {
+  it("should show error when no skillsets installed", async () => {
     const testNoriDir = path.join(testInstallDir, ".nori");
     await fs.mkdir(testNoriDir, { recursive: true });
     const profilesDir = path.join(testNoriDir, "profiles");
     await fs.mkdir(profilesDir, { recursive: true });
 
     await listSkillsetsMain({
-      installDir: testInstallDir,
       agent: "claude-code",
     });
 
-    // Error message should include the install path
+    // Error message should mention no skillsets installed
     expect(mockLogError).toHaveBeenCalledWith(
-      expect.stringContaining(testInstallDir),
+      expect.stringContaining("No skillsets installed"),
     );
     expect(mockExit).toHaveBeenCalledWith(1);
   });
@@ -264,7 +257,6 @@ describe("listSkillsetsMain error messages", () => {
     await fs.mkdir(profilesDir, { recursive: true });
 
     await listSkillsetsMain({
-      installDir: testInstallDir,
       agent: "claude-code",
     });
 
@@ -276,7 +268,6 @@ describe("listSkillsetsMain error messages", () => {
 
   it("should list available agents in unknown agent error", async () => {
     await listSkillsetsMain({
-      installDir: testInstallDir,
       agent: "invalid-agent",
     });
 

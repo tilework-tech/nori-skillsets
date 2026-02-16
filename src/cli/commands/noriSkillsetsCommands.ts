@@ -358,7 +358,6 @@ export const registerNoriSkillsetsInstallCommand = (args: {
         packageSpec,
         useHomeDir: options.user ?? null,
         installDir: globalOpts.installDir || null,
-        cwd: process.cwd(),
         silent: globalOpts.silent || null,
         agent: globalOpts.agent || null,
       });
@@ -491,7 +490,6 @@ export const registerNoriSkillsetsListSkillsetsCommand = (args: {
     .action(async () => {
       const globalOpts = program.opts();
       await listSkillsetsMain({
-        installDir: globalOpts.installDir || null,
         agent: globalOpts.agent || null,
       });
     });
@@ -500,7 +498,6 @@ export const registerNoriSkillsetsListSkillsetsCommand = (args: {
   program.command("list-skillsets", { hidden: true }).action(async () => {
     const globalOpts = program.opts();
     await listSkillsetsMain({
-      installDir: globalOpts.installDir || null,
       agent: globalOpts.agent || null,
     });
   });
@@ -509,7 +506,6 @@ export const registerNoriSkillsetsListSkillsetsCommand = (args: {
   program.command("list-skillset", { hidden: true }).action(async () => {
     const globalOpts = program.opts();
     await listSkillsetsMain({
-      installDir: globalOpts.installDir || null,
       agent: globalOpts.agent || null,
     });
   });
@@ -518,7 +514,6 @@ export const registerNoriSkillsetsListSkillsetsCommand = (args: {
   program.command("ls", { hidden: true }).action(async () => {
     const globalOpts = program.opts();
     await listSkillsetsMain({
-      installDir: globalOpts.installDir || null,
       agent: globalOpts.agent || null,
     });
   });

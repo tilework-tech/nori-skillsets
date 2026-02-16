@@ -3,42 +3,25 @@
  * Lists locally available skillsets for programmatic use
  */
 
+import * as os from "os";
+
 import { log } from "@clack/prompts";
 
 import { loadConfig, getInstalledAgents } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { listProfiles } from "@/cli/features/managedFolder.js";
-import { normalizeInstallDir, getInstallDirs } from "@/utils/path.js";
 
 import type { Command } from "commander";
 
 /**
  * Main function for list-skillsets command
  * @param args - Configuration arguments
- * @param args.installDir - Optional custom installation directory
  * @param args.agent - Optional agent name override
  */
 export const listSkillsetsMain = async (args: {
-  installDir?: string | null;
   agent?: string | null;
 }): Promise<void> => {
   const { agent: agentOption } = args;
-
-  // Determine installation directory
-  let installDir: string;
-
-  if (args.installDir != null && args.installDir !== "") {
-    installDir = normalizeInstallDir({ installDir: args.installDir });
-  } else {
-    const installations = getInstallDirs({ currentDir: process.cwd() });
-    if (installations.length === 0) {
-      log.error(
-        "No Nori installation found in current directory or ancestors.",
-      );
-      process.exit(1);
-    }
-    installDir = installations[0];
-  }
 
   // Determine which agent to use
   let agentName: string;
@@ -46,8 +29,8 @@ export const listSkillsetsMain = async (args: {
   if (agentOption != null && agentOption !== "") {
     agentName = agentOption;
   } else {
-    // Auto-detect from config
-    const config = await loadConfig();
+    // Auto-detect from config - use home directory since agent config is global
+    const config = await loadConfig({ startDir: os.homedir() });
     const installedAgents = config ? getInstalledAgents({ config }) : [];
 
     if (installedAgents.length === 0) {
@@ -69,12 +52,11 @@ export const listSkillsetsMain = async (args: {
   }
 
   // Get and output profiles - one per line for easy parsing
+  // Profiles are always loaded from ~/.nori/profiles/
   const profiles = await listProfiles();
 
   if (profiles.length === 0) {
-    log.error(
-      `No skillsets installed for ${agent.displayName} at ${installDir}.`,
-    );
+    log.error(`No skillsets installed for ${agent.displayName}.`);
     process.exit(1);
   }
 
@@ -100,7 +82,6 @@ export const registerListSkillsetsCommand = (args: {
     .action(async () => {
       const globalOpts = program.opts();
       await listSkillsetsMain({
-        installDir: globalOpts.installDir || null,
         agent: globalOpts.agent || null,
       });
     });

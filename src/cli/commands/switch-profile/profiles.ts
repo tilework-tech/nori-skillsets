@@ -3,6 +3,8 @@
  * Handles skillset listing, loading, and switching
  */
 
+import * as os from "os";
+
 import { captureExistingConfigAsProfile } from "@/cli/commands/install/existingConfigCapture.js";
 import {
   loadConfig,
@@ -49,8 +51,8 @@ const resolveAgent = async (args: {
 }): Promise<string> => {
   const { nonInteractive } = args;
 
-  // Load config to check installed agents
-  const config = await loadConfig();
+  // Load config to check installed agents - use home directory for global settings
+  const config = await loadConfig({ startDir: os.homedir() });
   const installedAgents = config ? getInstalledAgents({ config }) : [];
 
   // No agents installed - default to claude-code
@@ -239,8 +241,8 @@ const confirmSwitchProfile = async (args: {
     return true;
   }
 
-  // Load config to get current skillset
-  const config = await loadConfig();
+  // Load config to get current skillset - use home directory for global settings
+  const config = await loadConfig({ startDir: os.homedir() });
   const agentProfile =
     config != null
       ? getAgentProfile({ config, agentName: agentName as ConfigAgentName })
@@ -294,15 +296,22 @@ export const switchSkillsetAction = async (args: {
     // Explicit install dir provided - use it directly
     installDir = normalizeInstallDir({ installDir: globalOpts.installDir });
   } else {
-    // Auto-detect installation
+    // Auto-detect installation from CWD ancestors
     const installations = getInstallDirs({ currentDir: process.cwd() });
-    if (installations.length === 0) {
-      throw new Error(
-        "No Nori installations found in current directory or parent directories. " +
-          "Run 'nori-skillsets init' to create a new installation, or use --install-dir to specify a location.",
-      );
+    if (installations.length > 0) {
+      installDir = installations[0]; // Use closest installation
+    } else {
+      // Fall back to home directory
+      const homeInstallations = getInstallDirs({ currentDir: os.homedir() });
+      if (homeInstallations.length > 0) {
+        installDir = homeInstallations[0];
+      } else {
+        throw new Error(
+          "No Nori installations found in current directory, parent directories, or home directory. " +
+            "Run 'nori-skillsets init' to create a new installation, or use --install-dir to specify a location.",
+        );
+      }
     }
-    installDir = installations[0]; // Use closest installation
   }
 
   // Experimental UI flow (interactive only)
@@ -313,7 +322,7 @@ export const switchSkillsetAction = async (args: {
       agentOverride: options.agent ?? null,
       callbacks: {
         onResolveAgents: async () => {
-          const config = await loadConfig();
+          const config = await loadConfig({ startDir: os.homedir() });
           const installedAgents = config ? getInstalledAgents({ config }) : [];
           if (installedAgents.length === 0) {
             return [{ name: "claude-code", displayName: "Claude Code" }];
@@ -327,7 +336,7 @@ export const switchSkillsetAction = async (args: {
         },
         onPrepareSwitchInfo: async ({ installDir: dir, agentName }) => {
           const localChanges = await detectLocalChanges({ installDir: dir });
-          const config = await loadConfig();
+          const config = await loadConfig({ startDir: os.homedir() });
           let currentProfile: string | null = null;
           if (config != null) {
             const agentProfile = getAgentProfile({
