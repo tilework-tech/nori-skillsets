@@ -313,7 +313,8 @@ export const externalMain = async (args: {
   }
 
   // 3. Load config and resolve target skillset
-  const config = await loadConfig();
+  // Use home directory since config (auth, active profile) is a global setting
+  const config = await loadConfig({ startDir: os.homedir() });
   let targetSkillset: string | null = null;
   const profilesDir = getNoriProfilesDir();
 

@@ -410,15 +410,17 @@ describe("switch-profile getInstallDirs auto-detection", () => {
     );
   });
 
-  it("should error when no installation found in current or ancestor directories", async () => {
+  it("should error when no installation found in current directory, ancestors, or home directory", async () => {
     // Create a directory WITHOUT a Nori installation
     const emptyDir = await fs.mkdtemp(
       path.join(tmpdir(), "switch-profile-empty-test-"),
     );
 
     try {
-      // Change to the empty directory
+      // Change to the empty directory and mock homedir to it
+      // so the home directory fallback also finds no installation
       process.chdir(emptyDir);
+      vi.mocked(os.homedir).mockReturnValue(emptyDir);
 
       const program = new Command();
       program.exitOverride();

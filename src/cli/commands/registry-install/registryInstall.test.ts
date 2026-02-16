@@ -92,21 +92,20 @@ describe("registry-install", () => {
   it("should download profile first, then run install when no existing installation", async () => {
     await registryInstallMain({
       packageSpec: "senior-swe",
-      cwd: "/repo",
     });
 
-    // Step 1: Download profile from registry - should use cwd as destination
+    // Step 1: Download profile from registry - should use home dir as default
     expect(registryDownloadMain).toHaveBeenCalledWith({
       packageSpec: "senior-swe",
-      installDir: "/repo",
+      installDir: "/mock-home",
       registryUrl: null,
       listVersions: null,
     });
 
-    // Step 2: Initial install with the downloaded profile - should use cwd
+    // Step 2: Initial install with the downloaded profile - should use home dir
     expect(installMain).toHaveBeenCalledWith({
       nonInteractive: true,
-      installDir: "/repo",
+      installDir: "/mock-home",
       profile: "senior-swe",
       agent: "claude-code",
       silent: null,
@@ -123,22 +122,21 @@ describe("registry-install", () => {
 
     await registryInstallMain({
       packageSpec: "senior-swe",
-      cwd: "/repo",
     });
 
     expect(hasExistingInstallation).toHaveBeenCalledWith();
 
-    // Step 1: Download profile from registry - should use cwd as destination
+    // Step 1: Download profile from registry - should use home dir as default
     expect(registryDownloadMain).toHaveBeenCalledWith({
       packageSpec: "senior-swe",
-      installDir: "/repo",
+      installDir: "/mock-home",
       registryUrl: null,
       listVersions: null,
     });
 
     // Step 3: Switch to downloaded profile
     expect(mockSwitchProfile).toHaveBeenCalledWith({
-      installDir: "/repo",
+      installDir: "/mock-home",
       profileName: "senior-swe",
     });
 
@@ -146,7 +144,7 @@ describe("registry-install", () => {
     expect(installMain).toHaveBeenCalledTimes(1);
     expect(installMain).toHaveBeenCalledWith({
       nonInteractive: true,
-      installDir: "/repo",
+      installDir: "/mock-home",
       agent: "claude-code",
       silent: true,
     });
@@ -179,19 +177,18 @@ describe("registry-install", () => {
   it("should parse versioned package specs and use the profile name for install", async () => {
     await registryInstallMain({
       packageSpec: "documenter@2.1.0",
-      cwd: "/repo",
     });
 
     expect(registryDownloadMain).toHaveBeenCalledWith({
       packageSpec: "documenter@2.1.0",
-      installDir: "/repo",
+      installDir: "/mock-home",
       registryUrl: null,
       listVersions: null,
     });
 
     expect(installMain).toHaveBeenCalledWith({
       nonInteractive: true,
-      installDir: "/repo",
+      installDir: "/mock-home",
       profile: "documenter",
       agent: "claude-code",
       silent: null,
@@ -203,13 +200,12 @@ describe("registry-install", () => {
 
     const result = await registryInstallMain({
       packageSpec: "nonexistent-profile",
-      cwd: "/repo",
     });
 
-    // Download was attempted - should use cwd as destination
+    // Download was attempted - should use home dir as default
     expect(registryDownloadMain).toHaveBeenCalledWith({
       packageSpec: "nonexistent-profile",
-      installDir: "/repo",
+      installDir: "/mock-home",
       registryUrl: null,
       listVersions: null,
     });
@@ -225,7 +221,6 @@ describe("registry-install", () => {
   it("should display success message when install completes", async () => {
     await registryInstallMain({
       packageSpec: "senior-swe",
-      cwd: "/repo",
     });
 
     // Should display success message with profile name
@@ -243,7 +238,6 @@ describe("registry-install", () => {
 
     await registryInstallMain({
       packageSpec: "nonexistent-profile",
-      cwd: "/repo",
     });
 
     // Should NOT display success message
@@ -260,7 +254,6 @@ describe("registry-install", () => {
 
     const result = await registryInstallMain({
       packageSpec: "senior-swe",
-      cwd: "/repo",
     });
 
     // Should warn about using local profile
@@ -271,9 +264,9 @@ describe("registry-install", () => {
       message: expect.stringContaining("local"),
     });
 
-    // Should still switch profile and complete installation - using cwd
+    // Should still switch profile and complete installation - using home dir
     expect(mockSwitchProfile).toHaveBeenCalledWith({
-      installDir: "/repo",
+      installDir: "/mock-home",
       profileName: "senior-swe",
     });
 
@@ -289,7 +282,6 @@ describe("registry-install", () => {
 
     const result = await registryInstallMain({
       packageSpec: "nonexistent-profile",
-      cwd: "/repo",
     });
 
     // Should NOT switch profile or install
