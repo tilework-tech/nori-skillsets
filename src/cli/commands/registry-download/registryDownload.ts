@@ -40,6 +40,7 @@ import type {
   DownloadSearchResult,
   DownloadActionResult,
 } from "@/cli/prompts/flows/index.js";
+import type { NoriJson } from "@/types/nori.js";
 import type { Command } from "commander";
 
 /**
@@ -48,17 +49,6 @@ import type { Command } from "commander";
 type VersionInfo = {
   version: string;
   registryUrl: string;
-};
-
-/**
- * nori.json manifest format for profiles
- */
-type NoriJson = {
-  name: string;
-  version: string;
-  dependencies?: {
-    skills?: Record<string, string> | null;
-  } | null;
 };
 
 /**

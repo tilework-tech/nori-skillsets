@@ -194,10 +194,7 @@ describe("newSkillsetMain", () => {
       description: "A skillset with full metadata",
       license: "Apache-2.0",
       keywords: ["testing", "automation"],
-      repository: {
-        type: "git",
-        url: "https://github.com/user/repo",
-      },
+      repository: "https://github.com/user/repo",
     });
   });
 
@@ -261,7 +258,7 @@ describe("newSkillsetMain", () => {
     expect(mockOutro).not.toHaveBeenCalled();
   });
 
-  it("should write repository as object with type and url", async () => {
+  it("should write repository as a string", async () => {
     mockNewSkillsetFlow.mockResolvedValueOnce({
       name: "repo-test",
       description: null,
@@ -278,9 +275,6 @@ describe("newSkillsetMain", () => {
       await fs.readFile(path.join(destDir, "nori.json"), "utf-8"),
     );
 
-    expect(noriJson.repository).toEqual({
-      type: "git",
-      url: "https://github.com/example/repo",
-    });
+    expect(noriJson.repository).toBe("https://github.com/example/repo");
   });
 });

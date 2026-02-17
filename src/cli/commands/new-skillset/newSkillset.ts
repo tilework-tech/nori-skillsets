@@ -12,7 +12,7 @@ import { log, note, outro } from "@clack/prompts";
 import { getNoriProfilesDir } from "@/cli/features/claude-code/paths.js";
 import {
   writeProfileMetadata,
-  type ProfileMetadata,
+  type NoriJson,
 } from "@/cli/features/claude-code/profiles/metadata.js";
 import { newSkillsetFlow } from "@/cli/prompts/flows/newSkillset.js";
 
@@ -76,7 +76,7 @@ export const newSkillsetMain = async (): Promise<void> => {
   }
 
   // Build metadata object
-  const metadata: ProfileMetadata = {
+  const metadata: NoriJson = {
     name: path.basename(name),
     version: version ?? "1.0.0",
   };
@@ -94,10 +94,7 @@ export const newSkillsetMain = async (): Promise<void> => {
   }
 
   if (repository != null) {
-    metadata.repository = {
-      type: "git",
-      url: repository,
-    };
+    metadata.repository = repository;
   }
 
   // Create parent directory if needed (for namespaced profiles like org/name)

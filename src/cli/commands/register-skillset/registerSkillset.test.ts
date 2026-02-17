@@ -105,10 +105,7 @@ describe("registerSkillsetMain", () => {
       description: "My existing skillset",
       license: "MIT",
       keywords: ["testing"],
-      repository: {
-        type: "git",
-        url: "https://github.com/user/repo",
-      },
+      repository: "https://github.com/user/repo",
     });
 
     expect(mockOutro).toHaveBeenCalledWith(
