@@ -49,6 +49,7 @@ also intentional.
 | `install-location` | Interactive path uses `log`, `note`, `outro` |
 | `dir` | Interactive path uses `log`, `outro` |
 | `watch` | Interactive delegates to `watchFlow` (clack) |
+| `init` | Interactive uses `initFlow` (clack); non-interactive uses `log`, `note` |
 
 ---
 
@@ -177,11 +178,19 @@ affected files.
 | `registry-install` | `commands/registry-install/registryInstall.ts` | ✅ Migrated |
 | `external` | `commands/external/external.ts` | ✅ Migrated |
 
-### Phase 3 — `init` non-interactive path
+### Phase 3 — `init` non-interactive path ✅ DONE
 
-| Command | File | Logger calls |
-|---------|------|-------------|
-| `init` (non-interactive) | `commands/init/init.ts` | `warn`, `info`, `newline`, `success` |
+Completed on the `feat/migrate-loggers` branch. The ancestor installation
+warning block (previously scattered `warn()` / `info()` / `newline()` calls)
+was consolidated into a single `note()` call with a `"Warning"` title and
+colored content using `yellow()` and `bold()` from `@/cli/logger.js` color
+helpers. The `success()` call for config capture was replaced with
+`log.success()`. A new `yellow()` color helper was added to `logger.ts`.
+Tests updated to assert on `clack.note` and `clack.log.success`.
+
+| Command | File | Status |
+|---------|------|--------|
+| `init` (non-interactive) | `commands/init/init.ts` | ✅ Migrated |
 
 ### Phase 4 — `install` command and ASCII art
 

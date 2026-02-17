@@ -3,6 +3,7 @@ import * as fsPromises from "fs/promises";
 import * as os from "os";
 import * as path from "path";
 
+import * as clack from "@clack/prompts";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 import { getConfigPath } from "@/cli/config.js";
@@ -55,6 +56,47 @@ vi.mock("@/cli/version.js", async (importOriginal) => {
     getCurrentPackageVersion: vi.fn().mockReturnValue("20.0.0"),
   };
 });
+
+// Mock @clack/prompts for output assertions
+vi.mock("@clack/prompts", () => ({
+  log: {
+    error: vi.fn(),
+    warn: vi.fn(),
+    info: vi.fn(),
+    success: vi.fn(),
+    step: vi.fn(),
+    message: vi.fn(),
+  },
+  note: vi.fn(),
+  intro: vi.fn(),
+  outro: vi.fn(),
+  spinner: vi.fn(() => ({
+    start: vi.fn(),
+    stop: vi.fn(),
+    message: "",
+  })),
+  confirm: vi.fn(),
+  text: vi.fn(),
+  select: vi.fn(),
+  isCancel: vi.fn(),
+}));
+
+// Mock logger — suppress transitive logger output, color helpers passthrough
+vi.mock("@/cli/logger.js", () => ({
+  debug: vi.fn(),
+  setSilentMode: vi.fn(),
+  isSilentMode: vi.fn(),
+  // Legacy UI functions — not used by init.ts but needed by transitive deps
+  error: vi.fn(),
+  warn: vi.fn(),
+  info: vi.fn(),
+  success: vi.fn(),
+  newline: vi.fn(),
+  raw: vi.fn(),
+  // Color helpers — passthrough for readable assertions
+  bold: (args: { text: string }) => args.text,
+  yellow: (args: { text: string }) => args.text,
+}));
 
 // Mock analytics to prevent tracking during tests
 vi.mock("@/cli/analytics.js", () => ({
@@ -247,6 +289,11 @@ describe("init command", () => {
       const updatedClaudeMd = fs.readFileSync(claudeMdPath, "utf-8");
       expect(updatedClaudeMd).toContain("# BEGIN NORI-AI MANAGED BLOCK");
       expect(updatedClaudeMd).toContain("# END NORI-AI MANAGED BLOCK");
+
+      // Verify success message was shown via clack
+      expect(clack.log.success).toHaveBeenCalledWith(
+        expect.stringContaining("my-profile"),
+      );
     });
 
     it("should not produce double-nested managed block markers when capturing existing config", async () => {
@@ -303,7 +350,7 @@ describe("init command", () => {
       ).toBe(true);
     });
 
-    it("should warn about ancestor managed installations", async () => {
+    it("should warn about ancestor managed installations via clack note", async () => {
       // Create parent directory with a managed nori installation
       const parentDir = path.join(tempDir, "parent");
       const childDir = path.join(parentDir, "child");
@@ -317,31 +364,29 @@ describe("init command", () => {
         "# BEGIN NORI-AI MANAGED BLOCK\nsome content\n# END NORI-AI MANAGED BLOCK",
       );
 
-      // Capture console output
-      const consoleOutput: Array<string> = [];
-      const originalConsoleLog = console.log;
-      console.log = (...args: Array<unknown>) => {
-        consoleOutput.push(args.map(String).join(" "));
-      };
+      // Run init in child directory
+      await initMain({
+        installDir: path.join(childDir, ".claude"),
+        nonInteractive: true,
+      });
 
-      try {
-        // Run init in child directory
-        await initMain({
-          installDir: path.join(childDir, ".claude"),
-          nonInteractive: true,
-        });
+      // Verify note was called with warning content
+      expect(clack.note).toHaveBeenCalledTimes(1);
+      const noteContent = vi.mocked(clack.note).mock.calls[0][0];
+      const noteTitle = vi.mocked(clack.note).mock.calls[0][1];
 
-        // Verify warning was displayed
-        const hasAncestorWarning = consoleOutput.some(
-          (line) => line.includes("⚠️") && line.includes("ancestor"),
-        );
-        expect(hasAncestorWarning).toBe(true);
-      } finally {
-        console.log = originalConsoleLog;
-      }
+      // Title should be "Warning"
+      expect(noteTitle).toBe("Warning");
+
+      // Content should mention the ancestor path
+      expect(noteContent).toContain(parentDir);
+
+      // Content should explain the issue and provide guidance
+      expect(noteContent).toContain("duplicate");
+      expect(noteContent).toContain("conflicting");
     });
 
-    it("should not warn about source-only ancestor installations", async () => {
+    it("should not show ancestor warning note for source-only installations", async () => {
       // Create parent directory with only a source installation (no managed CLAUDE.md)
       const parentDir = path.join(tempDir, "parent");
       const childDir = path.join(parentDir, "child");
@@ -353,28 +398,14 @@ describe("init command", () => {
         JSON.stringify({ version: "19.0.0" }),
       );
 
-      // Capture console output
-      const consoleOutput: Array<string> = [];
-      const originalConsoleLog = console.log;
-      console.log = (...args: Array<unknown>) => {
-        consoleOutput.push(args.map(String).join(" "));
-      };
+      // Run init in child directory
+      await initMain({
+        installDir: path.join(childDir, ".claude"),
+        nonInteractive: true,
+      });
 
-      try {
-        // Run init in child directory
-        await initMain({
-          installDir: path.join(childDir, ".claude"),
-          nonInteractive: true,
-        });
-
-        // Verify NO ancestor warning was displayed
-        const hasAncestorWarning = consoleOutput.some(
-          (line) => line.includes("⚠️") && line.includes("ancestor"),
-        );
-        expect(hasAncestorWarning).toBe(false);
-      } finally {
-        console.log = originalConsoleLog;
-      }
+      // Verify note was NOT called
+      expect(clack.note).not.toHaveBeenCalled();
     });
   });
 
