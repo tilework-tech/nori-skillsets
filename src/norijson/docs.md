@@ -33,13 +33,14 @@ Path: @/src/norijson
 
 The type includes an index signature (`[key: string]: unknown`) to allow additional fields without breaking type checks.
 
-**NoriJsonDependencies** (@/src/norijson/nori.ts): The dependencies section maps dependency names to semver version ranges. Supports `skills`, `subagents`, and `slashCommands` (the latter two are reserved for future use).
+**NoriJsonDependencies** (@/src/norijson/nori.ts): The dependencies section maps dependency names to version specifiers. `skills` maps skill names to version range strings (e.g., `"*"`, `"^1.0.0"`). `subagents` and `slashCommands` are reserved for future use.
 
 **Skillset content types** (@/src/norijson/skillset.ts): `SkillsetSkill`, `SkillsetSubagent`, and `SkillsetSlashCommand` represent content discovered from a skillset directory structure. These are used as top-level array fields in `NoriJson` when publishing to the registry.
 
 ### Things to Know
 
 - The `NoriJson` type serves dual purpose: it describes both skillset manifests (which have `skills`, `subagents`, `slashcommands`) and individual skill manifests (which have `scripts`). Both share the same type with optional fields.
+- `dependencies.skills` values are plain version strings (e.g., `"*"`, `"^1.0.0"`). Provenance for externally-installed skills is tracked via the top-level `repository` field on the skillset's nori.json.
 - The `repository` field is a plain string URL, not a `{ type, url }` object. This matches the registrar's canonical format.
 - All optional fields accept `null` in addition to `undefined`, following the codebase convention.
 

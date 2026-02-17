@@ -3,6 +3,7 @@
  */
 
 import { execFileSync } from "child_process";
+import * as fsSync from "fs";
 import * as fs from "fs/promises";
 import { tmpdir } from "os";
 import * as path from "path";
@@ -41,9 +42,7 @@ vi.mock("@/cli/config.js", async () => {
 });
 
 // Capture console output
-const mockConsoleLog = vi
-  .spyOn(console, "log")
-  .mockImplementation(() => undefined);
+vi.spyOn(console, "log").mockImplementation(() => undefined);
 const mockConsoleError = vi
   .spyOn(console, "error")
   .mockImplementation(() => undefined);
@@ -178,30 +177,44 @@ describe("externalMain", () => {
     expect(allErrorOutput.length).toBeGreaterThan(0);
   });
 
-  it("should write nori.json with source info in installed skill directory", async () => {
-    // This test verifies the nori.json provenance file is created
-    // We need to test with the actual install flow, so we'll mock at the git level
+  it("should not create nori.json inside installed skill directory", async () => {
     vi.mocked(loadConfig).mockResolvedValue({
       installDir: testDir,
     });
 
-    // The actual assertion will be that the installed skill dir contains nori.json
-    // with the source URL. We'll verify this once the GREEN implementation is done.
-    // For now, we verify the function handles the case.
+    // Mock execFileSync to simulate a successful clone with a skill
+    vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
+      const gitArgs = args as Array<string>;
+      const destDir = gitArgs[gitArgs.length - 1];
+
+      const skillDir = path.join(destDir, "skills", "test-skill");
+      fsSync.mkdirSync(skillDir, { recursive: true });
+      fsSync.writeFileSync(
+        path.join(skillDir, "SKILL.md"),
+        "---\nname: Test Skill\ndescription: A test skill\n---\n\n# Test Skill\n",
+      );
+
+      return Buffer.from("");
+    });
+
     await externalMain({
       source: "owner/repo",
       installDir: testDir,
       all: true,
     });
 
-    // Will assert nori.json contents once implementation exists
-    const allOutput = [
-      ...mockConsoleLog.mock.calls,
-      ...mockConsoleError.mock.calls,
-    ]
-      .map((call) => call.join(" "))
-      .join("\n");
-    expect(allOutput.length).toBeGreaterThan(0);
+    const installedSkillDir = path.join(skillsDir, "test-skill");
+    // Verify skill was installed
+    const skillMd = await fs.readFile(
+      path.join(installedSkillDir, "SKILL.md"),
+      "utf-8",
+    );
+    expect(skillMd).toContain("Test Skill");
+
+    // Verify no nori.json was created inside the skill directory
+    await expect(
+      fs.access(path.join(installedSkillDir, "nori.json")),
+    ).rejects.toThrow();
   });
 });
 

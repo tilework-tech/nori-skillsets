@@ -34,10 +34,15 @@ Markdown files use template placeholders like `{{skills_dir}}`, `{{profiles_dir}
   "keywords": ["cli", "automation", "skills"],
   "repository": "https://github.com/user/repo",
   "dependencies": {
-    "skills": { "skill-name": "*" }
+    "skills": {
+      "skill-name": "*",
+      "external-skill": "*"
+    }
   }
 }
 ```
+
+Skill dependency values are version strings (e.g., `"*"`, `"^1.0.0"`). The `addSkillToNoriJson()` function in @/src/cli/features/claude-code/profiles/metadata.ts adds or updates skill entries in `dependencies.skills`. When skills are installed from an external GitHub repository, the source URL is stored in the top-level `repository` field rather than per-skill dependency entries.
 
 All fields except `name` are optional. The `license` field follows SPDX license identifiers (e.g., "MIT", "Apache-2.0"). The `keywords` field is an array of strings for registry discoverability. The `repository` field is a plain URL string. The `NoriJson` type also supports richer fields like `author`, `skills`, `subagents`, `slashcommands`, `scripts`, and `registryURL` (see @/src/types/nori.ts), plus an index signature for extensibility.
 
