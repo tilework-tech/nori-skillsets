@@ -58,6 +58,7 @@ export type UploadFlowCallbacks = {
   onDetermineVersion: () => Promise<DetermineVersionResult>;
   onUpload: (args: {
     resolutionStrategy?: SkillResolutionStrategy | null;
+    inlineSkillIds?: Array<string> | null;
   }) => Promise<UploadResult>;
 };
 
@@ -70,6 +71,7 @@ export type UploadFlowResult = {
   linkedSkillIds: Set<string>;
   namespacedSkillIds: Set<string>;
   skippedSkillIds: Set<string>;
+  inlineSkillIds?: Array<string> | null;
 } | null;
 
 /**
@@ -475,12 +477,109 @@ const resolveAllConflictsSameWay = async (args: {
 };
 
 /**
+ * Resolve inline skill candidates one at a time
+ *
+ * @param args - The function arguments
+ * @param args.candidates - Array of skill IDs without nori.json
+ * @param args.cancelMessage - Message to display on cancel
+ *
+ * @returns Array of skill IDs to keep inline, or null if cancelled
+ */
+const resolveInlineSkillsInFlow = async (args: {
+  candidates: Array<string>;
+  cancelMessage: string;
+}): Promise<Array<string> | null> => {
+  const { candidates, cancelMessage } = args;
+  const inlineSkillIds: Array<string> = [];
+
+  for (let i = 0; i < candidates.length; i++) {
+    const candidate = candidates[i];
+    const parts: Array<string> = [];
+
+    if (candidates.length > 1) {
+      parts.push(`[${i + 1}/${candidates.length}]`);
+    }
+
+    parts.push(`"${candidate}" has no nori.json. Keep inline?`);
+
+    const action = unwrapPrompt({
+      value: await select({
+        message: parts.join(" "),
+        options: [
+          {
+            value: "inline" as const,
+            label: "Keep inline",
+            hint: "Skill stays bundled in the skillset tarball",
+          },
+          {
+            value: "extract" as const,
+            label: "Extract as package",
+            hint: "Publish as an independent skill package",
+          },
+        ],
+        initialValue: "inline" as const,
+      }),
+      cancelMessage,
+    });
+
+    if (action == null) return null;
+
+    if (action === "inline") {
+      inlineSkillIds.push(candidate);
+    }
+  }
+
+  return inlineSkillIds;
+};
+
+/**
+ * Resolve all inline skill candidates with a single choice
+ *
+ * @param args - The function arguments
+ * @param args.candidates - Array of skill IDs without nori.json
+ * @param args.cancelMessage - Message to display on cancel
+ *
+ * @returns Array of skill IDs to keep inline, or null if cancelled
+ */
+const resolveAllInlineSkillsSameWay = async (args: {
+  candidates: Array<string>;
+  cancelMessage: string;
+}): Promise<Array<string> | null> => {
+  const { candidates, cancelMessage } = args;
+
+  const action = unwrapPrompt({
+    value: await select({
+      message: "Keep all skills without nori.json inline?",
+      options: [
+        {
+          value: "inline" as const,
+          label: "Keep all inline",
+          hint: "Skills stay bundled in the skillset tarball",
+        },
+        {
+          value: "extract" as const,
+          label: "Extract all as packages",
+          hint: "Publish each as an independent skill package",
+        },
+      ],
+      initialValue: "inline" as const,
+    }),
+    cancelMessage,
+  });
+
+  if (action == null) return null;
+
+  return action === "inline" ? [...candidates] : [];
+};
+
+/**
  * Format skill summary for display in a note
  * @param args - The function arguments
  * @param args.extractedSkills - Skills extracted during upload
  * @param args.linkedSkillIds - Set of skill IDs that were linked
  * @param args.namespacedSkillIds - Set of skill IDs that were namespaced
  * @param args.skippedSkillIds - Set of skill IDs that were skipped
+ * @param args.inlineSkillIds - Skill IDs kept inline in the tarball
  *
  * @returns Formatted skill summary string or null if no skills
  */
@@ -489,21 +588,26 @@ const formatSkillSummaryForNote = (args: {
   linkedSkillIds: Set<string>;
   namespacedSkillIds: Set<string>;
   skippedSkillIds: Set<string>;
+  inlineSkillIds?: Array<string> | null;
 }): string | null => {
   const {
     extractedSkills,
     linkedSkillIds,
     namespacedSkillIds,
     skippedSkillIds,
+    inlineSkillIds,
   } = args;
 
-  if (extractedSkills == null) {
+  const hasInlineSkills = inlineSkillIds != null && inlineSkillIds.length > 0;
+
+  if (extractedSkills == null && !hasInlineSkills) {
     return null;
   }
 
-  const { succeeded, failed } = extractedSkills;
+  const succeeded = extractedSkills?.succeeded ?? [];
+  const failed = extractedSkills?.failed ?? [];
 
-  if (succeeded.length === 0 && failed.length === 0) {
+  if (succeeded.length === 0 && failed.length === 0 && !hasInlineSkills) {
     return null;
   }
 
@@ -548,6 +652,13 @@ const formatSkillSummaryForNote = (args: {
     lines.push("  Skipped:");
     for (const skill of skippedSkills) {
       lines.push(`    - ${skill.name}@${skill.version}`);
+    }
+  }
+
+  if (hasInlineSkills && inlineSkillIds != null) {
+    lines.push("  Inlined:");
+    for (const skillId of inlineSkillIds) {
+      lines.push(`    - ${skillId}`);
     }
   }
 
@@ -633,6 +744,7 @@ const hasConflicts = (
  * @param args.registryUrl - The target registry URL
  * @param args.callbacks - Callback functions for version determination and upload
  * @param args.nonInteractive - If true, don't prompt for conflict resolution
+ * @param args.inlineCandidates - Skill IDs without nori.json that need inline/extract decision
  *
  * @returns Upload result on success, null on failure or cancellation
  */
@@ -642,6 +754,7 @@ export const uploadFlow = async (args: {
   registryUrl: string;
   callbacks: UploadFlowCallbacks;
   nonInteractive?: boolean | null;
+  inlineCandidates?: Array<string> | null;
 }): Promise<UploadFlowResult> => {
   const {
     profileDisplayName,
@@ -649,6 +762,7 @@ export const uploadFlow = async (args: {
     registryUrl,
     callbacks,
     nonInteractive,
+    inlineCandidates,
   } = args;
   const cancelMsg = "Upload cancelled.";
 
@@ -660,6 +774,64 @@ export const uploadFlow = async (args: {
   // Show intro first
   intro(`Upload ${profileDisplayName} to ${registryUrl}`);
 
+  // Resolve inline skill candidates before upload
+  let inlineSkillIds: Array<string> | undefined;
+  const hasCandidates = inlineCandidates != null && inlineCandidates.length > 0;
+
+  if (hasCandidates && !nonInteractive) {
+    let resolvedInlineSkills: Array<string> | null = null;
+
+    if (inlineCandidates.length > 1) {
+      const batchChoice = unwrapPrompt({
+        value: await select({
+          message: `Found ${inlineCandidates.length} skill(s) without nori.json. How would you like to handle them?`,
+          options: [
+            {
+              value: "all-same" as const,
+              label: "Resolve all the same way",
+              hint: "Apply a single choice to all skills",
+            },
+            {
+              value: "one-by-one" as const,
+              label: "Choose one-by-one",
+              hint: "Decide for each skill individually",
+            },
+          ],
+        }),
+        cancelMessage: cancelMsg,
+      });
+
+      if (batchChoice == null) {
+        return null;
+      }
+
+      if (batchChoice === "all-same") {
+        resolvedInlineSkills = await resolveAllInlineSkillsSameWay({
+          candidates: inlineCandidates,
+          cancelMessage: cancelMsg,
+        });
+      } else {
+        resolvedInlineSkills = await resolveInlineSkillsInFlow({
+          candidates: inlineCandidates,
+          cancelMessage: cancelMsg,
+        });
+      }
+    } else {
+      resolvedInlineSkills = await resolveInlineSkillsInFlow({
+        candidates: inlineCandidates,
+        cancelMessage: cancelMsg,
+      });
+    }
+
+    if (resolvedInlineSkills == null) {
+      return null;
+    }
+
+    if (resolvedInlineSkills.length > 0) {
+      inlineSkillIds = resolvedInlineSkills;
+    }
+  }
+
   // Determine version and upload with a single spinner
   const uploadSpinner = spinner();
   uploadSpinner.start("Preparing upload...");
@@ -668,7 +840,9 @@ export const uploadFlow = async (args: {
 
   uploadSpinner.message("Uploading...");
 
-  let result = await callbacks.onUpload({});
+  let result = await callbacks.onUpload({
+    inlineSkillIds,
+  });
 
   // Step 3: Handle conflicts if any
   if (hasConflicts(result)) {
@@ -688,7 +862,10 @@ export const uploadFlow = async (args: {
         `Auto-resolving ${Object.keys(autoStrategy).length} unchanged skill(s)...`,
       );
 
-      result = await callbacks.onUpload({ resolutionStrategy: autoStrategy });
+      result = await callbacks.onUpload({
+        resolutionStrategy: autoStrategy,
+        inlineSkillIds,
+      });
     } else if (nonInteractive) {
       // Non-interactive mode with unresolved conflicts
       uploadSpinner.stop("Upload blocked");
@@ -785,6 +962,7 @@ export const uploadFlow = async (args: {
       uploadSpinner.start("Uploading with resolutions...");
       result = await callbacks.onUpload({
         resolutionStrategy: combinedStrategy,
+        inlineSkillIds,
       });
     }
   }
@@ -809,6 +987,7 @@ export const uploadFlow = async (args: {
     linkedSkillIds,
     namespacedSkillIds,
     skippedSkillIds,
+    inlineSkillIds,
   });
 
   const summaryLines: Array<string> = [];
@@ -832,5 +1011,6 @@ export const uploadFlow = async (args: {
     linkedSkillIds,
     namespacedSkillIds,
     skippedSkillIds,
+    inlineSkillIds,
   };
 };
