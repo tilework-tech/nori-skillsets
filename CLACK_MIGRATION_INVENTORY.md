@@ -54,20 +54,21 @@ also intentional.
 
 ## What Still Needs Migration
 
-### Phase 1 — Pre-flow validation errors (drop-in swaps)
+### Phase 1 — Pre-flow validation errors (drop-in swaps) ✅ DONE
 
-Simple `error()` / `warn()` / `info()` from `@/cli/logger.js` replaced
-with `log.error()` / `log.warn()` / `log.info()` from `@clack/prompts`.
+Completed in commit `5d1656b`. All `error()` / `warn()` / `info()` calls
+from `@/cli/logger.js` replaced with `log.error()` / `log.warn()` /
+`log.info()` from `@clack/prompts`. Tests updated in all affected files.
 
-| Command | File | Logger calls to replace |
-|---------|------|------------------------|
-| `login` | `commands/login/login.ts` | `error()`, `warn()` from logger; one `console.error()` |
-| `download` | `commands/registry-download/registryDownload.ts` | `error()`, `info()` from logger |
-| `upload` | `commands/registry-upload/registryUpload.ts` | `error()`, `info()` from logger (including dry-run) |
-| `search` | `commands/registry-search/registrySearch.ts` | `error()` from logger |
-| `download-skill` | `commands/skill-download/skillDownload.ts` | `error()` from logger |
-| `switch` | `commands/switch-profile/profiles.ts` | `error()` from logger + `setSilentMode` |
-| `factory-reset` | `commands/factory-reset/factoryReset.ts` | `error()` from logger |
+| Command | File | Status |
+|---------|------|--------|
+| `login` | `commands/login/login.ts` | ✅ Migrated |
+| `download` | `commands/registry-download/registryDownload.ts` | ✅ Migrated |
+| `upload` | `commands/registry-upload/registryUpload.ts` | ✅ Migrated |
+| `search` | `commands/registry-search/registrySearch.ts` | ✅ Migrated |
+| `download-skill` | `commands/skill-download/skillDownload.ts` | ✅ Migrated |
+| `switch` | `commands/switch-profile/profiles.ts` | ✅ Migrated |
+| `factory-reset` | `commands/factory-reset/factoryReset.ts` | ✅ Migrated |
 
 ### Phase 2 — Medium commands with scattered logger usage
 
