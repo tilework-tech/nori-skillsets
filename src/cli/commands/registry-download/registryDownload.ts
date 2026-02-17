@@ -40,7 +40,7 @@ import type {
   DownloadSearchResult,
   DownloadActionResult,
 } from "@/cli/prompts/flows/index.js";
-import type { NoriJson } from "@/types/nori.js";
+import type { NoriJson } from "@/norijson/nori.js";
 import type { Command } from "commander";
 
 /**

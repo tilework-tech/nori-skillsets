@@ -8,7 +8,7 @@ import type {
   SkillsetSkill,
   SkillsetSubagent,
   SkillsetSlashCommand,
-} from "@/types/skillset.js";
+} from "@/norijson/skillset.js";
 
 /**
  * Dependencies section of nori.json

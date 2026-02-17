@@ -10,11 +10,10 @@ import * as path from "path";
 import { log, note, outro } from "@clack/prompts";
 
 import { getNoriProfilesDir } from "@/cli/features/claude-code/paths.js";
-import {
-  writeProfileMetadata,
-  type NoriJson,
-} from "@/cli/features/claude-code/profiles/metadata.js";
+import { writeProfileMetadata } from "@/cli/features/claude-code/profiles/metadata.js";
 import { registerSkillsetFlow } from "@/cli/prompts/flows/registerSkillset.js";
+
+import type { NoriJson } from "@/norijson/nori.js";
 
 /**
  * Main function for register-skillset command

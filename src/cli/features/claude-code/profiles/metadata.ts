@@ -5,9 +5,7 @@
 import * as fs from "fs/promises";
 import * as path from "path";
 
-import type { NoriJson } from "@/types/nori.js";
-
-export type { NoriJson } from "@/types/nori.js";
+import type { NoriJson } from "@/norijson/nori.js";
 
 /**
  * Read and parse profile metadata from a profile directory

@@ -1,6 +1,6 @@
-# Noridoc: types
+# Noridoc: norijson
 
-Path: @/src/types
+Path: @/src/norijson
 
 ### Overview
 
@@ -9,13 +9,13 @@ Path: @/src/types
 
 ### How it fits into the larger codebase
 
-- `NoriJson` (@/src/types/nori.ts) is the single source of truth for the nori.json manifest shape. It is re-exported by @/src/cli/features/claude-code/profiles/metadata.ts for use by CLI commands that create or read nori.json files (e.g., `new-skillset`, `register-skillset`, `registry-download`)
-- `SkillsetSkill`, `SkillsetSubagent`, `SkillsetSlashCommand` (@/src/types/skillset.ts) define the inlined content types that appear as fields within `NoriJson`. These represent content discovered from a skillset directory (skill directories, subagent .md files, slash command .md files)
+- `NoriJson` (@/src/norijson/nori.ts) is the single source of truth for the nori.json manifest shape, imported directly by CLI commands that create or read nori.json files (e.g., `new-skillset`, `register-skillset`, `registry-download`)
+- `SkillsetSkill`, `SkillsetSubagent`, `SkillsetSlashCommand` (@/src/norijson/skillset.ts) define the inlined content types that appear as fields within `NoriJson`. These represent content discovered from a skillset directory (skill directories, subagent .md files, slash command .md files)
 - The `NoriJson` type is aligned with the canonical definition in the nori-registrar repository to prevent type drift between the two codebases
 
 ### Core Implementation
 
-**NoriJson** (@/src/types/nori.ts): The unified manifest type for both skillsets and skills. Required fields are `name` and `version`. Optional fields include:
+**NoriJson** (@/src/norijson/nori.ts): The unified manifest type for both skillsets and skills. Required fields are `name` and `version`. Optional fields include:
 
 | Field | Type | Purpose |
 |-------|------|---------|
@@ -33,9 +33,9 @@ Path: @/src/types
 
 The type includes an index signature (`[key: string]: unknown`) to allow additional fields without breaking type checks.
 
-**NoriJsonDependencies** (@/src/types/nori.ts): The dependencies section maps dependency names to semver version ranges. Supports `skills`, `subagents`, and `slashCommands` (the latter two are reserved for future use).
+**NoriJsonDependencies** (@/src/norijson/nori.ts): The dependencies section maps dependency names to semver version ranges. Supports `skills`, `subagents`, and `slashCommands` (the latter two are reserved for future use).
 
-**Skillset content types** (@/src/types/skillset.ts): `SkillsetSkill`, `SkillsetSubagent`, and `SkillsetSlashCommand` represent content discovered from a skillset directory structure. These are used as top-level array fields in `NoriJson` when publishing to the registry.
+**Skillset content types** (@/src/norijson/skillset.ts): `SkillsetSkill`, `SkillsetSubagent`, and `SkillsetSlashCommand` represent content discovered from a skillset directory structure. These are used as top-level array fields in `NoriJson` when publishing to the registry.
 
 ### Things to Know
 
