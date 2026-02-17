@@ -2,7 +2,7 @@
  * ASCII art utilities for installer branding
  */
 
-import { newline, raw } from "@/cli/logger.js";
+import { log } from "@clack/prompts";
 
 // ANSI color codes
 const BLUE = "\x1b[0;34m";
@@ -18,26 +18,14 @@ export const displayNoriBanner = (args?: { color?: string | null }): void => {
   const colorPrefix = color ?? "";
   const colorSuffix = color ? NC : "";
 
-  newline();
-  raw({
-    message: `${colorPrefix}███╗   ██╗ ██████╗ ██████╗ ██╗${colorSuffix}`,
-  });
-  raw({
-    message: `${colorPrefix}████╗  ██║██╔═══██╗██╔══██╗██║${colorSuffix}`,
-  });
-  raw({
-    message: `${colorPrefix}██╔██╗ ██║██║   ██║██████╔╝██║${colorSuffix}`,
-  });
-  raw({
-    message: `${colorPrefix}██║╚██╗██║██║   ██║██╔══██╗██║${colorSuffix}`,
-  });
-  raw({
-    message: `${colorPrefix}██║ ╚████║╚██████╔╝██║  ██║██║${colorSuffix}`,
-  });
-  raw({
-    message: `${colorPrefix}╚═╝  ╚═══╝ ╚═════╝ ╚═╝  ╚═╝╚═╝${colorSuffix}`,
-  });
-  newline();
+  log.message("");
+  log.message(`${colorPrefix}███╗   ██╗ ██████╗ ██████╗ ██╗${colorSuffix}`);
+  log.message(`${colorPrefix}████╗  ██║██╔═══██╗██╔══██╗██║${colorSuffix}`);
+  log.message(`${colorPrefix}██╔██╗ ██║██║   ██║██████╔╝██║${colorSuffix}`);
+  log.message(`${colorPrefix}██║╚██╗██║██║   ██║██╔══██╗██║${colorSuffix}`);
+  log.message(`${colorPrefix}██║ ╚████║╚██████╔╝██║  ██║██║${colorSuffix}`);
+  log.message(`${colorPrefix}╚═╝  ╚═══╝ ╚═════╝ ╚═╝  ╚═╝╚═╝${colorSuffix}`);
+  log.message("");
 };
 
 /**
@@ -53,45 +41,45 @@ export const displayWelcomeBanner = (args?: {
   const colorPrefix = color ?? "";
   const colorSuffix = color ? NC : "";
 
-  newline();
-  raw({
-    message: `${colorPrefix}██╗    ██╗███████╗██╗      ██████╗ ██████╗ ███╗   ███╗███████╗${colorSuffix}`,
-  });
-  raw({
-    message: `${colorPrefix}██║    ██║██╔════╝██║     ██╔════╝██╔═══██╗████╗ ████║██╔════╝${colorSuffix}`,
-  });
-  raw({
-    message: `${colorPrefix}██║ █╗ ██║█████╗  ██║     ██║     ██║   ██║██╔████╔██║█████╗  ${colorSuffix}`,
-  });
-  raw({
-    message: `${colorPrefix}██║███╗██║██╔══╝  ██║     ██║     ██║   ██║██║╚██╔╝██║██╔══╝  ${colorSuffix}`,
-  });
-  raw({
-    message: `${colorPrefix}╚███╔███╔╝███████╗███████╗╚██████╗╚██████╔╝██║ ╚═╝ ██║███████╗${colorSuffix}`,
-  });
-  raw({
-    message: `${colorPrefix} ╚══╝╚══╝ ╚══════╝╚══════╝ ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚══════╝${colorSuffix}`,
-  });
-  newline();
-  raw({
-    message: `${colorPrefix}████████╗ ██████╗     ███╗   ██╗ ██████╗ ██████╗ ██╗${colorSuffix}`,
-  });
-  raw({
-    message: `${colorPrefix}╚══██╔══╝██╔═══██╗    ████╗  ██║██╔═══██╗██╔══██╗██║${colorSuffix}`,
-  });
-  raw({
-    message: `${colorPrefix}   ██║   ██║   ██║    ██╔██╗ ██║██║   ██║██████╔╝██║${colorSuffix}`,
-  });
-  raw({
-    message: `${colorPrefix}   ██║   ██║   ██║    ██║╚██╗██║██║   ██║██╔══██╗██║${colorSuffix}`,
-  });
-  raw({
-    message: `${colorPrefix}   ██║   ╚██████╔╝    ██║ ╚████║╚██████╔╝██║  ██║██║${colorSuffix}`,
-  });
-  raw({
-    message: `${colorPrefix}   ╚═╝    ╚═════╝     ╚═╝  ╚═══╝ ╚═════╝ ╚═╝  ╚═╝╚═╝${colorSuffix}`,
-  });
-  newline();
+  log.message("");
+  log.message(
+    `${colorPrefix}██╗    ██╗███████╗██╗      ██████╗ ██████╗ ███╗   ███╗███████╗${colorSuffix}`,
+  );
+  log.message(
+    `${colorPrefix}██║    ██║██╔════╝██║     ██╔════╝██╔═══██╗████╗ ████║██╔════╝${colorSuffix}`,
+  );
+  log.message(
+    `${colorPrefix}██║ █╗ ██║█████╗  ██║     ██║     ██║   ██║██╔████╔██║█████╗  ${colorSuffix}`,
+  );
+  log.message(
+    `${colorPrefix}██║███╗██║██╔══╝  ██║     ██║     ██║   ██║██║╚██╔╝██║██╔══╝  ${colorSuffix}`,
+  );
+  log.message(
+    `${colorPrefix}╚███╔███╔╝███████╗███████╗╚██████╗╚██████╔╝██║ ╚═╝ ██║███████╗${colorSuffix}`,
+  );
+  log.message(
+    `${colorPrefix} ╚══╝╚══╝ ╚══════╝╚══════╝ ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚══════╝${colorSuffix}`,
+  );
+  log.message("");
+  log.message(
+    `${colorPrefix}████████╗ ██████╗     ███╗   ██╗ ██████╗ ██████╗ ██╗${colorSuffix}`,
+  );
+  log.message(
+    `${colorPrefix}╚══██╔══╝██╔═══██╗    ████╗  ██║██╔═══██╗██╔══██╗██║${colorSuffix}`,
+  );
+  log.message(
+    `${colorPrefix}   ██║   ██║   ██║    ██╔██╗ ██║██║   ██║██████╔╝██║${colorSuffix}`,
+  );
+  log.message(
+    `${colorPrefix}   ██║   ██║   ██║    ██║╚██╗██║██║   ██║██╔══██╗██║${colorSuffix}`,
+  );
+  log.message(
+    `${colorPrefix}   ██║   ╚██████╔╝    ██║ ╚████║╚██████╔╝██║  ██║██║${colorSuffix}`,
+  );
+  log.message(
+    `${colorPrefix}   ╚═╝    ╚═════╝     ╚═╝  ╚═══╝ ╚═════╝ ╚═╝  ╚═╝╚═╝${colorSuffix}`,
+  );
+  log.message("");
 };
 
 /**
@@ -120,8 +108,8 @@ export const displaySeaweedBed = (args?: { color?: string | null }): void => {
     const seaweedLine = pattern.repeat(
       Math.ceil(terminalWidth / pattern.length),
     );
-    raw({
-      message: `${colorPrefix}${seaweedLine.substring(0, terminalWidth)}${colorSuffix}`,
-    });
+    log.message(
+      `${colorPrefix}${seaweedLine.substring(0, terminalWidth)}${colorSuffix}`,
+    );
   });
 };

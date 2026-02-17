@@ -7,11 +7,26 @@ import * as fs from "fs/promises";
 import { tmpdir } from "os";
 import * as path from "path";
 
+import * as clack from "@clack/prompts";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // Mock child_process for git clone
 vi.mock("child_process", () => ({
   execFileSync: vi.fn(),
+}));
+
+// Mock @clack/prompts for output
+vi.mock("@clack/prompts", () => ({
+  intro: vi.fn(),
+  outro: vi.fn(),
+  note: vi.fn(),
+  log: {
+    info: vi.fn(),
+    success: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    message: vi.fn(),
+  },
 }));
 
 // Mock the config module
@@ -40,15 +55,56 @@ vi.mock("@/cli/config.js", async () => {
   };
 });
 
-// Capture console output
-const mockConsoleLog = vi
-  .spyOn(console, "log")
-  .mockImplementation(() => undefined);
-const mockConsoleError = vi
-  .spyOn(console, "error")
-  .mockImplementation(() => undefined);
+// Suppress direct console output during tests
+vi.spyOn(console, "log").mockImplementation(() => undefined);
+vi.spyOn(console, "error").mockImplementation(() => undefined);
 
 import { loadConfig } from "@/cli/config.js";
+
+/**
+ * Helper to get all text output from clack prompts mocks
+ * Combines log.error, log.info, log.success, log.warn calls into a searchable string
+ *
+ * @returns Combined output string from all clack prompt mocks
+ */
+const getClackOutput = (): string => {
+  const logInfoMock = vi.mocked(clack.log.info);
+  const logErrorMock = vi.mocked(clack.log.error);
+  const logSuccessMock = vi.mocked(clack.log.success);
+  const logWarnMock = vi.mocked(clack.log.warn);
+
+  const logInfoTexts = logInfoMock.mock.calls.map((call) =>
+    String(call[0] ?? ""),
+  );
+  const logErrorTexts = logErrorMock.mock.calls.map((call) =>
+    String(call[0] ?? ""),
+  );
+  const logSuccessTexts = logSuccessMock.mock.calls.map((call) =>
+    String(call[0] ?? ""),
+  );
+  const logWarnTexts = logWarnMock.mock.calls.map((call) =>
+    String(call[0] ?? ""),
+  );
+
+  return [
+    ...logInfoTexts,
+    ...logErrorTexts,
+    ...logSuccessTexts,
+    ...logWarnTexts,
+  ].join("\n");
+};
+
+/**
+ * Helper to get only error output from clack log.error mock
+ *
+ * @returns Combined error output string
+ */
+const getClackErrorOutput = (): string => {
+  return vi
+    .mocked(clack.log.error)
+    .mock.calls.map((call) => String(call[0] ?? ""))
+    .join("\n");
+};
 
 import { externalMain } from "./external.js";
 
@@ -91,9 +147,7 @@ describe("externalMain", () => {
       installDir: testDir,
     });
 
-    const allErrorOutput = mockConsoleError.mock.calls
-      .map((call) => call.join(" "))
-      .join("\n");
+    const allErrorOutput = getClackErrorOutput();
     expect(allErrorOutput.toLowerCase()).toContain("authentication failed");
   });
 
@@ -107,9 +161,7 @@ describe("externalMain", () => {
       installDir: testDir,
     });
 
-    const allErrorOutput = mockConsoleError.mock.calls
-      .map((call) => call.join(" "))
-      .join("\n");
+    const allErrorOutput = getClackErrorOutput();
     expect(allErrorOutput.toLowerCase()).toContain("github");
   });
 
@@ -131,9 +183,7 @@ describe("externalMain", () => {
       installDir: testDir,
     });
 
-    const allErrorOutput = mockConsoleError.mock.calls
-      .map((call) => call.join(" "))
-      .join("\n");
+    const allErrorOutput = getClackErrorOutput();
     expect(allErrorOutput.toLowerCase()).toContain("no skills found");
 
     await fs.rm(emptyCloneDir, { recursive: true, force: true });
@@ -155,9 +205,7 @@ describe("externalMain", () => {
 
     // The error should mention specifying --skill or --all
     // (This will get the "no skills" error first since the clone is empty)
-    const allErrorOutput = mockConsoleError.mock.calls
-      .map((call) => call.join(" "))
-      .join("\n");
+    const allErrorOutput = getClackErrorOutput();
     expect(allErrorOutput.length).toBeGreaterThan(0);
   });
 
@@ -172,9 +220,7 @@ describe("externalMain", () => {
       skill: "nonexistent-skill",
     });
 
-    const allErrorOutput = mockConsoleError.mock.calls
-      .map((call) => call.join(" "))
-      .join("\n");
+    const allErrorOutput = getClackErrorOutput();
     expect(allErrorOutput.length).toBeGreaterThan(0);
   });
 
@@ -195,12 +241,7 @@ describe("externalMain", () => {
     });
 
     // Will assert nori.json contents once implementation exists
-    const allOutput = [
-      ...mockConsoleLog.mock.calls,
-      ...mockConsoleError.mock.calls,
-    ]
-      .map((call) => call.join(" "))
-      .join("\n");
+    const allOutput = getClackOutput();
     expect(allOutput.length).toBeGreaterThan(0);
   });
 });
@@ -249,9 +290,7 @@ describe("externalMain with --skillset", () => {
       skillset: "nonexistent-skillset",
     });
 
-    const allErrorOutput = mockConsoleError.mock.calls
-      .map((call) => call.join(" "))
-      .join("\n");
+    const allErrorOutput = getClackErrorOutput();
     expect(allErrorOutput.toLowerCase()).toContain("not found");
     expect(allErrorOutput).toContain("nonexistent-skillset");
   });

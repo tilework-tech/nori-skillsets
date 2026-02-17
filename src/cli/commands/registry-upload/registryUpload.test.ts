@@ -117,11 +117,11 @@ vi.mock("@clack/prompts", () => ({
   isCancel: vi.fn(() => false),
 }));
 
-// Mock console methods to capture output (for early validation errors before flow starts)
-const mockConsoleLog = vi
+// Mock console methods to suppress output during tests
+const _mockConsoleLog = vi
   .spyOn(console, "log")
   .mockImplementation(() => undefined);
-const mockConsoleError = vi
+const _mockConsoleError = vi
   .spyOn(console, "error")
   .mockImplementation(() => undefined);
 
@@ -249,8 +249,9 @@ describe("registry-upload", () => {
 
         expect(result.success).toBe(false);
 
-        const allErrorOutput = mockConsoleError.mock.calls
-          .map((call) => call.join(" "))
+        const allErrorOutput = vi
+          .mocked(clack.log.error)
+          .mock.calls.map((call) => String(call[0]))
           .join("\n");
         expect(allErrorOutput.toLowerCase()).toContain("invalid");
       });
@@ -276,8 +277,9 @@ describe("registry-upload", () => {
 
         expect(result.success).toBe(false);
 
-        const allErrorOutput = mockConsoleError.mock.calls
-          .map((call) => call.join(" "))
+        const allErrorOutput = vi
+          .mocked(clack.log.error)
+          .mock.calls.map((call) => String(call[0]))
           .join("\n");
         expect(allErrorOutput).toContain("not found");
       });
@@ -303,8 +305,9 @@ describe("registry-upload", () => {
 
         expect(result.success).toBe(false);
 
-        const allErrorOutput = mockConsoleError.mock.calls
-          .map((call) => call.join(" "))
+        const allErrorOutput = vi
+          .mocked(clack.log.error)
+          .mock.calls.map((call) => String(call[0]))
           .join("\n");
         expect(allErrorOutput).toContain("not found");
       });
@@ -325,8 +328,9 @@ describe("registry-upload", () => {
 
           expect(result.success).toBe(false);
 
-          const allErrorOutput = mockConsoleError.mock.calls
-            .map((call) => call.join(" "))
+          const allErrorOutput = vi
+            .mocked(clack.log.error)
+            .mock.calls.map((call) => String(call[0]))
             .join("\n");
           expect(allErrorOutput.toLowerCase()).toContain(
             "no nori installation",
@@ -359,8 +363,9 @@ describe("registry-upload", () => {
 
           expect(result.success).toBe(false);
 
-          const allErrorOutput = mockConsoleError.mock.calls
-            .map((call) => call.join(" "))
+          const allErrorOutput = vi
+            .mocked(clack.log.error)
+            .mock.calls.map((call) => String(call[0]))
             .join("\n");
           expect(allErrorOutput.toLowerCase()).toContain("multiple");
         } finally {
@@ -406,8 +411,9 @@ describe("registry-upload", () => {
 
         expect(result.success).toBe(false);
 
-        const allErrorOutput = mockConsoleError.mock.calls
-          .map((call) => call.join(" "))
+        const allErrorOutput = vi
+          .mocked(clack.log.error)
+          .mock.calls.map((call) => String(call[0]))
           .join("\n");
         expect(allErrorOutput.toLowerCase()).toContain("authentication");
       });
@@ -430,8 +436,9 @@ describe("registry-upload", () => {
 
         expect(result.success).toBe(false);
 
-        const allErrorOutput = mockConsoleError.mock.calls
-          .map((call) => call.join(" "))
+        const allErrorOutput = vi
+          .mocked(clack.log.error)
+          .mock.calls.map((call) => String(call[0]))
           .join("\n");
         expect(allErrorOutput).toContain("do not have access");
         expect(allErrorOutput).toContain("myorg");
@@ -883,8 +890,9 @@ describe("registry-upload", () => {
 
         expect(result.success).toBe(false);
 
-        const allErrorOutput = mockConsoleError.mock.calls
-          .map((call) => call.join(" "))
+        const allErrorOutput = vi
+          .mocked(clack.log.error)
+          .mock.calls.map((call) => String(call[0]))
           .join("\n");
         expect(allErrorOutput).toContain("not found");
         expect(allErrorOutput).toContain("nonexistent-profile");
@@ -922,8 +930,9 @@ describe("registry-upload", () => {
 
         expect(result.success).toBe(false);
 
-        const allErrorOutput = mockConsoleError.mock.calls
-          .map((call) => call.join(" "))
+        const allErrorOutput = vi
+          .mocked(clack.log.error)
+          .mock.calls.map((call) => String(call[0]))
           .join("\n");
         expect(allErrorOutput.toLowerCase()).toContain("authentication failed");
       });
@@ -1052,8 +1061,9 @@ describe("registry-upload", () => {
 
         expect(result.success).toBe(false);
 
-        const allErrorOutput = mockConsoleError.mock.calls
-          .map((call) => call.join(" "))
+        const allErrorOutput = vi
+          .mocked(clack.log.error)
+          .mock.calls.map((call) => String(call[0]))
           .join("\n");
         expect(allErrorOutput.toLowerCase()).toContain("no authentication");
       });
@@ -1102,8 +1112,9 @@ describe("registry-upload", () => {
         expect(registrarApi.uploadSkillset).not.toHaveBeenCalled();
 
         // Verify dry-run output shows version
-        const allOutput = mockConsoleLog.mock.calls
-          .map((call) => call.join(" "))
+        const allOutput = vi
+          .mocked(clack.log.info)
+          .mock.calls.map((call) => String(call[0]))
           .join("\n");
         expect(allOutput.toLowerCase()).toContain("dry run");
         expect(allOutput).toContain("1.2.4"); // auto-bumped version
@@ -1142,8 +1153,9 @@ describe("registry-upload", () => {
 
         expect(result.success).toBe(true);
 
-        const allOutput = mockConsoleLog.mock.calls
-          .map((call) => call.join(" "))
+        const allOutput = vi
+          .mocked(clack.log.info)
+          .mock.calls.map((call) => String(call[0]))
           .join("\n");
         expect(allOutput).toContain("myorg/my-profile");
         expect(allOutput).toContain("myorg.noriskillsets.dev");
@@ -1183,8 +1195,9 @@ describe("registry-upload", () => {
 
         expect(result.success).toBe(true);
 
-        const allOutput = mockConsoleLog.mock.calls
-          .map((call) => call.join(" "))
+        const allOutput = vi
+          .mocked(clack.log.info)
+          .mock.calls.map((call) => String(call[0]))
           .join("\n");
         expect(allOutput).toContain("1.0.0");
       });

@@ -10,6 +10,7 @@ import { Readable } from "stream";
 import { pipeline } from "stream/promises";
 import zlib from "zlib";
 
+import { log } from "@clack/prompts";
 import * as semver from "semver";
 import * as tar from "tar";
 
@@ -30,7 +31,6 @@ import {
 } from "@/cli/features/claude-code/profiles/metadata.js";
 import { addSkillDependency } from "@/cli/features/claude-code/profiles/skills/resolver.js";
 import { substituteTemplatePaths } from "@/cli/features/claude-code/template.js";
-import { error } from "@/cli/logger.js";
 import { skillDownloadFlow } from "@/cli/prompts/flows/index.js";
 import { getInstallDirs } from "@/utils/path.js";
 import {
@@ -368,9 +368,9 @@ export const skillDownloadMain = async (args: {
   // Parse the namespaced skill spec (e.g., "myorg/my-skill@1.0.0")
   const parsed = parseNamespacedPackage({ packageSpec: skillSpec });
   if (parsed == null) {
-    error({
-      message: `Invalid skill specification: "${skillSpec}".\nExpected format: skill-name or org/skill-name[@version]`,
-    });
+    log.error(
+      `Invalid skill specification: "${skillSpec}".\nExpected format: skill-name or org/skill-name[@version]`,
+    );
     return;
   }
   const { orgId, packageName: skillName, version } = parsed;
@@ -380,9 +380,9 @@ export const skillDownloadMain = async (args: {
 
   // Check for namespace/registry conflict
   if (orgId !== "public" && registryUrl != null) {
-    error({
-      message: `Cannot specify both namespace and --registry flag.\n\nThe namespace "${orgId}/" determines the registry automatically.\nUse either "${skillDisplayName}" (derived registry) or "${skillName} --registry ${registryUrl}" (explicit registry).`,
-    });
+    log.error(
+      `Cannot specify both namespace and --registry flag.\n\nThe namespace "${orgId}/" determines the registry automatically.\nUse either "${skillDisplayName}" (derived registry) or "${skillName} --registry ${registryUrl}" (explicit registry).`,
+    );
     return;
   }
 
@@ -404,9 +404,9 @@ export const skillDownloadMain = async (args: {
         .map((dir, index) => `${index + 1}. ${dir}`)
         .join("\n");
 
-      error({
-        message: `Found multiple Nori installations. Cannot determine which one to use.\n\nInstallations found:\n${installList}\n\nPlease use --install-dir to specify the target installation.`,
-      });
+      log.error(
+        `Found multiple Nori installations. Cannot determine which one to use.\n\nInstallations found:\n${installList}\n\nPlease use --install-dir to specify the target installation.`,
+      );
       return;
     } else {
       targetInstallDir = allInstallations[0];
@@ -431,9 +431,9 @@ export const skillDownloadMain = async (args: {
       await fs.access(skillsetMarker);
       targetSkillset = skillset;
     } catch {
-      error({
-        message: `Skillset "${skillset}" not found at: ${skillsetDir}\n\nMake sure the skillset exists and contains a nori.json file.`,
-      });
+      log.error(
+        `Skillset "${skillset}" not found at: ${skillsetDir}\n\nMake sure the skillset exists and contains a nori.json file.`,
+      );
       return;
     }
   } else if (config != null) {

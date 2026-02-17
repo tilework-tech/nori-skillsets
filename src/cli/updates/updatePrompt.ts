@@ -5,7 +5,7 @@
  * update command based on the package manager.
  */
 
-import * as readline from "readline";
+import { isCancel, log, select } from "@clack/prompts";
 
 export type UpdateChoice = "update" | "skip" | "dismiss";
 
@@ -29,14 +29,7 @@ export const formatUpdateMessage = (args: {
   latestVersion: string;
 }): string => {
   const { currentVersion, latestVersion } = args;
-  return [
-    "",
-    `\x1b[33m┃\x1b[0m  🍙 Update available! ${currentVersion} → ${latestVersion}`,
-    "\x1b[33m┃\x1b[0m",
-    "\x1b[33m┃\x1b[0m  1. Update now",
-    "\x1b[33m┃\x1b[0m  2. Skip",
-    "\x1b[33m┃\x1b[0m  3. Skip until next version\n\n",
-  ].join("\n");
+  return `Update available! ${currentVersion} → ${latestVersion}`;
 };
 
 /**
@@ -104,31 +97,27 @@ export const showUpdatePrompt = async (args: {
   if (!isInteractive) {
     const cmdStr =
       updateCommand?.displayCommand ?? "npm install -g nori-skillsets@latest";
-    process.stderr.write(
-      `[nori-skillsets] Update available: ${currentVersion} → ${latestVersion}. Run: ${cmdStr}\n`,
+    log.info(
+      `Update available: ${currentVersion} → ${latestVersion}. Run: ${cmdStr}`,
     );
     return "skip";
   }
 
   const message = formatUpdateMessage({ currentVersion, latestVersion });
-  process.stderr.write(message);
+  log.warn(message);
 
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stderr,
+  const choice = await select({
+    message: "What would you like to do?",
+    options: [
+      { value: "update", label: "Update now" },
+      { value: "skip", label: "Skip" },
+      { value: "dismiss", label: "Skip until next version" },
+    ],
   });
 
-  return new Promise<UpdateChoice>((resolve) => {
-    rl.question("Choose [1/2/3] (default: 2): ", (answer) => {
-      rl.close();
-      const trimmed = answer.trim();
-      if (trimmed === "1") {
-        resolve("update");
-      } else if (trimmed === "3") {
-        resolve("dismiss");
-      } else {
-        resolve("skip");
-      }
-    });
-  });
+  if (isCancel(choice)) {
+    return "skip";
+  }
+
+  return choice as UpdateChoice;
 };

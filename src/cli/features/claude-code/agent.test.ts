@@ -32,14 +32,16 @@ vi.mock("@/cli/features/claude-code/paths.js", () => {
   };
 });
 
-// Mock logger to suppress output during tests
-vi.mock("@/cli/logger.js", () => ({
-  info: vi.fn(),
-  success: vi.fn(),
-  error: vi.fn(),
-  warn: vi.fn(),
-  debug: vi.fn(),
-  newline: vi.fn(),
+// Mock clack prompts to suppress output during tests
+vi.mock("@clack/prompts", () => ({
+  log: {
+    info: vi.fn(),
+    success: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    message: vi.fn(),
+    step: vi.fn(),
+  },
 }));
 
 describe("claudeCodeAgent.switchProfile", () => {

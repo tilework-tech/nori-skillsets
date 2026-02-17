@@ -14,6 +14,8 @@
 import * as fs from "fs/promises";
 import * as os from "os";
 
+import { log } from "@clack/prompts";
+
 import {
   detectExistingConfig,
   captureExistingConfigAsProfile,
@@ -24,7 +26,6 @@ import {
   getNoriProfilesDir,
 } from "@/cli/features/claude-code/paths.js";
 import { claudeMdLoader } from "@/cli/features/claude-code/profiles/claudemd/loader.js";
-import { info, warn, newline, success } from "@/cli/logger.js";
 import { initFlow } from "@/cli/prompts/flows/init.js";
 import { getCurrentPackageVersion } from "@/cli/version.js";
 import { normalizeInstallDir, getInstallDirsWithTypes } from "@/utils/path.js";
@@ -166,29 +167,18 @@ export const initMain = async (args?: {
   );
 
   if (ancestorManagedInstallations.length > 0) {
-    newline();
-    warn({
-      message: "⚠️  Nori managed installation detected in ancestor directory!",
-    });
-    newline();
-    info({
-      message: "Claude Code loads CLAUDE.md files from all parent directories.",
-    });
-    info({
-      message:
-        "Having multiple Nori managed installations can cause duplicate or conflicting configurations.",
-    });
-    newline();
-    info({ message: "Existing Nori managed installations found at:" });
+    log.warn("Nori managed installation detected in ancestor directory!");
+    log.info("Claude Code loads CLAUDE.md files from all parent directories.");
+    log.info(
+      "Having multiple Nori managed installations can cause duplicate or conflicting configurations.",
+    );
+    log.info("Existing Nori managed installations found at:");
     for (const ancestor of ancestorManagedInstallations) {
-      info({ message: `  • ${ancestor.path}` });
+      log.info(`  • ${ancestor.path}`);
     }
-    newline();
-    info({
-      message:
-        "Please remove the conflicting managed installation before continuing.",
-    });
-    newline();
+    log.info(
+      "Please remove the conflicting managed installation before continuing.",
+    );
   }
 
   // Create ~/.nori/profiles/ directory
@@ -216,9 +206,7 @@ export const initMain = async (args?: {
         installDir: normalizedInstallDir,
         profileName: capturedProfileName,
       });
-      success({
-        message: `✓ Configuration saved as skillset "${capturedProfileName}"`,
-      });
+      log.success(`Configuration saved as skillset "${capturedProfileName}"`);
 
       // Clear the original CLAUDE.md to prevent content duplication when the
       // managed block is installed. The content has already been captured to

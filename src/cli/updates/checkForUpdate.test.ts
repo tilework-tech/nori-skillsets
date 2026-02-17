@@ -21,6 +21,19 @@ import {
 
 import { checkForUpdateAndPrompt } from "./checkForUpdate.js";
 
+// Mock @clack/prompts to suppress output and prevent actual prompts
+vi.mock("@clack/prompts", () => ({
+  log: {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    success: vi.fn(),
+    message: vi.fn(),
+  },
+  select: vi.fn(),
+  isCancel: vi.fn(() => false),
+}));
+
 // Mock the prompt module to avoid actual readline interaction
 vi.mock("./updatePrompt.js", async (importOriginal) => {
   const original = (await importOriginal()) as Record<string, unknown>;

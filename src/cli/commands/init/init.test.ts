@@ -11,6 +11,15 @@ import type * as versionModule from "@/cli/version.js";
 
 import { initMain, registerInitCommand } from "./init.js";
 
+// Mock @clack/prompts log functions used by init
+vi.mock("@clack/prompts", () => ({
+  log: {
+    warn: vi.fn(),
+    info: vi.fn(),
+    success: vi.fn(),
+  },
+}));
+
 // Mock os.homedir so getConfigPath resolves to test directories
 vi.mock("os", async (importOriginal) => {
   const actual = await importOriginal<typeof os>();
@@ -304,6 +313,8 @@ describe("init command", () => {
     });
 
     it("should warn about ancestor managed installations", async () => {
+      const { log: clackLog } = await import("@clack/prompts");
+
       // Create parent directory with a managed nori installation
       const parentDir = path.join(tempDir, "parent");
       const childDir = path.join(parentDir, "child");
@@ -317,31 +328,27 @@ describe("init command", () => {
         "# BEGIN NORI-AI MANAGED BLOCK\nsome content\n# END NORI-AI MANAGED BLOCK",
       );
 
-      // Capture console output
-      const consoleOutput: Array<string> = [];
-      const originalConsoleLog = console.log;
-      console.log = (...args: Array<unknown>) => {
-        consoleOutput.push(args.map(String).join(" "));
-      };
+      // Clear any previous calls
+      vi.mocked(clackLog.warn).mockClear();
 
-      try {
-        // Run init in child directory
-        await initMain({
-          installDir: path.join(childDir, ".claude"),
-          nonInteractive: true,
-        });
+      // Run init in child directory
+      await initMain({
+        installDir: path.join(childDir, ".claude"),
+        nonInteractive: true,
+      });
 
-        // Verify warning was displayed
-        const hasAncestorWarning = consoleOutput.some(
-          (line) => line.includes("⚠️") && line.includes("ancestor"),
+      // Verify warning was displayed via clack's log.warn
+      const hasAncestorWarning = vi
+        .mocked(clackLog.warn)
+        .mock.calls.some((call) =>
+          String(call[0]).toLowerCase().includes("ancestor"),
         );
-        expect(hasAncestorWarning).toBe(true);
-      } finally {
-        console.log = originalConsoleLog;
-      }
+      expect(hasAncestorWarning).toBe(true);
     });
 
     it("should not warn about source-only ancestor installations", async () => {
+      const { log: clackLog } = await import("@clack/prompts");
+
       // Create parent directory with only a source installation (no managed CLAUDE.md)
       const parentDir = path.join(tempDir, "parent");
       const childDir = path.join(parentDir, "child");
@@ -353,28 +360,22 @@ describe("init command", () => {
         JSON.stringify({ version: "19.0.0" }),
       );
 
-      // Capture console output
-      const consoleOutput: Array<string> = [];
-      const originalConsoleLog = console.log;
-      console.log = (...args: Array<unknown>) => {
-        consoleOutput.push(args.map(String).join(" "));
-      };
+      // Clear any previous calls
+      vi.mocked(clackLog.warn).mockClear();
 
-      try {
-        // Run init in child directory
-        await initMain({
-          installDir: path.join(childDir, ".claude"),
-          nonInteractive: true,
-        });
+      // Run init in child directory
+      await initMain({
+        installDir: path.join(childDir, ".claude"),
+        nonInteractive: true,
+      });
 
-        // Verify NO ancestor warning was displayed
-        const hasAncestorWarning = consoleOutput.some(
-          (line) => line.includes("⚠️") && line.includes("ancestor"),
+      // Verify NO ancestor warning was displayed via clack's log.warn
+      const hasAncestorWarning = vi
+        .mocked(clackLog.warn)
+        .mock.calls.some((call) =>
+          String(call[0]).toLowerCase().includes("ancestor"),
         );
-        expect(hasAncestorWarning).toBe(false);
-      } finally {
-        console.log = originalConsoleLog;
-      }
+      expect(hasAncestorWarning).toBe(false);
     });
   });
 

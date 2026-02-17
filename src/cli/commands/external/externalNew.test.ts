@@ -11,6 +11,7 @@ import * as fs from "fs/promises";
 import * as os from "os";
 import * as path from "path";
 
+import * as clack from "@clack/prompts";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // Mock child_process for git clone
@@ -27,6 +28,20 @@ vi.mock("os", async (importOriginal) => {
     tmpdir: actual.tmpdir,
   };
 });
+
+// Mock @clack/prompts for output
+vi.mock("@clack/prompts", () => ({
+  intro: vi.fn(),
+  outro: vi.fn(),
+  note: vi.fn(),
+  log: {
+    info: vi.fn(),
+    success: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    message: vi.fn(),
+  },
+}));
 
 // Mock the config module
 vi.mock("@/cli/config.js", async () => {
@@ -54,15 +69,56 @@ vi.mock("@/cli/config.js", async () => {
   };
 });
 
-// Capture console output
-const mockConsoleLog = vi
-  .spyOn(console, "log")
-  .mockImplementation(() => undefined);
-const mockConsoleError = vi
-  .spyOn(console, "error")
-  .mockImplementation(() => undefined);
+// Suppress direct console output during tests
+vi.spyOn(console, "log").mockImplementation(() => undefined);
+vi.spyOn(console, "error").mockImplementation(() => undefined);
 
 import { loadConfig } from "@/cli/config.js";
+
+/**
+ * Helper to get all text output from clack prompts mocks
+ * Combines log.error, log.info, log.success, log.warn calls into a searchable string
+ *
+ * @returns Combined output string from all clack prompt mocks
+ */
+const getClackOutput = (): string => {
+  const logInfoMock = vi.mocked(clack.log.info);
+  const logErrorMock = vi.mocked(clack.log.error);
+  const logSuccessMock = vi.mocked(clack.log.success);
+  const logWarnMock = vi.mocked(clack.log.warn);
+
+  const logInfoTexts = logInfoMock.mock.calls.map((call) =>
+    String(call[0] ?? ""),
+  );
+  const logErrorTexts = logErrorMock.mock.calls.map((call) =>
+    String(call[0] ?? ""),
+  );
+  const logSuccessTexts = logSuccessMock.mock.calls.map((call) =>
+    String(call[0] ?? ""),
+  );
+  const logWarnTexts = logWarnMock.mock.calls.map((call) =>
+    String(call[0] ?? ""),
+  );
+
+  return [
+    ...logInfoTexts,
+    ...logErrorTexts,
+    ...logSuccessTexts,
+    ...logWarnTexts,
+  ].join("\n");
+};
+
+/**
+ * Helper to get only error output from clack log.error mock
+ *
+ * @returns Combined error output string
+ */
+const getClackErrorOutput = (): string => {
+  return vi
+    .mocked(clack.log.error)
+    .mock.calls.map((call) => String(call[0] ?? ""))
+    .join("\n");
+};
 
 import { externalMain } from "./external.js";
 
@@ -107,9 +163,7 @@ describe("externalMain with --new", () => {
       skillset: "existing-skillset",
     });
 
-    const allErrorOutput = mockConsoleError.mock.calls
-      .map((call) => call.join(" "))
-      .join("\n");
+    const allErrorOutput = getClackErrorOutput();
     expect(allErrorOutput.toLowerCase()).toContain(
       "cannot use --new and --skillset together",
     );
@@ -126,9 +180,7 @@ describe("externalMain with --new", () => {
       newSkillset: "   ",
     });
 
-    const allErrorOutput = mockConsoleError.mock.calls
-      .map((call) => call.join(" "))
-      .join("\n");
+    const allErrorOutput = getClackErrorOutput();
     expect(allErrorOutput.toLowerCase()).toContain("name");
   });
 
@@ -151,9 +203,7 @@ describe("externalMain with --new", () => {
       newSkillset: "existing",
     });
 
-    const allErrorOutput = mockConsoleError.mock.calls
-      .map((call) => call.join(" "))
-      .join("\n");
+    const allErrorOutput = getClackErrorOutput();
     expect(allErrorOutput.toLowerCase()).toContain("already exists");
   });
 
@@ -205,9 +255,7 @@ describe("externalMain with --new", () => {
     expect(skillMd).toContain("Test Skill");
 
     // Verify success message about creating the skillset was printed
-    const allLogOutput = mockConsoleLog.mock.calls
-      .map((call) => call.join(" "))
-      .join("\n");
+    const allLogOutput = getClackOutput();
     expect(allLogOutput.toLowerCase()).toContain("created");
     expect(allLogOutput).toContain("fresh-skillset");
   });

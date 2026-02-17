@@ -12,15 +12,24 @@ import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 
 import { factoryResetMain } from "./factoryReset.js";
 
-// Mock logger to suppress output during tests
-vi.mock("@/cli/logger.js", () => ({
-  info: vi.fn(),
-  success: vi.fn(),
-  error: vi.fn(),
-  warn: vi.fn(),
-  debug: vi.fn(),
-  newline: vi.fn(),
-  raw: vi.fn(),
+// Mock clack prompts
+vi.mock("@clack/prompts", () => ({
+  intro: vi.fn(),
+  outro: vi.fn(),
+  note: vi.fn(),
+  log: {
+    info: vi.fn(),
+    success: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    message: vi.fn(),
+    step: vi.fn(),
+  },
+  spinner: vi.fn(() => ({
+    start: vi.fn(),
+    stop: vi.fn(),
+    message: vi.fn(),
+  })),
 }));
 
 // Mock promptText so we can control user input
@@ -90,7 +99,7 @@ describe("factoryResetMain", () => {
   });
 
   it("should exit with error in non-interactive mode", async () => {
-    const { error } = await import("@/cli/logger.js");
+    const clack = await import("@clack/prompts");
 
     await factoryResetMain({
       agentName: "claude-code",
@@ -98,16 +107,14 @@ describe("factoryResetMain", () => {
       nonInteractive: true,
     });
 
-    expect(error).toHaveBeenCalledWith(
-      expect.objectContaining({
-        message: expect.stringContaining("non-interactive"),
-      }),
+    expect(clack.log.error).toHaveBeenCalledWith(
+      expect.stringContaining("non-interactive"),
     );
     expect(mockExit).toHaveBeenCalledWith(1);
   });
 
   it("should exit with error when agent does not support factory reset", async () => {
-    const { error } = await import("@/cli/logger.js");
+    const clack = await import("@clack/prompts");
 
     // Register a test agent without factoryReset
     const registry = AgentRegistry.getInstance();
@@ -127,10 +134,8 @@ describe("factoryResetMain", () => {
       path: tempDir,
     });
 
-    expect(error).toHaveBeenCalledWith(
-      expect.objectContaining({
-        message: expect.stringContaining("does not support factory reset"),
-      }),
+    expect(clack.log.error).toHaveBeenCalledWith(
+      expect.stringContaining("does not support factory reset"),
     );
     expect(mockExit).toHaveBeenCalledWith(1);
   });

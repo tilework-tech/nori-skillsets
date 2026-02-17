@@ -7,12 +7,13 @@ import * as fs from "fs/promises";
 import * as os from "os";
 import * as path from "path";
 
+import { log } from "@clack/prompts";
+
 import { main as installMain } from "@/cli/commands/install/install.js";
 import { hasExistingInstallation } from "@/cli/commands/install/installState.js";
 import { registryDownloadMain } from "@/cli/commands/registry-download/registryDownload.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { getNoriProfilesDir } from "@/cli/features/claude-code/paths.js";
-import { error, success, info, warn, newline } from "@/cli/logger.js";
 import { normalizeInstallDir } from "@/utils/path.js";
 
 import type { Command } from "commander";
@@ -85,9 +86,8 @@ export type RegistryInstallResult = {
  */
 const displaySuccessMessage = (args: { profileName: string }): void => {
   const { profileName } = args;
-  newline();
-  success({ message: `Skillset "${profileName}" is now active.` });
-  info({ message: "Restart Claude Code to apply the new skillset." });
+  log.success(`Skillset "${profileName}" is now active.`);
+  log.info("Restart Claude Code to apply the new skillset.");
 };
 
 /**
@@ -136,9 +136,9 @@ export const registryInstallMain = async (
       return { success: false };
     }
 
-    warn({
-      message: `Skillset "${profileName}" not found in registry. Using locally installed version.`,
-    });
+    log.warn(
+      `Skillset "${profileName}" not found in registry. Using locally installed version.`,
+    );
   }
 
   try {
@@ -175,9 +175,7 @@ export const registryInstallMain = async (
     return { success: true };
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
-    error({
-      message: `Failed to install skillset "${profileName}": ${errorMessage}`,
-    });
+    log.error(`Failed to install skillset "${profileName}": ${errorMessage}`);
     return { success: false };
   }
 };

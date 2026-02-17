@@ -101,7 +101,7 @@ vi.mock("@clack/prompts", () => ({
 
 // Suppress direct console output from logger (used for pre-flow errors)
 vi.spyOn(console, "log").mockImplementation(() => undefined);
-const mockConsoleError = vi
+const _mockConsoleError = vi
   .spyOn(console, "error")
   .mockImplementation(() => undefined);
 
@@ -1108,12 +1108,10 @@ describe("--skillset option and manifest updates", () => {
       skillset: "nonexistent-profile",
     });
 
-    // This error comes from the direct logger (before the flow is entered)
-    const consoleErrorOutput = mockConsoleError.mock.calls
-      .map((call) => call.join(" "))
-      .join("\n");
-    expect(consoleErrorOutput.toLowerCase()).toContain("not found");
-    expect(consoleErrorOutput).toContain("nonexistent-profile");
+    // This error now goes through clack's log.error
+    const allErrorOutput = getClackErrorOutput();
+    expect(allErrorOutput.toLowerCase()).toContain("not found");
+    expect(allErrorOutput).toContain("nonexistent-profile");
 
     // Verify no download occurred
     expect(registrarApi.downloadSkillTarball).not.toHaveBeenCalled();
@@ -2032,9 +2030,7 @@ describe("namespaced package support", () => {
       });
 
       // Verify error about conflicting options
-      const allErrorOutput = mockConsoleError.mock.calls
-        .map((call) => call.join(" "))
-        .join("\n");
+      const allErrorOutput = getClackErrorOutput();
       expect(allErrorOutput.toLowerCase()).toMatch(
         /namespace.*registry|registry.*namespace|cannot.*both/i,
       );

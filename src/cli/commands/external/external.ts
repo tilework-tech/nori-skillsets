@@ -8,6 +8,8 @@ import * as fs from "fs/promises";
 import * as os from "os";
 import * as path from "path";
 
+import { log } from "@clack/prompts";
+
 import {
   getCommandNames,
   type CliName,
@@ -23,7 +25,6 @@ import {
   ensureNoriJson,
 } from "@/cli/features/claude-code/profiles/metadata.js";
 import { substituteTemplatePaths } from "@/cli/features/claude-code/template.js";
-import { error, success, info, newline, warn } from "@/cli/logger.js";
 import { getInstallDirs } from "@/utils/path.js";
 
 import type { Command } from "commander";
@@ -140,9 +141,9 @@ const installSkill = async (args: {
   try {
     await fs.access(targetDir);
     skillExists = true;
-    warn({
-      message: `Skill "${skill.name}" already exists at ${targetDir}. Overwriting.`,
-    });
+    log.warn(
+      `Skill "${skill.name}" already exists at ${targetDir}. Overwriting.`,
+    );
   } catch {
     // Doesn't exist, proceed
   }
@@ -189,7 +190,7 @@ const installSkill = async (args: {
         profileCopyErr instanceof Error
           ? profileCopyErr.message
           : String(profileCopyErr);
-      info({ message: `Warning: Could not persist skill to profile: ${msg}` });
+      log.info(`Warning: Could not persist skill to profile: ${msg}`);
     }
   }
 
@@ -200,8 +201,8 @@ const installSkill = async (args: {
     installDir: claudeDir,
   });
 
-  success({ message: `Installed skill "${skill.name}" from GitHub` });
-  info({ message: `Installed to: ${targetDir}` });
+  log.success(`Installed skill "${skill.name}" from GitHub`);
+  log.info(`Installed to: ${targetDir}`);
 
   // Update skillset manifests
   if (targetSkillset != null) {
@@ -217,9 +218,7 @@ const installSkill = async (args: {
         noriJsonErr instanceof Error
           ? noriJsonErr.message
           : String(noriJsonErr);
-      info({
-        message: `Warning: Could not update nori.json: ${msg}`,
-      });
+      log.info(`Warning: Could not update nori.json: ${msg}`);
     }
   }
 };
@@ -266,9 +265,9 @@ export const externalMain = async (args: {
   // 1. Parse source
   const parsed = parseGitHubSource({ source });
   if (parsed == null) {
-    error({
-      message: `Invalid source: "${source}".\n\nOnly GitHub repositories are supported. Expected formats:\n  - https://github.com/owner/repo\n  - https://github.com/owner/repo/tree/branch/path\n  - owner/repo\n  - owner/repo@skill-name`,
-    });
+    log.error(
+      `Invalid source: "${source}".\n\nOnly GitHub repositories are supported. Expected formats:\n  - https://github.com/owner/repo\n  - https://github.com/owner/repo/tree/branch/path\n  - owner/repo\n  - owner/repo@skill-name`,
+    );
     return;
   }
 
@@ -277,17 +276,15 @@ export const externalMain = async (args: {
 
   // 1b. Validate --new and --skillset mutual exclusivity
   if (newSkillset != null && skillset != null) {
-    error({
-      message: `Cannot use --new and --skillset together. Use --new to create a new skillset, or --skillset to target an existing one.`,
-    });
+    log.error(
+      `Cannot use --new and --skillset together. Use --new to create a new skillset, or --skillset to target an existing one.`,
+    );
     return;
   }
 
   // 1c. Validate --new name
   if (newSkillset != null && newSkillset.trim().length === 0) {
-    error({
-      message: `The --new flag requires a non-empty skillset name.`,
-    });
+    log.error(`The --new flag requires a non-empty skillset name.`);
     return;
   }
 
@@ -303,9 +300,9 @@ export const externalMain = async (args: {
       const installList = allInstallations
         .map((dir, index) => `${index + 1}. ${dir}`)
         .join("\n");
-      error({
-        message: `Found multiple Nori installations. Cannot determine which one to use.\n\nInstallations found:\n${installList}\n\nPlease use --install-dir to specify the target installation.`,
-      });
+      log.error(
+        `Found multiple Nori installations. Cannot determine which one to use.\n\nInstallations found:\n${installList}\n\nPlease use --install-dir to specify the target installation.`,
+      );
       return;
     } else {
       targetInstallDir = allInstallations[0];
@@ -323,9 +320,9 @@ export const externalMain = async (args: {
     const newSkillsetDir = path.join(profilesDir, newSkillset);
     try {
       await fs.access(newSkillsetDir);
-      error({
-        message: `Skillset "${newSkillset}" already exists at: ${newSkillsetDir}\n\nChoose a different name or use --skillset to target the existing one.`,
-      });
+      log.error(
+        `Skillset "${newSkillset}" already exists at: ${newSkillsetDir}\n\nChoose a different name or use --skillset to target the existing one.`,
+      );
       return;
     } catch {
       // Expected — directory should not exist
@@ -333,7 +330,7 @@ export const externalMain = async (args: {
 
     await createEmptySkillset({ destPath: newSkillsetDir, name: newSkillset });
     targetSkillset = newSkillset;
-    success({ message: `Created new skillset "${newSkillset}"` });
+    log.success(`Created new skillset "${newSkillset}"`);
   } else if (skillset != null) {
     const skillsetDir = path.join(profilesDir, skillset);
     await ensureNoriJson({ profileDir: skillsetDir });
@@ -342,9 +339,9 @@ export const externalMain = async (args: {
       await fs.access(skillsetMarker);
       targetSkillset = skillset;
     } catch {
-      error({
-        message: `Skillset "${skillset}" not found at: ${skillsetDir}\n\nMake sure the skillset exists and contains a nori.json file.`,
-      });
+      log.error(
+        `Skillset "${skillset}" not found at: ${skillsetDir}\n\nMake sure the skillset exists and contains a nori.json file.`,
+      );
       return;
     }
   } else if (config != null) {
@@ -368,16 +365,16 @@ export const externalMain = async (args: {
 
   // 4. Clone repository
   let clonedDir: string;
-  info({ message: `Cloning ${parsed.url}...` });
+  log.info(`Cloning ${parsed.url}...`);
 
   try {
     clonedDir = await cloneRepo({ url: parsed.url, ref: effectiveRef });
   } catch (err) {
     if (err instanceof GitCloneError) {
-      error({ message: err.message });
+      log.error(err.message);
     } else {
       const msg = err instanceof Error ? err.message : String(err);
-      error({ message: `Failed to clone repository: ${msg}` });
+      log.error(`Failed to clone repository: ${msg}`);
     }
     return;
   }
@@ -393,17 +390,15 @@ export const externalMain = async (args: {
         (s) => s.name.toLowerCase() === parsed.skillFilter!.toLowerCase(),
       );
       if (discovered.length === 0) {
-        error({
-          message: `Skill "${parsed.skillFilter}" not found in repository.`,
-        });
+        log.error(`Skill "${parsed.skillFilter}" not found in repository.`);
         return;
       }
     }
 
     if (discovered.length === 0) {
-      error({
-        message: `No skills found in ${source}.\n\nA valid skill requires a SKILL.md file with name and description in the YAML frontmatter.`,
-      });
+      log.error(
+        `No skills found in ${source}.\n\nA valid skill requires a SKILL.md file with name and description in the YAML frontmatter.`,
+      );
       return;
     }
 
@@ -417,9 +412,9 @@ export const externalMain = async (args: {
       );
       if (matched.length === 0) {
         const available = discovered.map((s) => `  - ${s.name}`).join("\n");
-        error({
-          message: `Skill "${skill}" not found. Available skills:\n${available}`,
-        });
+        log.error(
+          `Skill "${skill}" not found. Available skills:\n${available}`,
+        );
         return;
       }
       skillsToInstall = matched;
@@ -431,9 +426,9 @@ export const externalMain = async (args: {
       const available = discovered
         .map((s) => `  - ${s.name}: ${s.description}`)
         .join("\n");
-      error({
-        message: `Found ${discovered.length} skills in ${source}:\n${available}\n\nSpecify which skill to install:\n  ${cliPrefix} ${commandNames.externalSkill} ${source} --skill <name>\n\nOr install all:\n  ${cliPrefix} ${commandNames.externalSkill} ${source} --all`,
-      });
+      log.error(
+        `Found ${discovered.length} skills in ${source}:\n${available}\n\nSpecify which skill to install:\n  ${cliPrefix} ${commandNames.externalSkill} ${source} --skill <name>\n\nOr install all:\n  ${cliPrefix} ${commandNames.externalSkill} ${source} --all`,
+      );
       return;
     }
 
@@ -455,21 +450,18 @@ export const externalMain = async (args: {
       });
     }
 
-    newline();
     if (skillsToInstall.length === 1) {
-      info({
-        message: `Skill "${skillsToInstall[0].name}" is now available in your Claude Code profile.`,
-      });
+      log.info(
+        `Skill "${skillsToInstall[0].name}" is now available in your Claude Code profile.`,
+      );
     } else {
-      info({
-        message: `${skillsToInstall.length} skills are now available in your Claude Code profile.`,
-      });
+      log.info(
+        `${skillsToInstall.length} skills are now available in your Claude Code profile.`,
+      );
     }
 
     if (targetSkillset == null) {
-      info({
-        message: `No active skillset - skills not added to any manifest.`,
-      });
+      log.info(`No active skillset - skills not added to any manifest.`);
     }
   } finally {
     // 8. Always clean up cloned directory

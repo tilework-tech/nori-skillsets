@@ -4,6 +4,7 @@
 
 import * as fs from "fs/promises";
 
+import * as clack from "@clack/prompts";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("os", async () => {
@@ -66,16 +67,13 @@ vi.mock("@/cli/features/agentRegistry.js", () => ({
   },
 }));
 
-const mockSuccess = vi.fn();
-const mockInfo = vi.fn();
-const mockWarn = vi.fn();
-const mockNewline = vi.fn();
-
-vi.mock("@/cli/logger.js", () => ({
-  success: (args: { message: string }) => mockSuccess(args),
-  info: (args: { message: string }) => mockInfo(args),
-  warn: (args: { message: string }) => mockWarn(args),
-  newline: () => mockNewline(),
+vi.mock("@clack/prompts", () => ({
+  log: {
+    success: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  },
 }));
 
 import { main as installMain } from "@/cli/commands/install/install.js";
@@ -224,13 +222,12 @@ describe("registry-install", () => {
     });
 
     // Should display success message with profile name
-    expect(mockNewline).toHaveBeenCalled();
-    expect(mockSuccess).toHaveBeenCalledWith({
-      message: expect.stringContaining("senior-swe"),
-    });
-    expect(mockInfo).toHaveBeenCalledWith({
-      message: expect.stringContaining("Restart"),
-    });
+    expect(clack.log.success).toHaveBeenCalledWith(
+      expect.stringContaining("senior-swe"),
+    );
+    expect(clack.log.info).toHaveBeenCalledWith(
+      expect.stringContaining("Restart"),
+    );
   });
 
   it("should not display success message when download fails", async () => {
@@ -241,7 +238,7 @@ describe("registry-install", () => {
     });
 
     // Should NOT display success message
-    expect(mockSuccess).not.toHaveBeenCalled();
+    expect(clack.log.success).not.toHaveBeenCalled();
   });
 
   it("should fallback to local profile when download fails but profile exists locally", async () => {
@@ -257,12 +254,12 @@ describe("registry-install", () => {
     });
 
     // Should warn about using local profile
-    expect(mockWarn).toHaveBeenCalledWith({
-      message: expect.stringContaining("senior-swe"),
-    });
-    expect(mockWarn).toHaveBeenCalledWith({
-      message: expect.stringContaining("local"),
-    });
+    expect(clack.log.warn).toHaveBeenCalledWith(
+      expect.stringContaining("senior-swe"),
+    );
+    expect(clack.log.warn).toHaveBeenCalledWith(
+      expect.stringContaining("local"),
+    );
 
     // Should still switch profile and complete installation - using home dir
     expect(mockSwitchProfile).toHaveBeenCalledWith({

@@ -6,13 +6,14 @@
 import * as fs from "fs/promises";
 import * as path from "path";
 
+import { log } from "@clack/prompts";
+
 import { loadConfig, saveConfig } from "@/cli/config.js";
 import { factoryResetClaudeCode } from "@/cli/features/claude-code/factoryReset.js";
 import { LoaderRegistry } from "@/cli/features/claude-code/loaderRegistry.js";
 import { getNoriProfilesDir } from "@/cli/features/claude-code/paths.js";
 import { ensureNoriJson } from "@/cli/features/claude-code/profiles/metadata.js";
 import { MANIFEST_FILE } from "@/cli/features/managedFolder.js";
-import { success, info } from "@/cli/logger.js";
 
 import type { Agent } from "@/cli/features/agentRegistry.js";
 
@@ -79,11 +80,7 @@ export const claudeCodeAgent: Agent = {
       installDir,
     });
 
-    success({
-      message: `Switched to "${profileName}" profile for Claude Code`,
-    });
-    info({
-      message: `Restart Claude Code to load the new profile configuration`,
-    });
+    log.success(`Switched to "${profileName}" profile for Claude Code`);
+    log.info(`Restart Claude Code to load the new profile configuration`);
   },
 };
