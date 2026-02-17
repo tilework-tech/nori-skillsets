@@ -72,6 +72,7 @@ const extractSessionId = (args: {
  * @param args - Configuration arguments
  * @param args.transcriptPath - Path to the .jsonl transcript file
  * @param args.markerPath - Optional path to the .done marker file
+ * @param args.projectName - Optional project name for server-side association
  * @param args.orgId - Optional organization ID for upload destination
  *
  * @returns True if upload succeeded, false otherwise
@@ -79,9 +80,10 @@ const extractSessionId = (args: {
 export const processTranscriptForUpload = async (args: {
   transcriptPath: string;
   markerPath?: string | null;
+  projectName?: string | null;
   orgId?: string | null;
 }): Promise<boolean> => {
-  const { transcriptPath, markerPath, orgId } = args;
+  const { transcriptPath, markerPath, projectName, orgId } = args;
 
   // Read transcript file
   let content: string;
@@ -113,6 +115,7 @@ export const processTranscriptForUpload = async (args: {
     await transcriptApi.upload({
       sessionId,
       messages,
+      ...(projectName != null && { projectName }),
       ...(orgId != null && { orgId }),
     });
 

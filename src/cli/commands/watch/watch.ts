@@ -343,8 +343,16 @@ const scanForStaleTranscripts = async (): Promise<void> => {
       try {
         await log(`Uploading stale transcript: ${transcriptPath}`);
 
+        // Extract projectName from path: {currentTranscriptDir}/{projectName}/{sessionId}.jsonl
+        const relativePath = path.relative(
+          currentTranscriptDir!,
+          transcriptPath,
+        );
+        const projectName = relativePath.split(path.sep)[0] ?? null;
+
         const uploaded = await processTranscriptForUpload({
           transcriptPath,
+          ...(projectName != null && { projectName }),
           orgId: transcriptOrgId,
         });
 
