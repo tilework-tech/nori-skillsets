@@ -58,6 +58,7 @@ export type UploadFlowCallbacks = {
   onDetermineVersion: () => Promise<DetermineVersionResult>;
   onUpload: (args: {
     resolutionStrategy?: SkillResolutionStrategy | null;
+    inlineSkillIds?: Array<string> | null;
   }) => Promise<UploadResult>;
 };
 
@@ -70,6 +71,7 @@ export type UploadFlowResult = {
   linkedSkillIds: Set<string>;
   namespacedSkillIds: Set<string>;
   skippedSkillIds: Set<string>;
+  inlineSkillIds?: Array<string> | null;
 } | null;
 
 /**
@@ -481,6 +483,7 @@ const resolveAllConflictsSameWay = async (args: {
  * @param args.linkedSkillIds - Set of skill IDs that were linked
  * @param args.namespacedSkillIds - Set of skill IDs that were namespaced
  * @param args.skippedSkillIds - Set of skill IDs that were skipped
+ * @param args.inlineSkillIds - Skill IDs kept inline in the tarball
  *
  * @returns Formatted skill summary string or null if no skills
  */
@@ -489,21 +492,26 @@ const formatSkillSummaryForNote = (args: {
   linkedSkillIds: Set<string>;
   namespacedSkillIds: Set<string>;
   skippedSkillIds: Set<string>;
+  inlineSkillIds?: Array<string> | null;
 }): string | null => {
   const {
     extractedSkills,
     linkedSkillIds,
     namespacedSkillIds,
     skippedSkillIds,
+    inlineSkillIds,
   } = args;
 
-  if (extractedSkills == null) {
+  const hasInlineSkills = inlineSkillIds != null && inlineSkillIds.length > 0;
+
+  if (extractedSkills == null && !hasInlineSkills) {
     return null;
   }
 
-  const { succeeded, failed } = extractedSkills;
+  const succeeded = extractedSkills?.succeeded ?? [];
+  const failed = extractedSkills?.failed ?? [];
 
-  if (succeeded.length === 0 && failed.length === 0) {
+  if (succeeded.length === 0 && failed.length === 0 && !hasInlineSkills) {
     return null;
   }
 
@@ -548,6 +556,13 @@ const formatSkillSummaryForNote = (args: {
     lines.push("  Skipped:");
     for (const skill of skippedSkills) {
       lines.push(`    - ${skill.name}@${skill.version}`);
+    }
+  }
+
+  if (hasInlineSkills) {
+    lines.push("  Inlined:");
+    for (const skillId of inlineSkillIds!) {
+      lines.push(`    - ${skillId}`);
     }
   }
 
@@ -633,6 +648,7 @@ const hasConflicts = (
  * @param args.registryUrl - The target registry URL
  * @param args.callbacks - Callback functions for version determination and upload
  * @param args.nonInteractive - If true, don't prompt for conflict resolution
+ * @param args.inlineSkillIds - Skill IDs to keep inline (not extracted as independent packages)
  *
  * @returns Upload result on success, null on failure or cancellation
  */
@@ -642,6 +658,7 @@ export const uploadFlow = async (args: {
   registryUrl: string;
   callbacks: UploadFlowCallbacks;
   nonInteractive?: boolean | null;
+  inlineSkillIds?: Array<string> | null;
 }): Promise<UploadFlowResult> => {
   const {
     profileDisplayName,
@@ -649,6 +666,7 @@ export const uploadFlow = async (args: {
     registryUrl,
     callbacks,
     nonInteractive,
+    inlineSkillIds,
   } = args;
   const cancelMsg = "Upload cancelled.";
 
@@ -668,7 +686,9 @@ export const uploadFlow = async (args: {
 
   uploadSpinner.message("Uploading...");
 
-  let result = await callbacks.onUpload({});
+  let result = await callbacks.onUpload({
+    inlineSkillIds: inlineSkillIds ?? undefined,
+  });
 
   // Step 3: Handle conflicts if any
   if (hasConflicts(result)) {
@@ -688,7 +708,10 @@ export const uploadFlow = async (args: {
         `Auto-resolving ${Object.keys(autoStrategy).length} unchanged skill(s)...`,
       );
 
-      result = await callbacks.onUpload({ resolutionStrategy: autoStrategy });
+      result = await callbacks.onUpload({
+        resolutionStrategy: autoStrategy,
+        inlineSkillIds: inlineSkillIds ?? undefined,
+      });
     } else if (nonInteractive) {
       // Non-interactive mode with unresolved conflicts
       uploadSpinner.stop("Upload blocked");
@@ -785,6 +808,7 @@ export const uploadFlow = async (args: {
       uploadSpinner.start("Uploading with resolutions...");
       result = await callbacks.onUpload({
         resolutionStrategy: combinedStrategy,
+        inlineSkillIds: inlineSkillIds ?? undefined,
       });
     }
   }
@@ -809,6 +833,7 @@ export const uploadFlow = async (args: {
     linkedSkillIds,
     namespacedSkillIds,
     skippedSkillIds,
+    inlineSkillIds,
   });
 
   const summaryLines: Array<string> = [];
@@ -832,5 +857,6 @@ export const uploadFlow = async (args: {
     linkedSkillIds,
     namespacedSkillIds,
     skippedSkillIds,
+    inlineSkillIds,
   };
 };

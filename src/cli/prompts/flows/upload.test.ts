@@ -813,4 +813,141 @@ describe("uploadFlow", () => {
       );
     });
   });
+
+  describe("inline skills support", () => {
+    it("should pass inlineSkillIds through to onUpload callback", async () => {
+      const callbacks = createMockCallbacks({
+        uploadResults: [
+          {
+            success: true,
+            version: "1.0.0",
+            extractedSkills: { succeeded: [], failed: [] },
+          },
+        ],
+      });
+
+      await uploadFlow({
+        profileDisplayName: "myorg/my-profile",
+        profileName: "my-profile",
+        registryUrl: "https://myorg.noriskillsets.dev",
+        callbacks,
+        inlineSkillIds: ["init", "debug"],
+      });
+
+      const uploadCall = vi.mocked(callbacks.onUpload).mock.calls[0][0];
+      expect(uploadCall.inlineSkillIds).toEqual(["init", "debug"]);
+    });
+
+    it("should not pass inlineSkillIds when not provided", async () => {
+      const callbacks = createMockCallbacks({
+        uploadResults: [
+          {
+            success: true,
+            version: "1.0.0",
+            extractedSkills: { succeeded: [], failed: [] },
+          },
+        ],
+      });
+
+      await uploadFlow({
+        profileDisplayName: "myorg/my-profile",
+        profileName: "my-profile",
+        registryUrl: "https://myorg.noriskillsets.dev",
+        callbacks,
+      });
+
+      const uploadCall = vi.mocked(callbacks.onUpload).mock.calls[0][0];
+      expect(uploadCall.inlineSkillIds).toBeUndefined();
+    });
+
+    it("should pass inlineSkillIds on retry with conflict resolution", async () => {
+      const conflicts: Array<SkillConflict> = [
+        {
+          skillId: "extracted-skill",
+          exists: true,
+          canPublish: true,
+          latestVersion: "1.0.0",
+          availableActions: ["cancel", "namespace", "updateVersion", "link"],
+          contentUnchanged: true,
+        },
+      ];
+
+      const callbacks = createMockCallbacks({
+        uploadResults: [
+          { success: false, conflicts },
+          {
+            success: true,
+            version: "1.0.0",
+            extractedSkills: { succeeded: [], failed: [] },
+          },
+        ],
+      });
+
+      await uploadFlow({
+        profileDisplayName: "myorg/my-profile",
+        profileName: "my-profile",
+        registryUrl: "https://myorg.noriskillsets.dev",
+        callbacks,
+        inlineSkillIds: ["init"],
+      });
+
+      // Both upload calls should include inlineSkillIds
+      const firstUploadCall = vi.mocked(callbacks.onUpload).mock.calls[0][0];
+      expect(firstUploadCall.inlineSkillIds).toEqual(["init"]);
+
+      const retryUploadCall = vi.mocked(callbacks.onUpload).mock.calls[1][0];
+      expect(retryUploadCall.inlineSkillIds).toEqual(["init"]);
+    });
+
+    it("should show inlined skills in summary note", async () => {
+      const callbacks = createMockCallbacks({
+        uploadResults: [
+          {
+            success: true,
+            version: "1.0.0",
+            extractedSkills: {
+              succeeded: [{ name: "extracted-skill", version: "1.0.0" }],
+              failed: [],
+            },
+          },
+        ],
+      });
+
+      await uploadFlow({
+        profileDisplayName: "myorg/my-profile",
+        profileName: "my-profile",
+        registryUrl: "https://myorg.noriskillsets.dev",
+        callbacks,
+        inlineSkillIds: ["init", "debug"],
+      });
+
+      const noteContent = getNoteContent().join("\n");
+      expect(noteContent).toContain("Inlined");
+      expect(noteContent).toContain("init");
+      expect(noteContent).toContain("debug");
+    });
+
+    it("should include inlineSkillIds in the returned result", async () => {
+      const callbacks = createMockCallbacks({
+        uploadResults: [
+          {
+            success: true,
+            version: "1.0.0",
+            extractedSkills: { succeeded: [], failed: [] },
+          },
+        ],
+      });
+
+      const result = await uploadFlow({
+        profileDisplayName: "myorg/my-profile",
+        profileName: "my-profile",
+        registryUrl: "https://myorg.noriskillsets.dev",
+        callbacks,
+        inlineSkillIds: ["init", "debug"],
+      });
+
+      expect(result).not.toBeNull();
+      expect(result!.inlineSkillIds).toEqual(["init", "debug"]);
+    });
+  });
 });

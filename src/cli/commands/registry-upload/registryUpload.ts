@@ -7,6 +7,7 @@ import * as fs from "fs/promises";
 import * as os from "os";
 import * as path from "path";
 
+import { select } from "@clack/prompts";
 import * as semver from "semver";
 import * as tar from "tar";
 
@@ -140,6 +141,45 @@ const createProfileTarball = async (args: {
       /* ignore cleanup errors */
     });
   }
+};
+
+/**
+ * Detect skills in a profile that don't have a nori.json file.
+ * These are candidates for keeping inline (bundled in the tarball)
+ * rather than being extracted as independent skill packages.
+ *
+ * @param args - The function arguments
+ * @param args.profileDir - The profile directory to scan
+ *
+ * @returns Array of skill IDs that are inline candidates, or empty array
+ */
+const detectInlineSkillCandidates = async (args: {
+  profileDir: string;
+}): Promise<Array<string>> => {
+  const { profileDir } = args;
+  const skillsDir = path.join(profileDir, "skills");
+
+  try {
+    await fs.access(skillsDir);
+  } catch {
+    return [];
+  }
+
+  const entries = await fs.readdir(skillsDir, { withFileTypes: true });
+  const candidates: Array<string> = [];
+
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+
+    const noriJsonPath = path.join(skillsDir, entry.name, "nori.json");
+    try {
+      await fs.access(noriJsonPath);
+    } catch {
+      candidates.push(entry.name);
+    }
+  }
+
+  return candidates;
 };
 
 /**
@@ -374,9 +414,37 @@ export const registryUploadMain = async (args: {
     return { success: true };
   }
 
+  // Detect inline skill candidates
+  const inlineCandidates = await detectInlineSkillCandidates({ profileDir });
+  let inlineSkillIds: Array<string> | undefined;
+
+  if (inlineCandidates.length > 0 && !nonInteractive && !silent && !dryRun) {
+    const confirmation = await select({
+      message: `Found ${inlineCandidates.length} skill(s) without nori.json: ${inlineCandidates.join(", ")}. Keep them inline?`,
+      options: [
+        {
+          value: "confirm" as const,
+          label: "Yes, keep inline",
+          hint: "Skills will remain bundled in the skillset tarball",
+        },
+        {
+          value: "extract" as const,
+          label: "No, extract all",
+          hint: "All skills will be published as independent packages",
+        },
+      ],
+      initialValue: "confirm" as const,
+    });
+
+    if (confirmation === "confirm") {
+      inlineSkillIds = inlineCandidates;
+    }
+  }
+
   // Helper to perform upload with optional resolution strategy
   const performUpload = async (uploadArgs: {
     resolutionStrategy?: SkillResolutionStrategy | null;
+    inlineSkills?: Array<string> | null;
     uploadVersion: string;
   }): Promise<UploadResult> => {
     try {
@@ -392,6 +460,7 @@ export const registryUploadMain = async (args: {
         registryUrl: targetRegistryUrl,
         description: description ?? undefined,
         resolutionStrategy: uploadArgs.resolutionStrategy ?? undefined,
+        inlineSkills: uploadArgs.inlineSkills ?? undefined,
       });
 
       return {
@@ -425,6 +494,7 @@ export const registryUploadMain = async (args: {
 
     const uploadResult = await performUpload({
       uploadVersion: versionResult.version,
+      inlineSkills: inlineSkillIds,
     });
 
     return { success: uploadResult.success };
@@ -439,6 +509,7 @@ export const registryUploadMain = async (args: {
     profileName: packageName,
     registryUrl: targetRegistryUrl,
     nonInteractive: nonInteractive ?? false,
+    inlineSkillIds,
     callbacks: {
       onDetermineVersion: async () => {
         const versionResult = await determineUploadVersion({
@@ -456,6 +527,7 @@ export const registryUploadMain = async (args: {
         }
         return performUpload({
           resolutionStrategy: uploadCallbackArgs.resolutionStrategy,
+          inlineSkills: uploadCallbackArgs.inlineSkillIds,
           uploadVersion,
         });
       },

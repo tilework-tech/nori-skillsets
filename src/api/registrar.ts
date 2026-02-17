@@ -169,6 +169,7 @@ export type UploadSkillsetRequest = {
   authToken: string;
   registryUrl?: string | null;
   resolutionStrategy?: SkillResolutionStrategy | null;
+  inlineSkills?: Array<string> | null;
 };
 
 /**
@@ -444,6 +445,7 @@ export const registrarApi = {
       authToken,
       registryUrl,
       resolutionStrategy,
+      inlineSkills,
     } = args;
     const baseUrl = registryUrl ?? REGISTRAR_URL;
 
@@ -455,6 +457,9 @@ export const registrarApi = {
     }
     if (resolutionStrategy != null) {
       formData.append("resolutionStrategy", JSON.stringify(resolutionStrategy));
+    }
+    if (inlineSkills != null && inlineSkills.length > 0) {
+      formData.append("inlineSkills", JSON.stringify(inlineSkills));
     }
 
     const url = `${baseUrl}/api/skillsets/${packageName}/skillset`;
