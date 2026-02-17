@@ -86,13 +86,11 @@ describe("forkSkillsetMain", () => {
     );
     expect(skillMd).toBe("# My Skill");
 
-    const noriJson = await fs.readFile(
-      path.join(destDir, "nori.json"),
-      "utf-8",
+    const noriJson = JSON.parse(
+      await fs.readFile(path.join(destDir, "nori.json"), "utf-8"),
     );
-    expect(noriJson).toBe(
-      JSON.stringify({ name: "senior-swe", version: "1.0.0" }),
-    );
+    expect(noriJson.name).toBe("my-custom");
+    expect(noriJson.version).toBe("1.0.0");
 
     // Verify outro message contains both source and destination
     expect(mockOutro).toHaveBeenCalledWith(
@@ -178,15 +176,13 @@ describe("forkSkillsetMain", () => {
       newSkillset: "myorg/forked-profile",
     });
 
-    // Verify destination exists
+    // Verify destination exists with updated name
     const destDir = path.join(profilesDir, "myorg", "forked-profile");
-    const noriJson = await fs.readFile(
-      path.join(destDir, "nori.json"),
-      "utf-8",
+    const noriJson = JSON.parse(
+      await fs.readFile(path.join(destDir, "nori.json"), "utf-8"),
     );
-    expect(noriJson).toBe(
-      JSON.stringify({ name: "base-profile", version: "1.0.0" }),
-    );
+    expect(noriJson.name).toBe("myorg/forked-profile");
+    expect(noriJson.version).toBe("1.0.0");
     expect(mockExit).not.toHaveBeenCalled();
   });
 
@@ -206,13 +202,11 @@ describe("forkSkillsetMain", () => {
     });
 
     const destDir = path.join(profilesDir, "neworg", "my-fork");
-    const noriJson = await fs.readFile(
-      path.join(destDir, "nori.json"),
-      "utf-8",
+    const noriJson = JSON.parse(
+      await fs.readFile(path.join(destDir, "nori.json"), "utf-8"),
     );
-    expect(noriJson).toBe(
-      JSON.stringify({ name: "senior-swe", version: "1.0.0" }),
-    );
+    expect(noriJson.name).toBe("neworg/my-fork");
+    expect(noriJson.version).toBe("1.0.0");
     expect(mockExit).not.toHaveBeenCalled();
   });
 
