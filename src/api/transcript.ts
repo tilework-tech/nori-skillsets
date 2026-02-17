@@ -28,6 +28,8 @@ export type UploadTranscriptRequest = {
   sessionId: string;
   messages: Array<TranscriptMessage>;
   title?: string | null;
+  /** Project name for associating the transcript with a project */
+  projectName?: string | null;
   /** Organization ID to upload to (e.g., "myorg" -> https://myorg.noriskillsets.dev) */
   orgId?: string | null;
 };
@@ -53,7 +55,7 @@ export const transcriptApi = {
   upload: async (
     args: UploadTranscriptRequest,
   ): Promise<UploadTranscriptResponse> => {
-    const { sessionId, messages, title, orgId } = args;
+    const { sessionId, messages, title, projectName, orgId } = args;
 
     const body: Record<string, unknown> = {
       sessionId,
@@ -62,6 +64,10 @@ export const transcriptApi = {
 
     if (title != null) {
       body.title = title;
+    }
+
+    if (projectName != null) {
+      body.projectName = projectName;
     }
 
     // Build org-specific base URL if orgId is provided
