@@ -3,6 +3,7 @@ import * as fsPromises from "fs/promises";
 import * as os from "os";
 import * as path from "path";
 
+import * as clack from "@clack/prompts";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 import { getConfigPath, saveConfig } from "@/cli/config.js";
@@ -78,14 +79,39 @@ vi.mock("@/cli/features/claude-code/profiles/manifest.js", () => ({
   getManifestPath: vi.fn().mockReturnValue("/mock/manifest.json"),
 }));
 
-// Mock logger to suppress output
+// Mock @clack/prompts for UI output assertions
+vi.mock("@clack/prompts", () => ({
+  log: {
+    error: vi.fn(),
+    warn: vi.fn(),
+    info: vi.fn(),
+    success: vi.fn(),
+    step: vi.fn(),
+    message: vi.fn(),
+  },
+  spinner: vi.fn(() => ({
+    start: vi.fn(),
+    stop: vi.fn(),
+    message: "",
+  })),
+  confirm: vi.fn(),
+  text: vi.fn(),
+  select: vi.fn(),
+  isCancel: vi.fn(),
+}));
+
+// Mock logger - non-UI utilities plus UI functions still used by transitive
+// dependencies (feature loaders) that haven't been migrated yet
 vi.mock("@/cli/logger.js", () => ({
   error: vi.fn(),
   success: vi.fn(),
   info: vi.fn(),
+  warn: vi.fn(),
   newline: vi.fn(),
   raw: vi.fn(),
   setSilentMode: vi.fn(),
+  isSilentMode: vi.fn(),
+  debug: vi.fn(),
   brightCyan: vi.fn(({ text }: { text: string }) => text),
   boldWhite: vi.fn(({ text }: { text: string }) => text),
   gray: vi.fn(({ text }: { text: string }) => text),
@@ -193,6 +219,14 @@ describe("install noninteractive", () => {
           installDir: tempDir,
         }),
       ).rejects.toThrow("process.exit(1)");
+
+      // Error messages should go through @clack/prompts, not legacy logger
+      expect(clack.log.error).toHaveBeenCalledWith(
+        expect.stringContaining("--profile"),
+      );
+      expect(clack.log.info).toHaveBeenCalledWith(
+        expect.stringContaining("nori-skillsets install"),
+      );
     } finally {
       processExitSpy.mockRestore();
     }

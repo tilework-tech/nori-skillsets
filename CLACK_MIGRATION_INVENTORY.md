@@ -50,6 +50,7 @@ also intentional.
 | `dir` | Interactive path uses `log`, `outro` |
 | `watch` | Interactive delegates to `watchFlow` (clack) |
 | `init` | Interactive uses `initFlow` (clack); non-interactive uses `log`, `note` |
+| `install` | `log.error`, `log.success`, `log.info`; ASCII art uses `process.stdout.write` with `isSilentMode()` guard |
 
 ---
 
@@ -192,12 +193,28 @@ Tests updated to assert on `clack.note` and `clack.log.success`.
 |---------|------|--------|
 | `init` (non-interactive) | `commands/init/init.ts` | ✅ Migrated |
 
-### Phase 4 — `install` command and ASCII art
+### Phase 4 — `install` command and ASCII art ✅ DONE
 
-| Module | File | Logger calls |
-|--------|------|-------------|
-| `install` | `commands/install/install.ts` | `error`, `success`, `info`, `newline`, `setSilentMode`, `console.log` suppression |
-| ASCII art | `commands/install/asciiArt.ts` | `raw`, `newline` |
+Completed on the `feat/migrate-loggers` branch. In `install.ts`, all
+`error()` / `success()` / `info()` / `newline()` calls from `@/cli/logger.js`
+replaced with `log.error()` / `log.success()` / `log.info()` from
+`@clack/prompts`. `newline()` calls removed. `setSilentMode` kept in
+`@/cli/logger.js` (not migrated per rules). `isSilentMode()` guards added
+to `displayCompletionBanners()` and `runFeatureLoaders()` since clack
+`log.*` methods do not respect the logger's silent mode.
+
+In `asciiArt.ts`, `raw()` / `newline()` calls replaced with direct
+`process.stdout.write()` via a local `writeLine()` helper. Each display
+function now has an `isSilentMode()` early-return guard. This approach
+preserves raw ASCII art output without clack bar prefixes.
+
+Tests updated to add `@clack/prompts` mock and assert error/info/success
+messages route through clack.
+
+| Module | File | Status |
+|--------|------|--------|
+| `install` | `commands/install/install.ts` | ✅ Migrated |
+| ASCII art | `commands/install/asciiArt.ts` | ✅ Migrated |
 
 ### Phase 5 — Update checker
 

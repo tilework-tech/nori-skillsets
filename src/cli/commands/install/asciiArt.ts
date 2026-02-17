@@ -2,11 +2,20 @@
  * ASCII art utilities for installer branding
  */
 
-import { newline, raw } from "@/cli/logger.js";
+import { isSilentMode } from "@/cli/logger.js";
 
 // ANSI color codes
 const BLUE = "\x1b[0;34m";
 const NC = "\x1b[0m"; // No Color
+
+/**
+ * Write a line to stdout (raw, no formatting prefix)
+ * @param args - Output arguments
+ * @param args.message - The line to write
+ */
+const writeLine = (args: { message: string }): void => {
+  process.stdout.write(args.message + "\n");
+};
 
 /**
  * Display NORI ASCII art banner
@@ -14,30 +23,31 @@ const NC = "\x1b[0m"; // No Color
  * @param args.color - ANSI color code to use (defaults to blue)
  */
 export const displayNoriBanner = (args?: { color?: string | null }): void => {
+  if (isSilentMode()) return;
   const color = args?.color ?? BLUE;
   const colorPrefix = color ?? "";
   const colorSuffix = color ? NC : "";
 
-  newline();
-  raw({
+  writeLine({ message: "" });
+  writeLine({
     message: `${colorPrefix}███╗   ██╗ ██████╗ ██████╗ ██╗${colorSuffix}`,
   });
-  raw({
+  writeLine({
     message: `${colorPrefix}████╗  ██║██╔═══██╗██╔══██╗██║${colorSuffix}`,
   });
-  raw({
+  writeLine({
     message: `${colorPrefix}██╔██╗ ██║██║   ██║██████╔╝██║${colorSuffix}`,
   });
-  raw({
+  writeLine({
     message: `${colorPrefix}██║╚██╗██║██║   ██║██╔══██╗██║${colorSuffix}`,
   });
-  raw({
+  writeLine({
     message: `${colorPrefix}██║ ╚████║╚██████╔╝██║  ██║██║${colorSuffix}`,
   });
-  raw({
+  writeLine({
     message: `${colorPrefix}╚═╝  ╚═══╝ ╚═════╝ ╚═╝  ╚═╝╚═╝${colorSuffix}`,
   });
-  newline();
+  writeLine({ message: "" });
 };
 
 /**
@@ -48,50 +58,51 @@ export const displayNoriBanner = (args?: { color?: string | null }): void => {
 export const displayWelcomeBanner = (args?: {
   color?: string | null;
 }): void => {
+  if (isSilentMode()) return;
   const GREEN = "\x1b[0;32m";
   const color = args?.color ?? GREEN;
   const colorPrefix = color ?? "";
   const colorSuffix = color ? NC : "";
 
-  newline();
-  raw({
+  writeLine({ message: "" });
+  writeLine({
     message: `${colorPrefix}██╗    ██╗███████╗██╗      ██████╗ ██████╗ ███╗   ███╗███████╗${colorSuffix}`,
   });
-  raw({
+  writeLine({
     message: `${colorPrefix}██║    ██║██╔════╝██║     ██╔════╝██╔═══██╗████╗ ████║██╔════╝${colorSuffix}`,
   });
-  raw({
+  writeLine({
     message: `${colorPrefix}██║ █╗ ██║█████╗  ██║     ██║     ██║   ██║██╔████╔██║█████╗  ${colorSuffix}`,
   });
-  raw({
+  writeLine({
     message: `${colorPrefix}██║███╗██║██╔══╝  ██║     ██║     ██║   ██║██║╚██╔╝██║██╔══╝  ${colorSuffix}`,
   });
-  raw({
+  writeLine({
     message: `${colorPrefix}╚███╔███╔╝███████╗███████╗╚██████╗╚██████╔╝██║ ╚═╝ ██║███████╗${colorSuffix}`,
   });
-  raw({
+  writeLine({
     message: `${colorPrefix} ╚══╝╚══╝ ╚══════╝╚══════╝ ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚══════╝${colorSuffix}`,
   });
-  newline();
-  raw({
+  writeLine({ message: "" });
+  writeLine({
     message: `${colorPrefix}████████╗ ██████╗     ███╗   ██╗ ██████╗ ██████╗ ██╗${colorSuffix}`,
   });
-  raw({
+  writeLine({
     message: `${colorPrefix}╚══██╔══╝██╔═══██╗    ████╗  ██║██╔═══██╗██╔══██╗██║${colorSuffix}`,
   });
-  raw({
+  writeLine({
     message: `${colorPrefix}   ██║   ██║   ██║    ██╔██╗ ██║██║   ██║██████╔╝██║${colorSuffix}`,
   });
-  raw({
+  writeLine({
     message: `${colorPrefix}   ██║   ██║   ██║    ██║╚██╗██║██║   ██║██╔══██╗██║${colorSuffix}`,
   });
-  raw({
+  writeLine({
     message: `${colorPrefix}   ██║   ╚██████╔╝    ██║ ╚████║╚██████╔╝██║  ██║██║${colorSuffix}`,
   });
-  raw({
+  writeLine({
     message: `${colorPrefix}   ╚═╝    ╚═════╝     ╚═╝  ╚═══╝ ╚═════╝ ╚═╝  ╚═╝╚═╝${colorSuffix}`,
   });
-  newline();
+  writeLine({ message: "" });
 };
 
 /**
@@ -100,6 +111,7 @@ export const displayWelcomeBanner = (args?: {
  * @param args.color - ANSI color code to use (defaults to dark green)
  */
 export const displaySeaweedBed = (args?: { color?: string | null }): void => {
+  if (isSilentMode()) return;
   const DARK_GREEN = "\x1b[0;32m";
   const color = args?.color ?? DARK_GREEN;
   const colorPrefix = color ?? "";
@@ -120,7 +132,7 @@ export const displaySeaweedBed = (args?: { color?: string | null }): void => {
     const seaweedLine = pattern.repeat(
       Math.ceil(terminalWidth / pattern.length),
     );
-    raw({
+    writeLine({
       message: `${colorPrefix}${seaweedLine.substring(0, terminalWidth)}${colorSuffix}`,
     });
   });
