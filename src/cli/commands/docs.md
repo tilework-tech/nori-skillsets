@@ -94,6 +94,7 @@ The `logout` command removes auth credentials from the centralized `~/.nori-conf
 - Version listing: `--list-versions` flag shows all published versions without uploading
 - Registry override: `--registry <url>` flag uploads to a specific registry URL
 - Skill collision detection and auto-resolution: When skills in the profile conflict with existing skills in the registry, unchanged skills are automatically linked to existing versions; modified skills require manual resolution (rename or coordinate with skill owner)
+- Inline skill detection: Skills without their own nori.json are candidates for inlining (bundling in the tarball rather than extracting as independent packages). The command parses the profile's nori.json `skills[]` array to identify previously inlined skills, which are auto-included without prompting. Only new inline candidates (not found in nori.json) are presented to the user for inline/extract decisions.
 
 ### Core Implementation
 

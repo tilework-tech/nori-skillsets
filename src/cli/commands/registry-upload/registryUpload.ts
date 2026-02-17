@@ -414,7 +414,42 @@ export const registryUploadMain = async (args: {
   }
 
   // Detect inline skill candidates (skills without nori.json)
-  const inlineCandidates = await detectInlineSkillCandidates({ profileDir });
+  const allInlineCandidates = await detectInlineSkillCandidates({ profileDir });
+
+  // Parse the profile's nori.json to find previously inlined skills.
+  // Inlined skills are identified by cross-referencing: a skill is "previously inlined"
+  // if it appears in nori.json skills[] AND has no own nori.json (i.e., is an inline candidate).
+  // This works because extracted skills get their own nori.json after download.
+  let previouslyInlinedSkillIds: Array<string> = [];
+  let inlineCandidates: Array<string> = allInlineCandidates;
+
+  const profileNoriJsonPath = path.join(profileDir, "nori.json");
+  try {
+    const noriJsonContent = await fs.readFile(profileNoriJsonPath, "utf-8");
+    const noriJson = JSON.parse(noriJsonContent);
+    if (Array.isArray(noriJson.skills)) {
+      const existingInlineIds = new Set<string>(
+        noriJson.skills
+          .filter(
+            (s: unknown) =>
+              s != null &&
+              typeof s === "object" &&
+              "id" in s &&
+              typeof (s as { id: unknown }).id === "string",
+          )
+          .map((s: { id: string }) => s.id),
+      );
+
+      previouslyInlinedSkillIds = allInlineCandidates.filter((id) =>
+        existingInlineIds.has(id),
+      );
+      inlineCandidates = allInlineCandidates.filter(
+        (id) => !existingInlineIds.has(id),
+      );
+    }
+  } catch {
+    // No nori.json or invalid JSON - treat all as new candidates
+  }
 
   // Helper to perform upload with optional resolution strategy
   const performUpload = async (uploadArgs: {
@@ -485,6 +520,10 @@ export const registryUploadMain = async (args: {
     nonInteractive: nonInteractive ?? false,
     inlineCandidates:
       inlineCandidates.length > 0 ? inlineCandidates : undefined,
+    previouslyInlinedSkillIds:
+      previouslyInlinedSkillIds.length > 0
+        ? previouslyInlinedSkillIds
+        : undefined,
     callbacks: {
       onDetermineVersion: async () => {
         const versionResult = await determineUploadVersion({

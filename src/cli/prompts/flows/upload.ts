@@ -745,6 +745,7 @@ const hasConflicts = (
  * @param args.callbacks - Callback functions for version determination and upload
  * @param args.nonInteractive - If true, don't prompt for conflict resolution
  * @param args.inlineCandidates - Skill IDs without nori.json that need inline/extract decision
+ * @param args.previouslyInlinedSkillIds - Skill IDs already marked as inline in nori.json (auto-included)
  *
  * @returns Upload result on success, null on failure or cancellation
  */
@@ -755,6 +756,7 @@ export const uploadFlow = async (args: {
   callbacks: UploadFlowCallbacks;
   nonInteractive?: boolean | null;
   inlineCandidates?: Array<string> | null;
+  previouslyInlinedSkillIds?: Array<string> | null;
 }): Promise<UploadFlowResult> => {
   const {
     profileDisplayName,
@@ -763,6 +765,7 @@ export const uploadFlow = async (args: {
     callbacks,
     nonInteractive,
     inlineCandidates,
+    previouslyInlinedSkillIds,
   } = args;
   const cancelMsg = "Upload cancelled.";
 
@@ -776,6 +779,14 @@ export const uploadFlow = async (args: {
 
   // Resolve inline skill candidates before upload
   let inlineSkillIds: Array<string> | undefined;
+
+  // Start with previously inlined skills (from nori.json)
+  const hasPreviouslyInlined =
+    previouslyInlinedSkillIds != null && previouslyInlinedSkillIds.length > 0;
+  if (hasPreviouslyInlined) {
+    inlineSkillIds = [...previouslyInlinedSkillIds];
+  }
+
   const hasCandidates = inlineCandidates != null && inlineCandidates.length > 0;
 
   if (hasCandidates && !nonInteractive) {
@@ -828,7 +839,7 @@ export const uploadFlow = async (args: {
     }
 
     if (resolvedInlineSkills.length > 0) {
-      inlineSkillIds = resolvedInlineSkills;
+      inlineSkillIds = [...(inlineSkillIds ?? []), ...resolvedInlineSkills];
     }
   }
 

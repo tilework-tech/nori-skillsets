@@ -1107,4 +1107,176 @@ describe("uploadFlow", () => {
       expect(uploadCall.inlineSkillIds).toBeUndefined();
     });
   });
+
+  describe("previously inlined skills", () => {
+    it("should auto-include previously inlined skills without prompting", async () => {
+      const callbacks = createMockCallbacks({
+        uploadResults: [
+          {
+            success: true,
+            version: "1.0.0",
+            extractedSkills: { succeeded: [], failed: [] },
+          },
+        ],
+      });
+
+      await uploadFlow({
+        profileDisplayName: "myorg/my-profile",
+        profileName: "my-profile",
+        registryUrl: "https://myorg.noriskillsets.dev",
+        callbacks,
+        previouslyInlinedSkillIds: ["skill-a"],
+      });
+
+      // No select calls - no candidates to prompt about
+      expect(clack.select).not.toHaveBeenCalled();
+      const uploadCall = vi.mocked(callbacks.onUpload).mock.calls[0][0];
+      expect(uploadCall.inlineSkillIds).toEqual(["skill-a"]);
+    });
+
+    it("should merge previously inlined skills with user-resolved inline choices", async () => {
+      const callbacks = createMockCallbacks({
+        uploadResults: [
+          {
+            success: true,
+            version: "1.0.0",
+            extractedSkills: { succeeded: [], failed: [] },
+          },
+        ],
+      });
+
+      // User chooses inline for the new candidate
+      vi.mocked(clack.select).mockResolvedValueOnce("inline");
+
+      await uploadFlow({
+        profileDisplayName: "myorg/my-profile",
+        profileName: "my-profile",
+        registryUrl: "https://myorg.noriskillsets.dev",
+        callbacks,
+        previouslyInlinedSkillIds: ["skill-a"],
+        inlineCandidates: ["skill-b"],
+      });
+
+      const uploadCall = vi.mocked(callbacks.onUpload).mock.calls[0][0];
+      expect(uploadCall.inlineSkillIds).toContain("skill-a");
+      expect(uploadCall.inlineSkillIds).toContain("skill-b");
+    });
+
+    it("should keep previously inlined skills even when user extracts new candidates", async () => {
+      const callbacks = createMockCallbacks({
+        uploadResults: [
+          {
+            success: true,
+            version: "1.0.0",
+            extractedSkills: { succeeded: [], failed: [] },
+          },
+        ],
+      });
+
+      // User chooses extract for the new candidate
+      vi.mocked(clack.select).mockResolvedValueOnce("extract");
+
+      await uploadFlow({
+        profileDisplayName: "myorg/my-profile",
+        profileName: "my-profile",
+        registryUrl: "https://myorg.noriskillsets.dev",
+        callbacks,
+        previouslyInlinedSkillIds: ["skill-a"],
+        inlineCandidates: ["skill-b"],
+      });
+
+      const uploadCall = vi.mocked(callbacks.onUpload).mock.calls[0][0];
+      expect(uploadCall.inlineSkillIds).toEqual(["skill-a"]);
+    });
+
+    it("should include previously inlined skills in non-interactive mode", async () => {
+      const callbacks = createMockCallbacks({
+        uploadResults: [
+          {
+            success: true,
+            version: "1.0.0",
+            extractedSkills: { succeeded: [], failed: [] },
+          },
+        ],
+      });
+
+      await uploadFlow({
+        profileDisplayName: "myorg/my-profile",
+        profileName: "my-profile",
+        registryUrl: "https://myorg.noriskillsets.dev",
+        callbacks,
+        previouslyInlinedSkillIds: ["skill-a"],
+        inlineCandidates: ["skill-b"],
+        nonInteractive: true,
+      });
+
+      // No prompting in non-interactive mode
+      expect(clack.select).not.toHaveBeenCalled();
+      const uploadCall = vi.mocked(callbacks.onUpload).mock.calls[0][0];
+      expect(uploadCall.inlineSkillIds).toEqual(["skill-a"]);
+    });
+
+    it("should show previously inlined skills in summary", async () => {
+      const callbacks = createMockCallbacks({
+        uploadResults: [
+          {
+            success: true,
+            version: "1.0.0",
+            extractedSkills: { succeeded: [], failed: [] },
+          },
+        ],
+      });
+
+      await uploadFlow({
+        profileDisplayName: "myorg/my-profile",
+        profileName: "my-profile",
+        registryUrl: "https://myorg.noriskillsets.dev",
+        callbacks,
+        previouslyInlinedSkillIds: ["skill-a"],
+      });
+
+      const noteContent = getNoteContent().join("\n");
+      expect(noteContent).toContain("Inlined");
+      expect(noteContent).toContain("skill-a");
+    });
+
+    it("should pass previously inlined skills on conflict retry", async () => {
+      const conflicts: Array<SkillConflict> = [
+        {
+          skillId: "extracted-skill",
+          exists: true,
+          canPublish: true,
+          latestVersion: "1.0.0",
+          availableActions: ["cancel", "namespace", "updateVersion", "link"],
+          contentUnchanged: true,
+        },
+      ];
+
+      const callbacks = createMockCallbacks({
+        uploadResults: [
+          { success: false, conflicts },
+          {
+            success: true,
+            version: "1.0.0",
+            extractedSkills: { succeeded: [], failed: [] },
+          },
+        ],
+      });
+
+      await uploadFlow({
+        profileDisplayName: "myorg/my-profile",
+        profileName: "my-profile",
+        registryUrl: "https://myorg.noriskillsets.dev",
+        callbacks,
+        previouslyInlinedSkillIds: ["skill-a"],
+      });
+
+      // Both upload calls should include previously inlined skills
+      const firstUploadCall = vi.mocked(callbacks.onUpload).mock.calls[0][0];
+      expect(firstUploadCall.inlineSkillIds).toEqual(["skill-a"]);
+
+      const retryUploadCall = vi.mocked(callbacks.onUpload).mock.calls[1][0];
+      expect(retryUploadCall.inlineSkillIds).toEqual(["skill-a"]);
+    });
+  });
 });
