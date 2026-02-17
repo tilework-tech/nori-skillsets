@@ -559,9 +559,9 @@ const formatSkillSummaryForNote = (args: {
     }
   }
 
-  if (hasInlineSkills) {
+  if (hasInlineSkills && inlineSkillIds != null) {
     lines.push("  Inlined:");
-    for (const skillId of inlineSkillIds!) {
+    for (const skillId of inlineSkillIds) {
       lines.push(`    - ${skillId}`);
     }
   }

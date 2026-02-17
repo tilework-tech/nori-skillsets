@@ -25,6 +25,7 @@ import {
   listVersionsFlow,
   type UploadResult,
 } from "@/cli/prompts/flows/index.js";
+import { isCancel, handleCancel } from "@/cli/prompts/utils.js";
 import { isSkillCollisionError } from "@/utils/fetch.js";
 import { getInstallDirs } from "@/utils/path.js";
 import {
@@ -435,6 +436,10 @@ export const registryUploadMain = async (args: {
       ],
       initialValue: "confirm" as const,
     });
+
+    if (isCancel({ value: confirmation })) {
+      handleCancel({ message: "Upload cancelled." });
+    }
 
     if (confirmation === "confirm") {
       inlineSkillIds = inlineCandidates;
