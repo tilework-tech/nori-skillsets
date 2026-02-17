@@ -11,6 +11,11 @@ import type {
 } from "@/norijson/skillset.js";
 
 /**
+ * The type of package this nori.json represents
+ */
+export type NoriJsonType = "skillset" | "skill" | "inlined-skill";
+
+/**
  * Dependencies section of nori.json
  */
 export type NoriJsonDependencies = {
@@ -42,6 +47,8 @@ export type NoriJson = {
   slashcommands?: Array<SkillsetSlashCommand> | null;
   // Skill content
   scripts?: Array<string> | null;
+  // Package type
+  type?: NoriJsonType | null;
   // Server-set metadata
   registryURL?: string | null;
   [key: string]: unknown; // Allow additional fields

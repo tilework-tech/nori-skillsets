@@ -68,6 +68,19 @@ describe("writeProfileMetadata", () => {
     const result = await readProfileMetadata({ profileDir });
     expect(result).toEqual(updated);
   });
+
+  it("should preserve the type field through write/read cycle", async () => {
+    const metadata = {
+      name: "test-profile",
+      version: "1.0.0",
+      type: "skillset" as const,
+    };
+
+    await writeProfileMetadata({ profileDir, metadata });
+
+    const result = await readProfileMetadata({ profileDir });
+    expect(result.type).toBe("skillset");
+  });
 });
 
 describe("addSkillToNoriJson", () => {
@@ -92,6 +105,33 @@ describe("addSkillToNoriJson", () => {
     expect(metadata.name).toBe(path.basename(profileDir));
     expect(metadata.version).toBe("1.0.0");
     expect(metadata.dependencies?.skills).toEqual({ "my-skill": "*" });
+  });
+
+  it("should set type to skillset when creating a new nori.json", async () => {
+    await addSkillToNoriJson({
+      profileDir,
+      skillName: "my-skill",
+      version: "*",
+    });
+
+    const metadata = await readProfileMetadata({ profileDir });
+    expect(metadata.type).toBe("skillset");
+  });
+
+  it("should preserve existing type field when adding a skill", async () => {
+    await writeProfileMetadata({
+      profileDir,
+      metadata: { name: "my-profile", version: "1.0.0", type: "skill" },
+    });
+
+    await addSkillToNoriJson({
+      profileDir,
+      skillName: "new-skill",
+      version: "^2.0.0",
+    });
+
+    const metadata = await readProfileMetadata({ profileDir });
+    expect(metadata.type).toBe("skill");
   });
 
   it("should add skill to existing nori.json that has no dependencies key", async () => {
@@ -200,6 +240,30 @@ describe("ensureNoriJson", () => {
     const metadata = await readProfileMetadata({ profileDir });
     expect(metadata.name).toBe(path.basename(profileDir));
     expect(metadata.version).toBe("0.0.1");
+  });
+
+  it("should set type to skillset on auto-created nori.json", async () => {
+    await fs.writeFile(path.join(profileDir, "CLAUDE.md"), "# My Profile");
+
+    await ensureNoriJson({ profileDir });
+
+    const metadata = await readProfileMetadata({ profileDir });
+    expect(metadata.type).toBe("skillset");
+  });
+
+  it("should not overwrite existing type field", async () => {
+    const existing = {
+      name: "my-profile",
+      version: "2.0.0",
+      type: "skill" as const,
+    };
+    await writeProfileMetadata({ profileDir, metadata: existing });
+    await fs.writeFile(path.join(profileDir, "CLAUDE.md"), "# My Profile");
+
+    await ensureNoriJson({ profileDir });
+
+    const metadata = await readProfileMetadata({ profileDir });
+    expect(metadata.type).toBe("skill");
   });
 
   it("should create nori.json when directory has skills and subagents dirs but no nori.json", async () => {

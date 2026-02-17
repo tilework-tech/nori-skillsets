@@ -32,6 +32,7 @@ import {
 } from "@/utils/url.js";
 
 import type { RegistryAuth } from "@/cli/config.js";
+import type { NoriJson } from "@/norijson/nori.js";
 import type { Command } from "commander";
 
 /**
@@ -179,6 +180,101 @@ const detectInlineSkillCandidates = async (args: {
   }
 
   return candidates;
+};
+
+/**
+ * Backfill the `type` field on nori.json files before upload.
+ *
+ * - Sets `type: "skillset"` on the profile's nori.json if missing
+ * - Sets `type: "skill"` on any skill subdirectory nori.json if missing
+ *
+ * @param args - The function arguments
+ * @param args.profileDir - The profile directory
+ */
+const backfillNoriJsonTypes = async (args: {
+  profileDir: string;
+}): Promise<void> => {
+  const { profileDir } = args;
+
+  // Backfill profile nori.json
+  const profileNoriJsonPath = path.join(profileDir, "nori.json");
+  try {
+    const content = await fs.readFile(profileNoriJsonPath, "utf-8");
+    const metadata = JSON.parse(content) as NoriJson;
+    if (metadata.type == null) {
+      metadata.type = "skillset";
+      await fs.writeFile(
+        profileNoriJsonPath,
+        JSON.stringify(metadata, null, 2),
+      );
+    }
+  } catch (err: unknown) {
+    if (err instanceof SyntaxError) {
+      throw new Error(
+        `nori.json exists but contains invalid JSON: ${err.message}`,
+      );
+    }
+    // No nori.json — nothing to backfill
+  }
+
+  // Backfill skill subdirectory nori.json files
+  const skillsDir = path.join(profileDir, "skills");
+  try {
+    const entries = await fs.readdir(skillsDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const skillNoriJsonPath = path.join(skillsDir, entry.name, "nori.json");
+      try {
+        const content = await fs.readFile(skillNoriJsonPath, "utf-8");
+        const metadata = JSON.parse(content) as NoriJson;
+        if (metadata.type == null) {
+          metadata.type = "skill";
+          await fs.writeFile(
+            skillNoriJsonPath,
+            JSON.stringify(metadata, null, 2),
+          );
+        }
+      } catch (err: unknown) {
+        if (err instanceof SyntaxError) {
+          throw new Error(
+            `skills/${entry.name}/nori.json exists but contains invalid JSON: ${err.message}`,
+          );
+        }
+        // No nori.json for this skill — skip
+      }
+    }
+  } catch {
+    // No skills directory — nothing to backfill
+  }
+};
+
+/**
+ * Create nori.json files for inline/extract skill candidates after resolution.
+ *
+ * @param args - The function arguments
+ * @param args.profileDir - The profile directory
+ * @param args.inlineCandidates - All skill IDs that were candidates (no nori.json)
+ * @param args.inlineSkillIds - Skill IDs that were chosen to be kept inline
+ */
+const createCandidateNoriJsonFiles = async (args: {
+  profileDir: string;
+  inlineCandidates: Array<string>;
+  inlineSkillIds: Array<string>;
+}): Promise<void> => {
+  const { profileDir, inlineCandidates, inlineSkillIds } = args;
+  const inlineSet = new Set(inlineSkillIds);
+
+  for (const candidate of inlineCandidates) {
+    const skillDir = path.join(profileDir, "skills", candidate);
+    const noriJsonPath = path.join(skillDir, "nori.json");
+    const type = inlineSet.has(candidate) ? "inlined-skill" : "skill";
+    const metadata: NoriJson = {
+      name: candidate,
+      version: "1.0.0",
+      type,
+    };
+    await fs.writeFile(noriJsonPath, JSON.stringify(metadata, null, 2));
+  }
 };
 
 /**
@@ -409,6 +505,9 @@ export const registryUploadMain = async (args: {
     return { success: true };
   }
 
+  // Backfill type field on existing nori.json files before upload
+  await backfillNoriJsonTypes({ profileDir });
+
   // Detect inline skill candidates (skills without nori.json)
   const inlineCandidates = await detectInlineSkillCandidates({ profileDir });
 
@@ -419,6 +518,15 @@ export const registryUploadMain = async (args: {
     uploadVersion: string;
   }): Promise<UploadResult> => {
     try {
+      // Create nori.json for inline/extract candidates before tarball creation
+      if (inlineCandidates.length > 0) {
+        await createCandidateNoriJsonFiles({
+          profileDir,
+          inlineCandidates,
+          inlineSkillIds: uploadArgs.inlineSkills ?? [],
+        });
+      }
+
       const tarballBuffer = await createProfileTarball({ profileDir });
       const archiveData = new ArrayBuffer(tarballBuffer.byteLength);
       new Uint8Array(archiveData).set(tarballBuffer);
