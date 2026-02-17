@@ -2193,5 +2193,284 @@ describe("registry-upload", () => {
         }
       });
     });
+
+    describe("nori.json type field handling", () => {
+      it("should set type to skillset on profile nori.json when type is missing before upload", async () => {
+        // Create a profile with nori.json that has no type field
+        const profileDir = path.join(profilesDir, "myorg", "my-profile");
+        await fs.mkdir(profileDir, { recursive: true });
+        await fs.writeFile(
+          path.join(profileDir, "nori.json"),
+          JSON.stringify({ name: "my-profile", version: "1.0.0" }),
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+
+        vi.mocked(registrarApi.uploadSkillset).mockResolvedValue({
+          name: "my-profile",
+          version: "1.0.0",
+          tarballSha: "abc123",
+          createdAt: new Date().toISOString(),
+        });
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+        });
+
+        expect(result.success).toBe(true);
+
+        // Verify the nori.json on disk now has type: "skillset"
+        const noriJson = JSON.parse(
+          await fs.readFile(path.join(profileDir, "nori.json"), "utf-8"),
+        );
+        expect(noriJson.type).toBe("skillset");
+      });
+
+      it("should set type to skill on skill subdirectory nori.json when type is missing before upload", async () => {
+        // Create a profile with a skill that has nori.json without type
+        const profileDir = path.join(profilesDir, "myorg", "my-profile");
+        await fs.mkdir(profileDir, { recursive: true });
+        await fs.writeFile(
+          path.join(profileDir, "nori.json"),
+          JSON.stringify({
+            name: "my-profile",
+            version: "1.0.0",
+            type: "skillset",
+          }),
+        );
+
+        const skillDir = path.join(profileDir, "skills", "my-skill");
+        await fs.mkdir(skillDir, { recursive: true });
+        await fs.writeFile(
+          path.join(skillDir, "SKILL.md"),
+          "---\nname: my-skill\ndescription: A skill\n---\n",
+        );
+        await fs.writeFile(
+          path.join(skillDir, "nori.json"),
+          JSON.stringify({ name: "my-skill", version: "1.0.0" }),
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+
+        vi.mocked(registrarApi.uploadSkillset).mockResolvedValue({
+          name: "my-profile",
+          version: "1.0.0",
+          tarballSha: "abc123",
+          createdAt: new Date().toISOString(),
+        });
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+        });
+
+        expect(result.success).toBe(true);
+
+        // Verify the skill nori.json on disk now has type: "skill"
+        const skillNoriJson = JSON.parse(
+          await fs.readFile(path.join(skillDir, "nori.json"), "utf-8"),
+        );
+        expect(skillNoriJson.type).toBe("skill");
+      });
+
+      it("should not overwrite existing type field on nori.json during upload", async () => {
+        // Create a profile with nori.json that already has a type field
+        const profileDir = path.join(profilesDir, "myorg", "my-profile");
+        await fs.mkdir(profileDir, { recursive: true });
+        await fs.writeFile(
+          path.join(profileDir, "nori.json"),
+          JSON.stringify({
+            name: "my-profile",
+            version: "1.0.0",
+            type: "skillset",
+          }),
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+
+        vi.mocked(registrarApi.uploadSkillset).mockResolvedValue({
+          name: "my-profile",
+          version: "1.0.0",
+          tarballSha: "abc123",
+          createdAt: new Date().toISOString(),
+        });
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+        });
+
+        expect(result.success).toBe(true);
+
+        // Verify the type field was not changed
+        const noriJson = JSON.parse(
+          await fs.readFile(path.join(profileDir, "nori.json"), "utf-8"),
+        );
+        expect(noriJson.type).toBe("skillset");
+      });
+
+      it("should create nori.json with type inlined-skill for inline candidates", async () => {
+        // Create a profile with an inline skill candidate (no nori.json in skill dir)
+        const profileDir = path.join(profilesDir, "myorg", "my-profile");
+        await fs.mkdir(profileDir, { recursive: true });
+        await fs.writeFile(
+          path.join(profileDir, "nori.json"),
+          JSON.stringify({
+            name: "my-profile",
+            version: "1.0.0",
+            type: "skillset",
+          }),
+        );
+
+        const skillDir = path.join(profileDir, "skills", "my-inline-skill");
+        await fs.mkdir(skillDir, { recursive: true });
+        await fs.writeFile(
+          path.join(skillDir, "SKILL.md"),
+          "---\nname: my-inline-skill\ndescription: An inline skill\n---\n",
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+
+        vi.mocked(registrarApi.uploadSkillset).mockResolvedValue({
+          name: "my-profile",
+          version: "1.0.0",
+          tarballSha: "abc123",
+          createdAt: new Date().toISOString(),
+        });
+
+        // User chooses inline for the skill
+        vi.mocked(clack.select).mockResolvedValueOnce("inline");
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+        });
+
+        expect(result.success).toBe(true);
+
+        // Verify nori.json was created for the inline skill
+        const skillNoriJson = JSON.parse(
+          await fs.readFile(path.join(skillDir, "nori.json"), "utf-8"),
+        );
+        expect(skillNoriJson.type).toBe("inlined-skill");
+      });
+
+      it("should create nori.json with type skill for extract candidates", async () => {
+        // Create a profile with a skill candidate to be extracted (no nori.json)
+        const profileDir = path.join(profilesDir, "myorg", "my-profile");
+        await fs.mkdir(profileDir, { recursive: true });
+        await fs.writeFile(
+          path.join(profileDir, "nori.json"),
+          JSON.stringify({
+            name: "my-profile",
+            version: "1.0.0",
+            type: "skillset",
+          }),
+        );
+
+        const skillDir = path.join(profileDir, "skills", "my-extract-skill");
+        await fs.mkdir(skillDir, { recursive: true });
+        await fs.writeFile(
+          path.join(skillDir, "SKILL.md"),
+          "---\nname: my-extract-skill\ndescription: A skill to extract\n---\n",
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+
+        vi.mocked(registrarApi.uploadSkillset).mockResolvedValue({
+          name: "my-profile",
+          version: "1.0.0",
+          tarballSha: "abc123",
+          createdAt: new Date().toISOString(),
+        });
+
+        // User chooses extract for the skill
+        vi.mocked(clack.select).mockResolvedValueOnce("extract");
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+        });
+
+        expect(result.success).toBe(true);
+
+        // Verify nori.json was created for the extracted skill
+        const skillNoriJson = JSON.parse(
+          await fs.readFile(path.join(skillDir, "nori.json"), "utf-8"),
+        );
+        expect(skillNoriJson.type).toBe("skill");
+      });
+    });
   });
 });

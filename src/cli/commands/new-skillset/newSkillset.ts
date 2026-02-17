@@ -46,6 +46,7 @@ export const createEmptySkillset = async (args: {
     metadata: {
       name: path.basename(name),
       version: "1.0.0",
+      type: "skillset",
     },
   });
 };
@@ -78,6 +79,7 @@ export const newSkillsetMain = async (): Promise<void> => {
   const metadata: NoriJson = {
     name: path.basename(name),
     version: version ?? "1.0.0",
+    type: "skillset",
   };
 
   if (description != null) {

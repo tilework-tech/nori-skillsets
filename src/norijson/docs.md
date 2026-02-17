@@ -29,6 +29,7 @@ Path: @/src/norijson
 | `subagents` | `Array<SkillsetSubagent>` | Inlined subagent content for skillsets |
 | `slashcommands` | `Array<SkillsetSlashCommand>` | Inlined slash command content for skillsets |
 | `scripts` | `Array<string>` | Script filenames for skills |
+| `type` | `NoriJsonType` | Package type: `"skillset"`, `"skill"`, or `"inlined-skill"` |
 | `registryURL` | `string` | Server-set metadata |
 
 The type includes an index signature (`[key: string]: unknown`) to allow additional fields without breaking type checks.
@@ -39,7 +40,7 @@ The type includes an index signature (`[key: string]: unknown`) to allow additio
 
 ### Things to Know
 
-- The `NoriJson` type serves dual purpose: it describes both skillset manifests (which have `skills`, `subagents`, `slashcommands`) and individual skill manifests (which have `scripts`). Both share the same type with optional fields.
+- The `NoriJson` type serves dual purpose: it describes both skillset manifests (which have `skills`, `subagents`, `slashcommands`) and individual skill manifests (which have `scripts`). Both share the same type with optional fields. The `type` field (`NoriJsonType`) distinguishes between these: `"skillset"` for skillset manifests, `"skill"` for standalone skill packages, and `"inlined-skill"` for skills bundled within a skillset tarball.
 - The `repository` field is a plain string URL, not a `{ type, url }` object. This matches the registrar's canonical format.
 - All optional fields accept `null` in addition to `undefined`, following the codebase convention.
 

@@ -89,6 +89,7 @@ export const addSkillToNoriJson = async (args: {
     metadata = {
       name: path.basename(profileDir),
       version: "1.0.0",
+      type: "skillset",
     };
   }
 
@@ -175,6 +176,7 @@ export const ensureNoriJson = async (args: {
   const metadata: NoriJson = {
     name: path.basename(profileDir),
     version: "0.0.1",
+    type: "skillset",
   };
   await writeProfileMetadata({ profileDir, metadata });
 };

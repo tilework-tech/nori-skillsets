@@ -226,6 +226,7 @@ export const captureExistingConfigAsProfile = async (args: {
   const noriJson = {
     name: profileName,
     version: "1.0.0",
+    type: "skillset",
     description: "Captured from existing configuration",
     dependencies: {
       skills: skillsMap,
