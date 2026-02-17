@@ -5,7 +5,6 @@
  */
 
 import * as fs from "fs/promises";
-import * as os from "os";
 import * as path from "path";
 
 import {
@@ -26,6 +25,7 @@ import {
 } from "@/cli/features/claude-code/profiles/metadata.js";
 import { substituteTemplatePaths } from "@/cli/features/claude-code/template.js";
 import { error, success, info, newline, warn } from "@/cli/logger.js";
+import { getHomeDir } from "@/utils/home.js";
 import { getInstallDirs } from "@/utils/path.js";
 
 import type { Command } from "commander";
@@ -267,7 +267,7 @@ export const externalMain = async (args: {
   } else {
     const allInstallations = getInstallDirs({ currentDir: cwd });
     if (allInstallations.length === 0) {
-      targetInstallDir = os.homedir();
+      targetInstallDir = getHomeDir();
     } else if (allInstallations.length > 1) {
       const installList = allInstallations
         .map((dir, index) => `${index + 1}. ${dir}`)
@@ -283,7 +283,7 @@ export const externalMain = async (args: {
 
   // 3. Load config and resolve target skillset
   // Use home directory since config (auth, active profile) is a global setting
-  const config = await loadConfig({ startDir: os.homedir() });
+  const config = await loadConfig({ startDir: getHomeDir() });
   let targetSkillset: string | null = null;
   const profilesDir = getNoriProfilesDir();
 

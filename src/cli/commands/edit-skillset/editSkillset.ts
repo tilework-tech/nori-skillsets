@@ -5,7 +5,6 @@
 
 import { execFile } from "child_process";
 import * as fs from "fs/promises";
-import * as os from "os";
 import * as path from "path";
 
 import { log, note, outro } from "@clack/prompts";
@@ -16,6 +15,7 @@ import {
   getInstalledAgents,
 } from "@/cli/config.js";
 import { getNoriProfilesDir } from "@/cli/features/claude-code/paths.js";
+import { getHomeDir } from "@/utils/home.js";
 
 import type { ConfigAgentName } from "@/cli/config.js";
 
@@ -38,8 +38,8 @@ export const editSkillsetMain = async (args: {
     profileName = name;
   } else {
     // Load config to find the active profile
-    // Use os.homedir() as startDir since edit-skillset is home-directory-based
-    const config = await loadConfig({ startDir: os.homedir() });
+    // Use getHomeDir() as startDir since edit-skillset is home-directory-based
+    const config = await loadConfig({ startDir: getHomeDir() });
 
     // Determine agent name
     let agentName: ConfigAgentName;

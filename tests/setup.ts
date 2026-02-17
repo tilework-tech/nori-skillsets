@@ -1,8 +1,15 @@
 import { execSync } from "child_process";
 import * as fs from "fs";
+import * as os from "os";
 import * as path from "path";
 
 import { afterAll, afterEach, beforeAll, vi } from "vitest";
+
+// Store isolated test home directory
+let testHomeDir: string | null = null;
+
+// Store original HOME value for restoration
+let originalHome: string | undefined;
 
 /**
  * Check if a file is tracked by git
@@ -88,6 +95,22 @@ export const detectNoriPollution = (cwdPath: string): Array<string> => {
 beforeAll(() => {
   process.env.NODE_ENV = "test";
 
+  // Store original HOME for restoration
+  originalHome = process.env.HOME;
+
+  // Create isolated temp directory for HOME
+  testHomeDir = fs.mkdtempSync(path.join(os.tmpdir(), "nori-test-home-"));
+
+  // Create expected directory structure
+  fs.mkdirSync(path.join(testHomeDir, ".nori", "profiles"), {
+    recursive: true,
+  });
+  fs.mkdirSync(path.join(testHomeDir, ".claude"), { recursive: true });
+
+  // Set HOME for isolation - getHomeDir() checks NORI_GLOBAL_CONFIG first, then HOME
+  // Individual tests can override HOME to use their own temp directories
+  process.env.HOME = testHomeDir;
+
   // Pre-test check: Verify CWD is clean (no Nori installation pollution)
   const cwdPath = process.cwd();
   const pollution = detectNoriPollution(cwdPath);
@@ -121,5 +144,22 @@ afterAll(() => {
         `Leaked files/directories:\n${pollution.map((p) => `  - ${p}`).join("\n")}\n` +
         `Please manually remove these files from ${cwdPath}`,
     );
+  }
+
+  // Clean up test home directory
+  if (testHomeDir != null) {
+    try {
+      fs.rmSync(testHomeDir, { recursive: true, force: true });
+    } catch {
+      // Ignore cleanup errors
+    }
+    testHomeDir = null;
+  }
+
+  // Restore original HOME
+  if (originalHome !== undefined) {
+    process.env.HOME = originalHome;
+  } else {
+    delete process.env.HOME;
   }
 });

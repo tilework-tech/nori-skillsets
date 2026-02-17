@@ -5,8 +5,6 @@
  * Returns both profiles and skills from each registry
  */
 
-import os from "os";
-
 import {
   registrarApi,
   REGISTRAR_URL,
@@ -21,6 +19,7 @@ import {
 import { loadConfig } from "@/cli/config.js";
 import { error } from "@/cli/logger.js";
 import { registrySearchFlow } from "@/cli/prompts/flows/index.js";
+import { getHomeDir } from "@/utils/home.js";
 import { getInstallDirs } from "@/utils/path.js";
 import {
   extractOrgId,
@@ -523,7 +522,7 @@ export const registrySearchMain = async (args: {
   // Verify an installation exists (needed for registry auth discovery)
   if (installDir == null) {
     const allInstallations = getInstallDirs({ currentDir: process.cwd() });
-    const homeDir = os.homedir();
+    const homeDir = getHomeDir();
     const homeInstallations = getInstallDirs({ currentDir: homeDir });
 
     if (!homeInstallations.includes(homeDir) && allInstallations.length === 0) {
@@ -535,8 +534,8 @@ export const registrySearchMain = async (args: {
     }
   }
 
-  // Load config to check for org auth - use os.homedir() since registry needs global auth
-  const config = await loadConfig({ startDir: os.homedir() });
+  // Load config to check for org auth - use getHomeDir() since registry needs global auth
+  const config = await loadConfig({ startDir: getHomeDir() });
 
   await registrySearchFlow({
     callbacks: {
