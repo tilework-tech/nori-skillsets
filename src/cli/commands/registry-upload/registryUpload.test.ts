@@ -1774,6 +1774,333 @@ describe("registry-upload", () => {
       });
     });
 
+    describe("inline skills detection", () => {
+      it("should pass inlineSkills to uploadSkillset when profile has skills without nori.json", async () => {
+        // Create a profile with mixed skills
+        const profileDir = path.join(profilesDir, "myorg", "my-profile");
+        await fs.mkdir(profileDir, { recursive: true });
+        await fs.writeFile(
+          path.join(profileDir, "CLAUDE.md"),
+          "# My Profile\n",
+        );
+
+        // Skill without nori.json (inline candidate)
+        const inlineSkillDir = path.join(profileDir, "skills", "init");
+        await fs.mkdir(inlineSkillDir, { recursive: true });
+        await fs.writeFile(
+          path.join(inlineSkillDir, "SKILL.md"),
+          "# Init Skill\n",
+        );
+
+        // Skill with nori.json (always extracted)
+        const extractedSkillDir = path.join(profileDir, "skills", "tdd");
+        await fs.mkdir(extractedSkillDir, { recursive: true });
+        await fs.writeFile(
+          path.join(extractedSkillDir, "SKILL.md"),
+          "# TDD Skill\n",
+        );
+        await fs.writeFile(
+          path.join(extractedSkillDir, "nori.json"),
+          JSON.stringify({ name: "tdd", version: "1.0.0" }),
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+
+        vi.mocked(registrarApi.uploadSkillset).mockResolvedValue({
+          name: "my-profile",
+          version: "1.0.0",
+          tarballSha: "abc123",
+          createdAt: new Date().toISOString(),
+        });
+
+        // Flow prompts per-skill for inline/extract decision
+        vi.mocked(clack.select).mockResolvedValueOnce("inline");
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+        });
+
+        expect(result.success).toBe(true);
+
+        // Verify inlineSkills was passed to the API
+        expect(registrarApi.uploadSkillset).toHaveBeenCalledWith(
+          expect.objectContaining({
+            inlineSkills: expect.arrayContaining(["init"]),
+          }),
+        );
+
+        // Verify "tdd" (with nori.json) is NOT in inlineSkills
+        const uploadCall = vi.mocked(registrarApi.uploadSkillset).mock
+          .calls[0][0];
+        expect(uploadCall.inlineSkills).not.toContain("tdd");
+      });
+
+      it("should not prompt for inline skills when no skills directory exists", async () => {
+        // Create a profile without skills directory
+        const profileDir = path.join(profilesDir, "myorg", "my-profile");
+        await fs.mkdir(profileDir, { recursive: true });
+        await fs.writeFile(
+          path.join(profileDir, "CLAUDE.md"),
+          "# My Profile\n",
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+
+        vi.mocked(registrarApi.uploadSkillset).mockResolvedValue({
+          name: "my-profile",
+          version: "1.0.0",
+          tarballSha: "abc123",
+          createdAt: new Date().toISOString(),
+        });
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+        });
+
+        expect(result.success).toBe(true);
+
+        // No inlineSkills should be sent when there are no candidates
+        const uploadCall = vi.mocked(registrarApi.uploadSkillset).mock
+          .calls[0][0];
+        expect(uploadCall.inlineSkills).toBeUndefined();
+      });
+
+      it("should not prompt when all skills have nori.json", async () => {
+        // Create a profile where all skills have nori.json
+        const profileDir = path.join(profilesDir, "myorg", "my-profile");
+        await fs.mkdir(profileDir, { recursive: true });
+        await fs.writeFile(
+          path.join(profileDir, "CLAUDE.md"),
+          "# My Profile\n",
+        );
+
+        const skillDir = path.join(profileDir, "skills", "tdd");
+        await fs.mkdir(skillDir, { recursive: true });
+        await fs.writeFile(path.join(skillDir, "SKILL.md"), "# TDD Skill\n");
+        await fs.writeFile(
+          path.join(skillDir, "nori.json"),
+          JSON.stringify({ name: "tdd", version: "1.0.0" }),
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+
+        vi.mocked(registrarApi.uploadSkillset).mockResolvedValue({
+          name: "my-profile",
+          version: "1.0.0",
+          tarballSha: "abc123",
+          createdAt: new Date().toISOString(),
+        });
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+        });
+
+        expect(result.success).toBe(true);
+
+        // No inlineSkills should be sent when there are no candidates
+        const uploadCall = vi.mocked(registrarApi.uploadSkillset).mock
+          .calls[0][0];
+        expect(uploadCall.inlineSkills).toBeUndefined();
+      });
+
+      it("should skip inline skills prompt in non-interactive mode and extract all", async () => {
+        // Create a profile with skills without nori.json
+        const profileDir = path.join(profilesDir, "myorg", "my-profile");
+        await fs.mkdir(profileDir, { recursive: true });
+        await fs.writeFile(
+          path.join(profileDir, "CLAUDE.md"),
+          "# My Profile\n",
+        );
+
+        const skillDir = path.join(profileDir, "skills", "init");
+        await fs.mkdir(skillDir, { recursive: true });
+        await fs.writeFile(path.join(skillDir, "SKILL.md"), "# Init Skill\n");
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+
+        vi.mocked(registrarApi.uploadSkillset).mockResolvedValue({
+          name: "my-profile",
+          version: "1.0.0",
+          tarballSha: "abc123",
+          createdAt: new Date().toISOString(),
+        });
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+          nonInteractive: true,
+        });
+
+        expect(result.success).toBe(true);
+
+        // In non-interactive mode, no inlineSkills sent (extract all, backward compat)
+        const uploadCall = vi.mocked(registrarApi.uploadSkillset).mock
+          .calls[0][0];
+        expect(uploadCall.inlineSkills).toBeUndefined();
+      });
+
+      it("should skip inline skills prompt in silent mode and extract all", async () => {
+        // Create a profile with skills without nori.json
+        const profileDir = path.join(profilesDir, "myorg", "my-profile");
+        await fs.mkdir(profileDir, { recursive: true });
+        await fs.writeFile(
+          path.join(profileDir, "CLAUDE.md"),
+          "# My Profile\n",
+        );
+
+        const skillDir = path.join(profileDir, "skills", "init");
+        await fs.mkdir(skillDir, { recursive: true });
+        await fs.writeFile(path.join(skillDir, "SKILL.md"), "# Init Skill\n");
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+
+        vi.mocked(registrarApi.uploadSkillset).mockResolvedValue({
+          name: "my-profile",
+          version: "1.0.0",
+          tarballSha: "abc123",
+          createdAt: new Date().toISOString(),
+        });
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+          silent: true,
+        });
+
+        expect(result.success).toBe(true);
+
+        // In silent mode, no inlineSkills sent (extract all, backward compat)
+        const uploadCall = vi.mocked(registrarApi.uploadSkillset).mock
+          .calls[0][0];
+        expect(uploadCall.inlineSkills).toBeUndefined();
+      });
+
+      it("should not pass inlineSkills when user selects extract for each skill", async () => {
+        // Create a profile with skills without nori.json
+        const profileDir = path.join(profilesDir, "myorg", "my-profile");
+        await fs.mkdir(profileDir, { recursive: true });
+        await fs.writeFile(
+          path.join(profileDir, "CLAUDE.md"),
+          "# My Profile\n",
+        );
+
+        const skillDir = path.join(profileDir, "skills", "init");
+        await fs.mkdir(skillDir, { recursive: true });
+        await fs.writeFile(path.join(skillDir, "SKILL.md"), "# Init Skill\n");
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+
+        vi.mocked(registrarApi.uploadSkillset).mockResolvedValue({
+          name: "my-profile",
+          version: "1.0.0",
+          tarballSha: "abc123",
+          createdAt: new Date().toISOString(),
+        });
+
+        // User selects "extract" in per-skill flow prompt
+        vi.mocked(clack.select).mockResolvedValueOnce("extract");
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+        });
+
+        expect(result.success).toBe(true);
+
+        // inlineSkills should NOT be sent when user chose extract
+        const uploadCall = vi.mocked(registrarApi.uploadSkillset).mock
+          .calls[0][0];
+        expect(uploadCall.inlineSkills).toBeUndefined();
+      });
+    });
+
     describe("tarball file exclusion", () => {
       it("should exclude .nori-version files from upload tarball", async () => {
         // Create a profile with .nori-version file (simulating a previously downloaded profile)

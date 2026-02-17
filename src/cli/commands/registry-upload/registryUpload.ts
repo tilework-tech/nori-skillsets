@@ -143,6 +143,45 @@ const createProfileTarball = async (args: {
 };
 
 /**
+ * Detect skills in a profile that don't have a nori.json file.
+ * These are candidates for keeping inline (bundled in the tarball)
+ * rather than being extracted as independent skill packages.
+ *
+ * @param args - The function arguments
+ * @param args.profileDir - The profile directory to scan
+ *
+ * @returns Array of skill IDs that are inline candidates, or empty array
+ */
+const detectInlineSkillCandidates = async (args: {
+  profileDir: string;
+}): Promise<Array<string>> => {
+  const { profileDir } = args;
+  const skillsDir = path.join(profileDir, "skills");
+
+  try {
+    await fs.access(skillsDir);
+  } catch {
+    return [];
+  }
+
+  const entries = await fs.readdir(skillsDir, { withFileTypes: true });
+  const candidates: Array<string> = [];
+
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+
+    const noriJsonPath = path.join(skillsDir, entry.name, "nori.json");
+    try {
+      await fs.access(noriJsonPath);
+    } catch {
+      candidates.push(entry.name);
+    }
+  }
+
+  return candidates;
+};
+
+/**
  * Main upload function
  * @param args - The function arguments
  * @param args.profileSpec - Profile specification (name[@version] or org/name[@version])
@@ -374,9 +413,13 @@ export const registryUploadMain = async (args: {
     return { success: true };
   }
 
+  // Detect inline skill candidates (skills without nori.json)
+  const inlineCandidates = await detectInlineSkillCandidates({ profileDir });
+
   // Helper to perform upload with optional resolution strategy
   const performUpload = async (uploadArgs: {
     resolutionStrategy?: SkillResolutionStrategy | null;
+    inlineSkills?: Array<string> | null;
     uploadVersion: string;
   }): Promise<UploadResult> => {
     try {
@@ -392,6 +435,7 @@ export const registryUploadMain = async (args: {
         registryUrl: targetRegistryUrl,
         description: description ?? undefined,
         resolutionStrategy: uploadArgs.resolutionStrategy ?? undefined,
+        inlineSkills: uploadArgs.inlineSkills ?? undefined,
       });
 
       return {
@@ -439,6 +483,8 @@ export const registryUploadMain = async (args: {
     profileName: packageName,
     registryUrl: targetRegistryUrl,
     nonInteractive: nonInteractive ?? false,
+    inlineCandidates:
+      inlineCandidates.length > 0 ? inlineCandidates : undefined,
     callbacks: {
       onDetermineVersion: async () => {
         const versionResult = await determineUploadVersion({
@@ -456,6 +502,7 @@ export const registryUploadMain = async (args: {
         }
         return performUpload({
           resolutionStrategy: uploadCallbackArgs.resolutionStrategy,
+          inlineSkills: uploadCallbackArgs.inlineSkillIds,
           uploadVersion,
         });
       },
