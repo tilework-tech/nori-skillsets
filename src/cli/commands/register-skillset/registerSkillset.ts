@@ -100,6 +100,7 @@ export const registerSkillsetMain = async (args: {
   const metadata: NoriJson = {
     name: path.basename(skillsetName),
     version: version ?? "1.0.0",
+    type: "skillset",
   };
 
   if (description != null) {

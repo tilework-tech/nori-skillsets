@@ -102,6 +102,7 @@ describe("registerSkillsetMain", () => {
     expect(noriJson).toEqual({
       name: "my-existing-skillset",
       version: "1.5.0",
+      type: "skillset",
       description: "My existing skillset",
       license: "MIT",
       keywords: ["testing"],
@@ -112,6 +113,26 @@ describe("registerSkillsetMain", () => {
       expect.stringContaining("my-existing-skillset"),
     );
     expect(mockExit).not.toHaveBeenCalled();
+  });
+
+  it("should set type to skillset in nori.json", async () => {
+    const existingDir = path.join(profilesDir, "type-test-skillset");
+    await fs.mkdir(existingDir, { recursive: true });
+
+    mockRegisterSkillsetFlow.mockResolvedValueOnce({
+      description: null,
+      license: null,
+      keywords: null,
+      version: null,
+      repository: null,
+    });
+
+    await registerSkillsetMain({ skillsetName: "type-test-skillset" });
+
+    const noriJson = JSON.parse(
+      await fs.readFile(path.join(existingDir, "nori.json"), "utf-8"),
+    );
+    expect(noriJson.type).toBe("skillset");
   });
 
   it("should use current skillset when skillsetName is null", async () => {
@@ -237,6 +258,7 @@ describe("registerSkillsetMain", () => {
     expect(noriJson).toEqual({
       name: "minimal-skillset",
       version: "1.0.0",
+      type: "skillset",
     });
   });
 

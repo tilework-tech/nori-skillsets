@@ -88,6 +88,7 @@ describe("newSkillsetMain", () => {
     expect(noriJson).toEqual({
       name: "my-new-skillset",
       version: "1.0.0",
+      type: "skillset",
     });
 
     // Verify outro message
@@ -118,6 +119,7 @@ describe("newSkillsetMain", () => {
     expect(noriJson).toEqual({
       name: "custom-profile",
       version: "1.0.0",
+      type: "skillset",
     });
 
     expect(mockExit).not.toHaveBeenCalled();
@@ -191,6 +193,7 @@ describe("newSkillsetMain", () => {
     expect(noriJson).toEqual({
       name: "full-metadata",
       version: "2.1.0",
+      type: "skillset",
       description: "A skillset with full metadata",
       license: "Apache-2.0",
       keywords: ["testing", "automation"],
@@ -238,6 +241,7 @@ describe("newSkillsetMain", () => {
     expect(noriJson).toEqual({
       name: "minimal-metadata",
       version: "1.5.0",
+      type: "skillset",
     });
     expect(noriJson.description).toBeUndefined();
     expect(noriJson.license).toBeUndefined();
