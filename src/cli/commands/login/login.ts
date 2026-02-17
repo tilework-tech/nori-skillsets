@@ -24,7 +24,6 @@ import {
 import open from "open";
 
 import { loadConfig, saveConfig } from "@/cli/config.js";
-import { error, warn } from "@/cli/logger.js";
 import {
   loginFlow,
   confirmAction,
@@ -103,7 +102,7 @@ const fetchUserAccess = async (args: {
         error: err,
         url: `${NORI_SKILLSETS_API_URL}/api/auth/check-access`,
       });
-      console.error(`Network error checking access: ${networkError.message}`);
+      log.error(`Network error checking access: ${networkError.message}`);
     }
     return null;
   }
@@ -360,26 +359,23 @@ export const loginMain = async (args?: {
 
   // Validate flag combinations
   if (useGoogle && (email != null || password != null)) {
-    error({
-      message:
-        "Cannot use --google with --email or --password. Google SSO handles authentication via the browser.",
-    });
+    log.error(
+      "Cannot use --google with --email or --password. Google SSO handles authentication via the browser.",
+    );
     return;
   }
 
   if (useGoogle && nonInteractive) {
-    error({
-      message:
-        "Cannot use --google with --non-interactive. Google SSO requires a browser for authentication.",
-    });
+    log.error(
+      "Cannot use --google with --non-interactive. Google SSO requires a browser for authentication.",
+    );
     return;
   }
 
   if (noLocalhost && !useGoogle) {
-    error({
-      message:
-        "Cannot use --no-localhost without --google. This flag is only for Google SSO.",
-    });
+    log.error(
+      "Cannot use --no-localhost without --google. This flag is only for Google SSO.",
+    );
     return;
   }
 
@@ -398,14 +394,13 @@ export const loginMain = async (args?: {
       userEmail = result.email;
     } catch (err) {
       const authError = err as AuthError;
-      error({ message: "Authentication failed" });
-      error({ message: `  Error: ${authError.message}` });
+      log.error("Authentication failed");
+      log.error(`  Error: ${authError.message}`);
 
       if ((authError as AuthError).code === "auth/operation-not-allowed") {
-        error({
-          message:
-            "  Hint: Google sign-in may not be enabled for this project. Contact your administrator.",
-        });
+        log.error(
+          "  Hint: Google sign-in may not be enabled for this project. Contact your administrator.",
+        );
       }
 
       return;
@@ -413,9 +408,7 @@ export const loginMain = async (args?: {
   } else if (nonInteractive) {
     // Non-interactive email/password flow: use provided credentials directly
     if (email == null || password == null) {
-      error({
-        message: "Non-interactive mode requires --email and --password flags.",
-      });
+      log.error("Non-interactive mode requires --email and --password flags.");
       return;
     }
 
@@ -436,8 +429,8 @@ export const loginMain = async (args?: {
       userEmail = email;
     } catch (err) {
       const authError = err as AuthError;
-      error({ message: "Authentication failed" });
-      error({ message: `  Error: ${authError.message}` });
+      log.error("Authentication failed");
+      log.error(`  Error: ${authError.message}`);
       return;
     }
   } else {
@@ -563,14 +556,13 @@ export const loginMain = async (args?: {
         userEmail = result.email;
       } catch (err) {
         const authError = err as AuthError;
-        error({ message: "Authentication failed" });
-        error({ message: `  Error: ${authError.message}` });
+        log.error("Authentication failed");
+        log.error(`  Error: ${authError.message}`);
 
         if ((authError as AuthError).code === "auth/operation-not-allowed") {
-          error({
-            message:
-              "  Hint: Google sign-in may not be enabled for this project. Contact your administrator.",
-          });
+          log.error(
+            "  Hint: Google sign-in may not be enabled for this project. Contact your administrator.",
+          );
         }
 
         return;
@@ -585,10 +577,9 @@ export const loginMain = async (args?: {
   const accessInfo = await fetchUserAccess({ idToken });
 
   if (accessInfo == null) {
-    warn({
-      message:
-        "Could not fetch organization information. Saving credentials without organization data.",
-    });
+    log.warn(
+      "Could not fetch organization information. Saving credentials without organization data.",
+    );
   } else {
     organizations = accessInfo.organizations;
     isAdmin = accessInfo.isAdmin;

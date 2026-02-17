@@ -3,6 +3,8 @@
  * Handles skillset listing, loading, and switching
  */
 
+import { log } from "@clack/prompts";
+
 import { captureExistingConfigAsProfile } from "@/cli/commands/install/existingConfigCapture.js";
 import {
   loadConfig,
@@ -20,7 +22,7 @@ import {
   type ManifestDiff,
 } from "@/cli/features/claude-code/profiles/manifest.js";
 import { listProfiles } from "@/cli/features/managedFolder.js";
-import { error, setSilentMode, isSilentMode } from "@/cli/logger.js";
+import { setSilentMode, isSilentMode } from "@/cli/logger.js";
 import { switchSkillsetFlow } from "@/cli/prompts/flows/switchSkillset.js";
 import { getHomeDir } from "@/utils/home.js";
 import { normalizeInstallDir, getInstallDirs } from "@/utils/path.js";
@@ -156,9 +158,7 @@ export const switchSkillsetAction = async (args: {
             setSilentMode({ silent: wasSilent });
             const profiles = await listProfiles();
             if (profiles.length > 0) {
-              error({
-                message: `Available skillsets: ${profiles.join(", ")}`,
-              });
+              log.error(`Available skillsets: ${profiles.join(", ")}`);
             }
             throw err;
           }
@@ -203,7 +203,7 @@ export const switchSkillsetAction = async (args: {
     // On failure, show available skillsets
     const profiles = await listProfiles();
     if (profiles.length > 0) {
-      error({ message: `Available skillsets: ${profiles.join(", ")}` });
+      log.error(`Available skillsets: ${profiles.join(", ")}`);
     }
     throw err;
   }
