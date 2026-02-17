@@ -4,7 +4,6 @@
  */
 
 import * as fs from "fs/promises";
-import * as os from "os";
 import * as path from "path";
 import { Readable } from "stream";
 import { pipeline } from "stream/promises";
@@ -29,6 +28,7 @@ import { getRegistryAuth, loadConfig } from "@/cli/config.js";
 import { getNoriProfilesDir } from "@/cli/features/claude-code/paths.js";
 import { error, info } from "@/cli/logger.js";
 import { registryDownloadFlow } from "@/cli/prompts/flows/index.js";
+import { getHomeDir } from "@/utils/home.js";
 import { getInstallDirs } from "@/utils/path.js";
 import {
   parseNamespacedPackage,
@@ -586,7 +586,7 @@ export const registryDownloadMain = async (args: {
     const allInstallations = getInstallDirs({ currentDir: cwd });
 
     // Check home directory for existing installation
-    const homeDir = os.homedir();
+    const homeDir = getHomeDir();
     const homeInstallations = getInstallDirs({ currentDir: homeDir });
 
     if (!homeInstallations.includes(homeDir)) {
@@ -619,8 +619,8 @@ export const registryDownloadMain = async (args: {
     }
   }
 
-  // Load config for registry auth - use os.homedir() since registry needs global auth
-  const config = await loadConfig({ startDir: os.homedir() });
+  // Load config for registry auth - use getHomeDir() since registry needs global auth
+  const config = await loadConfig({ startDir: getHomeDir() });
 
   const profilesDir = getNoriProfilesDir();
   // For namespaced packages, the profile is in a nested directory (e.g., profiles/myorg/my-profile)

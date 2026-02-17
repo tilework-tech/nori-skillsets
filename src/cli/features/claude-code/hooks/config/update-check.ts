@@ -9,7 +9,6 @@
  */
 
 import * as fs from "fs/promises";
-import * as os from "os";
 import * as path from "path";
 
 import { error } from "@/cli/logger.js";
@@ -18,6 +17,7 @@ import {
   refreshVersionCache,
 } from "@/cli/updates/npmRegistryCheck.js";
 import { isCacheStale, readVersionCache } from "@/cli/updates/versionCache.js";
+import { getHomeDir } from "@/utils/home.js";
 
 /**
  * Output hook result with systemMessage
@@ -47,8 +47,8 @@ const findInstallDir = async (args?: {
   // Check common locations for .nori-config.json
   const candidates = [
     process.cwd(),
-    os.homedir(),
-    path.join(os.homedir(), ".claude"),
+    getHomeDir(),
+    path.join(getHomeDir(), ".claude"),
   ];
 
   for (const dir of candidates) {

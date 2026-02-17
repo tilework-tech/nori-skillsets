@@ -12,7 +12,6 @@
  */
 
 import * as fs from "fs/promises";
-import * as os from "os";
 
 import {
   detectExistingConfig,
@@ -27,6 +26,7 @@ import { claudeMdLoader } from "@/cli/features/claude-code/profiles/claudemd/loa
 import { info, warn, newline, success } from "@/cli/logger.js";
 import { initFlow } from "@/cli/prompts/flows/init.js";
 import { getCurrentPackageVersion } from "@/cli/version.js";
+import { getHomeDir } from "@/utils/home.js";
 import { normalizeInstallDir, getInstallDirsWithTypes } from "@/utils/path.js";
 
 import type { Command } from "commander";
@@ -83,8 +83,8 @@ export const initMain = async (args?: {
             .map((installation) => installation.path);
         },
         onDetectExistingConfig: async ({ installDir: dir }) => {
-          // Use os.homedir() since init is home-directory-based
-          const existingConfig = await loadConfig({ startDir: os.homedir() });
+          // Use getHomeDir() since init is home-directory-based
+          const existingConfig = await loadConfig({ startDir: getHomeDir() });
           if (existingConfig != null) return null;
           return detectExistingConfig({ installDir: dir });
         },
@@ -108,8 +108,8 @@ export const initMain = async (args?: {
             await fs.mkdir(profilesDir, { recursive: true });
           }
 
-          // Load existing config - use os.homedir() since init is home-directory-based
-          const existingConfig = await loadConfig({ startDir: os.homedir() });
+          // Load existing config - use getHomeDir() since init is home-directory-based
+          const existingConfig = await loadConfig({ startDir: getHomeDir() });
           const currentVersion = getCurrentPackageVersion();
 
           const username = existingConfig?.auth?.username ?? null;
@@ -197,8 +197,8 @@ export const initMain = async (args?: {
     await fs.mkdir(profilesDir, { recursive: true });
   }
 
-  // Load existing config (if any) - use os.homedir() since init is home-directory-based
-  const existingConfig = await loadConfig({ startDir: os.homedir() });
+  // Load existing config (if any) - use getHomeDir() since init is home-directory-based
+  const existingConfig = await loadConfig({ startDir: getHomeDir() });
   const currentVersion = getCurrentPackageVersion();
 
   // Track captured profile name for setting in config

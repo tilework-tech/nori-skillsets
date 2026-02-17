@@ -3,8 +3,6 @@
  * Handles skillset listing, loading, and switching
  */
 
-import * as os from "os";
-
 import { captureExistingConfigAsProfile } from "@/cli/commands/install/existingConfigCapture.js";
 import {
   loadConfig,
@@ -24,6 +22,7 @@ import {
 import { listProfiles } from "@/cli/features/managedFolder.js";
 import { error, setSilentMode, isSilentMode } from "@/cli/logger.js";
 import { switchSkillsetFlow } from "@/cli/prompts/flows/switchSkillset.js";
+import { getHomeDir } from "@/utils/home.js";
 import { normalizeInstallDir, getInstallDirs } from "@/utils/path.js";
 
 import type { Command } from "commander";
@@ -92,7 +91,7 @@ export const switchSkillsetAction = async (args: {
       installDir = installations[0]; // Use closest installation
     } else {
       // Fall back to home directory
-      const homeInstallations = getInstallDirs({ currentDir: os.homedir() });
+      const homeInstallations = getInstallDirs({ currentDir: getHomeDir() });
       if (homeInstallations.length > 0) {
         installDir = homeInstallations[0];
       } else {
@@ -112,7 +111,7 @@ export const switchSkillsetAction = async (args: {
       agentOverride: options.agent ?? null,
       callbacks: {
         onResolveAgents: async () => {
-          const config = await loadConfig({ startDir: os.homedir() });
+          const config = await loadConfig({ startDir: getHomeDir() });
           const installedAgents = config ? getInstalledAgents({ config }) : [];
           if (installedAgents.length === 0) {
             return [{ name: "claude-code", displayName: "Claude Code" }];
@@ -126,7 +125,7 @@ export const switchSkillsetAction = async (args: {
         },
         onPrepareSwitchInfo: async ({ installDir: dir, agentName }) => {
           const localChanges = await detectLocalChanges({ installDir: dir });
-          const config = await loadConfig({ startDir: os.homedir() });
+          const config = await loadConfig({ startDir: getHomeDir() });
           let currentProfile: string | null = null;
           if (config != null) {
             const agentProfile = getAgentProfile({

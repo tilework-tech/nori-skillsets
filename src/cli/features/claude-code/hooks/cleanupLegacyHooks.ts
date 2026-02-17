@@ -10,8 +10,9 @@
  */
 
 import * as fs from "fs/promises";
-import * as os from "os";
 import * as path from "path";
+
+import { getHomeDir } from "@/utils/home.js";
 
 /**
  * Hook script filenames that have been removed from the package.
@@ -54,7 +55,7 @@ const isStaleNoriHook = (args: { command: string }): boolean => {
  * Silently no-ops if settings.json doesn't exist, has no hooks, or is invalid JSON.
  */
 export const cleanupLegacyHooks = async (): Promise<void> => {
-  const settingsPath = path.join(os.homedir(), ".claude", "settings.json");
+  const settingsPath = path.join(getHomeDir(), ".claude", "settings.json");
 
   let content: string;
   try {

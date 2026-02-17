@@ -3,8 +3,9 @@
  */
 
 import * as fs from "fs";
-import * as os from "os";
 import * as path from "path";
+
+import { getHomeDir } from "@/utils/home.js";
 
 /**
  * Type of Nori installation
@@ -36,16 +37,16 @@ export const normalizeInstallDir = (args: {
 
   // Use home directory if no installDir provided or empty
   if (installDir == null || installDir === "") {
-    return os.homedir();
+    return getHomeDir();
   }
 
   let normalizedPath = installDir;
 
   // Expand tilde to home directory
   if (normalizedPath.startsWith("~/")) {
-    normalizedPath = path.join(os.homedir(), normalizedPath.slice(2));
+    normalizedPath = path.join(getHomeDir(), normalizedPath.slice(2));
   } else if (normalizedPath === "~") {
-    normalizedPath = os.homedir();
+    normalizedPath = getHomeDir();
   }
 
   // Resolve relative paths to absolute

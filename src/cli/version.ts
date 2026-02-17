@@ -5,13 +5,13 @@
  */
 
 import { existsSync, readFileSync } from "fs";
-import * as os from "os";
 import { dirname, join, parse, resolve } from "path";
 import { fileURLToPath } from "url";
 
 import semver from "semver";
 
 import { loadConfig } from "@/cli/config.js";
+import { getHomeDir } from "@/utils/home.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -110,8 +110,8 @@ export const getInstalledVersion = async (args: {
   installDir: string;
 }): Promise<string> => {
   const { installDir } = args;
-  // Use os.homedir() since version is stored in global config
-  const config = await loadConfig({ startDir: os.homedir() });
+  // Use getHomeDir() since version is stored in global config
+  const config = await loadConfig({ startDir: getHomeDir() });
 
   // If config has version, use it
   if (config?.version != null) {
