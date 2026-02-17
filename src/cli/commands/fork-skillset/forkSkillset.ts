@@ -10,7 +10,11 @@ import * as path from "path";
 import { log, note, outro } from "@clack/prompts";
 
 import { getNoriProfilesDir } from "@/cli/features/claude-code/paths.js";
-import { ensureNoriJson } from "@/cli/features/claude-code/profiles/metadata.js";
+import {
+  ensureNoriJson,
+  readProfileMetadata,
+  writeProfileMetadata,
+} from "@/cli/features/claude-code/profiles/metadata.js";
 import { MANIFEST_FILE } from "@/cli/features/managedFolder.js";
 
 export const forkSkillsetMain = async (args: {
@@ -52,6 +56,11 @@ export const forkSkillsetMain = async (args: {
 
   // Copy the skillset
   await fs.cp(sourcePath, destPath, { recursive: true });
+
+  // Update the name in nori.json to match the new skillset name
+  const metadata = await readProfileMetadata({ profileDir: destPath });
+  metadata.name = newSkillset;
+  await writeProfileMetadata({ profileDir: destPath, metadata });
 
   const nextSteps = [
     `To switch:  nori-skillsets switch ${newSkillset}`,
