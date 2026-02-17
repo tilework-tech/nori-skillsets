@@ -11,6 +11,7 @@ import * as fs from "fs/promises";
 import * as os from "os";
 import * as path from "path";
 
+import * as clack from "@clack/prompts";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // Mock child_process for git clone
@@ -54,13 +55,64 @@ vi.mock("@/cli/config.js", async () => {
   };
 });
 
-// Capture console output
-const mockConsoleLog = vi
-  .spyOn(console, "log")
-  .mockImplementation(() => undefined);
-const mockConsoleError = vi
-  .spyOn(console, "error")
-  .mockImplementation(() => undefined);
+vi.mock("@clack/prompts", () => ({
+  log: {
+    error: vi.fn(),
+    warn: vi.fn(),
+    info: vi.fn(),
+    success: vi.fn(),
+    step: vi.fn(),
+    message: vi.fn(),
+  },
+  spinner: vi.fn(() => ({
+    start: vi.fn(),
+    stop: vi.fn(),
+    message: "",
+  })),
+  confirm: vi.fn(),
+  text: vi.fn(),
+  select: vi.fn(),
+  isCancel: vi.fn(),
+}));
+
+vi.mock("@/cli/logger.js", () => ({
+  debug: vi.fn(),
+  setSilentMode: vi.fn(),
+  isSilentMode: vi.fn(),
+}));
+
+/**
+ * Collect all clack output (log.error, log.success, log.info, log.warn)
+ * into a single string for assertion convenience.
+ *
+ * @returns Combined clack output as a single string
+ */
+const getAllClackOutput = (): string => {
+  const parts: Array<string> = [];
+  for (const fn of [
+    clack.log.error,
+    clack.log.success,
+    clack.log.info,
+    clack.log.warn,
+    clack.log.message,
+  ]) {
+    const mock = vi.mocked(fn);
+    for (const call of mock.mock.calls) {
+      parts.push(call.map(String).join(" "));
+    }
+  }
+  return parts.join("\n");
+};
+
+/**
+ * Collect all clack error output (log.error calls) into a single string.
+ *
+ * @returns Combined clack error output as a single string
+ */
+const getClackErrorOutput = (): string => {
+  const mock = vi.mocked(clack.log.error);
+  return mock.mock.calls.map((call) => call.map(String).join(" ")).join("\n");
+};
 
 import { loadConfig } from "@/cli/config.js";
 
@@ -107,9 +159,7 @@ describe("externalMain with --new", () => {
       skillset: "existing-skillset",
     });
 
-    const allErrorOutput = mockConsoleError.mock.calls
-      .map((call) => call.join(" "))
-      .join("\n");
+    const allErrorOutput = getClackErrorOutput();
     expect(allErrorOutput.toLowerCase()).toContain(
       "cannot use --new and --skillset together",
     );
@@ -126,9 +176,7 @@ describe("externalMain with --new", () => {
       newSkillset: "   ",
     });
 
-    const allErrorOutput = mockConsoleError.mock.calls
-      .map((call) => call.join(" "))
-      .join("\n");
+    const allErrorOutput = getClackErrorOutput();
     expect(allErrorOutput.toLowerCase()).toContain("name");
   });
 
@@ -151,9 +199,7 @@ describe("externalMain with --new", () => {
       newSkillset: "existing",
     });
 
-    const allErrorOutput = mockConsoleError.mock.calls
-      .map((call) => call.join(" "))
-      .join("\n");
+    const allErrorOutput = getClackErrorOutput();
     expect(allErrorOutput.toLowerCase()).toContain("already exists");
   });
 
@@ -204,12 +250,10 @@ describe("externalMain with --new", () => {
     );
     expect(skillMd).toContain("Test Skill");
 
-    // Verify success message about creating the skillset was printed
-    const allLogOutput = mockConsoleLog.mock.calls
-      .map((call) => call.join(" "))
-      .join("\n");
-    expect(allLogOutput.toLowerCase()).toContain("created");
-    expect(allLogOutput).toContain("fresh-skillset");
+    // Verify success message about creating the skillset was printed via clack
+    const allOutput = getAllClackOutput();
+    expect(allOutput.toLowerCase()).toContain("created");
+    expect(allOutput).toContain("fresh-skillset");
   });
 
   it("should add skill dependencies to the new skillset's nori.json", async () => {

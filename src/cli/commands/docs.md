@@ -55,7 +55,7 @@ The install command sets `agents: { [agentName]: { profile } }` in the config, w
 
 2. **Non-interactive Email/Password** (`--email` and `--password` flags):
    - Bypasses loginFlow and authenticates directly via Firebase SDK
-   - Uses standard logger output instead of @clack/prompts UI
+   - Uses `@clack/prompts` `log.*` methods for error output (no interactive flow)
 
 3. **Google SSO** (`--google` flag):
    - Uses the localhost OAuth callback pattern: starts a temporary HTTP server on an available port (9876-9885), opens the browser to Google's consent screen, and captures the authorization code via redirect

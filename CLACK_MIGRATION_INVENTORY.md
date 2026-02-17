@@ -162,12 +162,20 @@ from `@/cli/logger.js` replaced with `log.error()` / `log.warn()` /
 | `switch` | `commands/switch-profile/profiles.ts` | ✅ Migrated |
 | `factory-reset` | `commands/factory-reset/factoryReset.ts` | ✅ Migrated |
 
-### Phase 2 — Medium commands with scattered logger usage
+### Phase 2 — Medium commands with scattered logger usage ✅ DONE
 
-| Command | File | Logger calls |
-|---------|------|-------------|
-| `registry-install` | `commands/registry-install/registryInstall.ts` | `error`, `success`, `info`, `warn`, `newline` |
-| `external` | `commands/external/external.ts` | `error`, `success`, `info`, `warn`, `newline` |
+Completed on the `feat/migrate-loggers` branch. All `error()` / `success()` /
+`info()` / `warn()` / `newline()` calls from `@/cli/logger.js` replaced with
+`log.error()` / `log.success()` / `log.info()` / `log.warn()` from
+`@clack/prompts`. `newline()` calls removed (clack handles spacing).
+Two `info({ message: "Warning: ..." })` calls in `external.ts` were
+corrected to `log.warn()` per semantic intent. Tests updated in all
+affected files.
+
+| Command | File | Status |
+|---------|------|--------|
+| `registry-install` | `commands/registry-install/registryInstall.ts` | ✅ Migrated |
+| `external` | `commands/external/external.ts` | ✅ Migrated |
 
 ### Phase 3 — `init` non-interactive path
 
