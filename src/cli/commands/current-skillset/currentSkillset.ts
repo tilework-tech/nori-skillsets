@@ -3,8 +3,6 @@
  * Displays the currently active skillset name
  */
 
-import * as os from "os";
-
 import { log } from "@clack/prompts";
 
 import {
@@ -12,6 +10,7 @@ import {
   getAgentProfile,
   getInstalledAgents,
 } from "@/cli/config.js";
+import { getHomeDir } from "@/utils/home.js";
 
 import type { ConfigAgentName } from "@/cli/config.js";
 
@@ -26,7 +25,7 @@ export const currentSkillsetMain = async (args: {
   const { agent: agentOption } = args;
 
   // Load config from home directory (centralized config location)
-  const config = await loadConfig({ startDir: os.homedir() });
+  const config = await loadConfig({ startDir: getHomeDir() });
 
   if (config == null) {
     log.error(

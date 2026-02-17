@@ -4,12 +4,12 @@
  */
 
 import * as fs from "fs/promises";
-import * as os from "os";
 import * as path from "path";
 
 import Ajv from "ajv";
 import addFormats from "ajv-formats";
 
+import { getHomeDir } from "@/utils/home.js";
 import { normalizeUrl, extractOrgId, buildRegistryUrl } from "@/utils/url.js";
 
 /**
@@ -119,7 +119,7 @@ type RawDiskConfig = {
 export const getConfigPath = (args?: {
   installDir?: string | null;
 }): string => {
-  const baseDir = args?.installDir ?? os.homedir();
+  const baseDir = args?.installDir ?? getHomeDir();
   return path.join(baseDir, ".nori-config.json");
 };
 
@@ -136,7 +136,7 @@ export const findConfigPath = async (args?: {
   startDir?: string | null;
 }): Promise<string> => {
   const startDir = args?.startDir ?? process.cwd();
-  const homeDir = os.homedir();
+  const homeDir = getHomeDir();
 
   let currentDir = startDir;
   let previousDir = "";
@@ -329,7 +329,7 @@ export const loadConfig = async (args?: {
     // After schema validation, types are guaranteed - only need null checks
     const result: Config = {
       auth: null,
-      installDir: validated.installDir ?? os.homedir(),
+      installDir: validated.installDir ?? getHomeDir(),
       sendSessionTranscript: validated.sendSessionTranscript,
       autoupdate: validated.autoupdate,
       version: validated.version,

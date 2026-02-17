@@ -9,10 +9,10 @@
  */
 
 import * as fs from "fs/promises";
-import * as os from "os";
 import * as path from "path";
 
 import { error } from "@/cli/logger.js";
+import { getHomeDir } from "@/utils/home.js";
 
 // Threshold for warning (10KB ≈ 2.5k tokens)
 const WARN_THRESHOLD_BYTES = 10 * 1024;
@@ -25,7 +25,7 @@ const BYTES_PER_TOKEN = 4;
  * @returns The path to ~/.claude
  */
 const getClaudeHomeDir = (): string => {
-  return path.join(os.homedir(), ".claude");
+  return path.join(getHomeDir(), ".claude");
 };
 
 /**

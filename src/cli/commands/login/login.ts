@@ -5,8 +5,6 @@
  * Supports email/password and Google SSO authentication.
  */
 
-import * as os from "os";
-
 import {
   select,
   isCancel,
@@ -35,6 +33,7 @@ import {
 } from "@/cli/prompts/index.js";
 import { configureFirebase, getFirebase } from "@/providers/firebase.js";
 import { formatNetworkError } from "@/utils/fetch.js";
+import { getHomeDir } from "@/utils/home.js";
 
 import type { Command } from "commander";
 import type { AuthError } from "firebase/auth";
@@ -111,7 +110,7 @@ const fetchUserAccess = async (args: {
 };
 
 /** Default config directory for login/logout commands */
-const DEFAULT_CONFIG_DIR = os.homedir();
+const DEFAULT_CONFIG_DIR = getHomeDir();
 
 /**
  * Authenticate via Google SSO using the headless flow with manual token entry.
@@ -536,8 +535,8 @@ export const loginMain = async (args?: {
       userEmail = result.email;
 
       // Load existing config to preserve other fields
-      // Use os.homedir() as startDir since login is home-directory-based
-      const existingConfig = await loadConfig({ startDir: os.homedir() });
+      // Use getHomeDir() as startDir since login is home-directory-based
+      const existingConfig = await loadConfig({ startDir: getHomeDir() });
 
       // Save credentials to config (using access info from flow result)
       await saveConfig({
@@ -599,8 +598,8 @@ export const loginMain = async (args?: {
   }
 
   // Load existing config to preserve other fields
-  // Use os.homedir() as startDir since login is home-directory-based
-  const existingConfig = await loadConfig({ startDir: os.homedir() });
+  // Use getHomeDir() as startDir since login is home-directory-based
+  const existingConfig = await loadConfig({ startDir: getHomeDir() });
 
   // Save credentials to config
   await saveConfig({

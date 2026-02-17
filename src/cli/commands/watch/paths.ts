@@ -6,18 +6,9 @@
  */
 
 import * as fs from "fs";
-import * as os from "os";
 import * as path from "path";
 
-/**
- * Get the home directory, reading from environment for test compatibility
- *
- * @returns Home directory path
- */
-const getHomeDir = (): string => {
-  // Use process.env.HOME if set (for tests), otherwise os.homedir()
-  return process.env.HOME ?? os.homedir();
-};
+import { getHomeDir } from "@/utils/home.js";
 
 /**
  * Get the Claude Code projects directory
