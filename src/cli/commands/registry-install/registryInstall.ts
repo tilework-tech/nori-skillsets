@@ -4,7 +4,6 @@
  */
 
 import * as fs from "fs/promises";
-import * as os from "os";
 import * as path from "path";
 
 import { main as installMain } from "@/cli/commands/install/install.js";
@@ -13,6 +12,7 @@ import { registryDownloadMain } from "@/cli/commands/registry-download/registryD
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { getNoriProfilesDir } from "@/cli/features/claude-code/paths.js";
 import { error, success, info, warn, newline } from "@/cli/logger.js";
+import { getHomeDir } from "@/utils/home.js";
 import { normalizeInstallDir } from "@/utils/path.js";
 
 import type { Command } from "commander";
@@ -42,11 +42,11 @@ const resolveInstallDir = (args: {
   }
 
   if (useHomeDir) {
-    return normalizeInstallDir({ installDir: os.homedir() });
+    return normalizeInstallDir({ installDir: getHomeDir() });
   }
 
   // Default to home directory when no existing installation is detected
-  return normalizeInstallDir({ installDir: os.homedir() });
+  return normalizeInstallDir({ installDir: getHomeDir() });
 };
 
 /**

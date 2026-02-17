@@ -3,8 +3,9 @@
  * Contains all path-related utilities specific to Claude Code installation
  */
 
-import * as os from "os";
 import * as path from "path";
+
+import { getHomeDir } from "@/utils/home.js";
 
 /**
  * Get the Claude directory path
@@ -92,7 +93,7 @@ export const getClaudeProfilesDir = (args: { installDir: string }): string => {
  * @returns Absolute path to ~/.claude
  */
 export const getClaudeHomeDir = (): string => {
-  return path.join(os.homedir(), ".claude");
+  return path.join(getHomeDir(), ".claude");
 };
 
 /**
@@ -124,7 +125,7 @@ export const getClaudeHomeCommandsDir = (): string => {
  * @returns Absolute path to the .nori directory
  */
 export const getNoriDir = (): string => {
-  return path.join(os.homedir(), ".nori");
+  return path.join(getHomeDir(), ".nori");
 };
 
 /**

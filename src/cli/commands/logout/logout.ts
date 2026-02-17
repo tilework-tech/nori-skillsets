@@ -4,12 +4,12 @@
  * Clears stored authentication credentials.
  */
 
-import * as os from "os";
 import * as path from "path";
 
 import { log } from "@clack/prompts";
 
 import { findConfigPath, loadConfig, saveConfig } from "@/cli/config.js";
+import { getHomeDir } from "@/utils/home.js";
 
 import type { Command } from "commander";
 
@@ -90,7 +90,7 @@ export const registerLogoutCommand = (args: { program: Command }): void => {
 
       await logoutMain({
         installDir: globalOpts.installDir || null,
-        startDir: os.homedir(),
+        startDir: getHomeDir(),
       });
     });
 };

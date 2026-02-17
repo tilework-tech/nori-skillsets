@@ -4,7 +4,6 @@
  */
 
 import * as fs from "fs/promises";
-import * as os from "os";
 import * as path from "path";
 import { Readable } from "stream";
 import { pipeline } from "stream/promises";
@@ -32,6 +31,7 @@ import { addSkillDependency } from "@/cli/features/claude-code/profiles/skills/r
 import { substituteTemplatePaths } from "@/cli/features/claude-code/template.js";
 import { error } from "@/cli/logger.js";
 import { skillDownloadFlow } from "@/cli/prompts/flows/index.js";
+import { getHomeDir } from "@/utils/home.js";
 import { getInstallDirs } from "@/utils/path.js";
 import {
   parseNamespacedPackage,
@@ -398,7 +398,7 @@ export const skillDownloadMain = async (args: {
 
     if (allInstallations.length === 0) {
       // No installation - use home directory as target
-      targetInstallDir = os.homedir();
+      targetInstallDir = getHomeDir();
     } else if (allInstallations.length > 1) {
       const installList = allInstallations
         .map((dir, index) => `${index + 1}. ${dir}`)
@@ -415,7 +415,7 @@ export const skillDownloadMain = async (args: {
 
   // Load config if it exists (for private registry auth)
   // Use home directory since auth is a global setting
-  const config = await loadConfig({ startDir: os.homedir() });
+  const config = await loadConfig({ startDir: getHomeDir() });
 
   // Resolve target skillset for manifest update
   // Priority: --skillset option > active profile from config > no manifest update

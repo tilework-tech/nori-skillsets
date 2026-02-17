@@ -7,7 +7,6 @@
 
 import { execFileSync } from "child_process";
 import * as fs from "fs/promises";
-import * as os from "os";
 import * as path from "path";
 
 import { readInstallState } from "@/cli/installTracking.js";
@@ -17,6 +16,7 @@ import {
   refreshVersionCache,
 } from "@/cli/updates/npmRegistryCheck.js";
 import { dismissVersion } from "@/cli/updates/versionCache.js";
+import { getHomeDir } from "@/utils/home.js";
 
 import { getUpdateCommand, showUpdatePrompt } from "./updatePrompt.js";
 
@@ -29,7 +29,7 @@ const loadAutoupdateSetting = async (): Promise<
   "enabled" | "disabled" | null
 > => {
   const candidates = [
-    path.join(os.homedir(), ".claude", ".nori-config.json"),
+    path.join(getHomeDir(), ".claude", ".nori-config.json"),
     path.join(process.cwd(), ".nori-config.json"),
   ];
 

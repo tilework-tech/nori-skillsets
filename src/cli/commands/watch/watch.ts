@@ -8,7 +8,6 @@
 import { spawn } from "child_process";
 import { createHash } from "crypto";
 import * as fs from "fs/promises";
-import * as os from "os";
 import * as path from "path";
 
 import { extractSessionId } from "@/cli/commands/watch/parser.js";
@@ -30,6 +29,7 @@ import {
   type WatcherInstance,
 } from "@/cli/commands/watch/watcher.js";
 import { loadConfig, saveConfig } from "@/cli/config.js";
+import { getHomeDir } from "@/utils/home.js";
 
 /**
  * Debounce window in milliseconds for file events
@@ -471,7 +471,7 @@ const saveTranscriptDestination = async (args: {
   installDir: string;
 }): Promise<void> => {
   const { org, installDir } = args;
-  const config = await loadConfig({ startDir: os.homedir() });
+  const config = await loadConfig({ startDir: getHomeDir() });
   if (org === config?.transcriptDestination) {
     return;
   }
@@ -562,7 +562,7 @@ export const watchMain = async (args?: {
             await watchStopMain({ quiet: true });
           }
 
-          const config = await loadConfig({ startDir: os.homedir() });
+          const config = await loadConfig({ startDir: getHomeDir() });
           const userOrgs = config?.auth?.organizations ?? [];
           const privateOrgs = userOrgs.filter((org) => org !== "public");
 
@@ -581,7 +581,7 @@ export const watchMain = async (args?: {
           try {
             const pid = await spawnDaemonProcess({ agent });
             const transcriptsDir = path.join(
-              os.homedir(),
+              getHomeDir(),
               ".nori",
               "transcripts",
             );
@@ -604,8 +604,8 @@ export const watchMain = async (args?: {
   isShuttingDown = false;
 
   // Load config to get saved transcript destination
-  // Use os.homedir() as startDir since watch is home-directory-based
-  const config = await loadConfig({ startDir: os.homedir() });
+  // Use getHomeDir() as startDir since watch is home-directory-based
+  const config = await loadConfig({ startDir: getHomeDir() });
   transcriptOrgId = config?.transcriptDestination ?? null;
 
   const pidFile = getWatchPidFile();

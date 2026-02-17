@@ -90,3 +90,74 @@ export const createTempTestContext = async (args: {
     cleanup: async () => fs.rm(tempDir, { recursive: true, force: true }),
   };
 };
+
+/**
+ * Context object with HOME isolation for integration tests.
+ * Extends TempTestContext with additional fields for HOME directory isolation.
+ */
+export type IsolatedTestContext = TempTestContext & {
+  /** The isolated home directory for this test */
+  homeDir: string;
+  /** The .nori directory within homeDir */
+  noriDir: string;
+  /** Original NORI_GLOBAL_CONFIG value to restore */
+  originalGlobalConfig: string | undefined;
+};
+
+/**
+ * Create an isolated test context with HOME directory isolation.
+ * Use this for integration tests that need complete isolation from the global
+ * test setup (e.g., tests that need their own config state).
+ *
+ * @param args - The arguments object
+ * @param args.prefix - Prefix for the temp directory name
+ *
+ * @returns Promise resolving to IsolatedTestContext
+ *
+ * @example
+ * ```typescript
+ * let ctx: IsolatedTestContext;
+ *
+ * beforeEach(async () => {
+ *   ctx = await createIsolatedTestContext({ prefix: "config-test" });
+ * });
+ *
+ * afterEach(async () => {
+ *   await ctx.cleanup();
+ * });
+ * ```
+ */
+export const createIsolatedTestContext = async (args: {
+  prefix: string;
+}): Promise<IsolatedTestContext> => {
+  const { prefix } = args;
+
+  // Create base temp context
+  const baseCtx = await createTempTestContext({ prefix });
+
+  // Create HOME structure within temp dir
+  const noriDir = path.join(baseCtx.tempDir, ".nori");
+  const profilesDir = path.join(noriDir, "profiles");
+  await fs.mkdir(profilesDir, { recursive: true });
+
+  // Store original and set isolated HOME
+  const originalGlobalConfig = process.env.NORI_GLOBAL_CONFIG;
+  process.env.NORI_GLOBAL_CONFIG = baseCtx.tempDir;
+
+  return {
+    ...baseCtx,
+    homeDir: baseCtx.tempDir,
+    noriDir,
+    originalGlobalConfig,
+    cleanup: async () => {
+      // Restore original NORI_GLOBAL_CONFIG
+      if (originalGlobalConfig != null) {
+        process.env.NORI_GLOBAL_CONFIG = originalGlobalConfig;
+      } else {
+        delete process.env.NORI_GLOBAL_CONFIG;
+      }
+      // Clean up temp directory
+      await baseCtx.cleanup();
+    },
+  };
+};

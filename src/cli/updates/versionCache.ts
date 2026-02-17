@@ -6,8 +6,9 @@
  */
 
 import * as fs from "fs/promises";
-import * as os from "os";
 import * as path from "path";
+
+import { getHomeDir } from "@/utils/home.js";
 
 const VERSION_CACHE_FILE = "nori-skillsets-version.json";
 const DEFAULT_MAX_AGE_HOURS = 12;
@@ -25,7 +26,7 @@ export type VersionCache = {
  * @returns The absolute path to the version cache file
  */
 export const getVersionCachePath = (): string => {
-  return path.join(os.homedir(), ".nori", "profiles", VERSION_CACHE_FILE);
+  return path.join(getHomeDir(), ".nori", "profiles", VERSION_CACHE_FILE);
 };
 
 /**

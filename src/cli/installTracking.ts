@@ -8,6 +8,7 @@ import semver from "semver";
 import { type CliName } from "@/cli/commands/cliCommandNames.js";
 import { loadConfig, type Config } from "@/cli/config.js";
 import { getCurrentPackageVersion } from "@/cli/version.js";
+import { getHomeDir } from "@/utils/home.js";
 import { getInstallDirs } from "@/utils/path.js";
 
 const DEFAULT_ANALYTICS_URL = "https://noriskillsets.dev/api/analytics/track";
@@ -89,7 +90,7 @@ type InstallState = {
 };
 
 const getInstallStatePath = (): string => {
-  return path.join(os.homedir(), ".nori", "profiles", INSTALL_STATE_FILE);
+  return path.join(getHomeDir(), ".nori", "profiles", INSTALL_STATE_FILE);
 };
 
 const isOptedOut = (state: InstallState | null): boolean => {
@@ -208,14 +209,14 @@ export const sendAnalyticsEvent = (args: {
 
 /**
  * Load config for analytics without failing.
- * Uses os.homedir() since analytics needs global auth credentials.
+ * Uses getHomeDir() since analytics needs global auth credentials.
  * @returns Config or null if not found
  */
 const loadConfigForAnalytics = async (): Promise<Config | null> => {
   try {
     const installations = getInstallDirs({ currentDir: process.cwd() });
     if (installations.length === 0) return null;
-    return await loadConfig({ startDir: os.homedir() });
+    return await loadConfig({ startDir: getHomeDir() });
   } catch {
     return null;
   }

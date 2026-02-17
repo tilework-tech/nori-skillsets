@@ -10,7 +10,6 @@
  */
 
 import { writeFileSync, unlinkSync, existsSync } from "fs";
-import * as os from "os";
 import * as path from "path";
 
 import { initMain } from "@/cli/commands/init/init.js";
@@ -38,6 +37,7 @@ import {
 } from "@/cli/installTracking.js";
 import { error, success, info, newline, setSilentMode } from "@/cli/logger.js";
 import { getCurrentPackageVersion } from "@/cli/version.js";
+import { getHomeDir } from "@/utils/home.js";
 import { normalizeInstallDir } from "@/utils/path.js";
 
 /**
@@ -45,7 +45,7 @@ import { normalizeInstallDir } from "@/utils/path.js";
  * @returns The absolute path to the progress marker file
  */
 const getMarkerPath = (): string => {
-  return path.join(os.homedir(), ".nori-install-in-progress");
+  return path.join(getHomeDir(), ".nori-install-in-progress");
 };
 
 /**
@@ -247,8 +247,8 @@ export const noninteractive = async (args?: {
   });
 
   // Step 2: Resolve profile and save to config
-  // Use os.homedir() since install is home-directory-based
-  const existingConfig = await loadConfig({ startDir: os.homedir() });
+  // Use getHomeDir() since install is home-directory-based
+  const existingConfig = await loadConfig({ startDir: getHomeDir() });
   if (existingConfig == null) {
     error({
       message:
@@ -297,7 +297,7 @@ export const noninteractive = async (args?: {
   });
 
   // Reload config after saving
-  const config = await loadConfig({ startDir: os.homedir() });
+  const config = await loadConfig({ startDir: getHomeDir() });
   if (config == null) {
     error({ message: "Failed to load configuration after setup." });
     process.exit(1);

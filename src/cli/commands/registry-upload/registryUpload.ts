@@ -4,7 +4,6 @@
  */
 
 import * as fs from "fs/promises";
-import * as os from "os";
 import * as path from "path";
 
 import * as semver from "semver";
@@ -25,6 +24,7 @@ import {
   type UploadResult,
 } from "@/cli/prompts/flows/index.js";
 import { isSkillCollisionError } from "@/utils/fetch.js";
+import { getHomeDir } from "@/utils/home.js";
 import { getInstallDirs } from "@/utils/path.js";
 import {
   parseNamespacedPackage,
@@ -255,8 +255,8 @@ export const registryUploadMain = async (args: {
     }
   }
 
-  // Load config - use os.homedir() since registry upload needs global auth
-  const config = await loadConfig({ startDir: os.homedir() });
+  // Load config - use getHomeDir() since registry upload needs global auth
+  const config = await loadConfig({ startDir: getHomeDir() });
   if (config == null) {
     error({ message: `Could not load Nori configuration.` });
     return { success: false };
