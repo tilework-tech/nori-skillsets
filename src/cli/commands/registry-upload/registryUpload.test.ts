@@ -98,14 +98,6 @@ const createSpinnerMock = () => ({
 // Shared spinner mock instance
 let sharedSpinnerMock = createSpinnerMock();
 
-// Mock the prompts utils module (isCancel, handleCancel)
-vi.mock("@/cli/prompts/utils.js", () => ({
-  isCancel: vi.fn(() => false),
-  handleCancel: vi.fn(() => {
-    throw new Error("cancelled");
-  }),
-}));
-
 // Mock @clack/prompts for spinner and interactive prompts
 vi.mock("@clack/prompts", () => ({
   intro: vi.fn(),
@@ -136,10 +128,6 @@ const mockConsoleError = vi
 import { registrarApi } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
 import { loadConfig, getRegistryAuth } from "@/cli/config.js";
-import {
-  isCancel as promptsIsCancel,
-  handleCancel,
-} from "@/cli/prompts/utils.js";
 import { isSkillCollisionError } from "@/utils/fetch.js";
 
 import { registryUploadMain } from "./registryUpload.js";
@@ -1839,8 +1827,8 @@ describe("registry-upload", () => {
           createdAt: new Date().toISOString(),
         });
 
-        // User confirms inline skills prompt (default: all inline)
-        vi.mocked(clack.select).mockResolvedValueOnce("confirm");
+        // Flow prompts per-skill for inline/extract decision
+        vi.mocked(clack.select).mockResolvedValueOnce("inline");
 
         const result = await registryUploadMain({
           profileSpec: "myorg/my-profile",
@@ -2060,64 +2048,7 @@ describe("registry-upload", () => {
         expect(uploadCall.inlineSkills).toBeUndefined();
       });
 
-      it("should cancel upload when user presses Ctrl+C on inline skills prompt", async () => {
-        // Create a profile with skills without nori.json
-        const profileDir = path.join(profilesDir, "myorg", "my-profile");
-        await fs.mkdir(profileDir, { recursive: true });
-        await fs.writeFile(
-          path.join(profileDir, "CLAUDE.md"),
-          "# My Profile\n",
-        );
-
-        const skillDir = path.join(profileDir, "skills", "init");
-        await fs.mkdir(skillDir, { recursive: true });
-        await fs.writeFile(path.join(skillDir, "SKILL.md"), "# Init Skill\n");
-
-        vi.mocked(loadConfig).mockResolvedValue({
-          installDir: testDir,
-          auth: {
-            username: "test@example.com",
-            refreshToken: "test-token",
-            organizations: ["myorg"],
-            organizationUrl: "https://myorg.tilework.tech",
-          },
-        });
-
-        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
-
-        vi.mocked(registrarApi.getPackument).mockRejectedValue(
-          new Error("Not found"),
-        );
-
-        // Simulate Ctrl+C: select returns a cancel symbol
-        const cancelSymbol = Symbol("cancel");
-        vi.mocked(clack.select).mockResolvedValueOnce(cancelSymbol);
-
-        // Make isCancel return true for the cancel symbol
-        vi.mocked(promptsIsCancel).mockReturnValueOnce(true);
-
-        // handleCancel throws (simulates process.exit)
-        vi.mocked(handleCancel).mockImplementation(() => {
-          throw new Error("cancelled");
-        });
-
-        await expect(
-          registryUploadMain({
-            profileSpec: "myorg/my-profile",
-            cwd: testDir,
-          }),
-        ).rejects.toThrow("cancelled");
-
-        // Upload should NOT have been called
-        expect(registrarApi.uploadSkillset).not.toHaveBeenCalled();
-
-        // handleCancel should have been called
-        expect(handleCancel).toHaveBeenCalledWith({
-          message: "Upload cancelled.",
-        });
-      });
-
-      it("should not pass inlineSkills when user selects extract", async () => {
+      it("should not pass inlineSkills when user selects extract for each skill", async () => {
         // Create a profile with skills without nori.json
         const profileDir = path.join(profilesDir, "myorg", "my-profile");
         await fs.mkdir(profileDir, { recursive: true });
@@ -2153,7 +2084,7 @@ describe("registry-upload", () => {
           createdAt: new Date().toISOString(),
         });
 
-        // User selects "extract" (decline inline)
+        // User selects "extract" in per-skill flow prompt
         vi.mocked(clack.select).mockResolvedValueOnce("extract");
 
         const result = await registryUploadMain({

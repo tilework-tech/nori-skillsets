@@ -7,7 +7,6 @@ import * as fs from "fs/promises";
 import * as os from "os";
 import * as path from "path";
 
-import { select } from "@clack/prompts";
 import * as semver from "semver";
 import * as tar from "tar";
 
@@ -25,7 +24,6 @@ import {
   listVersionsFlow,
   type UploadResult,
 } from "@/cli/prompts/flows/index.js";
-import { isCancel, handleCancel } from "@/cli/prompts/utils.js";
 import { isSkillCollisionError } from "@/utils/fetch.js";
 import { getInstallDirs } from "@/utils/path.js";
 import {
@@ -415,36 +413,8 @@ export const registryUploadMain = async (args: {
     return { success: true };
   }
 
-  // Detect inline skill candidates
+  // Detect inline skill candidates (skills without nori.json)
   const inlineCandidates = await detectInlineSkillCandidates({ profileDir });
-  let inlineSkillIds: Array<string> | undefined;
-
-  if (inlineCandidates.length > 0 && !nonInteractive && !silent && !dryRun) {
-    const confirmation = await select({
-      message: `Found ${inlineCandidates.length} skill(s) without nori.json: ${inlineCandidates.join(", ")}. Keep them inline?`,
-      options: [
-        {
-          value: "confirm" as const,
-          label: "Yes, keep inline",
-          hint: "Skills will remain bundled in the skillset tarball",
-        },
-        {
-          value: "extract" as const,
-          label: "No, extract all",
-          hint: "All skills will be published as independent packages",
-        },
-      ],
-      initialValue: "confirm" as const,
-    });
-
-    if (isCancel({ value: confirmation })) {
-      handleCancel({ message: "Upload cancelled." });
-    }
-
-    if (confirmation === "confirm") {
-      inlineSkillIds = inlineCandidates;
-    }
-  }
 
   // Helper to perform upload with optional resolution strategy
   const performUpload = async (uploadArgs: {
@@ -499,7 +469,6 @@ export const registryUploadMain = async (args: {
 
     const uploadResult = await performUpload({
       uploadVersion: versionResult.version,
-      inlineSkills: inlineSkillIds,
     });
 
     return { success: uploadResult.success };
@@ -514,7 +483,8 @@ export const registryUploadMain = async (args: {
     profileName: packageName,
     registryUrl: targetRegistryUrl,
     nonInteractive: nonInteractive ?? false,
-    inlineSkillIds,
+    inlineCandidates:
+      inlineCandidates.length > 0 ? inlineCandidates : undefined,
     callbacks: {
       onDetermineVersion: async () => {
         const versionResult = await determineUploadVersion({
