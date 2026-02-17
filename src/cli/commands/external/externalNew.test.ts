@@ -204,6 +204,11 @@ describe("externalMain with --new", () => {
     );
     expect(skillMd).toContain("Test Skill");
 
+    // Verify no nori.json was created inside the skill directory
+    await expect(
+      fs.access(path.join(profileSkillDir, "nori.json")),
+    ).rejects.toThrow();
+
     // Verify success message about creating the skillset was printed
     const allLogOutput = mockConsoleLog.mock.calls
       .map((call) => call.join(" "))
@@ -243,9 +248,12 @@ describe("externalMain with --new", () => {
       await fs.readFile(path.join(skillsetDir, "nori.json"), "utf-8"),
     );
 
-    // The skill should be added as a dependency
+    // The skill should be added as a simple version string dependency
     expect(noriJsonContent.dependencies).toBeDefined();
     expect(noriJsonContent.dependencies.skills).toBeDefined();
     expect(noriJsonContent.dependencies.skills["my-skill"]).toBe("*");
+
+    // The repository field should be set on the skillset nori.json
+    expect(noriJsonContent.repository).toBe("https://github.com/owner/repo");
   });
 });

@@ -21,6 +21,8 @@ import {
 import {
   addSkillToNoriJson,
   ensureNoriJson,
+  readProfileMetadata,
+  writeProfileMetadata,
 } from "@/cli/features/claude-code/profiles/metadata.js";
 import { substituteTemplatePaths } from "@/cli/features/claude-code/template.js";
 import { error, success, info, newline, warn } from "@/cli/logger.js";
@@ -98,9 +100,6 @@ const applyTemplateSubstitutionToDir = async (args: {
  * @param args.installDir - Root installation directory
  * @param args.profilesDir - Path to the profiles directory
  * @param args.targetSkillset - Skillset name to update manifests for
- * @param args.sourceUrl - Source repository URL for provenance
- * @param args.ref - Branch/tag that was checked out
- * @param args.subpath - Subpath within the repository
  * @param args.cliName - CLI name for user-facing messages
  */
 const installSkill = async (args: {
@@ -109,21 +108,9 @@ const installSkill = async (args: {
   installDir: string;
   profilesDir: string;
   targetSkillset: string | null;
-  sourceUrl: string;
-  ref: string | null;
-  subpath: string | null;
   cliName?: CliName | null;
 }): Promise<void> => {
-  const {
-    skill,
-    skillsDir,
-    installDir,
-    profilesDir,
-    targetSkillset,
-    sourceUrl,
-    ref,
-    subpath,
-  } = args;
+  const { skill, skillsDir, installDir, profilesDir, targetSkillset } = args;
 
   // Sanitize skill name for directory name
   const skillDirName =
@@ -155,19 +142,6 @@ const installSkill = async (args: {
   // Copy skill directory to live location
   await copyDirRecursive({ src: skill.dirPath, dest: targetDir });
 
-  // Write nori.json provenance file inside the skill directory
-  const noriJsonData = {
-    name: skill.name,
-    source: sourceUrl,
-    ...(ref != null ? { ref } : {}),
-    ...(subpath != null ? { subpath } : {}),
-    installedAt: new Date().toISOString(),
-  };
-  await fs.writeFile(
-    path.join(targetDir, "nori.json"),
-    JSON.stringify(noriJsonData, null, 2),
-  );
-
   // Persist raw copy to profile's skills directory
   if (targetSkillset != null) {
     const profileSkillDir = path.join(
@@ -179,11 +153,6 @@ const installSkill = async (args: {
     try {
       await fs.rm(profileSkillDir, { recursive: true, force: true });
       await copyDirRecursive({ src: skill.dirPath, dest: profileSkillDir });
-      // Also write nori.json to profile copy
-      await fs.writeFile(
-        path.join(profileSkillDir, "nori.json"),
-        JSON.stringify(noriJsonData, null, 2),
-      );
     } catch (profileCopyErr) {
       const msg =
         profileCopyErr instanceof Error
@@ -448,11 +417,22 @@ export const externalMain = async (args: {
         installDir: targetInstallDir,
         profilesDir,
         targetSkillset,
-        sourceUrl,
-        ref: effectiveRef,
-        subpath,
         cliName,
       });
+    }
+
+    // Set repository field on skillset nori.json for provenance
+    if (targetSkillset != null) {
+      const skillsetDir = path.join(profilesDir, targetSkillset);
+      try {
+        const metadata = await readProfileMetadata({ profileDir: skillsetDir });
+        if (metadata.repository == null) {
+          metadata.repository = sourceUrl;
+          await writeProfileMetadata({ profileDir: skillsetDir, metadata });
+        }
+      } catch {
+        // Non-fatal — skill installation already succeeded
+      }
     }
 
     newline();

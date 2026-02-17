@@ -41,10 +41,9 @@ discoverSkills() --> Array<DiscoveredSkill>
     v
 installSkill() for each selected skill
     |-- copyDirRecursive to ~/.claude/skills/<name>/
-    |-- write nori.json provenance file
     |-- copyDirRecursive to profile's skills/ dir (raw)
     |-- applyTemplateSubstitutionToDir on live copy
-    |-- addSkillToNoriJson
+    |-- addSkillToNoriJson (skill name + version)
     |
     v
 cleanupClone() (always runs via finally block)
@@ -90,7 +89,7 @@ Skills are identified by parsing YAML frontmatter from SKILL.md files using rege
 ### Things to Know
 
 - `--new` and `--skillset` are mutually exclusive; providing both produces an error. `--new` also validates that the name is non-empty and that no skillset with that name already exists (checked via `fs.access` on the directory).
-- Each installed skill gets a `nori.json` provenance file containing: `name`, `source` (GitHub URL without `.git`), optional `ref` and `subpath`, and `installedAt` timestamp. This tracks where the skill was sourced from, unlike registry-downloaded skills which use `.nori-version`.
+- Externally-installed skills do not have a per-skill `nori.json` in their directory. This affects the upload flow: `detectInlineSkillCandidates()` in @/src/cli/commands/registry-upload/registryUpload.ts treats skills without a `nori.json` as inline candidates, giving users the choice of whether to inline or extract them during upload. The source repository URL is stored in the skillset-level `nori.json` `repository` field for provenance tracking.
 - Skill directory names are sanitized from the skill's `name` frontmatter field: lowercased, non-alphanumeric characters replaced with hyphens, leading/trailing dots and hyphens stripped, truncated to 255 characters.
 - The `--ref` CLI flag takes precedence over any ref parsed from the source URL.
 - Template substitution is applied only to `.md` files in the live copy (`~/.claude/skills/`), not the raw profile copy. This matches the behavior of `skill-download`.
