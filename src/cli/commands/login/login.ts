@@ -109,9 +109,6 @@ const fetchUserAccess = async (args: {
   }
 };
 
-/** Default config directory for login/logout commands */
-const DEFAULT_CONFIG_DIR = getHomeDir();
-
 /**
  * Authenticate via Google SSO using the headless flow with manual token entry.
  * The server exchanges the code for tokens, and the user pastes the id_token.
@@ -359,7 +356,7 @@ export const loginMain = async (args?: {
     noLocalhost,
   } = args ?? {};
   // Default to home directory for config storage
-  const configDir = installDir ?? DEFAULT_CONFIG_DIR;
+  const configDir = installDir ?? getHomeDir();
 
   // Validate flag combinations
   if (useGoogle && (email != null || password != null)) {

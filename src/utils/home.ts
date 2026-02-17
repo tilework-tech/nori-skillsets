@@ -12,8 +12,8 @@ import * as os from "os";
  *
  * Order of precedence:
  * 1. NORI_GLOBAL_CONFIG (test isolation or custom config location)
- * 2. process.env.HOME (backward compatibility with existing test patterns)
- * 3. os.homedir() (default)
+ * 2. os.homedir() (supports test mocks and follows platform behavior)
+ * 3. process.env.HOME (fallback when os.homedir is unavailable)
  *
  * Note: In tests, NORI_GLOBAL_CONFIG is preferred over HOME because it's
  * more explicit and avoids potential conflicts with system HOME.
@@ -21,5 +21,14 @@ import * as os from "os";
  * @returns Home directory path
  */
 export const getHomeDir = (): string => {
-  return process.env.NORI_GLOBAL_CONFIG ?? process.env.HOME ?? os.homedir();
+  if (process.env.NORI_GLOBAL_CONFIG != null) {
+    return process.env.NORI_GLOBAL_CONFIG;
+  }
+
+  const osHome = os.homedir();
+  if (osHome.length > 0) {
+    return osHome;
+  }
+
+  return process.env.HOME ?? osHome;
 };
