@@ -429,9 +429,16 @@ export const externalMain = async (args: {
         if (metadata.repository == null) {
           metadata.repository = sourceUrl;
           await writeProfileMetadata({ profileDir: skillsetDir, metadata });
+        } else if (metadata.repository !== sourceUrl) {
+          warn({
+            message: `Skillset "${targetSkillset}" already has repository "${metadata.repository}". Provenance for "${sourceUrl}" will not be recorded.`,
+          });
         }
-      } catch {
-        // Non-fatal — skill installation already succeeded
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        info({
+          message: `Warning: Could not update repository provenance: ${msg}`,
+        });
       }
     }
 
