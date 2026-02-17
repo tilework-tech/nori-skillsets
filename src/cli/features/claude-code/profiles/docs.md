@@ -24,7 +24,7 @@ The profiles module manages Nori skillsets (profiles) for the claude-code agent.
 
 Markdown files use template placeholders like `{{skills_dir}}`, `{{profiles_dir}}`, `{{commands_dir}}`, and `{{install_dir}}` which are substituted with actual paths during installation by sub-loaders.
 
-**Profile Metadata (nori.json)**: The `ProfileMetadata` type (@/src/cli/features/claude-code/profiles/metadata.ts) defines the unified manifest format:
+**Profile Metadata (nori.json)**: The `NoriJson` type (defined canonically in @/src/types/nori.ts, re-exported by @/src/cli/features/claude-code/profiles/metadata.ts) defines the unified manifest format:
 ```json
 {
   "name": "profile-name",
@@ -32,17 +32,14 @@ Markdown files use template placeholders like `{{skills_dir}}`, `{{profiles_dir}
   "description": "Human-readable description",
   "license": "MIT",
   "keywords": ["cli", "automation", "skills"],
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/user/repo"
-  },
+  "repository": "https://github.com/user/repo",
   "dependencies": {
     "skills": { "skill-name": "*" }
   }
 }
 ```
 
-All fields except `name` are optional. The `license` field follows SPDX license identifiers (e.g., "MIT", "Apache-2.0"). The `keywords` field is an array of strings for registry discoverability. The `repository` field follows package.json conventions with `type` and `url` properties.
+All fields except `name` are optional. The `license` field follows SPDX license identifiers (e.g., "MIT", "Apache-2.0"). The `keywords` field is an array of strings for registry discoverability. The `repository` field is a plain URL string. The `NoriJson` type also supports richer fields like `author`, `skills`, `subagents`, `slashcommands`, `scripts`, and `registryURL` (see @/src/types/nori.ts), plus an index signature for extensibility.
 
 The `ensureNoriJson()` function is a backwards-compatibility shim for user-created skillsets that lack a `nori.json` manifest. It checks whether the directory already has `nori.json` (no-op if so), whether the directory exists (no-op if not), and whether the directory looks like a profile via the private `looksLikeProfile()` helper. If all conditions pass, it writes a minimal `nori.json` with `{ name: <folder-basename>, version: "0.0.1" }`. The `looksLikeProfile()` heuristic returns true if the directory contains a `CLAUDE.md` file OR both `skills/` and `subagents/` subdirectories -- requiring both prevents org namespace directories (which may contain only `skills/`) from being incorrectly marked as profiles. `ensureNoriJson()` is called at every entry point that validates profile existence: `listProfiles()` in @/src/cli/features/managedFolder.ts (for both flat and nested org profiles), `switchProfile()` in @/src/cli/features/claude-code/agent.ts, `forkSkillsetMain()` in @/src/cli/commands/fork-skillset/forkSkillset.ts, `skillDownloadMain()` in @/src/cli/commands/skill-download/skillDownload.ts, and `externalMain()` in @/src/cli/commands/external/external.ts.
 

@@ -10,11 +10,10 @@ import * as path from "path";
 import { log, note, outro } from "@clack/prompts";
 
 import { getNoriProfilesDir } from "@/cli/features/claude-code/paths.js";
-import {
-  writeProfileMetadata,
-  type ProfileMetadata,
-} from "@/cli/features/claude-code/profiles/metadata.js";
+import { writeProfileMetadata } from "@/cli/features/claude-code/profiles/metadata.js";
 import { registerSkillsetFlow } from "@/cli/prompts/flows/registerSkillset.js";
+
+import type { NoriJson } from "@/norijson/nori.js";
 
 /**
  * Main function for register-skillset command
@@ -98,7 +97,7 @@ export const registerSkillsetMain = async (args: {
   const { description, license, keywords, version, repository } = flowResult;
 
   // Build metadata object with name from basename
-  const metadata: ProfileMetadata = {
+  const metadata: NoriJson = {
     name: path.basename(skillsetName),
     version: version ?? "1.0.0",
   };
@@ -116,10 +115,7 @@ export const registerSkillsetMain = async (args: {
   }
 
   if (repository != null) {
-    metadata.repository = {
-      type: "git",
-      url: repository,
-    };
+    metadata.repository = repository;
   }
 
   // Write nori.json
