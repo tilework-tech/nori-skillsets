@@ -234,6 +234,18 @@ export const red = (args: { text: string }): string => {
 };
 
 /**
+ * Wrap text in yellow (for warnings/caution)
+ * @param args - Configuration arguments
+ * @param args.text - Text to display
+ *
+ * @returns Text wrapped in yellow ANSI color codes
+ */
+export const yellow = (args: { text: string }): string => {
+  const { text } = args;
+  return `${colors.YELLOW}${text}${colors.NC}`;
+};
+
+/**
  * Wrap text in bold (for emphasis)
  * @param args - Configuration arguments
  * @param args.text - Text to display

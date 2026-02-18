@@ -9,6 +9,7 @@ import { Readable } from "stream";
 import { pipeline } from "stream/promises";
 import zlib from "zlib";
 
+import { log } from "@clack/prompts";
 import * as semver from "semver";
 import * as tar from "tar";
 
@@ -26,7 +27,6 @@ import {
 import { initMain } from "@/cli/commands/init/init.js";
 import { getRegistryAuth, loadConfig } from "@/cli/config.js";
 import { getNoriProfilesDir } from "@/cli/features/claude-code/paths.js";
-import { error, info } from "@/cli/logger.js";
 import { registryDownloadFlow } from "@/cli/prompts/flows/index.js";
 import { getHomeDir } from "@/utils/home.js";
 import { getInstallDirs } from "@/utils/path.js";
@@ -134,7 +134,7 @@ const downloadSkillDependency = async (args: {
     if (latestVersion == null) {
       const warning = `Warning: No latest version found for skill "${skillName}"`;
       if (!silent) {
-        info({ message: warning });
+        log.warn(warning);
       }
       return { downloaded: false, warning };
     }
@@ -220,7 +220,7 @@ const downloadSkillDependency = async (args: {
     const errorMessage = err instanceof Error ? err.message : String(err);
     const warning = `Warning: Failed to download skill "${skillName}": ${errorMessage}`;
     if (!silent) {
-      info({ message: warning });
+      log.warn(warning);
     }
     return { downloaded: false, warning };
   }
@@ -252,7 +252,7 @@ const downloadSkillDependencies = async (args: {
   }
 
   if (!silent) {
-    info({ message: "Installing skill dependencies..." });
+    log.info("Installing skill dependencies...");
   }
 
   const warnings: Array<string> = [];
@@ -551,9 +551,9 @@ export const registryDownloadMain = async (args: {
   // Parse the namespaced package spec (e.g., "myorg/my-profile@1.0.0")
   const parsed = parseNamespacedPackage({ packageSpec });
   if (parsed == null) {
-    error({
-      message: `Invalid package specification: "${packageSpec}".\nExpected format: skillset-name or org/skillset-name[@version]`,
-    });
+    log.error(
+      `Invalid package specification: "${packageSpec}".\nExpected format: skillset-name or org/skillset-name[@version]`,
+    );
     return { success: false };
   }
   const { orgId, packageName, version } = parsed;
@@ -568,7 +568,7 @@ export const registryDownloadMain = async (args: {
     if (!allInstallations.includes(installDir)) {
       // No installation at specified directory - auto-init (interactive to allow user prompts)
       // Skip the profile persistence warning since users are just trying to download a profile
-      info({ message: "Setting up Nori for first time use..." });
+      log.info("Setting up Nori for first time use...");
       try {
         await initMain({
           installDir,
@@ -576,9 +576,9 @@ export const registryDownloadMain = async (args: {
           skipWarning: true,
         });
       } catch (err) {
-        error({
-          message: `Failed to initialize Nori: ${err instanceof Error ? err.message : String(err)}`,
-        });
+        log.error(
+          `Failed to initialize Nori: ${err instanceof Error ? err.message : String(err)}`,
+        );
         return { success: false };
       }
     }
@@ -593,7 +593,7 @@ export const registryDownloadMain = async (args: {
       if (allInstallations.length === 0) {
         // No installation found - auto-init at home directory (interactive to allow user prompts)
         // Skip the profile persistence warning since users are just trying to download a profile
-        info({ message: "Setting up Nori for first time use..." });
+        log.info("Setting up Nori for first time use...");
         try {
           await initMain({
             installDir: homeDir,
@@ -601,9 +601,9 @@ export const registryDownloadMain = async (args: {
             skipWarning: true,
           });
         } catch (err) {
-          error({
-            message: `Failed to initialize Nori: ${err instanceof Error ? err.message : String(err)}`,
-          });
+          log.error(
+            `Failed to initialize Nori: ${err instanceof Error ? err.message : String(err)}`,
+          );
           return { success: false };
         }
       } else if (allInstallations.length > 1) {
@@ -611,9 +611,9 @@ export const registryDownloadMain = async (args: {
           .map((dir, index) => `${index + 1}. ${dir}`)
           .join("\n");
 
-        error({
-          message: `Found multiple Nori installations. Cannot determine which one to use.\n\nInstallations found:\n${installList}\n\nPlease use --install-dir to specify the target installation.`,
-        });
+        log.error(
+          `Found multiple Nori installations. Cannot determine which one to use.\n\nInstallations found:\n${installList}\n\nPlease use --install-dir to specify the target installation.`,
+        );
         return { success: false };
       }
     }

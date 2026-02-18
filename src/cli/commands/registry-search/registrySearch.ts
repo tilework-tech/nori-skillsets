@@ -5,6 +5,8 @@
  * Returns both profiles and skills from each registry
  */
 
+import { log } from "@clack/prompts";
+
 import {
   registrarApi,
   REGISTRAR_URL,
@@ -17,7 +19,6 @@ import {
   type CliName,
 } from "@/cli/commands/cliCommandNames.js";
 import { loadConfig } from "@/cli/config.js";
-import { error } from "@/cli/logger.js";
 import { registrySearchFlow } from "@/cli/prompts/flows/index.js";
 import { getHomeDir } from "@/utils/home.js";
 import { getInstallDirs } from "@/utils/path.js";
@@ -526,10 +527,9 @@ export const registrySearchMain = async (args: {
     const homeInstallations = getInstallDirs({ currentDir: homeDir });
 
     if (!homeInstallations.includes(homeDir) && allInstallations.length === 0) {
-      error({
-        message:
-          "No Nori installation found.\n\nRun 'npx nori-skillsets init' to install Nori Skillsets.",
-      });
+      log.error(
+        "No Nori installation found.\n\nRun 'npx nori-skillsets init' to install Nori Skillsets.",
+      );
       return;
     }
   }

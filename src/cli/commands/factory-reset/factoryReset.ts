@@ -6,9 +6,10 @@
 
 import * as fs from "fs/promises";
 
+import { log } from "@clack/prompts";
+
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { findClaudeCodeArtifacts } from "@/cli/features/claude-code/factoryReset.js";
-import { error } from "@/cli/logger.js";
 import { factoryResetFlow } from "@/cli/prompts/flows/factoryReset.js";
 
 /**
@@ -28,10 +29,9 @@ export const factoryResetMain = async (args: {
   const effectivePath = args.path ?? process.cwd();
 
   if (nonInteractive) {
-    error({
-      message:
-        "Factory reset requires explicit confirmation. Cannot proceed in non-interactive mode.",
-    });
+    log.error(
+      "Factory reset requires explicit confirmation. Cannot proceed in non-interactive mode.",
+    );
     process.exit(1);
     return;
   }
@@ -39,9 +39,7 @@ export const factoryResetMain = async (args: {
   const agent = AgentRegistry.getInstance().get({ name: agentName });
 
   if (agent.factoryReset == null) {
-    error({
-      message: `Agent '${agentName}' does not support factory reset.`,
-    });
+    log.error(`Agent '${agentName}' does not support factory reset.`);
     process.exit(1);
     return;
   }

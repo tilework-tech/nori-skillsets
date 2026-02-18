@@ -495,7 +495,7 @@ describe("login command", () => {
     });
 
     it("should require email and password in non-interactive mode", async () => {
-      const { error } = await import("@/cli/logger.js");
+      const clack = await import("@clack/prompts");
 
       await loginMain({
         installDir: tempDir,
@@ -503,10 +503,8 @@ describe("login command", () => {
         // Missing email and password
       });
 
-      expect(error).toHaveBeenCalledWith(
-        expect.objectContaining({
-          message: expect.stringContaining("--email"),
-        }),
+      expect(clack.log.error).toHaveBeenCalledWith(
+        expect.stringContaining("--email"),
       );
     });
 
@@ -793,7 +791,7 @@ describe("login command", () => {
     });
 
     it("should show error when --no-localhost is used without --google", async () => {
-      const { error: logError } = await import("@/cli/logger.js");
+      const clack = await import("@clack/prompts");
 
       await loginMain({
         installDir: tempDir,
@@ -801,10 +799,8 @@ describe("login command", () => {
       });
 
       // Should show the --no-localhost error
-      expect(logError).toHaveBeenCalledWith(
-        expect.objectContaining({
-          message: expect.stringContaining("--no-localhost"),
-        }),
+      expect(clack.log.error).toHaveBeenCalledWith(
+        expect.stringContaining("--no-localhost"),
       );
 
       // No config should be saved
@@ -944,7 +940,7 @@ describe("login command", () => {
     });
 
     it("should show error when --google is used with --email", async () => {
-      const { error } = await import("@/cli/logger.js");
+      const clack = await import("@clack/prompts");
 
       await loginMain({
         installDir: tempDir,
@@ -952,10 +948,8 @@ describe("login command", () => {
         email: "user@example.com",
       });
 
-      expect(error).toHaveBeenCalledWith(
-        expect.objectContaining({
-          message: expect.stringContaining("--google"),
-        }),
+      expect(clack.log.error).toHaveBeenCalledWith(
+        expect.stringContaining("--google"),
       );
 
       // No config should be saved
@@ -964,7 +958,7 @@ describe("login command", () => {
     });
 
     it("should show error when --google is used with --password", async () => {
-      const { error } = await import("@/cli/logger.js");
+      const clack = await import("@clack/prompts");
 
       await loginMain({
         installDir: tempDir,
@@ -972,15 +966,13 @@ describe("login command", () => {
         password: "secret",
       });
 
-      expect(error).toHaveBeenCalledWith(
-        expect.objectContaining({
-          message: expect.stringContaining("--google"),
-        }),
+      expect(clack.log.error).toHaveBeenCalledWith(
+        expect.stringContaining("--google"),
       );
     });
 
     it("should show error when --google is used with --non-interactive", async () => {
-      const { error } = await import("@/cli/logger.js");
+      const clack = await import("@clack/prompts");
 
       await loginMain({
         installDir: tempDir,
@@ -988,10 +980,8 @@ describe("login command", () => {
         nonInteractive: true,
       });
 
-      expect(error).toHaveBeenCalledWith(
-        expect.objectContaining({
-          message: expect.stringContaining("--non-interactive"),
-        }),
+      expect(clack.log.error).toHaveBeenCalledWith(
+        expect.stringContaining("--non-interactive"),
       );
 
       // No config should be saved
@@ -1000,7 +990,7 @@ describe("login command", () => {
     });
 
     it("should handle auth server timeout gracefully", async () => {
-      const { error } = await import("@/cli/logger.js");
+      const clack = await import("@clack/prompts");
       const {
         findAvailablePort,
         startAuthServer,
@@ -1017,10 +1007,8 @@ describe("login command", () => {
 
       await loginMain({ installDir: tempDir, google: true });
 
-      expect(error).toHaveBeenCalledWith(
-        expect.objectContaining({
-          message: expect.stringContaining("Authentication failed"),
-        }),
+      expect(clack.log.error).toHaveBeenCalledWith(
+        expect.stringContaining("Authentication failed"),
       );
 
       // No config should be saved
@@ -1030,7 +1018,7 @@ describe("login command", () => {
 
     it("should handle Firebase signInWithCredential failure", async () => {
       const { signInWithCredential } = await import("firebase/auth");
-      const { error } = await import("@/cli/logger.js");
+      const clack = await import("@clack/prompts");
       const {
         findAvailablePort,
         startAuthServer,
@@ -1058,10 +1046,8 @@ describe("login command", () => {
 
       await loginMain({ installDir: tempDir, google: true });
 
-      expect(error).toHaveBeenCalledWith(
-        expect.objectContaining({
-          message: expect.stringContaining("Authentication failed"),
-        }),
+      expect(clack.log.error).toHaveBeenCalledWith(
+        expect.stringContaining("Authentication failed"),
       );
     });
 
@@ -1404,14 +1390,12 @@ describe("login command", () => {
     });
 
     it("should show error when --no-localhost is used without --google", async () => {
-      const { error } = await import("@/cli/logger.js");
+      const clack = await import("@clack/prompts");
 
       await loginMain({ installDir: tempDir, noLocalhost: true });
 
-      expect(error).toHaveBeenCalledWith(
-        expect.objectContaining({
-          message: expect.stringContaining("--no-localhost"),
-        }),
+      expect(clack.log.error).toHaveBeenCalledWith(
+        expect.stringContaining("--no-localhost"),
       );
 
       // No config should be saved
@@ -1462,7 +1446,7 @@ describe("login command", () => {
     });
 
     it("should handle empty token input gracefully", async () => {
-      const { error } = await import("@/cli/logger.js");
+      const clack = await import("@clack/prompts");
       const { getGoogleAuthUrl, generateState } =
         await import("./googleAuth.js");
       const { promptPassword } = await import("@/cli/prompts/index.js");
@@ -1475,10 +1459,8 @@ describe("login command", () => {
 
       await loginMain({ installDir: tempDir, google: true, noLocalhost: true });
 
-      expect(error).toHaveBeenCalledWith(
-        expect.objectContaining({
-          message: expect.stringContaining("token"),
-        }),
+      expect(clack.log.error).toHaveBeenCalledWith(
+        expect.stringContaining("token"),
       );
 
       // No config should be saved

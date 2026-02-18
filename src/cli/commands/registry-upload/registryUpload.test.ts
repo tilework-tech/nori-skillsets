@@ -117,11 +117,11 @@ vi.mock("@clack/prompts", () => ({
   isCancel: vi.fn(() => false),
 }));
 
-// Mock console methods to capture output (for early validation errors before flow starts)
-const mockConsoleLog = vi
+// Mock console methods to suppress output during tests
+const _mockConsoleLog = vi
   .spyOn(console, "log")
   .mockImplementation(() => undefined);
-const mockConsoleError = vi
+const _mockConsoleError = vi
   .spyOn(console, "error")
   .mockImplementation(() => undefined);
 
@@ -249,10 +249,7 @@ describe("registry-upload", () => {
 
         expect(result.success).toBe(false);
 
-        const allErrorOutput = mockConsoleError.mock.calls
-          .map((call) => call.join(" "))
-          .join("\n");
-        expect(allErrorOutput.toLowerCase()).toContain("invalid");
+        expect(getClackOutput().toLowerCase()).toContain("invalid");
       });
 
       it("should parse simple profile name", async () => {
@@ -276,10 +273,7 @@ describe("registry-upload", () => {
 
         expect(result.success).toBe(false);
 
-        const allErrorOutput = mockConsoleError.mock.calls
-          .map((call) => call.join(" "))
-          .join("\n");
-        expect(allErrorOutput).toContain("not found");
+        expect(getClackOutput()).toContain("not found");
       });
 
       it("should parse namespaced profile with version", async () => {
@@ -303,10 +297,7 @@ describe("registry-upload", () => {
 
         expect(result.success).toBe(false);
 
-        const allErrorOutput = mockConsoleError.mock.calls
-          .map((call) => call.join(" "))
-          .join("\n");
-        expect(allErrorOutput).toContain("not found");
+        expect(getClackOutput()).toContain("not found");
       });
     });
 
@@ -325,10 +316,7 @@ describe("registry-upload", () => {
 
           expect(result.success).toBe(false);
 
-          const allErrorOutput = mockConsoleError.mock.calls
-            .map((call) => call.join(" "))
-            .join("\n");
-          expect(allErrorOutput.toLowerCase()).toContain(
+          expect(getClackOutput().toLowerCase()).toContain(
             "no nori installation",
           );
         } finally {
@@ -359,10 +347,7 @@ describe("registry-upload", () => {
 
           expect(result.success).toBe(false);
 
-          const allErrorOutput = mockConsoleError.mock.calls
-            .map((call) => call.join(" "))
-            .join("\n");
-          expect(allErrorOutput.toLowerCase()).toContain("multiple");
+          expect(getClackOutput().toLowerCase()).toContain("multiple");
         } finally {
           await fs.rm(emptyHomeDir, { recursive: true, force: true });
         }
@@ -406,10 +391,7 @@ describe("registry-upload", () => {
 
         expect(result.success).toBe(false);
 
-        const allErrorOutput = mockConsoleError.mock.calls
-          .map((call) => call.join(" "))
-          .join("\n");
-        expect(allErrorOutput.toLowerCase()).toContain("authentication");
+        expect(getClackOutput().toLowerCase()).toContain("authentication");
       });
 
       it("should reject upload to org user does not have access to", async () => {
@@ -430,11 +412,9 @@ describe("registry-upload", () => {
 
         expect(result.success).toBe(false);
 
-        const allErrorOutput = mockConsoleError.mock.calls
-          .map((call) => call.join(" "))
-          .join("\n");
-        expect(allErrorOutput).toContain("do not have access");
-        expect(allErrorOutput).toContain("myorg");
+        const clackOutput = getClackOutput();
+        expect(clackOutput).toContain("do not have access");
+        expect(clackOutput).toContain("myorg");
       });
 
       it("should use unified auth when config.auth.organizations is present", async () => {
@@ -883,11 +863,9 @@ describe("registry-upload", () => {
 
         expect(result.success).toBe(false);
 
-        const allErrorOutput = mockConsoleError.mock.calls
-          .map((call) => call.join(" "))
-          .join("\n");
-        expect(allErrorOutput).toContain("not found");
-        expect(allErrorOutput).toContain("nonexistent-profile");
+        const clackOutput = getClackOutput();
+        expect(clackOutput).toContain("not found");
+        expect(clackOutput).toContain("nonexistent-profile");
       });
     });
 
@@ -922,10 +900,9 @@ describe("registry-upload", () => {
 
         expect(result.success).toBe(false);
 
-        const allErrorOutput = mockConsoleError.mock.calls
-          .map((call) => call.join(" "))
-          .join("\n");
-        expect(allErrorOutput.toLowerCase()).toContain("authentication failed");
+        expect(getClackOutput().toLowerCase()).toContain(
+          "authentication failed",
+        );
       });
 
       it("should handle upload failure gracefully", async () => {
@@ -1052,10 +1029,7 @@ describe("registry-upload", () => {
 
         expect(result.success).toBe(false);
 
-        const allErrorOutput = mockConsoleError.mock.calls
-          .map((call) => call.join(" "))
-          .join("\n");
-        expect(allErrorOutput.toLowerCase()).toContain("no authentication");
+        expect(getClackOutput().toLowerCase()).toContain("no authentication");
       });
     });
 
@@ -1102,11 +1076,9 @@ describe("registry-upload", () => {
         expect(registrarApi.uploadSkillset).not.toHaveBeenCalled();
 
         // Verify dry-run output shows version
-        const allOutput = mockConsoleLog.mock.calls
-          .map((call) => call.join(" "))
-          .join("\n");
-        expect(allOutput.toLowerCase()).toContain("dry run");
-        expect(allOutput).toContain("1.2.4"); // auto-bumped version
+        const clackOutput = getClackOutput();
+        expect(clackOutput.toLowerCase()).toContain("dry run");
+        expect(clackOutput).toContain("1.2.4"); // auto-bumped version
       });
 
       it("should display profile path and registry URL in dry-run", async () => {
@@ -1142,11 +1114,9 @@ describe("registry-upload", () => {
 
         expect(result.success).toBe(true);
 
-        const allOutput = mockConsoleLog.mock.calls
-          .map((call) => call.join(" "))
-          .join("\n");
-        expect(allOutput).toContain("myorg/my-profile");
-        expect(allOutput).toContain("myorg.noriskillsets.dev");
+        const clackOutput = getClackOutput();
+        expect(clackOutput).toContain("myorg/my-profile");
+        expect(clackOutput).toContain("myorg.noriskillsets.dev");
       });
 
       it("should show 1.0.0 for new packages in dry-run", async () => {
@@ -1183,10 +1153,7 @@ describe("registry-upload", () => {
 
         expect(result.success).toBe(true);
 
-        const allOutput = mockConsoleLog.mock.calls
-          .map((call) => call.join(" "))
-          .join("\n");
-        expect(allOutput).toContain("1.0.0");
+        expect(getClackOutput()).toContain("1.0.0");
       });
     });
 

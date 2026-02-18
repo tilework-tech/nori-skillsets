@@ -6,6 +6,7 @@
 import * as fs from "fs/promises";
 import * as path from "path";
 
+import { log } from "@clack/prompts";
 import * as semver from "semver";
 import * as tar from "tar";
 
@@ -17,7 +18,6 @@ import {
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
 import { loadConfig, getRegistryAuth } from "@/cli/config.js";
 import { getNoriProfilesDir } from "@/cli/features/claude-code/paths.js";
-import { error, info } from "@/cli/logger.js";
 import {
   uploadFlow,
   listVersionsFlow,
@@ -318,9 +318,9 @@ export const registryUploadMain = async (args: {
   // Parse profile spec using shared utility
   const parsed = parseNamespacedPackage({ packageSpec: profileSpec });
   if (parsed == null) {
-    error({
-      message: `Invalid profile specification: "${profileSpec}".\nExpected format: profile-name or org/profile-name[@version]`,
-    });
+    log.error(
+      `Invalid profile specification: "${profileSpec}".\nExpected format: profile-name or org/profile-name[@version]`,
+    );
     return { success: false };
   }
 
@@ -333,9 +333,9 @@ export const registryUploadMain = async (args: {
     const allInstallations = getInstallDirs({ currentDir: cwd });
 
     if (allInstallations.length === 0) {
-      error({
-        message: `No Nori installation found.\n\nRun 'nori-skillsets init' to initialize Nori.`,
-      });
+      log.error(
+        `No Nori installation found.\n\nRun 'nori-skillsets init' to initialize Nori.`,
+      );
       return { success: false };
     }
 
@@ -344,9 +344,9 @@ export const registryUploadMain = async (args: {
         .map((dir, index) => `${index + 1}. ${dir}`)
         .join("\n");
 
-      error({
-        message: `Found multiple Nori installations.\n\nInstallations found:\n${installList}\n\nUse --install-dir to specify which one to use.`,
-      });
+      log.error(
+        `Found multiple Nori installations.\n\nInstallations found:\n${installList}\n\nUse --install-dir to specify which one to use.`,
+      );
       return { success: false };
     }
   }
@@ -354,7 +354,7 @@ export const registryUploadMain = async (args: {
   // Load config - use getHomeDir() since registry upload needs global auth
   const config = await loadConfig({ startDir: getHomeDir() });
   if (config == null) {
-    error({ message: `Could not load Nori configuration.` });
+    log.error(`Could not load Nori configuration.`);
     return { success: false };
   }
 
@@ -397,18 +397,18 @@ export const registryUploadMain = async (args: {
     }
 
     if (registryAuth == null) {
-      error({
-        message: `No authentication configured for ${registryUrl}.\n\nLog in with 'nori-skillsets login' to configure registry access.`,
-      });
+      log.error(
+        `No authentication configured for ${registryUrl}.\n\nLog in with 'nori-skillsets login' to configure registry access.`,
+      );
       return { success: false };
     }
 
     try {
       authToken = await getRegistryAuthToken({ registryAuth });
     } catch (err) {
-      error({
-        message: `Authentication failed: ${err instanceof Error ? err.message : String(err)}`,
-      });
+      log.error(
+        `Authentication failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
       return { success: false };
     }
   } else if (hasUnifiedAuthWithOrgs) {
@@ -418,9 +418,9 @@ export const registryUploadMain = async (args: {
 
     // Check if user has access to this org
     if (!userOrgs.includes(orgId)) {
-      error({
-        message: `You do not have access to organization "${orgId}".\n\nCannot upload "${profileDisplayName}" to ${targetRegistryUrl}.\n\nYour available organizations: ${userOrgs.length > 0 ? userOrgs.join(", ") : "(none)"}`,
-      });
+      log.error(
+        `You do not have access to organization "${orgId}".\n\nCannot upload "${profileDisplayName}" to ${targetRegistryUrl}.\n\nYour available organizations: ${userOrgs.length > 0 ? userOrgs.join(", ") : "(none)"}`,
+      );
       return { success: false };
     }
 
@@ -433,22 +433,22 @@ export const registryUploadMain = async (args: {
     try {
       authToken = await getRegistryAuthToken({ registryAuth });
     } catch (err) {
-      error({
-        message: `Authentication failed: ${err instanceof Error ? err.message : String(err)}`,
-      });
+      log.error(
+        `Authentication failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
       return { success: false };
     }
   } else if (orgId === "public") {
     // Public registry requires auth for uploads
-    error({
-      message: `Authentication required to upload to public registry.\n\nLog in with 'nori-skillsets login' to configure registry access.`,
-    });
+    log.error(
+      `Authentication required to upload to public registry.\n\nLog in with 'nori-skillsets login' to configure registry access.`,
+    );
     return { success: false };
   } else {
     // Namespaced package without unified auth
-    error({
-      message: `Cannot upload "${profileDisplayName}". To upload to organization "${orgId}", log in with:\n\n  nori-skillsets login`,
-    });
+    log.error(
+      `Cannot upload "${profileDisplayName}". To upload to organization "${orgId}", log in with:\n\n  nori-skillsets login`,
+    );
     return { success: false };
   }
 
@@ -485,9 +485,7 @@ export const registryUploadMain = async (args: {
   try {
     await fs.access(profileDir);
   } catch {
-    error({
-      message: `Profile "${profileDisplayName}" not found at:\n${profileDir}`,
-    });
+    log.error(`Profile "${profileDisplayName}" not found at:\n${profileDir}`);
     return { success: false };
   }
 
@@ -500,12 +498,10 @@ export const registryUploadMain = async (args: {
       authToken,
     });
 
-    info({
-      message: `[Dry run] Would upload "${profileDisplayName}@${versionResult.version}" to ${targetRegistryUrl}`,
-    });
-    info({
-      message: `[Dry run] Profile path: ${profileDir}`,
-    });
+    log.info(
+      `[Dry run] Would upload "${profileDisplayName}@${versionResult.version}" to ${targetRegistryUrl}`,
+    );
+    log.info(`[Dry run] Profile path: ${profileDir}`);
     return { success: true };
   }
 

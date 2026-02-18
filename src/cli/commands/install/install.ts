@@ -12,6 +12,8 @@
 import { writeFileSync, unlinkSync, existsSync } from "fs";
 import * as path from "path";
 
+import { log } from "@clack/prompts";
+
 import { initMain } from "@/cli/commands/init/init.js";
 import {
   displayWelcomeBanner,
@@ -35,7 +37,7 @@ import {
   getUserId,
   sendAnalyticsEvent,
 } from "@/cli/installTracking.js";
-import { error, success, info, newline, setSilentMode } from "@/cli/logger.js";
+import { isSilentMode, setSilentMode } from "@/cli/logger.js";
 import { getCurrentPackageVersion } from "@/cli/version.js";
 import { getHomeDir } from "@/utils/home.js";
 import { normalizeInstallDir } from "@/utils/path.js";
@@ -76,22 +78,18 @@ const cleanupProgressMarker = (): void => {
  * Display completion banners and messages
  */
 const displayCompletionBanners = (): void => {
+  if (isSilentMode()) return;
   displayWelcomeBanner();
-  success({
-    message:
-      "======================================================================",
-  });
-  success({
-    message:
-      "        Restart your Claude Code instances to get started           ",
-  });
-  success({
-    message:
-      "======================================================================",
-  });
-  newline();
+  log.success(
+    "======================================================================",
+  );
+  log.success(
+    "        Restart your Claude Code instances to get started           ",
+  );
+  log.success(
+    "======================================================================",
+  );
   displaySeaweedBed();
-  newline();
 };
 
 /**
@@ -110,14 +108,13 @@ const runFeatureLoaders = async (args: {
   const registry = agent.getLoaderRegistry();
   const loaders = registry.getAll();
 
-  info({ message: "Installing features..." });
-  newline();
+  if (!isSilentMode()) {
+    log.info("Installing features...");
+  }
 
   for (const loader of loaders) {
     await loader.run({ config });
   }
-
-  newline();
 };
 
 /**
@@ -155,7 +152,9 @@ const writeInstalledManifest = async (args: {
       profileName,
     });
     await writeManifest({ manifestPath, manifest });
-    info({ message: "✓ Created installation manifest for change detection" });
+    if (!isSilentMode()) {
+      log.info("✓ Created installation manifest for change detection");
+    }
   } catch {
     // Non-fatal - manifest writing failure shouldn't block installation
   }
@@ -250,10 +249,9 @@ export const noninteractive = async (args?: {
   // Use getHomeDir() since install is home-directory-based
   const existingConfig = await loadConfig({ startDir: getHomeDir() });
   if (existingConfig == null) {
-    error({
-      message:
-        "No Nori configuration found. Please run 'nori-skillsets init' first.",
-    });
+    log.error(
+      "No Nori configuration found. Please run 'nori-skillsets init' first.",
+    );
     process.exit(1);
   }
 
@@ -263,14 +261,12 @@ export const noninteractive = async (args?: {
   });
 
   if (profile == null && existingProfile == null) {
-    error({
-      message:
-        "Non-interactive install requires --profile flag when no existing profile is set",
-    });
-    info({
-      message:
-        "Example: nori-skillsets install --non-interactive --profile <profile-name>",
-    });
+    log.error(
+      "Non-interactive install requires --profile flag when no existing profile is set",
+    );
+    log.info(
+      "Example: nori-skillsets install --non-interactive --profile <profile-name>",
+    );
     process.exit(1);
   }
 
@@ -299,7 +295,7 @@ export const noninteractive = async (args?: {
   // Reload config after saving
   const config = await loadConfig({ startDir: getHomeDir() });
   if (config == null) {
-    error({ message: "Failed to load configuration after setup." });
+    log.error("Failed to load configuration after setup.");
     process.exit(1);
   }
 
@@ -343,7 +339,7 @@ export const main = async (args?: {
       profile,
     });
   } catch (err: any) {
-    error({ message: err.message });
+    log.error(err.message);
     process.exit(1);
   } finally {
     // Always restore console.log and silent mode when done

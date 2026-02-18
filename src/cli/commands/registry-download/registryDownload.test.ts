@@ -97,14 +97,6 @@ vi.mock("@/cli/commands/init/init.js", () => ({
   initMain: vi.fn(),
 }));
 
-// Mock console methods to capture output
-const mockConsoleLog = vi
-  .spyOn(console, "log")
-  .mockImplementation(() => undefined);
-const mockConsoleError = vi
-  .spyOn(console, "error")
-  .mockImplementation(() => undefined);
-
 import { registrarApi, REGISTRAR_URL } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
 import { initMain } from "@/cli/commands/init/init.js";
@@ -347,9 +339,7 @@ describe("registry-download", () => {
         });
 
         // Verify info message about setting up was shown
-        const allOutput = mockConsoleLog.mock.calls
-          .map((call) => call.join(" "))
-          .join("\n");
+        const allOutput = getAllClackOutput();
         expect(allOutput.toLowerCase()).toContain("setting up");
 
         // Verify download proceeded after init
@@ -545,11 +535,9 @@ describe("registry-download", () => {
         });
 
         // Verify error message about init failure was shown
-        const allErrorOutput = mockConsoleError.mock.calls
-          .map((call) => call.join(" "))
-          .join("\n");
+        const allErrorOutput = getClackErrorOutput();
         expect(allErrorOutput.toLowerCase()).toContain("failed to initialize");
-        expect(allErrorOutput).toContain("Permission denied");
+        expect(getAllClackOutput()).toContain("Permission denied");
 
         // Verify no download was attempted
         expect(registrarApi.downloadTarball).not.toHaveBeenCalled();
@@ -582,9 +570,7 @@ describe("registry-download", () => {
         });
 
         // Verify error message about multiple installations
-        const allErrorOutput = mockConsoleError.mock.calls
-          .map((call) => call.join(" "))
-          .join("\n");
+        const allErrorOutput = getClackErrorOutput();
         expect(allErrorOutput.toLowerCase()).toContain("multiple");
       } finally {
         await fs.rm(emptyHomeDir, { recursive: true, force: true });
@@ -1934,9 +1920,7 @@ describe("registry-download", () => {
       });
 
       // Verify error about invalid format
-      const allErrorOutput = mockConsoleError.mock.calls
-        .map((call) => call.join(" "))
-        .join("\n");
+      const allErrorOutput = getClackErrorOutput();
       expect(allErrorOutput.toLowerCase()).toContain("invalid");
 
       // Verify no download occurred
@@ -1954,9 +1938,7 @@ describe("registry-download", () => {
       });
 
       // Verify error about invalid format
-      const allErrorOutput = mockConsoleError.mock.calls
-        .map((call) => call.join(" "))
-        .join("\n");
+      const allErrorOutput = getClackErrorOutput();
       expect(allErrorOutput.toLowerCase()).toContain("invalid");
 
       // Verify no download occurred

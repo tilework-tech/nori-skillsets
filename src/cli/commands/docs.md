@@ -29,7 +29,7 @@ nori-skillsets install (orchestrator)
 The `install` command in @/src/cli/commands/registry-install/registryInstall.ts is a high-level wrapper that downloads from the public registrar and then runs `noninteractive()` from install.ts. The `install.ts` module in @/src/cli/commands/install/ contains the `noninteractive()` function which orchestrates init, profile resolution, and loader execution. After loaders complete, `writeInstalledManifest()` creates a manifest of all installed files in `~/.claude/` for later change detection by `switch`.
 
 **init** (@/src/cli/commands/init/init.ts): Creates the `.nori` directory structure and initializes `.nori-config.json`. If existing Claude Code config exists and no Nori config is present, captures the existing config as a profile:
-  - Non-interactive mode: auto-captures as "my-skillset"
+  - Non-interactive mode: auto-captures as "my-profile". Uses `@clack/prompts` for all output (`log.success` for status, `note()` for ancestor warnings). Color helpers (`bold`, `yellow`) from @/cli/logger.js are used only inside `note()` content.
   - Interactive mode: Uses `initFlow` from @/cli/prompts/flows for an interactive experience with intro/outro, note boxes, and modern prompts. The flow handles ancestor checks, existing config detection, profile name capture, persistence warnings, and initialization spinner.
 
 **Profile Resolution (in install.ts):** After init, `noninteractive()` loads the existing config, resolves the profile from the `--profile` flag or the existing agent config, preserves auth credentials, and saves the merged config. Non-interactive mode requires `--profile` flag if no existing profile is set.
@@ -38,7 +38,7 @@ The `install` command in @/src/cli/commands/registry-install/registryInstall.ts 
 
 The install command sets `agents: { [agentName]: { profile } }` in the config, where the keys of the `agents` object indicate which agents are installed. The config loader merges `agents` objects with any existing config.
 
-**install.ts Architecture:** The install.ts module contains only the `noninteractive()` flow and the `main()` entry point. The `noninteractive()` function orchestrates: (1) `initMain()`, (2) inline profile resolution and config save via `loadConfig()`/`saveConfig()`, (3) `completeInstallation()` which runs feature loaders, writes the installation manifest, tracks analytics, and displays completion banners. The `main()` function wraps `noninteractive()` with silent mode support.
+**install.ts Architecture:** The install.ts module contains only the `noninteractive()` flow and the `main()` entry point. The `noninteractive()` function orchestrates: (1) `initMain()`, (2) inline profile resolution and config save via `loadConfig()`/`saveConfig()`, (3) `completeInstallation()` which runs feature loaders, writes the installation manifest, tracks analytics, and displays completion banners. All user-facing output uses `@clack/prompts` `log.*` methods (`log.error`, `log.info`, `log.success`), with `isSilentMode()` guards because clack's output methods do not respect the logger's silent mode. The `main()` function wraps `noninteractive()` with silent mode support.
 
 **cliCommandNames.ts:** The `CliName` type is a single literal `"nori-skillsets"` (not a union). The `getCommandNames()` function returns the `NORI_SKILLSETS_COMMANDS` constant, which maps logical command names (download, search, switchProfile, etc.) to their CLI command strings.
 
@@ -55,7 +55,7 @@ The install command sets `agents: { [agentName]: { profile } }` in the config, w
 
 2. **Non-interactive Email/Password** (`--email` and `--password` flags):
    - Bypasses loginFlow and authenticates directly via Firebase SDK
-   - Uses standard logger output instead of @clack/prompts UI
+   - Uses `@clack/prompts` `log.*` methods for error output (no interactive flow)
 
 3. **Google SSO** (`--google` flag):
    - Uses the localhost OAuth callback pattern: starts a temporary HTTP server on an available port (9876-9885), opens the browser to Google's consent screen, and captures the authorization code via redirect
@@ -137,7 +137,7 @@ The change detection uses the manifest module from @/src/cli/features/claude-cod
 
 ### Things to Know
 
-- `asciiArt.ts` in the install directory contains ASCII banners displayed during installation. Display functions (displayNoriBanner, displayWelcomeBanner, displaySeaweedBed) check `isSilentMode()` and return early without output when silent mode is enabled.
+- `asciiArt.ts` in the install directory contains ASCII banners displayed during installation. Display functions (displayNoriBanner, displayWelcomeBanner, displaySeaweedBed) check `isSilentMode()` and return early without output when silent mode is enabled. Output uses `process.stdout.write()` via a local `writeLine()` helper rather than `@clack/prompts`, because clack's `log.*` methods prepend bar symbols that would break ASCII art alignment.
 - Registry download supports both gzipped and plain tarballs by checking for gzip magic bytes (0x1f 0x8b).
 - The `skill-download` command (@/src/cli/commands/skill-download/) downloads individual skills and updates both `skills.json` and `nori.json` manifests in the target profile.
 - The `external` command (@/src/cli/commands/external/) installs skills directly from GitHub repositories. It clones the repo, discovers SKILL.md files, and installs them following the same dual-installation pattern as `skill-download` (live copy to `~/.claude/skills/` with template substitution, raw copy to profile's `skills/` directory). Supports `--new <name>` to create a brand-new skillset and install skills into it in a single step, or `--skillset <name>` to target an existing one. Writes a `nori.json` provenance file (instead of `.nori-version`) to track the GitHub source URL, ref, subpath, and installation timestamp. See @/src/cli/commands/external/docs.md for details.
