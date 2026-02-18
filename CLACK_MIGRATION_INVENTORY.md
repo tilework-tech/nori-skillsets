@@ -216,12 +216,21 @@ messages route through clack.
 | `install` | `commands/install/install.ts` | ✅ Migrated |
 | ASCII art | `commands/install/asciiArt.ts` | ✅ Migrated |
 
-### Phase 5 — Update checker
+### Phase 5 — Update checker ✅ DONE
 
-| Module | File | Output method |
-|--------|------|--------------|
-| Update checker | `updates/checkForUpdate.ts` | `process.stderr.write` |
-| Update prompt | `updates/updatePrompt.ts` | `process.stderr.write`, raw ANSI, `readline` |
+Completed on the `feat/migrate-loggers` branch. All `process.stderr.write`
+calls in `checkForUpdate.ts` replaced with `log.warn()` / `log.info()` /
+`log.success()` / `log.error()` from `@clack/prompts`. The `error()` import
+from `@/cli/logger.js` was removed. In `updatePrompt.ts`, the raw ANSI
+`formatUpdateMessage()` box and `readline`-based interactive prompt were
+replaced with `@clack/prompts` `select()` for interactive mode and
+`log.warn()` for non-interactive mode. The `readline` import was removed
+entirely. Tests updated in both affected files.
+
+| Module | File | Status |
+|--------|------|--------|
+| Update checker | `updates/checkForUpdate.ts` | ✅ Migrated |
+| Update prompt | `updates/updatePrompt.ts` | ✅ Migrated |
 
 ### Phase 6 — Deprecate console logger
 
