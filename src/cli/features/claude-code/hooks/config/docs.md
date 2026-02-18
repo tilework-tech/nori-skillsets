@@ -49,7 +49,7 @@ These scripts are referenced by absolute paths in ~/.claude/settings.json, confi
 
 ### Things to Know
 
-All hooks gracefully handle errors and exit with code 0 to avoid disrupting Claude Code sessions.
+All hooks gracefully handle errors and exit with code 0 to avoid disrupting Claude Code sessions. Hook error logging uses `debug()` from @/cli/logger.ts (file-only, written to `/tmp/nori.log`), so hook failures are never visible on the console.
 
 ### Optional Dependencies for Click-to-Focus Notifications
 

@@ -34,7 +34,7 @@ src/cli/
   nori-skillsets.ts      # CLI entry point
   config.ts              # Unified config management (auth + profile + preferences)
   env.ts                 # Environment and path utilities (re-exports from features/claude-code/paths.ts)
-  logger.ts              # Console output formatting via Winston
+  logger.ts              # File-only debug logging, silent mode flag, and ANSI color helpers
   version.ts             # Version tracking for upgrades + package root discovery
   installTracking.ts     # Install lifecycle and session tracking to Nori backend
   updates/               # Auto-update check system (see @/src/cli/updates/docs.md)
@@ -115,9 +115,9 @@ The version.ts module manages version tracking for installation upgrades and CLI
 
 **Version Compatibility Checking:** The version.ts module provides CLI flag compatibility checking via `supportsAgentFlag({ version })`. The `--agent` flag was introduced in version 19.0.0 with multi-agent support.
 
-The logger.ts module provides console output formatting with ANSI color codes, powered by the Winston logging library. All log output is appended to `/tmp/nori.log` for debugging. The console-facing output functions (`error`, `success`, `info`, `warn`, `raw`, `newline`) are being migrated to `@clack/prompts` `log.*` methods (see CLACK_MIGRATION_INVENTORY.md). Commands in @/src/cli/commands/ that have been migrated import from `@clack/prompts` and use `log.error()`, `log.info()`, `log.warn()`, `log.success()` for status messages and `note()` for boxed informational output, instead of the logger wrappers. Non-UI utilities (`setSilentMode`, `isSilentMode`, `debug`) and text formatting helpers (`bold`, `green`, `red`, `yellow`, `brightCyan`, `boldWhite`) remain in logger.ts and are not migrated.
+All user-facing console output uses `@clack/prompts`: `log.error()`, `log.info()`, `log.warn()`, `log.success()` for single-line status messages, and `note()` for multi-line structured content rendered as bordered boxes with a title. ASCII art uses raw `process.stdout.write()` to avoid clack bar-line prefixes. The logger.ts module retains file-only debug logging via Winston (all output appended to `/tmp/nori.log`), the `setSilentMode`/`isSilentMode` flag, and ANSI color helper functions (`bold`, `green`, `red`, `yellow`, `brightCyan`, `boldWhite`, `gray`, `wrapText`).
 
-**Silent Mode:** The logger module provides `setSilentMode({ silent: boolean })` and `isSilentMode()` functions for controlling console output globally. When silent mode is enabled, the custom ConsoleTransport skips all console output while Winston's File transport continues logging to `/tmp/nori.log`. Silent mode is set/restored in a `finally` block by the install command's `main()` function to prevent state leakage.
+**Silent Mode:** The logger module provides `setSilentMode({ silent: boolean })` and `isSilentMode()` functions for controlling console output globally. Silent mode is a module-scoped boolean flag. Because `@clack/prompts` `log.*` methods do not respect this flag automatically, callers must check `isSilentMode()` before emitting output. File logging via Winston continues regardless of silent mode. Silent mode is set/restored in a `finally` block by the install command's `main()` function to prevent state leakage.
 
 The config.ts module provides a unified `Config` type for both disk persistence and runtime use. The `Config` type contains: auth credentials via `AuthCredentials` type (username, organizationUrl, refreshToken, password), agents (per-agent configuration - keys indicate installed agents, each with their own profile), user preferences (sendSessionTranscript, autoupdate), and the required installDir field.
 

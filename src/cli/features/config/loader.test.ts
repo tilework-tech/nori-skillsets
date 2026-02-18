@@ -6,6 +6,7 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 
+import * as clack from "@clack/prompts";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 import { getConfigPath } from "@/cli/config.js";
@@ -41,6 +42,19 @@ vi.mock("@/providers/firebase.js", () => ({
     auth: {},
     app: { options: { projectId: "test-project" } },
   }),
+}));
+
+// Mock @clack/prompts for UI output assertions
+vi.mock("@clack/prompts", () => ({
+  log: {
+    error: vi.fn(),
+    warn: vi.fn(),
+    info: vi.fn(),
+    success: vi.fn(),
+    step: vi.fn(),
+    message: vi.fn(),
+  },
+  note: vi.fn(),
 }));
 
 describe("configLoader", () => {
@@ -308,6 +322,45 @@ describe("configLoader", () => {
       ]);
       expect(fileContents.auth.isAdmin).toBe(true);
       expect(fileContents.transcriptDestination).toBe("myorg");
+    });
+
+    it("should display auth failure details as a boxed note with email and error code", async () => {
+      // Make signInWithEmailAndPassword reject with an auth error
+      const { signInWithEmailAndPassword } = await import("firebase/auth");
+      vi.mocked(signInWithEmailAndPassword).mockRejectedValueOnce({
+        code: "auth/invalid-credential",
+        message: "Invalid credential",
+      });
+
+      const config: Config = {
+        installDir: tempDir,
+        agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
+        auth: {
+          username: "test@example.com",
+          password: "wrongpass",
+          organizationUrl: "https://example.com",
+        },
+      };
+
+      await configLoader.run({ config });
+
+      // The auth failure header should use log.error
+      expect(clack.log.error).toHaveBeenCalledWith("Authentication failed");
+
+      // Detail lines (email, error code, message, hint) should be in a note()
+      expect(clack.note).toHaveBeenCalledWith(
+        expect.stringContaining("test@example.com"),
+        expect.any(String),
+      );
+      expect(clack.note).toHaveBeenCalledWith(
+        expect.stringContaining("auth/invalid-credential"),
+        expect.any(String),
+      );
+
+      // Continuation warning should use log.warn
+      expect(clack.log.warn).toHaveBeenCalledWith(
+        expect.stringContaining("Continuing installation"),
+      );
     });
 
     it("should use existing refresh token when provided instead of password", async () => {

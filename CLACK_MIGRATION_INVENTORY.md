@@ -195,7 +195,8 @@ Tests updated to assert on `clack.note` and `clack.log.success`.
 
 ### Phase 4 — `install` command and ASCII art ✅ DONE
 
-Completed on the `feat/migrate-loggers` branch. In `install.ts`, all
+Completed on the `feat/migrate-loggers` branch, refined on the
+`refactor/migrate-update-checker-to-clack` branch. In `install.ts`, all
 `error()` / `success()` / `info()` / `newline()` calls from `@/cli/logger.js`
 replaced with `log.error()` / `log.success()` / `log.info()` from
 `@clack/prompts`. `newline()` calls removed. `setSilentMode` kept in
@@ -203,18 +204,33 @@ replaced with `log.error()` / `log.success()` / `log.info()` from
 to `displayCompletionBanners()` and `runFeatureLoaders()` since clack
 `log.*` methods do not respect the logger's silent mode.
 
+Multi-line outputs migrated to `note()`:
+- `displayCompletionBanners()`: Three repeated `log.success()` calls (ASCII
+  "======" restart banner) replaced with a single `note("Restart your Claude
+  Code instances to get started", "Installation Complete")`.
+- `noninteractive()` missing-profile error path: `log.info()` usage example
+  replaced with `note()` with "Example" title.
+
+In `features/config/loader.ts`, the auth failure catch block consolidated
+4-6 separate `log.error()` calls (email, error code, message, hint) into a
+single `note()` with "Details" title. `log.error("Authentication failed")`
+kept as the header; `log.warn()` kept for the continuation warning.
+
 In `asciiArt.ts`, `raw()` / `newline()` calls replaced with direct
 `process.stdout.write()` via a local `writeLine()` helper. Each display
 function now has an `isSilentMode()` early-return guard. This approach
-preserves raw ASCII art output without clack bar prefixes.
+preserves raw ASCII art output without clack bar prefixes — the banner
+prints before clack's bar line.
 
-Tests updated to add `@clack/prompts` mock and assert error/info/success
-messages route through clack.
+Tests updated to add `@clack/prompts` mock (including `note`) and assert
+error/info/success messages route through clack, and multi-line outputs
+route through `note()`.
 
 | Module | File | Status |
 |--------|------|--------|
 | `install` | `commands/install/install.ts` | ✅ Migrated |
 | ASCII art | `commands/install/asciiArt.ts` | ✅ Migrated |
+| Config loader | `features/config/loader.ts` | ✅ Multi-line note |
 
 ### Phase 5 — Update checker ✅ DONE
 

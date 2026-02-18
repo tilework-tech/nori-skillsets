@@ -3,7 +3,7 @@
  * Manages the .nori-config.json file lifecycle
  */
 
-import { log } from "@clack/prompts";
+import { log, note } from "@clack/prompts";
 import { signInWithEmailAndPassword, AuthErrorCodes } from "firebase/auth";
 
 import { getConfigPath, loadConfig, saveConfig } from "@/cli/config.js";
@@ -68,9 +68,13 @@ const installConfig = async (args: { config: Config }): Promise<void> => {
     } catch (err) {
       const authError = err as AuthError;
       log.error("Authentication failed");
-      log.error(`  Email: ${username}`);
-      log.error(`  Error code: ${authError.code}`);
-      log.error(`  Error message: ${authError.message}`);
+
+      // Consolidate detail lines into a note
+      const details = [
+        `Email: ${username}`,
+        `Error code: ${authError.code}`,
+        `Error message: ${authError.message}`,
+      ];
 
       // Provide helpful hints based on error code
       if (
@@ -78,24 +82,34 @@ const installConfig = async (args: { config: Config }): Promise<void> => {
         authError.code === AuthErrorCodes.INVALID_LOGIN_CREDENTIALS ||
         authError.code === "auth/invalid-credential"
       ) {
-        log.error(
-          "  Hint: Check that your email and password are correct for the Nori backend",
+        details.push(
+          "",
+          "Hint: Check that your email and password are correct for the Nori backend",
         );
       } else if (authError.code === AuthErrorCodes.USER_DELETED) {
-        log.error("  Hint: This email is not registered. Contact support.");
+        details.push(
+          "",
+          "Hint: This email is not registered. Contact support.",
+        );
       } else if (
         authError.code === AuthErrorCodes.TOO_MANY_ATTEMPTS_TRY_LATER
       ) {
-        log.error(
-          "  Hint: Too many failed attempts. Wait a few minutes and try again.",
+        details.push(
+          "",
+          "Hint: Too many failed attempts. Wait a few minutes and try again.",
         );
       } else if (authError.code === AuthErrorCodes.NETWORK_REQUEST_FAILED) {
-        log.error("  Hint: Network error. Check your internet connection.");
+        details.push(
+          "",
+          "Hint: Network error. Check your internet connection.",
+        );
       }
+
+      note(details.join("\n"), "Details");
 
       // Don't halt installation - continue without authentication
       log.warn(
-        "  Continuing installation without authentication. Backend features will be unavailable.",
+        "Continuing installation without authentication. Backend features will be unavailable.",
       );
     }
   }
