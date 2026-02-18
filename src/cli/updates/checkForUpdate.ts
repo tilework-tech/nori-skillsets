@@ -9,7 +9,7 @@ import { execFileSync } from "child_process";
 import * as fs from "fs/promises";
 import * as path from "path";
 
-import { log } from "@clack/prompts";
+import { log, note } from "@clack/prompts";
 
 import { readInstallState } from "@/cli/installTracking.js";
 import {
@@ -119,9 +119,8 @@ export const checkForUpdateAndPrompt = async (args: {
 
     if (choice === "update") {
       if (updateCommand == null) {
-        log.warn(
-          `Could not detect package manager. Please update manually:\n  npm install -g nori-skillsets@latest`,
-        );
+        log.warn("Could not detect package manager. Please update manually:");
+        note("npm install -g nori-skillsets@latest", "Update Manually");
         return;
       }
 

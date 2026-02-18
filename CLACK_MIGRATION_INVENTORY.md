@@ -222,6 +222,19 @@ function now has an `isSilentMode()` early-return guard. This approach
 preserves raw ASCII art output without clack bar prefixes — the banner
 prints before clack's bar line.
 
+In `prompts/flows/init.ts`, the ancestor installation warning (8-line block
+passed to `log.warn()`) was migrated to `note(ancestorLines.join("\n"),
+"Warning")`. The unused `log` import was removed. Tests updated in
+`init.test.ts` to assert `note()` is called with "Warning" title and
+ancestor paths.
+
+In `updates/checkForUpdate.ts`, the unknown-package-manager fallback path
+had a `log.warn()` with embedded `\n` (message + command on separate lines).
+Migrated to `log.warn("Could not detect package manager...")` header +
+`note("npm install -g nori-skillsets@latest", "Update Manually")`. `note`
+added to `@clack/prompts` import. Tests updated in `checkForUpdate.test.ts`
+with `note` mock and assertion.
+
 Tests updated to add `@clack/prompts` mock (including `note`) and assert
 error/info/success messages route through clack, and multi-line outputs
 route through `note()`.
@@ -231,6 +244,8 @@ route through `note()`.
 | `install` | `commands/install/install.ts` | ✅ Migrated |
 | ASCII art | `commands/install/asciiArt.ts` | ✅ Migrated |
 | Config loader | `features/config/loader.ts` | ✅ Multi-line note |
+| Init flow | `prompts/flows/init.ts` | ✅ Ancestor warning note |
+| Update checker | `updates/checkForUpdate.ts` | ✅ Manual update note |
 
 ### Phase 5 — Update checker ✅ DONE
 

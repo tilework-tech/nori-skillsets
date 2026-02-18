@@ -217,6 +217,27 @@ describe("initFlow", () => {
       // Init should still be called despite ancestor warning
       expect(mockCallbacks.onInit).toHaveBeenCalled();
     });
+
+    it("should display ancestor warning as a note with Warning title", async () => {
+      vi.mocked(clack.confirm).mockResolvedValueOnce(true);
+      vi.mocked(mockCallbacks.onCheckAncestors).mockResolvedValueOnce([
+        "/home/user/project",
+      ]);
+
+      await initFlow({
+        installDir: "/test/dir",
+        callbacks: mockCallbacks,
+      });
+
+      expect(clack.note).toHaveBeenCalledWith(
+        expect.stringContaining("ancestor directory"),
+        "Warning",
+      );
+      expect(clack.note).toHaveBeenCalledWith(
+        expect.stringContaining("/home/user/project"),
+        "Warning",
+      );
+    });
   });
 
   describe("user declines persistence warning", () => {

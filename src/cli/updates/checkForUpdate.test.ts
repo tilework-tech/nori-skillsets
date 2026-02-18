@@ -23,6 +23,7 @@ vi.mock("@clack/prompts", () => ({
     step: vi.fn(),
     message: vi.fn(),
   },
+  note: vi.fn(),
   spinner: vi.fn(() => ({
     start: vi.fn(),
     stop: vi.fn(),
@@ -280,6 +281,48 @@ describe("checkForUpdate", () => {
         latestVersion: "2.0.0",
         isInteractive: true,
       }),
+    );
+  });
+
+  it("should display manual update command as a note when package manager is unknown", async () => {
+    const cachePath = path.join(
+      tempDir,
+      ".nori",
+      "profiles",
+      "nori-skillsets-version.json",
+    );
+    fs.writeFileSync(
+      cachePath,
+      JSON.stringify({
+        latest_version: "2.0.0",
+        last_checked_at: new Date().toISOString(),
+      }),
+    );
+
+    const { showUpdatePrompt } = await import("./updatePrompt.js");
+    vi.mocked(showUpdatePrompt).mockResolvedValueOnce("update");
+
+    // Mock install source as unknown to trigger null updateCommand
+    const { readInstallState } = await import("@/cli/installTracking.js");
+    vi.mocked(readInstallState).mockResolvedValueOnce({
+      install_source: "unknown",
+    } as any);
+
+    const clack = await import("@clack/prompts");
+
+    await checkForUpdateAndPrompt({
+      currentVersion: "1.0.0",
+      isInteractive: true,
+      isSilent: false,
+      autoupdate: null,
+    });
+
+    expect(clack.log.warn).toHaveBeenCalledWith(
+      expect.stringContaining("Could not detect package manager"),
+    );
+    expect(clack.note).toHaveBeenCalledWith(
+      expect.stringContaining("npm install -g nori-skillsets@latest"),
+      "Update Manually",
     );
   });
 
