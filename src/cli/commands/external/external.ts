@@ -24,9 +24,11 @@ import {
   ensureNoriJson,
 } from "@/cli/features/claude-code/profiles/metadata.js";
 import { substituteTemplatePaths } from "@/cli/features/claude-code/template.js";
+import { promptSkillTypes } from "@/cli/prompts/flows/externalSkillType.js";
 import { getHomeDir } from "@/utils/home.js";
 import { getInstallDirs } from "@/utils/path.js";
 
+import type { NoriJsonType } from "@/norijson/nori.js";
 import type { Command } from "commander";
 
 import { cloneRepo, cleanupClone, GitCloneError } from "./gitClone.js";
@@ -102,6 +104,7 @@ const applyTemplateSubstitutionToDir = async (args: {
  * @param args.sourceUrl - Source repository URL for provenance
  * @param args.ref - Branch/tag that was checked out
  * @param args.subpath - Subpath within the repository
+ * @param args.type - The NoriJsonType to write to the skill's nori.json
  * @param args.cliName - CLI name for user-facing messages
  */
 const installSkill = async (args: {
@@ -113,6 +116,7 @@ const installSkill = async (args: {
   sourceUrl: string;
   ref: string | null;
   subpath: string | null;
+  type: NoriJsonType;
   cliName?: CliName | null;
 }): Promise<void> => {
   const {
@@ -124,6 +128,7 @@ const installSkill = async (args: {
     sourceUrl,
     ref,
     subpath,
+    type,
   } = args;
 
   // Sanitize skill name for directory name
@@ -159,6 +164,8 @@ const installSkill = async (args: {
   // Write nori.json provenance file inside the skill directory
   const noriJsonData = {
     name: skill.name,
+    version: "1.0.0",
+    type,
     source: sourceUrl,
     ...(ref != null ? { ref } : {}),
     ...(subpath != null ? { subpath } : {}),
@@ -235,6 +242,8 @@ const installSkill = async (args: {
  * @param args.skill - Optional specific skill name to install
  * @param args.all - Install all discovered skills without prompting
  * @param args.ref - Optional branch/tag to checkout
+ * @param args.inline - If true, set all skills to inlined-skill without prompting
+ * @param args.extract - If true, set all skills to skill without prompting
  * @param args.cliName - CLI name for user-facing messages
  */
 export const externalMain = async (args: {
@@ -246,6 +255,8 @@ export const externalMain = async (args: {
   skill?: string | null;
   all?: boolean | null;
   ref?: string | null;
+  inline?: boolean | null;
+  extract?: boolean | null;
   cliName?: CliName | null;
 }): Promise<void> => {
   const {
@@ -258,6 +269,8 @@ export const externalMain = async (args: {
     ref,
     cliName,
   } = args;
+  const inlineFlag = args.inline ?? false;
+  const extractFlag = args.extract ?? false;
   const cwd = args.cwd ?? process.cwd();
   const commandNames = getCommandNames({ cliName });
   const cliPrefix = cliName ?? "nori-skillsets";
@@ -274,7 +287,15 @@ export const externalMain = async (args: {
   // Use --ref flag if provided, otherwise use ref from URL
   const effectiveRef = ref ?? parsed.ref;
 
-  // 1b. Validate --new and --skillset mutual exclusivity
+  // 1b. Validate --inline and --extract mutual exclusivity
+  if (inlineFlag && extractFlag) {
+    log.error(
+      `Cannot use --inline and --extract together. Use one or the other.`,
+    );
+    return;
+  }
+
+  // 1c. Validate --new and --skillset mutual exclusivity
   if (newSkillset != null && skillset != null) {
     log.error(
       `Cannot use --new and --skillset together. Use --new to create a new skillset, or --skillset to target an existing one.`,
@@ -282,7 +303,7 @@ export const externalMain = async (args: {
     return;
   }
 
-  // 1c. Validate --new name
+  // 1d. Validate --new name
   if (newSkillset != null && newSkillset.trim().length === 0) {
     log.error(`The --new flag requires a non-empty skillset name.`);
     return;
@@ -435,6 +456,29 @@ export const externalMain = async (args: {
     // Reconstruct source URL for provenance (without .git suffix for display)
     const sourceUrl = parsed.url.replace(/\.git$/, "");
 
+    // 6b. Resolve skill types (inline vs extract)
+    let skillTypeMap: Record<string, NoriJsonType>;
+
+    if (inlineFlag) {
+      skillTypeMap = {};
+      for (const s of skillsToInstall) {
+        skillTypeMap[s.name] = "inlined-skill";
+      }
+    } else if (extractFlag) {
+      skillTypeMap = {};
+      for (const s of skillsToInstall) {
+        skillTypeMap[s.name] = "skill";
+      }
+    } else {
+      const prompted = await promptSkillTypes({
+        candidates: skillsToInstall.map((s) => ({ name: s.name })),
+      });
+      if (prompted == null) {
+        return;
+      }
+      skillTypeMap = prompted;
+    }
+
     // 7. Install each skill
     for (const skillToInstall of skillsToInstall) {
       await installSkill({
@@ -446,6 +490,7 @@ export const externalMain = async (args: {
         sourceUrl,
         ref: effectiveRef,
         subpath,
+        type: skillTypeMap[skillToInstall.name] ?? "skill",
         cliName,
       });
     }
@@ -494,6 +539,14 @@ export const registerExternalSkillCommand = (args: {
     )
     .option("--all", "Install all discovered skills from the repository")
     .option("--ref <ref>", "Branch or tag to checkout")
+    .option(
+      "--inline",
+      "Set all skills as inlined (bundled in skillset tarball) without prompting",
+    )
+    .option(
+      "--extract",
+      "Set all skills as extracted (independent packages) without prompting",
+    )
     .action(
       async (
         source: string,
@@ -503,6 +556,8 @@ export const registerExternalSkillCommand = (args: {
           skill?: string;
           all?: boolean;
           ref?: string;
+          inline?: boolean;
+          extract?: boolean;
         },
       ) => {
         const globalOpts = program.opts();
@@ -515,6 +570,8 @@ export const registerExternalSkillCommand = (args: {
           skill: options.skill || null,
           all: options.all || null,
           ref: options.ref || null,
+          inline: options.inline || null,
+          extract: options.extract || null,
         });
       },
     );

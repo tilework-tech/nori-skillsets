@@ -30,6 +30,7 @@ Flows provide complete interactive experiences that compose multiple prompts wit
 - `switchSkillsetFlow` - Multi-step skillset switching UX with agent selection, local change detection and handling (proceed/capture/abort), switch confirmation via note box, and spinner during switch and reinstall
 - `uploadFlow` - Multi-step upload UX with version determination, upload attempt, and skill conflict resolution. Auto-resolves unchanged skills, then prompts for remaining conflicts with batch ("Resolve all the same way") or individual ("Choose one-by-one") resolution modes. The `link` action is presented as "Use Existing" for both unchanged and changed skills, with different hints (changed skills warn that local changes will be discarded). Returns `UploadFlowResult` with `linkedSkillIds`, `namespacedSkillIds`, and `skippedSkillIds`
 - `watchFlow` - Watch daemon startup UX with transcript destination org selection (auto-select for single org, `select()` prompt for multiple orgs), spinner during preparation and daemon spawning, and outro with PID/log file info. Uses 2 callbacks: `onPrepare` and `onStartDaemon`
+- `promptSkillTypes` - Inline/extract type selection for external skills. Single skill gets a direct prompt; multiple skills use two-tier "all same" vs "one-by-one" pattern. Returns `Record<string, NoriJsonType>` or null on cancellation. Not re-exported through `flows/index.ts`
 
 **Callback Pattern:**
 Flows use a callbacks pattern to separate UI handling from business logic:
