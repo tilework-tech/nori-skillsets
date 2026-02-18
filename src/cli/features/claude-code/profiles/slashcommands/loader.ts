@@ -7,6 +7,8 @@ import * as fs from "fs/promises";
 import * as path from "path";
 import { fileURLToPath } from "url";
 
+import { log } from "@clack/prompts";
+
 import { getAgentProfile, type Config } from "@/cli/config.js";
 import {
   getClaudeDir,
@@ -14,7 +16,6 @@ import {
   getNoriDir,
 } from "@/cli/features/claude-code/paths.js";
 import { substituteTemplatePaths } from "@/cli/features/claude-code/template.js";
-import { success, info, warn } from "@/cli/logger.js";
 
 import type { ProfileLoader } from "@/cli/features/claude-code/profiles/profileLoaderRegistry.js";
 
@@ -45,7 +46,7 @@ const registerSlashCommands = async (args: {
   config: Config;
 }): Promise<void> => {
   const { config } = args;
-  info({ message: "Registering Nori slash commands..." });
+  log.info("Registering Nori slash commands...");
 
   // Get profile name from config - error if not configured
   const profileName = getAgentProfile({
@@ -76,7 +77,7 @@ const registerSlashCommands = async (args: {
   try {
     files = await fs.readdir(configDir);
   } catch {
-    info({ message: "Profile slashcommands directory not found, skipping" });
+    log.info("Profile slashcommands directory not found, skipping");
     return;
   }
   const mdFiles = files.filter(
@@ -98,29 +99,27 @@ const registerSlashCommands = async (args: {
       });
       await fs.writeFile(commandDest, substituted);
       const commandName = file.replace(/\.md$/, "");
-      success({ message: `✓ /${commandName} slash command registered` });
+      log.success(`✓ /${commandName} slash command registered`);
       registeredCount++;
     } catch {
-      warn({
-        message: `Slash command definition not found at ${commandSrc}, skipping`,
-      });
+      log.warn(`Slash command definition not found at ${commandSrc}, skipping`);
       skippedCount++;
     }
   }
 
   if (registeredCount > 0) {
-    success({
-      message: `Successfully registered ${registeredCount} slash command${
+    log.success(
+      `Successfully registered ${registeredCount} slash command${
         registeredCount === 1 ? "" : "s"
       }`,
-    });
+    );
   }
   if (skippedCount > 0) {
-    warn({
-      message: `Skipped ${skippedCount} slash command${
+    log.warn(
+      `Skipped ${skippedCount} slash command${
         skippedCount === 1 ? "" : "s"
       } (not found)`,
-    });
+    );
   }
 };
 

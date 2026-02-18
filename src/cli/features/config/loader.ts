@@ -3,10 +3,11 @@
  * Manages the .nori-config.json file lifecycle
  */
 
+import { log } from "@clack/prompts";
 import { signInWithEmailAndPassword, AuthErrorCodes } from "firebase/auth";
 
 import { getConfigPath, loadConfig, saveConfig } from "@/cli/config.js";
-import { info, success, error, warn, debug } from "@/cli/logger.js";
+import { debug } from "@/cli/logger.js";
 import { getCurrentPackageVersion } from "@/cli/version.js";
 import { configureFirebase, getFirebase } from "@/providers/firebase.js";
 import { getHomeDir } from "@/utils/home.js";
@@ -46,7 +47,7 @@ const installConfig = async (args: { config: Config }): Promise<void> => {
   // This converts password-based login to token-based storage
   let tokenToSave = refreshToken;
   if (password && !refreshToken && username) {
-    info({ message: "Authenticating to obtain secure token..." });
+    log.info("Authenticating to obtain secure token...");
     debug({ message: `  Email: ${username}` });
     debug({ message: `  Organization URL: ${organizationUrl}` });
 
@@ -63,13 +64,13 @@ const installConfig = async (args: { config: Config }): Promise<void> => {
         password,
       );
       tokenToSave = userCredential.user.refreshToken;
-      success({ message: "✓ Authentication successful" });
+      log.success("✓ Authentication successful");
     } catch (err) {
       const authError = err as AuthError;
-      error({ message: "Authentication failed" });
-      error({ message: `  Email: ${username}` });
-      error({ message: `  Error code: ${authError.code}` });
-      error({ message: `  Error message: ${authError.message}` });
+      log.error("Authentication failed");
+      log.error(`  Email: ${username}`);
+      log.error(`  Error code: ${authError.code}`);
+      log.error(`  Error message: ${authError.message}`);
 
       // Provide helpful hints based on error code
       if (
@@ -77,32 +78,25 @@ const installConfig = async (args: { config: Config }): Promise<void> => {
         authError.code === AuthErrorCodes.INVALID_LOGIN_CREDENTIALS ||
         authError.code === "auth/invalid-credential"
       ) {
-        error({
-          message:
-            "  Hint: Check that your email and password are correct for the Nori backend",
-        });
+        log.error(
+          "  Hint: Check that your email and password are correct for the Nori backend",
+        );
       } else if (authError.code === AuthErrorCodes.USER_DELETED) {
-        error({
-          message: "  Hint: This email is not registered. Contact support.",
-        });
+        log.error("  Hint: This email is not registered. Contact support.");
       } else if (
         authError.code === AuthErrorCodes.TOO_MANY_ATTEMPTS_TRY_LATER
       ) {
-        error({
-          message:
-            "  Hint: Too many failed attempts. Wait a few minutes and try again.",
-        });
+        log.error(
+          "  Hint: Too many failed attempts. Wait a few minutes and try again.",
+        );
       } else if (authError.code === AuthErrorCodes.NETWORK_REQUEST_FAILED) {
-        error({
-          message: "  Hint: Network error. Check your internet connection.",
-        });
+        log.error("  Hint: Network error. Check your internet connection.");
       }
 
       // Don't halt installation - continue without authentication
-      warn({
-        message:
-          "  Continuing installation without authentication. Backend features will be unavailable.",
-      });
+      log.warn(
+        "  Continuing installation without authentication. Backend features will be unavailable.",
+      );
     }
   }
 
@@ -135,9 +129,9 @@ const installConfig = async (args: { config: Config }): Promise<void> => {
   });
 
   const configPath = getConfigPath();
-  success({ message: `✓ Config file created: ${configPath}` });
+  log.success(`✓ Config file created: ${configPath}`);
   if (currentVersion != null) {
-    success({ message: `✓ Version ${currentVersion} saved to config` });
+    log.success(`✓ Version ${currentVersion} saved to config`);
   }
 };
 

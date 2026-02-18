@@ -232,9 +232,58 @@ entirely. Tests updated in both affected files.
 | Update checker | `updates/checkForUpdate.ts` | ✅ Migrated |
 | Update prompt | `updates/updatePrompt.ts` | ✅ Migrated |
 
-### Phase 6 — Deprecate console logger
+### Phase 6 — Deprecate console logger ✅ DONE
 
-Once all consumers are migrated, remove/deprecate the console transport
-methods in `logger.ts` (`error`, `success`, `info`, `warn`, `raw`,
-`newline`, `setSilentMode`). Keep the file transport (`debug`) and color
-helpers.
+Completed on the `refactor/migrate-update-checker-to-clack` branch. All
+remaining consumers of the legacy console transport methods (`error`,
+`success`, `info`, `warn`, `raw`, `newline`) have been migrated:
+
+**Feature loaders** (9 files) — `success()` / `info()` / `warn()` calls
+from `@/cli/logger.js` replaced with `log.success()` / `log.info()` /
+`log.warn()` from `@clack/prompts`:
+- `features/claude-code/announcements/loader.ts`
+- `features/claude-code/hooks/loader.ts`
+- `features/claude-code/profiles/loader.ts`
+- `features/claude-code/profiles/skills/loader.ts`
+- `features/claude-code/profiles/claudemd/loader.ts`
+- `features/claude-code/profiles/slashcommands/loader.ts`
+- `features/claude-code/profiles/subagents/loader.ts`
+- `features/claude-code/statusline/loader.ts`
+- `features/claude-code/agent.ts`
+
+**Config loader** — `info()` / `success()` / `error()` / `warn()` calls
+replaced with `log.*` from `@clack/prompts`; `debug()` kept in
+`@/cli/logger.js`:
+- `features/config/loader.ts`
+
+**Daemon/hook scripts** — `error()` calls replaced with `debug()` (file-only
+logging, appropriate for background scripts that should fail silently):
+- `commands/watch/uploader.ts`
+- `features/claude-code/hooks/config/update-check.ts`
+- `features/claude-code/hooks/config/context-usage-warning.ts`
+
+**Logger cleanup** — The `ConsoleTransport` class, `consoleTransport`
+instance, and all deprecated console output methods (`error`, `success`,
+`info`, `warn`, `raw`, `newline`) have been removed from `logger.ts`.
+The `setSilentMode` / `isSilentMode` mechanism was refactored from
+the console transport's `silent` flag to a simple module-scoped boolean.
+Retained exports: `debug`, `setSilentMode`, `isSilentMode`, `LOG_FILE`,
+and all color helpers (`green`, `red`, `yellow`, `bold`, `brightCyan`,
+`boldWhite`, `gray`, `wrapText`).
+
+| Module | File | Status |
+|--------|------|--------|
+| Announcements loader | `features/claude-code/announcements/loader.ts` | ✅ Migrated |
+| Hooks loader | `features/claude-code/hooks/loader.ts` | ✅ Migrated |
+| Profiles loader | `features/claude-code/profiles/loader.ts` | ✅ Migrated |
+| Skills loader | `features/claude-code/profiles/skills/loader.ts` | ✅ Migrated |
+| CLAUDE.md loader | `features/claude-code/profiles/claudemd/loader.ts` | ✅ Migrated |
+| Slash commands loader | `features/claude-code/profiles/slashcommands/loader.ts` | ✅ Migrated |
+| Subagents loader | `features/claude-code/profiles/subagents/loader.ts` | ✅ Migrated |
+| Statusline loader | `features/claude-code/statusline/loader.ts` | ✅ Migrated |
+| Agent | `features/claude-code/agent.ts` | ✅ Migrated |
+| Config loader | `features/config/loader.ts` | ✅ Migrated |
+| Watch uploader | `commands/watch/uploader.ts` | ✅ Migrated |
+| Update check hook | `features/claude-code/hooks/config/update-check.ts` | ✅ Migrated |
+| Context usage hook | `features/claude-code/hooks/config/context-usage-warning.ts` | ✅ Migrated |
+| Logger | `logger.ts` | ✅ Cleaned up |

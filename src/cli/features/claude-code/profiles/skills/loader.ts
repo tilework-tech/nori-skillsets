@@ -7,6 +7,8 @@ import * as fs from "fs/promises";
 import * as path from "path";
 import { fileURLToPath } from "url";
 
+import { log } from "@clack/prompts";
+
 import { getAgentProfile, type Config } from "@/cli/config.js";
 import {
   getClaudeDir,
@@ -15,7 +17,6 @@ import {
   getNoriDir,
 } from "@/cli/features/claude-code/paths.js";
 import { substituteTemplatePaths } from "@/cli/features/claude-code/template.js";
-import { success, info } from "@/cli/logger.js";
 
 import type { ProfileLoader } from "@/cli/features/claude-code/profiles/profileLoaderRegistry.js";
 import type { Dirent } from "fs";
@@ -99,7 +100,7 @@ const getConfigDir = (args: { profileName: string }): string => {
  */
 const installSkills = async (args: { config: Config }): Promise<void> => {
   const { config } = args;
-  info({ message: "Installing Nori skills..." });
+  log.info("Installing Nori skills...");
 
   // Get profile name from config - error if not configured
   const profileName = getAgentProfile({
@@ -156,9 +157,7 @@ const installSkills = async (args: { config: Config }): Promise<void> => {
     }
   } catch {
     // Profile skills directory not found - continue to check skills.json
-    info({
-      message: "Profile skills directory not found, checking skills.json",
-    });
+    log.info("Profile skills directory not found, checking skills.json");
   }
 
   // Note: External skills from skills.json are now stored in the profile's own skills
@@ -166,7 +165,7 @@ const installSkills = async (args: { config: Config }): Promise<void> => {
   // Step 1 already copies all skills from that directory, so no separate step is needed.
   // The skills.json file is now just metadata for tracking which skills were downloaded.
 
-  success({ message: "✓ Installed skills" });
+  log.success("✓ Installed skills");
 
   // Configure permissions for skills directory
   await configureSkillsPermissions({ config });
@@ -183,7 +182,7 @@ const configureSkillsPermissions = async (args: {
   config: Config;
 }): Promise<void> => {
   const { config } = args;
-  info({ message: "Configuring permissions for skills directory..." });
+  log.info("Configuring permissions for skills directory...");
 
   const claudeSettingsFile = getClaudeSettingsFile({
     installDir: config.installDir,
@@ -221,7 +220,7 @@ const configureSkillsPermissions = async (args: {
 
   // Write back to file
   await fs.writeFile(claudeSettingsFile, JSON.stringify(settings, null, 2));
-  success({ message: `✓ Configured permissions for ${claudeSkillsDir}` });
+  log.success(`✓ Configured permissions for ${claudeSkillsDir}`);
 };
 
 /**

@@ -7,11 +7,12 @@ import * as fs from "fs/promises";
 import * as path from "path";
 import { fileURLToPath } from "url";
 
+import { log } from "@clack/prompts";
+
 import {
   getClaudeHomeDir,
   getClaudeHomeSettingsFile,
 } from "@/cli/features/claude-code/paths.js";
-import { success, info, warn } from "@/cli/logger.js";
 
 import type { Config } from "@/cli/config.js";
 import type { Loader } from "@/cli/features/agentRegistry.js";
@@ -30,7 +31,7 @@ const configureStatusLine = async (args: { config: Config }): Promise<void> => {
   const claudeDir = getClaudeHomeDir();
   const claudeSettingsFile = getClaudeHomeSettingsFile();
 
-  info({ message: "Configuring status line..." });
+  log.info("Configuring status line...");
 
   // Source script path (in build output)
   const sourceScript = path.join(__dirname, "config", "nori-statusline.sh");
@@ -42,9 +43,9 @@ const configureStatusLine = async (args: { config: Config }): Promise<void> => {
   try {
     await fs.access(sourceScript);
   } catch {
-    warn({
-      message: `Status line script not found at ${sourceScript}, skipping status line configuration`,
-    });
+    log.warn(
+      `Status line script not found at ${sourceScript}, skipping status line configuration`,
+    );
     return;
   }
 
@@ -76,11 +77,10 @@ const configureStatusLine = async (args: { config: Config }): Promise<void> => {
   };
 
   await fs.writeFile(claudeSettingsFile, JSON.stringify(settings, null, 2));
-  success({ message: `✓ Status line configured in ${claudeSettingsFile}` });
-  info({
-    message:
-      "Status line will display: git branch, session cost, tokens, promotional tip, and Nori branding",
-  });
+  log.success(`✓ Status line configured in ${claudeSettingsFile}`);
+  log.info(
+    "Status line will display: git branch, session cost, tokens, promotional tip, and Nori branding",
+  );
 };
 
 /**

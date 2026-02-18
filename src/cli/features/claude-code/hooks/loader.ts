@@ -7,12 +7,13 @@ import * as fs from "fs/promises";
 import * as path from "path";
 import { fileURLToPath } from "url";
 
+import { log } from "@clack/prompts";
+
 import { cleanupLegacyHooks } from "@/cli/features/claude-code/hooks/cleanupLegacyHooks.js";
 import {
   getClaudeHomeDir,
   getClaudeHomeSettingsFile,
 } from "@/cli/features/claude-code/paths.js";
-import { success, info } from "@/cli/logger.js";
 
 import type { Config } from "@/cli/config.js";
 import type { Loader } from "@/cli/features/agentRegistry.js";
@@ -160,7 +161,7 @@ const configureHooks = async (args: { config: Config }): Promise<void> => {
   const claudeDir = getClaudeHomeDir();
   const claudeSettingsFile = getClaudeHomeSettingsFile();
 
-  info({ message: "Configuring hooks..." });
+  log.info("Configuring hooks...");
 
   // Create .claude directory if it doesn't exist
   await fs.mkdir(claudeDir, { recursive: true });
@@ -204,7 +205,7 @@ const configureHooks = async (args: { config: Config }): Promise<void> => {
   settings.hooks = hooksConfig;
 
   await fs.writeFile(claudeSettingsFile, JSON.stringify(settings, null, 2));
-  success({ message: `✓ Hooks configured in ${claudeSettingsFile}` });
+  log.success(`✓ Hooks configured in ${claudeSettingsFile}`);
 };
 
 /**

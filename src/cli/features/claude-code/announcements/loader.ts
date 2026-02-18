@@ -5,11 +5,12 @@
 
 import * as fs from "fs/promises";
 
+import { log } from "@clack/prompts";
+
 import {
   getClaudeHomeDir,
   getClaudeHomeSettingsFile,
 } from "@/cli/features/claude-code/paths.js";
-import { success, info } from "@/cli/logger.js";
 
 import type { Config } from "@/cli/config.js";
 import type { Loader } from "@/cli/features/agentRegistry.js";
@@ -28,7 +29,7 @@ const configureAnnouncements = async (args: {
   const claudeDir = getClaudeHomeDir();
   const claudeSettingsFile = getClaudeHomeSettingsFile();
 
-  info({ message: "Configuring company announcements..." });
+  log.info("Configuring company announcements...");
 
   // Create .claude directory if it doesn't exist
   await fs.mkdir(claudeDir, { recursive: true });
@@ -48,9 +49,7 @@ const configureAnnouncements = async (args: {
   settings.companyAnnouncements = [NORI_ANNOUNCEMENT];
 
   await fs.writeFile(claudeSettingsFile, JSON.stringify(settings, null, 2));
-  success({
-    message: `✓ Company announcements configured in ${claudeSettingsFile}`,
-  });
+  log.success(`✓ Company announcements configured in ${claudeSettingsFile}`);
 };
 
 /**

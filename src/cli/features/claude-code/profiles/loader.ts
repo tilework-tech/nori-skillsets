@@ -6,13 +6,14 @@
 import * as fs from "fs/promises";
 import * as path from "path";
 
+import { log } from "@clack/prompts";
+
 import { type Config } from "@/cli/config.js";
 import {
   getNoriProfilesDir,
   getClaudeSettingsFile,
 } from "@/cli/features/claude-code/paths.js";
 import { ProfileLoaderRegistry } from "@/cli/features/claude-code/profiles/profileLoaderRegistry.js";
-import { success, info } from "@/cli/logger.js";
 
 import type { Loader } from "@/cli/features/agentRegistry.js";
 
@@ -54,7 +55,7 @@ const configureProfilesPermissions = async (args: {
   });
   const noriProfilesDir = getNoriProfilesDir();
 
-  info({ message: "Configuring permissions for profiles directory..." });
+  log.info("Configuring permissions for profiles directory...");
 
   // Create .claude directory if it doesn't exist
   await fs.mkdir(path.dirname(claudeSettingsFile), { recursive: true });
@@ -88,7 +89,7 @@ const configureProfilesPermissions = async (args: {
 
   // Write back to file
   await fs.writeFile(claudeSettingsFile, JSON.stringify(settings, null, 2));
-  success({ message: `✓ Configured permissions for ${noriProfilesDir}` });
+  log.success(`✓ Configured permissions for ${noriProfilesDir}`);
 };
 
 /**
