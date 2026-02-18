@@ -17,6 +17,8 @@ Path: @/src/cli/commands/external
 - Uses `getClaudeSkillsDir()` and `getNoriProfilesDir()` from @/src/cli/features/claude-code/paths.ts for target directory paths
 - Calls `addSkillToNoriJson()` to update skillset manifests, same as `skill-download`
 - Uses `substituteTemplatePaths()` from @/src/cli/features/claude-code/template.ts for the live copy
+- Uses `promptSkillTypes()` from @/src/cli/prompts/flows/externalSkillType.ts to interactively resolve each skill's type (inlined vs extracted). This follows the same two-tier pattern as the upload flow's inline/extract prompting
+- Uses `NoriJsonType` from @/src/norijson/nori.ts to write the `type` field into per-skill nori.json provenance files
 - Does NOT use the registry API or `registrarApi` -- sources skills directly from git
 
 ### Core Implementation
@@ -37,6 +39,10 @@ cloneRepo() --> temp directory (shallow clone, 60s timeout)
     |
     v
 discoverSkills() --> Array<DiscoveredSkill>
+    |
+    v
+promptSkillTypes() --> Record<name, NoriJsonType>
+  (or --inline / --extract flags bypass prompt)
     |
     v
 installSkill() for each selected skill
@@ -89,8 +95,9 @@ Skills are identified by parsing YAML frontmatter from SKILL.md files using rege
 
 ### Things to Know
 
+- `--inline` and `--extract` are mutually exclusive CLI flags that bypass the interactive type prompt. `--inline` sets all skills to `"inlined-skill"`, `--extract` sets all to `"skill"`.
 - `--new` and `--skillset` are mutually exclusive; providing both produces an error. `--new` also validates that the name is non-empty and that no skillset with that name already exists (checked via `fs.access` on the directory).
-- Each installed skill gets a `nori.json` provenance file containing: `name`, `source` (GitHub URL without `.git`), optional `ref` and `subpath`, and `installedAt` timestamp. This tracks where the skill was sourced from, unlike registry-downloaded skills which use `.nori-version`.
+- Each installed skill gets a `nori.json` provenance file containing: `name`, `version` (`"1.0.0"`), `type` (either `"inlined-skill"` or `"skill"` based on user choice), `source` (GitHub URL without `.git`), optional `ref` and `subpath`, and `installedAt` timestamp. This tracks where the skill was sourced from, unlike registry-downloaded skills which use `.nori-version`.
 - Skill directory names are sanitized from the skill's `name` frontmatter field: lowercased, non-alphanumeric characters replaced with hyphens, leading/trailing dots and hyphens stripped, truncated to 255 characters.
 - The `--ref` CLI flag takes precedence over any ref parsed from the source URL.
 - Template substitution is applied only to `.md` files in the live copy (`~/.claude/skills/`), not the raw profile copy. This matches the behavior of `skill-download`.

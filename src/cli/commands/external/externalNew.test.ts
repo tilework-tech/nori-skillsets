@@ -19,6 +19,13 @@ vi.mock("child_process", () => ({
   execFileSync: vi.fn(),
 }));
 
+// Mock @clack/prompts to prevent interactive prompts from hanging
+vi.mock("@clack/prompts", () => ({
+  select: vi.fn(),
+  isCancel: vi.fn(() => false),
+  cancel: vi.fn(),
+}));
+
 // Mock os.homedir so getNoriProfilesDir() resolves to the test directory
 vi.mock("os", async (importOriginal) => {
   const actual = await importOriginal<typeof os>();
@@ -230,6 +237,7 @@ describe("externalMain with --new", () => {
       installDir: testDir,
       newSkillset: "fresh-skillset",
       all: true,
+      extract: true,
     });
 
     // Verify skillset directory was created with nori.json
@@ -280,6 +288,7 @@ describe("externalMain with --new", () => {
       installDir: testDir,
       newSkillset: "deps-test",
       all: true,
+      extract: true,
     });
 
     const skillsetDir = path.join(profilesDir, "deps-test");
