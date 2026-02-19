@@ -5,7 +5,7 @@
 
 import { log } from "@clack/prompts";
 
-import { loadConfig, getInstalledAgents } from "@/cli/config.js";
+import { loadConfig, getDefaultAgent } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { listProfiles } from "@/cli/features/managedFolder.js";
 
@@ -22,21 +22,8 @@ export const listSkillsetsMain = async (args: {
   const { agent: agentOption } = args;
 
   // Determine which agent to use
-  let agentName: string;
-
-  if (agentOption != null && agentOption !== "") {
-    agentName = agentOption;
-  } else {
-    // Auto-detect from config - use home directory since agent config is global
-    const config = await loadConfig();
-    const installedAgents = config ? getInstalledAgents({ config }) : [];
-
-    if (installedAgents.length === 0) {
-      agentName = "claude-code";
-    } else {
-      agentName = installedAgents[0];
-    }
-  }
+  const config = await loadConfig();
+  const agentName = getDefaultAgent({ config, agentOverride: agentOption });
 
   // Validate agent exists
   let agent;

@@ -11,6 +11,7 @@ import { log } from "@clack/prompts";
 import { main as installMain } from "@/cli/commands/install/install.js";
 import { hasExistingInstallation } from "@/cli/commands/install/installState.js";
 import { registryDownloadMain } from "@/cli/commands/registry-download/registryDownload.js";
+import { loadConfig, getDefaultAgent } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { getNoriProfilesDir } from "@/cli/features/claude-code/paths.js";
 import { getHomeDir } from "@/utils/home.js";
@@ -114,7 +115,10 @@ export const registryInstallMain = async (
   });
 
   const profileName = parsePackageName({ packageSpec });
-  const agentName = agent ?? "claude-code";
+
+  // Resolve agent name from config defaultAgent, with --agent as override
+  const config = await loadConfig();
+  const agentName = getDefaultAgent({ config, agentOverride: agent });
 
   // Step 1: Download the profile from registry first (so it's available for install)
   // Note: registryUrl is null to let registryDownloadMain determine the correct

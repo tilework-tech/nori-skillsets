@@ -240,6 +240,38 @@ export const getAgentProfile = (args: {
 };
 
 /**
+ * Get the default agent name for CLI operations
+ * Resolution order: explicit override > config.defaultAgent > first installed agent > "claude-code"
+ *
+ * @param args - Configuration arguments
+ * @param args.config - The config to read defaultAgent from
+ * @param args.agentOverride - Explicit agent name override (e.g., from --agent CLI flag)
+ *
+ * @returns The resolved agent name
+ */
+export const getDefaultAgent = (args: {
+  config?: Config | null;
+  agentOverride?: string | null;
+}): ConfigAgentName => {
+  const { config, agentOverride } = args;
+
+  if (agentOverride != null && agentOverride !== "") {
+    return agentOverride as ConfigAgentName;
+  }
+
+  if (config?.defaultAgent != null && config.defaultAgent !== "") {
+    return config.defaultAgent as ConfigAgentName;
+  }
+
+  if (config != null) {
+    const installed = getInstalledAgents({ config });
+    if (installed.length > 0) return installed[0] as ConfigAgentName;
+  }
+
+  return "claude-code" as ConfigAgentName;
+};
+
+/**
  * Load existing configuration from disk
  * Uses JSON schema validation for strict type checking.
  * Always reads from ~/.nori-config.json.

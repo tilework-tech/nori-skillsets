@@ -14,6 +14,7 @@ import {
   getConfigPath,
   validateConfig,
   getInstalledAgents,
+  getDefaultAgent,
   type Config,
 } from "./config.js";
 
@@ -1017,6 +1018,113 @@ describe("defaultAgent config", () => {
     const config = JSON.parse(content);
 
     expect(config.defaultAgent).toBe("claude-code");
+  });
+});
+
+describe("getDefaultAgent", () => {
+  it("should return agentOverride when provided", () => {
+    const config: Config = {
+      installDir: "/test",
+      defaultAgent: "claude-code",
+      agents: {
+        "claude-code": { profile: { baseProfile: "senior-swe" } },
+      },
+    };
+
+    const result = getDefaultAgent({
+      config,
+      agentOverride: "some-other-agent",
+    });
+
+    expect(result).toBe("some-other-agent");
+  });
+
+  it("should return defaultAgent from config when no override provided", () => {
+    const config: Config = {
+      installDir: "/test",
+      defaultAgent: "claude-code",
+      agents: {
+        "claude-code": { profile: { baseProfile: "senior-swe" } },
+      },
+    };
+
+    const result = getDefaultAgent({ config });
+
+    expect(result).toBe("claude-code");
+  });
+
+  it("should fall back to first installed agent when defaultAgent is not set", () => {
+    const config: Config = {
+      installDir: "/test",
+      agents: {
+        "claude-code": { profile: { baseProfile: "senior-swe" } },
+      },
+    };
+
+    const result = getDefaultAgent({ config });
+
+    expect(result).toBe("claude-code");
+  });
+
+  it("should fall back to claude-code when both defaultAgent and agents are absent", () => {
+    const config: Config = {
+      installDir: "/test",
+    };
+
+    const result = getDefaultAgent({ config });
+
+    expect(result).toBe("claude-code");
+  });
+
+  it("should ignore empty string override", () => {
+    const config: Config = {
+      installDir: "/test",
+      defaultAgent: "claude-code",
+    };
+
+    const result = getDefaultAgent({ config, agentOverride: "" });
+
+    expect(result).toBe("claude-code");
+  });
+
+  it("should ignore null override", () => {
+    const config: Config = {
+      installDir: "/test",
+      defaultAgent: "claude-code",
+    };
+
+    const result = getDefaultAgent({ config, agentOverride: null });
+
+    expect(result).toBe("claude-code");
+  });
+
+  it("should prefer defaultAgent over first installed agent", () => {
+    const config: Config = {
+      installDir: "/test",
+      defaultAgent: "preferred-agent",
+      agents: {
+        "claude-code": { profile: { baseProfile: "senior-swe" } },
+      },
+    };
+
+    const result = getDefaultAgent({ config });
+
+    expect(result).toBe("preferred-agent");
+  });
+
+  it("should return claude-code when config is null", () => {
+    const result = getDefaultAgent({ config: null });
+
+    expect(result).toBe("claude-code");
+  });
+
+  it("should return agentOverride when config is null but override is provided", () => {
+    const result = getDefaultAgent({
+      config: null,
+      agentOverride: "my-agent",
+    });
+
+    expect(result).toBe("my-agent");
   });
 });
 
