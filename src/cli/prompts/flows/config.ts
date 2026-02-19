@@ -8,20 +8,20 @@
  * - Intro/outro framing
  */
 
-import { intro, select, text } from "@clack/prompts";
+import { intro, multiselect, text } from "@clack/prompts";
 
 import { unwrapPrompt } from "./utils.js";
 
 export type ConfigFlowCallbacks = {
   onLoadConfig: () => Promise<{
-    currentAgent: string | null;
+    currentAgents: Array<string> | null;
     currentInstallDir: string | null;
   }>;
   onResolveAgents: () => Promise<Array<{ name: string; displayName: string }>>;
 };
 
 export type ConfigFlowResult = {
-  defaultAgent: string;
+  defaultAgents: Array<string>;
   installDir: string;
 };
 
@@ -41,27 +41,28 @@ export const configFlow = async (args: {
   intro("Configure Nori");
 
   // Load current config values for defaults
-  const { currentAgent, currentInstallDir } = await callbacks.onLoadConfig();
+  const { currentAgents, currentInstallDir } = await callbacks.onLoadConfig();
 
   // Resolve available agents from registry
   const agents = await callbacks.onResolveAgents();
 
-  // Step 1: Select default agent
+  // Step 1: Select default agents
   const agentOptions = agents.map((agent) => ({
     value: agent.name,
     label: agent.displayName,
   }));
 
-  const selectedAgent = unwrapPrompt({
-    value: await select({
-      message: "Which agent do you want to use?",
+  const selectedAgents = unwrapPrompt({
+    value: await multiselect({
+      message: "Which agents do you want to use?",
       options: agentOptions,
-      initialValue: currentAgent ?? "claude-code",
+      initialValues: currentAgents ?? ["claude-code"],
+      required: true,
     }),
     cancelMessage: "Configuration cancelled.",
   });
 
-  if (selectedAgent == null) return null;
+  if (selectedAgents == null) return null;
 
   // Step 2: Enter install directory
   const installDir = unwrapPrompt({
@@ -75,7 +76,7 @@ export const configFlow = async (args: {
   if (installDir == null) return null;
 
   return {
-    defaultAgent: selectedAgent as string,
+    defaultAgents: selectedAgents as Array<string>,
     installDir: installDir as string,
   };
 };

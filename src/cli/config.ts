@@ -63,8 +63,8 @@ export type Config = {
   sendSessionTranscript?: "enabled" | "disabled" | null;
   autoupdate?: "enabled" | "disabled" | null;
   installDir: string;
-  /** Default agent for CLI operations (set via `nori-skillsets config`) */
-  defaultAgent?: string | null;
+  /** Default agents for CLI operations (set via `nori-skillsets config`) */
+  defaultAgents?: Array<string> | null;
   /**
    * Per-agent configuration settings. Keys indicate which agents are installed.
    * Note: Only "claude-code" is currently a valid agent name.
@@ -102,7 +102,7 @@ type RawDiskConfig = {
   // Legacy profile field - kept for reading old configs (not written anymore)
   profile?: { baseProfile?: string | null } | null;
   installDir?: string | null;
-  defaultAgent?: string | null;
+  defaultAgents?: Array<string> | null;
   agents?: { [key in ConfigAgentName]?: AgentConfig } | null;
   version?: string | null;
   // Transcript upload destination org ID
@@ -231,10 +231,10 @@ export const getAgentProfile = (args: {
 
 /**
  * Get the default agent name for CLI operations
- * Resolution order: explicit override > config.defaultAgent > first installed agent > "claude-code"
+ * Resolution order: explicit override > first config.defaultAgents entry > first installed agent > "claude-code"
  *
  * @param args - Configuration arguments
- * @param args.config - The config to read defaultAgent from
+ * @param args.config - The config to read defaultAgents from
  * @param args.agentOverride - Explicit agent name override (e.g., from --agent CLI flag)
  *
  * @returns The resolved agent name
@@ -249,8 +249,8 @@ export const getDefaultAgent = (args: {
     return agentOverride as ConfigAgentName;
   }
 
-  if (config?.defaultAgent != null && config.defaultAgent !== "") {
-    return config.defaultAgent as ConfigAgentName;
+  if (config?.defaultAgents != null && config.defaultAgents.length > 0) {
+    return config.defaultAgents[0] as ConfigAgentName;
   }
 
   if (config != null) {
@@ -259,6 +259,38 @@ export const getDefaultAgent = (args: {
   }
 
   return "claude-code" as ConfigAgentName;
+};
+
+/**
+ * Get all default agent names for CLI operations
+ * Resolution order: agentOverride as single-element array > config.defaultAgents > installed agents > ["claude-code"]
+ *
+ * @param args - Configuration arguments
+ * @param args.config - The config to read defaultAgents from
+ * @param args.agentOverride - Explicit agent name override (e.g., from --agent CLI flag)
+ *
+ * @returns Array of resolved agent names
+ */
+export const getDefaultAgents = (args: {
+  config?: Config | null;
+  agentOverride?: string | null;
+}): Array<ConfigAgentName> => {
+  const { config, agentOverride } = args;
+
+  if (agentOverride != null && agentOverride !== "") {
+    return [agentOverride as ConfigAgentName];
+  }
+
+  if (config?.defaultAgents != null && config.defaultAgents.length > 0) {
+    return config.defaultAgents as Array<ConfigAgentName>;
+  }
+
+  if (config != null) {
+    const installed = getInstalledAgents({ config });
+    if (installed.length > 0) return installed as Array<ConfigAgentName>;
+  }
+
+  return ["claude-code" as ConfigAgentName];
 };
 
 /**
@@ -306,7 +338,7 @@ export const loadConfig = async (): Promise<Config | null> => {
     const result: Config = {
       auth: null,
       installDir: validated.installDir ?? getHomeDir(),
-      defaultAgent: validated.defaultAgent,
+      defaultAgents: validated.defaultAgents,
       sendSessionTranscript: validated.sendSessionTranscript,
       autoupdate: validated.autoupdate,
       version: validated.version,
@@ -384,7 +416,7 @@ export const loadConfig = async (): Promise<Config | null> => {
  * @param args.organizations - List of organizations the user has access to (null to skip)
  * @param args.isAdmin - Whether the user is an admin for their organization (null to skip)
  * @param args.transcriptDestination - Organization ID for transcript uploads (null to skip)
- * @param args.defaultAgent - Default agent name for CLI operations (null to skip)
+ * @param args.defaultAgents - Default agent names for CLI operations (null to skip)
  */
 export const saveConfig = async (args: {
   username: string | null;
@@ -397,7 +429,7 @@ export const saveConfig = async (args: {
   autoupdate?: "enabled" | "disabled" | null;
   agents?: { [key in ConfigAgentName]?: AgentConfig } | null;
   version?: string | null;
-  defaultAgent?: string | null;
+  defaultAgents?: Array<string> | null;
   transcriptDestination?: string | null;
   installDir: string;
 }): Promise<void> => {
@@ -412,7 +444,7 @@ export const saveConfig = async (args: {
     autoupdate,
     agents,
     version,
-    defaultAgent,
+    defaultAgents,
     transcriptDestination,
     installDir,
   } = args;
@@ -465,9 +497,9 @@ export const saveConfig = async (args: {
     config.transcriptDestination = transcriptDestination;
   }
 
-  // Add defaultAgent if provided
-  if (defaultAgent != null) {
-    config.defaultAgent = defaultAgent;
+  // Add defaultAgents if provided
+  if (defaultAgents != null) {
+    config.defaultAgents = defaultAgents;
   }
 
   // Always save installDir
@@ -528,7 +560,10 @@ const configSchema = {
       },
     },
     installDir: { type: "string" },
-    defaultAgent: { type: ["string", "null"] },
+    defaultAgents: {
+      type: ["array", "null"],
+      items: { type: "string" },
+    },
     agents: {
       type: "object",
       additionalProperties: {

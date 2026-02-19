@@ -9,8 +9,6 @@ import * as path from "path";
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
-import { AgentRegistry } from "@/cli/features/agentRegistry.js";
-
 import { listSkillsetsMain } from "./listSkillsets.js";
 
 // Mock os.homedir so getNoriProfilesDir() resolves to the test directory
@@ -50,7 +48,6 @@ describe("listSkillsetsMain", () => {
     vi.mocked(os.homedir).mockReturnValue(testInstallDir);
     const testNoriDir = path.join(testInstallDir, ".nori");
     await fs.mkdir(testNoriDir, { recursive: true });
-    AgentRegistry.resetInstance();
     mockStdoutWrite.mockClear();
     mockLogError.mockClear();
     mockExit.mockClear();
@@ -60,7 +57,6 @@ describe("listSkillsetsMain", () => {
     if (testInstallDir) {
       await fs.rm(testInstallDir, { recursive: true, force: true });
     }
-    AgentRegistry.resetInstance();
   });
 
   it("should list all installed profiles one per line", async () => {
@@ -77,9 +73,7 @@ describe("listSkillsetsMain", () => {
       );
     }
 
-    await listSkillsetsMain({
-      agent: "claude-code",
-    });
+    await listSkillsetsMain();
 
     // Should output each profile name via stdout
     expect(mockStdoutWrite).toHaveBeenCalledWith("senior-swe\n");
@@ -92,9 +86,7 @@ describe("listSkillsetsMain", () => {
     const profilesDir = path.join(testInstallDir, ".nori", "profiles");
     await fs.mkdir(profilesDir, { recursive: true });
 
-    await listSkillsetsMain({
-      agent: "claude-code",
-    });
+    await listSkillsetsMain();
 
     // Should output error message and exit with code 1
     expect(mockLogError).toHaveBeenCalledWith(
@@ -104,49 +96,7 @@ describe("listSkillsetsMain", () => {
     expect(mockStdoutWrite).not.toHaveBeenCalled();
   });
 
-  it("should error with exit code 1 when unknown agent is specified", async () => {
-    await listSkillsetsMain({
-      agent: "unknown-agent",
-    });
-
-    // Should output error message about unknown agent
-    expect(mockLogError).toHaveBeenCalledWith(
-      expect.stringContaining("Unknown agent 'unknown-agent'"),
-    );
-    expect(mockExit).toHaveBeenCalledWith(1);
-  });
-
-  it("should auto-detect agent from config when not specified", async () => {
-    // Create config with claude-code
-    const configPath = path.join(testInstallDir, ".nori-config.json");
-    await fs.writeFile(
-      configPath,
-      JSON.stringify({
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-      }),
-    );
-
-    // Create profiles
-    const profilesDir = path.join(testInstallDir, ".nori", "profiles");
-    await fs.mkdir(profilesDir, { recursive: true });
-    const dir = path.join(profilesDir, "senior-swe");
-    await fs.mkdir(dir, { recursive: true });
-    await fs.writeFile(
-      path.join(dir, "nori.json"),
-      JSON.stringify({ name: "senior-swe", version: "1.0.0" }),
-    );
-
-    await listSkillsetsMain({
-      agent: null,
-    });
-
-    // Should detect claude-code and list its profiles
-    expect(mockStdoutWrite).toHaveBeenCalledWith("senior-swe\n");
-  });
-
-  it("should default to claude-code when no agents installed", async () => {
+  it("should list profiles regardless of config state", async () => {
     // No config file, no agents installed
     const profilesDir = path.join(testInstallDir, ".nori", "profiles");
     await fs.mkdir(profilesDir, { recursive: true });
@@ -157,11 +107,8 @@ describe("listSkillsetsMain", () => {
       JSON.stringify({ name: "test-profile", version: "1.0.0" }),
     );
 
-    await listSkillsetsMain({
-      agent: null,
-    });
+    await listSkillsetsMain();
 
-    // Should default to claude-code
     expect(mockStdoutWrite).toHaveBeenCalledWith("test-profile\n");
   });
 });
@@ -176,7 +123,6 @@ describe("listSkillsetsMain output format", () => {
     vi.mocked(os.homedir).mockReturnValue(testInstallDir);
     const testNoriDir = path.join(testInstallDir, ".nori");
     await fs.mkdir(testNoriDir, { recursive: true });
-    AgentRegistry.resetInstance();
     mockStdoutWrite.mockClear();
     mockLogError.mockClear();
     mockExit.mockClear();
@@ -186,7 +132,6 @@ describe("listSkillsetsMain output format", () => {
     if (testInstallDir) {
       await fs.rm(testInstallDir, { recursive: true, force: true });
     }
-    AgentRegistry.resetInstance();
   });
 
   it("should output plain profile names without formatting", async () => {
@@ -200,9 +145,7 @@ describe("listSkillsetsMain output format", () => {
       JSON.stringify({ name: "my-profile", version: "1.0.0" }),
     );
 
-    await listSkillsetsMain({
-      agent: "claude-code",
-    });
+    await listSkillsetsMain();
 
     // Verify stdout was called (unformatted output)
     expect(mockStdoutWrite).toHaveBeenCalledWith("my-profile\n");
@@ -220,7 +163,6 @@ describe("listSkillsetsMain error messages", () => {
       path.join(os.tmpdir(), "list-skillsets-error-test-"),
     );
     vi.mocked(os.homedir).mockReturnValue(testInstallDir);
-    AgentRegistry.resetInstance();
     mockStdoutWrite.mockClear();
     mockLogError.mockClear();
     mockExit.mockClear();
@@ -230,51 +172,18 @@ describe("listSkillsetsMain error messages", () => {
     if (testInstallDir) {
       await fs.rm(testInstallDir, { recursive: true, force: true });
     }
-    AgentRegistry.resetInstance();
   });
 
-  it("should show error when no skillsets installed", async () => {
+  it("should show agent-agnostic error when no skillsets installed", async () => {
     const testNoriDir = path.join(testInstallDir, ".nori");
     await fs.mkdir(testNoriDir, { recursive: true });
     const profilesDir = path.join(testNoriDir, "profiles");
     await fs.mkdir(profilesDir, { recursive: true });
 
-    await listSkillsetsMain({
-      agent: "claude-code",
-    });
+    await listSkillsetsMain();
 
-    // Error message should mention no skillsets installed
-    expect(mockLogError).toHaveBeenCalledWith(
-      expect.stringContaining("No skillsets installed"),
-    );
-    expect(mockExit).toHaveBeenCalledWith(1);
-  });
-
-  it("should include agent display name in no skillsets error message", async () => {
-    const testNoriDir = path.join(testInstallDir, ".nori");
-    await fs.mkdir(testNoriDir, { recursive: true });
-    const profilesDir = path.join(testNoriDir, "profiles");
-    await fs.mkdir(profilesDir, { recursive: true });
-
-    await listSkillsetsMain({
-      agent: "claude-code",
-    });
-
-    // Error message should include the agent display name
-    expect(mockLogError).toHaveBeenCalledWith(
-      expect.stringContaining("Claude Code"),
-    );
-  });
-
-  it("should list available agents in unknown agent error", async () => {
-    await listSkillsetsMain({
-      agent: "invalid-agent",
-    });
-
-    // Error message should list available agents
-    expect(mockLogError).toHaveBeenCalledWith(
-      expect.stringMatching(/Available:.*claude-code/),
-    );
+    // Error message should mention no skillsets installed (agent-agnostic)
+    expect(mockLogError).toHaveBeenCalledWith("No skillsets installed.");
     expect(mockExit).toHaveBeenCalledWith(1);
   });
 });

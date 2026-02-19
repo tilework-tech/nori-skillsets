@@ -59,10 +59,10 @@ describe("configMain", () => {
     vi.clearAllMocks();
   });
 
-  it("should save defaultAgent and installDir to config when flow succeeds", async () => {
+  it("should save defaultAgents and installDir to config when flow succeeds", async () => {
     const { configFlow } = await import("@/cli/prompts/flows/config.js");
     vi.mocked(configFlow).mockResolvedValueOnce({
-      defaultAgent: "claude-code",
+      defaultAgents: ["claude-code"],
       installDir: tempDir,
     });
 
@@ -78,7 +78,7 @@ describe("configMain", () => {
     await configMain();
 
     const loaded = await loadConfig();
-    expect(loaded?.defaultAgent).toBe("claude-code");
+    expect(loaded?.defaultAgents).toEqual(["claude-code"]);
     expect(loaded?.installDir).toBe(tempDir);
   });
 
@@ -106,7 +106,7 @@ describe("configMain", () => {
   it("should preserve existing config fields when saving", async () => {
     const { configFlow } = await import("@/cli/prompts/flows/config.js");
     vi.mocked(configFlow).mockResolvedValueOnce({
-      defaultAgent: "claude-code",
+      defaultAgents: ["claude-code"],
       installDir: "/new/path",
     });
 
@@ -129,7 +129,7 @@ describe("configMain", () => {
       "senior-swe",
     );
     expect(loaded?.sendSessionTranscript).toBe("disabled");
-    expect(loaded?.defaultAgent).toBe("claude-code");
+    expect(loaded?.defaultAgents).toEqual(["claude-code"]);
     expect(loaded?.installDir).toBe("/new/path");
   });
 });
