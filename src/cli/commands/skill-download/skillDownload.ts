@@ -19,7 +19,12 @@ import {
   getCommandNames,
   type CliName,
 } from "@/cli/commands/cliCommandNames.js";
-import { getRegistryAuth, loadConfig, getAgentProfile } from "@/cli/config.js";
+import {
+  getRegistryAuth,
+  loadConfig,
+  getAgentProfile,
+  getDefaultAgent,
+} from "@/cli/config.js";
 import {
   getClaudeSkillsDir,
   getNoriProfilesDir,
@@ -438,9 +443,10 @@ export const skillDownloadMain = async (args: {
     }
   } else if (config != null) {
     // No skillset specified - try to use active profile
+    const agentName = getDefaultAgent({ config });
     const activeProfile = getAgentProfile({
       config,
-      agentName: "claude-code",
+      agentName,
     });
     if (activeProfile != null) {
       // Verify profile directory exists

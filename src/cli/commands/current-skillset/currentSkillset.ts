@@ -5,14 +5,8 @@
 
 import { log } from "@clack/prompts";
 
-import {
-  loadConfig,
-  getAgentProfile,
-  getInstalledAgents,
-} from "@/cli/config.js";
+import { loadConfig, getAgentProfile, getDefaultAgent } from "@/cli/config.js";
 import { getHomeDir } from "@/utils/home.js";
-
-import type { ConfigAgentName } from "@/cli/config.js";
 
 /**
  * Main function for current-skillset command
@@ -36,13 +30,7 @@ export const currentSkillsetMain = async (args: {
   }
 
   // Determine agent name
-  let agentName: ConfigAgentName;
-  if (agentOption != null && agentOption !== "") {
-    agentName = agentOption as ConfigAgentName;
-  } else {
-    const installedAgents = getInstalledAgents({ config });
-    agentName = (installedAgents[0] ?? "claude-code") as ConfigAgentName;
-  }
+  const agentName = getDefaultAgent({ config, agentOverride: agentOption });
 
   // Get profile for the agent
   const profile = getAgentProfile({ config, agentName });

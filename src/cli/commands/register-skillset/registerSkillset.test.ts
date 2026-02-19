@@ -47,10 +47,12 @@ vi.mock("@/cli/prompts/flows/registerSkillset.js", () => ({
 const mockLoadConfig = vi.fn();
 const mockGetAgentProfile = vi.fn();
 const mockGetInstalledAgents = vi.fn();
+const mockGetDefaultAgent = vi.fn().mockReturnValue("claude-code");
 vi.mock("@/cli/config.js", () => ({
   loadConfig: (args: any) => mockLoadConfig(args),
   getAgentProfile: (args: any) => mockGetAgentProfile(args),
   getInstalledAgents: (args: any) => mockGetInstalledAgents(args),
+  getDefaultAgent: (args: any) => mockGetDefaultAgent(args),
 }));
 
 describe("registerSkillsetMain", () => {

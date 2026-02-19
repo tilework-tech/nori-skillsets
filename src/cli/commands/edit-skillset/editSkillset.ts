@@ -9,15 +9,9 @@ import * as path from "path";
 
 import { log, note, outro } from "@clack/prompts";
 
-import {
-  loadConfig,
-  getAgentProfile,
-  getInstalledAgents,
-} from "@/cli/config.js";
+import { loadConfig, getAgentProfile, getDefaultAgent } from "@/cli/config.js";
 import { getNoriProfilesDir } from "@/cli/features/claude-code/paths.js";
 import { getHomeDir } from "@/utils/home.js";
-
-import type { ConfigAgentName } from "@/cli/config.js";
 
 /**
  * Main function for edit-skillset command
@@ -42,13 +36,7 @@ export const editSkillsetMain = async (args: {
     const config = await loadConfig({ startDir: getHomeDir() });
 
     // Determine agent name
-    let agentName: ConfigAgentName;
-    if (agentOption != null && agentOption !== "") {
-      agentName = agentOption as ConfigAgentName;
-    } else {
-      const installedAgents = config ? getInstalledAgents({ config }) : [];
-      agentName = (installedAgents[0] ?? "claude-code") as ConfigAgentName;
-    }
+    const agentName = getDefaultAgent({ config, agentOverride: agentOption });
 
     const profile = config ? getAgentProfile({ config, agentName }) : null;
 

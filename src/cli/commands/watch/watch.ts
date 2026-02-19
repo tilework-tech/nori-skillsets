@@ -28,7 +28,7 @@ import {
   waitForWatcherReady,
   type WatcherInstance,
 } from "@/cli/commands/watch/watcher.js";
-import { loadConfig, saveConfig } from "@/cli/config.js";
+import { loadConfig, saveConfig, getDefaultAgent } from "@/cli/config.js";
 import { getHomeDir } from "@/utils/home.js";
 
 /**
@@ -541,9 +541,13 @@ export const watchMain = async (args?: {
   _background?: boolean | null;
   setDestination?: boolean | null;
 }): Promise<void> => {
-  const agent = args?.agent ?? "claude-code";
   const _background = args?._background ?? false;
   const setDestination = args?.setDestination ?? false;
+
+  // Resolve agent from config defaultAgent, with --agent as override
+  const agentOverride = args?.agent ?? null;
+  const resolvedConfig = await loadConfig({ startDir: getHomeDir() });
+  const agent = getDefaultAgent({ config: resolvedConfig, agentOverride });
 
   const homeDir = process.env.HOME ?? "";
   const installDir = homeDir; // Config is at ~/.nori-config.json (home dir is base)
