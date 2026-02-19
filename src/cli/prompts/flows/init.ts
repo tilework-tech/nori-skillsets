@@ -23,7 +23,7 @@ import {
 
 import { validateProfileName } from "@/cli/prompts/validators.js";
 
-import type { ExistingConfig } from "@/cli/commands/install/existingConfigCapture.js";
+import type { ExistingConfig } from "@/cli/features/agentRegistry.js";
 
 import { unwrapPrompt } from "./utils.js";
 
