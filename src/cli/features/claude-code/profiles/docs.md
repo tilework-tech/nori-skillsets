@@ -86,7 +86,7 @@ External skills are downloaded to the profile's own `skills/` directory by both 
 
 No built-in profiles are shipped with the package. First-time installations will have no profiles until the user downloads or creates one.
 
-**Profile Lookup in Loaders**: All feature loaders use `getAgentProfile({ config, agentName: "claude-code" })` from @/src/cli/config.ts to determine the active profile name. This function returns the agent-specific profile from `config.agents["claude-code"].profile`, falling back to the legacy `config.profile` field for backwards compatibility.
+**Profile Lookup in Loaders**: The profiles orchestrator (`profilesLoader` in @/src/cli/features/claude-code/profiles/loader.ts) resolves the active profile using `getAgentProfile({ config, agentName: "claude-code" })` from @/src/cli/config.ts, loads the profile directory into a `SkillsetPackage` via `loadSkillsetPackage()` from @/src/norijson/packageStructure.ts, and passes the loaded package to each sub-loader. Individual feature loaders (skills, claudemd, slashcommands, subagents) receive `{ config, pkg: SkillsetPackage }` and iterate over the pre-loaded package contents instead of reading from the filesystem themselves.
 
 **Profile Discovery**: The `listProfiles()` function in @/src/cli/features/managedFolder.ts scans `~/.nori/profiles/` for directories containing `nori.json` (supports both flat and namespaced org/profile layouts). This is an agent-agnostic utility imported directly by CLI commands. The `switchProfile()` method on `claudeCodeAgent` validates the profile exists, loads current config, preserves auth credentials, updates the profile field, and prompts user to restart Claude Code.
 
@@ -100,7 +100,7 @@ No built-in profiles are shipped with the package. First-time installations will
 
 **Self-contained profiles**: Each profile contains all content it needs directly. There is no mixin composition, inheritance, or conditional injection. The trade-off is content duplication across profiles that share common skills.
 
-**Missing profile content is valid**: All four feature loaders (claudemd, skills, slashcommands, subagents) handle missing source content gracefully rather than throwing ENOENT. The directory-based loaders (skills, slashcommands, subagents) return early with an info message when `fs.readdir()` fails on a profile's subdirectory. The claudemd loader (`insertClaudeMd()` in @/src/cli/features/claude-code/profiles/claudemd/loader.ts) catches `fs.readFile()` failures when the profile has no `CLAUDE.md` (e.g., a minimal skillset created by `nori-skillsets new`); if an existing `~/.claude/CLAUDE.md` has a managed block, it replaces the block contents with empty markers while preserving user content outside the block. If there is no existing `~/.claude/CLAUDE.md` either, it returns without creating one. This ensures switching to an empty/minimal skillset does not crash the install pipeline and allows subsequent loaders to run.
+**Missing profile content is valid**: All four feature loaders (claudemd, skills, slashcommands, subagents) handle missing source content gracefully. The `SkillsetPackage` type provides empty arrays for `skills`, `slashcommands`, and `subagents` when the corresponding profile directories are absent, so loaders simply iterate over empty collections. The claudemd loader checks for `pkg.claudeMd` being null (when the profile has no `CLAUDE.md`, e.g., a minimal skillset created by `nori-skillsets new`); if an existing `~/.claude/CLAUDE.md` has a managed block, it replaces the block contents with empty markers while preserving user content outside the block. If there is no existing `~/.claude/CLAUDE.md` either, it returns without creating one. This ensures switching to an empty/minimal skillset does not crash the install pipeline and allows subsequent loaders to run.
 
 **Profile preservation**: Profiles are NEVER deleted during install operations. All profiles remain in `~/.nori/profiles/`.
 
@@ -110,7 +110,7 @@ No built-in profiles are shipped with the package. First-time installations will
 
 **Managed block marker idempotency**: The `insertClaudeMd()` function in @/src/cli/features/claude-code/profiles/claudemd/loader.ts strips any existing `# BEGIN NORI-AI MANAGED BLOCK` and `# END NORI-AI MANAGED BLOCK` markers from profile CLAUDE.md content before wrapping it with fresh markers. This ensures the final installed `~/.claude/CLAUDE.md` always has exactly one set of markers, even when the profile content was created by `captureExistingConfigAsProfile()` (which adds markers during capture). Without this stripping, captured profiles would end up with double-nested markers.
 
-**Profile slash commands**: Profile-specific slash commands are installed by @/src/cli/features/claude-code/profiles/slashcommands/ loader from the active profile's slashcommands/ directory.
+**Profile slash commands**: Profile-specific slash commands are installed by @/src/cli/features/claude-code/profiles/slashcommands/ loader from the `pkg.slashcommands` entries in the pre-loaded `SkillsetPackage`.
 
 **Manifest whitelist for change detection**: The manifest file (`~/.nori/installed-manifest.json`) only tracks Nori-managed paths within `~/.claude/` (`MANAGED_FILES` and `MANAGED_DIRS` in manifest.ts), excluding metadata files listed in `EXCLUDED_FILES` (`.nori-version`, `nori.json`). These excluded files are local metadata created when downloading from the registry and should not trigger "local changes detected" warnings. Claude Code creates many runtime directories (`debug/`, `todos/`, `projects/`, `plugins/`, `session-env/`, `shell-snapshots/`, `statsig/`, `telemetry/`, `tasks/`, `cache/`, etc.) that change between sessions. The whitelist prevents these from appearing as false positive changes during skillset switching. The `compareManifest()` function also filters out stale entries from older manifests that tracked non-whitelisted paths, enabling graceful transition without requiring users to reinstall.
 
@@ -159,19 +159,23 @@ No built-in profiles are shipped with the package. First-time installations will
    - Reads available profiles from `~/.nori/profiles/`
    - Shows only user-installed profiles (downloaded from registry or user-created)
 
-3. **Feature loaders run**
-   - Read profile configuration from `~/.nori/profiles/${selectedProfile}/`
-   - Install CLAUDE.md, skills, slashcommands, subagents to `~/.claude/` from that profile
+3. **Orchestrator loads skillset package**
+   - Resolves active profile name via `getAgentProfile()`
+   - Calls `loadSkillsetPackage()` to read the profile directory into a `SkillsetPackage`
 
-4. **Installation manifest written**
+4. **Feature loaders run**
+   - Each sub-loader receives `{ config, pkg: SkillsetPackage }` from the orchestrator
+   - Install CLAUDE.md, skills, slashcommands, subagents to `~/.claude/` from the pre-loaded package
+
+5. **Installation manifest written**
    - Computes SHA-256 hashes of Nori-managed files in `~/.claude/` (whitelist-filtered)
    - Stores manifest at `~/.nori/installed-manifest.json`
 
 ### Skill Installation Flow
 
-The skills loader (@/src/cli/features/claude-code/profiles/skills/loader.ts) installs skills in a single step:
+The skills loader (@/src/cli/features/claude-code/profiles/skills/loader.ts) receives `pkg.skills` (an array of `SkillEntry` with `{ id, sourceDir }`) and copies each skill directory to `~/.claude/skills/`:
 
-1. **Install all skills**: Copy skills from profile's `skills/` folder to `~/.claude/skills/`
+1. **Install all skills**: Iterate over `pkg.skills` entries, copying each `sourceDir` to `~/.claude/skills/{id}/`
    - This includes both inline skills (bundled with profile) and external skills (downloaded by registry-download or skill-download)
    - Template placeholders are substituted during copy
 

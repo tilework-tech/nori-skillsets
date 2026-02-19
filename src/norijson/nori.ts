@@ -55,12 +55,8 @@ export type NoriJson = {
 };
 
 export type {
-  PackageComponent,
-  PackageStructure,
+  SkillEntry,
+  MdFileEntry,
+  SkillsetPackage,
 } from "@/norijson/packageStructure.js";
-export {
-  packageStructures,
-  getPackageStructure,
-  skillsetStructure,
-  skillStructure,
-} from "@/norijson/packageStructure.js";
+export { loadSkillsetPackage } from "@/norijson/packageStructure.js";

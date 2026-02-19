@@ -6,13 +6,14 @@ Path: @/src/norijson
 
 - Shared TypeScript type definitions used across the codebase
 - Contains the canonical `NoriJson` manifest type that matches the nori-registrar repo's definition
-- Defines the expected filesystem layout for each package type via `PackageStructure` definitions
+- Defines `SkillsetPackage` -- the in-memory representation of a loaded skillset -- and the `loadSkillsetPackage()` function that reads a profile directory into it
 
 ### How it fits into the larger codebase
 
 - `NoriJson` (@/src/norijson/nori.ts) is the single source of truth for the nori.json manifest shape, imported directly by CLI commands that create or read nori.json files (e.g., `new-skillset`, `register-skillset`, `registry-download`)
 - `SkillsetSkill`, `SkillsetSubagent`, `SkillsetSlashCommand` (@/src/norijson/skillset.ts) define the inlined content types that appear as fields within `NoriJson`. These represent content discovered from a skillset directory (skill directories, subagent .md files, slash command .md files)
-- `PackageStructure` and `PackageComponent` (@/src/norijson/packageStructure.ts) declare the expected filesystem layout for each `NoriJsonType`. This serves as a single source of truth for what directories and files a skillset or skill package contains on disk. All types and values are re-exported through `nori.ts` for convenient access
+- `SkillsetPackage` (@/src/norijson/packageStructure.ts) is the type contract consumed by all profile loaders in @/src/cli/features/claude-code/profiles/. The profiles orchestrator calls `loadSkillsetPackage()` once and passes the result to each sub-loader, so loaders never touch the filesystem for profile content themselves
+- `loadSkillsetPackage()` (@/src/norijson/packageStructure.ts) is the single place that understands the profile directory structure on disk. Adding a new component to a skillset means adding a field to `SkillsetPackage` -- TypeScript then flags every loader that needs updating
 - The `NoriJson` type is aligned with the canonical definition in the nori-registrar repository to prevent type drift between the two codebases
 
 ### Core Implementation
@@ -40,22 +41,28 @@ The type includes an index signature (`[key: string]: unknown`) to allow additio
 
 **Skillset content types** (@/src/norijson/skillset.ts): `SkillsetSkill`, `SkillsetSubagent`, and `SkillsetSlashCommand` represent content discovered from a skillset directory structure. These are used as top-level array fields in `NoriJson` when publishing to the registry.
 
-**Package structure definitions** (@/src/norijson/packageStructure.ts): Declares the expected filesystem layout for each package type. A `PackageStructure` maps a `NoriJsonType` to an array of `PackageComponent` entries, where each component specifies a relative path, whether it is required, its kind (`"file"` or `"directory"`), a description, and an optional `childPattern` glob for directories.
+**SkillsetPackage and loadSkillsetPackage** (@/src/norijson/packageStructure.ts): `SkillsetPackage` is the in-memory representation of everything a skillset contains after being read from disk. It has four fields:
 
-Two structures are defined:
+| Field | Type | Source |
+|-------|------|--------|
+| `claudeMd` | `string \| null` | `CLAUDE.md` in profile root |
+| `skills` | `Array<SkillEntry>` | Subdirectories of `skills/` (non-directory entries filtered out) |
+| `subagents` | `Array<MdFileEntry>` | `.md` files in `subagents/` (excluding `docs.md`) |
+| `slashcommands` | `Array<MdFileEntry>` | `.md` files in `slashcommands/` (excluding `docs.md`) |
 
-| Structure | Type | Required components | Optional components |
-|-----------|------|-------------------|-------------------|
-| `skillsetStructure` | `"skillset"` | `nori.json` | `CLAUDE.md`, `skills/`, `subagents/`, `slashcommands/` |
-| `skillStructure` | `"skill"` | `SKILL.md` | `nori.json` |
+`SkillEntry` carries `{ id, sourceDir }` where `id` is the directory name and `sourceDir` is the absolute path. `MdFileEntry` carries `{ filename, content }` where content is the raw file text read at load time.
 
-The `packageStructures` registry maps type strings to their definitions, and `getPackageStructure({ type })` provides lookup (returns `null` for types without a standalone structure, such as `"inlined-skill"`).
+`loadSkillsetPackage({ profileDir })` reads the profile directory and returns a `SkillsetPackage`. Missing directories or files produce empty arrays / null rather than errors. The internal `readMdFiles()` helper handles the subagent and slashcommand directories with the same logic: read all `.md` files except `docs.md`.
+
+All types and the loader function are re-exported through `nori.ts` for convenient access.
 
 ### Things to Know
 
 - The `NoriJson` type serves dual purpose: it describes both skillset manifests (which have `skills`, `subagents`, `slashcommands`) and individual skill manifests (which have `scripts`). Both share the same type with optional fields. The `type` field (`NoriJsonType`) distinguishes between these: `"skillset"` for skillset manifests, `"skill"` for standalone skill packages, and `"inlined-skill"` for skills bundled within a skillset tarball.
 - The `repository` field is a plain string URL, not a `{ type, url }` object. This matches the registrar's canonical format.
 - All optional fields accept `null` in addition to `undefined`, following the codebase convention.
-- The `PackageStructure` definitions are purely declarative type contracts. No existing loaders or validators consume them yet -- they currently hardcode their own path expectations independently. The structures exist as a reference point that future work can wire into loaders, validators, and scaffolding commands.
+- `SkillsetPackage` is a load-time snapshot: it reads the profile directory once and all loaders operate on this snapshot. Template substitution (which depends on the install directory) remains an install-time concern handled by each sub-loader -- `SkillsetPackage` carries raw content before substitution.
+- Skills in `SkillsetPackage` are represented as `{ id, sourceDir }` rather than pre-read content because the skills loader needs to copy entire directory trees (with recursive template substitution), not just single files.
+- `docs.md` files are explicitly excluded from the `MdFileEntry` collections to prevent documentation files from being installed as subagents or slash commands.
 
 Created and maintained by Nori.

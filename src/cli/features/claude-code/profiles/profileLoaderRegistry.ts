@@ -9,6 +9,7 @@ import { slashCommandsLoader } from "@/cli/features/claude-code/profiles/slashco
 import { subagentsLoader } from "@/cli/features/claude-code/profiles/subagents/loader.js";
 
 import type { Config } from "@/cli/config.js";
+import type { SkillsetPackage } from "@/norijson/packageStructure.js";
 
 /**
  * Profile loader interface for profile-dependent feature installation
@@ -17,7 +18,7 @@ import type { Config } from "@/cli/config.js";
 export type ProfileLoader = {
   name: string;
   description: string;
-  install: (args: { config: Config }) => Promise<void>;
+  install: (args: { config: Config; pkg: SkillsetPackage }) => Promise<void>;
 };
 
 /**

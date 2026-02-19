@@ -10,6 +10,7 @@ import * as path from "path";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 import type { Config } from "@/cli/config.js";
+import type { SkillsetPackage } from "@/norijson/packageStructure.js";
 
 // Mock the env module to use temp directories
 let mockClaudeDir: string;
@@ -33,47 +34,42 @@ vi.mock("@/cli/features/claude-code/paths.js", () => ({
 import { slashCommandsLoader } from "./loader.js";
 
 /**
- * Create a stub profile directory with nori.json and optional slashcommands
+ * Build a minimal SkillsetPackage with the given slashcommands
  *
- * @param args - Function arguments
- * @param args.profilesDir - Path to the profiles directory
- * @param args.profileName - Name of the profile
- * @param args.slashcommands - Optional map of command filename to content
+ * @param args - Build arguments
+ * @param args.slashcommands - Slash command entries to include
+ *
+ * @returns A SkillsetPackage with only slashcommands populated
  */
-const createStubProfile = async (args: {
-  profilesDir: string;
-  profileName: string;
-  slashcommands?: Record<string, string> | null;
-}): Promise<void> => {
-  const { profilesDir, profileName, slashcommands } = args;
-  const profileDir = path.join(profilesDir, profileName);
-  await fs.mkdir(profileDir, { recursive: true });
-  await fs.writeFile(
-    path.join(profileDir, "nori.json"),
-    JSON.stringify({ name: "Test Profile", version: "1.0.0" }),
-  );
-
-  if (slashcommands != null) {
-    const cmdDir = path.join(profileDir, "slashcommands");
-    await fs.mkdir(cmdDir, { recursive: true });
-    for (const [filename, content] of Object.entries(slashcommands)) {
-      await fs.writeFile(path.join(cmdDir, filename), content);
-    }
-  }
+const buildPkg = (args: {
+  slashcommands?: Array<{ filename: string; content: string }> | null;
+}): SkillsetPackage => {
+  const { slashcommands } = args;
+  return {
+    claudeMd: null,
+    skills: [],
+    subagents: [],
+    slashcommands: slashcommands ?? [],
+  };
 };
 
 // Standard test slash commands
-const TEST_SLASH_COMMANDS: Record<string, string> = {
-  "nori-init-docs.md": "# Init Docs\n\nInitialize documentation.\n",
-  "nori-create-profile.md":
-    "# Create Profile\n\nCreate a new profile at {{profiles_dir}}/new.\n",
-};
+const TEST_SLASH_COMMANDS = [
+  {
+    filename: "nori-init-docs.md",
+    content: "# Init Docs\n\nInitialize documentation.\n",
+  },
+  {
+    filename: "nori-create-profile.md",
+    content:
+      "# Create Profile\n\nCreate a new profile at {{profiles_dir}}/new.\n",
+  },
+];
 
 describe("slashCommandsLoader", () => {
   let tempDir: string;
   let claudeDir: string;
   let commandsDir: string;
-  let noriProfilesDir: string;
 
   beforeEach(async () => {
     // Create temp directory for testing
@@ -85,18 +81,9 @@ describe("slashCommandsLoader", () => {
     mockClaudeDir = claudeDir;
     mockClaudeCommandsDir = commandsDir;
     mockNoriDir = path.join(tempDir, ".nori");
-    noriProfilesDir = path.join(mockNoriDir, "profiles");
 
     // Create directories
     await fs.mkdir(claudeDir, { recursive: true });
-    await fs.mkdir(noriProfilesDir, { recursive: true });
-
-    // Create stub profile with test slash commands
-    await createStubProfile({
-      profilesDir: noriProfilesDir,
-      profileName: "senior-swe",
-      slashcommands: TEST_SLASH_COMMANDS,
-    });
   });
 
   afterEach(async () => {
@@ -115,8 +102,9 @@ describe("slashCommandsLoader", () => {
           "claude-code": { profile: { baseProfile: "senior-swe" } },
         },
       };
+      const pkg = buildPkg({ slashcommands: TEST_SLASH_COMMANDS });
 
-      await slashCommandsLoader.install({ config });
+      await slashCommandsLoader.install({ config, pkg });
 
       // Verify commands directory exists
       const exists = await fs
@@ -126,9 +114,13 @@ describe("slashCommandsLoader", () => {
 
       expect(exists).toBe(true);
 
-      // Verify at least one command file was copied (based on SLASH_COMMANDS config in loader)
+      // Verify slash command files were written
       const files = await fs.readdir(commandsDir);
-      expect(files.length).toBeGreaterThan(0);
+      expect(files.length).toBe(2);
+
+      // Should have the init docs command
+      const hasInitDocs = files.includes("nori-init-docs.md");
+      expect(hasInitDocs).toBe(true);
     });
 
     it("should handle reinstallation (update scenario)", async () => {
@@ -138,29 +130,54 @@ describe("slashCommandsLoader", () => {
           "claude-code": { profile: { baseProfile: "senior-swe" } },
         },
       };
+      const pkg = buildPkg({ slashcommands: TEST_SLASH_COMMANDS });
 
       // First installation
-      await slashCommandsLoader.install({ config });
+      await slashCommandsLoader.install({ config, pkg });
 
       const firstFiles = await fs.readdir(commandsDir);
-      expect(firstFiles.length).toBeGreaterThan(0);
+      expect(firstFiles.length).toBe(2);
 
       // Second installation (update)
-      await slashCommandsLoader.install({ config });
+      await slashCommandsLoader.install({ config, pkg });
 
       const secondFiles = await fs.readdir(commandsDir);
-      expect(secondFiles.length).toBeGreaterThan(0);
+      expect(secondFiles.length).toBe(2);
     });
   });
 
-  // Validate tests removed - validation is now handled at profilesLoader level
+  describe("template substitution", () => {
+    it("should substitute template placeholders in slash command files", async () => {
+      const config: Config = {
+        installDir: tempDir,
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
+      };
+      const pkg = buildPkg({
+        slashcommands: [
+          {
+            filename: "nori-create-profile.md",
+            content: "Create a new profile at {{profiles_dir}}/new.\n",
+          },
+        ],
+      });
 
-  // Note: Template substitution tests for global commands (like nori-create-profile.md)
-  // have been moved to src/cli/features/claude-code/slashcommands/loader.test.ts
-  // Profile-specific slash commands (nori-init-docs) may not use template substitution
+      await slashCommandsLoader.install({ config, pkg });
 
-  describe("missing profile slashcommands directory", () => {
-    it("should remove existing commands when switching to profile without slashcommands", async () => {
+      // Check the installed file
+      const installedPath = path.join(commandsDir, "nori-create-profile.md");
+      const content = await fs.readFile(installedPath, "utf-8");
+
+      // Should have substituted {{profiles_dir}} with actual nori profiles path
+      const expectedProfilesDir = path.join(tempDir, ".nori", "profiles");
+      expect(content).toContain(expectedProfilesDir);
+      expect(content).not.toContain("{{profiles_dir}}");
+    });
+  });
+
+  describe("empty slashcommands", () => {
+    it("should remove existing commands when pkg has no slashcommands", async () => {
       const config: Config = {
         installDir: tempDir,
         agents: {
@@ -168,49 +185,35 @@ describe("slashCommandsLoader", () => {
         },
       };
 
-      // First, install slashcommands from a profile that has them
-      await slashCommandsLoader.install({ config });
+      // First, install slashcommands
+      const pkg = buildPkg({ slashcommands: TEST_SLASH_COMMANDS });
+      await slashCommandsLoader.install({ config, pkg });
 
       // Verify commands were installed
       let files = await fs.readdir(commandsDir);
-      expect(files.length).toBeGreaterThan(0);
+      expect(files.length).toBe(2);
 
-      // Now remove the slashcommands directory from the profile to simulate
-      // switching to a profile without slashcommands
-      const profileSlashCommandsDir = path.join(
-        noriProfilesDir,
-        "senior-swe",
-        "slashcommands",
-      );
-      await fs.rm(profileSlashCommandsDir, { recursive: true, force: true });
+      // Install again with empty slashcommands
+      const emptyPkg = buildPkg({ slashcommands: [] });
+      await slashCommandsLoader.install({ config, pkg: emptyPkg });
 
-      // Install again (simulating profile switch)
-      await slashCommandsLoader.install({ config });
-
-      // The commands directory should now be empty since the profile has no slashcommands
+      // The commands directory should now be empty
       files = await fs.readdir(commandsDir);
       expect(files.length).toBe(0);
     });
 
-    it("should handle missing slashcommands directory gracefully during install", async () => {
+    it("should handle empty slashcommands gracefully during install", async () => {
       const config: Config = {
         installDir: tempDir,
         agents: {
           "claude-code": { profile: { baseProfile: "senior-swe" } },
         },
       };
-
-      // Remove the slashcommands directory from the installed profile
-      const profileSlashCommandsDir = path.join(
-        noriProfilesDir,
-        "senior-swe",
-        "slashcommands",
-      );
-      await fs.rm(profileSlashCommandsDir, { recursive: true, force: true });
+      const pkg = buildPkg({ slashcommands: [] });
 
       // Install should not throw
       await expect(
-        slashCommandsLoader.install({ config }),
+        slashCommandsLoader.install({ config, pkg }),
       ).resolves.not.toThrow();
 
       // Commands directory should still be created

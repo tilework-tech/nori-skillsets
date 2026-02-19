@@ -1,123 +1,136 @@
 /**
- * Package structure definitions
+ * Skillset package type definitions
  *
- * Declares the expected filesystem layout for each NoriJson package type.
- * This is the single source of truth for what a skillset (or skill) looks
- * like on disk.
+ * Defines the in-memory representation of a loaded skillset package.
+ * This is the type contract that loaders consume — if you add a new
+ * component to a skillset, TypeScript will flag every place that needs
+ * updating.
  */
 
-import type { NoriJsonType } from "@/norijson/nori.js";
+import * as fs from "fs/promises";
+import * as path from "path";
 
 /**
- * A single structural component within a package.
+ * A skill directory entry within a skillset.
  */
-export type PackageComponent = {
-  /** Relative path from package root (e.g., "skills", "CLAUDE.md") */
-  path: string;
-  /** Whether this component is required or optional */
-  required: boolean;
-  /** What kind of filesystem entry this is */
-  kind: "file" | "directory";
-  /** Human-readable description of what this component contains */
-  description: string;
-  /** For directories: glob pattern describing expected children */
-  childPattern?: string | null;
+export type SkillEntry = {
+  /** Skill directory name (e.g., "systematic-debugging") */
+  id: string;
+  /** Absolute path to the skill directory on disk */
+  sourceDir: string;
 };
 
 /**
- * The expected filesystem structure for a given package type.
+ * A markdown file entry (used for subagents and slash commands).
  */
-export type PackageStructure = {
-  type: NoriJsonType;
-  description: string;
-  components: Array<PackageComponent>;
+export type MdFileEntry = {
+  /** Filename (e.g., "nori-code-reviewer.md") */
+  filename: string;
+  /** Raw file content */
+  content: string;
 };
 
 /**
- * Structure definition for a skillset package.
+ * The in-memory representation of a loaded skillset package.
+ *
+ * This type represents everything a skillset contains after being read
+ * from disk. Loaders receive this type (or slices of it) instead of
+ * reading from the filesystem themselves.
  */
-export const skillsetStructure: PackageStructure = {
-  type: "skillset",
-  description:
-    "A skillset containing skills, subagents, slash commands, and a CLAUDE.md",
-  components: [
-    {
-      path: "CLAUDE.md",
-      required: false,
-      kind: "file",
-      description: "Profile-level instructions injected into Claude Code",
-    },
-    {
-      path: "skills",
-      required: false,
-      kind: "directory",
-      description: "Skill directories, each containing a SKILL.md",
-      childPattern: "*/SKILL.md",
-    },
-    {
-      path: "subagents",
-      required: false,
-      kind: "directory",
-      description: "Subagent definition files (.md)",
-      childPattern: "*.md",
-    },
-    {
-      path: "slashcommands",
-      required: false,
-      kind: "directory",
-      description: "Slash command definition files (.md)",
-      childPattern: "*.md",
-    },
-    {
-      path: "nori.json",
-      required: true,
-      kind: "file",
-      description: "Package manifest",
-    },
-  ],
+export type SkillsetPackage = {
+  /** Raw CLAUDE.md content, or null if the profile has no CLAUDE.md */
+  claudeMd: string | null;
+  /** Skill directories found in skills/ */
+  skills: Array<SkillEntry>;
+  /** Subagent .md files found in subagents/ (excludes docs.md) */
+  subagents: Array<MdFileEntry>;
+  /** Slash command .md files found in slashcommands/ (excludes docs.md) */
+  slashcommands: Array<MdFileEntry>;
 };
 
 /**
- * Structure definition for a skill package.
- */
-export const skillStructure: PackageStructure = {
-  type: "skill",
-  description: "A single skill with a SKILL.md and optional scripts",
-  components: [
-    {
-      path: "SKILL.md",
-      required: true,
-      kind: "file",
-      description: "Skill definition with frontmatter (name, description)",
-    },
-    {
-      path: "nori.json",
-      required: false,
-      kind: "file",
-      description: "Package manifest (may be auto-generated on upload)",
-    },
-  ],
-};
-
-/**
- * Registry mapping package types to their structure definitions.
- */
-export const packageStructures: Record<string, PackageStructure> = {
-  skillset: skillsetStructure,
-  skill: skillStructure,
-};
-
-/**
- * Look up the structure definition for a package type.
+ * Read .md files from a directory, excluding docs.md.
  *
  * @param args - Function arguments
- * @param args.type - The NoriJson package type to look up
+ * @param args.dirPath - Absolute path to the directory
  *
- * @returns The structure definition, or null if none is defined for this type
+ * @returns Array of MdFileEntry objects, or empty array if directory is missing
  */
-export const getPackageStructure = (args: {
-  type: NoriJsonType;
-}): PackageStructure | null => {
-  const { type } = args;
-  return packageStructures[type] ?? null;
+const readMdFiles = async (args: {
+  dirPath: string;
+}): Promise<Array<MdFileEntry>> => {
+  const { dirPath } = args;
+
+  let files: Array<string>;
+  try {
+    files = await fs.readdir(dirPath);
+  } catch {
+    return [];
+  }
+
+  const mdFiles = files.filter(
+    (file) => file.endsWith(".md") && file !== "docs.md",
+  );
+
+  const entries: Array<MdFileEntry> = [];
+  for (const filename of mdFiles) {
+    const content = await fs.readFile(path.join(dirPath, filename), "utf-8");
+    entries.push({ filename, content });
+  }
+
+  return entries;
+};
+
+/**
+ * Load a skillset package from a profile directory.
+ *
+ * Reads the profile directory structure and returns an in-memory
+ * representation of the skillset contents.
+ *
+ * @param args - Function arguments
+ * @param args.profileDir - Absolute path to the profile directory
+ *
+ * @returns The loaded skillset package
+ */
+export const loadSkillsetPackage = async (args: {
+  profileDir: string;
+}): Promise<SkillsetPackage> => {
+  const { profileDir } = args;
+
+  // Read CLAUDE.md
+  let claudeMd: string | null = null;
+  try {
+    claudeMd = await fs.readFile(path.join(profileDir, "CLAUDE.md"), "utf-8");
+  } catch {
+    // No CLAUDE.md in this profile
+  }
+
+  // Read skills directories
+  const skills: Array<SkillEntry> = [];
+  const skillsDir = path.join(profileDir, "skills");
+  try {
+    const entries = await fs.readdir(skillsDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        skills.push({
+          id: entry.name,
+          sourceDir: path.join(skillsDir, entry.name),
+        });
+      }
+    }
+  } catch {
+    // No skills directory
+  }
+
+  // Read subagents
+  const subagents = await readMdFiles({
+    dirPath: path.join(profileDir, "subagents"),
+  });
+
+  // Read slashcommands
+  const slashcommands = await readMdFiles({
+    dirPath: path.join(profileDir, "slashcommands"),
+  });
+
+  return { claudeMd, skills, subagents, slashcommands };
 };
