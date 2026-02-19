@@ -4,14 +4,14 @@ Path: @/src/cli/features
 
 ### Overview
 
-Agent abstraction layer that defines the Agent interface and registry for the Claude Code agent. Contains shared types (`Loader`, `LoaderRegistry`) that agents implement, plus the shared config loader. Also contains agent-agnostic utilities like profile discovery (`managedFolder.ts`) and shared test utilities (@/src/cli/features/test-utils/) used across agent and command tests.
+Agent abstraction layer that defines the Agent interface and registry for the Claude Code agent. Contains shared types (`Loader`, `LoaderRegistry`, `ExistingConfig`) that agents implement, plus the shared config loader. Also contains agent-agnostic utilities like profile discovery (`managedFolder.ts`) and shared test utilities (@/src/cli/features/test-utils/) used across agent and command tests.
 
 ### How it fits into the larger codebase
 
 The features directory sits between the CLI commands (@/src/cli/commands/) and the Claude Code agent implementation (@/src/cli/features/claude-code/). CLI commands use the AgentRegistry to look up the agent implementation by name, then delegate to the agent's loaders and profile methods.
 
 ```
-CLI Commands (install, switch-profile, onboard, list)
+CLI Commands (install, switch-profile, onboard, list, init)
     |
     +-- AgentRegistry.getInstance().get({ name: agentName })
     +-- AgentRegistry.getInstance().getAll()  --> iterate all agents
@@ -23,18 +23,22 @@ CLI Commands (install, switch-profile, onboard, list)
     |           +-- factoryReset({ path }) --> Remove all agent config (optional)
     |           +-- isInstalledAtDir({ path }) --> Check for agent installation marker
     |           +-- markInstall({ path, skillsetName }) --> Write agent installation marker
+    |           +-- detectExistingConfig({ installDir }) --> Detect unmanaged config (optional)
+    |           +-- captureExistingConfig({ installDir, profileName, config }) --> Capture and clean up (optional)
     |
     +-- listProfiles() --> Available profile names (from managedFolder.ts)
 
 Shared Resources (@/src/cli/features/)
     |
-    +-- agentRegistry.ts: AgentName, Agent, Loader, LoaderRegistry types
+    +-- agentRegistry.ts: AgentName, Agent, Loader, LoaderRegistry, ExistingConfig types
     +-- managedFolder.ts: listProfiles(), MANIFEST_FILE (agent-agnostic)
     +-- config/loader.ts: configLoader (shared across all agents)
     +-- test-utils/: Shared test utilities (stripAnsi, pathExists, createTempTestContext)
 ```
 
 The `--agent` global CLI option (default: "claude-code") determines which agent implementation is used. Per-agent profile configuration is stored in the Config `agents` field.
+
+The init command (@/src/cli/commands/init/) uses `getDefaultAgent()` from @/src/cli/config.js to resolve the default agent at the start, then delegates all agent-specific operations (detection, capture, installation marking) through that agent's interface methods.
 
 ### Core Implementation
 
@@ -45,6 +49,7 @@ The `--agent` global CLI option (default: "claude-code") determines which agent 
 | `AgentName` | Type alias for the canonical agent identifier `"claude-code"`. Used as the registry key and source of truth for agent identity. |
 | `Loader` | Interface for feature installation with `name`, `description`, and `run()` methods |
 | `LoaderRegistry` | Interface that agent-specific registry classes must implement (`getAll()`) |
+| `ExistingConfig` | Object describing detected unmanaged configuration (hasClaudeMd, hasManagedBlock, hasSkills, skillCount, hasAgents, agentCount, hasCommands, commandCount). Returned by `detectExistingConfig` and used by init command to show users what was found. Canonical definition in agentRegistry.ts, re-exported from @/src/cli/commands/install/existingConfigCapture.ts for backward compatibility. |
 
 **Agent Interface** (agentRegistry.ts):
 - `name`: `AgentName` - canonical identifier used as the registry key ("claude-code")
@@ -54,11 +59,13 @@ The `--agent` global CLI option (default: "claude-code") determines which agent 
 - `factoryReset({ path })`: Optional. Removes all agent configuration from the filesystem starting at the given path. The CLI command layer handles non-interactive blocking and confirmation; the agent method handles discovery and deletion.
 - `isInstalledAtDir({ path })`: Returns boolean indicating whether this agent is installed at the given directory. Each agent defines its own detection strategy (e.g., marker files, config content checks).
 - `markInstall({ path, skillsetName })`: Writes an installation marker at the given directory. The optional `skillsetName` parameter records the active skillset in the marker. Called by init and install commands after feature loaders complete.
+- `detectExistingConfig({ installDir })`: Optional. Detects unmanaged existing configuration at the given install directory. Returns an `ExistingConfig` object describing what was found (CLAUDE.md presence, managed block detection, skill/agent/command counts) or null if no configuration exists. Used by init command to determine if existing config should be captured before Nori installation.
+- `captureExistingConfig({ installDir, profileName, config })`: Optional. Captures existing unmanaged configuration as a named profile, cleans up original files to prevent duplication, and restores a working managed configuration. Takes the `config` parameter to know which profile and agents to activate. Used by init command when existing config is detected and user opts to preserve it.
 
 **AgentRegistry** (agentRegistry.ts):
 - Singleton pattern with `getInstance()`
 - `get({ name })`: Look up agent by name, throws if not found
-- `getAll()`: Returns array of all registered Agent objects. Used by code that needs to iterate all agents rather than look up by name (e.g., installation detection in @/src/utils/path.ts and agent marking in @/src/cli/commands/init/init.ts)
+- `getAll()`: Returns array of all registered Agent objects. Used by code that needs to iterate all agents rather than look up by name (e.g., installation detection in @/src/utils/path.ts)
 - `list()`: Returns array of registered agent names
 - `resetInstance()`: For test isolation
 
@@ -96,5 +103,7 @@ Profile discovery is handled by the standalone `listProfiles()` function (zero-a
 Agent implementations manage their own internal paths (config directories, instruction file names, etc.) without exposing them through the public interface. Claude Code's path helpers live in @/src/cli/features/claude-code/paths.ts. The env.ts file re-exports these functions for backward compatibility.
 
 Template substitution utilities are agent-specific. Claude Code (@/src/cli/features/claude-code/template.ts) uses `{{skills_dir}}` and supports common placeholders: `{{profiles_dir}}`, `{{commands_dir}}`, and `{{install_dir}}`.
+
+**Init delegates all agent-specific operations through the default agent.** The init command resolves `config.defaultAgent` at the start using `getDefaultAgent()` and `AgentRegistry.get()`, then uses only that agent's interface methods (`isInstalledAtDir`, `detectExistingConfig`, `captureExistingConfig`, `markInstall`) for all operations. This ensures init remains agent-agnostic while allowing each agent to define its own detection and capture logic.
 
 Created and maintained by Nori.

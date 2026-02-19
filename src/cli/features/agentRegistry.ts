@@ -37,6 +37,21 @@ export type LoaderRegistry = {
 };
 
 /**
+ * Represents detected existing (unmanaged) configuration for an agent.
+ * Used during init to show the user what was found before capturing.
+ */
+export type ExistingConfig = {
+  hasClaudeMd: boolean;
+  hasManagedBlock: boolean;
+  hasSkills: boolean;
+  skillCount: number;
+  hasAgents: boolean;
+  agentCount: number;
+  hasCommands: boolean;
+  commandCount: number;
+};
+
+/**
  * Agent interface that each agent implementation must satisfy
  */
 export type Agent = {
@@ -57,6 +72,18 @@ export type Agent = {
   }) => Promise<void>;
   /** Factory reset: remove all agent configuration from the filesystem */
   factoryReset?: ((args: { path: string }) => Promise<void>) | null;
+  /** Detect pre-existing unmanaged configuration at the given directory */
+  detectExistingConfig?:
+    | ((args: { installDir: string }) => Promise<ExistingConfig | null>)
+    | null;
+  /** Capture existing config as a named profile, clean up originals, and restore working state */
+  captureExistingConfig?:
+    | ((args: {
+        installDir: string;
+        profileName: string;
+        config: Config;
+      }) => Promise<void>)
+    | null;
 };
 
 /**
