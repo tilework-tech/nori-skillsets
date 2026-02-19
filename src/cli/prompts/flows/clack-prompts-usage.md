@@ -15,8 +15,6 @@ Individual prompt wrappers for one-off use in commands:
 - `confirmAction` - Yes/no confirmation
 - `promptText` - Text input with validation
 - `promptPassword` - Password input
-- `selectProfile` - Profile selection from list
-- `promptForAuth` - Grouped email/password/org collection
 
 These call `handleCancel()` on cancel, which calls `process.exit(0)`.
 Use for simple prompts in commands that don't need graceful flow control.
@@ -428,19 +426,14 @@ prompts in the right order and passes the right data to callbacks.
 | `confirmAction`  | `confirm.ts`      |
 | `promptText`     | `text.ts`         |
 | `promptPassword` | `password.ts`     |
-| `selectProfile`  | `profile.ts`      |
-| `promptForAuth`  | `auth.ts`         |
 
 ### Shared Utilities
 
 | Utility             | File              | Purpose                           |
 | ------------------- | ----------------- | --------------------------------- |
 | `handleCancel`      | `utils.ts`        | Exit on cancel (standalone use)   |
-| `isCancel`          | `utils.ts`        | Named-arg wrapper for clack's isCancel |
 | `unwrapPrompt`      | `flows/utils.ts`  | Cancel handling for flows         |
 | `validateProfileName` | `validators.ts` | Profile name validation           |
-| `validateOrgId`     | `validators.ts`   | Org ID validation                 |
-| `validateRequired`  | `validators.ts`   | Non-empty validation              |
 
 ### Legacy System (to be removed)
 

@@ -197,31 +197,6 @@ export const formatNetworkError = (args: {
 };
 
 /**
- * Check if an error is a network-related error
- *
- * @param error - The error to check
- *
- * @returns True if the error is a network error
- */
-export const isNetworkError = (error: unknown): error is NetworkError => {
-  return (
-    error instanceof NetworkError ||
-    (error as NetworkError)?.isNetworkError === true
-  );
-};
-
-/**
- * Check if an error is an API error
- *
- * @param error - The error to check
- *
- * @returns True if the error is an API error
- */
-export const isApiError = (error: unknown): error is ApiError => {
-  return error instanceof ApiError || (error as ApiError)?.isApiError === true;
-};
-
-/**
  * Check if an error is a skill collision error
  *
  * @param error - The error to check

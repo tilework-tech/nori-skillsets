@@ -53,7 +53,6 @@ Path: @/src/cli/prompts/flows
 - The switchSkillsetFlow's buildChangesSummary helper truncates file lists to 5 entries per category (modified/added/deleted) with a "... and N more" overflow message
 - When a flow returns null, the command should treat it as a clean cancellation — the flow has already displayed the appropriate cancel message to the user
 - The interactive mode gate (`!nonInteractive`) lives in the command handler, not in the flow itself. Flows have no awareness of feature flags
-- The uploadFlow contains parallel resolution logic in both `upload.ts` (flow-based, uses `unwrapPrompt`) and @/cli/prompts/skillResolution.ts (standalone, uses `handleCancel` + `process.exit`). Both modules share the same `link` action "Use Existing" label with different hints based on `contentUnchanged`, but they are independent implementations
 - In the uploadFlow, batch resolution via `buildCommonResolutionOptions` only offers actions that are available across ALL unresolved conflicts (set intersection). When `updateVersion` is selected in batch mode, each skill automatically receives its own suggested next patch version via `getSuggestedVersion` without individual version prompts
 - See `clack-prompts-usage.md` in this directory for the full guide on building new flows
 

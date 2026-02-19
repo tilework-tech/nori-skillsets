@@ -120,16 +120,6 @@ export const getConfigPath = (): string => {
 };
 
 /**
- * Get default profile
- * @returns Default profile (senior-swe)
- */
-export const getDefaultProfile = (): { baseProfile: string } => {
-  return {
-    baseProfile: "senior-swe",
-  };
-};
-
-/**
  * Check if config uses legacy password-based authentication
  * @param args - Configuration arguments
  * @param args.config - The config to check
