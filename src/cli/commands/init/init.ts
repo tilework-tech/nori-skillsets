@@ -20,7 +20,7 @@ import {
   captureExistingConfigAsProfile,
 } from "@/cli/commands/install/existingConfigCapture.js";
 import { loadConfig, saveConfig, type Config } from "@/cli/config.js";
-import { claudeCodeAgent } from "@/cli/features/claude-code/agent.js";
+import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import {
   getClaudeMdFile,
   getNoriProfilesDir,
@@ -89,8 +89,11 @@ export const initMain = async (args?: {
           // Use getHomeDir() since init is home-directory-based
           const existingConfig = await loadConfig({ startDir: getHomeDir() });
           if (existingConfig != null) return null;
-          // Skip detection if agent is already installed at this location
-          if (claudeCodeAgent.isInstalledAtDir({ path: dir })) return null;
+          // Skip detection if any agent is already installed at this location
+          const anyInstalled = AgentRegistry.getInstance()
+            .getAll()
+            .some((agent) => agent.isInstalledAtDir({ path: dir }));
+          if (anyInstalled) return null;
           return detectExistingConfig({ installDir: dir });
         },
         onCaptureConfig: async ({ installDir: dir, profileName }) => {
@@ -153,11 +156,13 @@ export const initMain = async (args?: {
             await claudeMdLoader.install({ config });
           }
 
-          // Mark this directory as having claude-code installed
-          claudeCodeAgent.markInstall({
-            path: dir,
-            skillsetName: capturedProfileName,
-          });
+          // Mark this directory as having agents installed
+          for (const agent of AgentRegistry.getInstance().getAll()) {
+            agent.markInstall({
+              path: dir,
+              skillsetName: capturedProfileName,
+            });
+          }
         },
       },
     });
@@ -208,7 +213,9 @@ export const initMain = async (args?: {
   // If no existing config and agent not already installed, check for existing Claude Code configuration to capture
   if (
     existingConfig == null &&
-    !claudeCodeAgent.isInstalledAtDir({ path: normalizedInstallDir })
+    !AgentRegistry.getInstance()
+      .getAll()
+      .some((agent) => agent.isInstalledAtDir({ path: normalizedInstallDir }))
   ) {
     const detectedConfig = await detectExistingConfig({
       installDir: normalizedInstallDir,
@@ -284,11 +291,13 @@ export const initMain = async (args?: {
     await claudeMdLoader.install({ config });
   }
 
-  // Mark this directory as having claude-code installed
-  claudeCodeAgent.markInstall({
-    path: normalizedInstallDir,
-    skillsetName: capturedProfileName,
-  });
+  // Mark this directory as having agents installed
+  for (const agent of AgentRegistry.getInstance().getAll()) {
+    agent.markInstall({
+      path: normalizedInstallDir,
+      skillsetName: capturedProfileName,
+    });
+  }
 };
 
 /**

@@ -5,6 +5,7 @@
 import * as fs from "fs";
 import * as path from "path";
 
+import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { getHomeDir } from "@/utils/home.js";
 
 /**
@@ -85,53 +86,11 @@ export const getInstallDirs = (args?: {
   const currentDir = args?.currentDir || process.cwd();
   const results: Array<string> = [];
 
-  // Inline hasNoriInstallation logic
-  const hasCurrentInstallation = (() => {
-    // Check for .nori-config.json (new style)
-    const newConfigPath = path.join(currentDir, ".nori-config.json");
-    if (fs.existsSync(newConfigPath)) {
-      return true;
-    }
+  const hasInstallation = (dir: string): boolean => {
+    return hasConfigFile(dir) || hasAgentInstall(dir);
+  };
 
-    // Check for nori-config.json (legacy style)
-    const legacyConfigPath = path.join(currentDir, "nori-config.json");
-    if (fs.existsSync(legacyConfigPath)) {
-      return true;
-    }
-
-    // Check for .nori-config.json in .nori subdirectory (home directory installations)
-    const noriSubdirConfigPath = path.join(
-      currentDir,
-      ".nori",
-      ".nori-config.json",
-    );
-    if (fs.existsSync(noriSubdirConfigPath)) {
-      return true;
-    }
-
-    // Check for .claude/.nori-managed marker file
-    const noriManagedPath = path.join(currentDir, ".claude", ".nori-managed");
-    if (fs.existsSync(noriManagedPath)) {
-      return true;
-    }
-
-    // Check for .claude/CLAUDE.md with NORI-AI MANAGED BLOCK (backwards compat)
-    const claudeMdPath = path.join(currentDir, ".claude", "CLAUDE.md");
-    if (fs.existsSync(claudeMdPath)) {
-      try {
-        const content = fs.readFileSync(claudeMdPath, "utf-8");
-        if (content.includes("NORI-AI MANAGED BLOCK")) {
-          return true;
-        }
-      } catch {
-        // Ignore read errors
-      }
-    }
-
-    return false;
-  })();
-
-  if (hasCurrentInstallation) {
+  if (hasInstallation(currentDir)) {
     results.push(currentDir);
   }
 
@@ -139,53 +98,7 @@ export const getInstallDirs = (args?: {
   let checkDir = path.dirname(currentDir);
   let previousDir = "";
   while (checkDir !== previousDir) {
-    // Check for Nori installation in this ancestor directory
-    const hasAncestorInstallation = (() => {
-      // Check for .nori-config.json (new style)
-      const newConfigPath = path.join(checkDir, ".nori-config.json");
-      if (fs.existsSync(newConfigPath)) {
-        return true;
-      }
-
-      // Check for nori-config.json (legacy style)
-      const legacyConfigPath = path.join(checkDir, "nori-config.json");
-      if (fs.existsSync(legacyConfigPath)) {
-        return true;
-      }
-
-      // Check for .nori-config.json in .nori subdirectory (home directory installations)
-      const noriSubdirConfigPath = path.join(
-        checkDir,
-        ".nori",
-        ".nori-config.json",
-      );
-      if (fs.existsSync(noriSubdirConfigPath)) {
-        return true;
-      }
-
-      // Check for .claude/.nori-managed marker file
-      const noriManagedPath = path.join(checkDir, ".claude", ".nori-managed");
-      if (fs.existsSync(noriManagedPath)) {
-        return true;
-      }
-
-      // Check for .claude/CLAUDE.md with NORI-AI MANAGED BLOCK (backwards compat)
-      const claudeMdPath = path.join(checkDir, ".claude", "CLAUDE.md");
-      if (fs.existsSync(claudeMdPath)) {
-        try {
-          const content = fs.readFileSync(claudeMdPath, "utf-8");
-          if (content.includes("NORI-AI MANAGED BLOCK")) {
-            return true;
-          }
-        } catch {
-          // Ignore read errors
-        }
-      }
-
-      return false;
-    })();
-
-    if (hasAncestorInstallation) {
+    if (hasInstallation(checkDir)) {
       results.push(checkDir);
     }
 
@@ -226,32 +139,15 @@ const hasConfigFile = (dir: string): boolean => {
 };
 
 /**
- * Check if a directory has an agent install marker (.nori-managed or managed CLAUDE.md block)
+ * Check if any registered agent is installed at the given directory
  * @param dir - Directory to check
  *
- * @returns true if .claude/.nori-managed exists or .claude/CLAUDE.md contains NORI-AI MANAGED BLOCK
+ * @returns true if any agent reports being installed at this directory
  */
-const hasManagedBlock = (dir: string): boolean => {
-  // Check for .nori-managed marker file (new style)
-  const markerPath = path.join(dir, ".claude", ".nori-managed");
-  if (fs.existsSync(markerPath)) {
-    return true;
-  }
-
-  // Backwards compatibility: check CLAUDE.md for managed block
-  const claudeMdPath = path.join(dir, ".claude", "CLAUDE.md");
-  if (fs.existsSync(claudeMdPath)) {
-    try {
-      const content = fs.readFileSync(claudeMdPath, "utf-8");
-      if (content.includes("NORI-AI MANAGED BLOCK")) {
-        return true;
-      }
-    } catch {
-      // Ignore read errors
-    }
-  }
-
-  return false;
+const hasAgentInstall = (dir: string): boolean => {
+  return AgentRegistry.getInstance()
+    .getAll()
+    .some((agent) => agent.isInstalledAtDir({ path: dir }));
 };
 
 /**
@@ -278,7 +174,7 @@ export const getInstallDirsWithTypes = (args?: {
    */
   const classifyDir = (dir: string): InstallationInfo | null => {
     const hasConfig = hasConfigFile(dir);
-    const hasManaged = hasManagedBlock(dir);
+    const hasManaged = hasAgentInstall(dir);
 
     if (hasConfig && hasManaged) {
       return { path: dir, type: "both" };

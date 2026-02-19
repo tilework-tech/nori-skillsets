@@ -14,6 +14,7 @@ The features directory sits between the CLI commands (@/src/cli/commands/) and t
 CLI Commands (install, switch-profile, onboard, list)
     |
     +-- AgentRegistry.getInstance().get({ name: agentName })
+    +-- AgentRegistry.getInstance().getAll()  --> iterate all agents
     |       |
     |       +-- Agent interface
     |           |
@@ -57,6 +58,7 @@ The `--agent` global CLI option (default: "claude-code") determines which agent 
 **AgentRegistry** (agentRegistry.ts):
 - Singleton pattern with `getInstance()`
 - `get({ name })`: Look up agent by name, throws if not found
+- `getAll()`: Returns array of all registered Agent objects. Used by code that needs to iterate all agents rather than look up by name (e.g., installation detection in @/src/utils/path.ts and agent marking in @/src/cli/commands/init/init.ts)
 - `list()`: Returns array of registered agent names
 - `resetInstance()`: For test isolation
 
