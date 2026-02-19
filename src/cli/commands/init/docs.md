@@ -17,10 +17,12 @@ Path: @/src/cli/commands/init
 - Existing config capture delegates to `detectExistingConfig()` and `captureExistingConfigAsProfile()` from @/src/cli/commands/install/existingConfigCapture.js
 - Ancestor installation detection uses `getInstallDirsWithTypes()` from @/src/utils/path.js
 - After capturing a profile, installs the managed CLAUDE.md block via `claudeMdLoader.install()` from @/src/cli/features/claude-code/profiles/claudemd/loader.js
+- After installation, calls `claudeCodeAgent.markInstall()` to write `.claude/.nori-managed` with the captured profile name, marking the directory as having the agent installed
 
 ### Core Implementation
 
 - `initMain({ installDir, nonInteractive, skipWarning })` is the single entry point; routes to interactive (`initFlow`) or non-interactive (inline) path based on the `nonInteractive` flag
+- **Existing installation skip**: Both the interactive and non-interactive paths use `claudeCodeAgent.isInstalledAtDir()` to skip existing-config detection when the agent is already installed at the target directory. This prevents re-capturing configuration on subsequent inits.
 - **Non-interactive ancestor warning**: when managed installations exist in ancestor directories, constructs a multi-line warning using `yellow()` and `bold()` color helpers from @/src/cli/logger.js and renders it as a clack `note()` box with a `"Warning"` title
 - **Non-interactive config capture**: when no existing Nori config is found but a Claude Code config exists, auto-captures it as a profile named `"my-profile"` and reports via `log.success()`
 - After saving config, if a profile was captured, the original CLAUDE.md is deleted to prevent content duplication when the managed block is subsequently installed

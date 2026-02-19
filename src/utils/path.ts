@@ -109,7 +109,13 @@ export const getInstallDirs = (args?: {
       return true;
     }
 
-    // Check for .claude/CLAUDE.md with NORI-AI MANAGED BLOCK
+    // Check for .claude/.nori-managed marker file
+    const noriManagedPath = path.join(currentDir, ".claude", ".nori-managed");
+    if (fs.existsSync(noriManagedPath)) {
+      return true;
+    }
+
+    // Check for .claude/CLAUDE.md with NORI-AI MANAGED BLOCK (backwards compat)
     const claudeMdPath = path.join(currentDir, ".claude", "CLAUDE.md");
     if (fs.existsSync(claudeMdPath)) {
       try {
@@ -157,7 +163,13 @@ export const getInstallDirs = (args?: {
         return true;
       }
 
-      // Check for .claude/CLAUDE.md with NORI-AI MANAGED BLOCK
+      // Check for .claude/.nori-managed marker file
+      const noriManagedPath = path.join(checkDir, ".claude", ".nori-managed");
+      if (fs.existsSync(noriManagedPath)) {
+        return true;
+      }
+
+      // Check for .claude/CLAUDE.md with NORI-AI MANAGED BLOCK (backwards compat)
       const claudeMdPath = path.join(checkDir, ".claude", "CLAUDE.md");
       if (fs.existsSync(claudeMdPath)) {
         try {
@@ -214,12 +226,19 @@ const hasConfigFile = (dir: string): boolean => {
 };
 
 /**
- * Check if a directory has a managed CLAUDE.md block
+ * Check if a directory has an agent install marker (.nori-managed or managed CLAUDE.md block)
  * @param dir - Directory to check
  *
- * @returns true if .claude/CLAUDE.md exists with NORI-AI MANAGED BLOCK
+ * @returns true if .claude/.nori-managed exists or .claude/CLAUDE.md contains NORI-AI MANAGED BLOCK
  */
 const hasManagedBlock = (dir: string): boolean => {
+  // Check for .nori-managed marker file (new style)
+  const markerPath = path.join(dir, ".claude", ".nori-managed");
+  if (fs.existsSync(markerPath)) {
+    return true;
+  }
+
+  // Backwards compatibility: check CLAUDE.md for managed block
   const claudeMdPath = path.join(dir, ".claude", "CLAUDE.md");
   if (fs.existsSync(claudeMdPath)) {
     try {
