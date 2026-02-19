@@ -2,27 +2,10 @@
  * Path utility functions for configurable installation directories
  */
 
-import * as fs from "fs";
 import * as path from "path";
 
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { getHomeDir } from "@/utils/home.js";
-
-/**
- * Type of Nori installation
- * - "source": Has config file (.nori-config.json) but no managed CLAUDE.md block
- * - "managed": Has managed CLAUDE.md block but no config file
- * - "both": Has both config file and managed CLAUDE.md block
- */
-export type InstallationType = "source" | "managed" | "both";
-
-/**
- * Information about a Nori installation
- */
-export type InstallationInfo = {
-  path: string;
-  type: InstallationType;
-};
 
 /**
  * Normalize an installation directory path
@@ -72,73 +55,6 @@ export const normalizeInstallDir = (args: {
 };
 
 /**
- * Get all directories that have Nori installations, starting from current directory
- * Searches current directory first, then ancestors
- * @param args - Configuration arguments
- * @param args.currentDir - The directory to start searching from (defaults to process.cwd())
- *
- * @returns Array of paths to directories with Nori installations, ordered from closest to furthest.
- *   Returns empty array if no installations found.
- */
-export const getInstallDirs = (args?: {
-  currentDir?: string | null;
-}): Array<string> => {
-  const currentDir = args?.currentDir || process.cwd();
-  const results: Array<string> = [];
-
-  const hasInstallation = (dir: string): boolean => {
-    return hasConfigFile(dir) || hasAgentInstall(dir);
-  };
-
-  if (hasInstallation(currentDir)) {
-    results.push(currentDir);
-  }
-
-  // Walk up the directory tree starting from parent
-  let checkDir = path.dirname(currentDir);
-  let previousDir = "";
-  while (checkDir !== previousDir) {
-    if (hasInstallation(checkDir)) {
-      results.push(checkDir);
-    }
-
-    previousDir = checkDir;
-    checkDir = path.dirname(checkDir);
-  }
-
-  return results;
-};
-
-/**
- * Check if a directory has a Nori config file (.nori-config.json or legacy nori-config.json)
- * Also checks in .nori subdirectory for home directory installations
- * @param dir - Directory to check
- *
- * @returns true if config file exists
- */
-const hasConfigFile = (dir: string): boolean => {
-  // Check for .nori-config.json (new style) in directory
-  const newConfigPath = path.join(dir, ".nori-config.json");
-  if (fs.existsSync(newConfigPath)) {
-    return true;
-  }
-
-  // Check for nori-config.json (legacy style) in directory
-  const legacyConfigPath = path.join(dir, "nori-config.json");
-  if (fs.existsSync(legacyConfigPath)) {
-    return true;
-  }
-
-  // Check for .nori-config.json in .nori subdirectory (home directory installations)
-  const noriSubdirConfigPath = path.join(dir, ".nori", ".nori-config.json");
-  if (fs.existsSync(noriSubdirConfigPath)) {
-    return true;
-  }
-
-  return false;
-};
-
-/**
  * Check if any registered agent is installed at the given directory
  * @param dir - Directory to check
  *
@@ -151,55 +67,31 @@ const hasAgentInstall = (dir: string): boolean => {
 };
 
 /**
- * Get all directories that have Nori installations with type information
+ * Get all directories that have Nori managed installations, starting from current directory
  * Searches current directory first, then ancestors
+ *
  * @param args - Configuration arguments
  * @param args.currentDir - The directory to start searching from (defaults to process.cwd())
  *
- * @returns Array of InstallationInfo objects ordered from closest to furthest.
+ * @returns Array of paths to directories with Nori installations, ordered from closest to furthest.
  *   Returns empty array if no installations found.
  */
-export const getInstallDirsWithTypes = (args?: {
+export const getInstallDirs = (args?: {
   currentDir?: string | null;
-}): Array<InstallationInfo> => {
+}): Array<string> => {
   const currentDir = args?.currentDir || process.cwd();
-  const results: Array<InstallationInfo> = [];
+  const results: Array<string> = [];
 
-  /**
-   * Classify a directory's installation type
-   *
-   * @param dir - Directory path to classify
-   *
-   * @returns InstallationInfo if installation found, null otherwise
-   */
-  const classifyDir = (dir: string): InstallationInfo | null => {
-    const hasConfig = hasConfigFile(dir);
-    const hasManaged = hasAgentInstall(dir);
-
-    if (hasConfig && hasManaged) {
-      return { path: dir, type: "both" };
-    } else if (hasConfig) {
-      return { path: dir, type: "source" };
-    } else if (hasManaged) {
-      return { path: dir, type: "managed" };
-    }
-
-    return null;
-  };
-
-  // Check current directory
-  const currentInstallation = classifyDir(currentDir);
-  if (currentInstallation) {
-    results.push(currentInstallation);
+  if (hasAgentInstall(currentDir)) {
+    results.push(currentDir);
   }
 
   // Walk up the directory tree starting from parent
   let checkDir = path.dirname(currentDir);
   let previousDir = "";
   while (checkDir !== previousDir) {
-    const ancestorInstallation = classifyDir(checkDir);
-    if (ancestorInstallation) {
-      results.push(ancestorInstallation);
+    if (hasAgentInstall(checkDir)) {
+      results.push(checkDir);
     }
 
     previousDir = checkDir;

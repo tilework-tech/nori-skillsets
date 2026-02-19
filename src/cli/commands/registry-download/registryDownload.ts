@@ -620,7 +620,7 @@ export const registryDownloadMain = async (args: {
   }
 
   // Load config for registry auth - use getHomeDir() since registry needs global auth
-  const config = await loadConfig({ startDir: getHomeDir() });
+  const config = await loadConfig();
 
   const profilesDir = getNoriProfilesDir();
   // For namespaced packages, the profile is in a nested directory (e.g., profiles/myorg/my-profile)

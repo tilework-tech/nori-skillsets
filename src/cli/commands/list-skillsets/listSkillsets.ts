@@ -8,7 +8,6 @@ import { log } from "@clack/prompts";
 import { loadConfig, getInstalledAgents } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { listProfiles } from "@/cli/features/managedFolder.js";
-import { getHomeDir } from "@/utils/home.js";
 
 import type { Command } from "commander";
 
@@ -29,7 +28,7 @@ export const listSkillsetsMain = async (args: {
     agentName = agentOption;
   } else {
     // Auto-detect from config - use home directory since agent config is global
-    const config = await loadConfig({ startDir: getHomeDir() });
+    const config = await loadConfig();
     const installedAgents = config ? getInstalledAgents({ config }) : [];
 
     if (installedAgents.length === 0) {

@@ -526,7 +526,7 @@ export const loginMain = async (args?: {
 
       // Load existing config to preserve other fields
       // Use getHomeDir() as startDir since login is home-directory-based
-      const existingConfig = await loadConfig({ startDir: getHomeDir() });
+      const existingConfig = await loadConfig();
 
       // Save credentials to config (using access info from flow result)
       await saveConfig({
@@ -587,7 +587,7 @@ export const loginMain = async (args?: {
 
   // Load existing config to preserve other fields
   // Use getHomeDir() as startDir since login is home-directory-based
-  const existingConfig = await loadConfig({ startDir: getHomeDir() });
+  const existingConfig = await loadConfig();
 
   // Save credentials to config
   await saveConfig({

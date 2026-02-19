@@ -181,7 +181,7 @@ describe("login command", () => {
       expect(loginFlow).toHaveBeenCalled();
 
       // Verify config was saved correctly
-      const config = await loadConfig({ startDir: tempDir });
+      const config = await loadConfig();
       expect(config).not.toBeNull();
       expect(config?.auth?.username).toBe("user@example.com");
       expect(config?.auth?.refreshToken).toBe("mock-refresh-token");
@@ -227,7 +227,7 @@ describe("login command", () => {
       );
 
       // Verify config was saved
-      const config = await loadConfig({ startDir: tempDir });
+      const config = await loadConfig();
       expect(config?.auth?.username).toBe("test@example.com");
     });
 
@@ -270,7 +270,7 @@ describe("login command", () => {
       expect(loginFlow).toHaveBeenCalled();
 
       // Verify no config was saved
-      const config = await loadConfig({ startDir: tempDir });
+      const config = await loadConfig();
       expect(config?.auth).toBeUndefined();
     });
 
@@ -331,7 +331,7 @@ describe("login command", () => {
       await loginMain({ installDir: tempDir });
 
       // Verify existing fields are preserved
-      const config = await loadConfig({ startDir: tempDir });
+      const config = await loadConfig();
       expect(config?.agents?.["claude-code"]?.profile?.baseProfile).toBe(
         "senior-swe",
       );
@@ -395,7 +395,7 @@ describe("login command", () => {
       await loginMain({ installDir: tempDir });
 
       // Verify transcriptDestination was preserved
-      const config = await loadConfig({ startDir: tempDir });
+      const config = await loadConfig();
       expect(config?.transcriptDestination).toBe("myorg");
       // And new auth was added
       expect(config?.auth?.username).toBe("user@example.com");
@@ -444,7 +444,7 @@ describe("login command", () => {
       await loginMain({ installDir: tempDir });
 
       // Verify auth was saved with empty organizations
-      const config = await loadConfig({ startDir: tempDir });
+      const config = await loadConfig();
       expect(config?.auth?.username).toBe("user@example.com");
       expect(config?.auth?.refreshToken).toBe("mock-refresh-token");
       expect(config?.auth?.organizations).toEqual([]);
@@ -489,7 +489,7 @@ describe("login command", () => {
       await loginMain({ installDir: tempDir });
 
       // Verify auth was saved with empty organizations
-      const config = await loadConfig({ startDir: tempDir });
+      const config = await loadConfig();
       expect(config?.auth?.username).toBe("user@example.com");
       expect(config?.auth?.organizations).toEqual([]);
     });
@@ -524,7 +524,7 @@ describe("login command", () => {
       expect(loginFlow).toHaveBeenCalled();
 
       // Verify no config was saved
-      const config = await loadConfig({ startDir: tempDir });
+      const config = await loadConfig();
       expect(config?.auth).toBeUndefined();
     });
 
@@ -626,7 +626,7 @@ describe("login command", () => {
       expect(loginFlow).not.toHaveBeenCalled();
 
       // Verify no config was saved
-      const config = await loadConfig({ startDir: tempDir });
+      const config = await loadConfig();
       expect(config?.auth).toBeUndefined();
     });
 
@@ -685,7 +685,7 @@ describe("login command", () => {
       expect(startAuthServer).toHaveBeenCalled();
 
       // Verify config was saved
-      const config = await loadConfig({ startDir: tempDir });
+      const config = await loadConfig();
       expect(config?.auth?.username).toBe("user@gmail.com");
     });
 
@@ -804,7 +804,7 @@ describe("login command", () => {
       );
 
       // No config should be saved
-      const config = await loadConfig({ startDir: tempDir });
+      const config = await loadConfig();
       expect(config?.auth).toBeUndefined();
     });
   });
@@ -883,7 +883,7 @@ describe("login command", () => {
       expect(signInWithCredential).toHaveBeenCalled();
 
       // Verify config was saved correctly with Google user's email
-      const config = await loadConfig({ startDir: tempDir });
+      const config = await loadConfig();
       expect(config).not.toBeNull();
       expect(config?.auth?.username).toBe("googleuser@gmail.com");
       expect(config?.auth?.refreshToken).toBe(
@@ -953,7 +953,7 @@ describe("login command", () => {
       );
 
       // No config should be saved
-      const config = await loadConfig({ startDir: tempDir });
+      const config = await loadConfig();
       expect(config?.auth).toBeUndefined();
     });
 
@@ -985,7 +985,7 @@ describe("login command", () => {
       );
 
       // No config should be saved
-      const config = await loadConfig({ startDir: tempDir });
+      const config = await loadConfig();
       expect(config?.auth).toBeUndefined();
     });
 
@@ -1012,7 +1012,7 @@ describe("login command", () => {
       );
 
       // No config should be saved
-      const config = await loadConfig({ startDir: tempDir });
+      const config = await loadConfig();
       expect(config?.auth).toBeUndefined();
     });
 
@@ -1105,7 +1105,7 @@ describe("login command", () => {
 
       await loginMain({ installDir: tempDir, google: true });
 
-      const config = await loadConfig({ startDir: tempDir });
+      const config = await loadConfig();
       expect(config?.agents?.["claude-code"]?.profile?.baseProfile).toBe(
         "senior-swe",
       );
@@ -1342,7 +1342,7 @@ describe("login command", () => {
       );
 
       // Verify config was saved
-      const config = await loadConfig({ startDir: tempDir });
+      const config = await loadConfig();
       expect(config?.auth?.username).toBe("user@gmail.com");
     });
 
@@ -1399,7 +1399,7 @@ describe("login command", () => {
       );
 
       // No config should be saved
-      const config = await loadConfig({ startDir: tempDir });
+      const config = await loadConfig();
       expect(config?.auth).toBeUndefined();
     });
 
@@ -1464,7 +1464,7 @@ describe("login command", () => {
       );
 
       // No config should be saved
-      const config = await loadConfig({ startDir: tempDir });
+      const config = await loadConfig();
       expect(config?.auth).toBeUndefined();
     });
 

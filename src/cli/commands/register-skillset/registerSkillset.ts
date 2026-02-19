@@ -30,11 +30,10 @@ export const registerSkillsetMain = async (args: {
   if (skillsetName == null) {
     // Get the current skillset by reading the config directly
     // (we can't easily capture stdout from currentSkillsetMain)
-    const { getHomeDir } = await import("@/utils/home.js");
     const { loadConfig, getAgentProfile, getInstalledAgents } =
       await import("@/cli/config.js");
 
-    const config = await loadConfig({ startDir: getHomeDir() });
+    const config = await loadConfig();
 
     if (config == null) {
       log.error(
