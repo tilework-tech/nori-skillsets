@@ -2,9 +2,9 @@
  * Path utility functions for configurable installation directories
  */
 
-import * as fs from "fs";
 import * as path from "path";
 
+import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { getHomeDir } from "@/utils/home.js";
 
 /**
@@ -55,38 +55,20 @@ export const normalizeInstallDir = (args: {
 };
 
 /**
- * Check if a directory has a managed installation marker (.nori-managed or managed CLAUDE.md block)
+ * Check if any registered agent is installed at the given directory
  * @param dir - Directory to check
  *
- * @returns true if .claude/.nori-managed exists or .claude/CLAUDE.md contains NORI-AI MANAGED BLOCK
+ * @returns true if any agent reports being installed at this directory
  */
-const hasManagedBlock = (dir: string): boolean => {
-  // Check for .nori-managed marker file (new style)
-  const markerPath = path.join(dir, ".claude", ".nori-managed");
-  if (fs.existsSync(markerPath)) {
-    return true;
-  }
-
-  // Backwards compatibility: check CLAUDE.md for managed block
-  const claudeMdPath = path.join(dir, ".claude", "CLAUDE.md");
-  if (fs.existsSync(claudeMdPath)) {
-    try {
-      const content = fs.readFileSync(claudeMdPath, "utf-8");
-      if (content.includes("NORI-AI MANAGED BLOCK")) {
-        return true;
-      }
-    } catch {
-      // Ignore read errors
-    }
-  }
-
-  return false;
+const hasAgentInstall = (dir: string): boolean => {
+  return AgentRegistry.getInstance()
+    .getAll()
+    .some((agent) => agent.isInstalledAtDir({ path: dir }));
 };
 
 /**
  * Get all directories that have Nori managed installations, starting from current directory
  * Searches current directory first, then ancestors
- * Only detects directories with .claude/CLAUDE.md containing a NORI-AI MANAGED BLOCK.
  *
  * @param args - Configuration arguments
  * @param args.currentDir - The directory to start searching from (defaults to process.cwd())
@@ -100,7 +82,7 @@ export const getInstallDirs = (args?: {
   const currentDir = args?.currentDir || process.cwd();
   const results: Array<string> = [];
 
-  if (hasManagedBlock(currentDir)) {
+  if (hasAgentInstall(currentDir)) {
     results.push(currentDir);
   }
 
@@ -108,7 +90,7 @@ export const getInstallDirs = (args?: {
   let checkDir = path.dirname(currentDir);
   let previousDir = "";
   while (checkDir !== previousDir) {
-    if (hasManagedBlock(checkDir)) {
+    if (hasAgentInstall(checkDir)) {
       results.push(checkDir);
     }
 

@@ -113,6 +113,14 @@ export class AgentRegistry {
   }
 
   /**
+   * Get all registered agents
+   * @returns Array of all agent implementations
+   */
+  public getAll(): Array<Agent> {
+    return Array.from(this.agents.values());
+  }
+
+  /**
    * List all registered agent names
    * @returns Array of valid agent names
    */

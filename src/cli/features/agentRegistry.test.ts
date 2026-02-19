@@ -69,6 +69,20 @@ describe("AgentRegistry", () => {
     });
   });
 
+  describe("getAll", () => {
+    test("returns the same agents accessible via get()", () => {
+      const registry = AgentRegistry.getInstance();
+      const allAgents = registry.getAll();
+      const agentNames = registry.list();
+
+      expect(allAgents).toHaveLength(agentNames.length);
+      for (const agent of allAgents) {
+        const lookedUp = registry.get({ name: agent.name });
+        expect(lookedUp).toBe(agent);
+      }
+    });
+  });
+
   describe("agent name as UID", () => {
     test("agent.name matches the registry key used to look it up", () => {
       const registry = AgentRegistry.getInstance();
