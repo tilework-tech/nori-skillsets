@@ -46,6 +46,10 @@ export type Agent = {
   displayName: string;
   /** Get the LoaderRegistry for this agent */
   getLoaderRegistry: () => LoaderRegistry;
+  /** Check if this agent is installed at the given directory */
+  isInstalledAtDir: (args: { path: string }) => boolean;
+  /** Mark a directory as having this agent installed */
+  markInstall: (args: { path: string; skillsetName?: string | null }) => void;
   /** Switch to a profile (validates and updates config) */
   switchProfile: (args: {
     installDir: string;

@@ -14,6 +14,8 @@ This `claude-code/` subdirectory implements the Agent interface defined in @/src
 - `getLoaderRegistry()`: Returns the LoaderRegistry singleton with all Claude Code loaders
 - `switchProfile({ installDir, profileName })`: Validates profile exists (handles both flat and namespaced paths via `path.join`), updates config with new profile, logs success message. Imports `MANIFEST_FILE` from @/src/cli/features/managedFolder.ts to identify valid profiles.
 - `factoryReset({ path })`: Delegates to `factoryResetClaudeCode` from @/src/cli/features/claude-code/factoryReset.ts. Discovers and removes all `.claude` directories and `CLAUDE.md` files by walking up the ancestor directory tree from the given path.
+- `isInstalledAtDir({ path })`: Checks for `.claude/.nori-managed` marker file first (new style), then falls back to checking `.claude/CLAUDE.md` for the "NORI-AI MANAGED BLOCK" string (backwards compatibility). Uses synchronous fs operations.
+- `markInstall({ path, skillsetName })`: Creates `.claude/` directory if needed and writes `.claude/.nori-managed` containing the skillset name (or empty string if none). This marker file is the canonical per-directory installation indicator for the claude-code agent.
 
 Profile discovery (`listProfiles()`) is not part of the agent -- it lives in @/src/cli/features/managedFolder.ts as an agent-agnostic utility. CLI commands import it directly.
 
@@ -88,5 +90,7 @@ The `listProfiles()` function in @/src/cli/features/managedFolder.ts discovers b
 **Switch profile**: The switch-nori-profile command updates nori-config.json and re-runs installation to apply the new profile. Most changes require Claude Code restart except CLAUDE.md which applies to new conversations immediately.
 
 **Managed block pattern**: CLAUDE.md uses a managed block pattern allowing users to add custom instructions outside the block without losing them during reinstalls.
+
+**Installation marker (`.claude/.nori-managed`)**: The `.nori-managed` file inside `.claude/` is the canonical marker indicating that the claude-code agent is installed at a directory. Its contents are the active skillset name (or empty if none). This replaces reliance on detecting the "NORI-AI MANAGED BLOCK" string in CLAUDE.md for installation detection. Backwards compatibility is maintained: `isInstalledAtDir` checks both the marker file and the managed block in CLAUDE.md.
 
 Created and maintained by Nori.

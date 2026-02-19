@@ -200,6 +200,34 @@ describe("getInstallDirs", () => {
     });
   });
 
+  describe(".nori-managed marker detection", () => {
+    it("should detect directory with .claude/.nori-managed as installation", () => {
+      const projectDir = path.join(tempDir, "project");
+      const claudeDir = path.join(projectDir, ".claude");
+      fs.mkdirSync(claudeDir, { recursive: true });
+      fs.writeFileSync(path.join(claudeDir, ".nori-managed"), "senior-swe");
+
+      const result = getInstallDirs({ currentDir: projectDir });
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toBe(projectDir);
+    });
+
+    it("should detect ancestor with .claude/.nori-managed marker", () => {
+      const parentDir = path.join(tempDir, "parent");
+      const projectDir = path.join(parentDir, "project");
+      const claudeDir = path.join(parentDir, ".claude");
+      fs.mkdirSync(projectDir, { recursive: true });
+      fs.mkdirSync(claudeDir, { recursive: true });
+      fs.writeFileSync(path.join(claudeDir, ".nori-managed"), "my-profile");
+
+      const result = getInstallDirs({ currentDir: projectDir });
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toBe(parentDir);
+    });
+  });
+
   describe("cwd inside .claude directory", () => {
     it("should find installation in parent when cwd is inside .claude directory", () => {
       // Setup: parent has .nori-config.json, we call from parent/.claude/
@@ -310,6 +338,44 @@ describe("getInstallDirsWithTypes", () => {
       expect(result[0]).toEqual({
         path: projectDir,
         type: "source",
+      });
+    });
+  });
+
+  describe("managed installations (.nori-managed marker)", () => {
+    it("should identify directory with only .nori-managed as managed type", () => {
+      const projectDir = path.join(tempDir, "project");
+      const claudeDir = path.join(projectDir, ".claude");
+      fs.mkdirSync(claudeDir, { recursive: true });
+
+      fs.writeFileSync(path.join(claudeDir, ".nori-managed"), "senior-swe");
+
+      const result = getInstallDirsWithTypes({ currentDir: projectDir });
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toEqual({
+        path: projectDir,
+        type: "managed",
+      });
+    });
+
+    it("should identify directory with .nori-managed and config as both type", () => {
+      const projectDir = path.join(tempDir, "project");
+      const claudeDir = path.join(projectDir, ".claude");
+      fs.mkdirSync(claudeDir, { recursive: true });
+
+      fs.writeFileSync(path.join(claudeDir, ".nori-managed"), "senior-swe");
+      fs.writeFileSync(
+        path.join(projectDir, ".nori-config.json"),
+        JSON.stringify({ profile: { baseProfile: "test" } }),
+      );
+
+      const result = getInstallDirsWithTypes({ currentDir: projectDir });
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toEqual({
+        path: projectDir,
+        type: "both",
       });
     });
   });
