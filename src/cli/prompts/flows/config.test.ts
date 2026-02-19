@@ -18,6 +18,7 @@ vi.mock("@clack/prompts", () => ({
   intro: vi.fn(),
   outro: vi.fn(),
   select: vi.fn(),
+  multiselect: vi.fn(),
   text: vi.fn(),
   spinner: vi.fn(() => ({
     start: vi.fn(),
@@ -45,7 +46,7 @@ describe("configFlow", () => {
 
     mockCallbacks = {
       onLoadConfig: vi.fn().mockResolvedValue({
-        currentAgent: null,
+        currentAgents: null,
         currentInstallDir: null,
       }),
       onResolveAgents: vi
@@ -57,27 +58,27 @@ describe("configFlow", () => {
   });
 
   describe("happy path", () => {
-    it("should return selected agent and install dir", async () => {
-      vi.mocked(clack.select).mockResolvedValueOnce("claude-code");
+    it("should return selected agents array and install dir", async () => {
+      vi.mocked(clack.multiselect).mockResolvedValueOnce(["claude-code"]);
       vi.mocked(clack.text).mockResolvedValueOnce("/home/testuser");
 
       const result = await configFlow({ callbacks: mockCallbacks });
 
       expect(result).toEqual({
-        defaultAgent: "claude-code",
+        defaultAgents: ["claude-code"],
         installDir: "/home/testuser",
       });
     });
 
-    it("should show agent select with available agents", async () => {
-      vi.mocked(clack.select).mockResolvedValueOnce("claude-code");
+    it("should show agent multiselect with available agents", async () => {
+      vi.mocked(clack.multiselect).mockResolvedValueOnce(["claude-code"]);
       vi.mocked(clack.text).mockResolvedValueOnce("/home/testuser");
 
       await configFlow({ callbacks: mockCallbacks });
 
-      expect(clack.select).toHaveBeenCalledTimes(1);
-      const selectCall = vi.mocked(clack.select).mock.calls[0][0];
-      expect(selectCall.options).toEqual(
+      expect(clack.multiselect).toHaveBeenCalledTimes(1);
+      const msCall = vi.mocked(clack.multiselect).mock.calls[0][0];
+      expect(msCall.options).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
             value: "claude-code",
@@ -88,7 +89,7 @@ describe("configFlow", () => {
     });
 
     it("should show text prompt for install dir", async () => {
-      vi.mocked(clack.select).mockResolvedValueOnce("claude-code");
+      vi.mocked(clack.multiselect).mockResolvedValueOnce(["claude-code"]);
       vi.mocked(clack.text).mockResolvedValueOnce("/home/testuser");
 
       await configFlow({ callbacks: mockCallbacks });
@@ -98,26 +99,12 @@ describe("configFlow", () => {
   });
 
   describe("existing config values as defaults", () => {
-    it("should use existing agent as default in select", async () => {
-      vi.mocked(mockCallbacks.onLoadConfig).mockResolvedValueOnce({
-        currentAgent: "claude-code",
-        currentInstallDir: "/custom/path",
-      });
-      vi.mocked(clack.select).mockResolvedValueOnce("claude-code");
-      vi.mocked(clack.text).mockResolvedValueOnce("/custom/path");
-
-      await configFlow({ callbacks: mockCallbacks });
-
-      const selectCall = vi.mocked(clack.select).mock.calls[0][0];
-      expect(selectCall.initialValue).toBe("claude-code");
-    });
-
     it("should use existing install dir as initial value in text", async () => {
       vi.mocked(mockCallbacks.onLoadConfig).mockResolvedValueOnce({
-        currentAgent: "claude-code",
+        currentAgents: ["claude-code"],
         currentInstallDir: "/custom/path",
       });
-      vi.mocked(clack.select).mockResolvedValueOnce("claude-code");
+      vi.mocked(clack.multiselect).mockResolvedValueOnce(["claude-code"]);
       vi.mocked(clack.text).mockResolvedValueOnce("/custom/path");
 
       await configFlow({ callbacks: mockCallbacks });
@@ -128,9 +115,9 @@ describe("configFlow", () => {
   });
 
   describe("cancellation", () => {
-    it("should return null when user cancels at agent select", async () => {
+    it("should return null when user cancels at agent multiselect", async () => {
       const cancelSymbol = Symbol.for("cancel");
-      vi.mocked(clack.select).mockResolvedValueOnce(cancelSymbol as any);
+      vi.mocked(clack.multiselect).mockResolvedValueOnce(cancelSymbol as any);
       vi.mocked(clack.isCancel).mockImplementation(
         (value) => value === cancelSymbol,
       );
@@ -142,7 +129,7 @@ describe("configFlow", () => {
     });
 
     it("should return null when user cancels at install dir text", async () => {
-      vi.mocked(clack.select).mockResolvedValueOnce("claude-code");
+      vi.mocked(clack.multiselect).mockResolvedValueOnce(["claude-code"]);
       const cancelSymbol = Symbol.for("cancel");
       vi.mocked(clack.text).mockResolvedValueOnce(cancelSymbol as any);
       vi.mocked(clack.isCancel).mockImplementation(
@@ -156,14 +143,14 @@ describe("configFlow", () => {
   });
 
   describe("defaults when no existing config", () => {
-    it("should default agent select to claude-code when no current agent", async () => {
-      vi.mocked(clack.select).mockResolvedValueOnce("claude-code");
+    it("should require at least one agent to be selected", async () => {
+      vi.mocked(clack.multiselect).mockResolvedValueOnce(["claude-code"]);
       vi.mocked(clack.text).mockResolvedValueOnce("/home/testuser");
 
       await configFlow({ callbacks: mockCallbacks });
 
-      const selectCall = vi.mocked(clack.select).mock.calls[0][0];
-      expect(selectCall.initialValue).toBe("claude-code");
+      const msCall = vi.mocked(clack.multiselect).mock.calls[0][0];
+      expect(msCall.required).toBe(true);
     });
   });
 });

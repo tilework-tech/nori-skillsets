@@ -2,7 +2,7 @@
  * Config Command
  *
  * Interactive configuration of Nori settings.
- * Sets defaultAgent and installDir in .nori-config.json.
+ * Sets defaultAgents and installDir in .nori-config.json.
  */
 
 import { outro } from "@clack/prompts";
@@ -23,7 +23,7 @@ export const configMain = async (): Promise<void> => {
       onLoadConfig: async () => {
         const config = await loadConfig();
         return {
-          currentAgent: config?.defaultAgent ?? null,
+          currentAgents: config?.defaultAgents ?? null,
           currentInstallDir: config?.installDir ?? null,
         };
       },
@@ -58,7 +58,7 @@ export const configMain = async (): Promise<void> => {
     agents: existingConfig?.agents ?? null,
     version: existingConfig?.version ?? null,
     transcriptDestination: existingConfig?.transcriptDestination ?? null,
-    defaultAgent: result.defaultAgent,
+    defaultAgents: result.defaultAgents,
     installDir: normalizedInstallDir,
   });
 

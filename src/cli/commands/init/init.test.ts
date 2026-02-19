@@ -459,16 +459,16 @@ describe("init command", () => {
   });
 
   describe("default agent usage", () => {
-    it("should respect defaultAgent config when checking for existing installations", async () => {
+    it("should respect defaultAgents config when checking for existing installations", async () => {
       const CONFIG_PATH = getConfigPath();
 
-      // Set defaultAgent in config with claude-code already installed
+      // Set defaultAgents in config with claude-code already installed
       const realClaudeDir = path.join(tempDir, ".claude");
       fs.mkdirSync(realClaudeDir, { recursive: true });
       fs.writeFileSync(path.join(realClaudeDir, ".nori-managed"), "senior-swe");
 
       const existingConfig = {
-        defaultAgent: "claude-code",
+        defaultAgents: ["claude-code"],
         agents: {
           "claude-code": { profile: { baseProfile: "senior-swe" } },
         },

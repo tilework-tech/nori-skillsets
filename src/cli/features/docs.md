@@ -73,7 +73,7 @@ The init command (@/src/cli/commands/init/) uses `getDefaultAgent()` from @/src/
 - Shared loader that manages the `.nori-config.json` file lifecycle (single source of truth for config and version)
 - All agents MUST include this loader in their registry
 - Handles saving/removing config with auth credentials, profile selection, user preferences, and agent tracking (the `agents` object keys indicate which agents are installed)
-- During install: Merges `agents` objects from existing and new config, saves current package version in the `version` field. Preserves existing agent profiles (ensures per-agent profiles set by `switchProfile` survive reinstallation). Also preserves `organizations`, `isAdmin`, `transcriptDestination`, `installDir`, and `defaultAgent` from the existing config. The `installDir` and `defaultAgent` fields use the `existingConfig?.field ?? config.field` pattern so they are only changed via `nori-skillsets config` or on initial setup
+- During install: Merges `agents` objects from existing and new config, saves current package version in the `version` field. Preserves existing agent profiles (ensures per-agent profiles set by `switchProfile` survive reinstallation). Also preserves `organizations`, `isAdmin`, `transcriptDestination`, `installDir`, and `defaultAgents` from the existing config. The `installDir` and `defaultAgents` fields use the `existingConfig?.field ?? config.field` pattern so they are only changed via `nori-skillsets config` or on initial setup
 
 **Managed Folder Utilities** (managedFolder.ts):
 - Agent-agnostic profile discovery extracted from the Agent interface
@@ -104,6 +104,6 @@ Agent implementations manage their own internal paths (config directories, instr
 
 Template substitution utilities are agent-specific. Claude Code (@/src/cli/features/claude-code/template.ts) uses `{{skills_dir}}` and supports common placeholders: `{{profiles_dir}}`, `{{commands_dir}}`, and `{{install_dir}}`.
 
-**Init delegates all agent-specific operations through the default agent.** The init command resolves `config.defaultAgent` at the start using `getDefaultAgent()` and `AgentRegistry.get()`, then uses only that agent's interface methods (`isInstalledAtDir`, `detectExistingConfig`, `captureExistingConfig`, `markInstall`) for all operations. This ensures init remains agent-agnostic while allowing each agent to define its own detection and capture logic.
+**Init delegates all agent-specific operations through the default agent.** The init command resolves the default agent from `config.defaultAgents` at the start using `getDefaultAgent()` and `AgentRegistry.get()`, then uses only that agent's interface methods (`isInstalledAtDir`, `detectExistingConfig`, `captureExistingConfig`, `markInstall`) for all operations. This ensures init remains agent-agnostic while allowing each agent to define its own detection and capture logic.
 
 Created and maintained by Nori.

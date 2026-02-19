@@ -15,6 +15,7 @@ import {
   validateConfig,
   getInstalledAgents,
   getDefaultAgent,
+  getDefaultAgents,
   type Config,
 } from "./config.js";
 
@@ -961,13 +962,13 @@ describe("transcriptDestination config", () => {
   });
 });
 
-describe("defaultAgent config", () => {
+describe("defaultAgents config", () => {
   let tempDir: string;
   let mockConfigPath: string;
 
   beforeEach(async () => {
     tempDir = await fs.mkdtemp(
-      path.join(os.tmpdir(), "config-default-agent-test-"),
+      path.join(os.tmpdir(), "config-default-agents-test-"),
     );
     mockConfigPath = path.join(tempDir, ".nori-config.json");
     vi.mocked(os.homedir).mockReturnValue(tempDir);
@@ -978,21 +979,21 @@ describe("defaultAgent config", () => {
     vi.clearAllMocks();
   });
 
-  it("should save and load defaultAgent", async () => {
+  it("should save and load defaultAgents array", async () => {
     await saveConfig({
       username: null,
       organizationUrl: null,
       installDir: tempDir,
-      defaultAgent: "claude-code",
+      defaultAgents: ["claude-code"],
       agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
     });
 
     const loaded = await loadConfig();
 
-    expect(loaded?.defaultAgent).toBe("claude-code");
+    expect(loaded?.defaultAgents).toEqual(["claude-code"]);
   });
 
-  it("should return undefined defaultAgent when field is absent", async () => {
+  it("should return undefined defaultAgents when field is absent", async () => {
     await fs.writeFile(
       mockConfigPath,
       JSON.stringify({
@@ -1002,22 +1003,37 @@ describe("defaultAgent config", () => {
 
     const loaded = await loadConfig();
 
-    expect(loaded?.defaultAgent).toBeUndefined();
+    expect(loaded?.defaultAgents).toBeUndefined();
   });
 
-  it("should persist defaultAgent to disk", async () => {
+  it("should persist defaultAgents array to disk", async () => {
     await saveConfig({
       username: null,
       organizationUrl: null,
       installDir: tempDir,
-      defaultAgent: "claude-code",
+      defaultAgents: ["claude-code"],
       agents: { "claude-code": {} },
     });
 
     const content = await fs.readFile(mockConfigPath, "utf-8");
     const config = JSON.parse(content);
 
-    expect(config.defaultAgent).toBe("claude-code");
+    expect(config.defaultAgents).toEqual(["claude-code"]);
+  });
+
+  it("should not write defaultAgent (singular) to disk", async () => {
+    await saveConfig({
+      username: null,
+      organizationUrl: null,
+      installDir: tempDir,
+      defaultAgents: ["claude-code"],
+      agents: { "claude-code": {} },
+    });
+
+    const content = await fs.readFile(mockConfigPath, "utf-8");
+    const config = JSON.parse(content);
+
+    expect(config.defaultAgent).toBeUndefined();
   });
 });
 
@@ -1025,7 +1041,7 @@ describe("getDefaultAgent", () => {
   it("should return agentOverride when provided", () => {
     const config: Config = {
       installDir: "/test",
-      defaultAgent: "claude-code",
+      defaultAgents: ["claude-code"],
       agents: {
         "claude-code": { profile: { baseProfile: "senior-swe" } },
       },
@@ -1039,10 +1055,10 @@ describe("getDefaultAgent", () => {
     expect(result).toBe("some-other-agent");
   });
 
-  it("should return defaultAgent from config when no override provided", () => {
+  it("should return first defaultAgents entry from config when no override provided", () => {
     const config: Config = {
       installDir: "/test",
-      defaultAgent: "claude-code",
+      defaultAgents: ["claude-code"],
       agents: {
         "claude-code": { profile: { baseProfile: "senior-swe" } },
       },
@@ -1053,7 +1069,7 @@ describe("getDefaultAgent", () => {
     expect(result).toBe("claude-code");
   });
 
-  it("should fall back to first installed agent when defaultAgent is not set", () => {
+  it("should fall back to first installed agent when defaultAgents is not set", () => {
     const config: Config = {
       installDir: "/test",
       agents: {
@@ -1066,7 +1082,7 @@ describe("getDefaultAgent", () => {
     expect(result).toBe("claude-code");
   });
 
-  it("should fall back to claude-code when both defaultAgent and agents are absent", () => {
+  it("should fall back to claude-code when both defaultAgents and agents are absent", () => {
     const config: Config = {
       installDir: "/test",
     };
@@ -1079,7 +1095,7 @@ describe("getDefaultAgent", () => {
   it("should ignore empty string override", () => {
     const config: Config = {
       installDir: "/test",
-      defaultAgent: "claude-code",
+      defaultAgents: ["claude-code"],
     };
 
     const result = getDefaultAgent({ config, agentOverride: "" });
@@ -1090,26 +1106,12 @@ describe("getDefaultAgent", () => {
   it("should ignore null override", () => {
     const config: Config = {
       installDir: "/test",
-      defaultAgent: "claude-code",
+      defaultAgents: ["claude-code"],
     };
 
     const result = getDefaultAgent({ config, agentOverride: null });
 
     expect(result).toBe("claude-code");
-  });
-
-  it("should prefer defaultAgent over first installed agent", () => {
-    const config: Config = {
-      installDir: "/test",
-      defaultAgent: "preferred-agent",
-      agents: {
-        "claude-code": { profile: { baseProfile: "senior-swe" } },
-      },
-    };
-
-    const result = getDefaultAgent({ config });
-
-    expect(result).toBe("preferred-agent");
   });
 
   it("should return claude-code when config is null", () => {
@@ -1125,6 +1127,63 @@ describe("getDefaultAgent", () => {
     });
 
     expect(result).toBe("my-agent");
+  });
+});
+
+describe("getDefaultAgents", () => {
+  it("should return defaultAgents array from config", () => {
+    const config: Config = {
+      installDir: "/test",
+      defaultAgents: ["claude-code"],
+    };
+
+    const result = getDefaultAgents({ config });
+
+    expect(result).toEqual(["claude-code"]);
+  });
+
+  it("should return agentOverride as single-element array when provided", () => {
+    const config: Config = {
+      installDir: "/test",
+      defaultAgents: ["claude-code"],
+    };
+
+    const result = getDefaultAgents({ config, agentOverride: "other-agent" });
+
+    expect(result).toEqual(["other-agent"]);
+  });
+
+  it("should fall back to installed agents when defaultAgents is not set", () => {
+    const config: Config = {
+      installDir: "/test",
+      agents: {
+        "claude-code": { profile: { baseProfile: "senior-swe" } },
+      },
+    };
+
+    const result = getDefaultAgents({ config });
+
+    expect(result).toEqual(["claude-code"]);
+  });
+
+  it("should fall back to claude-code when no config at all", () => {
+    const result = getDefaultAgents({ config: null });
+
+    expect(result).toEqual(["claude-code"]);
+  });
+
+  it("should ignore empty defaultAgents array and fall back", () => {
+    const config: Config = {
+      installDir: "/test",
+      defaultAgents: [],
+      agents: {
+        "claude-code": { profile: { baseProfile: "senior-swe" } },
+      },
+    };
+
+    const result = getDefaultAgents({ config });
+
+    expect(result).toEqual(["claude-code"]);
   });
 });
 

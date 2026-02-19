@@ -339,14 +339,14 @@ describe("configLoader", () => {
       expect(fileContents.installDir).toBe("/user/configured/path");
     });
 
-    it("should preserve existing defaultAgent from config instead of overwriting", async () => {
-      // Create existing config with a user-configured defaultAgent
+    it("should preserve existing defaultAgents from config instead of overwriting", async () => {
+      // Create existing config with a user-configured defaultAgents
       const configFile = getConfigPath();
       fs.writeFileSync(
         configFile,
         JSON.stringify({
           installDir: tempDir,
-          defaultAgent: "claude-code",
+          defaultAgents: ["claude-code"],
           agents: {
             "claude-code": { profile: { baseProfile: "senior-swe" } },
           },
@@ -354,7 +354,7 @@ describe("configLoader", () => {
         "utf-8",
       );
 
-      // Run configLoader with config that doesn't set defaultAgent
+      // Run configLoader with config that doesn't set defaultAgents
       const config: Config = {
         installDir: tempDir,
         agents: {
@@ -365,8 +365,8 @@ describe("configLoader", () => {
       await configLoader.run({ config });
 
       const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
-      // defaultAgent should be preserved from existing config
-      expect(fileContents.defaultAgent).toBe("claude-code");
+      // defaultAgents should be preserved from existing config
+      expect(fileContents.defaultAgents).toEqual(["claude-code"]);
     });
 
     it("should use incoming installDir when no existing config exists", async () => {

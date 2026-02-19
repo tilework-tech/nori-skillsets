@@ -544,7 +544,7 @@ export const watchMain = async (args?: {
   const _background = args?._background ?? false;
   const setDestination = args?.setDestination ?? false;
 
-  // Resolve agent from config defaultAgent, with --agent as override
+  // Resolve agent from config defaultAgents, with --agent as override
   const agentOverride = args?.agent ?? null;
   const resolvedConfig = await loadConfig();
   const agent = getDefaultAgent({ config: resolvedConfig, agentOverride });

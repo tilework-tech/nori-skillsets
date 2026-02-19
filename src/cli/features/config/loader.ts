@@ -117,10 +117,10 @@ const installConfig = async (args: { config: Config }): Promise<void> => {
     existingConfig?.transcriptDestination ??
     null;
 
-  // Preserve installDir and defaultAgent from existing config if set
+  // Preserve installDir and defaultAgents from existing config if set
   // These are user-configured settings that should only be changed via `nori-skillsets config`
   const installDir = existingConfig?.installDir ?? config.installDir;
-  const defaultAgent = existingConfig?.defaultAgent ?? null;
+  const defaultAgents = existingConfig?.defaultAgents ?? null;
 
   // Save config to disk with refresh token (not password)
   // This ensures we never store passwords, only secure tokens
@@ -134,7 +134,7 @@ const installConfig = async (args: { config: Config }): Promise<void> => {
     sendSessionTranscript,
     autoupdate: existingConfig?.autoupdate,
     version: currentVersion,
-    defaultAgent,
+    defaultAgents,
     transcriptDestination,
     installDir,
   });

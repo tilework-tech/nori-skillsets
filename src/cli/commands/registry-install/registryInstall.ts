@@ -116,7 +116,7 @@ export const registryInstallMain = async (
 
   const profileName = parsePackageName({ packageSpec });
 
-  // Resolve agent name from config defaultAgent, with --agent as override
+  // Resolve agent name from config defaultAgents, with --agent as override
   const config = await loadConfig();
   const agentName = getDefaultAgent({ config, agentOverride: agent });
 

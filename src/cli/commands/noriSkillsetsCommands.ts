@@ -484,34 +484,22 @@ export const registerNoriSkillsetsListSkillsetsCommand = (args: {
     .command("list")
     .description("List locally available skillsets (one per line)")
     .action(async () => {
-      const globalOpts = program.opts();
-      await listSkillsetsMain({
-        agent: globalOpts.agent || null,
-      });
+      await listSkillsetsMain();
     });
 
   // Hidden alias: list-skillsets (long form, plural)
   program.command("list-skillsets", { hidden: true }).action(async () => {
-    const globalOpts = program.opts();
-    await listSkillsetsMain({
-      agent: globalOpts.agent || null,
-    });
+    await listSkillsetsMain();
   });
 
   // Hidden alias: list-skillset (long form, singular)
   program.command("list-skillset", { hidden: true }).action(async () => {
-    const globalOpts = program.opts();
-    await listSkillsetsMain({
-      agent: globalOpts.agent || null,
-    });
+    await listSkillsetsMain();
   });
 
   // Hidden alias: ls (Unix convention)
   program.command("ls", { hidden: true }).action(async () => {
-    const globalOpts = program.opts();
-    await listSkillsetsMain({
-      agent: globalOpts.agent || null,
-    });
+    await listSkillsetsMain();
   });
 };
 
