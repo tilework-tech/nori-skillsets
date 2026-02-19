@@ -7,10 +7,18 @@ import * as fsSync from "fs";
 import * as fs from "fs/promises";
 import * as path from "path";
 
-import { loadConfig, saveConfig } from "@/cli/config.js";
+import {
+  detectExistingConfig,
+  captureExistingConfigAsProfile,
+} from "@/cli/commands/install/existingConfigCapture.js";
+import { loadConfig, saveConfig, type Config } from "@/cli/config.js";
 import { factoryResetClaudeCode } from "@/cli/features/claude-code/factoryReset.js";
 import { LoaderRegistry } from "@/cli/features/claude-code/loaderRegistry.js";
-import { getNoriProfilesDir } from "@/cli/features/claude-code/paths.js";
+import {
+  getClaudeMdFile,
+  getNoriProfilesDir,
+} from "@/cli/features/claude-code/paths.js";
+import { claudeMdLoader } from "@/cli/features/claude-code/profiles/claudemd/loader.js";
 import { ensureNoriJson } from "@/cli/features/claude-code/profiles/metadata.js";
 import { MANIFEST_FILE } from "@/cli/features/managedFolder.js";
 import { success, info } from "@/cli/logger.js";
@@ -60,6 +68,32 @@ export const claudeCodeAgent: Agent = {
     fsSync.mkdirSync(claudeDir, { recursive: true });
     const markerPath = path.join(claudeDir, ".nori-managed");
     fsSync.writeFileSync(markerPath, args.skillsetName ?? "", "utf-8");
+  },
+
+  detectExistingConfig: async (args: { installDir: string }) => {
+    return detectExistingConfig({ installDir: args.installDir });
+  },
+
+  captureExistingConfig: async (args: {
+    installDir: string;
+    profileName: string;
+    config: Config;
+  }) => {
+    const { installDir, profileName, config } = args;
+
+    // Capture the existing config as a named profile
+    await captureExistingConfigAsProfile({ installDir, profileName });
+
+    // Clear original CLAUDE.md to prevent content duplication
+    const claudeMdPath = getClaudeMdFile({ installDir });
+    try {
+      await fs.unlink(claudeMdPath);
+    } catch {
+      // File may not exist, which is fine
+    }
+
+    // Install the managed CLAUDE.md block so the user isn't left without config
+    await claudeMdLoader.install({ config });
   },
 
   switchProfile: async (args: {

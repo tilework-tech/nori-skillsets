@@ -8,6 +8,7 @@
 import * as fs from "fs/promises";
 import * as path from "path";
 
+import { type ExistingConfig } from "@/cli/features/agentRegistry.js";
 import {
   getClaudeDir,
   getClaudeMdFile,
@@ -16,23 +17,12 @@ import {
   getClaudeCommandsDir,
   getNoriProfilesDir,
 } from "@/cli/features/claude-code/paths.js";
+
+export type { ExistingConfig };
+
 // Managed block markers
 const BEGIN_MARKER = "# BEGIN NORI-AI MANAGED BLOCK";
 const END_MARKER = "# END NORI-AI MANAGED BLOCK";
-
-/**
- * Represents the detected existing configuration
- */
-export type ExistingConfig = {
-  hasClaudeMd: boolean;
-  hasManagedBlock: boolean;
-  hasSkills: boolean;
-  skillCount: number;
-  hasAgents: boolean;
-  agentCount: number;
-  hasCommands: boolean;
-  commandCount: number;
-};
 
 /**
  * Check if a file exists

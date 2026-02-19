@@ -144,6 +144,142 @@ describe("AgentRegistry", () => {
     });
   });
 
+  describe("claude-code agent detectExistingConfig", () => {
+    let testInstallDir: string;
+
+    beforeEach(async () => {
+      testInstallDir = await fs.mkdtemp(
+        path.join(tmpdir(), "agent-detect-test-"),
+      );
+    });
+
+    afterEach(async () => {
+      if (testInstallDir) {
+        await fs.rm(testInstallDir, { recursive: true, force: true });
+      }
+    });
+
+    test("detects unmanaged config when it exists", async () => {
+      const registry = AgentRegistry.getInstance();
+      const agent = registry.get({ name: "claude-code" });
+
+      // Create .claude dir with unmanaged CLAUDE.md
+      const claudeDir = path.join(testInstallDir, ".claude");
+      await fs.mkdir(claudeDir, { recursive: true });
+      await fs.writeFile(
+        path.join(claudeDir, "CLAUDE.md"),
+        "# My custom config",
+      );
+
+      const result = await agent.detectExistingConfig!({
+        installDir: testInstallDir,
+      });
+
+      expect(result).not.toBeNull();
+    });
+
+    test("returns null when no config exists", async () => {
+      const registry = AgentRegistry.getInstance();
+      const agent = registry.get({ name: "claude-code" });
+
+      const result = await agent.detectExistingConfig!({
+        installDir: testInstallDir,
+      });
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe("claude-code agent captureExistingConfig", () => {
+    let testInstallDir: string;
+
+    beforeEach(async () => {
+      testInstallDir = await fs.mkdtemp(
+        path.join(tmpdir(), "agent-capture-test-"),
+      );
+      vi.mocked(os.homedir).mockReturnValue(testInstallDir);
+    });
+
+    afterEach(async () => {
+      vi.restoreAllMocks();
+      if (testInstallDir) {
+        await fs.rm(testInstallDir, { recursive: true, force: true });
+      }
+    });
+
+    test("captures existing config as a profile that can be switched to", async () => {
+      const registry = AgentRegistry.getInstance();
+      const agent = registry.get({ name: "claude-code" });
+
+      // Create .claude dir with existing config
+      const claudeDir = path.join(testInstallDir, ".claude");
+      await fs.mkdir(claudeDir, { recursive: true });
+      await fs.writeFile(
+        path.join(claudeDir, "CLAUDE.md"),
+        "# My custom config",
+      );
+
+      // Create profiles directory
+      const profilesDir = path.join(testInstallDir, ".nori", "profiles");
+      await fs.mkdir(profilesDir, { recursive: true });
+
+      const config = {
+        installDir: testInstallDir,
+        agents: {
+          "claude-code": { profile: { baseProfile: "captured-profile" } },
+        },
+      };
+
+      await agent.captureExistingConfig!({
+        installDir: testInstallDir,
+        profileName: "captured-profile",
+        config,
+      });
+
+      // Verify the captured profile is usable: switchProfile should not throw
+      // (it validates the profile exists and has a nori.json)
+      await expect(
+        agent.switchProfile({
+          installDir: testInstallDir,
+          profileName: "captured-profile",
+        }),
+      ).resolves.not.toThrow();
+    });
+
+    test("removes original config file after capture", async () => {
+      const registry = AgentRegistry.getInstance();
+      const agent = registry.get({ name: "claude-code" });
+
+      // Create .claude dir with existing config
+      const claudeDir = path.join(testInstallDir, ".claude");
+      await fs.mkdir(claudeDir, { recursive: true });
+      const originalClaudeMd = path.join(claudeDir, "CLAUDE.md");
+      await fs.writeFile(originalClaudeMd, "# My custom config");
+
+      // Create profiles directory
+      const profilesDir = path.join(testInstallDir, ".nori", "profiles");
+      await fs.mkdir(profilesDir, { recursive: true });
+
+      const config = {
+        installDir: testInstallDir,
+        agents: {
+          "claude-code": { profile: { baseProfile: "captured-profile" } },
+        },
+      };
+
+      await agent.captureExistingConfig!({
+        installDir: testInstallDir,
+        profileName: "captured-profile",
+        config,
+      });
+
+      // Original CLAUDE.md should be gone (replaced by managed version)
+      // The managed version will have the managed block markers
+      const resultContent = await fs.readFile(originalClaudeMd, "utf-8");
+      expect(resultContent).toContain("BEGIN NORI-AI MANAGED BLOCK");
+    });
+  });
+
   describe("claude-code agent switchProfile", () => {
     let testInstallDir: string;
 
