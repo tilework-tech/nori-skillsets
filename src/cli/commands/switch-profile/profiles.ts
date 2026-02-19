@@ -5,7 +5,6 @@
 
 import { log } from "@clack/prompts";
 
-import { captureExistingConfigAsProfile } from "@/cli/commands/install/existingConfigCapture.js";
 import {
   loadConfig,
   getAgentProfile,
@@ -140,9 +139,23 @@ export const switchSkillsetAction = async (args: {
           return { currentProfile, localChanges };
         },
         onCaptureConfig: async ({ installDir: dir, profileName: pName }) => {
-          await captureExistingConfigAsProfile({
+          const captureConfig = await loadConfig();
+          const captureAgentName = getDefaultAgent({ config: captureConfig });
+          const captureAgent = AgentRegistry.getInstance().get({
+            name: captureAgentName,
+          });
+          const config = {
+            installDir: dir,
+            agents: {
+              [captureAgentName]: {
+                profile: { baseProfile: pName },
+              },
+            },
+          };
+          await captureAgent.captureExistingConfig?.({
             installDir: dir,
             profileName: pName,
+            config,
           });
         },
         onExecuteSwitch: async ({

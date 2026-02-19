@@ -458,6 +458,45 @@ describe("init command", () => {
     });
   });
 
+  describe("default agent usage", () => {
+    it("should respect defaultAgent config when checking for existing installations", async () => {
+      const CONFIG_PATH = getConfigPath();
+
+      // Set defaultAgent in config with claude-code already installed
+      const realClaudeDir = path.join(tempDir, ".claude");
+      fs.mkdirSync(realClaudeDir, { recursive: true });
+      fs.writeFileSync(path.join(realClaudeDir, ".nori-managed"), "senior-swe");
+
+      const existingConfig = {
+        defaultAgent: "claude-code",
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
+        auth: {
+          username: "test@example.com",
+          organizationUrl: "https://example.tilework.tech",
+        },
+        installDir: tempDir,
+      };
+      fs.writeFileSync(CONFIG_PATH, JSON.stringify(existingConfig, null, 2));
+
+      // Create unmanaged config that would trigger capture if detection ran
+      fs.writeFileSync(
+        path.join(TEST_CLAUDE_DIR, "CLAUDE.md"),
+        "# My Custom Config",
+      );
+
+      await initMain({ installDir: tempDir, nonInteractive: true });
+
+      // Since default agent is already installed, no capture should happen
+      // and existing profile should be preserved
+      const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
+      expect(config.agents["claude-code"].profile.baseProfile).toBe(
+        "senior-swe",
+      );
+    });
+  });
+
   describe("registerInitCommand", () => {
     it("should register init command with commander", async () => {
       const { Command } = await import("commander");

@@ -16,16 +16,13 @@ import * as fs from "fs/promises";
 import { log, note } from "@clack/prompts";
 
 import {
-  detectExistingConfig,
-  captureExistingConfigAsProfile,
-} from "@/cli/commands/install/existingConfigCapture.js";
-import { loadConfig, saveConfig, type Config } from "@/cli/config.js";
+  loadConfig,
+  saveConfig,
+  getDefaultAgent,
+  type Config,
+} from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
-import {
-  getClaudeMdFile,
-  getNoriProfilesDir,
-} from "@/cli/features/claude-code/paths.js";
-import { claudeMdLoader } from "@/cli/features/claude-code/profiles/claudemd/loader.js";
+import { getNoriProfilesDir } from "@/cli/features/claude-code/paths.js";
 import { bold, yellow } from "@/cli/logger.js";
 import { initFlow } from "@/cli/prompts/flows/init.js";
 import { getCurrentPackageVersion } from "@/cli/version.js";
@@ -65,6 +62,13 @@ export const initMain = async (args?: {
   const { installDir, nonInteractive, skipWarning } = args ?? {};
   const normalizedInstallDir = normalizeInstallDir({ installDir });
 
+  // Resolve the default agent for all agent-specific operations
+  const existingConfigForAgent = await loadConfig();
+  const defaultAgentName = getDefaultAgent({ config: existingConfigForAgent });
+  const defaultAgent = AgentRegistry.getInstance().get({
+    name: defaultAgentName,
+  });
+
   // Interactive flow
   if (!nonInteractive) {
     await initFlow({
@@ -78,28 +82,30 @@ export const initMain = async (args?: {
           return allInstallations.filter((installPath) => installPath !== dir);
         },
         onDetectExistingConfig: async ({ installDir: dir }) => {
-          // Use getHomeDir() since init is home-directory-based
           const existingConfig = await loadConfig();
           if (existingConfig != null) return null;
-          // Skip detection if any agent is already installed at this location
-          const anyInstalled = AgentRegistry.getInstance()
-            .getAll()
-            .some((agent) => agent.isInstalledAtDir({ path: dir }));
-          if (anyInstalled) return null;
-          return detectExistingConfig({ installDir: dir });
+          // Skip detection if default agent is already installed at this location
+          if (defaultAgent.isInstalledAtDir({ path: dir })) return null;
+          return (
+            (await defaultAgent.detectExistingConfig?.({ installDir: dir })) ??
+            null
+          );
         },
         onCaptureConfig: async ({ installDir: dir, profileName }) => {
-          await captureExistingConfigAsProfile({
+          // Build a config object for the agent to use when restoring managed config
+          const config: Config = {
+            installDir: dir,
+            agents: {
+              [defaultAgent.name]: {
+                profile: { baseProfile: profileName },
+              },
+            },
+          };
+          await defaultAgent.captureExistingConfig?.({
             installDir: dir,
             profileName,
+            config,
           });
-          // Clear original CLAUDE.md to prevent content duplication
-          const claudeMdPath = getClaudeMdFile({ installDir: dir });
-          try {
-            await fs.unlink(claudeMdPath);
-          } catch {
-            // File may not exist, which is fine
-          }
         },
         onInit: async ({ installDir: dir, capturedProfileName }) => {
           // Create ~/.nori/profiles/ directory
@@ -124,7 +130,7 @@ export const initMain = async (args?: {
           if (capturedProfileName != null) {
             agents = {
               ...agents,
-              "claude-code": {
+              [defaultAgent.name]: {
                 profile: { baseProfile: capturedProfileName },
               },
             };
@@ -142,18 +148,11 @@ export const initMain = async (args?: {
             installDir: dir,
           });
 
-          if (capturedProfileName != null) {
-            const config: Config = { installDir: dir, agents };
-            await claudeMdLoader.install({ config });
-          }
-
-          // Mark this directory as having agents installed
-          for (const agent of AgentRegistry.getInstance().getAll()) {
-            agent.markInstall({
-              path: dir,
-              skillsetName: capturedProfileName,
-            });
-          }
+          // Mark this directory as having the default agent installed
+          defaultAgent.markInstall({
+            path: dir,
+            skillsetName: capturedProfileName,
+          });
         },
       },
     });
@@ -189,49 +188,27 @@ export const initMain = async (args?: {
     await fs.mkdir(profilesDir, { recursive: true });
   }
 
-  // Load existing config (if any) - use getHomeDir() since init is home-directory-based
+  // Load existing config (if any)
   const existingConfig = await loadConfig();
   const currentVersion = getCurrentPackageVersion();
 
   // Track captured profile name for setting in config
   let capturedProfileName: string | null = null;
 
-  // If no existing config and agent not already installed, check for existing Claude Code configuration to capture
+  // If no existing config and default agent not already installed, check for existing configuration to capture
   if (
     existingConfig == null &&
-    !AgentRegistry.getInstance()
-      .getAll()
-      .some((agent) => agent.isInstalledAtDir({ path: normalizedInstallDir }))
+    !defaultAgent.isInstalledAtDir({ path: normalizedInstallDir })
   ) {
-    const detectedConfig = await detectExistingConfig({
+    const detectedConfig = await defaultAgent.detectExistingConfig?.({
       installDir: normalizedInstallDir,
     });
     if (detectedConfig != null) {
-      // Non-interactive mode: auto-capture as "my-profile"
       capturedProfileName = "my-profile";
-      await captureExistingConfigAsProfile({
-        installDir: normalizedInstallDir,
-        profileName: capturedProfileName,
-      });
-      log.success(`Configuration saved as skillset "${capturedProfileName}"`);
-
-      // Clear the original CLAUDE.md to prevent content duplication when the
-      // managed block is installed. The content has already been captured to
-      // the profile, so we delete it here before claudeMdLoader.install runs.
-      const claudeMdPath = getClaudeMdFile({
-        installDir: normalizedInstallDir,
-      });
-      try {
-        await fs.unlink(claudeMdPath);
-      } catch {
-        // File may not exist, which is fine
-      }
     }
   }
 
   // Create or update config
-  // If existing config, preserve all fields and update version
-  // If new config, create minimal structure
   const username = existingConfig?.auth?.username ?? null;
   const password = existingConfig?.auth?.password ?? null;
   const refreshToken = existingConfig?.auth?.refreshToken ?? null;
@@ -243,12 +220,14 @@ export const initMain = async (args?: {
   const transcriptDestination = existingConfig?.transcriptDestination ?? null;
   const version = currentVersion ?? null;
 
-  // Set agents - if a profile was captured, set it as the active profile for claude-code
+  // Set agents - if a profile was captured, set it as the active profile for the default agent
   let agents = existingConfig?.agents ?? {};
   if (capturedProfileName != null) {
     agents = {
       ...agents,
-      "claude-code": { profile: { baseProfile: capturedProfileName } },
+      [defaultAgent.name]: {
+        profile: { baseProfile: capturedProfileName },
+      },
     };
   }
 
@@ -268,22 +247,25 @@ export const initMain = async (args?: {
     installDir: normalizedInstallDir,
   });
 
-  // If a profile was captured, install the managed block to CLAUDE.md
+  // If a profile was captured, capture config and install managed block
   if (capturedProfileName != null) {
     const config: Config = {
       installDir: normalizedInstallDir,
       agents,
     };
-    await claudeMdLoader.install({ config });
+    await defaultAgent.captureExistingConfig?.({
+      installDir: normalizedInstallDir,
+      profileName: capturedProfileName,
+      config,
+    });
+    log.success(`Configuration saved as skillset "${capturedProfileName}"`);
   }
 
-  // Mark this directory as having agents installed
-  for (const agent of AgentRegistry.getInstance().getAll()) {
-    agent.markInstall({
-      path: normalizedInstallDir,
-      skillsetName: capturedProfileName,
-    });
-  }
+  // Mark this directory as having the default agent installed
+  defaultAgent.markInstall({
+    path: normalizedInstallDir,
+    skillsetName: capturedProfileName,
+  });
 };
 
 /**
