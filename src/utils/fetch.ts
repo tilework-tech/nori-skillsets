@@ -59,6 +59,7 @@ export type SkillConflictInfo = {
   owner?: string | null;
   availableActions: Array<SkillResolutionAction>;
   contentUnchanged?: boolean | null;
+  existingSkillMd?: string | null;
 };
 
 /**

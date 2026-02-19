@@ -609,6 +609,19 @@ export const registryUploadMain = async (args: {
           uploadVersion,
         });
       },
+      onReadLocalSkillMd: async ({ skillId }) => {
+        const skillMdPath = path.join(
+          profileDir,
+          "skills",
+          skillId,
+          "SKILL.md",
+        );
+        try {
+          return await fs.readFile(skillMdPath, "utf-8");
+        } catch {
+          return null;
+        }
+      },
     },
   });
 
