@@ -16,7 +16,7 @@ Path: @/src/cli/commands/init
 - Config persistence uses `loadConfig()` / `saveConfig()` from @/src/cli/config.js, always scoped to the home directory via `getHomeDir()`
 - Existing config capture delegates to `detectExistingConfig()` and `captureExistingConfigAsProfile()` from @/src/cli/commands/install/existingConfigCapture.js
 - Ancestor installation detection uses `getInstallDirsWithTypes()` from @/src/utils/path.js
-- After capturing a profile, installs the managed CLAUDE.md block via `claudeMdLoader.install()` from @/src/cli/features/claude-code/profiles/claudemd/loader.js
+- After capturing a profile, loads the captured profile into a `SkillsetPackage` via `loadSkillsetPackage()` from @/src/norijson/packageStructure.js, then installs the managed CLAUDE.md block via `claudeMdLoader.install({ config, pkg })` from @/src/cli/features/claude-code/profiles/claudemd/loader.js
 
 ### Core Implementation
 

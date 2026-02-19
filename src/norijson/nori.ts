@@ -53,3 +53,10 @@ export type NoriJson = {
   registryURL?: string | null;
   [key: string]: unknown; // Allow additional fields
 };
+
+export type {
+  SkillEntry,
+  MdFileEntry,
+  SkillsetPackage,
+} from "@/norijson/packageStructure.js";
+export { loadSkillsetPackage } from "@/norijson/packageStructure.js";

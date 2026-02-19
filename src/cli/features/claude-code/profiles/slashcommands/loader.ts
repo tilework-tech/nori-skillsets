@@ -5,61 +5,31 @@
 
 import * as fs from "fs/promises";
 import * as path from "path";
-import { fileURLToPath } from "url";
 
-import { getAgentProfile, type Config } from "@/cli/config.js";
 import {
   getClaudeDir,
   getClaudeCommandsDir,
-  getNoriDir,
 } from "@/cli/features/claude-code/paths.js";
 import { substituteTemplatePaths } from "@/cli/features/claude-code/template.js";
-import { success, info, warn } from "@/cli/logger.js";
+import { success, info } from "@/cli/logger.js";
 
+import type { Config } from "@/cli/config.js";
 import type { ProfileLoader } from "@/cli/features/claude-code/profiles/profileLoaderRegistry.js";
-
-// Get directory of this loader file
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-/**
- * Get config directory for slash commands based on selected profile
- *
- * @param args - Configuration arguments
- * @param args.profileName - Name of the profile to load slash commands from
- *
- * @returns Path to the slashcommands config directory for the profile
- */
-const getConfigDir = (args: { profileName: string }): string => {
-  const { profileName } = args;
-  const noriDir = getNoriDir();
-  return path.join(noriDir, "profiles", profileName, "slashcommands");
-};
+import type { SkillsetPackage } from "@/norijson/packageStructure.js";
 
 /**
  * Register all slash commands
  * @param args - Configuration arguments
  * @param args.config - Runtime configuration
+ * @param args.pkg - The loaded skillset package
  */
 const registerSlashCommands = async (args: {
   config: Config;
+  pkg: SkillsetPackage;
 }): Promise<void> => {
-  const { config } = args;
+  const { config, pkg } = args;
   info({ message: "Registering Nori slash commands..." });
 
-  // Get profile name from config - error if not configured
-  const profileName = getAgentProfile({
-    config,
-    agentName: "claude-code",
-  })?.baseProfile;
-  if (profileName == null) {
-    throw new Error(
-      "No profile configured for claude-code. Run 'nori-skillsets init' to configure a profile.",
-    );
-  }
-  const configDir = getConfigDir({
-    profileName,
-  });
   const claudeCommandsDir = getClaudeCommandsDir({
     installDir: config.installDir,
   });
@@ -69,43 +39,18 @@ const registerSlashCommands = async (args: {
   await fs.mkdir(claudeCommandsDir, { recursive: true });
 
   let registeredCount = 0;
-  let skippedCount = 0;
 
-  // Read all .md files from the profile's slashcommands directory
-  let files: Array<string>;
-  try {
-    files = await fs.readdir(configDir);
-  } catch {
-    info({ message: "Profile slashcommands directory not found, skipping" });
-    return;
-  }
-  const mdFiles = files.filter(
-    (file) => file.endsWith(".md") && file !== "docs.md",
-  );
-
-  for (const file of mdFiles) {
-    const commandSrc = path.join(configDir, file);
-    const commandDest = path.join(claudeCommandsDir, file);
-
-    try {
-      await fs.access(commandSrc);
-      // Read content and apply template substitution for markdown files
-      const content = await fs.readFile(commandSrc, "utf-8");
-      const claudeDir = getClaudeDir({ installDir: config.installDir });
-      const substituted = substituteTemplatePaths({
-        content,
-        installDir: claudeDir,
-      });
-      await fs.writeFile(commandDest, substituted);
-      const commandName = file.replace(/\.md$/, "");
-      success({ message: `✓ /${commandName} slash command registered` });
-      registeredCount++;
-    } catch {
-      warn({
-        message: `Slash command definition not found at ${commandSrc}, skipping`,
-      });
-      skippedCount++;
-    }
+  for (const entry of pkg.slashcommands) {
+    const commandDest = path.join(claudeCommandsDir, entry.filename);
+    const claudeDir = getClaudeDir({ installDir: config.installDir });
+    const substituted = substituteTemplatePaths({
+      content: entry.content,
+      installDir: claudeDir,
+    });
+    await fs.writeFile(commandDest, substituted);
+    const commandName = entry.filename.replace(/\.md$/, "");
+    success({ message: `✓ /${commandName} slash command registered` });
+    registeredCount++;
   }
 
   if (registeredCount > 0) {
@@ -113,13 +58,6 @@ const registerSlashCommands = async (args: {
       message: `Successfully registered ${registeredCount} slash command${
         registeredCount === 1 ? "" : "s"
       }`,
-    });
-  }
-  if (skippedCount > 0) {
-    warn({
-      message: `Skipped ${skippedCount} slash command${
-        skippedCount === 1 ? "" : "s"
-      } (not found)`,
     });
   }
 };
@@ -130,8 +68,8 @@ const registerSlashCommands = async (args: {
 export const slashCommandsLoader: ProfileLoader = {
   name: "slashcommands",
   description: "Register all Nori slash commands with Claude Code",
-  install: async (args: { config: Config }) => {
-    const { config } = args;
-    await registerSlashCommands({ config });
+  install: async (args: { config: Config; pkg: SkillsetPackage }) => {
+    const { config, pkg } = args;
+    await registerSlashCommands({ config, pkg });
   },
 };

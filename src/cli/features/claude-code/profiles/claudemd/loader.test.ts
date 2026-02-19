@@ -10,6 +10,7 @@ import * as path from "path";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 import type { Config } from "@/cli/config.js";
+import type { SkillsetPackage } from "@/norijson/packageStructure.js";
 
 // Mock the env module to use temp directories
 let mockClaudeDir: string;
@@ -63,46 +64,6 @@ When starting a new task, automatically create a worktree.
 </required>
 `;
 
-/**
- * Create a stub profile with CLAUDE.md and optional skills
- *
- * @param args - Function arguments
- * @param args.profilesDir - Path to the profiles directory
- * @param args.profileName - Name of the profile
- * @param args.claudeMd - Content for the profile's CLAUDE.md
- * @param args.skills - Optional map of skill name to frontmatter and body content
- */
-const createStubProfile = async (args: {
-  profilesDir: string;
-  profileName: string;
-  claudeMd: string;
-  skills?: Record<string, { frontmatter: string; body: string }> | null;
-}): Promise<void> => {
-  const { profilesDir, profileName, claudeMd, skills } = args;
-  const profileDir = path.join(profilesDir, profileName);
-  await fs.mkdir(profileDir, { recursive: true });
-  await fs.writeFile(path.join(profileDir, "CLAUDE.md"), claudeMd);
-  await fs.writeFile(
-    path.join(profileDir, "nori.json"),
-    JSON.stringify({
-      name: profileName,
-      version: "1.0.0",
-      description: `${profileName} profile`,
-    }),
-  );
-
-  if (skills != null) {
-    for (const [skillName, content] of Object.entries(skills)) {
-      const skillDir = path.join(profileDir, "skills", skillName);
-      await fs.mkdir(skillDir, { recursive: true });
-      await fs.writeFile(
-        path.join(skillDir, "SKILL.md"),
-        `${content.frontmatter}\n${content.body}`,
-      );
-    }
-  }
-};
-
 // Standard test skills for senior-swe profile
 const TEST_SKILLS: Record<string, { frontmatter: string; body: string }> = {
   "using-skills": {
@@ -122,11 +83,61 @@ const TEST_SKILLS: Record<string, { frontmatter: string; body: string }> = {
   },
 };
 
+/**
+ * Create skill files on disk and return SkillEntry array
+ *
+ * @param args - Function arguments
+ * @param args.baseDir - Base directory to create skill dirs in
+ * @param args.skills - Map of skill name to frontmatter and body content
+ *
+ * @returns Array of SkillEntry objects for use in SkillsetPackage
+ */
+const createSkillFiles = async (args: {
+  baseDir: string;
+  skills: Record<string, { frontmatter: string; body: string }>;
+}): Promise<Array<{ id: string; sourceDir: string }>> => {
+  const { baseDir, skills } = args;
+  const entries: Array<{ id: string; sourceDir: string }> = [];
+
+  for (const [skillName, content] of Object.entries(skills)) {
+    const skillDir = path.join(baseDir, "skills", skillName);
+    await fs.mkdir(skillDir, { recursive: true });
+    await fs.writeFile(
+      path.join(skillDir, "SKILL.md"),
+      `${content.frontmatter}\n${content.body}`,
+    );
+    entries.push({ id: skillName, sourceDir: skillDir });
+  }
+
+  return entries;
+};
+
+/**
+ * Build a SkillsetPackage from test data
+ *
+ * @param args - Function arguments
+ * @param args.claudeMd - CLAUDE.md content or null
+ * @param args.skills - Skill entries array
+ *
+ * @returns A SkillsetPackage for use in tests
+ */
+const buildPkg = (args: {
+  claudeMd: string | null;
+  skills?: Array<{ id: string; sourceDir: string }> | null;
+}): SkillsetPackage => {
+  const { claudeMd, skills } = args;
+  return {
+    claudeMd,
+    skills: skills ?? [],
+    subagents: [],
+    slashcommands: [],
+  };
+};
+
 describe("claudeMdLoader", () => {
   let tempDir: string;
   let claudeDir: string;
   let claudeMdPath: string;
-  let noriProfilesDir: string;
 
   beforeEach(async () => {
     // Create temp directory for testing
@@ -138,31 +149,9 @@ describe("claudeMdLoader", () => {
     mockClaudeDir = claudeDir;
     mockClaudeMdFile = claudeMdPath;
     mockNoriDir = path.join(tempDir, ".nori");
-    noriProfilesDir = path.join(mockNoriDir, "profiles");
 
-    // Create .claude and .nori directories
+    // Create .claude directory
     await fs.mkdir(claudeDir, { recursive: true });
-    await fs.mkdir(noriProfilesDir, { recursive: true });
-
-    // Create stub profiles (built-in profiles are no longer bundled)
-    await createStubProfile({
-      profilesDir: noriProfilesDir,
-      profileName: "senior-swe",
-      claudeMd: SENIOR_SWE_CLAUDE_MD,
-      skills: TEST_SKILLS,
-    });
-
-    await createStubProfile({
-      profilesDir: noriProfilesDir,
-      profileName: "amol",
-      claudeMd: AMOL_CLAUDE_MD,
-    });
-
-    await createStubProfile({
-      profilesDir: noriProfilesDir,
-      profileName: "product-manager",
-      claudeMd: "# Product Manager\n\nFocus on product decisions.\n",
-    });
   });
 
   afterEach(async () => {
@@ -175,23 +164,19 @@ describe("claudeMdLoader", () => {
 
   describe("run", () => {
     it("should create CLAUDE.md with managed block", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-      };
+      const config: Config = { installDir: tempDir };
+      const skills = await createSkillFiles({
+        baseDir: tempDir,
+        skills: TEST_SKILLS,
+      });
+      const pkg = buildPkg({ claudeMd: SENIOR_SWE_CLAUDE_MD, skills });
 
-      await claudeMdLoader.install({ config });
+      await claudeMdLoader.install({ config, pkg });
 
-      // Verify file exists
       const content = await fs.readFile(claudeMdPath, "utf-8");
 
-      // Check for managed block markers
       expect(content).toContain("# BEGIN NORI-AI MANAGED BLOCK");
       expect(content).toContain("# END NORI-AI MANAGED BLOCK");
-
-      // Check for core content sections from profile CLAUDE.md
       expect(content).toContain("# Tone");
       expect(content).toContain("# Coding Guidelines");
       expect(content).toContain("<required>");
@@ -201,41 +186,27 @@ describe("claudeMdLoader", () => {
     });
 
     it("should append managed block to existing CLAUDE.md without destroying user content", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-      };
+      const config: Config = { installDir: tempDir };
+      const pkg = buildPkg({ claudeMd: SENIOR_SWE_CLAUDE_MD });
 
-      // Create existing CLAUDE.md with user content
       const userContent =
         "# My Custom Instructions\n\nUser-specific content here.\n";
       await fs.writeFile(claudeMdPath, userContent);
 
-      await claudeMdLoader.install({ config });
+      await claudeMdLoader.install({ config, pkg });
 
-      // Verify file exists
       const content = await fs.readFile(claudeMdPath, "utf-8");
 
-      // Check that user content is preserved
       expect(content).toContain("# My Custom Instructions");
       expect(content).toContain("User-specific content here.");
-
-      // Check for managed block
       expect(content).toContain("# BEGIN NORI-AI MANAGED BLOCK");
       expect(content).toContain("# END NORI-AI MANAGED BLOCK");
     });
 
     it("should update existing managed block without affecting user content", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-      };
+      const config: Config = { installDir: tempDir };
+      const pkg = buildPkg({ claudeMd: SENIOR_SWE_CLAUDE_MD });
 
-      // Create existing CLAUDE.md with managed block and user content
       const existingContent = `# User Content Before
 
 User-specific instructions.
@@ -250,58 +221,38 @@ More user instructions.
 `;
       await fs.writeFile(claudeMdPath, existingContent);
 
-      await claudeMdLoader.install({ config });
+      await claudeMdLoader.install({ config, pkg });
 
-      // Verify file exists
       const content = await fs.readFile(claudeMdPath, "utf-8");
 
-      // Check that user content is preserved
       expect(content).toContain("# User Content Before");
       expect(content).toContain("User-specific instructions.");
       expect(content).toContain("# User Content After");
       expect(content).toContain("More user instructions.");
-
-      // Check that managed block is updated
       expect(content).toContain("# BEGIN NORI-AI MANAGED BLOCK");
       expect(content).toContain("# END NORI-AI MANAGED BLOCK");
-
-      // Old content should be replaced
       expect(content).not.toContain("Old nori instructions here.");
-
-      // New content should be present (simplified structure)
       expect(content).toContain("# Tone");
     });
 
     it("should handle switching between profiles", async () => {
-      // First install with senior-swe profile
-      const seniorSweConfig: Config = {
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-        installDir: tempDir,
-      };
-      await claudeMdLoader.install({ config: seniorSweConfig });
+      const config: Config = { installDir: tempDir };
+
+      // First install with senior-swe content
+      const seniorSwePkg = buildPkg({ claudeMd: SENIOR_SWE_CLAUDE_MD });
+      await claudeMdLoader.install({ config, pkg: seniorSwePkg });
 
       const seniorSweContent = await fs.readFile(claudeMdPath, "utf-8");
       expect(seniorSweContent).toContain(
         "ask me if I want to create a branch or a worktree",
       );
 
-      // Then switch to amol profile
-      const amolConfig: Config = {
-        agents: {
-          "claude-code": { profile: { baseProfile: "amol" } },
-        },
-        installDir: tempDir,
-      };
-      await claudeMdLoader.install({ config: amolConfig });
+      // Then switch to amol content
+      const amolPkg = buildPkg({ claudeMd: AMOL_CLAUDE_MD });
+      await claudeMdLoader.install({ config, pkg: amolPkg });
 
       const amolContent = await fs.readFile(claudeMdPath, "utf-8");
-
-      // Should have amol-specific content (profile-specific behavior)
       expect(amolContent).toContain("automatically create a worktree");
-
-      // Managed block markers should still be present
       expect(amolContent).toContain("# BEGIN NORI-AI MANAGED BLOCK");
       expect(amolContent).toContain("# END NORI-AI MANAGED BLOCK");
     });
@@ -309,44 +260,17 @@ More user instructions.
 
   describe("managed block marker handling", () => {
     it("should not produce double-nested markers when profile CLAUDE.md already has markers", async () => {
-      // Create a custom profile with CLAUDE.md that already has managed block markers
-      // This simulates what happens when captureExistingConfigAsProfile saves a profile
-      const customProfileDir = path.join(mockNoriDir, "profiles", "my-profile");
-      await fs.mkdir(customProfileDir, { recursive: true });
-
-      // Write profile.json
-      await fs.writeFile(
-        path.join(customProfileDir, "profile.json"),
-        JSON.stringify({
-          name: "my-profile",
-          description: "Test profile with pre-existing markers",
-          builtin: false,
-        }),
-      );
-
-      // Write CLAUDE.md with managed block markers already present
-      // This mimics what captureExistingConfigAsProfile does
+      const config: Config = { installDir: tempDir };
       const profileClaudeMdContent = `# BEGIN NORI-AI MANAGED BLOCK
 hello world
 # END NORI-AI MANAGED BLOCK
 `;
-      await fs.writeFile(
-        path.join(customProfileDir, "CLAUDE.md"),
-        profileClaudeMdContent,
-      );
+      const pkg = buildPkg({ claudeMd: profileClaudeMdContent });
 
-      const config: Config = {
-        installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "my-profile" } },
-        },
-      };
-
-      await claudeMdLoader.install({ config });
+      await claudeMdLoader.install({ config, pkg });
 
       const resultContent = await fs.readFile(claudeMdPath, "utf-8");
 
-      // Should have exactly ONE BEGIN and ONE END marker (not nested/doubled)
       const beginCount = (
         resultContent.match(/# BEGIN NORI-AI MANAGED BLOCK/g) || []
       ).length;
@@ -356,89 +280,45 @@ hello world
 
       expect(beginCount).toBe(1);
       expect(endCount).toBe(1);
-
-      // Content should be properly wrapped with the original content inside
       expect(resultContent).toContain("hello world");
     });
   });
 
   describe("profile-based CLAUDE.md loading", () => {
-    it("should load CLAUDE.md from selected profile", async () => {
-      const config: Config = {
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-        installDir: tempDir,
-      };
+    it("should load CLAUDE.md from pkg.claudeMd", async () => {
+      const config: Config = { installDir: tempDir };
+      const pkg = buildPkg({ claudeMd: SENIOR_SWE_CLAUDE_MD });
 
-      await claudeMdLoader.install({ config });
+      await claudeMdLoader.install({ config, pkg });
 
       const content = await fs.readFile(claudeMdPath, "utf-8");
 
-      // Should contain content from senior-swe profile's CLAUDE.md
       expect(content).toContain("BEGIN NORI-AI MANAGED BLOCK");
       expect(content).toContain("<required>");
-
-      // Should contain senior-swe specific instructions
       expect(content).toContain(
         "ask me if I want to create a branch or a worktree",
       );
     });
 
     it("should load CLAUDE.md from amol profile when specified", async () => {
-      const config: Config = {
-        auth: {
-          username: "test@example.com",
-          password: "testpass",
-          organizationUrl: "https://example.com",
-        },
-        agents: {
-          "claude-code": { profile: { baseProfile: "amol" } },
-        },
-        installDir: tempDir,
-      };
+      const config: Config = { installDir: tempDir };
+      const pkg = buildPkg({ claudeMd: AMOL_CLAUDE_MD });
 
-      await claudeMdLoader.install({ config });
+      await claudeMdLoader.install({ config, pkg });
 
       const content = await fs.readFile(claudeMdPath, "utf-8");
 
-      // Should contain amol profile specific instructions
       expect(content).toContain("automatically create a worktree");
-      // Verify profile-specific behavior exists
       expect(content).toContain("required");
       expect(content).toContain("# Tone");
-    });
-
-    it("should use default profile (senior-swe) when no profile specified", async () => {
-      const config: Config = {
-        installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-      };
-
-      await claudeMdLoader.install({ config });
-
-      const content = await fs.readFile(claudeMdPath, "utf-8");
-
-      // Should use senior-swe as default
-      expect(content).toContain(
-        "ask me if I want to create a branch or a worktree",
-      );
     });
   });
 
   describe("missing profile CLAUDE.md", () => {
-    it("should remove managed block when profile has no CLAUDE.md and existing CLAUDE.md has managed block", async () => {
-      // Create a profile with no CLAUDE.md (just nori.json, like `nori-skillsets new none`)
-      const emptyProfileDir = path.join(noriProfilesDir, "empty-profile");
-      await fs.mkdir(emptyProfileDir, { recursive: true });
-      await fs.writeFile(
-        path.join(emptyProfileDir, "nori.json"),
-        JSON.stringify({ name: "empty-profile", version: "1.0.0" }),
-      );
+    it("should remove managed block when pkg.claudeMd is null and existing CLAUDE.md has managed block", async () => {
+      const config: Config = { installDir: tempDir };
+      const pkg = buildPkg({ claudeMd: null });
 
-      // Create existing CLAUDE.md with user content and a managed block
       const existingContent = `# My Custom Instructions
 
 User-specific content here.
@@ -453,86 +333,44 @@ Additional user instructions.
 `;
       await fs.writeFile(claudeMdPath, existingContent);
 
-      const config: Config = {
-        installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "empty-profile" } },
-        },
-      };
-
-      // Should NOT throw
-      await claudeMdLoader.install({ config });
+      await claudeMdLoader.install({ config, pkg });
 
       const content = await fs.readFile(claudeMdPath, "utf-8");
 
-      // User content outside managed block should be preserved
       expect(content).toContain("# My Custom Instructions");
       expect(content).toContain("User-specific content here.");
       expect(content).toContain("# More User Content");
       expect(content).toContain("Additional user instructions.");
-
-      // Old managed block content should be gone
       expect(content).not.toContain(
         "Old nori instructions that should be cleared.",
       );
-
-      // Empty managed block markers should remain
       expect(content).toContain("# BEGIN NORI-AI MANAGED BLOCK");
       expect(content).toContain("# END NORI-AI MANAGED BLOCK");
     });
 
-    it("should not crash and not create file when profile has no CLAUDE.md and no existing CLAUDE.md", async () => {
-      // Create a profile with no CLAUDE.md
-      const emptyProfileDir = path.join(noriProfilesDir, "bare-profile");
-      await fs.mkdir(emptyProfileDir, { recursive: true });
-      await fs.writeFile(
-        path.join(emptyProfileDir, "nori.json"),
-        JSON.stringify({ name: "bare-profile", version: "1.0.0" }),
-      );
+    it("should not crash and not create file when pkg.claudeMd is null and no existing CLAUDE.md", async () => {
+      const config: Config = { installDir: tempDir };
+      const pkg = buildPkg({ claudeMd: null });
 
-      // Ensure no CLAUDE.md exists at destination
       await fs.rm(claudeMdPath, { force: true });
 
-      const config: Config = {
-        installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "bare-profile" } },
-        },
-      };
+      await claudeMdLoader.install({ config, pkg });
 
-      // Should NOT throw
-      await claudeMdLoader.install({ config });
-
-      // CLAUDE.md should not have been created
       await expect(fs.access(claudeMdPath)).rejects.toThrow();
     });
 
-    it("should leave existing CLAUDE.md untouched when profile has no CLAUDE.md and no managed block exists", async () => {
-      // Create a profile with no CLAUDE.md
-      const emptyProfileDir = path.join(noriProfilesDir, "minimal-profile");
-      await fs.mkdir(emptyProfileDir, { recursive: true });
-      await fs.writeFile(
-        path.join(emptyProfileDir, "nori.json"),
-        JSON.stringify({ name: "minimal-profile", version: "1.0.0" }),
-      );
+    it("should leave existing CLAUDE.md untouched when pkg.claudeMd is null and no managed block exists", async () => {
+      const config: Config = { installDir: tempDir };
+      const pkg = buildPkg({ claudeMd: null });
 
-      // Create existing CLAUDE.md with only user content (no managed block)
       const userContent = `# My Project Instructions
 
 Some custom instructions here.
 `;
       await fs.writeFile(claudeMdPath, userContent);
 
-      const config: Config = {
-        installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "minimal-profile" } },
-        },
-      };
+      await claudeMdLoader.install({ config, pkg });
 
-      await claudeMdLoader.install({ config });
-
-      // File should be completely unchanged
       const content = await fs.readFile(claudeMdPath, "utf-8");
       expect(content).toBe(userContent);
     });
@@ -540,22 +378,18 @@ Some custom instructions here.
 
   describe("skills list generation", () => {
     it("should include skills list in installed CLAUDE.md", async () => {
-      const config: Config = {
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-        installDir: tempDir,
-      };
+      const config: Config = { installDir: tempDir };
+      const skills = await createSkillFiles({
+        baseDir: tempDir,
+        skills: TEST_SKILLS,
+      });
+      const pkg = buildPkg({ claudeMd: SENIOR_SWE_CLAUDE_MD, skills });
 
-      await claudeMdLoader.install({ config });
+      await claudeMdLoader.install({ config, pkg });
 
       const content = await fs.readFile(claudeMdPath, "utf-8");
 
-      // Should contain skills list section
       expect(content).toContain("Available Skills");
-
-      // Should list at least some skills from senior-swe profile
-      // Paths should be absolute since we're using a temp directory (not home)
       expect(content).toContain(`${claudeDir}/skills/using-skills/SKILL.md`);
       expect(content).toContain(
         `${claudeDir}/skills/test-driven-development/SKILL.md`,
@@ -564,57 +398,49 @@ Some custom instructions here.
     });
 
     it("should include skill name and description from frontmatter", async () => {
-      const config: Config = {
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-        installDir: tempDir,
-      };
+      const config: Config = { installDir: tempDir };
+      const skills = await createSkillFiles({
+        baseDir: tempDir,
+        skills: TEST_SKILLS,
+      });
+      const pkg = buildPkg({ claudeMd: SENIOR_SWE_CLAUDE_MD, skills });
 
-      await claudeMdLoader.install({ config });
+      await claudeMdLoader.install({ config, pkg });
 
       const content = await fs.readFile(claudeMdPath, "utf-8");
 
-      // Should include skill metadata (names and descriptions from frontmatter)
       expect(content).toContain("Name: Getting Started with Abilities");
       expect(content).toContain("Name: Brainstorming");
-      // Verify description exists (exact wording may change)
       expect(content).toMatch(/Description:.*abilities/i);
     });
 
     it("should handle profiles with no skills gracefully", async () => {
-      const config: Config = {
-        agents: {
-          "claude-code": { profile: { baseProfile: "product-manager" } },
-        },
-        installDir: tempDir,
-      };
+      const config: Config = { installDir: tempDir };
+      const pkg = buildPkg({
+        claudeMd: "# Product Manager\n\nFocus on product decisions.\n",
+      });
 
-      await claudeMdLoader.install({ config });
+      await claudeMdLoader.install({ config, pkg });
 
       const content = await fs.readFile(claudeMdPath, "utf-8");
 
-      // Should still have basic structure
       expect(content).toContain("BEGIN NORI-AI MANAGED BLOCK");
       expect(content).toContain("END NORI-AI MANAGED BLOCK");
-
-      // Should not fail or error
       expect(content.length).toBeGreaterThan(0);
     });
 
     it("should handle skills with missing frontmatter gracefully", async () => {
-      const config: Config = {
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
-        installDir: tempDir,
-      };
+      const config: Config = { installDir: tempDir };
+      const skills = await createSkillFiles({
+        baseDir: tempDir,
+        skills: TEST_SKILLS,
+      });
+      const pkg = buildPkg({ claudeMd: SENIOR_SWE_CLAUDE_MD, skills });
 
-      await claudeMdLoader.install({ config });
+      await claudeMdLoader.install({ config, pkg });
 
       const content = await fs.readFile(claudeMdPath, "utf-8");
 
-      // Should still complete successfully even if some skills lack metadata
       expect(content).toContain("BEGIN NORI-AI MANAGED BLOCK");
       expect(content).toContain("END NORI-AI MANAGED BLOCK");
     });

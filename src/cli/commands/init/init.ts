@@ -12,6 +12,7 @@
  */
 
 import * as fs from "fs/promises";
+import * as path from "path";
 
 import { log, note } from "@clack/prompts";
 
@@ -22,12 +23,14 @@ import {
 import { loadConfig, saveConfig, type Config } from "@/cli/config.js";
 import {
   getClaudeMdFile,
+  getNoriDir,
   getNoriProfilesDir,
 } from "@/cli/features/claude-code/paths.js";
 import { claudeMdLoader } from "@/cli/features/claude-code/profiles/claudemd/loader.js";
 import { bold, yellow } from "@/cli/logger.js";
 import { initFlow } from "@/cli/prompts/flows/init.js";
 import { getCurrentPackageVersion } from "@/cli/version.js";
+import { loadSkillsetPackage } from "@/norijson/packageStructure.js";
 import { getHomeDir } from "@/utils/home.js";
 import { normalizeInstallDir, getInstallDirsWithTypes } from "@/utils/path.js";
 
@@ -147,7 +150,13 @@ export const initMain = async (args?: {
 
           if (capturedProfileName != null) {
             const config: Config = { installDir: dir, agents };
-            await claudeMdLoader.install({ config });
+            const profileDir = path.join(
+              getNoriDir(),
+              "profiles",
+              capturedProfileName,
+            );
+            const pkg = await loadSkillsetPackage({ profileDir });
+            await claudeMdLoader.install({ config, pkg });
           }
         },
       },
@@ -269,7 +278,9 @@ export const initMain = async (args?: {
       installDir: normalizedInstallDir,
       agents,
     };
-    await claudeMdLoader.install({ config });
+    const profileDir = path.join(getNoriDir(), "profiles", capturedProfileName);
+    const pkg = await loadSkillsetPackage({ profileDir });
+    await claudeMdLoader.install({ config, pkg });
   }
 };
 

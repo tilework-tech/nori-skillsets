@@ -6,13 +6,15 @@
 import * as fs from "fs/promises";
 import * as path from "path";
 
-import { type Config } from "@/cli/config.js";
+import { getAgentProfile, type Config } from "@/cli/config.js";
 import {
+  getNoriDir,
   getNoriProfilesDir,
   getClaudeSettingsFile,
 } from "@/cli/features/claude-code/paths.js";
 import { ProfileLoaderRegistry } from "@/cli/features/claude-code/profiles/profileLoaderRegistry.js";
 import { success, info } from "@/cli/logger.js";
+import { loadSkillsetPackage } from "@/norijson/packageStructure.js";
 
 import type { Loader } from "@/cli/features/agentRegistry.js";
 
@@ -101,11 +103,24 @@ export const profilesLoader: Loader = {
     const { config } = args;
     await installProfiles({ config });
 
-    // Install all profile-dependent features
+    // Resolve the active profile and load the skillset package once
+    const profileName = getAgentProfile({
+      config,
+      agentName: "claude-code",
+    })?.baseProfile;
+    if (profileName == null) {
+      throw new Error(
+        "No profile configured for claude-code. Run 'nori-skillsets init' to configure a profile.",
+      );
+    }
+    const profileDir = path.join(getNoriDir(), "profiles", profileName);
+    const pkg = await loadSkillsetPackage({ profileDir });
+
+    // Install all profile-dependent features, passing the loaded package
     const registry = ProfileLoaderRegistry.getInstance();
     const loaders = registry.getAll();
     for (const loader of loaders) {
-      await loader.install({ config });
+      await loader.install({ config, pkg });
     }
   },
 };

@@ -10,6 +10,7 @@ import * as path from "path";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 import type { Config } from "@/cli/config.js";
+import type { SkillsetPackage } from "@/norijson/packageStructure.js";
 
 // Mock the env module to use temp directories
 let mockClaudeDir: string;
@@ -33,48 +34,42 @@ vi.mock("@/cli/features/claude-code/paths.js", () => ({
 import { subagentsLoader } from "./loader.js";
 
 /**
- * Create a stub profile directory with nori.json and optional subagents
+ * Build a minimal SkillsetPackage with the given subagents
  *
  * @param args - Function arguments
- * @param args.profilesDir - Path to the profiles directory
- * @param args.profileName - Name of the profile
- * @param args.subagents - Optional map of subagent filename to content
+ * @param args.subagents - Subagent entries to include in the package
+ *
+ * @returns A SkillsetPackage for use in tests
  */
-const createStubProfile = async (args: {
-  profilesDir: string;
-  profileName: string;
-  subagents?: Record<string, string> | null;
-}): Promise<void> => {
-  const { profilesDir, profileName, subagents } = args;
-  const profileDir = path.join(profilesDir, profileName);
-  await fs.mkdir(profileDir, { recursive: true });
-  await fs.writeFile(
-    path.join(profileDir, "nori.json"),
-    JSON.stringify({ name: "Test Profile", version: "1.0.0" }),
-  );
-
-  if (subagents != null && Object.keys(subagents).length > 0) {
-    const subagentsDir = path.join(profileDir, "subagents");
-    await fs.mkdir(subagentsDir, { recursive: true });
-    for (const [filename, content] of Object.entries(subagents)) {
-      await fs.writeFile(path.join(subagentsDir, filename), content);
-    }
-  }
+const buildPkg = (args: {
+  subagents?: Array<{ filename: string; content: string }> | null;
+}): SkillsetPackage => {
+  const { subagents } = args;
+  return {
+    claudeMd: null,
+    skills: [],
+    subagents: subagents ?? [],
+    slashcommands: [],
+  };
 };
 
 // Standard test subagents
-const TEST_SUBAGENTS: Record<string, string> = {
-  "nori-codebase-analyzer.md":
-    "# Codebase Analyzer\n\nAnalyze codebase.\nRead: `{{skills_dir}}/some-skill/SKILL.md`\n",
-  "nori-web-search-researcher.md":
-    "# Web Search Researcher\n\nResearch on the web.\n",
-};
+const TEST_SUBAGENTS = [
+  {
+    filename: "nori-codebase-analyzer.md",
+    content:
+      "# Codebase Analyzer\n\nAnalyze codebase.\nRead: `{{skills_dir}}/some-skill/SKILL.md`\n",
+  },
+  {
+    filename: "nori-web-search-researcher.md",
+    content: "# Web Search Researcher\n\nResearch on the web.\n",
+  },
+];
 
 describe("subagentsLoader", () => {
   let tempDir: string;
   let claudeDir: string;
   let agentsDir: string;
-  let noriProfilesDir: string;
 
   beforeEach(async () => {
     // Create temp directory for testing
@@ -86,18 +81,9 @@ describe("subagentsLoader", () => {
     mockClaudeDir = claudeDir;
     mockClaudeAgentsDir = agentsDir;
     mockNoriDir = path.join(tempDir, ".nori");
-    noriProfilesDir = path.join(mockNoriDir, "profiles");
 
     // Create directories
     await fs.mkdir(claudeDir, { recursive: true });
-    await fs.mkdir(noriProfilesDir, { recursive: true });
-
-    // Create stub profile with test subagents
-    await createStubProfile({
-      profilesDir: noriProfilesDir,
-      profileName: "senior-swe",
-      subagents: TEST_SUBAGENTS,
-    });
   });
 
   afterEach(async () => {
@@ -116,8 +102,9 @@ describe("subagentsLoader", () => {
           "claude-code": { profile: { baseProfile: "senior-swe" } },
         },
       };
+      const pkg = buildPkg({ subagents: TEST_SUBAGENTS });
 
-      await subagentsLoader.install({ config });
+      await subagentsLoader.install({ config, pkg });
 
       // Verify agents directory exists
       const exists = await fs
@@ -127,15 +114,12 @@ describe("subagentsLoader", () => {
 
       expect(exists).toBe(true);
 
-      // Verify at least one subagent file was copied
+      // Verify subagent files were written
       const files = await fs.readdir(agentsDir);
-      expect(files.length).toBeGreaterThan(0);
+      expect(files.length).toBe(2);
 
-      // Should have common subagents like nori-codebase-analyzer
-      const fileNames = await fs.readdir(agentsDir);
-      const hasCodebaseAnalyzer = fileNames.includes(
-        "nori-codebase-analyzer.md",
-      );
+      // Should have the codebase analyzer subagent
+      const hasCodebaseAnalyzer = files.includes("nori-codebase-analyzer.md");
       expect(hasCodebaseAnalyzer).toBe(true);
     });
 
@@ -146,18 +130,19 @@ describe("subagentsLoader", () => {
           "claude-code": { profile: { baseProfile: "senior-swe" } },
         },
       };
+      const pkg = buildPkg({ subagents: TEST_SUBAGENTS });
 
       // First installation
-      await subagentsLoader.install({ config });
+      await subagentsLoader.install({ config, pkg });
 
       const firstFiles = await fs.readdir(agentsDir);
-      expect(firstFiles.length).toBeGreaterThan(0);
+      expect(firstFiles.length).toBe(2);
 
       // Second installation (update)
-      await subagentsLoader.install({ config });
+      await subagentsLoader.install({ config, pkg });
 
       const secondFiles = await fs.readdir(agentsDir);
-      expect(secondFiles.length).toBeGreaterThan(0);
+      expect(secondFiles.length).toBe(2);
     });
   });
 
@@ -169,45 +154,30 @@ describe("subagentsLoader", () => {
           "claude-code": { profile: { baseProfile: "senior-swe" } },
         },
       };
+      const pkg = buildPkg({
+        subagents: [
+          {
+            filename: "nori-test-agent.md",
+            content: "Read: `{{skills_dir}}/some-skill/SKILL.md`",
+          },
+        ],
+      });
 
-      // Get a subagent file from the profile directory and add a template placeholder
-      const profileSubagentsDir = path.join(
-        noriProfilesDir,
-        "senior-swe",
-        "subagents",
-      );
-      const files = await fs.readdir(profileSubagentsDir);
-      const mdFile = files.find((f) => f.endsWith(".md") && f !== "docs.md");
+      await subagentsLoader.install({ config, pkg });
 
-      // Ensure we actually have a subagent file to test with
-      expect(mdFile).toBeDefined();
+      // Check the installed file
+      const installedPath = path.join(agentsDir, "nori-test-agent.md");
+      const content = await fs.readFile(installedPath, "utf-8");
 
-      if (mdFile) {
-        // Add template placeholder to the file
-        const subagentPath = path.join(profileSubagentsDir, mdFile);
-        await fs.writeFile(
-          subagentPath,
-          "Read: `{{skills_dir}}/some-skill/SKILL.md`",
-        );
-
-        await subagentsLoader.install({ config });
-
-        // Check the installed file
-        const installedPath = path.join(agentsDir, mdFile);
-        const content = await fs.readFile(installedPath, "utf-8");
-
-        // Should have substituted {{skills_dir}} with actual path
-        const expectedSkillsDir = path.join(claudeDir, "skills");
-        expect(content).toContain(expectedSkillsDir);
-        expect(content).not.toContain("{{skills_dir}}");
-      }
+      // Should have substituted {{skills_dir}} with actual path
+      const expectedSkillsDir = path.join(claudeDir, "skills");
+      expect(content).toContain(expectedSkillsDir);
+      expect(content).not.toContain("{{skills_dir}}");
     });
   });
 
-  // Validate tests removed - validation is now handled at profilesLoader level
-
-  describe("missing profile subagents directory", () => {
-    it("should remove existing agents when switching to profile without subagents", async () => {
+  describe("empty subagents", () => {
+    it("should remove existing agents when pkg has no subagents", async () => {
       const config: Config = {
         installDir: tempDir,
         agents: {
@@ -215,48 +185,36 @@ describe("subagentsLoader", () => {
         },
       };
 
-      // First, install subagents from a profile that has them
-      await subagentsLoader.install({ config });
+      // First, install subagents
+      const pkg = buildPkg({ subagents: TEST_SUBAGENTS });
+      await subagentsLoader.install({ config, pkg });
 
       // Verify agents were installed
       let files = await fs.readdir(agentsDir);
-      expect(files.length).toBeGreaterThan(0);
+      expect(files.length).toBe(2);
 
-      // Now remove the subagents directory from the profile to simulate
-      // switching to a profile without subagents
-      const profileSubagentsDir = path.join(
-        noriProfilesDir,
-        "senior-swe",
-        "subagents",
-      );
-      await fs.rm(profileSubagentsDir, { recursive: true, force: true });
+      // Install again with empty subagents
+      const emptyPkg = buildPkg({ subagents: [] });
+      await subagentsLoader.install({ config, pkg: emptyPkg });
 
-      // Install again (simulating profile switch)
-      await subagentsLoader.install({ config });
-
-      // The agents directory should now be empty since the profile has no subagents
+      // The agents directory should now be empty
       files = await fs.readdir(agentsDir);
       expect(files.length).toBe(0);
     });
 
-    it("should handle missing subagents directory gracefully during install", async () => {
+    it("should handle empty subagents gracefully during install", async () => {
       const config: Config = {
         installDir: tempDir,
         agents: {
           "claude-code": { profile: { baseProfile: "senior-swe" } },
         },
       };
-
-      // Remove the subagents directory from the installed profile
-      const profileSubagentsDir = path.join(
-        noriProfilesDir,
-        "senior-swe",
-        "subagents",
-      );
-      await fs.rm(profileSubagentsDir, { recursive: true, force: true });
+      const pkg = buildPkg({ subagents: [] });
 
       // Install should not throw
-      await expect(subagentsLoader.install({ config })).resolves.not.toThrow();
+      await expect(
+        subagentsLoader.install({ config, pkg }),
+      ).resolves.not.toThrow();
 
       // Agents directory should still be created
       const exists = await fs
