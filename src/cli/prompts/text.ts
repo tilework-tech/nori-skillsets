@@ -13,7 +13,7 @@ import { handleCancel } from "./utils.js";
  * Validation function type matching the codebase pattern
  * Returns undefined for valid input, or error message string for invalid
  */
-export type ValidateFunction = (args: { value: string }) => string | undefined;
+type ValidateFunction = (args: { value: string }) => string | undefined;
 
 /**
  * Prompt user for text input
