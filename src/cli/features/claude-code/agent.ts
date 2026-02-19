@@ -83,7 +83,7 @@ export const claudeCodeAgent: Agent = {
     }
 
     // Load current config - use installDir as starting point for config search
-    const currentConfig = await loadConfig({ startDir: installDir });
+    const currentConfig = await loadConfig();
 
     // Get existing agents config (agents keys are the source of truth for installed agents)
     const existingAgents = currentConfig?.agents ?? {};

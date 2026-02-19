@@ -29,8 +29,7 @@ import { claudeMdLoader } from "@/cli/features/claude-code/profiles/claudemd/loa
 import { bold, yellow } from "@/cli/logger.js";
 import { initFlow } from "@/cli/prompts/flows/init.js";
 import { getCurrentPackageVersion } from "@/cli/version.js";
-import { getHomeDir } from "@/utils/home.js";
-import { normalizeInstallDir, getInstallDirsWithTypes } from "@/utils/path.js";
+import { normalizeInstallDir, getInstallDirs } from "@/utils/path.js";
 
 import type { Command } from "commander";
 
@@ -73,21 +72,14 @@ export const initMain = async (args?: {
       skipWarning: skipWarning ?? null,
       callbacks: {
         onCheckAncestors: async ({ installDir: dir }) => {
-          const allInstallations = getInstallDirsWithTypes({
+          const allInstallations = getInstallDirs({
             currentDir: dir,
           });
-          return allInstallations
-            .filter(
-              (installation) =>
-                installation.path !== dir &&
-                (installation.type === "managed" ||
-                  installation.type === "both"),
-            )
-            .map((installation) => installation.path);
+          return allInstallations.filter((installPath) => installPath !== dir);
         },
         onDetectExistingConfig: async ({ installDir: dir }) => {
           // Use getHomeDir() since init is home-directory-based
-          const existingConfig = await loadConfig({ startDir: getHomeDir() });
+          const existingConfig = await loadConfig();
           if (existingConfig != null) return null;
           // Skip detection if agent is already installed at this location
           if (claudeCodeAgent.isInstalledAtDir({ path: dir })) return null;
@@ -113,8 +105,7 @@ export const initMain = async (args?: {
             await fs.mkdir(profilesDir, { recursive: true });
           }
 
-          // Load existing config - use getHomeDir() since init is home-directory-based
-          const existingConfig = await loadConfig({ startDir: getHomeDir() });
+          const existingConfig = await loadConfig();
           const currentVersion = getCurrentPackageVersion();
 
           const username = existingConfig?.auth?.username ?? null;
@@ -167,14 +158,9 @@ export const initMain = async (args?: {
   // Non-interactive path
 
   // Check for ancestor managed installations (warn only)
-  const allInstallations = getInstallDirsWithTypes({
+  const ancestorManagedInstallations = getInstallDirs({
     currentDir: normalizedInstallDir,
-  });
-  const ancestorManagedInstallations = allInstallations.filter(
-    (installation) =>
-      installation.path !== normalizedInstallDir &&
-      (installation.type === "managed" || installation.type === "both"),
-  );
+  }).filter((installPath) => installPath !== normalizedInstallDir);
 
   if (ancestorManagedInstallations.length > 0) {
     const warningLines = [
@@ -185,7 +171,7 @@ export const initMain = async (args?: {
       "conflicting configurations.",
       "",
       bold({ text: "Existing managed installations:" }),
-      ...ancestorManagedInstallations.map((a) => `  • ${a.path}`),
+      ...ancestorManagedInstallations.map((a) => `  • ${a}`),
       "",
       "Please remove the conflicting installation before continuing.",
     ];
@@ -199,7 +185,7 @@ export const initMain = async (args?: {
   }
 
   // Load existing config (if any) - use getHomeDir() since init is home-directory-based
-  const existingConfig = await loadConfig({ startDir: getHomeDir() });
+  const existingConfig = await loadConfig();
   const currentVersion = getCurrentPackageVersion();
 
   // Track captured profile name for setting in config

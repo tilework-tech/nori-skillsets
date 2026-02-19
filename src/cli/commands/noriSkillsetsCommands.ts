@@ -740,54 +740,22 @@ export const registerNoriSkillsetsInstallLocationCommand = (args: {
   program
     .command("install-location")
     .description("Display Nori installation directories")
-    .option(
-      "--installation-source",
-      "Show only installation source directories (containing .nori-config.json)",
-    )
-    .option(
-      "--installation-managed",
-      "Show only managed installation directories (containing CLAUDE.md with managed block)",
-    )
-    .action(
-      async (options: {
-        installationSource?: boolean;
-        managedInstallation?: boolean;
-      }) => {
-        const globalOpts = program.opts();
-        await installLocationMain({
-          currentDir: process.cwd(),
-          installationSource: options.installationSource || null,
-          managedInstallation: options.managedInstallation || null,
-          nonInteractive: globalOpts.nonInteractive || null,
-        });
-      },
-    );
+    .action(async () => {
+      const globalOpts = program.opts();
+      await installLocationMain({
+        currentDir: process.cwd(),
+        nonInteractive: globalOpts.nonInteractive || null,
+      });
+    });
 
   // Hidden alias: location (shorthand)
-  program
-    .command("location", { hidden: true })
-    .option(
-      "--installation-source",
-      "Show only installation source directories (containing .nori-config.json)",
-    )
-    .option(
-      "--installation-managed",
-      "Show only managed installation directories (containing CLAUDE.md with managed block)",
-    )
-    .action(
-      async (options: {
-        installationSource?: boolean;
-        managedInstallation?: boolean;
-      }) => {
-        const globalOpts = program.opts();
-        await installLocationMain({
-          currentDir: process.cwd(),
-          installationSource: options.installationSource || null,
-          managedInstallation: options.managedInstallation || null,
-          nonInteractive: globalOpts.nonInteractive || null,
-        });
-      },
-    );
+  program.command("location", { hidden: true }).action(async () => {
+    const globalOpts = program.opts();
+    await installLocationMain({
+      currentDir: process.cwd(),
+      nonInteractive: globalOpts.nonInteractive || null,
+    });
+  });
 };
 
 /**

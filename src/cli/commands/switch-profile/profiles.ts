@@ -113,7 +113,7 @@ export const switchSkillsetAction = async (args: {
       agentOverride: options.agent ?? null,
       callbacks: {
         onResolveAgents: async () => {
-          const config = await loadConfig({ startDir: getHomeDir() });
+          const config = await loadConfig();
           const installedAgents = config ? getInstalledAgents({ config }) : [];
           if (installedAgents.length === 0) {
             return [{ name: "claude-code", displayName: "Claude Code" }];
@@ -127,7 +127,7 @@ export const switchSkillsetAction = async (args: {
         },
         onPrepareSwitchInfo: async ({ installDir: dir, agentName }) => {
           const localChanges = await detectLocalChanges({ installDir: dir });
-          const config = await loadConfig({ startDir: getHomeDir() });
+          const config = await loadConfig();
           let currentProfile: string | null = null;
           if (config != null) {
             const agentProfile = getAgentProfile({

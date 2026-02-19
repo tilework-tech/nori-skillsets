@@ -10,7 +10,6 @@ import { outro } from "@clack/prompts";
 import { loadConfig, saveConfig } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { configFlow } from "@/cli/prompts/flows/config.js";
-import { getHomeDir } from "@/utils/home.js";
 import { normalizeInstallDir } from "@/utils/path.js";
 
 /**
@@ -22,7 +21,7 @@ export const configMain = async (): Promise<void> => {
   const result = await configFlow({
     callbacks: {
       onLoadConfig: async () => {
-        const config = await loadConfig({ startDir: getHomeDir() });
+        const config = await loadConfig();
         return {
           currentAgent: config?.defaultAgent ?? null,
           currentInstallDir: config?.installDir ?? null,
@@ -41,7 +40,7 @@ export const configMain = async (): Promise<void> => {
   if (result == null) return;
 
   // Load existing config to preserve all other fields
-  const existingConfig = await loadConfig({ startDir: getHomeDir() });
+  const existingConfig = await loadConfig();
 
   const normalizedInstallDir = normalizeInstallDir({
     installDir: result.installDir,

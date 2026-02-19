@@ -105,6 +105,19 @@ import { loadConfig, getRegistryAuth } from "@/cli/config.js";
 import { registryDownloadMain } from "./registryDownload.js";
 
 /**
+ * Create a CLAUDE.md managed block marker to make getInstallDirs detect the directory
+ * @param dir - The directory to create the marker in
+ */
+const createManagedBlockMarker = async (dir: string): Promise<void> => {
+  const claudeDir = path.join(dir, ".claude");
+  await fs.mkdir(claudeDir, { recursive: true });
+  await fs.writeFile(
+    path.join(claudeDir, "CLAUDE.md"),
+    "# BEGIN NORI-AI MANAGED BLOCK\n# END NORI-AI MANAGED BLOCK\n",
+  );
+};
+
+/**
  * Collect all clack output (log.error, log.success, log.info, log.warn, note, outro)
  * into a single string for assertion convenience.
  *
@@ -174,6 +187,9 @@ describe("registry-download", () => {
 
     // Create profiles directory
     await fs.mkdir(profilesDir, { recursive: true });
+
+    // Create CLAUDE.md managed block marker so getInstallDirs detects the installation
+    await createManagedBlockMarker(testDir);
   });
 
   afterEach(async () => {
@@ -444,6 +460,7 @@ describe("registry-download", () => {
         JSON.stringify({ profile: { baseProfile: "cwd-profile" } }),
       );
       await fs.mkdir(cwdProfilesDir, { recursive: true });
+      await createManagedBlockMarker(cwdInstall);
 
       // Set up home dir installation (mockHomedir is testDir)
       // Config is at ~/.nori/.nori-config.json (home directory installation style)
@@ -562,6 +579,7 @@ describe("registry-download", () => {
         path.join(nestedDir, ".nori-config.json"),
         JSON.stringify({ profile: { baseProfile: "test" } }),
       );
+      await createManagedBlockMarker(nestedDir);
 
       try {
         await registryDownloadMain({
@@ -624,6 +642,7 @@ describe("registry-download", () => {
         path.join(customInstallDir, ".nori-config.json"),
         JSON.stringify({ profile: { baseProfile: "test" } }),
       );
+      await createManagedBlockMarker(customInstallDir);
 
       const mockTarball = await createMockTarball();
       vi.mocked(registrarApi.downloadTarball).mockResolvedValue(mockTarball);
@@ -717,6 +736,7 @@ describe("registry-download", () => {
         path.join(explicitInstallDir, ".nori-config.json"),
         JSON.stringify({ profile: { baseProfile: "test" } }),
       );
+      await createManagedBlockMarker(explicitInstallDir);
 
       // Config is centralized at ~/.nori-config.json and always has auth
       // since loadConfig() is zero-arg and reads from a single location

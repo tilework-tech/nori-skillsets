@@ -535,7 +535,7 @@ export const registrySearchMain = async (args: {
   }
 
   // Load config to check for org auth - use getHomeDir() since registry needs global auth
-  const config = await loadConfig({ startDir: getHomeDir() });
+  const config = await loadConfig();
 
   await registrySearchFlow({
     callbacks: {

@@ -10,7 +10,6 @@ import {
   getAgentProfile,
   getInstalledAgents,
 } from "@/cli/config.js";
-import { getHomeDir } from "@/utils/home.js";
 
 import type { ConfigAgentName } from "@/cli/config.js";
 
@@ -25,7 +24,7 @@ export const currentSkillsetMain = async (args: {
   const { agent: agentOption } = args;
 
   // Load config from home directory (centralized config location)
-  const config = await loadConfig({ startDir: getHomeDir() });
+  const config = await loadConfig();
 
   if (config == null) {
     log.error(
