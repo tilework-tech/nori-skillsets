@@ -12,9 +12,10 @@
  */
 
 import { intro, outro, select, text, spinner, note, log } from "@clack/prompts";
+import { diffLines } from "diff";
 import * as semver from "semver";
 
-import { bold, red } from "@/cli/logger.js";
+import { bold, green, red } from "@/cli/logger.js";
 
 import type {
   SkillConflict,
@@ -60,6 +61,9 @@ export type UploadFlowCallbacks = {
     resolutionStrategy?: SkillResolutionStrategy | null;
     inlineSkillIds?: Array<string> | null;
   }) => Promise<UploadResult>;
+  onReadLocalSkillMd?:
+    | ((args: { skillId: string }) => Promise<string | null>)
+    | null;
 };
 
 /**
@@ -86,13 +90,20 @@ export type UploadFlowResult = {
  *
  * @returns Array of resolution options for the select prompt
  */
+
+/**
+ * Union type for resolution actions and the local-only "viewDiff" pseudo-action
+ */
+type ConflictSelectAction = SkillResolutionAction | "viewDiff";
+
 const buildResolutionOptions = (args: {
   conflict: SkillConflict;
   profileName: string;
-}): Array<{ value: SkillResolutionAction; label: string; hint?: string }> => {
-  const { conflict, profileName } = args;
+  hasDiffCallback?: boolean | null;
+}): Array<{ value: ConflictSelectAction; label: string; hint?: string }> => {
+  const { conflict, profileName, hasDiffCallback } = args;
   const options: Array<{
-    value: SkillResolutionAction;
+    value: ConflictSelectAction;
     label: string;
     hint?: string;
   }> = [];
@@ -130,6 +141,19 @@ const buildResolutionOptions = (args: {
         hint: "Use existing version already on registry. Note that this will discard any local changes.",
       });
     }
+  }
+
+  // Add "View Diff" when server provided existingSkillMd and content has changed
+  if (
+    hasDiffCallback &&
+    !contentUnchanged &&
+    conflict.existingSkillMd != null
+  ) {
+    options.push({
+      value: "viewDiff",
+      label: "View Diff",
+      hint: "Show differences between local and registry SKILL.md",
+    });
   }
 
   return options;
@@ -224,12 +248,58 @@ const formatConflictMessage = (args: {
 };
 
 /**
+ * Maximum number of diff output lines before truncation
+ */
+const MAX_DIFF_LINES = 50;
+
+/**
+ * Format a diff for terminal display with colored +/- lines
+ *
+ * @param args - The function arguments
+ * @param args.existingContent - The existing SKILL.md content from the registry
+ * @param args.localContent - The local SKILL.md content
+ *
+ * @returns Formatted diff string for display in a note
+ */
+const formatDiffForNote = (args: {
+  existingContent: string;
+  localContent: string;
+}): string => {
+  const { existingContent, localContent } = args;
+  const changes = diffLines(existingContent, localContent);
+  const lines: Array<string> = [];
+
+  for (const change of changes) {
+    const changeLines = change.value.replace(/\n$/, "").split("\n");
+    for (const line of changeLines) {
+      if (change.added) {
+        lines.push(green({ text: `+ ${line}` }));
+      } else if (change.removed) {
+        lines.push(red({ text: `- ${line}` }));
+      } else {
+        lines.push(`  ${line}`);
+      }
+    }
+  }
+
+  if (lines.length > MAX_DIFF_LINES) {
+    const truncated = lines.slice(0, MAX_DIFF_LINES);
+    truncated.push("");
+    truncated.push(`... ${lines.length - MAX_DIFF_LINES} more lines truncated`);
+    return truncated.join("\n");
+  }
+
+  return lines.join("\n");
+};
+
+/**
  * Resolve skill conflicts interactively within the flow
  *
  * @param args - The function arguments
  * @param args.conflicts - Array of skill conflicts to resolve
  * @param args.profileName - The profile name for namespace preview
  * @param args.cancelMessage - Message to display on cancel
+ * @param args.onReadLocalSkillMd - Optional callback to read local SKILL.md content
  *
  * @returns Resolution strategy or null if cancelled
  */
@@ -237,8 +307,11 @@ const resolveConflictsInFlow = async (args: {
   conflicts: Array<SkillConflict>;
   profileName: string;
   cancelMessage: string;
+  onReadLocalSkillMd?:
+    | ((args: { skillId: string }) => Promise<string | null>)
+    | null;
 }): Promise<SkillResolutionStrategy | null> => {
-  const { conflicts, profileName, cancelMessage } = args;
+  const { conflicts, profileName, cancelMessage, onReadLocalSkillMd } = args;
 
   if (conflicts.length === 0) {
     return {};
@@ -248,7 +321,11 @@ const resolveConflictsInFlow = async (args: {
 
   for (let i = 0; i < conflicts.length; i++) {
     const conflict = conflicts[i];
-    const options = buildResolutionOptions({ conflict, profileName });
+    const options = buildResolutionOptions({
+      conflict,
+      profileName,
+      hasDiffCallback: onReadLocalSkillMd != null,
+    });
     const defaultAction = getDefaultAction({ conflict });
 
     const message = formatConflictMessage({
@@ -257,16 +334,42 @@ const resolveConflictsInFlow = async (args: {
       total: conflicts.length,
     });
 
-    const action = unwrapPrompt({
-      value: await select({
-        message,
-        options,
-        initialValue: defaultAction,
-      }),
-      cancelMessage,
-    });
+    let action: ConflictSelectAction | null = null;
 
-    if (action == null) return null;
+    // Loop to allow viewing diff and then re-prompting
+    while (action == null || action === "viewDiff") {
+      action = unwrapPrompt({
+        value: await select({
+          message,
+          options,
+          initialValue: defaultAction,
+        }),
+        cancelMessage,
+      });
+
+      if (action == null) return null;
+
+      if (action === "viewDiff") {
+        if (onReadLocalSkillMd != null && conflict.existingSkillMd != null) {
+          const localContent = await onReadLocalSkillMd({
+            skillId: conflict.skillId,
+          });
+
+          if (localContent == null) {
+            note(
+              "Local SKILL.md not found for this skill.",
+              `Diff unavailable for "${conflict.skillId}"`,
+            );
+          } else {
+            const diffContent = formatDiffForNote({
+              existingContent: conflict.existingSkillMd,
+              localContent,
+            });
+            note(diffContent, `Diff for "${conflict.skillId}"`);
+          }
+        }
+      }
+    }
 
     if (action === "updateVersion") {
       const suggestedVersion = getSuggestedVersion({
@@ -921,6 +1024,7 @@ export const uploadFlow = async (args: {
             conflicts: unresolvedConflicts,
             profileName,
             cancelMessage: cancelMsg,
+            onReadLocalSkillMd: callbacks.onReadLocalSkillMd,
           });
         }
       } else {
@@ -929,6 +1033,7 @@ export const uploadFlow = async (args: {
           conflicts: unresolvedConflicts,
           profileName,
           cancelMessage: cancelMsg,
+          onReadLocalSkillMd: callbacks.onReadLocalSkillMd,
         });
       }
 

@@ -5,7 +5,7 @@
  * use existing option, and one-by-one resolution.
  */
 import * as clack from "@clack/prompts";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 import type { UploadFlowCallbacks, UploadResult } from "./upload.js";
 import type { SkillConflict } from "@/api/registrar.js";
@@ -78,6 +78,12 @@ const getNoteContent = (): Array<string> => {
 describe("uploadFlow", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.mocked(clack.select).mockReset();
+    vi.mocked(clack.text).mockReset();
+    vi.mocked(clack.isCancel).mockReturnValue(false);
   });
 
   describe("use existing option", () => {
@@ -811,6 +817,304 @@ describe("uploadFlow", () => {
           "changed-skill-b": { action: "namespace" },
         }),
       );
+    });
+  });
+
+  describe("view diff option", () => {
+    it("should include View Diff option when conflict has existingSkillMd and content changed", async () => {
+      const conflicts: Array<SkillConflict> = [
+        {
+          skillId: "my-skill",
+          exists: true,
+          canPublish: true,
+          latestVersion: "1.0.0",
+          availableActions: ["cancel", "namespace", "updateVersion", "link"],
+          contentUnchanged: false,
+          existingSkillMd: "# Old Content\n\nOld description.",
+        },
+      ];
+
+      const callbacks = createMockCallbacks({
+        uploadResults: [
+          { success: false, conflicts },
+          {
+            success: true,
+            version: "1.0.0",
+            extractedSkills: { succeeded: [], failed: [] },
+          },
+        ],
+      });
+      callbacks.onReadLocalSkillMd = vi
+        .fn()
+        .mockResolvedValue("# New Content\n\nNew description.");
+
+      // User selects namespace directly (skips diff)
+      vi.mocked(clack.select).mockResolvedValueOnce("namespace");
+
+      await uploadFlow({
+        profileDisplayName: "myorg/my-profile",
+        profileName: "my-profile",
+        registryUrl: "https://myorg.noriskillsets.dev",
+        callbacks,
+      });
+
+      const selectCall = vi.mocked(clack.select).mock.calls[0][0];
+      const options = selectCall.options as Array<{
+        value: string;
+        label: string;
+      }>;
+      const viewDiffOption = options.find((o) => o.value === "viewDiff");
+      expect(viewDiffOption).toBeDefined();
+      expect(viewDiffOption?.label).toBe("View Diff");
+    });
+
+    it("should NOT include View Diff option when conflict has no existingSkillMd", async () => {
+      const conflicts: Array<SkillConflict> = [
+        {
+          skillId: "my-skill",
+          exists: true,
+          canPublish: true,
+          latestVersion: "1.0.0",
+          availableActions: ["cancel", "namespace", "updateVersion", "link"],
+          contentUnchanged: false,
+        },
+      ];
+
+      const callbacks = createMockCallbacks({
+        uploadResults: [
+          { success: false, conflicts },
+          {
+            success: true,
+            version: "1.0.0",
+            extractedSkills: { succeeded: [], failed: [] },
+          },
+        ],
+      });
+
+      vi.mocked(clack.select).mockResolvedValueOnce("namespace");
+
+      await uploadFlow({
+        profileDisplayName: "myorg/my-profile",
+        profileName: "my-profile",
+        registryUrl: "https://myorg.noriskillsets.dev",
+        callbacks,
+      });
+
+      const selectCall = vi.mocked(clack.select).mock.calls[0][0];
+      const options = selectCall.options as Array<{
+        value: string;
+        label: string;
+      }>;
+      const viewDiffOption = options.find((o) => o.value === "viewDiff");
+      expect(viewDiffOption).toBeUndefined();
+    });
+
+    it("should display diff via note and re-prompt when user selects View Diff", async () => {
+      const conflicts: Array<SkillConflict> = [
+        {
+          skillId: "my-skill",
+          exists: true,
+          canPublish: true,
+          latestVersion: "1.0.0",
+          availableActions: ["cancel", "namespace", "updateVersion", "link"],
+          contentUnchanged: false,
+          existingSkillMd: "Line one\nLine two\nLine three",
+        },
+      ];
+
+      const callbacks = createMockCallbacks({
+        uploadResults: [
+          { success: false, conflicts },
+          {
+            success: true,
+            version: "1.0.0",
+            extractedSkills: { succeeded: [], failed: [] },
+          },
+        ],
+      });
+      callbacks.onReadLocalSkillMd = vi
+        .fn()
+        .mockResolvedValue("Line one\nLine modified\nLine three");
+
+      // First select: user picks "viewDiff", second select: user picks "namespace"
+      vi.mocked(clack.select)
+        .mockResolvedValueOnce("viewDiff")
+        .mockResolvedValueOnce("namespace");
+
+      await uploadFlow({
+        profileDisplayName: "myorg/my-profile",
+        profileName: "my-profile",
+        registryUrl: "https://myorg.noriskillsets.dev",
+        callbacks,
+      });
+
+      // Should have been called twice (view diff then actual resolution)
+      expect(clack.select).toHaveBeenCalledTimes(2);
+
+      // note() should have been called with diff content between the two select calls
+      const noteContent = getNoteContent().join("\n");
+      expect(noteContent).toContain("Line two");
+      expect(noteContent).toContain("Line modified");
+
+      // Should have called the callback to read local content
+      expect(callbacks.onReadLocalSkillMd).toHaveBeenCalledWith({
+        skillId: "my-skill",
+      });
+    });
+
+    it("should work in one-by-one mode with multiple conflicts where only some have existingSkillMd", async () => {
+      const conflicts: Array<SkillConflict> = [
+        {
+          skillId: "skill-with-diff",
+          exists: true,
+          canPublish: true,
+          latestVersion: "1.0.0",
+          availableActions: ["cancel", "namespace", "updateVersion", "link"],
+          contentUnchanged: false,
+          existingSkillMd: "# Existing",
+        },
+        {
+          skillId: "skill-without-diff",
+          exists: true,
+          canPublish: true,
+          latestVersion: "2.0.0",
+          availableActions: ["cancel", "namespace", "updateVersion", "link"],
+          contentUnchanged: false,
+        },
+      ];
+
+      const callbacks = createMockCallbacks({
+        uploadResults: [
+          { success: false, conflicts },
+          {
+            success: true,
+            version: "1.0.0",
+            extractedSkills: { succeeded: [], failed: [] },
+          },
+        ],
+      });
+      callbacks.onReadLocalSkillMd = vi.fn().mockResolvedValue("# Local");
+
+      // Batch prompt: one-by-one, then resolve each
+      vi.mocked(clack.select)
+        .mockResolvedValueOnce("one-by-one") // batch
+        .mockResolvedValueOnce("namespace") // skill-with-diff (skip viewing diff)
+        .mockResolvedValueOnce("namespace"); // skill-without-diff
+
+      await uploadFlow({
+        profileDisplayName: "myorg/my-profile",
+        profileName: "my-profile",
+        registryUrl: "https://myorg.noriskillsets.dev",
+        callbacks,
+      });
+
+      // First conflict should have viewDiff option
+      const firstConflictCall = vi.mocked(clack.select).mock.calls[1][0];
+      const firstOptions = firstConflictCall.options as Array<{
+        value: string;
+        label: string;
+      }>;
+      expect(firstOptions.find((o) => o.value === "viewDiff")).toBeDefined();
+
+      // Second conflict should NOT have viewDiff option
+      const secondConflictCall = vi.mocked(clack.select).mock.calls[2][0];
+      const secondOptions = secondConflictCall.options as Array<{
+        value: string;
+        label: string;
+      }>;
+      expect(secondOptions.find((o) => o.value === "viewDiff")).toBeUndefined();
+    });
+
+    it("should truncate long diffs and show truncation message", async () => {
+      // Generate a long existing content with many lines
+      const longExisting = Array.from(
+        { length: 100 },
+        (_, i) => `Old line ${i}`,
+      ).join("\n");
+      const longLocal = Array.from(
+        { length: 100 },
+        (_, i) => `New line ${i}`,
+      ).join("\n");
+
+      const conflicts: Array<SkillConflict> = [
+        {
+          skillId: "my-skill",
+          exists: true,
+          canPublish: true,
+          latestVersion: "1.0.0",
+          availableActions: ["cancel", "namespace", "updateVersion", "link"],
+          contentUnchanged: false,
+          existingSkillMd: longExisting,
+        },
+      ];
+
+      const callbacks = createMockCallbacks({
+        uploadResults: [
+          { success: false, conflicts },
+          {
+            success: true,
+            version: "1.0.0",
+            extractedSkills: { succeeded: [], failed: [] },
+          },
+        ],
+      });
+      callbacks.onReadLocalSkillMd = vi.fn().mockResolvedValue(longLocal);
+
+      vi.mocked(clack.select)
+        .mockResolvedValueOnce("viewDiff")
+        .mockResolvedValueOnce("namespace");
+
+      await uploadFlow({
+        profileDisplayName: "myorg/my-profile",
+        profileName: "my-profile",
+        registryUrl: "https://myorg.noriskillsets.dev",
+        callbacks,
+      });
+
+      const noteContent = getNoteContent().join("\n");
+      expect(noteContent).toContain("truncated");
+    });
+
+    it("should handle onReadLocalSkillMd returning null gracefully", async () => {
+      const conflicts: Array<SkillConflict> = [
+        {
+          skillId: "my-skill",
+          exists: true,
+          canPublish: true,
+          latestVersion: "1.0.0",
+          availableActions: ["cancel", "namespace", "updateVersion", "link"],
+          contentUnchanged: false,
+          existingSkillMd: "# Existing content",
+        },
+      ];
+
+      const callbacks = createMockCallbacks({
+        uploadResults: [
+          { success: false, conflicts },
+          {
+            success: true,
+            version: "1.0.0",
+            extractedSkills: { succeeded: [], failed: [] },
+          },
+        ],
+      });
+      callbacks.onReadLocalSkillMd = vi.fn().mockResolvedValue(null);
+
+      vi.mocked(clack.select)
+        .mockResolvedValueOnce("viewDiff")
+        .mockResolvedValueOnce("namespace");
+
+      await uploadFlow({
+        profileDisplayName: "myorg/my-profile",
+        profileName: "my-profile",
+        registryUrl: "https://myorg.noriskillsets.dev",
+        callbacks,
+      });
+
+      // Should still complete without error and show a message about missing file
+      expect(clack.select).toHaveBeenCalledTimes(2);
+      const noteContent = getNoteContent().join("\n");
+      expect(noteContent).toMatch(/not found|could not|unavailable/i);
     });
   });
 
