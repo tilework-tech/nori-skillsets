@@ -60,7 +60,7 @@ The `--agent` global CLI option (default: "claude-code") determines which agent 
 - Shared loader that manages the `.nori-config.json` file lifecycle (single source of truth for config and version)
 - All agents MUST include this loader in their registry
 - Handles saving/removing config with auth credentials, profile selection, user preferences, and agent tracking (the `agents` object keys indicate which agents are installed)
-- During install: Merges `agents` objects from existing and new config, saves current package version in the `version` field. Preserves existing agent profiles (ensures per-agent profiles set by `switchProfile` survive reinstallation). Also preserves `organizations`, `isAdmin`, and `transcriptDestination` from the existing config
+- During install: Merges `agents` objects from existing and new config, saves current package version in the `version` field. Preserves existing agent profiles (ensures per-agent profiles set by `switchProfile` survive reinstallation). Also preserves `organizations`, `isAdmin`, `transcriptDestination`, `installDir`, and `defaultAgent` from the existing config. The `installDir` and `defaultAgent` fields use the `existingConfig?.field ?? config.field` pattern so they are only changed via `nori-skillsets config` or on initial setup
 
 **Managed Folder Utilities** (managedFolder.ts):
 - Agent-agnostic profile discovery extracted from the Agent interface

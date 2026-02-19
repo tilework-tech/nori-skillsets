@@ -84,4 +84,10 @@ export {
   type StartDaemonResult,
 } from "./watch.js";
 
+export {
+  configFlow,
+  type ConfigFlowCallbacks,
+  type ConfigFlowResult,
+} from "./config.js";
+
 export { unwrapPrompt } from "./utils.js";

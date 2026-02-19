@@ -1112,6 +1112,66 @@ describe("transcriptDestination config", () => {
   });
 });
 
+describe("defaultAgent config", () => {
+  let tempDir: string;
+  let mockConfigPath: string;
+
+  beforeEach(async () => {
+    tempDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), "config-default-agent-test-"),
+    );
+    mockConfigPath = path.join(tempDir, ".nori-config.json");
+    vi.mocked(os.homedir).mockReturnValue(tempDir);
+  });
+
+  afterEach(async () => {
+    await fs.rm(tempDir, { recursive: true, force: true });
+    vi.clearAllMocks();
+  });
+
+  it("should save and load defaultAgent", async () => {
+    await saveConfig({
+      username: null,
+      organizationUrl: null,
+      installDir: tempDir,
+      defaultAgent: "claude-code",
+      agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
+    });
+
+    const loaded = await loadConfig({ startDir: tempDir });
+
+    expect(loaded?.defaultAgent).toBe("claude-code");
+  });
+
+  it("should return undefined defaultAgent when field is absent", async () => {
+    await fs.writeFile(
+      mockConfigPath,
+      JSON.stringify({
+        agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
+      }),
+    );
+
+    const loaded = await loadConfig({ startDir: tempDir });
+
+    expect(loaded?.defaultAgent).toBeUndefined();
+  });
+
+  it("should persist defaultAgent to disk", async () => {
+    await saveConfig({
+      username: null,
+      organizationUrl: null,
+      installDir: tempDir,
+      defaultAgent: "claude-code",
+      agents: { "claude-code": {} },
+    });
+
+    const content = await fs.readFile(mockConfigPath, "utf-8");
+    const config = JSON.parse(content);
+
+    expect(config.defaultAgent).toBe("claude-code");
+  });
+});
+
 describe("schema validation", () => {
   let tempDir: string;
   let mockConfigPath: string;
