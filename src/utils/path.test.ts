@@ -234,6 +234,34 @@ describe("getInstallDirs", () => {
     });
   });
 
+  describe(".nori-managed marker detection", () => {
+    it("should detect directory with .claude/.nori-managed as installation", () => {
+      const projectDir = path.join(tempDir, "project");
+      const claudeDir = path.join(projectDir, ".claude");
+      fs.mkdirSync(claudeDir, { recursive: true });
+      fs.writeFileSync(path.join(claudeDir, ".nori-managed"), "senior-swe");
+
+      const result = getInstallDirs({ currentDir: projectDir });
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toBe(projectDir);
+    });
+
+    it("should detect ancestor with .claude/.nori-managed marker", () => {
+      const parentDir = path.join(tempDir, "parent");
+      const projectDir = path.join(parentDir, "project");
+      const claudeDir = path.join(parentDir, ".claude");
+      fs.mkdirSync(projectDir, { recursive: true });
+      fs.mkdirSync(claudeDir, { recursive: true });
+      fs.writeFileSync(path.join(claudeDir, ".nori-managed"), "my-profile");
+
+      const result = getInstallDirs({ currentDir: projectDir });
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toBe(parentDir);
+    });
+  });
+
   describe("cwd inside .claude directory", () => {
     it("should find installation in parent when cwd is inside .claude directory", () => {
       const parentDir = path.join(tempDir, "home");

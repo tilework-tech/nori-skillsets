@@ -63,6 +63,8 @@ export type Config = {
   sendSessionTranscript?: "enabled" | "disabled" | null;
   autoupdate?: "enabled" | "disabled" | null;
   installDir: string;
+  /** Default agent for CLI operations (set via `nori-skillsets config`) */
+  defaultAgent?: string | null;
   /**
    * Per-agent configuration settings. Keys indicate which agents are installed.
    * Note: Only "claude-code" is currently a valid agent name.
@@ -100,6 +102,7 @@ type RawDiskConfig = {
   // Legacy profile field - kept for reading old configs (not written anymore)
   profile?: { baseProfile?: string | null } | null;
   installDir?: string | null;
+  defaultAgent?: string | null;
   agents?: { [key in ConfigAgentName]?: AgentConfig } | null;
   version?: string | null;
   // Transcript upload destination org ID
@@ -281,6 +284,7 @@ export const loadConfig = async (): Promise<Config | null> => {
     const result: Config = {
       auth: null,
       installDir: validated.installDir ?? getHomeDir(),
+      defaultAgent: validated.defaultAgent,
       sendSessionTranscript: validated.sendSessionTranscript,
       autoupdate: validated.autoupdate,
       version: validated.version,
@@ -358,6 +362,7 @@ export const loadConfig = async (): Promise<Config | null> => {
  * @param args.organizations - List of organizations the user has access to (null to skip)
  * @param args.isAdmin - Whether the user is an admin for their organization (null to skip)
  * @param args.transcriptDestination - Organization ID for transcript uploads (null to skip)
+ * @param args.defaultAgent - Default agent name for CLI operations (null to skip)
  */
 export const saveConfig = async (args: {
   username: string | null;
@@ -370,6 +375,7 @@ export const saveConfig = async (args: {
   autoupdate?: "enabled" | "disabled" | null;
   agents?: { [key in ConfigAgentName]?: AgentConfig } | null;
   version?: string | null;
+  defaultAgent?: string | null;
   transcriptDestination?: string | null;
   installDir: string;
 }): Promise<void> => {
@@ -384,6 +390,7 @@ export const saveConfig = async (args: {
     autoupdate,
     agents,
     version,
+    defaultAgent,
     transcriptDestination,
     installDir,
   } = args;
@@ -434,6 +441,11 @@ export const saveConfig = async (args: {
   // Add transcriptDestination if provided
   if (transcriptDestination != null) {
     config.transcriptDestination = transcriptDestination;
+  }
+
+  // Add defaultAgent if provided
+  if (defaultAgent != null) {
+    config.defaultAgent = defaultAgent;
   }
 
   // Always save installDir
@@ -494,6 +506,7 @@ const configSchema = {
       },
     },
     installDir: { type: "string" },
+    defaultAgent: { type: ["string", "null"] },
     agents: {
       type: "object",
       additionalProperties: {

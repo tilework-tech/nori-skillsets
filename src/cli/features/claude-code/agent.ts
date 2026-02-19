@@ -3,6 +3,7 @@
  * Implements the Agent interface for Claude Code
  */
 
+import * as fsSync from "fs";
 import * as fs from "fs/promises";
 import * as path from "path";
 
@@ -28,6 +29,38 @@ export const claudeCodeAgent: Agent = {
   },
 
   factoryReset: factoryResetClaudeCode,
+
+  isInstalledAtDir: (args: { path: string }): boolean => {
+    const claudeDir = path.join(args.path, ".claude");
+
+    // Check for .nori-managed marker file (new style)
+    const markerPath = path.join(claudeDir, ".nori-managed");
+    if (fsSync.existsSync(markerPath)) {
+      return true;
+    }
+
+    // Backwards compatibility: check for NORI-AI MANAGED BLOCK in CLAUDE.md
+    const claudeMdPath = path.join(claudeDir, "CLAUDE.md");
+    if (fsSync.existsSync(claudeMdPath)) {
+      try {
+        const content = fsSync.readFileSync(claudeMdPath, "utf-8");
+        if (content.includes("NORI-AI MANAGED BLOCK")) {
+          return true;
+        }
+      } catch {
+        // Ignore read errors
+      }
+    }
+
+    return false;
+  },
+
+  markInstall: (args: { path: string; skillsetName?: string | null }): void => {
+    const claudeDir = path.join(args.path, ".claude");
+    fsSync.mkdirSync(claudeDir, { recursive: true });
+    const markerPath = path.join(claudeDir, ".nori-managed");
+    fsSync.writeFileSync(markerPath, args.skillsetName ?? "", "utf-8");
+  },
 
   switchProfile: async (args: {
     installDir: string;

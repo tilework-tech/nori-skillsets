@@ -9,6 +9,7 @@
 import { Command } from "commander";
 
 import {
+  registerNoriSkillsetsConfigCommand,
   registerNoriSkillsetsCompletionCommand,
   registerNoriSkillsetsCurrentCommand,
   registerNoriSkillsetsDirCommand,
@@ -123,6 +124,7 @@ Examples:
   $ nori-skillsets edit                                     # open active skillset in VS Code
   $ nori-skillsets edit my-profile                          # open a specific skillset
   $ nori-skillsets factory-reset claude-code                # remove all Claude Code config
+  $ nori-skillsets config                                   # configure default agent and install directory
 `,
   );
 
@@ -148,6 +150,7 @@ registerNoriSkillsetsNewCommand({ program });
 registerNoriSkillsetsRegisterCommand({ program });
 registerNoriSkillsetsEditSkillsetCommand({ program });
 registerNoriSkillsetsFactoryResetCommand({ program });
+registerNoriSkillsetsConfigCommand({ program });
 
 program.parse(process.argv);
 

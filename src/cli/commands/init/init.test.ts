@@ -407,6 +407,55 @@ describe("init command", () => {
       // Verify note was NOT called
       expect(clack.note).not.toHaveBeenCalled();
     });
+
+    it("should skip existing-config detection when .nori-managed marker exists", async () => {
+      // Create .nori-managed marker at the REAL install dir path (not mocked claude dir)
+      // because isInstalledAtDir uses path.join(installDir, ".claude") directly
+      const realClaudeDir = path.join(tempDir, ".claude");
+      fs.mkdirSync(realClaudeDir, { recursive: true });
+      fs.writeFileSync(path.join(realClaudeDir, ".nori-managed"), "senior-swe");
+
+      // Also create some existing config in the MOCKED claude dir that would normally trigger capture
+      fs.writeFileSync(
+        path.join(TEST_CLAUDE_DIR, "CLAUDE.md"),
+        "# My Custom Config\n\nSome content",
+      );
+      const skillsDir = path.join(TEST_CLAUDE_DIR, "skills");
+      fs.mkdirSync(skillsDir, { recursive: true });
+      fs.mkdirSync(path.join(skillsDir, "my-skill"));
+      fs.writeFileSync(path.join(skillsDir, "my-skill", "SKILL.md"), "# Skill");
+
+      await initMain({ installDir: tempDir, nonInteractive: true });
+
+      // Verify that NO profile was captured (config should not have a profile set)
+      const CONFIG_PATH = getConfigPath();
+      const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
+      expect(config.agents).toEqual({});
+    });
+
+    it("should create .nori-managed marker after init with captured profile", async () => {
+      // Create existing Claude Code config to trigger capture
+      const claudeMdPath = path.join(TEST_CLAUDE_DIR, "CLAUDE.md");
+      fs.writeFileSync(claudeMdPath, "# My Custom Config\n\nSome content");
+
+      await initMain({ installDir: tempDir, nonInteractive: true });
+
+      // Verify .nori-managed marker was created at the real install dir
+      // markInstall uses path.join(installDir, ".claude") directly
+      const markerPath = path.join(tempDir, ".claude", ".nori-managed");
+      expect(fs.existsSync(markerPath)).toBe(true);
+      expect(fs.readFileSync(markerPath, "utf-8")).toBe("my-profile");
+    });
+
+    it("should create .nori-managed marker after init without captured profile", async () => {
+      // No existing config - just a plain init
+      await initMain({ installDir: tempDir, nonInteractive: true });
+
+      // Verify .nori-managed marker was created at the real install dir
+      const markerPath = path.join(tempDir, ".claude", ".nori-managed");
+      expect(fs.existsSync(markerPath)).toBe(true);
+      expect(fs.readFileSync(markerPath, "utf-8")).toBe("");
+    });
   });
 
   describe("registerInitCommand", () => {

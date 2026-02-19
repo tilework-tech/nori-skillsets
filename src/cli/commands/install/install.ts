@@ -198,6 +198,14 @@ const completeInstallation = async (args: {
   // Write manifest for change detection
   await writeInstalledManifest({ config, agentName: agent.name });
 
+  // Mark installation directory with current skillset name
+  const profileName =
+    getAgentProfile({ config, agentName: agent.name })?.baseProfile ?? null;
+  agent.markInstall({
+    path: config.installDir,
+    skillsetName: profileName,
+  });
+
   // Remove progress marker
   cleanupProgressMarker();
 

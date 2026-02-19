@@ -20,6 +20,8 @@ CLI Commands (install, switch-profile, onboard, list)
     |           +-- getLoaderRegistry() --> LoaderRegistry (interface)
     |           +-- switchProfile({ installDir, profileName }) --> Validate and switch
     |           +-- factoryReset({ path }) --> Remove all agent config (optional)
+    |           +-- isInstalledAtDir({ path }) --> Check for agent installation marker
+    |           +-- markInstall({ path, skillsetName }) --> Write agent installation marker
     |
     +-- listProfiles() --> Available profile names (from managedFolder.ts)
 
@@ -49,6 +51,8 @@ The `--agent` global CLI option (default: "claude-code") determines which agent 
 - `getLoaderRegistry()`: Returns an object implementing the `LoaderRegistry` interface
 - `switchProfile({ installDir, profileName })`: Validates profile exists, filters out config entries for uninstalled agents, and updates config
 - `factoryReset({ path })`: Optional. Removes all agent configuration from the filesystem starting at the given path. The CLI command layer handles non-interactive blocking and confirmation; the agent method handles discovery and deletion.
+- `isInstalledAtDir({ path })`: Returns boolean indicating whether this agent is installed at the given directory. Each agent defines its own detection strategy (e.g., marker files, config content checks).
+- `markInstall({ path, skillsetName })`: Writes an installation marker at the given directory. The optional `skillsetName` parameter records the active skillset in the marker. Called by init and install commands after feature loaders complete.
 
 **AgentRegistry** (agentRegistry.ts):
 - Singleton pattern with `getInstance()`
@@ -60,7 +64,7 @@ The `--agent` global CLI option (default: "claude-code") determines which agent 
 - Shared loader that manages the `.nori-config.json` file lifecycle (single source of truth for config and version)
 - All agents MUST include this loader in their registry
 - Handles saving/removing config with auth credentials, profile selection, user preferences, and agent tracking (the `agents` object keys indicate which agents are installed)
-- During install: Merges `agents` objects from existing and new config, saves current package version in the `version` field. Preserves existing agent profiles (ensures per-agent profiles set by `switchProfile` survive reinstallation). Also preserves `organizations`, `isAdmin`, and `transcriptDestination` from the existing config
+- During install: Merges `agents` objects from existing and new config, saves current package version in the `version` field. Preserves existing agent profiles (ensures per-agent profiles set by `switchProfile` survive reinstallation). Also preserves `organizations`, `isAdmin`, `transcriptDestination`, `installDir`, and `defaultAgent` from the existing config. The `installDir` and `defaultAgent` fields use the `existingConfig?.field ?? config.field` pattern so they are only changed via `nori-skillsets config` or on initial setup
 
 **Managed Folder Utilities** (managedFolder.ts):
 - Agent-agnostic profile discovery extracted from the Agent interface
