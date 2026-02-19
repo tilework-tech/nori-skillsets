@@ -82,6 +82,7 @@ src/cli/
 | `factory-reset` | commands/factory-reset/factoryReset.ts | Remove all agent configuration from the ancestor tree |
 | `dir` | commands/dir/dir.ts | Open the Nori profiles directory in the system file explorer |
 | `edit` | commands/edit-skillset/editSkillset.ts | Open active (or specified) skillset profile folder in VS Code |
+| `config` | commands/config/config.ts | Configure default agent and install directory |
 
 The nori-skillsets CLI uses simplified command names (no `registry-` prefix for registry read operations, `download-skill` for skill downloads, `switch` for profile switching, `init` for initialization, and `watch` for session monitoring). The commands are defined in @/src/cli/commands/noriSkillsetsCommands.ts and delegate to the underlying implementation functions (`*Main` functions from registry-*, skill-*, watch, and init commands, plus `switchSkillsetAction` from profiles.ts). Some commands have hidden aliases registered as separate Commander commands with `{ hidden: true }` -- these provide singular/plural variants (e.g., `switch-skillset` and `switch-skillsets` for `switch`) and long-form names (e.g., `list-skillsets` and `list-skillset` for `list`, `edit-skillset` for `edit`). Hidden aliases do not appear in `--help` output but are fully functional commands that delegate to the same action handler.
 
@@ -119,7 +120,7 @@ The logger.ts module provides console output formatting with ANSI color codes, p
 
 **Silent Mode:** The logger module provides `setSilentMode({ silent: boolean })` and `isSilentMode()` functions for controlling console output globally. When silent mode is enabled, the custom ConsoleTransport skips all console output while Winston's File transport continues logging to `/tmp/nori.log`. Silent mode is set/restored in a `finally` block by the install command's `main()` function to prevent state leakage.
 
-The config.ts module provides a unified `Config` type for both disk persistence and runtime use. The `Config` type contains: auth credentials via `AuthCredentials` type (username, organizationUrl, refreshToken, password), agents (per-agent configuration - keys indicate installed agents, each with their own profile), user preferences (sendSessionTranscript, autoupdate), and the required installDir field.
+The config.ts module provides a unified `Config` type for both disk persistence and runtime use. The `Config` type contains: auth credentials via `AuthCredentials` type (username, organizationUrl, refreshToken, password), agents (per-agent configuration - keys indicate installed agents, each with their own profile), user preferences (sendSessionTranscript, autoupdate), the required installDir field, and an optional `defaultAgent` field (set via `nori-skillsets config`).
 
 **AuthCredentials Type:** Supports both token-based and legacy password-based authentication:
 - `username` and `organizationUrl` - required for all authenticated installs

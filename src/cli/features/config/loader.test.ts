@@ -310,6 +310,81 @@ describe("configLoader", () => {
       expect(fileContents.transcriptDestination).toBe("myorg");
     });
 
+    it("should preserve existing installDir from config instead of overwriting", async () => {
+      // Create existing config with a user-configured installDir
+      const configFile = getConfigPath();
+      fs.writeFileSync(
+        configFile,
+        JSON.stringify({
+          installDir: "/user/configured/path",
+          agents: {
+            "claude-code": { profile: { baseProfile: "senior-swe" } },
+          },
+        }),
+        "utf-8",
+      );
+
+      // Run configLoader with a different installDir (e.g., from switch command)
+      const config: Config = {
+        installDir: "/some/other/path",
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
+      };
+
+      await configLoader.run({ config });
+
+      const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
+      // installDir should be preserved from existing config, not overwritten
+      expect(fileContents.installDir).toBe("/user/configured/path");
+    });
+
+    it("should preserve existing defaultAgent from config instead of overwriting", async () => {
+      // Create existing config with a user-configured defaultAgent
+      const configFile = getConfigPath();
+      fs.writeFileSync(
+        configFile,
+        JSON.stringify({
+          installDir: tempDir,
+          defaultAgent: "claude-code",
+          agents: {
+            "claude-code": { profile: { baseProfile: "senior-swe" } },
+          },
+        }),
+        "utf-8",
+      );
+
+      // Run configLoader with config that doesn't set defaultAgent
+      const config: Config = {
+        installDir: tempDir,
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
+      };
+
+      await configLoader.run({ config });
+
+      const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
+      // defaultAgent should be preserved from existing config
+      expect(fileContents.defaultAgent).toBe("claude-code");
+    });
+
+    it("should use incoming installDir when no existing config exists", async () => {
+      const config: Config = {
+        installDir: "/fresh/install/path",
+        agents: {
+          "claude-code": { profile: { baseProfile: "senior-swe" } },
+        },
+      };
+
+      await configLoader.run({ config });
+
+      const configFile = getConfigPath();
+      const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
+      // No existing config, so incoming installDir should be used
+      expect(fileContents.installDir).toBe("/fresh/install/path");
+    });
+
     it("should use existing refresh token when provided instead of password", async () => {
       const config: Config = {
         installDir: tempDir,

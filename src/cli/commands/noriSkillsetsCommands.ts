@@ -8,6 +8,7 @@
  */
 
 import { completionMain } from "@/cli/commands/completion/completion.js";
+import { configMain } from "@/cli/commands/config/config.js";
 import { currentSkillsetMain } from "@/cli/commands/current-skillset/currentSkillset.js";
 import { dirMain } from "@/cli/commands/dir/dir.js";
 import { editSkillsetMain } from "@/cli/commands/edit-skillset/editSkillset.js";
@@ -804,5 +805,23 @@ export const registerNoriSkillsetsCompletionCommand = (args: {
     .description("Generate shell completion script (bash, zsh)")
     .action((shell: string) => {
       completionMain({ shell });
+    });
+};
+
+/**
+ * Register the 'config' command for nori-skillsets CLI
+ * @param args - Configuration arguments
+ * @param args.program - Commander program instance
+ */
+export const registerNoriSkillsetsConfigCommand = (args: {
+  program: Command;
+}): void => {
+  const { program } = args;
+
+  program
+    .command("config")
+    .description("Configure default agent and install directory")
+    .action(async () => {
+      await configMain();
     });
 };
