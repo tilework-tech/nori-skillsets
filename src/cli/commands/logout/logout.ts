@@ -4,30 +4,28 @@
  * Clears stored authentication credentials.
  */
 
-import * as path from "path";
-
 import { log } from "@clack/prompts";
 
-import { findConfigPath, loadConfig, saveConfig } from "@/cli/config.js";
+import { loadConfig, saveConfig } from "@/cli/config.js";
 import { getHomeDir } from "@/utils/home.js";
 
 import type { Command } from "commander";
 
 /**
- * Clear auth from a single config directory
+ * Main logout function
  *
  * @param args - Configuration arguments
- * @param args.installDir - Directory containing the config
- * @param args.startDir - Directory to start config search from
+ * @param args.installDir - Installation directory (stored as data in config)
  */
-const clearAuthFromConfig = async (args: {
-  installDir: string;
-  startDir?: string | null;
+export const logoutMain = async (args?: {
+  installDir?: string | null;
 }): Promise<void> => {
-  const { installDir, startDir } = args;
-  const existingConfig = await loadConfig({ startDir });
+  const { installDir } = args ?? {};
 
-  if (existingConfig == null) {
+  const existingConfig = await loadConfig();
+
+  if (existingConfig?.auth == null) {
+    log.info("Not currently logged in.");
     return;
   }
 
@@ -38,37 +36,7 @@ const clearAuthFromConfig = async (args: {
     autoupdate: existingConfig.autoupdate ?? null,
     agents: existingConfig.agents ?? null,
     version: existingConfig.version ?? null,
-    installDir,
-  });
-};
-
-/**
- * Main logout function
- *
- * @param args - Configuration arguments
- * @param args.installDir - Installation directory (stored as data in config)
- * @param args.startDir - Directory to start config search from (defaults to cwd)
- */
-export const logoutMain = async (args?: {
-  installDir?: string | null;
-  startDir?: string | null;
-}): Promise<void> => {
-  const { installDir, startDir } = args ?? {};
-
-  const existingConfig = await loadConfig({ startDir });
-
-  if (existingConfig?.auth == null) {
-    log.info("Not currently logged in.");
-    return;
-  }
-
-  // Get the actual config path that was found to determine installDir
-  const configPath = await findConfigPath({ startDir });
-  const configDir = path.dirname(configPath);
-
-  await clearAuthFromConfig({
-    installDir: installDir ?? configDir,
-    startDir,
+    installDir: installDir ?? getHomeDir(),
   });
   log.success("Logged out successfully.");
 };
@@ -90,7 +58,6 @@ export const registerLogoutCommand = (args: { program: Command }): void => {
 
       await logoutMain({
         installDir: globalOpts.installDir || null,
-        startDir: getHomeDir(),
       });
     });
 };

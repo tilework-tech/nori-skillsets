@@ -137,12 +137,6 @@ describe("generateBashCompletion", () => {
     expect(result).toMatch(/edit[\s\S]*--agent/);
   });
 
-  it("should contain install-location-specific flags", () => {
-    const result = generateBashCompletion();
-    expect(result).toContain("--installation-source");
-    expect(result).toContain("--installation-managed");
-  });
-
   it("should reference list for dynamic switch completion", () => {
     const result = generateBashCompletion();
     expect(result).toContain("list");
@@ -231,9 +225,6 @@ describe("generateZshCompletion", () => {
     expect(result).toContain("--skill");
     expect(result).toContain("--all");
     expect(result).toContain("--ref");
-    // install-location flags
-    expect(result).toContain("--installation-source");
-    expect(result).toContain("--installation-managed");
   });
 
   it("should reference list for dynamic switch completion", () => {

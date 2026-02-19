@@ -156,6 +156,15 @@ const getClackErrorOutput = (): string => {
   return parts.join("\n");
 };
 
+const createManagedBlockMarker = async (dir: string): Promise<void> => {
+  const claudeDir = path.join(dir, ".claude");
+  await fs.mkdir(claudeDir, { recursive: true });
+  await fs.writeFile(
+    path.join(claudeDir, "CLAUDE.md"),
+    "# BEGIN NORI-AI MANAGED BLOCK\n# END NORI-AI MANAGED BLOCK\n",
+  );
+};
+
 describe("skill-download", () => {
   let testDir: string;
   let configPath: string;
@@ -188,6 +197,9 @@ describe("skill-download", () => {
         },
       }),
     );
+
+    // Create managed block marker so getInstallDirs() can find this installation
+    await createManagedBlockMarker(testDir);
 
     // Create skills directory
     await fs.mkdir(skillsDir, { recursive: true });
@@ -981,11 +993,14 @@ describe("--skillset option and manifest updates", () => {
     await fs.mkdir(skillsDir, { recursive: true });
     await fs.mkdir(profilesDir, { recursive: true });
 
-    // Create config file so getInstallDirs() can find this installation
+    // Create config file
     await fs.writeFile(
       path.join(testDir, ".nori-config.json"),
       JSON.stringify({}),
     );
+
+    // Create managed block marker so getInstallDirs() can find this installation
+    await createManagedBlockMarker(testDir);
 
     // Create a test profile with nori.json
     const testProfileDir = path.join(profilesDir, "test-profile");
@@ -1261,11 +1276,14 @@ describe("profile directory persistence", () => {
     await fs.mkdir(skillsDir, { recursive: true });
     await fs.mkdir(profilesDir, { recursive: true });
 
-    // Create config file so getInstallDirs() can find this installation
+    // Create config file
     await fs.writeFile(
       path.join(testDir, ".nori-config.json"),
       JSON.stringify({}),
     );
+
+    // Create managed block marker so getInstallDirs() can find this installation
+    await createManagedBlockMarker(testDir);
 
     // Create active profile directory with nori.json
     const activeProfileDir = path.join(profilesDir, "active-profile");
@@ -1857,6 +1875,9 @@ describe("namespaced package support", () => {
         },
       }),
     );
+
+    // Create managed block marker so getInstallDirs() can find this installation
+    await createManagedBlockMarker(testDir);
 
     // Create skills directory
     await fs.mkdir(skillsDir, { recursive: true });

@@ -155,9 +155,8 @@ describe("statuslineLoader", () => {
 
       expect(exists).toBe(true);
 
-      // Verify script contains upward search logic
+      // Verify script contains config reading logic
       const scriptContent = await fs.readFile(copiedScriptPath, "utf-8");
-      expect(scriptContent).toContain("find_install_dir");
       expect(scriptContent).toContain(".nori-config.json");
     });
 

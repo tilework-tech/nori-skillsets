@@ -15,7 +15,7 @@ Path: @/src/cli/commands/init
 - The non-interactive path runs inline within `initMain()` and uses `@clack/prompts` (`log`, `note`) for all output
 - Config persistence uses `loadConfig()` / `saveConfig()` from @/src/cli/config.js, always scoped to the home directory via `getHomeDir()`
 - Existing config capture delegates to `detectExistingConfig()` and `captureExistingConfigAsProfile()` from @/src/cli/commands/install/existingConfigCapture.js
-- Ancestor installation detection uses `getInstallDirsWithTypes()` from @/src/utils/path.js
+- Ancestor installation detection uses `getInstallDirs()` from @/src/utils/path.js
 - After capturing a profile, installs the managed CLAUDE.md block via `claudeMdLoader.install()` from @/src/cli/features/claude-code/profiles/claudemd/loader.js
 
 ### Core Implementation
@@ -28,8 +28,8 @@ Path: @/src/cli/commands/init
 
 ### Things to Know
 
-- The ancestor warning only fires for installations of type `"managed"` or `"both"` (not `"source"` only), which means the parent directory must contain a CLAUDE.md with Nori managed block markers
-- Config loading always uses `getHomeDir()` as `startDir` (not the install directory) because init is a home-directory-scoped operation
+- The ancestor warning fires for any directory detected by `getInstallDirs()`, which checks for `.claude/CLAUDE.md` containing the Nori managed block marker
+- Config loading uses the zero-arg `loadConfig()` which always reads from `~/.nori-config.json`
 - The `skipWarning` parameter exists for downstream callers (like download flows) that run init as a side-effect and do not want the profile persistence warning displayed in the interactive flow
 - All CLI output in the non-interactive path uses `@clack/prompts` -- the only imports from `@/cli/logger.js` are the `bold` and `yellow` color helper functions
 

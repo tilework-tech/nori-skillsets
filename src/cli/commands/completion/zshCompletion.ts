@@ -134,8 +134,6 @@ _nori_skillsets() {
           ;;
         install-location)
           _arguments \\
-            '--installation-source[Show only installation source directories]' \\
-            '--installation-managed[Show only managed installation directories]' \\
             \$global_opts
           ;;
         completion)

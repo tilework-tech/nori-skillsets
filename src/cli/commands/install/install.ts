@@ -247,7 +247,7 @@ export const noninteractive = async (args?: {
 
   // Step 2: Resolve profile and save to config
   // Use getHomeDir() since install is home-directory-based
-  const existingConfig = await loadConfig({ startDir: getHomeDir() });
+  const existingConfig = await loadConfig();
   if (existingConfig == null) {
     log.error(
       "No Nori configuration found. Please run 'nori-skillsets init' first.",
@@ -293,7 +293,7 @@ export const noninteractive = async (args?: {
   });
 
   // Reload config after saving
-  const config = await loadConfig({ startDir: getHomeDir() });
+  const config = await loadConfig();
   if (config == null) {
     log.error("Failed to load configuration after setup.");
     process.exit(1);

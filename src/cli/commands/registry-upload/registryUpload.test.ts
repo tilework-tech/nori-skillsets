@@ -132,6 +132,15 @@ import { isSkillCollisionError } from "@/utils/fetch.js";
 
 import { registryUploadMain } from "./registryUpload.js";
 
+const createManagedBlockMarker = async (dir: string): Promise<void> => {
+  const claudeDir = path.join(dir, ".claude");
+  await fs.mkdir(claudeDir, { recursive: true });
+  await fs.writeFile(
+    path.join(claudeDir, "CLAUDE.md"),
+    "# BEGIN NORI-AI MANAGED BLOCK\n# END NORI-AI MANAGED BLOCK\n",
+  );
+};
+
 /**
  * Helper to get all text output from clack prompts mocks
  * Combines outro, note, intro, log calls into a searchable string
@@ -220,6 +229,9 @@ describe("registry-upload", () => {
 
     // Create profiles directory
     await fs.mkdir(profilesDir, { recursive: true });
+
+    // Create managed block marker so getInstallDirs detects this as a Nori installation
+    await createManagedBlockMarker(testDir);
   });
 
   afterEach(async () => {
@@ -332,6 +344,7 @@ describe("registry-upload", () => {
           path.join(nestedDir, ".nori-config.json"),
           JSON.stringify({ profile: { baseProfile: "test" } }),
         );
+        await createManagedBlockMarker(nestedDir);
 
         // Set mock homedir to a directory without installation so home dir doesn't take precedence
         const emptyHomeDir = await fs.mkdtemp(

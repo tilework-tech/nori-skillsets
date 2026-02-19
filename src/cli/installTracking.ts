@@ -216,7 +216,7 @@ const loadConfigForAnalytics = async (): Promise<Config | null> => {
   try {
     const installations = getInstallDirs({ currentDir: process.cwd() });
     if (installations.length === 0) return null;
-    return await loadConfig({ startDir: getHomeDir() });
+    return await loadConfig();
   } catch {
     return null;
   }
