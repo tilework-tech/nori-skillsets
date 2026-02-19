@@ -7,11 +7,11 @@ import * as fsSync from "fs";
 import * as fs from "fs/promises";
 import * as path from "path";
 
+import { loadConfig, saveConfig, type Config } from "@/cli/config.js";
 import {
   detectExistingConfig,
   captureExistingConfigAsProfile,
-} from "@/cli/commands/install/existingConfigCapture.js";
-import { loadConfig, saveConfig, type Config } from "@/cli/config.js";
+} from "@/cli/features/claude-code/existingConfigCapture.js";
 import { factoryResetClaudeCode } from "@/cli/features/claude-code/factoryReset.js";
 import { LoaderRegistry } from "@/cli/features/claude-code/loaderRegistry.js";
 import {
