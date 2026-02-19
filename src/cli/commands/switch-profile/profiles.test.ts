@@ -15,6 +15,15 @@ import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 
 import { registerSwitchProfileCommand } from "./profiles.js";
 
+const createManagedBlockMarker = async (dir: string): Promise<void> => {
+  const claudeDir = path.join(dir, ".claude");
+  await fs.mkdir(claudeDir, { recursive: true });
+  await fs.writeFile(
+    path.join(claudeDir, "CLAUDE.md"),
+    "# BEGIN NORI-AI MANAGED BLOCK\n# END NORI-AI MANAGED BLOCK\n",
+  );
+};
+
 // Mock os.homedir so getNoriDir/getNoriProfilesDir resolve to the test directory
 vi.mock("os", async (importOriginal) => {
   const actual = await importOriginal<typeof os>();
@@ -312,6 +321,9 @@ describe("switch-profile getInstallDirs auto-detection", () => {
         },
       }),
     );
+
+    // Create managed block marker so getInstallDirs detects this as a Nori installation
+    await createManagedBlockMarker(testInstallDir);
 
     AgentRegistry.resetInstance();
     mockSwitchSkillsetFlow.mockReset();

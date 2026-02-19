@@ -420,7 +420,7 @@ export const skillDownloadMain = async (args: {
 
   // Load config if it exists (for private registry auth)
   // Use home directory since auth is a global setting
-  const config = await loadConfig({ startDir: getHomeDir() });
+  const config = await loadConfig();
 
   // Resolve target skillset for manifest update
   // Priority: --skillset option > active profile from config > no manifest update

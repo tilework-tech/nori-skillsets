@@ -6,7 +6,6 @@
 import { log } from "@clack/prompts";
 
 import { loadConfig, getAgentProfile, getDefaultAgent } from "@/cli/config.js";
-import { getHomeDir } from "@/utils/home.js";
 
 /**
  * Main function for current-skillset command
@@ -19,7 +18,7 @@ export const currentSkillsetMain = async (args: {
   const { agent: agentOption } = args;
 
   // Load config from home directory (centralized config location)
-  const config = await loadConfig({ startDir: getHomeDir() });
+  const config = await loadConfig();
 
   if (config == null) {
     log.error(

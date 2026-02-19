@@ -8,7 +8,6 @@ import { log } from "@clack/prompts";
 import { loadConfig, getDefaultAgent } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { listProfiles } from "@/cli/features/managedFolder.js";
-import { getHomeDir } from "@/utils/home.js";
 
 import type { Command } from "commander";
 
@@ -23,7 +22,7 @@ export const listSkillsetsMain = async (args: {
   const { agent: agentOption } = args;
 
   // Determine which agent to use
-  const config = await loadConfig({ startDir: getHomeDir() });
+  const config = await loadConfig();
   const agentName = getDefaultAgent({ config, agentOverride: agentOption });
 
   // Validate agent exists

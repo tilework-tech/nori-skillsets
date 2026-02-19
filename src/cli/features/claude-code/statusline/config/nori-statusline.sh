@@ -17,58 +17,13 @@ if ! command -v jq >/dev/null 2>&1; then
     exit 0
 fi
 
-# === FIND INSTALL DIRECTORY ===
-# Search upward from CWD to find .nori-config.json
-find_install_dir() {
-    local current_dir="$1"
-    local max_depth=50
-    local depth=0
-
-    while [ "$depth" -lt "$max_depth" ]; do
-        # Check for new-style config
-        if [ -f "$current_dir/.nori-config.json" ]; then
-            echo "$current_dir"
-            return 0
-        fi
-
-        # Check for legacy config
-        if [ -f "$current_dir/nori-config.json" ]; then
-            echo "$current_dir"
-            return 0
-        fi
-
-        # Check if we've reached root
-        local parent_dir="$(dirname "$current_dir")"
-        if [ "$parent_dir" = "$current_dir" ]; then
-            break
-        fi
-
-        current_dir="$parent_dir"
-        depth=$((depth + 1))
-    done
-
-    return 1
-}
-
-# Extract CWD from JSON input
-CWD_FROM_JSON=$(echo "$INPUT" | jq -r '.cwd // empty')
-
-# Find install directory by searching upward from CWD
-if [ -n "$CWD_FROM_JSON" ] && [ -d "$CWD_FROM_JSON" ]; then
-    INSTALL_DIR=$(find_install_dir "$CWD_FROM_JSON")
-fi
-
-# If we still don't have an install dir, fall back to HOME
-# This ensures the statusline reads ~/.nori-config.json when no project-local config exists
-if [ -z "$INSTALL_DIR" ]; then
-    INSTALL_DIR="$HOME"
-fi
-
 # === CONFIG FILE LOCATION ===
-CONFIG_FILE="$INSTALL_DIR/.nori-config.json"
+# Config is always at ~/.nori-config.json
+INSTALL_DIR="$HOME"
+CONFIG_FILE="$HOME/.nori-config.json"
 
 # === PROFILE ENRICHMENT ===
-# Get profile name from ~/nori-config.json
+# Get profile name from ~/.nori-config.json
 PROFILE_NAME=""  # default to empty (don't show if not set)
 
 if [ -f "$CONFIG_FILE" ]; then

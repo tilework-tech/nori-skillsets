@@ -77,7 +77,7 @@ describe("configMain", () => {
     const { configMain } = await import("./config.js");
     await configMain();
 
-    const loaded = await loadConfig({ startDir: tempDir });
+    const loaded = await loadConfig();
     expect(loaded?.defaultAgent).toBe("claude-code");
     expect(loaded?.installDir).toBe(tempDir);
   });
@@ -94,12 +94,12 @@ describe("configMain", () => {
       agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
     });
 
-    const configBefore = await loadConfig({ startDir: tempDir });
+    const configBefore = await loadConfig();
 
     const { configMain } = await import("./config.js");
     await configMain();
 
-    const configAfter = await loadConfig({ startDir: tempDir });
+    const configAfter = await loadConfig();
     expect(configAfter?.installDir).toBe(configBefore?.installDir);
   });
 
@@ -123,7 +123,7 @@ describe("configMain", () => {
     const { configMain } = await import("./config.js");
     await configMain();
 
-    const loaded = await loadConfig({ startDir: tempDir });
+    const loaded = await loadConfig();
     expect(loaded?.auth?.username).toBe("test@example.com");
     expect(loaded?.agents?.["claude-code"]?.profile?.baseProfile).toBe(
       "senior-swe",

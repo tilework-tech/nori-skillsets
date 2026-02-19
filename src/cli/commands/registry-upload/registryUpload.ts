@@ -24,7 +24,6 @@ import {
   type UploadResult,
 } from "@/cli/prompts/flows/index.js";
 import { isSkillCollisionError } from "@/utils/fetch.js";
-import { getHomeDir } from "@/utils/home.js";
 import { getInstallDirs } from "@/utils/path.js";
 import {
   parseNamespacedPackage,
@@ -352,7 +351,7 @@ export const registryUploadMain = async (args: {
   }
 
   // Load config - use getHomeDir() since registry upload needs global auth
-  const config = await loadConfig({ startDir: getHomeDir() });
+  const config = await loadConfig();
   if (config == null) {
     log.error(`Could not load Nori configuration.`);
     return { success: false };

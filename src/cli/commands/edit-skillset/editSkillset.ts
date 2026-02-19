@@ -11,7 +11,6 @@ import { log, note, outro } from "@clack/prompts";
 
 import { loadConfig, getAgentProfile, getDefaultAgent } from "@/cli/config.js";
 import { getNoriProfilesDir } from "@/cli/features/claude-code/paths.js";
-import { getHomeDir } from "@/utils/home.js";
 
 /**
  * Main function for edit-skillset command
@@ -33,7 +32,7 @@ export const editSkillsetMain = async (args: {
   } else {
     // Load config to find the active profile
     // Use getHomeDir() as startDir since edit-skillset is home-directory-based
-    const config = await loadConfig({ startDir: getHomeDir() });
+    const config = await loadConfig();
 
     // Determine agent name
     const agentName = getDefaultAgent({ config, agentOverride: agentOption });

@@ -66,7 +66,7 @@ _nori_skillsets_completions() {
       fi
       ;;
     install-location)
-      COMPREPLY=( $(compgen -W "--installation-source --installation-managed \${global_opts}" -- "\${cur}") )
+      COMPREPLY=( $(compgen -W "\${global_opts}" -- "\${cur}") )
       ;;
     completion)
       COMPREPLY=( $(compgen -W "bash zsh" -- "\${cur}") )

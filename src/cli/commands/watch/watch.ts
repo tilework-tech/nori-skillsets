@@ -471,7 +471,7 @@ const saveTranscriptDestination = async (args: {
   installDir: string;
 }): Promise<void> => {
   const { org, installDir } = args;
-  const config = await loadConfig({ startDir: getHomeDir() });
+  const config = await loadConfig();
   if (org === config?.transcriptDestination) {
     return;
   }
@@ -546,7 +546,7 @@ export const watchMain = async (args?: {
 
   // Resolve agent from config defaultAgent, with --agent as override
   const agentOverride = args?.agent ?? null;
-  const resolvedConfig = await loadConfig({ startDir: getHomeDir() });
+  const resolvedConfig = await loadConfig();
   const agent = getDefaultAgent({ config: resolvedConfig, agentOverride });
 
   const homeDir = process.env.HOME ?? "";
@@ -566,7 +566,7 @@ export const watchMain = async (args?: {
             await watchStopMain({ quiet: true });
           }
 
-          const config = await loadConfig({ startDir: getHomeDir() });
+          const config = await loadConfig();
           const userOrgs = config?.auth?.organizations ?? [];
           const privateOrgs = userOrgs.filter((org) => org !== "public");
 
@@ -609,7 +609,7 @@ export const watchMain = async (args?: {
 
   // Load config to get saved transcript destination
   // Use getHomeDir() as startDir since watch is home-directory-based
-  const config = await loadConfig({ startDir: getHomeDir() });
+  const config = await loadConfig();
   transcriptOrgId = config?.transcriptDestination ?? null;
 
   const pidFile = getWatchPidFile();
