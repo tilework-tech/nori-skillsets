@@ -10,6 +10,7 @@ import {
   loadConfig,
   getAgentProfile,
   getInstalledAgents,
+  getDefaultAgent,
   type ConfigAgentName,
 } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
@@ -181,7 +182,8 @@ export const switchSkillsetAction = async (args: {
   }
 
   // Non-interactive flow
-  const agentName = options.agent ?? "claude-code";
+  const config = await loadConfig();
+  const agentName = getDefaultAgent({ config, agentOverride: options.agent });
   const agent = AgentRegistry.getInstance().get({ name: agentName });
 
   // Check for local changes before proceeding

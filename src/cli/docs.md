@@ -142,6 +142,8 @@ The `getConfigPath()` function is zero-arg and always returns `~/.nori-config.js
 
 **Installed Agents Tracking:** Installed agents are derived from the keys of the `agents` object. Use `getInstalledAgents({ config })` helper to get the list.
 
+**Default Agent Resolution (CRITICAL):** All CLI commands that need to determine the active agent MUST use `getDefaultAgent({ config, agentOverride? })` from config.ts. This function provides a single, consistent resolution chain: (1) explicit `agentOverride` (e.g., from `--agent` CLI flag), (2) `config.defaultAgent` (user preference set via `nori-skillsets config`), (3) first installed agent from `getInstalledAgents({ config })`, (4) hardcoded `"claude-code"` fallback. Empty strings and null values for `agentOverride` are treated as absent. When config is unavailable (e.g., no config file found), commands fall back to `agentOption ?? "claude-code"` directly.
+
 **loadConfig() Behavior:** The `loadConfig()` function is zero-arg and always reads from `~/.nori-config.json`. The returned Config objects `installDir` field comes from the JSON file (if present), defaulting to `os.homedir()` when not specified in the file.
 
 **CliName Type:** The `CliName` type in @/src/cli/commands/cliCommandNames.ts is a single literal type `"nori-skillsets"` (not a union). The `getCommandNames()` function always returns the same `NORI_SKILLSETS_COMMANDS` constant regardless of input.

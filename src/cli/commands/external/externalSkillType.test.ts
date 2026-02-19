@@ -55,6 +55,20 @@ vi.mock("@/cli/config.js", async () => {
       const agents = Object.keys(args.config.agents ?? {});
       return agents.length > 0 ? agents : ["claude-code"];
     },
+    getDefaultAgent: (args: {
+      config: {
+        defaultAgent?: string | null;
+        agents?: Record<string, unknown> | null;
+      };
+      agentOverride?: string | null;
+    }) => {
+      if (args.agentOverride != null && args.agentOverride !== "")
+        return args.agentOverride;
+      if (args.config.defaultAgent != null && args.config.defaultAgent !== "")
+        return args.config.defaultAgent;
+      const agents = Object.keys(args.config.agents ?? {});
+      return agents.length > 0 ? agents[0] : "claude-code";
+    },
     getAgentProfile: (args: {
       config: {
         agents?: Record<

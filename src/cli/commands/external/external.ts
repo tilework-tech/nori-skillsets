@@ -14,7 +14,7 @@ import {
   type CliName,
 } from "@/cli/commands/cliCommandNames.js";
 import { createEmptySkillset } from "@/cli/commands/new-skillset/newSkillset.js";
-import { loadConfig, getAgentProfile } from "@/cli/config.js";
+import { loadConfig, getAgentProfile, getDefaultAgent } from "@/cli/config.js";
 import {
   getClaudeSkillsDir,
   getNoriProfilesDir,
@@ -366,9 +366,10 @@ export const externalMain = async (args: {
       return;
     }
   } else if (config != null) {
+    const agentName = getDefaultAgent({ config });
     const activeProfile = getAgentProfile({
       config,
-      agentName: "claude-code",
+      agentName,
     });
     if (activeProfile != null) {
       const profileDir = path.join(profilesDir, activeProfile.baseProfile);
