@@ -355,8 +355,6 @@ const scanForStaleTranscripts = async (): Promise<void> => {
 
         if (uploaded) {
           // Mark as uploaded in registry
-          // Note: The file may already be deleted by processTranscriptForUpload at this point
-          // If marking fails, log warning but don't fail - the upload did succeed
           try {
             registry.markUploaded({ sessionId, fileHash, transcriptPath });
             await log(
