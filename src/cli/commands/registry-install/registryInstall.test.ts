@@ -57,7 +57,7 @@ vi.mock("@/cli/commands/install/installState.js", () => ({
 
 vi.mock("@/cli/config.js", () => ({
   loadConfig: vi.fn().mockResolvedValue(null),
-  getDefaultAgent: vi.fn().mockReturnValue("claude-code"),
+  getDefaultAgents: vi.fn().mockReturnValue(["claude-code"]),
 }));
 
 const mockSwitchProfile = vi.fn();

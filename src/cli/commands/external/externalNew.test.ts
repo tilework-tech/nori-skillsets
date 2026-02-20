@@ -41,41 +41,8 @@ vi.mock("@/cli/config.js", async () => {
   return {
     loadConfig: vi.fn(),
     getRegistryAuth: vi.fn(),
-    getInstalledAgents: (args: {
-      config: { agents?: Record<string, unknown> | null };
-    }) => {
-      const agents = Object.keys(args.config.agents ?? {});
-      return agents.length > 0 ? agents : ["claude-code"];
-    },
-    getDefaultAgent: (args: {
-      config: {
-        defaultAgents?: Array<string> | null;
-        agents?: Record<string, unknown> | null;
-      };
-      agentOverride?: string | null;
-    }) => {
-      if (args.agentOverride != null && args.agentOverride !== "")
-        return args.agentOverride;
-      if (
-        args.config.defaultAgents != null &&
-        args.config.defaultAgents.length > 0
-      )
-        return args.config.defaultAgents[0];
-      const agents = Object.keys(args.config.agents ?? {});
-      return agents.length > 0 ? agents[0] : "claude-code";
-    },
-    getAgentProfile: (args: {
-      config: {
-        agents?: Record<
-          string,
-          { profile?: { baseProfile: string } | null } | null
-        > | null;
-      };
-      agentName: string;
-    }) => {
-      const agentConfig = args.config.agents?.[args.agentName];
-      return agentConfig?.profile ?? null;
-    },
+    getActiveSkillset: (args: { config: { activeSkillset?: string | null } }) =>
+      args.config.activeSkillset ?? null,
   };
 });
 

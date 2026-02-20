@@ -225,9 +225,7 @@ describe("AgentRegistry", () => {
 
       const config = {
         installDir: testInstallDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "captured-profile" } },
-        },
+        activeSkillset: "captured-profile",
       };
 
       await agent.captureExistingConfig!({
@@ -262,9 +260,7 @@ describe("AgentRegistry", () => {
 
       const config = {
         installDir: testInstallDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "captured-profile" } },
-        },
+        activeSkillset: "captured-profile",
       };
 
       await agent.captureExistingConfig!({
@@ -325,9 +321,7 @@ describe("AgentRegistry", () => {
 
       // Verify config was updated
       const updatedConfig = JSON.parse(await fs.readFile(configPath, "utf-8"));
-      expect(updatedConfig.agents?.["claude-code"]?.profile?.baseProfile).toBe(
-        "test-profile",
-      );
+      expect(updatedConfig.activeSkillset).toBe("test-profile");
     });
 
     test("preserves existing config fields when switching", async () => {
@@ -369,9 +363,7 @@ describe("AgentRegistry", () => {
         "https://org.example.com",
       );
       expect(updatedConfig.sendSessionTranscript).toBe("enabled");
-      expect(updatedConfig.agents?.["claude-code"]?.profile?.baseProfile).toBe(
-        "new-profile",
-      );
+      expect(updatedConfig.activeSkillset).toBe("new-profile");
     });
 
     test("throws error for non-existent profile", async () => {
@@ -418,9 +410,7 @@ describe("AgentRegistry", () => {
 
       // Verify config was updated with namespaced profile name
       const updatedConfig = JSON.parse(await fs.readFile(configPath, "utf-8"));
-      expect(updatedConfig.agents?.["claude-code"]?.profile?.baseProfile).toBe(
-        "myorg/my-profile",
-      );
+      expect(updatedConfig.activeSkillset).toBe("myorg/my-profile");
     });
   });
 });

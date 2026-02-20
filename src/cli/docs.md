@@ -119,7 +119,7 @@ The logger.ts module provides console output formatting with ANSI color codes, p
 
 **Silent Mode:** The logger module provides `setSilentMode({ silent: boolean })` and `isSilentMode()` functions for controlling console output globally. When silent mode is enabled, the custom ConsoleTransport skips all console output while Winston's File transport continues logging to `/tmp/nori.log`. Silent mode is set/restored in a `finally` block by the install command's `main()` function to prevent state leakage.
 
-The config.ts module provides a unified `Config` type for both disk persistence and runtime use. The `Config` type contains: auth credentials via `AuthCredentials` type (username, organizationUrl, refreshToken, password), agents (per-agent configuration - keys indicate installed agents, each with their own profile), user preferences (sendSessionTranscript, autoupdate), the required installDir field, and an optional `defaultAgents` field (array of agent names, set via `nori-skillsets config`).
+The config.ts module provides a unified `Config` type for both disk persistence and runtime use. The `Config` type contains: auth credentials via `AuthCredentials` type (username, organizationUrl, refreshToken, password), user preferences (sendSessionTranscript, autoupdate), the required installDir field, an optional `defaultAgents` field (array of agent names, set via `nori-skillsets config`), and an `activeSkillset` field (string name of the currently active skillset, shared across all agents).
 
 **AuthCredentials Type:** Supports both token-based and legacy password-based authentication:
 - `username` and `organizationUrl` - required for all authenticated installs
@@ -130,9 +130,9 @@ The config.ts module provides a unified `Config` type for both disk persistence 
 
 **transcriptDestination Config Field:** The `Config` type includes an optional `transcriptDestination` field that specifies which organization should receive transcript uploads. This is stored as an org ID string (e.g., `"myorg"`) which maps to a registry URL (e.g., `https://myorg.noriskillsets.dev`). The watch daemon sets this field on first run when the user selects a destination organization. This allows users with access to multiple private organizations to control where their transcripts are uploaded, independent of the `organizationUrl` used for authentication.
 
-**Agent Config Structure:** The config supports per-agent profiles via the `agents` field, a `Record<ConfigAgentName, AgentConfig>` where only "claude-code" is currently valid. The keys of the `agents` object serve as the source of truth for which agents are installed. Use `getInstalledAgents({ config })` helper to get the list of installed agents.
+**Active Skillset:** The config stores the currently active skillset via the `activeSkillset` field, a simple string. Use `getActiveSkillset({ config })` helper to read the active skillset name.
 
-**Profile Lookup Pattern (CRITICAL):** Code that needs to read a profile MUST use `getAgentProfile({ config, agentName })` - never access agent profiles directly. The function returns the profile from `config.agents[agentName].profile` or null if not found.
+**Active Skillset Lookup Pattern (CRITICAL):** Code that needs to read the active skillset MUST use `getActiveSkillset({ config })` - never access `config.activeSkillset` directly. The function returns the active skillset name or null if not set.
 
 The `getConfigPath()` function is zero-arg and always returns `~/.nori-config.json`. The `loadConfig()` function is zero-arg and always reads from `~/.nori-config.json`. The `validateConfig()` function validates the config at `~/.nori-config.json`. The `saveConfig()` function always writes to `~/.nori-config.json`.
 
@@ -140,9 +140,9 @@ The `getConfigPath()` function is zero-arg and always returns `~/.nori-config.js
 
 **Auth Format (Nested vs Flat):** The canonical auth format uses a nested `auth` object. The `saveConfig()` function always writes auth in this nested format. The `loadConfig()` function reads both formats for backwards compatibility with pre-v19.0.0 configs.
 
-**Installed Agents Tracking:** Installed agents are derived from the keys of the `agents` object. Use `getInstalledAgents({ config })` helper to get the list.
+**Active Skillset Tracking:** The active skillset is stored as a flat string field on the Config type. The legacy `agents` and `profile` fields are still read for backwards compatibility during `loadConfig()` migration.
 
-**Default Agent Resolution (CRITICAL):** All CLI commands that need to determine the active agent MUST use `getDefaultAgent({ config, agentOverride? })` from config.ts. This function provides a single, consistent resolution chain: (1) explicit `agentOverride` (e.g., from `--agent` CLI flag), (2) first entry from `config.defaultAgents` array (user preference set via `nori-skillsets config`), (3) first installed agent from `getInstalledAgents({ config })`, (4) hardcoded `"claude-code"` fallback. Empty strings and null values for `agentOverride` are treated as absent. When config is unavailable (e.g., no config file found), commands fall back to `agentOption ?? "claude-code"` directly. A companion `getDefaultAgents()` function returns the full array of default agents following the same resolution chain but returning all entries rather than just the first. All configured default agents share the same active skillset.
+**Default Agent Resolution (CRITICAL):** All CLI commands that need to determine the active agent MUST use `getDefaultAgents({ config, agentOverride? })` from config.ts. This function provides a single, consistent resolution chain: (1) explicit `agentOverride` (e.g., from `--agent` CLI flag), (2) `config.defaultAgents` array (user preference set via `nori-skillsets config`), (3) hardcoded `["claude-code"]` fallback. Empty strings and null values for `agentOverride` are treated as absent. When config is unavailable (e.g., no config file found), commands fall back to `agentOption ?? "claude-code"` directly. All configured default agents share the same active skillset.
 
 **loadConfig() Behavior:** The `loadConfig()` function is zero-arg and always reads from `~/.nori-config.json`. The returned Config objects `installDir` field comes from the JSON file (if present), defaulting to `os.homedir()` when not specified in the file.
 

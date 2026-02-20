@@ -88,9 +88,7 @@ describe("editSkillsetMain", () => {
     await fs.writeFile(
       configPath,
       JSON.stringify({
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
+        activeSkillset: "senior-swe",
         installDir: testHomeDir,
       }),
     );
@@ -136,9 +134,7 @@ describe("editSkillsetMain", () => {
     await fs.writeFile(
       configPath,
       JSON.stringify({
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
+        activeSkillset: "senior-swe",
         installDir: testHomeDir,
       }),
     );
@@ -199,7 +195,7 @@ describe("editSkillsetMain", () => {
     await fs.writeFile(
       configPath,
       JSON.stringify({
-        agents: { "claude-code": {} },
+        activeSkillset: null,
         installDir: testHomeDir,
       }),
     );
@@ -218,9 +214,7 @@ describe("editSkillsetMain", () => {
     await fs.writeFile(
       configPath,
       JSON.stringify({
-        agents: {
-          "claude-code": { profile: { baseProfile: "nonexistent" } },
-        },
+        activeSkillset: "nonexistent",
         installDir: testHomeDir,
       }),
     );
@@ -243,9 +237,7 @@ describe("editSkillsetMain", () => {
     await fs.writeFile(
       configPath,
       JSON.stringify({
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
+        activeSkillset: "senior-swe",
         installDir: testHomeDir,
       }),
     );
@@ -287,9 +279,7 @@ describe("editSkillsetMain", () => {
     await fs.writeFile(
       configPath,
       JSON.stringify({
-        agents: {
-          "claude-code": { profile: { baseProfile: "myorg/my-profile" } },
-        },
+        activeSkillset: "myorg/my-profile",
         installDir: testHomeDir,
       }),
     );
@@ -331,9 +321,7 @@ describe("editSkillsetMain", () => {
     await fs.writeFile(
       configPath,
       JSON.stringify({
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
+        activeSkillset: "senior-swe",
         installDir: testHomeDir,
       }),
     );
@@ -379,9 +367,7 @@ describe("editSkillsetMain", () => {
     await fs.writeFile(
       configPath,
       JSON.stringify({
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
+        activeSkillset: "senior-swe",
         installDir: testHomeDir,
       }),
     );

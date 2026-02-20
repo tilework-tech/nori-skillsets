@@ -69,9 +69,7 @@ describe("currentSkillsetMain", () => {
     await fs.writeFile(
       configPath,
       JSON.stringify({
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
+        activeSkillset: "senior-swe",
         installDir: testHomeDir,
       }),
     );
@@ -100,7 +98,7 @@ describe("currentSkillsetMain", () => {
     await fs.writeFile(
       configPath,
       JSON.stringify({
-        agents: {},
+        activeSkillset: null,
         installDir: testHomeDir,
       }),
     );
@@ -119,10 +117,7 @@ describe("currentSkillsetMain", () => {
     await fs.writeFile(
       configPath,
       JSON.stringify({
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-          "custom-agent": { profile: { baseProfile: "custom-skillset" } },
-        },
+        activeSkillset: "senior-swe",
         installDir: testHomeDir,
       }),
     );
@@ -132,7 +127,7 @@ describe("currentSkillsetMain", () => {
     });
 
     // Should output the custom agent's skillset
-    expect(mockStdoutWrite).toHaveBeenCalledWith("custom-skillset\n");
+    expect(mockStdoutWrite).toHaveBeenCalledWith("senior-swe\n");
     expect(mockExit).not.toHaveBeenCalled();
   });
 
@@ -163,9 +158,7 @@ describe("currentSkillsetMain", () => {
     await fs.writeFile(
       configPath,
       JSON.stringify({
-        agents: {
-          "claude-code": { profile: { baseProfile: "myorg/my-profile" } },
-        },
+        activeSkillset: "myorg/my-profile",
         installDir: testHomeDir,
       }),
     );

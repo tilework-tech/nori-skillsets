@@ -111,9 +111,7 @@ describe("slashCommandsLoader", () => {
     it("should create commands directory and copy slash command files", async () => {
       const config: Config = {
         installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
+        activeSkillset: "senior-swe",
       };
 
       await slashCommandsLoader.install({ config });
@@ -134,9 +132,7 @@ describe("slashCommandsLoader", () => {
     it("should handle reinstallation (update scenario)", async () => {
       const config: Config = {
         installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
+        activeSkillset: "senior-swe",
       };
 
       // First installation
@@ -163,9 +159,7 @@ describe("slashCommandsLoader", () => {
     it("should remove existing commands when switching to profile without slashcommands", async () => {
       const config: Config = {
         installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
+        activeSkillset: "senior-swe",
       };
 
       // First, install slashcommands from a profile that has them
@@ -195,9 +189,7 @@ describe("slashCommandsLoader", () => {
     it("should handle missing slashcommands directory gracefully during install", async () => {
       const config: Config = {
         installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
+        activeSkillset: "senior-swe",
       };
 
       // Remove the slashcommands directory from the installed profile

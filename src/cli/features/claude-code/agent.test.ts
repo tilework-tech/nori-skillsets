@@ -181,7 +181,7 @@ describe("claudeCodeAgent.switchProfile", () => {
       refreshToken: "test-refresh-token",
       organizations: ["org-alpha", "org-beta"],
       isAdmin: true,
-      agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
+      activeSkillset: "senior-swe",
       version: "20.0.0",
       transcriptDestination: "myorg",
       installDir: tempDir,
@@ -200,8 +200,6 @@ describe("claudeCodeAgent.switchProfile", () => {
     expect(fileContents.transcriptDestination).toBe("myorg");
 
     // Also verify the profile was actually switched
-    expect(fileContents.agents["claude-code"].profile.baseProfile).toBe(
-      "documenter",
-    );
+    expect(fileContents.activeSkillset).toBe("documenter");
   });
 });

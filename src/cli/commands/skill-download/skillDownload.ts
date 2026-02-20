@@ -22,8 +22,7 @@ import {
 import {
   getRegistryAuth,
   loadConfig,
-  getAgentProfile,
-  getDefaultAgent,
+  getActiveSkillset,
 } from "@/cli/config.js";
 import {
   getClaudeSkillsDir,
@@ -443,17 +442,13 @@ export const skillDownloadMain = async (args: {
     }
   } else if (config != null) {
     // No skillset specified - try to use active profile
-    const agentName = getDefaultAgent({ config });
-    const activeProfile = getAgentProfile({
-      config,
-      agentName,
-    });
-    if (activeProfile != null) {
+    const activeSkillset = getActiveSkillset({ config });
+    if (activeSkillset != null) {
       // Verify profile directory exists
-      const profileDir = path.join(profilesDir, activeProfile.baseProfile);
+      const profileDir = path.join(profilesDir, activeSkillset);
       try {
         await fs.access(profileDir);
-        targetSkillset = activeProfile.baseProfile;
+        targetSkillset = activeSkillset;
       } catch {
         // Profile directory doesn't exist - skip manifest update
       }

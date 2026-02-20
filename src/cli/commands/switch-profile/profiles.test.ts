@@ -84,9 +84,7 @@ describe("agent.switchProfile", () => {
     // Create initial config with version
     const configPath = path.join(testInstallDir, ".nori-config.json");
     const initialConfig = {
-      agents: {
-        "claude-code": { profile: { baseProfile: "profile-a" } },
-      },
+      activeSkillset: "profile-a",
       version: "v19.0.0",
     };
     await fs.writeFile(configPath, JSON.stringify(initialConfig, null, 2));
@@ -100,9 +98,7 @@ describe("agent.switchProfile", () => {
 
     // Verify version was preserved
     const updatedConfig = JSON.parse(await fs.readFile(configPath, "utf-8"));
-    expect(updatedConfig.agents?.["claude-code"]?.profile?.baseProfile).toBe(
-      "profile-b",
-    );
+    expect(updatedConfig.activeSkillset).toBe("profile-b");
     expect(updatedConfig.version).toBe("v19.0.0");
   });
 
@@ -123,9 +119,7 @@ describe("agent.switchProfile", () => {
     // Create initial config with auth containing refreshToken
     const configPath = path.join(testInstallDir, ".nori-config.json");
     const initialConfig = {
-      agents: {
-        "claude-code": { profile: { baseProfile: "profile-a" } },
-      },
+      activeSkillset: "profile-a",
       auth: {
         username: "test@example.com",
         refreshToken: "test-refresh-token-12345",
@@ -143,9 +137,7 @@ describe("agent.switchProfile", () => {
 
     // Verify refreshToken was preserved
     const updatedConfig = JSON.parse(await fs.readFile(configPath, "utf-8"));
-    expect(updatedConfig.agents?.["claude-code"]?.profile?.baseProfile).toBe(
-      "profile-b",
-    );
+    expect(updatedConfig.activeSkillset).toBe("profile-b");
     expect(updatedConfig.auth?.refreshToken).toBe("test-refresh-token-12345");
   });
 });
@@ -235,9 +227,7 @@ describe("registerSwitchProfileCommand", () => {
     await fs.writeFile(
       configPath,
       JSON.stringify({
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
+        activeSkillset: "senior-swe",
         installDir: testInstallDir,
       }),
     );
@@ -316,9 +306,7 @@ describe("switch-profile getInstallDirs auto-detection", () => {
     await fs.writeFile(
       configPath,
       JSON.stringify({
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
+        activeSkillset: "senior-swe",
       }),
     );
 
@@ -507,9 +495,7 @@ describe("switch-profile local change detection", () => {
     await fs.writeFile(
       configPath,
       JSON.stringify({
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
+        activeSkillset: "senior-swe",
       }),
     );
 
@@ -685,9 +671,7 @@ describe("switch-profile interactive flow routing", () => {
     await fs.writeFile(
       configPath,
       JSON.stringify({
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
+        activeSkillset: "senior-swe",
       }),
     );
 

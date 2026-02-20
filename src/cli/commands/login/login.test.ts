@@ -287,7 +287,7 @@ describe("login command", () => {
       await fs.writeFile(
         existingConfigPath,
         JSON.stringify({
-          agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
+          activeSkillset: "senior-swe",
           autoupdate: "enabled",
           installDir: tempDir,
         }),
@@ -332,9 +332,7 @@ describe("login command", () => {
 
       // Verify existing fields are preserved
       const config = await loadConfig();
-      expect(config?.agents?.["claude-code"]?.profile?.baseProfile).toBe(
-        "senior-swe",
-      );
+      expect(config?.activeSkillset).toBe("senior-swe");
       expect(config?.autoupdate).toBe("enabled");
       // And new auth was added
       expect(config?.auth?.username).toBe("user@example.com");
@@ -349,9 +347,7 @@ describe("login command", () => {
       await fs.writeFile(
         existingConfigPath,
         JSON.stringify({
-          agents: {
-            "claude-code": { profile: { baseProfile: "senior-swe" } },
-          },
+          activeSkillset: "senior-swe",
           transcriptDestination: "myorg",
           installDir: tempDir,
         }),
@@ -1066,9 +1062,7 @@ describe("login command", () => {
       await fs.writeFile(
         existingConfigPath,
         JSON.stringify({
-          agents: {
-            "claude-code": { profile: { baseProfile: "senior-swe" } },
-          },
+          activeSkillset: "senior-swe",
           autoupdate: "enabled",
           installDir: tempDir,
         }),
@@ -1106,9 +1100,7 @@ describe("login command", () => {
       await loginMain({ installDir: tempDir, google: true });
 
       const config = await loadConfig();
-      expect(config?.agents?.["claude-code"]?.profile?.baseProfile).toBe(
-        "senior-swe",
-      );
+      expect(config?.activeSkillset).toBe("senior-swe");
       expect(config?.autoupdate).toBe("enabled");
       expect(config?.auth?.username).toBe("user@gmail.com");
     });

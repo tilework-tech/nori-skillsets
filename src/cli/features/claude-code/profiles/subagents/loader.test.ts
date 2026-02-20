@@ -112,9 +112,7 @@ describe("subagentsLoader", () => {
     it("should create agents directory and copy subagent files", async () => {
       const config: Config = {
         installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
+        activeSkillset: "senior-swe",
       };
 
       await subagentsLoader.install({ config });
@@ -142,9 +140,7 @@ describe("subagentsLoader", () => {
     it("should handle reinstallation (update scenario)", async () => {
       const config: Config = {
         installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
+        activeSkillset: "senior-swe",
       };
 
       // First installation
@@ -165,9 +161,7 @@ describe("subagentsLoader", () => {
     it("should substitute template placeholders in subagent files", async () => {
       const config: Config = {
         installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
+        activeSkillset: "senior-swe",
       };
 
       // Get a subagent file from the profile directory and add a template placeholder
@@ -210,9 +204,7 @@ describe("subagentsLoader", () => {
     it("should remove existing agents when switching to profile without subagents", async () => {
       const config: Config = {
         installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
+        activeSkillset: "senior-swe",
       };
 
       // First, install subagents from a profile that has them
@@ -242,9 +234,7 @@ describe("subagentsLoader", () => {
     it("should handle missing subagents directory gracefully during install", async () => {
       const config: Config = {
         installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
+        activeSkillset: "senior-swe",
       };
 
       // Remove the subagents directory from the installed profile

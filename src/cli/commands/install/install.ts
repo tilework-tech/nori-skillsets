@@ -22,7 +22,7 @@ import {
 import {
   loadConfig,
   saveConfig,
-  getAgentProfile,
+  getActiveSkillset,
   type Config,
 } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
@@ -138,7 +138,7 @@ const writeInstalledManifest = async (args: {
     return;
   }
 
-  const profileName = getAgentProfile({ config, agentName })?.baseProfile;
+  const profileName = getActiveSkillset({ config });
   if (profileName == null) {
     return;
   }
@@ -199,8 +199,7 @@ const completeInstallation = async (args: {
   await writeInstalledManifest({ config, agentName: agent.name });
 
   // Mark installation directory with current skillset name
-  const profileName =
-    getAgentProfile({ config, agentName: agent.name })?.baseProfile ?? null;
+  const profileName = getActiveSkillset({ config });
   agent.markInstall({
     path: config.installDir,
     skillsetName: profileName,
@@ -263,12 +262,9 @@ export const noninteractive = async (args?: {
     process.exit(1);
   }
 
-  const existingProfile = getAgentProfile({
-    config: existingConfig,
-    agentName: agentImpl.name,
-  });
+  const existingSkillset = getActiveSkillset({ config: existingConfig });
 
-  if (profile == null && existingProfile == null) {
+  if (profile == null && existingSkillset == null) {
     log.error(
       "Non-interactive install requires --profile flag when no existing profile is set",
     );
@@ -278,12 +274,7 @@ export const noninteractive = async (args?: {
     process.exit(1);
   }
 
-  const selectedProfile = profile ? { baseProfile: profile } : existingProfile!;
-
-  const agents = {
-    ...(existingConfig.agents ?? {}),
-    [agentImpl.name]: { profile: selectedProfile },
-  };
+  const selectedSkillset = profile ?? existingSkillset!;
 
   await saveConfig({
     username: existingConfig.auth?.username ?? null,
@@ -294,7 +285,7 @@ export const noninteractive = async (args?: {
     isAdmin: existingConfig.auth?.isAdmin ?? null,
     sendSessionTranscript: existingConfig.sendSessionTranscript ?? null,
     autoupdate: existingConfig.autoupdate ?? null,
-    agents,
+    activeSkillset: selectedSkillset,
     version: existingConfig.version ?? null,
     transcriptDestination: existingConfig.transcriptDestination ?? null,
     installDir: normalizedInstallDir,

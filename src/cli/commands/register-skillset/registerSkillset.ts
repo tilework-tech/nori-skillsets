@@ -30,8 +30,7 @@ export const registerSkillsetMain = async (args: {
   if (skillsetName == null) {
     // Get the current skillset by reading the config directly
     // (we can't easily capture stdout from currentSkillsetMain)
-    const { loadConfig, getAgentProfile, getDefaultAgent } =
-      await import("@/cli/config.js");
+    const { loadConfig, getActiveSkillset } = await import("@/cli/config.js");
 
     const config = await loadConfig();
 
@@ -43,10 +42,9 @@ export const registerSkillsetMain = async (args: {
       return;
     }
 
-    const agentName = getDefaultAgent({ config });
-    const profile = getAgentProfile({ config, agentName });
+    const activeSkillset = getActiveSkillset({ config });
 
-    if (profile == null) {
+    if (activeSkillset == null) {
       log.error(
         "No active skillset configured. Use 'nori-skillsets switch <name>' to set one, or specify a skillset name.",
       );
@@ -54,7 +52,7 @@ export const registerSkillsetMain = async (args: {
       return;
     }
 
-    skillsetName = profile.baseProfile;
+    skillsetName = activeSkillset;
   }
 
   const profilesDir = getNoriProfilesDir();

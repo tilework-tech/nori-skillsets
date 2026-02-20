@@ -14,7 +14,7 @@ import {
   type CliName,
 } from "@/cli/commands/cliCommandNames.js";
 import { createEmptySkillset } from "@/cli/commands/new-skillset/newSkillset.js";
-import { loadConfig, getAgentProfile, getDefaultAgent } from "@/cli/config.js";
+import { loadConfig, getActiveSkillset } from "@/cli/config.js";
 import {
   getClaudeSkillsDir,
   getNoriProfilesDir,
@@ -366,16 +366,12 @@ export const externalMain = async (args: {
       return;
     }
   } else if (config != null) {
-    const agentName = getDefaultAgent({ config });
-    const activeProfile = getAgentProfile({
-      config,
-      agentName,
-    });
-    if (activeProfile != null) {
-      const profileDir = path.join(profilesDir, activeProfile.baseProfile);
+    const activeSkillset = getActiveSkillset({ config });
+    if (activeSkillset != null) {
+      const profileDir = path.join(profilesDir, activeSkillset);
       try {
         await fs.access(profileDir);
-        targetSkillset = activeProfile.baseProfile;
+        targetSkillset = activeSkillset;
       } catch {
         // Profile directory doesn't exist - skip manifest update
       }

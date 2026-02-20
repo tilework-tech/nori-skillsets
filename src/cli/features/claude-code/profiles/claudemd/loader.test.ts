@@ -177,9 +177,7 @@ describe("claudeMdLoader", () => {
     it("should create CLAUDE.md with managed block", async () => {
       const config: Config = {
         installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
+        activeSkillset: "senior-swe",
       };
 
       await claudeMdLoader.install({ config });
@@ -203,9 +201,7 @@ describe("claudeMdLoader", () => {
     it("should append managed block to existing CLAUDE.md without destroying user content", async () => {
       const config: Config = {
         installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
+        activeSkillset: "senior-swe",
       };
 
       // Create existing CLAUDE.md with user content
@@ -230,9 +226,7 @@ describe("claudeMdLoader", () => {
     it("should update existing managed block without affecting user content", async () => {
       const config: Config = {
         installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
+        activeSkillset: "senior-swe",
       };
 
       // Create existing CLAUDE.md with managed block and user content
@@ -275,9 +269,7 @@ More user instructions.
     it("should handle switching between profiles", async () => {
       // First install with senior-swe profile
       const seniorSweConfig: Config = {
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
+        activeSkillset: "senior-swe",
         installDir: tempDir,
       };
       await claudeMdLoader.install({ config: seniorSweConfig });
@@ -289,9 +281,7 @@ More user instructions.
 
       // Then switch to amol profile
       const amolConfig: Config = {
-        agents: {
-          "claude-code": { profile: { baseProfile: "amol" } },
-        },
+        activeSkillset: "amol",
         installDir: tempDir,
       };
       await claudeMdLoader.install({ config: amolConfig });
@@ -337,9 +327,7 @@ hello world
 
       const config: Config = {
         installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "my-profile" } },
-        },
+        activeSkillset: "my-profile",
       };
 
       await claudeMdLoader.install({ config });
@@ -365,9 +353,7 @@ hello world
   describe("profile-based CLAUDE.md loading", () => {
     it("should load CLAUDE.md from selected profile", async () => {
       const config: Config = {
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
+        activeSkillset: "senior-swe",
         installDir: tempDir,
       };
 
@@ -392,9 +378,7 @@ hello world
           password: "testpass",
           organizationUrl: "https://example.com",
         },
-        agents: {
-          "claude-code": { profile: { baseProfile: "amol" } },
-        },
+        activeSkillset: "amol",
         installDir: tempDir,
       };
 
@@ -412,9 +396,7 @@ hello world
     it("should use default profile (senior-swe) when no profile specified", async () => {
       const config: Config = {
         installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
+        activeSkillset: "senior-swe",
       };
 
       await claudeMdLoader.install({ config });
@@ -455,9 +437,7 @@ Additional user instructions.
 
       const config: Config = {
         installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "empty-profile" } },
-        },
+        activeSkillset: "empty-profile",
       };
 
       // Should NOT throw
@@ -495,9 +475,7 @@ Additional user instructions.
 
       const config: Config = {
         installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "bare-profile" } },
-        },
+        activeSkillset: "bare-profile",
       };
 
       // Should NOT throw
@@ -525,9 +503,7 @@ Some custom instructions here.
 
       const config: Config = {
         installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "minimal-profile" } },
-        },
+        activeSkillset: "minimal-profile",
       };
 
       await claudeMdLoader.install({ config });
@@ -541,9 +517,7 @@ Some custom instructions here.
   describe("skills list generation", () => {
     it("should include skills list in installed CLAUDE.md", async () => {
       const config: Config = {
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
+        activeSkillset: "senior-swe",
         installDir: tempDir,
       };
 
@@ -565,9 +539,7 @@ Some custom instructions here.
 
     it("should include skill name and description from frontmatter", async () => {
       const config: Config = {
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
+        activeSkillset: "senior-swe",
         installDir: tempDir,
       };
 
@@ -584,9 +556,7 @@ Some custom instructions here.
 
     it("should handle profiles with no skills gracefully", async () => {
       const config: Config = {
-        agents: {
-          "claude-code": { profile: { baseProfile: "product-manager" } },
-        },
+        activeSkillset: "product-manager",
         installDir: tempDir,
       };
 
@@ -604,9 +574,7 @@ Some custom instructions here.
 
     it("should handle skills with missing frontmatter gracefully", async () => {
       const config: Config = {
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
+        activeSkillset: "senior-swe",
         installDir: tempDir,
       };
 

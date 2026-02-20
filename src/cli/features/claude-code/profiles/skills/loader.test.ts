@@ -131,9 +131,7 @@ describe("skillsLoader", () => {
     it("should create skills directory", async () => {
       const config: Config = {
         installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
+        activeSkillset: "senior-swe",
       };
 
       await skillsLoader.install({ config });
@@ -150,9 +148,7 @@ describe("skillsLoader", () => {
     it("should remove existing skills directory before installing", async () => {
       const config: Config = {
         installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
+        activeSkillset: "senior-swe",
       };
 
       // Create skills directory with existing files
@@ -173,9 +169,7 @@ describe("skillsLoader", () => {
     it("should handle reinstallation (update scenario)", async () => {
       const config: Config = {
         installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
+        activeSkillset: "senior-swe",
       };
 
       // First installation
@@ -205,9 +199,7 @@ describe("skillsLoader", () => {
     it("should include updating-noridocs skill", async () => {
       const config: Config = {
         installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
+        activeSkillset: "senior-swe",
       };
 
       await skillsLoader.install({ config });
@@ -235,9 +227,7 @@ describe("skillsLoader", () => {
       // tempDir simulates a home install at /tmp/xxx/.claude
       const config: Config = {
         installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
+        activeSkillset: "senior-swe",
       };
 
       await skillsLoader.install({ config });
@@ -255,9 +245,7 @@ describe("skillsLoader", () => {
     it("should resolve {{skills_dir}} to .claude/skills, not installDir/skills", async () => {
       const config: Config = {
         installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
+        activeSkillset: "senior-swe",
       };
 
       // Create a test skill with known template variables in the profile's skills dir
@@ -330,9 +318,7 @@ describe("skillsLoader", () => {
 
       const config: Config = {
         installDir: customInstallBase,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
+        activeSkillset: "senior-swe",
       };
 
       // Create stub profile in the custom install location
@@ -368,9 +354,7 @@ describe("skillsLoader", () => {
     it("should install creating-skills skill", async () => {
       const config: Config = {
         installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
+        activeSkillset: "senior-swe",
       };
 
       await skillsLoader.install({ config });
@@ -395,9 +379,7 @@ describe("skillsLoader", () => {
     it("should configure permissions.additionalDirectories in settings.json", async () => {
       const config: Config = {
         installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
+        activeSkillset: "senior-swe",
       };
       const settingsPath = path.join(claudeDir, "settings.json");
 
@@ -422,9 +404,7 @@ describe("skillsLoader", () => {
     it("should preserve existing settings when adding permissions", async () => {
       const config: Config = {
         installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
+        activeSkillset: "senior-swe",
       };
       const settingsPath = path.join(claudeDir, "settings.json");
 
@@ -456,9 +436,7 @@ describe("skillsLoader", () => {
     it("should not duplicate skills directory in additionalDirectories", async () => {
       const config: Config = {
         installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
+        activeSkillset: "senior-swe",
       };
       const settingsPath = path.join(claudeDir, "settings.json");
 
@@ -482,9 +460,7 @@ describe("skillsLoader", () => {
     it("should preserve existing additionalDirectories when adding skills directory", async () => {
       const config: Config = {
         installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
+        activeSkillset: "senior-swe",
       };
       const settingsPath = path.join(claudeDir, "settings.json");
 
@@ -522,9 +498,7 @@ describe("skillsLoader", () => {
     it("should handle missing profile skills directory gracefully during install", async () => {
       const config: Config = {
         installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
+        activeSkillset: "senior-swe",
       };
 
       // Remove the skills directory from the installed profile
@@ -556,9 +530,7 @@ describe("skillsLoader", () => {
     it("should install skills from both inline folder and skills.json", async () => {
       const config: Config = {
         installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
+        activeSkillset: "senior-swe",
       };
 
       // Create a skills.json in the profile directory
@@ -603,9 +575,7 @@ describe("skillsLoader", () => {
     it("should prefer external skill over inline when same name exists", async () => {
       const config: Config = {
         installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
+        activeSkillset: "senior-swe",
       };
 
       // Create a skills.json that references a skill that also exists inline
@@ -638,9 +608,7 @@ describe("skillsLoader", () => {
     it("should NOT read skills from global ~/.nori/skills/ directory", async () => {
       const config: Config = {
         installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
+        activeSkillset: "senior-swe",
       };
 
       // Create a skills.json referencing a skill
@@ -678,9 +646,7 @@ describe("skillsLoader", () => {
     it("should work when profile has no skills.json", async () => {
       const config: Config = {
         installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
+        activeSkillset: "senior-swe",
       };
 
       // Ensure no skills.json exists
@@ -700,9 +666,7 @@ describe("skillsLoader", () => {
     it("should apply template substitution to external skills", async () => {
       const config: Config = {
         installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
+        activeSkillset: "senior-swe",
       };
 
       // Create a skills.json

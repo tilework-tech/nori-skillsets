@@ -276,7 +276,7 @@ export const buildCLIEventParams = async (args?: {
       : 0;
 
   // Get profile from config (only claude-code is supported)
-  const profile = config?.agents?.["claude-code"]?.profile?.baseProfile ?? null;
+  const profile = config?.activeSkillset ?? null;
 
   // Determine install type
   const installType: "authenticated" | "unauthenticated" =

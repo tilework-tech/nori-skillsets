@@ -180,7 +180,7 @@ describe("install noninteractive", () => {
     await saveConfig({
       username: null,
       organizationUrl: null,
-      agents: {},
+      activeSkillset: null,
       version: "20.0.0",
       installDir: tempDir,
     });
@@ -192,9 +192,7 @@ describe("install noninteractive", () => {
 
     const configPath = getConfigPath();
     const config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
-    expect(config.agents["claude-code"].profile).toEqual({
-      baseProfile: "senior-swe",
-    });
+    expect(config.activeSkillset).toBe("senior-swe");
   });
 
   it("should exit with error when no --profile flag and no existing profile", async () => {
@@ -202,7 +200,7 @@ describe("install noninteractive", () => {
     await saveConfig({
       username: null,
       organizationUrl: null,
-      agents: {},
+      activeSkillset: null,
       version: "20.0.0",
       installDir: tempDir,
     });
@@ -237,7 +235,7 @@ describe("install noninteractive", () => {
     await saveConfig({
       username: null,
       organizationUrl: null,
-      agents: { "claude-code": { profile: { baseProfile: "amol" } } },
+      activeSkillset: "amol",
       version: "20.0.0",
       installDir: tempDir,
     });
@@ -248,9 +246,7 @@ describe("install noninteractive", () => {
 
     const configPath = getConfigPath();
     const config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
-    expect(config.agents["claude-code"].profile).toEqual({
-      baseProfile: "amol",
-    });
+    expect(config.activeSkillset).toBe("amol");
   });
 
   it("should preserve existing auth credentials through install", async () => {
@@ -259,7 +255,7 @@ describe("install noninteractive", () => {
       username: "test@example.com",
       organizationUrl: "https://myorg.tilework.tech",
       refreshToken: "test-refresh-token",
-      agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
+      activeSkillset: "senior-swe",
       version: "20.0.0",
       installDir: tempDir,
     });
@@ -284,7 +280,7 @@ describe("install noninteractive", () => {
       refreshToken: "test-refresh-token",
       organizations: ["org-alpha", "org-beta"],
       isAdmin: true,
-      agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
+      activeSkillset: "senior-swe",
       version: "20.0.0",
       transcriptDestination: "myorg",
       installDir: tempDir,

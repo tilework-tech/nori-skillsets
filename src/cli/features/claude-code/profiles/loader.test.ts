@@ -92,9 +92,7 @@ describe("profilesLoader", () => {
     it("should create profiles directory and configure permissions", async () => {
       const config: Config = {
         installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "test-profile" } },
-        },
+        activeSkillset: "test-profile",
       };
 
       // Create stub profile so downstream loaders can find CLAUDE.md
@@ -123,9 +121,7 @@ describe("profilesLoader", () => {
     it("should not copy any built-in profiles into an empty profiles directory", async () => {
       const config: Config = {
         installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "test-profile" } },
-        },
+        activeSkillset: "test-profile",
       };
 
       // Create stub profile so downstream loaders don't fail
@@ -145,9 +141,7 @@ describe("profilesLoader", () => {
     it("should handle reinstallation without errors", async () => {
       const config: Config = {
         installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "test-profile" } },
-        },
+        activeSkillset: "test-profile",
       };
 
       await fs.mkdir(profilesDir, { recursive: true });
@@ -173,9 +167,7 @@ describe("profilesLoader", () => {
     it("should preserve existing user-installed profiles on reinstall", async () => {
       const config: Config = {
         installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "test-profile" } },
-        },
+        activeSkillset: "test-profile",
       };
 
       await fs.mkdir(profilesDir, { recursive: true });
@@ -273,9 +265,7 @@ describe("profilesLoader", () => {
     it("should configure permissions.additionalDirectories in settings.json", async () => {
       const config: Config = {
         installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "test-profile" } },
-        },
+        activeSkillset: "test-profile",
       };
       const settingsPath = path.join(claudeDir, "settings.json");
 
@@ -307,9 +297,7 @@ describe("profilesLoader", () => {
     it("should preserve existing settings when adding permissions", async () => {
       const config: Config = {
         installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "test-profile" } },
-        },
+        activeSkillset: "test-profile",
       };
       const settingsPath = path.join(claudeDir, "settings.json");
 
@@ -348,9 +336,7 @@ describe("profilesLoader", () => {
     it("should not duplicate profiles directory in additionalDirectories", async () => {
       const config: Config = {
         installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "test-profile" } },
-        },
+        activeSkillset: "test-profile",
       };
       const settingsPath = path.join(claudeDir, "settings.json");
 
@@ -378,9 +364,7 @@ describe("profilesLoader", () => {
     it("should preserve existing additionalDirectories when adding profiles directory", async () => {
       const config: Config = {
         installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "test-profile" } },
-        },
+        activeSkillset: "test-profile",
       };
       const settingsPath = path.join(claudeDir, "settings.json");
 

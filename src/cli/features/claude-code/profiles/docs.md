@@ -86,7 +86,7 @@ External skills are downloaded to the profile's own `skills/` directory by both 
 
 No built-in profiles are shipped with the package. First-time installations will have no profiles until the user downloads or creates one.
 
-**Profile Lookup in Loaders**: All feature loaders use `getAgentProfile({ config, agentName: "claude-code" })` from @/src/cli/config.ts to determine the active profile name. This function returns the agent-specific profile from `config.agents["claude-code"].profile`, falling back to the legacy `config.profile` field for backwards compatibility.
+**Skillset Lookup in Loaders**: All feature loaders use `getActiveSkillset({ config })` from @/src/cli/config.ts to determine the active skillset name. This function returns the `activeSkillset` field from the config or null if not set.
 
 **Profile Discovery**: The `listProfiles()` function in @/src/cli/features/managedFolder.ts scans `~/.nori/profiles/` for directories containing `nori.json` (supports both flat and namespaced org/profile layouts). This is an agent-agnostic utility imported directly by CLI commands. The `switchProfile()` method on `claudeCodeAgent` validates the profile exists, loads current config, preserves auth credentials, updates the profile field, and prompts user to restart Claude Code.
 

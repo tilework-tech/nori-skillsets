@@ -169,7 +169,7 @@ describe("init command", () => {
       // Verify config has minimal structure
       const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
       expect(config.version).toBe("20.0.0");
-      expect(config.agents).toEqual({});
+      expect(config.activeSkillset).toBeUndefined();
       expect(config.installDir).toBe(tempDir);
     });
 
@@ -196,7 +196,7 @@ describe("init command", () => {
       // Note: loadConfig requires auth to have username + organizationUrl for it to be recognized
       const existingConfig = {
         version: "19.0.0",
-        agents: { "claude-code": { profile: { baseProfile: "amol" } } },
+        activeSkillset: "amol",
         auth: {
           username: "test@example.com",
           organizationUrl: "https://example.tilework.tech",
@@ -210,9 +210,7 @@ describe("init command", () => {
 
       // Verify existing config was preserved
       const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
-      expect(config.agents).toEqual({
-        "claude-code": { profile: { baseProfile: "amol" } },
-      });
+      expect(config.activeSkillset).toBe("amol");
       expect(config.auth.username).toBe("test@example.com");
       expect(config.auth.organizationUrl).toBe("https://example.tilework.tech");
       // Version should be updated to current
@@ -225,7 +223,7 @@ describe("init command", () => {
       // Create existing config with organizations, isAdmin, and transcriptDestination
       const existingConfig = {
         version: "19.0.0",
-        agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
+        activeSkillset: "senior-swe",
         auth: {
           username: "test@example.com",
           organizationUrl: "https://example.tilework.tech",
@@ -281,9 +279,7 @@ describe("init command", () => {
       // Verify .nori-config.json has the profile set
       const CONFIG_PATH = getConfigPath();
       const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
-      expect(config.agents).toEqual({
-        "claude-code": { profile: { baseProfile: "my-profile" } },
-      });
+      expect(config.activeSkillset).toBe("my-profile");
 
       // Verify CLAUDE.md has the managed block
       const updatedClaudeMd = fs.readFileSync(claudeMdPath, "utf-8");
@@ -430,7 +426,7 @@ describe("init command", () => {
       // Verify that NO profile was captured (config should not have a profile set)
       const CONFIG_PATH = getConfigPath();
       const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
-      expect(config.agents).toEqual({});
+      expect(config.activeSkillset).toBeUndefined();
     });
 
     it("should create .nori-managed marker after init with captured profile", async () => {
@@ -469,9 +465,7 @@ describe("init command", () => {
 
       const existingConfig = {
         defaultAgents: ["claude-code"],
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
+        activeSkillset: "senior-swe",
         auth: {
           username: "test@example.com",
           organizationUrl: "https://example.tilework.tech",
@@ -491,9 +485,7 @@ describe("init command", () => {
       // Since default agent is already installed, no capture should happen
       // and existing profile should be preserved
       const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
-      expect(config.agents["claude-code"].profile.baseProfile).toBe(
-        "senior-swe",
-      );
+      expect(config.activeSkillset).toBe("senior-swe");
     });
   });
 
