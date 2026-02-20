@@ -919,6 +919,59 @@ describe("registry-download", () => {
       // Verify no download occurred
       expect(registrarApi.downloadTarball).not.toHaveBeenCalled();
     });
+
+    it("should download public package without auth when signed into private registry", async () => {
+      // User is authenticated to a private org but NOT to "public"
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        auth: {
+          username: "testuser@example.com",
+          organizationUrl: "https://myorg.noriskillsets.dev",
+          refreshToken: "mock-refresh-token",
+          organizations: ["myorg"],
+        },
+      });
+
+      // Package exists in public registry
+      vi.mocked(registrarApi.getPackument).mockResolvedValue({
+        name: "test-profile",
+        "dist-tags": { latest: "1.0.0" },
+        versions: { "1.0.0": { name: "test-profile", version: "1.0.0" } },
+      });
+
+      const mockTarball = await createMockTarball();
+      vi.mocked(registrarApi.downloadTarball).mockResolvedValue(mockTarball);
+
+      const result = await registryDownloadMain({
+        packageSpec: "test-profile",
+        cwd: testDir,
+      });
+
+      // Verify success
+      expect(result.success).toBe(true);
+
+      // Verify public registry was searched without auth token
+      expect(registrarApi.getPackument).toHaveBeenCalledWith({
+        packageName: "test-profile",
+        registryUrl: REGISTRAR_URL,
+      });
+
+      // Verify download was from public registry without auth
+      expect(registrarApi.downloadTarball).toHaveBeenCalledWith({
+        packageName: "test-profile",
+        version: undefined,
+        registryUrl: REGISTRAR_URL,
+        authToken: undefined,
+      });
+
+      // Verify no auth token was requested
+      expect(getRegistryAuthToken).not.toHaveBeenCalled();
+
+      // Verify profile was installed
+      const skillsetDir = path.join(skillsetsDir, "test-profile");
+      const stats = await fs.stat(skillsetDir);
+      expect(stats.isDirectory()).toBe(true);
+    });
   });
 
   describe("--list-versions flag", () => {
@@ -1789,8 +1842,6 @@ describe("registry-download", () => {
         },
       });
 
-      vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
-
       // Package exists in public registry
       vi.mocked(registrarApi.getPackument).mockResolvedValue({
         name: "my-profile",
@@ -1807,13 +1858,17 @@ describe("registry-download", () => {
         cwd: testDir,
       });
 
-      // Verify download was from the public registry (apex domain)
+      // Verify download was from the public registry without auth
+      // (public packages never require authentication, even when user has unified auth)
       expect(registrarApi.downloadTarball).toHaveBeenCalledWith({
         packageName: "my-profile",
         version: undefined,
         registryUrl: "https://noriskillsets.dev",
-        authToken: "mock-auth-token",
+        authToken: undefined,
       });
+
+      // Verify no auth token was requested for public package
+      expect(getRegistryAuthToken).not.toHaveBeenCalled();
 
       // Verify profile was installed to flat directory (profiles/my-profile)
       const skillsetDir = path.join(skillsetsDir, "my-profile");

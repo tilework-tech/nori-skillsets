@@ -725,6 +725,58 @@ describe("skill-download", () => {
       // Verify no download occurred
       expect(registrarApi.downloadSkillTarball).not.toHaveBeenCalled();
     });
+
+    it("should download public skill without auth when signed into private registry", async () => {
+      // User is authenticated to a private org but NOT to "public"
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        auth: {
+          username: "testuser@example.com",
+          organizationUrl: "https://myorg.noriskillsets.dev",
+          refreshToken: "mock-refresh-token",
+          organizations: ["myorg"],
+        },
+      });
+
+      // Skill exists in public registry
+      vi.mocked(registrarApi.getSkillPackument).mockResolvedValue({
+        name: "test-skill",
+        "dist-tags": { latest: "1.0.0" },
+        versions: { "1.0.0": { name: "test-skill", version: "1.0.0" } },
+      });
+
+      const mockTarball = await createMockSkillTarball();
+      vi.mocked(registrarApi.downloadSkillTarball).mockResolvedValue(
+        mockTarball,
+      );
+
+      await skillDownloadMain({
+        skillSpec: "test-skill",
+        cwd: testDir,
+      });
+
+      // Verify public registry was searched without auth token
+      expect(registrarApi.getSkillPackument).toHaveBeenCalledWith({
+        skillName: "test-skill",
+        registryUrl: REGISTRAR_URL,
+      });
+
+      // Verify download was from public registry without auth
+      expect(registrarApi.downloadSkillTarball).toHaveBeenCalledWith({
+        skillName: "test-skill",
+        version: undefined,
+        registryUrl: REGISTRAR_URL,
+        authToken: undefined,
+      });
+
+      // Verify no auth token was requested
+      expect(getRegistryAuthToken).not.toHaveBeenCalled();
+
+      // Verify skill was installed
+      const skillDir = path.join(skillsDir, "test-skill");
+      const stats = await fs.stat(skillDir);
+      expect(stats.isDirectory()).toBe(true);
+    });
   });
 
   describe("--list-versions flag", () => {

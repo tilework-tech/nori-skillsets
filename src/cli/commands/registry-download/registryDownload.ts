@@ -666,6 +666,22 @@ export const registryDownloadMain = async (args: {
             };
           }
           flowSearchResults = searchResult != null ? [searchResult] : [];
+        } else if (orgId === "public") {
+          try {
+            const packument = await registrarApi.getPackument({
+              packageName,
+              registryUrl: REGISTRAR_URL,
+            });
+            flowSearchResults = [{ registryUrl: REGISTRAR_URL, packument }];
+          } catch (err) {
+            if (err instanceof NetworkError) {
+              return {
+                status: "error",
+                error: `Network error while connecting to registry:\n\n${err.message}`,
+              };
+            }
+            flowSearchResults = [];
+          }
         } else if (hasUnifiedAuth) {
           const targetRegistryUrl = buildOrganizationRegistryUrl({ orgId });
           const userOrgs = config.auth!.organizations!;
@@ -699,22 +715,6 @@ export const registryDownloadMain = async (args: {
               return {
                 status: "error",
                 error: `Network error while connecting to ${targetRegistryUrl}:\n\n${err.message}`,
-              };
-            }
-            flowSearchResults = [];
-          }
-        } else if (orgId === "public") {
-          try {
-            const packument = await registrarApi.getPackument({
-              packageName,
-              registryUrl: REGISTRAR_URL,
-            });
-            flowSearchResults = [{ registryUrl: REGISTRAR_URL, packument }];
-          } catch (err) {
-            if (err instanceof NetworkError) {
-              return {
-                status: "error",
-                error: `Network error while connecting to registry:\n\n${err.message}`,
               };
             }
             flowSearchResults = [];
