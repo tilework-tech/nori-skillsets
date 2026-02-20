@@ -90,7 +90,7 @@ let transcriptOrgId: string | null = null;
 /**
  * Whether to garbage collect (delete) transcripts after successful upload
  */
-let garbageCollectEnabled: boolean = false;
+let garbageCollectEnabled = false;
 
 /**
  * Transcript registry for tracking uploaded transcripts
