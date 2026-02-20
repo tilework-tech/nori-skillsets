@@ -484,6 +484,16 @@ export const skillDownloadMain = async (args: {
             config,
           });
           flowSearchResults = searchResult != null ? [searchResult] : [];
+        } else if (orgId === "public") {
+          try {
+            const packument = await registrarApi.getSkillPackument({
+              skillName,
+              registryUrl: REGISTRAR_URL,
+            });
+            flowSearchResults = [{ registryUrl: REGISTRAR_URL, packument }];
+          } catch {
+            flowSearchResults = [];
+          }
         } else if (hasUnifiedAuth) {
           const targetRegistryUrl = buildOrganizationRegistryUrl({ orgId });
           const userOrgs = config.auth!.organizations!;
@@ -512,16 +522,6 @@ export const skillDownloadMain = async (args: {
             flowSearchResults = [
               { registryUrl: targetRegistryUrl, packument, authToken },
             ];
-          } catch {
-            flowSearchResults = [];
-          }
-        } else if (orgId === "public") {
-          try {
-            const packument = await registrarApi.getSkillPackument({
-              skillName,
-              registryUrl: REGISTRAR_URL,
-            });
-            flowSearchResults = [{ registryUrl: REGISTRAR_URL, packument }];
           } catch {
             flowSearchResults = [];
           }
