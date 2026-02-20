@@ -302,6 +302,82 @@ export const compareManifest = async (args: {
 };
 
 /**
+ * Remove all Nori-managed files from a directory using the manifest as a guide
+ *
+ * Reads the manifest to determine which files were installed, removes them,
+ * cleans up empty managed directories, and removes the .nori-managed marker.
+ * Files not in the manifest are preserved.
+ *
+ * @param args - Configuration arguments
+ * @param args.claudeDir - The .claude directory to clean up
+ * @param args.manifestPath - Path to the manifest file
+ */
+export const removeManagedFiles = async (args: {
+  claudeDir: string;
+  manifestPath: string;
+}): Promise<void> => {
+  const { claudeDir, manifestPath } = args;
+
+  const manifest = await readManifest({ manifestPath });
+  if (manifest == null) {
+    return;
+  }
+
+  // Remove all files listed in the manifest
+  for (const relativePath of Object.keys(manifest.files)) {
+    const fullPath = path.join(claudeDir, relativePath);
+    await fs.rm(fullPath, { force: true });
+  }
+
+  // Remove the .nori-managed marker
+  await fs.rm(path.join(claudeDir, ".nori-managed"), { force: true });
+
+  // Delete the manifest itself since it no longer reflects reality
+  await fs.rm(manifestPath, { force: true });
+
+  // Clean up empty managed directories (deepest first)
+  for (const dir of MANAGED_DIRS) {
+    const dirPath = path.join(claudeDir, dir);
+    await removeEmptyDirs({ dir: dirPath });
+  }
+};
+
+/**
+ * Recursively remove empty directories from bottom up
+ *
+ * @param args - Configuration arguments
+ * @param args.dir - Directory to check and remove if empty
+ */
+const removeEmptyDirs = async (args: { dir: string }): Promise<void> => {
+  const { dir } = args;
+
+  let entries;
+  try {
+    entries = await fs.readdir(dir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+
+  // Recurse into subdirectories first
+  for (const entry of entries) {
+    if (entry.isDirectory()) {
+      await removeEmptyDirs({ dir: path.join(dir, entry.name) });
+    }
+  }
+
+  // Re-read after potential subdirectory removal
+  try {
+    entries = await fs.readdir(dir);
+  } catch {
+    return;
+  }
+
+  if (entries.length === 0) {
+    await fs.rmdir(dir);
+  }
+};
+
+/**
  * Check if a manifest diff indicates any changes
  *
  * @param diff - Manifest diff to check

@@ -4,6 +4,7 @@
  * These tests verify the configMain function behavior including:
  * - Interactive mode: calls flow, saves config on success
  * - Cancel: flow returns null, config is not saved
+ * - Post-save prompts when installDir or defaultAgents change
  */
 
 import * as fs from "fs/promises";
@@ -26,11 +27,30 @@ vi.mock("os", async (importOriginal) => {
 // Mock clack prompts (outro is called in configMain after save)
 vi.mock("@clack/prompts", () => ({
   outro: vi.fn(),
+  log: { info: vi.fn(), warn: vi.fn(), success: vi.fn() },
 }));
 
 // Mock the config flow
 vi.mock("@/cli/prompts/flows/config.js", () => ({
   configFlow: vi.fn(),
+}));
+
+// Mock confirmAction
+vi.mock("@/cli/prompts/confirm.js", () => ({
+  confirmAction: vi.fn(),
+}));
+
+// Mock install main
+vi.mock("@/cli/commands/install/install.js", () => ({
+  main: vi.fn(),
+}));
+
+// Mock removeManagedFiles
+vi.mock("@/cli/features/claude-code/skillsets/manifest.js", () => ({
+  removeManagedFiles: vi.fn(),
+  getManifestPath: vi
+    .fn()
+    .mockReturnValue("/mock/.nori/installed-manifest.json"),
 }));
 
 // Mock AgentRegistry
@@ -129,5 +149,274 @@ describe("configMain", () => {
     expect(loaded?.sendSessionTranscript).toBe("disabled");
     expect(loaded?.defaultAgents).toEqual(["claude-code"]);
     expect(loaded?.installDir).toBe("/new/path");
+  });
+});
+
+describe("configMain installDir change prompts", () => {
+  let tempDir: string;
+  let oldInstallDir: string;
+  let newInstallDir: string;
+
+  beforeEach(async () => {
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "config-cmd-test-"));
+    oldInstallDir = path.join(tempDir, "old");
+    newInstallDir = path.join(tempDir, "new");
+    await fs.mkdir(oldInstallDir, { recursive: true });
+    await fs.mkdir(newInstallDir, { recursive: true });
+    vi.mocked(os.homedir).mockReturnValue(tempDir);
+  });
+
+  afterEach(async () => {
+    await fs.rm(tempDir, { recursive: true, force: true });
+    vi.clearAllMocks();
+  });
+
+  it("should prompt to install active skillset at new directory when installDir changes", async () => {
+    const { configFlow } = await import("@/cli/prompts/flows/config.js");
+    const { confirmAction } = await import("@/cli/prompts/confirm.js");
+    const { main: installMain } =
+      await import("@/cli/commands/install/install.js");
+
+    vi.mocked(configFlow).mockResolvedValueOnce({
+      defaultAgents: ["claude-code"],
+      installDir: newInstallDir,
+    });
+    // First confirm: install to new dir? Yes. Second confirm: clean up old? No.
+    vi.mocked(confirmAction)
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(false);
+
+    await saveConfig({
+      username: null,
+      organizationUrl: null,
+      installDir: oldInstallDir,
+      activeSkillset: "senior-swe",
+    });
+
+    const { configMain } = await import("./config.js");
+    await configMain();
+
+    expect(installMain).toHaveBeenCalledWith(
+      expect.objectContaining({
+        installDir: newInstallDir,
+        silent: true,
+      }),
+    );
+  });
+
+  it("should prompt to clean up old directory when installDir changes", async () => {
+    const { configFlow } = await import("@/cli/prompts/flows/config.js");
+    const { confirmAction } = await import("@/cli/prompts/confirm.js");
+    const { removeManagedFiles } =
+      await import("@/cli/features/claude-code/skillsets/manifest.js");
+
+    vi.mocked(configFlow).mockResolvedValueOnce({
+      defaultAgents: ["claude-code"],
+      installDir: newInstallDir,
+    });
+    // First confirm: install to new dir? No. Second confirm: clean up old? Yes.
+    vi.mocked(confirmAction)
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true);
+
+    await saveConfig({
+      username: null,
+      organizationUrl: null,
+      installDir: oldInstallDir,
+      activeSkillset: "senior-swe",
+    });
+
+    const { configMain } = await import("./config.js");
+    await configMain();
+
+    expect(removeManagedFiles).toHaveBeenCalledWith(
+      expect.objectContaining({
+        claudeDir: path.join(oldInstallDir, ".claude"),
+      }),
+    );
+  });
+
+  it("should not install or clean up when user declines both prompts", async () => {
+    const { configFlow } = await import("@/cli/prompts/flows/config.js");
+    const { confirmAction } = await import("@/cli/prompts/confirm.js");
+    const { main: installMain } =
+      await import("@/cli/commands/install/install.js");
+    const { removeManagedFiles } =
+      await import("@/cli/features/claude-code/skillsets/manifest.js");
+
+    vi.mocked(configFlow).mockResolvedValueOnce({
+      defaultAgents: ["claude-code"],
+      installDir: newInstallDir,
+    });
+    vi.mocked(confirmAction)
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(false);
+
+    await saveConfig({
+      username: null,
+      organizationUrl: null,
+      installDir: oldInstallDir,
+      activeSkillset: "senior-swe",
+    });
+
+    const { configMain } = await import("./config.js");
+    await configMain();
+
+    expect(installMain).not.toHaveBeenCalled();
+    expect(removeManagedFiles).not.toHaveBeenCalled();
+  });
+
+  it("should skip all prompts when there is no active skillset", async () => {
+    const { configFlow } = await import("@/cli/prompts/flows/config.js");
+    const { confirmAction } = await import("@/cli/prompts/confirm.js");
+
+    vi.mocked(configFlow).mockResolvedValueOnce({
+      defaultAgents: ["claude-code"],
+      installDir: newInstallDir,
+    });
+
+    await saveConfig({
+      username: null,
+      organizationUrl: null,
+      installDir: oldInstallDir,
+    });
+
+    const { configMain } = await import("./config.js");
+    await configMain();
+
+    expect(confirmAction).not.toHaveBeenCalled();
+  });
+
+  it("should skip prompts when installDir and defaultAgents have not changed", async () => {
+    const { configFlow } = await import("@/cli/prompts/flows/config.js");
+    const { confirmAction } = await import("@/cli/prompts/confirm.js");
+
+    vi.mocked(configFlow).mockResolvedValueOnce({
+      defaultAgents: ["claude-code"],
+      installDir: oldInstallDir,
+    });
+
+    await saveConfig({
+      username: null,
+      organizationUrl: null,
+      installDir: oldInstallDir,
+      activeSkillset: "senior-swe",
+      defaultAgents: ["claude-code"],
+    });
+
+    const { configMain } = await import("./config.js");
+    await configMain();
+
+    expect(confirmAction).not.toHaveBeenCalled();
+  });
+
+  it("should clean up old directory before installing to new directory", async () => {
+    const { configFlow } = await import("@/cli/prompts/flows/config.js");
+    const { confirmAction } = await import("@/cli/prompts/confirm.js");
+    const { main: installMain } =
+      await import("@/cli/commands/install/install.js");
+    const { removeManagedFiles } =
+      await import("@/cli/features/claude-code/skillsets/manifest.js");
+
+    vi.mocked(configFlow).mockResolvedValueOnce({
+      defaultAgents: ["claude-code"],
+      installDir: newInstallDir,
+    });
+    // Yes to both: install and clean up
+    vi.mocked(confirmAction)
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(true);
+
+    await saveConfig({
+      username: null,
+      organizationUrl: null,
+      installDir: oldInstallDir,
+      activeSkillset: "senior-swe",
+    });
+
+    // Track call order
+    const callOrder: Array<string> = [];
+    vi.mocked(removeManagedFiles).mockImplementation(async () => {
+      callOrder.push("cleanup");
+    });
+    vi.mocked(installMain).mockImplementation(async () => {
+      callOrder.push("install");
+    });
+
+    const { configMain } = await import("./config.js");
+    await configMain();
+
+    expect(callOrder).toEqual(["cleanup", "install"]);
+  });
+});
+
+describe("configMain defaultAgents change prompts", () => {
+  let tempDir: string;
+
+  beforeEach(async () => {
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "config-cmd-test-"));
+    vi.mocked(os.homedir).mockReturnValue(tempDir);
+  });
+
+  afterEach(async () => {
+    await fs.rm(tempDir, { recursive: true, force: true });
+    vi.clearAllMocks();
+  });
+
+  it("should prompt to install when defaultAgents change", async () => {
+    const { configFlow } = await import("@/cli/prompts/flows/config.js");
+    const { confirmAction } = await import("@/cli/prompts/confirm.js");
+    const { main: installMain } =
+      await import("@/cli/commands/install/install.js");
+
+    vi.mocked(configFlow).mockResolvedValueOnce({
+      defaultAgents: ["claude-code", "new-agent"],
+      installDir: tempDir,
+    });
+    vi.mocked(confirmAction).mockResolvedValueOnce(true);
+
+    await saveConfig({
+      username: null,
+      organizationUrl: null,
+      installDir: tempDir,
+      activeSkillset: "senior-swe",
+      defaultAgents: ["claude-code"],
+    });
+
+    const { configMain } = await import("./config.js");
+    await configMain();
+
+    expect(installMain).toHaveBeenCalledWith(
+      expect.objectContaining({
+        installDir: tempDir,
+        silent: true,
+      }),
+    );
+  });
+
+  it("should not install when user declines agent change prompt", async () => {
+    const { configFlow } = await import("@/cli/prompts/flows/config.js");
+    const { confirmAction } = await import("@/cli/prompts/confirm.js");
+    const { main: installMain } =
+      await import("@/cli/commands/install/install.js");
+
+    vi.mocked(configFlow).mockResolvedValueOnce({
+      defaultAgents: ["new-agent"],
+      installDir: tempDir,
+    });
+    vi.mocked(confirmAction).mockResolvedValueOnce(false);
+
+    await saveConfig({
+      username: null,
+      organizationUrl: null,
+      installDir: tempDir,
+      activeSkillset: "senior-swe",
+      defaultAgents: ["claude-code"],
+    });
+
+    const { configMain } = await import("./config.js");
+    await configMain();
+
+    expect(installMain).not.toHaveBeenCalled();
   });
 });

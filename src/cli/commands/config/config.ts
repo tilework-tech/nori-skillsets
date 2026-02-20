@@ -3,19 +3,46 @@
  *
  * Interactive configuration of Nori settings.
  * Sets defaultAgents and installDir in .nori-config.json.
+ * When installDir or defaultAgents change, prompts user about
+ * installing the active skillset and cleaning up the old directory.
  */
 
-import { outro } from "@clack/prompts";
+import { log, outro } from "@clack/prompts";
 
-import { loadConfig, saveConfig } from "@/cli/config.js";
+import { getActiveSkillset, loadConfig, saveConfig } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
+import { getClaudeDir } from "@/cli/features/claude-code/paths.js";
+import {
+  getManifestPath,
+  removeManagedFiles,
+} from "@/cli/features/claude-code/skillsets/manifest.js";
+import { confirmAction } from "@/cli/prompts/confirm.js";
 import { configFlow } from "@/cli/prompts/flows/config.js";
 import { normalizeInstallDir } from "@/utils/path.js";
+
+/**
+ * Check if two arrays of strings contain the same elements (order-independent)
+ *
+ * @param args - Configuration arguments
+ * @param args.a - First array
+ * @param args.b - Second array
+ *
+ * @returns True if the arrays contain the same elements
+ */
+const arraysEqual = (args: { a: Array<string>; b: Array<string> }): boolean => {
+  const { a, b } = args;
+  if (a.length !== b.length) return false;
+  const sortedA = [...a].sort();
+  const sortedB = [...b].sort();
+  return sortedA.every((val, i) => val === sortedB[i]);
+};
 
 /**
  * Main config function
  *
  * Runs the interactive config flow and saves results to .nori-config.json.
+ * After saving, detects changes to installDir and defaultAgents, and
+ * prompts the user to install/clean up accordingly.
  */
 export const configMain = async (): Promise<void> => {
   const result = await configFlow({
@@ -46,6 +73,21 @@ export const configMain = async (): Promise<void> => {
     installDir: result.installDir,
   });
 
+  // Detect what changed
+  const oldInstallDir = existingConfig?.installDir ?? null;
+  const oldAgents = existingConfig?.defaultAgents ?? null;
+  const activeSkillset =
+    existingConfig != null
+      ? getActiveSkillset({ config: existingConfig })
+      : null;
+
+  const installDirChanged =
+    oldInstallDir != null && normalizedInstallDir !== oldInstallDir;
+  const agentsChanged =
+    oldAgents != null &&
+    !arraysEqual({ a: oldAgents, b: result.defaultAgents });
+
+  // Save config first (regardless of prompt answers)
   await saveConfig({
     username: existingConfig?.auth?.username ?? null,
     refreshToken: existingConfig?.auth?.refreshToken ?? null,
@@ -61,6 +103,61 @@ export const configMain = async (): Promise<void> => {
     defaultAgents: result.defaultAgents,
     installDir: normalizedInstallDir,
   });
+
+  // Handle installDir change prompts
+  if (installDirChanged && activeSkillset != null) {
+    let shouldInstall = false;
+    let shouldCleanup = false;
+
+    shouldInstall = await confirmAction({
+      message: `Your active skillset is "${activeSkillset}". Install it to "${normalizedInstallDir}"?`,
+      initialValue: true,
+    });
+
+    shouldCleanup = await confirmAction({
+      message: `Remove Nori-managed configuration from "${oldInstallDir}"? (If not, you may encounter conflicts if you switch back to this directory later.)`,
+      initialValue: false,
+    });
+
+    // Clean up old directory first (while manifest still reflects old dir)
+    if (shouldCleanup) {
+      const claudeDir = getClaudeDir({ installDir: oldInstallDir });
+      const manifestPath = getManifestPath();
+      await removeManagedFiles({ claudeDir, manifestPath });
+      log.info(`Removed Nori configuration from "${oldInstallDir}".`);
+    }
+
+    // Then install to new directory (overwrites manifest with new dir hashes)
+    if (shouldInstall) {
+      const { main: installMain } =
+        await import("@/cli/commands/install/install.js");
+      await installMain({
+        installDir: normalizedInstallDir,
+        silent: true,
+      });
+      log.success(
+        `Installed "${activeSkillset}" to "${normalizedInstallDir}".`,
+      );
+    }
+  } else if (agentsChanged && activeSkillset != null) {
+    // Handle defaultAgents change prompts (only when installDir didn't change)
+    const shouldInstall = await confirmAction({
+      message: `Your active skillset is "${activeSkillset}". Install it for the new agent(s) at "${normalizedInstallDir}"?`,
+      initialValue: true,
+    });
+
+    if (shouldInstall) {
+      const { main: installMain } =
+        await import("@/cli/commands/install/install.js");
+      await installMain({
+        installDir: normalizedInstallDir,
+        silent: true,
+      });
+      log.success(
+        `Installed "${activeSkillset}" for new agent(s) at "${normalizedInstallDir}".`,
+      );
+    }
+  }
 
   outro("Configuration saved.");
 };
