@@ -39,6 +39,7 @@ Shared Resources (@/src/cli/features/)
     +-- paths.ts: getNoriDir(), getNoriSkillsetsDir() (agent-agnostic Nori paths)
     +-- template.ts: substituteTemplatePaths() (agent-agnostic placeholder substitution)
     +-- skillsetMetadata.ts: readSkillsetMetadata(), writeSkillsetMetadata(), addSkillToNoriJson(), ensureNoriJson()
+    +-- skillset.ts: Skillset type, parseSkillset() (agent-agnostic skillset directory parser)
     +-- managedFolder.ts: listProfiles(), MANIFEST_FILE (agent-agnostic)
     +-- config/loader.ts: configLoader (shared across all agents)
     +-- test-utils/: Shared test utilities (stripAnsi, pathExists, createTempTestContext)
@@ -107,6 +108,11 @@ The init command (@/src/cli/commands/init/) uses `getDefaultAgent()` from @/src/
 - `addSkillToNoriJson({ skillsetDir, skillName, version })`: Adds or updates a skill dependency in `dependencies.skills`. Creates a basic `nori.json` if one does not exist.
 - `ensureNoriJson({ skillsetDir })`: Backwards-compatibility shim that auto-creates `nori.json` for directories that look like skillsets (have `CLAUDE.md` or both `skills/` and `subagents/` subdirectories) but lack a manifest. Called at every entry point that validates skillset existence.
 - Previously lived in @/src/cli/features/claude-code/skillsets/metadata.ts but was extracted because skillset metadata operations are agent-agnostic.
+
+**Skillset Parser** (skillset.ts):
+- Defines the `Skillset` type: a content-agnostic representation of a skillset's filesystem structure with fields for `name`, `dir`, `metadata` (NoriJson), `skillsDir`, `claudeMdPath`, `slashcommandsDir`, and `subagentsDir` (all path fields nullable for optional components).
+- `parseSkillset({ skillsetName?, skillsetDir? })`: Resolves a skillset directory (by name from `~/.nori/profiles/` or by explicit path), calls `ensureNoriJson()` for backwards compatibility, reads metadata, and probes for optional subdirectories/files. Returns a `Skillset` object. Called by the `profilesLoader` to parse the active skillset once, then distribute to all sub-loaders.
+- The `ProfileLoader` interface in @/src/cli/features/claude-code/skillsets/skillsetLoaderRegistry.ts accepts `{ config, skillset }` so sub-loaders receive the pre-parsed `Skillset` instead of constructing paths independently.
 
 **Migration System** (migration.ts):
 - Versioned migration system for transforming config between formats during installation

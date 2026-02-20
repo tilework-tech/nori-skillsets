@@ -21,6 +21,7 @@ import { getClaudeMdFile } from "@/cli/features/claude-code/paths.js";
 import { claudeMdLoader } from "@/cli/features/claude-code/skillsets/claudemd/loader.js";
 import { MANIFEST_FILE } from "@/cli/features/managedFolder.js";
 import { getNoriSkillsetsDir } from "@/cli/features/paths.js";
+import { parseSkillset } from "@/cli/features/skillset.js";
 import { ensureNoriJson } from "@/cli/features/skillsetMetadata.js";
 import { success, info } from "@/cli/logger.js";
 import { getHomeDir } from "@/utils/home.js";
@@ -114,7 +115,8 @@ export const claudeCodeAgent: Agent = {
     }
 
     // Install the managed CLAUDE.md block so the user isn't left without config
-    await claudeMdLoader.install({ config });
+    const skillset = await parseSkillset({ skillsetName });
+    await claudeMdLoader.install({ config, skillset });
   },
 
   switchSkillset: async (args: {

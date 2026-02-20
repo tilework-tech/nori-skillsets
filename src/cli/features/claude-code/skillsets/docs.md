@@ -14,7 +14,7 @@ The skillsets module manages the installation, composition, and metadata of skil
 
 `loader.ts` creates `~/.nori/profiles/` and adds it to `permissions.additionalDirectories` in `{installDir}/.claude/settings.json` so Claude Code can read skillset files. It then runs all `ProfileLoader` instances from the `ProfileLoaderRegistry`.
 
-`skillsetLoaderRegistry.ts` is a singleton registry ordering the profile sub-loaders: skills -> claudemd -> slashcommands -> subagents. Skills must install before claudemd because CLAUDE.md generation reads from the installed skills directory.
+`skillsetLoaderRegistry.ts` is a singleton registry ordering the profile sub-loaders: skills -> claudemd -> slashcommands -> subagents. Skills must install before claudemd because CLAUDE.md generation reads from the installed skills directory. The `ProfileLoader` interface accepts `{ config: Config; skillset: Skillset }` where `Skillset` (from @/src/cli/features/skillset.ts) is the pre-parsed filesystem structure of the active skillset. The `profilesLoader` calls `parseSkillset()` once and passes the result to all sub-loaders, so they no longer construct paths independently.
 
 Skillset metadata CRUD operations (`readSkillsetMetadata`, `writeSkillsetMetadata`, `addSkillToNoriJson`, `ensureNoriJson`) have been extracted to @/src/cli/features/skillsetMetadata.ts. These functions were previously in `metadata.ts` within this directory.
 
@@ -71,7 +71,7 @@ External skills are downloaded to the skillset's own `skills/` directory by both
 
 No built-in skillsets are shipped with the package. First-time installations will have no skillsets until the user downloads or creates one.
 
-**Skillset Lookup in Loaders**: All feature loaders use `getActiveSkillset({ config })` from @/src/cli/config.ts to determine the active skillset name. This function returns the `activeSkillset` field from the config or null if not set.
+**Skillset Lookup in Loaders**: The `profilesLoader` uses `getActiveSkillset({ config })` from @/src/cli/config.ts to determine the active skillset name, then calls `parseSkillset()` from @/src/cli/features/skillset.ts to parse the skillset directory into a `Skillset` object. This `Skillset` is passed to all sub-loaders, so individual loaders no longer need to resolve the active skillset or construct paths themselves.
 
 **Profile Discovery**: The `listProfiles()` function in @/src/cli/features/managedFolder.ts scans `~/.nori/profiles/` for directories containing `nori.json` (supports both flat and namespaced org/profile layouts). This is an agent-agnostic utility imported directly by CLI commands. The `switchSkillset()` method on `claudeCodeAgent` validates the skillset exists, loads current config, preserves auth credentials, updates the skillset field, and prompts user to restart Claude Code.
 

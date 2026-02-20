@@ -37,16 +37,33 @@ Changes:
 - Updated `init.ts`, `existingConfigCapture.ts` for `hasConfigFile` rename
 - Updated all test mocks and assertions for new import paths and param names
 
+### Commit 3: Introduce explicit Skillset type and parseSkillset function
+
+**Refactor B progress:** Created a centralized `Skillset` type and `parseSkillset()` function. Profile sub-loaders no longer independently construct filesystem paths — they receive a pre-parsed `Skillset` object.
+
+Changes:
+- Created `src/cli/features/skillset.ts` with `Skillset` type and `parseSkillset()` function
+  - `Skillset` maps the filesystem structure: `name`, `dir`, `metadata`, `skillsDir`, `claudeMdPath`, `slashcommandsDir`, `subagentsDir` (nullable for optional components)
+  - `parseSkillset()` resolves skillset directory, ensures nori.json exists (backwards compat), reads metadata, checks for optional component directories
+- Created `src/cli/features/skillset.test.ts` with 8 tests covering fully-populated, minimal, namespaced, missing, and legacy skillsets
+- Updated `ProfileLoader` interface in `skillsetLoaderRegistry.ts` to accept `{ config: Config; skillset: Skillset }`
+- Updated `profilesLoader` in `loader.ts` to call `parseSkillset()` once and pass result to all sub-loaders
+- Updated all 4 profile sub-loaders to consume `Skillset` instead of constructing paths independently:
+  - `skills/loader.ts` — removed `getProfileDir`, `getConfigDir`; uses `skillset.skillsDir`
+  - `claudemd/loader.ts` — removed `getProfileClaudeMd`; uses `skillset.claudeMdPath`; `generateSkillsList` now takes `{ skillsDir }` instead of `{ skillsetName }`
+  - `slashcommands/loader.ts` — removed `getConfigDir`; uses `skillset.slashcommandsDir`
+  - `subagents/loader.ts` — removed `getConfigDir`; uses `skillset.subagentsDir`
+- Updated `agent.ts` `captureExistingConfig` to parse skillset before calling `claudeMdLoader.install`
+- Updated all 4 sub-loader test files with `installWithSkillset` helper pattern
+
 ## Remaining Work
 
 ### Refactor A (continued): Further agent decoupling
 - `AgentName` type is still a literal `"claude-code"` string union
 
-### Refactor B: Explicit Skillset types
-- No explicit `Skillset` type exists yet that describes the package structure at `~/.nori/profiles/`
-- Need a parsing layer that lives above the agent registry
-- Need to modify agent registry functions to ingest the new skillset type
-- Need to modify underlying functions so that instead of hardcoding skillset semantics, the agent registry functions read off the skillset type directly
+### Refactor B (continued): Further Skillset type usage
+- Other callers outside the profile loader chain may still construct skillset paths independently
+- The `Skillset` type could be extended to include more parsed metadata as needed
 
 ### Refactor C: Multi-agent support improvements
 - Need clear semantic functions for adding/removing skillsets per agent per directory
