@@ -190,7 +190,7 @@ describe("configLoader", () => {
     });
 
     it("should preserve activeSkillset from existing config when not provided in new config", async () => {
-      // Create existing config with activeSkillset (e.g., from switchProfile)
+      // Create existing config with activeSkillset (e.g., from switchSkillset)
       const configFile = getConfigPath();
       fs.writeFileSync(
         configFile,
@@ -202,7 +202,7 @@ describe("configLoader", () => {
       );
 
       // Run configLoader with config that doesn't explicitly set activeSkillset
-      // (simulating what noninteractive install does after switchProfile)
+      // (simulating what noninteractive install does after switchSkillset)
       const config: Config = {
         installDir: tempDir,
       };

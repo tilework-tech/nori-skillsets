@@ -1,5 +1,5 @@
 /**
- * Tests for profiles feature loader
+ * Tests for skillsets feature loader
  * Verifies install operations
  */
 
@@ -22,10 +22,10 @@ vi.mock("@/cli/features/claude-code/paths.js", () => ({
   getClaudeCommandsDir: () => path.join(mockClaudeDir, "commands"),
   getClaudeMdFile: () => path.join(mockClaudeDir, "CLAUDE.md"),
   getClaudeSkillsDir: () => path.join(mockClaudeDir, "skills"),
-  getClaudeProfilesDir: () => path.join(mockClaudeDir, "profiles"),
+  getClaudeSkillsetsDir: () => path.join(mockClaudeDir, "profiles"),
   // New Nori paths
   getNoriDir: () => mockNoriDir,
-  getNoriProfilesDir: () => path.join(mockNoriDir, "profiles"),
+  getNoriSkillsetsDir: () => path.join(mockNoriDir, "profiles"),
   getNoriConfigFile: () => path.join(mockNoriDir, "config.json"),
 }));
 
@@ -33,25 +33,25 @@ vi.mock("@/cli/features/claude-code/paths.js", () => ({
 import { profilesLoader, _testing } from "./loader.js";
 
 /**
- * Create a minimal stub profile in the profiles directory.
+ * Create a minimal stub skillset in the profiles directory.
  * Since built-in profiles are no longer bundled, downstream loaders (claudemd, skills)
  * need a profile with at least a CLAUDE.md file to exist in the profiles directory.
  * @param args - Function arguments
- * @param args.profilesDir - Path to the profiles directory
- * @param args.profileName - Name of the profile to create
+ * @param args.skillsetsDir - Path to the profiles directory
+ * @param args.skillsetName - Name of the skillset to create
  */
-const createStubProfile = async (args: {
-  profilesDir: string;
-  profileName: string;
+const createStubSkillset = async (args: {
+  skillsetsDir: string;
+  skillsetName: string;
 }): Promise<void> => {
-  const { profilesDir, profileName } = args;
-  const profileDir = path.join(profilesDir, profileName);
-  await fs.mkdir(profileDir, { recursive: true });
-  await fs.writeFile(path.join(profileDir, "CLAUDE.md"), "# Test Profile\n");
+  const { skillsetsDir, skillsetName } = args;
+  const skillsetDir = path.join(skillsetsDir, skillsetName);
+  await fs.mkdir(skillsetDir, { recursive: true });
+  await fs.writeFile(path.join(skillsetDir, "CLAUDE.md"), "# Test Profile\n");
   await fs.writeFile(
-    path.join(profileDir, "nori.json"),
+    path.join(skillsetDir, "nori.json"),
     JSON.stringify({
-      name: profileName,
+      name: skillsetName,
       version: "1.0.0",
       description: "Test profile",
     }),
@@ -62,14 +62,14 @@ describe("profilesLoader", () => {
   let tempDir: string;
   let claudeDir: string;
   let noriDir: string;
-  let profilesDir: string;
+  let skillsetsDir: string;
 
   beforeEach(async () => {
     // Create temp directory for testing
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "profiles-test-"));
     claudeDir = path.join(tempDir, ".claude");
     noriDir = path.join(tempDir, ".nori");
-    profilesDir = path.join(noriDir, "profiles");
+    skillsetsDir = path.join(noriDir, "profiles");
 
     // Set mock paths
     mockClaudeDir = claudeDir;
@@ -96,17 +96,17 @@ describe("profilesLoader", () => {
       };
 
       // Create stub profile so downstream loaders can find CLAUDE.md
-      await fs.mkdir(profilesDir, { recursive: true });
-      await createStubProfile({
-        profilesDir,
-        profileName: "test-profile",
+      await fs.mkdir(skillsetsDir, { recursive: true });
+      await createStubSkillset({
+        skillsetsDir,
+        skillsetName: "test-profile",
       });
 
       await profilesLoader.run({ config });
 
       // Verify profiles directory exists
       const exists = await fs
-        .access(profilesDir)
+        .access(skillsetsDir)
         .then(() => true)
         .catch(() => false);
       expect(exists).toBe(true);
@@ -115,26 +115,28 @@ describe("profilesLoader", () => {
       const settingsPath = path.join(claudeDir, "settings.json");
       const content = await fs.readFile(settingsPath, "utf-8");
       const settings = JSON.parse(content);
-      expect(settings.permissions.additionalDirectories).toContain(profilesDir);
+      expect(settings.permissions.additionalDirectories).toContain(
+        skillsetsDir,
+      );
     });
 
-    it("should not copy any built-in profiles into an empty profiles directory", async () => {
+    it("should not copy any built-in skillsets into an empty profiles directory", async () => {
       const config: Config = {
         installDir: tempDir,
         activeSkillset: "test-profile",
       };
 
       // Create stub profile so downstream loaders don't fail
-      await fs.mkdir(profilesDir, { recursive: true });
-      await createStubProfile({
-        profilesDir,
-        profileName: "test-profile",
+      await fs.mkdir(skillsetsDir, { recursive: true });
+      await createStubSkillset({
+        skillsetsDir,
+        skillsetName: "test-profile",
       });
 
       await profilesLoader.run({ config });
 
-      // Verify only our stub profile exists (no built-in profiles were added)
-      const files = await fs.readdir(profilesDir);
+      // Verify only our stub skillset exists (no built-in skillsets were added)
+      const files = await fs.readdir(skillsetsDir);
       expect(files).toEqual(["test-profile"]);
     });
 
@@ -144,10 +146,10 @@ describe("profilesLoader", () => {
         activeSkillset: "test-profile",
       };
 
-      await fs.mkdir(profilesDir, { recursive: true });
-      await createStubProfile({
-        profilesDir,
-        profileName: "test-profile",
+      await fs.mkdir(skillsetsDir, { recursive: true });
+      await createStubSkillset({
+        skillsetsDir,
+        skillsetName: "test-profile",
       });
 
       // First installation
@@ -158,29 +160,29 @@ describe("profilesLoader", () => {
 
       // Verify profiles directory still exists
       const exists = await fs
-        .access(profilesDir)
+        .access(skillsetsDir)
         .then(() => true)
         .catch(() => false);
       expect(exists).toBe(true);
     });
 
-    it("should preserve existing user-installed profiles on reinstall", async () => {
+    it("should preserve existing user-installed skillsets on reinstall", async () => {
       const config: Config = {
         installDir: tempDir,
         activeSkillset: "test-profile",
       };
 
-      await fs.mkdir(profilesDir, { recursive: true });
-      await createStubProfile({
-        profilesDir,
-        profileName: "test-profile",
+      await fs.mkdir(skillsetsDir, { recursive: true });
+      await createStubSkillset({
+        skillsetsDir,
+        skillsetName: "test-profile",
       });
 
       // First installation
       await profilesLoader.run({ config });
 
-      // Simulate user installing another profile
-      const userProfile = path.join(profilesDir, "my-custom-profile");
+      // Simulate user installing another skillset
+      const userProfile = path.join(skillsetsDir, "my-custom-profile");
       await fs.mkdir(userProfile, { recursive: true });
       await fs.writeFile(
         path.join(userProfile, "nori.json"),
@@ -217,15 +219,15 @@ describe("profilesLoader", () => {
         description: "Test profile description",
       };
 
-      const profilePath = path.join(tempTestDir, "test-profile");
-      await fs.mkdir(profilePath, { recursive: true });
+      const skillsetPath = path.join(tempTestDir, "test-profile");
+      await fs.mkdir(skillsetPath, { recursive: true });
       await fs.writeFile(
-        path.join(profilePath, "nori.json"),
+        path.join(skillsetPath, "nori.json"),
         JSON.stringify(noriJson, null, 2),
       );
 
-      const { readProfileMetadata } = await import("./metadata.js");
-      const result = await readProfileMetadata({ profileDir: profilePath });
+      const { readSkillsetMetadata } = await import("./metadata.js");
+      const result = await readSkillsetMetadata({ skillsetDir: skillsetPath });
 
       expect(result.name).toBe("test-profile");
       expect(result.version).toBe("1.0.0");
@@ -234,28 +236,18 @@ describe("profilesLoader", () => {
       await fs.rm(tempTestDir, { recursive: true, force: true });
     });
 
-    it("should fallback to profile.json when nori.json does not exist", async () => {
+    it("should throw when nori.json does not exist", async () => {
       const tempTestDir = await fs.mkdtemp(
-        path.join(os.tmpdir(), "profile-json-fallback-test-"),
+        path.join(os.tmpdir(), "no-nori-json-test-"),
       );
 
-      const profileJson = {
-        name: "legacy-profile",
-        description: "Legacy profile from profile.json",
-      };
+      const skillsetPath = path.join(tempTestDir, "missing-metadata");
+      await fs.mkdir(skillsetPath, { recursive: true });
 
-      const profilePath = path.join(tempTestDir, "legacy-profile");
-      await fs.mkdir(profilePath, { recursive: true });
-      await fs.writeFile(
-        path.join(profilePath, "profile.json"),
-        JSON.stringify(profileJson, null, 2),
-      );
-
-      const { readProfileMetadata } = await import("./metadata.js");
-      const result = await readProfileMetadata({ profileDir: profilePath });
-
-      expect(result.name).toBe("legacy-profile");
-      expect(result.description).toBe("Legacy profile from profile.json");
+      const { readSkillsetMetadata } = await import("./metadata.js");
+      await expect(
+        readSkillsetMetadata({ skillsetDir: skillsetPath }),
+      ).rejects.toThrow();
 
       await fs.rm(tempTestDir, { recursive: true, force: true });
     });
@@ -269,10 +261,10 @@ describe("profilesLoader", () => {
       };
       const settingsPath = path.join(claudeDir, "settings.json");
 
-      await fs.mkdir(profilesDir, { recursive: true });
-      await createStubProfile({
-        profilesDir,
-        profileName: "test-profile",
+      await fs.mkdir(skillsetsDir, { recursive: true });
+      await createStubSkillset({
+        skillsetsDir,
+        skillsetName: "test-profile",
       });
 
       // Install profiles
@@ -291,7 +283,9 @@ describe("profilesLoader", () => {
 
       expect(settings.permissions).toBeDefined();
       expect(settings.permissions.additionalDirectories).toBeDefined();
-      expect(settings.permissions.additionalDirectories).toContain(profilesDir);
+      expect(settings.permissions.additionalDirectories).toContain(
+        skillsetsDir,
+      );
     });
 
     it("should preserve existing settings when adding permissions", async () => {
@@ -301,10 +295,10 @@ describe("profilesLoader", () => {
       };
       const settingsPath = path.join(claudeDir, "settings.json");
 
-      await fs.mkdir(profilesDir, { recursive: true });
-      await createStubProfile({
-        profilesDir,
-        profileName: "test-profile",
+      await fs.mkdir(skillsetsDir, { recursive: true });
+      await createStubSkillset({
+        skillsetsDir,
+        skillsetName: "test-profile",
       });
 
       // Create settings.json with existing fields
@@ -330,7 +324,9 @@ describe("profilesLoader", () => {
 
       expect(settings.model).toBe("sonnet");
       expect(settings.existingField).toBe("should-be-preserved");
-      expect(settings.permissions.additionalDirectories).toContain(profilesDir);
+      expect(settings.permissions.additionalDirectories).toContain(
+        skillsetsDir,
+      );
     });
 
     it("should not duplicate profiles directory in additionalDirectories", async () => {
@@ -340,10 +336,10 @@ describe("profilesLoader", () => {
       };
       const settingsPath = path.join(claudeDir, "settings.json");
 
-      await fs.mkdir(profilesDir, { recursive: true });
-      await createStubProfile({
-        profilesDir,
-        profileName: "test-profile",
+      await fs.mkdir(skillsetsDir, { recursive: true });
+      await createStubSkillset({
+        skillsetsDir,
+        skillsetName: "test-profile",
       });
 
       // Install profiles twice
@@ -355,7 +351,7 @@ describe("profilesLoader", () => {
       const settings = JSON.parse(content);
 
       const count = settings.permissions.additionalDirectories.filter(
-        (dir: string) => dir === profilesDir,
+        (dir: string) => dir === skillsetsDir,
       ).length;
 
       expect(count).toBe(1);
@@ -368,10 +364,10 @@ describe("profilesLoader", () => {
       };
       const settingsPath = path.join(claudeDir, "settings.json");
 
-      await fs.mkdir(profilesDir, { recursive: true });
-      await createStubProfile({
-        profilesDir,
-        profileName: "test-profile",
+      await fs.mkdir(skillsetsDir, { recursive: true });
+      await createStubSkillset({
+        skillsetsDir,
+        skillsetName: "test-profile",
       });
 
       // Create settings.json with existing additionalDirectories
@@ -402,7 +398,9 @@ describe("profilesLoader", () => {
       expect(settings.permissions.additionalDirectories).toContain(
         "/existing/path2",
       );
-      expect(settings.permissions.additionalDirectories).toContain(profilesDir);
+      expect(settings.permissions.additionalDirectories).toContain(
+        skillsetsDir,
+      );
     });
   });
 

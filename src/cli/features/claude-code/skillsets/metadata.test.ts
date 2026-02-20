@@ -1,5 +1,5 @@
 /**
- * Tests for profile metadata utilities (nori.json read/write)
+ * Tests for skillset metadata utilities (nori.json read/write)
  */
 
 import * as fs from "fs/promises";
@@ -9,33 +9,33 @@ import * as path from "path";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 
 import {
-  readProfileMetadata,
-  writeProfileMetadata,
+  readSkillsetMetadata,
+  writeSkillsetMetadata,
   addSkillToNoriJson,
   ensureNoriJson,
 } from "./metadata.js";
 
-describe("writeProfileMetadata", () => {
-  let profileDir: string;
+describe("writeSkillsetMetadata", () => {
+  let skillsetDir: string;
 
   beforeEach(async () => {
-    profileDir = await fs.mkdtemp(path.join(tmpdir(), "nori-metadata-test-"));
+    skillsetDir = await fs.mkdtemp(path.join(tmpdir(), "nori-metadata-test-"));
   });
 
   afterEach(async () => {
-    await fs.rm(profileDir, { recursive: true, force: true });
+    await fs.rm(skillsetDir, { recursive: true, force: true });
   });
 
-  it("should write nori.json that can be read back by readProfileMetadata", async () => {
+  it("should write nori.json that can be read back by readSkillsetMetadata", async () => {
     const metadata = {
       name: "test-profile",
       version: "1.0.0",
       description: "A test profile",
     };
 
-    await writeProfileMetadata({ profileDir, metadata });
+    await writeSkillsetMetadata({ skillsetDir, metadata });
 
-    const result = await readProfileMetadata({ profileDir });
+    const result = await readSkillsetMetadata({ skillsetDir });
     expect(result).toEqual(metadata);
   });
 
@@ -52,9 +52,9 @@ describe("writeProfileMetadata", () => {
       },
     };
 
-    await writeProfileMetadata({ profileDir, metadata });
+    await writeSkillsetMetadata({ skillsetDir, metadata });
 
-    const result = await readProfileMetadata({ profileDir });
+    const result = await readSkillsetMetadata({ skillsetDir });
     expect(result).toEqual(metadata);
   });
 
@@ -62,10 +62,10 @@ describe("writeProfileMetadata", () => {
     const original = { name: "original", version: "1.0.0" };
     const updated = { name: "updated", version: "2.0.0" };
 
-    await writeProfileMetadata({ profileDir, metadata: original });
-    await writeProfileMetadata({ profileDir, metadata: updated });
+    await writeSkillsetMetadata({ skillsetDir, metadata: original });
+    await writeSkillsetMetadata({ skillsetDir, metadata: updated });
 
-    const result = await readProfileMetadata({ profileDir });
+    const result = await readSkillsetMetadata({ skillsetDir });
     expect(result).toEqual(updated);
   });
 
@@ -76,85 +76,85 @@ describe("writeProfileMetadata", () => {
       type: "skillset" as const,
     };
 
-    await writeProfileMetadata({ profileDir, metadata });
+    await writeSkillsetMetadata({ skillsetDir, metadata });
 
-    const result = await readProfileMetadata({ profileDir });
+    const result = await readSkillsetMetadata({ skillsetDir });
     expect(result.type).toBe("skillset");
   });
 });
 
 describe("addSkillToNoriJson", () => {
-  let profileDir: string;
+  let skillsetDir: string;
 
   beforeEach(async () => {
-    profileDir = await fs.mkdtemp(path.join(tmpdir(), "nori-metadata-test-"));
+    skillsetDir = await fs.mkdtemp(path.join(tmpdir(), "nori-metadata-test-"));
   });
 
   afterEach(async () => {
-    await fs.rm(profileDir, { recursive: true, force: true });
+    await fs.rm(skillsetDir, { recursive: true, force: true });
   });
 
   it("should create nori.json when none exists and add the skill", async () => {
     await addSkillToNoriJson({
-      profileDir,
+      skillsetDir,
       skillName: "my-skill",
       version: "*",
     });
 
-    const metadata = await readProfileMetadata({ profileDir });
-    expect(metadata.name).toBe(path.basename(profileDir));
+    const metadata = await readSkillsetMetadata({ skillsetDir });
+    expect(metadata.name).toBe(path.basename(skillsetDir));
     expect(metadata.version).toBe("1.0.0");
     expect(metadata.dependencies?.skills).toEqual({ "my-skill": "*" });
   });
 
   it("should set type to skillset when creating a new nori.json", async () => {
     await addSkillToNoriJson({
-      profileDir,
+      skillsetDir,
       skillName: "my-skill",
       version: "*",
     });
 
-    const metadata = await readProfileMetadata({ profileDir });
+    const metadata = await readSkillsetMetadata({ skillsetDir });
     expect(metadata.type).toBe("skillset");
   });
 
   it("should preserve existing type field when adding a skill", async () => {
-    await writeProfileMetadata({
-      profileDir,
+    await writeSkillsetMetadata({
+      skillsetDir,
       metadata: { name: "my-profile", version: "1.0.0", type: "skill" },
     });
 
     await addSkillToNoriJson({
-      profileDir,
+      skillsetDir,
       skillName: "new-skill",
       version: "^2.0.0",
     });
 
-    const metadata = await readProfileMetadata({ profileDir });
+    const metadata = await readSkillsetMetadata({ skillsetDir });
     expect(metadata.type).toBe("skill");
   });
 
   it("should add skill to existing nori.json that has no dependencies key", async () => {
-    await writeProfileMetadata({
-      profileDir,
+    await writeSkillsetMetadata({
+      skillsetDir,
       metadata: { name: "my-profile", version: "1.0.0" },
     });
 
     await addSkillToNoriJson({
-      profileDir,
+      skillsetDir,
       skillName: "new-skill",
       version: "^2.0.0",
     });
 
-    const metadata = await readProfileMetadata({ profileDir });
+    const metadata = await readSkillsetMetadata({ skillsetDir });
     expect(metadata.name).toBe("my-profile");
     expect(metadata.version).toBe("1.0.0");
     expect(metadata.dependencies?.skills).toEqual({ "new-skill": "^2.0.0" });
   });
 
   it("should add skill to existing nori.json preserving existing skill dependencies", async () => {
-    await writeProfileMetadata({
-      profileDir,
+    await writeSkillsetMetadata({
+      skillsetDir,
       metadata: {
         name: "my-profile",
         version: "1.0.0",
@@ -168,12 +168,12 @@ describe("addSkillToNoriJson", () => {
     });
 
     await addSkillToNoriJson({
-      profileDir,
+      skillsetDir,
       skillName: "new-skill",
       version: "*",
     });
 
-    const metadata = await readProfileMetadata({ profileDir });
+    const metadata = await readSkillsetMetadata({ skillsetDir });
     expect(metadata.dependencies?.skills).toEqual({
       "existing-skill": "^1.0.0",
       "another-skill": "*",
@@ -183,13 +183,13 @@ describe("addSkillToNoriJson", () => {
 
   it("should throw when nori.json contains corrupt JSON", async () => {
     await fs.writeFile(
-      path.join(profileDir, "nori.json"),
+      path.join(skillsetDir, "nori.json"),
       "{ this is not valid json",
     );
 
     await expect(
       addSkillToNoriJson({
-        profileDir,
+        skillsetDir,
         skillName: "my-skill",
         version: "*",
       }),
@@ -197,8 +197,8 @@ describe("addSkillToNoriJson", () => {
   });
 
   it("should update version for an already-present skill", async () => {
-    await writeProfileMetadata({
-      profileDir,
+    await writeSkillsetMetadata({
+      skillsetDir,
       metadata: {
         name: "my-profile",
         version: "1.0.0",
@@ -211,43 +211,43 @@ describe("addSkillToNoriJson", () => {
     });
 
     await addSkillToNoriJson({
-      profileDir,
+      skillsetDir,
       skillName: "my-skill",
       version: "*",
     });
 
-    const metadata = await readProfileMetadata({ profileDir });
+    const metadata = await readSkillsetMetadata({ skillsetDir });
     expect(metadata.dependencies?.skills).toEqual({ "my-skill": "*" });
   });
 });
 
 describe("ensureNoriJson", () => {
-  let profileDir: string;
+  let skillsetDir: string;
 
   beforeEach(async () => {
-    profileDir = await fs.mkdtemp(path.join(tmpdir(), "nori-metadata-test-"));
+    skillsetDir = await fs.mkdtemp(path.join(tmpdir(), "nori-metadata-test-"));
   });
 
   afterEach(async () => {
-    await fs.rm(profileDir, { recursive: true, force: true });
+    await fs.rm(skillsetDir, { recursive: true, force: true });
   });
 
   it("should create nori.json when directory has CLAUDE.md but no nori.json", async () => {
-    await fs.writeFile(path.join(profileDir, "CLAUDE.md"), "# My Profile");
+    await fs.writeFile(path.join(skillsetDir, "CLAUDE.md"), "# My Profile");
 
-    await ensureNoriJson({ profileDir });
+    await ensureNoriJson({ skillsetDir });
 
-    const metadata = await readProfileMetadata({ profileDir });
-    expect(metadata.name).toBe(path.basename(profileDir));
+    const metadata = await readSkillsetMetadata({ skillsetDir });
+    expect(metadata.name).toBe(path.basename(skillsetDir));
     expect(metadata.version).toBe("0.0.1");
   });
 
   it("should set type to skillset on auto-created nori.json", async () => {
-    await fs.writeFile(path.join(profileDir, "CLAUDE.md"), "# My Profile");
+    await fs.writeFile(path.join(skillsetDir, "CLAUDE.md"), "# My Profile");
 
-    await ensureNoriJson({ profileDir });
+    await ensureNoriJson({ skillsetDir });
 
-    const metadata = await readProfileMetadata({ profileDir });
+    const metadata = await readSkillsetMetadata({ skillsetDir });
     expect(metadata.type).toBe("skillset");
   });
 
@@ -257,60 +257,60 @@ describe("ensureNoriJson", () => {
       version: "2.0.0",
       type: "skill" as const,
     };
-    await writeProfileMetadata({ profileDir, metadata: existing });
-    await fs.writeFile(path.join(profileDir, "CLAUDE.md"), "# My Profile");
+    await writeSkillsetMetadata({ skillsetDir, metadata: existing });
+    await fs.writeFile(path.join(skillsetDir, "CLAUDE.md"), "# My Profile");
 
-    await ensureNoriJson({ profileDir });
+    await ensureNoriJson({ skillsetDir });
 
-    const metadata = await readProfileMetadata({ profileDir });
+    const metadata = await readSkillsetMetadata({ skillsetDir });
     expect(metadata.type).toBe("skill");
   });
 
   it("should create nori.json when directory has skills and subagents dirs but no nori.json", async () => {
-    await fs.mkdir(path.join(profileDir, "skills"));
-    await fs.mkdir(path.join(profileDir, "subagents"));
+    await fs.mkdir(path.join(skillsetDir, "skills"));
+    await fs.mkdir(path.join(skillsetDir, "subagents"));
 
-    await ensureNoriJson({ profileDir });
+    await ensureNoriJson({ skillsetDir });
 
-    const metadata = await readProfileMetadata({ profileDir });
-    expect(metadata.name).toBe(path.basename(profileDir));
+    const metadata = await readSkillsetMetadata({ skillsetDir });
+    expect(metadata.name).toBe(path.basename(skillsetDir));
     expect(metadata.version).toBe("0.0.1");
   });
 
   it("should not create nori.json when directory has no profile markers", async () => {
-    await fs.writeFile(path.join(profileDir, "readme.txt"), "not a profile");
+    await fs.writeFile(path.join(skillsetDir, "readme.txt"), "not a profile");
 
-    await ensureNoriJson({ profileDir });
+    await ensureNoriJson({ skillsetDir });
 
-    const noriJsonPath = path.join(profileDir, "nori.json");
+    const noriJsonPath = path.join(skillsetDir, "nori.json");
     await expect(fs.access(noriJsonPath)).rejects.toThrow();
   });
 
   it("should not create nori.json when only skills dir exists without subagents", async () => {
-    await fs.mkdir(path.join(profileDir, "skills"));
+    await fs.mkdir(path.join(skillsetDir, "skills"));
 
-    await ensureNoriJson({ profileDir });
+    await ensureNoriJson({ skillsetDir });
 
-    const noriJsonPath = path.join(profileDir, "nori.json");
+    const noriJsonPath = path.join(skillsetDir, "nori.json");
     await expect(fs.access(noriJsonPath)).rejects.toThrow();
   });
 
   it("should not overwrite existing nori.json", async () => {
     const existing = { name: "my-profile", version: "2.0.0" };
-    await writeProfileMetadata({ profileDir, metadata: existing });
-    await fs.writeFile(path.join(profileDir, "CLAUDE.md"), "# My Profile");
+    await writeSkillsetMetadata({ skillsetDir, metadata: existing });
+    await fs.writeFile(path.join(skillsetDir, "CLAUDE.md"), "# My Profile");
 
-    await ensureNoriJson({ profileDir });
+    await ensureNoriJson({ skillsetDir });
 
-    const metadata = await readProfileMetadata({ profileDir });
+    const metadata = await readSkillsetMetadata({ skillsetDir });
     expect(metadata.name).toBe("my-profile");
     expect(metadata.version).toBe("2.0.0");
   });
 
   it("should do nothing when directory does not exist", async () => {
-    const nonExistentDir = path.join(profileDir, "does-not-exist");
+    const nonExistentDir = path.join(skillsetDir, "does-not-exist");
 
-    await ensureNoriJson({ profileDir: nonExistentDir });
+    await ensureNoriJson({ skillsetDir: nonExistentDir });
 
     const noriJsonPath = path.join(nonExistentDir, "nori.json");
     await expect(fs.access(noriJsonPath)).rejects.toThrow();

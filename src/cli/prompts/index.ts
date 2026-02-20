@@ -6,7 +6,7 @@
  */
 
 export { handleCancel } from "./utils.js";
-export { validateProfileName } from "./validators.js";
+export { validateSkillsetName } from "./validators.js";
 export { confirmAction } from "./confirm.js";
 export { promptText } from "./text.js";
 export { promptPassword } from "./password.js";

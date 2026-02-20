@@ -91,7 +91,7 @@ import { externalMain } from "./external.js";
 describe("externalMain", () => {
   let testDir: string;
   let skillsDir: string;
-  let profilesDir: string;
+  let skillsetsDir: string;
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -100,10 +100,10 @@ describe("externalMain", () => {
       path.join(tmpdir(), "nori-external-test-install-"),
     );
     skillsDir = path.join(testDir, ".claude", "skills");
-    profilesDir = path.join(testDir, ".nori", "profiles");
+    skillsetsDir = path.join(testDir, ".nori", "profiles");
 
     await fs.mkdir(skillsDir, { recursive: true });
-    await fs.mkdir(profilesDir, { recursive: true });
+    await fs.mkdir(skillsetsDir, { recursive: true });
   });
 
   afterEach(async () => {
@@ -229,7 +229,7 @@ describe("externalMain", () => {
 describe("externalMain with --skillset", () => {
   let testDir: string;
   let skillsDir: string;
-  let profilesDir: string;
+  let skillsetsDir: string;
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -238,13 +238,13 @@ describe("externalMain with --skillset", () => {
       path.join(tmpdir(), "nori-external-skillset-test-"),
     );
     skillsDir = path.join(testDir, ".claude", "skills");
-    profilesDir = path.join(testDir, ".nori", "profiles");
+    skillsetsDir = path.join(testDir, ".nori", "profiles");
 
     await fs.mkdir(skillsDir, { recursive: true });
-    await fs.mkdir(profilesDir, { recursive: true });
+    await fs.mkdir(skillsetsDir, { recursive: true });
 
     // Create a test skillset with nori.json
-    const skillsetDir = path.join(profilesDir, "my-skillset");
+    const skillsetDir = path.join(skillsetsDir, "my-skillset");
     await fs.mkdir(skillsetDir, { recursive: true });
     await fs.writeFile(
       path.join(skillsetDir, "nori.json"),

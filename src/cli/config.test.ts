@@ -1,5 +1,5 @@
 /**
- * Tests for configuration management with profile-based system
+ * Tests for configuration management with skillset-based system
  */
 
 import * as fs from "fs/promises";
@@ -51,13 +51,13 @@ describe("loadConfig always reads from home directory", () => {
     await fs.writeFile(
       path.join(tempDir, ".nori-config.json"),
       JSON.stringify({
-        activeSkillset: "home-profile",
+        activeSkillset: "home-skillset",
       }),
     );
 
     const loaded = await loadConfig();
 
-    expect(loaded?.activeSkillset).toBe("home-profile");
+    expect(loaded?.activeSkillset).toBe("home-skillset");
   });
 
   it("should return null when no config exists in home directory", async () => {
@@ -66,7 +66,7 @@ describe("loadConfig always reads from home directory", () => {
   });
 });
 
-describe("config with profile-based system", () => {
+describe("config with skillset-based system", () => {
   let tempDir: string;
   let mockConfigPath: string;
 
@@ -788,13 +788,11 @@ describe("schema validation", () => {
 
 describe("activeSkillset config", () => {
   let tempDir: string;
-  let mockConfigPath: string;
 
   beforeEach(async () => {
     tempDir = await fs.mkdtemp(
       path.join(os.tmpdir(), "config-active-skillset-test-"),
     );
-    mockConfigPath = path.join(tempDir, ".nori-config.json");
     vi.mocked(os.homedir).mockReturnValue(tempDir);
   });
 
@@ -838,104 +836,6 @@ describe("activeSkillset config", () => {
         organizationUrl: null,
         installDir: tempDir,
       });
-
-      const loaded = await loadConfig();
-
-      expect(loaded?.activeSkillset).toBeUndefined();
-    });
-  });
-
-  describe("legacy agents field migration", () => {
-    it("should migrate agents.claude-code.profile.baseProfile to activeSkillset on load", async () => {
-      await fs.writeFile(
-        mockConfigPath,
-        JSON.stringify({
-          agents: {
-            "claude-code": {
-              profile: { baseProfile: "senior-swe" },
-            },
-          },
-        }),
-      );
-
-      const loaded = await loadConfig();
-
-      expect(loaded?.activeSkillset).toBe("senior-swe");
-    });
-
-    it("should migrate legacy root profile field to activeSkillset on load", async () => {
-      await fs.writeFile(
-        mockConfigPath,
-        JSON.stringify({
-          profile: { baseProfile: "amol" },
-        }),
-      );
-
-      const loaded = await loadConfig();
-
-      expect(loaded?.activeSkillset).toBe("amol");
-    });
-
-    it("should prefer agents field over legacy profile when both present", async () => {
-      await fs.writeFile(
-        mockConfigPath,
-        JSON.stringify({
-          profile: { baseProfile: "legacy-profile" },
-          agents: {
-            "claude-code": {
-              profile: { baseProfile: "new-profile" },
-            },
-          },
-        }),
-      );
-
-      const loaded = await loadConfig();
-
-      expect(loaded?.activeSkillset).toBe("new-profile");
-    });
-
-    it("should prefer activeSkillset over agents field when both present", async () => {
-      await fs.writeFile(
-        mockConfigPath,
-        JSON.stringify({
-          activeSkillset: "direct-skillset",
-          agents: {
-            "claude-code": {
-              profile: { baseProfile: "agents-profile" },
-            },
-          },
-        }),
-      );
-
-      const loaded = await loadConfig();
-
-      expect(loaded?.activeSkillset).toBe("direct-skillset");
-    });
-
-    it("should handle agents field with no profile gracefully", async () => {
-      await fs.writeFile(
-        mockConfigPath,
-        JSON.stringify({
-          agents: {
-            "claude-code": {},
-          },
-        }),
-      );
-
-      const loaded = await loadConfig();
-
-      expect(loaded?.activeSkillset).toBeUndefined();
-    });
-
-    it("should handle agents field with null profile gracefully", async () => {
-      await fs.writeFile(
-        mockConfigPath,
-        JSON.stringify({
-          agents: {
-            "claude-code": { profile: null },
-          },
-        }),
-      );
 
       const loaded = await loadConfig();
 

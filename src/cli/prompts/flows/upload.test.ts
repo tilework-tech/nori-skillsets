@@ -116,7 +116,7 @@ describe("uploadFlow", () => {
 
       await uploadFlow({
         profileDisplayName: "myorg/my-profile",
-        profileName: "my-profile",
+        skillsetName: "my-profile",
         registryUrl: "https://myorg.noriskillsets.dev",
         callbacks,
       });
@@ -161,7 +161,7 @@ describe("uploadFlow", () => {
 
       await uploadFlow({
         profileDisplayName: "myorg/my-profile",
-        profileName: "my-profile",
+        skillsetName: "my-profile",
         registryUrl: "https://myorg.noriskillsets.dev",
         callbacks,
       });
@@ -211,7 +211,7 @@ describe("uploadFlow", () => {
 
       await uploadFlow({
         profileDisplayName: "myorg/my-profile",
-        profileName: "my-profile",
+        skillsetName: "my-profile",
         registryUrl: "https://myorg.noriskillsets.dev",
         callbacks,
       });
@@ -260,7 +260,7 @@ describe("uploadFlow", () => {
 
       const result = await uploadFlow({
         profileDisplayName: "myorg/my-profile",
-        profileName: "my-profile",
+        skillsetName: "my-profile",
         registryUrl: "https://myorg.noriskillsets.dev",
         callbacks,
       });
@@ -299,7 +299,7 @@ describe("uploadFlow", () => {
 
       await uploadFlow({
         profileDisplayName: "myorg/my-profile",
-        profileName: "my-profile",
+        skillsetName: "my-profile",
         registryUrl: "https://myorg.noriskillsets.dev",
         callbacks,
       });
@@ -349,7 +349,7 @@ describe("uploadFlow", () => {
 
       await uploadFlow({
         profileDisplayName: "myorg/my-profile",
-        profileName: "my-profile",
+        skillsetName: "my-profile",
         registryUrl: "https://myorg.noriskillsets.dev",
         callbacks,
       });
@@ -393,7 +393,7 @@ describe("uploadFlow", () => {
 
       await uploadFlow({
         profileDisplayName: "myorg/my-profile",
-        profileName: "my-profile",
+        skillsetName: "my-profile",
         registryUrl: "https://myorg.noriskillsets.dev",
         callbacks,
       });
@@ -442,7 +442,7 @@ describe("uploadFlow", () => {
 
       await uploadFlow({
         profileDisplayName: "myorg/my-profile",
-        profileName: "my-profile",
+        skillsetName: "my-profile",
         registryUrl: "https://myorg.noriskillsets.dev",
         callbacks,
       });
@@ -494,7 +494,7 @@ describe("uploadFlow", () => {
 
       await uploadFlow({
         profileDisplayName: "myorg/my-profile",
-        profileName: "my-profile",
+        skillsetName: "my-profile",
         registryUrl: "https://myorg.noriskillsets.dev",
         callbacks,
       });
@@ -546,7 +546,7 @@ describe("uploadFlow", () => {
 
       await uploadFlow({
         profileDisplayName: "myorg/my-profile",
-        profileName: "my-profile",
+        skillsetName: "my-profile",
         registryUrl: "https://myorg.noriskillsets.dev",
         callbacks,
       });
@@ -598,7 +598,7 @@ describe("uploadFlow", () => {
 
       await uploadFlow({
         profileDisplayName: "myorg/my-profile",
-        profileName: "my-profile",
+        skillsetName: "my-profile",
         registryUrl: "https://myorg.noriskillsets.dev",
         callbacks,
       });
@@ -652,7 +652,7 @@ describe("uploadFlow", () => {
 
       await uploadFlow({
         profileDisplayName: "myorg/my-profile",
-        profileName: "my-profile",
+        skillsetName: "my-profile",
         registryUrl: "https://myorg.noriskillsets.dev",
         callbacks,
       });
@@ -700,7 +700,7 @@ describe("uploadFlow", () => {
 
       await uploadFlow({
         profileDisplayName: "myorg/my-profile",
-        profileName: "my-profile",
+        skillsetName: "my-profile",
         registryUrl: "https://myorg.noriskillsets.dev",
         callbacks,
       });
@@ -749,7 +749,7 @@ describe("uploadFlow", () => {
 
       const result = await uploadFlow({
         profileDisplayName: "myorg/my-profile",
-        profileName: "my-profile",
+        skillsetName: "my-profile",
         registryUrl: "https://myorg.noriskillsets.dev",
         callbacks,
       });
@@ -803,7 +803,7 @@ describe("uploadFlow", () => {
 
       await uploadFlow({
         profileDisplayName: "myorg/my-profile",
-        profileName: "my-profile",
+        skillsetName: "my-profile",
         registryUrl: "https://myorg.noriskillsets.dev",
         callbacks,
       });
@@ -853,7 +853,7 @@ describe("uploadFlow", () => {
 
       await uploadFlow({
         profileDisplayName: "myorg/my-profile",
-        profileName: "my-profile",
+        skillsetName: "my-profile",
         registryUrl: "https://myorg.noriskillsets.dev",
         callbacks,
       });
@@ -895,7 +895,7 @@ describe("uploadFlow", () => {
 
       await uploadFlow({
         profileDisplayName: "myorg/my-profile",
-        profileName: "my-profile",
+        skillsetName: "my-profile",
         registryUrl: "https://myorg.noriskillsets.dev",
         callbacks,
       });
@@ -943,7 +943,7 @@ describe("uploadFlow", () => {
 
       await uploadFlow({
         profileDisplayName: "myorg/my-profile",
-        profileName: "my-profile",
+        skillsetName: "my-profile",
         registryUrl: "https://myorg.noriskillsets.dev",
         callbacks,
       });
@@ -1003,7 +1003,7 @@ describe("uploadFlow", () => {
 
       await uploadFlow({
         profileDisplayName: "myorg/my-profile",
-        profileName: "my-profile",
+        skillsetName: "my-profile",
         registryUrl: "https://myorg.noriskillsets.dev",
         callbacks,
       });
@@ -1066,7 +1066,7 @@ describe("uploadFlow", () => {
 
       await uploadFlow({
         profileDisplayName: "myorg/my-profile",
-        profileName: "my-profile",
+        skillsetName: "my-profile",
         registryUrl: "https://myorg.noriskillsets.dev",
         callbacks,
       });
@@ -1106,7 +1106,7 @@ describe("uploadFlow", () => {
 
       await uploadFlow({
         profileDisplayName: "myorg/my-profile",
-        profileName: "my-profile",
+        skillsetName: "my-profile",
         registryUrl: "https://myorg.noriskillsets.dev",
         callbacks,
       });
@@ -1135,7 +1135,7 @@ describe("uploadFlow", () => {
 
       await uploadFlow({
         profileDisplayName: "myorg/my-profile",
-        profileName: "my-profile",
+        skillsetName: "my-profile",
         registryUrl: "https://myorg.noriskillsets.dev",
         callbacks,
         inlineCandidates: ["init"],
@@ -1158,7 +1158,7 @@ describe("uploadFlow", () => {
 
       await uploadFlow({
         profileDisplayName: "myorg/my-profile",
-        profileName: "my-profile",
+        skillsetName: "my-profile",
         registryUrl: "https://myorg.noriskillsets.dev",
         callbacks,
       });
@@ -1186,7 +1186,7 @@ describe("uploadFlow", () => {
 
       await uploadFlow({
         profileDisplayName: "myorg/my-profile",
-        profileName: "my-profile",
+        skillsetName: "my-profile",
         registryUrl: "https://myorg.noriskillsets.dev",
         callbacks,
         inlineCandidates: ["init", "debug"],
@@ -1215,7 +1215,7 @@ describe("uploadFlow", () => {
 
       await uploadFlow({
         profileDisplayName: "myorg/my-profile",
-        profileName: "my-profile",
+        skillsetName: "my-profile",
         registryUrl: "https://myorg.noriskillsets.dev",
         callbacks,
         inlineCandidates: ["init", "debug"],
@@ -1243,7 +1243,7 @@ describe("uploadFlow", () => {
 
       await uploadFlow({
         profileDisplayName: "myorg/my-profile",
-        profileName: "my-profile",
+        skillsetName: "my-profile",
         registryUrl: "https://myorg.noriskillsets.dev",
         callbacks,
         inlineCandidates: ["init", "debug"],
@@ -1271,7 +1271,7 @@ describe("uploadFlow", () => {
 
       const result = await uploadFlow({
         profileDisplayName: "myorg/my-profile",
-        profileName: "my-profile",
+        skillsetName: "my-profile",
         registryUrl: "https://myorg.noriskillsets.dev",
         callbacks,
         inlineCandidates: ["init"],
@@ -1309,7 +1309,7 @@ describe("uploadFlow", () => {
 
       await uploadFlow({
         profileDisplayName: "myorg/my-profile",
-        profileName: "my-profile",
+        skillsetName: "my-profile",
         registryUrl: "https://myorg.noriskillsets.dev",
         callbacks,
         inlineCandidates: ["init"],
@@ -1344,7 +1344,7 @@ describe("uploadFlow", () => {
 
       await uploadFlow({
         profileDisplayName: "myorg/my-profile",
-        profileName: "my-profile",
+        skillsetName: "my-profile",
         registryUrl: "https://myorg.noriskillsets.dev",
         callbacks,
         inlineCandidates: ["init", "debug"],
@@ -1374,7 +1374,7 @@ describe("uploadFlow", () => {
 
       const result = await uploadFlow({
         profileDisplayName: "myorg/my-profile",
-        profileName: "my-profile",
+        skillsetName: "my-profile",
         registryUrl: "https://myorg.noriskillsets.dev",
         callbacks,
         inlineCandidates: ["init", "debug"],
@@ -1397,7 +1397,7 @@ describe("uploadFlow", () => {
 
       const result = await uploadFlow({
         profileDisplayName: "myorg/my-profile",
-        profileName: "my-profile",
+        skillsetName: "my-profile",
         registryUrl: "https://myorg.noriskillsets.dev",
         callbacks,
         inlineCandidates: ["init", "debug"],

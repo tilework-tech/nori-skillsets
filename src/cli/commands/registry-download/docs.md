@@ -13,11 +13,11 @@ Path: @/src/cli/commands/registry-download
 - Registered with Commander.js by `registerNoriSkillsetsDownloadCommand` (called from @/src/cli/commands/noriSkillsetsCommands.ts)
 - Uses `resolveInstallDir()` from @/src/utils/path.ts to resolve the installation directory via the priority chain: CLI `--install-dir` > `config.installDir` > home directory
 - Uses `getNoriProfilesDir()` from @/src/cli/features/claude-code/paths.ts to get the centralized profiles directory (`~/.nori/profiles/`). This is a zero-arg function that always resolves to the home directory
-- Uses `loadConfig()` from @/src/cli/config.ts to load Nori config (auth, profile, registries) from the centralized `~/.nori-config.json`
+- Uses `loadConfig()` from @/src/cli/config.ts to load Nori config (auth, skillset, registries) from the centralized `~/.nori-config.json`
 - Calls `initMain()` from @/src/cli/commands/init/init.ts when no installation is found, to bootstrap Nori config before downloading
 - Calls `registrarApi.getPackument()` and `registrarApi.downloadTarball()` from @/src/api/registrar.ts to fetch package metadata and tarballs
 - Uses `parseNamespacedPackage()` and `buildOrganizationRegistryUrl()` from @/src/utils/url.ts to resolve org-scoped package names to registry URLs
-- Does NOT activate the downloaded profile -- the user must separately run `switch-profile` to activate it. This differs from `registry-install` (@/src/cli/commands/registry-install/) which orchestrates init, profile resolution, and loaders in one step
+- Does NOT activate the downloaded skillset -- the user must separately run `switch-skillset` to activate it. This differs from `registry-install` (@/src/cli/commands/registry-install/) which orchestrates init, skillset resolution, and loaders in one step
 
 ### Core Implementation
 
@@ -33,13 +33,13 @@ resolveInstallDir({ cliInstallDir, config })
     fallback             --> home directory
 ```
 
-After resolving the install directory, the command auto-initializes if needed by calling `initMain()`. Auth is loaded from the centralized config via `loadConfig()` (zero-arg). The profiles directory is always `getNoriProfilesDir()` (zero-arg, returns `~/.nori/profiles/`).
+After resolving the install directory, the command auto-initializes if needed by calling `initMain()`. Auth is loaded from the centralized config via `loadConfig()` (zero-arg). The skillsets directory is always `getNoriSkillsetsDir()` (zero-arg, returns `~/.nori/profiles/`).
 
 **Namespaced package auth:** For namespaced packages (e.g., `myorg/my-skillset`), if the centralized config has no unified auth credentials, the command errors with a message directing the user to log in. There is no fallback -- all auth lives in `~/.nori-config.json`.
 
 **Download flow** after installation check:
 1. Resolve the package version (latest if unspecified, or semver-matched from available versions)
-2. Check if profile already exists locally and compare versions (skip if same version, prompt for upgrade/downgrade)
+2. Check if skillset already exists locally and compare versions (skip if same version, prompt for upgrade/downgrade)
 3. Download the tarball via `registrarApi.downloadTarball()` with auth token from `getRegistryAuthToken()`
 4. Extract tarball to `~/.nori/profiles/<packageName>/` (or `~/.nori/profiles/<orgId>/<packageName>/` for namespaced packages)
 5. Write a `.nori-version` file tracking installed version and source registry

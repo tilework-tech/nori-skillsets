@@ -23,9 +23,9 @@ vi.mock("@/cli/features/claude-code/paths.js", () => ({
   getClaudeCommandsDir: () => path.join(mockClaudeDir, "commands"),
   getClaudeMdFile: () => path.join(mockClaudeDir, "CLAUDE.md"),
   getClaudeSkillsDir: () => path.join(mockClaudeDir, "skills"),
-  getClaudeProfilesDir: () => path.join(mockClaudeDir, "profiles"),
+  getClaudeSkillsetsDir: () => path.join(mockClaudeDir, "profiles"),
   getNoriDir: () => mockNoriDir,
-  getNoriProfilesDir: () => path.join(mockNoriDir, "profiles"),
+  getNoriSkillsetsDir: () => path.join(mockNoriDir, "profiles"),
   getNoriConfigFile: () => path.join(mockNoriDir, "config.json"),
 }));
 
@@ -36,25 +36,25 @@ import { subagentsLoader } from "./loader.js";
  * Create a stub profile directory with nori.json and optional subagents
  *
  * @param args - Function arguments
- * @param args.profilesDir - Path to the profiles directory
- * @param args.profileName - Name of the profile
+ * @param args.skillsetsDir - Path to the profiles directory
+ * @param args.skillsetName - Name of the profile
  * @param args.subagents - Optional map of subagent filename to content
  */
 const createStubProfile = async (args: {
-  profilesDir: string;
-  profileName: string;
+  skillsetsDir: string;
+  skillsetName: string;
   subagents?: Record<string, string> | null;
 }): Promise<void> => {
-  const { profilesDir, profileName, subagents } = args;
-  const profileDir = path.join(profilesDir, profileName);
-  await fs.mkdir(profileDir, { recursive: true });
+  const { skillsetsDir, skillsetName, subagents } = args;
+  const skillsetDir = path.join(skillsetsDir, skillsetName);
+  await fs.mkdir(skillsetDir, { recursive: true });
   await fs.writeFile(
-    path.join(profileDir, "nori.json"),
+    path.join(skillsetDir, "nori.json"),
     JSON.stringify({ name: "Test Profile", version: "1.0.0" }),
   );
 
   if (subagents != null && Object.keys(subagents).length > 0) {
-    const subagentsDir = path.join(profileDir, "subagents");
+    const subagentsDir = path.join(skillsetDir, "subagents");
     await fs.mkdir(subagentsDir, { recursive: true });
     for (const [filename, content] of Object.entries(subagents)) {
       await fs.writeFile(path.join(subagentsDir, filename), content);
@@ -94,8 +94,8 @@ describe("subagentsLoader", () => {
 
     // Create stub profile with test subagents
     await createStubProfile({
-      profilesDir: noriProfilesDir,
-      profileName: "senior-swe",
+      skillsetsDir: noriProfilesDir,
+      skillsetName: "senior-swe",
       subagents: TEST_SUBAGENTS,
     });
   });

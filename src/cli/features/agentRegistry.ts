@@ -65,10 +65,10 @@ export type Agent = {
   isInstalledAtDir: (args: { path: string }) => boolean;
   /** Mark a directory as having this agent installed */
   markInstall: (args: { path: string; skillsetName?: string | null }) => void;
-  /** Switch to a profile (validates and updates config) */
-  switchProfile: (args: {
+  /** Switch to a skillset (validates and updates config) */
+  switchSkillset: (args: {
     installDir: string;
-    profileName: string;
+    skillsetName: string;
   }) => Promise<void>;
   /** Factory reset: remove all agent configuration from the filesystem */
   factoryReset?: ((args: { path: string }) => Promise<void>) | null;
@@ -76,11 +76,11 @@ export type Agent = {
   detectExistingConfig?:
     | ((args: { installDir: string }) => Promise<ExistingConfig | null>)
     | null;
-  /** Capture existing config as a named profile, clean up originals, and restore working state */
+  /** Capture existing config as a named skillset, clean up originals, and restore working state */
   captureExistingConfig?:
     | ((args: {
         installDir: string;
-        profileName: string;
+        skillsetName: string;
         config: Config;
       }) => Promise<void>)
     | null;

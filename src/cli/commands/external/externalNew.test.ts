@@ -26,7 +26,7 @@ vi.mock("@clack/prompts", () => ({
   cancel: vi.fn(),
 }));
 
-// Mock os.homedir so getNoriProfilesDir() resolves to the test directory
+// Mock os.homedir so getNoriSkillsetsDir() resolves to the test directory
 vi.mock("os", async (importOriginal) => {
   const actual = await importOriginal<typeof os>();
   return {
@@ -113,7 +113,7 @@ describe("externalMain with --new", () => {
   let testHomeDir: string;
   let testDir: string;
   let skillsDir: string;
-  let profilesDir: string;
+  let skillsetsDir: string;
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -125,10 +125,10 @@ describe("externalMain with --new", () => {
 
     testDir = testHomeDir;
     skillsDir = path.join(testDir, ".claude", "skills");
-    profilesDir = path.join(testHomeDir, ".nori", "profiles");
+    skillsetsDir = path.join(testHomeDir, ".nori", "profiles");
 
     await fs.mkdir(skillsDir, { recursive: true });
-    await fs.mkdir(profilesDir, { recursive: true });
+    await fs.mkdir(skillsetsDir, { recursive: true });
   });
 
   afterEach(async () => {
@@ -173,7 +173,7 @@ describe("externalMain with --new", () => {
 
   it("should error when --new skillset already exists", async () => {
     // Create an existing skillset
-    const existingDir = path.join(profilesDir, "existing");
+    const existingDir = path.join(skillsetsDir, "existing");
     await fs.mkdir(existingDir, { recursive: true });
     await fs.writeFile(
       path.join(existingDir, "nori.json"),
@@ -225,7 +225,7 @@ describe("externalMain with --new", () => {
     });
 
     // Verify skillset directory was created with nori.json
-    const skillsetDir = path.join(profilesDir, "fresh-skillset");
+    const skillsetDir = path.join(skillsetsDir, "fresh-skillset");
 
     // Verify nori.json was created with correct structure
     const noriJsonContent = JSON.parse(
@@ -275,7 +275,7 @@ describe("externalMain with --new", () => {
       extract: true,
     });
 
-    const skillsetDir = path.join(profilesDir, "deps-test");
+    const skillsetDir = path.join(skillsetsDir, "deps-test");
     const noriJsonContent = JSON.parse(
       await fs.readFile(path.join(skillsetDir, "nori.json"), "utf-8"),
     );

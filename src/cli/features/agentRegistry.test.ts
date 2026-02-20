@@ -16,7 +16,7 @@ import {
   type LoaderRegistry,
 } from "@/cli/features/agentRegistry.js";
 
-// Mock os.homedir so getNoriProfilesDir() resolves to test directories
+// Mock os.homedir so getNoriSkillsetsDir() resolves to test directories
 vi.mock("os", async (importOriginal) => {
   const actual = await importOriginal<typeof os>();
   return {
@@ -220,8 +220,8 @@ describe("AgentRegistry", () => {
       );
 
       // Create profiles directory
-      const profilesDir = path.join(testInstallDir, ".nori", "profiles");
-      await fs.mkdir(profilesDir, { recursive: true });
+      const skillsetsDir = path.join(testInstallDir, ".nori", "profiles");
+      await fs.mkdir(skillsetsDir, { recursive: true });
 
       const config = {
         installDir: testInstallDir,
@@ -230,16 +230,16 @@ describe("AgentRegistry", () => {
 
       await agent.captureExistingConfig!({
         installDir: testInstallDir,
-        profileName: "captured-profile",
+        skillsetName: "captured-profile",
         config,
       });
 
-      // Verify the captured profile is usable: switchProfile should not throw
+      // Verify the captured profile is usable: switchSkillset should not throw
       // (it validates the profile exists and has a nori.json)
       await expect(
-        agent.switchProfile({
+        agent.switchSkillset({
           installDir: testInstallDir,
-          profileName: "captured-profile",
+          skillsetName: "captured-profile",
         }),
       ).resolves.not.toThrow();
     });
@@ -255,8 +255,8 @@ describe("AgentRegistry", () => {
       await fs.writeFile(originalClaudeMd, "# My custom config");
 
       // Create profiles directory
-      const profilesDir = path.join(testInstallDir, ".nori", "profiles");
-      await fs.mkdir(profilesDir, { recursive: true });
+      const skillsetsDir = path.join(testInstallDir, ".nori", "profiles");
+      await fs.mkdir(skillsetsDir, { recursive: true });
 
       const config = {
         installDir: testInstallDir,
@@ -265,7 +265,7 @@ describe("AgentRegistry", () => {
 
       await agent.captureExistingConfig!({
         installDir: testInstallDir,
-        profileName: "captured-profile",
+        skillsetName: "captured-profile",
         config,
       });
 
@@ -276,14 +276,14 @@ describe("AgentRegistry", () => {
     });
   });
 
-  describe("claude-code agent switchProfile", () => {
+  describe("claude-code agent switchSkillset", () => {
     let testInstallDir: string;
 
     beforeEach(async () => {
       testInstallDir = await fs.mkdtemp(
         path.join(tmpdir(), "agent-switch-test-"),
       );
-      // Mock os.homedir so getNoriProfilesDir() resolves to testInstallDir/.nori/profiles
+      // Mock os.homedir so getNoriSkillsetsDir() resolves to testInstallDir/.nori/profiles
       vi.mocked(os.homedir).mockReturnValue(testInstallDir);
     });
 
@@ -296,11 +296,11 @@ describe("AgentRegistry", () => {
 
     test("updates config with new profile", async () => {
       // Create profiles directory with test profile
-      const profilesDir = path.join(testInstallDir, ".nori", "profiles");
-      const profileDir = path.join(profilesDir, "test-profile");
-      await fs.mkdir(profileDir, { recursive: true });
+      const skillsetsDir = path.join(testInstallDir, ".nori", "profiles");
+      const skillsetDir = path.join(skillsetsDir, "test-profile");
+      await fs.mkdir(skillsetDir, { recursive: true });
       await fs.writeFile(
-        path.join(profileDir, "nori.json"),
+        path.join(skillsetDir, "nori.json"),
         JSON.stringify({ name: "test-profile", version: "1.0.0" }),
       );
 
@@ -308,15 +308,15 @@ describe("AgentRegistry", () => {
       const configPath = path.join(testInstallDir, ".nori-config.json");
       await fs.writeFile(
         configPath,
-        JSON.stringify({ profile: { baseProfile: "old-profile" } }),
+        JSON.stringify({ activeSkillset: "old-profile" }),
       );
 
       const registry = AgentRegistry.getInstance();
       const agent = registry.get({ name: "claude-code" });
 
-      await agent.switchProfile({
+      await agent.switchSkillset({
         installDir: testInstallDir,
-        profileName: "test-profile",
+        skillsetName: "test-profile",
       });
 
       // Verify config was updated
@@ -326,11 +326,11 @@ describe("AgentRegistry", () => {
 
     test("preserves existing config fields when switching", async () => {
       // Create profiles directory with test profile
-      const profilesDir = path.join(testInstallDir, ".nori", "profiles");
-      const profileDir = path.join(profilesDir, "new-profile");
-      await fs.mkdir(profileDir, { recursive: true });
+      const skillsetsDir = path.join(testInstallDir, ".nori", "profiles");
+      const skillsetDir = path.join(skillsetsDir, "new-profile");
+      await fs.mkdir(skillsetDir, { recursive: true });
       await fs.writeFile(
-        path.join(profileDir, "nori.json"),
+        path.join(skillsetDir, "nori.json"),
         JSON.stringify({ name: "new-profile", version: "1.0.0" }),
       );
 
@@ -342,7 +342,7 @@ describe("AgentRegistry", () => {
           username: "test@example.com",
           password: "secret",
           organizationUrl: "https://org.example.com",
-          profile: { baseProfile: "old-profile" },
+          activeSkillset: "old-profile",
           sendSessionTranscript: "enabled",
         }),
       );
@@ -350,9 +350,9 @@ describe("AgentRegistry", () => {
       const registry = AgentRegistry.getInstance();
       const agent = registry.get({ name: "claude-code" });
 
-      await agent.switchProfile({
+      await agent.switchSkillset({
         installDir: testInstallDir,
-        profileName: "new-profile",
+        skillsetName: "new-profile",
       });
 
       // Verify all fields preserved (auth is now in nested format after save)
@@ -368,28 +368,28 @@ describe("AgentRegistry", () => {
 
     test("throws error for non-existent profile", async () => {
       // Create profiles directory but no profiles
-      const profilesDir = path.join(testInstallDir, ".nori", "profiles");
-      await fs.mkdir(profilesDir, { recursive: true });
+      const skillsetsDir = path.join(testInstallDir, ".nori", "profiles");
+      await fs.mkdir(skillsetsDir, { recursive: true });
 
       const registry = AgentRegistry.getInstance();
       const agent = registry.get({ name: "claude-code" });
 
       await expect(
-        agent.switchProfile({
+        agent.switchSkillset({
           installDir: testInstallDir,
-          profileName: "non-existent",
+          skillsetName: "non-existent",
         }),
       ).rejects.toThrow(/Profile "non-existent" not found/);
     });
 
     test("switches to namespaced profile in nested directory", async () => {
       // Create org directory with nested profile (e.g., profiles/myorg/my-profile)
-      const profilesDir = path.join(testInstallDir, ".nori", "profiles");
-      const orgDir = path.join(profilesDir, "myorg");
-      const profileDir = path.join(orgDir, "my-profile");
-      await fs.mkdir(profileDir, { recursive: true });
+      const skillsetsDir = path.join(testInstallDir, ".nori", "profiles");
+      const orgDir = path.join(skillsetsDir, "myorg");
+      const skillsetDir = path.join(orgDir, "my-profile");
+      await fs.mkdir(skillsetDir, { recursive: true });
       await fs.writeFile(
-        path.join(profileDir, "nori.json"),
+        path.join(skillsetDir, "nori.json"),
         JSON.stringify({ name: "myorg/my-profile", version: "1.0.0" }),
       );
 
@@ -397,15 +397,15 @@ describe("AgentRegistry", () => {
       const configPath = path.join(testInstallDir, ".nori-config.json");
       await fs.writeFile(
         configPath,
-        JSON.stringify({ profile: { baseProfile: "old-profile" } }),
+        JSON.stringify({ activeSkillset: "old-profile" }),
       );
 
       const registry = AgentRegistry.getInstance();
       const agent = registry.get({ name: "claude-code" });
 
-      await agent.switchProfile({
+      await agent.switchSkillset({
         installDir: testInstallDir,
-        profileName: "myorg/my-profile",
+        skillsetName: "myorg/my-profile",
       });
 
       // Verify config was updated with namespaced profile name

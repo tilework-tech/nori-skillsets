@@ -50,15 +50,15 @@ export const parseSkillsJson = (args: {
  * Read and parse skills.json from a profile directory
  *
  * @param args - Arguments
- * @param args.profileDir - Path to the profile directory
+ * @param args.skillsetDir - Path to the profile directory
  *
  * @returns Array of parsed skill dependencies, or null if skills.json doesn't exist
  */
 export const readSkillsJson = async (args: {
-  profileDir: string;
+  skillsetDir: string;
 }): Promise<Array<ParsedSkillDependency> | null> => {
-  const { profileDir } = args;
-  const skillsJsonPath = path.join(profileDir, "skills.json");
+  const { skillsetDir } = args;
+  const skillsJsonPath = path.join(skillsetDir, "skills.json");
 
   try {
     const content = await fs.readFile(skillsJsonPath, "utf-8");
@@ -78,15 +78,15 @@ export const readSkillsJson = async (args: {
  * Write skills.json to a profile directory
  *
  * @param args - Arguments
- * @param args.profileDir - Path to the profile directory
+ * @param args.skillsetDir - Path to the profile directory
  * @param args.dependencies - Array of skill dependencies to write
  */
 export const writeSkillsJson = async (args: {
-  profileDir: string;
+  skillsetDir: string;
   dependencies: Array<ParsedSkillDependency>;
 }): Promise<void> => {
-  const { profileDir, dependencies } = args;
-  const skillsJsonPath = path.join(profileDir, "skills.json");
+  const { skillsetDir, dependencies } = args;
+  const skillsJsonPath = path.join(skillsetDir, "skills.json");
 
   // Convert array back to SkillsJson object format
   const skillsJson: SkillsJson = {};
@@ -101,19 +101,19 @@ export const writeSkillsJson = async (args: {
  * Add or update a skill dependency in a profile's skills.json
  *
  * @param args - Arguments
- * @param args.profileDir - Path to the profile directory
+ * @param args.skillsetDir - Path to the profile directory
  * @param args.skillName - Name of the skill to add
  * @param args.version - Version string (e.g., "*", "^1.0.0", "1.2.3")
  */
 export const addSkillDependency = async (args: {
-  profileDir: string;
+  skillsetDir: string;
   skillName: string;
   version: string;
 }): Promise<void> => {
-  const { profileDir, skillName, version } = args;
+  const { skillsetDir, skillName, version } = args;
 
   // Read existing skills.json or start with empty array
-  let dependencies = await readSkillsJson({ profileDir });
+  let dependencies = await readSkillsJson({ skillsetDir });
   if (dependencies == null) {
     dependencies = [];
   }
@@ -128,7 +128,7 @@ export const addSkillDependency = async (args: {
     dependencies.push({ name: skillName, versionRange: version });
   }
 
-  await writeSkillsJson({ profileDir, dependencies });
+  await writeSkillsJson({ skillsetDir, dependencies });
 };
 
 /**

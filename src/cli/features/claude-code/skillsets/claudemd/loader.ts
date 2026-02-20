@@ -18,7 +18,7 @@ import {
 import { substituteTemplatePaths } from "@/cli/features/claude-code/template.js";
 import { success, info } from "@/cli/logger.js";
 
-import type { ProfileLoader } from "@/cli/features/claude-code/profiles/profileLoaderRegistry.js";
+import type { ProfileLoader } from "@/cli/features/claude-code/skillsets/skillsetLoaderRegistry.js";
 
 // Get directory of this loader file
 const __filename = fileURLToPath(import.meta.url);
@@ -28,14 +28,14 @@ const __dirname = path.dirname(__filename);
  * Get path to CLAUDE.md for a profile
  *
  * @param args - Function arguments
- * @param args.profileName - Name of the profile to load CLAUDE.md from
+ * @param args.skillsetName - Name of the profile to load CLAUDE.md from
  *
  * @returns Path to the CLAUDE.md file for the profile
  */
-const getProfileClaudeMd = (args: { profileName: string }): string => {
-  const { profileName } = args;
+const getProfileClaudeMd = (args: { skillsetName: string }): string => {
+  const { skillsetName } = args;
   const noriDir = getNoriDir();
-  return path.join(noriDir, "profiles", profileName, "CLAUDE.md");
+  return path.join(noriDir, "profiles", skillsetName, "CLAUDE.md");
 };
 
 /**
@@ -174,21 +174,21 @@ const formatSkillInfo = async (args: {
  * Generate skills list content to embed in CLAUDE.md
  *
  * @param args - Function arguments
- * @param args.profileName - Profile name to load skills from
+ * @param args.skillsetName - Profile name to load skills from
  * @param args.installDir - Installation directory
  *
  * @returns Formatted skills list markdown (empty string if skills cannot be found)
  */
 const generateSkillsList = async (args: {
-  profileName: string;
+  skillsetName: string;
   installDir: string;
 }): Promise<string> => {
-  const { profileName, installDir } = args;
+  const { skillsetName, installDir } = args;
 
   try {
     // Get skills directory for the profile from installed profiles in .nori
     const noriDir = getNoriDir();
-    const skillsDir = path.join(noriDir, "profiles", profileName, "skills");
+    const skillsDir = path.join(noriDir, "profiles", skillsetName, "skills");
 
     // Find all skill files
     const skillFiles = await findSkillFiles({ dir: skillsDir });
@@ -257,10 +257,10 @@ const insertClaudeMd = async (args: { config: Config }): Promise<void> => {
   info({ message: "Configuring CLAUDE.md with coding task instructions..." });
 
   // Get profile name from config - error if not configured
-  const profileName = getActiveSkillset({ config });
-  if (profileName == null) {
+  const skillsetName = getActiveSkillset({ config });
+  if (skillsetName == null) {
     throw new Error(
-      "No profile configured for claude-code. Run 'nori-skillsets init' to configure a profile.",
+      "No skillset configured for claude-code. Run 'nori-skillsets init' to configure a skillset.",
     );
   }
 
@@ -270,7 +270,7 @@ const insertClaudeMd = async (args: { config: Config }): Promise<void> => {
 
   // Read CLAUDE.md from the selected profile
   const profileClaudeMdPath = getProfileClaudeMd({
-    profileName,
+    skillsetName,
   });
 
   let instructions: string | null = null;
@@ -311,7 +311,7 @@ const insertClaudeMd = async (args: { config: Config }): Promise<void> => {
   }
 
   // Strip existing managed block markers from instructions if present
-  // This handles the case where captureExistingConfigAsProfile wrapped content with markers
+  // This handles the case where captureExistingConfigAsSkillset wrapped content with markers
   // and prevents double-nesting when we wrap it again below
   const stripMarkersRegex = new RegExp(
     `^${BEGIN_MARKER}\\n([\\s\\S]*?)\\n${END_MARKER}\\n?$`,
@@ -329,7 +329,7 @@ const insertClaudeMd = async (args: { config: Config }): Promise<void> => {
 
   // Generate and append skills list
   const skillsList = await generateSkillsList({
-    profileName,
+    skillsetName,
     installDir: config.installDir,
   });
   if (skillsList.length > 0) {

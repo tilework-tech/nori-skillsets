@@ -272,8 +272,8 @@ export const buildCLIEventParams = async (args?: {
         )
       : 0;
 
-  // Get profile from config (only claude-code is supported)
-  const profile = config?.activeSkillset ?? null;
+  // Get skillset from config (only claude-code is supported)
+  const skillset = config?.activeSkillset ?? null;
 
   // Determine install type
   const installType: "authenticated" | "unauthenticated" =
@@ -286,7 +286,7 @@ export const buildCLIEventParams = async (args?: {
     tilework_cli_install_source: state?.install_source ?? getInstallSource(),
     tilework_cli_days_since_install: daysSinceInstall,
     tilework_cli_node_version: process.versions.node,
-    tilework_cli_profile: profile,
+    tilework_cli_profile: skillset,
     tilework_cli_install_type: installType,
   };
 };

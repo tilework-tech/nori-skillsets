@@ -11,7 +11,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 import { listSkillsetsMain } from "./listSkillsets.js";
 
-// Mock os.homedir so getNoriProfilesDir() resolves to the test directory
+// Mock os.homedir so getNoriSkillsetsDir() resolves to the test directory
 vi.mock("os", async (importOriginal) => {
   const actual = await importOriginal<typeof os>();
   return {
@@ -60,12 +60,12 @@ describe("listSkillsetsMain", () => {
   });
 
   it("should list all installed profiles one per line", async () => {
-    const profilesDir = path.join(testInstallDir, ".nori", "profiles");
-    await fs.mkdir(profilesDir, { recursive: true });
+    const skillsetsDir = path.join(testInstallDir, ".nori", "profiles");
+    await fs.mkdir(skillsetsDir, { recursive: true });
 
     // Create test profiles
     for (const name of ["senior-swe", "product-manager", "custom-profile"]) {
-      const dir = path.join(profilesDir, name);
+      const dir = path.join(skillsetsDir, name);
       await fs.mkdir(dir, { recursive: true });
       await fs.writeFile(
         path.join(dir, "nori.json"),
@@ -83,8 +83,8 @@ describe("listSkillsetsMain", () => {
   });
 
   it("should error with exit code 1 when no profiles are installed", async () => {
-    const profilesDir = path.join(testInstallDir, ".nori", "profiles");
-    await fs.mkdir(profilesDir, { recursive: true });
+    const skillsetsDir = path.join(testInstallDir, ".nori", "profiles");
+    await fs.mkdir(skillsetsDir, { recursive: true });
 
     await listSkillsetsMain();
 
@@ -98,9 +98,9 @@ describe("listSkillsetsMain", () => {
 
   it("should list profiles regardless of config state", async () => {
     // No config file, no agents installed
-    const profilesDir = path.join(testInstallDir, ".nori", "profiles");
-    await fs.mkdir(profilesDir, { recursive: true });
-    const dir = path.join(profilesDir, "test-profile");
+    const skillsetsDir = path.join(testInstallDir, ".nori", "profiles");
+    await fs.mkdir(skillsetsDir, { recursive: true });
+    const dir = path.join(skillsetsDir, "test-profile");
     await fs.mkdir(dir, { recursive: true });
     await fs.writeFile(
       path.join(dir, "nori.json"),
@@ -135,10 +135,10 @@ describe("listSkillsetsMain output format", () => {
   });
 
   it("should output plain profile names without formatting", async () => {
-    const profilesDir = path.join(testInstallDir, ".nori", "profiles");
-    await fs.mkdir(profilesDir, { recursive: true });
+    const skillsetsDir = path.join(testInstallDir, ".nori", "profiles");
+    await fs.mkdir(skillsetsDir, { recursive: true });
 
-    const dir = path.join(profilesDir, "my-profile");
+    const dir = path.join(skillsetsDir, "my-profile");
     await fs.mkdir(dir, { recursive: true });
     await fs.writeFile(
       path.join(dir, "nori.json"),
@@ -177,8 +177,8 @@ describe("listSkillsetsMain error messages", () => {
   it("should show agent-agnostic error when no skillsets installed", async () => {
     const testNoriDir = path.join(testInstallDir, ".nori");
     await fs.mkdir(testNoriDir, { recursive: true });
-    const profilesDir = path.join(testNoriDir, "profiles");
-    await fs.mkdir(profilesDir, { recursive: true });
+    const skillsetsDir = path.join(testNoriDir, "profiles");
+    await fs.mkdir(skillsetsDir, { recursive: true });
 
     await listSkillsetsMain();
 

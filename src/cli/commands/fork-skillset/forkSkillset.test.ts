@@ -11,7 +11,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 import { forkSkillsetMain } from "./forkSkillset.js";
 
-// Mock os.homedir so getNoriProfilesDir() resolves to the test directory
+// Mock os.homedir so getNoriSkillsetsDir() resolves to the test directory
 vi.mock("os", async (importOriginal) => {
   const actual = await importOriginal<typeof os>();
   return {
@@ -39,15 +39,15 @@ const mockExit = vi
 
 describe("forkSkillsetMain", () => {
   let testHomeDir: string;
-  let profilesDir: string;
+  let skillsetsDir: string;
 
   beforeEach(async () => {
     testHomeDir = await fs.mkdtemp(
       path.join(os.tmpdir(), "fork-skillset-test-"),
     );
     vi.mocked(os.homedir).mockReturnValue(testHomeDir);
-    profilesDir = path.join(testHomeDir, ".nori", "profiles");
-    await fs.mkdir(profilesDir, { recursive: true });
+    skillsetsDir = path.join(testHomeDir, ".nori", "profiles");
+    await fs.mkdir(skillsetsDir, { recursive: true });
     mockLogError.mockClear();
     mockNote.mockClear();
     mockOutro.mockClear();
@@ -62,7 +62,7 @@ describe("forkSkillsetMain", () => {
 
   it("should copy a flat skillset to a new name with all contents", async () => {
     // Create source skillset with multiple files/directories
-    const sourceDir = path.join(profilesDir, "senior-swe");
+    const sourceDir = path.join(skillsetsDir, "senior-swe");
     await fs.mkdir(sourceDir, { recursive: true });
     await fs.writeFile(
       path.join(sourceDir, "nori.json"),
@@ -78,7 +78,7 @@ describe("forkSkillsetMain", () => {
     });
 
     // Verify destination exists with all contents
-    const destDir = path.join(profilesDir, "my-custom");
+    const destDir = path.join(skillsetsDir, "my-custom");
 
     const skillMd = await fs.readFile(
       path.join(destDir, "skills", "my-skill", "SKILL.md"),
@@ -116,7 +116,7 @@ describe("forkSkillsetMain", () => {
 
   it("should error when base skillset directory exists but has no nori.json", async () => {
     // Create a directory that is not a valid skillset
-    const invalidDir = path.join(profilesDir, "not-a-skillset");
+    const invalidDir = path.join(skillsetsDir, "not-a-skillset");
     await fs.mkdir(invalidDir, { recursive: true });
     await fs.writeFile(path.join(invalidDir, "readme.txt"), "not a profile");
 
@@ -133,7 +133,7 @@ describe("forkSkillsetMain", () => {
 
   it("should error when destination skillset already exists", async () => {
     // Create source
-    const sourceDir = path.join(profilesDir, "base-profile");
+    const sourceDir = path.join(skillsetsDir, "base-profile");
     await fs.mkdir(sourceDir, { recursive: true });
     await fs.writeFile(
       path.join(sourceDir, "nori.json"),
@@ -141,7 +141,7 @@ describe("forkSkillsetMain", () => {
     );
 
     // Create destination that already exists
-    const destDir = path.join(profilesDir, "existing-profile");
+    const destDir = path.join(skillsetsDir, "existing-profile");
     await fs.mkdir(destDir, { recursive: true });
     await fs.writeFile(
       path.join(destDir, "nori.json"),
@@ -164,7 +164,7 @@ describe("forkSkillsetMain", () => {
 
   it("should work with namespaced profile names", async () => {
     // Create a namespaced source skillset
-    const sourceDir = path.join(profilesDir, "myorg", "base-profile");
+    const sourceDir = path.join(skillsetsDir, "myorg", "base-profile");
     await fs.mkdir(sourceDir, { recursive: true });
     await fs.writeFile(
       path.join(sourceDir, "nori.json"),
@@ -177,7 +177,7 @@ describe("forkSkillsetMain", () => {
     });
 
     // Verify destination exists with updated name
-    const destDir = path.join(profilesDir, "myorg", "forked-profile");
+    const destDir = path.join(skillsetsDir, "myorg", "forked-profile");
     const noriJson = JSON.parse(
       await fs.readFile(path.join(destDir, "nori.json"), "utf-8"),
     );
@@ -188,7 +188,7 @@ describe("forkSkillsetMain", () => {
 
   it("should create parent directory for namespaced destination", async () => {
     // Create a flat source
-    const sourceDir = path.join(profilesDir, "senior-swe");
+    const sourceDir = path.join(skillsetsDir, "senior-swe");
     await fs.mkdir(sourceDir, { recursive: true });
     await fs.writeFile(
       path.join(sourceDir, "nori.json"),
@@ -201,7 +201,7 @@ describe("forkSkillsetMain", () => {
       newSkillset: "neworg/my-fork",
     });
 
-    const destDir = path.join(profilesDir, "neworg", "my-fork");
+    const destDir = path.join(skillsetsDir, "neworg", "my-fork");
     const noriJson = JSON.parse(
       await fs.readFile(path.join(destDir, "nori.json"), "utf-8"),
     );
@@ -211,7 +211,7 @@ describe("forkSkillsetMain", () => {
   });
 
   it("should print instructions for switching and editing after fork", async () => {
-    const sourceDir = path.join(profilesDir, "senior-swe");
+    const sourceDir = path.join(skillsetsDir, "senior-swe");
     await fs.mkdir(sourceDir, { recursive: true });
     await fs.writeFile(
       path.join(sourceDir, "nori.json"),

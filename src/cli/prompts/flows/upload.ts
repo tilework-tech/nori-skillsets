@@ -3,7 +3,7 @@
  *
  * Provides the complete interactive upload experience using @clack/prompts.
  * This flow handles:
- * - Intro message with profile and registry info
+ * - Intro message with skillset and registry info
  * - Spinner during version determination
  * - Skill conflict resolution prompts
  * - Spinner during upload
@@ -86,7 +86,7 @@ export type UploadFlowResult = {
  *
  * @param args - The function arguments
  * @param args.conflict - The skill conflict to build options for
- * @param args.profileName - The profile name for namespace preview
+ * @param args.skillsetName - The skillset name for namespace preview
  *
  * @returns Array of resolution options for the select prompt
  */
@@ -98,10 +98,10 @@ type ConflictSelectAction = SkillResolutionAction | "viewDiff";
 
 const buildResolutionOptions = (args: {
   conflict: SkillConflict;
-  profileName: string;
+  skillsetName: string;
   hasDiffCallback?: boolean | null;
 }): Array<{ value: ConflictSelectAction; label: string; hint?: string }> => {
-  const { conflict, profileName, hasDiffCallback } = args;
+  const { conflict, skillsetName, hasDiffCallback } = args;
   const options: Array<{
     value: ConflictSelectAction;
     label: string;
@@ -122,7 +122,7 @@ const buildResolutionOptions = (args: {
     options.push({
       value: "namespace",
       label: "Namespace",
-      hint: `Rename to ${profileName}-${conflict.skillId}`,
+      hint: `Rename to ${skillsetName}-${conflict.skillId}`,
     });
   }
 
@@ -297,7 +297,7 @@ const formatDiffForNote = (args: {
  *
  * @param args - The function arguments
  * @param args.conflicts - Array of skill conflicts to resolve
- * @param args.profileName - The profile name for namespace preview
+ * @param args.skillsetName - The skillset name for namespace preview
  * @param args.cancelMessage - Message to display on cancel
  * @param args.onReadLocalSkillMd - Optional callback to read local SKILL.md content
  *
@@ -305,13 +305,13 @@ const formatDiffForNote = (args: {
  */
 const resolveConflictsInFlow = async (args: {
   conflicts: Array<SkillConflict>;
-  profileName: string;
+  skillsetName: string;
   cancelMessage: string;
   onReadLocalSkillMd?:
     | ((args: { skillId: string }) => Promise<string | null>)
     | null;
 }): Promise<SkillResolutionStrategy | null> => {
-  const { conflicts, profileName, cancelMessage, onReadLocalSkillMd } = args;
+  const { conflicts, skillsetName, cancelMessage, onReadLocalSkillMd } = args;
 
   if (conflicts.length === 0) {
     return {};
@@ -323,7 +323,7 @@ const resolveConflictsInFlow = async (args: {
     const conflict = conflicts[i];
     const options = buildResolutionOptions({
       conflict,
-      profileName,
+      skillsetName,
       hasDiffCallback: onReadLocalSkillMd != null,
     });
     const defaultAction = getDefaultAction({ conflict });
@@ -453,15 +453,15 @@ const buildAutoResolutionStrategy = (args: {
  *
  * @param args - The function arguments
  * @param args.conflicts - Array of unresolved skill conflicts
- * @param args.profileName - The profile name for namespace preview
+ * @param args.skillsetName - The skillset name for namespace preview
  *
  * @returns Array of resolution options available for all conflicts
  */
 const buildCommonResolutionOptions = (args: {
   conflicts: Array<SkillConflict>;
-  profileName: string;
+  skillsetName: string;
 }): Array<{ value: SkillResolutionAction; label: string; hint?: string }> => {
-  const { conflicts, profileName } = args;
+  const { conflicts, skillsetName } = args;
 
   if (conflicts.length === 0) {
     return [];
@@ -492,7 +492,7 @@ const buildCommonResolutionOptions = (args: {
     options.push({
       value: "namespace",
       label: "Namespace",
-      hint: `Rename each to ${profileName}-<skillId>`,
+      hint: `Rename each to ${skillsetName}-<skillId>`,
     });
   }
 
@@ -537,19 +537,19 @@ const formatUnresolvedConflictsForNote = (args: {
  *
  * @param args - The function arguments
  * @param args.conflicts - Array of unresolved skill conflicts
- * @param args.profileName - The profile name for namespace preview
+ * @param args.skillsetName - The skillset name for namespace preview
  * @param args.cancelMessage - Message to display on cancel
  *
  * @returns Resolution strategy or null if cancelled
  */
 const resolveAllConflictsSameWay = async (args: {
   conflicts: Array<SkillConflict>;
-  profileName: string;
+  skillsetName: string;
   cancelMessage: string;
 }): Promise<SkillResolutionStrategy | null> => {
-  const { conflicts, profileName, cancelMessage } = args;
+  const { conflicts, skillsetName, cancelMessage } = args;
 
-  const options = buildCommonResolutionOptions({ conflicts, profileName });
+  const options = buildCommonResolutionOptions({ conflicts, skillsetName });
 
   const action = unwrapPrompt({
     value: await select({
@@ -811,7 +811,7 @@ const formatConflictsForNote = (args: {
 
   lines.push("Manual resolution required for modified skills.");
   lines.push("Run without --non-interactive to resolve interactively,");
-  lines.push("or rename conflicting skills in your profile.");
+  lines.push("or rename conflicting skills in your skillset.");
 
   return lines.join("\n");
 };
@@ -834,7 +834,7 @@ const hasConflicts = (
  * Execute the interactive upload flow
  *
  * This function handles the complete upload UX:
- * 1. Shows intro message with profile and registry
+ * 1. Shows intro message with skillset and registry
  * 2. Shows spinner while determining version
  * 3. Attempts upload
  * 4. If conflicts detected, auto-resolves where possible and prompts for rest
@@ -842,8 +842,8 @@ const hasConflicts = (
  * 6. Shows outro message
  *
  * @param args - Flow configuration
- * @param args.profileDisplayName - Display name for the profile (e.g., "dev/onboarding")
- * @param args.profileName - The package name (e.g., "onboarding")
+ * @param args.profileDisplayName - Display name for the skillset (e.g., "dev/onboarding")
+ * @param args.skillsetName - The package name (e.g., "onboarding")
  * @param args.registryUrl - The target registry URL
  * @param args.callbacks - Callback functions for version determination and upload
  * @param args.nonInteractive - If true, don't prompt for conflict resolution
@@ -853,7 +853,7 @@ const hasConflicts = (
  */
 export const uploadFlow = async (args: {
   profileDisplayName: string;
-  profileName: string;
+  skillsetName: string;
   registryUrl: string;
   callbacks: UploadFlowCallbacks;
   nonInteractive?: boolean | null;
@@ -861,7 +861,7 @@ export const uploadFlow = async (args: {
 }): Promise<UploadFlowResult> => {
   const {
     profileDisplayName,
-    profileName,
+    skillsetName,
     registryUrl,
     callbacks,
     nonInteractive,
@@ -1016,13 +1016,13 @@ export const uploadFlow = async (args: {
         if (batchChoice === "all-same") {
           interactiveStrategy = await resolveAllConflictsSameWay({
             conflicts: unresolvedConflicts,
-            profileName,
+            skillsetName,
             cancelMessage: cancelMsg,
           });
         } else {
           interactiveStrategy = await resolveConflictsInFlow({
             conflicts: unresolvedConflicts,
-            profileName,
+            skillsetName,
             cancelMessage: cancelMsg,
             onReadLocalSkillMd: callbacks.onReadLocalSkillMd,
           });
@@ -1031,7 +1031,7 @@ export const uploadFlow = async (args: {
         // Single unresolved conflict — go straight to individual resolution
         interactiveStrategy = await resolveConflictsInFlow({
           conflicts: unresolvedConflicts,
-          profileName,
+          skillsetName,
           cancelMessage: cancelMsg,
           onReadLocalSkillMd: callbacks.onReadLocalSkillMd,
         });

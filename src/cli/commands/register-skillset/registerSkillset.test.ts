@@ -11,7 +11,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 import { registerSkillsetMain } from "./registerSkillset.js";
 
-// Mock os.homedir so getNoriProfilesDir() resolves to the test directory
+// Mock os.homedir so getNoriSkillsetsDir() resolves to the test directory
 vi.mock("os", async (importOriginal) => {
   const actual = await importOriginal<typeof os>();
   return {
@@ -53,15 +53,15 @@ vi.mock("@/cli/config.js", () => ({
 
 describe("registerSkillsetMain", () => {
   let testHomeDir: string;
-  let profilesDir: string;
+  let skillsetsDir: string;
 
   beforeEach(async () => {
     testHomeDir = await fs.mkdtemp(
       path.join(os.tmpdir(), "register-skillset-test-"),
     );
     vi.mocked(os.homedir).mockReturnValue(testHomeDir);
-    profilesDir = path.join(testHomeDir, ".nori", "profiles");
-    await fs.mkdir(profilesDir, { recursive: true });
+    skillsetsDir = path.join(testHomeDir, ".nori", "profiles");
+    await fs.mkdir(skillsetsDir, { recursive: true });
     mockLogError.mockClear();
     mockNote.mockClear();
     mockOutro.mockClear();
@@ -79,7 +79,7 @@ describe("registerSkillsetMain", () => {
 
   it("should create nori.json for existing skillset without one", async () => {
     // Create existing skillset directory without nori.json
-    const existingDir = path.join(profilesDir, "my-existing-skillset");
+    const existingDir = path.join(skillsetsDir, "my-existing-skillset");
     await fs.mkdir(existingDir, { recursive: true });
 
     mockRegisterSkillsetFlow.mockResolvedValueOnce({
@@ -113,7 +113,7 @@ describe("registerSkillsetMain", () => {
   });
 
   it("should set type to skillset in nori.json", async () => {
-    const existingDir = path.join(profilesDir, "type-test-skillset");
+    const existingDir = path.join(skillsetsDir, "type-test-skillset");
     await fs.mkdir(existingDir, { recursive: true });
 
     mockRegisterSkillsetFlow.mockResolvedValueOnce({
@@ -134,7 +134,7 @@ describe("registerSkillsetMain", () => {
 
   it("should use current skillset when skillsetName is null", async () => {
     // Create existing skillset directory
-    const existingDir = path.join(profilesDir, "current-skillset");
+    const existingDir = path.join(skillsetsDir, "current-skillset");
     await fs.mkdir(existingDir, { recursive: true });
 
     // Mock config loading to return current skillset
@@ -172,7 +172,7 @@ describe("registerSkillsetMain", () => {
 
   it("should error when nori.json already exists", async () => {
     // Create existing skillset directory with nori.json
-    const existingDir = path.join(profilesDir, "already-registered");
+    const existingDir = path.join(skillsetsDir, "already-registered");
     await fs.mkdir(existingDir, { recursive: true });
     await fs.writeFile(
       path.join(existingDir, "nori.json"),
@@ -192,7 +192,7 @@ describe("registerSkillsetMain", () => {
 
   it("should handle flow cancellation gracefully", async () => {
     // Create existing skillset directory
-    const existingDir = path.join(profilesDir, "cancel-test");
+    const existingDir = path.join(skillsetsDir, "cancel-test");
     await fs.mkdir(existingDir, { recursive: true });
 
     mockRegisterSkillsetFlow.mockResolvedValueOnce(null);
@@ -212,7 +212,7 @@ describe("registerSkillsetMain", () => {
 
   it("should use basename for namespaced skillsets", async () => {
     // Create namespaced skillset directory
-    const existingDir = path.join(profilesDir, "myorg", "namespaced-skillset");
+    const existingDir = path.join(skillsetsDir, "myorg", "namespaced-skillset");
     await fs.mkdir(existingDir, { recursive: true });
 
     mockRegisterSkillsetFlow.mockResolvedValueOnce({
@@ -233,7 +233,7 @@ describe("registerSkillsetMain", () => {
   });
 
   it("should write minimal nori.json when all fields are null", async () => {
-    const existingDir = path.join(profilesDir, "minimal-skillset");
+    const existingDir = path.join(skillsetsDir, "minimal-skillset");
     await fs.mkdir(existingDir, { recursive: true });
 
     mockRegisterSkillsetFlow.mockResolvedValueOnce({
@@ -257,7 +257,7 @@ describe("registerSkillsetMain", () => {
   });
 
   it("should use default version 1.0.0 when version is null", async () => {
-    const existingDir = path.join(profilesDir, "version-test");
+    const existingDir = path.join(skillsetsDir, "version-test");
     await fs.mkdir(existingDir, { recursive: true });
 
     mockRegisterSkillsetFlow.mockResolvedValueOnce({

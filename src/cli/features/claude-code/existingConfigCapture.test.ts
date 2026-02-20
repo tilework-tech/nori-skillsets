@@ -11,7 +11,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 import {
   detectExistingConfig,
-  captureExistingConfigAsProfile,
+  captureExistingConfigAsSkillset,
 } from "./existingConfigCapture.js";
 
 // Mock paths module to use temp directories
@@ -25,7 +25,7 @@ vi.mock("@/cli/features/claude-code/paths.js", () => ({
   getClaudeAgentsDir: () => path.join(mockClaudeDir, "agents"),
   getClaudeCommandsDir: () => path.join(mockClaudeDir, "commands"),
   getNoriDir: () => mockNoriDir,
-  getNoriProfilesDir: () => path.join(mockNoriDir, "profiles"),
+  getNoriSkillsetsDir: () => path.join(mockNoriDir, "profiles"),
 }));
 
 // Import after mocking
@@ -293,7 +293,7 @@ More custom content.`,
     });
   });
 
-  describe("captureExistingConfigAsProfile", () => {
+  describe("captureExistingConfigAsSkillset", () => {
     it("should create profile directory in .nori/profiles/", async () => {
       // Set up existing config
       await fs.mkdir(claudeDir, { recursive: true });
@@ -302,14 +302,14 @@ More custom content.`,
         "# My Instructions",
       );
 
-      await captureExistingConfigAsProfile({
+      await captureExistingConfigAsSkillset({
         installDir: tempDir,
-        profileName: "my-captured-profile",
+        skillsetName: "my-captured-profile",
       });
 
-      const profileDir = path.join(noriDir, "profiles", "my-captured-profile");
+      const skillsetDir = path.join(noriDir, "profiles", "my-captured-profile");
       const exists = await fs
-        .access(profileDir)
+        .access(skillsetDir)
         .then(() => true)
         .catch(() => false);
       expect(exists).toBe(true);
@@ -322,9 +322,9 @@ More custom content.`,
         "# My Instructions",
       );
 
-      await captureExistingConfigAsProfile({
+      await captureExistingConfigAsSkillset({
         installDir: tempDir,
-        profileName: "captured-config",
+        skillsetName: "captured-config",
       });
 
       // Verify nori.json exists with correct content
@@ -359,9 +359,9 @@ More custom content.`,
       const originalContent = "# My Custom Instructions\n\nSome content here.";
       await fs.writeFile(path.join(claudeDir, "CLAUDE.md"), originalContent);
 
-      await captureExistingConfigAsProfile({
+      await captureExistingConfigAsSkillset({
         installDir: tempDir,
-        profileName: "captured",
+        skillsetName: "captured",
       });
 
       const capturedClaudeMd = await fs.readFile(
@@ -386,9 +386,9 @@ Managed content here
 # User content after`;
       await fs.writeFile(path.join(claudeDir, "CLAUDE.md"), originalContent);
 
-      await captureExistingConfigAsProfile({
+      await captureExistingConfigAsSkillset({
         installDir: tempDir,
-        profileName: "captured",
+        skillsetName: "captured",
       });
 
       const capturedClaudeMd = await fs.readFile(
@@ -427,9 +427,9 @@ Managed content here
         "export const helper = () => {};",
       );
 
-      await captureExistingConfigAsProfile({
+      await captureExistingConfigAsSkillset({
         installDir: tempDir,
-        profileName: "captured",
+        skillsetName: "captured",
       });
 
       // Verify skill was copied
@@ -472,9 +472,9 @@ Managed content here
         "# My Agent\n\nAgent instructions.",
       );
 
-      await captureExistingConfigAsProfile({
+      await captureExistingConfigAsSkillset({
         installDir: tempDir,
-        profileName: "captured",
+        skillsetName: "captured",
       });
 
       // Verify agent was copied to subagents directory
@@ -507,9 +507,9 @@ Managed content here
         "# My Command\n\nCommand content.",
       );
 
-      await captureExistingConfigAsProfile({
+      await captureExistingConfigAsSkillset({
         installDir: tempDir,
-        profileName: "captured",
+        skillsetName: "captured",
       });
 
       // Verify command was copied to slashcommands directory
@@ -538,30 +538,30 @@ Managed content here
       );
       // No skills, agents, or commands directories
 
-      await captureExistingConfigAsProfile({
+      await captureExistingConfigAsSkillset({
         installDir: tempDir,
-        profileName: "partial",
+        skillsetName: "partial",
       });
 
-      const profileDir = path.join(noriDir, "profiles", "partial");
+      const skillsetDir = path.join(noriDir, "profiles", "partial");
 
       // CLAUDE.md should exist
       const claudeMdExists = await fs
-        .access(path.join(profileDir, "CLAUDE.md"))
+        .access(path.join(skillsetDir, "CLAUDE.md"))
         .then(() => true)
         .catch(() => false);
       expect(claudeMdExists).toBe(true);
 
       // nori.json should exist (not profile.json)
       const noriJsonExists = await fs
-        .access(path.join(profileDir, "nori.json"))
+        .access(path.join(skillsetDir, "nori.json"))
         .then(() => true)
         .catch(() => false);
       expect(noriJsonExists).toBe(true);
 
       // Other directories should not exist (or be empty)
       const skillsExists = await fs
-        .access(path.join(profileDir, "skills"))
+        .access(path.join(skillsetDir, "skills"))
         .then(() => true)
         .catch(() => false);
       expect(skillsExists).toBe(false);
@@ -571,9 +571,9 @@ Managed content here
       await fs.mkdir(claudeDir, { recursive: true });
       await fs.writeFile(path.join(claudeDir, "CLAUDE.md"), "");
 
-      await captureExistingConfigAsProfile({
+      await captureExistingConfigAsSkillset({
         installDir: tempDir,
-        profileName: "empty-claude",
+        skillsetName: "empty-claude",
       });
 
       const capturedClaudeMd = await fs.readFile(
@@ -593,9 +593,9 @@ Managed content here
         "# My Instructions",
       );
 
-      await captureExistingConfigAsProfile({
+      await captureExistingConfigAsSkillset({
         installDir: tempDir,
-        profileName: "captured-config",
+        skillsetName: "captured-config",
       });
 
       const noriJsonPath = path.join(
@@ -628,9 +628,9 @@ Managed content here
       await fs.mkdir(skill2Dir, { recursive: true });
       await fs.writeFile(path.join(skill2Dir, "SKILL.md"), "Skill 2 content");
 
-      await captureExistingConfigAsProfile({
+      await captureExistingConfigAsSkillset({
         installDir: tempDir,
-        profileName: "with-skills",
+        skillsetName: "with-skills",
       });
 
       const noriJsonPath = path.join(
@@ -654,9 +654,9 @@ Managed content here
         "# Only CLAUDE.md exists",
       );
 
-      await captureExistingConfigAsProfile({
+      await captureExistingConfigAsSkillset({
         installDir: tempDir,
-        profileName: "no-skills",
+        skillsetName: "no-skills",
       });
 
       const noriJsonPath = path.join(
@@ -696,9 +696,9 @@ Managed content here
         "Just a file",
       );
 
-      await captureExistingConfigAsProfile({
+      await captureExistingConfigAsSkillset({
         installDir: tempDir,
-        profileName: "mixed-skills",
+        skillsetName: "mixed-skills",
       });
 
       const noriJsonPath = path.join(

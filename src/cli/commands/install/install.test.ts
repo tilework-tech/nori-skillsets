@@ -31,10 +31,10 @@ vi.mock("@/cli/features/claude-code/paths.js", () => {
       `${testClaudeDir}/CLAUDE.md`,
     getClaudeSkillsDir: (_args: { installDir: string }) =>
       `${testClaudeDir}/skills`,
-    getClaudeProfilesDir: (_args: { installDir: string }) =>
+    getClaudeSkillsetsDir: (_args: { installDir: string }) =>
       `${testClaudeDir}/profiles`,
     getNoriDir: () => testNoriDir,
-    getNoriProfilesDir: () => `${testNoriDir}/profiles`,
+    getNoriSkillsetsDir: () => `${testNoriDir}/profiles`,
     getNoriConfigFile: () => `${testNoriDir}/config.json`,
   };
 });
@@ -73,7 +73,7 @@ vi.mock("@/cli/commands/install/asciiArt.js", () => ({
 }));
 
 // Mock manifest writing
-vi.mock("@/cli/features/claude-code/profiles/manifest.js", () => ({
+vi.mock("@/cli/features/claude-code/skillsets/manifest.js", () => ({
   computeDirectoryManifest: vi.fn().mockResolvedValue({}),
   writeManifest: vi.fn().mockResolvedValue(undefined),
   getManifestPath: vi.fn().mockReturnValue("/mock/manifest.json"),
@@ -145,16 +145,16 @@ describe("install noninteractive", () => {
     fs.mkdirSync(path.join(TEST_NORI_DIR, "profiles"), { recursive: true });
 
     // Create stub profiles
-    for (const profileName of ["senior-swe", "amol", "product-manager"]) {
-      const profileDir = path.join(TEST_NORI_DIR, "profiles", profileName);
-      fs.mkdirSync(profileDir, { recursive: true });
+    for (const skillsetName of ["senior-swe", "amol", "product-manager"]) {
+      const skillsetDir = path.join(TEST_NORI_DIR, "profiles", skillsetName);
+      fs.mkdirSync(skillsetDir, { recursive: true });
       fs.writeFileSync(
-        path.join(profileDir, "CLAUDE.md"),
-        `# ${profileName}\n`,
+        path.join(skillsetDir, "CLAUDE.md"),
+        `# ${skillsetName}\n`,
       );
       fs.writeFileSync(
-        path.join(profileDir, "nori.json"),
-        JSON.stringify({ name: profileName, version: "1.0.0" }),
+        path.join(skillsetDir, "nori.json"),
+        JSON.stringify({ name: skillsetName, version: "1.0.0" }),
       );
     }
 
@@ -175,7 +175,7 @@ describe("install noninteractive", () => {
     } catch {}
   });
 
-  it("should save profile from --profile flag to config", async () => {
+  it("should save skillset from --skillset flag to config", async () => {
     // Create minimal config (as if init was run)
     await saveConfig({
       username: null,
@@ -187,7 +187,7 @@ describe("install noninteractive", () => {
 
     await noninteractive({
       installDir: tempDir,
-      profile: "senior-swe",
+      skillset: "senior-swe",
     });
 
     const configPath = getConfigPath();
@@ -195,8 +195,8 @@ describe("install noninteractive", () => {
     expect(config.activeSkillset).toBe("senior-swe");
   });
 
-  it("should exit with error when no --profile flag and no existing profile", async () => {
-    // Create minimal config without a profile
+  it("should exit with error when no --skillset flag and no existing skillset", async () => {
+    // Create minimal config without a skillset
     await saveConfig({
       username: null,
       organizationUrl: null,
@@ -220,7 +220,7 @@ describe("install noninteractive", () => {
 
       // Error messages should go through @clack/prompts, not legacy logger
       expect(clack.log.error).toHaveBeenCalledWith(
-        expect.stringContaining("--profile"),
+        expect.stringContaining("--skillset"),
       );
       expect(clack.log.info).toHaveBeenCalledWith(
         expect.stringContaining("nori-skillsets install"),
@@ -230,8 +230,8 @@ describe("install noninteractive", () => {
     }
   });
 
-  it("should preserve existing profile when no --profile flag is provided", async () => {
-    // Create config with an existing profile
+  it("should preserve existing skillset when no --skillset flag is provided", async () => {
+    // Create config with an existing skillset
     await saveConfig({
       username: null,
       organizationUrl: null,
@@ -262,7 +262,7 @@ describe("install noninteractive", () => {
 
     await noninteractive({
       installDir: tempDir,
-      profile: "senior-swe",
+      skillset: "senior-swe",
     });
 
     const configPath = getConfigPath();
@@ -288,7 +288,7 @@ describe("install noninteractive", () => {
 
     await noninteractive({
       installDir: tempDir,
-      profile: "senior-swe",
+      skillset: "senior-swe",
     });
 
     const configPath = getConfigPath();

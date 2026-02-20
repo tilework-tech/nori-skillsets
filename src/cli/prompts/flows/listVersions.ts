@@ -88,7 +88,7 @@ const formatVersionsForNote = (args: { packument: Packument }): string => {
  * 4. Shows outro with upload hint
  *
  * @param args - Flow configuration
- * @param args.profileDisplayName - Display name for the profile
+ * @param args.profileDisplayName - Display name for the skillset
  * @param args.registryUrl - The registry URL
  * @param args.callbacks - Callback functions for fetching packument
  *
@@ -110,7 +110,7 @@ export const listVersionsFlow = async (args: {
 
   if (packument == null) {
     s.stop("Not found");
-    log.error(`Profile "${profileDisplayName}" not found in ${registryUrl}`);
+    log.error(`Skillset "${profileDisplayName}" not found in ${registryUrl}`);
     outro(red({ text: "No versions available" }));
     return null;
   }
@@ -119,7 +119,7 @@ export const listVersionsFlow = async (args: {
 
   if (versions.length === 0) {
     s.stop("No versions");
-    log.warn(`Profile "${profileDisplayName}" has no published versions`);
+    log.warn(`Skillset "${profileDisplayName}" has no published versions`);
     outro("No versions available");
     return null;
   }

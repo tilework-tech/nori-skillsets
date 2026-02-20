@@ -24,7 +24,7 @@ vi.mock("@/cli/features/claude-code/paths.js", () => ({
   getClaudeCommandsDir: () => path.join(mockClaudeDir, "commands"),
   getClaudeMdFile: () => path.join(mockClaudeDir, "CLAUDE.md"),
   getClaudeSkillsDir: () => path.join(mockClaudeDir, "skills"),
-  getClaudeProfilesDir: () => path.join(mockClaudeDir, "profiles"),
+  getClaudeSkillsetsDir: () => path.join(mockClaudeDir, "profiles"),
 }));
 
 // Import loader after mocking env

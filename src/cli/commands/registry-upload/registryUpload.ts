@@ -1,6 +1,6 @@
 /**
- * CLI command for uploading profile packages to the Nori registry
- * Handles: nori-skillsets upload <profile>[@version] [--registry <url>] [--list-versions]
+ * CLI command for uploading skillset packages to the Nori registry
+ * Handles: nori-skillsets upload <skillset>[@version] [--registry <url>] [--list-versions]
  */
 
 import * as fs from "fs/promises";
@@ -17,7 +17,7 @@ import {
 } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
 import { loadConfig, getRegistryAuth } from "@/cli/config.js";
-import { getNoriProfilesDir } from "@/cli/features/claude-code/paths.js";
+import { getNoriSkillsetsDir } from "@/cli/features/claude-code/paths.js";
 import {
   uploadFlow,
   listVersionsFlow,
@@ -43,7 +43,7 @@ export type RegistryUploadResult = {
 /**
  * Determine the version to upload (auto-bump if not specified)
  * @param args - The function arguments
- * @param args.profileName - The profile name
+ * @param args.skillsetName - The skillset name
  * @param args.explicitVersion - Explicit version if provided
  * @param args.registryUrl - The registry URL
  * @param args.authToken - Auth token for the registry
@@ -51,12 +51,12 @@ export type RegistryUploadResult = {
  * @returns The version to upload and whether this is a new package
  */
 const determineUploadVersion = async (args: {
-  profileName: string;
+  skillsetName: string;
   explicitVersion?: string | null;
   registryUrl: string;
   authToken?: string | null;
 }): Promise<{ version: string; isNewPackage: boolean }> => {
-  const { profileName, explicitVersion, registryUrl, authToken } = args;
+  const { skillsetName, explicitVersion, registryUrl, authToken } = args;
 
   if (explicitVersion != null) {
     return { version: explicitVersion, isNewPackage: false };
@@ -64,7 +64,7 @@ const determineUploadVersion = async (args: {
 
   try {
     const packument = await registrarApi.getPackument({
-      packageName: profileName,
+      packageName: skillsetName,
       registryUrl,
       authToken,
     });
@@ -90,22 +90,22 @@ const determineUploadVersion = async (args: {
 const UPLOAD_EXCLUDED_FILES = new Set([".nori-version"]);
 
 /**
- * Create a gzipped tarball from a profile directory
+ * Create a gzipped tarball from a skillset directory
  * @param args - The function arguments
- * @param args.profileDir - The profile directory to pack
+ * @param args.skillsetDir - The skillset directory to pack
  *
  * @returns The tarball as a Buffer
  */
 const createProfileTarball = async (args: {
-  profileDir: string;
+  skillsetDir: string;
 }): Promise<Buffer> => {
-  const { profileDir } = args;
+  const { skillsetDir } = args;
 
-  const files = await fs.readdir(profileDir, { recursive: true });
+  const files = await fs.readdir(skillsetDir, { recursive: true });
   const filesToPack: Array<string> = [];
 
   for (const file of files) {
-    const filePath = path.join(profileDir, file);
+    const filePath = path.join(skillsetDir, file);
     const stat = await fs.stat(filePath);
     if (stat.isFile()) {
       // Skip excluded files (like .nori-version)
@@ -118,9 +118,9 @@ const createProfileTarball = async (args: {
   }
 
   const tempTarPath = path.join(
-    profileDir,
+    skillsetDir,
     "..",
-    `.${path.basename(profileDir)}-upload.tgz`,
+    `.${path.basename(skillsetDir)}-upload.tgz`,
   );
 
   try {
@@ -128,7 +128,7 @@ const createProfileTarball = async (args: {
       {
         gzip: true,
         file: tempTarPath,
-        cwd: profileDir,
+        cwd: skillsetDir,
       },
       filesToPack,
     );
@@ -142,20 +142,20 @@ const createProfileTarball = async (args: {
 };
 
 /**
- * Detect skills in a profile that don't have a nori.json file.
+ * Detect skills in a skillset that don't have a nori.json file.
  * These are candidates for keeping inline (bundled in the tarball)
  * rather than being extracted as independent skill packages.
  *
  * @param args - The function arguments
- * @param args.profileDir - The profile directory to scan
+ * @param args.skillsetDir - The skillset directory to scan
  *
  * @returns Array of skill IDs that are inline candidates, or empty array
  */
 const detectInlineSkillCandidates = async (args: {
-  profileDir: string;
+  skillsetDir: string;
 }): Promise<Array<string>> => {
-  const { profileDir } = args;
-  const skillsDir = path.join(profileDir, "skills");
+  const { skillsetDir } = args;
+  const skillsDir = path.join(skillsetDir, "skills");
 
   try {
     await fs.access(skillsDir);
@@ -183,19 +183,19 @@ const detectInlineSkillCandidates = async (args: {
 /**
  * Backfill the `type` field on nori.json files before upload.
  *
- * - Sets `type: "skillset"` on the profile's nori.json if missing
+ * - Sets `type: "skillset"` on the skillset's nori.json if missing
  * - Sets `type: "skill"` on any skill subdirectory nori.json if missing
  *
  * @param args - The function arguments
- * @param args.profileDir - The profile directory
+ * @param args.skillsetDir - The skillset directory
  */
 const backfillNoriJsonTypes = async (args: {
-  profileDir: string;
+  skillsetDir: string;
 }): Promise<void> => {
-  const { profileDir } = args;
+  const { skillsetDir } = args;
 
-  // Backfill profile nori.json
-  const profileNoriJsonPath = path.join(profileDir, "nori.json");
+  // Backfill skillset nori.json
+  const profileNoriJsonPath = path.join(skillsetDir, "nori.json");
   try {
     const content = await fs.readFile(profileNoriJsonPath, "utf-8");
     const metadata = JSON.parse(content) as NoriJson;
@@ -216,7 +216,7 @@ const backfillNoriJsonTypes = async (args: {
   }
 
   // Backfill skill subdirectory nori.json files
-  const skillsDir = path.join(profileDir, "skills");
+  const skillsDir = path.join(skillsetDir, "skills");
   try {
     const entries = await fs.readdir(skillsDir, { withFileTypes: true });
     for (const entry of entries) {
@@ -250,20 +250,20 @@ const backfillNoriJsonTypes = async (args: {
  * Create nori.json files for inline/extract skill candidates after resolution.
  *
  * @param args - The function arguments
- * @param args.profileDir - The profile directory
+ * @param args.skillsetDir - The skillset directory
  * @param args.inlineCandidates - All skill IDs that were candidates (no nori.json)
  * @param args.inlineSkillIds - Skill IDs that were chosen to be kept inline
  */
 const createCandidateNoriJsonFiles = async (args: {
-  profileDir: string;
+  skillsetDir: string;
   inlineCandidates: Array<string>;
   inlineSkillIds: Array<string>;
 }): Promise<void> => {
-  const { profileDir, inlineCandidates, inlineSkillIds } = args;
+  const { skillsetDir, inlineCandidates, inlineSkillIds } = args;
   const inlineSet = new Set(inlineSkillIds);
 
   for (const candidate of inlineCandidates) {
-    const skillDir = path.join(profileDir, "skills", candidate);
+    const skillDir = path.join(skillsetDir, "skills", candidate);
     const noriJsonPath = path.join(skillDir, "nori.json");
     const type = inlineSet.has(candidate) ? "inlined-skill" : "skill";
     const metadata: NoriJson = {
@@ -278,7 +278,7 @@ const createCandidateNoriJsonFiles = async (args: {
 /**
  * Main upload function
  * @param args - The function arguments
- * @param args.profileSpec - Profile specification (name[@version] or org/name[@version])
+ * @param args.profileSpec - Skillset specification (name[@version] or org/name[@version])
  * @param args.cwd - Current working directory
  * @param args.installDir - Custom installation directory
  * @param args.registryUrl - Target registry URL
@@ -286,7 +286,7 @@ const createCandidateNoriJsonFiles = async (args: {
  * @param args.nonInteractive - Run without prompts
  * @param args.silent - Suppress output
  * @param args.dryRun - Show what would happen without uploading
- * @param args.description - Description for the profile version
+ * @param args.description - Description for the skillset version
  *
  * @returns Upload result
  */
@@ -311,11 +311,11 @@ export const registryUploadMain = async (args: {
     description,
   } = args;
 
-  // Parse profile spec using shared utility
+  // Parse skillset spec using shared utility
   const parsed = parseNamespacedPackage({ packageSpec: profileSpec });
   if (parsed == null) {
     log.error(
-      `Invalid profile specification: "${profileSpec}".\nExpected format: profile-name or org/profile-name[@version]`,
+      `Invalid skillset specification: "${profileSpec}".\nExpected format: skillset-name or org/skillset-name[@version]`,
     );
     return { success: false };
   }
@@ -448,24 +448,24 @@ export const registryUploadMain = async (args: {
     return { success: result != null };
   }
 
-  // Check profile exists locally
-  const profilesDir = getNoriProfilesDir();
-  const profileDir =
+  // Check skillset exists locally
+  const skillsetsDir = getNoriSkillsetsDir();
+  const skillsetDir =
     orgId === "public"
-      ? path.join(profilesDir, packageName)
-      : path.join(profilesDir, orgId, packageName);
+      ? path.join(skillsetsDir, packageName)
+      : path.join(skillsetsDir, orgId, packageName);
 
   try {
-    await fs.access(profileDir);
+    await fs.access(skillsetDir);
   } catch {
-    log.error(`Profile "${profileDisplayName}" not found at:\n${profileDir}`);
+    log.error(`Skillset "${profileDisplayName}" not found at:\n${skillsetDir}`);
     return { success: false };
   }
 
   // Handle dry-run mode (simple output, no flow)
   if (dryRun) {
     const versionResult = await determineUploadVersion({
-      profileName: packageName,
+      skillsetName: packageName,
       explicitVersion: version,
       registryUrl: targetRegistryUrl,
       authToken,
@@ -474,15 +474,15 @@ export const registryUploadMain = async (args: {
     log.info(
       `[Dry run] Would upload "${profileDisplayName}@${versionResult.version}" to ${targetRegistryUrl}`,
     );
-    log.info(`[Dry run] Profile path: ${profileDir}`);
+    log.info(`[Dry run] Skillset path: ${skillsetDir}`);
     return { success: true };
   }
 
   // Backfill type field on existing nori.json files before upload
-  await backfillNoriJsonTypes({ profileDir });
+  await backfillNoriJsonTypes({ skillsetDir });
 
   // Detect inline skill candidates (skills without nori.json)
-  const inlineCandidates = await detectInlineSkillCandidates({ profileDir });
+  const inlineCandidates = await detectInlineSkillCandidates({ skillsetDir });
 
   // Helper to perform upload with optional resolution strategy
   const performUpload = async (uploadArgs: {
@@ -494,13 +494,13 @@ export const registryUploadMain = async (args: {
       // Create nori.json for inline/extract candidates before tarball creation
       if (inlineCandidates.length > 0) {
         await createCandidateNoriJsonFiles({
-          profileDir,
+          skillsetDir,
           inlineCandidates,
           inlineSkillIds: uploadArgs.inlineSkills ?? [],
         });
       }
 
-      const tarballBuffer = await createProfileTarball({ profileDir });
+      const tarballBuffer = await createProfileTarball({ skillsetDir });
       const archiveData = new ArrayBuffer(tarballBuffer.byteLength);
       new Uint8Array(archiveData).set(tarballBuffer);
 
@@ -538,7 +538,7 @@ export const registryUploadMain = async (args: {
   // Silent mode: direct upload without UI
   if (silent) {
     const versionResult = await determineUploadVersion({
-      profileName: packageName,
+      skillsetName: packageName,
       explicitVersion: version,
       registryUrl: targetRegistryUrl,
       authToken,
@@ -557,7 +557,7 @@ export const registryUploadMain = async (args: {
 
   const result = await uploadFlow({
     profileDisplayName,
-    profileName: packageName,
+    skillsetName: packageName,
     registryUrl: targetRegistryUrl,
     nonInteractive: nonInteractive ?? false,
     inlineCandidates:
@@ -565,7 +565,7 @@ export const registryUploadMain = async (args: {
     callbacks: {
       onDetermineVersion: async () => {
         const versionResult = await determineUploadVersion({
-          profileName: packageName,
+          skillsetName: packageName,
           explicitVersion: version,
           registryUrl: targetRegistryUrl,
           authToken,
@@ -585,7 +585,7 @@ export const registryUploadMain = async (args: {
       },
       onReadLocalSkillMd: async ({ skillId }) => {
         const skillMdPath = path.join(
-          profileDir,
+          skillsetDir,
           "skills",
           skillId,
           "SKILL.md",
@@ -614,11 +614,11 @@ export const registerRegistryUploadCommand = (args: {
 
   program
     .command("upload <profile>")
-    .description("Upload a profile to the Nori registry")
+    .description("Upload a skillset to the Nori registry")
     .option("--registry <url>", "Upload to a specific registry URL")
     .option(
       "--list-versions",
-      "List available versions for the profile instead of uploading",
+      "List available versions for the skillset instead of uploading",
     )
     .option("--dry-run", "Show what would be uploaded without uploading")
     .option("--description <text>", "Description for this version")

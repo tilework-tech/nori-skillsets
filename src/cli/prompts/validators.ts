@@ -38,7 +38,7 @@ const validateSlugFormat = (args: {
 };
 
 /**
- * Validate a profile name
+ * Validate a skillset name
  *
  * Must be lowercase alphanumeric with hyphens, not starting or ending with hyphen
  *
@@ -47,8 +47,8 @@ const validateSlugFormat = (args: {
  *
  * @returns Undefined if valid, error message string if invalid
  */
-export const validateProfileName = (args: {
+export const validateSkillsetName = (args: {
   value: string;
 }): string | undefined => {
-  return validateSlugFormat({ value: args.value, fieldName: "Profile name" });
+  return validateSlugFormat({ value: args.value, fieldName: "Skillset name" });
 };

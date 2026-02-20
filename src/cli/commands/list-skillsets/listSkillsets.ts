@@ -5,7 +5,7 @@
 
 import { log } from "@clack/prompts";
 
-import { listProfiles } from "@/cli/features/managedFolder.js";
+import { listSkillsets } from "@/cli/features/managedFolder.js";
 
 import type { Command } from "commander";
 
@@ -13,18 +13,18 @@ import type { Command } from "commander";
  * Main function for list-skillsets command
  */
 export const listSkillsetsMain = async (): Promise<void> => {
-  // Get and output profiles - one per line for easy parsing
-  // Profiles are always loaded from ~/.nori/profiles/
-  const profiles = await listProfiles();
+  // Get and output skillsets - one per line for easy parsing
+  // Skillsets are always loaded from ~/.nori/profiles/
+  const skillsets = await listSkillsets();
 
-  if (profiles.length === 0) {
+  if (skillsets.length === 0) {
     log.error("No skillsets installed.");
     process.exit(1);
   }
 
   // Output raw lines for scripting
-  for (const profile of profiles) {
-    process.stdout.write(profile + "\n");
+  for (const skillset of skillsets) {
+    process.stdout.write(skillset + "\n");
   }
 };
 

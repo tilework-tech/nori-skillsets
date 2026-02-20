@@ -11,7 +11,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 import { newSkillsetMain } from "./newSkillset.js";
 
-// Mock os.homedir so getNoriProfilesDir() resolves to the test directory
+// Mock os.homedir so getNoriSkillsetsDir() resolves to the test directory
 vi.mock("os", async (importOriginal) => {
   const actual = await importOriginal<typeof os>();
   return {
@@ -45,15 +45,15 @@ vi.mock("@/cli/prompts/flows/newSkillset.js", () => ({
 
 describe("newSkillsetMain", () => {
   let testHomeDir: string;
-  let profilesDir: string;
+  let skillsetsDir: string;
 
   beforeEach(async () => {
     testHomeDir = await fs.mkdtemp(
       path.join(os.tmpdir(), "new-skillset-test-"),
     );
     vi.mocked(os.homedir).mockReturnValue(testHomeDir);
-    profilesDir = path.join(testHomeDir, ".nori", "profiles");
-    await fs.mkdir(profilesDir, { recursive: true });
+    skillsetsDir = path.join(testHomeDir, ".nori", "profiles");
+    await fs.mkdir(skillsetsDir, { recursive: true });
     mockLogError.mockClear();
     mockNote.mockClear();
     mockOutro.mockClear();
@@ -79,7 +79,7 @@ describe("newSkillsetMain", () => {
 
     await newSkillsetMain();
 
-    const destDir = path.join(profilesDir, "my-new-skillset");
+    const destDir = path.join(skillsetsDir, "my-new-skillset");
 
     // Verify nori.json exists with correct content
     const noriJson = JSON.parse(
@@ -110,7 +110,7 @@ describe("newSkillsetMain", () => {
 
     await newSkillsetMain();
 
-    const destDir = path.join(profilesDir, "myorg", "custom-profile");
+    const destDir = path.join(skillsetsDir, "myorg", "custom-profile");
 
     // Verify nori.json uses basename as name
     const noriJson = JSON.parse(
@@ -127,7 +127,7 @@ describe("newSkillsetMain", () => {
 
   it("should error when skillset already exists", async () => {
     // Create a directory that already exists
-    const existingDir = path.join(profilesDir, "existing-skillset");
+    const existingDir = path.join(skillsetsDir, "existing-skillset");
     await fs.mkdir(existingDir, { recursive: true });
 
     mockNewSkillsetFlow.mockResolvedValueOnce({
@@ -185,7 +185,7 @@ describe("newSkillsetMain", () => {
 
     await newSkillsetMain();
 
-    const destDir = path.join(profilesDir, "full-metadata");
+    const destDir = path.join(skillsetsDir, "full-metadata");
     const noriJson = JSON.parse(
       await fs.readFile(path.join(destDir, "nori.json"), "utf-8"),
     );
@@ -213,7 +213,7 @@ describe("newSkillsetMain", () => {
 
     await newSkillsetMain();
 
-    const destDir = path.join(profilesDir, "default-version");
+    const destDir = path.join(skillsetsDir, "default-version");
     const noriJson = JSON.parse(
       await fs.readFile(path.join(destDir, "nori.json"), "utf-8"),
     );
@@ -233,7 +233,7 @@ describe("newSkillsetMain", () => {
 
     await newSkillsetMain();
 
-    const destDir = path.join(profilesDir, "minimal-metadata");
+    const destDir = path.join(skillsetsDir, "minimal-metadata");
     const noriJson = JSON.parse(
       await fs.readFile(path.join(destDir, "nori.json"), "utf-8"),
     );
@@ -255,7 +255,7 @@ describe("newSkillsetMain", () => {
     await newSkillsetMain();
 
     // Should not create any directory
-    const files = await fs.readdir(profilesDir);
+    const files = await fs.readdir(skillsetsDir);
     expect(files).toEqual([]);
 
     // Should not print outro message
@@ -274,7 +274,7 @@ describe("newSkillsetMain", () => {
 
     await newSkillsetMain();
 
-    const destDir = path.join(profilesDir, "repo-test");
+    const destDir = path.join(skillsetsDir, "repo-test");
     const noriJson = JSON.parse(
       await fs.readFile(path.join(destDir, "nori.json"), "utf-8"),
     );

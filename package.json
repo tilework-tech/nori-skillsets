@@ -1,7 +1,7 @@
 {
   "name": "nori-skillsets",
   "version": "0.0.0",
-  "description": "Nori Profiles plugin for Claude Code",
+  "description": "Nori Skillsets plugin for Claude Code",
   "type": "module",
   "bin": {
     "nori-skillsets": "./build/src/cli/nori-skillsets.js",
@@ -14,7 +14,6 @@
     "codex",
     "skills",
     "skillsets",
-    "profiles",
     "registry",
     "nori",
     "agent",

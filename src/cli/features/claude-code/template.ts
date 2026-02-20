@@ -5,7 +5,7 @@
 
 import * as path from "path";
 
-import { getNoriProfilesDir } from "@/cli/features/claude-code/paths.js";
+import { getNoriSkillsetsDir } from "@/cli/features/claude-code/paths.js";
 
 /**
  * Substitute template placeholders in content with actual paths
@@ -31,7 +31,7 @@ export const substituteTemplatePaths = (args: {
   // The installDir is the .claude directory, but profiles are in .nori/profiles
   // We need to get the parent directory to compute the nori profiles path
   const parentDir = path.dirname(installDir);
-  const profilesDir = getNoriProfilesDir();
+  const skillsetsDir = getNoriSkillsetsDir();
 
   // Use a placeholder to protect escaped variables (wrapped in backticks)
   // e.g., `{{skills_dir}}` should not be substituted
@@ -51,7 +51,7 @@ export const substituteTemplatePaths = (args: {
   // Now perform the actual substitutions on non-escaped variables
   const substituted = contentWithPlaceholders
     .replace(/\{\{skills_dir\}\}/g, path.join(installDir, "skills"))
-    .replace(/\{\{profiles_dir\}\}/g, profilesDir)
+    .replace(/\{\{profiles_dir\}\}/g, skillsetsDir)
     .replace(/\{\{commands_dir\}\}/g, path.join(installDir, "commands"))
     .replace(/\{\{install_dir\}\}/g, parentDir);
 

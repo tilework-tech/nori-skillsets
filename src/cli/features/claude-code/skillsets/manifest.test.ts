@@ -94,7 +94,7 @@ describe("manifest", () => {
 
       const manifest = await computeDirectoryManifest({
         dir: tempDir,
-        profileName: "test-profile",
+        skillsetName: "test-profile",
       });
 
       expect(manifest.files["CLAUDE.md"]).toBeDefined();
@@ -109,7 +109,7 @@ describe("manifest", () => {
 
       const manifest = await computeDirectoryManifest({
         dir: tempDir,
-        profileName: "test-profile",
+        skillsetName: "test-profile",
       });
 
       // Should be relative to tempDir
@@ -121,11 +121,11 @@ describe("manifest", () => {
 
       const manifest = await computeDirectoryManifest({
         dir: tempDir,
-        profileName: "my-profile",
+        skillsetName: "my-profile",
       });
 
       expect(manifest.version).toBe(1);
-      expect(manifest.profileName).toBe("my-profile");
+      expect(manifest.skillsetName).toBe("my-profile");
       expect(manifest.createdAt).toBeDefined();
     });
 
@@ -135,7 +135,7 @@ describe("manifest", () => {
 
       const manifest = await computeDirectoryManifest({
         dir: emptyDir,
-        profileName: "test-profile",
+        skillsetName: "test-profile",
       });
 
       expect(Object.keys(manifest.files)).toHaveLength(0);
@@ -148,7 +148,7 @@ describe("manifest", () => {
 
       const manifest = await computeDirectoryManifest({
         dir: tempDir,
-        profileName: "test-profile",
+        skillsetName: "test-profile",
       });
 
       // Should only have the file, not the directory itself
@@ -181,7 +181,7 @@ describe("manifest", () => {
 
       const manifest = await computeDirectoryManifest({
         dir: tempDir,
-        profileName: "test-profile",
+        skillsetName: "test-profile",
       });
 
       // Nori-managed files should be present
@@ -213,7 +213,7 @@ describe("manifest", () => {
 
       const manifest = await computeDirectoryManifest({
         dir: tempDir,
-        profileName: "test-profile",
+        skillsetName: "test-profile",
       });
 
       expect(manifest.files["skills/a/SKILL.md"]).toBeDefined();
@@ -230,7 +230,7 @@ describe("manifest", () => {
 
       const manifest = await computeDirectoryManifest({
         dir: tempDir,
-        profileName: "test-profile",
+        skillsetName: "test-profile",
       });
 
       expect(manifest.files["CLAUDE.md"]).toBeDefined();
@@ -246,7 +246,7 @@ describe("manifest", () => {
       const manifest: FileManifest = {
         version: 1,
         createdAt: "2024-01-01T00:00:00.000Z",
-        profileName: "test-profile",
+        skillsetName: "test-profile",
         files: {
           "file1.txt": "abc123",
           "dir/file2.txt": "def456",
@@ -277,7 +277,7 @@ describe("manifest", () => {
       const manifest: FileManifest = {
         version: 1,
         createdAt: "2024-01-01T00:00:00.000Z",
-        profileName: "test-profile",
+        skillsetName: "test-profile",
         files: {},
       };
 
@@ -298,7 +298,7 @@ describe("manifest", () => {
       const manifest: FileManifest = {
         version: 1,
         createdAt: "2024-01-01T00:00:00.000Z",
-        profileName: "test-profile",
+        skillsetName: "test-profile",
         files: {
           "CLAUDE.md": await computeFileHash({
             filePath: path.join(tempDir, "CLAUDE.md"),
@@ -322,7 +322,7 @@ describe("manifest", () => {
       const manifest: FileManifest = {
         version: 1,
         createdAt: "2024-01-01T00:00:00.000Z",
-        profileName: "test-profile",
+        skillsetName: "test-profile",
         files: {
           "CLAUDE.md": await computeFileHash({
             filePath: path.join(tempDir, "CLAUDE.md"),
@@ -345,7 +345,7 @@ describe("manifest", () => {
       const manifest: FileManifest = {
         version: 1,
         createdAt: "2024-01-01T00:00:00.000Z",
-        profileName: "test-profile",
+        skillsetName: "test-profile",
         files: {
           "settings.json": "somehash123",
         },
@@ -367,7 +367,7 @@ describe("manifest", () => {
       const manifest: FileManifest = {
         version: 1,
         createdAt: "2024-01-01T00:00:00.000Z",
-        profileName: "test-profile",
+        skillsetName: "test-profile",
         files: {
           "CLAUDE.md": hash,
         },
@@ -391,7 +391,7 @@ describe("manifest", () => {
       const manifest: FileManifest = {
         version: 1,
         createdAt: "2024-01-01T00:00:00.000Z",
-        profileName: "test-profile",
+        skillsetName: "test-profile",
         files: {
           "CLAUDE.md": await computeFileHash({
             filePath: path.join(tempDir, "CLAUDE.md"),
@@ -428,7 +428,7 @@ describe("manifest", () => {
       const manifest: FileManifest = {
         version: 1,
         createdAt: "2024-01-01T00:00:00.000Z",
-        profileName: "test-profile",
+        skillsetName: "test-profile",
         files: {
           "skills/my-skill/SKILL.md": await computeFileHash({
             filePath: path.join(skillDir, "SKILL.md"),
@@ -450,7 +450,7 @@ describe("manifest", () => {
       const manifest: FileManifest = {
         version: 1,
         createdAt: "2024-01-01T00:00:00.000Z",
-        profileName: "test-profile",
+        skillsetName: "test-profile",
         files: {
           "CLAUDE.md": await computeFileHash({
             filePath: path.join(tempDir, "CLAUDE.md"),
@@ -478,7 +478,7 @@ describe("manifest", () => {
       const manifest: FileManifest = {
         version: 1,
         createdAt: "2024-01-01T00:00:00.000Z",
-        profileName: "test-profile",
+        skillsetName: "test-profile",
         files: {
           "CLAUDE.md": await computeFileHash({
             filePath: path.join(tempDir, "CLAUDE.md"),
@@ -579,7 +579,7 @@ describe("manifest excluded files", () => {
 
       const manifest = await computeDirectoryManifest({
         dir: tempDir,
-        profileName: "test-profile",
+        skillsetName: "test-profile",
       });
 
       expect(manifest.files["skills/my-skill/SKILL.md"]).toBeDefined();
@@ -598,7 +598,7 @@ describe("manifest excluded files", () => {
 
       const manifest = await computeDirectoryManifest({
         dir: tempDir,
-        profileName: "test-profile",
+        skillsetName: "test-profile",
       });
 
       expect(manifest.files["skills/my-skill/SKILL.md"]).toBeDefined();
@@ -622,7 +622,7 @@ describe("manifest excluded files", () => {
 
       const manifest = await computeDirectoryManifest({
         dir: tempDir,
-        profileName: "test-profile",
+        skillsetName: "test-profile",
       });
 
       expect(
@@ -644,7 +644,7 @@ describe("manifest excluded files", () => {
       const manifest: FileManifest = {
         version: 1,
         createdAt: "2024-01-01T00:00:00.000Z",
-        profileName: "test-profile",
+        skillsetName: "test-profile",
         files: {
           "skills/my-skill/SKILL.md": await computeFileHash({
             filePath: path.join(skillDir, "SKILL.md"),
@@ -675,7 +675,7 @@ describe("manifest excluded files", () => {
       const manifest: FileManifest = {
         version: 1,
         createdAt: "2024-01-01T00:00:00.000Z",
-        profileName: "test-profile",
+        skillsetName: "test-profile",
         files: {
           "skills/my-skill/SKILL.md": await computeFileHash({
             filePath: path.join(skillDir, "SKILL.md"),

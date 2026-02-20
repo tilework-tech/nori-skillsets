@@ -27,10 +27,10 @@ const mockStdoutWrite = vi
   .spyOn(process.stdout, "write")
   .mockImplementation(() => true);
 
-// Mock getNoriProfilesDir
+// Mock getNoriSkillsetsDir
 const MOCK_PROFILES_DIR = "/home/testuser/.nori/profiles";
 vi.mock("@/cli/features/claude-code/paths.js", () => ({
-  getNoriProfilesDir: () => MOCK_PROFILES_DIR,
+  getNoriSkillsetsDir: () => MOCK_PROFILES_DIR,
 }));
 
 // Mock child_process.spawn

@@ -27,7 +27,7 @@ import { registryInstallMain } from "@/cli/commands/registry-install/registryIns
 import { registrySearchMain } from "@/cli/commands/registry-search/registrySearch.js";
 import { registryUploadMain } from "@/cli/commands/registry-upload/registryUpload.js";
 import { skillDownloadMain } from "@/cli/commands/skill-download/skillDownload.js";
-import { switchSkillsetAction } from "@/cli/commands/switch-profile/profiles.js";
+import { switchSkillsetAction } from "@/cli/commands/switch-skillset/switchSkillset.js";
 import { watchMain, watchStopMain } from "@/cli/commands/watch/watch.js";
 
 import type { Command } from "commander";
@@ -292,18 +292,18 @@ export const registerNoriSkillsetsUploadCommand = (args: {
   const { program } = args;
 
   program
-    .command("upload <profile>")
-    .description("Upload a profile to the Nori registry")
+    .command("upload <skillset>")
+    .description("Upload a skillset to the Nori registry")
     .option("--registry <url>", "Upload to a specific registry URL")
     .option(
       "--list-versions",
-      "List available versions for the profile instead of uploading",
+      "List available versions for the skillset instead of uploading",
     )
     .option("--dry-run", "Show what would be uploaded without uploading")
     .option("--description <text>", "Description for this version")
     .action(
       async (
-        profileSpec: string,
+        skillsetSpec: string,
         options: {
           registry?: string;
           listVersions?: boolean;
@@ -314,7 +314,7 @@ export const registerNoriSkillsetsUploadCommand = (args: {
         const globalOpts = program.opts();
 
         const result = await registryUploadMain({
-          profileSpec,
+          profileSpec: skillsetSpec,
           cwd: process.cwd(),
           installDir: globalOpts.installDir || null,
           registryUrl: options.registry || null,
@@ -704,7 +704,7 @@ export const registerNoriSkillsetsDirCommand = (args: {
 
   program
     .command("dir")
-    .description("Open the Nori profiles directory")
+    .description("Open the Nori skillsets directory")
     .action(async () => {
       const globalOpts = program.opts();
       await dirMain({
