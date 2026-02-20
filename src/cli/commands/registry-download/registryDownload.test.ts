@@ -99,7 +99,7 @@ import { loadConfig, getRegistryAuth } from "@/cli/config.js";
 import { registryDownloadMain } from "./registryDownload.js";
 
 /**
- * Create a CLAUDE.md managed block marker to make getInstallDirs detect the directory
+ * Create a CLAUDE.md managed block marker for Nori installation detection
  * @param dir - The directory to create the marker in
  */
 const createManagedBlockMarker = async (dir: string): Promise<void> => {
@@ -182,7 +182,7 @@ describe("registry-download", () => {
     // Create profiles directory
     await fs.mkdir(skillsetsDir, { recursive: true });
 
-    // Create CLAUDE.md managed block marker so getInstallDirs detects the installation
+    // Create CLAUDE.md managed block marker for installation detection
     await createManagedBlockMarker(testDir);
   });
 
@@ -294,23 +294,15 @@ describe("registry-download", () => {
     });
 
     it("should auto-init when no Nori installation found", async () => {
-      // Create directory without .nori-config.json
-      const noInstallDir = await fs.mkdtemp(
-        path.join(tmpdir(), "nori-no-install-"),
-      );
-
       // Set mock homedir to a directory without any installation
-      // so the home dir preference doesn't kick in
       const emptyHomeDir = await fs.mkdtemp(
         path.join(tmpdir(), "nori-empty-home-"),
       );
       mockHomedir = emptyHomeDir;
 
       // Mock initMain to simulate successful initialization
-      // After init, it creates the config file so subsequent loadConfig works
       vi.mocked(initMain).mockImplementation(async (args) => {
-        const installDir = args?.installDir ?? noInstallDir;
-        // Simulate what initMain does - create config file and profiles dir
+        const installDir = args?.installDir ?? emptyHomeDir;
         await fs.writeFile(
           path.join(installDir, ".nori-config.json"),
           JSON.stringify({ activeSkillset: null }),
@@ -320,10 +312,8 @@ describe("registry-download", () => {
         });
       });
 
-      // Mock config to return valid config after init
-      vi.mocked(loadConfig).mockResolvedValue({
-        installDir: noInstallDir,
-      });
+      // loadConfig returns null first (triggering auto-init), then a value after init
+      vi.mocked(loadConfig).mockResolvedValueOnce(null);
 
       // Mock package info
       vi.mocked(registrarApi.getPackument).mockResolvedValue({
@@ -338,7 +328,7 @@ describe("registry-download", () => {
       try {
         await registryDownloadMain({
           packageSpec: "test-profile",
-          cwd: noInstallDir,
+          cwd: emptyHomeDir,
         });
 
         // Verify initMain was called with home dir (interactive mode for user prompts, skip warning for download flow)
@@ -355,7 +345,6 @@ describe("registry-download", () => {
         // Verify download proceeded after init
         expect(registrarApi.downloadTarball).toHaveBeenCalled();
       } finally {
-        await fs.rm(noInstallDir, { recursive: true, force: true });
         await fs.rm(emptyHomeDir, { recursive: true, force: true });
       }
     });
@@ -378,10 +367,8 @@ describe("registry-download", () => {
         });
       });
 
-      // Mock config to return valid config after init
-      vi.mocked(loadConfig).mockResolvedValue({
-        installDir: customInstallDir,
-      });
+      // loadConfig returns null first (triggering auto-init)
+      vi.mocked(loadConfig).mockResolvedValueOnce(null);
 
       // Mock package info
       vi.mocked(registrarApi.getPackument).mockResolvedValue({
@@ -512,17 +499,14 @@ describe("registry-download", () => {
     });
 
     it("should return failure when auto-init fails", async () => {
-      // Create directory without .nori-config.json
-      const noInstallDir = await fs.mkdtemp(
-        path.join(tmpdir(), "nori-no-install-fail-"),
-      );
-
       // Set mock homedir to a directory without any installation
-      // so the home dir preference doesn't kick in
       const emptyHomeDir = await fs.mkdtemp(
         path.join(tmpdir(), "nori-empty-home-fail-"),
       );
       mockHomedir = emptyHomeDir;
+
+      // loadConfig returns null to trigger auto-init
+      vi.mocked(loadConfig).mockResolvedValueOnce(null);
 
       // Mock initMain to throw an error
       vi.mocked(initMain).mockRejectedValue(
@@ -532,7 +516,7 @@ describe("registry-download", () => {
       try {
         const result = await registryDownloadMain({
           packageSpec: "test-profile",
-          cwd: noInstallDir,
+          cwd: emptyHomeDir,
         });
 
         // Verify failure was returned
@@ -552,38 +536,6 @@ describe("registry-download", () => {
 
         // Verify no download was attempted
         expect(registrarApi.downloadTarball).not.toHaveBeenCalled();
-      } finally {
-        await fs.rm(noInstallDir, { recursive: true, force: true });
-        await fs.rm(emptyHomeDir, { recursive: true, force: true });
-      }
-    });
-
-    it("should error when multiple installations found", async () => {
-      // Set mock homedir to a directory without any installation
-      // so the home dir preference doesn't kick in
-      const emptyHomeDir = await fs.mkdtemp(
-        path.join(tmpdir(), "nori-empty-home-multi-"),
-      );
-      mockHomedir = emptyHomeDir;
-
-      // Create a nested installation
-      const nestedDir = path.join(testDir, "nested");
-      await fs.mkdir(nestedDir, { recursive: true });
-      await fs.writeFile(
-        path.join(nestedDir, ".nori-config.json"),
-        JSON.stringify({ activeSkillset: "test" }),
-      );
-      await createManagedBlockMarker(nestedDir);
-
-      try {
-        await registryDownloadMain({
-          packageSpec: "test-profile",
-          cwd: nestedDir,
-        });
-
-        // Verify error message about multiple installations
-        const allErrorOutput = getClackErrorOutput();
-        expect(allErrorOutput.toLowerCase()).toContain("multiple");
       } finally {
         await fs.rm(emptyHomeDir, { recursive: true, force: true });
       }
@@ -907,8 +859,11 @@ describe("registry-download", () => {
     });
 
     it("should work when config is null (only searches public registry)", async () => {
-      // Mock config to return null
+      // Mock config to return null (triggers auto-init)
       vi.mocked(loadConfig).mockResolvedValue(null);
+
+      // Mock initMain to succeed silently (auto-init on first use)
+      vi.mocked(initMain).mockResolvedValue(undefined);
 
       // Package exists in public registry
       vi.mocked(registrarApi.getPackument).mockResolvedValue({
@@ -924,6 +879,9 @@ describe("registry-download", () => {
         packageSpec: "test-profile",
         cwd: testDir,
       });
+
+      // Verify auto-init was triggered
+      expect(initMain).toHaveBeenCalled();
 
       // Verify only public registry was searched
       expect(registrarApi.getPackument).toHaveBeenCalledTimes(1);

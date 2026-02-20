@@ -28,8 +28,7 @@ import { initMain } from "@/cli/commands/init/init.js";
 import { getRegistryAuth, loadConfig } from "@/cli/config.js";
 import { getNoriSkillsetsDir } from "@/cli/features/claude-code/paths.js";
 import { registryDownloadFlow } from "@/cli/prompts/flows/index.js";
-import { getHomeDir } from "@/utils/home.js";
-import { getInstallDirs } from "@/utils/path.js";
+import { resolveInstallDir } from "@/utils/path.js";
 import {
   parseNamespacedPackage,
   buildOrganizationRegistryUrl,
@@ -544,7 +543,6 @@ export const registryDownloadMain = async (args: {
   cliName?: CliName | null;
 }): Promise<RegistryDownloadResult> => {
   const { packageSpec, installDir, registryUrl, listVersions, cliName } = args;
-  const cwd = args.cwd ?? process.cwd();
   const commandNames = getCommandNames({ cliName });
   const cliPrefix = cliName ?? "nori-skillsets";
 
@@ -561,66 +559,29 @@ export const registryDownloadMain = async (args: {
   const profileDisplayName =
     orgId === "public" ? packageName : `${orgId}/${packageName}`;
 
-  // Find installation directory and auto-init if needed
-  if (installDir != null) {
-    // Check if installation exists at the specified directory
-    const allInstallations = getInstallDirs({ currentDir: installDir });
-    if (!allInstallations.includes(installDir)) {
-      // No installation at specified directory - auto-init (interactive to allow user prompts)
-      // Skip the skillset persistence warning since users are just trying to download a skillset
-      log.info("Setting up Nori for first time use...");
-      try {
-        await initMain({
-          installDir,
-          nonInteractive: false,
-          skipWarning: true,
-        });
-      } catch (err) {
-        log.error(
-          `Failed to initialize Nori: ${err instanceof Error ? err.message : String(err)}`,
-        );
-        return { success: false };
-      }
-    }
-  } else {
-    const allInstallations = getInstallDirs({ currentDir: cwd });
+  // Resolve install directory from config and auto-init if needed
+  const config = await loadConfig();
+  const resolvedInstallDir = resolveInstallDir({
+    cliInstallDir: installDir,
+    config,
+  });
 
-    // Check home directory for existing installation
-    const homeDir = getHomeDir();
-    const homeInstallations = getInstallDirs({ currentDir: homeDir });
-
-    if (!homeInstallations.includes(homeDir)) {
-      if (allInstallations.length === 0) {
-        // No installation found - auto-init at home directory (interactive to allow user prompts)
-        // Skip the skillset persistence warning since users are just trying to download a skillset
-        log.info("Setting up Nori for first time use...");
-        try {
-          await initMain({
-            installDir: homeDir,
-            nonInteractive: false,
-            skipWarning: true,
-          });
-        } catch (err) {
-          log.error(
-            `Failed to initialize Nori: ${err instanceof Error ? err.message : String(err)}`,
-          );
-          return { success: false };
-        }
-      } else if (allInstallations.length > 1) {
-        const installList = allInstallations
-          .map((dir, index) => `${index + 1}. ${dir}`)
-          .join("\n");
-
-        log.error(
-          `Found multiple Nori installations. Cannot determine which one to use.\n\nInstallations found:\n${installList}\n\nPlease use --install-dir to specify the target installation.`,
-        );
-        return { success: false };
-      }
+  // Auto-init if no config exists yet (first time use)
+  if (config == null) {
+    log.info("Setting up Nori for first time use...");
+    try {
+      await initMain({
+        installDir: resolvedInstallDir,
+        nonInteractive: false,
+        skipWarning: true,
+      });
+    } catch (err) {
+      log.error(
+        `Failed to initialize Nori: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      return { success: false };
     }
   }
-
-  // Load config for registry auth - use getHomeDir() since registry needs global auth
-  const config = await loadConfig();
 
   const skillsetsDir = getNoriSkillsetsDir();
   // For namespaced packages, the skillset is in a nested directory (e.g., profiles/myorg/my-profile)

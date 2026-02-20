@@ -15,15 +15,6 @@ import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 
 import { registerSwitchSkillsetCommand } from "./switchSkillset.js";
 
-const createManagedBlockMarker = async (dir: string): Promise<void> => {
-  const claudeDir = path.join(dir, ".claude");
-  await fs.mkdir(claudeDir, { recursive: true });
-  await fs.writeFile(
-    path.join(claudeDir, "CLAUDE.md"),
-    "# BEGIN NORI-AI MANAGED BLOCK\n# END NORI-AI MANAGED BLOCK\n",
-  );
-};
-
 // Mock os.homedir so getNoriDir/getNoriSkillsetsDir resolve to the test directory
 vi.mock("os", async (importOriginal) => {
   const actual = await importOriginal<typeof os>();
@@ -276,15 +267,16 @@ describe("registerSwitchSkillsetCommand", () => {
   });
 });
 
-describe("switch-skillset getInstallDirs auto-detection", () => {
+describe("switch-skillset installDir resolution from config", () => {
   let testInstallDir: string;
-  let originalCwd: string;
+  let customInstallDir: string;
 
   beforeEach(async () => {
-    originalCwd = process.cwd();
-    // Use realpath to resolve symlinks (macOS /var -> /private/var)
     testInstallDir = await fs.realpath(
-      await fs.mkdtemp(path.join(tmpdir(), "switch-skillset-autodetect-test-")),
+      await fs.mkdtemp(path.join(tmpdir(), "switch-skillset-configdir-test-")),
+    );
+    customInstallDir = await fs.realpath(
+      await fs.mkdtemp(path.join(tmpdir(), "switch-skillset-customdir-test-")),
     );
     vi.mocked(os.homedir).mockReturnValue(testInstallDir);
 
@@ -301,34 +293,31 @@ describe("switch-skillset getInstallDirs auto-detection", () => {
       );
     }
 
-    // Create config file to mark this as a Nori installation
-    const configPath = path.join(testInstallDir, ".nori-config.json");
-    await fs.writeFile(
-      configPath,
-      JSON.stringify({
-        activeSkillset: "senior-swe",
-      }),
-    );
-
-    // Create managed block marker so getInstallDirs detects this as a Nori installation
-    await createManagedBlockMarker(testInstallDir);
-
     AgentRegistry.resetInstance();
     mockSwitchSkillsetFlow.mockReset();
   });
 
   afterEach(async () => {
-    process.chdir(originalCwd);
     if (testInstallDir) {
       await fs.rm(testInstallDir, { recursive: true, force: true });
+    }
+    if (customInstallDir) {
+      await fs.rm(customInstallDir, { recursive: true, force: true });
     }
     AgentRegistry.resetInstance();
     vi.restoreAllMocks();
   });
 
-  it("should auto-detect installation in current directory when no --install-dir provided", async () => {
-    // Change to the installation directory
-    process.chdir(testInstallDir);
+  it("should use config.installDir when no --install-dir flag is provided", async () => {
+    // Config has a custom installDir that differs from home directory
+    const configPath = path.join(testInstallDir, ".nori-config.json");
+    await fs.writeFile(
+      configPath,
+      JSON.stringify({
+        activeSkillset: "senior-swe",
+        installDir: customInstallDir,
+      }),
+    );
 
     mockSwitchSkillsetFlow.mockResolvedValueOnce({
       agentName: "claude-code",
@@ -346,7 +335,7 @@ describe("switch-skillset getInstallDirs auto-detection", () => {
     registerSwitchSkillsetCommand({ program });
 
     try {
-      // Note: NO --install-dir flag - should auto-detect from cwd
+      // NO --install-dir flag - should use config.installDir
       await program.parseAsync([
         "node",
         "nori-skillsets",
@@ -357,23 +346,17 @@ describe("switch-skillset getInstallDirs auto-detection", () => {
       // May throw due to exit
     }
 
-    // Should detect installation in current directory and call flow with it
+    // Should use the config installDir, NOT auto-detect or home dir
     expect(mockSwitchSkillsetFlow).toHaveBeenCalledWith(
       expect.objectContaining({
         skillsetName: "product-manager",
-        installDir: testInstallDir,
+        installDir: customInstallDir,
       }),
     );
   });
 
-  it("should auto-detect installation in parent directory when running from subdirectory", async () => {
-    // Create a subdirectory to run from
-    const subDir = path.join(testInstallDir, "src", "components");
-    await fs.mkdir(subDir, { recursive: true });
-
-    // Change to the subdirectory
-    process.chdir(subDir);
-
+  it("should fall back to home directory when no config exists and no --install-dir flag", async () => {
+    // No config file at all - should fall back to home dir
     mockSwitchSkillsetFlow.mockResolvedValueOnce({
       agentName: "claude-code",
       skillsetName: "product-manager",
@@ -390,7 +373,6 @@ describe("switch-skillset getInstallDirs auto-detection", () => {
     registerSwitchSkillsetCommand({ program });
 
     try {
-      // Note: NO --install-dir flag - should traverse up and find installation
       await program.parseAsync([
         "node",
         "nori-skillsets",
@@ -401,67 +383,13 @@ describe("switch-skillset getInstallDirs auto-detection", () => {
       // May throw due to exit
     }
 
-    // Should traverse up and find installation in parent directory
+    // Should fall back to home directory
     expect(mockSwitchSkillsetFlow).toHaveBeenCalledWith(
       expect.objectContaining({
         skillsetName: "product-manager",
         installDir: testInstallDir,
       }),
     );
-  });
-
-  it("should error when no installation found in current directory, ancestors, or home directory", async () => {
-    // Create a directory WITHOUT a Nori installation
-    const emptyDir = await fs.mkdtemp(
-      path.join(tmpdir(), "switch-skillset-empty-test-"),
-    );
-
-    try {
-      // Change to the empty directory and mock homedir to it
-      // so the home directory fallback also finds no installation
-      process.chdir(emptyDir);
-      vi.mocked(os.homedir).mockReturnValue(emptyDir);
-
-      const program = new Command();
-      program.exitOverride();
-      let errorOutput = "";
-      program.configureOutput({
-        writeErr: (str) => {
-          errorOutput += str;
-        },
-      });
-      program
-        .option("-d, --install-dir <path>", "Custom installation directory")
-        .option("-n, --non-interactive", "Run without interactive prompts")
-        .option("-a, --agent <name>", "AI agent to use");
-
-      registerSwitchSkillsetCommand({ program });
-
-      let thrownError: Error | null = null;
-      try {
-        // Note: NO --install-dir flag - should fail to find any installation
-        await program.parseAsync([
-          "node",
-          "nori-skillsets",
-          "switch-skillset",
-          "product-manager",
-        ]);
-      } catch (err) {
-        thrownError = err as Error;
-      }
-
-      // Should error because no installation found
-      expect(thrownError).not.toBeNull();
-      // Error message should mention no installation found
-      expect(
-        errorOutput.toLowerCase().includes("no") ||
-          thrownError?.message.toLowerCase().includes("no") ||
-          errorOutput.toLowerCase().includes("not found") ||
-          thrownError?.message.toLowerCase().includes("not found"),
-      ).toBe(true);
-    } finally {
-      await fs.rm(emptyDir, { recursive: true, force: true });
-    }
   });
 });
 

@@ -23,8 +23,7 @@ import {
 import { listSkillsets } from "@/cli/features/managedFolder.js";
 import { setSilentMode, isSilentMode } from "@/cli/logger.js";
 import { switchSkillsetFlow } from "@/cli/prompts/flows/switchSkillset.js";
-import { getHomeDir } from "@/utils/home.js";
-import { normalizeInstallDir, getInstallDirs } from "@/utils/path.js";
+import { resolveInstallDir } from "@/utils/path.js";
 
 import type { Command } from "commander";
 
@@ -79,30 +78,12 @@ export const switchSkillsetAction = async (args: {
   const nonInteractive = globalOpts.nonInteractive ?? false;
   const force = options.force ?? false;
 
-  // Determine installation directory
-  let installDir: string;
-
-  if (globalOpts.installDir != null && globalOpts.installDir !== "") {
-    // Explicit install dir provided - use it directly
-    installDir = normalizeInstallDir({ installDir: globalOpts.installDir });
-  } else {
-    // Auto-detect installation from CWD ancestors
-    const installations = getInstallDirs({ currentDir: process.cwd() });
-    if (installations.length > 0) {
-      installDir = installations[0]; // Use closest installation
-    } else {
-      // Fall back to home directory
-      const homeInstallations = getInstallDirs({ currentDir: getHomeDir() });
-      if (homeInstallations.length > 0) {
-        installDir = homeInstallations[0];
-      } else {
-        throw new Error(
-          "No Nori installations found in current directory, parent directories, or home directory. " +
-            "Run 'nori-skillsets init' to create a new installation, or use --install-dir to specify a location.",
-        );
-      }
-    }
-  }
+  // Determine installation directory: CLI flag > config > home dir
+  const config = await loadConfig();
+  const installDir = resolveInstallDir({
+    cliInstallDir: globalOpts.installDir,
+    config,
+  });
 
   // Interactive flow
   if (!nonInteractive) {
@@ -186,9 +167,9 @@ export const switchSkillsetAction = async (args: {
   }
 
   // Non-interactive flow
-  const config = await loadConfig();
+  const nonInteractiveConfig = await loadConfig();
   const agentNames = getDefaultAgents({
-    config,
+    config: nonInteractiveConfig,
     agentOverride: options.agent,
   });
   const agentName = agentNames[0];

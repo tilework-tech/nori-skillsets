@@ -13,7 +13,7 @@ Path: @/src/cli/commands/external
 
 - Registered with Commander.js by `registerNoriSkillsetsExternalCommand` (called from @/src/cli/commands/noriSkillsetsCommands.ts) and also by `registerExternalSkillCommand` for the `external-skill` alias
 - Follows the same dual-installation pattern as `skill-download`: skills are copied to both `~/.claude/skills/<name>/` (live, with template substitution applied) and `~/.nori/profiles/<skillset>/skills/<name>/` (raw copy for persistence across profile switches)
-- Uses `getInstallDirs()` from @/src/utils/path.ts, `loadConfig()` from @/src/cli/config.ts, and `getActiveSkillset()` to resolve the installation directory and active skillset -- same resolution logic as `skill-download`
+- Uses `resolveInstallDir()` from @/src/utils/path.ts with `loadConfig()` from @/src/cli/config.ts and `getActiveSkillset()` to resolve the installation directory and active skillset -- same resolution logic as `skill-download`
 - Uses `getClaudeSkillsDir()` and `getNoriProfilesDir()` from @/src/cli/features/claude-code/paths.ts for target directory paths
 - Calls `addSkillToNoriJson()` to update skillset manifests, same as `skill-download`
 - Uses `substituteTemplatePaths()` from @/src/cli/features/claude-code/template.ts for the live copy

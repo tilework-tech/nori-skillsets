@@ -44,7 +44,7 @@ describe("ConfigManager", () => {
       };
       fs.writeFileSync(configPath, JSON.stringify(configData, null, 2));
 
-      // Change to a subdirectory (getInstallDirs walks up and finds config at tempDir)
+      // Change to a subdirectory
       const projectDir = path.join(tempDir, "project");
       fs.mkdirSync(projectDir, { recursive: true });
       process.chdir(projectDir);
@@ -96,7 +96,7 @@ describe("ConfigManager", () => {
       const configPath = path.join(tempDir, ".nori-config.json");
       fs.writeFileSync(configPath, ""); // Empty file
 
-      // Change to tempDir so getInstallDirs finds it
+      // Change to tempDir
       process.chdir(tempDir);
 
       // Execute
@@ -111,7 +111,7 @@ describe("ConfigManager", () => {
       const projectDir = path.join(tempDir, "project");
       fs.mkdirSync(projectDir, { recursive: true });
 
-      // Write project-level config (used by getInstallDirs to detect installation)
+      // Write project-level config
       const projectConfigPath = path.join(projectDir, ".nori-config.json");
       fs.writeFileSync(
         projectConfigPath,
@@ -156,7 +156,7 @@ describe("ConfigManager", () => {
       };
       fs.writeFileSync(configPath, JSON.stringify(configData, null, 2));
 
-      // Change to tempDir so getInstallDirs finds it
+      // Change to tempDir
       process.chdir(tempDir);
 
       // Execute
@@ -183,7 +183,7 @@ describe("ConfigManager", () => {
       };
       fs.writeFileSync(configPath, JSON.stringify(configData, null, 2));
 
-      // Change to tempDir so getInstallDirs finds it
+      // Change to tempDir
       process.chdir(tempDir);
 
       // Execute

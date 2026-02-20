@@ -25,8 +25,7 @@ import {
 } from "@/cli/features/claude-code/skillsets/metadata.js";
 import { substituteTemplatePaths } from "@/cli/features/claude-code/template.js";
 import { promptSkillTypes } from "@/cli/prompts/flows/externalSkillType.js";
-import { getHomeDir } from "@/utils/home.js";
-import { getInstallDirs } from "@/utils/path.js";
+import { resolveInstallDir } from "@/utils/path.js";
 
 import type { NoriJsonType } from "@/norijson/nori.js";
 import type { Command } from "commander";
@@ -271,7 +270,6 @@ export const externalMain = async (args: {
   } = args;
   const inlineFlag = args.inline ?? false;
   const extractFlag = args.extract ?? false;
-  const cwd = args.cwd ?? process.cwd();
   const commandNames = getCommandNames({ cliName });
   const cliPrefix = cliName ?? "nori-skillsets";
 
@@ -309,30 +307,12 @@ export const externalMain = async (args: {
     return;
   }
 
-  // 2. Resolve install directory
-  let targetInstallDir: string;
-  if (installDir != null) {
-    targetInstallDir = installDir;
-  } else {
-    const allInstallations = getInstallDirs({ currentDir: cwd });
-    if (allInstallations.length === 0) {
-      targetInstallDir = getHomeDir();
-    } else if (allInstallations.length > 1) {
-      const installList = allInstallations
-        .map((dir, index) => `${index + 1}. ${dir}`)
-        .join("\n");
-      log.error(
-        `Found multiple Nori installations. Cannot determine which one to use.\n\nInstallations found:\n${installList}\n\nPlease use --install-dir to specify the target installation.`,
-      );
-      return;
-    } else {
-      targetInstallDir = allInstallations[0];
-    }
-  }
-
-  // 3. Load config and resolve target skillset
-  // Use home directory since config (auth, active profile) is a global setting
+  // 2. Resolve install directory from config
   const config = await loadConfig();
+  const targetInstallDir = resolveInstallDir({
+    cliInstallDir: installDir,
+    config,
+  });
   let targetSkillset: string | null = null;
   const skillsetsDir = getNoriSkillsetsDir();
 

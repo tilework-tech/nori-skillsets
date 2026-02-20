@@ -35,8 +35,7 @@ import {
 import { addSkillDependency } from "@/cli/features/claude-code/skillsets/skills/resolver.js";
 import { substituteTemplatePaths } from "@/cli/features/claude-code/template.js";
 import { skillDownloadFlow } from "@/cli/prompts/flows/index.js";
-import { getHomeDir } from "@/utils/home.js";
-import { getInstallDirs } from "@/utils/path.js";
+import { resolveInstallDir } from "@/utils/path.js";
 import {
   parseNamespacedPackage,
   buildOrganizationRegistryUrl,
@@ -365,7 +364,6 @@ export const skillDownloadMain = async (args: {
     skillset,
     cliName,
   } = args;
-  const cwd = args.cwd ?? process.cwd();
   const commandNames = getCommandNames({ cliName });
   const cliPrefix = cliName ?? "nori-skillsets";
 
@@ -390,36 +388,14 @@ export const skillDownloadMain = async (args: {
     return;
   }
 
-  // Find installation directory
-  // If installDir is provided, use it; otherwise check for existing installations
-  // If no installations found, use cwd (skills can be downloaded without prior Nori installation)
-  let targetInstallDir: string;
-
-  if (installDir != null) {
-    targetInstallDir = installDir;
-  } else {
-    const allInstallations = getInstallDirs({ currentDir: cwd });
-
-    if (allInstallations.length === 0) {
-      // No installation - use home directory as target
-      targetInstallDir = getHomeDir();
-    } else if (allInstallations.length > 1) {
-      const installList = allInstallations
-        .map((dir, index) => `${index + 1}. ${dir}`)
-        .join("\n");
-
-      log.error(
-        `Found multiple Nori installations. Cannot determine which one to use.\n\nInstallations found:\n${installList}\n\nPlease use --install-dir to specify the target installation.`,
-      );
-      return;
-    } else {
-      targetInstallDir = allInstallations[0];
-    }
-  }
-
-  // Load config if it exists (for private registry auth)
-  // Use home directory since auth is a global setting
+  // Load config for auth and install dir resolution
   const config = await loadConfig();
+
+  // Resolve installation directory from CLI flag, config, or home dir fallback
+  const targetInstallDir = resolveInstallDir({
+    cliInstallDir: installDir,
+    config,
+  });
 
   // Resolve target skillset for manifest update
   // Priority: --skillset option > active skillset from config > no manifest update

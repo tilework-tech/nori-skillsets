@@ -14,15 +14,13 @@ import { registryDownloadMain } from "@/cli/commands/registry-download/registryD
 import { loadConfig, getDefaultAgents } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { getNoriSkillsetsDir } from "@/cli/features/claude-code/paths.js";
-import { getHomeDir } from "@/utils/home.js";
-import { normalizeInstallDir } from "@/utils/path.js";
+import { resolveInstallDir } from "@/utils/path.js";
 
 import type { Command } from "commander";
 
 type RegistryInstallArgs = {
   packageSpec: string;
   installDir?: string | null;
-  useHomeDir?: boolean | null;
   silent?: boolean | null;
   agent?: string | null;
 };
@@ -31,24 +29,6 @@ const parsePackageName = (args: { packageSpec: string }): string => {
   const { packageSpec } = args;
   const [packageName] = packageSpec.split("@");
   return packageName || packageSpec;
-};
-
-const resolveInstallDir = (args: {
-  installDir?: string | null;
-  useHomeDir?: boolean | null;
-}): string => {
-  const { installDir, useHomeDir } = args;
-
-  if (installDir) {
-    return normalizeInstallDir({ installDir });
-  }
-
-  if (useHomeDir) {
-    return normalizeInstallDir({ installDir: getHomeDir() });
-  }
-
-  // Default to home directory when no existing installation is detected
-  return normalizeInstallDir({ installDir: getHomeDir() });
 };
 
 /**
@@ -98,7 +78,6 @@ const displaySuccessMessage = (args: { skillsetName: string }): void => {
  * @param args - The install parameters
  * @param args.packageSpec - Package specification (name or name@version)
  * @param args.installDir - Optional explicit install directory
- * @param args.useHomeDir - If true, install to user home directory
  * @param args.silent - If true, suppress output
  * @param args.agent - AI agent to use (defaults to claude-code)
  *
@@ -107,17 +86,16 @@ const displaySuccessMessage = (args: { skillsetName: string }): void => {
 export const registryInstallMain = async (
   args: RegistryInstallArgs,
 ): Promise<RegistryInstallResult> => {
-  const { packageSpec, installDir, useHomeDir, silent, agent } = args;
-
-  const targetInstallDir = resolveInstallDir({
-    installDir,
-    useHomeDir,
-  });
+  const { packageSpec, installDir, silent, agent } = args;
 
   const skillsetName = parsePackageName({ packageSpec });
 
-  // Resolve agent name from config defaultAgents, with --agent as override
+  // Load config for auth and install dir resolution
   const config = await loadConfig();
+  const targetInstallDir = resolveInstallDir({
+    cliInstallDir: installDir,
+    config,
+  });
   const agentName = getDefaultAgents({ config, agentOverride: agent })[0];
 
   // Step 1: Download the skillset from registry first (so it's available for install)
@@ -199,13 +177,11 @@ export const registerRegistryInstallCommand = (args: {
     .description(
       "Download, install, and activate a skillset from the public registry in one step",
     )
-    .option("--user", "Install to the user home directory")
-    .action(async (packageSpec: string, options: { user?: boolean }) => {
+    .action(async (packageSpec: string) => {
       const globalOpts = program.opts();
 
       const result = await registryInstallMain({
         packageSpec,
-        useHomeDir: options.user ?? null,
         installDir: globalOpts.installDir || null,
         silent: globalOpts.silent || null,
         agent: globalOpts.agent || null,

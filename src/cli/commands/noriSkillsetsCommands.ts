@@ -347,13 +347,11 @@ export const registerNoriSkillsetsInstallCommand = (args: {
     .description(
       "Download, install, and activate a skillset from the public registry in one step",
     )
-    .option("--user", "Install to the user home directory")
-    .action(async (packageSpec: string, options: { user?: boolean }) => {
+    .action(async (packageSpec: string) => {
       const globalOpts = program.opts();
 
       const result = await registryInstallMain({
         packageSpec,
-        useHomeDir: options.user ?? null,
         installDir: globalOpts.installDir || null,
         silent: globalOpts.silent || null,
         agent: globalOpts.agent || null,
@@ -731,7 +729,6 @@ export const registerNoriSkillsetsInstallLocationCommand = (args: {
     .action(async () => {
       const globalOpts = program.opts();
       await installLocationMain({
-        currentDir: process.cwd(),
         nonInteractive: globalOpts.nonInteractive || null,
       });
     });
@@ -740,7 +737,6 @@ export const registerNoriSkillsetsInstallLocationCommand = (args: {
   program.command("location", { hidden: true }).action(async () => {
     const globalOpts = program.opts();
     await installLocationMain({
-      currentDir: process.cwd(),
       nonInteractive: globalOpts.nonInteractive || null,
     });
   });
