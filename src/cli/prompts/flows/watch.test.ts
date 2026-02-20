@@ -21,6 +21,7 @@ vi.mock("@clack/prompts", () => ({
   note: vi.fn(),
   outro: vi.fn(),
   select: vi.fn(),
+  confirm: vi.fn(() => false),
   spinner: vi.fn(() => ({
     start: vi.fn(),
     stop: vi.fn(),
@@ -52,6 +53,7 @@ describe("watchFlow", () => {
       onPrepare: vi.fn().mockResolvedValue({
         privateOrgs: ["org-alpha"],
         currentDestination: null,
+        currentGarbageCollect: null,
         isRunning: false,
       }),
       onStartDaemon: vi.fn().mockResolvedValue({
@@ -77,6 +79,7 @@ describe("watchFlow", () => {
       expect(mockCallbacks.onPrepare).toHaveBeenCalled();
       expect(mockCallbacks.onStartDaemon).toHaveBeenCalledWith({
         org: "org-alpha",
+        garbageCollect: "disabled",
       });
     });
 
@@ -103,6 +106,7 @@ describe("watchFlow", () => {
       vi.mocked(mockCallbacks.onPrepare).mockResolvedValue({
         privateOrgs: ["org-alpha", "org-beta", "org-gamma"],
         currentDestination: null,
+        currentGarbageCollect: null,
         isRunning: false,
       });
       vi.mocked(clack.select).mockResolvedValue("org-beta");
@@ -121,6 +125,7 @@ describe("watchFlow", () => {
       });
       expect(mockCallbacks.onStartDaemon).toHaveBeenCalledWith({
         org: "org-beta",
+        garbageCollect: "disabled",
       });
     });
 
@@ -128,6 +133,7 @@ describe("watchFlow", () => {
       vi.mocked(mockCallbacks.onPrepare).mockResolvedValue({
         privateOrgs: ["org-alpha", "org-beta"],
         currentDestination: "org-alpha",
+        currentGarbageCollect: null,
         isRunning: false,
       });
       vi.mocked(clack.select).mockResolvedValue("org-beta");
@@ -151,6 +157,7 @@ describe("watchFlow", () => {
       vi.mocked(mockCallbacks.onPrepare).mockResolvedValue({
         privateOrgs: ["org-alpha", "org-beta"],
         currentDestination: "org-beta",
+        currentGarbageCollect: null,
         isRunning: false,
       });
 
@@ -170,6 +177,7 @@ describe("watchFlow", () => {
       vi.mocked(mockCallbacks.onPrepare).mockResolvedValue({
         privateOrgs: ["org-alpha", "org-beta"],
         currentDestination: "org-deleted",
+        currentGarbageCollect: null,
         isRunning: false,
       });
       vi.mocked(clack.select).mockResolvedValue("org-alpha");
@@ -203,6 +211,7 @@ describe("watchFlow", () => {
       vi.mocked(mockCallbacks.onPrepare).mockResolvedValue({
         privateOrgs: ["org-alpha"],
         currentDestination: null,
+        currentGarbageCollect: null,
         isRunning: true,
       });
 
@@ -220,6 +229,7 @@ describe("watchFlow", () => {
       vi.mocked(mockCallbacks.onPrepare).mockResolvedValue({
         privateOrgs: [],
         currentDestination: null,
+        currentGarbageCollect: null,
         isRunning: false,
       });
 
@@ -241,6 +251,7 @@ describe("watchFlow", () => {
       vi.mocked(mockCallbacks.onPrepare).mockResolvedValue({
         privateOrgs: ["org-alpha", "org-beta"],
         currentDestination: null,
+        currentGarbageCollect: null,
         isRunning: false,
       });
 
