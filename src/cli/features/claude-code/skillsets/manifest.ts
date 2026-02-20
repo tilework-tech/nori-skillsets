@@ -32,13 +32,12 @@ export type ManifestDiff = {
   deleted: Array<string>; // files in manifest but not on disk
 };
 
-const MANIFEST_FILENAME = "installed-manifest.json";
-
 /**
  * Root-level files within ~/.claude/ that Nori manages.
  * Only these files are tracked in the manifest.
+ * Use agent.getManagedFiles() to get agent-specific values.
  */
-export const MANAGED_FILES: ReadonlyArray<string> = [
+const MANAGED_FILES: ReadonlyArray<string> = [
   "CLAUDE.md",
   "settings.json",
   "nori-statusline.sh",
@@ -47,12 +46,9 @@ export const MANAGED_FILES: ReadonlyArray<string> = [
 /**
  * Top-level directories within ~/.claude/ that Nori manages.
  * All files recursively within these directories are tracked in the manifest.
+ * Use agent.getManagedDirs() to get agent-specific values.
  */
-export const MANAGED_DIRS: ReadonlyArray<string> = [
-  "skills",
-  "commands",
-  "agents",
-];
+const MANAGED_DIRS: ReadonlyArray<string> = ["skills", "commands", "agents"];
 
 /**
  * Files to exclude from manifest tracking regardless of location.
@@ -63,8 +59,6 @@ export const EXCLUDED_FILES: ReadonlyArray<string> = [
   "nori.json",
 ];
 
-const managedFileSet = new Set(MANAGED_FILES);
-const managedDirSet = new Set(MANAGED_DIRS);
 const excludedFileSet = new Set(EXCLUDED_FILES);
 
 /**
@@ -72,30 +66,48 @@ const excludedFileSet = new Set(EXCLUDED_FILES);
  *
  * @param args - Configuration arguments
  * @param args.relativePath - Relative path from the base directory
+ * @param args.managedFiles - Set of managed root files
+ * @param args.managedDirs - Set of managed directories
  *
  * @returns True if the path is managed by Nori
  */
-const isManagedPath = (args: { relativePath: string }): boolean => {
-  const { relativePath } = args;
+const isManagedPath = (args: {
+  relativePath: string;
+  managedFiles: ReadonlySet<string>;
+  managedDirs: ReadonlySet<string>;
+}): boolean => {
+  const { relativePath, managedFiles, managedDirs } = args;
 
   // Check if it's a managed root file
-  if (managedFileSet.has(relativePath)) {
+  if (managedFiles.has(relativePath)) {
     return true;
   }
 
   // Check if it's under a managed directory
   const topDir = relativePath.split(path.sep)[0];
-  return managedDirSet.has(topDir);
+  return managedDirs.has(topDir);
 };
 
 /**
- * Get the path to the manifest file
+ * Get the path to the per-agent manifest file
+ *
+ * @param args - Configuration arguments
+ * @param args.agentName - Name of the agent
  *
  * @returns Absolute path to the manifest file
  */
-export const getManifestPath = (): string => {
-  const noriDir = getNoriDir();
-  return path.join(noriDir, MANIFEST_FILENAME);
+export const getManifestPath = (args: { agentName: string }): string => {
+  const { agentName } = args;
+  return path.join(getNoriDir(), "manifests", `${agentName}.json`);
+};
+
+/**
+ * Get the path to the legacy manifest file (for backwards-compatible fallback)
+ *
+ * @returns Absolute path to the legacy manifest file
+ */
+export const getLegacyManifestPath = (): string => {
+  return path.join(getNoriDir(), "installed-manifest.json");
 };
 
 /**
@@ -124,14 +136,18 @@ export const computeFileHash = async (args: {
  * @param args - Configuration arguments
  * @param args.dir - Directory to scan
  * @param args.baseDir - Base directory for relative paths
+ * @param args.managedFiles - Set of managed root-level filenames
+ * @param args.managedDirs - Set of managed directory names
  *
  * @returns Array of relative file paths
  */
 const collectFiles = async (args: {
   dir: string;
   baseDir: string;
+  managedFiles: ReadonlySet<string>;
+  managedDirs: ReadonlySet<string>;
 }): Promise<Array<string>> => {
-  const { dir, baseDir } = args;
+  const { dir, baseDir, managedFiles, managedDirs } = args;
   const files: Array<string> = [];
   const isTopLevel = dir === baseDir;
 
@@ -147,13 +163,18 @@ const collectFiles = async (args: {
     const relativePath = path.relative(baseDir, fullPath);
 
     if (entry.isDirectory()) {
-      if (isTopLevel && !managedDirSet.has(entry.name)) {
+      if (isTopLevel && !managedDirs.has(entry.name)) {
         continue;
       }
-      const subFiles = await collectFiles({ dir: fullPath, baseDir });
+      const subFiles = await collectFiles({
+        dir: fullPath,
+        baseDir,
+        managedFiles,
+        managedDirs,
+      });
       files.push(...subFiles);
     } else if (entry.isFile()) {
-      if (isTopLevel && !managedFileSet.has(entry.name)) {
+      if (isTopLevel && !managedFiles.has(entry.name)) {
         continue;
       }
       // Skip excluded files (like .nori-version and nori.json)
@@ -175,16 +196,27 @@ const collectFiles = async (args: {
  * @param args - Configuration arguments
  * @param args.dir - Directory to create manifest for
  * @param args.skillsetName - Name of the profile being installed
+ * @param args.managedFiles - Optional list of managed root-level filenames (falls back to defaults)
+ * @param args.managedDirs - Optional list of managed directory names (falls back to defaults)
  *
  * @returns Manifest object with file hashes
  */
 export const computeDirectoryManifest = async (args: {
   dir: string;
   skillsetName: string;
+  managedFiles?: ReadonlyArray<string> | null;
+  managedDirs?: ReadonlyArray<string> | null;
 }): Promise<FileManifest> => {
   const { dir, skillsetName } = args;
+  const fileSet = new Set(args.managedFiles ?? MANAGED_FILES);
+  const dirSet = new Set(args.managedDirs ?? MANAGED_DIRS);
 
-  const files = await collectFiles({ dir, baseDir: dir });
+  const files = await collectFiles({
+    dir,
+    baseDir: dir,
+    managedFiles: fileSet,
+    managedDirs: dirSet,
+  });
   const fileHashes: Record<string, string> = {};
 
   for (const relativePath of files) {
@@ -225,20 +257,33 @@ export const writeManifest = async (args: {
  *
  * @param args - Configuration arguments
  * @param args.manifestPath - Absolute path to read the manifest from
+ * @param args.legacyManifestPath - Optional path to legacy manifest for fallback
  *
  * @returns Manifest object, or null if file doesn't exist
  */
 export const readManifest = async (args: {
   manifestPath: string;
+  legacyManifestPath?: string | null;
 }): Promise<FileManifest | null> => {
-  const { manifestPath } = args;
+  const { manifestPath, legacyManifestPath } = args;
 
   try {
     const content = await fs.readFile(manifestPath, "utf-8");
     return JSON.parse(content) as FileManifest;
   } catch {
-    return null;
+    // Primary manifest not found, try legacy fallback
   }
+
+  if (legacyManifestPath != null) {
+    try {
+      const content = await fs.readFile(legacyManifestPath, "utf-8");
+      return JSON.parse(content) as FileManifest;
+    } catch {
+      // Legacy manifest not found either
+    }
+  }
+
+  return null;
 };
 
 /**
@@ -247,14 +292,20 @@ export const readManifest = async (args: {
  * @param args - Configuration arguments
  * @param args.manifest - Previously stored manifest
  * @param args.currentDir - Directory to compare against
+ * @param args.managedFiles - Optional list of managed root-level filenames (falls back to defaults)
+ * @param args.managedDirs - Optional list of managed directory names (falls back to defaults)
  *
  * @returns Diff showing modified, added, and deleted files
  */
 export const compareManifest = async (args: {
   manifest: FileManifest;
   currentDir: string;
+  managedFiles?: ReadonlyArray<string> | null;
+  managedDirs?: ReadonlyArray<string> | null;
 }): Promise<ManifestDiff> => {
   const { manifest, currentDir } = args;
+  const fileSet = new Set(args.managedFiles ?? MANAGED_FILES);
+  const dirSet = new Set(args.managedDirs ?? MANAGED_DIRS);
 
   const modified: Array<string> = [];
   const added: Array<string> = [];
@@ -264,13 +315,21 @@ export const compareManifest = async (args: {
   const currentFiles = await collectFiles({
     dir: currentDir,
     baseDir: currentDir,
+    managedFiles: fileSet,
+    managedDirs: dirSet,
   });
   const currentFileSet = new Set(currentFiles);
   const manifestFileSet = new Set(Object.keys(manifest.files));
 
   // Check for modified and deleted files (only for managed paths)
   for (const [relativePath, expectedHash] of Object.entries(manifest.files)) {
-    if (!isManagedPath({ relativePath })) {
+    if (
+      !isManagedPath({
+        relativePath,
+        managedFiles: fileSet,
+        managedDirs: dirSet,
+      })
+    ) {
       continue;
     }
 
@@ -311,12 +370,15 @@ export const compareManifest = async (args: {
  * @param args - Configuration arguments
  * @param args.claudeDir - The .claude directory to clean up
  * @param args.manifestPath - Path to the manifest file
+ * @param args.managedDirs - Optional list of managed directory names (falls back to defaults)
  */
 export const removeManagedFiles = async (args: {
   claudeDir: string;
   manifestPath: string;
+  managedDirs?: ReadonlyArray<string> | null;
 }): Promise<void> => {
   const { claudeDir, manifestPath } = args;
+  const dirList = args.managedDirs ?? MANAGED_DIRS;
 
   const manifest = await readManifest({ manifestPath });
   if (manifest == null) {
@@ -336,7 +398,7 @@ export const removeManagedFiles = async (args: {
   await fs.rm(manifestPath, { force: true });
 
   // Clean up empty managed directories (deepest first)
-  for (const dir of MANAGED_DIRS) {
+  for (const dir of dirList) {
     const dirPath = path.join(claudeDir, dir);
     await removeEmptyDirs({ dir: dirPath });
   }

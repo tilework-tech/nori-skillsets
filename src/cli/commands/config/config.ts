@@ -9,11 +9,17 @@
 
 import { log, outro } from "@clack/prompts";
 
-import { getActiveSkillset, loadConfig, saveConfig } from "@/cli/config.js";
+import {
+  getActiveSkillset,
+  getDefaultAgents,
+  loadConfig,
+  saveConfig,
+} from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { getClaudeDir } from "@/cli/features/claude-code/paths.js";
 import {
   getManifestPath,
+  getLegacyManifestPath,
   removeManagedFiles,
 } from "@/cli/features/claude-code/skillsets/manifest.js";
 import { confirmAction } from "@/cli/prompts/confirm.js";
@@ -122,8 +128,19 @@ export const configMain = async (): Promise<void> => {
     // Clean up old directory first (while manifest still reflects old dir)
     if (shouldCleanup) {
       const claudeDir = getClaudeDir({ installDir: oldInstallDir });
-      const manifestPath = getManifestPath();
-      await removeManagedFiles({ claudeDir, manifestPath });
+      const agentNames = getDefaultAgents({ config: existingConfig });
+      for (const agentName of agentNames) {
+        const agent = AgentRegistry.getInstance().get({ name: agentName });
+        const manifestPath = getManifestPath({ agentName });
+        await removeManagedFiles({
+          claudeDir,
+          manifestPath,
+          managedDirs: agent.getManagedDirs(),
+        });
+      }
+      // Also try cleaning up legacy manifest
+      const legacyPath = getLegacyManifestPath();
+      await removeManagedFiles({ claudeDir, manifestPath: legacyPath });
       log.info(`Removed Nori configuration from "${oldInstallDir}".`);
     }
 

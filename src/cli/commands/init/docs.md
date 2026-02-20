@@ -4,38 +4,20 @@ Path: @/src/cli/commands/init
 
 ### Overview
 
-- Initializes Nori configuration directories (`~/.nori/profiles/`) and creates or updates `~/.nori-config.json`
-- Detects and captures existing agent configuration as a named skillset before Nori overwrites it
-- Delegates all agent-specific operations through the default agent from config
+The init command performs first-time setup of the Nori environment. It creates the config file (`.nori-config.json`), the skillsets directory (`~/.nori/profiles/`), and optionally captures an existing Claude Code configuration as a named skillset.
 
 ### How it fits into the larger codebase
 
-- Called as the first step of the installation flow by `noninteractive()` in @/src/cli/commands/install/install.ts
-- The interactive path delegates entirely to `initFlow` in @/src/cli/prompts/flows/init.js, passing callbacks for ancestor checks, config detection, config capture, and initialization
-- The non-interactive path runs inline within `initMain()` and uses `@clack/prompts` (`log`, `note`) for all output
-- Config persistence uses `loadConfig()` / `saveConfig()` from @/src/cli/config.js, always scoped to the home directory via `getHomeDir()`
-- Resolves the default agent using `getDefaultAgents()` from @/src/cli/config.ts and `AgentRegistry.getInstance().get({ name })`
-- All agent-specific operations delegate through the resolved default agent's interface methods
-- After init, calls `defaultAgent.markInstall()` to mark the directory as having the agent installed
+This command is the entry point for new installations and is also called implicitly by the `registry-download` command when no config exists. It interacts with `@/cli/config.js` for loading/saving the global config, `@/cli/features/agentRegistry.js` for agent-specific detection and installation marking, `@/cli/features/claude-code/paths.js` for directory locations, and `@/cli/prompts/flows/init.js` for the interactive setup wizard.
 
 ### Core Implementation
 
-- `initMain({ installDir, nonInteractive, skipWarning })` is the single entry point; routes to interactive (`initFlow`) or non-interactive (inline) path based on the `nonInteractive` flag
-- **Default agent resolution**: At the start of `initMain`, resolves the default agents by loading existing config (if any), calling `getDefaultAgents({ config })`, and looking up the first agent via `AgentRegistry.getInstance().get({ name })`. All agent-specific operations use this resolved agent.
-- **Existing installation skip**: Both the interactive and non-interactive paths check if the default agent is already installed via `defaultAgent.isInstalledAtDir({ path })` to skip existing-config detection. This prevents re-capturing configuration on subsequent inits and uses the agent's own detection logic (e.g., marker files, config content checks).
-- **Ancestor warning callback**: The `onCheckAncestors` callback always returns an empty array `[]`. Ancestor detection logic has been removed; no ancestor warnings are displayed
-- **Non-interactive config capture**: when no existing Nori config is found but existing agent config exists, auto-captures it as a skillset named `"my-skillset"` and reports via `log.success()`. Uses `defaultAgent.detectExistingConfig?.({ installDir })` to detect and `defaultAgent.captureExistingConfig?.({ installDir, skillsetName, config })` to capture.
-- **Agent marking**: After saving config, calls `defaultAgent.markInstall({ path, skillsetName })` to write the installation marker. Only the default agent is marked (not all agents via `getAll()`).
-- `registerInitCommand({ program })` registers the `init` command with Commander.js, passing through global `--install-dir` and `--non-interactive` options
+`initMain` has two code paths: interactive (default) and non-interactive (`--nonInteractive`). Both paths create the `~/.nori/profiles/` directory and save a config file. The interactive path delegates to `initFlow` with callbacks for ancestor checking, existing config detection, config capture, and final initialization. The non-interactive path performs the same steps inline.
+
+The existing-config detection flow checks whether the default agent (resolved from `AgentRegistry`) already has configuration at the install directory. If pre-existing Claude Code config is found and no Nori config exists yet, it offers to capture that config as a skillset named `"my-profile"`.
 
 ### Things to Know
 
-- The `onCheckAncestors` callback always returns `[]`; ancestor warning logic has been fully removed
-- Config loading uses the zero-arg `loadConfig()` which always reads from `~/.nori-config.json`
-- The `skipWarning` parameter exists for downstream callers (like download flows) that run init as a side-effect and do not want the skillset persistence warning displayed in the interactive flow
-- All CLI output in the non-interactive path uses `@clack/prompts`
-- **Agent-agnostic init**: Init is now agent-agnostic and delegates all agent-specific operations through the default agent's interface. The agent name is resolved from `config.defaultAgents` via `getDefaultAgent()`, making init work with any agent that implements the Agent interface. Future agents can participate in init by implementing the optional `detectExistingConfig` and `captureExistingConfig` methods.
-- **Config object for capture**: When calling `defaultAgent.captureExistingConfig`, init builds a `Config` object with `installDir` and `activeSkillset` fields. The `activeSkillset` is set to the skillset name being captured.
-- **No direct Claude Code imports**: Init no longer imports Claude Code-specific modules like `getClaudeMdFile`, `claudeMdLoader`, or `detectExistingConfig`/`captureExistingConfigAsSkillset` functions. All agent-specific logic is accessed through the Agent interface.
+The config save preserves all existing fields (auth credentials, autoupdate preference, transcript destination) when updating. The `skipWarning` parameter suppresses the skillset persistence warning during auto-init from download flows, where the warning would be confusing. `markInstall` on the agent is called at the end to record that setup is complete for the given directory.
 
 Created and maintained by Nori.

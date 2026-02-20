@@ -32,6 +32,9 @@ export const claudeCodeAgent: Agent = {
   name: "claude-code",
   displayName: "Claude Code",
 
+  getManagedFiles: () => ["CLAUDE.md", "settings.json", "nori-statusline.sh"],
+  getManagedDirs: () => ["skills", "commands", "agents"],
+
   getLoaderRegistry: () => {
     return LoaderRegistry.getInstance();
   },

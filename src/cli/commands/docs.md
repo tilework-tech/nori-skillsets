@@ -4,107 +4,23 @@ Path: @/src/cli/commands
 
 ### Overview
 
-Contains all CLI command implementations for the nori-skillsets CLI. Each command lives in its own subdirectory with its implementation, tests, and any command-specific utilities co-located together.
+The commands directory contains all CLI command implementations for the `nori-skillsets` CLI tool. Each command lives in its own subdirectory with a main implementation file and tests. The top-level files handle command name mapping and Commander.js registration.
 
 ### How it fits into the larger codebase
 
-The CLI entry point (@/src/cli/nori-skillsets.ts) imports `registerXCommand` functions from each command subdirectory and calls them to register commands with the Commander.js program. Each command module exports a register function that accepts `{ program: Command }` and adds its command definition. Commands access global options (`--install-dir`, `--non-interactive`, `--agent`) via `program.opts()`. Business logic is encapsulated within each command directory - the entry points only handle routing.
-
-Commands that interact with agent-specific features (install, switch-skillset) use the AgentRegistry (@/src/cli/features/agentRegistry.ts) to look up the agent implementation by name. The agent provides access to its LoaderRegistry, environment paths, and global feature declarations. Commands pass the `--agent` option through their call chain to ensure consistent agent context.
-
-**Installation Flow Architecture:** The installation process is orchestrated by install.ts:
-
-```
-nori-skillsets install (orchestrator)
-    |
-    +-- init        (Step 1: Set up directories and config)
-    |
-    +-- resolve skillset + save config (Step 2: Profile resolution inline in install.ts)
-    |
-    +-- loaders     (Step 3: Run feature loaders to install components)
-    |
-    +-- manifest    (Step 4: Write installation manifest for change detection)
-```
-
-The `install` command in @/src/cli/commands/registry-install/registryInstall.ts is a high-level wrapper that downloads from the public registrar and then runs `noninteractive()` from install.ts. The `install.ts` module in @/src/cli/commands/install/ contains the `noninteractive()` function which orchestrates init, skillset resolution, and loader execution. After loaders complete, `writeInstalledManifest()` creates a manifest of all installed files in `~/.claude/` for later change detection by `switch`.
-
-**init** (@/src/cli/commands/init/init.ts): Creates the `.nori` directory structure and initializes `.nori-config.json`. If existing Claude Code config exists and no Nori config is present, captures the existing config as a skillset:
-  - Non-interactive mode: auto-captures as "my-skillset". Uses `@clack/prompts` for all output (`log.success` for status).
-  - Interactive mode: Uses `initFlow` from @/cli/prompts/flows for an interactive experience with intro/outro, note boxes, and modern prompts. The flow handles ancestor checks, existing config detection, skillset name capture, persistence warnings, and initialization spinner.
-
-**Profile Resolution (in install.ts):** After init, `noninteractive()` loads the existing config, resolves the skillset from the `--skillset` flag or the existing agent config, preserves auth credentials, and saves the merged config. Non-interactive mode requires `--skillset` flag if no existing skillset is set.
-
-**Multi-Agent Support:** The `--agent` flag defaults to `"claude-code"` and determines which agent's loaders run during installation. Agent resolution uses `AgentRegistry.getInstance().get({ name: agentName })` to obtain the agent implementation. Each agent provides its own LoaderRegistry with agent-specific loaders.
-
-The install command sets `activeSkillset` in the config to the selected skillset name. The config loader preserves the existing `activeSkillset` if one is already set.
-
-**install.ts Architecture:** The install.ts module contains only the `noninteractive()` flow and the `main()` entry point. The `noninteractive()` function orchestrates: (1) `initMain()`, (2) inline skillset resolution and config save via `loadConfig()`/`saveConfig()`, (3) `completeInstallation()` which runs feature loaders, writes the installation manifest, tracks analytics, and displays completion banners. All user-facing output uses `@clack/prompts` `log.*` methods (`log.error`, `log.info`, `log.success`), with `isSilentMode()` guards because clack's output methods do not respect the logger's silent mode. The `main()` function wraps `noninteractive()` with silent mode support.
-
-**cliCommandNames.ts:** The `CliName` type is a single literal `"nori-skillsets"` (not a union). The `getCommandNames()` function returns the `NORI_SKILLSETS_COMMANDS` constant, which maps logical command names (download, search, switchSkillset, etc.) to their CLI command strings.
-
-**Login/Logout:** The `login` command authenticates users with the Nori backend via Firebase. It supports three modes:
-
-1. **Interactive Email/Password** (default):
-   - Uses `loginFlow` from @/cli/prompts to provide a complete interactive experience
-   - Shows intro message ("Login to Nori Skillsets")
-   - Groups email and password prompts together using @clack/prompts group()
-   - Displays spinner during authentication
-   - Shows organization info in a note box (if user has orgs)
-   - Shows outro message on success
-   - The flow uses a callbacks pattern: loginFlow handles UI while the command provides onAuthenticate callback for Firebase auth and API calls
-
-2. **Non-interactive Email/Password** (`--email` and `--password` flags):
-   - Bypasses loginFlow and authenticates directly via Firebase SDK
-   - Uses `@clack/prompts` `log.*` methods for error output (no interactive flow)
-
-3. **Google SSO** (`--google` flag):
-   - Uses the localhost OAuth callback pattern: starts a temporary HTTP server on an available port (9876-9885), opens the browser to Google's consent screen, and captures the authorization code via redirect
-   - `isHeadlessEnvironment()` in googleAuth.ts detects SSH/headless environments by checking for `SSH_TTY`, `SSH_CONNECTION`, or `SSH_CLIENT` environment variables
-   - Always displays the OAuth URL before attempting to open the browser, enabling manual copy-paste in environments where browser opening fails
-   - In SSH environments, displays port forwarding instructions: `ssh -L <port>:localhost:<port> <user>@<server>`
-   - With `--no-localhost` flag, uses a hosted callback page at `https://noriskillsets.dev/oauth/callback` for environments where SSH port forwarding isn't possible
-   - All Google SSO functions use `@clack/prompts` constructs (`note()`, `log.info()`, `log.warn()`, `spinner()`, `promptPassword()`) for interactive output
-
-4. **Headless Mode** (`--google --no-localhost` flags):
-   - For environments where SSH port forwarding isn't possible, uses a hosted callback page at `https://noriskillsets.dev/oauth/callback`
-   - Uses a separate Web Application OAuth client (`GOOGLE_OAUTH_WEB_CLIENT_ID`) instead of the Desktop client; the client secret is kept server-side on `noriskillsets.dev`
-   - Instead of starting a localhost server, the server handles the OAuth code-to-token exchange and displays the resulting `id_token` for copy-paste
-   - The CLI prompts the user to paste this token directly, which is then used with `GoogleAuthProvider.credential()` to sign in to Firebase (no client-side token exchange needed)
-
-5. **Interactive Mode** (default):
-   - `loginMain` presents an auth method selection using `@clack/prompts` `select()` with Email/Password and Google SSO options
-   - Email/Password selection delegates to the existing `loginFlow` (with `skipIntro: true` since the interactive UI already showed `intro()`)
-   - Google SSO selection routes through `authenticateWithGoogle`, which propagates to the localhost and headless sub-flows
-   - After Google SSO authentication, organization and admin info are displayed via `note()` with an "Account Info" title, and login completion uses `outro()`
-   - Headless environment confirmation uses `@clack/prompts` `confirm()` (via `confirmAction`)
-
-After authentication (either method):
-- Calls `/api/auth/check-access` to verify organization access and retrieve organization list
-- Saves auth credentials (refreshToken, organizationUrl, organizations, isAdmin) to config
-
-The `logout` command removes auth credentials from the centralized `~/.nori-config.json`, preserving the skillset selection and other settings. The `logoutMain` function loads the single centralized config via `loadConfig()` (zero-arg), clears the `auth` field, and saves back via `saveConfig()`.
-
-**Registry Commands:** The `registry-search`, `registry-download`, `registry-upload`, and `registry-install` commands provide terminal access to Nori package registries. These commands use the `registrarApi` from @/src/api/registrar.ts. Registry commands work without any agent gate -- they operate on the skillsets directory structure independently of which agent is installed.
-
-**Namespace-Based Download:** The `registry-download` command uses package namespaces to determine the target registry. Unnamespaced packages (e.g., `my-skillset`) are downloaded from the public registry without authentication. Namespaced packages (e.g., `myorg/my-skillset`) use `buildOrganizationRegistryUrl({ orgId })` to derive the registry URL and require unified auth.
-
-**Namespace-Based Upload:** The `registry-upload` command (@/src/cli/commands/registry-upload/) mirrors `registry-download` for publishing skillsets. It uses the same namespace-based registry resolution: unnamespaced packages target the public registry, namespaced packages (e.g., `myorg/my-skillset`) target the organization registry. Authentication is always required for uploads. The command supports:
-- Auto version bumping: If no version is specified via `@version` syntax, auto-increments the patch version of the latest published version (or starts at 1.0.0 if first publish)
-- Explicit versioning: Specify exact version with `skillset@1.2.3` syntax
-- Version listing: `--list-versions` flag shows all published versions without uploading
-- Registry override: `--registry <url>` flag uploads to a specific registry URL
-- Skill collision detection and auto-resolution: When skills in the skillset conflict with existing skills in the registry, unchanged skills are automatically linked to existing versions; modified skills require manual resolution (rename or coordinate with skill owner)
-- Type field backfilling: Before upload, `backfillNoriJsonTypes()` reads existing nori.json files and sets `type: "skillset"` on the skillset manifest and `type: "skill"` on skill subdirectory manifests if the type field is missing. After the user chooses inline vs extract for skill candidates, `createCandidateNoriJsonFiles()` creates nori.json files with `type: "inlined-skill"` for inline candidates and `type: "skill"` for extract candidates. Corrupt JSON files (SyntaxError) are surfaced as errors rather than silently ignored.
+The CLI entry point delegates to `noriSkillsetsCommands.ts`, which registers every command with a Commander.js `program` instance. Each registration function imports the `*Main` entry point from the corresponding subdirectory and wires it to Commander options/arguments. Commands depend on `@/cli/config.js` for configuration, `@/cli/features/claude-code/` for agent-specific paths and skillset management, `@/api/` for registry API calls, and `@/cli/prompts/flows/` for interactive user prompts.
 
 ### Core Implementation
 
-**Command Naming Convention:** The nori-skillsets CLI uses simplified names without `registry-` prefix for read operations. The `noriSkillsetsCommands.ts` module defines register functions that create Commander commands with simplified names while delegating to the full implementation functions. Several commands also register hidden aliases as separate Commander commands (using `{ hidden: true }` so they do not appear in `--help` output). These aliases handle singular/plural variants and long-form names, all delegating to the same action handler as the canonical command. For example, `switch` (canonical) has hidden aliases `switch-skillset` and `switch-skillsets` (long-form), `list` (canonical) has hidden aliases `list-skillsets` and `list-skillset` (long-form), and `edit` (canonical) has a hidden alias `edit-skillset` (long-form).
+`cliCommandNames.ts` defines the `CommandNames` type and a lookup table that maps logical command names (e.g., `download`, `externalSkill`) to their CLI string equivalents. This is consumed by commands that need to display command hints in error messages.
+
+`noriSkillsetsCommands.ts` is the central registration hub. It exports one `registerNoriSkillsets*Command` function per command, each taking a `{ program: Command }` argument. Many commands have hidden aliases (e.g., `switch` also registers `switch-skillset`, `switch-skillsets`, and `use`) to support both short and long forms.
 
 **install-location** (@/src/cli/commands/install-location/): Displays the resolved Nori installation directory from config. Supports `--non-interactive` (plain output for scripts). Uses `resolveInstallDir()` from @/src/utils/path.ts with the standard priority chain (CLI flag > config > home directory).
 
 **switch-skillset** (@/src/cli/commands/switch-skillset/switchSkillset.ts): The `switchSkillsetAction` function handles skillset switching with local change detection:
 
-1. **Detect local changes**: Calls `detectLocalChanges()` which reads the installation manifest from `~/.nori/installed-manifest.json` and compares current `~/.claude/` file hashes against stored hashes
+1. **Detect local changes**: Calls `detectLocalChanges()` which reads the per-agent installation manifest from `~/.nori/manifests/<agentName>.json` (with legacy fallback to `~/.nori/installed-manifest.json`) and compares current `~/.claude/` file hashes against stored hashes using `agent.getManagedFiles()` and `agent.getManagedDirs()`
 2. **Handle changes** (if detected):
    - With `--force` flag: skips change handling entirely and proceeds (discards local changes)
    - In non-interactive mode (without `--force`): throws an error (safe default prevents data loss)
@@ -113,7 +29,7 @@ The `logout` command removes auth credentials from the centralized `~/.nori-conf
      - Save current config as new skillset first (uses `captureExistingConfigAsSkillset()`)
      - Abort
 3. **Confirm switch**: Prompts user to confirm the skillset switch
-4. **Execute switch**: Calls `noninteractive()` from install.ts to re-run the full installation with the new skillset
+4. **Execute switch**: In non-interactive mode, broadcasts the switch to all configured `defaultAgents` (loops over all agents). In interactive mode, delegates to `switchSkillsetFlow` which broadcasts to all resolved agents
 
 The change detection uses the manifest module from @/src/cli/features/claude-code/skillsets/manifest.ts.
 
@@ -127,7 +43,7 @@ The change detection uses the manifest module from @/src/cli/features/claude-cod
 
 **register** (@/src/cli/commands/register-skillset/registerSkillset.ts): The `registerSkillsetMain` function creates `nori.json` for an existing skillset folder under `~/.nori/profiles/`. When invoked without arguments, reads the current active skillset from config using `loadConfig()` + `getActiveSkillset()`. When given an optional `name` argument, operates on the specified skillset. Validates the directory exists and does not already have `nori.json` (via `fs.access` checks). Collects metadata interactively using `registerSkillsetFlow` from @/cli/prompts/flows, which prompts for description, license, keywords (comma-separated), version, and repository URL. The name field is derived from the folder basename rather than being collected from the user. Writes `nori.json` via `writeSkillsetMetadata()` with all collected metadata including `type: "skillset"`. Optional fields (description, license, keywords, repository) are omitted from nori.json if null. Repository URLs are stored as plain strings in the `NoriJson` manifest. Version defaults to `"1.0.0"` if not provided. The primary command is `register` with a hidden alias `register-skillset`. This command is useful for existing skillset folders created before the `nori.json` manifest was introduced, or for manual directory creation workflows.
 
-**config** (@/src/cli/commands/config/config.ts): Interactive configuration of `defaultAgents` (array of agents) and `installDir` settings. Runs `configFlow` to collect user input via multiselect for agents, then loads the existing config and saves the updated fields via `saveConfig()`, preserving all other config fields. Agent options are resolved dynamically from `AgentRegistry`. After saving, the command detects changes to `installDir` and `defaultAgents` by comparing old vs new values. If either changed and an active skillset exists (via `getActiveSkillset()`), the user is prompted about re-installing the active skillset and (for installDir changes) cleaning up Nori-managed files from the old directory via `removeManagedFiles()` from @/src/cli/features/claude-code/skillsets/manifest.ts. The ordering matters: cleanup runs before install so the manifest reflects the old directory during removal, then gets overwritten with new directory hashes during install. The `defaultAgents` change prompt only fires when `installDir` did not also change (the installDir flow already triggers a full reinstall). All prompts are skipped when there is no active skillset.
+**config** (@/src/cli/commands/config/config.ts): Interactive configuration of `defaultAgents` (array of agents) and `installDir` settings. Runs `configFlow` to collect user input via multiselect for agents, then loads the existing config and saves the updated fields via `saveConfig()`, preserving all other config fields. Agent options are resolved dynamically from `AgentRegistry`. After saving, the command detects changes to `installDir` and `defaultAgents` by comparing old vs new values. If either changed and an active skillset exists (via `getActiveSkillset()`), the user is prompted about re-installing the active skillset and (for installDir changes) cleaning up Nori-managed files from the old directory. Cleanup iterates all configured agents, calling `removeManagedFiles()` with each agent's per-agent manifest path (via `getManifestPath({ agentName })`) and agent-specific managed dirs (via `agent.getManagedDirs()`). It also cleans up the legacy manifest path. The ordering matters: cleanup runs before install so the manifest reflects the old directory during removal, then gets overwritten with new directory hashes during install. The `defaultAgents` change prompt only fires when `installDir` did not also change (the installDir flow already triggers a full reinstall). All prompts are skipped when there is no active skillset.
 
 **factory-reset** (@/src/cli/commands/factory-reset/factoryReset.ts): The `factoryResetMain` function removes all configuration for a given agent. It blocks non-interactive mode (prints an error and returns), looks up the agent by name via `AgentRegistry.getInstance().get({ name })`, checks that the agent supports `factoryReset`, and delegates to the agent's `factoryReset({ path })` method. Defaults `path` to `process.cwd()` if not provided. This follows the same pattern as `switch` for refusing destructive operations in non-interactive mode.
 
@@ -139,15 +55,17 @@ The change detection uses the manifest module from @/src/cli/features/claude-cod
 
 ### Things to Know
 
+Command implementations follow a consistent pattern: the subdirectory exports a `*Main` function containing the business logic and a `register*Command` function for Commander registration. The `noriSkillsetsCommands.ts` file uses its own registration wrappers rather than calling `register*Command` directly, because it adds global option forwarding (e.g., `installDir`, `nonInteractive`, `silent`).
+
 - `asciiArt.ts` in the install directory contains ASCII banners displayed during installation. Display functions (displayWelcomeBanner, displaySeaweedBed) check `isSilentMode()` and return early without output when silent mode is enabled. Output uses `process.stdout.write()` via a local `writeLine()` helper rather than `@clack/prompts`, because clack's `log.*` methods prepend bar symbols that would break ASCII art alignment.
 - Registry download supports both gzipped and plain tarballs by checking for gzip magic bytes (0x1f 0x8b).
 - The `skill-download` command (@/src/cli/commands/skill-download/) downloads individual skills and updates both `skills.json` and `nori.json` manifests in the target skillset.
 - The `external` command (@/src/cli/commands/external/) installs skills directly from GitHub repositories. It clones the repo, discovers SKILL.md files, and installs them following the same dual-installation pattern as `skill-download` (live copy to `~/.claude/skills/` with template substitution, raw copy to skillset's `skills/` directory). Supports `--new <name>` to create a brand-new skillset and install skills into it in a single step, or `--skillset <name>` to target an existing one. Writes a `nori.json` provenance file (instead of `.nori-version`) to track the GitHub source URL, ref, subpath, and installation timestamp. See @/src/cli/commands/external/docs.md for details.
-- The `registry-install` command combines `registry-download` with `noninteractive()` install to provide a single-step "download and activate" flow from the public registrar.
+- The `registry-install` command combines `registry-download` with install/switch to provide a single-step "download and activate" flow from the public registrar. It broadcasts installation and switching to all configured `defaultAgents`.
 - The `registry-search` command always queries the public registry without authentication; if org auth is configured, it also searches the org registry with authentication (org results displayed first).
 - The `registry-upload` command creates a gzipped tarball from the local skillset directory before uploading, excluding files in `UPLOAD_EXCLUDED_FILES` (`.nori-version`) to prevent distributing stale download metadata. Skill collision errors from the API include conflict metadata (skillId, latestVersion, owner, contentUnchanged, availableActions) that enables auto-resolution for unchanged skills.
 - Google OAuth uses Desktop app client credentials; the client secret is not truly secret (same as firebase-tools, gcloud CLI, etc.). CSRF protection uses a cryptographic nonce (`generateState()`) verified in the callback.
-- Installation manifest is only written for the `claude-code` agent; other agents do not track installed files for change detection.
+- Installation manifests are written per-agent at `~/.nori/manifests/<agentName>.json`. The `writeInstalledManifest()` function uses `agent.getManagedFiles()` and `agent.getManagedDirs()` to scope manifest tracking to each agent's managed files.
 - Manifest writing failures are non-fatal and do not block installation.
 
 Created and maintained by Nori.

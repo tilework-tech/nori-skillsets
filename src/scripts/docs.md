@@ -4,24 +4,18 @@ Path: @/src/scripts
 
 ### Overview
 
-- Build-time and publish-time scripts for packaging the `nori-skillsets` npm package, plus their associated tests
-- Handles paid skill bundling (esbuild), the interactive prepublish workflow (release notes via headless Claude), and validation of the `nori-skillsets` packaging pipeline
+Build-time scripts for post-compilation processing. Currently contains the esbuild bundler that packages hook scripts into standalone, self-contained JavaScript files that can run without the full node_modules tree.
 
 ### How it fits into the larger codebase
 
-- `bundle-skills.ts` is invoked during `npm run build` to bundle paid skill scripts (found in skillset directories at @/src/cli/features/) into standalone executables using esbuild, so they work when installed to `~/.claude/skills/` where relative paths would otherwise break
-- `package-skillsets.test.ts` validates the separate `nori-skillsets` packaging pipeline defined by @/scripts/package_skillsets.sh and the template files at @/packages/nori-skillsets/
-- `prepublish.test.ts` validates the interactive prepublish script at @/scripts/prepublish.sh that runs on `npm publish` for the main `nori-skillsets` package
+This module runs during `npm run build` (via `@/scripts/build.sh`), after TypeScript compilation. It processes the compiled hook scripts at `build/src/cli/features/claude-code/hooks/config/*.js` into standalone bundles. The bundled hooks are distributed with the npm package and executed by Claude Code as lifecycle hooks.
 
 ### Core Implementation
 
-- `bundle-skills.ts` globs for `paid-*/script.js` files in compiled skillset directories and uses esbuild to inline all dependencies into single-file ESM bundles. It injects `createRequire` via banner to handle CommonJS libraries (like Winston's transitive dependency chain) that use dynamic `require()` calls
-- `package-skillsets.test.ts` tests both the template file structure and the actual script execution. It runs @/scripts/package_skillsets.sh with `SKILLSETS_VERSION=1.0.0-test` and verifies the staging directory, generated `package.json`, and npm tarball. It also validates bidirectional dependency consistency using `collectThirdPartyImports`, which walks the compiled JS import tree from `build/src/cli/nori-skillsets.js` to find all third-party bare specifier imports
-- `prepublish.test.ts` validates the structure and behavior of @/scripts/prepublish.sh via content inspection (checking for read prompts, Claude headless invocation, git operations, and exit codes)
+**`bundle-skills.ts`** uses esbuild to bundle each hook script file individually. It injects a `createRequire` shim (to support CommonJS libraries like Winston's logform in ESM context) and a compile-time `__PACKAGE_VERSION__` constant. Each bundled output replaces its input file in-place and is made executable (chmod 755). Test files are excluded from bundling.
 
 ### Things to Know
 
-- The `collectThirdPartyImports` helper in `package-skillsets.test.ts` performs static analysis on compiled JS files (not TypeScript source). It follows relative/absolute imports recursively and extracts bare specifier package names (handling scoped `@org/pkg` packages). It only flags packages that are both imported AND present in the main @/package.json -- transitive dependencies that are not directly imported are intentionally ignored
-- The `package-skillsets.test.ts` execution tests (`package_skillsets.sh execution` describe block) require a prior build (`npm run build`) since they run the actual shell script against the `build/` directory
+The `createRequire` banner injection is necessary because some transitive dependencies (like `@colors/colors` via logform) use dynamic `require()` calls that fail when bundled into ESM format. Without this shim, the hooks would crash at runtime with "Dynamic require of 'util' is not supported".
 
 Created and maintained by Nori.

@@ -4,46 +4,18 @@ Path: @/src/cli/features/test-utils
 
 ### Overview
 
-- Shared test utilities for consistent test patterns across the codebase
-- Provides three core utilities: `stripAnsi`, `pathExists`, and `createTempTestContext`
-- Reduces code duplication across test files in claude-code and CLI commands
+Shared test utilities providing standardized helpers for common test operations across the codebase. Reduces duplication in test setup and assertions.
 
 ### How it fits into the larger codebase
 
-- Located in @/src/cli/features/ because utilities are shared across multiple feature modules (not agent-specific)
-- Imported by test files via `@/cli/features/test-utils/index.js`
-- Used by intercepted slash command tests in @/src/cli/features/claude-code/
-- Used by CLI command tests in @/src/cli/commands/
-
-```
-Test Files (*.test.ts)
-    |
-    +-- import { stripAnsi, pathExists, createTempTestContext } from "@/cli/features/test-utils/index.js"
-    |
-    +-- Strip ANSI codes from CLI output for assertions
-    +-- Check file/directory existence
-    +-- Create isolated temp directories with .claude subdirectory
-```
+Imported by test files throughout `@/src/cli/` for consistent temporary directory management, file existence checks, and ANSI stripping. Test files use `createTempTestContext` for basic temp directory needs and `createIsolatedTestContext` for integration tests requiring full HOME directory isolation.
 
 ### Core Implementation
 
-| Utility | Purpose | Style |
-|---------|---------|-------|
-| `stripAnsi(str)` | Removes ANSI escape codes from strings for plain text comparison | Simple parameter (not named args) for ergonomics in assertions |
-| `pathExists({ filePath })` | Async check if file/directory exists | Named args following codebase convention |
-| `createTempTestContext({ prefix })` | Creates temp directory with `.claude` subdirectory and cleanup function | Returns `TempTestContext` object |
-
-**TempTestContext Type:**
-- `tempDir`: Root temporary directory path
-- `claudeDir`: Path to `.claude` subdirectory within tempDir
-- `cleanup()`: Async function to remove the temp directory after test
+`stripAnsi` removes ANSI escape codes from strings for plain text comparison in test assertions. `pathExists` wraps `fs.access` into a boolean promise. `createTempTestContext` creates a temp directory with a `.claude/` subdirectory and returns a cleanup function. `createIsolatedTestContext` extends the temp context by also creating `.nori/profiles/` within the temp directory and setting `NORI_GLOBAL_CONFIG` to the temp directory, providing complete isolation from the real home directory. Its cleanup restores the original `NORI_GLOBAL_CONFIG` value.
 
 ### Things to Know
 
-**`stripAnsi` uses a simple parameter intentionally.** While the codebase style guide mandates named args, `stripAnsi` takes a plain string parameter for ergonomics since it's called frequently in test assertions like `expect(stripAnsi(output)).toContain("Success")`. This exception is documented in the function's JSDoc.
-
-**`createTempTestContext` always creates a `.claude` subdirectory.** This matches the standard directory structure expected by most test scenarios involving agent configuration.
-
-**Cleanup responsibility.** Tests using `createTempTestContext` must call `cleanup()` in an `afterEach` hook to avoid leaving temp directories on disk.
+`IsolatedTestContext` manipulates the `NORI_GLOBAL_CONFIG` environment variable, which the `getHomeDir()` utility in `@/src/utils/home.ts` checks to determine the home directory. This is the mechanism that redirects all path resolution away from the real `~/.nori/` and `~/.claude/` during tests.
 
 Created and maintained by Nori.

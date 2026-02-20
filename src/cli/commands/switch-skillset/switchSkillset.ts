@@ -18,6 +18,7 @@ import {
   compareManifest,
   hasChanges,
   getManifestPath,
+  getLegacyManifestPath,
   type ManifestDiff,
 } from "@/cli/features/claude-code/skillsets/manifest.js";
 import { listSkillsets } from "@/cli/features/managedFolder.js";
@@ -35,16 +36,20 @@ import type { Command } from "commander";
  *
  * @param args - Configuration arguments
  * @param args.installDir - Installation directory
+ * @param args.agentName - Name of the agent to check manifest for
  *
  * @returns Manifest diff if changes detected, null otherwise
  */
 const detectLocalChanges = async (args: {
   installDir: string;
+  agentName: string;
 }): Promise<ManifestDiff | null> => {
-  const { installDir } = args;
+  const { installDir, agentName } = args;
 
-  const manifestPath = getManifestPath();
-  const manifest = await readManifest({ manifestPath });
+  const agent = AgentRegistry.getInstance().get({ name: agentName });
+  const manifestPath = getManifestPath({ agentName });
+  const legacyManifestPath = getLegacyManifestPath();
+  const manifest = await readManifest({ manifestPath, legacyManifestPath });
 
   // No manifest means first install or manual setup - no changes detectable
   if (manifest == null) {
@@ -52,7 +57,12 @@ const detectLocalChanges = async (args: {
   }
 
   const claudeDir = getClaudeDir({ installDir });
-  const diff = await compareManifest({ manifest, currentDir: claudeDir });
+  const diff = await compareManifest({
+    manifest,
+    currentDir: claudeDir,
+    managedFiles: agent.getManagedFiles(),
+    managedDirs: agent.getManagedDirs(),
+  });
 
   return hasChanges(diff) ? diff : null;
 };
@@ -90,7 +100,6 @@ export const switchSkillsetAction = async (args: {
     await switchSkillsetFlow({
       skillsetName: name,
       installDir,
-      agentOverride: options.agent ?? null,
       callbacks: {
         onResolveAgents: async () => {
           const config = await loadConfig();
@@ -102,8 +111,11 @@ export const switchSkillsetAction = async (args: {
             return { name: agentName, displayName: agent.displayName };
           });
         },
-        onPrepareSwitchInfo: async ({ installDir: dir }) => {
-          const localChanges = await detectLocalChanges({ installDir: dir });
+        onPrepareSwitchInfo: async ({ installDir: dir, agentName: agent }) => {
+          const localChanges = await detectLocalChanges({
+            installDir: dir,
+            agentName: agent,
+          });
           const config = await loadConfig();
           const currentProfile =
             config != null ? getActiveSkillset({ config }) : null;
@@ -172,11 +184,13 @@ export const switchSkillsetAction = async (args: {
     config: nonInteractiveConfig,
     agentOverride: options.agent,
   });
-  const agentName = agentNames[0];
-  const agent = AgentRegistry.getInstance().get({ name: agentName });
 
-  // Check for local changes before proceeding
-  const localChanges = await detectLocalChanges({ installDir });
+  // Check for local changes before proceeding (check first agent's manifest)
+  const firstAgentName = agentNames[0];
+  const localChanges = await detectLocalChanges({
+    installDir,
+    agentName: firstAgentName,
+  });
 
   if (localChanges != null && !force) {
     throw new Error(
@@ -187,27 +201,32 @@ export const switchSkillsetAction = async (args: {
     );
   }
 
-  try {
-    // Delegate to agent's switchSkillset method
-    await agent.switchSkillset({ installDir, skillsetName: name });
-  } catch (err) {
-    // On failure, show available skillsets
-    const profiles = await listSkillsets();
-    if (profiles.length > 0) {
-      log.error(`Available skillsets: ${profiles.join(", ")}`);
-    }
-    throw err;
-  }
+  // Broadcast switch to all configured agents
+  for (const agentName of agentNames) {
+    const agent = AgentRegistry.getInstance().get({ name: agentName });
 
-  // Run install in silent mode to regenerate files with new skillset
-  const { main: installMain } =
-    await import("@/cli/commands/install/install.js");
-  await installMain({
-    nonInteractive: true,
-    installDir,
-    agent: agentName,
-    silent: true,
-  });
+    try {
+      // Delegate to agent's switchSkillset method
+      await agent.switchSkillset({ installDir, skillsetName: name });
+    } catch (err) {
+      // On failure, show available skillsets
+      const profiles = await listSkillsets();
+      if (profiles.length > 0) {
+        log.error(`Available skillsets: ${profiles.join(", ")}`);
+      }
+      throw err;
+    }
+
+    // Run install in silent mode to regenerate files with new skillset
+    const { main: installMain } =
+      await import("@/cli/commands/install/install.js");
+    await installMain({
+      nonInteractive: true,
+      installDir,
+      agent: agentName,
+      silent: true,
+    });
+  }
 };
 
 /**

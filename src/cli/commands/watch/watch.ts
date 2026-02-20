@@ -48,8 +48,9 @@ const EXPIRE_THRESHOLD_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Scan interval in milliseconds - how often to scan for stale transcripts
+ * Files need to be 30s stale before upload, so 60s scan interval is sufficient
  */
-const SCAN_INTERVAL_MS = 10000;
+const SCAN_INTERVAL_MS = 60000;
 
 /**
  * Log stream for daemon mode
@@ -218,48 +219,42 @@ const handleFileEvent = async (args: {
 };
 
 /**
- * Compute MD5 hash of file content
- *
- * @param args - Configuration arguments
- * @param args.filePath - Path to the file to hash
- *
- * @returns MD5 hash as hex string, or null if file can't be read
+ * Result of extracting file metadata
  */
-const computeFileHash = async (args: {
-  filePath: string;
-}): Promise<string | null> => {
-  const { filePath } = args;
-
-  try {
-    const content = await fs.readFile(filePath);
-    return createHash("md5").update(content).digest("hex");
-  } catch {
-    return null;
-  }
+type FileMetadata = {
+  sessionId: string | null;
+  fileHash: string | null;
 };
 
 /**
- * Extract sessionId from transcript file content
+ * Extract sessionId and compute hash from a transcript file in a single read
  *
  * @param args - Configuration arguments
  * @param args.filePath - Path to the transcript file
  *
- * @returns Session ID or null if not found
+ * @returns Object containing sessionId and fileHash, both null if file can't be read
  */
-const extractSessionIdFromFile = async (args: {
+const extractFileMetadata = async (args: {
   filePath: string;
-}): Promise<string | null> => {
+}): Promise<FileMetadata> => {
   const { filePath } = args;
 
   try {
-    const content = await fs.readFile(filePath, "utf-8");
-    // Match UUID format sessionId
+    const content = await fs.readFile(filePath);
+
+    // Compute hash from buffer
+    const fileHash = createHash("md5").update(content).digest("hex");
+
+    // Extract sessionId from content as string
+    const contentStr = content.toString("utf-8");
     const regex =
       /"sessionId"\s*:\s*"([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})"/;
-    const match = content.match(regex);
-    return match ? match[1] : null;
+    const match = contentStr.match(regex);
+    const sessionId = match ? match[1] : null;
+
+    return { sessionId, fileHash };
   } catch {
-    return null;
+    return { sessionId: null, fileHash: null };
   }
 };
 
@@ -319,8 +314,8 @@ const scanForStaleTranscripts = async (): Promise<void> => {
         continue;
       }
 
-      // Extract sessionId
-      const sessionId = await extractSessionIdFromFile({
+      // Extract sessionId and compute hash in a single read
+      const { sessionId, fileHash } = await extractFileMetadata({
         filePath: transcriptPath,
       });
 
@@ -328,9 +323,6 @@ const scanForStaleTranscripts = async (): Promise<void> => {
         await log(`Skipping stale file (no sessionId): ${transcriptPath}`);
         continue;
       }
-
-      // Compute file hash
-      const fileHash = await computeFileHash({ filePath: transcriptPath });
 
       if (fileHash == null) {
         await log(`Skipping stale file (can't hash): ${transcriptPath}`);
