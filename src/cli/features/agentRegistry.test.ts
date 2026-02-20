@@ -106,6 +106,16 @@ describe("AgentRegistry", () => {
     });
   });
 
+  describe("getAgentDir", () => {
+    test("claude-code agent returns .claude directory under installDir", () => {
+      const registry = AgentRegistry.getInstance();
+      const agent = registry.get({ name: "claude-code" });
+      const result = agent.getAgentDir({ installDir: "/home/user/project" });
+
+      expect(result).toBe("/home/user/project/.claude");
+    });
+  });
+
   describe("agent managed paths", () => {
     test("claude-code agent exposes getManagedFiles", () => {
       const registry = AgentRegistry.getInstance();

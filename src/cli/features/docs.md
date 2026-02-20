@@ -20,6 +20,7 @@ CLI Commands (install, switch-skillset, onboard, list, init)
     |       |
     |       +-- Agent interface
     |           |
+    |           +-- getAgentDir({ installDir }) --> agent's config directory path
     |           +-- getManagedFiles() --> root-level filenames this agent manages
     |           +-- getManagedDirs() --> directory names this agent manages recursively
     |           +-- getLoaderRegistry() --> LoaderRegistry (interface)
@@ -35,6 +36,9 @@ CLI Commands (install, switch-skillset, onboard, list, init)
 Shared Resources (@/src/cli/features/)
     |
     +-- agentRegistry.ts: AgentName, Agent, Loader, LoaderRegistry, ExistingConfig types
+    +-- paths.ts: getNoriDir(), getNoriSkillsetsDir() (agent-agnostic Nori paths)
+    +-- template.ts: substituteTemplatePaths() (agent-agnostic placeholder substitution)
+    +-- skillsetMetadata.ts: readSkillsetMetadata(), writeSkillsetMetadata(), addSkillToNoriJson(), ensureNoriJson()
     +-- managedFolder.ts: listProfiles(), MANIFEST_FILE (agent-agnostic)
     +-- config/loader.ts: configLoader (shared across all agents)
     +-- test-utils/: Shared test utilities (stripAnsi, pathExists, createTempTestContext)
@@ -60,6 +64,7 @@ The init command (@/src/cli/commands/init/) uses `getDefaultAgent()` from @/src/
 **Agent Interface** (agentRegistry.ts):
 - `name`: `AgentName` - canonical identifier used as the registry key ("claude-code")
 - `displayName`: Human-readable name ("Claude Code")
+- `getAgentDir({ installDir })`: Returns the absolute path to this agent's config directory under the given install directory. Each agent declares its own directory (e.g., claude-code returns `{installDir}/.claude/`). Used by shared modules that need to locate agent-specific paths without importing agent internals.
 - `getManagedFiles()`: Returns the list of root-level filenames within the agent's config directory that this agent manages. Used by the manifest module for installation tracking and change detection.
 - `getManagedDirs()`: Returns the list of directory names within the agent's config directory that this agent manages recursively. Used by the manifest module and cleanup operations.
 - `getLoaderRegistry()`: Returns an object implementing the `LoaderRegistry` interface
@@ -85,9 +90,23 @@ The init command (@/src/cli/commands/init/) uses `getDefaultAgent()` from @/src/
 
 **Managed Folder Utilities** (managedFolder.ts):
 - Agent-agnostic skillset discovery extracted from the Agent interface
-- `listProfiles()`: Zero-arg function that scans `~/.nori/profiles/` for directories containing `nori.json`, supporting both flat profiles (e.g., `senior-swe`) and namespaced profiles (e.g., `myorg/my-profile`). Uses `getNoriProfilesDir()` internally. Returns a sorted array of skillset names. Before checking each directory for `nori.json`, calls `ensureNoriJson()` from @/src/cli/features/claude-code/skillsets/metadata.ts to auto-create the manifest for user-created skillsets that lack one (applies to both flat and nested org skillset directories).
+- `listProfiles()`: Zero-arg function that scans `~/.nori/profiles/` for directories containing `nori.json`, supporting both flat profiles (e.g., `senior-swe`) and namespaced profiles (e.g., `myorg/my-profile`). Uses `getNoriSkillsetsDir()` from @/src/cli/features/paths.ts internally. Returns a sorted array of skillset names. Before checking each directory for `nori.json`, calls `ensureNoriJson()` from @/src/cli/features/skillsetMetadata.ts to auto-create the manifest for user-created skillsets that lack one (applies to both flat and nested org skillset directories).
 - `MANIFEST_FILE`: Constant (`"nori.json"`) used by both this module and `claudeCodeAgent.switchSkillset()` to identify valid skillsets
 - Imported directly by CLI commands (`list`, `switch-skillset`) rather than going through the Agent interface
+
+**Shared Paths** (paths.ts):
+- `getNoriDir()`: Returns `~/.nori` -- the centralized Nori data directory. Used by manifest storage, migration, and other shared infrastructure.
+- `getNoriSkillsetsDir()`: Returns `~/.nori/profiles/` -- where all skillset templates are stored. Previously lived in @/src/cli/features/claude-code/paths.ts but was extracted because it is an agent-agnostic Nori concept. Imported by CLI commands, managedFolder.ts, skillset loaders, and agent implementations.
+
+**Shared Template Substitution** (template.ts):
+- `substituteTemplatePaths({ content, installDir })`: Replaces `{{skills_dir}}`, `{{profiles_dir}}`, `{{commands_dir}}`, and `{{install_dir}}` placeholders in skillset content with actual filesystem paths. Supports backtick-escaped placeholders (e.g., `` `{{skills_dir}}` ``) that are preserved as literal text. The `installDir` parameter is the agent config directory (e.g., `~/.claude`), not the parent. Previously lived in @/src/cli/features/claude-code/template.ts but was extracted because template substitution is agent-agnostic.
+
+**Shared Skillset Metadata** (skillsetMetadata.ts):
+- `readSkillsetMetadata({ skillsetDir })`: Reads and parses `nori.json` from a skillset directory.
+- `writeSkillsetMetadata({ skillsetDir, metadata })`: Writes a `NoriJson` object to `nori.json`.
+- `addSkillToNoriJson({ skillsetDir, skillName, version })`: Adds or updates a skill dependency in `dependencies.skills`. Creates a basic `nori.json` if one does not exist.
+- `ensureNoriJson({ skillsetDir })`: Backwards-compatibility shim that auto-creates `nori.json` for directories that look like skillsets (have `CLAUDE.md` or both `skills/` and `subagents/` subdirectories) but lack a manifest. Called at every entry point that validates skillset existence.
+- Previously lived in @/src/cli/features/claude-code/skillsets/metadata.ts but was extracted because skillset metadata operations are agent-agnostic.
 
 **Migration System** (migration.ts):
 - Versioned migration system for transforming config between formats during installation

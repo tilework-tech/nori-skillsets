@@ -6,8 +6,8 @@
 import * as fs from "fs/promises";
 import * as path from "path";
 
-import { getNoriSkillsetsDir } from "@/cli/features/claude-code/paths.js";
-import { ensureNoriJson } from "@/cli/features/claude-code/skillsets/metadata.js";
+import { getNoriSkillsetsDir } from "@/cli/features/paths.js";
+import { ensureNoriJson } from "@/cli/features/skillsetMetadata.js";
 
 /** Manifest file name used to identify valid skillsets */
 export const MANIFEST_FILE = "nori.json";

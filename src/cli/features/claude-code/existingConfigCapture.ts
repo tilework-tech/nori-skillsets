@@ -15,8 +15,8 @@ import {
   getClaudeSkillsDir,
   getClaudeAgentsDir,
   getClaudeCommandsDir,
-  getNoriSkillsetsDir,
 } from "@/cli/features/claude-code/paths.js";
+import { getNoriSkillsetsDir } from "@/cli/features/paths.js";
 
 export type { ExistingConfig };
 

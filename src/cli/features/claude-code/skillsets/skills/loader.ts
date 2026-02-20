@@ -12,9 +12,9 @@ import {
   getClaudeDir,
   getClaudeSkillsDir,
   getClaudeSettingsFile,
-  getNoriDir,
 } from "@/cli/features/claude-code/paths.js";
-import { substituteTemplatePaths } from "@/cli/features/claude-code/template.js";
+import { getNoriDir } from "@/cli/features/paths.js";
+import { substituteTemplatePaths } from "@/cli/features/template.js";
 import { success, info } from "@/cli/logger.js";
 
 import type { ProfileLoader } from "@/cli/features/claude-code/skillsets/skillsetLoaderRegistry.js";

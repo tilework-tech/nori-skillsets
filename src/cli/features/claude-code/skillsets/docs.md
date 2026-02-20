@@ -4,11 +4,11 @@ Path: @/src/cli/features/claude-code/skillsets
 
 ### Overview
 
-The skillsets module manages the installation, composition, and metadata of skillsets (formerly called profiles). It handles creating the `~/.nori/profiles/` directory, configuring permissions, installing profile-dependent features (skills, CLAUDE.md, slash commands, subagents), and maintaining `nori.json` manifest files.
+The skillsets module manages the installation, composition, and metadata of skillsets (formerly called profiles). It handles creating the `~/.nori/profiles/` directory, configuring permissions, and installing profile-dependent features (skills, CLAUDE.md, slash commands, subagents). The `nori.json` manifest CRUD operations have been extracted to @/src/cli/features/skillsetMetadata.ts as agent-agnostic shared code.
 
 ### How it fits into the larger codebase
 
-`profilesLoader` (in `loader.ts`) is registered in `@/src/cli/features/claude-code/loaderRegistry.ts` and runs second in the install pipeline (after config). After setting up the profiles directory and permissions, it delegates to the `ProfileLoaderRegistry` which runs sub-loaders for skills, CLAUDE.md, slash commands, and subagents. These sub-loaders live in subdirectories (`claudemd/`, `skills/`, `slashcommands/`, `subagents/`). The `metadata.ts` module is called from `@/src/cli/features/managedFolder.ts` and `@/src/cli/features/claude-code/agent.ts` for manifest validation.
+`profilesLoader` (in `loader.ts`) is registered in `@/src/cli/features/claude-code/loaderRegistry.ts` and runs second in the install pipeline (after config). After setting up the profiles directory and permissions, it delegates to the `ProfileLoaderRegistry` which runs sub-loaders for skills, CLAUDE.md, slash commands, and subagents. These sub-loaders live in subdirectories (`claudemd/`, `skills/`, `slashcommands/`, `subagents/`). Skillset metadata operations (`readSkillsetMetadata`, `writeSkillsetMetadata`, `addSkillToNoriJson`, `ensureNoriJson`) now live in `@/src/cli/features/skillsetMetadata.ts` and are called from `@/src/cli/features/managedFolder.ts`, `@/src/cli/features/claude-code/agent.ts`, and various CLI commands for manifest validation.
 
 ### Core Implementation
 
@@ -16,7 +16,7 @@ The skillsets module manages the installation, composition, and metadata of skil
 
 `skillsetLoaderRegistry.ts` is a singleton registry ordering the profile sub-loaders: skills -> claudemd -> slashcommands -> subagents. Skills must install before claudemd because CLAUDE.md generation reads from the installed skills directory.
 
-`metadata.ts` provides CRUD operations for `nori.json` manifests: `readSkillsetMetadata`, `writeSkillsetMetadata`, `addSkillToNoriJson`, and `ensureNoriJson`. The `ensureNoriJson` function is a backwards-compatibility shim that auto-generates a `nori.json` for directories that look like skillsets (have `CLAUDE.md` or both `skills/` and `subagents/` subdirectories) but lack a manifest.
+Skillset metadata CRUD operations (`readSkillsetMetadata`, `writeSkillsetMetadata`, `addSkillToNoriJson`, `ensureNoriJson`) have been extracted to @/src/cli/features/skillsetMetadata.ts. These functions were previously in `metadata.ts` within this directory.
 
 `manifest.ts` implements file-level change tracking using SHA-256 hashes. It computes manifests of installed files, stores them at `~/.nori/installed-manifest.json`, and compares against current disk state to detect modifications, additions, and deletions. It whitelists specific managed files (`CLAUDE.md`, `settings.json`, `nori-statusline.sh`) and directories (`skills`, `commands`, `agents`) while excluding metadata files (`.nori-version`, `nori.json`).
 
@@ -93,7 +93,7 @@ The `ProfileLoaderRegistry` enforces that skills install before CLAUDE.md. The m
 
 **nori.json as validation marker**: A directory is only a valid profile if it contains `nori.json`. The `nori.json` file serves as both the unified profile manifest and the skillset presence marker. `CLAUDE.md` files in profiles are purely behavioral instructions content, not structural markers. For user-created skillsets that lack `nori.json`, the `ensureNoriJson()` shim auto-creates the manifest on the fly before each validation check, so these directories become valid profiles transparently.
 
-**Template placeholders in skillset files**: Source markdown files use placeholders like `{{skills_dir}}` instead of hardcoded paths. Template substitution is applied by sub-loaders during installation via @/src/cli/features/claude-code/template.ts. The `substituteTemplatePaths()` function in template.ts expects its `installDir` parameter to be the `.claude` directory (e.g., `~/.claude`), NOT the `Config.installDir` value which is the parent directory (e.g., `~`). All callers must compute the `.claude` directory first using `getClaudeDir({ installDir: config.installDir })` from @/src/cli/features/claude-code/paths.ts before passing it to template substitution functions.
+**Template placeholders in skillset files**: Source markdown files use placeholders like `{{skills_dir}}` instead of hardcoded paths. Template substitution is applied by sub-loaders during installation via @/src/cli/features/template.ts. The `substituteTemplatePaths()` function in template.ts expects its `installDir` parameter to be the `.claude` directory (e.g., `~/.claude`), NOT the `Config.installDir` value which is the parent directory (e.g., `~`). All callers must compute the `.claude` directory first using `getClaudeDir({ installDir: config.installDir })` from @/src/cli/features/claude-code/paths.ts before passing it to template substitution functions.
 
 **Managed block marker idempotency**: The `insertClaudeMd()` function in @/src/cli/features/claude-code/skillsets/claudemd/loader.ts strips any existing `# BEGIN NORI-AI MANAGED BLOCK` and `# END NORI-AI MANAGED BLOCK` markers from profile CLAUDE.md content before wrapping it with fresh markers. This ensures the final installed `~/.claude/CLAUDE.md` always has exactly one set of markers, even when the skillset content was created by `captureExistingConfigAsSkillset()` (which adds markers during capture). Without this stripping, captured skillsets would end up with double-nested markers.
 

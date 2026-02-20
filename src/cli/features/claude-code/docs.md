@@ -4,7 +4,7 @@ Path: @/src/cli/features/claude-code
 
 ### Overview
 
-The Claude Code agent implementation. This directory contains the `Agent` interface implementation for Claude Code, along with path utilities, template substitution, config capture, factory reset, and the `LoaderRegistry` that orchestrates feature installation.
+The Claude Code agent implementation. This directory contains the `Agent` interface implementation for Claude Code, along with Claude-Code-specific path utilities, config capture, factory reset, and the `LoaderRegistry` that orchestrates feature installation. Agent-agnostic utilities (Nori directory paths, template substitution, skillset metadata) have been extracted to @/src/cli/features/.
 
 ### How it fits into the larger codebase
 
@@ -13,6 +13,7 @@ The Claude Code agent implementation. This directory contains the `Agent` interf
 The `claudeCodeAgent` object in agent.ts provides:
 - `name`: "claude-code"
 - `displayName`: "Claude Code"
+- `getAgentDir({ installDir })`: Returns `{installDir}/.claude` -- the Claude Code config directory path. Implements the `Agent` interface method from @/src/cli/features/agentRegistry.ts.
 - `getManagedFiles()`: Returns `["CLAUDE.md", "settings.json", "nori-statusline.sh"]` -- the root-level files within `~/.claude/` that this agent installs and tracks
 - `getManagedDirs()`: Returns `["skills", "commands", "agents"]` -- the directories within `~/.claude/` whose contents this agent installs and tracks recursively
 - `getLoaderRegistry()`: Returns the LoaderRegistry singleton with all Claude Code loaders
@@ -35,7 +36,7 @@ Each loader implements the `Loader` interface with a `run()` method. The shared 
 
 ### Core Implementation
 
-The agent detects installation by checking for a `.nori-managed` marker file in `.claude/`, falling back to checking `CLAUDE.md` for a `NORI-AI MANAGED BLOCK` string for backwards compatibility. `paths.ts` centralizes all path computations, distinguishing between the install directory (`{installDir}/.claude/`) and the home directory (`~/.claude/`) -- hooks and statusline write to `~/.claude/settings.json` so they work from any subdirectory, while skillset-specific config (skills, CLAUDE.md, commands, agents) writes to the install directory. `template.ts` performs placeholder substitution (`{{skills_dir}}`, `{{profiles_dir}}`, `{{commands_dir}}`, `{{install_dir}}`) in skillset content, with support for escaping via backtick wrapping. `existingConfigCapture.ts` detects pre-existing unmanaged Claude Code config and can capture it as a named skillset. `factoryReset.ts` walks the ancestor directory tree to find and remove all `.claude/` directories and `CLAUDE.md` files.
+The agent detects installation by checking for a `.nori-managed` marker file in `.claude/`, falling back to checking `CLAUDE.md` for a `NORI-AI MANAGED BLOCK` string for backwards compatibility. `paths.ts` centralizes Claude-Code-specific path computations (e.g., `getClaudeDir`, `getClaudeSettingsFile`, `getClaudeHomeDir`), distinguishing between the install directory (`{installDir}/.claude/`) and the home directory (`~/.claude/`) -- hooks and statusline write to `~/.claude/settings.json` so they work from any subdirectory, while skillset-specific config writes to the install directory. Agent-agnostic paths (`getNoriDir`, `getNoriSkillsetsDir`) now live in @/src/cli/features/paths.ts, and template substitution (`substituteTemplatePaths`) now lives in @/src/cli/features/template.ts. `existingConfigCapture.ts` detects pre-existing unmanaged Claude Code config and can capture it as a named skillset. `factoryReset.ts` walks the ancestor directory tree to find and remove all `.claude/` directories and `CLAUDE.md` files.
 
 ### Things to Know
 

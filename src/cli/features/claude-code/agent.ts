@@ -14,13 +14,11 @@ import {
 } from "@/cli/features/claude-code/existingConfigCapture.js";
 import { factoryResetClaudeCode } from "@/cli/features/claude-code/factoryReset.js";
 import { LoaderRegistry } from "@/cli/features/claude-code/loaderRegistry.js";
-import {
-  getClaudeMdFile,
-  getNoriSkillsetsDir,
-} from "@/cli/features/claude-code/paths.js";
+import { getClaudeMdFile } from "@/cli/features/claude-code/paths.js";
 import { claudeMdLoader } from "@/cli/features/claude-code/skillsets/claudemd/loader.js";
-import { ensureNoriJson } from "@/cli/features/claude-code/skillsets/metadata.js";
 import { MANIFEST_FILE } from "@/cli/features/managedFolder.js";
+import { getNoriSkillsetsDir } from "@/cli/features/paths.js";
+import { ensureNoriJson } from "@/cli/features/skillsetMetadata.js";
 import { success, info } from "@/cli/logger.js";
 
 import type { Agent } from "@/cli/features/agentRegistry.js";
@@ -31,6 +29,11 @@ import type { Agent } from "@/cli/features/agentRegistry.js";
 export const claudeCodeAgent: Agent = {
   name: "claude-code",
   displayName: "Claude Code",
+
+  getAgentDir: (args: { installDir: string }): string => {
+    const { installDir } = args;
+    return path.join(installDir, ".claude");
+  },
 
   getManagedFiles: () => ["CLAUDE.md", "settings.json", "nori-statusline.sh"],
   getManagedDirs: () => ["skills", "commands", "agents"],

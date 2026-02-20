@@ -13,7 +13,7 @@ import {
   writeSkillsetMetadata,
   addSkillToNoriJson,
   ensureNoriJson,
-} from "./metadata.js";
+} from "@/cli/features/skillsetMetadata.js";
 
 describe("writeSkillsetMetadata", () => {
   let skillsetDir: string;

@@ -1,5 +1,6 @@
 /**
  * Skillset metadata utilities
+ * Agent-agnostic functions for reading and writing skillset nori.json manifests
  */
 
 import * as fs from "fs/promises";

@@ -15,15 +15,13 @@ import {
 } from "@/cli/commands/cliCommandNames.js";
 import { createEmptySkillset } from "@/cli/commands/new-skillset/newSkillset.js";
 import { loadConfig, getActiveSkillset } from "@/cli/config.js";
-import {
-  getClaudeSkillsDir,
-  getNoriSkillsetsDir,
-} from "@/cli/features/claude-code/paths.js";
+import { getClaudeSkillsDir } from "@/cli/features/claude-code/paths.js";
+import { getNoriSkillsetsDir } from "@/cli/features/paths.js";
 import {
   addSkillToNoriJson,
   ensureNoriJson,
-} from "@/cli/features/claude-code/skillsets/metadata.js";
-import { substituteTemplatePaths } from "@/cli/features/claude-code/template.js";
+} from "@/cli/features/skillsetMetadata.js";
+import { substituteTemplatePaths } from "@/cli/features/template.js";
 import { promptSkillTypes } from "@/cli/prompts/flows/externalSkillType.js";
 import { resolveInstallDir } from "@/utils/path.js";
 

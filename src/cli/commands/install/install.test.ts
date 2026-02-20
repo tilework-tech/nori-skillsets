@@ -15,7 +15,6 @@ import { noninteractive } from "./install.js";
 // Mock paths module to use test directory
 vi.mock("@/cli/features/claude-code/paths.js", () => {
   const testClaudeDir = "/tmp/install-test-claude";
-  const testNoriDir = "/tmp/install-test-nori";
   return {
     getClaudeDir: (_args: { installDir: string }) => testClaudeDir,
     getClaudeSettingsFile: (_args: { installDir: string }) =>
@@ -33,9 +32,14 @@ vi.mock("@/cli/features/claude-code/paths.js", () => {
       `${testClaudeDir}/skills`,
     getClaudeSkillsetsDir: (_args: { installDir: string }) =>
       `${testClaudeDir}/profiles`,
+  };
+});
+
+vi.mock("@/cli/features/paths.js", () => {
+  const testNoriDir = "/tmp/install-test-nori";
+  return {
     getNoriDir: () => testNoriDir,
     getNoriSkillsetsDir: () => `${testNoriDir}/profiles`,
-    getNoriConfigFile: () => `${testNoriDir}/config.json`,
   };
 });
 

@@ -7,11 +7,9 @@ import * as fs from "fs/promises";
 import * as path from "path";
 
 import { type Config } from "@/cli/config.js";
-import {
-  getNoriSkillsetsDir,
-  getClaudeSettingsFile,
-} from "@/cli/features/claude-code/paths.js";
+import { getClaudeSettingsFile } from "@/cli/features/claude-code/paths.js";
 import { ProfileLoaderRegistry } from "@/cli/features/claude-code/skillsets/skillsetLoaderRegistry.js";
+import { getNoriSkillsetsDir } from "@/cli/features/paths.js";
 import { success, info } from "@/cli/logger.js";
 
 import type { Loader } from "@/cli/features/agentRegistry.js";

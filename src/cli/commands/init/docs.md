@@ -8,7 +8,7 @@ The init command performs first-time setup of the Nori environment. It creates t
 
 ### How it fits into the larger codebase
 
-This command is the entry point for new installations and is also called implicitly by the `registry-download` command when no config exists. It interacts with `@/cli/config.js` for loading/saving the global config, `@/cli/features/agentRegistry.js` for agent-specific detection and installation marking, `@/cli/features/claude-code/paths.js` for directory locations, and `@/cli/prompts/flows/init.js` for the interactive setup wizard.
+This command is the entry point for new installations and is also called implicitly by the `registry-download` command when no config exists. It interacts with `@/cli/config.js` for loading/saving the global config, `@/cli/features/agentRegistry.js` for agent-specific detection and installation marking, `@/cli/features/paths.js` for shared Nori directory locations and `@/cli/features/claude-code/paths.js` for Claude-specific paths, and `@/cli/prompts/flows/init.js` for the interactive setup wizard.
 
 ### Core Implementation
 

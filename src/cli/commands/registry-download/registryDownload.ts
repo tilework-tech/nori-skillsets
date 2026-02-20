@@ -26,7 +26,7 @@ import {
 } from "@/cli/commands/cliCommandNames.js";
 import { initMain } from "@/cli/commands/init/init.js";
 import { getRegistryAuth, loadConfig } from "@/cli/config.js";
-import { getNoriSkillsetsDir } from "@/cli/features/claude-code/paths.js";
+import { getNoriSkillsetsDir } from "@/cli/features/paths.js";
 import { registryDownloadFlow } from "@/cli/prompts/flows/index.js";
 import { resolveInstallDir } from "@/utils/path.js";
 import {

@@ -24,6 +24,9 @@ vi.mock("@/cli/features/claude-code/paths.js", () => ({
   getClaudeSkillsDir: () => path.join(mockClaudeDir, "skills"),
   getClaudeAgentsDir: () => path.join(mockClaudeDir, "agents"),
   getClaudeCommandsDir: () => path.join(mockClaudeDir, "commands"),
+}));
+
+vi.mock("@/cli/features/paths.js", () => ({
   getNoriDir: () => mockNoriDir,
   getNoriSkillsetsDir: () => path.join(mockNoriDir, "profiles"),
 }));

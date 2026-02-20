@@ -22,7 +22,7 @@ import {
   type Config,
 } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
-import { getNoriSkillsetsDir } from "@/cli/features/claude-code/paths.js";
+import { getNoriSkillsetsDir } from "@/cli/features/paths.js";
 import { initFlow } from "@/cli/prompts/flows/init.js";
 import { getCurrentPackageVersion } from "@/cli/version.js";
 import { normalizeInstallDir } from "@/utils/path.js";
