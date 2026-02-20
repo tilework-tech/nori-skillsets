@@ -17,6 +17,7 @@ import {
   compareManifest,
   getManifestPath,
   hasChanges,
+  removeManagedFiles,
   MANAGED_FILES,
   MANAGED_DIRS,
   EXCLUDED_FILES,
@@ -544,6 +545,127 @@ describe("manifest hasChanges helper", () => {
     for (const diff of diffs) {
       expect(hasChanges(diff)).toBe(true);
     }
+  });
+});
+
+describe("removeManagedFiles", () => {
+  let tempDir: string;
+
+  beforeEach(async () => {
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "manifest-remove-"));
+  });
+
+  afterEach(async () => {
+    await fs.rm(tempDir, { recursive: true, force: true });
+  });
+
+  it("should remove all files listed in the manifest", async () => {
+    // Set up a claude dir with managed files
+    const claudeDir = path.join(tempDir, ".claude");
+    const skillDir = path.join(claudeDir, "skills", "my-skill");
+    await fs.mkdir(skillDir, { recursive: true });
+    await fs.writeFile(path.join(claudeDir, "CLAUDE.md"), "managed content");
+    await fs.writeFile(path.join(claudeDir, "settings.json"), "{}");
+    await fs.writeFile(path.join(skillDir, "SKILL.md"), "skill content");
+
+    // Create a manifest matching these files
+    const manifest = await computeDirectoryManifest({
+      dir: claudeDir,
+      skillsetName: "test-skillset",
+    });
+    const manifestPath = path.join(tempDir, "manifest.json");
+    await writeManifest({ manifestPath, manifest });
+
+    await removeManagedFiles({ claudeDir, manifestPath });
+
+    // All managed files should be gone
+    await expect(
+      fs.access(path.join(claudeDir, "CLAUDE.md")),
+    ).rejects.toThrow();
+    await expect(
+      fs.access(path.join(claudeDir, "settings.json")),
+    ).rejects.toThrow();
+    await expect(fs.access(path.join(skillDir, "SKILL.md"))).rejects.toThrow();
+  });
+
+  it("should remove the .nori-managed marker file", async () => {
+    const claudeDir = path.join(tempDir, ".claude");
+    await fs.mkdir(claudeDir, { recursive: true });
+    await fs.writeFile(path.join(claudeDir, "CLAUDE.md"), "content");
+    await fs.writeFile(path.join(claudeDir, ".nori-managed"), "test-skillset");
+
+    const manifest = await computeDirectoryManifest({
+      dir: claudeDir,
+      skillsetName: "test-skillset",
+    });
+    const manifestPath = path.join(tempDir, "manifest.json");
+    await writeManifest({ manifestPath, manifest });
+
+    await removeManagedFiles({ claudeDir, manifestPath });
+
+    await expect(
+      fs.access(path.join(claudeDir, ".nori-managed")),
+    ).rejects.toThrow();
+  });
+
+  it("should preserve non-managed files in the .claude directory", async () => {
+    const claudeDir = path.join(tempDir, ".claude");
+    await fs.mkdir(claudeDir, { recursive: true });
+    await fs.writeFile(path.join(claudeDir, "CLAUDE.md"), "managed");
+    await fs.writeFile(path.join(claudeDir, "keybindings.json"), "user file");
+
+    const manifest = await computeDirectoryManifest({
+      dir: claudeDir,
+      skillsetName: "test-skillset",
+    });
+    const manifestPath = path.join(tempDir, "manifest.json");
+    await writeManifest({ manifestPath, manifest });
+
+    await removeManagedFiles({ claudeDir, manifestPath });
+
+    // Non-managed file should still exist
+    const content = await fs.readFile(
+      path.join(claudeDir, "keybindings.json"),
+      "utf-8",
+    );
+    expect(content).toBe("user file");
+  });
+
+  it("should clean up empty managed directories after file removal", async () => {
+    const claudeDir = path.join(tempDir, ".claude");
+    const skillDir = path.join(claudeDir, "skills", "my-skill");
+    await fs.mkdir(skillDir, { recursive: true });
+    await fs.writeFile(path.join(skillDir, "SKILL.md"), "content");
+
+    const manifest = await computeDirectoryManifest({
+      dir: claudeDir,
+      skillsetName: "test-skillset",
+    });
+    const manifestPath = path.join(tempDir, "manifest.json");
+    await writeManifest({ manifestPath, manifest });
+
+    await removeManagedFiles({ claudeDir, manifestPath });
+
+    // The empty skills directory tree should be cleaned up
+    await expect(fs.access(path.join(claudeDir, "skills"))).rejects.toThrow();
+  });
+
+  it("should not fail when manifest does not exist", async () => {
+    const claudeDir = path.join(tempDir, ".claude");
+    await fs.mkdir(claudeDir, { recursive: true });
+    await fs.writeFile(path.join(claudeDir, "CLAUDE.md"), "content");
+
+    const manifestPath = path.join(tempDir, "nonexistent-manifest.json");
+
+    // Should not throw
+    await removeManagedFiles({ claudeDir, manifestPath });
+
+    // File should still exist since there was no manifest to guide removal
+    const content = await fs.readFile(
+      path.join(claudeDir, "CLAUDE.md"),
+      "utf-8",
+    );
+    expect(content).toBe("content");
   });
 });
 
