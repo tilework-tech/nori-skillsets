@@ -308,6 +308,49 @@ describe("AgentRegistry", () => {
     });
   });
 
+  describe("findArtifacts", () => {
+    let tempDir: string;
+
+    beforeEach(async () => {
+      tempDir = await fs.mkdtemp(path.join(tmpdir(), "agent-artifacts-test-"));
+    });
+
+    afterEach(async () => {
+      await fs.rm(tempDir, { recursive: true, force: true });
+    });
+
+    test("claude-code agent finds .claude directories and CLAUDE.md files", async () => {
+      const registry = AgentRegistry.getInstance();
+      const agent = registry.get({ name: "claude-code" });
+
+      // Create a .claude directory
+      const claudeDir = path.join(tempDir, ".claude");
+      await fs.mkdir(claudeDir, { recursive: true });
+
+      // Create a CLAUDE.md file
+      await fs.writeFile(path.join(tempDir, "CLAUDE.md"), "# Config");
+
+      const artifacts = await agent.findArtifacts!({ startDir: tempDir });
+
+      expect(artifacts.length).toBeGreaterThan(0);
+      const paths = artifacts.map((a) => a.path);
+      expect(paths).toContain(claudeDir);
+      expect(paths).toContain(path.join(tempDir, "CLAUDE.md"));
+    });
+
+    test("claude-code agent returns empty array when no artifacts exist", async () => {
+      const registry = AgentRegistry.getInstance();
+      const agent = registry.get({ name: "claude-code" });
+
+      const artifacts = await agent.findArtifacts!({
+        startDir: tempDir,
+        stopDir: tempDir,
+      });
+
+      expect(artifacts).toEqual([]);
+    });
+  });
+
   describe("claude-code agent switchSkillset", () => {
     let testInstallDir: string;
 

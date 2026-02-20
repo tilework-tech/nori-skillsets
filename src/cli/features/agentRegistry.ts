@@ -37,11 +37,20 @@ export type LoaderRegistry = {
 };
 
 /**
+ * Represents a discovered configuration artifact for an agent.
+ * Used by factory reset to show what will be deleted.
+ */
+export type AgentArtifact = {
+  path: string;
+  type: "directory" | "file";
+};
+
+/**
  * Represents detected existing (unmanaged) configuration for an agent.
  * Used during init to show the user what was found before capturing.
  */
 export type ExistingConfig = {
-  hasClaudeMd: boolean;
+  hasConfigFile: boolean;
   hasManagedBlock: boolean;
   hasSkills: boolean;
   skillCount: number;
@@ -61,6 +70,8 @@ export type Agent = {
   displayName: string;
   /** Get the agent's config directory under the install directory */
   getAgentDir: (args: { installDir: string }) => string;
+  /** Get the agent's skills directory under the install directory */
+  getSkillsDir: (args: { installDir: string }) => string;
   /** Get the root-level filenames this agent manages */
   getManagedFiles: () => ReadonlyArray<string>;
   /** Get the directory names this agent manages recursively */
@@ -76,6 +87,15 @@ export type Agent = {
     installDir: string;
     skillsetName: string;
   }) => Promise<void>;
+  /** Get the agent's projects/sessions directory (home-relative) */
+  getProjectsDir?: (() => string) | null;
+  /** Find agent configuration artifacts starting from a directory */
+  findArtifacts?:
+    | ((args: {
+        startDir: string;
+        stopDir?: string | null;
+      }) => Promise<Array<AgentArtifact>>)
+    | null;
   /** Factory reset: remove all agent configuration from the filesystem */
   factoryReset?: ((args: { path: string }) => Promise<void>) | null;
   /** Detect pre-existing unmanaged configuration at the given directory */

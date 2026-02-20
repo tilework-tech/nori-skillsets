@@ -28,7 +28,7 @@ The `readSkillsetMetadata()` function reads and parses skillset metadata from a 
 
 The `addSkillToNoriJson()` function adds or updates a skill dependency in a skillset's `nori.json` under the `dependencies.skills` field, creating a basic manifest if `nori.json` does not exist (using the skillset directory basename as the skillset name, with `type: "skillset"`).
 
-**Installation Manifest (manifest.ts)**: The manifest module (@/src/cli/features/claude-code/skillsets/manifest.ts) tracks installed files for local change detection. The manifest uses a **whitelist approach**: only Nori-managed paths within `~/.claude/` are tracked, ignoring Claude Code's own runtime directories (e.g., `debug/`, `todos/`, `projects/`, `plugins/`).
+**Installation Manifest (manifest.ts)**: The manifest module (@/src/cli/features/manifest.ts) tracks installed files for local change detection. It was extracted from this directory because manifest operations are agent-agnostic. The manifest uses a **whitelist approach**: only Nori-managed paths within `~/.claude/` are tracked, ignoring Claude Code's own runtime directories (e.g., `debug/`, `todos/`, `projects/`, `plugins/`).
 
 | Constant | Values | Purpose |
 |----------|--------|---------|
@@ -166,7 +166,7 @@ The skills loader (@/src/cli/features/claude-code/skillsets/skills/loader.ts) in
 
 The external skill system uses both `skills.json` (legacy dependency format) and `nori.json` `dependencies.skills` (unified format). Skills are downloaded from the Nori registry and stored in the skillset's own `skills/` directory.
 
-The resolver module (@/src/cli/features/claude-code/skillsets/skills/resolver.ts) provides read and write operations for skills.json:
+The resolver module (@/src/cli/features/skillResolver.ts) provides read and write operations for skills.json (extracted from this directory because skill resolution is agent-agnostic):
 - `parseSkillsJson()` - Parse skills.json content into dependency array
 - `readSkillsJson()` - Read and parse skills.json from skillset directory
 - `writeSkillsJson()` - Write skills.json to a skillset directory

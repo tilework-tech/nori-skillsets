@@ -9,20 +9,11 @@ import * as path from "path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
 import {
-  getClaudeProjectsDir,
   getClaudeProjectDir,
   getTranscriptDir,
   getWatchPidFile,
   getWatchLogFile,
 } from "@/cli/commands/watch/paths.js";
-
-describe("getClaudeProjectsDir", () => {
-  test("returns ~/.claude/projects", () => {
-    const result = getClaudeProjectsDir();
-    const expected = path.join(os.homedir(), ".claude", "projects");
-    expect(result).toBe(expected);
-  });
-});
 
 describe("getClaudeProjectDir", () => {
   test("converts simple path to Claude project directory format", () => {

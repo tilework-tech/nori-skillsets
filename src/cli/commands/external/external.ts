@@ -15,7 +15,7 @@ import {
 } from "@/cli/commands/cliCommandNames.js";
 import { createEmptySkillset } from "@/cli/commands/new-skillset/newSkillset.js";
 import { loadConfig, getActiveSkillset } from "@/cli/config.js";
-import { getClaudeSkillsDir } from "@/cli/features/claude-code/paths.js";
+import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { getNoriSkillsetsDir } from "@/cli/features/paths.js";
 import {
   addSkillToNoriJson,
@@ -199,10 +199,11 @@ const installSkill = async (args: {
   }
 
   // Apply template substitution to .md files in the live copy
-  const claudeDir = path.join(installDir, ".claude");
+  const agent = AgentRegistry.getInstance().getAll()[0];
+  const agentDir = agent.getAgentDir({ installDir });
   await applyTemplateSubstitutionToDir({
     dir: targetDir,
-    installDir: claudeDir,
+    installDir: agentDir,
   });
 
   log.success(`Installed skill "${skill.name}" from GitHub`);
@@ -356,7 +357,8 @@ export const externalMain = async (args: {
     }
   }
 
-  const skillsDir = getClaudeSkillsDir({ installDir: targetInstallDir });
+  const defaultAgent = AgentRegistry.getInstance().getAll()[0];
+  const skillsDir = defaultAgent.getSkillsDir({ installDir: targetInstallDir });
   await fs.mkdir(skillsDir, { recursive: true });
 
   // 4. Clone repository

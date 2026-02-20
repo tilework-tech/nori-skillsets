@@ -44,4 +44,5 @@ It is vital that it is really easy to port skillsets to a specific agent and a p
 - removing a skillset for an agent at a given dir
 - adding a skillset for an agent at a given dir
 - tracking local changes for an agent at a given dir and then flagging that to a user on a switch
+- watching transcripts come in from different agents using the watch command
 and so on.

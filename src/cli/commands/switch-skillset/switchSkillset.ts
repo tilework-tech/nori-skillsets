@@ -12,7 +12,7 @@ import {
   type Config,
 } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
-import { getClaudeDir } from "@/cli/features/claude-code/paths.js";
+import { listSkillsets } from "@/cli/features/managedFolder.js";
 import {
   readManifest,
   compareManifest,
@@ -20,8 +20,7 @@ import {
   getManifestPath,
   getLegacyManifestPath,
   type ManifestDiff,
-} from "@/cli/features/claude-code/skillsets/manifest.js";
-import { listSkillsets } from "@/cli/features/managedFolder.js";
+} from "@/cli/features/manifest.js";
 import { setSilentMode, isSilentMode } from "@/cli/logger.js";
 import { switchSkillsetFlow } from "@/cli/prompts/flows/switchSkillset.js";
 import { resolveInstallDir } from "@/utils/path.js";
@@ -56,10 +55,10 @@ const detectLocalChanges = async (args: {
     return null;
   }
 
-  const claudeDir = getClaudeDir({ installDir });
+  const agentDir = agent.getAgentDir({ installDir });
   const diff = await compareManifest({
     manifest,
-    currentDir: claudeDir,
+    currentDir: agentDir,
     managedFiles: agent.getManagedFiles(),
     managedDirs: agent.getManagedDirs(),
   });

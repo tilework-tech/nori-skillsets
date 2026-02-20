@@ -24,7 +24,7 @@ import {
 import { bold, brightCyan, green } from "@/cli/logger.js";
 import { validateSkillsetName } from "@/cli/prompts/validators.js";
 
-import type { ManifestDiff } from "@/cli/features/claude-code/skillsets/manifest.js";
+import type { ManifestDiff } from "@/cli/features/manifest.js";
 
 import { unwrapPrompt } from "./utils.js";
 

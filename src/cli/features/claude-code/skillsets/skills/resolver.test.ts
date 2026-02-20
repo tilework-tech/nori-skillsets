@@ -16,7 +16,7 @@ import {
   writeSkillsJson,
   addSkillDependency,
   type SkillsJson,
-} from "./resolver.js";
+} from "@/cli/features/skillResolver.js";
 
 describe("skills.json parsing", () => {
   describe("parseSkillsJson", () => {

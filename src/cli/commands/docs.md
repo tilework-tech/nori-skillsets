@@ -31,7 +31,7 @@ The CLI entry point delegates to `noriSkillsetsCommands.ts`, which registers eve
 3. **Confirm switch**: Prompts user to confirm the skillset switch
 4. **Execute switch**: In non-interactive mode, broadcasts the switch to all configured `defaultAgents` (loops over all agents). In interactive mode, delegates to `switchSkillsetFlow` which broadcasts to all resolved agents
 
-The change detection uses the manifest module from @/src/cli/features/claude-code/skillsets/manifest.ts.
+The change detection uses the manifest module from @/src/cli/features/manifest.ts.
 
 **watch** (@/src/cli/commands/watch/): Monitors Claude Code sessions by tailing transcript files. Supports `watch` (start) and `watch stop` (stop daemon).
 

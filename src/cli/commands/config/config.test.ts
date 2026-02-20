@@ -46,7 +46,7 @@ vi.mock("@/cli/commands/install/install.js", () => ({
 }));
 
 // Mock removeManagedFiles
-vi.mock("@/cli/features/claude-code/skillsets/manifest.js", () => ({
+vi.mock("@/cli/features/manifest.js", () => ({
   removeManagedFiles: vi.fn(),
   getManifestPath: vi
     .fn()
@@ -67,6 +67,11 @@ vi.mock("@/cli/features/agentRegistry.js", () => ({
       get: vi.fn().mockReturnValue({
         name: "claude-code",
         displayName: "Claude Code",
+        getAgentDir: vi
+          .fn()
+          .mockImplementation(
+            (args: { installDir: string }) => `${args.installDir}/.claude`,
+          ),
         getManagedFiles: vi
           .fn()
           .mockReturnValue([
@@ -223,8 +228,7 @@ describe("configMain installDir change prompts", () => {
   it("should prompt to clean up old directory when installDir changes", async () => {
     const { configFlow } = await import("@/cli/prompts/flows/config.js");
     const { confirmAction } = await import("@/cli/prompts/confirm.js");
-    const { removeManagedFiles } =
-      await import("@/cli/features/claude-code/skillsets/manifest.js");
+    const { removeManagedFiles } = await import("@/cli/features/manifest.js");
 
     vi.mocked(configFlow).mockResolvedValueOnce({
       defaultAgents: ["claude-code"],
@@ -247,7 +251,7 @@ describe("configMain installDir change prompts", () => {
 
     expect(removeManagedFiles).toHaveBeenCalledWith(
       expect.objectContaining({
-        claudeDir: path.join(oldInstallDir, ".claude"),
+        agentDir: path.join(oldInstallDir, ".claude"),
       }),
     );
   });
@@ -257,8 +261,7 @@ describe("configMain installDir change prompts", () => {
     const { confirmAction } = await import("@/cli/prompts/confirm.js");
     const { main: installMain } =
       await import("@/cli/commands/install/install.js");
-    const { removeManagedFiles } =
-      await import("@/cli/features/claude-code/skillsets/manifest.js");
+    const { removeManagedFiles } = await import("@/cli/features/manifest.js");
 
     vi.mocked(configFlow).mockResolvedValueOnce({
       defaultAgents: ["claude-code"],
@@ -331,8 +334,7 @@ describe("configMain installDir change prompts", () => {
     const { confirmAction } = await import("@/cli/prompts/confirm.js");
     const { main: installMain } =
       await import("@/cli/commands/install/install.js");
-    const { removeManagedFiles } =
-      await import("@/cli/features/claude-code/skillsets/manifest.js");
+    const { removeManagedFiles } = await import("@/cli/features/manifest.js");
 
     vi.mocked(configFlow).mockResolvedValueOnce({
       defaultAgents: ["claude-code"],

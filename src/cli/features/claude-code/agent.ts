@@ -12,7 +12,10 @@ import {
   detectExistingConfig,
   captureExistingConfigAsSkillset,
 } from "@/cli/features/claude-code/existingConfigCapture.js";
-import { factoryResetClaudeCode } from "@/cli/features/claude-code/factoryReset.js";
+import {
+  factoryResetClaudeCode,
+  findClaudeCodeArtifacts,
+} from "@/cli/features/claude-code/factoryReset.js";
 import { LoaderRegistry } from "@/cli/features/claude-code/loaderRegistry.js";
 import { getClaudeMdFile } from "@/cli/features/claude-code/paths.js";
 import { claudeMdLoader } from "@/cli/features/claude-code/skillsets/claudemd/loader.js";
@@ -20,6 +23,7 @@ import { MANIFEST_FILE } from "@/cli/features/managedFolder.js";
 import { getNoriSkillsetsDir } from "@/cli/features/paths.js";
 import { ensureNoriJson } from "@/cli/features/skillsetMetadata.js";
 import { success, info } from "@/cli/logger.js";
+import { getHomeDir } from "@/utils/home.js";
 
 import type { Agent } from "@/cli/features/agentRegistry.js";
 
@@ -35,12 +39,23 @@ export const claudeCodeAgent: Agent = {
     return path.join(installDir, ".claude");
   },
 
+  getSkillsDir: (args: { installDir: string }): string => {
+    const { installDir } = args;
+    return path.join(installDir, ".claude", "skills");
+  },
+
   getManagedFiles: () => ["CLAUDE.md", "settings.json", "nori-statusline.sh"],
   getManagedDirs: () => ["skills", "commands", "agents"],
 
   getLoaderRegistry: () => {
     return LoaderRegistry.getInstance();
   },
+
+  getProjectsDir: (): string => {
+    return path.join(getHomeDir(), ".claude", "projects");
+  },
+
+  findArtifacts: findClaudeCodeArtifacts,
 
   factoryReset: factoryResetClaudeCode,
 

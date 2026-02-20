@@ -9,7 +9,6 @@ import * as fs from "fs/promises";
 import { log } from "@clack/prompts";
 
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
-import { findClaudeCodeArtifacts } from "@/cli/features/claude-code/factoryReset.js";
 import { factoryResetFlow } from "@/cli/prompts/flows/factoryReset.js";
 
 /**
@@ -49,7 +48,10 @@ export const factoryResetMain = async (args: {
     path: effectivePath,
     callbacks: {
       onFindArtifacts: async ({ path }) => {
-        const artifacts = await findClaudeCodeArtifacts({ startDir: path });
+        if (agent.findArtifacts == null) {
+          return { artifacts: [] };
+        }
+        const artifacts = await agent.findArtifacts({ startDir: path });
         return { artifacts };
       },
       onDeleteArtifacts: async ({ artifacts }) => {

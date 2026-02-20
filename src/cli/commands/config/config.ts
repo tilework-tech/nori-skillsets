@@ -16,12 +16,11 @@ import {
   saveConfig,
 } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
-import { getClaudeDir } from "@/cli/features/claude-code/paths.js";
 import {
   getManifestPath,
   getLegacyManifestPath,
   removeManagedFiles,
-} from "@/cli/features/claude-code/skillsets/manifest.js";
+} from "@/cli/features/manifest.js";
 import { confirmAction } from "@/cli/prompts/confirm.js";
 import { configFlow } from "@/cli/prompts/flows/config.js";
 import { normalizeInstallDir } from "@/utils/path.js";
@@ -127,20 +126,24 @@ export const configMain = async (): Promise<void> => {
 
     // Clean up old directory first (while manifest still reflects old dir)
     if (shouldCleanup) {
-      const claudeDir = getClaudeDir({ installDir: oldInstallDir });
       const agentNames = getDefaultAgents({ config: existingConfig });
       for (const agentName of agentNames) {
         const agent = AgentRegistry.getInstance().get({ name: agentName });
+        const agentDir = agent.getAgentDir({ installDir: oldInstallDir });
         const manifestPath = getManifestPath({ agentName });
         await removeManagedFiles({
-          claudeDir,
+          agentDir,
           manifestPath,
           managedDirs: agent.getManagedDirs(),
         });
       }
       // Also try cleaning up legacy manifest
       const legacyPath = getLegacyManifestPath();
-      await removeManagedFiles({ claudeDir, manifestPath: legacyPath });
+      const firstAgent = AgentRegistry.getInstance().get({
+        name: agentNames[0],
+      });
+      const agentDir = firstAgent.getAgentDir({ installDir: oldInstallDir });
+      await removeManagedFiles({ agentDir, manifestPath: legacyPath });
       log.info(`Removed Nori configuration from "${oldInstallDir}".`);
     }
 

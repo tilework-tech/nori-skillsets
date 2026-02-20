@@ -26,12 +26,11 @@ import {
   type Config,
 } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
-import { getClaudeDir } from "@/cli/features/claude-code/paths.js";
 import {
   computeDirectoryManifest,
   writeManifest,
   getManifestPath,
-} from "@/cli/features/claude-code/skillsets/manifest.js";
+} from "@/cli/features/manifest.js";
 import {
   buildCLIEventParams,
   getUserId,
@@ -138,12 +137,12 @@ const writeInstalledManifest = async (args: {
     return;
   }
 
-  const claudeDir = getClaudeDir({ installDir: config.installDir });
+  const agentDir = agent.getAgentDir({ installDir: config.installDir });
   const manifestPath = getManifestPath({ agentName: agent.name });
 
   try {
     const manifest = await computeDirectoryManifest({
-      dir: claudeDir,
+      dir: agentDir,
       skillsetName,
       managedFiles: agent.getManagedFiles(),
       managedDirs: agent.getManagedDirs(),

@@ -11,15 +11,6 @@ import * as path from "path";
 import { getHomeDir } from "@/utils/home.js";
 
 /**
- * Get the Claude Code projects directory
- *
- * @returns Path to ~/.claude/projects
- */
-export const getClaudeProjectsDir = (): string => {
-  return path.join(getHomeDir(), ".claude", "projects");
-};
-
-/**
  * Convert a working directory path to Claude's project directory name format
  *
  * Claude Code uses a specific naming convention: replace all non-alphanumeric

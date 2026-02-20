@@ -83,7 +83,7 @@ describe("existingConfigCapture", () => {
       const result = await detectExistingConfig({ installDir: tempDir });
 
       expect(result).not.toBeNull();
-      expect(result!.hasClaudeMd).toBe(true);
+      expect(result!.hasConfigFile).toBe(true);
       expect(result!.hasManagedBlock).toBe(false);
     });
 
@@ -103,7 +103,7 @@ More custom content.`,
       const result = await detectExistingConfig({ installDir: tempDir });
 
       expect(result).not.toBeNull();
-      expect(result!.hasClaudeMd).toBe(true);
+      expect(result!.hasConfigFile).toBe(true);
       expect(result!.hasManagedBlock).toBe(true);
     });
 
@@ -285,7 +285,7 @@ More custom content.`,
       const result = await detectExistingConfig({ installDir: tempDir });
 
       expect(result).not.toBeNull();
-      expect(result!.hasClaudeMd).toBe(true);
+      expect(result!.hasConfigFile).toBe(true);
       expect(result!.hasManagedBlock).toBe(true);
       expect(result!.hasSkills).toBe(true);
       expect(result!.skillCount).toBe(2);

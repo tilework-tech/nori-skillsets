@@ -66,7 +66,7 @@ const buildExistingConfigSummary = (args: {
   const { config } = args;
   const lines: Array<string> = [];
 
-  if (config.hasClaudeMd) {
+  if (config.hasConfigFile) {
     lines.push("CLAUDE.md found");
   }
   if (config.hasSkills) {

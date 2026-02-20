@@ -21,7 +21,7 @@ import {
   EXCLUDED_FILES,
   type FileManifest,
   type ManifestDiff,
-} from "./manifest.js";
+} from "@/cli/features/manifest.js";
 
 describe("manifest", () => {
   let tempDir: string;
@@ -640,7 +640,7 @@ describe("removeManagedFiles", () => {
     const manifestPath = path.join(tempDir, "manifest.json");
     await writeManifest({ manifestPath, manifest });
 
-    await removeManagedFiles({ claudeDir, manifestPath });
+    await removeManagedFiles({ agentDir: claudeDir, manifestPath });
 
     // All managed files should be gone
     await expect(
@@ -665,7 +665,7 @@ describe("removeManagedFiles", () => {
     const manifestPath = path.join(tempDir, "manifest.json");
     await writeManifest({ manifestPath, manifest });
 
-    await removeManagedFiles({ claudeDir, manifestPath });
+    await removeManagedFiles({ agentDir: claudeDir, manifestPath });
 
     await expect(
       fs.access(path.join(claudeDir, ".nori-managed")),
@@ -685,7 +685,7 @@ describe("removeManagedFiles", () => {
     const manifestPath = path.join(tempDir, "manifest.json");
     await writeManifest({ manifestPath, manifest });
 
-    await removeManagedFiles({ claudeDir, manifestPath });
+    await removeManagedFiles({ agentDir: claudeDir, manifestPath });
 
     // Non-managed file should still exist
     const content = await fs.readFile(
@@ -708,7 +708,7 @@ describe("removeManagedFiles", () => {
     const manifestPath = path.join(tempDir, "manifest.json");
     await writeManifest({ manifestPath, manifest });
 
-    await removeManagedFiles({ claudeDir, manifestPath });
+    await removeManagedFiles({ agentDir: claudeDir, manifestPath });
 
     // The empty skills directory tree should be cleaned up
     await expect(fs.access(path.join(claudeDir, "skills"))).rejects.toThrow();
@@ -722,7 +722,7 @@ describe("removeManagedFiles", () => {
     const manifestPath = path.join(tempDir, "nonexistent-manifest.json");
 
     // Should not throw
-    await removeManagedFiles({ claudeDir, manifestPath });
+    await removeManagedFiles({ agentDir: claudeDir, manifestPath });
 
     // File should still exist since there was no manifest to guide removal
     const content = await fs.readFile(

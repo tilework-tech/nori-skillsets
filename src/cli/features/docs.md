@@ -59,7 +59,7 @@ The init command (@/src/cli/commands/init/) uses `getDefaultAgent()` from @/src/
 | `AgentName` | Type alias for the canonical agent identifier `"claude-code"`. Used as the registry key and source of truth for agent identity. |
 | `Loader` | Interface for feature installation with `name`, `description`, and `run()` methods |
 | `LoaderRegistry` | Interface that agent-specific registry classes must implement (`getAll()`) |
-| `ExistingConfig` | Object describing detected unmanaged configuration (hasClaudeMd, hasManagedBlock, hasSkills, skillCount, hasAgents, agentCount, hasCommands, commandCount). Returned by `detectExistingConfig` and used by init command to show users what was found. Canonical definition in agentRegistry.ts, re-exported from @/src/cli/commands/install/existingConfigCapture.ts for backward compatibility. |
+| `ExistingConfig` | Object describing detected unmanaged configuration (hasConfigFile, hasManagedBlock, hasSkills, skillCount, hasAgents, agentCount, hasCommands, commandCount). Returned by `detectExistingConfig` and used by init command to show users what was found. Canonical definition in agentRegistry.ts, re-exported from @/src/cli/commands/install/existingConfigCapture.ts for backward compatibility. |
 
 **Agent Interface** (agentRegistry.ts):
 - `name`: `AgentName` - canonical identifier used as the registry key ("claude-code")

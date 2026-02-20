@@ -17,14 +17,30 @@ Changes:
 - Moved test files for metadata and template to new shared locations
 - Updated 6 docs.md files
 
+### Commit 2: Replace hardcoded claude-code references in CLI commands
+
+**Refactor A progress:** CLI commands no longer import claude-code-specific paths directly. They use the Agent interface from `agentRegistry.ts` instead.
+
+Changes:
+- Added `AgentArtifact` type, `getSkillsDir()`, `getProjectsDir?()`, `findArtifacts?()` to Agent interface in `agentRegistry.ts`
+- Renamed `ExistingConfig.hasClaudeMd` → `hasConfigFile` (agent-agnostic name)
+- Implemented new methods on claude-code agent (`agent.ts`)
+- Relocated `manifest.ts` from `claude-code/skillsets/manifest.ts` to `src/cli/features/manifest.ts` (renamed `claudeDir` param to `agentDir` in `removeManagedFiles`)
+- Relocated `skillResolver.ts` from `claude-code/skillsets/skills/resolver.ts` to `src/cli/features/skillResolver.ts`
+- Deleted old `manifest.ts` and `resolver.ts` source files
+- Updated 7 CLI commands to use agent interface methods instead of hardcoded paths:
+  - `config.ts`, `switchSkillset.ts`, `install.ts` → `agent.getAgentDir()` + shared manifest
+  - `external.ts`, `skillDownload.ts` → `agent.getSkillsDir()` + shared resolver
+  - `factoryReset.ts` → `agent.findArtifacts()`
+  - `watch.ts` → `agent.getProjectsDir()`
+- Removed dead `getClaudeProjectsDir()` from `watch/paths.ts`
+- Updated `init.ts`, `existingConfigCapture.ts` for `hasConfigFile` rename
+- Updated all test mocks and assertions for new import paths and param names
+
 ## Remaining Work
 
-### Refactor A (continued): Replace hardcoded claude-code paths in commands
-- Many CLI commands still import `getClaudeDir` from `claude-code/paths.ts` instead of using `agent.getAgentDir()`
-- The `ExistingConfig` type in `agentRegistry.ts` has claude-specific field names (`hasClaudeMd`, `hasManagedBlock`)
+### Refactor A (continued): Further agent decoupling
 - `AgentName` type is still a literal `"claude-code"` string union
-- Watch command's `getClaudeProjectsDir()` is hardcoded to `~/.claude/projects/`
-- Factory reset module `findClaudeCodeArtifacts` is claude-specific
 
 ### Refactor B: Explicit Skillset types
 - No explicit `Skillset` type exists yet that describes the package structure at `~/.nori/profiles/`

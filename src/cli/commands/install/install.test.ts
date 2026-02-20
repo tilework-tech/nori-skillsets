@@ -77,7 +77,7 @@ vi.mock("@/cli/commands/install/asciiArt.js", () => ({
 }));
 
 // Mock manifest writing
-vi.mock("@/cli/features/claude-code/skillsets/manifest.js", () => ({
+vi.mock("@/cli/features/manifest.js", () => ({
   computeDirectoryManifest: vi.fn().mockResolvedValue({}),
   writeManifest: vi.fn().mockResolvedValue(undefined),
   getManifestPath: vi.fn().mockReturnValue("/mock/manifest.json"),
