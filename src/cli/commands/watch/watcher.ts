@@ -61,11 +61,11 @@ export const createWatcher = (args: {
     followSymlinks: true,
     depth: 10,
     usePolling: true, // More reliable across platforms
-    interval: 100,
-    binaryInterval: 100,
+    interval: 2000, // Poll every 2 seconds (files need to be 30s stale anyway)
+    binaryInterval: 2000,
     awaitWriteFinish: {
-      stabilityThreshold: 100,
-      pollInterval: 50,
+      stabilityThreshold: 2000, // 2s stability is sufficient for stale detection
+      pollInterval: 500,
     },
   });
 

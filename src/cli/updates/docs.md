@@ -4,45 +4,36 @@ Path: @/src/cli/updates
 
 ### Overview
 
-Auto-update check system that uses a stale-while-revalidate pattern to notify users when a newer version of nori-skillsets is available on npm. Provides a CLI prompt at startup and exposes cached version data for consumption by hooks and the statusline.
+The updates module implements auto-update checking for the `nori-skillsets` CLI. It uses a stale-while-revalidate cache pattern: a background fetch refreshes the cached latest version from npm, while the current process reads from the cache to avoid blocking on network requests.
 
 ### How it fits into the larger codebase
 
-- The orchestrator (`checkForUpdateAndPrompt`) is called from @/src/cli/nori-skillsets.ts before `program.parse()`, making it the first user-facing interaction on every CLI invocation.
-- Version data is persisted to `~/.nori/profiles/nori-skillsets-version.json`, which is read (no network) by the SessionStart hook at @/src/cli/features/claude-code/hooks/config/update-check.ts and the statusline script at @/src/cli/features/claude-code/statusline/config/nori-statusline.sh.
-- Respects the `autoupdate` field from `.nori-config.json` (managed by @/src/cli/config.ts). When set to `"disabled"`, all update checking is skipped.
-- Respects `--silent` and `--non-interactive` CLI flags from @/src/cli/nori-skillsets.ts. Silent mode skips entirely; non-interactive mode prints a one-liner to stderr instead of the interactive prompt.
-- Package manager detection reads the persisted install state from @/src/cli/installTracking.ts (`readInstallState()`), falling back to `npm_config_user_agent` env var, defaulting to npm.
-
-```
-CLI startup (nori-skillsets.ts)
-    |
-    +-- checkForUpdateAndPrompt()           # orchestrator
-         |
-         +-- refreshVersionCache()          # fire-and-forget, writes cache if stale
-         |       |
-         |       +-- isCacheStale()         # 20h TTL
-         |       +-- fetchLatestVersionFromNpm()  # 5s timeout
-         |       +-- writeVersionCache()
-         |
-         +-- getAvailableUpdate()           # reads cache, semver compare
-         +-- showUpdatePrompt()             # interactive 3-option prompt
-         +-- dismissVersion()               # writes dismissed_version to cache
-```
+`checkForUpdateAndPrompt` is called from the CLI entry point (`@/cli/nori-skillsets.ts`) before command parsing. It reads the autoupdate config setting from `@/cli/config`, the install state from `@/cli/installTracking` (for package manager detection), and manages its own version cache file at `~/.nori/profiles/nori-skillsets-version.json`.
 
 ### Core Implementation
 
-- **versionCache.ts** - Read/write/staleness for the JSON cache at `~/.nori/profiles/nori-skillsets-version.json`. The `VersionCache` type stores `latest_version`, `last_checked_at` (ISO timestamp), and optional `dismissed_version`. Cache is considered stale after 20 hours (configurable via `maxAgeHours`). `dismissVersion()` writes the version string into `dismissed_version` so subsequent checks skip that version.
-- **npmRegistryCheck.ts** - `fetchLatestVersionFromNpm()` hits `https://registry.npmjs.org/nori-skillsets/latest` with a 5-second AbortController timeout. `refreshVersionCache()` only fetches when the cache is stale, preserving `dismissed_version` across refreshes. `getAvailableUpdate()` reads the cache, filters out prerelease and `0.0.0` dev builds, compares with semver, and checks the dismissed list.
-- **updatePrompt.ts** - `formatUpdateMessage()` renders an ANSI-colored box with three options: Update now, Skip, Skip until next version. `getUpdateCommand()` maps the detected package manager (npm/bun/yarn/pnpm) to the correct global install command. `showUpdatePrompt()` renders the interactive prompt via readline or falls back to a stderr one-liner in non-interactive mode.
-- **checkForUpdate.ts** - Main orchestrator. Loads the `autoupdate` setting from `.nori-config.json` (checks `~/.claude/.nori-config.json` then `cwd/.nori-config.json`). Fires `refreshVersionCache()` as fire-and-forget (no await). Calls `getAvailableUpdate()` against the cached data. On "update" choice, runs `execFileSync` with the resolved package manager command and exits with code 0 on success. On "dismiss" choice, calls `dismissVersion()`. All failures are caught and logged as non-fatal.
+The update check pipeline flows through three layers:
+
+```
+checkForUpdateAndPrompt (orchestrator)
+  -> refreshVersionCache (background, fire-and-forget)
+  -> getAvailableUpdate (reads cache, compares versions)
+  -> showUpdatePrompt (interactive or non-interactive display)
+  -> execFileSync (runs the actual update command if chosen)
+```
+
+`versionCache.ts` manages a JSON cache file with `latest_version`, `last_checked_at`, and `dismissed_version` fields. The cache is considered stale after 12 hours. `dismissVersion` persists the user's "skip until next version" choice.
+
+`npmRegistryCheck.ts` fetches from `https://registry.npmjs.org/nori-skillsets/latest` with a 5-second timeout. `getAvailableUpdate` filters out prerelease versions, development builds (`0.0.0`), and dismissed versions. It also treats `-next` prerelease tags as equivalent to their base version to avoid prompting users on nightly builds to "downgrade."
+
+`updatePrompt.ts` formats the update message and resolves the correct global install command for npm, bun, yarn, or pnpm. In interactive mode it shows a 3-choice menu (update now / skip / dismiss); in non-interactive mode it writes a one-line notice to stderr and returns "skip."
 
 ### Things to Know
 
-**Stale-while-revalidate:** The background npm fetch (`refreshVersionCache`) is fired as `void refreshVersionCache()` -- it runs concurrently and does not block the prompt. The prompt always uses whatever is in the cache at the moment. This means the first CLI run after install will never show a prompt (cache doesn't exist yet); the fetch populates the cache for the next run.
+The entire module is wrapped in silent error handling -- update checking never disrupts CLI operation. Early exits skip the check when autoupdate is disabled, silent mode is active, or the version is `0.0.0` (development).
 
-**Three user choices:** "Update now" runs the package manager synchronously via `execFileSync` with `stdio: "inherit"`, then calls `process.exit(0)` so the user must re-run their command. "Skip" does nothing. "Skip until next version" writes `dismissed_version` to the cache, suppressing the prompt until a newer version appears.
+The `-next` prerelease handling in `getAvailableUpdate` is noteworthy: semver considers `0.6.3-next.1` less than `0.6.3`, but the code treats `-next` as "at least the base version" by stripping the prerelease tag before comparison. This prevents users on nightly builds from being prompted to install an older stable release.
 
-**Version filtering:** Development builds (`0.0.0`), prerelease versions on the *latest* side, and dismissed versions are all filtered out by `getAvailableUpdate()`. Invalid semver strings cause a silent null return. When the *current* version has a `-next` prerelease tag (e.g., `0.6.3-next.1`), `getAvailableUpdate()` strips the prerelease to get the base version (`0.6.3`) before comparing with `semver.gt()`. This is because `-next` semantically means "subsequent to the release" -- users on a `-next` channel are ahead of stable and should not be prompted to update to the same base version. Other prerelease tags (e.g., `-alpha`, `-beta`, `-rc`) are left alone since those genuinely precede the release per standard semver ordering.
+When the user chooses to update, the module runs `execFileSync` with `stdio: "inherit"` to update in-place, then calls `process.exit(0)` to force a restart.
 
 Created and maintained by Nori.
