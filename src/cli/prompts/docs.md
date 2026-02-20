@@ -4,51 +4,20 @@ Path: @/src/cli/prompts
 
 ### Overview
 
-- Provides consistent interactive prompt wrappers built on @clack/prompts for the CLI
-- Individual wrappers for text, password, and confirm prompts with unified cancel handling
-- Flow modules that compose prompts into complete interactive experiences with intro/outro messages, spinners, and notes
+The prompts module provides a thin abstraction layer over the `@clack/prompts` library for consistent user input handling across the CLI. It exports atomic prompt primitives (confirm, text, password) with unified cancel behavior, input validators, and re-exports the higher-level interactive flows from `@/cli/prompts/flows`.
 
 ### How it fits into the larger codebase
 
-- CLI commands import from @/cli/prompts/index.ts to access individual prompt functions (promptText, confirmAction, etc.) for simple cases
-- Complex interactive sequences use flow modules (e.g., loginFlow) which handle all user-facing output (intro, spinner, notes, outro) so commands don't duplicate this
-- All prompt wrappers use handleCancel() from utils.ts to provide consistent cancellation behavior (displays message via @clack/prompts cancel() and exits with code 0)
-- The validators.ts module provides validation functions used by prompts (validateProfileName)
+Commands in `@/cli/commands` import from this module to collect user input. The atomic primitives (`confirmAction`, `promptText`, `promptPassword`) are used for simple one-off inputs, while the flow modules handle multi-step interactive experiences. The `index.ts` barrel file serves as the public API, re-exporting both the primitives and the flow modules so callers can import from `@/cli/prompts` directly.
 
 ### Core Implementation
 
-**Individual Prompt Wrappers:**
-- `promptText` - Text input with optional placeholder, default value, initial value, and validation
-- `promptPassword` - Masked password input
-- `confirmAction` - Yes/no confirmation with optional initial value
+Each prompt primitive wraps a corresponding `@clack/prompts` function, adding automatic cancel detection via `handleCancel` from `utils.ts`. When a user presses Ctrl+C, `handleCancel` calls `cancel()` to display a message, then `process.exit(0)` -- it never returns (typed as `never`).
 
-**Flow Modules (flows/):**
-Flows provide complete interactive experiences that compose multiple prompts with visual feedback:
-- `loginFlow` - Complete login UX with grouped email/password collection, spinner during authentication, note box for organization info, and outro message. Supports `skipIntro` to allow callers to manage the intro message externally (e.g., when loginFlow is used as a sub-flow after an auth method selection prompt)
-- `switchSkillsetFlow` - Multi-step skillset switching UX with agent selection, local change detection and handling (proceed/capture/abort), switch confirmation via note box, and spinner during switch and reinstall
-- `uploadFlow` - Multi-step upload UX with version determination, upload attempt, and skill conflict resolution. Auto-resolves unchanged skills, then prompts for remaining conflicts with batch ("Resolve all the same way") or individual ("Choose one-by-one") resolution modes. The `link` action is presented as "Use Existing" for both unchanged and changed skills, with different hints (changed skills warn that local changes will be discarded). Returns `UploadFlowResult` with `linkedSkillIds`, `namespacedSkillIds`, and `skippedSkillIds`
-- `watchFlow` - Watch daemon startup UX with transcript destination org selection (auto-select for single org, `select()` prompt for multiple orgs), spinner during preparation and daemon spawning, and outro with PID/log file info. Uses 2 callbacks: `onPrepare` and `onStartDaemon`
-- `promptSkillTypes` - Inline/extract type selection for external skills. Single skill gets a direct prompt; multiple skills use two-tier "all same" vs "one-by-one" pattern. Returns `Record<string, NoriJsonType>` or null on cancellation. Not re-exported through `flows/index.ts`
-
-**Callback Pattern:**
-Flows use a callbacks pattern to separate UI handling from business logic:
-```typescript
-loginFlow({
-  skipIntro: true,
-  callbacks: {
-    onAuthenticate: async ({ email, password }) => AuthenticateResult
-  }
-})
-```
-This allows commands to provide business logic (Firebase auth, API calls, config mutation) while the flow handles all UI details. The switchSkillsetFlow uses 4 coarse-grained callbacks (resolveAgents, prepareSwitchInfo, captureConfig, executeSwitch). The uploadFlow uses 2 callbacks (onDetermineVersion, onUpload). See `flows/clack-prompts-usage.md` for guidelines on callback design.
+`validators.ts` provides `validateSkillsetName`, which enforces a slug format: lowercase alphanumeric characters with hyphens, no leading/trailing hyphens, no consecutive hyphens. The validator returns `undefined` for valid input or an error message string, matching the `@clack/prompts` validation callback signature.
 
 ### Things to Know
 
-- `handleCancel()` never returns - it calls `process.exit(0)` after displaying the cancel message
-- Flow modules return null on cancellation or failure (the flow handles displaying error UI)
-- The `ValidateFunction` type in text.ts is a local type following the pattern `(args: { value: string }) => string | undefined` where undefined means valid and a string is the error message
-- Flow modules (loginFlow, switchSkillsetFlow, uploadFlow, watchFlow, and their associated types) are exported both from flows/index.ts and re-exported from prompts/index.ts for convenient access
-- Flows use `unwrapPrompt` from flows/utils.ts for cancel handling; standalone wrappers use `handleCancel` which calls `process.exit(0)` — these are separate patterns for separate use cases
-- Flows return null on cancellation; the command should treat null as a clean exit since the flow has already displayed cancel UI to the user
+All prompt wrappers follow the same contract: they return the user's input value on success and call `process.exit(0)` on cancel. This means callers never need to handle cancellation explicitly when using these primitives -- the process terminates. The flow modules in `@/cli/prompts/flows` use a different pattern via `unwrapPrompt`, which returns `null` on cancel instead of exiting, allowing flows to handle cancellation gracefully.
 
 Created and maintained by Nori.

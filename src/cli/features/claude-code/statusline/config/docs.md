@@ -1,33 +1,21 @@
-# Noridoc: config
+# Noridoc: statusline/config
 
 Path: @/src/cli/features/claude-code/statusline/config
 
 ### Overview
 
-Shell script configuration for Claude Code status line integration, displaying git branch, active Nori skillset, token usage, cost information, installed version, and a promotional tip for the Nori CLI.
+Contains the shell script that renders Claude Code's status line. This script is copied to `~/.claude/` at install time and executed by Claude Code on each status line refresh.
 
 ### How it fits into the larger codebase
 
-This folder contains the nori-statusline.sh source script. The loader at @/src/cli/features/claude-code/statusline/loader.ts copies this script directly to ~/.claude/nori-statusline.sh (no template substitution). The script is executed by Claude Code to generate status line content displayed at the bottom of the interface. It reads Claude Code conversation data from stdin and enriches it with skillset and version information from .nori-config.json before formatting it for display.
+The script is referenced by `@/src/cli/features/claude-code/statusline/loader.ts`, which copies it to `~/.claude/nori-statusline.sh` and configures `settings.json` to invoke it.
 
 ### Core Implementation
 
-**Install Directory Discovery:** The script searches upward from the CWD (extracted from JSON input) to find .nori-config.json, using a `find_install_dir()` function that walks parent directories. If no config is found in the directory tree, it falls back to HOME (`$HOME/.nori-config.json`). This ensures the statusline reads the user-global config when working in directories without project-local configs, enabling consistent display after skillset switches.
-
-**Config Reading:** Once `.nori-config.json` is located, the script reads two pieces of data from it: the skillset name (`activeSkillset` field) and the installed version (`.version` field). Both are used downstream -- skillset for the metrics line, version for the branding line and update comparison.
-
-**Metrics and Display:** The script extracts git branch info from the conversation's cwd, parses the transcript file to calculate token usage (input tokens, cache creation tokens, cache read tokens, output tokens, and context length from the most recent main chain entry), and formats cost estimates. The script outputs three lines: Line 1 shows metrics (git branch, skillset if set, cost, tokens, context, lines changed), Line 2 shows branding with conditional version, and Line 3 shows a status tip.
+`nori-statusline.sh` receives a JSON context object on stdin from Claude Code containing session data (cost, transcript path, cwd). It uses `jq` to parse the input, then extracts and formats: git branch (via `git branch --show-current`), session cost, token usage (input, cache creation, cache read, and output tokens parsed from the transcript file), the active skillset name (from `~/.nori-config.json`), and a Nori version string. Output is rendered with ANSI color codes.
 
 ### Things to Know
 
-**Runtime Version (no build-time substitution):** Version is read at runtime from `.nori-config.json` using jq. The branding line shows "Augmented with Nori v{version}" when the `.version` field is present, or "Augmented with Nori" when it is absent. The build pipeline (@/scripts/build.sh) no longer performs any version substitution on this script.
-
-**Skillset Display:** The skillset name is conditionally displayed only when activeSkillset exists in .nori-config.json. Skillset name appears in yellow between git branch and cost metrics.
-
-**jq Dependency:** The script requires jq for JSON parsing. If jq is not installed, it displays a warning message with installation instructions and shows plain branding without version.
-
-**`-next` Version Handling:** Before the numeric version comparison, the script strips any `-next.*` suffix from the current version using `sed 's/-next.*//'`. This prevents false update notifications for users on `-next` builds, which are ahead of the stable release despite semver ordering treating prerelease tags as less-than. This mirrors the same logic in the TypeScript `getAvailableUpdate()` at @/src/cli/updates/npmRegistryCheck.ts.
-
-**Promotional Tip:** The TIPS array contains a single promotional message encouraging users to install nori-skillsets via npm.
+The script reads `~/.nori-config.json` directly (not through the Node.js config module) to get the active skillset name and version. Token usage is computed by summing values across all messages in the transcript file using `jq` and `awk`. The script requires `jq` as an external dependency and falls back to a minimal warning message if `jq` is not available.
 
 Created and maintained by Nori.
