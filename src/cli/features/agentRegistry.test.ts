@@ -106,6 +106,28 @@ describe("AgentRegistry", () => {
     });
   });
 
+  describe("agent managed paths", () => {
+    test("claude-code agent exposes getManagedFiles", () => {
+      const registry = AgentRegistry.getInstance();
+      const agent = registry.get({ name: "claude-code" });
+      const managedFiles = agent.getManagedFiles();
+
+      expect(managedFiles).toContain("CLAUDE.md");
+      expect(managedFiles).toContain("settings.json");
+      expect(managedFiles).toContain("nori-statusline.sh");
+    });
+
+    test("claude-code agent exposes getManagedDirs", () => {
+      const registry = AgentRegistry.getInstance();
+      const agent = registry.get({ name: "claude-code" });
+      const managedDirs = agent.getManagedDirs();
+
+      expect(managedDirs).toContain("skills");
+      expect(managedDirs).toContain("commands");
+      expect(managedDirs).toContain("agents");
+    });
+  });
+
   describe("agent interface", () => {
     test("claude-code agent provides LoaderRegistry", () => {
       const registry = AgentRegistry.getInstance();

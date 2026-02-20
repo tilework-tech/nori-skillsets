@@ -96,7 +96,7 @@ export const registryInstallMain = async (
     cliInstallDir: installDir,
     config,
   });
-  const agentName = getDefaultAgents({ config, agentOverride: agent })[0];
+  const agentNames = getDefaultAgents({ config, agentOverride: agent });
 
   // Step 1: Download the skillset from registry first (so it's available for install)
   // Note: registryUrl is null to let registryDownloadMain determine the correct
@@ -126,32 +126,37 @@ export const registryInstallMain = async (
   try {
     // Step 2: Run initial install if no existing installation
     if (!hasExistingInstallation()) {
-      await installMain({
-        nonInteractive: true,
-        installDir: targetInstallDir,
-        skillset: skillsetName,
-        agent: agentName,
-        silent: silent ?? null,
-      });
+      // Broadcast initial install to all configured agents
+      for (const agentName of agentNames) {
+        await installMain({
+          nonInteractive: true,
+          installDir: targetInstallDir,
+          skillset: skillsetName,
+          agent: agentName,
+          silent: silent ?? null,
+        });
+      }
       // Initial install already sets the skillset, so we're done
       displaySuccessMessage({ skillsetName });
       return { success: true };
     }
 
-    // Step 3 (existing installation): Switch to the downloaded skillset
-    const agentImpl = AgentRegistry.getInstance().get({ name: agentName });
-    await agentImpl.switchSkillset({
-      installDir: targetInstallDir,
-      skillsetName,
-    });
+    // Step 3 (existing installation): Broadcast switch to all configured agents
+    for (const agentName of agentNames) {
+      const agentImpl = AgentRegistry.getInstance().get({ name: agentName });
+      await agentImpl.switchSkillset({
+        installDir: targetInstallDir,
+        skillsetName,
+      });
 
-    // Step 4: Re-run install in silent mode to regenerate files with new skillset
-    await installMain({
-      nonInteractive: true,
-      installDir: targetInstallDir,
-      agent: agentName,
-      silent: true,
-    });
+      // Step 4: Re-run install in silent mode to regenerate files with new skillset
+      await installMain({
+        nonInteractive: true,
+        installDir: targetInstallDir,
+        agent: agentName,
+        silent: true,
+      });
+    }
 
     displaySuccessMessage({ skillsetName });
     return { success: true };

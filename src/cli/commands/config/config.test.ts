@@ -50,6 +50,12 @@ vi.mock("@/cli/features/claude-code/skillsets/manifest.js", () => ({
   removeManagedFiles: vi.fn(),
   getManifestPath: vi
     .fn()
+    .mockImplementation(
+      (args: { agentName: string }) =>
+        `/mock/.nori/manifests/${args.agentName}.json`,
+    ),
+  getLegacyManifestPath: vi
+    .fn()
     .mockReturnValue("/mock/.nori/installed-manifest.json"),
 }));
 
@@ -61,6 +67,16 @@ vi.mock("@/cli/features/agentRegistry.js", () => ({
       get: vi.fn().mockReturnValue({
         name: "claude-code",
         displayName: "Claude Code",
+        getManagedFiles: vi
+          .fn()
+          .mockReturnValue([
+            "CLAUDE.md",
+            "settings.json",
+            "nori-statusline.sh",
+          ]),
+        getManagedDirs: vi
+          .fn()
+          .mockReturnValue(["skills", "commands", "agents"]),
       }),
     }),
   },
@@ -346,7 +362,8 @@ describe("configMain installDir change prompts", () => {
     const { configMain } = await import("./config.js");
     await configMain();
 
-    expect(callOrder).toEqual(["cleanup", "install"]);
+    // cleanup is called once per agent + once for legacy manifest, then install
+    expect(callOrder).toEqual(["cleanup", "cleanup", "install"]);
   });
 });
 
