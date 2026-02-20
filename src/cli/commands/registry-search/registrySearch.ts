@@ -5,8 +5,6 @@
  * Returns both profiles and skills from each registry
  */
 
-import { log } from "@clack/prompts";
-
 import {
   registrarApi,
   REGISTRAR_URL,
@@ -20,8 +18,6 @@ import {
 } from "@/cli/commands/cliCommandNames.js";
 import { loadConfig } from "@/cli/config.js";
 import { registrySearchFlow } from "@/cli/prompts/flows/index.js";
-import { getHomeDir } from "@/utils/home.js";
-import { getInstallDirs } from "@/utils/path.js";
 import {
   extractOrgId,
   buildRegistryUrl,
@@ -518,23 +514,9 @@ export const registrySearchMain = async (args: {
   installDir?: string | null;
   cliName?: CliName | null;
 }): Promise<void> => {
-  const { query, installDir, cliName } = args;
+  const { query, cliName } = args;
 
-  // Verify an installation exists (needed for registry auth discovery)
-  if (installDir == null) {
-    const allInstallations = getInstallDirs({ currentDir: process.cwd() });
-    const homeDir = getHomeDir();
-    const homeInstallations = getInstallDirs({ currentDir: homeDir });
-
-    if (!homeInstallations.includes(homeDir) && allInstallations.length === 0) {
-      log.error(
-        "No Nori installation found.\n\nRun 'npx nori-skillsets init' to install Nori Skillsets.",
-      );
-      return;
-    }
-  }
-
-  // Load config to check for org auth - use getHomeDir() since registry needs global auth
+  // Load config for auth discovery
   const config = await loadConfig();
 
   await registrySearchFlow({

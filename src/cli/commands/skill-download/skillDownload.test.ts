@@ -182,7 +182,7 @@ describe("skill-download", () => {
       }),
     );
 
-    // Create managed block marker so getInstallDirs() can find this installation
+    // Create managed block marker for installation detection
     await createManagedBlockMarker(testDir);
 
     // Create skills directory
@@ -286,6 +286,11 @@ describe("skill-download", () => {
     });
 
     it("should error when skill already exists without .nori-version", async () => {
+      // Mock config so resolveInstallDir resolves to testDir
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+      });
+
       // Create existing skill directory without version file
       const existingSkillDir = path.join(skillsDir, "existing-skill");
       await fs.mkdir(existingSkillDir, { recursive: true });
@@ -396,6 +401,11 @@ describe("skill-download", () => {
     });
 
     it("should handle download errors gracefully", async () => {
+      // Mock config so resolveInstallDir resolves to testDir
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+      });
+
       vi.mocked(registrarApi.downloadSkillTarball).mockRejectedValue(
         new Error("Network error: Failed to fetch"),
       );
@@ -658,6 +668,9 @@ describe("skill-download", () => {
     it("should work when config is null (only searches public registry)", async () => {
       // Mock config to return null
       vi.mocked(loadConfig).mockResolvedValue(null);
+
+      // Set homedir to testDir so resolveInstallDir falls back correctly
+      vi.mocked(os.homedir).mockReturnValue(testDir);
 
       // Skill exists in public registry
       vi.mocked(registrarApi.getSkillPackument).mockResolvedValue({
@@ -983,7 +996,7 @@ describe("--skillset option and manifest updates", () => {
       JSON.stringify({}),
     );
 
-    // Create managed block marker so getInstallDirs() can find this installation
+    // Create managed block marker for installation detection
     await createManagedBlockMarker(testDir);
 
     // Create a test profile with nori.json
@@ -1250,7 +1263,7 @@ describe("profile directory persistence", () => {
       JSON.stringify({}),
     );
 
-    // Create managed block marker so getInstallDirs() can find this installation
+    // Create managed block marker for installation detection
     await createManagedBlockMarker(testDir);
 
     // Create active profile directory with nori.json
@@ -1608,7 +1621,7 @@ describe("nori.json updates on skill download", () => {
     await fs.mkdir(skillsDir, { recursive: true });
     await fs.mkdir(profilesDir, { recursive: true });
 
-    // Create config file so getInstallDirs() can find this installation
+    // Create config file for installation detection
     await fs.writeFile(
       path.join(testDir, ".nori-config.json"),
       JSON.stringify({}),
@@ -1812,7 +1825,7 @@ describe("namespaced package support", () => {
       }),
     );
 
-    // Create managed block marker so getInstallDirs() can find this installation
+    // Create managed block marker for installation detection
     await createManagedBlockMarker(testDir);
 
     // Create skills directory

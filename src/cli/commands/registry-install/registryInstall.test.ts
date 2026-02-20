@@ -172,10 +172,9 @@ describe("registry-install", () => {
     expect(registryDownloadMain).toHaveBeenCalledTimes(1);
   });
 
-  it("should install to the user home directory when --user is set", async () => {
+  it("should install to the user home directory by default", async () => {
     await registryInstallMain({
       packageSpec: "product-manager",
-      useHomeDir: true,
     });
 
     expect(registryDownloadMain).toHaveBeenCalledWith({
