@@ -3,7 +3,7 @@
  *
  * Provides the complete interactive switch-skillset experience using @clack/prompts.
  * This flow handles:
- * - Agent selection (when multiple agents installed)
+ * - Broadcasting switch to all configured agents
  * - Local change detection and handling (proceed, capture, abort)
  * - Switch confirmation with current/new skillset info
  * - Spinner during switch and reinstall
@@ -107,10 +107,11 @@ const buildChangesSummary = (args: { diff: ManifestDiff }): string => {
 /**
  * Execute the interactive switch skillset flow
  *
+ * Broadcasts the switch to all resolved agents (no agent selection prompt).
+ *
  * @param args - Flow configuration
  * @param args.skillsetName - The skillset name to switch to
  * @param args.installDir - Installation directory
- * @param args.agentOverride - Optional agent name override (skips agent selection)
  * @param args.callbacks - Callback functions for side-effectful operations
  *
  * @returns Result on success, null on cancel or abort
@@ -118,43 +119,16 @@ const buildChangesSummary = (args: { diff: ManifestDiff }): string => {
 export const switchSkillsetFlow = async (args: {
   skillsetName: string;
   installDir: string;
-  agentOverride?: string | null;
   callbacks: SwitchSkillsetCallbacks;
 }): Promise<SwitchSkillsetFlowResult> => {
-  const { skillsetName, installDir, agentOverride, callbacks } = args;
+  const { skillsetName, installDir, callbacks } = args;
   const cancelMsg = "Skillset switch cancelled.";
 
   intro("Switch Skillset");
 
-  // Step 1: Resolve agent
-  let agentName: string;
-
-  if (agentOverride != null) {
-    agentName = agentOverride;
-  } else {
-    const agents = await callbacks.onResolveAgents();
-
-    if (agents.length > 1) {
-      const selected = unwrapPrompt({
-        value: await select({
-          message: "Select agent to switch skillset",
-          options: agents.map((a) => ({
-            value: a.name,
-            label: `${a.displayName} (${a.name})`,
-          })),
-        }),
-        cancelMessage: cancelMsg,
-      });
-
-      if (selected == null) return null;
-
-      agentName = selected;
-    } else if (agents.length === 1) {
-      agentName = agents[0].name;
-    } else {
-      agentName = "claude-code";
-    }
-  }
+  // Step 1: Resolve all agents (broadcast to all, no selection prompt)
+  const agents = await callbacks.onResolveAgents();
+  const agentName = agents.length > 0 ? agents[0].name : "claude-code";
 
   // Step 2: Prepare switch info (detect local changes + get current skillset)
   const { currentProfile, localChanges } = await callbacks.onPrepareSwitchInfo({

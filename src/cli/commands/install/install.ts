@@ -120,23 +120,18 @@ const runFeatureLoaders = async (args: {
 /**
  * Write manifest of installed files for change detection
  *
- * Creates a manifest file containing hashes of all files installed to ~/.claude/
+ * Creates a manifest file containing hashes of all files installed to the agent's config dir.
  * This is used by switch-skillset to detect local modifications.
  *
  * @param args - Configuration arguments
  * @param args.config - Configuration to use
- * @param args.agentName - Name of the agent being installed
+ * @param args.agent - The agent implementation
  */
 const writeInstalledManifest = async (args: {
   config: Config;
-  agentName: string;
+  agent: ReturnType<typeof AgentRegistry.prototype.get>;
 }): Promise<void> => {
-  const { config, agentName } = args;
-
-  // Only write manifest for claude-code agent
-  if (agentName !== "claude-code") {
-    return;
-  }
+  const { config, agent } = args;
 
   const skillsetName = getActiveSkillset({ config });
   if (skillsetName == null) {
@@ -144,12 +139,14 @@ const writeInstalledManifest = async (args: {
   }
 
   const claudeDir = getClaudeDir({ installDir: config.installDir });
-  const manifestPath = getManifestPath();
+  const manifestPath = getManifestPath({ agentName: agent.name });
 
   try {
     const manifest = await computeDirectoryManifest({
       dir: claudeDir,
-      skillsetName: skillsetName,
+      skillsetName,
+      managedFiles: agent.getManagedFiles(),
+      managedDirs: agent.getManagedDirs(),
     });
     await writeManifest({ manifestPath, manifest });
     if (!isSilentMode()) {
@@ -196,7 +193,7 @@ const completeInstallation = async (args: {
   await runFeatureLoaders({ config, agent });
 
   // Write manifest for change detection
-  await writeInstalledManifest({ config, agentName: agent.name });
+  await writeInstalledManifest({ config, agent });
 
   // Mark installation directory with current skillset name
   const skillsetName = getActiveSkillset({ config });

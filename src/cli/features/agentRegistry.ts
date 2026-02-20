@@ -59,6 +59,10 @@ export type Agent = {
   name: AgentName;
   /** Human-readable name, e.g., "Claude Code" */
   displayName: string;
+  /** Get the root-level filenames this agent manages */
+  getManagedFiles: () => ReadonlyArray<string>;
+  /** Get the directory names this agent manages recursively */
+  getManagedDirs: () => ReadonlyArray<string>;
   /** Get the LoaderRegistry for this agent */
   getLoaderRegistry: () => LoaderRegistry;
   /** Check if this agent is installed at the given directory */
