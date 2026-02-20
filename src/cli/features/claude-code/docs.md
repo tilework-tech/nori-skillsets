@@ -11,6 +11,8 @@ Claude Code agent implementation that satisfies the Agent interface from @/src/c
 This `claude-code/` subdirectory implements the Agent interface defined in @/src/cli/features/agentRegistry.ts. The `claudeCodeAgent` object in agent.ts provides:
 - `name`: "claude-code"
 - `displayName`: "Claude Code"
+- `getManagedFiles()`: Returns `["CLAUDE.md", "settings.json", "nori-statusline.sh"]` -- the root-level files within `~/.claude/` that this agent installs and tracks
+- `getManagedDirs()`: Returns `["skills", "commands", "agents"]` -- the directories within `~/.claude/` whose contents this agent installs and tracks recursively
 - `getLoaderRegistry()`: Returns the LoaderRegistry singleton with all Claude Code loaders
 - `switchSkillset({ installDir, skillsetName })`: Validates skillset exists (handles both flat and namespaced paths via `path.join`), updates config with new skillset, logs success message. Imports `MANIFEST_FILE` from @/src/cli/features/managedFolder.ts to identify valid skillsets.
 - `factoryReset({ path })`: Delegates to `factoryResetClaudeCode` from @/src/cli/features/claude-code/factoryReset.ts. Discovers and removes all `.claude` directories and `CLAUDE.md` files by walking up the ancestor directory tree from the given path.

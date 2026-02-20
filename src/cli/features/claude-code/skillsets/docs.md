@@ -51,8 +51,8 @@ The `addSkillToNoriJson()` function adds or updates a skill dependency in a skil
 
 | Constant | Values | Purpose |
 |----------|--------|---------|
-| `MANAGED_FILES` | `CLAUDE.md`, `settings.json`, `nori-statusline.sh` | Root-level files Nori installs |
-| `MANAGED_DIRS` | `skills`, `commands`, `agents` | Directories whose contents Nori installs (recursively tracked) |
+| `MANAGED_FILES` (internal) | `CLAUDE.md`, `settings.json`, `nori-statusline.sh` | Fallback default for root-level files Nori installs. Callers should prefer `agent.getManagedFiles()` when an agent is available. |
+| `MANAGED_DIRS` (internal) | `skills`, `commands`, `agents` | Fallback default for directories whose contents Nori installs. Callers should prefer `agent.getManagedDirs()` when an agent is available. |
 | `EXCLUDED_FILES` | `.nori-version`, `nori.json` | Metadata files excluded from manifest tracking regardless of location |
 
 | Type | Purpose |
@@ -64,7 +64,9 @@ The `collectFiles()` function filters at two levels: (1) at the top level, it sk
 
 The `compareManifest()` function also uses `isManagedPath()` when iterating over stored manifest entries, skipping any entry for a non-whitelisted path. This handles the transition from older manifests that tracked everything in `~/.claude/` -- old entries for runtime directories like `debug/` or `todos/` are silently ignored rather than reported as "deleted".
 
-The manifest is written after installation completes (via `writeInstalledManifest()` in @/src/cli/commands/install/install.ts), checked before skillset switching (via `detectLocalChanges()` in @/src/cli/commands/switch-skillset/switchSkillset.ts), and used for cleanup when the install directory changes.
+**Per-agent manifest storage**: Manifests are stored per-agent at `~/.nori/manifests/<agentName>.json` via `getManifestPath({ agentName })`. A legacy fallback path (`~/.nori/installed-manifest.json` via `getLegacyManifestPath()`) is checked by `readManifest()` when the per-agent manifest does not exist, enabling transparent migration from the old single-manifest layout.
+
+The manifest is written after installation completes (via `writeInstalledManifest()` in @/src/cli/commands/install/install.ts), checked before skillset switching (via `detectLocalChanges()` in @/src/cli/commands/switch-skillset/switchSkillset.ts), and used for cleanup when the install directory changes. Functions that accept `managedFiles`/`managedDirs` parameters (`computeDirectoryManifest()`, `compareManifest()`, `collectFiles()`, `isManagedPath()`, `removeManagedFiles()`) fall back to the module-level constants when no agent-specific values are provided.
 
 The `removeManagedFiles()` function reads the manifest to determine which files Nori installed into a `~/.claude/` directory, removes those files, removes the `.nori-managed` marker, and recursively cleans up empty directories under `MANAGED_DIRS` (deepest-first via `removeEmptyDirs()`). Files not tracked in the manifest are preserved. This function is called by the config command (@/src/cli/commands/config/config.ts) when the user changes `installDir` and opts to clean up the old directory.
 
@@ -114,7 +116,7 @@ No built-in skillsets are shipped with the package. First-time installations wil
 
 **Profile slash commands**: Profile-specific slash commands are installed by @/src/cli/features/claude-code/skillsets/slashcommands/ loader from the active skillset's slashcommands/ directory.
 
-**Manifest whitelist for change detection**: The manifest file (`~/.nori/installed-manifest.json`) only tracks Nori-managed paths within `~/.claude/` (`MANAGED_FILES` and `MANAGED_DIRS` in manifest.ts), excluding metadata files listed in `EXCLUDED_FILES` (`.nori-version`, `nori.json`). These excluded files are local metadata created when downloading from the registry and should not trigger "local changes detected" warnings. Claude Code creates many runtime directories (`debug/`, `todos/`, `projects/`, `plugins/`, `session-env/`, `shell-snapshots/`, `statsig/`, `telemetry/`, `tasks/`, `cache/`, etc.) that change between sessions. The whitelist prevents these from appearing as false positive changes during skillset switching. The `compareManifest()` function also filters out stale entries from older manifests that tracked non-whitelisted paths, enabling graceful transition without requiring users to reinstall.
+**Manifest whitelist for change detection**: The per-agent manifest file (`~/.nori/manifests/<agentName>.json`) only tracks Nori-managed paths within `~/.claude/` (`MANAGED_FILES` and `MANAGED_DIRS` in manifest.ts), excluding metadata files listed in `EXCLUDED_FILES` (`.nori-version`, `nori.json`). These excluded files are local metadata created when downloading from the registry and should not trigger "local changes detected" warnings. Claude Code creates many runtime directories (`debug/`, `todos/`, `projects/`, `plugins/`, `session-env/`, `shell-snapshots/`, `statsig/`, `telemetry/`, `tasks/`, `cache/`, etc.) that change between sessions. The whitelist prevents these from appearing as false positive changes during skillset switching. The `compareManifest()` function also filters out stale entries from older manifests that tracked non-whitelisted paths, enabling graceful transition without requiring users to reinstall.
 
 ## Architecture
 
@@ -136,7 +138,9 @@ No built-in skillsets are shipped with the package. First-time installations wil
     myorg/
       org-skillset/      # Namespaced skillset from organization registry
         ...
-  installed-manifest.json  # SHA-256 hashes of Nori-managed files for change detection
+  manifests/
+    claude-code.json     # Per-agent SHA-256 hashes of Nori-managed files for change detection
+  installed-manifest.json  # Legacy manifest path (read as fallback, no longer written)
 
 ~/.claude/
   skills/             # Final installed skills (Nori-managed, tracked in manifest)
@@ -166,8 +170,8 @@ No built-in skillsets are shipped with the package. First-time installations wil
    - Install CLAUDE.md, skills, slashcommands, subagents to `~/.claude/` from that skillset
 
 4. **Installation manifest written**
-   - Computes SHA-256 hashes of Nori-managed files in `~/.claude/` (whitelist-filtered)
-   - Stores manifest at `~/.nori/installed-manifest.json`
+   - Computes SHA-256 hashes of Nori-managed files in `~/.claude/` (whitelist-filtered using `agent.getManagedFiles()` and `agent.getManagedDirs()`)
+   - Stores manifest at `~/.nori/manifests/<agentName>.json` (per-agent)
 
 ### Skill Installation Flow
 

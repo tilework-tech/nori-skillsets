@@ -18,6 +18,8 @@ CLI Commands (install, switch-skillset, onboard, list, init)
     |       |
     |       +-- Agent interface
     |           |
+    |           +-- getManagedFiles() --> root-level filenames this agent manages
+    |           +-- getManagedDirs() --> directory names this agent manages recursively
     |           +-- getLoaderRegistry() --> LoaderRegistry (interface)
     |           +-- switchSkillset({ installDir, skillsetName }) --> Validate and switch
     |           +-- factoryReset({ path }) --> Remove all agent config (optional)
@@ -54,6 +56,8 @@ The init command (@/src/cli/commands/init/) uses `getDefaultAgent()` from @/src/
 **Agent Interface** (agentRegistry.ts):
 - `name`: `AgentName` - canonical identifier used as the registry key ("claude-code")
 - `displayName`: Human-readable name ("Claude Code")
+- `getManagedFiles()`: Returns the list of root-level filenames within the agent's config directory that this agent manages. Used by the manifest module for installation tracking and change detection.
+- `getManagedDirs()`: Returns the list of directory names within the agent's config directory that this agent manages recursively. Used by the manifest module and cleanup operations.
 - `getLoaderRegistry()`: Returns an object implementing the `LoaderRegistry` interface
 - `switchSkillset({ installDir, skillsetName })`: Validates skillset exists and updates the `activeSkillset` in config
 - `factoryReset({ path })`: Optional. Removes all agent configuration from the filesystem starting at the given path. The CLI command layer handles non-interactive blocking and confirmation; the agent method handles discovery and deletion.
