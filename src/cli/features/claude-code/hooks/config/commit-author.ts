@@ -69,7 +69,7 @@ export const replaceAttribution = (args: { command: string }): string => {
     /🤖\s*Generated\s*with\s*\[Claude Code\]\(https:\/\/claude\.com\/claude-code\)/gi;
   modifiedCommand = modifiedCommand.replace(
     claudeCodeUrlPattern,
-    "🤖 Generated with [Nori](https://nori.ai)",
+    "🤖 Generated with [Nori](https://usenori.ai)",
   );
 
   // If there was Claude attribution, return the modified command
@@ -84,7 +84,7 @@ export const replaceAttribution = (args: { command: string }): string => {
     const eofPattern = /(EOF\s*\n\s*\))/;
     modifiedCommand = command.replace(
       eofPattern,
-      `🤖 Generated with [Nori](https://nori.ai)\n\nCo-Authored-By: Nori <contact@tilework.tech>\nEOF\n)`,
+      `🤖 Generated with [Nori](https://usenori.ai)\n\nCo-Authored-By: Nori <contact@tilework.tech>\nEOF\n)`,
     );
     return modifiedCommand;
   }
@@ -96,7 +96,7 @@ export const replaceAttribution = (args: { command: string }): string => {
 
   if (match) {
     const [fullMatch, flag, quote, originalMessage] = match;
-    const newMessage = `${originalMessage}\\n\\n🤖 Generated with [Nori](https://nori.ai)\\n\\nCo-Authored-By: Nori <contact@tilework.tech>`;
+    const newMessage = `${originalMessage}\\n\\n🤖 Generated with [Nori](https://usenori.ai)\\n\\nCo-Authored-By: Nori <contact@tilework.tech>`;
     modifiedCommand = command.replace(
       fullMatch,
       `${flag} ${quote}${newMessage}${quote}`,
