@@ -67,8 +67,8 @@ describe("agent.switchSkillset", () => {
     vi.restoreAllMocks();
   });
 
-  it("should preserve version when switching profiles for claude-code", async () => {
-    // Create profiles directory with test profiles
+  it("should preserve version when switching skillsets for claude-code", async () => {
+    // Create skillsets directory with test skillsets
     const skillsetsDir = path.join(testInstallDir, ".nori", "profiles");
     await fs.mkdir(skillsetsDir, { recursive: true });
 
@@ -102,8 +102,8 @@ describe("agent.switchSkillset", () => {
     expect(updatedConfig.version).toBe("v19.0.0");
   });
 
-  it("should preserve refreshToken when switching profiles for claude-code", async () => {
-    // Create profiles directory with test profiles
+  it("should preserve refreshToken when switching skillsets for claude-code", async () => {
+    // Create skillsets directory with test skillsets
     const skillsetsDir = path.join(testInstallDir, ".nori", "profiles");
     await fs.mkdir(skillsetsDir, { recursive: true });
 
@@ -155,7 +155,7 @@ describe("registerSwitchSkillsetCommand", () => {
     await fs.mkdir(testClaudeDir, { recursive: true });
     await fs.mkdir(testNoriDir, { recursive: true });
 
-    // Create profiles directory with test profiles
+    // Create skillsets directory with test skillsets
     const skillsetsDir = path.join(testNoriDir, "profiles");
     await fs.mkdir(skillsetsDir, { recursive: true });
     for (const name of ["senior-swe", "product-manager"]) {
@@ -288,7 +288,7 @@ describe("switch-skillset getInstallDirs auto-detection", () => {
     );
     vi.mocked(os.homedir).mockReturnValue(testInstallDir);
 
-    // Create profiles directory with test profiles
+    // Create skillsets directory with test skillsets
     const noriDir = path.join(testInstallDir, ".nori");
     const skillsetsDir = path.join(noriDir, "profiles");
     await fs.mkdir(skillsetsDir, { recursive: true });
@@ -478,7 +478,7 @@ describe("switch-skillset local change detection", () => {
     await fs.mkdir(testClaudeDir, { recursive: true });
     await fs.mkdir(testNoriDir, { recursive: true });
 
-    // Create profiles directory with test profiles
+    // Create skillsets directory with test skillsets
     const skillsetsDir = path.join(testNoriDir, "profiles");
     await fs.mkdir(skillsetsDir, { recursive: true });
     for (const name of ["senior-swe", "product-manager"]) {
@@ -657,7 +657,7 @@ describe("switch-skillset interactive flow routing", () => {
     await fs.mkdir(testClaudeDir, { recursive: true });
     await fs.mkdir(testNoriDir, { recursive: true });
 
-    // Create profiles directory with test profiles
+    // Create skillsets directory with test skillsets
     const skillsetsDir = path.join(testNoriDir, "profiles");
     await fs.mkdir(skillsetsDir, { recursive: true });
     for (const name of ["senior-swe", "product-manager"]) {

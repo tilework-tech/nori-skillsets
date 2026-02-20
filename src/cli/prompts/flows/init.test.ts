@@ -3,7 +3,7 @@
  *
  * These tests verify the initFlow function behavior including:
  * - Happy path: callbacks invoked correctly, result returned
- * - Existing config: profile name collected, capture callback invoked
+ * - Existing config: skillset name collected, capture callback invoked
  * - Ancestor warnings don't block init
  * - Decline/cancel at each prompt returns null without side effects
  * - skipWarning and skipIntro parameter behavior
@@ -78,7 +78,7 @@ describe("initFlow", () => {
       });
     });
 
-    it("should call onInit with install dir and null profile name", async () => {
+    it("should call onInit with install dir and null skillset name", async () => {
       vi.mocked(clack.confirm).mockResolvedValueOnce(true);
 
       await initFlow({
@@ -105,7 +105,7 @@ describe("initFlow", () => {
   });
 
   describe("happy path: existing config detected", () => {
-    it("should prompt for profile name with text input", async () => {
+    it("should prompt for skillset name with text input", async () => {
       vi.mocked(clack.confirm).mockResolvedValueOnce(true);
       vi.mocked(mockCallbacks.onDetectExistingConfig).mockResolvedValueOnce({
         hasClaudeMd: true,
@@ -129,7 +129,7 @@ describe("initFlow", () => {
       expect(textCall.validate).toBeDefined();
     });
 
-    it("should call onCaptureConfig with install dir and profile name", async () => {
+    it("should call onCaptureConfig with install dir and skillset name", async () => {
       vi.mocked(clack.confirm).mockResolvedValueOnce(true);
       vi.mocked(mockCallbacks.onDetectExistingConfig).mockResolvedValueOnce({
         hasClaudeMd: true,
@@ -154,7 +154,7 @@ describe("initFlow", () => {
       });
     });
 
-    it("should call onInit with captured profile name", async () => {
+    it("should call onInit with captured skillset name", async () => {
       vi.mocked(clack.confirm).mockResolvedValueOnce(true);
       vi.mocked(mockCallbacks.onDetectExistingConfig).mockResolvedValueOnce({
         hasClaudeMd: true,
@@ -179,7 +179,7 @@ describe("initFlow", () => {
       });
     });
 
-    it("should return result with captured profile name", async () => {
+    it("should return result with captured skillset name", async () => {
       vi.mocked(clack.confirm).mockResolvedValueOnce(true);
       vi.mocked(mockCallbacks.onDetectExistingConfig).mockResolvedValueOnce({
         hasClaudeMd: true,
@@ -271,7 +271,7 @@ describe("initFlow", () => {
       expect(mockCallbacks.onInit).not.toHaveBeenCalled();
     });
 
-    it("should return null when user cancels at profile name prompt", async () => {
+    it("should return null when user cancels at skillset name prompt", async () => {
       vi.mocked(clack.confirm).mockResolvedValueOnce(true);
       vi.mocked(mockCallbacks.onDetectExistingConfig).mockResolvedValueOnce({
         hasClaudeMd: true,
