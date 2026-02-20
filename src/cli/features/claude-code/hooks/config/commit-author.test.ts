@@ -75,7 +75,7 @@ EOF
 
       const result = replaceAttribution({ command: input });
 
-      expect(result).toContain("🤖 Generated with [Nori](https://nori.ai)");
+      expect(result).toContain("🤖 Generated with [Nori](https://usenori.ai)");
       expect(result).not.toContain("Claude Code");
     });
 
@@ -86,7 +86,7 @@ EOF
 
       expect(result).toContain("fix: bug");
       expect(result).toContain("Co-Authored-By: Nori <contact@tilework.tech>");
-      expect(result).toContain("🤖 Generated with [Nori](https://nori.ai)");
+      expect(result).toContain("🤖 Generated with [Nori](https://usenori.ai)");
     });
 
     it("should add Nori attribution to simple commit message with single quotes", () => {
@@ -111,7 +111,7 @@ EOF
       expect(result).toContain("feat: Add new feature");
       expect(result).toContain("This is a longer commit message");
       expect(result).toContain("Co-Authored-By: Nori <contact@tilework.tech>");
-      expect(result).toContain("🤖 Generated with [Nori](https://nori.ai)");
+      expect(result).toContain("🤖 Generated with [Nori](https://usenori.ai)");
     });
 
     it("should preserve original commit message structure", () => {
