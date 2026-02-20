@@ -23,9 +23,9 @@ vi.mock("@/cli/features/claude-code/paths.js", () => ({
   getClaudeCommandsDir: () => path.join(mockClaudeDir, "commands"),
   getClaudeMdFile: () => mockClaudeMdFile,
   getClaudeSkillsDir: () => path.join(mockClaudeDir, "skills"),
-  getClaudeProfilesDir: () => path.join(mockClaudeDir, "profiles"),
+  getClaudeSkillsetsDir: () => path.join(mockClaudeDir, "profiles"),
   getNoriDir: () => mockNoriDir,
-  getNoriProfilesDir: () => path.join(mockNoriDir, "profiles"),
+  getNoriSkillsetsDir: () => path.join(mockNoriDir, "profiles"),
   getNoriConfigFile: () => path.join(mockNoriDir, "config.json"),
 }));
 
@@ -67,33 +67,33 @@ When starting a new task, automatically create a worktree.
  * Create a stub profile with CLAUDE.md and optional skills
  *
  * @param args - Function arguments
- * @param args.profilesDir - Path to the profiles directory
- * @param args.profileName - Name of the profile
+ * @param args.skillsetsDir - Path to the profiles directory
+ * @param args.skillsetName - Name of the profile
  * @param args.claudeMd - Content for the profile's CLAUDE.md
  * @param args.skills - Optional map of skill name to frontmatter and body content
  */
 const createStubProfile = async (args: {
-  profilesDir: string;
-  profileName: string;
+  skillsetsDir: string;
+  skillsetName: string;
   claudeMd: string;
   skills?: Record<string, { frontmatter: string; body: string }> | null;
 }): Promise<void> => {
-  const { profilesDir, profileName, claudeMd, skills } = args;
-  const profileDir = path.join(profilesDir, profileName);
-  await fs.mkdir(profileDir, { recursive: true });
-  await fs.writeFile(path.join(profileDir, "CLAUDE.md"), claudeMd);
+  const { skillsetsDir, skillsetName, claudeMd, skills } = args;
+  const skillsetDir = path.join(skillsetsDir, skillsetName);
+  await fs.mkdir(skillsetDir, { recursive: true });
+  await fs.writeFile(path.join(skillsetDir, "CLAUDE.md"), claudeMd);
   await fs.writeFile(
-    path.join(profileDir, "nori.json"),
+    path.join(skillsetDir, "nori.json"),
     JSON.stringify({
-      name: profileName,
+      name: skillsetName,
       version: "1.0.0",
-      description: `${profileName} profile`,
+      description: `${skillsetName} profile`,
     }),
   );
 
   if (skills != null) {
     for (const [skillName, content] of Object.entries(skills)) {
-      const skillDir = path.join(profileDir, "skills", skillName);
+      const skillDir = path.join(skillsetDir, "skills", skillName);
       await fs.mkdir(skillDir, { recursive: true });
       await fs.writeFile(
         path.join(skillDir, "SKILL.md"),
@@ -146,21 +146,21 @@ describe("claudeMdLoader", () => {
 
     // Create stub profiles (built-in profiles are no longer bundled)
     await createStubProfile({
-      profilesDir: noriProfilesDir,
-      profileName: "senior-swe",
+      skillsetsDir: noriProfilesDir,
+      skillsetName: "senior-swe",
       claudeMd: SENIOR_SWE_CLAUDE_MD,
       skills: TEST_SKILLS,
     });
 
     await createStubProfile({
-      profilesDir: noriProfilesDir,
-      profileName: "amol",
+      skillsetsDir: noriProfilesDir,
+      skillsetName: "amol",
       claudeMd: AMOL_CLAUDE_MD,
     });
 
     await createStubProfile({
-      profilesDir: noriProfilesDir,
-      profileName: "product-manager",
+      skillsetsDir: noriProfilesDir,
+      skillsetName: "product-manager",
       claudeMd: "# Product Manager\n\nFocus on product decisions.\n",
     });
   });
@@ -300,13 +300,13 @@ More user instructions.
   describe("managed block marker handling", () => {
     it("should not produce double-nested markers when profile CLAUDE.md already has markers", async () => {
       // Create a custom profile with CLAUDE.md that already has managed block markers
-      // This simulates what happens when captureExistingConfigAsProfile saves a profile
+      // This simulates what happens when captureExistingConfigAsSkillset saves a profile
       const customProfileDir = path.join(mockNoriDir, "profiles", "my-profile");
       await fs.mkdir(customProfileDir, { recursive: true });
 
-      // Write profile.json
+      // Write nori.json
       await fs.writeFile(
-        path.join(customProfileDir, "profile.json"),
+        path.join(customProfileDir, "nori.json"),
         JSON.stringify({
           name: "my-profile",
           description: "Test profile with pre-existing markers",
@@ -315,7 +315,7 @@ More user instructions.
       );
 
       // Write CLAUDE.md with managed block markers already present
-      // This mimics what captureExistingConfigAsProfile does
+      // This mimics what captureExistingConfigAsSkillset does
       const profileClaudeMdContent = `# BEGIN NORI-AI MANAGED BLOCK
 hello world
 # END NORI-AI MANAGED BLOCK

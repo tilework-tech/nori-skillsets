@@ -16,7 +16,7 @@ import {
 import { substituteTemplatePaths } from "@/cli/features/claude-code/template.js";
 import { success, info, warn } from "@/cli/logger.js";
 
-import type { ProfileLoader } from "@/cli/features/claude-code/profiles/profileLoaderRegistry.js";
+import type { ProfileLoader } from "@/cli/features/claude-code/skillsets/skillsetLoaderRegistry.js";
 
 // Get directory of this loader file
 const __filename = fileURLToPath(import.meta.url);
@@ -26,14 +26,14 @@ const __dirname = path.dirname(__filename);
  * Get config directory for slash commands based on selected profile
  *
  * @param args - Configuration arguments
- * @param args.profileName - Name of the profile to load slash commands from
+ * @param args.skillsetName - Name of the profile to load slash commands from
  *
  * @returns Path to the slashcommands config directory for the profile
  */
-const getConfigDir = (args: { profileName: string }): string => {
-  const { profileName } = args;
+const getConfigDir = (args: { skillsetName: string }): string => {
+  const { skillsetName } = args;
   const noriDir = getNoriDir();
-  return path.join(noriDir, "profiles", profileName, "slashcommands");
+  return path.join(noriDir, "profiles", skillsetName, "slashcommands");
 };
 
 /**
@@ -48,14 +48,14 @@ const registerSlashCommands = async (args: {
   info({ message: "Registering Nori slash commands..." });
 
   // Get profile name from config - error if not configured
-  const profileName = getActiveSkillset({ config });
-  if (profileName == null) {
+  const skillsetName = getActiveSkillset({ config });
+  if (skillsetName == null) {
     throw new Error(
-      "No profile configured for claude-code. Run 'nori-skillsets init' to configure a profile.",
+      "No skillset configured for claude-code. Run 'nori-skillsets init' to configure a skillset.",
     );
   }
   const configDir = getConfigDir({
-    profileName,
+    skillsetName,
   });
   const claudeCommandsDir = getClaudeCommandsDir({
     installDir: config.installDir,

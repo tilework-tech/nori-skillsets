@@ -1,5 +1,5 @@
 /**
- * CLI command for installing a profile from the public registry in one step
+ * CLI command for installing a skillset from the public registry in one step
  * Handles: nori-skillsets install <package>[@version] [--user]
  */
 
@@ -13,7 +13,7 @@ import { hasExistingInstallation } from "@/cli/commands/install/installState.js"
 import { registryDownloadMain } from "@/cli/commands/registry-download/registryDownload.js";
 import { loadConfig, getDefaultAgents } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
-import { getNoriProfilesDir } from "@/cli/features/claude-code/paths.js";
+import { getNoriSkillsetsDir } from "@/cli/features/claude-code/paths.js";
 import { getHomeDir } from "@/utils/home.js";
 import { normalizeInstallDir } from "@/utils/path.js";
 
@@ -52,21 +52,21 @@ const resolveInstallDir = (args: {
 };
 
 /**
- * Check if a profile exists locally in the profiles directory
+ * Check if a skillset exists locally in the profiles directory
  * @param args - Function arguments
- * @param args.profileName - Name of the profile to check
+ * @param args.skillsetName - Name of the skillset to check
  *
- * @returns True if the profile directory exists locally
+ * @returns True if the skillset directory exists locally
  */
-const checkLocalProfileExists = async (args: {
-  profileName: string;
+const checkLocalSkillsetExists = async (args: {
+  skillsetName: string;
 }): Promise<boolean> => {
-  const { profileName } = args;
-  const profilesDir = getNoriProfilesDir();
-  const profilePath = path.join(profilesDir, profileName);
+  const { skillsetName } = args;
+  const skillsetsDir = getNoriSkillsetsDir();
+  const skillsetPath = path.join(skillsetsDir, skillsetName);
 
   try {
-    await fs.access(profilePath);
+    await fs.access(skillsetPath);
     return true;
   } catch {
     return false;
@@ -83,18 +83,18 @@ export type RegistryInstallResult = {
 /**
  * Display success message after installation completes
  * @param args - Function arguments
- * @param args.profileName - Name of the profile that was installed
+ * @param args.skillsetName - Name of the skillset that was installed
  */
-const displaySuccessMessage = (args: { profileName: string }): void => {
-  const { profileName } = args;
-  log.success(`Skillset "${profileName}" is now active.`);
+const displaySuccessMessage = (args: { skillsetName: string }): void => {
+  const { skillsetName } = args;
+  log.success(`Skillset "${skillsetName}" is now active.`);
   log.info("Restart Claude Code to apply the new skillset.");
 };
 
 /**
- * Install a profile from the public registry in one step
- * Downloads the profile, then either performs initial installation or
- * switches to the profile and regenerates files.
+ * Install a skillset from the public registry in one step
+ * Downloads the skillset, then either performs initial installation or
+ * switches to the skillset and regenerates files.
  * @param args - The install parameters
  * @param args.packageSpec - Package specification (name or name@version)
  * @param args.installDir - Optional explicit install directory
@@ -114,13 +114,13 @@ export const registryInstallMain = async (
     useHomeDir,
   });
 
-  const profileName = parsePackageName({ packageSpec });
+  const skillsetName = parsePackageName({ packageSpec });
 
   // Resolve agent name from config defaultAgents, with --agent as override
   const config = await loadConfig();
   const agentName = getDefaultAgents({ config, agentOverride: agent })[0];
 
-  // Step 1: Download the profile from registry first (so it's available for install)
+  // Step 1: Download the skillset from registry first (so it's available for install)
   // Note: registryUrl is null to let registryDownloadMain determine the correct
   // registry based on the package namespace (e.g., "org/package" -> org's registry)
   const downloadResult = await registryDownloadMain({
@@ -130,10 +130,10 @@ export const registryInstallMain = async (
     listVersions: null,
   });
 
-  // If download failed, check if profile exists locally as fallback
+  // If download failed, check if skillset exists locally as fallback
   if (!downloadResult.success) {
-    const localExists = await checkLocalProfileExists({
-      profileName,
+    const localExists = await checkLocalSkillsetExists({
+      skillsetName,
     });
 
     if (!localExists) {
@@ -141,7 +141,7 @@ export const registryInstallMain = async (
     }
 
     log.warn(
-      `Skillset "${profileName}" not found in registry. Using locally installed version.`,
+      `Skillset "${skillsetName}" not found in registry. Using locally installed version.`,
     );
   }
 
@@ -151,23 +151,23 @@ export const registryInstallMain = async (
       await installMain({
         nonInteractive: true,
         installDir: targetInstallDir,
-        profile: profileName,
+        skillset: skillsetName,
         agent: agentName,
         silent: silent ?? null,
       });
-      // Initial install already sets the profile, so we're done
-      displaySuccessMessage({ profileName });
+      // Initial install already sets the skillset, so we're done
+      displaySuccessMessage({ skillsetName });
       return { success: true };
     }
 
-    // Step 3 (existing installation): Switch to the downloaded profile
+    // Step 3 (existing installation): Switch to the downloaded skillset
     const agentImpl = AgentRegistry.getInstance().get({ name: agentName });
-    await agentImpl.switchProfile({
+    await agentImpl.switchSkillset({
       installDir: targetInstallDir,
-      profileName,
+      skillsetName,
     });
 
-    // Step 4: Re-run install in silent mode to regenerate files with new profile
+    // Step 4: Re-run install in silent mode to regenerate files with new skillset
     await installMain({
       nonInteractive: true,
       installDir: targetInstallDir,
@@ -175,11 +175,11 @@ export const registryInstallMain = async (
       silent: true,
     });
 
-    displaySuccessMessage({ profileName });
+    displaySuccessMessage({ skillsetName });
     return { success: true };
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
-    log.error(`Failed to install skillset "${profileName}": ${errorMessage}`);
+    log.error(`Failed to install skillset "${skillsetName}": ${errorMessage}`);
     return { success: false };
   }
 };

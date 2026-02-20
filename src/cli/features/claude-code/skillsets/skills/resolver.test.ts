@@ -102,7 +102,7 @@ describe("skills.json parsing", () => {
         JSON.stringify(skillsJson),
       );
 
-      const result = await readSkillsJson({ profileDir: tempDir });
+      const result = await readSkillsJson({ skillsetDir: tempDir });
 
       expect(result).toEqual([
         { name: "writing-plans", versionRange: "^1.0.0" },
@@ -111,7 +111,7 @@ describe("skills.json parsing", () => {
     });
 
     it("should return null when skills.json does not exist", async () => {
-      const result = await readSkillsJson({ profileDir: tempDir });
+      const result = await readSkillsJson({ skillsetDir: tempDir });
 
       expect(result).toBeNull();
     });
@@ -119,7 +119,7 @@ describe("skills.json parsing", () => {
     it("should throw error on invalid JSON", async () => {
       await fs.writeFile(path.join(tempDir, "skills.json"), "invalid json");
 
-      await expect(readSkillsJson({ profileDir: tempDir })).rejects.toThrow();
+      await expect(readSkillsJson({ skillsetDir: tempDir })).rejects.toThrow();
     });
   });
 });
@@ -142,7 +142,7 @@ describe("skills.json writing", () => {
         { name: "test-driven-development", versionRange: "*" },
       ];
 
-      await writeSkillsJson({ profileDir: tempDir, dependencies });
+      await writeSkillsJson({ skillsetDir: tempDir, dependencies });
 
       const content = await fs.readFile(
         path.join(tempDir, "skills.json"),
@@ -159,7 +159,7 @@ describe("skills.json writing", () => {
     it("should write with proper JSON formatting (2-space indent)", async () => {
       const dependencies = [{ name: "my-skill", versionRange: "*" }];
 
-      await writeSkillsJson({ profileDir: tempDir, dependencies });
+      await writeSkillsJson({ skillsetDir: tempDir, dependencies });
 
       const content = await fs.readFile(
         path.join(tempDir, "skills.json"),
@@ -171,7 +171,7 @@ describe("skills.json writing", () => {
     });
 
     it("should write empty object for empty dependencies", async () => {
-      await writeSkillsJson({ profileDir: tempDir, dependencies: [] });
+      await writeSkillsJson({ skillsetDir: tempDir, dependencies: [] });
 
       const content = await fs.readFile(
         path.join(tempDir, "skills.json"),
@@ -191,7 +191,7 @@ describe("skills.json writing", () => {
 
       // Overwrite with new dependencies
       const dependencies = [{ name: "new-skill", versionRange: "*" }];
-      await writeSkillsJson({ profileDir: tempDir, dependencies });
+      await writeSkillsJson({ skillsetDir: tempDir, dependencies });
 
       const content = await fs.readFile(
         path.join(tempDir, "skills.json"),
@@ -217,7 +217,7 @@ describe("skills.json writing", () => {
 
     it("should create skills.json when it does not exist", async () => {
       await addSkillDependency({
-        profileDir: tempDir,
+        skillsetDir: tempDir,
         skillName: "new-skill",
         version: "*",
       });
@@ -239,7 +239,7 @@ describe("skills.json writing", () => {
       );
 
       await addSkillDependency({
-        profileDir: tempDir,
+        skillsetDir: tempDir,
         skillName: "new-skill",
         version: "*",
       });
@@ -264,7 +264,7 @@ describe("skills.json writing", () => {
       );
 
       await addSkillDependency({
-        profileDir: tempDir,
+        skillsetDir: tempDir,
         skillName: "my-skill",
         version: "*",
       });
@@ -290,7 +290,7 @@ describe("skills.json writing", () => {
       );
 
       await addSkillDependency({
-        profileDir: tempDir,
+        skillsetDir: tempDir,
         skillName: "skill-d",
         version: "*",
       });

@@ -1,7 +1,7 @@
 /**
- * Version tracking utilities for Nori Profiles installer
+ * Version tracking utilities for Nori Skillsets installer
  *
- * Manages version tracking for the Nori Profiles installer.
+ * Manages version tracking for the Nori Skillsets installer.
  */
 
 import { existsSync, readFileSync } from "fs";

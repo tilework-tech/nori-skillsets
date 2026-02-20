@@ -1,5 +1,5 @@
 /**
- * CLI command for downloading profile packages from the Nori registrar
+ * CLI command for downloading skillset packages from the Nori registrar
  * Handles: nori-skillsets download <package>[@version] [--registry <url>]
  */
 
@@ -26,7 +26,7 @@ import {
 } from "@/cli/commands/cliCommandNames.js";
 import { initMain } from "@/cli/commands/init/init.js";
 import { getRegistryAuth, loadConfig } from "@/cli/config.js";
-import { getNoriProfilesDir } from "@/cli/features/claude-code/paths.js";
+import { getNoriSkillsetsDir } from "@/cli/features/claude-code/paths.js";
 import { registryDownloadFlow } from "@/cli/prompts/flows/index.js";
 import { getHomeDir } from "@/utils/home.js";
 import { getInstallDirs } from "@/utils/path.js";
@@ -73,17 +73,17 @@ const readVersionInfo = async (args: {
 };
 
 /**
- * Read the nori.json file from a profile directory
+ * Read the nori.json file from a skillset directory
  * @param args - The function arguments
- * @param args.profileDir - The profile directory path
+ * @param args.skillsetDir - The skillset directory path
  *
  * @returns The nori.json content or null if not found
  */
 const readNoriJson = async (args: {
-  profileDir: string;
+  skillsetDir: string;
 }): Promise<NoriJson | null> => {
-  const { profileDir } = args;
-  const noriJsonPath = path.join(profileDir, "nori.json");
+  const { skillsetDir } = args;
+  const noriJsonPath = path.join(skillsetDir, "nori.json");
 
   try {
     const content = await fs.readFile(noriJsonPath, "utf-8");
@@ -524,7 +524,7 @@ export type RegistryDownloadResult = {
 };
 
 /**
- * Download and install a profile from the registrar
+ * Download and install a skillset from the registrar
  * @param args - The download parameters
  * @param args.packageSpec - Package name with optional version (e.g., "my-profile" or "my-profile@1.0.0")
  * @param args.cwd - Current working directory (defaults to process.cwd())
@@ -567,7 +567,7 @@ export const registryDownloadMain = async (args: {
     const allInstallations = getInstallDirs({ currentDir: installDir });
     if (!allInstallations.includes(installDir)) {
       // No installation at specified directory - auto-init (interactive to allow user prompts)
-      // Skip the profile persistence warning since users are just trying to download a profile
+      // Skip the skillset persistence warning since users are just trying to download a skillset
       log.info("Setting up Nori for first time use...");
       try {
         await initMain({
@@ -592,7 +592,7 @@ export const registryDownloadMain = async (args: {
     if (!homeInstallations.includes(homeDir)) {
       if (allInstallations.length === 0) {
         // No installation found - auto-init at home directory (interactive to allow user prompts)
-        // Skip the profile persistence warning since users are just trying to download a profile
+        // Skip the skillset persistence warning since users are just trying to download a skillset
         log.info("Setting up Nori for first time use...");
         try {
           await initMain({
@@ -622,14 +622,14 @@ export const registryDownloadMain = async (args: {
   // Load config for registry auth - use getHomeDir() since registry needs global auth
   const config = await loadConfig();
 
-  const profilesDir = getNoriProfilesDir();
-  // For namespaced packages, the profile is in a nested directory (e.g., profiles/myorg/my-profile)
+  const skillsetsDir = getNoriSkillsetsDir();
+  // For namespaced packages, the skillset is in a nested directory (e.g., profiles/myorg/my-profile)
   const targetDir =
     orgId === "public"
-      ? path.join(profilesDir, packageName)
-      : path.join(profilesDir, orgId, packageName);
+      ? path.join(skillsetsDir, packageName)
+      : path.join(skillsetsDir, orgId, packageName);
 
-  // Check if profile already exists and get its version info
+  // Check if skillset already exists and get its version info
   let existingVersionInfo: VersionInfo | null = null;
   let profileExists = false;
   try {
@@ -810,7 +810,7 @@ export const registryDownloadMain = async (args: {
           if (installedValid && targetValid) {
             if (semver.gte(installedVersion, resolvedTargetVersion)) {
               let depWarnings: Array<string> = [];
-              const noriJson = await readNoriJson({ profileDir: targetDir });
+              const noriJson = await readNoriJson({ skillsetDir: targetDir });
               if (noriJson != null) {
                 const profileSkillsDir = path.join(targetDir, "skills");
                 depWarnings = await downloadSkillDependencies({
@@ -835,7 +835,7 @@ export const registryDownloadMain = async (args: {
             };
           } else if (installedVersion === resolvedTargetVersion) {
             let depWarnings: Array<string> = [];
-            const noriJson = await readNoriJson({ profileDir: targetDir });
+            const noriJson = await readNoriJson({ skillsetDir: targetDir });
             if (noriJson != null) {
               const profileSkillsDir = path.join(targetDir, "skills");
               depWarnings = await downloadSkillDependencies({
@@ -881,7 +881,7 @@ export const registryDownloadMain = async (args: {
 
           if (profileExists) {
             const tempDir = path.join(
-              profilesDir,
+              skillsetsDir,
               `.${packageName}-download-temp`,
             );
             await fs.mkdir(tempDir, { recursive: true });
@@ -944,7 +944,7 @@ export const registryDownloadMain = async (args: {
 
           // Download skill dependencies and collect warnings
           let warnings: Array<string> = [];
-          const noriJson = await readNoriJson({ profileDir: targetDir });
+          const noriJson = await readNoriJson({ skillsetDir: targetDir });
           if (noriJson != null) {
             const profileSkillsDir = path.join(targetDir, "skills");
             warnings = await downloadSkillDependencies({
@@ -961,7 +961,7 @@ export const registryDownloadMain = async (args: {
             version: resolvedTargetVersion,
             isUpdate: profileExists,
             installedTo: targetDir,
-            switchHint: `${cliPrefix} ${commandNames.switchProfile} ${profileDisplayName}`,
+            switchHint: `${cliPrefix} ${commandNames.switchSkillset} ${profileDisplayName}`,
             profileDisplayName,
             warnings,
           };

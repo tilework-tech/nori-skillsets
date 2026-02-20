@@ -1,5 +1,5 @@
 /**
- * Configuration management for Nori Profiles installer
+ * Configuration management for Nori Skillsets installer
  * Functional library for loading and managing disk-based configuration
  */
 
@@ -39,7 +39,7 @@ export type AuthCredentials = {
 };
 
 /**
- * Unified configuration type for Nori Profiles
+ * Unified configuration type for Nori Skillsets
  * Contains all persisted fields from disk plus required installDir
  */
 export type Config = {
@@ -80,14 +80,8 @@ type RawDiskConfig = {
   // Common fields
   sendSessionTranscript?: "enabled" | "disabled" | null;
   autoupdate?: "enabled" | "disabled" | null;
-  // Legacy profile field - kept for reading old configs (not written anymore)
-  profile?: { baseProfile?: string | null } | null;
   installDir?: string | null;
   defaultAgents?: Array<string> | null;
-  // Legacy agents field - kept for reading old configs (not written anymore)
-  agents?: {
-    [key: string]: { profile?: { baseProfile?: string | null } | null } | null;
-  } | null;
   // Current format
   activeSkillset?: string | null;
   version?: string | null;
@@ -218,10 +212,6 @@ export const getDefaultAgents = (args: {
  * Uses JSON schema validation for strict type checking.
  * Always reads from ~/.nori-config.json.
  *
- * Handles backwards compatibility:
- * - Legacy `agents["claude-code"].profile.baseProfile` → `activeSkillset`
- * - Legacy `profile.baseProfile` → `activeSkillset`
- *
  * @returns The config if valid, null otherwise
  */
 export const loadConfig = async (): Promise<Config | null> => {
@@ -298,19 +288,8 @@ export const loadConfig = async (): Promise<Config | null> => {
       };
     }
 
-    // Resolve activeSkillset with priority:
-    // 1. activeSkillset field (current format)
-    // 2. agents["claude-code"].profile.baseProfile (legacy agents format)
-    // 3. profile.baseProfile (oldest legacy format)
     if (validated.activeSkillset != null) {
       result.activeSkillset = validated.activeSkillset;
-    } else if (validated.agents != null) {
-      const claudeAgent = validated.agents["claude-code"];
-      if (claudeAgent?.profile?.baseProfile != null) {
-        result.activeSkillset = claudeAgent.profile.baseProfile;
-      }
-    } else if (validated.profile?.baseProfile != null) {
-      result.activeSkillset = validated.profile.baseProfile;
     }
 
     // Return result if we have meaningful config data
@@ -479,32 +458,10 @@ const configSchema = {
       enum: ["enabled", "disabled"],
       default: "disabled",
     },
-    // Legacy profile field - kept for reading old configs (not written anymore)
-    profile: {
-      type: ["object", "null"],
-      properties: {
-        baseProfile: { type: "string" },
-      },
-    },
     installDir: { type: "string" },
     defaultAgents: {
       type: ["array", "null"],
       items: { type: "string" },
-    },
-    // Legacy agents field - kept for reading old configs (not written anymore)
-    agents: {
-      type: "object",
-      additionalProperties: {
-        type: "object",
-        properties: {
-          profile: {
-            type: ["object", "null"],
-            properties: {
-              baseProfile: { type: "string" },
-            },
-          },
-        },
-      },
     },
     // Current active skillset field
     activeSkillset: { type: "string" },

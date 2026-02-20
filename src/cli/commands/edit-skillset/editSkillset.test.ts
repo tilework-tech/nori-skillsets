@@ -16,7 +16,7 @@ import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 
 import { editSkillsetMain } from "./editSkillset.js";
 
-// Mock os.homedir so getNoriProfilesDir() resolves to the test directory
+// Mock os.homedir so getNoriSkillsetsDir() resolves to the test directory
 vi.mock("os", async (importOriginal) => {
   const actual = await importOriginal<typeof os>();
   return {
@@ -94,11 +94,11 @@ describe("editSkillsetMain", () => {
     );
 
     // Create profile directory
-    const profilesDir = path.join(testHomeDir, ".nori", "profiles");
-    const profileDir = path.join(profilesDir, "senior-swe");
-    await fs.mkdir(profileDir, { recursive: true });
+    const skillsetsDir = path.join(testHomeDir, ".nori", "profiles");
+    const skillsetDir = path.join(skillsetsDir, "senior-swe");
+    await fs.mkdir(skillsetDir, { recursive: true });
     await fs.writeFile(
-      path.join(profileDir, "nori.json"),
+      path.join(skillsetDir, "nori.json"),
       JSON.stringify({ name: "senior-swe", version: "1.0.0" }),
     );
 
@@ -115,7 +115,7 @@ describe("editSkillsetMain", () => {
     // Should have called execFile with 'code' and the profile path
     expect(mockExecFile).toHaveBeenCalledWith(
       "code",
-      [profileDir],
+      [skillsetDir],
       expect.any(Function),
     );
 
@@ -140,17 +140,17 @@ describe("editSkillsetMain", () => {
     );
 
     // Create profile directory with some files
-    const profilesDir = path.join(testHomeDir, ".nori", "profiles");
-    const profileDir = path.join(profilesDir, "senior-swe");
-    await fs.mkdir(path.join(profileDir, "skills", "my-skill"), {
+    const skillsetsDir = path.join(testHomeDir, ".nori", "profiles");
+    const skillsetDir = path.join(skillsetsDir, "senior-swe");
+    await fs.mkdir(path.join(skillsetDir, "skills", "my-skill"), {
       recursive: true,
     });
     await fs.writeFile(
-      path.join(profileDir, "nori.json"),
+      path.join(skillsetDir, "nori.json"),
       JSON.stringify({ name: "senior-swe", version: "1.0.0" }),
     );
     await fs.writeFile(
-      path.join(profileDir, "skills", "my-skill", "SKILL.md"),
+      path.join(skillsetDir, "skills", "my-skill", "SKILL.md"),
       "# my-skill",
     );
 
@@ -168,7 +168,7 @@ describe("editSkillsetMain", () => {
 
     // Should use note for directory contents
     expect(note).toHaveBeenCalledWith(
-      expect.stringContaining(profileDir),
+      expect.stringContaining(skillsetDir),
       expect.stringContaining("senior-swe"),
     );
 
@@ -220,8 +220,8 @@ describe("editSkillsetMain", () => {
     );
 
     // Profiles dir exists but the specific profile does not
-    const profilesDir = path.join(testHomeDir, ".nori", "profiles");
-    await fs.mkdir(profilesDir, { recursive: true });
+    const skillsetsDir = path.join(testHomeDir, ".nori", "profiles");
+    await fs.mkdir(skillsetsDir, { recursive: true });
 
     await editSkillsetMain({ agent: "claude-code" });
 
@@ -243,11 +243,11 @@ describe("editSkillsetMain", () => {
     );
 
     // Create profile directory
-    const profilesDir = path.join(testHomeDir, ".nori", "profiles");
-    const profileDir = path.join(profilesDir, "senior-swe");
-    await fs.mkdir(profileDir, { recursive: true });
+    const skillsetsDir = path.join(testHomeDir, ".nori", "profiles");
+    const skillsetDir = path.join(skillsetsDir, "senior-swe");
+    await fs.mkdir(skillsetDir, { recursive: true });
     await fs.writeFile(
-      path.join(profileDir, "nori.json"),
+      path.join(skillsetDir, "nori.json"),
       JSON.stringify({ name: "senior-swe", version: "1.0.0" }),
     );
 
@@ -263,7 +263,7 @@ describe("editSkillsetMain", () => {
 
     expect(mockExecFile).toHaveBeenCalledWith(
       "code",
-      [profileDir],
+      [skillsetDir],
       expect.any(Function),
     );
 
@@ -285,11 +285,11 @@ describe("editSkillsetMain", () => {
     );
 
     // Create namespaced profile directory
-    const profilesDir = path.join(testHomeDir, ".nori", "profiles");
-    const profileDir = path.join(profilesDir, "myorg", "my-profile");
-    await fs.mkdir(profileDir, { recursive: true });
+    const skillsetsDir = path.join(testHomeDir, ".nori", "profiles");
+    const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+    await fs.mkdir(skillsetDir, { recursive: true });
     await fs.writeFile(
-      path.join(profileDir, "nori.json"),
+      path.join(skillsetDir, "nori.json"),
       JSON.stringify({ name: "my-profile", version: "1.0.0" }),
     );
 
@@ -305,7 +305,7 @@ describe("editSkillsetMain", () => {
 
     expect(mockExecFile).toHaveBeenCalledWith(
       "code",
-      [profileDir],
+      [skillsetDir],
       expect.any(Function),
     );
 
@@ -327,9 +327,9 @@ describe("editSkillsetMain", () => {
     );
 
     // Create both profile directories
-    const profilesDir = path.join(testHomeDir, ".nori", "profiles");
+    const skillsetsDir = path.join(testHomeDir, ".nori", "profiles");
     for (const name of ["senior-swe", "product-manager"]) {
-      const dir = path.join(profilesDir, name);
+      const dir = path.join(skillsetsDir, name);
       await fs.mkdir(dir, { recursive: true });
       await fs.writeFile(
         path.join(dir, "nori.json"),
@@ -348,7 +348,7 @@ describe("editSkillsetMain", () => {
     // Pass name argument to open product-manager instead of active profile
     await editSkillsetMain({ agent: "claude-code", name: "product-manager" });
 
-    const expectedDir = path.join(profilesDir, "product-manager");
+    const expectedDir = path.join(skillsetsDir, "product-manager");
     expect(mockExecFile).toHaveBeenCalledWith(
       "code",
       [expectedDir],
@@ -373,11 +373,11 @@ describe("editSkillsetMain", () => {
     );
 
     // Create profile directory
-    const profilesDir = path.join(testHomeDir, ".nori", "profiles");
-    const profileDir = path.join(profilesDir, "senior-swe");
-    await fs.mkdir(profileDir, { recursive: true });
+    const skillsetsDir = path.join(testHomeDir, ".nori", "profiles");
+    const skillsetDir = path.join(skillsetsDir, "senior-swe");
+    await fs.mkdir(skillsetDir, { recursive: true });
     await fs.writeFile(
-      path.join(profileDir, "nori.json"),
+      path.join(skillsetDir, "nori.json"),
       JSON.stringify({ name: "senior-swe", version: "1.0.0" }),
     );
 
@@ -394,7 +394,7 @@ describe("editSkillsetMain", () => {
 
     expect(mockExecFile).toHaveBeenCalledWith(
       "code",
-      [profileDir],
+      [skillsetDir],
       expect.any(Function),
     );
 

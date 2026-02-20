@@ -66,7 +66,7 @@ vi.mock("@/cli/features/agentRegistry.js", () => ({
   AgentRegistry: {
     getInstance: () => ({
       get: () => ({
-        switchProfile: mockSwitchProfile,
+        switchSkillset: mockSwitchProfile,
       }),
     }),
   },
@@ -122,16 +122,16 @@ describe("registry-install", () => {
       listVersions: null,
     });
 
-    // Step 2: Initial install with the downloaded profile - should use home dir
+    // Step 2: Initial install with the downloaded skillset - should use home dir
     expect(installMain).toHaveBeenCalledWith({
       nonInteractive: true,
       installDir: "/mock-home",
-      profile: "senior-swe",
+      skillset: "senior-swe",
       agent: "claude-code",
       silent: null,
     });
 
-    // Should NOT call switchProfile or second install (initial install handles it)
+    // Should NOT call switchSkillset or second install (initial install handles it)
     expect(mockSwitchProfile).not.toHaveBeenCalled();
     expect(installMain).toHaveBeenCalledTimes(1);
     expect(registryDownloadMain).toHaveBeenCalledTimes(1);
@@ -157,7 +157,7 @@ describe("registry-install", () => {
     // Step 3: Switch to downloaded profile
     expect(mockSwitchProfile).toHaveBeenCalledWith({
       installDir: "/mock-home",
-      profileName: "senior-swe",
+      skillsetName: "senior-swe",
     });
 
     // Step 4: Regenerate files
@@ -188,7 +188,7 @@ describe("registry-install", () => {
     expect(installMain).toHaveBeenCalledWith({
       nonInteractive: true,
       installDir: "/mock-home",
-      profile: "product-manager",
+      skillset: "product-manager",
       agent: "claude-code",
       silent: null,
     });
@@ -209,7 +209,7 @@ describe("registry-install", () => {
     expect(installMain).toHaveBeenCalledWith({
       nonInteractive: true,
       installDir: "/mock-home",
-      profile: "documenter",
+      skillset: "documenter",
       agent: "claude-code",
       silent: null,
     });
@@ -286,7 +286,7 @@ describe("registry-install", () => {
     // Should still switch profile and complete installation - using home dir
     expect(mockSwitchProfile).toHaveBeenCalledWith({
       installDir: "/mock-home",
-      profileName: "senior-swe",
+      skillsetName: "senior-swe",
     });
 
     // Should return success

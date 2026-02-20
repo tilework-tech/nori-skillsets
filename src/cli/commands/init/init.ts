@@ -7,7 +7,7 @@
  * Responsibilities:
  * - Create .nori-config.json with minimal structure
  * - Create ~/.nori/profiles/ directory
- * - Detect and capture existing Claude Code configuration as a profile
+ * - Detect and capture existing Claude Code configuration as a skillset
  * - Warn about ancestor installations
  */
 
@@ -22,7 +22,7 @@ import {
   type Config,
 } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
-import { getNoriProfilesDir } from "@/cli/features/claude-code/paths.js";
+import { getNoriSkillsetsDir } from "@/cli/features/claude-code/paths.js";
 import { bold, yellow } from "@/cli/logger.js";
 import { initFlow } from "@/cli/prompts/flows/init.js";
 import { getCurrentPackageVersion } from "@/cli/version.js";
@@ -52,7 +52,7 @@ const directoryExists = async (dirPath: string): Promise<boolean> => {
  * @param args - Configuration arguments
  * @param args.installDir - Installation directory
  * @param args.nonInteractive - Whether to run in non-interactive mode
- * @param args.skipWarning - Whether to skip the profile persistence warning (useful for auto-init in download flows)
+ * @param args.skipWarning - Whether to skip the skillset persistence warning (useful for auto-init in download flows)
  */
 export const initMain = async (args?: {
   installDir?: string | null;
@@ -93,23 +93,23 @@ export const initMain = async (args?: {
             null
           );
         },
-        onCaptureConfig: async ({ installDir: dir, profileName }) => {
+        onCaptureConfig: async ({ installDir: dir, skillsetName }) => {
           // Build a config object for the agent to use when restoring managed config
           const config: Config = {
             installDir: dir,
-            activeSkillset: profileName,
+            activeSkillset: skillsetName,
           };
           await defaultAgent.captureExistingConfig?.({
             installDir: dir,
-            profileName,
+            skillsetName,
             config,
           });
         },
-        onInit: async ({ installDir: dir, capturedProfileName }) => {
+        onInit: async ({ installDir: dir, capturedSkillsetName }) => {
           // Create ~/.nori/profiles/ directory
-          const profilesDir = getNoriProfilesDir();
-          if (!(await directoryExists(profilesDir))) {
-            await fs.mkdir(profilesDir, { recursive: true });
+          const skillsetsDir = getNoriSkillsetsDir();
+          if (!(await directoryExists(skillsetsDir))) {
+            await fs.mkdir(skillsetsDir, { recursive: true });
           }
 
           const existingConfig = await loadConfig();
@@ -125,7 +125,7 @@ export const initMain = async (args?: {
           const version = currentVersion ?? null;
 
           const activeSkillset =
-            capturedProfileName ?? existingConfig?.activeSkillset ?? null;
+            capturedSkillsetName ?? existingConfig?.activeSkillset ?? null;
 
           await saveConfig({
             username,
@@ -142,7 +142,7 @@ export const initMain = async (args?: {
           // Mark this directory as having the default agent installed
           defaultAgent.markInstall({
             path: dir,
-            skillsetName: capturedProfileName,
+            skillsetName: capturedSkillsetName,
           });
         },
       },
@@ -174,17 +174,17 @@ export const initMain = async (args?: {
   }
 
   // Create ~/.nori/profiles/ directory
-  const profilesDir = getNoriProfilesDir();
-  if (!(await directoryExists(profilesDir))) {
-    await fs.mkdir(profilesDir, { recursive: true });
+  const skillsetsDir = getNoriSkillsetsDir();
+  if (!(await directoryExists(skillsetsDir))) {
+    await fs.mkdir(skillsetsDir, { recursive: true });
   }
 
   // Load existing config (if any)
   const existingConfig = await loadConfig();
   const currentVersion = getCurrentPackageVersion();
 
-  // Track captured profile name for setting in config
-  let capturedProfileName: string | null = null;
+  // Track captured skillset name for setting in config
+  let capturedSkillsetName: string | null = null;
 
   // If no existing config and default agent not already installed, check for existing configuration to capture
   if (
@@ -195,7 +195,7 @@ export const initMain = async (args?: {
       installDir: normalizedInstallDir,
     });
     if (detectedConfig != null) {
-      capturedProfileName = "my-profile";
+      capturedSkillsetName = "my-profile";
     }
   }
 
@@ -211,9 +211,9 @@ export const initMain = async (args?: {
   const transcriptDestination = existingConfig?.transcriptDestination ?? null;
   const version = currentVersion ?? null;
 
-  // Set activeSkillset - if a profile was captured, set it as the active skillset
+  // Set activeSkillset - if a skillset was captured, set it as the active skillset
   const activeSkillset =
-    capturedProfileName ?? existingConfig?.activeSkillset ?? null;
+    capturedSkillsetName ?? existingConfig?.activeSkillset ?? null;
 
   // Save config
   await saveConfig({
@@ -231,24 +231,24 @@ export const initMain = async (args?: {
     installDir: normalizedInstallDir,
   });
 
-  // If a profile was captured, capture config and install managed block
-  if (capturedProfileName != null) {
+  // If a skillset was captured, capture config and install managed block
+  if (capturedSkillsetName != null) {
     const config: Config = {
       installDir: normalizedInstallDir,
       activeSkillset,
     };
     await defaultAgent.captureExistingConfig?.({
       installDir: normalizedInstallDir,
-      profileName: capturedProfileName,
+      skillsetName: capturedSkillsetName,
       config,
     });
-    log.success(`Configuration saved as skillset "${capturedProfileName}"`);
+    log.success(`Configuration saved as skillset "${capturedSkillsetName}"`);
   }
 
   // Mark this directory as having the default agent installed
   defaultAgent.markInstall({
     path: normalizedInstallDir,
-    skillsetName: capturedProfileName,
+    skillsetName: capturedSkillsetName,
   });
 };
 

@@ -22,20 +22,20 @@ fi
 INSTALL_DIR="$HOME"
 CONFIG_FILE="$HOME/.nori-config.json"
 
-# === PROFILE ENRICHMENT ===
-# Get profile name from ~/.nori-config.json
-PROFILE_NAME=""  # default to empty (don't show if not set)
+# === SKILLSET ENRICHMENT ===
+# Get skillset name from ~/.nori-config.json
+SKILLSET_NAME=""  # default to empty (don't show if not set)
 
 if [ -f "$CONFIG_FILE" ]; then
-    # Read profile from agents.claude-code first (new format), fall back to legacy profile
-    PROFILE_NAME=$(jq -r '.agents["claude-code"].profile.baseProfile // .profile.baseProfile // ""' "$CONFIG_FILE" 2>/dev/null)
+    # Read skillset from activeSkillset field
+    SKILLSET_NAME=$(jq -r '.activeSkillset // ""' "$CONFIG_FILE" 2>/dev/null)
 
     # Read version from config
     NORI_VERSION=$(jq -r '.version // ""' "$CONFIG_FILE" 2>/dev/null)
 fi
 
-# Inject profile into the JSON (can be empty string)
-INPUT=$(echo "$INPUT" | jq --arg profile "$PROFILE_NAME" '. + {profile_name: $profile}')
+# Inject skillset into the JSON (can be empty string)
+INPUT=$(echo "$INPUT" | jq --arg skillset "$SKILLSET_NAME" '. + {skillset_name: $skillset}')
 
 # ANSI color codes
 MAGENTA='\033[0;35m'
@@ -123,8 +123,8 @@ LINES_ADDED=$(echo "$INPUT" | jq -r '.cost.total_lines_added // 0')
 LINES_REMOVED=$(echo "$INPUT" | jq -r '.cost.total_lines_removed // 0')
 LINES_FORMATTED="+${LINES_ADDED}/-${LINES_REMOVED}"
 
-# Extract profile name (passed from enrichment)
-PROFILE_NAME=$(echo "$INPUT" | jq -r '.profile_name // ""')
+# Extract skillset name (passed from enrichment)
+SKILLSET_NAME=$(echo "$INPUT" | jq -r '.skillset_name // ""')
 
 # Build branding message
 if [ -n "$NORI_VERSION" ]; then
@@ -135,7 +135,7 @@ fi
 
 # Single promotional tip
 TIPS=(
-    "Try the nori cli for the best agentic ai cli! Just run \`npm install -g nori-ai-cli\`"
+    "Try the nori cli for the best agentic ai cli! Just run \`npm install -g nori-skillsets\`"
 )
 
 # Check for install-in-progress marker
@@ -191,8 +191,8 @@ fi
 
 # Build status line with colors - split into three lines
 # Line 1: Main metrics (git, [skillset if set], cost, tokens, context, lines)
-if [ -n "$PROFILE_NAME" ]; then
-    echo -e "${MAGENTA}⎇ ${BRANCH}${NC} | ${YELLOW}Skillset: ${PROFILE_NAME}${NC} | ${GREEN}Cost: \$${COST_FORMATTED}${NC} | ${CYAN}Tokens: ${TOKENS_FORMATTED}${NC} | Context: ${CONTEXT_FORMATTED} | Lines: ${LINES_FORMATTED}"
+if [ -n "$SKILLSET_NAME" ]; then
+    echo -e "${MAGENTA}⎇ ${BRANCH}${NC} | ${YELLOW}Skillset: ${SKILLSET_NAME}${NC} | ${GREEN}Cost: \$${COST_FORMATTED}${NC} | ${CYAN}Tokens: ${TOKENS_FORMATTED}${NC} | Context: ${CONTEXT_FORMATTED} | Lines: ${LINES_FORMATTED}"
 else
     echo -e "${MAGENTA}⎇ ${BRANCH}${NC} | ${GREEN}Cost: \$${COST_FORMATTED}${NC} | ${CYAN}Tokens: ${TOKENS_FORMATTED}${NC} | Context: ${CONTEXT_FORMATTED} | Lines: ${LINES_FORMATTED}"
 fi

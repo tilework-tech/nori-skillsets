@@ -67,7 +67,7 @@ describe("switchSkillsetFlow", () => {
       vi.mocked(clack.confirm).mockResolvedValueOnce(true);
 
       await switchSkillsetFlow({
-        profileName: "product-manager",
+        skillsetName: "product-manager",
         installDir: "/test/dir",
         callbacks: mockCallbacks,
       });
@@ -79,7 +79,7 @@ describe("switchSkillsetFlow", () => {
       vi.mocked(clack.confirm).mockResolvedValueOnce(true);
 
       await switchSkillsetFlow({
-        profileName: "product-manager",
+        skillsetName: "product-manager",
         installDir: "/test/dir",
         callbacks: mockCallbacks,
       });
@@ -93,7 +93,7 @@ describe("switchSkillsetFlow", () => {
       vi.mocked(clack.confirm).mockResolvedValueOnce(true);
 
       await switchSkillsetFlow({
-        profileName: "product-manager",
+        skillsetName: "product-manager",
         installDir: "/test/dir",
         callbacks: mockCallbacks,
       });
@@ -113,7 +113,7 @@ describe("switchSkillsetFlow", () => {
       vi.mocked(clack.confirm).mockResolvedValueOnce(true);
 
       await switchSkillsetFlow({
-        profileName: "product-manager",
+        skillsetName: "product-manager",
         installDir: "/test/dir",
         callbacks: mockCallbacks,
       });
@@ -121,7 +121,7 @@ describe("switchSkillsetFlow", () => {
       expect(mockCallbacks.onExecuteSwitch).toHaveBeenCalledWith({
         installDir: "/test/dir",
         agentName: "claude-code",
-        profileName: "product-manager",
+        skillsetName: "product-manager",
       });
     });
 
@@ -129,14 +129,14 @@ describe("switchSkillsetFlow", () => {
       vi.mocked(clack.confirm).mockResolvedValueOnce(true);
 
       const result = await switchSkillsetFlow({
-        profileName: "product-manager",
+        skillsetName: "product-manager",
         installDir: "/test/dir",
         callbacks: mockCallbacks,
       });
 
       expect(result).toEqual({
         agentName: "claude-code",
-        profileName: "product-manager",
+        skillsetName: "product-manager",
       });
     });
   });
@@ -146,7 +146,7 @@ describe("switchSkillsetFlow", () => {
       vi.mocked(clack.confirm).mockResolvedValueOnce(true);
 
       const result = await switchSkillsetFlow({
-        profileName: "product-manager",
+        skillsetName: "product-manager",
         installDir: "/test/dir",
         agentOverride: "cursor-agent",
         callbacks: mockCallbacks,
@@ -159,7 +159,7 @@ describe("switchSkillsetFlow", () => {
       );
       expect(result).toEqual({
         agentName: "cursor-agent",
-        profileName: "product-manager",
+        skillsetName: "product-manager",
       });
     });
   });
@@ -174,7 +174,7 @@ describe("switchSkillsetFlow", () => {
       vi.mocked(clack.confirm).mockResolvedValueOnce(true);
 
       await switchSkillsetFlow({
-        profileName: "product-manager",
+        skillsetName: "product-manager",
         installDir: "/test/dir",
         callbacks: mockCallbacks,
       });
@@ -204,7 +204,7 @@ describe("switchSkillsetFlow", () => {
       vi.mocked(clack.confirm).mockResolvedValueOnce(true);
 
       await switchSkillsetFlow({
-        profileName: "product-manager",
+        skillsetName: "product-manager",
         installDir: "/test/dir",
         callbacks: mockCallbacks,
       });
@@ -230,7 +230,7 @@ describe("switchSkillsetFlow", () => {
       vi.mocked(clack.confirm).mockResolvedValueOnce(true);
 
       await switchSkillsetFlow({
-        profileName: "product-manager",
+        skillsetName: "product-manager",
         installDir: "/test/dir",
         callbacks: mockCallbacks,
       });
@@ -255,7 +255,7 @@ describe("switchSkillsetFlow", () => {
       vi.mocked(clack.confirm).mockResolvedValueOnce(true);
 
       await switchSkillsetFlow({
-        profileName: "product-manager",
+        skillsetName: "product-manager",
         installDir: "/test/dir",
         callbacks: mockCallbacks,
       });
@@ -283,7 +283,7 @@ describe("switchSkillsetFlow", () => {
       vi.mocked(clack.confirm).mockResolvedValueOnce(true);
 
       await switchSkillsetFlow({
-        profileName: "product-manager",
+        skillsetName: "product-manager",
         installDir: "/test/dir",
         callbacks: mockCallbacks,
       });
@@ -308,7 +308,7 @@ describe("switchSkillsetFlow", () => {
       vi.mocked(clack.confirm).mockResolvedValueOnce(true);
 
       await switchSkillsetFlow({
-        profileName: "product-manager",
+        skillsetName: "product-manager",
         installDir: "/test/dir",
         callbacks: mockCallbacks,
       });
@@ -332,14 +332,14 @@ describe("switchSkillsetFlow", () => {
       vi.mocked(clack.confirm).mockResolvedValueOnce(true);
 
       await switchSkillsetFlow({
-        profileName: "product-manager",
+        skillsetName: "product-manager",
         installDir: "/test/dir",
         callbacks: mockCallbacks,
       });
 
       expect(mockCallbacks.onCaptureConfig).toHaveBeenCalledWith({
         installDir: "/test/dir",
-        profileName: "my-custom-skillset",
+        skillsetName: "my-custom-skillset",
       });
     });
 
@@ -357,7 +357,7 @@ describe("switchSkillsetFlow", () => {
       vi.mocked(clack.confirm).mockResolvedValueOnce(true);
 
       await switchSkillsetFlow({
-        profileName: "product-manager",
+        skillsetName: "product-manager",
         installDir: "/test/dir",
         callbacks: mockCallbacks,
       });
@@ -380,7 +380,7 @@ describe("switchSkillsetFlow", () => {
       vi.mocked(clack.select).mockResolvedValueOnce("abort");
 
       const result = await switchSkillsetFlow({
-        profileName: "product-manager",
+        skillsetName: "product-manager",
         installDir: "/test/dir",
         callbacks: mockCallbacks,
       });
@@ -400,7 +400,7 @@ describe("switchSkillsetFlow", () => {
       vi.mocked(clack.select).mockResolvedValueOnce("abort");
 
       await switchSkillsetFlow({
-        profileName: "product-manager",
+        skillsetName: "product-manager",
         installDir: "/test/dir",
         callbacks: mockCallbacks,
       });
@@ -415,7 +415,7 @@ describe("switchSkillsetFlow", () => {
       vi.mocked(clack.confirm).mockResolvedValueOnce(false);
 
       const result = await switchSkillsetFlow({
-        profileName: "product-manager",
+        skillsetName: "product-manager",
         installDir: "/test/dir",
         callbacks: mockCallbacks,
       });
@@ -437,7 +437,7 @@ describe("switchSkillsetFlow", () => {
       );
 
       const result = await switchSkillsetFlow({
-        profileName: "product-manager",
+        skillsetName: "product-manager",
         installDir: "/test/dir",
         callbacks: mockCallbacks,
       });
@@ -454,7 +454,7 @@ describe("switchSkillsetFlow", () => {
       );
 
       const result = await switchSkillsetFlow({
-        profileName: "product-manager",
+        skillsetName: "product-manager",
         installDir: "/test/dir",
         callbacks: mockCallbacks,
       });
@@ -479,7 +479,7 @@ describe("switchSkillsetFlow", () => {
       );
 
       const result = await switchSkillsetFlow({
-        profileName: "product-manager",
+        skillsetName: "product-manager",
         installDir: "/test/dir",
         callbacks: mockCallbacks,
       });
@@ -495,7 +495,7 @@ describe("switchSkillsetFlow", () => {
       vi.mocked(clack.confirm).mockResolvedValueOnce(true);
 
       await switchSkillsetFlow({
-        profileName: "product-manager",
+        skillsetName: "product-manager",
         installDir: "/test/dir",
         callbacks: mockCallbacks,
       });

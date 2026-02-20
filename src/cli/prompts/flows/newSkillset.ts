@@ -11,7 +11,7 @@
 
 import { intro, outro, group, text, isCancel, cancel } from "@clack/prompts";
 
-import { validateProfileName } from "@/cli/prompts/validators.js";
+import { validateSkillsetName } from "@/cli/prompts/validators.js";
 
 /**
  * Result of the new skillset flow
@@ -56,7 +56,9 @@ const parseKeywords = (args: { value: string }): Array<string> | null => {
  *
  * @returns Undefined if valid, error message if invalid
  */
-const validateSkillsetName = (args: { value: string }): string | undefined => {
+const validateNamespacedSkillsetName = (args: {
+  value: string;
+}): string | undefined => {
   const { value } = args;
 
   if (!value || value.trim() === "") {
@@ -72,7 +74,7 @@ const validateSkillsetName = (args: { value: string }): string | undefined => {
 
   // Validate each part
   for (const part of parts) {
-    const error = validateProfileName({ value: part });
+    const error = validateSkillsetName({ value: part });
     if (error != null) {
       return error;
     }
@@ -96,7 +98,8 @@ export const newSkillsetFlow =
           text({
             message: "Skillset name",
             placeholder: "my-skillset or org/my-skillset",
-            validate: (value) => validateSkillsetName({ value: value ?? "" }),
+            validate: (value) =>
+              validateNamespacedSkillsetName({ value: value ?? "" }),
           }),
         description: () =>
           text({

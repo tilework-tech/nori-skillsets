@@ -10,16 +10,16 @@ import * as path from "path";
 import { loadConfig, saveConfig, type Config } from "@/cli/config.js";
 import {
   detectExistingConfig,
-  captureExistingConfigAsProfile,
+  captureExistingConfigAsSkillset,
 } from "@/cli/features/claude-code/existingConfigCapture.js";
 import { factoryResetClaudeCode } from "@/cli/features/claude-code/factoryReset.js";
 import { LoaderRegistry } from "@/cli/features/claude-code/loaderRegistry.js";
 import {
   getClaudeMdFile,
-  getNoriProfilesDir,
+  getNoriSkillsetsDir,
 } from "@/cli/features/claude-code/paths.js";
-import { claudeMdLoader } from "@/cli/features/claude-code/profiles/claudemd/loader.js";
-import { ensureNoriJson } from "@/cli/features/claude-code/profiles/metadata.js";
+import { claudeMdLoader } from "@/cli/features/claude-code/skillsets/claudemd/loader.js";
+import { ensureNoriJson } from "@/cli/features/claude-code/skillsets/metadata.js";
 import { MANIFEST_FILE } from "@/cli/features/managedFolder.js";
 import { success, info } from "@/cli/logger.js";
 
@@ -76,13 +76,13 @@ export const claudeCodeAgent: Agent = {
 
   captureExistingConfig: async (args: {
     installDir: string;
-    profileName: string;
+    skillsetName: string;
     config: Config;
   }) => {
-    const { installDir, profileName, config } = args;
+    const { installDir, skillsetName, config } = args;
 
     // Capture the existing config as a named profile
-    await captureExistingConfigAsProfile({ installDir, profileName });
+    await captureExistingConfigAsSkillset({ installDir, skillsetName });
 
     // Clear original CLAUDE.md to prevent content duplication
     const claudeMdPath = getClaudeMdFile({ installDir });
@@ -96,24 +96,24 @@ export const claudeCodeAgent: Agent = {
     await claudeMdLoader.install({ config });
   },
 
-  switchProfile: async (args: {
+  switchSkillset: async (args: {
     installDir: string;
-    profileName: string;
+    skillsetName: string;
   }): Promise<void> => {
-    const { installDir, profileName } = args;
-    const profilesDir = getNoriProfilesDir();
+    const { installDir, skillsetName } = args;
+    const skillsetsDir = getNoriSkillsetsDir();
 
     // Verify profile exists
-    // profileName can be flat (e.g., "senior-swe") or namespaced (e.g., "myorg/my-profile")
+    // skillsetName can be flat (e.g., "senior-swe") or namespaced (e.g., "myorg/my-profile")
     // path.join handles both cases correctly since it just joins the path components
-    const profileDir = path.join(profilesDir, profileName);
-    await ensureNoriJson({ profileDir });
-    const instructionsPath = path.join(profileDir, MANIFEST_FILE);
+    const skillsetDir = path.join(skillsetsDir, skillsetName);
+    await ensureNoriJson({ skillsetDir });
+    const instructionsPath = path.join(skillsetDir, MANIFEST_FILE);
 
     try {
       await fs.access(instructionsPath);
     } catch {
-      throw new Error(`Profile "${profileName}" not found in ${profilesDir}`);
+      throw new Error(`Profile "${skillsetName}" not found in ${skillsetsDir}`);
     }
 
     // Load current config
@@ -126,7 +126,7 @@ export const claudeCodeAgent: Agent = {
       organizationUrl: currentConfig?.auth?.organizationUrl ?? null,
       organizations: currentConfig?.auth?.organizations ?? null,
       isAdmin: currentConfig?.auth?.isAdmin ?? null,
-      activeSkillset: profileName,
+      activeSkillset: skillsetName,
       sendSessionTranscript: currentConfig?.sendSessionTranscript ?? null,
       autoupdate: currentConfig?.autoupdate,
       version: currentConfig?.version ?? null,
@@ -135,7 +135,7 @@ export const claudeCodeAgent: Agent = {
     });
 
     success({
-      message: `Switched to "${profileName}" profile for Claude Code`,
+      message: `Switched to "${skillsetName}" profile for Claude Code`,
     });
     info({
       message: `Restart Claude Code to load the new profile configuration`,

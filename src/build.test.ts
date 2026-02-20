@@ -138,17 +138,17 @@ ${stderr || "(empty)"}`,
 
       const pluginDir = process.cwd();
       const buildDir = path.join(pluginDir, "build");
-      const profilesDir = path.join(
+      const skillsetsDir = path.join(
         buildDir,
-        "src/cli/features/claude-code/profiles/config",
+        "src/cli/features/claude-code/skillsets/config",
       );
 
-      if (fs.existsSync(profilesDir)) {
-        const profiles = fs.readdirSync(profilesDir);
+      if (fs.existsSync(skillsetsDir)) {
+        const profiles = fs.readdirSync(skillsetsDir);
         for (const profile of profiles) {
           if (profile.startsWith("_")) continue;
 
-          const skillsDir = path.join(profilesDir, profile, "skills");
+          const skillsDir = path.join(skillsetsDir, profile, "skills");
           if (!fs.existsSync(skillsDir)) continue;
 
           const skills = fs.readdirSync(skillsDir);

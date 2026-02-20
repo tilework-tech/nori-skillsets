@@ -32,7 +32,7 @@ source string (URL or shorthand)
 parseGitHubSource() --> { url, ref, subpath, skillFilter }
     |
     v
-Resolve target skillset (--new, --skillset, or active profile)
+Resolve target skillset (--new, --skillset, or active skillset)
     |
     v
 cloneRepo() --> temp directory (shallow clone, 60s timeout)
@@ -48,7 +48,7 @@ promptSkillTypes() --> Record<name, NoriJsonType>
 installSkill() for each selected skill
     |-- copyDirRecursive to ~/.claude/skills/<name>/
     |-- write nori.json provenance file
-    |-- copyDirRecursive to profile's skills/ dir (raw)
+    |-- copyDirRecursive to skillset's skills/ dir (raw)
     |-- applyTemplateSubstitutionToDir on live copy
     |-- addSkillToNoriJson
     |
@@ -56,13 +56,13 @@ installSkill() for each selected skill
 cleanupClone() (always runs via finally block)
 ```
 
-**Skillset targeting** (`external.ts`): Three mutually exclusive modes determine where skills are tracked. The resolved target flows into `targetSkillset`, which controls whether profile-side copies and manifest updates happen.
+**Skillset targeting** (`external.ts`): Three mutually exclusive modes determine where skills are tracked. The resolved target flows into `targetSkillset`, which controls whether skillset-side copies and manifest updates happen.
 
 | Mode | Flag | Behavior |
 |---|---|---|
 | Create new | `--new <name>` | Creates `~/.nori/profiles/<name>/` with empty `CLAUDE.md` and a `nori.json` (`{ name, version: "1.0.0" }`), then installs skills into it |
 | Target existing | `--skillset <name>` | Validates the skillset exists (checks for `CLAUDE.md`), then installs skills into it |
-| Active profile (default) | _(none)_ | Reads the active skillset from config via `getActiveSkillset()` and uses that if available |
+| Active skillset (default) | _(none)_ | Reads the active skillset from config via `getActiveSkillset()` and uses that if available |
 
 When `--new` is used, the new directory is created before cloning begins. After creation, `targetSkillset` is set to the new name so the existing `installSkill()` flow handles copying skills and updating the manifest identically to any other skillset target.
 
@@ -100,7 +100,7 @@ Skills are identified by parsing YAML frontmatter from SKILL.md files using rege
 - Each installed skill gets a `nori.json` provenance file containing: `name`, `version` (`"1.0.0"`), `type` (either `"inlined-skill"` or `"skill"` based on user choice), `source` (GitHub URL without `.git`), optional `ref` and `subpath`, and `installedAt` timestamp. This tracks where the skill was sourced from, unlike registry-downloaded skills which use `.nori-version`.
 - Skill directory names are sanitized from the skill's `name` frontmatter field: lowercased, non-alphanumeric characters replaced with hyphens, leading/trailing dots and hyphens stripped, truncated to 255 characters.
 - The `--ref` CLI flag takes precedence over any ref parsed from the source URL.
-- Template substitution is applied only to `.md` files in the live copy (`~/.claude/skills/`), not the raw profile copy. This matches the behavior of `skill-download`.
+- Template substitution is applied only to `.md` files in the live copy (`~/.claude/skills/`), not the raw skillset copy. This matches the behavior of `skill-download`.
 - Unlike `skill-download`, this command does not use `registryAgentCheck` validation -- it works without any prior Nori installation beyond a resolved install directory.
 - Manifest update failures (`addSkillToNoriJson`) are non-blocking, same as `skill-download`.
 

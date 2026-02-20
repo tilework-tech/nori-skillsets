@@ -8,10 +8,10 @@ import * as path from "path";
 
 import { type Config } from "@/cli/config.js";
 import {
-  getNoriProfilesDir,
+  getNoriSkillsetsDir,
   getClaudeSettingsFile,
 } from "@/cli/features/claude-code/paths.js";
-import { ProfileLoaderRegistry } from "@/cli/features/claude-code/profiles/profileLoaderRegistry.js";
+import { ProfileLoaderRegistry } from "@/cli/features/claude-code/skillsets/skillsetLoaderRegistry.js";
 import { success, info } from "@/cli/logger.js";
 
 import type { Loader } from "@/cli/features/agentRegistry.js";
@@ -29,7 +29,7 @@ import type { Loader } from "@/cli/features/agentRegistry.js";
 const installProfiles = async (args: { config: Config }): Promise<void> => {
   const { config } = args;
 
-  const noriProfilesDir = getNoriProfilesDir();
+  const noriProfilesDir = getNoriSkillsetsDir();
 
   // Create profiles directory if it doesn't exist
   await fs.mkdir(noriProfilesDir, { recursive: true });
@@ -52,7 +52,7 @@ const configureProfilesPermissions = async (args: {
   const claudeSettingsFile = getClaudeSettingsFile({
     installDir: config.installDir,
   });
-  const noriProfilesDir = getNoriProfilesDir();
+  const noriProfilesDir = getNoriSkillsetsDir();
 
   info({ message: "Configuring permissions for profiles directory..." });
 
@@ -96,7 +96,7 @@ const configureProfilesPermissions = async (args: {
  */
 export const profilesLoader: Loader = {
   name: "profiles",
-  description: "Profile templates in ~/.nori/profiles/",
+  description: "Skillset templates in ~/.nori/profiles/",
   run: async (args: { config: Config }) => {
     const { config } = args;
     await installProfiles({ config });

@@ -3,10 +3,10 @@
  * Singleton registry that manages loaders for features that depend on profile composition
  */
 
-import { claudeMdLoader } from "@/cli/features/claude-code/profiles/claudemd/loader.js";
-import { skillsLoader } from "@/cli/features/claude-code/profiles/skills/loader.js";
-import { slashCommandsLoader } from "@/cli/features/claude-code/profiles/slashcommands/loader.js";
-import { subagentsLoader } from "@/cli/features/claude-code/profiles/subagents/loader.js";
+import { claudeMdLoader } from "@/cli/features/claude-code/skillsets/claudemd/loader.js";
+import { skillsLoader } from "@/cli/features/claude-code/skillsets/skills/loader.js";
+import { slashCommandsLoader } from "@/cli/features/claude-code/skillsets/slashcommands/loader.js";
+import { subagentsLoader } from "@/cli/features/claude-code/skillsets/subagents/loader.js";
 
 import type { Config } from "@/cli/config.js";
 

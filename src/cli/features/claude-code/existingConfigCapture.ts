@@ -2,7 +2,7 @@
  * Existing Config Capture (Claude Code)
  *
  * Claude Code-specific functions for detecting and capturing existing
- * configurations as a named profile during installation.
+ * configurations as a named skillset during installation.
  */
 
 import * as fs from "fs/promises";
@@ -15,7 +15,7 @@ import {
   getClaudeSkillsDir,
   getClaudeAgentsDir,
   getClaudeCommandsDir,
-  getNoriProfilesDir,
+  getNoriSkillsetsDir,
 } from "@/cli/features/claude-code/paths.js";
 
 export type { ExistingConfig };
@@ -178,10 +178,10 @@ export const detectExistingConfig = async (args: {
 };
 
 /**
- * Capture existing configuration as a named profile
+ * Capture existing configuration as a named skillset
  *
- * Creates a new profile in ~/.nori/profiles/<profileName>/ containing:
- * - profile.json with metadata
+ * Creates a new skillset in ~/.nori/profiles/<skillsetName>/ containing:
+ * - nori.json with metadata
  * - CLAUDE.md with managed block markers added
  * - skills/ directory (copied from ~/.claude/skills/)
  * - subagents/ directory (copied from ~/.claude/agents/)
@@ -189,19 +189,19 @@ export const detectExistingConfig = async (args: {
  *
  * @param args - Configuration arguments
  * @param args.installDir - Installation directory
- * @param args.profileName - Name for the new profile
+ * @param args.skillsetName - Name for the new skillset
  */
-export const captureExistingConfigAsProfile = async (args: {
+export const captureExistingConfigAsSkillset = async (args: {
   installDir: string;
-  profileName: string;
+  skillsetName: string;
 }): Promise<void> => {
-  const { installDir, profileName } = args;
+  const { installDir, skillsetName } = args;
 
-  const profilesDir = getNoriProfilesDir();
-  const profileDir = path.join(profilesDir, profileName);
+  const skillsetsDir = getNoriSkillsetsDir();
+  const skillsetDir = path.join(skillsetsDir, skillsetName);
 
-  // Create profile directory
-  await fs.mkdir(profileDir, { recursive: true });
+  // Create skillset directory
+  await fs.mkdir(skillsetDir, { recursive: true });
 
   // Get skill names from the source skills directory
   const skillsDir = getClaudeSkillsDir({ installDir });
@@ -214,7 +214,7 @@ export const captureExistingConfigAsProfile = async (args: {
   }
 
   const noriJson = {
-    name: profileName,
+    name: skillsetName,
     version: "1.0.0",
     type: "skillset",
     description: "Captured from existing configuration",
@@ -223,7 +223,7 @@ export const captureExistingConfigAsProfile = async (args: {
     },
   };
   await fs.writeFile(
-    path.join(profileDir, "nori.json"),
+    path.join(skillsetDir, "nori.json"),
     JSON.stringify(noriJson, null, 2),
   );
 
@@ -237,32 +237,32 @@ export const captureExistingConfigAsProfile = async (args: {
       content = `${BEGIN_MARKER}\n${content}\n${END_MARKER}\n`;
     }
 
-    await fs.writeFile(path.join(profileDir, "CLAUDE.md"), content);
+    await fs.writeFile(path.join(skillsetDir, "CLAUDE.md"), content);
   } else {
     // Create empty CLAUDE.md with markers
     await fs.writeFile(
-      path.join(profileDir, "CLAUDE.md"),
+      path.join(skillsetDir, "CLAUDE.md"),
       `${BEGIN_MARKER}\n\n${END_MARKER}\n`,
     );
   }
 
   // Copy skills directory (skillsDir already defined above for nori.json)
   if (await fileExists(skillsDir)) {
-    const destSkillsDir = path.join(profileDir, "skills");
+    const destSkillsDir = path.join(skillsetDir, "skills");
     await fs.cp(skillsDir, destSkillsDir, { recursive: true });
   }
 
   // Copy agents directory as subagents
   const agentsDir = getClaudeAgentsDir({ installDir });
   if (await fileExists(agentsDir)) {
-    const destSubagentsDir = path.join(profileDir, "subagents");
+    const destSubagentsDir = path.join(skillsetDir, "subagents");
     await fs.cp(agentsDir, destSubagentsDir, { recursive: true });
   }
 
   // Copy commands directory as slashcommands
   const commandsDir = getClaudeCommandsDir({ installDir });
   if (await fileExists(commandsDir)) {
-    const destSlashcommandsDir = path.join(profileDir, "slashcommands");
+    const destSlashcommandsDir = path.join(skillsetDir, "slashcommands");
     await fs.cp(commandsDir, destSlashcommandsDir, { recursive: true });
   }
 };

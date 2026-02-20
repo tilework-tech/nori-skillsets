@@ -9,12 +9,12 @@ import * as path from "path";
 
 import { log, note, outro } from "@clack/prompts";
 
-import { getNoriProfilesDir } from "@/cli/features/claude-code/paths.js";
+import { getNoriSkillsetsDir } from "@/cli/features/claude-code/paths.js";
 import {
   ensureNoriJson,
-  readProfileMetadata,
-  writeProfileMetadata,
-} from "@/cli/features/claude-code/profiles/metadata.js";
+  readSkillsetMetadata,
+  writeSkillsetMetadata,
+} from "@/cli/features/claude-code/skillsets/metadata.js";
 import { MANIFEST_FILE } from "@/cli/features/managedFolder.js";
 
 export const forkSkillsetMain = async (args: {
@@ -22,12 +22,12 @@ export const forkSkillsetMain = async (args: {
   newSkillset: string;
 }): Promise<void> => {
   const { baseSkillset, newSkillset } = args;
-  const profilesDir = getNoriProfilesDir();
-  const sourcePath = path.join(profilesDir, baseSkillset);
-  const destPath = path.join(profilesDir, newSkillset);
+  const skillsetsDir = getNoriSkillsetsDir();
+  const sourcePath = path.join(skillsetsDir, baseSkillset);
+  const destPath = path.join(skillsetsDir, newSkillset);
 
   // Validate source exists and is a valid skillset (has nori.json)
-  await ensureNoriJson({ profileDir: sourcePath });
+  await ensureNoriJson({ skillsetDir: sourcePath });
   try {
     await fs.access(path.join(sourcePath, MANIFEST_FILE));
   } catch {
@@ -58,9 +58,9 @@ export const forkSkillsetMain = async (args: {
   await fs.cp(sourcePath, destPath, { recursive: true });
 
   // Update the name in nori.json to match the new skillset name
-  const metadata = await readProfileMetadata({ profileDir: destPath });
+  const metadata = await readSkillsetMetadata({ skillsetDir: destPath });
   metadata.name = newSkillset;
-  await writeProfileMetadata({ profileDir: destPath, metadata });
+  await writeSkillsetMetadata({ skillsetDir: destPath, metadata });
 
   const nextSteps = [
     `To switch:  nori-skillsets switch ${newSkillset}`,

@@ -141,7 +141,7 @@ describe("getInstallDirs", () => {
 
       fs.writeFileSync(
         path.join(projectDir, ".nori-config.json"),
-        JSON.stringify({ profile: { baseProfile: "test" } }),
+        JSON.stringify({ activeSkillset: "test" }),
       );
 
       const result = getInstallDirs({ currentDir: projectDir });
@@ -282,15 +282,15 @@ describe("getInstallDirs", () => {
     it("should find installation when cwd is inside .claude/profiles subdirectory", () => {
       const parentDir = path.join(tempDir, "home");
       const claudeDir = path.join(parentDir, ".claude");
-      const profilesDir = path.join(claudeDir, "profiles");
-      fs.mkdirSync(profilesDir, { recursive: true });
+      const skillsetsDir = path.join(claudeDir, "profiles");
+      fs.mkdirSync(skillsetsDir, { recursive: true });
 
       fs.writeFileSync(
         path.join(claudeDir, "CLAUDE.md"),
         "# BEGIN NORI-AI MANAGED BLOCK\ncontent\n# END NORI-AI MANAGED BLOCK",
       );
 
-      const result = getInstallDirs({ currentDir: profilesDir });
+      const result = getInstallDirs({ currentDir: skillsetsDir });
 
       expect(result).toHaveLength(1);
       expect(result[0]).toBe(parentDir);

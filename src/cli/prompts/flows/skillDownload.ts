@@ -8,7 +8,7 @@
  * - Version comparison and already-current detection
  * - Version list display
  * - Spinner while downloading
- * - Success note with install location and profile update status
+ * - Success note with install location and skillset update status
  * - Outro message
  */
 
@@ -71,7 +71,7 @@ export type SkillDownloadFlowResult = {
  * 2. Shows spinner while searching registries
  * 3. Handles search outcomes (error, already-current, list-versions, ready)
  * 4. Shows spinner while downloading
- * 5. Displays success note with install location and profile status
+ * 5. Displays success note with install location and skillset status
  * 6. Shows outro
  *
  * @param args - Flow configuration

@@ -19,7 +19,7 @@ import { getNoriDir } from "@/cli/features/claude-code/paths.js";
 export type FileManifest = {
   version: 1;
   createdAt: string;
-  profileName: string;
+  skillsetName: string;
   files: Record<string, string>; // relative path -> SHA-256 hash
 };
 
@@ -174,15 +174,15 @@ const collectFiles = async (args: {
  *
  * @param args - Configuration arguments
  * @param args.dir - Directory to create manifest for
- * @param args.profileName - Name of the profile being installed
+ * @param args.skillsetName - Name of the profile being installed
  *
  * @returns Manifest object with file hashes
  */
 export const computeDirectoryManifest = async (args: {
   dir: string;
-  profileName: string;
+  skillsetName: string;
 }): Promise<FileManifest> => {
-  const { dir, profileName } = args;
+  const { dir, skillsetName } = args;
 
   const files = await collectFiles({ dir, baseDir: dir });
   const fileHashes: Record<string, string> = {};
@@ -196,7 +196,7 @@ export const computeDirectoryManifest = async (args: {
   return {
     version: 1,
     createdAt: new Date().toISOString(),
-    profileName,
+    skillsetName,
     files: fileHashes,
   };
 };

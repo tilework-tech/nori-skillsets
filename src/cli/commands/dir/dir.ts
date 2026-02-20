@@ -9,7 +9,7 @@ import { spawn } from "child_process";
 
 import { log, outro } from "@clack/prompts";
 
-import { getNoriProfilesDir } from "@/cli/features/claude-code/paths.js";
+import { getNoriSkillsetsDir } from "@/cli/features/claude-code/paths.js";
 
 const openInExplorer = (args: { dirPath: string }): void => {
   const { dirPath } = args;
@@ -36,26 +36,26 @@ export const dirMain = async (args?: {
   nonInteractive?: boolean | null;
 }): Promise<void> => {
   const { nonInteractive } = args ?? {};
-  const profilesDir = getNoriProfilesDir();
+  const skillsetsDir = getNoriSkillsetsDir();
 
   if (nonInteractive) {
     // Plain output for scripting
-    process.stdout.write(profilesDir + "\n");
+    process.stdout.write(skillsetsDir + "\n");
     return;
   }
 
   let opened = false;
   try {
-    openInExplorer({ dirPath: profilesDir });
+    openInExplorer({ dirPath: skillsetsDir });
     opened = true;
   } catch {
     // Fall through to fallback
   }
 
   if (opened) {
-    log.success(`Opened ${profilesDir}`);
+    log.success(`Opened ${skillsetsDir}`);
   } else {
-    log.step(`Nori profiles directory: ${profilesDir}`);
+    log.step(`Nori profiles directory: ${skillsetsDir}`);
   }
   outro("Done");
 };

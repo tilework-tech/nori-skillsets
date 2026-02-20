@@ -19,8 +19,8 @@ import {
   hasChanges,
   getManifestPath,
   type ManifestDiff,
-} from "@/cli/features/claude-code/profiles/manifest.js";
-import { listProfiles } from "@/cli/features/managedFolder.js";
+} from "@/cli/features/claude-code/skillsets/manifest.js";
+import { listSkillsets } from "@/cli/features/managedFolder.js";
 import { setSilentMode, isSilentMode } from "@/cli/logger.js";
 import { switchSkillsetFlow } from "@/cli/prompts/flows/switchSkillset.js";
 import { getHomeDir } from "@/utils/home.js";
@@ -59,7 +59,7 @@ const detectLocalChanges = async (args: {
 };
 
 /**
- * Shared action handler for switch-skillset and switch-profile commands
+ * Shared action handler for switch-skillset commands
  * @param args - Configuration arguments
  * @param args.name - The skillset name to switch to
  * @param args.options - Command options
@@ -107,7 +107,7 @@ export const switchSkillsetAction = async (args: {
   // Interactive flow
   if (!nonInteractive) {
     await switchSkillsetFlow({
-      profileName: name,
+      skillsetName: name,
       installDir,
       agentOverride: options.agent ?? null,
       callbacks: {
@@ -128,7 +128,7 @@ export const switchSkillsetAction = async (args: {
             config != null ? getActiveSkillset({ config }) : null;
           return { currentProfile, localChanges };
         },
-        onCaptureConfig: async ({ installDir: dir, profileName: pName }) => {
+        onCaptureConfig: async ({ installDir: dir, skillsetName: pName }) => {
           const captureConfig = await loadConfig();
           const captureAgentNames = getDefaultAgents({
             config: captureConfig,
@@ -142,23 +142,26 @@ export const switchSkillsetAction = async (args: {
           };
           await captureAgent.captureExistingConfig?.({
             installDir: dir,
-            profileName: pName,
+            skillsetName: pName,
             config,
           });
         },
         onExecuteSwitch: async ({
           installDir: dir,
           agentName,
-          profileName: pName,
+          skillsetName: pName,
         }) => {
           const agent = AgentRegistry.getInstance().get({ name: agentName });
           const wasSilent = isSilentMode();
           setSilentMode({ silent: true });
           try {
-            await agent.switchProfile({ installDir: dir, profileName: pName });
+            await agent.switchSkillset({
+              installDir: dir,
+              skillsetName: pName,
+            });
           } catch (err) {
             setSilentMode({ silent: wasSilent });
-            const profiles = await listProfiles();
+            const profiles = await listSkillsets();
             if (profiles.length > 0) {
               log.error(`Available skillsets: ${profiles.join(", ")}`);
             }
@@ -204,11 +207,11 @@ export const switchSkillsetAction = async (args: {
   }
 
   try {
-    // Delegate to agent's switchProfile method
-    await agent.switchProfile({ installDir, profileName: name });
+    // Delegate to agent's switchSkillset method
+    await agent.switchSkillset({ installDir, skillsetName: name });
   } catch (err) {
     // On failure, show available skillsets
-    const profiles = await listProfiles();
+    const profiles = await listSkillsets();
     if (profiles.length > 0) {
       log.error(`Available skillsets: ${profiles.join(", ")}`);
     }
@@ -227,33 +230,18 @@ export const switchSkillsetAction = async (args: {
 };
 
 /**
- * Register the 'switch' and 'switch-profile' (alias) commands with commander
+ * Register the 'switch-skillset' command with commander
  * @param args - Configuration arguments
  * @param args.program - Commander program instance
  */
-export const registerSwitchProfileCommand = (args: {
+export const registerSwitchSkillsetCommand = (args: {
   program: Command;
 }): void => {
   const { program } = args;
 
-  // Primary command: switch-skillset
   program
     .command("switch-skillset <name>")
     .description("Switch to a different skillset and reinstall")
-    .option("-a, --agent <name>", "AI agent to switch skillset for")
-    .option("--force", "Force switch even when local changes are detected")
-    .action(
-      async (name: string, options: { agent?: string; force?: boolean }) => {
-        await switchSkillsetAction({ name, options, program });
-      },
-    );
-
-  // Alias command: switch-profile (for backward compatibility)
-  program
-    .command("switch-profile <name>")
-    .description(
-      "Alias for switch-skillset - Switch to a different skillset and reinstall",
-    )
     .option("-a, --agent <name>", "AI agent to switch skillset for")
     .option("--force", "Force switch even when local changes are detected")
     .action(

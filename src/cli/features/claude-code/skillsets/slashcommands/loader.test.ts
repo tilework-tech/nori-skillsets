@@ -23,9 +23,9 @@ vi.mock("@/cli/features/claude-code/paths.js", () => ({
   getClaudeCommandsDir: () => mockClaudeCommandsDir,
   getClaudeMdFile: () => path.join(mockClaudeDir, "CLAUDE.md"),
   getClaudeSkillsDir: () => path.join(mockClaudeDir, "skills"),
-  getClaudeProfilesDir: () => path.join(mockClaudeDir, "profiles"),
+  getClaudeSkillsetsDir: () => path.join(mockClaudeDir, "profiles"),
   getNoriDir: () => mockNoriDir,
-  getNoriProfilesDir: () => path.join(mockNoriDir, "profiles"),
+  getNoriSkillsetsDir: () => path.join(mockNoriDir, "profiles"),
   getNoriConfigFile: () => path.join(mockNoriDir, "config.json"),
 }));
 
@@ -36,25 +36,25 @@ import { slashCommandsLoader } from "./loader.js";
  * Create a stub profile directory with nori.json and optional slashcommands
  *
  * @param args - Function arguments
- * @param args.profilesDir - Path to the profiles directory
- * @param args.profileName - Name of the profile
+ * @param args.skillsetsDir - Path to the profiles directory
+ * @param args.skillsetName - Name of the profile
  * @param args.slashcommands - Optional map of command filename to content
  */
 const createStubProfile = async (args: {
-  profilesDir: string;
-  profileName: string;
+  skillsetsDir: string;
+  skillsetName: string;
   slashcommands?: Record<string, string> | null;
 }): Promise<void> => {
-  const { profilesDir, profileName, slashcommands } = args;
-  const profileDir = path.join(profilesDir, profileName);
-  await fs.mkdir(profileDir, { recursive: true });
+  const { skillsetsDir, skillsetName, slashcommands } = args;
+  const skillsetDir = path.join(skillsetsDir, skillsetName);
+  await fs.mkdir(skillsetDir, { recursive: true });
   await fs.writeFile(
-    path.join(profileDir, "nori.json"),
+    path.join(skillsetDir, "nori.json"),
     JSON.stringify({ name: "Test Profile", version: "1.0.0" }),
   );
 
   if (slashcommands != null) {
-    const cmdDir = path.join(profileDir, "slashcommands");
+    const cmdDir = path.join(skillsetDir, "slashcommands");
     await fs.mkdir(cmdDir, { recursive: true });
     for (const [filename, content] of Object.entries(slashcommands)) {
       await fs.writeFile(path.join(cmdDir, filename), content);
@@ -93,8 +93,8 @@ describe("slashCommandsLoader", () => {
 
     // Create stub profile with test slash commands
     await createStubProfile({
-      profilesDir: noriProfilesDir,
-      profileName: "senior-swe",
+      skillsetsDir: noriProfilesDir,
+      skillsetName: "senior-swe",
       slashcommands: TEST_SLASH_COMMANDS,
     });
   });

@@ -88,11 +88,11 @@ describe("initFlow", () => {
 
       expect(mockCallbacks.onInit).toHaveBeenCalledWith({
         installDir: "/test/dir",
-        capturedProfileName: null,
+        capturedSkillsetName: null,
       });
     });
 
-    it("should return result with null capturedProfileName", async () => {
+    it("should return result with null capturedSkillsetName", async () => {
       vi.mocked(clack.confirm).mockResolvedValueOnce(true);
 
       const result = await initFlow({
@@ -100,7 +100,7 @@ describe("initFlow", () => {
         callbacks: mockCallbacks,
       });
 
-      expect(result).toEqual({ capturedProfileName: null });
+      expect(result).toEqual({ capturedSkillsetName: null });
     });
   });
 
@@ -150,7 +150,7 @@ describe("initFlow", () => {
 
       expect(mockCallbacks.onCaptureConfig).toHaveBeenCalledWith({
         installDir: "/test/dir",
-        profileName: "my-captured",
+        skillsetName: "my-captured",
       });
     });
 
@@ -175,7 +175,7 @@ describe("initFlow", () => {
 
       expect(mockCallbacks.onInit).toHaveBeenCalledWith({
         installDir: "/test/dir",
-        capturedProfileName: "my-captured",
+        capturedSkillsetName: "my-captured",
       });
     });
 
@@ -198,7 +198,7 @@ describe("initFlow", () => {
         callbacks: mockCallbacks,
       });
 
-      expect(result).toEqual({ capturedProfileName: "my-captured" });
+      expect(result).toEqual({ capturedSkillsetName: "my-captured" });
     });
   });
 

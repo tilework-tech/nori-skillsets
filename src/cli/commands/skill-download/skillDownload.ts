@@ -26,13 +26,13 @@ import {
 } from "@/cli/config.js";
 import {
   getClaudeSkillsDir,
-  getNoriProfilesDir,
+  getNoriSkillsetsDir,
 } from "@/cli/features/claude-code/paths.js";
 import {
   addSkillToNoriJson,
   ensureNoriJson,
-} from "@/cli/features/claude-code/profiles/metadata.js";
-import { addSkillDependency } from "@/cli/features/claude-code/profiles/skills/resolver.js";
+} from "@/cli/features/claude-code/skillsets/metadata.js";
+import { addSkillDependency } from "@/cli/features/claude-code/skillsets/skills/resolver.js";
 import { substituteTemplatePaths } from "@/cli/features/claude-code/template.js";
 import { skillDownloadFlow } from "@/cli/prompts/flows/index.js";
 import { getHomeDir } from "@/utils/home.js";
@@ -345,7 +345,7 @@ const formatMultipleSkillsError = (args: {
  * @param args.installDir - Optional explicit install directory
  * @param args.registryUrl - Optional registry URL to download from
  * @param args.listVersions - If true, list available versions instead of downloading
- * @param args.skillset - Optional skillset name to add skill to (defaults to active profile)
+ * @param args.skillset - Optional skillset name to add skill to (defaults to active skillset)
  * @param args.cliName - CLI name for user-facing messages (defaults to nori-skillsets)
  */
 export const skillDownloadMain = async (args: {
@@ -422,14 +422,14 @@ export const skillDownloadMain = async (args: {
   const config = await loadConfig();
 
   // Resolve target skillset for manifest update
-  // Priority: --skillset option > active profile from config > no manifest update
+  // Priority: --skillset option > active skillset from config > no manifest update
   let targetSkillset: string | null = null;
-  const profilesDir = getNoriProfilesDir();
+  const skillsetsDir = getNoriSkillsetsDir();
 
   if (skillset != null) {
     // User specified a skillset - verify it exists
-    const skillsetDir = path.join(profilesDir, skillset);
-    await ensureNoriJson({ profileDir: skillsetDir });
+    const skillsetDir = path.join(skillsetsDir, skillset);
+    await ensureNoriJson({ skillsetDir: skillsetDir });
     const skillsetMarker = path.join(skillsetDir, "nori.json");
     try {
       await fs.access(skillsetMarker);
@@ -441,16 +441,16 @@ export const skillDownloadMain = async (args: {
       return;
     }
   } else if (config != null) {
-    // No skillset specified - try to use active profile
+    // No skillset specified - try to use active skillset
     const activeSkillset = getActiveSkillset({ config });
     if (activeSkillset != null) {
-      // Verify profile directory exists
-      const profileDir = path.join(profilesDir, activeSkillset);
+      // Verify skillset directory exists
+      const skillsetDir = path.join(skillsetsDir, activeSkillset);
       try {
-        await fs.access(profileDir);
+        await fs.access(skillsetDir);
         targetSkillset = activeSkillset;
       } catch {
-        // Profile directory doesn't exist - skip manifest update
+        // Skillset directory doesn't exist - skip manifest update
       }
     }
   }
@@ -718,10 +718,10 @@ export const skillDownloadMain = async (args: {
             versionData,
           );
 
-          // Persist skill to profile's skills directory
+          // Persist skill to skillset's skills directory
           if (targetSkillset != null) {
             const profileSkillDir = path.join(
-              profilesDir,
+              skillsetsDir,
               targetSkillset,
               "skills",
               skillName,
@@ -741,7 +741,7 @@ export const skillDownloadMain = async (args: {
                   ? profileCopyErr.message
                   : String(profileCopyErr);
               warnings.push(
-                `Warning: Could not persist skill to profile: ${msg}`,
+                `Warning: Could not persist skill to skillset: ${msg}`,
               );
             }
           }
@@ -758,7 +758,7 @@ export const skillDownloadMain = async (args: {
           if (targetSkillset != null) {
             try {
               await addSkillDependency({
-                profileDir: path.join(profilesDir, targetSkillset),
+                skillsetDir: path.join(skillsetsDir, targetSkillset),
                 skillName,
                 version: "*",
               });
@@ -778,7 +778,7 @@ export const skillDownloadMain = async (args: {
           if (targetSkillset != null) {
             try {
               await addSkillToNoriJson({
-                profileDir: path.join(profilesDir, targetSkillset),
+                skillsetDir: path.join(skillsetsDir, targetSkillset),
                 skillName,
                 version: "*",
               });

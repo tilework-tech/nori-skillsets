@@ -63,8 +63,8 @@ export type SkillConflictInfo = {
 };
 
 /**
- * Custom error class for skill collision errors during profile upload
- * Thrown when inline skills in a profile conflict with existing registry skills
+ * Custom error class for skill collision errors during skillset upload
+ * Thrown when inline skills in a skillset conflict with existing registry skills
  */
 export class SkillCollisionError extends Error {
   readonly conflicts: Array<SkillConflictInfo>;

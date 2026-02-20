@@ -23,9 +23,9 @@ vi.mock("@/cli/features/claude-code/paths.js", () => ({
   getClaudeCommandsDir: () => path.join(mockClaudeDir, "commands"),
   getClaudeMdFile: () => path.join(mockClaudeDir, "CLAUDE.md"),
   getClaudeSkillsDir: () => mockClaudeSkillsDir,
-  getClaudeProfilesDir: () => path.join(mockClaudeDir, "profiles"),
+  getClaudeSkillsetsDir: () => path.join(mockClaudeDir, "profiles"),
   getNoriDir: () => mockNoriDir,
-  getNoriProfilesDir: () => path.join(mockNoriDir, "profiles"),
+  getNoriSkillsetsDir: () => path.join(mockNoriDir, "profiles"),
   getNoriConfigFile: () => path.join(mockNoriDir, "config.json"),
 }));
 
@@ -36,26 +36,26 @@ import { skillsLoader } from "./loader.js";
  * Create a stub profile directory with nori.json and optional skills/skills.json
  *
  * @param args - Function arguments
- * @param args.profilesDir - Path to the profiles directory
- * @param args.profileName - Name of the profile
+ * @param args.skillsetsDir - Path to the profiles directory
+ * @param args.skillsetName - Name of the profile
  * @param args.skills - Optional map of skill name to SKILL.md content
  */
 const createStubProfile = async (args: {
-  profilesDir: string;
-  profileName: string;
+  skillsetsDir: string;
+  skillsetName: string;
   skills?: Record<string, string> | null;
 }): Promise<void> => {
-  const { profilesDir, profileName, skills } = args;
-  const profileDir = path.join(profilesDir, profileName);
-  await fs.mkdir(profileDir, { recursive: true });
+  const { skillsetsDir, skillsetName, skills } = args;
+  const skillsetDir = path.join(skillsetsDir, skillsetName);
+  await fs.mkdir(skillsetDir, { recursive: true });
   await fs.writeFile(
-    path.join(profileDir, "nori.json"),
+    path.join(skillsetDir, "nori.json"),
     JSON.stringify({ name: "Test Profile", version: "1.0.0" }),
   );
 
   if (skills != null && Object.keys(skills).length > 0) {
     for (const [skillName, skillContent] of Object.entries(skills)) {
-      const skillDir = path.join(profileDir, "skills", skillName);
+      const skillDir = path.join(skillsetDir, "skills", skillName);
       await fs.mkdir(skillDir, { recursive: true });
       await fs.writeFile(path.join(skillDir, "SKILL.md"), skillContent);
     }
@@ -113,8 +113,8 @@ describe("skillsLoader", () => {
 
     // Create stub profile with test skills
     await createStubProfile({
-      profilesDir: noriProfilesDir,
-      profileName: "senior-swe",
+      skillsetsDir: noriProfilesDir,
+      skillsetName: "senior-swe",
       skills: TEST_SKILLS,
     });
   });
@@ -323,8 +323,8 @@ describe("skillsLoader", () => {
 
       // Create stub profile in the custom install location
       await createStubProfile({
-        profilesDir: customNoriProfilesDir,
-        profileName: "senior-swe",
+        skillsetsDir: customNoriProfilesDir,
+        skillsetName: "senior-swe",
         skills: TEST_SKILLS,
       });
       await skillsLoader.install({ config });
@@ -523,7 +523,7 @@ describe("skillsLoader", () => {
   });
 
   describe("skills.json support (external skills)", () => {
-    // Note: External skills are stored in the PROFILE's skills directory ({profileDir}/skills/)
+    // Note: External skills are stored in the PROFILE's skills directory ({skillsetDir}/skills/)
     // NOT in a global ~/.nori/skills/ directory. The skills.json references dependencies
     // that were downloaded by registry-download to the profile's skills directory.
 
@@ -534,9 +534,9 @@ describe("skillsLoader", () => {
       };
 
       // Create a skills.json in the profile directory
-      const profileDir = path.join(mockNoriDir, "profiles", "senior-swe");
+      const skillsetDir = path.join(mockNoriDir, "profiles", "senior-swe");
       await fs.writeFile(
-        path.join(profileDir, "skills.json"),
+        path.join(skillsetDir, "skills.json"),
         JSON.stringify({
           "external-skill": "^1.0.0",
         }),
@@ -545,7 +545,7 @@ describe("skillsLoader", () => {
       // Create the external skill in the PROFILE's skills directory
       // (this is where registry-download puts skill dependencies)
       const externalSkillDir = path.join(
-        profileDir,
+        skillsetDir,
         "skills",
         "external-skill",
       );
@@ -579,16 +579,16 @@ describe("skillsLoader", () => {
       };
 
       // Create a skills.json that references a skill that also exists inline
-      const profileDir = path.join(mockNoriDir, "profiles", "senior-swe");
+      const skillsetDir = path.join(mockNoriDir, "profiles", "senior-swe");
       await fs.writeFile(
-        path.join(profileDir, "skills.json"),
+        path.join(skillsetDir, "skills.json"),
         JSON.stringify({
           "using-skills": "^2.0.0",
         }),
       );
 
       // Create the external version in the PROFILE's skills directory
-      const externalSkillDir = path.join(profileDir, "skills", "using-skills");
+      const externalSkillDir = path.join(skillsetDir, "skills", "using-skills");
       await fs.mkdir(externalSkillDir, { recursive: true });
       await fs.writeFile(
         path.join(externalSkillDir, "SKILL.md"),
@@ -612,9 +612,9 @@ describe("skillsLoader", () => {
       };
 
       // Create a skills.json referencing a skill
-      const profileDir = path.join(mockNoriDir, "profiles", "senior-swe");
+      const skillsetDir = path.join(mockNoriDir, "profiles", "senior-swe");
       await fs.writeFile(
-        path.join(profileDir, "skills.json"),
+        path.join(skillsetDir, "skills.json"),
         JSON.stringify({
           "global-only-skill": "^1.0.0",
         }),
@@ -650,8 +650,8 @@ describe("skillsLoader", () => {
       };
 
       // Ensure no skills.json exists
-      const profileDir = path.join(mockNoriDir, "profiles", "senior-swe");
-      await fs.rm(path.join(profileDir, "skills.json"), { force: true });
+      const skillsetDir = path.join(mockNoriDir, "profiles", "senior-swe");
+      await fs.rm(path.join(skillsetDir, "skills.json"), { force: true });
 
       await skillsLoader.install({ config });
 
@@ -670,9 +670,9 @@ describe("skillsLoader", () => {
       };
 
       // Create a skills.json
-      const profileDir = path.join(mockNoriDir, "profiles", "senior-swe");
+      const skillsetDir = path.join(mockNoriDir, "profiles", "senior-swe");
       await fs.writeFile(
-        path.join(profileDir, "skills.json"),
+        path.join(skillsetDir, "skills.json"),
         JSON.stringify({
           "templated-skill": "^1.0.0",
         }),
@@ -680,7 +680,7 @@ describe("skillsLoader", () => {
 
       // Create the external skill with template placeholders in the PROFILE's skills directory
       const externalSkillDir = path.join(
-        profileDir,
+        skillsetDir,
         "skills",
         "templated-skill",
       );

@@ -5,7 +5,7 @@
 
 import { announcementsLoader } from "@/cli/features/claude-code/announcements/loader.js";
 import { hooksLoader } from "@/cli/features/claude-code/hooks/loader.js";
-import { profilesLoader } from "@/cli/features/claude-code/profiles/loader.js";
+import { profilesLoader } from "@/cli/features/claude-code/skillsets/loader.js";
 import { statuslineLoader } from "@/cli/features/claude-code/statusline/loader.js";
 import { configLoader } from "@/cli/features/config/loader.js";
 

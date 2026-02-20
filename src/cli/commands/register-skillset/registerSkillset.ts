@@ -9,8 +9,8 @@ import * as path from "path";
 
 import { log, note, outro } from "@clack/prompts";
 
-import { getNoriProfilesDir } from "@/cli/features/claude-code/paths.js";
-import { writeProfileMetadata } from "@/cli/features/claude-code/profiles/metadata.js";
+import { getNoriSkillsetsDir } from "@/cli/features/claude-code/paths.js";
+import { writeSkillsetMetadata } from "@/cli/features/claude-code/skillsets/metadata.js";
 import { registerSkillsetFlow } from "@/cli/prompts/flows/registerSkillset.js";
 
 import type { NoriJson } from "@/norijson/nori.js";
@@ -55,8 +55,8 @@ export const registerSkillsetMain = async (args: {
     skillsetName = activeSkillset;
   }
 
-  const profilesDir = getNoriProfilesDir();
-  const destPath = path.join(profilesDir, skillsetName);
+  const skillsetsDir = getNoriSkillsetsDir();
+  const destPath = path.join(skillsetsDir, skillsetName);
 
   // Validate that the directory exists
   try {
@@ -116,8 +116,8 @@ export const registerSkillsetMain = async (args: {
   }
 
   // Write nori.json
-  await writeProfileMetadata({
-    profileDir: destPath,
+  await writeSkillsetMetadata({
+    skillsetDir: destPath,
     metadata,
   });
 

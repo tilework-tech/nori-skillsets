@@ -17,7 +17,7 @@ import {
 import { substituteTemplatePaths } from "@/cli/features/claude-code/template.js";
 import { success, info } from "@/cli/logger.js";
 
-import type { ProfileLoader } from "@/cli/features/claude-code/profiles/profileLoaderRegistry.js";
+import type { ProfileLoader } from "@/cli/features/claude-code/skillsets/skillsetLoaderRegistry.js";
 import type { Dirent } from "fs";
 
 // Get directory of this loader file
@@ -69,27 +69,27 @@ const copyDirWithTemplateSubstitution = async (args: {
  * Get profile directory based on selected profile
  *
  * @param args - Configuration arguments
- * @param args.profileName - Name of the profile
+ * @param args.skillsetName - Name of the profile
  *
  * @returns Path to the profile directory
  */
-const getProfileDir = (args: { profileName: string }): string => {
-  const { profileName } = args;
+const getProfileDir = (args: { skillsetName: string }): string => {
+  const { skillsetName } = args;
   const noriDir = getNoriDir();
-  return path.join(noriDir, "profiles", profileName);
+  return path.join(noriDir, "profiles", skillsetName);
 };
 
 /**
  * Get config directory for skills based on selected profile
  *
  * @param args - Configuration arguments
- * @param args.profileName - Name of the profile to load skills from
+ * @param args.skillsetName - Name of the profile to load skills from
  *
  * @returns Path to the skills config directory for the profile
  */
-const getConfigDir = (args: { profileName: string }): string => {
-  const { profileName } = args;
-  return path.join(getProfileDir({ profileName }), "skills");
+const getConfigDir = (args: { skillsetName: string }): string => {
+  const { skillsetName } = args;
+  return path.join(getProfileDir({ skillsetName }), "skills");
 };
 
 /**
@@ -102,14 +102,14 @@ const installSkills = async (args: { config: Config }): Promise<void> => {
   info({ message: "Installing Nori skills..." });
 
   // Get profile name from config - error if not configured
-  const profileName = getActiveSkillset({ config });
-  if (profileName == null) {
+  const skillsetName = getActiveSkillset({ config });
+  if (skillsetName == null) {
     throw new Error(
-      "No profile configured for claude-code. Run 'nori-skillsets init' to configure a profile.",
+      "No skillset configured for claude-code. Run 'nori-skillsets init' to configure a skillset.",
     );
   }
   const configDir = getConfigDir({
-    profileName,
+    skillsetName,
   });
   const claudeDir = getClaudeDir({ installDir: config.installDir });
   const claudeSkillsDir = getClaudeSkillsDir({ installDir: config.installDir });
@@ -159,7 +159,7 @@ const installSkills = async (args: { config: Config }): Promise<void> => {
   }
 
   // Note: External skills from skills.json are now stored in the profile's own skills
-  // directory ({profileDir}/skills/) after being downloaded by registry-download.
+  // directory ({skillsetDir}/skills/) after being downloaded by registry-download.
   // Step 1 already copies all skills from that directory, so no separate step is needed.
   // The skills.json file is now just metadata for tracking which skills were downloaded.
 

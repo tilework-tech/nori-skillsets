@@ -17,7 +17,7 @@ export type CommandNames = {
   update: string;
   upload: string;
   uploadSkill: string;
-  switchProfile: string;
+  switchSkillset: string;
 };
 
 const NORI_SKILLSETS_COMMANDS: CommandNames = {
@@ -30,7 +30,7 @@ const NORI_SKILLSETS_COMMANDS: CommandNames = {
   update: "update",
   upload: "upload",
   uploadSkill: "upload-skill",
-  switchProfile: "switch",
+  switchSkillset: "switch",
 };
 
 /**

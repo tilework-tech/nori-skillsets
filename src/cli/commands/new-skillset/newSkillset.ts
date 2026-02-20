@@ -9,8 +9,8 @@ import * as path from "path";
 
 import { log, note, outro } from "@clack/prompts";
 
-import { getNoriProfilesDir } from "@/cli/features/claude-code/paths.js";
-import { writeProfileMetadata } from "@/cli/features/claude-code/profiles/metadata.js";
+import { getNoriSkillsetsDir } from "@/cli/features/claude-code/paths.js";
+import { writeSkillsetMetadata } from "@/cli/features/claude-code/skillsets/metadata.js";
 import { newSkillsetFlow } from "@/cli/prompts/flows/newSkillset.js";
 
 import type { NoriJson } from "@/norijson/nori.js";
@@ -41,8 +41,8 @@ export const createEmptySkillset = async (args: {
   await fs.mkdir(destPath);
 
   // Write nori.json (serves as the skillset marker for list-skillsets)
-  await writeProfileMetadata({
-    profileDir: destPath,
+  await writeSkillsetMetadata({
+    skillsetDir: destPath,
     metadata: {
       name: path.basename(name),
       version: "1.0.0",
@@ -62,8 +62,8 @@ export const newSkillsetMain = async (): Promise<void> => {
 
   const { name, description, license, keywords, version, repository } =
     flowResult;
-  const profilesDir = getNoriProfilesDir();
-  const destPath = path.join(profilesDir, name);
+  const skillsetsDir = getNoriSkillsetsDir();
+  const destPath = path.join(skillsetsDir, name);
 
   // Validate destination does not already exist
   try {
@@ -106,8 +106,8 @@ export const newSkillsetMain = async (): Promise<void> => {
   await fs.mkdir(destPath);
 
   // Write nori.json
-  await writeProfileMetadata({
-    profileDir: destPath,
+  await writeSkillsetMetadata({
+    skillsetDir: destPath,
     metadata,
   });
 

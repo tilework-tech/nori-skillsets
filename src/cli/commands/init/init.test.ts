@@ -40,10 +40,10 @@ vi.mock("@/cli/features/claude-code/paths.js", () => {
       `${testClaudeDir}/CLAUDE.md`,
     getClaudeSkillsDir: (_args: { installDir: string }) =>
       `${testClaudeDir}/skills`,
-    getClaudeProfilesDir: (_args: { installDir: string }) =>
+    getClaudeSkillsetsDir: (_args: { installDir: string }) =>
       `${testClaudeDir}/profiles`,
     getNoriDir: () => testNoriDir,
-    getNoriProfilesDir: () => `${testNoriDir}/profiles`,
+    getNoriSkillsetsDir: () => `${testNoriDir}/profiles`,
     getNoriConfigFile: () => `${testNoriDir}/config.json`,
   };
 });
@@ -174,19 +174,19 @@ describe("init command", () => {
     });
 
     it("should create ~/.nori/profiles/ directory", async () => {
-      const profilesDir = path.join(TEST_NORI_DIR, "profiles");
+      const skillsetsDir = path.join(TEST_NORI_DIR, "profiles");
 
       // Ensure profiles dir doesn't exist
       try {
-        fs.rmSync(profilesDir, { recursive: true, force: true });
+        fs.rmSync(skillsetsDir, { recursive: true, force: true });
       } catch {}
-      expect(fs.existsSync(profilesDir)).toBe(false);
+      expect(fs.existsSync(skillsetsDir)).toBe(false);
 
       // Run init
       await initMain({ installDir: tempDir, nonInteractive: true });
 
       // Verify profiles directory was created
-      expect(fs.existsSync(profilesDir)).toBe(true);
+      expect(fs.existsSync(skillsetsDir)).toBe(true);
     });
 
     it("should be idempotent - not overwrite existing config", async () => {

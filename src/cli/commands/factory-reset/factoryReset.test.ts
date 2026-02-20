@@ -137,7 +137,7 @@ describe("factoryResetMain", () => {
       displayName: "Test Agent",
       getLoaderRegistry: () => ({ getAll: () => [] }),
       // eslint-disable-next-line @typescript-eslint/no-empty-function
-      switchProfile: async () => {},
+      switchSkillset: async () => {},
       factoryReset: null,
     });
 

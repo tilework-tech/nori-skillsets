@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 
 /**
- * Nori Profiles Installer
+ * Nori Skillsets Installer
  *
  * Orchestrates the installation process:
  * 1. init - Set up folders and capture existing config
- * 2. Resolve profile and save to config
+ * 2. Resolve skillset and save to config
  * 3. Run feature loaders, write manifest, display banners
  */
 
@@ -31,7 +31,7 @@ import {
   computeDirectoryManifest,
   writeManifest,
   getManifestPath,
-} from "@/cli/features/claude-code/profiles/manifest.js";
+} from "@/cli/features/claude-code/skillsets/manifest.js";
 import {
   buildCLIEventParams,
   getUserId,
@@ -138,8 +138,8 @@ const writeInstalledManifest = async (args: {
     return;
   }
 
-  const profileName = getActiveSkillset({ config });
-  if (profileName == null) {
+  const skillsetName = getActiveSkillset({ config });
+  if (skillsetName == null) {
     return;
   }
 
@@ -149,7 +149,7 @@ const writeInstalledManifest = async (args: {
   try {
     const manifest = await computeDirectoryManifest({
       dir: claudeDir,
-      profileName,
+      skillsetName: skillsetName,
     });
     await writeManifest({ manifestPath, manifest });
     if (!isSilentMode()) {
@@ -199,10 +199,10 @@ const completeInstallation = async (args: {
   await writeInstalledManifest({ config, agentName: agent.name });
 
   // Mark installation directory with current skillset name
-  const profileName = getActiveSkillset({ config });
+  const skillsetName = getActiveSkillset({ config });
   agent.markInstall({
     path: config.installDir,
-    skillsetName: profileName,
+    skillsetName: skillsetName,
   });
 
   // Remove progress marker
@@ -228,19 +228,19 @@ const completeInstallation = async (args: {
 
 /**
  * Non-interactive installation mode
- * Runs init, resolves profile and saves config, then runs feature loaders
+ * Runs init, resolves skillset and saves config, then runs feature loaders
  *
  * @param args - Configuration arguments
  * @param args.installDir - Installation directory (optional)
  * @param args.agent - AI agent to use (defaults to claude-code)
- * @param args.profile - Profile to use (required if no existing config)
+ * @param args.skillset - Skillset to use (required if no existing config)
  */
 export const noninteractive = async (args?: {
   installDir?: string | null;
   agent?: string | null;
-  profile?: string | null;
+  skillset?: string | null;
 }): Promise<void> => {
-  const { installDir, agent, profile } = args || {};
+  const { installDir, agent, skillset } = args || {};
   const normalizedInstallDir = normalizeInstallDir({ installDir });
   const agentImpl = AgentRegistry.getInstance().get({
     name: agent ?? "claude-code",
@@ -252,8 +252,7 @@ export const noninteractive = async (args?: {
     nonInteractive: true,
   });
 
-  // Step 2: Resolve profile and save to config
-  // Use getHomeDir() since install is home-directory-based
+  // Step 2: Resolve skillset and save to config
   const existingConfig = await loadConfig();
   if (existingConfig == null) {
     log.error(
@@ -264,17 +263,17 @@ export const noninteractive = async (args?: {
 
   const existingSkillset = getActiveSkillset({ config: existingConfig });
 
-  if (profile == null && existingSkillset == null) {
+  if (skillset == null && existingSkillset == null) {
     log.error(
-      "Non-interactive install requires --profile flag when no existing profile is set",
+      "Non-interactive install requires --skillset flag when no existing skillset is set",
     );
     log.info(
-      "Example: nori-skillsets install --non-interactive --profile <profile-name>",
+      "Example: nori-skillsets install --non-interactive --skillset <skillset-name>",
     );
     process.exit(1);
   }
 
-  const selectedSkillset = profile ?? existingSkillset!;
+  const selectedSkillset = skillset ?? existingSkillset!;
 
   await saveConfig({
     username: existingConfig.auth?.username ?? null,
@@ -313,16 +312,16 @@ export const noninteractive = async (args?: {
  * @param args.installDir - Custom installation directory (optional)
  * @param args.agent - AI agent to use (defaults to claude-code)
  * @param args.silent - Whether to suppress all output
- * @param args.profile - Profile to use (required if no existing config)
+ * @param args.skillset - Skillset to use (required if no existing config)
  */
 export const main = async (args?: {
   nonInteractive?: boolean | null;
   installDir?: string | null;
   agent?: string | null;
   silent?: boolean | null;
-  profile?: string | null;
+  skillset?: string | null;
 }): Promise<void> => {
-  const { installDir, agent, silent, profile } = args || {};
+  const { installDir, agent, silent, skillset } = args || {};
 
   // Save original console.log and suppress all output if silent mode requested
   const originalConsoleLog = console.log;
@@ -335,7 +334,7 @@ export const main = async (args?: {
     await noninteractive({
       installDir,
       agent,
-      profile,
+      skillset,
     });
   } catch (err: any) {
     log.error(err.message);

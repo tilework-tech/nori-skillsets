@@ -1,6 +1,6 @@
 /**
  * Edit skillset command for Nori Skillsets CLI
- * Opens the active skillset's profile folder in VS Code or provides fallback instructions
+ * Opens the active skillset folder in VS Code or provides fallback instructions
  */
 
 import { execFile } from "child_process";
@@ -10,12 +10,12 @@ import * as path from "path";
 import { log, note, outro } from "@clack/prompts";
 
 import { loadConfig, getActiveSkillset } from "@/cli/config.js";
-import { getNoriProfilesDir } from "@/cli/features/claude-code/paths.js";
+import { getNoriSkillsetsDir } from "@/cli/features/claude-code/paths.js";
 
 /**
  * Main function for edit-skillset command
  * @param args - Configuration arguments
- * @param args.name - Optional profile name to open (defaults to active profile)
+ * @param args.name - Optional skillset name to open (defaults to active skillset)
  * @param args.agent - Optional agent name override
  */
 export const editSkillsetMain = async (args: {
@@ -24,13 +24,13 @@ export const editSkillsetMain = async (args: {
 }): Promise<void> => {
   const { name } = args;
 
-  // Determine which profile to open
-  let profileName: string;
+  // Determine which skillset to open
+  let skillsetName: string;
 
   if (name != null && name !== "") {
-    profileName = name;
+    skillsetName = name;
   } else {
-    // Load config to find the active profile
+    // Load config to find the active skillset
     const config = await loadConfig();
 
     const activeSkillset = config ? getActiveSkillset({ config }) : null;
@@ -43,35 +43,35 @@ export const editSkillsetMain = async (args: {
       return;
     }
 
-    profileName = activeSkillset;
+    skillsetName = activeSkillset;
   }
 
-  // Resolve the profile directory path
-  const profilesDir = getNoriProfilesDir();
-  const profileDir = path.join(profilesDir, profileName);
+  // Resolve the skillset directory path
+  const skillsetsDir = getNoriSkillsetsDir();
+  const skillsetDir = path.join(skillsetsDir, skillsetName);
 
-  // Verify the profile directory exists
+  // Verify the skillset directory exists
   try {
-    await fs.access(profileDir);
+    await fs.access(skillsetDir);
   } catch {
-    log.error(`Skillset '${profileName}' not found at ${profileDir}`);
+    log.error(`Skillset '${skillsetName}' not found at ${skillsetDir}`);
     process.exit(1);
     return;
   }
 
   // Try to open in VS Code
-  const opened = await tryOpenInVsCode({ profileDir });
+  const opened = await tryOpenInVsCode({ skillsetDir });
 
   if (opened) {
-    log.success(`Opened '${profileName}' in VS Code`);
+    log.success(`Opened '${skillsetName}' in VS Code`);
     outro("Done");
   } else {
     // Fallback: show directory contents in a note
-    let noteContent = profileDir;
+    let noteContent = skillsetDir;
 
     // List directory contents
     try {
-      const entries = await fs.readdir(profileDir, { withFileTypes: true });
+      const entries = await fs.readdir(skillsetDir, { withFileTypes: true });
       const dirs = entries
         .filter((e) => e.isDirectory())
         .map((e) => e.name + "/");
@@ -82,15 +82,15 @@ export const editSkillsetMain = async (args: {
         ...files.sort().map((f) => `  ${f}`),
       ].join("\n");
 
-      noteContent = `${profileDir}\n\nContents:\n${contentsList}`;
+      noteContent = `${skillsetDir}\n\nContents:\n${contentsList}`;
     } catch {
       // Directory listing failed; just show the path
     }
 
-    note(noteContent, `Skillset '${profileName}'`);
+    note(noteContent, `Skillset '${skillsetName}'`);
 
-    log.info(`To open in VS Code: code ${profileDir}`);
-    log.info(`To navigate there:  cd ${profileDir}`);
+    log.info(`To open in VS Code: code ${skillsetDir}`);
+    log.info(`To navigate there:  cd ${skillsetDir}`);
     outro("Done");
   }
 };
@@ -98,15 +98,15 @@ export const editSkillsetMain = async (args: {
 /**
  * Attempt to open a directory in VS Code
  * @param args - Configuration arguments
- * @param args.profileDir - The directory path to open
+ * @param args.skillsetDir - The directory path to open
  *
  * @returns true if VS Code was opened successfully, false otherwise
  */
-const tryOpenInVsCode = (args: { profileDir: string }): Promise<boolean> => {
-  const { profileDir } = args;
+const tryOpenInVsCode = (args: { skillsetDir: string }): Promise<boolean> => {
+  const { skillsetDir } = args;
 
   return new Promise((resolve) => {
-    execFile("code", [profileDir], (err) => {
+    execFile("code", [skillsetDir], (err) => {
       if (err != null) {
         resolve(false);
       } else {

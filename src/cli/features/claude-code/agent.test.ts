@@ -27,7 +27,7 @@ vi.mock("@/cli/features/claude-code/paths.js", () => {
     getClaudeSkillsDir: (_args: { installDir: string }) =>
       "/tmp/agent-test-claude/skills",
     getNoriDir: () => testNoriDir,
-    getNoriProfilesDir: () => `${testNoriDir}/profiles`,
+    getNoriSkillsetsDir: () => `${testNoriDir}/profiles`,
     getNoriConfigFile: () => `${testNoriDir}/config.json`,
   };
 });
@@ -135,7 +135,7 @@ describe("claudeCodeAgent.markInstall", () => {
   });
 });
 
-describe("claudeCodeAgent.switchProfile", () => {
+describe("claudeCodeAgent.switchSkillset", () => {
   let tempDir: string;
   const TEST_NORI_DIR = "/tmp/agent-test-nori";
 
@@ -149,10 +149,10 @@ describe("claudeCodeAgent.switchProfile", () => {
     } catch {}
 
     // Create profiles directory with a valid profile
-    const profileDir = path.join(TEST_NORI_DIR, "profiles", "senior-swe");
-    fs.mkdirSync(profileDir, { recursive: true });
+    const skillsetDir = path.join(TEST_NORI_DIR, "profiles", "senior-swe");
+    fs.mkdirSync(skillsetDir, { recursive: true });
     fs.writeFileSync(
-      path.join(profileDir, "nori.json"),
+      path.join(skillsetDir, "nori.json"),
       JSON.stringify({ name: "senior-swe", version: "1.0.0" }),
     );
 
@@ -188,9 +188,9 @@ describe("claudeCodeAgent.switchProfile", () => {
     });
 
     // Switch to a different profile
-    await claudeCodeAgent.switchProfile({
+    await claudeCodeAgent.switchSkillset({
       installDir: tempDir,
-      profileName: "documenter",
+      skillsetName: "documenter",
     });
 
     // Verify organizations, isAdmin, and transcriptDestination are preserved

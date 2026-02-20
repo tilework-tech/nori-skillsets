@@ -34,7 +34,7 @@ vi.mock("@clack/prompts", () => ({
   },
 }));
 
-// Mock os.homedir so getNoriProfilesDir() resolves to the test directory
+// Mock os.homedir so getNoriSkillsetsDir() resolves to the test directory
 vi.mock("os", async (importOriginal) => {
   const actual = await importOriginal<typeof os>();
   return {
@@ -68,7 +68,7 @@ describe("externalMain skill type prompting", () => {
   let testHomeDir: string;
   let testDir: string;
   let skillsDir: string;
-  let profilesDir: string;
+  let skillsetsDir: string;
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -80,13 +80,13 @@ describe("externalMain skill type prompting", () => {
 
     testDir = testHomeDir;
     skillsDir = path.join(testDir, ".claude", "skills");
-    profilesDir = path.join(testHomeDir, ".nori", "profiles");
+    skillsetsDir = path.join(testHomeDir, ".nori", "profiles");
 
     await fs.mkdir(skillsDir, { recursive: true });
-    await fs.mkdir(profilesDir, { recursive: true });
+    await fs.mkdir(skillsetsDir, { recursive: true });
 
     // Create a default skillset
-    const skillsetDir = path.join(profilesDir, "my-skillset");
+    const skillsetDir = path.join(skillsetsDir, "my-skillset");
     await fs.mkdir(skillsetDir, { recursive: true });
     await fs.writeFile(
       path.join(skillsetDir, "nori.json"),
@@ -204,7 +204,7 @@ describe("externalMain skill type prompting", () => {
     const profileNoriJson = JSON.parse(
       await fs.readFile(
         path.join(
-          profilesDir,
+          skillsetsDir,
           "my-skillset",
           "skills",
           "my-skill",

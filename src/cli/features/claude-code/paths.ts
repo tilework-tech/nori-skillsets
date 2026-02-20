@@ -75,13 +75,13 @@ export const getClaudeSkillsDir = (args: { installDir: string }): string => {
 };
 
 /**
- * Get the Claude profiles directory path
+ * Get the Claude skillsets directory path
  * @param args - Configuration arguments
  * @param args.installDir - Installation directory
  *
- * @returns Absolute path to the profiles directory
+ * @returns Absolute path to the skillsets directory
  */
-export const getClaudeProfilesDir = (args: { installDir: string }): string => {
+export const getClaudeSkillsetsDir = (args: { installDir: string }): string => {
   return path.join(getClaudeDir(args), "profiles");
 };
 
@@ -129,11 +129,11 @@ export const getNoriDir = (): string => {
 };
 
 /**
- * Get the Nori profiles directory path
- * This is where all profile templates are stored
+ * Get the Nori skillsets directory path
+ * This is where all skillset templates are stored
  *
- * @returns Absolute path to the profiles directory
+ * @returns Absolute path to the skillsets directory (~/.nori/profiles/)
  */
-export const getNoriProfilesDir = (): string => {
+export const getNoriSkillsetsDir = (): string => {
   return path.join(getNoriDir(), "profiles");
 };
