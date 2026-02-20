@@ -89,6 +89,11 @@ let projectsWatcher: WatcherInstance | null = null;
 let transcriptOrgId: string | null = null;
 
 /**
+ * Whether to garbage collect (delete) transcripts after successful upload
+ */
+let garbageCollectEnabled = false;
+
+/**
  * Transcript registry for tracking uploaded transcripts
  */
 let registry: TranscriptRegistry | null = null;
@@ -350,13 +355,23 @@ const scanForStaleTranscripts = async (): Promise<void> => {
 
         if (uploaded) {
           // Mark as uploaded in registry
-          // Note: The file may already be deleted by processTranscriptForUpload at this point
-          // If marking fails, log warning but don't fail - the upload did succeed
           try {
             registry.markUploaded({ sessionId, fileHash, transcriptPath });
             await log(
               `Successfully uploaded stale transcript: ${transcriptPath}`,
             );
+
+            // Garbage collect (delete) the transcript file if enabled
+            if (garbageCollectEnabled) {
+              try {
+                await fs.unlink(transcriptPath);
+                await log(`Garbage collected transcript: ${transcriptPath}`);
+              } catch (deleteErr) {
+                await log(
+                  `Warning: Failed to garbage collect transcript ${transcriptPath}: ${deleteErr}`,
+                );
+              }
+            }
           } catch (registryErr) {
             await log(
               `Warning: Upload succeeded but failed to update registry: ${registryErr}`,
@@ -442,9 +457,10 @@ export const cleanupWatch = async (args?: {
     signalHandler = null;
   }
 
-  // Reset shutdown flag and transcript destination for next run (important for tests)
+  // Reset shutdown flag, transcript destination, and garbage collect for next run (important for tests)
   isShuttingDown = false;
   transcriptOrgId = null;
+  garbageCollectEnabled = false;
 
   if (exitProcess) {
     process.exit(0);
@@ -452,21 +468,20 @@ export const cleanupWatch = async (args?: {
 };
 
 /**
- * Save transcript destination to config if changed
+ * Save watch settings to config
  *
  * @param args - Configuration arguments
  * @param args.org - Organization ID to save
+ * @param args.garbageCollect - Whether to garbage collect transcripts after upload
  * @param args.installDir - Installation directory for config
  */
-const saveTranscriptDestination = async (args: {
+const saveWatchSettings = async (args: {
   org: string;
+  garbageCollect: "enabled" | "disabled";
   installDir: string;
 }): Promise<void> => {
-  const { org, installDir } = args;
+  const { org, garbageCollect, installDir } = args;
   const config = await loadConfig();
-  if (org === config?.transcriptDestination) {
-    return;
-  }
   await saveConfig({
     username: config?.auth?.username ?? null,
     password: config?.auth?.password ?? null,
@@ -479,6 +494,7 @@ const saveTranscriptDestination = async (args: {
     activeSkillset: config?.activeSkillset ?? null,
     version: config?.version ?? null,
     transcriptDestination: org,
+    garbageCollectTranscripts: garbageCollect,
     installDir,
   });
 };
@@ -565,11 +581,12 @@ export const watchMain = async (args?: {
           return {
             privateOrgs,
             currentDestination: config?.transcriptDestination ?? null,
+            currentGarbageCollect: config?.garbageCollectTranscripts ?? null,
             isRunning: running,
           };
         },
-        onStartDaemon: async ({ org }) => {
-          await saveTranscriptDestination({ org, installDir });
+        onStartDaemon: async ({ org, garbageCollect }) => {
+          await saveWatchSettings({ org, garbageCollect, installDir });
 
           // Ensure log directory exists before spawning
           await fs.mkdir(path.dirname(logFile), { recursive: true });
@@ -599,10 +616,11 @@ export const watchMain = async (args?: {
   // Reset shutdown flag
   isShuttingDown = false;
 
-  // Load config to get saved transcript destination
+  // Load config to get saved transcript destination and garbage collect preference
   // Use getHomeDir() as startDir since watch is home-directory-based
   const config = await loadConfig();
   transcriptOrgId = config?.transcriptDestination ?? null;
+  garbageCollectEnabled = config?.garbageCollectTranscripts === "enabled";
 
   const pidFile = getWatchPidFile();
 

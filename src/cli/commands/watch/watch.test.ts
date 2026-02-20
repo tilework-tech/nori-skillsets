@@ -23,6 +23,33 @@ vi.mock("@/cli/commands/watch/parser.js", () => ({
   extractSessionId: vi.fn().mockResolvedValue("test-session-id"),
 }));
 
+// Mock @clack/prompts to avoid blocking on confirm prompt
+vi.mock("@clack/prompts", () => ({
+  intro: vi.fn(),
+  note: vi.fn(),
+  outro: vi.fn(),
+  select: vi.fn(),
+  confirm: vi.fn(() => Promise.resolve(false)),
+  spinner: vi.fn(() => ({
+    start: vi.fn(),
+    stop: vi.fn(),
+    cancel: vi.fn(),
+    error: vi.fn(),
+    message: vi.fn(),
+    clear: vi.fn(),
+    isCancelled: false,
+  })),
+  log: {
+    info: vi.fn(),
+    success: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    message: vi.fn(),
+  },
+  isCancel: vi.fn(() => false),
+  cancel: vi.fn(),
+}));
+
 // Mock child_process spawn to prevent actual process spawning in tests
 vi.mock("child_process", () => ({
   spawn: vi.fn().mockReturnValue({

@@ -55,6 +55,8 @@ export type Config = {
   version?: string | null;
   /** Organization ID for transcript uploads (e.g., "myorg" -> https://myorg.noriskillsets.dev) */
   transcriptDestination?: string | null;
+  /** Whether to delete transcript files after successful upload */
+  garbageCollectTranscripts?: "enabled" | "disabled" | null;
 };
 
 /**
@@ -87,6 +89,8 @@ type RawDiskConfig = {
   version?: string | null;
   // Transcript upload destination org ID
   transcriptDestination?: string | null;
+  // Garbage collect transcripts after upload
+  garbageCollectTranscripts?: "enabled" | "disabled" | null;
 };
 
 /**
@@ -257,6 +261,7 @@ export const loadConfig = async (): Promise<Config | null> => {
       autoupdate: validated.autoupdate,
       version: validated.version,
       transcriptDestination: validated.transcriptDestination,
+      garbageCollectTranscripts: validated.garbageCollectTranscripts,
     };
 
     // Build auth - handle both nested format (v19+) and flat format (legacy)
@@ -323,6 +328,7 @@ export const loadConfig = async (): Promise<Config | null> => {
  * @param args.isAdmin - Whether the user is an admin for their organization (null to skip)
  * @param args.transcriptDestination - Organization ID for transcript uploads (null to skip)
  * @param args.defaultAgents - Default agent names for CLI operations (null to skip)
+ * @param args.garbageCollectTranscripts - Whether to delete transcripts after upload (null to skip)
  */
 export const saveConfig = async (args: {
   username: string | null;
@@ -337,6 +343,7 @@ export const saveConfig = async (args: {
   version?: string | null;
   defaultAgents?: Array<string> | null;
   transcriptDestination?: string | null;
+  garbageCollectTranscripts?: "enabled" | "disabled" | null;
   installDir: string;
 }): Promise<void> => {
   const {
@@ -352,6 +359,7 @@ export const saveConfig = async (args: {
     version,
     defaultAgents,
     transcriptDestination,
+    garbageCollectTranscripts,
     installDir,
   } = args;
   const configPath = getConfigPath();
@@ -406,6 +414,11 @@ export const saveConfig = async (args: {
   // Add defaultAgents if provided
   if (defaultAgents != null) {
     config.defaultAgents = defaultAgents;
+  }
+
+  // Add garbageCollectTranscripts if provided
+  if (garbageCollectTranscripts != null) {
+    config.garbageCollectTranscripts = garbageCollectTranscripts;
   }
 
   // Always save installDir
@@ -467,6 +480,10 @@ const configSchema = {
     activeSkillset: { type: "string" },
     version: { type: "string" },
     transcriptDestination: { type: "string" },
+    garbageCollectTranscripts: {
+      type: "string",
+      enum: ["enabled", "disabled"],
+    },
   },
   additionalProperties: false,
 };
