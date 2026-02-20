@@ -230,7 +230,7 @@ describe("registry-upload", () => {
     // Create profiles directory
     await fs.mkdir(profilesDir, { recursive: true });
 
-    // Create managed block marker so getInstallDirs detects this as a Nori installation
+    // Create managed block marker so Nori detects this as an installation
     await createManagedBlockMarker(testDir);
   });
 
@@ -314,56 +314,20 @@ describe("registry-upload", () => {
     });
 
     describe("installation detection", () => {
-      it("should fail when no installation found", async () => {
-        const noInstallDir = await fs.mkdtemp(
-          path.join(tmpdir(), "nori-no-install-"),
+      it("should fail when config cannot be loaded", async () => {
+        // loadConfig returns null when no config exists
+        vi.mocked(loadConfig).mockResolvedValue(null);
+
+        const result = await registryUploadMain({
+          profileSpec: "my-profile",
+          cwd: testDir,
+        });
+
+        expect(result.success).toBe(false);
+
+        expect(getClackOutput().toLowerCase()).toContain(
+          "could not load nori configuration",
         );
-        mockHomedir = noInstallDir;
-
-        try {
-          const result = await registryUploadMain({
-            profileSpec: "my-profile",
-            cwd: noInstallDir,
-          });
-
-          expect(result.success).toBe(false);
-
-          expect(getClackOutput().toLowerCase()).toContain(
-            "no nori installation",
-          );
-        } finally {
-          await fs.rm(noInstallDir, { recursive: true, force: true });
-        }
-      });
-
-      it("should fail when multiple installations found without --install-dir", async () => {
-        // Create a nested installation
-        const nestedDir = path.join(testDir, "nested");
-        await fs.mkdir(nestedDir, { recursive: true });
-        await fs.writeFile(
-          path.join(nestedDir, ".nori-config.json"),
-          JSON.stringify({ profile: { baseProfile: "test" } }),
-        );
-        await createManagedBlockMarker(nestedDir);
-
-        // Set mock homedir to a directory without installation so home dir doesn't take precedence
-        const emptyHomeDir = await fs.mkdtemp(
-          path.join(tmpdir(), "nori-empty-home-"),
-        );
-        mockHomedir = emptyHomeDir;
-
-        try {
-          const result = await registryUploadMain({
-            profileSpec: "my-profile",
-            cwd: nestedDir,
-          });
-
-          expect(result.success).toBe(false);
-
-          expect(getClackOutput().toLowerCase()).toContain("multiple");
-        } finally {
-          await fs.rm(emptyHomeDir, { recursive: true, force: true });
-        }
       });
 
       it("should use explicit install-dir when provided", async () => {

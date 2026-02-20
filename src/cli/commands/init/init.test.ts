@@ -346,64 +346,6 @@ describe("init command", () => {
       ).toBe(true);
     });
 
-    it("should warn about ancestor managed installations via clack note", async () => {
-      // Create parent directory with a managed nori installation
-      const parentDir = path.join(tempDir, "parent");
-      const childDir = path.join(parentDir, "child");
-      const parentClaudeDir = path.join(parentDir, ".claude");
-      fs.mkdirSync(childDir, { recursive: true });
-      fs.mkdirSync(parentClaudeDir, { recursive: true });
-
-      // Create managed CLAUDE.md in parent (this is what causes actual conflicts)
-      fs.writeFileSync(
-        path.join(parentClaudeDir, "CLAUDE.md"),
-        "# BEGIN NORI-AI MANAGED BLOCK\nsome content\n# END NORI-AI MANAGED BLOCK",
-      );
-
-      // Run init in child directory
-      await initMain({
-        installDir: path.join(childDir, ".claude"),
-        nonInteractive: true,
-      });
-
-      // Verify note was called with warning content
-      expect(clack.note).toHaveBeenCalledTimes(1);
-      const noteContent = vi.mocked(clack.note).mock.calls[0][0];
-      const noteTitle = vi.mocked(clack.note).mock.calls[0][1];
-
-      // Title should be "Warning"
-      expect(noteTitle).toBe("Warning");
-
-      // Content should mention the ancestor path
-      expect(noteContent).toContain(parentDir);
-
-      // Content should explain the issue and provide guidance
-      expect(noteContent).toContain("duplicate");
-      expect(noteContent).toContain("conflicting");
-    });
-
-    it("should not show ancestor warning note for source-only installations", async () => {
-      // Create parent directory with only a source installation (no managed CLAUDE.md)
-      const parentDir = path.join(tempDir, "parent");
-      const childDir = path.join(parentDir, "child");
-      fs.mkdirSync(childDir, { recursive: true });
-
-      // Create only .nori-config.json in parent (source-only, no managed block)
-      fs.writeFileSync(
-        path.join(parentDir, ".nori-config.json"),
-        JSON.stringify({ version: "19.0.0" }),
-      );
-
-      // Run init in child directory
-      await initMain({
-        installDir: path.join(childDir, ".claude"),
-        nonInteractive: true,
-      });
-
-      // Verify note was NOT called
-      expect(clack.note).not.toHaveBeenCalled();
-    });
-
     it("should skip existing-config detection when .nori-managed marker exists", async () => {
       // Create .nori-managed marker at the REAL install dir path (not mocked claude dir)
       // because isInstalledAtDir uses path.join(installDir, ".claude") directly

@@ -24,7 +24,6 @@ import {
   type UploadResult,
 } from "@/cli/prompts/flows/index.js";
 import { isSkillCollisionError } from "@/utils/fetch.js";
-import { getInstallDirs } from "@/utils/path.js";
 import {
   parseNamespacedPackage,
   buildOrganizationRegistryUrl,
@@ -304,7 +303,6 @@ export const registryUploadMain = async (args: {
 }): Promise<RegistryUploadResult> => {
   const {
     profileSpec,
-    installDir,
     registryUrl,
     listVersions,
     nonInteractive,
@@ -312,7 +310,6 @@ export const registryUploadMain = async (args: {
     dryRun,
     description,
   } = args;
-  const cwd = args.cwd ?? process.cwd();
 
   // Parse profile spec using shared utility
   const parsed = parseNamespacedPackage({ packageSpec: profileSpec });
@@ -327,30 +324,7 @@ export const registryUploadMain = async (args: {
   const profileDisplayName =
     orgId === "public" ? packageName : `${orgId}/${packageName}`;
 
-  // Validate Nori installation exists
-  if (installDir == null) {
-    const allInstallations = getInstallDirs({ currentDir: cwd });
-
-    if (allInstallations.length === 0) {
-      log.error(
-        `No Nori installation found.\n\nRun 'nori-skillsets init' to initialize Nori.`,
-      );
-      return { success: false };
-    }
-
-    if (allInstallations.length > 1) {
-      const installList = allInstallations
-        .map((dir, index) => `${index + 1}. ${dir}`)
-        .join("\n");
-
-      log.error(
-        `Found multiple Nori installations.\n\nInstallations found:\n${installList}\n\nUse --install-dir to specify which one to use.`,
-      );
-      return { success: false };
-    }
-  }
-
-  // Load config - use getHomeDir() since registry upload needs global auth
+  // Load config for auth and install dir resolution
   const config = await loadConfig();
   if (config == null) {
     log.error(`Could not load Nori configuration.`);

@@ -11,7 +11,7 @@ Path: @/src/cli/commands/registry-download
 ### How it fits into the larger codebase
 
 - Registered with Commander.js by `registerNoriSkillsetsDownloadCommand` (called from @/src/cli/commands/noriSkillsetsCommands.ts)
-- Uses `getInstallDirs()` from @/src/utils/path.ts to discover existing Nori installations by walking the directory tree
+- Uses `resolveInstallDir()` from @/src/utils/path.ts to resolve the installation directory via the priority chain: CLI `--install-dir` > `config.installDir` > home directory
 - Uses `getNoriProfilesDir()` from @/src/cli/features/claude-code/paths.ts to get the centralized profiles directory (`~/.nori/profiles/`). This is a zero-arg function that always resolves to the home directory
 - Uses `loadConfig()` from @/src/cli/config.ts to load Nori config (auth, profile, registries) from the centralized `~/.nori-config.json`
 - Calls `initMain()` from @/src/cli/commands/init/init.ts when no installation is found, to bootstrap Nori config before downloading
@@ -21,26 +21,19 @@ Path: @/src/cli/commands/registry-download
 
 ### Core Implementation
 
-**Installation existence checking** (`registryDownloadMain` in `registryDownload.ts`):
+**Installation directory resolution** (`registryDownloadMain` in `registryDownload.ts`):
 
-The command verifies that a Nori installation exists before proceeding. Since config and profiles are centralized at `~/.nori-config.json` and `~/.nori/profiles/`, the installation check ensures the home directory has been initialized:
+The command resolves the installation directory using `resolveInstallDir()` with the standard priority chain:
 
 ```
---install-dir provided?
-  YES --> Check that installation exists at that directory via getInstallDirs()
-          Not found? --> auto-init at that directory
-  NO  --> Check home directory via getInstallDirs({ currentDir: os.homedir() })
-          |
-          Home dir has installation?
-            YES --> proceed (config is centralized)
-            NO  --> Check cwd via getInstallDirs({ currentDir: cwd })
-                    |
-                    0 installations --> auto-init at home directory
-                    1 installation  --> proceed (config is centralized)
-                    2+ installations --> error, ask user to specify --install-dir
+resolveInstallDir({ cliInstallDir, config })
+    |
+    CLI --install-dir flag? --> normalize and use it
+    config.installDir set? --> normalize and use it
+    fallback             --> home directory
 ```
 
-After the installation check, auth is always loaded from the single centralized config via `loadConfig()` (zero-arg). The profiles directory is always `getNoriProfilesDir()` (zero-arg, returns `~/.nori/profiles/`).
+After resolving the install directory, the command auto-initializes if needed by calling `initMain()`. Auth is loaded from the centralized config via `loadConfig()` (zero-arg). The profiles directory is always `getNoriProfilesDir()` (zero-arg, returns `~/.nori/profiles/`).
 
 **Namespaced package auth:** For namespaced packages (e.g., `myorg/my-skillset`), if the centralized config has no unified auth credentials, the command errors with a message directing the user to log in. There is no fallback -- all auth lives in `~/.nori-config.json`.
 
@@ -54,7 +47,6 @@ After the installation check, auth is always loaded from the single centralized 
 
 ### Things to Know
 
-- The `installDir` parameter to `registryDownloadMain` still exists but is only used for the installation existence check and for `initMain()`. Config and profiles are always read from/written to the centralized home directory locations.
-- `getInstallDirs()` detects installations by checking for `.nori-config.json` at a given directory. It returns the directory containing the config file, not the `.nori` folder.
+- The `installDir` parameter to `registryDownloadMain` is passed as `cliInstallDir` to `resolveInstallDir()` and to `initMain()`. Config and profiles are always read from/written to the centralized home directory locations.
 
 Created and maintained by Nori.

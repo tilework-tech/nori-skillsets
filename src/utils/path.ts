@@ -4,7 +4,7 @@
 
 import * as path from "path";
 
-import { AgentRegistry } from "@/cli/features/agentRegistry.js";
+import { type Config } from "@/cli/config.js";
 import { getHomeDir } from "@/utils/home.js";
 
 /**
@@ -55,48 +55,30 @@ export const normalizeInstallDir = (args: {
 };
 
 /**
- * Check if any registered agent is installed at the given directory
- * @param dir - Directory to check
- *
- * @returns true if any agent reports being installed at this directory
- */
-const hasAgentInstall = (dir: string): boolean => {
-  return AgentRegistry.getInstance()
-    .getAll()
-    .some((agent) => agent.isInstalledAtDir({ path: dir }));
-};
-
-/**
- * Get all directories that have Nori managed installations, starting from current directory
- * Searches current directory first, then ancestors
+ * Resolve the installation directory using a priority chain:
+ * 1. CLI --install-dir flag (highest priority)
+ * 2. config.installDir from persisted config
+ * 3. Home directory (fallback)
  *
  * @param args - Configuration arguments
- * @param args.currentDir - The directory to start searching from (defaults to process.cwd())
+ * @param args.cliInstallDir - Value from CLI --install-dir flag (optional)
+ * @param args.config - Loaded config object (optional)
  *
- * @returns Array of paths to directories with Nori installations, ordered from closest to furthest.
- *   Returns empty array if no installations found.
+ * @returns Resolved absolute path to the installation directory
  */
-export const getInstallDirs = (args?: {
-  currentDir?: string | null;
-}): Array<string> => {
-  const currentDir = args?.currentDir || process.cwd();
-  const results: Array<string> = [];
+export const resolveInstallDir = (args: {
+  cliInstallDir?: string | null;
+  config?: Config | null;
+}): string => {
+  const { cliInstallDir, config } = args;
 
-  if (hasAgentInstall(currentDir)) {
-    results.push(currentDir);
+  if (cliInstallDir != null && cliInstallDir !== "") {
+    return normalizeInstallDir({ installDir: cliInstallDir });
   }
 
-  // Walk up the directory tree starting from parent
-  let checkDir = path.dirname(currentDir);
-  let previousDir = "";
-  while (checkDir !== previousDir) {
-    if (hasAgentInstall(checkDir)) {
-      results.push(checkDir);
-    }
-
-    previousDir = checkDir;
-    checkDir = path.dirname(checkDir);
+  if (config?.installDir != null && config.installDir !== "") {
+    return normalizeInstallDir({ installDir: config.installDir });
   }
 
-  return results;
+  return getHomeDir();
 };

@@ -13,7 +13,7 @@
 
 import * as fs from "fs/promises";
 
-import { log, note } from "@clack/prompts";
+import { log } from "@clack/prompts";
 
 import {
   loadConfig,
@@ -23,10 +23,9 @@ import {
 } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { getNoriProfilesDir } from "@/cli/features/claude-code/paths.js";
-import { bold, yellow } from "@/cli/logger.js";
 import { initFlow } from "@/cli/prompts/flows/init.js";
 import { getCurrentPackageVersion } from "@/cli/version.js";
-import { normalizeInstallDir, getInstallDirs } from "@/utils/path.js";
+import { normalizeInstallDir } from "@/utils/path.js";
 
 import type { Command } from "commander";
 
@@ -77,11 +76,8 @@ export const initMain = async (args?: {
       installDir: normalizedInstallDir,
       skipWarning: skipWarning ?? null,
       callbacks: {
-        onCheckAncestors: async ({ installDir: dir }) => {
-          const allInstallations = getInstallDirs({
-            currentDir: dir,
-          });
-          return allInstallations.filter((installPath) => installPath !== dir);
+        onCheckAncestors: async () => {
+          return [];
         },
         onDetectExistingConfig: async ({ installDir: dir }) => {
           const existingConfig = await loadConfig();
@@ -151,27 +147,6 @@ export const initMain = async (args?: {
   }
 
   // Non-interactive path
-
-  // Check for ancestor managed installations (warn only)
-  const ancestorManagedInstallations = getInstallDirs({
-    currentDir: normalizedInstallDir,
-  }).filter((installPath) => installPath !== normalizedInstallDir);
-
-  if (ancestorManagedInstallations.length > 0) {
-    const warningLines = [
-      yellow({ text: "Nested Nori managed installations detected" }),
-      "",
-      "Claude Code loads CLAUDE.md files from all parent directories.",
-      "Having multiple managed installations can cause duplicate or",
-      "conflicting configurations.",
-      "",
-      bold({ text: "Existing managed installations:" }),
-      ...ancestorManagedInstallations.map((a) => `  • ${a}`),
-      "",
-      "Please remove the conflicting installation before continuing.",
-    ];
-    note(warningLines.join("\n"), "Warning");
-  }
 
   // Create ~/.nori/profiles/ directory
   const profilesDir = getNoriProfilesDir();

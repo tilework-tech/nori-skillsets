@@ -29,7 +29,7 @@ nori-skillsets install (orchestrator)
 The `install` command in @/src/cli/commands/registry-install/registryInstall.ts is a high-level wrapper that downloads from the public registrar and then runs `noninteractive()` from install.ts. The `install.ts` module in @/src/cli/commands/install/ contains the `noninteractive()` function which orchestrates init, profile resolution, and loader execution. After loaders complete, `writeInstalledManifest()` creates a manifest of all installed files in `~/.claude/` for later change detection by `switch`.
 
 **init** (@/src/cli/commands/init/init.ts): Creates the `.nori` directory structure and initializes `.nori-config.json`. If existing Claude Code config exists and no Nori config is present, captures the existing config as a profile:
-  - Non-interactive mode: auto-captures as "my-profile". Uses `@clack/prompts` for all output (`log.success` for status, `note()` for ancestor warnings). Color helpers (`bold`, `yellow`) from @/cli/logger.js are used only inside `note()` content.
+  - Non-interactive mode: auto-captures as "my-profile". Uses `@clack/prompts` for all output (`log.success` for status).
   - Interactive mode: Uses `initFlow` from @/cli/prompts/flows for an interactive experience with intro/outro, note boxes, and modern prompts. The flow handles ancestor checks, existing config detection, profile name capture, persistence warnings, and initialization spinner.
 
 **Profile Resolution (in install.ts):** After init, `noninteractive()` loads the existing config, resolves the profile from the `--profile` flag or the existing agent config, preserves auth credentials, and saves the merged config. Non-interactive mode requires `--profile` flag if no existing profile is set.
@@ -100,7 +100,7 @@ The `logout` command removes auth credentials from the centralized `~/.nori-conf
 
 **Command Naming Convention:** The nori-skillsets CLI uses simplified names without `registry-` prefix for read operations. The `noriSkillsetsCommands.ts` module defines register functions that create Commander commands with simplified names while delegating to the full implementation functions. Several commands also register hidden aliases as separate Commander commands (using `{ hidden: true }` so they do not appear in `--help` output). These aliases handle singular/plural variants and long-form names, all delegating to the same action handler as the canonical command. For example, `switch` (canonical) has hidden aliases `switch-skillset` and `switch-skillsets` (long-form), `list` (canonical) has hidden aliases `list-skillsets` and `list-skillset` (long-form), and `edit` (canonical) has a hidden alias `edit-skillset` (long-form).
 
-**install-location** (@/src/cli/commands/install-location/): Displays all Nori managed installation directories found from cwd upward. Supports `--non-interactive` (plain output for scripts). Uses `getInstallDirs({ currentDir: process.cwd() })` to discover installations by checking for `.claude/CLAUDE.md` with managed block markers.
+**install-location** (@/src/cli/commands/install-location/): Displays the resolved Nori installation directory from config. Supports `--non-interactive` (plain output for scripts). Uses `resolveInstallDir()` from @/src/utils/path.ts with the standard priority chain (CLI flag > config > home directory).
 
 **switch-profile** (@/src/cli/commands/switch-profile/profiles.ts): The `switchSkillsetAction` function handles profile switching with local change detection:
 
