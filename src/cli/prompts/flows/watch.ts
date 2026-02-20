@@ -5,7 +5,15 @@
  * including transcript destination org selection using @clack/prompts.
  */
 
-import { intro, note, outro, select, spinner, log } from "@clack/prompts";
+import {
+  intro,
+  note,
+  outro,
+  select,
+  confirm,
+  spinner,
+  log,
+} from "@clack/prompts";
 
 import { unwrapPrompt } from "./utils.js";
 
@@ -15,6 +23,7 @@ import { unwrapPrompt } from "./utils.js";
 export type PrepareResult = {
   privateOrgs: Array<string>;
   currentDestination: string | null;
+  currentGarbageCollect: "enabled" | "disabled" | null;
   isRunning: boolean;
 };
 
@@ -30,7 +39,10 @@ export type StartDaemonResult =
  */
 export type WatchFlowCallbacks = {
   onPrepare: () => Promise<PrepareResult>;
-  onStartDaemon: (args: { org: string }) => Promise<StartDaemonResult>;
+  onStartDaemon: (args: {
+    org: string;
+    garbageCollect: "enabled" | "disabled";
+  }) => Promise<StartDaemonResult>;
 };
 
 /**
@@ -71,7 +83,8 @@ export const watchFlow = async (args: {
   const s = spinner();
   s.start("Preparing...");
   const prepareResult = await callbacks.onPrepare();
-  const { privateOrgs, currentDestination, isRunning } = prepareResult;
+  const { privateOrgs, currentDestination, currentGarbageCollect, isRunning } =
+    prepareResult;
 
   if (isRunning) {
     s.stop("Stopped existing watch daemon.");
@@ -113,9 +126,27 @@ export const watchFlow = async (args: {
     selectedOrg = unwrapped;
   }
 
+  // Prompt for garbage collection preference
+  const gcChoice = await confirm({
+    message: "Delete transcript files after successful upload?",
+    initialValue: currentGarbageCollect === "enabled",
+  });
+
+  const gcUnwrapped = unwrapPrompt({
+    value: gcChoice,
+    cancelMessage: cancelMsg,
+  });
+  if (gcUnwrapped == null) {
+    return null;
+  }
+  const garbageCollect = gcUnwrapped ? "enabled" : "disabled";
+
   // Start daemon
   s.start("Starting watch daemon...");
-  const daemonResult = await callbacks.onStartDaemon({ org: selectedOrg });
+  const daemonResult = await callbacks.onStartDaemon({
+    org: selectedOrg,
+    garbageCollect,
+  });
   if (!daemonResult.success) {
     s.stop("Failed to start watch daemon.");
     log.error(`Failed to start watch daemon: ${daemonResult.error}`);
