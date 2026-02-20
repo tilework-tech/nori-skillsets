@@ -54,7 +54,7 @@ describe("logout command", () => {
         organizationUrl: "https://noriskillsets.dev",
         organizations: ["acme", "orderco"],
         isAdmin: true,
-        agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
+        activeSkillset: "senior-swe",
         autoupdate: "enabled",
         installDir: tempDir,
       });
@@ -71,9 +71,7 @@ describe("logout command", () => {
       expect(afterLogout?.auth).toBeNull();
 
       // Verify other fields are preserved
-      expect(afterLogout?.agents?.["claude-code"]?.profile?.baseProfile).toBe(
-        "senior-swe",
-      );
+      expect(afterLogout?.activeSkillset).toBe("senior-swe");
       expect(afterLogout?.autoupdate).toBe("enabled");
     });
 
@@ -84,7 +82,7 @@ describe("logout command", () => {
       await saveConfig({
         username: null,
         organizationUrl: null,
-        agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
+        activeSkillset: "senior-swe",
         installDir: tempDir,
       });
 
@@ -132,7 +130,7 @@ describe("logout command", () => {
         organizationUrl: "https://noriskillsets.dev",
         organizations: ["google-org"],
         isAdmin: false,
-        agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
+        activeSkillset: "senior-swe",
         autoupdate: "disabled",
         installDir: tempDir,
       });
@@ -152,9 +150,7 @@ describe("logout command", () => {
       expect(afterLogout?.auth).toBeNull();
 
       // Verify other fields are preserved
-      expect(afterLogout?.agents?.["claude-code"]?.profile?.baseProfile).toBe(
-        "senior-swe",
-      );
+      expect(afterLogout?.activeSkillset).toBe("senior-swe");
       expect(afterLogout?.autoupdate).toBe("disabled");
     });
 
@@ -166,7 +162,7 @@ describe("logout command", () => {
         username: "user@example.com",
         refreshToken: "mock-refresh-token",
         organizationUrl: "https://noriskillsets.dev",
-        agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
+        activeSkillset: "senior-swe",
         installDir: tempDir,
       });
 

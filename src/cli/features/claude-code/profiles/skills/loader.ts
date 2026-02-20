@@ -7,7 +7,7 @@ import * as fs from "fs/promises";
 import * as path from "path";
 import { fileURLToPath } from "url";
 
-import { getAgentProfile, type Config } from "@/cli/config.js";
+import { getActiveSkillset, type Config } from "@/cli/config.js";
 import {
   getClaudeDir,
   getClaudeSkillsDir,
@@ -102,10 +102,7 @@ const installSkills = async (args: { config: Config }): Promise<void> => {
   info({ message: "Installing Nori skills..." });
 
   // Get profile name from config - error if not configured
-  const profileName = getAgentProfile({
-    config,
-    agentName: "claude-code",
-  })?.baseProfile;
+  const profileName = getActiveSkillset({ config });
   if (profileName == null) {
     throw new Error(
       "No profile configured for claude-code. Run 'nori-skillsets init' to configure a profile.",

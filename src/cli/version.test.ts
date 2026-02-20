@@ -156,7 +156,7 @@ describe("version", () => {
       await saveConfig({
         username: null,
         organizationUrl: null,
-        agents: { "claude-code": {} },
+        activeSkillset: null,
         version: "13.5.2",
         installDir: tempDir,
       });
@@ -178,7 +178,7 @@ describe("version", () => {
       await saveConfig({
         username: null,
         organizationUrl: null,
-        agents: { "claude-code": {} },
+        activeSkillset: null,
         installDir: tempDir,
       });
 
@@ -202,7 +202,7 @@ describe("version", () => {
       await saveConfig({
         username: null,
         organizationUrl: null,
-        agents: { "claude-code": {} },
+        activeSkillset: null,
         installDir: tempDir,
       });
 
@@ -218,7 +218,7 @@ describe("version", () => {
       await saveConfig({
         username: null,
         organizationUrl: null,
-        agents: { "claude-code": {} },
+        activeSkillset: null,
         installDir: tempDir,
       });
 
@@ -256,7 +256,7 @@ describe("version", () => {
       await saveConfig({
         username: null,
         organizationUrl: null,
-        agents: { "claude-code": {} },
+        activeSkillset: null,
         version: "13.5.2",
         installDir: tempDir,
       });

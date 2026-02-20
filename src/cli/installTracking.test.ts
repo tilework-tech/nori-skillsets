@@ -851,7 +851,7 @@ describe("buildCLIEventParams", () => {
 
     // Pass a mock config with no auth
     const params = await buildCLIEventParams({
-      config: { agents: {} } as any,
+      config: { activeSkillset: null } as any,
     });
 
     expect(params.tilework_cli_install_type).toBe("unauthenticated");
@@ -864,7 +864,7 @@ describe("buildCLIEventParams", () => {
     const params = await buildCLIEventParams({
       config: {
         auth: { username: "test@example.com" },
-        agents: {},
+        activeSkillset: null,
       } as any,
     });
 
@@ -877,11 +877,7 @@ describe("buildCLIEventParams", () => {
 
     const params = await buildCLIEventParams({
       config: {
-        agents: {
-          "claude-code": {
-            profile: { baseProfile: "senior-swe" },
-          },
-        },
+        activeSkillset: "senior-swe",
       } as any,
     });
 
@@ -893,7 +889,7 @@ describe("buildCLIEventParams", () => {
     const { buildCLIEventParams } = await import("./installTracking.js");
 
     const params = await buildCLIEventParams({
-      config: { agents: {} } as any,
+      config: { activeSkillset: null } as any,
     });
 
     expect(params.tilework_cli_profile).toBeNull();
@@ -905,7 +901,7 @@ describe("buildCLIEventParams", () => {
 
     const params = await buildCLIEventParams({
       currentVersion: "99.99.99",
-      config: { agents: {} } as any,
+      config: { activeSkillset: null } as any,
     });
 
     expect(params.tilework_cli_installed_version).toBe("99.99.99");
@@ -921,7 +917,7 @@ describe("buildCLIEventParams", () => {
     if (state != null) {
       // days_since_install should be calculated from first_installed_at
       const params = await buildCLIEventParams({
-        config: { agents: {} } as any,
+        config: { activeSkillset: null } as any,
       });
 
       expect(typeof params.tilework_cli_days_since_install).toBe("number");
@@ -953,7 +949,7 @@ describe("getUserId", () => {
     const { getUserId } = await import("./installTracking.js");
 
     const userId = await getUserId({
-      config: { agents: {} } as any,
+      config: { activeSkillset: null } as any,
     });
 
     expect(userId).toBeNull();
@@ -1001,7 +997,7 @@ describe("Type exports", () => {
     const { buildCLIEventParams } = await import("./installTracking.js");
 
     const params = await buildCLIEventParams({
-      config: { agents: {} } as any,
+      config: { activeSkillset: null } as any,
     });
 
     // Verify it matches CLIEventParams structure

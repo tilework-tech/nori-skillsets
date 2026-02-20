@@ -7,7 +7,7 @@ import * as fs from "fs/promises";
 import * as path from "path";
 import { fileURLToPath } from "url";
 
-import { getAgentProfile, type Config } from "@/cli/config.js";
+import { getActiveSkillset, type Config } from "@/cli/config.js";
 import {
   getClaudeDir,
   getClaudeCommandsDir,
@@ -48,10 +48,7 @@ const registerSlashCommands = async (args: {
   info({ message: "Registering Nori slash commands..." });
 
   // Get profile name from config - error if not configured
-  const profileName = getAgentProfile({
-    config,
-    agentName: "claude-code",
-  })?.baseProfile;
+  const profileName = getActiveSkillset({ config });
   if (profileName == null) {
     throw new Error(
       "No profile configured for claude-code. Run 'nori-skillsets init' to configure a profile.",

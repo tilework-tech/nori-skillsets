@@ -45,14 +45,10 @@ vi.mock("@/cli/prompts/flows/registerSkillset.js", () => ({
 
 // Mock config loading
 const mockLoadConfig = vi.fn();
-const mockGetAgentProfile = vi.fn();
-const mockGetInstalledAgents = vi.fn();
-const mockGetDefaultAgent = vi.fn().mockReturnValue("claude-code");
+const mockGetActiveSkillset = vi.fn();
 vi.mock("@/cli/config.js", () => ({
   loadConfig: (args: any) => mockLoadConfig(args),
-  getAgentProfile: (args: any) => mockGetAgentProfile(args),
-  getInstalledAgents: (args: any) => mockGetInstalledAgents(args),
-  getDefaultAgent: (args: any) => mockGetDefaultAgent(args),
+  getActiveSkillset: (args: any) => mockGetActiveSkillset(args),
 }));
 
 describe("registerSkillsetMain", () => {
@@ -72,8 +68,7 @@ describe("registerSkillsetMain", () => {
     mockExit.mockClear();
     mockRegisterSkillsetFlow.mockClear();
     mockLoadConfig.mockClear();
-    mockGetAgentProfile.mockClear();
-    mockGetInstalledAgents.mockClear();
+    mockGetActiveSkillset.mockClear();
   });
 
   afterEach(async () => {
@@ -144,10 +139,7 @@ describe("registerSkillsetMain", () => {
 
     // Mock config loading to return current skillset
     mockLoadConfig.mockResolvedValueOnce({ some: "config" });
-    mockGetInstalledAgents.mockReturnValueOnce(["claude-code"]);
-    mockGetAgentProfile.mockReturnValueOnce({
-      baseProfile: "current-skillset",
-    });
+    mockGetActiveSkillset.mockReturnValueOnce("current-skillset");
 
     mockRegisterSkillsetFlow.mockResolvedValueOnce({
       description: null,

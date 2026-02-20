@@ -10,7 +10,7 @@ import { info, success, error, warn, debug } from "@/cli/logger.js";
 import { getCurrentPackageVersion } from "@/cli/version.js";
 import { configureFirebase, getFirebase } from "@/providers/firebase.js";
 
-import type { Config, AgentConfig, ConfigAgentName } from "@/cli/config.js";
+import type { Config } from "@/cli/config.js";
 import type { Loader } from "@/cli/features/agentRegistry.js";
 import type { AuthError } from "firebase/auth";
 
@@ -34,12 +34,9 @@ const installConfig = async (args: { config: Config }): Promise<void> => {
 
   const sendSessionTranscript = config.sendSessionTranscript ?? null;
 
-  // Merge agents from existing config and new config
-  // The keys of the agents object indicate which agents are installed
-  const mergedAgents: { [key in ConfigAgentName]?: AgentConfig } = {
-    ...(existingConfig?.agents ?? {}),
-    ...(config.agents ?? {}),
-  };
+  // Preserve activeSkillset from existing config or new config
+  const activeSkillset =
+    config.activeSkillset ?? existingConfig?.activeSkillset ?? null;
 
   // If we have password but no refresh token, authenticate to get a refresh token
   // This converts password-based login to token-based storage
@@ -130,7 +127,7 @@ const installConfig = async (args: { config: Config }): Promise<void> => {
     organizationUrl,
     organizations,
     isAdmin,
-    agents: Object.keys(mergedAgents).length > 0 ? mergedAgents : null,
+    activeSkillset,
     sendSessionTranscript,
     autoupdate: existingConfig?.autoupdate,
     version: currentVersion,

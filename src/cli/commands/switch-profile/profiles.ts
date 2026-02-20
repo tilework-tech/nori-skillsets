@@ -7,10 +7,9 @@ import { log } from "@clack/prompts";
 
 import {
   loadConfig,
-  getAgentProfile,
-  getInstalledAgents,
-  getDefaultAgent,
-  type ConfigAgentName,
+  getActiveSkillset,
+  getDefaultAgents,
+  type Config,
 } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { getClaudeDir } from "@/cli/features/claude-code/paths.js";
@@ -114,43 +113,32 @@ export const switchSkillsetAction = async (args: {
       callbacks: {
         onResolveAgents: async () => {
           const config = await loadConfig();
-          const installedAgents = config ? getInstalledAgents({ config }) : [];
-          if (installedAgents.length === 0) {
-            return [{ name: "claude-code", displayName: "Claude Code" }];
-          }
-          return installedAgents.map((agentName) => {
+          const agentNames = getDefaultAgents({ config });
+          return agentNames.map((agentName) => {
             const agent = AgentRegistry.getInstance().get({
               name: agentName,
             });
             return { name: agentName, displayName: agent.displayName };
           });
         },
-        onPrepareSwitchInfo: async ({ installDir: dir, agentName }) => {
+        onPrepareSwitchInfo: async ({ installDir: dir }) => {
           const localChanges = await detectLocalChanges({ installDir: dir });
           const config = await loadConfig();
-          let currentProfile: string | null = null;
-          if (config != null) {
-            const agentProfile = getAgentProfile({
-              config,
-              agentName: agentName as ConfigAgentName,
-            });
-            currentProfile = agentProfile?.baseProfile ?? null;
-          }
+          const currentProfile =
+            config != null ? getActiveSkillset({ config }) : null;
           return { currentProfile, localChanges };
         },
         onCaptureConfig: async ({ installDir: dir, profileName: pName }) => {
           const captureConfig = await loadConfig();
-          const captureAgentName = getDefaultAgent({ config: captureConfig });
-          const captureAgent = AgentRegistry.getInstance().get({
-            name: captureAgentName,
+          const captureAgentNames = getDefaultAgents({
+            config: captureConfig,
           });
-          const config = {
+          const captureAgent = AgentRegistry.getInstance().get({
+            name: captureAgentNames[0],
+          });
+          const config: Config = {
             installDir: dir,
-            agents: {
-              [captureAgentName]: {
-                profile: { baseProfile: pName },
-              },
-            },
+            activeSkillset: pName,
           };
           await captureAgent.captureExistingConfig?.({
             installDir: dir,
@@ -196,7 +184,11 @@ export const switchSkillsetAction = async (args: {
 
   // Non-interactive flow
   const config = await loadConfig();
-  const agentName = getDefaultAgent({ config, agentOverride: options.agent });
+  const agentNames = getDefaultAgents({
+    config,
+    agentOverride: options.agent,
+  });
+  const agentName = agentNames[0];
   const agent = AgentRegistry.getInstance().get({ name: agentName });
 
   // Check for local changes before proceeding

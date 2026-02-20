@@ -13,7 +13,7 @@ Path: @/src/cli/commands/external
 
 - Registered with Commander.js by `registerNoriSkillsetsExternalCommand` (called from @/src/cli/commands/noriSkillsetsCommands.ts) and also by `registerExternalSkillCommand` for the `external-skill` alias
 - Follows the same dual-installation pattern as `skill-download`: skills are copied to both `~/.claude/skills/<name>/` (live, with template substitution applied) and `~/.nori/profiles/<skillset>/skills/<name>/` (raw copy for persistence across profile switches)
-- Uses `getInstallDirs()` from @/src/utils/path.ts, `loadConfig()` from @/src/cli/config.ts, and `getAgentProfile()` to resolve the installation directory and active skillset -- same resolution logic as `skill-download`
+- Uses `getInstallDirs()` from @/src/utils/path.ts, `loadConfig()` from @/src/cli/config.ts, and `getActiveSkillset()` to resolve the installation directory and active skillset -- same resolution logic as `skill-download`
 - Uses `getClaudeSkillsDir()` and `getNoriProfilesDir()` from @/src/cli/features/claude-code/paths.ts for target directory paths
 - Calls `addSkillToNoriJson()` to update skillset manifests, same as `skill-download`
 - Uses `substituteTemplatePaths()` from @/src/cli/features/claude-code/template.ts for the live copy
@@ -62,7 +62,7 @@ cleanupClone() (always runs via finally block)
 |---|---|---|
 | Create new | `--new <name>` | Creates `~/.nori/profiles/<name>/` with empty `CLAUDE.md` and a `nori.json` (`{ name, version: "1.0.0" }`), then installs skills into it |
 | Target existing | `--skillset <name>` | Validates the skillset exists (checks for `CLAUDE.md`), then installs skills into it |
-| Active profile (default) | _(none)_ | Reads the active profile from config via `getAgentProfile()` and uses that if available |
+| Active profile (default) | _(none)_ | Reads the active skillset from config via `getActiveSkillset()` and uses that if available |
 
 When `--new` is used, the new directory is created before cloning begins. After creation, `targetSkillset` is set to the new name so the existing `installSkill()` flow handles copying skills and updating the manifest identically to any other skillset target.
 

@@ -39,24 +39,8 @@ export type AuthCredentials = {
 };
 
 /**
- * Agent-specific configuration
- */
-export type AgentConfig = {
-  profile?: { baseProfile: string } | null;
-};
-
-/**
- * Valid agent names for configuration.
- * Only "claude-code" is currently supported.
- */
-export type ConfigAgentName = "claude-code";
-
-/**
  * Unified configuration type for Nori Profiles
  * Contains all persisted fields from disk plus required installDir
- *
- * Note: Installed agents are derived from the keys of the `agents` object.
- * Use `getInstalledAgents({ config })` to get the list of installed agents.
  */
 export type Config = {
   auth?: AuthCredentials | null;
@@ -65,11 +49,8 @@ export type Config = {
   installDir: string;
   /** Default agents for CLI operations (set via `nori-skillsets config`) */
   defaultAgents?: Array<string> | null;
-  /**
-   * Per-agent configuration settings. Keys indicate which agents are installed.
-   * Note: Only "claude-code" is currently a valid agent name.
-   */
-  agents?: { [key in ConfigAgentName]?: AgentConfig } | null;
+  /** The currently active skillset, shared across all agents */
+  activeSkillset?: string | null;
   /** Installed version of Nori */
   version?: string | null;
   /** Organization ID for transcript uploads (e.g., "myorg" -> https://myorg.noriskillsets.dev) */
@@ -103,7 +84,12 @@ type RawDiskConfig = {
   profile?: { baseProfile?: string | null } | null;
   installDir?: string | null;
   defaultAgents?: Array<string> | null;
-  agents?: { [key in ConfigAgentName]?: AgentConfig } | null;
+  // Legacy agents field - kept for reading old configs (not written anymore)
+  agents?: {
+    [key: string]: { profile?: { baseProfile?: string | null } | null } | null;
+  } | null;
+  // Current format
+  activeSkillset?: string | null;
   version?: string | null;
   // Transcript upload destination org ID
   transcriptDestination?: string | null;
@@ -189,81 +175,20 @@ export const getRegistryAuth = (args: {
 };
 
 /**
- * Get list of installed agents from config
- * Derives installed agents from the keys of the agents object
- * Returns ['claude-code'] by default for backwards compatibility with older configs
+ * Get the currently active skillset from config
  * @param args - Configuration arguments
- * @param args.config - The config to check
+ * @param args.config - The config to read
  *
- * @returns Array of installed agent names
+ * @returns The active skillset name or null if not set
  */
-export const getInstalledAgents = (args: { config: Config }): Array<string> => {
+export const getActiveSkillset = (args: { config: Config }): string | null => {
   const { config } = args;
-  const agents = Object.keys(config.agents ?? {});
-  return agents.length > 0 ? agents : ["claude-code"];
-};
-
-/**
- * Get the profile for a specific agent
- * @param args - Configuration arguments
- * @param args.config - The config to search
- * @param args.agentName - The agent name to get profile for
- *
- * @returns The agent's profile or null if not found
- */
-export const getAgentProfile = (args: {
-  config: Config;
-  agentName: ConfigAgentName;
-}): { baseProfile: string } | null => {
-  const { config, agentName } = args;
-
-  if (config.agents == null) {
-    return null;
-  }
-
-  const agentConfig = config.agents[agentName];
-  if (agentConfig?.profile != null) {
-    return agentConfig.profile;
-  }
-
-  return null;
-};
-
-/**
- * Get the default agent name for CLI operations
- * Resolution order: explicit override > first config.defaultAgents entry > first installed agent > "claude-code"
- *
- * @param args - Configuration arguments
- * @param args.config - The config to read defaultAgents from
- * @param args.agentOverride - Explicit agent name override (e.g., from --agent CLI flag)
- *
- * @returns The resolved agent name
- */
-export const getDefaultAgent = (args: {
-  config?: Config | null;
-  agentOverride?: string | null;
-}): ConfigAgentName => {
-  const { config, agentOverride } = args;
-
-  if (agentOverride != null && agentOverride !== "") {
-    return agentOverride as ConfigAgentName;
-  }
-
-  if (config?.defaultAgents != null && config.defaultAgents.length > 0) {
-    return config.defaultAgents[0] as ConfigAgentName;
-  }
-
-  if (config != null) {
-    const installed = getInstalledAgents({ config });
-    if (installed.length > 0) return installed[0] as ConfigAgentName;
-  }
-
-  return "claude-code" as ConfigAgentName;
+  return config.activeSkillset ?? null;
 };
 
 /**
  * Get all default agent names for CLI operations
- * Resolution order: agentOverride as single-element array > config.defaultAgents > installed agents > ["claude-code"]
+ * Resolution order: agentOverride as single-element array > config.defaultAgents > ["claude-code"]
  *
  * @param args - Configuration arguments
  * @param args.config - The config to read defaultAgents from
@@ -274,29 +199,28 @@ export const getDefaultAgent = (args: {
 export const getDefaultAgents = (args: {
   config?: Config | null;
   agentOverride?: string | null;
-}): Array<ConfigAgentName> => {
+}): Array<string> => {
   const { config, agentOverride } = args;
 
   if (agentOverride != null && agentOverride !== "") {
-    return [agentOverride as ConfigAgentName];
+    return [agentOverride];
   }
 
   if (config?.defaultAgents != null && config.defaultAgents.length > 0) {
-    return config.defaultAgents as Array<ConfigAgentName>;
+    return config.defaultAgents;
   }
 
-  if (config != null) {
-    const installed = getInstalledAgents({ config });
-    if (installed.length > 0) return installed as Array<ConfigAgentName>;
-  }
-
-  return ["claude-code" as ConfigAgentName];
+  return ["claude-code"];
 };
 
 /**
  * Load existing configuration from disk
  * Uses JSON schema validation for strict type checking.
  * Always reads from ~/.nori-config.json.
+ *
+ * Handles backwards compatibility:
+ * - Legacy `agents["claude-code"].profile.baseProfile` → `activeSkillset`
+ * - Legacy `profile.baseProfile` → `activeSkillset`
  *
  * @returns The config if valid, null otherwise
  */
@@ -374,22 +298,25 @@ export const loadConfig = async (): Promise<Config | null> => {
       };
     }
 
-    // Set agents if present, or convert legacy profile to agents.claude-code
-    if (validated.agents != null) {
-      result.agents = validated.agents;
+    // Resolve activeSkillset with priority:
+    // 1. activeSkillset field (current format)
+    // 2. agents["claude-code"].profile.baseProfile (legacy agents format)
+    // 3. profile.baseProfile (oldest legacy format)
+    if (validated.activeSkillset != null) {
+      result.activeSkillset = validated.activeSkillset;
+    } else if (validated.agents != null) {
+      const claudeAgent = validated.agents["claude-code"];
+      if (claudeAgent?.profile?.baseProfile != null) {
+        result.activeSkillset = claudeAgent.profile.baseProfile;
+      }
     } else if (validated.profile?.baseProfile != null) {
-      // Convert legacy profile to agents.claude-code for backwards compat
-      result.agents = {
-        "claude-code": {
-          profile: { baseProfile: validated.profile.baseProfile },
-        },
-      };
+      result.activeSkillset = validated.profile.baseProfile;
     }
 
     // Return result if we have meaningful config data
     if (
       result.auth != null ||
-      result.agents != null ||
+      result.activeSkillset != null ||
       result.sendSessionTranscript != null
     ) {
       return result;
@@ -411,7 +338,7 @@ export const loadConfig = async (): Promise<Config | null> => {
  * @param args.sendSessionTranscript - Session transcript setting (null to skip)
  * @param args.autoupdate - Autoupdate setting (null to skip)
  * @param args.installDir - Installation directory
- * @param args.agents - Per-agent configuration settings (null to skip). Keys indicate installed agents.
+ * @param args.activeSkillset - The currently active skillset name (null to skip)
  * @param args.version - Installed version of Nori (null to skip)
  * @param args.organizations - List of organizations the user has access to (null to skip)
  * @param args.isAdmin - Whether the user is an admin for their organization (null to skip)
@@ -427,7 +354,7 @@ export const saveConfig = async (args: {
   isAdmin?: boolean | null;
   sendSessionTranscript?: "enabled" | "disabled" | null;
   autoupdate?: "enabled" | "disabled" | null;
-  agents?: { [key in ConfigAgentName]?: AgentConfig } | null;
+  activeSkillset?: string | null;
   version?: string | null;
   defaultAgents?: Array<string> | null;
   transcriptDestination?: string | null;
@@ -442,7 +369,7 @@ export const saveConfig = async (args: {
     isAdmin,
     sendSessionTranscript,
     autoupdate,
-    agents,
+    activeSkillset,
     version,
     defaultAgents,
     transcriptDestination,
@@ -472,9 +399,9 @@ export const saveConfig = async (args: {
     };
   }
 
-  // Add agents if provided
-  if (agents != null) {
-    config.agents = agents;
+  // Add activeSkillset if provided
+  if (activeSkillset != null) {
+    config.activeSkillset = activeSkillset;
   }
 
   // Add sendSessionTranscript if provided
@@ -564,6 +491,7 @@ const configSchema = {
       type: ["array", "null"],
       items: { type: "string" },
     },
+    // Legacy agents field - kept for reading old configs (not written anymore)
     agents: {
       type: "object",
       additionalProperties: {
@@ -578,6 +506,8 @@ const configSchema = {
         },
       },
     },
+    // Current active skillset field
+    activeSkillset: { type: "string" },
     version: { type: "string" },
     transcriptDestination: { type: "string" },
   },

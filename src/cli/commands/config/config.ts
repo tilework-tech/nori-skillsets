@@ -55,7 +55,7 @@ export const configMain = async (): Promise<void> => {
     isAdmin: existingConfig?.auth?.isAdmin ?? null,
     sendSessionTranscript: existingConfig?.sendSessionTranscript ?? null,
     autoupdate: existingConfig?.autoupdate ?? null,
-    agents: existingConfig?.agents ?? null,
+    activeSkillset: existingConfig?.activeSkillset ?? null,
     version: existingConfig?.version ?? null,
     transcriptDestination: existingConfig?.transcriptDestination ?? null,
     defaultAgents: result.defaultAgents,

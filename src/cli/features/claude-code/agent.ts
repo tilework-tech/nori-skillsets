@@ -116,20 +116,8 @@ export const claudeCodeAgent: Agent = {
       throw new Error(`Profile "${profileName}" not found in ${profilesDir}`);
     }
 
-    // Load current config - use installDir as starting point for config search
+    // Load current config
     const currentConfig = await loadConfig();
-
-    // Get existing agents config (agents keys are the source of truth for installed agents)
-    const existingAgents = currentConfig?.agents ?? {};
-
-    // Update profile for this agent
-    const updatedAgents = {
-      ...existingAgents,
-      ["claude-code"]: {
-        ...existingAgents["claude-code"],
-        profile: { baseProfile: profileName },
-      },
-    };
 
     await saveConfig({
       username: currentConfig?.auth?.username ?? null,
@@ -138,7 +126,7 @@ export const claudeCodeAgent: Agent = {
       organizationUrl: currentConfig?.auth?.organizationUrl ?? null,
       organizations: currentConfig?.auth?.organizations ?? null,
       isAdmin: currentConfig?.auth?.isAdmin ?? null,
-      agents: updatedAgents,
+      activeSkillset: profileName,
       sendSessionTranscript: currentConfig?.sendSessionTranscript ?? null,
       autoupdate: currentConfig?.autoupdate,
       version: currentConfig?.version ?? null,

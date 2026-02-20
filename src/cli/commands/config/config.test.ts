@@ -71,7 +71,7 @@ describe("configMain", () => {
       username: null,
       organizationUrl: null,
       installDir: tempDir,
-      agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
+      activeSkillset: "senior-swe",
     });
 
     const { configMain } = await import("./config.js");
@@ -91,7 +91,7 @@ describe("configMain", () => {
       username: null,
       organizationUrl: null,
       installDir: tempDir,
-      agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
+      activeSkillset: "senior-swe",
     });
 
     const configBefore = await loadConfig();
@@ -116,7 +116,7 @@ describe("configMain", () => {
       refreshToken: "token-123",
       organizationUrl: "https://example.com",
       installDir: tempDir,
-      agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
+      activeSkillset: "senior-swe",
       sendSessionTranscript: "disabled",
     });
 
@@ -125,9 +125,7 @@ describe("configMain", () => {
 
     const loaded = await loadConfig();
     expect(loaded?.auth?.username).toBe("test@example.com");
-    expect(loaded?.agents?.["claude-code"]?.profile?.baseProfile).toBe(
-      "senior-swe",
-    );
+    expect(loaded?.activeSkillset).toBe("senior-swe");
     expect(loaded?.sendSessionTranscript).toBe("disabled");
     expect(loaded?.defaultAgents).toEqual(["claude-code"]);
     expect(loaded?.installDir).toBe("/new/path");

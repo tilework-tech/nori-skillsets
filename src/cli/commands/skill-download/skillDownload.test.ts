@@ -54,41 +54,8 @@ vi.mock("@/cli/config.js", async () => {
   return {
     loadConfig: vi.fn(),
     getRegistryAuth: vi.fn(),
-    getInstalledAgents: (args: {
-      config: { agents?: Record<string, unknown> | null };
-    }) => {
-      const agents = Object.keys(args.config.agents ?? {});
-      return agents.length > 0 ? agents : ["claude-code"];
-    },
-    getDefaultAgent: (args: {
-      config: {
-        defaultAgents?: Array<string> | null;
-        agents?: Record<string, unknown> | null;
-      };
-      agentOverride?: string | null;
-    }) => {
-      if (args.agentOverride != null && args.agentOverride !== "")
-        return args.agentOverride;
-      if (
-        args.config.defaultAgents != null &&
-        args.config.defaultAgents.length > 0
-      )
-        return args.config.defaultAgents[0];
-      const agents = Object.keys(args.config.agents ?? {});
-      return agents.length > 0 ? agents[0] : "claude-code";
-    },
-    getAgentProfile: (args: {
-      config: {
-        agents?: Record<
-          string,
-          { profile?: { baseProfile: string } | null } | null
-        > | null;
-      };
-      agentName: string;
-    }) => {
-      const agentConfig = args.config.agents?.[args.agentName];
-      return agentConfig?.profile ?? null;
-    },
+    getActiveSkillset: (args: { config: { activeSkillset?: string | null } }) =>
+      args.config.activeSkillset ?? null,
   };
 });
 
@@ -1039,11 +1006,7 @@ describe("--skillset option and manifest updates", () => {
     vi.mocked(loadConfig).mockResolvedValue({
       installDir: testDir,
 
-      agents: {
-        "claude-code": {
-          profile: { baseProfile: "other-profile" },
-        },
-      },
+      activeSkillset: "other-profile",
     });
 
     vi.mocked(registrarApi.getSkillPackument).mockResolvedValue({
@@ -1089,11 +1052,7 @@ describe("--skillset option and manifest updates", () => {
     vi.mocked(loadConfig).mockResolvedValue({
       installDir: testDir,
 
-      agents: {
-        "claude-code": {
-          profile: { baseProfile: "active-profile" },
-        },
-      },
+      activeSkillset: "active-profile",
     });
 
     vi.mocked(registrarApi.getSkillPackument).mockResolvedValue({
@@ -1187,11 +1146,7 @@ describe("--skillset option and manifest updates", () => {
     vi.mocked(loadConfig).mockResolvedValue({
       installDir: testDir,
 
-      agents: {
-        "claude-code": {
-          profile: { baseProfile: "test-profile" },
-        },
-      },
+      activeSkillset: "test-profile",
     });
 
     vi.mocked(registrarApi.getSkillPackument).mockResolvedValue({
@@ -1229,11 +1184,7 @@ describe("--skillset option and manifest updates", () => {
     vi.mocked(loadConfig).mockResolvedValue({
       installDir: testDir,
 
-      agents: {
-        "claude-code": {
-          profile: { baseProfile: "test-profile" },
-        },
-      },
+      activeSkillset: "test-profile",
     });
 
     vi.mocked(registrarApi.getSkillPackument).mockResolvedValue({
@@ -1322,11 +1273,7 @@ describe("profile directory persistence", () => {
     vi.mocked(loadConfig).mockResolvedValue({
       installDir: testDir,
 
-      agents: {
-        "claude-code": {
-          profile: { baseProfile: "active-profile" },
-        },
-      },
+      activeSkillset: "active-profile",
     });
 
     vi.mocked(registrarApi.getSkillPackument).mockResolvedValue({
@@ -1388,11 +1335,7 @@ describe("profile directory persistence", () => {
     vi.mocked(loadConfig).mockResolvedValue({
       installDir: testDir,
 
-      agents: {
-        "claude-code": {
-          profile: { baseProfile: "active-profile" },
-        },
-      },
+      activeSkillset: "active-profile",
     });
 
     vi.mocked(registrarApi.getSkillPackument).mockResolvedValue({
@@ -1479,11 +1422,7 @@ describe("profile directory persistence", () => {
     vi.mocked(loadConfig).mockResolvedValue({
       installDir: testDir,
 
-      agents: {
-        "claude-code": {
-          profile: { baseProfile: "active-profile" },
-        },
-      },
+      activeSkillset: "active-profile",
     });
 
     // Verify no skills/ subdirectory exists in the profile yet
@@ -1555,11 +1494,7 @@ describe("profile directory persistence", () => {
     vi.mocked(loadConfig).mockResolvedValue({
       installDir: testDir,
 
-      agents: {
-        "claude-code": {
-          profile: { baseProfile: "active-profile" },
-        },
-      },
+      activeSkillset: "active-profile",
     });
 
     vi.mocked(registrarApi.getSkillPackument).mockResolvedValue({
@@ -1593,11 +1528,7 @@ describe("profile directory persistence", () => {
     vi.mocked(loadConfig).mockResolvedValue({
       installDir: testDir,
 
-      agents: {
-        "claude-code": {
-          profile: { baseProfile: "active-profile" },
-        },
-      },
+      activeSkillset: "active-profile",
     });
 
     vi.mocked(registrarApi.getSkillPackument).mockResolvedValue({
@@ -1707,11 +1638,7 @@ describe("nori.json updates on skill download", () => {
     vi.mocked(loadConfig).mockResolvedValue({
       installDir: testDir,
 
-      agents: {
-        "claude-code": {
-          profile: { baseProfile: "my-profile" },
-        },
-      },
+      activeSkillset: "my-profile",
     });
 
     vi.mocked(registrarApi.getSkillPackument).mockResolvedValue({
@@ -1750,11 +1677,7 @@ describe("nori.json updates on skill download", () => {
     vi.mocked(loadConfig).mockResolvedValue({
       installDir: testDir,
 
-      agents: {
-        "claude-code": {
-          profile: { baseProfile: "no-nori-json-profile" },
-        },
-      },
+      activeSkillset: "no-nori-json-profile",
     });
 
     vi.mocked(registrarApi.getSkillPackument).mockResolvedValue({
@@ -1801,11 +1724,7 @@ describe("nori.json updates on skill download", () => {
     vi.mocked(loadConfig).mockResolvedValue({
       installDir: testDir,
 
-      agents: {
-        "claude-code": {
-          profile: { baseProfile: "deps-profile" },
-        },
-      },
+      activeSkillset: "deps-profile",
     });
 
     vi.mocked(registrarApi.getSkillPackument).mockResolvedValue({

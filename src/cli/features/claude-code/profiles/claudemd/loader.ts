@@ -9,7 +9,7 @@ import { fileURLToPath } from "url";
 
 import { glob } from "glob";
 
-import { getAgentProfile, type Config } from "@/cli/config.js";
+import { getActiveSkillset, type Config } from "@/cli/config.js";
 import {
   getClaudeDir,
   getClaudeMdFile,
@@ -257,10 +257,7 @@ const insertClaudeMd = async (args: { config: Config }): Promise<void> => {
   info({ message: "Configuring CLAUDE.md with coding task instructions..." });
 
   // Get profile name from config - error if not configured
-  const profileName = getAgentProfile({
-    config,
-    agentName: "claude-code",
-  })?.baseProfile;
+  const profileName = getActiveSkillset({ config });
   if (profileName == null) {
     throw new Error(
       "No profile configured for claude-code. Run 'nori-skillsets init' to configure a profile.",

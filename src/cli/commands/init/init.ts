@@ -18,7 +18,7 @@ import { log, note } from "@clack/prompts";
 import {
   loadConfig,
   saveConfig,
-  getDefaultAgent,
+  getDefaultAgents,
   type Config,
 } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
@@ -64,7 +64,9 @@ export const initMain = async (args?: {
 
   // Resolve the default agent for all agent-specific operations
   const existingConfigForAgent = await loadConfig();
-  const defaultAgentName = getDefaultAgent({ config: existingConfigForAgent });
+  const defaultAgentName = getDefaultAgents({
+    config: existingConfigForAgent,
+  })[0];
   const defaultAgent = AgentRegistry.getInstance().get({
     name: defaultAgentName,
   });
@@ -95,11 +97,7 @@ export const initMain = async (args?: {
           // Build a config object for the agent to use when restoring managed config
           const config: Config = {
             installDir: dir,
-            agents: {
-              [defaultAgent.name]: {
-                profile: { baseProfile: profileName },
-              },
-            },
+            activeSkillset: profileName,
           };
           await defaultAgent.captureExistingConfig?.({
             installDir: dir,
@@ -126,15 +124,8 @@ export const initMain = async (args?: {
           const autoupdate = existingConfig?.autoupdate ?? null;
           const version = currentVersion ?? null;
 
-          let agents = existingConfig?.agents ?? {};
-          if (capturedProfileName != null) {
-            agents = {
-              ...agents,
-              [defaultAgent.name]: {
-                profile: { baseProfile: capturedProfileName },
-              },
-            };
-          }
+          const activeSkillset =
+            capturedProfileName ?? existingConfig?.activeSkillset ?? null;
 
           await saveConfig({
             username,
@@ -143,7 +134,7 @@ export const initMain = async (args?: {
             organizationUrl,
             sendSessionTranscript,
             autoupdate,
-            agents,
+            activeSkillset,
             version,
             installDir: dir,
           });
@@ -220,16 +211,9 @@ export const initMain = async (args?: {
   const transcriptDestination = existingConfig?.transcriptDestination ?? null;
   const version = currentVersion ?? null;
 
-  // Set agents - if a profile was captured, set it as the active profile for the default agent
-  let agents = existingConfig?.agents ?? {};
-  if (capturedProfileName != null) {
-    agents = {
-      ...agents,
-      [defaultAgent.name]: {
-        profile: { baseProfile: capturedProfileName },
-      },
-    };
-  }
+  // Set activeSkillset - if a profile was captured, set it as the active skillset
+  const activeSkillset =
+    capturedProfileName ?? existingConfig?.activeSkillset ?? null;
 
   // Save config
   await saveConfig({
@@ -241,7 +225,7 @@ export const initMain = async (args?: {
     isAdmin,
     sendSessionTranscript,
     autoupdate,
-    agents,
+    activeSkillset,
     version,
     transcriptDestination,
     installDir: normalizedInstallDir,
@@ -251,7 +235,7 @@ export const initMain = async (args?: {
   if (capturedProfileName != null) {
     const config: Config = {
       installDir: normalizedInstallDir,
-      agents,
+      activeSkillset,
     };
     await defaultAgent.captureExistingConfig?.({
       installDir: normalizedInstallDir,

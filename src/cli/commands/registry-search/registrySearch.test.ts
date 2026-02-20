@@ -49,16 +49,10 @@ vi.mock("@/api/registryAuth.js", () => ({
   getRegistryAuthToken: vi.fn(),
 }));
 
-// Mock the config module - include getInstalledAgents with real implementation
+// Mock the config module
 vi.mock("@/cli/config.js", async () => {
   return {
     loadConfig: vi.fn(),
-    getInstalledAgents: (args: {
-      config: { agents?: Record<string, unknown> | null };
-    }) => {
-      const agents = Object.keys(args.config.agents ?? {});
-      return agents.length > 0 ? agents : ["claude-code"];
-    },
   };
 });
 
@@ -134,14 +128,12 @@ describe("registry-search", () => {
     await fs.writeFile(
       path.join(testDir, ".nori-config.json"),
       JSON.stringify({
-        agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
+        activeSkillset: "senior-swe",
       }),
     );
     vi.mocked(loadConfig).mockResolvedValue({
       installDir: testDir,
-      agents: {
-        "claude-code": { profile: { baseProfile: "senior-swe" } },
-      },
+      activeSkillset: "senior-swe",
       auth: {
         username: "user@example.com",
         organizationUrl: "https://myorg.tilework.tech",
@@ -480,7 +472,7 @@ describe("registry-search", () => {
       );
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
+        activeSkillset: "senior-swe",
       });
 
       await registrySearchMain({ query: "test", installDir: testDir });
@@ -518,7 +510,7 @@ describe("registry-search", () => {
       vi.mocked(registrarApi.searchSkills).mockResolvedValue(mockPublicSkills);
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
+        activeSkillset: "senior-swe",
       });
 
       await registrySearchMain({ query: "test", installDir: testDir });
@@ -697,7 +689,7 @@ describe("registry-search", () => {
     it("should use nori-skillsets command names in install hints when cliName is nori-skillsets", async () => {
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
+        activeSkillset: "senior-swe",
       });
 
       // Mock public registry search functions (no org auth = only public registry is searched)
@@ -738,7 +730,7 @@ describe("registry-search", () => {
     it("should default to nori-skillsets command names when cliName is not provided", async () => {
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
-        agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
+        activeSkillset: "senior-swe",
       });
 
       // Mock public registry search functions (no org auth = only public registry is searched)

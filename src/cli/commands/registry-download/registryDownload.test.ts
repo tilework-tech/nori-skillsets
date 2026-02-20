@@ -73,17 +73,11 @@ vi.mock("@/api/registrar.js", () => ({
   },
 }));
 
-// Mock the config module - include getInstalledAgents with real implementation
+// Mock the config module
 vi.mock("@/cli/config.js", async () => {
   return {
     loadConfig: vi.fn(),
     getRegistryAuth: vi.fn(),
-    getInstalledAgents: (args: {
-      config: { agents?: Record<string, unknown> | null };
-    }) => {
-      const agents = Object.keys(args.config.agents ?? {});
-      return agents.length > 0 ? agents : ["claude-code"];
-    },
   };
 });
 
@@ -319,7 +313,7 @@ describe("registry-download", () => {
         // Simulate what initMain does - create config file and profiles dir
         await fs.writeFile(
           path.join(installDir, ".nori-config.json"),
-          JSON.stringify({ agents: {} }),
+          JSON.stringify({ activeSkillset: null }),
         );
         await fs.mkdir(path.join(installDir, ".nori", "profiles"), {
           recursive: true,
@@ -377,7 +371,7 @@ describe("registry-download", () => {
         const installDir = args?.installDir ?? customInstallDir;
         await fs.writeFile(
           path.join(installDir, ".nori-config.json"),
-          JSON.stringify({ agents: {} }),
+          JSON.stringify({ activeSkillset: null }),
         );
         await fs.mkdir(path.join(installDir, ".nori", "profiles"), {
           recursive: true,

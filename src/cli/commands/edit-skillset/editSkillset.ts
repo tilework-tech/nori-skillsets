@@ -9,7 +9,7 @@ import * as path from "path";
 
 import { log, note, outro } from "@clack/prompts";
 
-import { loadConfig, getAgentProfile, getDefaultAgent } from "@/cli/config.js";
+import { loadConfig, getActiveSkillset } from "@/cli/config.js";
 import { getNoriProfilesDir } from "@/cli/features/claude-code/paths.js";
 
 /**
@@ -22,7 +22,7 @@ export const editSkillsetMain = async (args: {
   name?: string | null;
   agent?: string | null;
 }): Promise<void> => {
-  const { name, agent: agentOption } = args;
+  const { name } = args;
 
   // Determine which profile to open
   let profileName: string;
@@ -31,15 +31,11 @@ export const editSkillsetMain = async (args: {
     profileName = name;
   } else {
     // Load config to find the active profile
-    // Use getHomeDir() as startDir since edit-skillset is home-directory-based
     const config = await loadConfig();
 
-    // Determine agent name
-    const agentName = getDefaultAgent({ config, agentOverride: agentOption });
+    const activeSkillset = config ? getActiveSkillset({ config }) : null;
 
-    const profile = config ? getAgentProfile({ config, agentName }) : null;
-
-    if (profile == null) {
+    if (activeSkillset == null) {
       log.error(
         "No active skillset configured. Use 'nori-skillsets switch <name>' to set one.",
       );
@@ -47,7 +43,7 @@ export const editSkillsetMain = async (args: {
       return;
     }
 
-    profileName = profile.baseProfile;
+    profileName = activeSkillset;
   }
 
   // Resolve the profile directory path
