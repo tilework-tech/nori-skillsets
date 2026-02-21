@@ -21,6 +21,7 @@ import {
   cancel,
 } from "@clack/prompts";
 
+import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { bold, brightCyan, green } from "@/cli/logger.js";
 import { validateSkillsetName } from "@/cli/prompts/validators.js";
 
@@ -128,7 +129,10 @@ export const switchSkillsetFlow = async (args: {
 
   // Step 1: Resolve all agents (broadcast to all, no selection prompt)
   const agents = await callbacks.onResolveAgents();
-  const agentName = agents.length > 0 ? agents[0].name : "claude-code";
+  const agentName =
+    agents.length > 0
+      ? agents[0].name
+      : AgentRegistry.getInstance().getDefaultAgentName();
 
   // Step 2: Prepare switch info (detect local changes + get current skillset)
   const { currentProfile, localChanges } = await callbacks.onPrepareSwitchInfo({

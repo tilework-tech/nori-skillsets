@@ -21,6 +21,8 @@ CLI Commands (install, switch-skillset, onboard, list, init)
     |       +-- Agent interface
     |           |
     |           +-- getAgentDir({ installDir }) --> agent's config directory path
+    |           +-- getSkillsDir({ installDir }) --> agent's skills directory path
+    |           +-- getSkillDiscoveryDirs() --> relative paths for skill discovery in repos
     |           +-- getManagedFiles() --> root-level filenames this agent manages
     |           +-- getManagedDirs() --> directory names this agent manages recursively
     |           +-- getLoaderRegistry() --> LoaderRegistry (interface)
@@ -30,6 +32,8 @@ CLI Commands (install, switch-skillset, onboard, list, init)
     |           +-- markInstall({ path, skillsetName }) --> Write agent installation marker
     |           +-- detectExistingConfig({ installDir }) --> Detect unmanaged config (optional)
     |           +-- captureExistingConfig({ installDir, skillsetName, config }) --> Capture and clean up (optional)
+    |           +-- getProjectsDir() --> agent's projects directory (optional)
+    |           +-- findArtifacts({ startDir }) --> discover agent config artifacts (optional)
     |
     +-- listProfiles() --> Available skillset names (from managedFolder.ts)
 
@@ -61,11 +65,14 @@ The init command (@/src/cli/commands/init/) uses `getDefaultAgent()` from @/src/
 | `Loader` | Interface for feature installation with `name`, `description`, and `run()` methods |
 | `LoaderRegistry` | Interface that agent-specific registry classes must implement (`getAll()`) |
 | `ExistingConfig` | Object describing detected unmanaged configuration (hasConfigFile, hasManagedBlock, hasSkills, skillCount, hasAgents, agentCount, hasCommands, commandCount). Returned by `detectExistingConfig` and used by init command to show users what was found. Canonical definition in agentRegistry.ts, re-exported from @/src/cli/commands/install/existingConfigCapture.ts for backward compatibility. |
+| `AgentArtifact` | Describes a discovered configuration artifact (path + type). Used by `findArtifacts` and factory reset to show what will be deleted. |
 
 **Agent Interface** (agentRegistry.ts):
 - `name`: `AgentName` - canonical identifier used as the registry key ("claude-code")
 - `displayName`: Human-readable name ("Claude Code")
 - `getAgentDir({ installDir })`: Returns the absolute path to this agent's config directory under the given install directory. Each agent declares its own directory (e.g., claude-code returns `{installDir}/.claude/`). Used by shared modules that need to locate agent-specific paths without importing agent internals.
+- `getSkillsDir({ installDir })`: Returns the absolute path to this agent's skills directory under the given install directory (e.g., claude-code returns `{installDir}/.claude/skills/`).
+- `getSkillDiscoveryDirs()`: Returns relative directory paths where skills may be discovered within a repository (e.g., claude-code returns `[".claude/skills"]`). Used by the skill discovery command (@/src/cli/commands/external/skillDiscovery.ts) to search for skills in external repos.
 - `getManagedFiles()`: Returns the list of root-level filenames within the agent's config directory that this agent manages. Used by the manifest module for installation tracking and change detection.
 - `getManagedDirs()`: Returns the list of directory names within the agent's config directory that this agent manages recursively. Used by the manifest module and cleanup operations.
 - `getLoaderRegistry()`: Returns an object implementing the `LoaderRegistry` interface
@@ -75,12 +82,15 @@ The init command (@/src/cli/commands/init/) uses `getDefaultAgent()` from @/src/
 - `markInstall({ path, skillsetName })`: Writes an installation marker at the given directory. The optional `skillsetName` parameter records the active skillset in the marker. Called by init and install commands after feature loaders complete.
 - `detectExistingConfig({ installDir })`: Optional. Detects unmanaged existing configuration at the given install directory. Returns an `ExistingConfig` object describing what was found (CLAUDE.md presence, managed block detection, skill/agent/command counts) or null if no configuration exists. Used by init command to determine if existing config should be captured before Nori installation.
 - `captureExistingConfig({ installDir, skillsetName, config })`: Optional. Captures existing unmanaged configuration as a named skillset, cleans up original files to prevent duplication, and restores a working managed configuration. Takes the `config` parameter to know which skillset to activate. Used by init command when existing config is detected and user opts to preserve it.
+- `getProjectsDir()`: Optional. Returns the absolute path to the agent's projects/sessions directory (e.g., claude-code returns `~/.claude/projects`). Used by the watch command to locate transcript source files.
+- `findArtifacts({ startDir, stopDir? })`: Optional. Discovers agent configuration artifacts (directories and files) starting from `startDir` and walking up the ancestor tree. Returns an array of `AgentArtifact` objects. Used by factory reset to show what will be deleted before confirmation.
 
 **AgentRegistry** (agentRegistry.ts):
 - Singleton pattern with `getInstance()`
 - `get({ name })`: Look up agent by name, throws if not found
 - `getAll()`: Returns array of all registered Agent objects. Used by code that needs to iterate all agents rather than look up by name (e.g., installation detection in @/src/utils/path.ts)
 - `list()`: Returns array of registered agent names
+- `getDefaultAgentName()`: Returns the name of the first registered agent. Used as the canonical fallback when code needs a default agent name without hardcoding "claude-code"
 - `resetInstance()`: For test isolation
 
 **Config Loader** (config/loader.ts):
@@ -110,7 +120,7 @@ The init command (@/src/cli/commands/init/) uses `getDefaultAgent()` from @/src/
 - Previously lived in @/src/cli/features/claude-code/skillsets/metadata.ts but was extracted because skillset metadata operations are agent-agnostic.
 
 **Skillset Parser** (skillset.ts):
-- Defines the `Skillset` type: a content-agnostic representation of a skillset's filesystem structure with fields for `name`, `dir`, `metadata` (NoriJson), `skillsDir`, `claudeMdPath`, `slashcommandsDir`, and `subagentsDir` (all path fields nullable for optional components).
+- Defines the `Skillset` type: a content-agnostic representation of a skillset's filesystem structure with fields for `name`, `dir`, `metadata` (NoriJson), `skillsDir`, `configFilePath`, `slashcommandsDir`, and `subagentsDir` (all path fields nullable for optional components).
 - `parseSkillset({ skillsetName?, skillsetDir? })`: Resolves a skillset directory (by name from `~/.nori/profiles/` or by explicit path), calls `ensureNoriJson()` for backwards compatibility, reads metadata, and probes for optional subdirectories/files. Returns a `Skillset` object. Called by the `profilesLoader` to parse the active skillset once, then distribute to all sub-loaders.
 - The `ProfileLoader` interface in @/src/cli/features/claude-code/skillsets/skillsetLoaderRegistry.ts accepts `{ config, skillset }` so sub-loaders receive the pre-parsed `Skillset` instead of constructing paths independently.
 
@@ -123,6 +133,6 @@ The init command (@/src/cli/commands/init/) uses `getDefaultAgent()` from @/src/
 
 ### Things to Know
 
-The `AgentRegistry` hardcodes `claude-code` as the only agent in its constructor. The `Agent` interface includes optional methods (`factoryReset`, `detectExistingConfig`, `captureExistingConfig`) that not all agents need to implement. `listSkillsets` calls `ensureNoriJson` as a backwards-compatibility shim, auto-generating `nori.json` for legacy skillsets that lack one.
+The `AgentRegistry` hardcodes `claude-code` as the only agent in its constructor. The `Agent` interface includes optional methods (`factoryReset`, `detectExistingConfig`, `captureExistingConfig`, `getProjectsDir`, `findArtifacts`) that not all agents need to implement. `listSkillsets` calls `ensureNoriJson` as a backwards-compatibility shim, auto-generating `nori.json` for legacy skillsets that lack one.
 
 Created and maintained by Nori.

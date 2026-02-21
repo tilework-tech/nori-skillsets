@@ -69,6 +69,18 @@ describe("AgentRegistry", () => {
     });
   });
 
+  describe("getDefaultAgentName", () => {
+    test("returns the name of the first registered agent", () => {
+      const registry = AgentRegistry.getInstance();
+      const defaultName = registry.getDefaultAgentName();
+
+      // Should return a valid agent name from the registry
+      expect(registry.list()).toContain(defaultName);
+      // Should be the same as the first agent in the list
+      expect(defaultName).toBe(registry.list()[0]);
+    });
+  });
+
   describe("getAll", () => {
     test("returns the same agents accessible via get()", () => {
       const registry = AgentRegistry.getInstance();
@@ -173,6 +185,18 @@ describe("AgentRegistry", () => {
       const loaderNames = loaders.map((l) => l.name);
 
       expect(loaderNames).toContain("config");
+    });
+  });
+
+  describe("getSkillDiscoveryDirs", () => {
+    test("claude-code agent returns skill discovery directories", () => {
+      const registry = AgentRegistry.getInstance();
+      const agent = registry.get({ name: "claude-code" });
+      const dirs = agent.getSkillDiscoveryDirs();
+
+      expect(dirs.length).toBeGreaterThan(0);
+      // Should include the .claude/skills path pattern
+      expect(dirs).toContain(path.join(".claude", "skills"));
     });
   });
 

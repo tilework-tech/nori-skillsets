@@ -52,6 +52,10 @@ export const claudeCodeAgent: Agent = {
     return LoaderRegistry.getInstance();
   },
 
+  getSkillDiscoveryDirs: (): ReadonlyArray<string> => {
+    return [path.join(".claude", "skills")];
+  },
+
   getProjectsDir: (): string => {
     return path.join(getHomeDir(), ".claude", "projects");
   },

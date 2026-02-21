@@ -87,6 +87,8 @@ export type Agent = {
     installDir: string;
     skillsetName: string;
   }) => Promise<void>;
+  /** Get relative directory paths where skills may be discovered in a repo */
+  getSkillDiscoveryDirs: () => ReadonlyArray<string>;
   /** Get the agent's projects/sessions directory (home-relative) */
   getProjectsDir?: (() => string) | null;
   /** Find agent configuration artifacts starting from a directory */
@@ -179,5 +181,14 @@ export class AgentRegistry {
    */
   public list(): Array<AgentName> {
     return Array.from(this.agents.keys()) as Array<AgentName>;
+  }
+
+  /**
+   * Get the default agent name (first registered agent)
+   * Used as a fallback when no agent is explicitly specified.
+   * @returns The default agent name
+   */
+  public getDefaultAgentName(): AgentName {
+    return this.list()[0];
   }
 }

@@ -71,7 +71,7 @@ describe("pathExists", () => {
     const ctx = await createTempTestContext({ prefix: "pathExists-test" });
     tempDir = ctx.tempDir;
 
-    const exists = await pathExists({ filePath: ctx.claudeDir });
+    const exists = await pathExists({ filePath: ctx.agentDir });
     expect(exists).toBe(true);
 
     await ctx.cleanup();
@@ -96,11 +96,11 @@ describe("createTempTestContext", () => {
     expect(exists).toBe(true);
   });
 
-  it("should create .claude subdirectory", async () => {
-    ctx = await createTempTestContext({ prefix: "claude-test" });
+  it("should create agent config subdirectory", async () => {
+    ctx = await createTempTestContext({ prefix: "agent-test" });
 
-    expect(ctx.claudeDir).toBe(path.join(ctx.tempDir, ".claude"));
-    const exists = await pathExists({ filePath: ctx.claudeDir });
+    expect(ctx.agentDir).toBe(path.join(ctx.tempDir, ".claude"));
+    const exists = await pathExists({ filePath: ctx.agentDir });
     expect(exists).toBe(true);
   });
 

@@ -246,7 +246,7 @@ const insertClaudeMd = async (args: {
   const claudeMdFile = getClaudeMdFile({ installDir: config.installDir });
 
   // Read CLAUDE.md from the selected profile
-  const profileClaudeMdPath = skillset.claudeMdPath;
+  const profileClaudeMdPath = skillset.configFilePath;
 
   let instructions: string | null = null;
   if (profileClaudeMdPath != null) {

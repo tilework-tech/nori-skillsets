@@ -239,7 +239,7 @@ export const noninteractive = async (args?: {
   const { installDir, agent, skillset } = args || {};
   const normalizedInstallDir = normalizeInstallDir({ installDir });
   const agentImpl = AgentRegistry.getInstance().get({
-    name: agent ?? "claude-code",
+    name: agent ?? AgentRegistry.getInstance().getDefaultAgentName(),
   });
 
   // Step 1: Init - Set up folders (non-interactive skips existing config capture)

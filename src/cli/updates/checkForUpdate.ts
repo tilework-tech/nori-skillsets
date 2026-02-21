@@ -16,7 +16,6 @@ import {
   refreshVersionCache,
 } from "@/cli/updates/npmRegistryCheck.js";
 import { dismissVersion } from "@/cli/updates/versionCache.js";
-import { getHomeDir } from "@/utils/home.js";
 
 import { getUpdateCommand, showUpdatePrompt } from "./updatePrompt.js";
 
@@ -28,10 +27,7 @@ import { getUpdateCommand, showUpdatePrompt } from "./updatePrompt.js";
 const loadAutoupdateSetting = async (): Promise<
   "enabled" | "disabled" | null
 > => {
-  const candidates = [
-    path.join(getHomeDir(), ".claude", ".nori-config.json"),
-    path.join(process.cwd(), ".nori-config.json"),
-  ];
+  const candidates = [path.join(process.cwd(), ".nori-config.json")];
 
   for (const configPath of candidates) {
     try {

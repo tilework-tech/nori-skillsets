@@ -49,8 +49,8 @@ export const pathExists = async (args: {
 export type TempTestContext = {
   /** The root temporary directory for this test */
   tempDir: string;
-  /** The .claude directory within tempDir */
-  claudeDir: string;
+  /** The agent config directory within tempDir (e.g. .claude/) */
+  agentDir: string;
   /** Clean up the temporary directory after the test */
   cleanup: () => Promise<void>;
 };
@@ -81,12 +81,12 @@ export const createTempTestContext = async (args: {
 }): Promise<TempTestContext> => {
   const { prefix } = args;
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), `${prefix}-`));
-  const claudeDir = path.join(tempDir, ".claude");
-  await fs.mkdir(claudeDir, { recursive: true });
+  const agentDir = path.join(tempDir, ".claude");
+  await fs.mkdir(agentDir, { recursive: true });
 
   return {
     tempDir,
-    claudeDir,
+    agentDir,
     cleanup: async () => fs.rm(tempDir, { recursive: true, force: true }),
   };
 };

@@ -43,26 +43,48 @@ Changes:
 
 Changes:
 - Created `src/cli/features/skillset.ts` with `Skillset` type and `parseSkillset()` function
-  - `Skillset` maps the filesystem structure: `name`, `dir`, `metadata`, `skillsDir`, `claudeMdPath`, `slashcommandsDir`, `subagentsDir` (nullable for optional components)
+  - `Skillset` maps the filesystem structure: `name`, `dir`, `metadata`, `skillsDir`, `configFilePath`, `slashcommandsDir`, `subagentsDir` (nullable for optional components)
   - `parseSkillset()` resolves skillset directory, ensures nori.json exists (backwards compat), reads metadata, checks for optional component directories
 - Created `src/cli/features/skillset.test.ts` with 8 tests covering fully-populated, minimal, namespaced, missing, and legacy skillsets
 - Updated `ProfileLoader` interface in `skillsetLoaderRegistry.ts` to accept `{ config: Config; skillset: Skillset }`
 - Updated `profilesLoader` in `loader.ts` to call `parseSkillset()` once and pass result to all sub-loaders
 - Updated all 4 profile sub-loaders to consume `Skillset` instead of constructing paths independently:
   - `skills/loader.ts` — removed `getProfileDir`, `getConfigDir`; uses `skillset.skillsDir`
-  - `claudemd/loader.ts` — removed `getProfileClaudeMd`; uses `skillset.claudeMdPath`; `generateSkillsList` now takes `{ skillsDir }` instead of `{ skillsetName }`
+  - `claudemd/loader.ts` — removed `getProfileClaudeMd`; uses `skillset.configFilePath`; `generateSkillsList` now takes `{ skillsDir }` instead of `{ skillsetName }`
   - `slashcommands/loader.ts` — removed `getConfigDir`; uses `skillset.slashcommandsDir`
   - `subagents/loader.ts` — removed `getConfigDir`; uses `skillset.subagentsDir`
 - Updated `agent.ts` `captureExistingConfig` to parse skillset before calling `claudeMdLoader.install`
 - Updated all 4 sub-loader test files with `installWithSkillset` helper pattern
 
+### Commit 4: Remove hardcoded agent fallbacks and make Skillset type agent-agnostic
+
+**Refactor A + B progress:** Eliminated all hardcoded `"claude-code"` string fallbacks outside the agent registration itself. Made the `Skillset` type fully agent-agnostic. Added `getSkillDiscoveryDirs` to the Agent interface.
+
+Changes:
+- Added `getDefaultAgentName()` method to `AgentRegistry` — returns the first registered agent name as canonical fallback
+- Added `getSkillDiscoveryDirs()` to `Agent` interface — returns relative directory paths for skill discovery in repos
+- Implemented `getSkillDiscoveryDirs()` on claude-code agent returning `[".claude/skills"]`
+- Renamed `Skillset.claudeMdPath` → `Skillset.configFilePath` — agent-agnostic field name
+- Updated `claudemd/loader.ts` to read `skillset.configFilePath`
+- Replaced 5 hardcoded `"claude-code"` fallbacks with `AgentRegistry.getInstance().getDefaultAgentName()`:
+  - `config.ts` `getDefaultAgents()` fallback
+  - `install.ts` `noninteractive()` agent fallback
+  - `noriSkillsetsCommands.ts` watch command default agent
+  - `switchSkillset.ts` agent resolution fallback
+  - `config.ts` (prompts/flows) initial agent selection
+- Removed legacy `~/.claude/.nori-config.json` path from `checkForUpdate.ts`
+- Updated `skillDiscovery.ts` to use agent registry `getSkillDiscoveryDirs()` instead of hardcoded `.claude/skills`
+- Renamed `TempTestContext.claudeDir` → `TempTestContext.agentDir` in test utilities
+- Updated init flow warning text to be agent-agnostic (no longer references `~/.claude/` paths)
+- Updated 3 docs.md files
+
 ## Remaining Work
 
 ### Refactor A (continued): Further agent decoupling
-- `AgentName` type is still a literal `"claude-code"` string union
+- `AgentName` type is still a literal `"claude-code"` string union (will widen when a second agent is added)
+- Help text in `noriSkillsetsCommands.ts` still mentions "claude-code" as an example — this is documentation, not logic
 
 ### Refactor B (continued): Further Skillset type usage
-- Other callers outside the profile loader chain may still construct skillset paths independently
 - The `Skillset` type could be extended to include more parsed metadata as needed
 
 ### Refactor C: Multi-agent support improvements

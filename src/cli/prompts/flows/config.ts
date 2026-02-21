@@ -10,6 +10,8 @@
 
 import { intro, multiselect, text } from "@clack/prompts";
 
+import { AgentRegistry } from "@/cli/features/agentRegistry.js";
+
 import { unwrapPrompt } from "./utils.js";
 
 export type ConfigFlowCallbacks = {
@@ -56,7 +58,7 @@ export const configFlow = async (args: {
     value: await multiselect({
       message: "Which agents do you want to use?",
       options: agentOptions,
-      initialValues: currentAgents ?? ["claude-code"],
+      initialValues: currentAgents ?? AgentRegistry.getInstance().list(),
       required: true,
     }),
     cancelMessage: "Configuration cancelled.",

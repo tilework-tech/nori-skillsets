@@ -60,7 +60,7 @@ describe("parseSkillset", () => {
     expect(skillset.metadata.name).toBe("full-skillset");
     expect(skillset.metadata.version).toBe("1.0.0");
     expect(skillset.skillsDir).toBe(path.join(skillsetDir, "skills"));
-    expect(skillset.claudeMdPath).toBe(path.join(skillsetDir, "CLAUDE.md"));
+    expect(skillset.configFilePath).toBe(path.join(skillsetDir, "CLAUDE.md"));
     expect(skillset.slashcommandsDir).toBe(
       path.join(skillsetDir, "slashcommands"),
     );
@@ -85,7 +85,7 @@ describe("parseSkillset", () => {
     expect(skillset.dir).toBe(skillsetDir);
     expect(skillset.metadata.name).toBe("minimal-skillset");
     expect(skillset.skillsDir).toBeNull();
-    expect(skillset.claudeMdPath).toBeNull();
+    expect(skillset.configFilePath).toBeNull();
     expect(skillset.slashcommandsDir).toBeNull();
     expect(skillset.subagentsDir).toBeNull();
   });
@@ -107,7 +107,7 @@ describe("parseSkillset", () => {
 
     expect(skillset.name).toBe("myorg/my-skillset");
     expect(skillset.dir).toBe(skillsetDir);
-    expect(skillset.claudeMdPath).toBe(path.join(skillsetDir, "CLAUDE.md"));
+    expect(skillset.configFilePath).toBe(path.join(skillsetDir, "CLAUDE.md"));
   });
 
   it("should throw when skillset directory does not exist", async () => {
@@ -138,7 +138,7 @@ describe("parseSkillset", () => {
 
     expect(skillset.name).toBe("legacy-skillset");
     expect(skillset.metadata.version).toBe("0.0.1");
-    expect(skillset.claudeMdPath).toBe(path.join(skillsetDir, "CLAUDE.md"));
+    expect(skillset.configFilePath).toBe(path.join(skillsetDir, "CLAUDE.md"));
   });
 
   it("should detect partial skillset with only skills dir", async () => {
@@ -154,7 +154,7 @@ describe("parseSkillset", () => {
     const skillset = await parseSkillset({ skillsetName });
 
     expect(skillset.skillsDir).toBe(path.join(skillsetDir, "skills"));
-    expect(skillset.claudeMdPath).toBeNull();
+    expect(skillset.configFilePath).toBeNull();
     expect(skillset.slashcommandsDir).toBeNull();
     expect(skillset.subagentsDir).toBeNull();
   });

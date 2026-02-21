@@ -8,6 +8,8 @@
 import * as fs from "fs/promises";
 import * as path from "path";
 
+import { AgentRegistry } from "@/cli/features/agentRegistry.js";
+
 const SKIP_DIRS = new Set([
   "node_modules",
   ".git",
@@ -219,11 +221,13 @@ export const discoverSkills = async (args: {
     }
   }
 
-  // 2. Search standard directories
-  const priorityDirs = [
-    path.join(searchPath, "skills"),
-    path.join(searchPath, ".claude", "skills"),
-  ];
+  // 2. Search standard directories (skills/ + agent-specific skill directories)
+  const agentSkillDirs = AgentRegistry.getInstance()
+    .getAll()
+    .flatMap((agent) =>
+      agent.getSkillDiscoveryDirs().map((dir) => path.join(searchPath, dir)),
+    );
+  const priorityDirs = [path.join(searchPath, "skills"), ...agentSkillDirs];
 
   for (const dir of priorityDirs) {
     try {

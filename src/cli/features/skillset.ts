@@ -27,8 +27,8 @@ export type Skillset = {
   metadata: NoriJson;
   /** Path to skills/ subdirectory, or null if it doesn't exist */
   skillsDir: string | null;
-  /** Path to CLAUDE.md, or null if it doesn't exist */
-  claudeMdPath: string | null;
+  /** Path to the root config file (e.g. CLAUDE.md), or null if it doesn't exist */
+  configFilePath: string | null;
   /** Path to slashcommands/ subdirectory, or null if it doesn't exist */
   slashcommandsDir: string | null;
   /** Path to subagents/ subdirectory, or null if it doesn't exist */
@@ -127,7 +127,7 @@ export const parseSkillset = async (args: {
     dir,
     metadata,
     skillsDir: hasSkills ? skillsDirPath : null,
-    claudeMdPath: hasClaudeMd ? claudeMdFilePath : null,
+    configFilePath: hasClaudeMd ? claudeMdFilePath : null,
     slashcommandsDir: hasSlashcommands ? slashcommandsDirPath : null,
     subagentsDir: hasSubagents ? subagentsDirPath : null,
   };
