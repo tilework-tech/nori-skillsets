@@ -7,6 +7,7 @@
  * The registry-* prefixed commands are also available as aliases.
  */
 
+import { clearMain } from "@/cli/commands/clear/clear.js";
 import { completionMain } from "@/cli/commands/completion/completion.js";
 import { configMain } from "@/cli/commands/config/config.js";
 import { currentSkillsetMain } from "@/cli/commands/current-skillset/currentSkillset.js";
@@ -771,6 +772,30 @@ export const registerNoriSkillsetsCompletionCommand = (args: {
     .description("Generate shell completion script (bash, zsh)")
     .action((shell: string) => {
       completionMain({ shell });
+    });
+};
+
+/**
+ * Register the 'clear' command for nori-skillsets CLI
+ * @param args - Configuration arguments
+ * @param args.program - Commander program instance
+ */
+export const registerNoriSkillsetsClearCommand = (args: {
+  program: Command;
+}): void => {
+  const { program } = args;
+
+  program
+    .command("clear")
+    .description(
+      "Remove all Nori-managed configuration from the install directory",
+    )
+    .action(async () => {
+      const globalOpts = program.opts();
+      await clearMain({
+        installDir: globalOpts.installDir || null,
+        agent: globalOpts.agent || null,
+      });
     });
 };
 

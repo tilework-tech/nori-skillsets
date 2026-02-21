@@ -8,6 +8,7 @@
 export type CliName = "nori-skillsets";
 
 export type CommandNames = {
+  clear: string;
   download: string;
   downloadSkill: string;
   externalSkill: string;
@@ -21,6 +22,7 @@ export type CommandNames = {
 };
 
 const NORI_SKILLSETS_COMMANDS: CommandNames = {
+  clear: "clear",
   download: "download",
   downloadSkill: "download-skill",
   externalSkill: "external",
