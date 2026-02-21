@@ -16,7 +16,7 @@ The CLI module is the outermost shell of the application. `nori-skillsets.ts` is
 
 `config.ts` manages the `~/.nori-config.json` file using AJV schema validation. It handles two auth formats: a legacy flat format (username/password at root level) and a nested `auth` object (v19+). Key exports include `loadConfig`, `saveConfig`, `getRegistryAuth` (derives registry credentials from the org URL), `getActiveSkillset`, and `getDefaultAgents` (resolution order: CLI flag override, then config, then `["claude-code"]`).
 
-`logger.ts` provides colorized console output and file logging to `/tmp/nori.log` via Winston. Console transport suppresses debug-level messages; file transport captures everything. It exposes semantic log functions (`error`, `success`, `info`, `warn`, `debug`) and ANSI color helpers used throughout the prompt flows.
+`logger.ts` provides file-only logging to `/tmp/nori.log` via Winston and ANSI color helpers. All user-facing console output has been migrated to `@clack/prompts` (`log.success`, `log.info`, `log.error`, `log.warn`, `note()`, `intro()`, `outro()`). The logger retains file-only `debug` logging, a silent mode flag (used by install ASCII art to guard output), ANSI color helpers (`bold`, `dim`, `red`, `green`, etc.), and a text wrapping utility.
 
 `installTracking.ts` manages install lifecycle analytics. It maintains a `.nori-install.json` state file in `~/.nori/profiles/`, tracks first-install vs upgrade vs resurrection events, and sends fire-and-forget analytics via the Nori analytics proxy. It generates a deterministic client ID from hostname + username.
 

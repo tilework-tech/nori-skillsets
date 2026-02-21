@@ -70,7 +70,6 @@ const installSkills = async (args: {
   skillset: Skillset;
 }): Promise<void> => {
   const { config, skillset } = args;
-  // Skills installation — output is consolidated in the subagents/slashcommands notes
 
   const configDir = skillset.skillsDir;
   const claudeDir = getClaudeDir({ installDir: config.installDir });
@@ -120,11 +119,6 @@ const installSkills = async (args: {
       // Profile skills directory not found - continue silently
     }
   }
-
-  // Note: External skills from skills.json are now stored in the profile's own skills
-  // directory ({skillsetDir}/skills/) after being downloaded by registry-download.
-  // Step 1 already copies all skills from that directory, so no separate step is needed.
-  // The skills.json file is now just metadata for tracking which skills were downloaded.
 
   // Configure permissions for skills directory
   await configureSkillsPermissions({ config });

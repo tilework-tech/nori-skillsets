@@ -6,14 +6,19 @@
 import * as fs from "fs/promises";
 import * as path from "path";
 
-import { log } from "@clack/prompts";
+import { intro, log, note, outro } from "@clack/prompts";
 
 import { main as installMain } from "@/cli/commands/install/install.js";
 import { hasExistingInstallation } from "@/cli/commands/install/installState.js";
 import { registryDownloadMain } from "@/cli/commands/registry-download/registryDownload.js";
-import { loadConfig, getDefaultAgents } from "@/cli/config.js";
+import {
+  loadConfig,
+  getActiveSkillset,
+  getDefaultAgents,
+} from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { getNoriSkillsetsDir } from "@/cli/features/paths.js";
+import { bold, brightCyan, green } from "@/cli/logger.js";
 import { resolveInstallDir } from "@/utils/path.js";
 
 import type { Command } from "commander";
@@ -67,8 +72,7 @@ export type RegistryInstallResult = {
  */
 const displaySuccessMessage = (args: { skillsetName: string }): void => {
   const { skillsetName } = args;
-  log.success(`Skillset "${skillsetName}" is now active.`);
-  log.info("Restart Claude Code to apply the new skillset.");
+  outro(`Skillset "${skillsetName}" is now active.`);
 };
 
 /**
@@ -137,12 +141,26 @@ export const registryInstallMain = async (
           silent: silent ?? null,
         });
       }
-      // Initial install already sets the skillset, so we're done
-      displaySuccessMessage({ skillsetName });
+      // Initial install already sets the skillset and displays its own completion banners
       return { success: true };
     }
 
     // Step 3 (existing installation): Broadcast switch to all configured agents
+    intro("Switch Skillset");
+
+    // Show context note with switch details
+    const currentSkillset =
+      config != null ? (getActiveSkillset({ config }) ?? "(none)") : "(none)";
+    const agentDisplay =
+      agentNames.length === 1 ? agentNames[0] : agentNames.join(", ");
+    const detailLines = [
+      `Install directory: ${targetInstallDir}`,
+      `Agent: ${agentDisplay}`,
+      `Current skillset: ${brightCyan({ text: bold({ text: currentSkillset }) })}`,
+      `New skillset: ${green({ text: bold({ text: skillsetName }) })}`,
+    ];
+    note(detailLines.join("\n"), "Switching Skillset");
+
     for (const agentName of agentNames) {
       const agentImpl = AgentRegistry.getInstance().get({ name: agentName });
       await agentImpl.switchSkillset({

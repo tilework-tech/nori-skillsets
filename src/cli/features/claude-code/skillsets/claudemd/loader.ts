@@ -280,7 +280,7 @@ const insertClaudeMd = async (args: {
         `${BEGIN_MARKER}\n\n${END_MARKER}\n`,
       );
       await fs.writeFile(claudeMdFile, cleared);
-      log.success(`✓ Cleared managed block in ${claudeMdFile}`);
+      log.success(`Cleared managed block in ${claudeMdFile}`);
     }
     return;
   }
@@ -342,7 +342,7 @@ const insertClaudeMd = async (args: {
   }
 
   await fs.writeFile(claudeMdFile, content);
-  log.success(`✓ CLAUDE.md configured at ${claudeMdFile}`);
+  log.success(`CLAUDE.md configured at ${claudeMdFile}`);
 };
 
 /**

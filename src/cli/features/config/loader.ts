@@ -60,7 +60,7 @@ const installConfig = async (args: { config: Config }): Promise<void> => {
         password,
       );
       tokenToSave = userCredential.user.refreshToken;
-      log.success("✓ Authentication successful");
+      log.success("Authentication successful");
     } catch (err) {
       const authError = err as AuthError;
       log.error("Authentication failed");
@@ -145,9 +145,9 @@ const installConfig = async (args: { config: Config }): Promise<void> => {
   });
 
   const configPath = getConfigPath();
-  log.success(`✓ Config file created: ${configPath}`);
+  log.success(`Config file created: ${configPath}`);
   if (currentVersion != null) {
-    log.success(`✓ Version ${currentVersion} saved to config`);
+    log.success(`Version ${currentVersion} saved to config`);
   }
 };
 
