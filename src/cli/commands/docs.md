@@ -18,22 +18,25 @@ The CLI entry point delegates to `noriSkillsetsCommands.ts`, which registers eve
 
 **install-location** (@/src/cli/commands/install-location/): Displays the resolved Nori installation directory from config. Supports `--non-interactive` (plain output for scripts). Uses `resolveInstallDir()` from @/src/utils/path.ts with the standard priority chain (CLI flag > config > home directory).
 
-**switch-skillset** (@/src/cli/commands/switch-skillset/switchSkillset.ts): The `switchSkillsetAction` function handles skillset switching with local change detection and multi-agent broadcasting:
+**switch-skillset** (@/src/cli/commands/switch-skillset/switchSkillset.ts): The `switchSkillsetAction` function handles skillset switching with local change detection and multi-agent broadcasting. The `name` argument is optional; when omitted, the command resolves it before proceeding:
 
-1. **Detect local changes**: Calls `agent.detectLocalChanges({ installDir })` on the first default agent. The agent reads its per-agent installation manifest (with legacy fallback) and compares current agent directory file hashes against stored hashes.
-2. **Handle changes** (if detected):
+1. **Resolve skillset name** (when `name` is not provided): In interactive mode, calls `listSkillsets()` from @/src/cli/features/managedFolder.ts to discover installed skillsets, then presents a `select()` prompt (from `@clack/prompts`) for the user to choose. Throws if no skillsets are installed. In non-interactive mode, throws an error listing available skillsets with usage instructions.
+2. **Detect local changes**: Calls `agent.detectLocalChanges({ installDir })` on the first default agent. The agent reads its per-agent installation manifest (with legacy fallback) and compares current agent directory file hashes against stored hashes.
+3. **Handle changes** (if detected):
    - With `--force` flag: skips change handling entirely and proceeds (discards local changes)
    - In non-interactive mode (without `--force`): throws an error (safe default prevents data loss)
    - In interactive mode: displays modified/added/deleted files and prompts user to choose:
      - Proceed anyway (changes will be lost)
      - Save current config as new skillset first (broadcasts `captureExistingConfig()` to ALL default agents)
      - Abort
-3. **Confirm switch**: Prompts user to confirm the skillset switch
-4. **Execute switch**: In non-interactive mode, broadcasts the switch to all configured `defaultAgents` (loops over all agents). In interactive mode, delegates to `switchSkillsetFlow` which also broadcasts to all resolved agents.
+4. **Confirm switch**: Prompts user to confirm the skillset switch
+5. **Execute switch**: In non-interactive mode, broadcasts the switch to all configured `defaultAgents` (loops over all agents). In interactive mode, delegates to `switchSkillsetFlow` which also broadcasts to all resolved agents.
 
 The change detection is delegated to `agent.detectLocalChanges()`, which internally uses the manifest module from @/src/cli/features/manifest.ts. When capturing config before switching, the `onCaptureConfig` callback loops over all default agents and calls `captureExistingConfig` on each, ensuring all agents preserve their current state before the switch.
 
 **watch** (@/src/cli/commands/watch/): Monitors Claude Code sessions by tailing transcript files. Supports `watch` (start) and `watch stop` (stop daemon).
+
+**clear** (@/src/cli/commands/clear/): Removes all Nori-managed agent configuration from the install directory and clears the `activeSkillset` from config. The `clearMain` function loads the config, resolves the install directory via `resolveInstallDir()`, iterates all default agents (via `getDefaultAgents()`), and calls `agent.removeSkillset({ installDir })` on each. Then saves config with `activeSkillset: null` while preserving all other config fields (auth, transcript settings, etc.). Returns early with an info message if no config exists. Unlike `factory-reset`, this command only removes Nori-managed files (using the manifest for precision) rather than wiping the entire agent directory, and does not require confirmation since the operation is reversible by re-switching to a skillset.
 
 **completion** (@/src/cli/commands/completion/): Generates shell completion scripts for Bash and Zsh. `completionMain` routes the `<shell>` argument to `generateBashCompletion()` or `generateZshCompletion()`, which return static script strings printed to stdout. Users activate completions via `eval "$(nori-skillsets completion bash)"` or the zsh equivalent. The generated scripts handle static completions (subcommands, per-command flags) inline, and dynamic completions for `switch` by calling back to `nori-skillsets list 2>/dev/null` at tab-completion time. All three binary names (`nori-skillsets`, `nori-skillset`, `sks`) are registered for completion. Hidden command aliases (`switch-skillset`, `switch-skillsets`, `list-skillsets`, `list-skillset`, `fork-skillset`, `edit-skillset`) are excluded from completion candidates.
 

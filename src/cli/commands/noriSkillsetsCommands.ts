@@ -7,6 +7,7 @@
  * The registry-* prefixed commands are also available as aliases.
  */
 
+import { clearMain } from "@/cli/commands/clear/clear.js";
 import { completionMain } from "@/cli/commands/completion/completion.js";
 import { configMain } from "@/cli/commands/config/config.js";
 import { currentSkillsetMain } from "@/cli/commands/current-skillset/currentSkillset.js";
@@ -376,46 +377,58 @@ export const registerNoriSkillsetsSwitchSkillsetCommand = (args: {
 
   // Primary command: switch (shorthand, canonical)
   program
-    .command("switch <name>")
+    .command("switch [name]")
     .description("Switch to a different skillset and reinstall")
     .option("-a, --agent <name>", "AI agent to switch skillset for")
     .option("--force", "Force switch even when local changes are detected")
     .action(
-      async (name: string, options: { agent?: string; force?: boolean }) => {
-        await switchSkillsetAction({ name, options, program });
+      async (
+        name: string | undefined,
+        options: { agent?: string; force?: boolean },
+      ) => {
+        await switchSkillsetAction({ name: name ?? null, options, program });
       },
     );
 
   // Hidden alias: switch-skillset (long form)
   program
-    .command("switch-skillset <name>", { hidden: true })
+    .command("switch-skillset [name]", { hidden: true })
     .option("-a, --agent <name>", "AI agent to switch skillset for")
     .option("--force", "Force switch even when local changes are detected")
     .action(
-      async (name: string, options: { agent?: string; force?: boolean }) => {
-        await switchSkillsetAction({ name, options, program });
+      async (
+        name: string | undefined,
+        options: { agent?: string; force?: boolean },
+      ) => {
+        await switchSkillsetAction({ name: name ?? null, options, program });
       },
     );
 
   // Hidden alias: switch-skillsets (plural)
   program
-    .command("switch-skillsets <name>", { hidden: true })
+    .command("switch-skillsets [name]", { hidden: true })
     .option("-a, --agent <name>", "AI agent to switch skillset for")
     .option("--force", "Force switch even when local changes are detected")
     .action(
-      async (name: string, options: { agent?: string; force?: boolean }) => {
-        await switchSkillsetAction({ name, options, program });
+      async (
+        name: string | undefined,
+        options: { agent?: string; force?: boolean },
+      ) => {
+        await switchSkillsetAction({ name: name ?? null, options, program });
       },
     );
 
   // Hidden alias: use (semantic shorthand, like nvm use)
   program
-    .command("use <name>", { hidden: true })
+    .command("use [name]", { hidden: true })
     .option("-a, --agent <name>", "AI agent to switch skillset for")
     .option("--force", "Force switch even when local changes are detected")
     .action(
-      async (name: string, options: { agent?: string; force?: boolean }) => {
-        await switchSkillsetAction({ name, options, program });
+      async (
+        name: string | undefined,
+        options: { agent?: string; force?: boolean },
+      ) => {
+        await switchSkillsetAction({ name: name ?? null, options, program });
       },
     );
 };
@@ -759,6 +772,30 @@ export const registerNoriSkillsetsCompletionCommand = (args: {
     .description("Generate shell completion script (bash, zsh)")
     .action((shell: string) => {
       completionMain({ shell });
+    });
+};
+
+/**
+ * Register the 'clear' command for nori-skillsets CLI
+ * @param args - Configuration arguments
+ * @param args.program - Commander program instance
+ */
+export const registerNoriSkillsetsClearCommand = (args: {
+  program: Command;
+}): void => {
+  const { program } = args;
+
+  program
+    .command("clear")
+    .description(
+      "Remove all Nori-managed configuration from the install directory",
+    )
+    .action(async () => {
+      const globalOpts = program.opts();
+      await clearMain({
+        installDir: globalOpts.installDir || null,
+        agent: globalOpts.agent || null,
+      });
     });
 };
 
