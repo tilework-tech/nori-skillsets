@@ -3,7 +3,7 @@
  * Handles skillset listing, loading, and switching
  */
 
-import { log } from "@clack/prompts";
+import { log, select, isCancel, cancel } from "@clack/prompts";
 
 import {
   loadConfig,
@@ -22,18 +22,19 @@ import type { Command } from "commander";
 /**
  * Shared action handler for switch-skillset commands
  * @param args - Configuration arguments
- * @param args.name - The skillset name to switch to
+ * @param args.name - The skillset name to switch to (optional - prompts if omitted)
  * @param args.options - Command options
  * @param args.options.agent - Optional agent name override
  * @param args.program - Commander program instance
  * @param args.options.force - Whether to force through local changes without prompting
  */
 export const switchSkillsetAction = async (args: {
-  name: string;
+  name?: string | null;
   options: { agent?: string; force?: boolean };
   program: Command;
 }): Promise<void> => {
-  const { name, options, program } = args;
+  const { options, program } = args;
+  let { name } = args;
 
   // Get global options from parent
   const globalOpts = program.opts();
@@ -47,6 +48,39 @@ export const switchSkillsetAction = async (args: {
     config,
     agentDirNames: AgentRegistry.getInstance().getAgentDirNames(),
   });
+
+  // If no name provided, prompt for selection or error in non-interactive mode
+  if (name == null) {
+    if (nonInteractive) {
+      const skillsets = await listSkillsets();
+      const available =
+        skillsets.length > 0
+          ? ` Available skillsets: ${skillsets.join(", ")}`
+          : "";
+      throw new Error(
+        `No skillset name provided.${available} Usage: sks switch <name>`,
+      );
+    }
+
+    const skillsets = await listSkillsets();
+    if (skillsets.length === 0) {
+      throw new Error(
+        "No skillsets installed. Install a skillset first with: sks download <name>",
+      );
+    }
+
+    const selected = await select({
+      message: "Select a skillset to switch to",
+      options: skillsets.map((s) => ({ value: s, label: s })),
+    });
+
+    if (isCancel(selected)) {
+      cancel("Skillset switch cancelled.");
+      return;
+    }
+
+    name = selected as string;
+  }
 
   // Interactive flow
   if (!nonInteractive) {
@@ -199,13 +233,16 @@ export const registerSwitchSkillsetCommand = (args: {
   const { program } = args;
 
   program
-    .command("switch-skillset <name>")
+    .command("switch-skillset [name]")
     .description("Switch to a different skillset and reinstall")
     .option("-a, --agent <name>", "AI agent to switch skillset for")
     .option("--force", "Force switch even when local changes are detected")
     .action(
-      async (name: string, options: { agent?: string; force?: boolean }) => {
-        await switchSkillsetAction({ name, options, program });
+      async (
+        name: string | undefined,
+        options: { agent?: string; force?: boolean },
+      ) => {
+        await switchSkillsetAction({ name: name ?? null, options, program });
       },
     );
 };
