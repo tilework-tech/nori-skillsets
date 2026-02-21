@@ -33,6 +33,7 @@ _nori_skillsets() {
     'fork:Fork an existing skillset to a new name'
     'edit:Open a skillset folder in VS Code'
     'install-location:Display Nori installation directories'
+    'clear:Remove all Nori-managed configuration from the install directory'
     'factory-reset:Remove all configuration for a given agent'
     'completion:Generate shell completion script'
     'help:Display help for a command'
@@ -57,7 +58,7 @@ _nori_skillsets() {
             '--no-localhost[Use hosted callback page]' \\
             \$global_opts
           ;;
-        logout|init|list|dir|factory-reset|help)
+        logout|init|list|dir|clear|factory-reset|help)
           _arguments \$global_opts
           ;;
         fork-skillset)

@@ -9,6 +9,7 @@
 import { Command } from "commander";
 
 import {
+  registerNoriSkillsetsClearCommand,
   registerNoriSkillsetsConfigCommand,
   registerNoriSkillsetsCompletionCommand,
   registerNoriSkillsetsCurrentCommand,
@@ -128,6 +129,7 @@ Examples:
   $ nori-skillsets fork senior-swe my-custom                # fork a skillset to a new name
   $ nori-skillsets edit                                     # open active skillset in VS Code
   $ nori-skillsets edit my-skillset                          # open a specific skillset
+  $ nori-skillsets clear                                     # remove Nori-managed config from install directory
   $ nori-skillsets factory-reset claude-code                # remove all Claude Code config
   $ nori-skillsets config                                   # configure default agent and install directory
 `,
@@ -154,6 +156,7 @@ registerNoriSkillsetsForkCommand({ program });
 registerNoriSkillsetsNewCommand({ program });
 registerNoriSkillsetsRegisterCommand({ program });
 registerNoriSkillsetsEditSkillsetCommand({ program });
+registerNoriSkillsetsClearCommand({ program });
 registerNoriSkillsetsFactoryResetCommand({ program });
 registerNoriSkillsetsConfigCommand({ program });
 
