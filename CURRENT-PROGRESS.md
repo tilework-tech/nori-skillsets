@@ -158,6 +158,19 @@ Changes:
 - Added 2 new tests in `skillsetMetadata.test.ts` for custom config file name detection
 - Updated docs.md files
 
+### Commit 10: Broadcast install and switch operations to all defaultAgents
+
+**Refactor C progress:** Config command and interactive switchSkillsetFlow now broadcast operations to all agents in `defaultAgents` instead of operating on a single agent. This fulfills the spec requirement that "the activeSkillset should be applied to all agents in the defaultAgent list."
+
+Changes:
+- `switchSkillsetFlow` in `src/cli/prompts/flows/switchSkillset.ts` now builds an `agentNames` array from all resolved agents and loops `onExecuteSwitch` over every agent in Step 4, not just `agents[0]`
+- `config.ts` installDir-change branch now resolves all agents from the new `result.defaultAgents` and calls `installMain` once per agent with the `agent` parameter
+- `config.ts` added-agents branch now loops over `addedAgents` and calls `installMain` once per added agent with the `agent` parameter
+- Added test in `switchSkillset.test.ts` (flow): "should call onExecuteSwitch for every resolved agent"
+- Added 2 tests in `config.test.ts`: per-agent install on installDir change, per-added-agent install on agents change
+- Added test in `switchSkillset.test.ts` (command): verifies interactive callback calls `switchSkillset` and `installMain` for given agent
+- Updated 2 docs.md files
+
 ## Remaining Work
 
 ### Refactor A (continued): Further agent decoupling
@@ -171,6 +184,10 @@ Changes:
 ### Refactor C (continued): Multi-agent support improvements
 - `detectLocalChanges`, `removeSkillset`, and `installSkillset` are on the Agent interface (Commits 5-6)
 - Config command now handles removed agent cleanup when `defaultAgents` shrinks (Commit 8)
-- Config command already handles `installDir` changes with cleanup and reinstall (existing)
-- The config command's `if/else if` for installDir vs agents changes is correct: when installDir changes, the installDir branch handles cleanup at the old dir (using old agents) and installation at the new dir (using new agents from saved config), so the agents branch is correctly skipped
-- `installMain` currently installs for a single agent (the default). If multi-agent installs are needed, `installMain` would need to iterate over `defaultAgents`
+- Config command broadcasts install to all agents on installDir change and added agents (Commit 10)
+- Interactive `switchSkillsetFlow` broadcasts switch to all agents (Commit 10)
+- Non-interactive `switchSkillset` already broadcasted to all agents (pre-existing)
+- `registryInstall` already broadcasted to all agents (pre-existing)
+- `watch` command still only watches a single agent's projects directory — watching multiple dirs would be an architectural change
+- `init.ts` only marks install for one agent — could be extended if multi-agent init is needed
+- Interactive `switchSkillset` `onCaptureConfig` only captures for the first agent — could be extended if multi-agent capture is needed

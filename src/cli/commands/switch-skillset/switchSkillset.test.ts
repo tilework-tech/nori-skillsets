@@ -713,6 +713,73 @@ describe("switch-skillset interactive flow routing", () => {
     vi.restoreAllMocks();
   });
 
+  it("should pass onExecuteSwitch callback that calls switchSkillset and installMain for the given agent", async () => {
+    // Set up config with multiple agents
+    const configPath = path.join(testInstallDir, ".nori-config.json");
+    await fs.writeFile(
+      configPath,
+      JSON.stringify({
+        activeSkillset: "senior-swe",
+        defaultAgents: ["claude-code"],
+        installDir: testInstallDir,
+      }),
+    );
+
+    // Capture the callbacks passed to switchSkillsetFlow
+    let capturedCallbacks: any = null;
+    mockSwitchSkillsetFlow.mockImplementationOnce(async (args: any) => {
+      capturedCallbacks = args.callbacks;
+      // Simulate flow executing the switch for one agent
+      await args.callbacks.onExecuteSwitch({
+        installDir: args.installDir,
+        agentName: "claude-code",
+        skillsetName: args.skillsetName,
+      });
+      return { agentName: "claude-code", skillsetName: args.skillsetName };
+    });
+
+    const program = new Command();
+    program.exitOverride();
+    program.configureOutput({ writeErr: () => undefined });
+    program
+      .option("-d, --install-dir <path>", "Custom installation directory")
+      .option("-n, --non-interactive", "Run without interactive prompts")
+      .option("-a, --agent <name>", "AI agent to use");
+
+    registerSwitchSkillsetCommand({ program });
+
+    const claudeAgent = AgentRegistry.getInstance().get({
+      name: "claude-code",
+    });
+    vi.spyOn(claudeAgent, "switchSkillset").mockResolvedValue(undefined);
+
+    try {
+      await program.parseAsync([
+        "node",
+        "nori-skillsets",
+        "switch-skillset",
+        "product-manager",
+        "--install-dir",
+        testInstallDir,
+      ]);
+    } catch {
+      // May throw due to exit
+    }
+
+    // Verify the callback was invoked with the agent
+    expect(capturedCallbacks).not.toBeNull();
+    expect(claudeAgent.switchSkillset).toHaveBeenCalledWith({
+      installDir: testInstallDir,
+      skillsetName: "product-manager",
+    });
+    expect(mockInstallMain).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agent: "claude-code",
+        silent: true,
+      }),
+    );
+  });
+
   it("should use switchSkillsetFlow in interactive mode", async () => {
     mockSwitchSkillsetFlow.mockResolvedValueOnce({
       agentName: "claude-code",

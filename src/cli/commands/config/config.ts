@@ -134,10 +134,20 @@ export const configMain = async (): Promise<void> => {
     if (shouldInstall) {
       const { main: installMain } =
         await import("@/cli/commands/install/install.js");
-      await installMain({
-        installDir: normalizedInstallDir,
-        silent: true,
+      const agentNames = getDefaultAgents({
+        config: {
+          ...existingConfig,
+          installDir: normalizedInstallDir,
+          defaultAgents: result.defaultAgents,
+        },
       });
+      for (const agentName of agentNames) {
+        await installMain({
+          installDir: normalizedInstallDir,
+          agent: agentName,
+          silent: true,
+        });
+      }
       log.success(
         `Installed "${activeSkillset}" to "${normalizedInstallDir}".`,
       );
@@ -183,10 +193,13 @@ export const configMain = async (): Promise<void> => {
       if (shouldInstall) {
         const { main: installMain } =
           await import("@/cli/commands/install/install.js");
-        await installMain({
-          installDir: normalizedInstallDir,
-          silent: true,
-        });
+        for (const agentName of addedAgents) {
+          await installMain({
+            installDir: normalizedInstallDir,
+            agent: agentName,
+            silent: true,
+          });
+        }
         log.success(
           `Installed "${activeSkillset}" for new agent(s) at "${normalizedInstallDir}".`,
         );

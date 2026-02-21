@@ -129,10 +129,11 @@ export const switchSkillsetFlow = async (args: {
 
   // Step 1: Resolve all agents (broadcast to all, no selection prompt)
   const agents = await callbacks.onResolveAgents();
-  const agentName =
+  const agentNames =
     agents.length > 0
-      ? agents[0].name
-      : AgentRegistry.getInstance().getDefaultAgentName();
+      ? agents.map((a) => a.name)
+      : [AgentRegistry.getInstance().getDefaultAgentName()];
+  const agentName = agentNames[0];
 
   // Step 2: Prepare switch info (detect local changes + get current skillset)
   const { currentProfile, localChanges } = await callbacks.onPrepareSwitchInfo({
@@ -219,27 +220,31 @@ export const switchSkillsetFlow = async (args: {
     return null;
   }
 
-  // Step 4: Perform the switch
+  // Step 4: Perform the switch for all agents
   const s = spinner();
   s.start("Switching skillset...");
 
-  await callbacks.onExecuteSwitch({
-    installDir,
-    agentName,
-    skillsetName,
-  });
+  for (const name of agentNames) {
+    await callbacks.onExecuteSwitch({
+      installDir,
+      agentName: name,
+      skillsetName,
+    });
+  }
 
   s.stop("Skillset switched");
 
+  const agentDisplay =
+    agentNames.length === 1 ? agentNames[0] : agentNames.join(", ");
   const successLines = [
     green({
-      text: `Switched to ${bold({ text: skillsetName })} skillset for ${agentName}.`,
+      text: `Switched to ${bold({ text: skillsetName })} skillset for ${agentDisplay}.`,
     }),
-    `Restart ${agentName} to apply the new configuration.`,
+    `Restart your agent instances to apply the new configuration.`,
   ];
   note(successLines.join("\n"), "Success");
 
-  outro(brightCyan({ text: `Restart ${agentName} to apply` }));
+  outro(brightCyan({ text: "Restart your agents to apply" }));
 
   return {
     agentName,

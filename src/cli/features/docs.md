@@ -102,6 +102,7 @@ The init command (@/src/cli/commands/init/) uses `getDefaultAgent()` from @/src/
 - `list()`: Returns array of registered agent names
 - `getDefaultAgentName()`: Returns the name of the first registered agent. Used as the canonical fallback when code needs a default agent name without hardcoding "claude-code"
 - `resetInstance()`: For test isolation
+- `getAgentDirNames()`: Returns the config directory basenames (e.g., `[".claude"]`) for all registered agents. Used by `normalizeInstallDir()` and `resolveInstallDir()` in @/src/utils/path.ts to strip agent-specific directory suffixes from install paths without hardcoding agent directory names.
 
 **Config Loader** (config/loader.ts):
 - Shared loader that manages the `.nori-config.json` file lifecycle (single source of truth for config and version)

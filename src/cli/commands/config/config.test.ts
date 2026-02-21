@@ -334,6 +334,50 @@ describe("configMain installDir change prompts", () => {
     expect(confirmAction).not.toHaveBeenCalled();
   });
 
+  it("should call installMain once per agent when installDir changes and user confirms install", async () => {
+    const { configFlow } = await import("@/cli/prompts/flows/config.js");
+    const { confirmAction } = await import("@/cli/prompts/confirm.js");
+    const { main: installMain } =
+      await import("@/cli/commands/install/install.js");
+
+    vi.mocked(configFlow).mockResolvedValueOnce({
+      defaultAgents: ["claude-code", "agent-b"],
+      installDir: newInstallDir,
+    });
+    // First confirm: install to new dir? Yes. Second confirm: clean up old? No.
+    vi.mocked(confirmAction)
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(false);
+
+    await saveConfig({
+      username: null,
+      organizationUrl: null,
+      installDir: oldInstallDir,
+      activeSkillset: "senior-swe",
+      defaultAgents: ["claude-code", "agent-b"],
+    });
+
+    const { configMain } = await import("./config.js");
+    await configMain();
+
+    // installMain should be called once per agent
+    expect(installMain).toHaveBeenCalledTimes(2);
+    expect(installMain).toHaveBeenCalledWith(
+      expect.objectContaining({
+        installDir: newInstallDir,
+        agent: "claude-code",
+        silent: true,
+      }),
+    );
+    expect(installMain).toHaveBeenCalledWith(
+      expect.objectContaining({
+        installDir: newInstallDir,
+        agent: "agent-b",
+        silent: true,
+      }),
+    );
+  });
+
   it("should clean up old directory before installing to new directory", async () => {
     const { configFlow } = await import("@/cli/prompts/flows/config.js");
     const { confirmAction } = await import("@/cli/prompts/confirm.js");
@@ -414,6 +458,47 @@ describe("configMain defaultAgents change prompts", () => {
     expect(installMain).toHaveBeenCalledWith(
       expect.objectContaining({
         installDir: tempDir,
+        silent: true,
+      }),
+    );
+  });
+
+  it("should call installMain once per added agent when defaultAgents grow", async () => {
+    const { configFlow } = await import("@/cli/prompts/flows/config.js");
+    const { confirmAction } = await import("@/cli/prompts/confirm.js");
+    const { main: installMain } =
+      await import("@/cli/commands/install/install.js");
+
+    vi.mocked(configFlow).mockResolvedValueOnce({
+      defaultAgents: ["claude-code", "agent-b", "agent-c"],
+      installDir: tempDir,
+    });
+    vi.mocked(confirmAction).mockResolvedValueOnce(true);
+
+    await saveConfig({
+      username: null,
+      organizationUrl: null,
+      installDir: tempDir,
+      activeSkillset: "senior-swe",
+      defaultAgents: ["claude-code"],
+    });
+
+    const { configMain } = await import("./config.js");
+    await configMain();
+
+    // installMain should be called once per added agent (agent-b and agent-c)
+    expect(installMain).toHaveBeenCalledTimes(2);
+    expect(installMain).toHaveBeenCalledWith(
+      expect.objectContaining({
+        installDir: tempDir,
+        agent: "agent-b",
+        silent: true,
+      }),
+    );
+    expect(installMain).toHaveBeenCalledWith(
+      expect.objectContaining({
+        installDir: tempDir,
+        agent: "agent-c",
         silent: true,
       }),
     );

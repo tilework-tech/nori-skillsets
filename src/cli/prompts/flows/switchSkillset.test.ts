@@ -161,6 +161,32 @@ describe("switchSkillsetFlow", () => {
         expect.objectContaining({ skillsetName: "product-manager" }),
       );
     });
+
+    it("should call onExecuteSwitch for every resolved agent", async () => {
+      vi.mocked(mockCallbacks.onResolveAgents).mockResolvedValueOnce([
+        { name: "claude-code", displayName: "Claude Code" },
+        { name: "agent-b", displayName: "Agent B" },
+      ]);
+      vi.mocked(clack.confirm).mockResolvedValueOnce(true);
+
+      await switchSkillsetFlow({
+        skillsetName: "product-manager",
+        installDir: "/test/dir",
+        callbacks: mockCallbacks,
+      });
+
+      expect(mockCallbacks.onExecuteSwitch).toHaveBeenCalledTimes(2);
+      expect(mockCallbacks.onExecuteSwitch).toHaveBeenCalledWith({
+        installDir: "/test/dir",
+        agentName: "claude-code",
+        skillsetName: "product-manager",
+      });
+      expect(mockCallbacks.onExecuteSwitch).toHaveBeenCalledWith({
+        installDir: "/test/dir",
+        agentName: "agent-b",
+        skillsetName: "product-manager",
+      });
+    });
   });
 
   describe("local changes detected - proceed", () => {
