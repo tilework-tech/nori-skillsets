@@ -5,38 +5,19 @@
 
 import * as fs from "fs/promises";
 import * as path from "path";
-import { fileURLToPath } from "url";
 
 import { glob } from "glob";
 
-import { getActiveSkillset, type Config } from "@/cli/config.js";
+import { type Config } from "@/cli/config.js";
 import {
   getClaudeDir,
   getClaudeMdFile,
-  getNoriDir,
 } from "@/cli/features/claude-code/paths.js";
-import { substituteTemplatePaths } from "@/cli/features/claude-code/template.js";
+import { substituteTemplatePaths } from "@/cli/features/template.js";
 import { success, info } from "@/cli/logger.js";
 
 import type { ProfileLoader } from "@/cli/features/claude-code/skillsets/skillsetLoaderRegistry.js";
-
-// Get directory of this loader file
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-/**
- * Get path to CLAUDE.md for a profile
- *
- * @param args - Function arguments
- * @param args.skillsetName - Name of the profile to load CLAUDE.md from
- *
- * @returns Path to the CLAUDE.md file for the profile
- */
-const getProfileClaudeMd = (args: { skillsetName: string }): string => {
-  const { skillsetName } = args;
-  const noriDir = getNoriDir();
-  return path.join(noriDir, "profiles", skillsetName, "CLAUDE.md");
-};
+import type { Skillset } from "@/cli/features/skillset.js";
 
 /**
  * Extract front matter from markdown file content
@@ -174,22 +155,22 @@ const formatSkillInfo = async (args: {
  * Generate skills list content to embed in CLAUDE.md
  *
  * @param args - Function arguments
- * @param args.skillsetName - Profile name to load skills from
+ * @param args.skillsDir - Path to the skills directory (from parsed Skillset), or null
  * @param args.installDir - Installation directory
  *
  * @returns Formatted skills list markdown (empty string if skills cannot be found)
  */
 const generateSkillsList = async (args: {
-  skillsetName: string;
+  skillsDir: string | null;
   installDir: string;
 }): Promise<string> => {
-  const { skillsetName, installDir } = args;
+  const { skillsDir, installDir } = args;
+
+  if (skillsDir == null) {
+    return "";
+  }
 
   try {
-    // Get skills directory for the profile from installed profiles in .nori
-    const noriDir = getNoriDir();
-    const skillsDir = path.join(noriDir, "profiles", skillsetName, "skills");
-
     // Find all skill files
     const skillFiles = await findSkillFiles({ dir: skillsDir });
 
@@ -250,34 +231,34 @@ const END_MARKER = "# END NORI-AI MANAGED BLOCK";
  * Insert or update CLAUDE.md with nori instructions in a managed block
  * @param args - Configuration arguments
  * @param args.config - Full configuration including profile
+ * @param args.skillset - Parsed skillset
  */
-const insertClaudeMd = async (args: { config: Config }): Promise<void> => {
-  const { config } = args;
+const insertClaudeMd = async (args: {
+  config: Config;
+  skillset: Skillset;
+}): Promise<void> => {
+  const { config, skillset } = args;
 
   info({ message: "Configuring CLAUDE.md with coding task instructions..." });
-
-  // Get profile name from config - error if not configured
-  const skillsetName = getActiveSkillset({ config });
-  if (skillsetName == null) {
-    throw new Error(
-      "No skillset configured for claude-code. Run 'nori-skillsets init' to configure a skillset.",
-    );
-  }
 
   // Get paths using installDir
   const claudeDir = getClaudeDir({ installDir: config.installDir });
   const claudeMdFile = getClaudeMdFile({ installDir: config.installDir });
 
   // Read CLAUDE.md from the selected profile
-  const profileClaudeMdPath = getProfileClaudeMd({
-    skillsetName,
-  });
+  const profileClaudeMdPath = skillset.configFilePath;
 
   let instructions: string | null = null;
-  try {
-    instructions = await fs.readFile(profileClaudeMdPath, "utf-8");
-  } catch {
-    // Profile has no CLAUDE.md (e.g. empty skillset created by `nori-skillsets new`)
+  if (profileClaudeMdPath != null) {
+    try {
+      instructions = await fs.readFile(profileClaudeMdPath, "utf-8");
+    } catch {
+      // Profile has no CLAUDE.md (e.g. empty skillset created by `nori-skillsets new`)
+      info({
+        message: "Profile CLAUDE.md not found, clearing managed block",
+      });
+    }
+  } else {
     info({
       message: "Profile CLAUDE.md not found, clearing managed block",
     });
@@ -329,7 +310,7 @@ const insertClaudeMd = async (args: { config: Config }): Promise<void> => {
 
   // Generate and append skills list
   const skillsList = await generateSkillsList({
-    skillsetName,
+    skillsDir: skillset.skillsDir,
     installDir: config.installDir,
   });
   if (skillsList.length > 0) {
@@ -376,8 +357,8 @@ const insertClaudeMd = async (args: { config: Config }): Promise<void> => {
 export const claudeMdLoader: ProfileLoader = {
   name: "claudemd",
   description: "Configure CLAUDE.md with coding task instructions",
-  install: async (args: { config: Config }) => {
-    const { config } = args;
-    await insertClaudeMd({ config });
+  install: async (args: { config: Config; skillset: Skillset }) => {
+    const { config, skillset } = args;
+    await insertClaudeMd({ config, skillset });
   },
 };

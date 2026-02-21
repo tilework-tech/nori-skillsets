@@ -3,9 +3,12 @@
  * Singleton registry that maps agent names to implementations
  */
 
+import * as path from "path";
+
 import { claudeCodeAgent } from "@/cli/features/claude-code/agent.js";
 
 import type { Config } from "@/cli/config.js";
+import type { ManifestDiff } from "@/cli/features/manifest.js";
 
 /**
  * Canonical agent names used as UIDs in the registry.
@@ -37,11 +40,20 @@ export type LoaderRegistry = {
 };
 
 /**
+ * Represents a discovered configuration artifact for an agent.
+ * Used by factory reset to show what will be deleted.
+ */
+export type AgentArtifact = {
+  path: string;
+  type: "directory" | "file";
+};
+
+/**
  * Represents detected existing (unmanaged) configuration for an agent.
  * Used during init to show the user what was found before capturing.
  */
 export type ExistingConfig = {
-  hasClaudeMd: boolean;
+  hasConfigFile: boolean;
   hasManagedBlock: boolean;
   hasSkills: boolean;
   skillCount: number;
@@ -59,6 +71,12 @@ export type Agent = {
   name: AgentName;
   /** Human-readable name, e.g., "Claude Code" */
   displayName: string;
+  /** Get the agent's config directory under the install directory */
+  getAgentDir: (args: { installDir: string }) => string;
+  /** Get the filename of the agent's root config file (e.g. "CLAUDE.md") */
+  getConfigFileName: () => string;
+  /** Get the agent's skills directory under the install directory */
+  getSkillsDir: (args: { installDir: string }) => string;
   /** Get the root-level filenames this agent manages */
   getManagedFiles: () => ReadonlyArray<string>;
   /** Get the directory names this agent manages recursively */
@@ -74,6 +92,27 @@ export type Agent = {
     installDir: string;
     skillsetName: string;
   }) => Promise<void>;
+  /** Detect local changes to installed files by comparing against the stored manifest */
+  detectLocalChanges: (args: {
+    installDir: string;
+  }) => Promise<ManifestDiff | null>;
+  /** Remove all Nori-managed files for this agent at the given directory */
+  removeSkillset: (args: { installDir: string }) => Promise<void>;
+  /** Install a skillset: run feature loaders, write manifest, and mark install */
+  installSkillset: (args: { config: Config }) => Promise<void>;
+  /** Get relative directory paths where skills may be discovered in a repo */
+  getSkillDiscoveryDirs: () => ReadonlyArray<string>;
+  /** Convert a working directory path to the agent's project directory name format */
+  getProjectDirName?: ((args: { cwd: string }) => string) | null;
+  /** Get the agent's projects/sessions directory (home-relative) */
+  getProjectsDir?: (() => string) | null;
+  /** Find agent configuration artifacts starting from a directory */
+  findArtifacts?:
+    | ((args: {
+        startDir: string;
+        stopDir?: string | null;
+      }) => Promise<Array<AgentArtifact>>)
+    | null;
   /** Factory reset: remove all agent configuration from the filesystem */
   factoryReset?: ((args: { path: string }) => Promise<void>) | null;
   /** Detect pre-existing unmanaged configuration at the given directory */
@@ -157,5 +196,26 @@ export class AgentRegistry {
    */
   public list(): Array<AgentName> {
     return Array.from(this.agents.keys()) as Array<AgentName>;
+  }
+
+  /**
+   * Get the default agent name (first registered agent)
+   * Used as a fallback when no agent is explicitly specified.
+   * @returns The default agent name
+   */
+  public getDefaultAgentName(): AgentName {
+    return this.list()[0];
+  }
+
+  /**
+   * Get the basenames of all agent config directories.
+   * Used by normalizeInstallDir to strip known agent dir suffixes from paths.
+   * @returns Array of agent directory basenames (e.g., [".claude"])
+   */
+  public getAgentDirNames(): Array<string> {
+    return this.getAll().map((agent) => {
+      const agentDir = agent.getAgentDir({ installDir: "/" });
+      return path.basename(agentDir);
+    });
   }
 }

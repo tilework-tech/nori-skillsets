@@ -23,10 +23,11 @@ vi.mock("@/cli/features/claude-code/paths.js", () => ({
   getClaudeMdFile: () => path.join(mockClaudeDir, "CLAUDE.md"),
   getClaudeSkillsDir: () => path.join(mockClaudeDir, "skills"),
   getClaudeSkillsetsDir: () => path.join(mockClaudeDir, "profiles"),
-  // New Nori paths
+}));
+
+vi.mock("@/cli/features/paths.js", () => ({
   getNoriDir: () => mockNoriDir,
   getNoriSkillsetsDir: () => path.join(mockNoriDir, "profiles"),
-  getNoriConfigFile: () => path.join(mockNoriDir, "config.json"),
 }));
 
 // Import loader after mocking env
@@ -226,7 +227,8 @@ describe("profilesLoader", () => {
         JSON.stringify(noriJson, null, 2),
       );
 
-      const { readSkillsetMetadata } = await import("./metadata.js");
+      const { readSkillsetMetadata } =
+        await import("@/cli/features/skillsetMetadata.js");
       const result = await readSkillsetMetadata({ skillsetDir: skillsetPath });
 
       expect(result.name).toBe("test-profile");
@@ -244,7 +246,8 @@ describe("profilesLoader", () => {
       const skillsetPath = path.join(tempTestDir, "missing-metadata");
       await fs.mkdir(skillsetPath, { recursive: true });
 
-      const { readSkillsetMetadata } = await import("./metadata.js");
+      const { readSkillsetMetadata } =
+        await import("@/cli/features/skillsetMetadata.js");
       await expect(
         readSkillsetMetadata({ skillsetDir: skillsetPath }),
       ).rejects.toThrow();

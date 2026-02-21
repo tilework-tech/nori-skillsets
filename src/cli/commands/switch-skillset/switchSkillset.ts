@@ -12,60 +12,12 @@ import {
   type Config,
 } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
-import { getClaudeDir } from "@/cli/features/claude-code/paths.js";
-import {
-  readManifest,
-  compareManifest,
-  hasChanges,
-  getManifestPath,
-  getLegacyManifestPath,
-  type ManifestDiff,
-} from "@/cli/features/claude-code/skillsets/manifest.js";
 import { listSkillsets } from "@/cli/features/managedFolder.js";
 import { setSilentMode, isSilentMode } from "@/cli/logger.js";
 import { switchSkillsetFlow } from "@/cli/prompts/flows/switchSkillset.js";
 import { resolveInstallDir } from "@/utils/path.js";
 
 import type { Command } from "commander";
-
-/**
- * Detect local changes to installed files
- *
- * Compares the current state of ~/.claude/ against the stored manifest
- * to detect any user modifications.
- *
- * @param args - Configuration arguments
- * @param args.installDir - Installation directory
- * @param args.agentName - Name of the agent to check manifest for
- *
- * @returns Manifest diff if changes detected, null otherwise
- */
-const detectLocalChanges = async (args: {
-  installDir: string;
-  agentName: string;
-}): Promise<ManifestDiff | null> => {
-  const { installDir, agentName } = args;
-
-  const agent = AgentRegistry.getInstance().get({ name: agentName });
-  const manifestPath = getManifestPath({ agentName });
-  const legacyManifestPath = getLegacyManifestPath();
-  const manifest = await readManifest({ manifestPath, legacyManifestPath });
-
-  // No manifest means first install or manual setup - no changes detectable
-  if (manifest == null) {
-    return null;
-  }
-
-  const claudeDir = getClaudeDir({ installDir });
-  const diff = await compareManifest({
-    manifest,
-    currentDir: claudeDir,
-    managedFiles: agent.getManagedFiles(),
-    managedDirs: agent.getManagedDirs(),
-  });
-
-  return hasChanges(diff) ? diff : null;
-};
 
 /**
  * Shared action handler for switch-skillset commands
@@ -93,6 +45,7 @@ export const switchSkillsetAction = async (args: {
   const installDir = resolveInstallDir({
     cliInstallDir: globalOpts.installDir,
     config,
+    agentDirNames: AgentRegistry.getInstance().getAgentDirNames(),
   });
 
   // Interactive flow
@@ -111,10 +64,13 @@ export const switchSkillsetAction = async (args: {
             return { name: agentName, displayName: agent.displayName };
           });
         },
-        onPrepareSwitchInfo: async ({ installDir: dir, agentName: agent }) => {
-          const localChanges = await detectLocalChanges({
+        onPrepareSwitchInfo: async ({
+          installDir: dir,
+          agentName: agentName,
+        }) => {
+          const agent = AgentRegistry.getInstance().get({ name: agentName });
+          const localChanges = await agent.detectLocalChanges({
             installDir: dir,
-            agentName: agent,
           });
           const config = await loadConfig();
           const currentProfile =
@@ -126,18 +82,21 @@ export const switchSkillsetAction = async (args: {
           const captureAgentNames = getDefaultAgents({
             config: captureConfig,
           });
-          const captureAgent = AgentRegistry.getInstance().get({
-            name: captureAgentNames[0],
-          });
           const config: Config = {
             installDir: dir,
             activeSkillset: pName,
           };
-          await captureAgent.captureExistingConfig?.({
-            installDir: dir,
-            skillsetName: pName,
-            config,
-          });
+          // Capture existing config for all default agents that support it
+          for (const captureAgentName of captureAgentNames) {
+            const captureAgent = AgentRegistry.getInstance().get({
+              name: captureAgentName,
+            });
+            await captureAgent.captureExistingConfig?.({
+              installDir: dir,
+              skillsetName: pName,
+              config,
+            });
+          }
         },
         onExecuteSwitch: async ({
           installDir: dir,
@@ -187,9 +146,9 @@ export const switchSkillsetAction = async (args: {
 
   // Check for local changes before proceeding (check first agent's manifest)
   const firstAgentName = agentNames[0];
-  const localChanges = await detectLocalChanges({
+  const firstAgent = AgentRegistry.getInstance().get({ name: firstAgentName });
+  const localChanges = await firstAgent.detectLocalChanges({
     installDir,
-    agentName: firstAgentName,
   });
 
   if (localChanges != null && !force) {

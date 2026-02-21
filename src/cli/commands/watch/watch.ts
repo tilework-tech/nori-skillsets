@@ -12,7 +12,6 @@ import * as path from "path";
 
 import { extractSessionId } from "@/cli/commands/watch/parser.js";
 import {
-  getClaudeProjectsDir,
   getTranscriptDir,
   getTranscriptRegistryPath,
   getWatchLogFile,
@@ -29,6 +28,7 @@ import {
   type WatcherInstance,
 } from "@/cli/commands/watch/watcher.js";
 import { loadConfig, saveConfig, getDefaultAgents } from "@/cli/config.js";
+import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { getHomeDir } from "@/utils/home.js";
 
 /**
@@ -193,7 +193,8 @@ const handleFileEvent = async (args: {
     }
 
     // Get the project name from the directory structure
-    const projectsDir = getClaudeProjectsDir();
+    const agentImpl = AgentRegistry.getInstance().get({ name: agent });
+    const projectsDir = agentImpl.getProjectsDir?.() ?? "";
     const relativePath = path.relative(projectsDir, filePath);
     const projectName = relativePath.split(path.sep)[0];
 
@@ -652,14 +653,20 @@ export const watchMain = async (args?: {
   process.on("SIGTERM", signalHandler);
   process.on("SIGINT", signalHandler);
 
-  // Start the watcher for Claude Code projects
-  const watchDir = getClaudeProjectsDir();
+  // Start the watcher for agent projects
+  const agentImpl = AgentRegistry.getInstance().get({ name: agent });
+  const watchDir = agentImpl.getProjectsDir?.();
 
-  // Check if Claude projects directory exists
+  if (watchDir == null) {
+    await log(`Agent "${agent}" does not provide a projects directory`);
+    return;
+  }
+
+  // Check if agent projects directory exists
   try {
     await fs.access(watchDir);
   } catch {
-    await log(`Claude Code projects directory not found: ${watchDir}`);
+    await log(`Agent projects directory not found: ${watchDir}`);
     await log("Will watch for directory creation...");
   }
 

@@ -7,21 +7,39 @@ import * as fsSync from "fs";
 import * as fs from "fs/promises";
 import * as path from "path";
 
-import { loadConfig, saveConfig, type Config } from "@/cli/config.js";
+import {
+  loadConfig,
+  saveConfig,
+  getActiveSkillset,
+  type Config,
+} from "@/cli/config.js";
 import {
   detectExistingConfig,
   captureExistingConfigAsSkillset,
 } from "@/cli/features/claude-code/existingConfigCapture.js";
-import { factoryResetClaudeCode } from "@/cli/features/claude-code/factoryReset.js";
-import { LoaderRegistry } from "@/cli/features/claude-code/loaderRegistry.js";
 import {
-  getClaudeMdFile,
-  getNoriSkillsetsDir,
-} from "@/cli/features/claude-code/paths.js";
+  factoryResetClaudeCode,
+  findClaudeCodeArtifacts,
+} from "@/cli/features/claude-code/factoryReset.js";
+import { LoaderRegistry } from "@/cli/features/claude-code/loaderRegistry.js";
+import { getClaudeMdFile } from "@/cli/features/claude-code/paths.js";
 import { claudeMdLoader } from "@/cli/features/claude-code/skillsets/claudemd/loader.js";
-import { ensureNoriJson } from "@/cli/features/claude-code/skillsets/metadata.js";
 import { MANIFEST_FILE } from "@/cli/features/managedFolder.js";
+import {
+  readManifest,
+  compareManifest,
+  hasChanges,
+  computeDirectoryManifest,
+  writeManifest,
+  getManifestPath,
+  getLegacyManifestPath,
+  removeManagedFiles,
+} from "@/cli/features/manifest.js";
+import { getNoriSkillsetsDir } from "@/cli/features/paths.js";
+import { parseSkillset } from "@/cli/features/skillset.js";
+import { ensureNoriJson } from "@/cli/features/skillsetMetadata.js";
 import { success, info } from "@/cli/logger.js";
+import { getHomeDir } from "@/utils/home.js";
 
 import type { Agent } from "@/cli/features/agentRegistry.js";
 
@@ -32,12 +50,57 @@ export const claudeCodeAgent: Agent = {
   name: "claude-code",
   displayName: "Claude Code",
 
+  getAgentDir: (args: { installDir: string }): string => {
+    const { installDir } = args;
+    return path.join(installDir, ".claude");
+  },
+
+  getConfigFileName: () => "CLAUDE.md",
+
+  getSkillsDir: (args: { installDir: string }): string => {
+    const { installDir } = args;
+    return path.join(installDir, ".claude", "skills");
+  },
+
   getManagedFiles: () => ["CLAUDE.md", "settings.json", "nori-statusline.sh"],
   getManagedDirs: () => ["skills", "commands", "agents"],
 
   getLoaderRegistry: () => {
     return LoaderRegistry.getInstance();
   },
+
+  getSkillDiscoveryDirs: (): ReadonlyArray<string> => {
+    return [path.join(".claude", "skills")];
+  },
+
+  getProjectDirName: (args: { cwd: string }): string => {
+    const { cwd } = args;
+
+    // Resolve symlinks to match Claude Code's behavior
+    let resolvedPath: string;
+    try {
+      resolvedPath = fsSync.realpathSync(cwd);
+    } catch {
+      // If path doesn't exist, use it as-is
+      resolvedPath = cwd;
+    }
+
+    // Replace anything that's not alphanumeric or dash with a dash
+    let projectDirName = resolvedPath.replace(/[^a-zA-Z0-9-]/g, "-");
+
+    // Ensure leading dash if not already there
+    if (!projectDirName.startsWith("-")) {
+      projectDirName = "-" + projectDirName;
+    }
+
+    return projectDirName;
+  },
+
+  getProjectsDir: (): string => {
+    return path.join(getHomeDir(), ".claude", "projects");
+  },
+
+  findArtifacts: findClaudeCodeArtifacts,
 
   factoryReset: factoryResetClaudeCode,
 
@@ -96,7 +159,87 @@ export const claudeCodeAgent: Agent = {
     }
 
     // Install the managed CLAUDE.md block so the user isn't left without config
-    await claudeMdLoader.install({ config });
+    const skillset = await parseSkillset({
+      skillsetName,
+      configFileName: claudeCodeAgent.getConfigFileName(),
+    });
+    await claudeMdLoader.install({ config, skillset });
+  },
+
+  detectLocalChanges: async (args: { installDir: string }) => {
+    const { installDir } = args;
+
+    const manifestPath = getManifestPath({ agentName: "claude-code" });
+    const legacyManifestPath = getLegacyManifestPath();
+    const manifest = await readManifest({ manifestPath, legacyManifestPath });
+
+    if (manifest == null) {
+      return null;
+    }
+
+    const agentDir = path.join(installDir, ".claude");
+    const diff = await compareManifest({
+      manifest,
+      currentDir: agentDir,
+      managedFiles: claudeCodeAgent.getManagedFiles(),
+      managedDirs: claudeCodeAgent.getManagedDirs(),
+    });
+
+    return hasChanges(diff) ? diff : null;
+  },
+
+  removeSkillset: async (args: { installDir: string }) => {
+    const { installDir } = args;
+    const agentDir = path.join(installDir, ".claude");
+    const manifestPath = getManifestPath({ agentName: "claude-code" });
+
+    await removeManagedFiles({
+      agentDir,
+      manifestPath,
+      managedDirs: claudeCodeAgent.getManagedDirs(),
+    });
+
+    // Also clean up legacy manifest
+    const legacyPath = getLegacyManifestPath();
+    await removeManagedFiles({ agentDir, manifestPath: legacyPath });
+  },
+
+  installSkillset: async (args: { config: Config }): Promise<void> => {
+    const { config } = args;
+
+    // Run all feature loaders
+    const registry = claudeCodeAgent.getLoaderRegistry();
+    const loaders = registry.getAll();
+    for (const loader of loaders) {
+      await loader.run({ config });
+    }
+
+    // Write manifest for change detection
+    const skillsetName = getActiveSkillset({ config });
+    if (skillsetName != null) {
+      const agentDir = claudeCodeAgent.getAgentDir({
+        installDir: config.installDir,
+      });
+      const manifestPath = getManifestPath({ agentName: claudeCodeAgent.name });
+
+      try {
+        const manifest = await computeDirectoryManifest({
+          dir: agentDir,
+          skillsetName,
+          managedFiles: claudeCodeAgent.getManagedFiles(),
+          managedDirs: claudeCodeAgent.getManagedDirs(),
+        });
+        await writeManifest({ manifestPath, manifest });
+      } catch {
+        // Non-fatal — manifest writing failure shouldn't block installation
+      }
+    }
+
+    // Mark install directory
+    claudeCodeAgent.markInstall({
+      path: config.installDir,
+      skillsetName,
+    });
   },
 
   switchSkillset: async (args: {

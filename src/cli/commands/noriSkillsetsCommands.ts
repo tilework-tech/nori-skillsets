@@ -29,6 +29,7 @@ import { registryUploadMain } from "@/cli/commands/registry-upload/registryUploa
 import { skillDownloadMain } from "@/cli/commands/skill-download/skillDownload.js";
 import { switchSkillsetAction } from "@/cli/commands/switch-skillset/switchSkillset.js";
 import { watchMain, watchStopMain } from "@/cli/commands/watch/watch.js";
+import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 
 import type { Command } from "commander";
 
@@ -550,7 +551,7 @@ export const registerNoriSkillsetsWatchCommand = (args: {
     .description(
       "Watch Claude Code sessions and save transcripts to ~/.nori/transcripts/",
     )
-    .option("-a, --agent <name>", "Agent to watch", "claude-code")
+    .option("-a, --agent <name>", "Agent to watch")
     .option(
       "--set-destination",
       "Re-configure transcript upload destination organization",
@@ -558,12 +559,13 @@ export const registerNoriSkillsetsWatchCommand = (args: {
     .option("--_background", "Internal: run as background daemon")
     .action(
       async (options: {
-        agent: string;
+        agent?: string;
         setDestination?: boolean;
         _background?: boolean;
       }) => {
         await watchMain({
-          agent: options.agent,
+          agent:
+            options.agent ?? AgentRegistry.getInstance().getDefaultAgentName(),
           setDestination: options.setDestination ?? false,
           _background: options._background ?? false,
         });

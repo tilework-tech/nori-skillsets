@@ -26,12 +26,6 @@ import {
   type Config,
 } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
-import { getClaudeDir } from "@/cli/features/claude-code/paths.js";
-import {
-  computeDirectoryManifest,
-  writeManifest,
-  getManifestPath,
-} from "@/cli/features/claude-code/skillsets/manifest.js";
 import {
   buildCLIEventParams,
   getUserId,
@@ -93,71 +87,6 @@ const displayCompletionBanners = (): void => {
 };
 
 /**
- * Run feature loaders for the given agent
- *
- * @param args - Configuration arguments
- * @param args.config - Configuration to use
- * @param args.agent - AI agent implementation
- */
-const runFeatureLoaders = async (args: {
-  config: Config;
-  agent: ReturnType<typeof AgentRegistry.prototype.get>;
-}): Promise<void> => {
-  const { config, agent } = args;
-
-  const registry = agent.getLoaderRegistry();
-  const loaders = registry.getAll();
-
-  if (!isSilentMode()) {
-    log.info("Installing features...");
-  }
-
-  for (const loader of loaders) {
-    await loader.run({ config });
-  }
-};
-
-/**
- * Write manifest of installed files for change detection
- *
- * Creates a manifest file containing hashes of all files installed to the agent's config dir.
- * This is used by switch-skillset to detect local modifications.
- *
- * @param args - Configuration arguments
- * @param args.config - Configuration to use
- * @param args.agent - The agent implementation
- */
-const writeInstalledManifest = async (args: {
-  config: Config;
-  agent: ReturnType<typeof AgentRegistry.prototype.get>;
-}): Promise<void> => {
-  const { config, agent } = args;
-
-  const skillsetName = getActiveSkillset({ config });
-  if (skillsetName == null) {
-    return;
-  }
-
-  const claudeDir = getClaudeDir({ installDir: config.installDir });
-  const manifestPath = getManifestPath({ agentName: agent.name });
-
-  try {
-    const manifest = await computeDirectoryManifest({
-      dir: claudeDir,
-      skillsetName,
-      managedFiles: agent.getManagedFiles(),
-      managedDirs: agent.getManagedDirs(),
-    });
-    await writeManifest({ manifestPath, manifest });
-    if (!isSilentMode()) {
-      log.info("✓ Created installation manifest for change detection");
-    }
-  } catch {
-    // Non-fatal - manifest writing failure shouldn't block installation
-  }
-};
-
-/**
  * Complete the installation by running loaders and displaying banners
  *
  * @param args - Configuration arguments
@@ -189,18 +118,8 @@ const completeInstallation = async (args: {
   // Create progress marker
   createProgressMarker();
 
-  // Run feature loaders
-  await runFeatureLoaders({ config, agent });
-
-  // Write manifest for change detection
-  await writeInstalledManifest({ config, agent });
-
-  // Mark installation directory with current skillset name
-  const skillsetName = getActiveSkillset({ config });
-  agent.markInstall({
-    path: config.installDir,
-    skillsetName: skillsetName,
-  });
+  // Delegate to agent: run loaders, write manifest, mark install
+  await agent.installSkillset({ config });
 
   // Remove progress marker
   cleanupProgressMarker();
@@ -238,9 +157,12 @@ export const noninteractive = async (args?: {
   skillset?: string | null;
 }): Promise<void> => {
   const { installDir, agent, skillset } = args || {};
-  const normalizedInstallDir = normalizeInstallDir({ installDir });
+  const normalizedInstallDir = normalizeInstallDir({
+    installDir,
+    agentDirNames: AgentRegistry.getInstance().getAgentDirNames(),
+  });
   const agentImpl = AgentRegistry.getInstance().get({
-    name: agent ?? "claude-code",
+    name: agent ?? AgentRegistry.getInstance().getDefaultAgentName(),
   });
 
   // Step 1: Init - Set up folders (non-interactive skips existing config capture)

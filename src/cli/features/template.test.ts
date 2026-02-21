@@ -1,5 +1,5 @@
 /**
- * Tests for Claude Code template substitution
+ * Tests for template substitution
  */
 
 import * as os from "os";
@@ -7,7 +7,7 @@ import * as path from "path";
 
 import { describe, it, expect } from "vitest";
 
-import { substituteTemplatePaths } from "./template.js";
+import { substituteTemplatePaths } from "@/cli/features/template.js";
 
 describe("substituteTemplatePaths", () => {
   describe("skills_dir placeholder", () => {

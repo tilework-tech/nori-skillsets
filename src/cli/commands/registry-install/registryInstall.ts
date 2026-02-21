@@ -13,7 +13,7 @@ import { hasExistingInstallation } from "@/cli/commands/install/installState.js"
 import { registryDownloadMain } from "@/cli/commands/registry-download/registryDownload.js";
 import { loadConfig, getDefaultAgents } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
-import { getNoriSkillsetsDir } from "@/cli/features/claude-code/paths.js";
+import { getNoriSkillsetsDir } from "@/cli/features/paths.js";
 import { resolveInstallDir } from "@/utils/path.js";
 
 import type { Command } from "commander";
@@ -95,6 +95,7 @@ export const registryInstallMain = async (
   const targetInstallDir = resolveInstallDir({
     cliInstallDir: installDir,
     config,
+    agentDirNames: AgentRegistry.getInstance().getAgentDirNames(),
   });
   const agentNames = getDefaultAgents({ config, agentOverride: agent });
 

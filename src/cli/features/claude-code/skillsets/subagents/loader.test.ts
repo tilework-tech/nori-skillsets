@@ -9,6 +9,8 @@ import * as path from "path";
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
+import { parseSkillset } from "@/cli/features/skillset.js";
+
 import type { Config } from "@/cli/config.js";
 
 // Mock the env module to use temp directories
@@ -24,9 +26,11 @@ vi.mock("@/cli/features/claude-code/paths.js", () => ({
   getClaudeMdFile: () => path.join(mockClaudeDir, "CLAUDE.md"),
   getClaudeSkillsDir: () => path.join(mockClaudeDir, "skills"),
   getClaudeSkillsetsDir: () => path.join(mockClaudeDir, "profiles"),
+}));
+
+vi.mock("@/cli/features/paths.js", () => ({
   getNoriDir: () => mockNoriDir,
   getNoriSkillsetsDir: () => path.join(mockNoriDir, "profiles"),
-  getNoriConfigFile: () => path.join(mockNoriDir, "config.json"),
 }));
 
 // Import loaders after mocking env
@@ -108,6 +112,19 @@ describe("subagentsLoader", () => {
     vi.clearAllMocks();
   });
 
+  /**
+   * Helper to install with parsed skillset
+   * @param args - Function arguments
+   * @param args.config - Nori config with activeSkillset set
+   */
+  const installWithSkillset = async (args: { config: Config }) => {
+    const { config } = args;
+    const skillset = await parseSkillset({
+      skillsetName: config.activeSkillset!,
+    });
+    await subagentsLoader.install({ config, skillset });
+  };
+
   describe("run", () => {
     it("should create agents directory and copy subagent files", async () => {
       const config: Config = {
@@ -115,7 +132,7 @@ describe("subagentsLoader", () => {
         activeSkillset: "senior-swe",
       };
 
-      await subagentsLoader.install({ config });
+      await installWithSkillset({ config });
 
       // Verify agents directory exists
       const exists = await fs
@@ -144,13 +161,13 @@ describe("subagentsLoader", () => {
       };
 
       // First installation
-      await subagentsLoader.install({ config });
+      await installWithSkillset({ config });
 
       const firstFiles = await fs.readdir(agentsDir);
       expect(firstFiles.length).toBeGreaterThan(0);
 
       // Second installation (update)
-      await subagentsLoader.install({ config });
+      await installWithSkillset({ config });
 
       const secondFiles = await fs.readdir(agentsDir);
       expect(secondFiles.length).toBeGreaterThan(0);
@@ -184,7 +201,7 @@ describe("subagentsLoader", () => {
           "Read: `{{skills_dir}}/some-skill/SKILL.md`",
         );
 
-        await subagentsLoader.install({ config });
+        await installWithSkillset({ config });
 
         // Check the installed file
         const installedPath = path.join(agentsDir, mdFile);
@@ -208,7 +225,7 @@ describe("subagentsLoader", () => {
       };
 
       // First, install subagents from a profile that has them
-      await subagentsLoader.install({ config });
+      await installWithSkillset({ config });
 
       // Verify agents were installed
       let files = await fs.readdir(agentsDir);
@@ -224,7 +241,7 @@ describe("subagentsLoader", () => {
       await fs.rm(profileSubagentsDir, { recursive: true, force: true });
 
       // Install again (simulating profile switch)
-      await subagentsLoader.install({ config });
+      await installWithSkillset({ config });
 
       // The agents directory should now be empty since the profile has no subagents
       files = await fs.readdir(agentsDir);
@@ -246,7 +263,7 @@ describe("subagentsLoader", () => {
       await fs.rm(profileSubagentsDir, { recursive: true, force: true });
 
       // Install should not throw
-      await expect(subagentsLoader.install({ config })).resolves.not.toThrow();
+      await expect(installWithSkillset({ config })).resolves.not.toThrow();
 
       // Agents directory should still be created
       const exists = await fs

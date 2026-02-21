@@ -69,6 +69,18 @@ describe("AgentRegistry", () => {
     });
   });
 
+  describe("getDefaultAgentName", () => {
+    test("returns the name of the first registered agent", () => {
+      const registry = AgentRegistry.getInstance();
+      const defaultName = registry.getDefaultAgentName();
+
+      // Should return a valid agent name from the registry
+      expect(registry.list()).toContain(defaultName);
+      // Should be the same as the first agent in the list
+      expect(defaultName).toBe(registry.list()[0]);
+    });
+  });
+
   describe("getAll", () => {
     test("returns the same agents accessible via get()", () => {
       const registry = AgentRegistry.getInstance();
@@ -102,6 +114,36 @@ describe("AgentRegistry", () => {
         const agent = registry.get({ name });
         const roundTrip = registry.get({ name: agent.name });
         expect(roundTrip).toBe(agent);
+      }
+    });
+  });
+
+  describe("getAgentDir", () => {
+    test("claude-code agent returns .claude directory under installDir", () => {
+      const registry = AgentRegistry.getInstance();
+      const agent = registry.get({ name: "claude-code" });
+      const result = agent.getAgentDir({ installDir: "/home/user/project" });
+
+      expect(result).toBe("/home/user/project/.claude");
+    });
+  });
+
+  describe("getConfigFileName", () => {
+    test("claude-code agent returns its config file name", () => {
+      const registry = AgentRegistry.getInstance();
+      const agent = registry.get({ name: "claude-code" });
+      const configFileName = agent.getConfigFileName();
+
+      expect(configFileName).toBe("CLAUDE.md");
+    });
+
+    test("every registered agent exposes a config file name", () => {
+      const registry = AgentRegistry.getInstance();
+      for (const name of registry.list()) {
+        const agent = registry.get({ name });
+        const configFileName = agent.getConfigFileName();
+        expect(typeof configFileName).toBe("string");
+        expect(configFileName.length).toBeGreaterThan(0);
       }
     });
   });
@@ -163,6 +205,18 @@ describe("AgentRegistry", () => {
       const loaderNames = loaders.map((l) => l.name);
 
       expect(loaderNames).toContain("config");
+    });
+  });
+
+  describe("getSkillDiscoveryDirs", () => {
+    test("claude-code agent returns skill discovery directories", () => {
+      const registry = AgentRegistry.getInstance();
+      const agent = registry.get({ name: "claude-code" });
+      const dirs = agent.getSkillDiscoveryDirs();
+
+      expect(dirs.length).toBeGreaterThan(0);
+      // Should include the .claude/skills path pattern
+      expect(dirs).toContain(path.join(".claude", "skills"));
     });
   });
 
@@ -295,6 +349,218 @@ describe("AgentRegistry", () => {
       // The managed version will have the managed block markers
       const resultContent = await fs.readFile(originalClaudeMd, "utf-8");
       expect(resultContent).toContain("BEGIN NORI-AI MANAGED BLOCK");
+    });
+  });
+
+  describe("findArtifacts", () => {
+    let tempDir: string;
+
+    beforeEach(async () => {
+      tempDir = await fs.mkdtemp(path.join(tmpdir(), "agent-artifacts-test-"));
+    });
+
+    afterEach(async () => {
+      await fs.rm(tempDir, { recursive: true, force: true });
+    });
+
+    test("claude-code agent finds .claude directories and CLAUDE.md files", async () => {
+      const registry = AgentRegistry.getInstance();
+      const agent = registry.get({ name: "claude-code" });
+
+      // Create a .claude directory
+      const claudeDir = path.join(tempDir, ".claude");
+      await fs.mkdir(claudeDir, { recursive: true });
+
+      // Create a CLAUDE.md file
+      await fs.writeFile(path.join(tempDir, "CLAUDE.md"), "# Config");
+
+      const artifacts = await agent.findArtifacts!({ startDir: tempDir });
+
+      expect(artifacts.length).toBeGreaterThan(0);
+      const paths = artifacts.map((a) => a.path);
+      expect(paths).toContain(claudeDir);
+      expect(paths).toContain(path.join(tempDir, "CLAUDE.md"));
+    });
+
+    test("claude-code agent returns empty array when no artifacts exist", async () => {
+      const registry = AgentRegistry.getInstance();
+      const agent = registry.get({ name: "claude-code" });
+
+      const artifacts = await agent.findArtifacts!({
+        startDir: tempDir,
+        stopDir: tempDir,
+      });
+
+      expect(artifacts).toEqual([]);
+    });
+  });
+
+  describe("claude-code agent detectLocalChanges", () => {
+    let testInstallDir: string;
+
+    beforeEach(async () => {
+      testInstallDir = await fs.mkdtemp(
+        path.join(tmpdir(), "agent-detect-changes-test-"),
+      );
+      vi.mocked(os.homedir).mockReturnValue(testInstallDir);
+    });
+
+    afterEach(async () => {
+      vi.restoreAllMocks();
+      if (testInstallDir) {
+        await fs.rm(testInstallDir, { recursive: true, force: true });
+      }
+    });
+
+    test("returns diff when managed files have been modified", async () => {
+      const registry = AgentRegistry.getInstance();
+      const agent = registry.get({ name: "claude-code" });
+
+      // Set up agent dir with a managed file
+      const agentDir = agent.getAgentDir({ installDir: testInstallDir });
+      await fs.mkdir(agentDir, { recursive: true });
+      const claudeMdPath = path.join(agentDir, "CLAUDE.md");
+      await fs.writeFile(claudeMdPath, "# Original content");
+
+      // Compute hash of original content and write manifest
+      const { computeFileHash, writeManifest, getManifestPath } =
+        await import("@/cli/features/manifest.js");
+      const originalHash = await computeFileHash({ filePath: claudeMdPath });
+      const manifestPath = getManifestPath({ agentName: agent.name });
+      await writeManifest({
+        manifestPath,
+        manifest: {
+          version: 1,
+          createdAt: new Date().toISOString(),
+          skillsetName: "test-skillset",
+          files: { "CLAUDE.md": originalHash },
+        },
+      });
+
+      // Modify the file
+      await fs.writeFile(claudeMdPath, "# Modified content");
+
+      // detectLocalChanges should report the modification
+      const diff = await agent.detectLocalChanges({
+        installDir: testInstallDir,
+      });
+      expect(diff).not.toBeNull();
+      expect(diff!.modified).toContain("CLAUDE.md");
+    });
+
+    test("returns null when no manifest exists", async () => {
+      const registry = AgentRegistry.getInstance();
+      const agent = registry.get({ name: "claude-code" });
+
+      // No manifest, no agent dir — should return null
+      const diff = await agent.detectLocalChanges({
+        installDir: testInstallDir,
+      });
+      expect(diff).toBeNull();
+    });
+
+    test("returns null when files match the manifest", async () => {
+      const registry = AgentRegistry.getInstance();
+      const agent = registry.get({ name: "claude-code" });
+
+      // Set up agent dir with a managed file
+      const agentDir = agent.getAgentDir({ installDir: testInstallDir });
+      await fs.mkdir(agentDir, { recursive: true });
+      const claudeMdPath = path.join(agentDir, "CLAUDE.md");
+      await fs.writeFile(claudeMdPath, "# Original content");
+
+      // Compute hash and write a matching manifest
+      const { computeFileHash, writeManifest, getManifestPath } =
+        await import("@/cli/features/manifest.js");
+      const hash = await computeFileHash({ filePath: claudeMdPath });
+      const manifestPath = getManifestPath({ agentName: agent.name });
+      await writeManifest({
+        manifestPath,
+        manifest: {
+          version: 1,
+          createdAt: new Date().toISOString(),
+          skillsetName: "test-skillset",
+          files: { "CLAUDE.md": hash },
+        },
+      });
+
+      // No changes — should return null
+      const diff = await agent.detectLocalChanges({
+        installDir: testInstallDir,
+      });
+      expect(diff).toBeNull();
+    });
+  });
+
+  describe("claude-code agent removeSkillset", () => {
+    let testInstallDir: string;
+
+    beforeEach(async () => {
+      testInstallDir = await fs.mkdtemp(
+        path.join(tmpdir(), "agent-remove-test-"),
+      );
+      vi.mocked(os.homedir).mockReturnValue(testInstallDir);
+    });
+
+    afterEach(async () => {
+      vi.restoreAllMocks();
+      if (testInstallDir) {
+        await fs.rm(testInstallDir, { recursive: true, force: true });
+      }
+    });
+
+    test("removes managed files and manifest", async () => {
+      const registry = AgentRegistry.getInstance();
+      const agent = registry.get({ name: "claude-code" });
+
+      // Set up agent dir with managed files
+      const agentDir = agent.getAgentDir({ installDir: testInstallDir });
+      await fs.mkdir(agentDir, { recursive: true });
+      await fs.writeFile(path.join(agentDir, "CLAUDE.md"), "# Config");
+      await fs.writeFile(path.join(agentDir, ".nori-managed"), "test-skillset");
+
+      // Write a manifest that tracks CLAUDE.md
+      const { computeFileHash, writeManifest, getManifestPath } =
+        await import("@/cli/features/manifest.js");
+      const hash = await computeFileHash({
+        filePath: path.join(agentDir, "CLAUDE.md"),
+      });
+      const manifestPath = getManifestPath({ agentName: agent.name });
+      await writeManifest({
+        manifestPath,
+        manifest: {
+          version: 1,
+          createdAt: new Date().toISOString(),
+          skillsetName: "test-skillset",
+          files: { "CLAUDE.md": hash },
+        },
+      });
+
+      // Remove the skillset
+      await agent.removeSkillset({ installDir: testInstallDir });
+
+      // Managed file should be gone
+      await expect(
+        fs.access(path.join(agentDir, "CLAUDE.md")),
+      ).rejects.toThrow();
+
+      // .nori-managed marker should be gone
+      await expect(
+        fs.access(path.join(agentDir, ".nori-managed")),
+      ).rejects.toThrow();
+
+      // Manifest should be gone
+      await expect(fs.access(manifestPath)).rejects.toThrow();
+    });
+
+    test("completes without error when no manifest exists", async () => {
+      const registry = AgentRegistry.getInstance();
+      const agent = registry.get({ name: "claude-code" });
+
+      // No manifest, no agent dir — should not throw
+      await expect(
+        agent.removeSkillset({ installDir: testInstallDir }),
+      ).resolves.not.toThrow();
     });
   });
 
@@ -433,6 +699,153 @@ describe("AgentRegistry", () => {
       // Verify config was updated with namespaced profile name
       const updatedConfig = JSON.parse(await fs.readFile(configPath, "utf-8"));
       expect(updatedConfig.activeSkillset).toBe("myorg/my-profile");
+    });
+  });
+
+  describe("claude-code agent installSkillset", () => {
+    let testInstallDir: string;
+
+    beforeEach(async () => {
+      testInstallDir = await fs.mkdtemp(
+        path.join(tmpdir(), "agent-install-test-"),
+      );
+      vi.mocked(os.homedir).mockReturnValue(testInstallDir);
+    });
+
+    afterEach(async () => {
+      vi.restoreAllMocks();
+      if (testInstallDir) {
+        await fs.rm(testInstallDir, { recursive: true, force: true });
+      }
+    });
+
+    test("creates marker file and manifest after installation", async () => {
+      const registry = AgentRegistry.getInstance();
+      const agent = registry.get({ name: "claude-code" });
+
+      // Create a skillset with CLAUDE.md
+      const skillsetsDir = path.join(testInstallDir, ".nori", "profiles");
+      const skillsetDir = path.join(skillsetsDir, "test-skillset");
+      await fs.mkdir(skillsetDir, { recursive: true });
+      await fs.writeFile(
+        path.join(skillsetDir, "CLAUDE.md"),
+        "# Test skillset config",
+      );
+      await fs.writeFile(
+        path.join(skillsetDir, "nori.json"),
+        JSON.stringify({ name: "test-skillset", version: "1.0.0" }),
+      );
+
+      // Create agent dir
+      const agentDir = agent.getAgentDir({ installDir: testInstallDir });
+      await fs.mkdir(agentDir, { recursive: true });
+
+      // Create config pointing to the skillset
+      const configPath = path.join(testInstallDir, ".nori-config.json");
+      await fs.writeFile(
+        configPath,
+        JSON.stringify({
+          activeSkillset: "test-skillset",
+          installDir: testInstallDir,
+        }),
+      );
+
+      const config = {
+        installDir: testInstallDir,
+        activeSkillset: "test-skillset",
+      };
+
+      await agent.installSkillset({ config });
+
+      // Marker file should exist
+      const markerPath = path.join(agentDir, ".nori-managed");
+      await expect(fs.access(markerPath)).resolves.not.toThrow();
+
+      // Manifest should exist
+      const { getManifestPath } = await import("@/cli/features/manifest.js");
+      const manifestPath = getManifestPath({ agentName: agent.name });
+      await expect(fs.access(manifestPath)).resolves.not.toThrow();
+    });
+
+    test("installed state is detectable by detectLocalChanges", async () => {
+      const registry = AgentRegistry.getInstance();
+      const agent = registry.get({ name: "claude-code" });
+
+      // Create a skillset with CLAUDE.md
+      const skillsetsDir = path.join(testInstallDir, ".nori", "profiles");
+      const skillsetDir = path.join(skillsetsDir, "test-skillset");
+      await fs.mkdir(skillsetDir, { recursive: true });
+      await fs.writeFile(
+        path.join(skillsetDir, "CLAUDE.md"),
+        "# Test skillset config",
+      );
+      await fs.writeFile(
+        path.join(skillsetDir, "nori.json"),
+        JSON.stringify({ name: "test-skillset", version: "1.0.0" }),
+      );
+
+      // Create agent dir
+      const agentDir = agent.getAgentDir({ installDir: testInstallDir });
+      await fs.mkdir(agentDir, { recursive: true });
+
+      // Create config
+      const configPath = path.join(testInstallDir, ".nori-config.json");
+      await fs.writeFile(
+        configPath,
+        JSON.stringify({
+          activeSkillset: "test-skillset",
+          installDir: testInstallDir,
+        }),
+      );
+
+      const config = {
+        installDir: testInstallDir,
+        activeSkillset: "test-skillset",
+      };
+
+      await agent.installSkillset({ config });
+
+      // detectLocalChanges should return null (no changes since fresh install)
+      const diff = await agent.detectLocalChanges({
+        installDir: testInstallDir,
+      });
+      expect(diff).toBeNull();
+    });
+
+    test("completes without error on valid config", async () => {
+      const registry = AgentRegistry.getInstance();
+      const agent = registry.get({ name: "claude-code" });
+
+      // Create a minimal skillset
+      const skillsetsDir = path.join(testInstallDir, ".nori", "profiles");
+      const skillsetDir = path.join(skillsetsDir, "minimal-skillset");
+      await fs.mkdir(skillsetDir, { recursive: true });
+      await fs.writeFile(path.join(skillsetDir, "CLAUDE.md"), "# Minimal");
+      await fs.writeFile(
+        path.join(skillsetDir, "nori.json"),
+        JSON.stringify({ name: "minimal-skillset", version: "1.0.0" }),
+      );
+
+      // Create agent dir
+      const agentDir = agent.getAgentDir({ installDir: testInstallDir });
+      await fs.mkdir(agentDir, { recursive: true });
+
+      // Create config
+      const configPath = path.join(testInstallDir, ".nori-config.json");
+      await fs.writeFile(
+        configPath,
+        JSON.stringify({
+          activeSkillset: "minimal-skillset",
+          installDir: testInstallDir,
+        }),
+      );
+
+      const config = {
+        installDir: testInstallDir,
+        activeSkillset: "minimal-skillset",
+      };
+
+      await expect(agent.installSkillset({ config })).resolves.not.toThrow();
     });
   });
 });

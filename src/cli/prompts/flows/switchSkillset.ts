@@ -21,10 +21,11 @@ import {
   cancel,
 } from "@clack/prompts";
 
+import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { bold, brightCyan, green } from "@/cli/logger.js";
 import { validateSkillsetName } from "@/cli/prompts/validators.js";
 
-import type { ManifestDiff } from "@/cli/features/claude-code/skillsets/manifest.js";
+import type { ManifestDiff } from "@/cli/features/manifest.js";
 
 import { unwrapPrompt } from "./utils.js";
 
@@ -128,13 +129,38 @@ export const switchSkillsetFlow = async (args: {
 
   // Step 1: Resolve all agents (broadcast to all, no selection prompt)
   const agents = await callbacks.onResolveAgents();
-  const agentName = agents.length > 0 ? agents[0].name : "claude-code";
+  const agentNames =
+    agents.length > 0
+      ? agents.map((a) => a.name)
+      : [AgentRegistry.getInstance().getDefaultAgentName()];
+  const agentName = agentNames[0];
 
-  // Step 2: Prepare switch info (detect local changes + get current skillset)
-  const { currentProfile, localChanges } = await callbacks.onPrepareSwitchInfo({
-    installDir,
-    agentName,
-  });
+  // Step 2: Prepare switch info for all agents (detect local changes + get current skillset)
+  let currentProfile: string | null = null;
+  let localChanges: ManifestDiff | null = null;
+
+  for (const name of agentNames) {
+    const info = await callbacks.onPrepareSwitchInfo({
+      installDir,
+      agentName: name,
+    });
+    if (currentProfile == null && info.currentProfile != null) {
+      currentProfile = info.currentProfile;
+    }
+    if (info.localChanges != null) {
+      if (localChanges == null) {
+        localChanges = {
+          modified: [...info.localChanges.modified],
+          added: [...info.localChanges.added],
+          deleted: [...info.localChanges.deleted],
+        };
+      } else {
+        localChanges.modified.push(...info.localChanges.modified);
+        localChanges.added.push(...info.localChanges.added);
+        localChanges.deleted.push(...info.localChanges.deleted);
+      }
+    }
+  }
 
   if (localChanges != null) {
     const summary = buildChangesSummary({ diff: localChanges });
@@ -193,9 +219,11 @@ export const switchSkillsetFlow = async (args: {
   // Step 3: Show switch details and confirm
   const currentDisplay = currentProfile ?? "(none)";
 
+  const agentDisplay =
+    agentNames.length === 1 ? agentNames[0] : agentNames.join(", ");
   const detailLines = [
     `Install directory: ${installDir}`,
-    `Agent: ${agentName}`,
+    `Agent: ${agentDisplay}`,
     `Current skillset: ${brightCyan({ text: bold({ text: currentDisplay }) })}`,
     `New skillset: ${green({ text: bold({ text: skillsetName }) })}`,
   ];
@@ -215,27 +243,29 @@ export const switchSkillsetFlow = async (args: {
     return null;
   }
 
-  // Step 4: Perform the switch
+  // Step 4: Perform the switch for all agents
   const s = spinner();
   s.start("Switching skillset...");
 
-  await callbacks.onExecuteSwitch({
-    installDir,
-    agentName,
-    skillsetName,
-  });
+  for (const name of agentNames) {
+    await callbacks.onExecuteSwitch({
+      installDir,
+      agentName: name,
+      skillsetName,
+    });
+  }
 
   s.stop("Skillset switched");
 
   const successLines = [
     green({
-      text: `Switched to ${bold({ text: skillsetName })} skillset for ${agentName}.`,
+      text: `Switched to ${bold({ text: skillsetName })} skillset for ${agentDisplay}.`,
     }),
-    `Restart ${agentName} to apply the new configuration.`,
+    `Restart your agent instances to apply the new configuration.`,
   ];
   note(successLines.join("\n"), "Success");
 
-  outro(brightCyan({ text: `Restart ${agentName} to apply` }));
+  outro(brightCyan({ text: "Restart your agents to apply" }));
 
   return {
     agentName,

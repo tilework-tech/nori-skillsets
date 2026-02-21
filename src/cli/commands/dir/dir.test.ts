@@ -29,7 +29,7 @@ const mockStdoutWrite = vi
 
 // Mock getNoriSkillsetsDir
 const MOCK_PROFILES_DIR = "/home/testuser/.nori/profiles";
-vi.mock("@/cli/features/claude-code/paths.js", () => ({
+vi.mock("@/cli/features/paths.js", () => ({
   getNoriSkillsetsDir: () => MOCK_PROFILES_DIR,
 }));
 

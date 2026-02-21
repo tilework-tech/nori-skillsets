@@ -117,23 +117,3 @@ export const getClaudeHomeSettingsFile = (): string => {
 export const getClaudeHomeCommandsDir = (): string => {
   return path.join(getClaudeHomeDir(), "commands");
 };
-
-/**
- * Get the Nori directory path
- * Always returns ~/.nori (centralized location)
- *
- * @returns Absolute path to the .nori directory
- */
-export const getNoriDir = (): string => {
-  return path.join(getHomeDir(), ".nori");
-};
-
-/**
- * Get the Nori skillsets directory path
- * This is where all skillset templates are stored
- *
- * @returns Absolute path to the skillsets directory (~/.nori/profiles/)
- */
-export const getNoriSkillsetsDir = (): string => {
-  return path.join(getNoriDir(), "profiles");
-};

@@ -670,6 +670,113 @@ describe("switch-skillset broadcasts to all default agents", () => {
   });
 });
 
+describe("switch-skillset onCaptureConfig broadcasts to all agents", () => {
+  let testInstallDir: string;
+
+  beforeEach(async () => {
+    testInstallDir = await fs.mkdtemp(
+      path.join(tmpdir(), "switch-skillset-capture-test-"),
+    );
+    vi.mocked(os.homedir).mockReturnValue(testInstallDir);
+    const testClaudeDir = path.join(testInstallDir, ".claude");
+    const testNoriDir = path.join(testInstallDir, ".nori");
+    await fs.mkdir(testClaudeDir, { recursive: true });
+    await fs.mkdir(testNoriDir, { recursive: true });
+
+    // Create skillsets directory with test skillsets
+    const skillsetsDir = path.join(testNoriDir, "profiles");
+    await fs.mkdir(skillsetsDir, { recursive: true });
+    for (const name of ["senior-swe", "product-manager"]) {
+      const dir = path.join(skillsetsDir, name);
+      await fs.mkdir(dir, { recursive: true });
+      await fs.writeFile(
+        path.join(dir, "nori.json"),
+        JSON.stringify({ name, version: "1.0.0" }),
+      );
+    }
+
+    // Create config with current profile
+    const configPath = path.join(testInstallDir, ".nori-config.json");
+    await fs.writeFile(
+      configPath,
+      JSON.stringify({
+        activeSkillset: "senior-swe",
+        defaultAgents: ["claude-code"],
+        installDir: testInstallDir,
+      }),
+    );
+
+    AgentRegistry.resetInstance();
+    mockSwitchSkillsetFlow.mockReset();
+  });
+
+  afterEach(async () => {
+    if (testInstallDir) {
+      await fs.rm(testInstallDir, { recursive: true, force: true });
+    }
+    AgentRegistry.resetInstance();
+    vi.restoreAllMocks();
+  });
+
+  it("should pass onCaptureConfig callback that captures for all default agents", async () => {
+    // Capture the callbacks passed to switchSkillsetFlow
+    let capturedCallbacks: any = null;
+    mockSwitchSkillsetFlow.mockImplementationOnce(async (args: any) => {
+      capturedCallbacks = args.callbacks;
+      return { agentName: "claude-code", skillsetName: "product-manager" };
+    });
+
+    const program = new Command();
+    program.exitOverride();
+    program.configureOutput({ writeErr: () => undefined });
+    program
+      .option("-d, --install-dir <path>", "Custom installation directory")
+      .option("-n, --non-interactive", "Run without interactive prompts")
+      .option("-a, --agent <name>", "AI agent to use");
+
+    registerSwitchSkillsetCommand({ program });
+
+    // Spy on captureExistingConfig on the actual agent instance
+    const claudeAgent = AgentRegistry.getInstance().get({
+      name: "claude-code",
+    });
+    const originalCapture = claudeAgent.captureExistingConfig;
+    const captureExistingConfigSpy = vi.fn().mockResolvedValue(undefined);
+    claudeAgent.captureExistingConfig = captureExistingConfigSpy;
+
+    try {
+      await program.parseAsync([
+        "node",
+        "nori-skillsets",
+        "switch-skillset",
+        "product-manager",
+        "--install-dir",
+        testInstallDir,
+      ]);
+    } catch {
+      // May throw due to exit
+    }
+
+    // Now invoke onCaptureConfig to verify it calls captureExistingConfig for all agents
+    expect(capturedCallbacks).not.toBeNull();
+    await capturedCallbacks.onCaptureConfig({
+      installDir: testInstallDir,
+      skillsetName: "my-captured-config",
+    });
+
+    // captureExistingConfig should have been called for each default agent
+    expect(captureExistingConfigSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        installDir: testInstallDir,
+        skillsetName: "my-captured-config",
+      }),
+    );
+
+    // Restore original
+    claudeAgent.captureExistingConfig = originalCapture;
+  });
+});
+
 describe("switch-skillset interactive flow routing", () => {
   let testInstallDir: string;
 
@@ -711,6 +818,73 @@ describe("switch-skillset interactive flow routing", () => {
     }
     AgentRegistry.resetInstance();
     vi.restoreAllMocks();
+  });
+
+  it("should pass onExecuteSwitch callback that calls switchSkillset and installMain for the given agent", async () => {
+    // Set up config with multiple agents
+    const configPath = path.join(testInstallDir, ".nori-config.json");
+    await fs.writeFile(
+      configPath,
+      JSON.stringify({
+        activeSkillset: "senior-swe",
+        defaultAgents: ["claude-code"],
+        installDir: testInstallDir,
+      }),
+    );
+
+    // Capture the callbacks passed to switchSkillsetFlow
+    let capturedCallbacks: any = null;
+    mockSwitchSkillsetFlow.mockImplementationOnce(async (args: any) => {
+      capturedCallbacks = args.callbacks;
+      // Simulate flow executing the switch for one agent
+      await args.callbacks.onExecuteSwitch({
+        installDir: args.installDir,
+        agentName: "claude-code",
+        skillsetName: args.skillsetName,
+      });
+      return { agentName: "claude-code", skillsetName: args.skillsetName };
+    });
+
+    const program = new Command();
+    program.exitOverride();
+    program.configureOutput({ writeErr: () => undefined });
+    program
+      .option("-d, --install-dir <path>", "Custom installation directory")
+      .option("-n, --non-interactive", "Run without interactive prompts")
+      .option("-a, --agent <name>", "AI agent to use");
+
+    registerSwitchSkillsetCommand({ program });
+
+    const claudeAgent = AgentRegistry.getInstance().get({
+      name: "claude-code",
+    });
+    vi.spyOn(claudeAgent, "switchSkillset").mockResolvedValue(undefined);
+
+    try {
+      await program.parseAsync([
+        "node",
+        "nori-skillsets",
+        "switch-skillset",
+        "product-manager",
+        "--install-dir",
+        testInstallDir,
+      ]);
+    } catch {
+      // May throw due to exit
+    }
+
+    // Verify the callback was invoked with the agent
+    expect(capturedCallbacks).not.toBeNull();
+    expect(claudeAgent.switchSkillset).toHaveBeenCalledWith({
+      installDir: testInstallDir,
+      skillsetName: "product-manager",
+    });
+    expect(mockInstallMain).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agent: "claude-code",
+        silent: true,
+      }),
+    );
   });
 
   it("should use switchSkillsetFlow in interactive mode", async () => {

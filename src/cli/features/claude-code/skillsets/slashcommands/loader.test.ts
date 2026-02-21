@@ -9,6 +9,8 @@ import * as path from "path";
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
+import { parseSkillset } from "@/cli/features/skillset.js";
+
 import type { Config } from "@/cli/config.js";
 
 // Mock the env module to use temp directories
@@ -24,9 +26,11 @@ vi.mock("@/cli/features/claude-code/paths.js", () => ({
   getClaudeMdFile: () => path.join(mockClaudeDir, "CLAUDE.md"),
   getClaudeSkillsDir: () => path.join(mockClaudeDir, "skills"),
   getClaudeSkillsetsDir: () => path.join(mockClaudeDir, "profiles"),
+}));
+
+vi.mock("@/cli/features/paths.js", () => ({
   getNoriDir: () => mockNoriDir,
   getNoriSkillsetsDir: () => path.join(mockNoriDir, "profiles"),
-  getNoriConfigFile: () => path.join(mockNoriDir, "config.json"),
 }));
 
 // Import loaders after mocking env
@@ -107,6 +111,19 @@ describe("slashCommandsLoader", () => {
     vi.clearAllMocks();
   });
 
+  /**
+   * Helper to install with parsed skillset
+   * @param args - Function arguments
+   * @param args.config - Nori config with activeSkillset set
+   */
+  const installWithSkillset = async (args: { config: Config }) => {
+    const { config } = args;
+    const skillset = await parseSkillset({
+      skillsetName: config.activeSkillset!,
+    });
+    await slashCommandsLoader.install({ config, skillset });
+  };
+
   describe("run", () => {
     it("should create commands directory and copy slash command files", async () => {
       const config: Config = {
@@ -114,7 +131,7 @@ describe("slashCommandsLoader", () => {
         activeSkillset: "senior-swe",
       };
 
-      await slashCommandsLoader.install({ config });
+      await installWithSkillset({ config });
 
       // Verify commands directory exists
       const exists = await fs
@@ -136,13 +153,13 @@ describe("slashCommandsLoader", () => {
       };
 
       // First installation
-      await slashCommandsLoader.install({ config });
+      await installWithSkillset({ config });
 
       const firstFiles = await fs.readdir(commandsDir);
       expect(firstFiles.length).toBeGreaterThan(0);
 
       // Second installation (update)
-      await slashCommandsLoader.install({ config });
+      await installWithSkillset({ config });
 
       const secondFiles = await fs.readdir(commandsDir);
       expect(secondFiles.length).toBeGreaterThan(0);
@@ -163,7 +180,7 @@ describe("slashCommandsLoader", () => {
       };
 
       // First, install slashcommands from a profile that has them
-      await slashCommandsLoader.install({ config });
+      await installWithSkillset({ config });
 
       // Verify commands were installed
       let files = await fs.readdir(commandsDir);
@@ -179,7 +196,7 @@ describe("slashCommandsLoader", () => {
       await fs.rm(profileSlashCommandsDir, { recursive: true, force: true });
 
       // Install again (simulating profile switch)
-      await slashCommandsLoader.install({ config });
+      await installWithSkillset({ config });
 
       // The commands directory should now be empty since the profile has no slashcommands
       files = await fs.readdir(commandsDir);
@@ -201,9 +218,7 @@ describe("slashCommandsLoader", () => {
       await fs.rm(profileSlashCommandsDir, { recursive: true, force: true });
 
       // Install should not throw
-      await expect(
-        slashCommandsLoader.install({ config }),
-      ).resolves.not.toThrow();
+      await expect(installWithSkillset({ config })).resolves.not.toThrow();
 
       // Commands directory should still be created
       const exists = await fs

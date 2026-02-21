@@ -9,48 +9,45 @@ import * as path from "path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
 import {
-  getClaudeProjectsDir,
-  getClaudeProjectDir,
   getTranscriptDir,
   getWatchPidFile,
   getWatchLogFile,
 } from "@/cli/commands/watch/paths.js";
+import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 
-describe("getClaudeProjectsDir", () => {
-  test("returns ~/.claude/projects", () => {
-    const result = getClaudeProjectsDir();
-    const expected = path.join(os.homedir(), ".claude", "projects");
-    expect(result).toBe(expected);
-  });
-});
+describe("claude-code agent getProjectDirName", () => {
+  const agent = AgentRegistry.getInstance().get({ name: "claude-code" });
 
-describe("getClaudeProjectDir", () => {
-  test("converts simple path to Claude project directory format", () => {
-    const result = getClaudeProjectDir({ cwd: "/Users/sean/Projects/app" });
+  test("converts simple path to project directory format", () => {
+    const result = agent.getProjectDirName!({
+      cwd: "/Users/sean/Projects/app",
+    });
     expect(result).toBe("-Users-sean-Projects-app");
   });
 
   test("converts path with spaces to dashes", () => {
-    const result = getClaudeProjectDir({ cwd: "/Users/sean/My Projects/app" });
+    const result = agent.getProjectDirName!({
+      cwd: "/Users/sean/My Projects/app",
+    });
     expect(result).toBe("-Users-sean-My-Projects-app");
   });
 
   test("converts path with special characters to dashes", () => {
-    const result = getClaudeProjectDir({
+    const result = agent.getProjectDirName!({
       cwd: "/Users/sean/Projects(1)/app",
     });
     expect(result).toBe("-Users-sean-Projects-1--app");
   });
 
   test("preserves existing dashes", () => {
-    const result = getClaudeProjectDir({
+    const result = agent.getProjectDirName!({
       cwd: "/Users/sean/my-project/app",
     });
     expect(result).toBe("-Users-sean-my-project-app");
   });
 
   test("adds leading dash if path starts with alphanumeric", () => {
-    const result = getClaudeProjectDir({ cwd: "Users/sean/app" });
+    const result = agent.getProjectDirName!({ cwd: "Users/sean/app" });
     expect(result).toBe("-Users-sean-app");
   });
 });
@@ -103,7 +100,8 @@ describe("getWatchLogFile", () => {
   });
 });
 
-describe("getClaudeProjectDir with symlinks", () => {
+describe("claude-code agent getProjectDirName with symlinks", () => {
+  const agent = AgentRegistry.getInstance().get({ name: "claude-code" });
   let tempDir: string;
   let realDir: string;
   let symlinkDir: string;
@@ -125,8 +123,8 @@ describe("getClaudeProjectDir with symlinks", () => {
 
   test("resolves symlinks before converting path", async () => {
     // When given a symlink path, should resolve to real path first
-    const symlinkResult = getClaudeProjectDir({ cwd: symlinkDir });
-    const realResult = getClaudeProjectDir({ cwd: realDir });
+    const symlinkResult = agent.getProjectDirName!({ cwd: symlinkDir });
+    const realResult = agent.getProjectDirName!({ cwd: realDir });
 
     // Both should produce the same result (based on real path)
     expect(symlinkResult).toBe(realResult);

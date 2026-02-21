@@ -13,7 +13,7 @@ import {
   writeSkillsetMetadata,
   addSkillToNoriJson,
   ensureNoriJson,
-} from "./metadata.js";
+} from "@/cli/features/skillsetMetadata.js";
 
 describe("writeSkillsetMetadata", () => {
   let skillsetDir: string;
@@ -313,6 +313,25 @@ describe("ensureNoriJson", () => {
     await ensureNoriJson({ skillsetDir: nonExistentDir });
 
     const noriJsonPath = path.join(nonExistentDir, "nori.json");
+    await expect(fs.access(noriJsonPath)).rejects.toThrow();
+  });
+
+  it("should create nori.json when directory has custom config file name", async () => {
+    await fs.writeFile(path.join(skillsetDir, "RULES.md"), "# Rules");
+
+    await ensureNoriJson({ skillsetDir, configFileNames: ["RULES.md"] });
+
+    const metadata = await readSkillsetMetadata({ skillsetDir });
+    expect(metadata.name).toBe(path.basename(skillsetDir));
+    expect(metadata.version).toBe("0.0.1");
+  });
+
+  it("should not detect CLAUDE.md when custom config file names exclude it", async () => {
+    await fs.writeFile(path.join(skillsetDir, "CLAUDE.md"), "# My Profile");
+
+    await ensureNoriJson({ skillsetDir, configFileNames: ["RULES.md"] });
+
+    const noriJsonPath = path.join(skillsetDir, "nori.json");
     await expect(fs.access(noriJsonPath)).rejects.toThrow();
   });
 });

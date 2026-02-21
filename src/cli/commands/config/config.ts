@@ -16,12 +16,6 @@ import {
   saveConfig,
 } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
-import { getClaudeDir } from "@/cli/features/claude-code/paths.js";
-import {
-  getManifestPath,
-  getLegacyManifestPath,
-  removeManagedFiles,
-} from "@/cli/features/claude-code/skillsets/manifest.js";
 import { confirmAction } from "@/cli/prompts/confirm.js";
 import { configFlow } from "@/cli/prompts/flows/config.js";
 import { normalizeInstallDir } from "@/utils/path.js";
@@ -77,6 +71,7 @@ export const configMain = async (): Promise<void> => {
 
   const normalizedInstallDir = normalizeInstallDir({
     installDir: result.installDir,
+    agentDirNames: AgentRegistry.getInstance().getAgentDirNames(),
   });
 
   // Detect what changed
@@ -127,20 +122,11 @@ export const configMain = async (): Promise<void> => {
 
     // Clean up old directory first (while manifest still reflects old dir)
     if (shouldCleanup) {
-      const claudeDir = getClaudeDir({ installDir: oldInstallDir });
       const agentNames = getDefaultAgents({ config: existingConfig });
       for (const agentName of agentNames) {
         const agent = AgentRegistry.getInstance().get({ name: agentName });
-        const manifestPath = getManifestPath({ agentName });
-        await removeManagedFiles({
-          claudeDir,
-          manifestPath,
-          managedDirs: agent.getManagedDirs(),
-        });
+        await agent.removeSkillset({ installDir: oldInstallDir });
       }
-      // Also try cleaning up legacy manifest
-      const legacyPath = getLegacyManifestPath();
-      await removeManagedFiles({ claudeDir, manifestPath: legacyPath });
       log.info(`Removed Nori configuration from "${oldInstallDir}".`);
     }
 
@@ -148,31 +134,76 @@ export const configMain = async (): Promise<void> => {
     if (shouldInstall) {
       const { main: installMain } =
         await import("@/cli/commands/install/install.js");
-      await installMain({
-        installDir: normalizedInstallDir,
-        silent: true,
+      const agentNames = getDefaultAgents({
+        config: {
+          ...existingConfig,
+          installDir: normalizedInstallDir,
+          defaultAgents: result.defaultAgents,
+        },
       });
+      for (const agentName of agentNames) {
+        await installMain({
+          installDir: normalizedInstallDir,
+          agent: agentName,
+          silent: true,
+        });
+      }
       log.success(
         `Installed "${activeSkillset}" to "${normalizedInstallDir}".`,
       );
     }
   } else if (agentsChanged && activeSkillset != null) {
     // Handle defaultAgents change prompts (only when installDir didn't change)
-    const shouldInstall = await confirmAction({
-      message: `Your active skillset is "${activeSkillset}". Install it for the new agent(s) at "${normalizedInstallDir}"?`,
-      initialValue: true,
-    });
 
-    if (shouldInstall) {
-      const { main: installMain } =
-        await import("@/cli/commands/install/install.js");
-      await installMain({
-        installDir: normalizedInstallDir,
-        silent: true,
+    // Detect removed agents
+    const removedAgents = oldAgents.filter(
+      (a) => !result.defaultAgents.includes(a),
+    );
+
+    // Detect added agents
+    const addedAgents = result.defaultAgents.filter(
+      (a) => !oldAgents.includes(a),
+    );
+
+    // Clean up removed agents
+    if (removedAgents.length > 0) {
+      const shouldCleanup = await confirmAction({
+        message: `Remove Nori-managed configuration for removed agent(s) (${removedAgents.join(", ")}) at "${normalizedInstallDir}"?`,
+        initialValue: false,
       });
-      log.success(
-        `Installed "${activeSkillset}" for new agent(s) at "${normalizedInstallDir}".`,
-      );
+
+      if (shouldCleanup) {
+        for (const agentName of removedAgents) {
+          const agent = AgentRegistry.getInstance().get({ name: agentName });
+          await agent.removeSkillset({ installDir: normalizedInstallDir });
+        }
+        log.info(
+          `Removed configuration for ${removedAgents.join(", ")} at "${normalizedInstallDir}".`,
+        );
+      }
+    }
+
+    // Install for added agents
+    if (addedAgents.length > 0) {
+      const shouldInstall = await confirmAction({
+        message: `Your active skillset is "${activeSkillset}". Install it for the new agent(s) at "${normalizedInstallDir}"?`,
+        initialValue: true,
+      });
+
+      if (shouldInstall) {
+        const { main: installMain } =
+          await import("@/cli/commands/install/install.js");
+        for (const agentName of addedAgents) {
+          await installMain({
+            installDir: normalizedInstallDir,
+            agent: agentName,
+            silent: true,
+          });
+        }
+        log.success(
+          `Installed "${activeSkillset}" for new agent(s) at "${normalizedInstallDir}".`,
+        );
+      }
     }
   }
 

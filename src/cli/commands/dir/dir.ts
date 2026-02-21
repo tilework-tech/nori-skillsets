@@ -9,7 +9,7 @@ import { spawn } from "child_process";
 
 import { log, outro } from "@clack/prompts";
 
-import { getNoriSkillsetsDir } from "@/cli/features/claude-code/paths.js";
+import { getNoriSkillsetsDir } from "@/cli/features/paths.js";
 
 const openInExplorer = (args: { dirPath: string }): void => {
   const { dirPath } = args;

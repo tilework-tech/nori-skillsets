@@ -9,6 +9,8 @@ import * as path from "path";
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
+import { parseSkillset } from "@/cli/features/skillset.js";
+
 import type { Config } from "@/cli/config.js";
 
 // Mock the env module to use temp directories
@@ -24,9 +26,11 @@ vi.mock("@/cli/features/claude-code/paths.js", () => ({
   getClaudeMdFile: () => mockClaudeMdFile,
   getClaudeSkillsDir: () => path.join(mockClaudeDir, "skills"),
   getClaudeSkillsetsDir: () => path.join(mockClaudeDir, "profiles"),
+}));
+
+vi.mock("@/cli/features/paths.js", () => ({
   getNoriDir: () => mockNoriDir,
   getNoriSkillsetsDir: () => path.join(mockNoriDir, "profiles"),
-  getNoriConfigFile: () => path.join(mockNoriDir, "config.json"),
 }));
 
 // Import loaders after mocking env
@@ -173,6 +177,19 @@ describe("claudeMdLoader", () => {
     vi.clearAllMocks();
   });
 
+  /**
+   * Helper to install with parsed skillset
+   * @param args - Function arguments
+   * @param args.config - Nori config with activeSkillset set
+   */
+  const installWithSkillset = async (args: { config: Config }) => {
+    const { config } = args;
+    const skillset = await parseSkillset({
+      skillsetName: config.activeSkillset!,
+    });
+    await claudeMdLoader.install({ config, skillset });
+  };
+
   describe("run", () => {
     it("should create CLAUDE.md with managed block", async () => {
       const config: Config = {
@@ -180,7 +197,7 @@ describe("claudeMdLoader", () => {
         activeSkillset: "senior-swe",
       };
 
-      await claudeMdLoader.install({ config });
+      await installWithSkillset({ config });
 
       // Verify file exists
       const content = await fs.readFile(claudeMdPath, "utf-8");
@@ -209,7 +226,7 @@ describe("claudeMdLoader", () => {
         "# My Custom Instructions\n\nUser-specific content here.\n";
       await fs.writeFile(claudeMdPath, userContent);
 
-      await claudeMdLoader.install({ config });
+      await installWithSkillset({ config });
 
       // Verify file exists
       const content = await fs.readFile(claudeMdPath, "utf-8");
@@ -244,7 +261,7 @@ More user instructions.
 `;
       await fs.writeFile(claudeMdPath, existingContent);
 
-      await claudeMdLoader.install({ config });
+      await installWithSkillset({ config });
 
       // Verify file exists
       const content = await fs.readFile(claudeMdPath, "utf-8");
@@ -272,7 +289,7 @@ More user instructions.
         activeSkillset: "senior-swe",
         installDir: tempDir,
       };
-      await claudeMdLoader.install({ config: seniorSweConfig });
+      await installWithSkillset({ config: seniorSweConfig });
 
       const seniorSweContent = await fs.readFile(claudeMdPath, "utf-8");
       expect(seniorSweContent).toContain(
@@ -284,7 +301,7 @@ More user instructions.
         activeSkillset: "amol",
         installDir: tempDir,
       };
-      await claudeMdLoader.install({ config: amolConfig });
+      await installWithSkillset({ config: amolConfig });
 
       const amolContent = await fs.readFile(claudeMdPath, "utf-8");
 
@@ -330,7 +347,7 @@ hello world
         activeSkillset: "my-profile",
       };
 
-      await claudeMdLoader.install({ config });
+      await installWithSkillset({ config });
 
       const resultContent = await fs.readFile(claudeMdPath, "utf-8");
 
@@ -357,7 +374,7 @@ hello world
         installDir: tempDir,
       };
 
-      await claudeMdLoader.install({ config });
+      await installWithSkillset({ config });
 
       const content = await fs.readFile(claudeMdPath, "utf-8");
 
@@ -382,7 +399,7 @@ hello world
         installDir: tempDir,
       };
 
-      await claudeMdLoader.install({ config });
+      await installWithSkillset({ config });
 
       const content = await fs.readFile(claudeMdPath, "utf-8");
 
@@ -399,7 +416,7 @@ hello world
         activeSkillset: "senior-swe",
       };
 
-      await claudeMdLoader.install({ config });
+      await installWithSkillset({ config });
 
       const content = await fs.readFile(claudeMdPath, "utf-8");
 
@@ -441,7 +458,7 @@ Additional user instructions.
       };
 
       // Should NOT throw
-      await claudeMdLoader.install({ config });
+      await installWithSkillset({ config });
 
       const content = await fs.readFile(claudeMdPath, "utf-8");
 
@@ -479,7 +496,7 @@ Additional user instructions.
       };
 
       // Should NOT throw
-      await claudeMdLoader.install({ config });
+      await installWithSkillset({ config });
 
       // CLAUDE.md should not have been created
       await expect(fs.access(claudeMdPath)).rejects.toThrow();
@@ -506,7 +523,7 @@ Some custom instructions here.
         activeSkillset: "minimal-profile",
       };
 
-      await claudeMdLoader.install({ config });
+      await installWithSkillset({ config });
 
       // File should be completely unchanged
       const content = await fs.readFile(claudeMdPath, "utf-8");
@@ -521,7 +538,7 @@ Some custom instructions here.
         installDir: tempDir,
       };
 
-      await claudeMdLoader.install({ config });
+      await installWithSkillset({ config });
 
       const content = await fs.readFile(claudeMdPath, "utf-8");
 
@@ -543,7 +560,7 @@ Some custom instructions here.
         installDir: tempDir,
       };
 
-      await claudeMdLoader.install({ config });
+      await installWithSkillset({ config });
 
       const content = await fs.readFile(claudeMdPath, "utf-8");
 
@@ -560,7 +577,7 @@ Some custom instructions here.
         installDir: tempDir,
       };
 
-      await claudeMdLoader.install({ config });
+      await installWithSkillset({ config });
 
       const content = await fs.readFile(claudeMdPath, "utf-8");
 
@@ -578,7 +595,7 @@ Some custom instructions here.
         installDir: tempDir,
       };
 
-      await claudeMdLoader.install({ config });
+      await installWithSkillset({ config });
 
       const content = await fs.readFile(claudeMdPath, "utf-8");
 

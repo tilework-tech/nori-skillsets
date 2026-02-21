@@ -8,7 +8,7 @@ The skill-download command downloads and installs individual skill packages from
 
 ### How it fits into the larger codebase
 
-Registered as `download-skill` via `@/src/cli/commands/noriSkillsetsCommands.ts`. It uses the same `@/api/registrar.js` API (via `getSkillPackument` and `downloadSkillTarball`) but against skill-specific endpoints. Skills are installed to the live Claude skills directory (`@/cli/features/claude-code/paths.js`) and persisted to the active skillset's `skills/` subdirectory. Manifest updates go through both `addSkillDependency` (in the skillset's `skills/` resolver) and `addSkillToNoriJson` (in skillset metadata).
+Registered as `download-skill` via `@/src/cli/commands/noriSkillsetsCommands.ts`. It uses the same `@/api/registrar.js` API (via `getSkillPackument` and `downloadSkillTarball`) but against skill-specific endpoints. Skills are installed to the live Claude skills directory (`@/cli/features/claude-code/paths.js` for Claude-specific paths) and persisted to the active skillset's `skills/` subdirectory. Manifest updates go through both `addSkillDependency` (in the skillset's `skills/` resolver) and `addSkillToNoriJson` (from `@/cli/features/skillsetMetadata.js`).
 
 ### Core Implementation
 

@@ -9,6 +9,8 @@ import * as path from "path";
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
+import { parseSkillset } from "@/cli/features/skillset.js";
+
 import type { Config } from "@/cli/config.js";
 
 // Mock the env module to use temp directories
@@ -24,9 +26,11 @@ vi.mock("@/cli/features/claude-code/paths.js", () => ({
   getClaudeMdFile: () => path.join(mockClaudeDir, "CLAUDE.md"),
   getClaudeSkillsDir: () => mockClaudeSkillsDir,
   getClaudeSkillsetsDir: () => path.join(mockClaudeDir, "profiles"),
+}));
+
+vi.mock("@/cli/features/paths.js", () => ({
   getNoriDir: () => mockNoriDir,
   getNoriSkillsetsDir: () => path.join(mockNoriDir, "profiles"),
-  getNoriConfigFile: () => path.join(mockNoriDir, "config.json"),
 }));
 
 // Import loaders after mocking env
@@ -127,6 +131,19 @@ describe("skillsLoader", () => {
     vi.clearAllMocks();
   });
 
+  /**
+   * Helper to install with parsed skillset
+   * @param args - Function arguments
+   * @param args.config - Nori config with activeSkillset set
+   */
+  const installWithSkillset = async (args: { config: Config }) => {
+    const { config } = args;
+    const skillset = await parseSkillset({
+      skillsetName: config.activeSkillset!,
+    });
+    await skillsLoader.install({ config, skillset });
+  };
+
   describe("run", () => {
     it("should create skills directory", async () => {
       const config: Config = {
@@ -134,7 +151,7 @@ describe("skillsLoader", () => {
         activeSkillset: "senior-swe",
       };
 
-      await skillsLoader.install({ config });
+      await installWithSkillset({ config });
 
       // Verify skills directory exists
       const exists = await fs
@@ -155,7 +172,7 @@ describe("skillsLoader", () => {
       await fs.mkdir(skillsDir, { recursive: true });
       await fs.writeFile(path.join(skillsDir, "old-skill.json"), "old content");
 
-      await skillsLoader.install({ config });
+      await installWithSkillset({ config });
 
       // Verify old file is gone
       const oldFileExists = await fs
@@ -173,7 +190,7 @@ describe("skillsLoader", () => {
       };
 
       // First installation
-      await skillsLoader.install({ config });
+      await installWithSkillset({ config });
 
       const firstCheck = await fs
         .access(skillsDir)
@@ -182,7 +199,7 @@ describe("skillsLoader", () => {
       expect(firstCheck).toBe(true);
 
       // Second installation (update)
-      await skillsLoader.install({ config });
+      await installWithSkillset({ config });
 
       const secondCheck = await fs
         .access(skillsDir)
@@ -202,7 +219,7 @@ describe("skillsLoader", () => {
         activeSkillset: "senior-swe",
       };
 
-      await skillsLoader.install({ config });
+      await installWithSkillset({ config });
 
       // Check if the updating-noridocs skill exists
       const skillPath = path.join(skillsDir, "updating-noridocs", "SKILL.md");
@@ -230,7 +247,7 @@ describe("skillsLoader", () => {
         activeSkillset: "senior-swe",
       };
 
-      await skillsLoader.install({ config });
+      await installWithSkillset({ config });
 
       // Check a skill that references {{skills_dir}}
       const skillPath = path.join(skillsDir, "using-skills", "SKILL.md");
@@ -271,7 +288,7 @@ describe("skillsLoader", () => {
         ].join("\n"),
       );
 
-      await skillsLoader.install({ config });
+      await installWithSkillset({ config });
 
       const content = await fs.readFile(
         path.join(skillsDir, "template-test", "SKILL.md"),
@@ -327,7 +344,7 @@ describe("skillsLoader", () => {
         skillsetName: "senior-swe",
         skills: TEST_SKILLS,
       });
-      await skillsLoader.install({ config });
+      await installWithSkillset({ config });
 
       // Check a skill that references {{skills_dir}}
       const skillPath = path.join(
@@ -357,7 +374,7 @@ describe("skillsLoader", () => {
         activeSkillset: "senior-swe",
       };
 
-      await skillsLoader.install({ config });
+      await installWithSkillset({ config });
 
       const skillPath = path.join(skillsDir, "creating-skills", "SKILL.md");
 
@@ -383,7 +400,7 @@ describe("skillsLoader", () => {
       };
       const settingsPath = path.join(claudeDir, "settings.json");
 
-      await skillsLoader.install({ config });
+      await installWithSkillset({ config });
 
       // Verify settings.json exists
       const exists = await fs
@@ -422,7 +439,7 @@ describe("skillsLoader", () => {
         ),
       );
 
-      await skillsLoader.install({ config });
+      await installWithSkillset({ config });
 
       // Verify existing settings are preserved
       const content = await fs.readFile(settingsPath, "utf-8");
@@ -441,10 +458,10 @@ describe("skillsLoader", () => {
       const settingsPath = path.join(claudeDir, "settings.json");
 
       // First installation
-      await skillsLoader.install({ config });
+      await installWithSkillset({ config });
 
       // Second installation (update scenario)
-      await skillsLoader.install({ config });
+      await installWithSkillset({ config });
 
       // Verify skills directory appears only once
       const content = await fs.readFile(settingsPath, "utf-8");
@@ -479,7 +496,7 @@ describe("skillsLoader", () => {
         ),
       );
 
-      await skillsLoader.install({ config });
+      await installWithSkillset({ config });
 
       // Verify existing paths are preserved
       const content = await fs.readFile(settingsPath, "utf-8");
@@ -511,7 +528,7 @@ describe("skillsLoader", () => {
       await fs.rm(profileSkillsDir, { recursive: true, force: true });
 
       // Install should not throw
-      await expect(skillsLoader.install({ config })).resolves.not.toThrow();
+      await expect(installWithSkillset({ config })).resolves.not.toThrow();
 
       // Skills directory should still be created (empty)
       const exists = await fs
@@ -555,7 +572,7 @@ describe("skillsLoader", () => {
         "---\nname: External Skill\ndescription: An external skill\n---\n# External Skill\n",
       );
 
-      await skillsLoader.install({ config });
+      await installWithSkillset({ config });
 
       // Should have inline skills
       const inlineSkillExists = await fs
@@ -595,7 +612,7 @@ describe("skillsLoader", () => {
         "---\nname: Using Skills\ndescription: External version 2.0.0\n---\n# EXTERNAL VERSION\n",
       );
 
-      await skillsLoader.install({ config });
+      await installWithSkillset({ config });
 
       // Should have the external version (contains "EXTERNAL VERSION")
       const content = await fs.readFile(
@@ -633,7 +650,7 @@ describe("skillsLoader", () => {
         "---\nname: Global Only Skill\ndescription: Should not be found\n---\n# Global Only\n",
       );
 
-      await skillsLoader.install({ config });
+      await installWithSkillset({ config });
 
       // The global-only skill should NOT be installed because we don't read from global path
       const globalSkillExists = await fs
@@ -653,7 +670,7 @@ describe("skillsLoader", () => {
       const skillsetDir = path.join(mockNoriDir, "profiles", "senior-swe");
       await fs.rm(path.join(skillsetDir, "skills.json"), { force: true });
 
-      await skillsLoader.install({ config });
+      await installWithSkillset({ config });
 
       // Should still have inline skills
       const inlineSkillExists = await fs
@@ -690,7 +707,7 @@ describe("skillsLoader", () => {
         "---\nname: Templated Skill\ndescription: Test\n---\nSkills are at {{skills_dir}}\n",
       );
 
-      await skillsLoader.install({ config });
+      await installWithSkillset({ config });
 
       // Template should be substituted
       const content = await fs.readFile(
