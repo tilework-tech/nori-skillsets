@@ -143,21 +143,53 @@ export const configMain = async (): Promise<void> => {
     }
   } else if (agentsChanged && activeSkillset != null) {
     // Handle defaultAgents change prompts (only when installDir didn't change)
-    const shouldInstall = await confirmAction({
-      message: `Your active skillset is "${activeSkillset}". Install it for the new agent(s) at "${normalizedInstallDir}"?`,
-      initialValue: true,
-    });
 
-    if (shouldInstall) {
-      const { main: installMain } =
-        await import("@/cli/commands/install/install.js");
-      await installMain({
-        installDir: normalizedInstallDir,
-        silent: true,
+    // Detect removed agents
+    const removedAgents = oldAgents.filter(
+      (a) => !result.defaultAgents.includes(a),
+    );
+
+    // Detect added agents
+    const addedAgents = result.defaultAgents.filter(
+      (a) => !oldAgents.includes(a),
+    );
+
+    // Clean up removed agents
+    if (removedAgents.length > 0) {
+      const shouldCleanup = await confirmAction({
+        message: `Remove Nori-managed configuration for removed agent(s) (${removedAgents.join(", ")}) at "${normalizedInstallDir}"?`,
+        initialValue: false,
       });
-      log.success(
-        `Installed "${activeSkillset}" for new agent(s) at "${normalizedInstallDir}".`,
-      );
+
+      if (shouldCleanup) {
+        for (const agentName of removedAgents) {
+          const agent = AgentRegistry.getInstance().get({ name: agentName });
+          await agent.removeSkillset({ installDir: normalizedInstallDir });
+        }
+        log.info(
+          `Removed configuration for ${removedAgents.join(", ")} at "${normalizedInstallDir}".`,
+        );
+      }
+    }
+
+    // Install for added agents
+    if (addedAgents.length > 0) {
+      const shouldInstall = await confirmAction({
+        message: `Your active skillset is "${activeSkillset}". Install it for the new agent(s) at "${normalizedInstallDir}"?`,
+        initialValue: true,
+      });
+
+      if (shouldInstall) {
+        const { main: installMain } =
+          await import("@/cli/commands/install/install.js");
+        await installMain({
+          installDir: normalizedInstallDir,
+          silent: true,
+        });
+        log.success(
+          `Installed "${activeSkillset}" for new agent(s) at "${normalizedInstallDir}".`,
+        );
+      }
     }
   }
 

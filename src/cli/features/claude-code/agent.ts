@@ -73,6 +73,29 @@ export const claudeCodeAgent: Agent = {
     return [path.join(".claude", "skills")];
   },
 
+  getProjectDirName: (args: { cwd: string }): string => {
+    const { cwd } = args;
+
+    // Resolve symlinks to match Claude Code's behavior
+    let resolvedPath: string;
+    try {
+      resolvedPath = fsSync.realpathSync(cwd);
+    } catch {
+      // If path doesn't exist, use it as-is
+      resolvedPath = cwd;
+    }
+
+    // Replace anything that's not alphanumeric or dash with a dash
+    let projectDirName = resolvedPath.replace(/[^a-zA-Z0-9-]/g, "-");
+
+    // Ensure leading dash if not already there
+    if (!projectDirName.startsWith("-")) {
+      projectDirName = "-" + projectDirName;
+    }
+
+    return projectDirName;
+  },
+
   getProjectsDir: (): string => {
     return path.join(getHomeDir(), ".claude", "projects");
   },
@@ -136,7 +159,10 @@ export const claudeCodeAgent: Agent = {
     }
 
     // Install the managed CLAUDE.md block so the user isn't left without config
-    const skillset = await parseSkillset({ skillsetName });
+    const skillset = await parseSkillset({
+      skillsetName,
+      configFileName: claudeCodeAgent.getConfigFileName(),
+    });
     await claudeMdLoader.install({ config, skillset });
   },
 

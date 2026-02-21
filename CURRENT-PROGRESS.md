@@ -124,6 +124,23 @@ Changes:
 - Added 1 test in `test-utils/index.test.ts` for custom agentDirName
 - Updated 3 docs.md files
 
+### Commit 8: Handle removed agent cleanup, move `getProjectDirName` to Agent interface, pass `configFileName` explicitly
+
+**Refactor A + C progress:** Completed three agent-decoupling improvements: config command now handles removed agent cleanup, Claude-specific project directory naming moved to Agent interface, and `parseSkillset()` calls now explicitly pass `configFileName`.
+
+Changes:
+- Added optional `getProjectDirName({ cwd })` to `Agent` type in `agentRegistry.ts` — converts working directory path to agent's project directory name format
+- Implemented `getProjectDirName` on claude-code agent in `agent.ts` — moved logic from `getClaudeProjectDir` in `watch/paths.ts`
+- Removed `getClaudeProjectDir` from `watch/paths.ts` (was dead code — only used in tests, never called from production code)
+- Updated `watch/paths.test.ts` — tests now use `agent.getProjectDirName!()` via the agent interface instead of the removed function
+- Config command (`config.ts`) `agentsChanged` branch now detects removed agents and added agents separately:
+  - When agents are removed: prompts user to clean up managed files via `agent.removeSkillset()`
+  - When agents are added: prompts user to install skillset for new agents (existing behavior)
+- Added 2 new tests in `config.test.ts` for removed agent cleanup (accept and decline scenarios)
+- Added 2 new tests in `agentRegistry.test.ts` for `getProjectDirName`
+- `parseSkillset()` calls in `claude-code/agent.ts` and `claude-code/skillsets/loader.ts` now explicitly pass `configFileName` instead of relying on the `"CLAUDE.md"` default
+- Updated 3 docs.md files
+
 ## Remaining Work
 
 ### Refactor A (continued): Further agent decoupling
@@ -132,9 +149,10 @@ Changes:
 
 ### Refactor B (continued): Further Skillset type usage
 - The `Skillset` type could be extended to include more parsed metadata as needed
-- `parseSkillset()` now accepts `configFileName` for agent-agnostic config resolution — callers that know the agent should pass `agent.getConfigFileName()`
+- All `parseSkillset()` callers now pass `configFileName` explicitly (completed in Commit 8)
 
 ### Refactor C (continued): Multi-agent support improvements
-- `detectLocalChanges`, `removeSkillset`, and `installSkillset` are now on the Agent interface (done in Commits 5-6)
-- Need handling of config changes triggering skillset rebroadcast
-- Need handling of install directory changes (switch + cleanup) — config command now uses `agent.removeSkillset()` for cleanup
+- `detectLocalChanges`, `removeSkillset`, and `installSkillset` are on the Agent interface (Commits 5-6)
+- Config command now handles removed agent cleanup when `defaultAgents` shrinks (Commit 8)
+- Config command already handles `installDir` changes with cleanup and reinstall (existing)
+- Potential remaining: when both `installDir` AND `defaultAgents` change simultaneously, only the `installDir` branch fires (the `else if` prevents the agents branch). This may need refinement if both changes should be handled.

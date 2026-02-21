@@ -100,6 +100,8 @@ export type Agent = {
   installSkillset: (args: { config: Config }) => Promise<void>;
   /** Get relative directory paths where skills may be discovered in a repo */
   getSkillDiscoveryDirs: () => ReadonlyArray<string>;
+  /** Convert a working directory path to the agent's project directory name format */
+  getProjectDirName?: ((args: { cwd: string }) => string) | null;
   /** Get the agent's projects/sessions directory (home-relative) */
   getProjectsDir?: (() => string) | null;
   /** Find agent configuration artifacts starting from a directory */

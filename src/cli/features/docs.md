@@ -36,6 +36,7 @@ CLI Commands (install, switch-skillset, onboard, list, init)
     |           +-- markInstall({ path, skillsetName }) --> Write agent installation marker
     |           +-- detectExistingConfig({ installDir }) --> Detect unmanaged config (optional)
     |           +-- captureExistingConfig({ installDir, skillsetName, config }) --> Capture and clean up (optional)
+    |           +-- getProjectDirName({ cwd }) --> convert cwd to project dir name (optional)
     |           +-- getProjectsDir() --> agent's projects directory (optional)
     |           +-- findArtifacts({ startDir }) --> discover agent config artifacts (optional)
     |
@@ -90,6 +91,7 @@ The init command (@/src/cli/commands/init/) uses `getDefaultAgent()` from @/src/
 - `markInstall({ path, skillsetName })`: Writes an installation marker at the given directory. The optional `skillsetName` parameter records the active skillset in the marker. Called by init and install commands after feature loaders complete.
 - `detectExistingConfig({ installDir })`: Optional. Detects unmanaged existing configuration at the given install directory. Returns an `ExistingConfig` object describing what was found (CLAUDE.md presence, managed block detection, skill/agent/command counts) or null if no configuration exists. Used by init command to determine if existing config should be captured before Nori installation.
 - `captureExistingConfig({ installDir, skillsetName, config })`: Optional. Captures existing unmanaged configuration as a named skillset, cleans up original files to prevent duplication, and restores a working managed configuration. Takes the `config` parameter to know which skillset to activate. Used by init command when existing config is detected and user opts to preserve it.
+- `getProjectDirName({ cwd })`: Optional. Converts a working directory path into the agent's project directory name format. Each agent defines its own naming convention. Claude Code resolves symlinks and replaces non-alphanumeric characters (except dashes) with dashes, ensuring a leading dash (e.g., `/Users/sean/Projects/app` becomes `-Users-sean-Projects-app`). Used by the watch command to map working directories to transcript storage subdirectories.
 - `getProjectsDir()`: Optional. Returns the absolute path to the agent's projects/sessions directory (e.g., claude-code returns `~/.claude/projects`). Used by the watch command to locate transcript source files.
 - `findArtifacts({ startDir, stopDir? })`: Optional. Discovers agent configuration artifacts (directories and files) starting from `startDir` and walking up the ancestor tree. Returns an array of `AgentArtifact` objects. Used by factory reset to show what will be deleted before confirmation.
 
@@ -141,6 +143,6 @@ The init command (@/src/cli/commands/init/) uses `getDefaultAgent()` from @/src/
 
 ### Things to Know
 
-The `AgentRegistry` hardcodes `claude-code` as the only agent in its constructor. The `Agent` interface includes required lifecycle methods (`installSkillset`, `detectLocalChanges`, `removeSkillset`, `switchSkillset`) that all agents must implement for skillset management, and optional methods (`factoryReset`, `detectExistingConfig`, `captureExistingConfig`, `getProjectsDir`, `findArtifacts`) that not all agents need to implement. `listSkillsets` calls `ensureNoriJson` as a backwards-compatibility shim, auto-generating `nori.json` for legacy skillsets that lack one.
+The `AgentRegistry` hardcodes `claude-code` as the only agent in its constructor. The `Agent` interface includes required lifecycle methods (`installSkillset`, `detectLocalChanges`, `removeSkillset`, `switchSkillset`) that all agents must implement for skillset management, and optional methods (`factoryReset`, `detectExistingConfig`, `captureExistingConfig`, `getProjectDirName`, `getProjectsDir`, `findArtifacts`) that not all agents need to implement. `listSkillsets` calls `ensureNoriJson` as a backwards-compatibility shim, auto-generating `nori.json` for legacy skillsets that lack one.
 
 Created and maintained by Nori.

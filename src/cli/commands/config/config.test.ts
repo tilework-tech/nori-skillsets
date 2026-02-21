@@ -443,4 +443,66 @@ describe("configMain defaultAgents change prompts", () => {
 
     expect(installMain).not.toHaveBeenCalled();
   });
+
+  it("should prompt to clean up removed agents when defaultAgents shrinks", async () => {
+    const { configFlow } = await import("@/cli/prompts/flows/config.js");
+    const { confirmAction } = await import("@/cli/prompts/confirm.js");
+    const { AgentRegistry } = await import("@/cli/features/agentRegistry.js");
+
+    vi.mocked(configFlow).mockResolvedValueOnce({
+      defaultAgents: [],
+      installDir: tempDir,
+    });
+    // First confirm: clean up removed agents? Yes.
+    vi.mocked(confirmAction).mockResolvedValueOnce(true);
+
+    await saveConfig({
+      username: null,
+      organizationUrl: null,
+      installDir: tempDir,
+      activeSkillset: "senior-swe",
+      defaultAgents: ["claude-code"],
+    });
+
+    const { configMain } = await import("./config.js");
+    await configMain();
+
+    const mockAgent = AgentRegistry.getInstance().get({ name: "claude-code" });
+    expect(mockAgent.removeSkillset).toHaveBeenCalledWith({
+      installDir: tempDir,
+    });
+  });
+
+  it("should not clean up removed agents when user declines", async () => {
+    const { configFlow } = await import("@/cli/prompts/flows/config.js");
+    const { confirmAction } = await import("@/cli/prompts/confirm.js");
+    const { AgentRegistry } = await import("@/cli/features/agentRegistry.js");
+
+    vi.mocked(configFlow).mockResolvedValueOnce({
+      defaultAgents: [],
+      installDir: tempDir,
+    });
+    // Decline all prompts
+    vi.mocked(confirmAction).mockResolvedValue(false);
+
+    await saveConfig({
+      username: null,
+      organizationUrl: null,
+      installDir: tempDir,
+      activeSkillset: "senior-swe",
+      defaultAgents: ["claude-code"],
+    });
+
+    const { configMain } = await import("./config.js");
+    await configMain();
+
+    // A removal prompt should have been shown (message mentions "Remove")
+    expect(confirmAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: expect.stringContaining("Remove"),
+      }),
+    );
+    const mockAgent = AgentRegistry.getInstance().get({ name: "claude-code" });
+    expect(mockAgent.removeSkillset).not.toHaveBeenCalled();
+  });
 });

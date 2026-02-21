@@ -107,7 +107,10 @@ export const profilesLoader: Loader = {
         "No skillset configured. Run 'nori-skillsets init' to configure a skillset.",
       );
     }
-    const skillset = await parseSkillset({ skillsetName });
+    const skillset = await parseSkillset({
+      skillsetName,
+      configFileName: "CLAUDE.md",
+    });
 
     // Install all profile-dependent features with the parsed skillset
     const registry = ProfileLoaderRegistry.getInstance();
