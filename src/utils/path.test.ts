@@ -48,11 +48,35 @@ describe("normalizeInstallDir", () => {
       expect(result).toBe("/custom/path");
     });
 
-    it("should strip .claude suffix to return base directory", () => {
+    it("should not strip .claude suffix when no agentDirNames provided", () => {
       const result = normalizeInstallDir({
         installDir: "/custom/path/.claude",
       });
+      expect(result).toBe("/custom/path/.claude");
+    });
+
+    it("should strip configured agent dir suffixes", () => {
+      const result = normalizeInstallDir({
+        installDir: "/custom/path/.claude",
+        agentDirNames: [".claude"],
+      });
       expect(result).toBe("/custom/path");
+    });
+
+    it("should strip any matching agent dir suffix from multiple options", () => {
+      const result = normalizeInstallDir({
+        installDir: "/custom/path/.cursor",
+        agentDirNames: [".claude", ".cursor"],
+      });
+      expect(result).toBe("/custom/path");
+    });
+
+    it("should not strip non-matching agent dir suffixes", () => {
+      const result = normalizeInstallDir({
+        installDir: "/custom/path/.other",
+        agentDirNames: [".claude", ".cursor"],
+      });
+      expect(result).toBe("/custom/path/.other");
     });
   });
 

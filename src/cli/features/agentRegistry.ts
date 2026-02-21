@@ -3,6 +3,8 @@
  * Singleton registry that maps agent names to implementations
  */
 
+import * as path from "path";
+
 import { claudeCodeAgent } from "@/cli/features/claude-code/agent.js";
 
 import type { Config } from "@/cli/config.js";
@@ -203,5 +205,17 @@ export class AgentRegistry {
    */
   public getDefaultAgentName(): AgentName {
     return this.list()[0];
+  }
+
+  /**
+   * Get the basenames of all agent config directories.
+   * Used by normalizeInstallDir to strip known agent dir suffixes from paths.
+   * @returns Array of agent directory basenames (e.g., [".claude"])
+   */
+  public getAgentDirNames(): Array<string> {
+    return this.getAll().map((agent) => {
+      const agentDir = agent.getAgentDir({ installDir: "/" });
+      return path.basename(agentDir);
+    });
   }
 }

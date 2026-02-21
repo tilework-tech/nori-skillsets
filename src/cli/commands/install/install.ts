@@ -157,7 +157,10 @@ export const noninteractive = async (args?: {
   skillset?: string | null;
 }): Promise<void> => {
   const { installDir, agent, skillset } = args || {};
-  const normalizedInstallDir = normalizeInstallDir({ installDir });
+  const normalizedInstallDir = normalizeInstallDir({
+    installDir,
+    agentDirNames: AgentRegistry.getInstance().getAgentDirNames(),
+  });
   const agentImpl = AgentRegistry.getInstance().get({
     name: agent ?? AgentRegistry.getInstance().getDefaultAgentName(),
   });

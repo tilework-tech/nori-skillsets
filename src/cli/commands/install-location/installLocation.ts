@@ -7,6 +7,7 @@
 import { note, outro } from "@clack/prompts";
 
 import { loadConfig } from "@/cli/config.js";
+import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { resolveInstallDir } from "@/utils/path.js";
 
 import type { Command } from "commander";
@@ -24,7 +25,10 @@ export const installLocationMain = async (args?: {
   const { nonInteractive } = args ?? {};
 
   const config = await loadConfig();
-  const installDir = resolveInstallDir({ config });
+  const installDir = resolveInstallDir({
+    config,
+    agentDirNames: AgentRegistry.getInstance().getAgentDirNames(),
+  });
 
   // Non-interactive output: plain path
   if (nonInteractive) {

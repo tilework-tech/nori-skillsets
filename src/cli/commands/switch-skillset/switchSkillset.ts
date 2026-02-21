@@ -45,6 +45,7 @@ export const switchSkillsetAction = async (args: {
   const installDir = resolveInstallDir({
     cliInstallDir: globalOpts.installDir,
     config,
+    agentDirNames: AgentRegistry.getInstance().getAgentDirNames(),
   });
 
   // Interactive flow

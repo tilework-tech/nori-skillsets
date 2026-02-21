@@ -65,6 +65,7 @@ vi.mock("@/cli/features/agentRegistry.js", () => ({
     getInstance: vi.fn().mockReturnValue({
       list: vi.fn().mockReturnValue(["claude-code"]),
       getDefaultAgentName: vi.fn().mockReturnValue("claude-code"),
+      getAgentDirNames: vi.fn().mockReturnValue([".claude"]),
       get: vi.fn().mockReturnValue({
         name: "claude-code",
         displayName: "Claude Code",

@@ -95,6 +95,7 @@ export const registryInstallMain = async (
   const targetInstallDir = resolveInstallDir({
     cliInstallDir: installDir,
     config,
+    agentDirNames: AgentRegistry.getInstance().getAgentDirNames(),
   });
   const agentNames = getDefaultAgents({ config, agentOverride: agent });
 

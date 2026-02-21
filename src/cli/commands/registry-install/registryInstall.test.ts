@@ -68,6 +68,7 @@ vi.mock("@/cli/features/agentRegistry.js", () => ({
       get: () => ({
         switchSkillset: mockSwitchSkillset,
       }),
+      getAgentDirNames: () => [".claude"],
     }),
   },
 }));

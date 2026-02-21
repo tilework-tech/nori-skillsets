@@ -311,6 +311,7 @@ export const externalMain = async (args: {
   const targetInstallDir = resolveInstallDir({
     cliInstallDir: installDir,
     config,
+    agentDirNames: AgentRegistry.getInstance().getAgentDirNames(),
   });
   let targetSkillset: string | null = null;
   const skillsetsDir = getNoriSkillsetsDir();

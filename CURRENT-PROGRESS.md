@@ -141,18 +141,36 @@ Changes:
 - `parseSkillset()` calls in `claude-code/agent.ts` and `claude-code/skillsets/loader.ts` now explicitly pass `configFileName` instead of relying on the `"CLAUDE.md"` default
 - Updated 3 docs.md files
 
+### Commit 9: Remove hardcoded agent-specific values from shared utilities
+
+**Refactor A + B progress:** Removed the last hardcoded agent-specific strings (`.claude`, `"CLAUDE.md"`) from shared utility code. Added `getAgentDirNames()` to AgentRegistry. All shared utilities are now fully agent-agnostic.
+
+Changes:
+- Parameterized `normalizeInstallDir()` in `src/utils/path.ts`: added optional `agentDirNames` param; removed hardcoded `.claude` suffix stripping. Callers must now explicitly pass agent dir names to enable suffix stripping.
+- Parameterized `resolveInstallDir()` in `src/utils/path.ts`: added `agentDirNames` pass-through param.
+- Parameterized `ensureNoriJson()` and `looksLikeSkillset()` in `src/cli/features/skillsetMetadata.ts`: added optional `configFileNames` param (defaults to `["CLAUDE.md"]`). `looksLikeSkillset` now iterates over provided file names instead of hardcoding `"CLAUDE.md"`.
+- Added `getAgentDirNames()` to `AgentRegistry` class: returns basenames of all registered agent config directories (e.g., `[".claude"]`), derived from `agent.getAgentDir()`.
+- Updated 10 production callers of `normalizeInstallDir`/`resolveInstallDir` to pass `agentDirNames: AgentRegistry.getInstance().getAgentDirNames()`:
+  - `config.ts`, `nori-skillsets.ts`, `install.ts`, `init.ts`, `switchSkillset.ts`, `skillDownload.ts`, `external.ts`, `registryInstall.ts`, `registryDownload.ts`, `installLocation.ts`
+- Added `AgentRegistry` import to `installLocation.ts` and `registryDownload.ts` (previously did not import it)
+- Updated test mocks in `config.test.ts` and `registryInstall.test.ts` to include `getAgentDirNames`
+- Added 4 new tests in `path.test.ts` for parameterized suffix stripping behavior
+- Added 2 new tests in `skillsetMetadata.test.ts` for custom config file name detection
+- Updated docs.md files
+
 ## Remaining Work
 
 ### Refactor A (continued): Further agent decoupling
 - `AgentName` type is still a literal `"claude-code"` string union (will widen when a second agent is added)
 - Help text in `noriSkillsetsCommands.ts` still mentions "claude-code" as an example — this is documentation, not logic
+- JSDoc comments in `agentRegistry.ts`, `config.ts`, and `watch/paths.ts` mention "claude-code" as examples — documentation only
 
 ### Refactor B (continued): Further Skillset type usage
 - The `Skillset` type could be extended to include more parsed metadata as needed
-- All `parseSkillset()` callers now pass `configFileName` explicitly (completed in Commit 8)
 
 ### Refactor C (continued): Multi-agent support improvements
 - `detectLocalChanges`, `removeSkillset`, and `installSkillset` are on the Agent interface (Commits 5-6)
 - Config command now handles removed agent cleanup when `defaultAgents` shrinks (Commit 8)
 - Config command already handles `installDir` changes with cleanup and reinstall (existing)
-- Potential remaining: when both `installDir` AND `defaultAgents` change simultaneously, only the `installDir` branch fires (the `else if` prevents the agents branch). This may need refinement if both changes should be handled.
+- The config command's `if/else if` for installDir vs agents changes is correct: when installDir changes, the installDir branch handles cleanup at the old dir (using old agents) and installation at the new dir (using new agents from saved config), so the agents branch is correctly skipped
+- `installMain` currently installs for a single agent (the default). If multi-agent installs are needed, `installMain` would need to iterate over `defaultAgents`

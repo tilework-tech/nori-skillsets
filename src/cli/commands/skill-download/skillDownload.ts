@@ -393,6 +393,7 @@ export const skillDownloadMain = async (args: {
   const targetInstallDir = resolveInstallDir({
     cliInstallDir: installDir,
     config,
+    agentDirNames: AgentRegistry.getInstance().getAgentDirNames(),
   });
 
   // Resolve target skillset for manifest update

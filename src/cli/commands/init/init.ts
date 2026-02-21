@@ -59,7 +59,10 @@ export const initMain = async (args?: {
   skipWarning?: boolean | null;
 }): Promise<void> => {
   const { installDir, nonInteractive, skipWarning } = args ?? {};
-  const normalizedInstallDir = normalizeInstallDir({ installDir });
+  const normalizedInstallDir = normalizeInstallDir({
+    installDir,
+    agentDirNames: AgentRegistry.getInstance().getAgentDirNames(),
+  });
 
   // Resolve the default agent for all agent-specific operations
   const existingConfigForAgent = await loadConfig();

@@ -71,6 +71,7 @@ export const configMain = async (): Promise<void> => {
 
   const normalizedInstallDir = normalizeInstallDir({
     installDir: result.installDir,
+    agentDirNames: AgentRegistry.getInstance().getAgentDirNames(),
   });
 
   // Detect what changed
