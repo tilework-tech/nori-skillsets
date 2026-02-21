@@ -5,8 +5,6 @@
 
 import * as fs from "fs/promises";
 
-import { log } from "@clack/prompts";
-
 import {
   getClaudeHomeDir,
   getClaudeHomeSettingsFile,
@@ -21,15 +19,15 @@ const NORI_ANNOUNCEMENT = "🍙🍙🍙 Powered by Nori AI 🍙🍙🍙";
  * Configure companyAnnouncements to display Nori branding at startup
  * @param args - Configuration arguments
  * @param args.config - Runtime configuration
+ *
+ * @returns Label for the settings note, or void on failure
  */
 const configureAnnouncements = async (args: {
   config: Config;
-}): Promise<void> => {
+}): Promise<string | void> => {
   const { config: _config } = args;
   const claudeDir = getClaudeHomeDir();
   const claudeSettingsFile = getClaudeHomeSettingsFile();
-
-  log.info("Configuring company announcements...");
 
   // Create .claude directory if it doesn't exist
   await fs.mkdir(claudeDir, { recursive: true });
@@ -49,7 +47,7 @@ const configureAnnouncements = async (args: {
   settings.companyAnnouncements = [NORI_ANNOUNCEMENT];
 
   await fs.writeFile(claudeSettingsFile, JSON.stringify(settings, null, 2));
-  log.success(`✓ Company announcements configured in ${claudeSettingsFile}`);
+  return "Announcements";
 };
 
 /**
@@ -59,6 +57,6 @@ export const announcementsLoader: Loader = {
   name: "announcements",
   description: "Claude Code announcements configuration",
   run: async (args: { config: Config }) => {
-    await configureAnnouncements(args);
+    return configureAnnouncements(args);
   },
 };

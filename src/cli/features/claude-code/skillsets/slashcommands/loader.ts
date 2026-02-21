@@ -7,7 +7,7 @@ import * as fs from "fs/promises";
 import * as path from "path";
 import { fileURLToPath } from "url";
 
-import { log } from "@clack/prompts";
+import { log, note } from "@clack/prompts";
 
 import { getActiveSkillset, type Config } from "@/cli/config.js";
 import {
@@ -16,6 +16,7 @@ import {
   getNoriDir,
 } from "@/cli/features/claude-code/paths.js";
 import { substituteTemplatePaths } from "@/cli/features/claude-code/template.js";
+import { bold } from "@/cli/logger.js";
 
 import type { ProfileLoader } from "@/cli/features/claude-code/skillsets/skillsetLoaderRegistry.js";
 
@@ -46,7 +47,6 @@ const registerSlashCommands = async (args: {
   config: Config;
 }): Promise<void> => {
   const { config } = args;
-  log.info("Registering Nori slash commands...");
 
   // Get profile name from config - error if not configured
   const skillsetName = getActiveSkillset({ config });
@@ -66,15 +66,15 @@ const registerSlashCommands = async (args: {
   await fs.rm(claudeCommandsDir, { recursive: true, force: true });
   await fs.mkdir(claudeCommandsDir, { recursive: true });
 
-  let registeredCount = 0;
-  let skippedCount = 0;
+  const registered: Array<string> = [];
+  const skipped: Array<string> = [];
 
   // Read all .md files from the profile's slashcommands directory
   let files: Array<string>;
   try {
     files = await fs.readdir(configDir);
   } catch {
-    log.info("Profile slashcommands directory not found, skipping");
+    log.warn("Profile slashcommands directory not found, skipping");
     return;
   }
   const mdFiles = files.filter(
@@ -84,6 +84,7 @@ const registerSlashCommands = async (args: {
   for (const file of mdFiles) {
     const commandSrc = path.join(configDir, file);
     const commandDest = path.join(claudeCommandsDir, file);
+    const commandName = file.replace(/\.md$/, "");
 
     try {
       await fs.access(commandSrc);
@@ -95,27 +96,25 @@ const registerSlashCommands = async (args: {
         installDir: claudeDir,
       });
       await fs.writeFile(commandDest, substituted);
-      const commandName = file.replace(/\.md$/, "");
-      log.success(`✓ /${commandName} slash command registered`);
-      registeredCount++;
+      registered.push(commandName);
     } catch {
-      log.warn(`Slash command definition not found at ${commandSrc}, skipping`);
-      skippedCount++;
+      skipped.push(commandName);
     }
   }
 
-  if (registeredCount > 0) {
-    log.success(
-      `Successfully registered ${registeredCount} slash command${
-        registeredCount === 1 ? "" : "s"
-      }`,
-    );
+  if (registered.length > 0) {
+    const lines = registered.map((name) => `✓ /${name}`);
+    const summary = bold({
+      text: `Registered ${registered.length} slash command${registered.length === 1 ? "" : "s"}`,
+    });
+    lines.push("", summary);
+    note(lines.join("\n"), "Slash Commands");
   }
-  if (skippedCount > 0) {
+  if (skipped.length > 0) {
     log.warn(
-      `Skipped ${skippedCount} slash command${
-        skippedCount === 1 ? "" : "s"
-      } (not found)`,
+      `Skipped ${skipped.length} slash command${
+        skipped.length === 1 ? "" : "s"
+      } (not found): ${skipped.join(", ")}`,
     );
   }
 };

@@ -25,13 +25,15 @@ const __dirname = path.dirname(__filename);
  * Configure status line to display git branch, session cost, token usage, and Nori branding
  * @param args - Configuration arguments
  * @param args.config - Runtime configuration
+ *
+ * @returns Label for the settings note, or void on failure
  */
-const configureStatusLine = async (args: { config: Config }): Promise<void> => {
+const configureStatusLine = async (args: {
+  config: Config;
+}): Promise<string | void> => {
   const { config: _config } = args;
   const claudeDir = getClaudeHomeDir();
   const claudeSettingsFile = getClaudeHomeSettingsFile();
-
-  log.info("Configuring status line...");
 
   // Source script path (in build output)
   const sourceScript = path.join(__dirname, "config", "nori-statusline.sh");
@@ -77,10 +79,7 @@ const configureStatusLine = async (args: { config: Config }): Promise<void> => {
   };
 
   await fs.writeFile(claudeSettingsFile, JSON.stringify(settings, null, 2));
-  log.success(`✓ Status line configured in ${claudeSettingsFile}`);
-  log.info(
-    "Status line will display: git branch, session cost, tokens, promotional tip, and Nori branding",
-  );
+  return "Status line";
 };
 
 /**
@@ -90,6 +89,6 @@ export const statuslineLoader: Loader = {
   name: "statusline",
   description: "Claude Code status line configuration",
   run: async (args: { config: Config }) => {
-    await configureStatusLine(args);
+    return configureStatusLine(args);
   },
 };

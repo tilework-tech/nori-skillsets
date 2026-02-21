@@ -103,12 +103,18 @@ const runFeatureLoaders = async (args: {
   const registry = agent.getLoaderRegistry();
   const loaders = registry.getAll();
 
-  if (!isSilentMode()) {
-    log.info("Installing features...");
-  }
+  const settingsResults: Array<string> = [];
 
   for (const loader of loaders) {
-    await loader.run({ config });
+    const result = await loader.run({ config });
+    if (typeof result === "string") {
+      settingsResults.push(result);
+    }
+  }
+
+  if (settingsResults.length > 0) {
+    const lines = settingsResults.map((name) => `✓ ${name}`);
+    note(lines.join("\n"), "Settings");
   }
 };
 

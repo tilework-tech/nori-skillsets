@@ -6,8 +6,6 @@
 import * as fs from "fs/promises";
 import * as path from "path";
 
-import { log } from "@clack/prompts";
-
 import { type Config } from "@/cli/config.js";
 import {
   getNoriSkillsetsDir,
@@ -55,7 +53,7 @@ const configureProfilesPermissions = async (args: {
   });
   const noriProfilesDir = getNoriSkillsetsDir();
 
-  log.info("Configuring permissions for profiles directory...");
+  // Silently configure permissions — output is consolidated in the install note
 
   // Create .claude directory if it doesn't exist
   await fs.mkdir(path.dirname(claudeSettingsFile), { recursive: true });
@@ -89,7 +87,6 @@ const configureProfilesPermissions = async (args: {
 
   // Write back to file
   await fs.writeFile(claudeSettingsFile, JSON.stringify(settings, null, 2));
-  log.success(`✓ Configured permissions for ${noriProfilesDir}`);
 };
 
 /**

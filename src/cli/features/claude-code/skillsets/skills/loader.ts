@@ -7,8 +7,6 @@ import * as fs from "fs/promises";
 import * as path from "path";
 import { fileURLToPath } from "url";
 
-import { log } from "@clack/prompts";
-
 import { getActiveSkillset, type Config } from "@/cli/config.js";
 import {
   getClaudeDir,
@@ -100,7 +98,7 @@ const getConfigDir = (args: { skillsetName: string }): string => {
  */
 const installSkills = async (args: { config: Config }): Promise<void> => {
   const { config } = args;
-  log.info("Installing Nori skills...");
+  // Skills installation — output is consolidated in the subagents/slashcommands notes
 
   // Get profile name from config - error if not configured
   const skillsetName = getActiveSkillset({ config });
@@ -153,16 +151,13 @@ const installSkills = async (args: { config: Config }): Promise<void> => {
       });
     }
   } catch {
-    // Profile skills directory not found - continue to check skills.json
-    log.info("Profile skills directory not found, checking skills.json");
+    // Profile skills directory not found - continue silently
   }
 
   // Note: External skills from skills.json are now stored in the profile's own skills
   // directory ({skillsetDir}/skills/) after being downloaded by registry-download.
   // Step 1 already copies all skills from that directory, so no separate step is needed.
   // The skills.json file is now just metadata for tracking which skills were downloaded.
-
-  log.success("✓ Installed skills");
 
   // Configure permissions for skills directory
   await configureSkillsPermissions({ config });
@@ -179,7 +174,7 @@ const configureSkillsPermissions = async (args: {
   config: Config;
 }): Promise<void> => {
   const { config } = args;
-  log.info("Configuring permissions for skills directory...");
+  // Silently configure permissions
 
   const claudeSettingsFile = getClaudeSettingsFile({
     installDir: config.installDir,
@@ -217,7 +212,6 @@ const configureSkillsPermissions = async (args: {
 
   // Write back to file
   await fs.writeFile(claudeSettingsFile, JSON.stringify(settings, null, 2));
-  log.success(`✓ Configured permissions for ${claudeSkillsDir}`);
 };
 
 /**
