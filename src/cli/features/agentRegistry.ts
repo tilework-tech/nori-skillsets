@@ -94,6 +94,8 @@ export type Agent = {
   }) => Promise<ManifestDiff | null>;
   /** Remove all Nori-managed files for this agent at the given directory */
   removeSkillset: (args: { installDir: string }) => Promise<void>;
+  /** Install a skillset: run feature loaders, write manifest, and mark install */
+  installSkillset: (args: { config: Config }) => Promise<void>;
   /** Get relative directory paths where skills may be discovered in a repo */
   getSkillDiscoveryDirs: () => ReadonlyArray<string>;
   /** Get the agent's projects/sessions directory (home-relative) */

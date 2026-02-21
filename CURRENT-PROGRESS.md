@@ -95,6 +95,21 @@ Changes:
 - Updated Agent mock in `config.test.ts` to include new methods; updated 3 tests to assert on `agent.removeSkillset` instead of `removeManagedFiles`
 - Updated 3 docs.md files
 
+### Commit 6: Add `installSkillset` to Agent interface
+
+**Refactor C progress:** Added `installSkillset` to the Agent interface, completing the lifecycle triumvirate alongside `detectLocalChanges` and `removeSkillset`. The install command now delegates the entire installation flow to the agent.
+
+Changes:
+- Added `installSkillset({ config })` to `Agent` type in `agentRegistry.ts`
+- Implemented on claude-code agent in `agent.ts`: runs all feature loaders, computes/writes manifest, marks install directory
+- Refactored `install.ts`: removed `runFeatureLoaders` and `writeInstalledManifest` private functions; `completeInstallation` now delegates to `agent.installSkillset({ config })`
+- Added 3 new tests in `agentRegistry.test.ts`:
+  - Verifies marker file and manifest are created after installation
+  - Verifies installed state is detectable by `detectLocalChanges` (round-trip test)
+  - Verifies completion without error on valid config
+- Updated Agent mock in `config.test.ts` to include `installSkillset`
+- Updated docs.md files
+
 ## Remaining Work
 
 ### Refactor A (continued): Further agent decoupling
@@ -105,7 +120,6 @@ Changes:
 - The `Skillset` type could be extended to include more parsed metadata as needed
 
 ### Refactor C (continued): Multi-agent support improvements
-- `detectLocalChanges` and `removeSkillset` are now on the Agent interface (done in Commit 5)
-- Could add `installSkillset` to Agent interface to consolidate the `runFeatureLoaders` + `writeInstalledManifest` + `markInstall` pattern from `install.ts`
+- `detectLocalChanges`, `removeSkillset`, and `installSkillset` are now on the Agent interface (done in Commits 5-6)
 - Need handling of config changes triggering skillset rebroadcast
 - Need handling of install directory changes (switch + cleanup) — config command now uses `agent.removeSkillset()` for cleanup

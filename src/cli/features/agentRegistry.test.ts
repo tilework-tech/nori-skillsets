@@ -681,4 +681,151 @@ describe("AgentRegistry", () => {
       expect(updatedConfig.activeSkillset).toBe("myorg/my-profile");
     });
   });
+
+  describe("claude-code agent installSkillset", () => {
+    let testInstallDir: string;
+
+    beforeEach(async () => {
+      testInstallDir = await fs.mkdtemp(
+        path.join(tmpdir(), "agent-install-test-"),
+      );
+      vi.mocked(os.homedir).mockReturnValue(testInstallDir);
+    });
+
+    afterEach(async () => {
+      vi.restoreAllMocks();
+      if (testInstallDir) {
+        await fs.rm(testInstallDir, { recursive: true, force: true });
+      }
+    });
+
+    test("creates marker file and manifest after installation", async () => {
+      const registry = AgentRegistry.getInstance();
+      const agent = registry.get({ name: "claude-code" });
+
+      // Create a skillset with CLAUDE.md
+      const skillsetsDir = path.join(testInstallDir, ".nori", "profiles");
+      const skillsetDir = path.join(skillsetsDir, "test-skillset");
+      await fs.mkdir(skillsetDir, { recursive: true });
+      await fs.writeFile(
+        path.join(skillsetDir, "CLAUDE.md"),
+        "# Test skillset config",
+      );
+      await fs.writeFile(
+        path.join(skillsetDir, "nori.json"),
+        JSON.stringify({ name: "test-skillset", version: "1.0.0" }),
+      );
+
+      // Create agent dir
+      const agentDir = agent.getAgentDir({ installDir: testInstallDir });
+      await fs.mkdir(agentDir, { recursive: true });
+
+      // Create config pointing to the skillset
+      const configPath = path.join(testInstallDir, ".nori-config.json");
+      await fs.writeFile(
+        configPath,
+        JSON.stringify({
+          activeSkillset: "test-skillset",
+          installDir: testInstallDir,
+        }),
+      );
+
+      const config = {
+        installDir: testInstallDir,
+        activeSkillset: "test-skillset",
+      };
+
+      await agent.installSkillset({ config });
+
+      // Marker file should exist
+      const markerPath = path.join(agentDir, ".nori-managed");
+      await expect(fs.access(markerPath)).resolves.not.toThrow();
+
+      // Manifest should exist
+      const { getManifestPath } = await import("@/cli/features/manifest.js");
+      const manifestPath = getManifestPath({ agentName: agent.name });
+      await expect(fs.access(manifestPath)).resolves.not.toThrow();
+    });
+
+    test("installed state is detectable by detectLocalChanges", async () => {
+      const registry = AgentRegistry.getInstance();
+      const agent = registry.get({ name: "claude-code" });
+
+      // Create a skillset with CLAUDE.md
+      const skillsetsDir = path.join(testInstallDir, ".nori", "profiles");
+      const skillsetDir = path.join(skillsetsDir, "test-skillset");
+      await fs.mkdir(skillsetDir, { recursive: true });
+      await fs.writeFile(
+        path.join(skillsetDir, "CLAUDE.md"),
+        "# Test skillset config",
+      );
+      await fs.writeFile(
+        path.join(skillsetDir, "nori.json"),
+        JSON.stringify({ name: "test-skillset", version: "1.0.0" }),
+      );
+
+      // Create agent dir
+      const agentDir = agent.getAgentDir({ installDir: testInstallDir });
+      await fs.mkdir(agentDir, { recursive: true });
+
+      // Create config
+      const configPath = path.join(testInstallDir, ".nori-config.json");
+      await fs.writeFile(
+        configPath,
+        JSON.stringify({
+          activeSkillset: "test-skillset",
+          installDir: testInstallDir,
+        }),
+      );
+
+      const config = {
+        installDir: testInstallDir,
+        activeSkillset: "test-skillset",
+      };
+
+      await agent.installSkillset({ config });
+
+      // detectLocalChanges should return null (no changes since fresh install)
+      const diff = await agent.detectLocalChanges({
+        installDir: testInstallDir,
+      });
+      expect(diff).toBeNull();
+    });
+
+    test("completes without error on valid config", async () => {
+      const registry = AgentRegistry.getInstance();
+      const agent = registry.get({ name: "claude-code" });
+
+      // Create a minimal skillset
+      const skillsetsDir = path.join(testInstallDir, ".nori", "profiles");
+      const skillsetDir = path.join(skillsetsDir, "minimal-skillset");
+      await fs.mkdir(skillsetDir, { recursive: true });
+      await fs.writeFile(path.join(skillsetDir, "CLAUDE.md"), "# Minimal");
+      await fs.writeFile(
+        path.join(skillsetDir, "nori.json"),
+        JSON.stringify({ name: "minimal-skillset", version: "1.0.0" }),
+      );
+
+      // Create agent dir
+      const agentDir = agent.getAgentDir({ installDir: testInstallDir });
+      await fs.mkdir(agentDir, { recursive: true });
+
+      // Create config
+      const configPath = path.join(testInstallDir, ".nori-config.json");
+      await fs.writeFile(
+        configPath,
+        JSON.stringify({
+          activeSkillset: "minimal-skillset",
+          installDir: testInstallDir,
+        }),
+      );
+
+      const config = {
+        installDir: testInstallDir,
+        activeSkillset: "minimal-skillset",
+      };
+
+      await expect(agent.installSkillset({ config })).resolves.not.toThrow();
+    });
+  });
 });

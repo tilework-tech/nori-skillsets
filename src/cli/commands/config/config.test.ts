@@ -84,6 +84,7 @@ vi.mock("@/cli/features/agentRegistry.js", () => ({
           .fn()
           .mockReturnValue(["skills", "commands", "agents"]),
         removeSkillset: vi.fn(),
+        installSkillset: vi.fn(),
         detectLocalChanges: vi.fn().mockResolvedValue(null),
       }),
     }),

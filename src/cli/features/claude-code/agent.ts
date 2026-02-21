@@ -7,7 +7,12 @@ import * as fsSync from "fs";
 import * as fs from "fs/promises";
 import * as path from "path";
 
-import { loadConfig, saveConfig, type Config } from "@/cli/config.js";
+import {
+  loadConfig,
+  saveConfig,
+  getActiveSkillset,
+  type Config,
+} from "@/cli/config.js";
 import {
   detectExistingConfig,
   captureExistingConfigAsSkillset,
@@ -24,6 +29,8 @@ import {
   readManifest,
   compareManifest,
   hasChanges,
+  computeDirectoryManifest,
+  writeManifest,
   getManifestPath,
   getLegacyManifestPath,
   removeManagedFiles,
@@ -167,6 +174,44 @@ export const claudeCodeAgent: Agent = {
     // Also clean up legacy manifest
     const legacyPath = getLegacyManifestPath();
     await removeManagedFiles({ agentDir, manifestPath: legacyPath });
+  },
+
+  installSkillset: async (args: { config: Config }): Promise<void> => {
+    const { config } = args;
+
+    // Run all feature loaders
+    const registry = claudeCodeAgent.getLoaderRegistry();
+    const loaders = registry.getAll();
+    for (const loader of loaders) {
+      await loader.run({ config });
+    }
+
+    // Write manifest for change detection
+    const skillsetName = getActiveSkillset({ config });
+    if (skillsetName != null) {
+      const agentDir = claudeCodeAgent.getAgentDir({
+        installDir: config.installDir,
+      });
+      const manifestPath = getManifestPath({ agentName: claudeCodeAgent.name });
+
+      try {
+        const manifest = await computeDirectoryManifest({
+          dir: agentDir,
+          skillsetName,
+          managedFiles: claudeCodeAgent.getManagedFiles(),
+          managedDirs: claudeCodeAgent.getManagedDirs(),
+        });
+        await writeManifest({ manifestPath, manifest });
+      } catch {
+        // Non-fatal — manifest writing failure shouldn't block installation
+      }
+    }
+
+    // Mark install directory
+    claudeCodeAgent.markInstall({
+      path: config.installDir,
+      skillsetName,
+    });
   },
 
   switchSkillset: async (args: {
