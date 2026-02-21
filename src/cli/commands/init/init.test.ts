@@ -435,6 +435,53 @@ describe("init command", () => {
     });
   });
 
+  describe("multi-agent broadcasting", () => {
+    it("should call markInstall for all default agents in non-interactive mode", async () => {
+      const CONFIG_PATH = getConfigPath();
+
+      // Set up config with defaultAgents
+      const existingConfig = {
+        defaultAgents: ["claude-code"],
+        installDir: tempDir,
+      };
+      fs.writeFileSync(CONFIG_PATH, JSON.stringify(existingConfig, null, 2));
+
+      // Run init
+      await initMain({ installDir: tempDir, nonInteractive: true });
+
+      // Verify .nori-managed marker was created for the agent
+      const markerPath = path.join(tempDir, ".claude", ".nori-managed");
+      expect(fs.existsSync(markerPath)).toBe(true);
+    });
+
+    it("should call captureExistingConfig for all default agents when capturing in non-interactive mode", async () => {
+      // Create existing Claude Code config to trigger capture
+      const claudeMdPath = path.join(TEST_CLAUDE_DIR, "CLAUDE.md");
+      fs.writeFileSync(claudeMdPath, "# My Custom Config\n\nSome content");
+
+      const skillsDir = path.join(TEST_CLAUDE_DIR, "skills");
+      fs.mkdirSync(skillsDir, { recursive: true });
+      fs.mkdirSync(path.join(skillsDir, "my-skill"));
+      fs.writeFileSync(path.join(skillsDir, "my-skill", "SKILL.md"), "# Skill");
+
+      // Run init in non-interactive mode
+      await initMain({ installDir: tempDir, nonInteractive: true });
+
+      // Verify profile was captured
+      const capturedProfileDir = path.join(
+        TEST_NORI_DIR,
+        "profiles",
+        "my-profile",
+      );
+      expect(fs.existsSync(capturedProfileDir)).toBe(true);
+
+      // Verify markInstall was called for all agents (marker file should exist)
+      const markerPath = path.join(tempDir, ".claude", ".nori-managed");
+      expect(fs.existsSync(markerPath)).toBe(true);
+      expect(fs.readFileSync(markerPath, "utf-8")).toBe("my-profile");
+    });
+  });
+
   describe("registerInitCommand", () => {
     it("should register init command with commander", async () => {
       const { Command } = await import("commander");

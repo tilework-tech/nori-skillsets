@@ -171,6 +171,21 @@ Changes:
 - Added test in `switchSkillset.test.ts` (command): verifies interactive callback calls `switchSkillset` and `installMain` for given agent
 - Updated 2 docs.md files
 
+### Commit 11: Broadcast init, change detection, and config capture to all defaultAgents
+
+**Refactor C progress:** Extended the remaining single-agent command paths to broadcast operations to all default agents. The init command, switchSkillset config capture, and switchSkillsetFlow change detection now operate on all agents.
+
+Changes:
+- `init.ts` now loops over all `defaultAgentNames` for `markInstall` and `captureExistingConfig` in both interactive and non-interactive paths (detection still uses first agent to check if *any* agent is set up)
+- `switchSkillset.ts` `onCaptureConfig` callback now loops over all agents from `getDefaultAgents()` calling `captureExistingConfig` on each, instead of only `captureAgentNames[0]`
+- `switchSkillsetFlow` in `switchSkillset.ts` (flow) now calls `onPrepareSwitchInfo` for ALL resolved agents and aggregates their `ManifestDiff` results — if any agent reports changes, the user sees the combined diff
+- `switchSkillsetFlow` confirmation note now shows all agent names (comma-separated for multiple agents)
+- Deduplicated `agentDisplay` variable in switchSkillsetFlow (was computed twice)
+- Added 2 tests in `init.test.ts` for multi-agent broadcasting
+- Added 1 test in `switchSkillset.test.ts` for onCaptureConfig broadcasting to all agents
+- Added 3 tests in `switchSkillset.test.ts` (flow) for multi-agent change detection and aggregation
+- Updated 3 docs.md files
+
 ## Remaining Work
 
 ### Refactor A (continued): Further agent decoupling
@@ -185,9 +200,9 @@ Changes:
 - `detectLocalChanges`, `removeSkillset`, and `installSkillset` are on the Agent interface (Commits 5-6)
 - Config command now handles removed agent cleanup when `defaultAgents` shrinks (Commit 8)
 - Config command broadcasts install to all agents on installDir change and added agents (Commit 10)
-- Interactive `switchSkillsetFlow` broadcasts switch to all agents (Commit 10)
+- Interactive `switchSkillsetFlow` broadcasts switch, change detection, and capture to all agents (Commits 10-11)
+- `init.ts` broadcasts `markInstall` and `captureExistingConfig` to all agents (Commit 11)
+- Interactive `switchSkillset` `onCaptureConfig` broadcasts to all agents (Commit 11)
 - Non-interactive `switchSkillset` already broadcasted to all agents (pre-existing)
 - `registryInstall` already broadcasted to all agents (pre-existing)
 - `watch` command still only watches a single agent's projects directory — watching multiple dirs would be an architectural change
-- `init.ts` only marks install for one agent — could be extended if multi-agent init is needed
-- Interactive `switchSkillset` `onCaptureConfig` only captures for the first agent — could be extended if multi-agent capture is needed

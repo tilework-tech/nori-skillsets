@@ -442,6 +442,104 @@ describe("switchSkillsetFlow", () => {
     });
   });
 
+  describe("multi-agent change detection", () => {
+    it("should call onPrepareSwitchInfo for all resolved agents", async () => {
+      vi.mocked(mockCallbacks.onResolveAgents).mockResolvedValueOnce([
+        { name: "claude-code", displayName: "Claude Code" },
+        { name: "agent-b", displayName: "Agent B" },
+      ]);
+      vi.mocked(mockCallbacks.onPrepareSwitchInfo).mockResolvedValue({
+        currentProfile: "senior-swe",
+        localChanges: null,
+      });
+      vi.mocked(clack.confirm).mockResolvedValueOnce(true);
+
+      await switchSkillsetFlow({
+        skillsetName: "product-manager",
+        installDir: "/test/dir",
+        callbacks: mockCallbacks,
+      });
+
+      // onPrepareSwitchInfo should be called for all agents
+      expect(mockCallbacks.onPrepareSwitchInfo).toHaveBeenCalledWith({
+        installDir: "/test/dir",
+        agentName: "claude-code",
+      });
+      expect(mockCallbacks.onPrepareSwitchInfo).toHaveBeenCalledWith({
+        installDir: "/test/dir",
+        agentName: "agent-b",
+      });
+    });
+
+    it("should show local changes if any agent has changes", async () => {
+      vi.mocked(mockCallbacks.onResolveAgents).mockResolvedValueOnce([
+        { name: "claude-code", displayName: "Claude Code" },
+        { name: "agent-b", displayName: "Agent B" },
+      ]);
+      // First agent has no changes, second agent has changes
+      vi.mocked(mockCallbacks.onPrepareSwitchInfo)
+        .mockResolvedValueOnce({
+          currentProfile: "senior-swe",
+          localChanges: null,
+        })
+        .mockResolvedValueOnce({
+          currentProfile: "senior-swe",
+          localChanges: {
+            modified: ["some-file.md"],
+            added: [],
+            deleted: [],
+          },
+        });
+      vi.mocked(clack.select).mockResolvedValueOnce("proceed");
+      vi.mocked(clack.confirm).mockResolvedValueOnce(true);
+
+      await switchSkillsetFlow({
+        skillsetName: "product-manager",
+        installDir: "/test/dir",
+        callbacks: mockCallbacks,
+      });
+
+      // Should show the change handling UI since agent-b has changes
+      expect(clack.select).toHaveBeenCalled();
+      // Should still execute the switch for all agents
+      expect(mockCallbacks.onExecuteSwitch).toHaveBeenCalledTimes(2);
+    });
+
+    it("should call onCaptureConfig when user chooses capture with multi-agent changes", async () => {
+      vi.mocked(mockCallbacks.onResolveAgents).mockResolvedValueOnce([
+        { name: "claude-code", displayName: "Claude Code" },
+        { name: "agent-b", displayName: "Agent B" },
+      ]);
+      vi.mocked(mockCallbacks.onPrepareSwitchInfo)
+        .mockResolvedValueOnce({
+          currentProfile: "senior-swe",
+          localChanges: {
+            modified: ["skills/my-skill/SKILL.md"],
+            added: [],
+            deleted: [],
+          },
+        })
+        .mockResolvedValueOnce({
+          currentProfile: "senior-swe",
+          localChanges: null,
+        });
+      vi.mocked(clack.select).mockResolvedValueOnce("capture");
+      vi.mocked(clack.text).mockResolvedValueOnce("my-custom-skillset");
+      vi.mocked(clack.confirm).mockResolvedValueOnce(true);
+
+      await switchSkillsetFlow({
+        skillsetName: "product-manager",
+        installDir: "/test/dir",
+        callbacks: mockCallbacks,
+      });
+
+      expect(mockCallbacks.onCaptureConfig).toHaveBeenCalledWith({
+        installDir: "/test/dir",
+        skillsetName: "my-custom-skillset",
+      });
+    });
+  });
+
   describe("zero agents", () => {
     it("should default to claude-code when no agents resolved", async () => {
       vi.mocked(mockCallbacks.onResolveAgents).mockResolvedValueOnce([]);

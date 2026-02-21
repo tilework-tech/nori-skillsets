@@ -82,18 +82,21 @@ export const switchSkillsetAction = async (args: {
           const captureAgentNames = getDefaultAgents({
             config: captureConfig,
           });
-          const captureAgent = AgentRegistry.getInstance().get({
-            name: captureAgentNames[0],
-          });
           const config: Config = {
             installDir: dir,
             activeSkillset: pName,
           };
-          await captureAgent.captureExistingConfig?.({
-            installDir: dir,
-            skillsetName: pName,
-            config,
-          });
+          // Capture existing config for all default agents that support it
+          for (const captureAgentName of captureAgentNames) {
+            const captureAgent = AgentRegistry.getInstance().get({
+              name: captureAgentName,
+            });
+            await captureAgent.captureExistingConfig?.({
+              installDir: dir,
+              skillsetName: pName,
+              config,
+            });
+          }
         },
         onExecuteSwitch: async ({
           installDir: dir,

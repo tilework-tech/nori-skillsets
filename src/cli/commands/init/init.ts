@@ -64,13 +64,13 @@ export const initMain = async (args?: {
     agentDirNames: AgentRegistry.getInstance().getAgentDirNames(),
   });
 
-  // Resolve the default agent for all agent-specific operations
+  // Resolve all default agents for agent-specific operations
   const existingConfigForAgent = await loadConfig();
-  const defaultAgentName = getDefaultAgents({
+  const defaultAgentNames = getDefaultAgents({
     config: existingConfigForAgent,
-  })[0];
+  });
   const defaultAgent = AgentRegistry.getInstance().get({
-    name: defaultAgentName,
+    name: defaultAgentNames[0],
   });
 
   // Interactive flow
@@ -98,11 +98,17 @@ export const initMain = async (args?: {
             installDir: dir,
             activeSkillset: skillsetName,
           };
-          await defaultAgent.captureExistingConfig?.({
-            installDir: dir,
-            skillsetName,
-            config,
-          });
+          // Capture existing config for all default agents that support it
+          for (const agentName of defaultAgentNames) {
+            const agent = AgentRegistry.getInstance().get({
+              name: agentName,
+            });
+            await agent.captureExistingConfig?.({
+              installDir: dir,
+              skillsetName,
+              config,
+            });
+          }
         },
         onInit: async ({ installDir: dir, capturedSkillsetName }) => {
           // Create ~/.nori/profiles/ directory
@@ -138,11 +144,16 @@ export const initMain = async (args?: {
             installDir: dir,
           });
 
-          // Mark this directory as having the default agent installed
-          defaultAgent.markInstall({
-            path: dir,
-            skillsetName: capturedSkillsetName,
-          });
+          // Mark this directory as having all default agents installed
+          for (const agentName of defaultAgentNames) {
+            const agent = AgentRegistry.getInstance().get({
+              name: agentName,
+            });
+            agent.markInstall({
+              path: dir,
+              skillsetName: capturedSkillsetName,
+            });
+          }
         },
       },
     });
@@ -209,25 +220,31 @@ export const initMain = async (args?: {
     installDir: normalizedInstallDir,
   });
 
-  // If a skillset was captured, capture config and install managed block
+  // If a skillset was captured, capture config and install managed block for all agents
   if (capturedSkillsetName != null) {
     const config: Config = {
       installDir: normalizedInstallDir,
       activeSkillset,
     };
-    await defaultAgent.captureExistingConfig?.({
-      installDir: normalizedInstallDir,
-      skillsetName: capturedSkillsetName,
-      config,
-    });
+    for (const agentName of defaultAgentNames) {
+      const agent = AgentRegistry.getInstance().get({ name: agentName });
+      await agent.captureExistingConfig?.({
+        installDir: normalizedInstallDir,
+        skillsetName: capturedSkillsetName,
+        config,
+      });
+    }
     log.success(`Configuration saved as skillset "${capturedSkillsetName}"`);
   }
 
-  // Mark this directory as having the default agent installed
-  defaultAgent.markInstall({
-    path: normalizedInstallDir,
-    skillsetName: capturedSkillsetName,
-  });
+  // Mark this directory as having all default agents installed
+  for (const agentName of defaultAgentNames) {
+    const agent = AgentRegistry.getInstance().get({ name: agentName });
+    agent.markInstall({
+      path: normalizedInstallDir,
+      skillsetName: capturedSkillsetName,
+    });
+  }
 };
 
 /**
