@@ -78,6 +78,7 @@ const fileExists = async (args: { filePath: string }): Promise<boolean> => {
  * @param args - Either { skillsetName } or { skillsetDir }
  * @param args.skillsetName - Name of the skillset to resolve relative to ~/.nori/profiles/
  * @param args.skillsetDir - Direct absolute path to the skillset directory
+ * @param args.configFileName - Override the root config filename (defaults to "CLAUDE.md")
  *
  * @throws Error if the directory doesn't exist or has no nori.json
  *
@@ -87,8 +88,10 @@ const fileExists = async (args: { filePath: string }): Promise<boolean> => {
 export const parseSkillset = async (args: {
   skillsetName?: string | null;
   skillsetDir?: string | null;
+  configFileName?: string | null;
 }): Promise<Skillset> => {
   const { skillsetName, skillsetDir: explicitDir } = args;
+  const configFileName = args.configFileName ?? "CLAUDE.md";
 
   const dir =
     explicitDir != null
@@ -110,14 +113,14 @@ export const parseSkillset = async (args: {
 
   // Check for optional components
   const skillsDirPath = path.join(dir, "skills");
-  const claudeMdFilePath = path.join(dir, "CLAUDE.md");
+  const configFileFullPath = path.join(dir, configFileName);
   const slashcommandsDirPath = path.join(dir, "slashcommands");
   const subagentsDirPath = path.join(dir, "subagents");
 
-  const [hasSkills, hasClaudeMd, hasSlashcommands, hasSubagents] =
+  const [hasSkills, hasConfigFile, hasSlashcommands, hasSubagents] =
     await Promise.all([
       dirExists({ dirPath: skillsDirPath }),
-      fileExists({ filePath: claudeMdFilePath }),
+      fileExists({ filePath: configFileFullPath }),
       dirExists({ dirPath: slashcommandsDirPath }),
       dirExists({ dirPath: subagentsDirPath }),
     ]);
@@ -127,7 +130,7 @@ export const parseSkillset = async (args: {
     dir,
     metadata,
     skillsDir: hasSkills ? skillsDirPath : null,
-    configFilePath: hasClaudeMd ? claudeMdFilePath : null,
+    configFilePath: hasConfigFile ? configFileFullPath : null,
     slashcommandsDir: hasSlashcommands ? slashcommandsDirPath : null,
     subagentsDir: hasSubagents ? subagentsDirPath : null,
   };

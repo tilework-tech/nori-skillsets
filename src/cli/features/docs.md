@@ -21,6 +21,7 @@ CLI Commands (install, switch-skillset, onboard, list, init)
     |       +-- Agent interface
     |           |
     |           +-- getAgentDir({ installDir }) --> agent's config directory path
+    |           +-- getConfigFileName() --> agent's root config filename (e.g. "CLAUDE.md")
     |           +-- getSkillsDir({ installDir }) --> agent's skills directory path
     |           +-- getSkillDiscoveryDirs() --> relative paths for skill discovery in repos
     |           +-- getManagedFiles() --> root-level filenames this agent manages
@@ -75,6 +76,7 @@ The init command (@/src/cli/commands/init/) uses `getDefaultAgent()` from @/src/
 - `displayName`: Human-readable name ("Claude Code")
 - `getAgentDir({ installDir })`: Returns the absolute path to this agent's config directory under the given install directory. Each agent declares its own directory (e.g., claude-code returns `{installDir}/.claude/`). Used by shared modules that need to locate agent-specific paths without importing agent internals.
 - `getSkillsDir({ installDir })`: Returns the absolute path to this agent's skills directory under the given install directory (e.g., claude-code returns `{installDir}/.claude/skills/`).
+- `getConfigFileName()`: Returns the filename of the agent's root configuration file (e.g., claude-code returns `"CLAUDE.md"`). Used by `parseSkillset()` to resolve which config file to look for in a skillset directory, allowing callers to pass `agent.getConfigFileName()` instead of hardcoding a filename.
 - `getSkillDiscoveryDirs()`: Returns relative directory paths where skills may be discovered within a repository (e.g., claude-code returns `[".claude/skills"]`). Used by the skill discovery command (@/src/cli/commands/external/skillDiscovery.ts) to search for skills in external repos.
 - `getManagedFiles()`: Returns the list of root-level filenames within the agent's config directory that this agent manages. Used by the manifest module for installation tracking and change detection.
 - `getManagedDirs()`: Returns the list of directory names within the agent's config directory that this agent manages recursively. Used by the manifest module and cleanup operations.
@@ -127,7 +129,7 @@ The init command (@/src/cli/commands/init/) uses `getDefaultAgent()` from @/src/
 
 **Skillset Parser** (skillset.ts):
 - Defines the `Skillset` type: a content-agnostic representation of a skillset's filesystem structure with fields for `name`, `dir`, `metadata` (NoriJson), `skillsDir`, `configFilePath`, `slashcommandsDir`, and `subagentsDir` (all path fields nullable for optional components).
-- `parseSkillset({ skillsetName?, skillsetDir? })`: Resolves a skillset directory (by name from `~/.nori/profiles/` or by explicit path), calls `ensureNoriJson()` for backwards compatibility, reads metadata, and probes for optional subdirectories/files. Returns a `Skillset` object. Called by the `profilesLoader` to parse the active skillset once, then distribute to all sub-loaders.
+- `parseSkillset({ skillsetName?, skillsetDir?, configFileName? })`: Resolves a skillset directory (by name from `~/.nori/profiles/` or by explicit path), calls `ensureNoriJson()` for backwards compatibility, reads metadata, and probes for optional subdirectories/files. The `configFileName` parameter (defaults to `"CLAUDE.md"`) controls which root config file is looked for in the skillset directory, enabling agent-agnostic resolution when called with `agent.getConfigFileName()`. Returns a `Skillset` object. Called by the `profilesLoader` to parse the active skillset once, then distribute to all sub-loaders.
 - The `ProfileLoader` interface in @/src/cli/features/claude-code/skillsets/skillsetLoaderRegistry.ts accepts `{ config, skillset }` so sub-loaders receive the pre-parsed `Skillset` instead of constructing paths independently.
 
 **Migration System** (migration.ts):

@@ -104,6 +104,17 @@ describe("createTempTestContext", () => {
     expect(exists).toBe(true);
   });
 
+  it("should use custom agentDirName when provided", async () => {
+    ctx = await createTempTestContext({
+      prefix: "custom-agent-test",
+      agentDirName: ".my-agent",
+    });
+
+    expect(ctx.agentDir).toBe(path.join(ctx.tempDir, ".my-agent"));
+    const exists = await pathExists({ filePath: ctx.agentDir });
+    expect(exists).toBe(true);
+  });
+
   it("should cleanup temp directory when cleanup is called", async () => {
     ctx = await createTempTestContext({ prefix: "cleanup-test" });
     const tempDir = ctx.tempDir;

@@ -110,6 +110,20 @@ Changes:
 - Updated Agent mock in `config.test.ts` to include `installSkillset`
 - Updated docs.md files
 
+### Commit 7: Add `getConfigFileName` to Agent interface and parameterize shared code
+
+**Refactor A + B progress:** Added `getConfigFileName()` to the Agent interface and parameterized `parseSkillset()` and `createTempTestContext()` so they no longer hardcode Claude-specific values ("CLAUDE.md", ".claude").
+
+Changes:
+- Added `getConfigFileName: () => string` to `Agent` type in `agentRegistry.ts`
+- Implemented `getConfigFileName: () => "CLAUDE.md"` on claude-code agent in `agent.ts`
+- Added optional `configFileName` parameter to `parseSkillset()` in `skillset.ts` — defaults to "CLAUDE.md" for backwards compatibility, enabling callers to pass `agent.getConfigFileName()` for agent-specific resolution
+- Added optional `agentDirName` parameter to `createTempTestContext()` in `test-utils/index.ts` — defaults to ".claude", enabling tests for non-Claude agents
+- Added 2 tests in `agentRegistry.test.ts` for `getConfigFileName` (direct + registry-wide)
+- Added 3 tests in `skillset.test.ts` for custom configFileName, missing configFileName, and direct skillsetDir path
+- Added 1 test in `test-utils/index.test.ts` for custom agentDirName
+- Updated 3 docs.md files
+
 ## Remaining Work
 
 ### Refactor A (continued): Further agent decoupling
@@ -118,6 +132,7 @@ Changes:
 
 ### Refactor B (continued): Further Skillset type usage
 - The `Skillset` type could be extended to include more parsed metadata as needed
+- `parseSkillset()` now accepts `configFileName` for agent-agnostic config resolution — callers that know the agent should pass `agent.getConfigFileName()`
 
 ### Refactor C (continued): Multi-agent support improvements
 - `detectLocalChanges`, `removeSkillset`, and `installSkillset` are now on the Agent interface (done in Commits 5-6)

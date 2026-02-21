@@ -14,6 +14,7 @@ The `claudeCodeAgent` object in agent.ts provides:
 - `name`: "claude-code"
 - `displayName`: "Claude Code"
 - `getAgentDir({ installDir })`: Returns `{installDir}/.claude` -- the Claude Code config directory path. Implements the `Agent` interface method from @/src/cli/features/agentRegistry.ts.
+- `getConfigFileName()`: Returns `"CLAUDE.md"` -- the root config filename for Claude Code. Implements the `Agent` interface method, enabling `parseSkillset()` to resolve the correct config file per agent.
 - `getSkillsDir({ installDir })`: Returns `{installDir}/.claude/skills` -- the Claude Code skills directory path.
 - `getSkillDiscoveryDirs()`: Returns `[".claude/skills"]` -- the relative paths within a repository where Claude Code skills may be discovered.
 - `getProjectsDir()`: Returns `~/.claude/projects` -- the directory where Claude Code stores per-project session data. Used by the watch command to locate transcript files.
@@ -29,6 +30,7 @@ The `claudeCodeAgent` object in agent.ts provides:
 - `captureExistingConfig({ installDir, skillsetName, config })`: Coordinates the three-step capture process: (1) calls `captureExistingConfigAsSkillset()` from existingConfigCapture.ts to copy existing config into a named skillset directory, (2) deletes the original CLAUDE.md to prevent content duplication, (3) calls `claudeMdLoader.install()` to restore a working managed CLAUDE.md block so the user isn't left without config.
 - `detectLocalChanges({ installDir })`: Reads the per-agent manifest from `~/.nori/manifests/claude-code.json` (with legacy fallback to `~/.nori/installed-manifest.json`), compares file hashes in `{installDir}/.claude/` against stored hashes, and returns a `ManifestDiff` if changes exist or null otherwise. Encapsulates the manifest path resolution and legacy fallback logic that was previously inlined in the switch-skillset command.
 - `removeSkillset({ installDir })`: Removes all Nori-managed files from `{installDir}/.claude/` by reading the per-agent manifest and calling `removeManagedFiles()`. Also cleans up files tracked under the legacy manifest path. Encapsulates the cleanup logic that was previously assembled inline in the config command.
+- `installSkillset({ config })`: Runs all feature loaders from the `LoaderRegistry`, computes and writes an installation manifest to `~/.nori/manifests/claude-code.json`, and calls `markInstall()` to write the `.nori-managed` marker. Manifest writing is non-fatal. This method consolidates the install flow that was previously spread across `install.ts` into the agent implementation, so the install command delegates to `agent.installSkillset({ config })`.
 
 Profile discovery (`listProfiles()`) is not part of the agent -- it lives in @/src/cli/features/managedFolder.ts as an agent-agnostic utility. CLI commands import it directly.
 

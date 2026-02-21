@@ -55,6 +55,8 @@ export const claudeCodeAgent: Agent = {
     return path.join(installDir, ".claude");
   },
 
+  getConfigFileName: () => "CLAUDE.md",
+
   getSkillsDir: (args: { installDir: string }): string => {
     const { installDir } = args;
     return path.join(installDir, ".claude", "skills");

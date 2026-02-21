@@ -60,8 +60,9 @@ export type TempTestContext = {
  *
  * @param args - The arguments object
  * @param args.prefix - Prefix for the temp directory name (e.g., "profiles-test")
+ * @param args.agentDirName - Override the agent config directory name (defaults to ".claude")
  *
- * @returns Promise resolving to a TempTestContext with tempDir, claudeDir, and cleanup function
+ * @returns Promise resolving to a TempTestContext with tempDir, agentDir, and cleanup function
  *
  * @example
  * ```typescript
@@ -78,10 +79,12 @@ export type TempTestContext = {
  */
 export const createTempTestContext = async (args: {
   prefix: string;
+  agentDirName?: string | null;
 }): Promise<TempTestContext> => {
   const { prefix } = args;
+  const agentDirName = args.agentDirName ?? ".claude";
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), `${prefix}-`));
-  const agentDir = path.join(tempDir, ".claude");
+  const agentDir = path.join(tempDir, agentDirName);
   await fs.mkdir(agentDir, { recursive: true });
 
   return {

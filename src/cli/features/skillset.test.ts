@@ -159,6 +159,47 @@ describe("parseSkillset", () => {
     expect(skillset.subagentsDir).toBeNull();
   });
 
+  it("should resolve config file using a custom configFileName", async () => {
+    const skillsetName = "custom-config-skillset";
+    const skillsetDir = path.join(profilesDir, skillsetName);
+    await fs.mkdir(skillsetDir, { recursive: true });
+    await fs.writeFile(
+      path.join(skillsetDir, "nori.json"),
+      JSON.stringify({ name: "custom-config-skillset", version: "1.0.0" }),
+    );
+    // Create a custom config file instead of CLAUDE.md
+    await fs.writeFile(
+      path.join(skillsetDir, "AGENT_CONFIG.md"),
+      "# Custom Agent Config\n",
+    );
+
+    const skillset = await parseSkillset({
+      skillsetName,
+      configFileName: "AGENT_CONFIG.md",
+    });
+
+    expect(skillset.configFilePath).toBe(
+      path.join(skillsetDir, "AGENT_CONFIG.md"),
+    );
+  });
+
+  it("should return null configFilePath when custom configFileName file does not exist", async () => {
+    const skillsetName = "no-custom-config";
+    const skillsetDir = path.join(profilesDir, skillsetName);
+    await fs.mkdir(skillsetDir, { recursive: true });
+    await fs.writeFile(
+      path.join(skillsetDir, "nori.json"),
+      JSON.stringify({ name: "no-custom-config", version: "1.0.0" }),
+    );
+
+    const skillset = await parseSkillset({
+      skillsetName,
+      configFileName: "NONEXISTENT.md",
+    });
+
+    expect(skillset.configFilePath).toBeNull();
+  });
+
   it("should also accept a direct skillsetDir path", async () => {
     const skillsetDir = path.join(profilesDir, "direct-path");
     await fs.mkdir(skillsetDir, { recursive: true });
