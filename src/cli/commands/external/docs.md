@@ -8,7 +8,7 @@ The external command installs skills from GitHub repositories into the local Nor
 
 ### How it fits into the larger codebase
 
-This command is registered via `@/src/cli/commands/noriSkillsetsCommands.ts`. It writes skills to the live Claude skills directory (via `@/cli/features/claude-code/paths.js`) and persists copies into the skillset's `skills/` subfolder under `~/.nori/profiles/`. It updates the skillset's `nori.json` manifest through `@/cli/features/claude-code/skillsets/metadata.js`. Template path substitution is applied to `.md` files via `@/cli/features/claude-code/template.js`. When multiple skills are found and the user has not specified `--skill` or `--all`, it prompts for skill type selection through `@/cli/prompts/flows/externalSkillType.js`.
+This command is registered via `@/src/cli/commands/noriSkillsetsCommands.ts`. It writes skills to the live Claude skills directory (via `@/cli/features/claude-code/paths.js` for Claude-specific paths) and persists copies into the skillset's `skills/` subfolder under `~/.nori/profiles/`. It updates the skillset's `nori.json` manifest through `@/cli/features/skillsetMetadata.js`. Template path substitution is applied to `.md` files via `@/cli/features/template.js`. When multiple skills are found and the user has not specified `--skill` or `--all`, it prompts for skill type selection through `@/cli/prompts/flows/externalSkillType.js`.
 
 ### Core Implementation
 

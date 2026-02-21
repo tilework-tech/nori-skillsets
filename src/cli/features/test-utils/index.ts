@@ -49,8 +49,8 @@ export const pathExists = async (args: {
 export type TempTestContext = {
   /** The root temporary directory for this test */
   tempDir: string;
-  /** The .claude directory within tempDir */
-  claudeDir: string;
+  /** The agent config directory within tempDir (e.g. .claude/) */
+  agentDir: string;
   /** Clean up the temporary directory after the test */
   cleanup: () => Promise<void>;
 };
@@ -60,8 +60,9 @@ export type TempTestContext = {
  *
  * @param args - The arguments object
  * @param args.prefix - Prefix for the temp directory name (e.g., "profiles-test")
+ * @param args.agentDirName - Override the agent config directory name (defaults to ".claude")
  *
- * @returns Promise resolving to a TempTestContext with tempDir, claudeDir, and cleanup function
+ * @returns Promise resolving to a TempTestContext with tempDir, agentDir, and cleanup function
  *
  * @example
  * ```typescript
@@ -78,15 +79,17 @@ export type TempTestContext = {
  */
 export const createTempTestContext = async (args: {
   prefix: string;
+  agentDirName?: string | null;
 }): Promise<TempTestContext> => {
   const { prefix } = args;
+  const agentDirName = args.agentDirName ?? ".claude";
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), `${prefix}-`));
-  const claudeDir = path.join(tempDir, ".claude");
-  await fs.mkdir(claudeDir, { recursive: true });
+  const agentDir = path.join(tempDir, agentDirName);
+  await fs.mkdir(agentDir, { recursive: true });
 
   return {
     tempDir,
-    claudeDir,
+    agentDir,
     cleanup: async () => fs.rm(tempDir, { recursive: true, force: true }),
   };
 };

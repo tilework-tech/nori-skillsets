@@ -10,7 +10,7 @@ import * as path from "path";
 import { log, note, outro } from "@clack/prompts";
 
 import { loadConfig, getActiveSkillset } from "@/cli/config.js";
-import { getNoriSkillsetsDir } from "@/cli/features/claude-code/paths.js";
+import { getNoriSkillsetsDir } from "@/cli/features/paths.js";
 
 /**
  * Main function for edit-skillset command

@@ -1,24 +1,24 @@
 /**
- * Template substitution utility for Claude Code
- * Replaces placeholders with actual paths in content
+ * Template substitution utility
+ * Agent-agnostic placeholder replacement for skillset content
  */
 
 import * as path from "path";
 
-import { getNoriSkillsetsDir } from "@/cli/features/claude-code/paths.js";
+import { getNoriSkillsetsDir } from "@/cli/features/paths.js";
 
 /**
  * Substitute template placeholders in content with actual paths
  *
  * Supported placeholders:
- * - {{skills_dir}} - Path to skills directory (~/.claude/skills)
+ * - {{skills_dir}} - Path to skills directory under agent config dir
  * - {{profiles_dir}} - Path to profiles directory (~/.nori/profiles)
- * - {{commands_dir}} - Path to commands directory (~/.claude/commands)
- * - {{install_dir}} - Path to install root (parent of .claude)
+ * - {{commands_dir}} - Path to commands directory under agent config dir
+ * - {{install_dir}} - Path to install root (parent of agent config dir)
  *
  * @param args - Arguments object
  * @param args.content - The content with placeholders
- * @param args.installDir - The .claude directory path
+ * @param args.installDir - The agent config directory path (e.g. .claude dir)
  *
  * @returns Content with placeholders replaced
  */
@@ -28,7 +28,7 @@ export const substituteTemplatePaths = (args: {
 }): string => {
   const { content, installDir } = args;
 
-  // The installDir is the .claude directory, but profiles are in .nori/profiles
+  // The installDir is the agent config directory, but profiles are in .nori/profiles
   // We need to get the parent directory to compute the nori profiles path
   const parentDir = path.dirname(installDir);
   const skillsetsDir = getNoriSkillsetsDir();

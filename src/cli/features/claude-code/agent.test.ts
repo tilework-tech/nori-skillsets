@@ -19,16 +19,20 @@ vi.mock("os", async (importOriginal) => {
 
 // Mock paths module to use test directory
 vi.mock("@/cli/features/claude-code/paths.js", () => {
-  const testNoriDir = "/tmp/agent-test-nori";
   return {
     getClaudeDir: (_args: { installDir: string }) => "/tmp/agent-test-claude",
     getClaudeMdFile: (_args: { installDir: string }) =>
       "/tmp/agent-test-claude/CLAUDE.md",
     getClaudeSkillsDir: (_args: { installDir: string }) =>
       "/tmp/agent-test-claude/skills",
+  };
+});
+
+vi.mock("@/cli/features/paths.js", () => {
+  const testNoriDir = "/tmp/agent-test-nori";
+  return {
     getNoriDir: () => testNoriDir,
     getNoriSkillsetsDir: () => `${testNoriDir}/profiles`,
-    getNoriConfigFile: () => `${testNoriDir}/config.json`,
   };
 });
 

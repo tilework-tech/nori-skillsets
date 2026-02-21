@@ -108,7 +108,7 @@ describe("initFlow", () => {
     it("should prompt for skillset name with text input", async () => {
       vi.mocked(clack.confirm).mockResolvedValueOnce(true);
       vi.mocked(mockCallbacks.onDetectExistingConfig).mockResolvedValueOnce({
-        hasClaudeMd: true,
+        hasConfigFile: true,
         hasManagedBlock: false,
         hasSkills: false,
         skillCount: 0,
@@ -132,7 +132,7 @@ describe("initFlow", () => {
     it("should call onCaptureConfig with install dir and skillset name", async () => {
       vi.mocked(clack.confirm).mockResolvedValueOnce(true);
       vi.mocked(mockCallbacks.onDetectExistingConfig).mockResolvedValueOnce({
-        hasClaudeMd: true,
+        hasConfigFile: true,
         hasManagedBlock: false,
         hasSkills: false,
         skillCount: 0,
@@ -157,7 +157,7 @@ describe("initFlow", () => {
     it("should call onInit with captured skillset name", async () => {
       vi.mocked(clack.confirm).mockResolvedValueOnce(true);
       vi.mocked(mockCallbacks.onDetectExistingConfig).mockResolvedValueOnce({
-        hasClaudeMd: true,
+        hasConfigFile: true,
         hasManagedBlock: false,
         hasSkills: false,
         skillCount: 0,
@@ -182,7 +182,7 @@ describe("initFlow", () => {
     it("should return result with captured skillset name", async () => {
       vi.mocked(clack.confirm).mockResolvedValueOnce(true);
       vi.mocked(mockCallbacks.onDetectExistingConfig).mockResolvedValueOnce({
-        hasClaudeMd: true,
+        hasConfigFile: true,
         hasManagedBlock: false,
         hasSkills: false,
         skillCount: 0,
@@ -295,7 +295,7 @@ describe("initFlow", () => {
     it("should return null when user cancels at skillset name prompt", async () => {
       vi.mocked(clack.confirm).mockResolvedValueOnce(true);
       vi.mocked(mockCallbacks.onDetectExistingConfig).mockResolvedValueOnce({
-        hasClaudeMd: true,
+        hasConfigFile: true,
         hasManagedBlock: false,
         hasSkills: false,
         skillCount: 0,

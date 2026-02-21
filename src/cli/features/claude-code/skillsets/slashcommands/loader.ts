@@ -5,59 +5,33 @@
 
 import * as fs from "fs/promises";
 import * as path from "path";
-import { fileURLToPath } from "url";
 
 import { log, note } from "@clack/prompts";
 
-import { getActiveSkillset, type Config } from "@/cli/config.js";
+import { type Config } from "@/cli/config.js";
 import {
   getClaudeDir,
   getClaudeCommandsDir,
-  getNoriDir,
 } from "@/cli/features/claude-code/paths.js";
-import { substituteTemplatePaths } from "@/cli/features/claude-code/template.js";
+import { substituteTemplatePaths } from "@/cli/features/template.js";
 import { bold } from "@/cli/logger.js";
 
 import type { ProfileLoader } from "@/cli/features/claude-code/skillsets/skillsetLoaderRegistry.js";
-
-// Get directory of this loader file
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-/**
- * Get config directory for slash commands based on selected profile
- *
- * @param args - Configuration arguments
- * @param args.skillsetName - Name of the profile to load slash commands from
- *
- * @returns Path to the slashcommands config directory for the profile
- */
-const getConfigDir = (args: { skillsetName: string }): string => {
-  const { skillsetName } = args;
-  const noriDir = getNoriDir();
-  return path.join(noriDir, "profiles", skillsetName, "slashcommands");
-};
+import type { Skillset } from "@/cli/features/skillset.js";
 
 /**
  * Register all slash commands
  * @param args - Configuration arguments
  * @param args.config - Runtime configuration
+ * @param args.skillset - Parsed skillset
  */
 const registerSlashCommands = async (args: {
   config: Config;
+  skillset: Skillset;
 }): Promise<void> => {
-  const { config } = args;
+  const { config, skillset } = args;
 
-  // Get profile name from config - error if not configured
-  const skillsetName = getActiveSkillset({ config });
-  if (skillsetName == null) {
-    throw new Error(
-      "No skillset configured for claude-code. Run 'nori-skillsets init' to configure a skillset.",
-    );
-  }
-  const configDir = getConfigDir({
-    skillsetName,
-  });
+  const configDir = skillset.slashcommandsDir;
   const claudeCommandsDir = getClaudeCommandsDir({
     installDir: config.installDir,
   });
@@ -70,6 +44,10 @@ const registerSlashCommands = async (args: {
   const skipped: Array<string> = [];
 
   // Read all .md files from the profile's slashcommands directory
+  if (configDir == null) {
+    log.warn("Profile slashcommands directory not found, skipping");
+    return;
+  }
   let files: Array<string>;
   try {
     files = await fs.readdir(configDir);
@@ -125,8 +103,8 @@ const registerSlashCommands = async (args: {
 export const slashCommandsLoader: ProfileLoader = {
   name: "slashcommands",
   description: "Register all Nori slash commands with Claude Code",
-  install: async (args: { config: Config }) => {
-    const { config } = args;
-    await registerSlashCommands({ config });
+  install: async (args: { config: Config; skillset: Skillset }) => {
+    const { config, skillset } = args;
+    await registerSlashCommands({ config, skillset });
   },
 };

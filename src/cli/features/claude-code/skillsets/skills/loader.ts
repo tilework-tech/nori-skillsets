@@ -5,23 +5,18 @@
 
 import * as fs from "fs/promises";
 import * as path from "path";
-import { fileURLToPath } from "url";
 
-import { getActiveSkillset, type Config } from "@/cli/config.js";
+import { type Config } from "@/cli/config.js";
 import {
   getClaudeDir,
   getClaudeSkillsDir,
   getClaudeSettingsFile,
-  getNoriDir,
 } from "@/cli/features/claude-code/paths.js";
-import { substituteTemplatePaths } from "@/cli/features/claude-code/template.js";
+import { substituteTemplatePaths } from "@/cli/features/template.js";
 
 import type { ProfileLoader } from "@/cli/features/claude-code/skillsets/skillsetLoaderRegistry.js";
+import type { Skillset } from "@/cli/features/skillset.js";
 import type { Dirent } from "fs";
-
-// Get directory of this loader file
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 /**
  * Copy a directory recursively, applying template substitution to markdown files
@@ -65,51 +60,19 @@ const copyDirWithTemplateSubstitution = async (args: {
 };
 
 /**
- * Get profile directory based on selected profile
- *
- * @param args - Configuration arguments
- * @param args.skillsetName - Name of the profile
- *
- * @returns Path to the profile directory
- */
-const getProfileDir = (args: { skillsetName: string }): string => {
-  const { skillsetName } = args;
-  const noriDir = getNoriDir();
-  return path.join(noriDir, "profiles", skillsetName);
-};
-
-/**
- * Get config directory for skills based on selected profile
- *
- * @param args - Configuration arguments
- * @param args.skillsetName - Name of the profile to load skills from
- *
- * @returns Path to the skills config directory for the profile
- */
-const getConfigDir = (args: { skillsetName: string }): string => {
-  const { skillsetName } = args;
-  return path.join(getProfileDir({ skillsetName }), "skills");
-};
-
-/**
  * Install skills
  * @param args - Configuration arguments
  * @param args.config - Runtime configuration
+ * @param args.skillset - Parsed skillset
  */
-const installSkills = async (args: { config: Config }): Promise<void> => {
-  const { config } = args;
+const installSkills = async (args: {
+  config: Config;
+  skillset: Skillset;
+}): Promise<void> => {
+  const { config, skillset } = args;
   // Skills installation — output is consolidated in the subagents/slashcommands notes
 
-  // Get profile name from config - error if not configured
-  const skillsetName = getActiveSkillset({ config });
-  if (skillsetName == null) {
-    throw new Error(
-      "No skillset configured for claude-code. Run 'nori-skillsets init' to configure a skillset.",
-    );
-  }
-  const configDir = getConfigDir({
-    skillsetName,
-  });
+  const configDir = skillset.skillsDir;
   const claudeDir = getClaudeDir({ installDir: config.installDir });
   const claudeSkillsDir = getClaudeSkillsDir({ installDir: config.installDir });
 
@@ -119,39 +82,43 @@ const installSkills = async (args: { config: Config }): Promise<void> => {
   // Create skills directory
   await fs.mkdir(claudeSkillsDir, { recursive: true });
 
-  // Step 1: Install inline skills from profile's skills/ folder
-  let entries: Array<Dirent>;
-  try {
-    entries = await fs.readdir(configDir, { withFileTypes: true });
+  // Install inline skills from profile's skills/ folder
+  if (configDir == null) {
+    // Profile skills directory not found — continue silently
+  } else {
+    let entries: Array<Dirent>;
+    try {
+      entries = await fs.readdir(configDir, { withFileTypes: true });
 
-    for (const entry of entries) {
-      const sourcePath = path.join(configDir, entry.name);
+      for (const entry of entries) {
+        const sourcePath = path.join(configDir, entry.name);
 
-      if (!entry.isDirectory()) {
-        // Copy non-directory files (like docs.md) with template substitution if markdown
-        const destPath = path.join(claudeSkillsDir, entry.name);
-        if (entry.name.endsWith(".md")) {
-          const content = await fs.readFile(sourcePath, "utf-8");
-          const substituted = substituteTemplatePaths({
-            content,
-            installDir: claudeDir,
-          });
-          await fs.writeFile(destPath, substituted);
-        } else {
-          await fs.copyFile(sourcePath, destPath);
+        if (!entry.isDirectory()) {
+          // Copy non-directory files (like docs.md) with template substitution if markdown
+          const destPath = path.join(claudeSkillsDir, entry.name);
+          if (entry.name.endsWith(".md")) {
+            const content = await fs.readFile(sourcePath, "utf-8");
+            const substituted = substituteTemplatePaths({
+              content,
+              installDir: claudeDir,
+            });
+            await fs.writeFile(destPath, substituted);
+          } else {
+            await fs.copyFile(sourcePath, destPath);
+          }
+          continue;
         }
-        continue;
-      }
 
-      const destPath = path.join(claudeSkillsDir, entry.name);
-      await copyDirWithTemplateSubstitution({
-        src: sourcePath,
-        dest: destPath,
-        installDir: claudeDir,
-      });
+        const destPath = path.join(claudeSkillsDir, entry.name);
+        await copyDirWithTemplateSubstitution({
+          src: sourcePath,
+          dest: destPath,
+          installDir: claudeDir,
+        });
+      }
+    } catch {
+      // Profile skills directory not found - continue silently
     }
-  } catch {
-    // Profile skills directory not found - continue silently
   }
 
   // Note: External skills from skills.json are now stored in the profile's own skills
@@ -220,8 +187,8 @@ const configureSkillsPermissions = async (args: {
 export const skillsLoader: ProfileLoader = {
   name: "skills",
   description: "Install skill configuration files",
-  install: async (args: { config: Config }) => {
-    const { config } = args;
-    await installSkills({ config });
+  install: async (args: { config: Config; skillset: Skillset }) => {
+    const { config, skillset } = args;
+    await installSkills({ config, skillset });
   },
 };

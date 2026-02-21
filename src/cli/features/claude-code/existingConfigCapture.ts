@@ -15,8 +15,8 @@ import {
   getClaudeSkillsDir,
   getClaudeAgentsDir,
   getClaudeCommandsDir,
-  getNoriSkillsetsDir,
 } from "@/cli/features/claude-code/paths.js";
+import { getNoriSkillsetsDir } from "@/cli/features/paths.js";
 
 export type { ExistingConfig };
 
@@ -135,11 +135,11 @@ export const detectExistingConfig = async (args: {
   const commandsDir = getClaudeCommandsDir({ installDir });
 
   // Check CLAUDE.md
-  let hasClaudeMd = false;
+  let hasConfigFile = false;
   let hasManagedBlock = false;
 
   if (await fileExists(claudeMdFile)) {
-    hasClaudeMd = true;
+    hasConfigFile = true;
     try {
       const content = await fs.readFile(claudeMdFile, "utf-8");
       hasManagedBlock = content.includes(BEGIN_MARKER);
@@ -161,12 +161,12 @@ export const detectExistingConfig = async (args: {
   const hasCommands = commandCount > 0;
 
   // Return null if nothing was found
-  if (!hasClaudeMd && !hasSkills && !hasAgents && !hasCommands) {
+  if (!hasConfigFile && !hasSkills && !hasAgents && !hasCommands) {
     return null;
   }
 
   return {
-    hasClaudeMd,
+    hasConfigFile,
     hasManagedBlock,
     hasSkills,
     skillCount,

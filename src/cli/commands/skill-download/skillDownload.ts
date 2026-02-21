@@ -24,16 +24,14 @@ import {
   loadConfig,
   getActiveSkillset,
 } from "@/cli/config.js";
-import {
-  getClaudeSkillsDir,
-  getNoriSkillsetsDir,
-} from "@/cli/features/claude-code/paths.js";
+import { AgentRegistry } from "@/cli/features/agentRegistry.js";
+import { getNoriSkillsetsDir } from "@/cli/features/paths.js";
+import { addSkillDependency } from "@/cli/features/skillResolver.js";
 import {
   addSkillToNoriJson,
   ensureNoriJson,
-} from "@/cli/features/claude-code/skillsets/metadata.js";
-import { addSkillDependency } from "@/cli/features/claude-code/skillsets/skills/resolver.js";
-import { substituteTemplatePaths } from "@/cli/features/claude-code/template.js";
+} from "@/cli/features/skillsetMetadata.js";
+import { substituteTemplatePaths } from "@/cli/features/template.js";
 import { skillDownloadFlow } from "@/cli/prompts/flows/index.js";
 import { resolveInstallDir } from "@/utils/path.js";
 import {
@@ -395,6 +393,7 @@ export const skillDownloadMain = async (args: {
   const targetInstallDir = resolveInstallDir({
     cliInstallDir: installDir,
     config,
+    agentDirNames: AgentRegistry.getInstance().getAgentDirNames(),
   });
 
   // Resolve target skillset for manifest update
@@ -431,7 +430,9 @@ export const skillDownloadMain = async (args: {
     }
   }
 
-  const skillsDir = getClaudeSkillsDir({ installDir: targetInstallDir });
+  // Use the first default agent to resolve paths
+  const defaultAgent = AgentRegistry.getInstance().getAll()[0];
+  const skillsDir = defaultAgent.getSkillsDir({ installDir: targetInstallDir });
 
   // Ensure skills directory exists
   await fs.mkdir(skillsDir, { recursive: true });
@@ -723,10 +724,12 @@ export const skillDownloadMain = async (args: {
           }
 
           // Apply template substitution
-          const claudeDir = path.join(targetInstallDir, ".claude");
+          const agentDir = defaultAgent.getAgentDir({
+            installDir: targetInstallDir,
+          });
           await applyTemplateSubstitutionToDir({
             dir: targetDir,
-            installDir: claudeDir,
+            installDir: agentDir,
           });
 
           // Update skillset manifest

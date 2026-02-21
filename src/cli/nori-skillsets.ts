@@ -32,6 +32,7 @@ import {
   registerNoriSkillsetsUploadCommand,
   registerNoriSkillsetsWatchCommand,
 } from "@/cli/commands/noriSkillsetsCommands.js";
+import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import {
   setTileworkSource,
   trackInstallLifecycle,
@@ -78,7 +79,11 @@ program
   .option(
     "-d, --install-dir <path>",
     "Custom installation directory (default: ~/.claude)",
-    (value) => normalizeInstallDir({ installDir: value }),
+    (value) =>
+      normalizeInstallDir({
+        installDir: value,
+        agentDirNames: AgentRegistry.getInstance().getAgentDirNames(),
+      }),
   )
   .option("-n, --non-interactive", "Run without interactive prompts")
   .option("-s, --silent", "Suppress all output (implies --non-interactive)")

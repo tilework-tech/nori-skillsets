@@ -1,7 +1,7 @@
 /**
  * Manifest module for tracking installed files
  *
- * Provides functionality to:
+ * Agent-agnostic module that provides functionality to:
  * - Hash files for change detection
  * - Create manifests of installed directories
  * - Compare current state against stored manifests
@@ -11,7 +11,7 @@ import * as fs from "fs/promises";
 import { createHash } from "node:crypto";
 import * as path from "path";
 
-import { getNoriDir } from "@/cli/features/claude-code/paths.js";
+import { getNoriDir } from "@/cli/features/paths.js";
 
 /**
  * Manifest file structure storing hashes of all installed files
@@ -33,9 +33,9 @@ export type ManifestDiff = {
 };
 
 /**
- * Root-level files within ~/.claude/ that Nori manages.
+ * Root-level files within the agent config directory that Nori manages.
  * Only these files are tracked in the manifest.
- * Use agent.getManagedFiles() to get agent-specific values.
+ * Callers should prefer passing agent.getManagedFiles() explicitly.
  */
 const MANAGED_FILES: ReadonlyArray<string> = [
   "CLAUDE.md",
@@ -44,9 +44,9 @@ const MANAGED_FILES: ReadonlyArray<string> = [
 ];
 
 /**
- * Top-level directories within ~/.claude/ that Nori manages.
+ * Top-level directories within the agent config directory that Nori manages.
  * All files recursively within these directories are tracked in the manifest.
- * Use agent.getManagedDirs() to get agent-specific values.
+ * Callers should prefer passing agent.getManagedDirs() explicitly.
  */
 const MANAGED_DIRS: ReadonlyArray<string> = ["skills", "commands", "agents"];
 
@@ -368,16 +368,16 @@ export const compareManifest = async (args: {
  * Files not in the manifest are preserved.
  *
  * @param args - Configuration arguments
- * @param args.claudeDir - The .claude directory to clean up
+ * @param args.agentDir - The agent's config directory to clean up
  * @param args.manifestPath - Path to the manifest file
  * @param args.managedDirs - Optional list of managed directory names (falls back to defaults)
  */
 export const removeManagedFiles = async (args: {
-  claudeDir: string;
+  agentDir: string;
   manifestPath: string;
   managedDirs?: ReadonlyArray<string> | null;
 }): Promise<void> => {
-  const { claudeDir, manifestPath } = args;
+  const { agentDir, manifestPath } = args;
   const dirList = args.managedDirs ?? MANAGED_DIRS;
 
   const manifest = await readManifest({ manifestPath });
@@ -387,19 +387,19 @@ export const removeManagedFiles = async (args: {
 
   // Remove all files listed in the manifest
   for (const relativePath of Object.keys(manifest.files)) {
-    const fullPath = path.join(claudeDir, relativePath);
+    const fullPath = path.join(agentDir, relativePath);
     await fs.rm(fullPath, { force: true });
   }
 
   // Remove the .nori-managed marker
-  await fs.rm(path.join(claudeDir, ".nori-managed"), { force: true });
+  await fs.rm(path.join(agentDir, ".nori-managed"), { force: true });
 
   // Delete the manifest itself since it no longer reflects reality
   await fs.rm(manifestPath, { force: true });
 
   // Clean up empty managed directories (deepest first)
   for (const dir of dirList) {
-    const dirPath = path.join(claudeDir, dir);
+    const dirPath = path.join(agentDir, dir);
     await removeEmptyDirs({ dir: dirPath });
   }
 };

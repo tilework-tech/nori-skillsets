@@ -1,5 +1,6 @@
 /**
  * Skillset metadata utilities
+ * Agent-agnostic functions for reading and writing skillset nori.json manifests
  */
 
 import * as fs from "fs/promises";
@@ -94,24 +95,29 @@ export const addSkillToNoriJson = async (args: {
 };
 
 /**
- * Check whether a directory looks like a skillset (has CLAUDE.md, or both
+ * Check whether a directory looks like a skillset (has a known config file, or both
  * skills/ and subagents/ subdirectories).
  *
  * @param args - Function arguments
  * @param args.skillsetDir - Path to the directory to check
+ * @param args.configFileNames - Config file names to look for (defaults to ["CLAUDE.md"])
  *
  * @returns True if the directory has skillset markers
  */
 const looksLikeSkillset = async (args: {
   skillsetDir: string;
+  configFileNames?: Array<string> | null;
 }): Promise<boolean> => {
   const { skillsetDir } = args;
+  const configFileNames = args.configFileNames ?? ["CLAUDE.md"];
 
-  try {
-    await fs.access(path.join(skillsetDir, "CLAUDE.md"));
-    return true;
-  } catch {
-    // no CLAUDE.md — check for skills + subagents dirs
+  for (const fileName of configFileNames) {
+    try {
+      await fs.access(path.join(skillsetDir, fileName));
+      return true;
+    } catch {
+      // file not found — try next
+    }
   }
 
   try {
@@ -128,20 +134,22 @@ const looksLikeSkillset = async (args: {
 /**
  * Ensure a nori.json manifest exists for a skillset directory.
  *
- * If the directory exists and looks like a skillset (has CLAUDE.md, or both
- * skills/ and subagents/ subdirectories) but has no nori.json, creates one
- * with the folder name as `name` and version "0.0.1".
+ * If the directory exists and looks like a skillset (has a known config file,
+ * or both skills/ and subagents/ subdirectories) but has no nori.json, creates
+ * one with the folder name as `name` and version "0.0.1".
  *
  * This is a backwards-compatibility shim for user-created skillsets that
  * were never given a nori.json manifest.
  *
  * @param args - Function arguments
  * @param args.skillsetDir - Path to skillset directory
+ * @param args.configFileNames - Config file names to look for (defaults to ["CLAUDE.md"])
  */
 export const ensureNoriJson = async (args: {
   skillsetDir: string;
+  configFileNames?: Array<string> | null;
 }): Promise<void> => {
-  const { skillsetDir } = args;
+  const { skillsetDir, configFileNames } = args;
   const noriJsonPath = path.join(skillsetDir, "nori.json");
 
   try {
@@ -157,7 +165,7 @@ export const ensureNoriJson = async (args: {
     return;
   }
 
-  if (!(await looksLikeSkillset({ skillsetDir }))) {
+  if (!(await looksLikeSkillset({ skillsetDir, configFileNames }))) {
     return;
   }
 

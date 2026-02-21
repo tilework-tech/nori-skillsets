@@ -9,8 +9,8 @@ import * as path from "path";
 
 import { log, note, outro } from "@clack/prompts";
 
-import { getNoriSkillsetsDir } from "@/cli/features/claude-code/paths.js";
-import { writeSkillsetMetadata } from "@/cli/features/claude-code/skillsets/metadata.js";
+import { getNoriSkillsetsDir } from "@/cli/features/paths.js";
+import { writeSkillsetMetadata } from "@/cli/features/skillsetMetadata.js";
 import { registerSkillsetFlow } from "@/cli/prompts/flows/registerSkillset.js";
 
 import type { NoriJson } from "@/norijson/nori.js";

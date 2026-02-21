@@ -9,13 +9,13 @@ import * as path from "path";
 
 import { log, note, outro } from "@clack/prompts";
 
-import { getNoriSkillsetsDir } from "@/cli/features/claude-code/paths.js";
+import { MANIFEST_FILE } from "@/cli/features/managedFolder.js";
+import { getNoriSkillsetsDir } from "@/cli/features/paths.js";
 import {
   ensureNoriJson,
   readSkillsetMetadata,
   writeSkillsetMetadata,
-} from "@/cli/features/claude-code/skillsets/metadata.js";
-import { MANIFEST_FILE } from "@/cli/features/managedFolder.js";
+} from "@/cli/features/skillsetMetadata.js";
 
 export const forkSkillsetMain = async (args: {
   baseSkillset: string;

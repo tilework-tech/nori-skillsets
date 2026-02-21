@@ -9,6 +9,7 @@ import * as path from "path";
 import Ajv from "ajv";
 import addFormats from "ajv-formats";
 
+import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { getHomeDir } from "@/utils/home.js";
 import { normalizeUrl, extractOrgId, buildRegistryUrl } from "@/utils/url.js";
 
@@ -208,7 +209,7 @@ export const getDefaultAgents = (args: {
     return config.defaultAgents;
   }
 
-  return ["claude-code"];
+  return [AgentRegistry.getInstance().getDefaultAgentName()];
 };
 
 /**

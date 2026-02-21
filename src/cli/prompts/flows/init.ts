@@ -65,7 +65,7 @@ const buildExistingConfigSummary = (args: {
   const { config } = args;
   const lines: Array<string> = [];
 
-  if (config.hasClaudeMd) {
+  if (config.hasConfigFile) {
     lines.push("CLAUDE.md found");
   }
   if (config.hasSkills) {
@@ -122,9 +122,9 @@ export const initFlow = async (args: {
   // Step 1: Persistence warning confirmation
   if (skipWarning !== true) {
     const warningLines = [
-      "By running init, Nori will manage your config. Any changes to",
-      "~/.claude/skills/, ~/.claude/CLAUDE.md, or other configuration",
-      "files will be OVERWRITTEN the next time you run switch-skillset.",
+      "By running init, Nori will manage your agent config. Any changes to",
+      "agent-managed skills, config files, or other configuration",
+      "will be OVERWRITTEN the next time you run switch-skillset.",
       "",
       "To persist your customizations across skillset switches:",
       "  Make changes in ~/.nori/profiles/<skillset-name>/",

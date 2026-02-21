@@ -12,7 +12,7 @@ Imported by test files throughout `@/src/cli/` for consistent temporary director
 
 ### Core Implementation
 
-`stripAnsi` removes ANSI escape codes from strings for plain text comparison in test assertions. `pathExists` wraps `fs.access` into a boolean promise. `createTempTestContext` creates a temp directory with a `.claude/` subdirectory and returns a cleanup function. `createIsolatedTestContext` extends the temp context by also creating `.nori/profiles/` within the temp directory and setting `NORI_GLOBAL_CONFIG` to the temp directory, providing complete isolation from the real home directory. Its cleanup restores the original `NORI_GLOBAL_CONFIG` value.
+`stripAnsi` removes ANSI escape codes from strings for plain text comparison in test assertions. `pathExists` wraps `fs.access` into a boolean promise. `createTempTestContext` creates a temp directory with an agent config subdirectory (defaults to `.claude/`, overridable via the `agentDirName` parameter) and returns a cleanup function. `createIsolatedTestContext` extends the temp context by also creating `.nori/profiles/` within the temp directory and setting `NORI_GLOBAL_CONFIG` to the temp directory, providing complete isolation from the real home directory. Its cleanup restores the original `NORI_GLOBAL_CONFIG` value.
 
 ### Things to Know
 

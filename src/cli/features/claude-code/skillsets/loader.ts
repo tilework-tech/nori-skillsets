@@ -6,12 +6,11 @@
 import * as fs from "fs/promises";
 import * as path from "path";
 
-import { type Config } from "@/cli/config.js";
-import {
-  getNoriSkillsetsDir,
-  getClaudeSettingsFile,
-} from "@/cli/features/claude-code/paths.js";
+import { getActiveSkillset, type Config } from "@/cli/config.js";
+import { getClaudeSettingsFile } from "@/cli/features/claude-code/paths.js";
 import { ProfileLoaderRegistry } from "@/cli/features/claude-code/skillsets/skillsetLoaderRegistry.js";
+import { getNoriSkillsetsDir } from "@/cli/features/paths.js";
+import { parseSkillset } from "@/cli/features/skillset.js";
 
 import type { Loader } from "@/cli/features/agentRegistry.js";
 
@@ -99,11 +98,23 @@ export const profilesLoader: Loader = {
     const { config } = args;
     await installProfiles({ config });
 
-    // Install all profile-dependent features
+    // Parse the active skillset into an explicit Skillset type
+    const skillsetName = getActiveSkillset({ config });
+    if (skillsetName == null) {
+      throw new Error(
+        "No skillset configured. Run 'nori-skillsets init' to configure a skillset.",
+      );
+    }
+    const skillset = await parseSkillset({
+      skillsetName,
+      configFileName: "CLAUDE.md",
+    });
+
+    // Install all profile-dependent features with the parsed skillset
     const registry = ProfileLoaderRegistry.getInstance();
     const loaders = registry.getAll();
     for (const loader of loaders) {
-      await loader.install({ config });
+      await loader.install({ config, skillset });
     }
   },
 };

@@ -11,13 +11,15 @@ import { getHomeDir } from "@/utils/home.js";
  * Normalize an installation directory path
  * @param args - Configuration arguments
  * @param args.installDir - The installation directory (optional)
+ * @param args.agentDirNames - Agent config directory basenames to strip from path suffixes (optional)
  *
  * @returns Absolute path to the base installation directory (defaults to home directory)
  */
 export const normalizeInstallDir = (args: {
   installDir?: string | null;
+  agentDirNames?: Array<string> | null;
 }): string => {
-  const { installDir } = args;
+  const { installDir, agentDirNames } = args;
 
   // Use home directory if no installDir provided or empty
   if (installDir == null || installDir === "") {
@@ -46,9 +48,12 @@ export const normalizeInstallDir = (args: {
     normalizedPath = normalizedPath.slice(0, -1);
   }
 
-  // If path ends with .claude, strip it to get the base directory
-  if (path.basename(normalizedPath) === ".claude") {
-    return path.dirname(normalizedPath);
+  // If path ends with a known agent directory name, strip it to get the base directory
+  if (agentDirNames != null && agentDirNames.length > 0) {
+    const basename = path.basename(normalizedPath);
+    if (agentDirNames.includes(basename)) {
+      return path.dirname(normalizedPath);
+    }
   }
 
   return normalizedPath;
@@ -63,21 +68,26 @@ export const normalizeInstallDir = (args: {
  * @param args - Configuration arguments
  * @param args.cliInstallDir - Value from CLI --install-dir flag (optional)
  * @param args.config - Loaded config object (optional)
+ * @param args.agentDirNames - Agent config directory basenames to strip from path suffixes (optional)
  *
  * @returns Resolved absolute path to the installation directory
  */
 export const resolveInstallDir = (args: {
   cliInstallDir?: string | null;
   config?: Config | null;
+  agentDirNames?: Array<string> | null;
 }): string => {
-  const { cliInstallDir, config } = args;
+  const { cliInstallDir, config, agentDirNames } = args;
 
   if (cliInstallDir != null && cliInstallDir !== "") {
-    return normalizeInstallDir({ installDir: cliInstallDir });
+    return normalizeInstallDir({ installDir: cliInstallDir, agentDirNames });
   }
 
   if (config?.installDir != null && config.installDir !== "") {
-    return normalizeInstallDir({ installDir: config.installDir });
+    return normalizeInstallDir({
+      installDir: config.installDir,
+      agentDirNames,
+    });
   }
 
   return getHomeDir();
