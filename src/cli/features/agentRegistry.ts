@@ -6,6 +6,7 @@
 import { claudeCodeAgent } from "@/cli/features/claude-code/agent.js";
 
 import type { Config } from "@/cli/config.js";
+import type { ManifestDiff } from "@/cli/features/manifest.js";
 
 /**
  * Canonical agent names used as UIDs in the registry.
@@ -87,6 +88,12 @@ export type Agent = {
     installDir: string;
     skillsetName: string;
   }) => Promise<void>;
+  /** Detect local changes to installed files by comparing against the stored manifest */
+  detectLocalChanges: (args: {
+    installDir: string;
+  }) => Promise<ManifestDiff | null>;
+  /** Remove all Nori-managed files for this agent at the given directory */
+  removeSkillset: (args: { installDir: string }) => Promise<void>;
   /** Get relative directory paths where skills may be discovered in a repo */
   getSkillDiscoveryDirs: () => ReadonlyArray<string>;
   /** Get the agent's projects/sessions directory (home-relative) */

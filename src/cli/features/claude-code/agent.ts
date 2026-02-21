@@ -20,6 +20,14 @@ import { LoaderRegistry } from "@/cli/features/claude-code/loaderRegistry.js";
 import { getClaudeMdFile } from "@/cli/features/claude-code/paths.js";
 import { claudeMdLoader } from "@/cli/features/claude-code/skillsets/claudemd/loader.js";
 import { MANIFEST_FILE } from "@/cli/features/managedFolder.js";
+import {
+  readManifest,
+  compareManifest,
+  hasChanges,
+  getManifestPath,
+  getLegacyManifestPath,
+  removeManagedFiles,
+} from "@/cli/features/manifest.js";
 import { getNoriSkillsetsDir } from "@/cli/features/paths.js";
 import { parseSkillset } from "@/cli/features/skillset.js";
 import { ensureNoriJson } from "@/cli/features/skillsetMetadata.js";
@@ -121,6 +129,44 @@ export const claudeCodeAgent: Agent = {
     // Install the managed CLAUDE.md block so the user isn't left without config
     const skillset = await parseSkillset({ skillsetName });
     await claudeMdLoader.install({ config, skillset });
+  },
+
+  detectLocalChanges: async (args: { installDir: string }) => {
+    const { installDir } = args;
+
+    const manifestPath = getManifestPath({ agentName: "claude-code" });
+    const legacyManifestPath = getLegacyManifestPath();
+    const manifest = await readManifest({ manifestPath, legacyManifestPath });
+
+    if (manifest == null) {
+      return null;
+    }
+
+    const agentDir = path.join(installDir, ".claude");
+    const diff = await compareManifest({
+      manifest,
+      currentDir: agentDir,
+      managedFiles: claudeCodeAgent.getManagedFiles(),
+      managedDirs: claudeCodeAgent.getManagedDirs(),
+    });
+
+    return hasChanges(diff) ? diff : null;
+  },
+
+  removeSkillset: async (args: { installDir: string }) => {
+    const { installDir } = args;
+    const agentDir = path.join(installDir, ".claude");
+    const manifestPath = getManifestPath({ agentName: "claude-code" });
+
+    await removeManagedFiles({
+      agentDir,
+      manifestPath,
+      managedDirs: claudeCodeAgent.getManagedDirs(),
+    });
+
+    // Also clean up legacy manifest
+    const legacyPath = getLegacyManifestPath();
+    await removeManagedFiles({ agentDir, manifestPath: legacyPath });
   },
 
   switchSkillset: async (args: {

@@ -16,11 +16,6 @@ import {
   saveConfig,
 } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
-import {
-  getManifestPath,
-  getLegacyManifestPath,
-  removeManagedFiles,
-} from "@/cli/features/manifest.js";
 import { confirmAction } from "@/cli/prompts/confirm.js";
 import { configFlow } from "@/cli/prompts/flows/config.js";
 import { normalizeInstallDir } from "@/utils/path.js";
@@ -129,21 +124,8 @@ export const configMain = async (): Promise<void> => {
       const agentNames = getDefaultAgents({ config: existingConfig });
       for (const agentName of agentNames) {
         const agent = AgentRegistry.getInstance().get({ name: agentName });
-        const agentDir = agent.getAgentDir({ installDir: oldInstallDir });
-        const manifestPath = getManifestPath({ agentName });
-        await removeManagedFiles({
-          agentDir,
-          manifestPath,
-          managedDirs: agent.getManagedDirs(),
-        });
+        await agent.removeSkillset({ installDir: oldInstallDir });
       }
-      // Also try cleaning up legacy manifest
-      const legacyPath = getLegacyManifestPath();
-      const firstAgent = AgentRegistry.getInstance().get({
-        name: agentNames[0],
-      });
-      const agentDir = firstAgent.getAgentDir({ installDir: oldInstallDir });
-      await removeManagedFiles({ agentDir, manifestPath: legacyPath });
       log.info(`Removed Nori configuration from "${oldInstallDir}".`);
     }
 

@@ -78,6 +78,23 @@ Changes:
 - Updated init flow warning text to be agent-agnostic (no longer references `~/.claude/` paths)
 - Updated 3 docs.md files
 
+### Commit 5: Add `detectLocalChanges` and `removeSkillset` to Agent interface
+
+**Refactor C progress:** Added semantic agent-level lifecycle methods for change detection and skillset removal. Command handlers now delegate to agent methods instead of reimplementing the logic inline.
+
+Changes:
+- Added `detectLocalChanges({ installDir })` to `Agent` type — returns `ManifestDiff | null`
+- Added `removeSkillset({ installDir })` to `Agent` type — removes all managed files via manifest
+- Implemented both on claude-code agent in `agent.ts`:
+  - `detectLocalChanges` reads manifest (with legacy fallback), compares against current agent dir state
+  - `removeSkillset` calls `removeManagedFiles` for both current and legacy manifest paths
+- Refactored `switchSkillset.ts` command: removed private `detectLocalChanges` function, callers now use `agent.detectLocalChanges()`
+- Refactored `config.ts` command: replaced inline `removeManagedFiles` assembly pattern with `agent.removeSkillset({ installDir })`
+- Removed unused manifest module imports from `switchSkillset.ts` and `config.ts`
+- Added 5 new tests for the agent methods in `agentRegistry.test.ts`
+- Updated Agent mock in `config.test.ts` to include new methods; updated 3 tests to assert on `agent.removeSkillset` instead of `removeManagedFiles`
+- Updated 3 docs.md files
+
 ## Remaining Work
 
 ### Refactor A (continued): Further agent decoupling
@@ -87,8 +104,8 @@ Changes:
 ### Refactor B (continued): Further Skillset type usage
 - The `Skillset` type could be extended to include more parsed metadata as needed
 
-### Refactor C: Multi-agent support improvements
-- Need clear semantic functions for adding/removing skillsets per agent per directory
-- Need tracking of local changes per agent per directory
+### Refactor C (continued): Multi-agent support improvements
+- `detectLocalChanges` and `removeSkillset` are now on the Agent interface (done in Commit 5)
+- Could add `installSkillset` to Agent interface to consolidate the `runFeatureLoaders` + `writeInstalledManifest` + `markInstall` pattern from `install.ts`
 - Need handling of config changes triggering skillset rebroadcast
-- Need handling of install directory changes (switch + cleanup)
+- Need handling of install directory changes (switch + cleanup) — config command now uses `agent.removeSkillset()` for cleanup

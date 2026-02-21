@@ -27,6 +27,8 @@ CLI Commands (install, switch-skillset, onboard, list, init)
     |           +-- getManagedDirs() --> directory names this agent manages recursively
     |           +-- getLoaderRegistry() --> LoaderRegistry (interface)
     |           +-- switchSkillset({ installDir, skillsetName }) --> Validate and switch
+    |           +-- detectLocalChanges({ installDir }) --> Compare current files against stored manifest
+    |           +-- removeSkillset({ installDir }) --> Remove all Nori-managed files for this agent
     |           +-- factoryReset({ path }) --> Remove all agent config (optional)
     |           +-- isInstalledAtDir({ path }) --> Check for agent installation marker
     |           +-- markInstall({ path, skillsetName }) --> Write agent installation marker
@@ -77,6 +79,8 @@ The init command (@/src/cli/commands/init/) uses `getDefaultAgent()` from @/src/
 - `getManagedDirs()`: Returns the list of directory names within the agent's config directory that this agent manages recursively. Used by the manifest module and cleanup operations.
 - `getLoaderRegistry()`: Returns an object implementing the `LoaderRegistry` interface
 - `switchSkillset({ installDir, skillsetName })`: Validates skillset exists and updates the `activeSkillset` in config
+- `detectLocalChanges({ installDir })`: Reads the per-agent manifest (with legacy fallback), compares current agent directory file hashes against stored hashes using `getManagedFiles()` and `getManagedDirs()`, and returns a `ManifestDiff` if changes exist or null otherwise. Used by the switch-skillset command to warn about unsaved local modifications before switching.
+- `removeSkillset({ installDir })`: Removes all Nori-managed files from the agent's config directory at the given `installDir` by reading the per-agent manifest and delegating to `removeManagedFiles()` from @/src/cli/features/manifest.ts. Also cleans up the legacy manifest path. Used by the config command when the user changes `installDir` and opts to clean up the old directory.
 - `factoryReset({ path })`: Optional. Removes all agent configuration from the filesystem starting at the given path. The CLI command layer handles non-interactive blocking and confirmation; the agent method handles discovery and deletion.
 - `isInstalledAtDir({ path })`: Returns boolean indicating whether this agent is installed at the given directory. Each agent defines its own detection strategy (e.g., marker files, config content checks).
 - `markInstall({ path, skillsetName })`: Writes an installation marker at the given directory. The optional `skillsetName` parameter records the active skillset in the marker. Called by init and install commands after feature loaders complete.
@@ -133,6 +137,6 @@ The init command (@/src/cli/commands/init/) uses `getDefaultAgent()` from @/src/
 
 ### Things to Know
 
-The `AgentRegistry` hardcodes `claude-code` as the only agent in its constructor. The `Agent` interface includes optional methods (`factoryReset`, `detectExistingConfig`, `captureExistingConfig`, `getProjectsDir`, `findArtifacts`) that not all agents need to implement. `listSkillsets` calls `ensureNoriJson` as a backwards-compatibility shim, auto-generating `nori.json` for legacy skillsets that lack one.
+The `AgentRegistry` hardcodes `claude-code` as the only agent in its constructor. The `Agent` interface includes required lifecycle methods (`detectLocalChanges`, `removeSkillset`, `switchSkillset`) that all agents must implement for skillset management, and optional methods (`factoryReset`, `detectExistingConfig`, `captureExistingConfig`, `getProjectsDir`, `findArtifacts`) that not all agents need to implement. `listSkillsets` calls `ensureNoriJson` as a backwards-compatibility shim, auto-generating `nori.json` for legacy skillsets that lack one.
 
 Created and maintained by Nori.

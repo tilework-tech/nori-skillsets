@@ -45,7 +45,7 @@ vi.mock("@/cli/commands/install/install.js", () => ({
   main: vi.fn(),
 }));
 
-// Mock removeManagedFiles
+// Mock removeManagedFiles (still needed for some tests that import it directly)
 vi.mock("@/cli/features/manifest.js", () => ({
   removeManagedFiles: vi.fn(),
   getManifestPath: vi
@@ -83,6 +83,8 @@ vi.mock("@/cli/features/agentRegistry.js", () => ({
         getManagedDirs: vi
           .fn()
           .mockReturnValue(["skills", "commands", "agents"]),
+        removeSkillset: vi.fn(),
+        detectLocalChanges: vi.fn().mockResolvedValue(null),
       }),
     }),
   },
@@ -229,7 +231,7 @@ describe("configMain installDir change prompts", () => {
   it("should prompt to clean up old directory when installDir changes", async () => {
     const { configFlow } = await import("@/cli/prompts/flows/config.js");
     const { confirmAction } = await import("@/cli/prompts/confirm.js");
-    const { removeManagedFiles } = await import("@/cli/features/manifest.js");
+    const { AgentRegistry } = await import("@/cli/features/agentRegistry.js");
 
     vi.mocked(configFlow).mockResolvedValueOnce({
       defaultAgents: ["claude-code"],
@@ -250,11 +252,10 @@ describe("configMain installDir change prompts", () => {
     const { configMain } = await import("./config.js");
     await configMain();
 
-    expect(removeManagedFiles).toHaveBeenCalledWith(
-      expect.objectContaining({
-        agentDir: path.join(oldInstallDir, ".claude"),
-      }),
-    );
+    const mockAgent = AgentRegistry.getInstance().get({ name: "claude-code" });
+    expect(mockAgent.removeSkillset).toHaveBeenCalledWith({
+      installDir: oldInstallDir,
+    });
   });
 
   it("should not install or clean up when user declines both prompts", async () => {
@@ -262,7 +263,7 @@ describe("configMain installDir change prompts", () => {
     const { confirmAction } = await import("@/cli/prompts/confirm.js");
     const { main: installMain } =
       await import("@/cli/commands/install/install.js");
-    const { removeManagedFiles } = await import("@/cli/features/manifest.js");
+    const { AgentRegistry } = await import("@/cli/features/agentRegistry.js");
 
     vi.mocked(configFlow).mockResolvedValueOnce({
       defaultAgents: ["claude-code"],
@@ -282,8 +283,9 @@ describe("configMain installDir change prompts", () => {
     const { configMain } = await import("./config.js");
     await configMain();
 
+    const mockAgent = AgentRegistry.getInstance().get({ name: "claude-code" });
     expect(installMain).not.toHaveBeenCalled();
-    expect(removeManagedFiles).not.toHaveBeenCalled();
+    expect(mockAgent.removeSkillset).not.toHaveBeenCalled();
   });
 
   it("should skip all prompts when there is no active skillset", async () => {
@@ -335,7 +337,7 @@ describe("configMain installDir change prompts", () => {
     const { confirmAction } = await import("@/cli/prompts/confirm.js");
     const { main: installMain } =
       await import("@/cli/commands/install/install.js");
-    const { removeManagedFiles } = await import("@/cli/features/manifest.js");
+    const { AgentRegistry } = await import("@/cli/features/agentRegistry.js");
 
     vi.mocked(configFlow).mockResolvedValueOnce({
       defaultAgents: ["claude-code"],
@@ -355,7 +357,8 @@ describe("configMain installDir change prompts", () => {
 
     // Track call order
     const callOrder: Array<string> = [];
-    vi.mocked(removeManagedFiles).mockImplementation(async () => {
+    const mockAgent = AgentRegistry.getInstance().get({ name: "claude-code" });
+    vi.mocked(mockAgent.removeSkillset).mockImplementation(async () => {
       callOrder.push("cleanup");
     });
     vi.mocked(installMain).mockImplementation(async () => {
@@ -365,8 +368,8 @@ describe("configMain installDir change prompts", () => {
     const { configMain } = await import("./config.js");
     await configMain();
 
-    // cleanup is called once per agent + once for legacy manifest, then install
-    expect(callOrder).toEqual(["cleanup", "cleanup", "install"]);
+    // cleanup is called once per agent, then install
+    expect(callOrder).toEqual(["cleanup", "install"]);
   });
 });
 
