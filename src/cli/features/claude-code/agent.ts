@@ -246,7 +246,7 @@ export const claudeCodeAgent: Agent = {
     installDir: string;
     skillsetName: string;
   }): Promise<void> => {
-    const { installDir, skillsetName } = args;
+    const { skillsetName } = args;
     const skillsetsDir = getNoriSkillsetsDir();
 
     // Verify profile exists
@@ -265,6 +265,11 @@ export const claudeCodeAgent: Agent = {
     // Load current config
     const currentConfig = await loadConfig();
 
+    // Preserve the persisted installDir from config (or default to home dir).
+    // The installDir argument is a per-invocation override (e.g. --install-dir flag)
+    // and should not be written to the config file.
+    const persistedInstallDir = currentConfig?.installDir ?? getHomeDir();
+
     await saveConfig({
       username: currentConfig?.auth?.username ?? null,
       password: currentConfig?.auth?.password ?? null,
@@ -277,7 +282,7 @@ export const claudeCodeAgent: Agent = {
       autoupdate: currentConfig?.autoupdate,
       version: currentConfig?.version ?? null,
       transcriptDestination: currentConfig?.transcriptDestination ?? null,
-      installDir,
+      installDir: persistedInstallDir,
     });
 
     success({

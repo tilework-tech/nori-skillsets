@@ -23,7 +23,7 @@ The `claudeCodeAgent` object in agent.ts provides:
 - `getManagedFiles()`: Returns `["CLAUDE.md", "settings.json", "nori-statusline.sh"]` -- the root-level files within `~/.claude/` that this agent installs and tracks
 - `getManagedDirs()`: Returns `["skills", "commands", "agents"]` -- the directories within `~/.claude/` whose contents this agent installs and tracks recursively
 - `getLoaderRegistry()`: Returns the LoaderRegistry singleton with all Claude Code loaders
-- `switchSkillset({ installDir, skillsetName })`: Validates skillset exists (handles both flat and namespaced paths via `path.join`), updates config with new skillset, logs success message. Imports `MANIFEST_FILE` from @/src/cli/features/managedFolder.ts to identify valid skillsets.
+- `switchSkillset({ installDir, skillsetName })`: Validates skillset exists (handles both flat and namespaced paths via `path.join`), updates config with new skillset, logs success message. The `installDir` argument is accepted (required by the `Agent` interface) but is treated as a per-invocation override -- it is not persisted to `~/.nori-config.json`. Instead, the method reads the existing config's `installDir` (defaulting to home dir) and preserves that value when saving. Imports `MANIFEST_FILE` from @/src/cli/features/managedFolder.ts to identify valid skillsets.
 - `factoryReset({ path })`: Delegates to `factoryResetClaudeCode` from @/src/cli/features/claude-code/factoryReset.ts. Discovers and removes all `.claude` directories and `CLAUDE.md` files by walking up the ancestor directory tree from the given path.
 - `isInstalledAtDir({ path })`: Checks for `.claude/.nori-managed` marker file first (new style), then falls back to checking `.claude/CLAUDE.md` for the "NORI-AI MANAGED BLOCK" string (backwards compatibility). Uses synchronous fs operations.
 - `markInstall({ path, skillsetName })`: Creates `.claude/` directory if needed and writes `.claude/.nori-managed` containing the skillset name (or empty string if none). This marker file is the canonical per-directory installation indicator for the claude-code agent.
@@ -49,6 +49,6 @@ The agent detects installation by checking for a `.nori-managed` marker file in 
 
 ### Things to Know
 
-The `LoaderRegistry` enforces installation order: config must run before profiles because profiles depend on config state. The `switchSkillset` method on the agent validates that the target skillset exists (has `nori.json`) before updating `~/.nori-config.json`. The `markInstall` method writes the active skillset name into the `.nori-managed` marker file.
+The `LoaderRegistry` enforces installation order: config must run before profiles because profiles depend on config state. The `switchSkillset` method on the agent validates that the target skillset exists (has `nori.json`) before updating `~/.nori-config.json`. The `installDir` parameter in `switchSkillset` is a per-invocation override (e.g., `--install-dir` CLI flag) and is intentionally not written to the config file; only `sks config installDir <path>` changes the persisted `installDir`. The `markInstall` method writes the active skillset name into the `.nori-managed` marker file.
 
 Created and maintained by Nori.

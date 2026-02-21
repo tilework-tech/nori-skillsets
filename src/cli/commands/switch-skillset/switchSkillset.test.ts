@@ -37,6 +37,31 @@ vi.mock("@/cli/prompts/flows/switchSkillset.js", () => ({
     mockSwitchSkillsetFlow(...args),
 }));
 
+// Mock listSkillsets for interactive selection tests
+const mockListSkillsets = vi.fn();
+vi.mock("@/cli/features/managedFolder.js", async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
+  return {
+    ...actual,
+    listSkillsets: (...args: Array<unknown>) => mockListSkillsets(...args),
+  };
+});
+
+// Mock @clack/prompts for interactive selection tests
+const mockSelect = vi.fn();
+vi.mock("@clack/prompts", () => ({
+  select: (...args: Array<unknown>) => mockSelect(...args),
+  log: {
+    info: vi.fn(),
+    success: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    message: vi.fn(),
+  },
+  isCancel: vi.fn(() => false),
+  cancel: vi.fn(),
+}));
+
 describe("agent.switchSkillset", () => {
   let testInstallDir: string;
 
@@ -964,6 +989,184 @@ describe("switch-skillset interactive flow routing", () => {
     }
 
     // switchSkillsetFlow should NOT have been called in non-interactive mode
+    expect(mockSwitchSkillsetFlow).not.toHaveBeenCalled();
+  });
+});
+
+describe("switch-skillset interactive selection when no name provided", () => {
+  let testInstallDir: string;
+
+  beforeEach(async () => {
+    testInstallDir = await fs.mkdtemp(
+      path.join(tmpdir(), "switch-skillset-noname-test-"),
+    );
+    vi.mocked(os.homedir).mockReturnValue(testInstallDir);
+    const testClaudeDir = path.join(testInstallDir, ".claude");
+    const testNoriDir = path.join(testInstallDir, ".nori");
+    await fs.mkdir(testClaudeDir, { recursive: true });
+    await fs.mkdir(testNoriDir, { recursive: true });
+
+    AgentRegistry.resetInstance();
+    mockSwitchSkillsetFlow.mockReset();
+    mockListSkillsets.mockReset();
+    mockSelect.mockReset();
+  });
+
+  afterEach(async () => {
+    if (testInstallDir) {
+      await fs.rm(testInstallDir, { recursive: true, force: true });
+    }
+    AgentRegistry.resetInstance();
+    vi.restoreAllMocks();
+  });
+
+  it("should show select prompt and pass chosen skillset to flow when no name provided", async () => {
+    mockListSkillsets.mockResolvedValueOnce([
+      "senior-swe",
+      "product-manager",
+      "data-engineer",
+    ]);
+    mockSelect.mockResolvedValueOnce("product-manager");
+    mockSwitchSkillsetFlow.mockResolvedValueOnce({
+      agentName: "claude-code",
+      skillsetName: "product-manager",
+    });
+
+    const program = new Command();
+    program.exitOverride();
+    program.configureOutput({ writeErr: () => undefined });
+    program
+      .option("-d, --install-dir <path>", "Custom installation directory")
+      .option("-n, --non-interactive", "Run without interactive prompts")
+      .option("-a, --agent <name>", "AI agent to use");
+
+    registerSwitchSkillsetCommand({ program });
+
+    await program.parseAsync([
+      "node",
+      "nori-skillsets",
+      "switch-skillset",
+      "--install-dir",
+      testInstallDir,
+    ]);
+
+    // Should have called listSkillsets to discover available skillsets
+    expect(mockListSkillsets).toHaveBeenCalled();
+
+    // Should have shown a select prompt with the available skillsets
+    expect(mockSelect).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: expect.any(String),
+        options: expect.arrayContaining([
+          expect.objectContaining({ value: "senior-swe" }),
+          expect.objectContaining({ value: "product-manager" }),
+          expect.objectContaining({ value: "data-engineer" }),
+        ]),
+      }),
+    );
+
+    // Should have passed the selected skillset name to the flow
+    expect(mockSwitchSkillsetFlow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        skillsetName: "product-manager",
+      }),
+    );
+  });
+
+  it("should error when no name provided in non-interactive mode", async () => {
+    mockListSkillsets.mockResolvedValueOnce(["senior-swe", "product-manager"]);
+
+    const program = new Command();
+    program.exitOverride();
+    program.configureOutput({ writeErr: () => undefined });
+    program
+      .option("-d, --install-dir <path>", "Custom installation directory")
+      .option("-n, --non-interactive", "Run without interactive prompts")
+      .option("-a, --agent <name>", "AI agent to use");
+
+    registerSwitchSkillsetCommand({ program });
+
+    let thrownError: Error | null = null;
+    try {
+      await program.parseAsync([
+        "node",
+        "nori-skillsets",
+        "--non-interactive",
+        "switch-skillset",
+        "--install-dir",
+        testInstallDir,
+      ]);
+    } catch (err) {
+      thrownError = err as Error;
+    }
+
+    // Should error because no name provided in non-interactive mode
+    expect(thrownError).not.toBeNull();
+    expect(thrownError?.message).toContain("No skillset name provided");
+    expect(thrownError?.message).toContain("Usage: sks switch");
+    // Should NOT have called the flow
+    expect(mockSwitchSkillsetFlow).not.toHaveBeenCalled();
+  });
+
+  it("should error when no skillsets are available", async () => {
+    mockListSkillsets.mockResolvedValueOnce([]);
+
+    const program = new Command();
+    program.exitOverride();
+    program.configureOutput({ writeErr: () => undefined });
+    program
+      .option("-d, --install-dir <path>", "Custom installation directory")
+      .option("-n, --non-interactive", "Run without interactive prompts")
+      .option("-a, --agent <name>", "AI agent to use");
+
+    registerSwitchSkillsetCommand({ program });
+
+    let thrownError: Error | null = null;
+    try {
+      await program.parseAsync([
+        "node",
+        "nori-skillsets",
+        "switch-skillset",
+        "--install-dir",
+        testInstallDir,
+      ]);
+    } catch (err) {
+      thrownError = err as Error;
+    }
+
+    // Should error because no skillsets are installed
+    expect(thrownError).not.toBeNull();
+    expect(thrownError?.message).toContain("No skillsets installed");
+    // Should NOT have shown select or called flow
+    expect(mockSelect).not.toHaveBeenCalled();
+    expect(mockSwitchSkillsetFlow).not.toHaveBeenCalled();
+  });
+
+  it("should handle cancel from select prompt gracefully", async () => {
+    const clack = await import("@clack/prompts");
+    mockListSkillsets.mockResolvedValueOnce(["senior-swe"]);
+    mockSelect.mockResolvedValueOnce(Symbol("cancel"));
+    vi.mocked(clack.isCancel).mockReturnValueOnce(true);
+
+    const program = new Command();
+    program.exitOverride();
+    program.configureOutput({ writeErr: () => undefined });
+    program
+      .option("-d, --install-dir <path>", "Custom installation directory")
+      .option("-n, --non-interactive", "Run without interactive prompts")
+      .option("-a, --agent <name>", "AI agent to use");
+
+    registerSwitchSkillsetCommand({ program });
+
+    await program.parseAsync([
+      "node",
+      "nori-skillsets",
+      "switch-skillset",
+      "--install-dir",
+      testInstallDir,
+    ]);
+
+    // Should NOT have called the flow since user cancelled
     expect(mockSwitchSkillsetFlow).not.toHaveBeenCalled();
   });
 });

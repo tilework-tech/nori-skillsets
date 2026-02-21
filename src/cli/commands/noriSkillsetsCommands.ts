@@ -377,46 +377,58 @@ export const registerNoriSkillsetsSwitchSkillsetCommand = (args: {
 
   // Primary command: switch (shorthand, canonical)
   program
-    .command("switch <name>")
+    .command("switch [name]")
     .description("Switch to a different skillset and reinstall")
     .option("-a, --agent <name>", "AI agent to switch skillset for")
     .option("--force", "Force switch even when local changes are detected")
     .action(
-      async (name: string, options: { agent?: string; force?: boolean }) => {
-        await switchSkillsetAction({ name, options, program });
+      async (
+        name: string | undefined,
+        options: { agent?: string; force?: boolean },
+      ) => {
+        await switchSkillsetAction({ name: name ?? null, options, program });
       },
     );
 
   // Hidden alias: switch-skillset (long form)
   program
-    .command("switch-skillset <name>", { hidden: true })
+    .command("switch-skillset [name]", { hidden: true })
     .option("-a, --agent <name>", "AI agent to switch skillset for")
     .option("--force", "Force switch even when local changes are detected")
     .action(
-      async (name: string, options: { agent?: string; force?: boolean }) => {
-        await switchSkillsetAction({ name, options, program });
+      async (
+        name: string | undefined,
+        options: { agent?: string; force?: boolean },
+      ) => {
+        await switchSkillsetAction({ name: name ?? null, options, program });
       },
     );
 
   // Hidden alias: switch-skillsets (plural)
   program
-    .command("switch-skillsets <name>", { hidden: true })
+    .command("switch-skillsets [name]", { hidden: true })
     .option("-a, --agent <name>", "AI agent to switch skillset for")
     .option("--force", "Force switch even when local changes are detected")
     .action(
-      async (name: string, options: { agent?: string; force?: boolean }) => {
-        await switchSkillsetAction({ name, options, program });
+      async (
+        name: string | undefined,
+        options: { agent?: string; force?: boolean },
+      ) => {
+        await switchSkillsetAction({ name: name ?? null, options, program });
       },
     );
 
   // Hidden alias: use (semantic shorthand, like nvm use)
   program
-    .command("use <name>", { hidden: true })
+    .command("use [name]", { hidden: true })
     .option("-a, --agent <name>", "AI agent to switch skillset for")
     .option("--force", "Force switch even when local changes are detected")
     .action(
-      async (name: string, options: { agent?: string; force?: boolean }) => {
-        await switchSkillsetAction({ name, options, program });
+      async (
+        name: string | undefined,
+        options: { agent?: string; force?: boolean },
+      ) => {
+        await switchSkillsetAction({ name: name ?? null, options, program });
       },
     );
 };
