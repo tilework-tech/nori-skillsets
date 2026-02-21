@@ -74,7 +74,7 @@ describe("configLoader", () => {
     it("should create config file", async () => {
       const config: Config = {
         installDir: tempDir,
-        agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
+        activeSkillset: "senior-swe",
       };
 
       await configLoader.run({ config });
@@ -85,15 +85,13 @@ describe("configLoader", () => {
       // Verify file contents
       const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
       expect(fileContents.installDir).toBe(tempDir);
-      expect(fileContents.agents["claude-code"].profile).toEqual({
-        baseProfile: "senior-swe",
-      });
+      expect(fileContents.activeSkillset).toBe("senior-swe");
     });
 
     it("should include sendSessionTranscript when provided", async () => {
       const config: Config = {
         installDir: tempDir,
-        agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
+        activeSkillset: "senior-swe",
         sendSessionTranscript: "enabled",
       };
 
@@ -107,7 +105,7 @@ describe("configLoader", () => {
     it("should NOT include sendSessionTranscript when not provided", async () => {
       const config: Config = {
         installDir: tempDir,
-        agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
+        activeSkillset: "senior-swe",
       };
 
       await configLoader.run({ config });
@@ -120,7 +118,7 @@ describe("configLoader", () => {
     it("should preserve existing sendSessionTranscript preference", async () => {
       const config: Config = {
         installDir: tempDir,
-        agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
+        activeSkillset: "senior-swe",
         sendSessionTranscript: "disabled",
       };
 
@@ -131,29 +129,27 @@ describe("configLoader", () => {
       expect(fileContents.sendSessionTranscript).toBe("disabled");
     });
 
-    it("should save agents to config file", async () => {
+    it("should save activeSkillset to config file", async () => {
       const config: Config = {
         installDir: tempDir,
-        agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
+        activeSkillset: "senior-swe",
       };
 
       await configLoader.run({ config });
 
       const configFile = getConfigPath();
       const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
-      expect(Object.keys(fileContents.agents)).toEqual(["claude-code"]);
+      expect(fileContents.activeSkillset).toBe("senior-swe");
     });
 
-    it("should preserve existing agents when updating config", async () => {
+    it("should preserve existing activeSkillset when updating config", async () => {
       // Create existing config with agents
       const configFile = getConfigPath();
       fs.writeFileSync(
         configFile,
         JSON.stringify({
           installDir: tempDir,
-          agents: {
-            "claude-code": { profile: { baseProfile: "senior-swe" } },
-          },
+          activeSkillset: "senior-swe",
         }),
         "utf-8",
       );
@@ -161,30 +157,23 @@ describe("configLoader", () => {
       // Update the same agent
       const config: Config = {
         installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "documenter" } },
-        },
+        activeSkillset: "documenter",
       };
 
       await configLoader.run({ config });
 
       const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
-      expect(Object.keys(fileContents.agents)).toEqual(["claude-code"]);
-      expect(fileContents.agents["claude-code"].profile.baseProfile).toBe(
-        "documenter",
-      );
+      expect(fileContents.activeSkillset).toBe("documenter");
     });
 
-    it("should not duplicate agents when re-installing", async () => {
+    it("should not duplicate activeSkillset when re-installing", async () => {
       // Create existing config with agents
       const configFile = getConfigPath();
       fs.writeFileSync(
         configFile,
         JSON.stringify({
           installDir: tempDir,
-          agents: {
-            "claude-code": { profile: { baseProfile: "senior-swe" } },
-          },
+          activeSkillset: "senior-swe",
         }),
         "utf-8",
       );
@@ -192,74 +181,57 @@ describe("configLoader", () => {
       // Re-install same agent
       const config: Config = {
         installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
+        activeSkillset: "senior-swe",
       };
 
       await configLoader.run({ config });
 
       const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
-      expect(Object.keys(fileContents.agents)).toEqual(["claude-code"]);
+      expect(fileContents.activeSkillset).toBe("senior-swe");
     });
 
-    it("should save agents field with profile to config file", async () => {
+    it("should save activeSkillset field to config file", async () => {
       const config: Config = {
         installDir: tempDir,
-        agents: {
-          "claude-code": {
-            profile: { baseProfile: "none" },
-          },
-        },
+        activeSkillset: "none",
       };
 
       await configLoader.run({ config });
 
       const configFile = getConfigPath();
       const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
-      expect(fileContents.agents).toEqual({
-        "claude-code": {
-          profile: { baseProfile: "none" },
-        },
-      });
+      expect(fileContents.activeSkillset).toBe("none");
     });
 
-    it("should preserve agents field from existing config when not provided in new config", async () => {
-      // Create existing config with agents field (e.g., from switchProfile)
+    it("should preserve activeSkillset from existing config when not provided in new config", async () => {
+      // Create existing config with activeSkillset (e.g., from switchSkillset)
       const configFile = getConfigPath();
       fs.writeFileSync(
         configFile,
         JSON.stringify({
           installDir: tempDir,
-          agents: {
-            "claude-code": {
-              profile: { baseProfile: "none" },
-            },
-          },
+          activeSkillset: "none",
         }),
         "utf-8",
       );
 
-      // Run configLoader with config that doesn't explicitly set agents
-      // (simulating what noninteractive install does after switchProfile)
+      // Run configLoader with config that doesn't explicitly set activeSkillset
+      // (simulating what noninteractive install does after switchSkillset)
       const config: Config = {
         installDir: tempDir,
-        agents: {
-          "claude-code": {},
-        },
       };
 
       await configLoader.run({ config });
 
       const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
-      // agents field should be merged - new config takes precedence
-      expect(Object.keys(fileContents.agents)).toEqual(["claude-code"]);
+      // activeSkillset should be preserved from existing config
+      expect(fileContents.activeSkillset).toBe("none");
     });
 
     it("should convert password to refresh token when password is provided", async () => {
       const config: Config = {
         installDir: tempDir,
-        agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
+        activeSkillset: "senior-swe",
         auth: {
           username: "test@example.com",
           password: "testpass",
@@ -285,9 +257,7 @@ describe("configLoader", () => {
         configFile,
         JSON.stringify({
           installDir: tempDir,
-          agents: {
-            "claude-code": { profile: { baseProfile: "senior-swe" } },
-          },
+          activeSkillset: "senior-swe",
           auth: {
             username: "test@example.com",
             organizationUrl: "https://example.tilework.tech",
@@ -303,9 +273,7 @@ describe("configLoader", () => {
       // Run configLoader with config that has auth but no organizations
       const config: Config = {
         installDir: tempDir,
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
+        activeSkillset: "senior-swe",
         auth: {
           username: "test@example.com",
           organizationUrl: "https://example.tilework.tech",
@@ -334,7 +302,7 @@ describe("configLoader", () => {
 
       const config: Config = {
         installDir: tempDir,
-        agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
+        activeSkillset: "senior-swe",
         auth: {
           username: "test@example.com",
           password: "wrongpass",
@@ -363,10 +331,75 @@ describe("configLoader", () => {
       );
     });
 
+    it("should preserve existing installDir from config instead of overwriting", async () => {
+      // Create existing config with a user-configured installDir
+      const configFile = getConfigPath();
+      fs.writeFileSync(
+        configFile,
+        JSON.stringify({
+          installDir: "/user/configured/path",
+          activeSkillset: "senior-swe",
+        }),
+        "utf-8",
+      );
+
+      // Run configLoader with a different installDir (e.g., from switch command)
+      const config: Config = {
+        installDir: "/some/other/path",
+        activeSkillset: "senior-swe",
+      };
+
+      await configLoader.run({ config });
+
+      const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
+      // installDir should be preserved from existing config, not overwritten
+      expect(fileContents.installDir).toBe("/user/configured/path");
+    });
+
+    it("should preserve existing defaultAgents from config instead of overwriting", async () => {
+      // Create existing config with a user-configured defaultAgents
+      const configFile = getConfigPath();
+      fs.writeFileSync(
+        configFile,
+        JSON.stringify({
+          installDir: tempDir,
+          defaultAgents: ["claude-code"],
+          activeSkillset: "senior-swe",
+        }),
+        "utf-8",
+      );
+
+      // Run configLoader with config that doesn't set defaultAgents
+      const config: Config = {
+        installDir: tempDir,
+        activeSkillset: "senior-swe",
+      };
+
+      await configLoader.run({ config });
+
+      const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
+      // defaultAgents should be preserved from existing config
+      expect(fileContents.defaultAgents).toEqual(["claude-code"]);
+    });
+
+    it("should use incoming installDir when no existing config exists", async () => {
+      const config: Config = {
+        installDir: "/fresh/install/path",
+        activeSkillset: "senior-swe",
+      };
+
+      await configLoader.run({ config });
+
+      const configFile = getConfigPath();
+      const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
+      // No existing config, so incoming installDir should be used
+      expect(fileContents.installDir).toBe("/fresh/install/path");
+    });
+
     it("should use existing refresh token when provided instead of password", async () => {
       const config: Config = {
         installDir: tempDir,
-        agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
+        activeSkillset: "senior-swe",
         auth: {
           username: "test@example.com",
           refreshToken: "existing-refresh-token",

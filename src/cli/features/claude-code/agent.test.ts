@@ -27,7 +27,7 @@ vi.mock("@/cli/features/claude-code/paths.js", () => {
     getClaudeSkillsDir: (_args: { installDir: string }) =>
       "/tmp/agent-test-claude/skills",
     getNoriDir: () => testNoriDir,
-    getNoriProfilesDir: () => `${testNoriDir}/profiles`,
+    getNoriSkillsetsDir: () => `${testNoriDir}/profiles`,
     getNoriConfigFile: () => `${testNoriDir}/config.json`,
   };
 });
@@ -44,7 +44,100 @@ vi.mock("@clack/prompts", () => ({
   },
 }));
 
-describe("claudeCodeAgent.switchProfile", () => {
+describe("claudeCodeAgent.isInstalledAtDir", () => {
+  let tempDir: string;
+
+  beforeEach(() => {
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "agent-installed-test-"));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  it("should return true when .claude/.nori-managed exists", () => {
+    const claudeDir = path.join(tempDir, ".claude");
+    fs.mkdirSync(claudeDir, { recursive: true });
+    fs.writeFileSync(path.join(claudeDir, ".nori-managed"), "senior-swe");
+
+    expect(claudeCodeAgent.isInstalledAtDir({ path: tempDir })).toBe(true);
+  });
+
+  it("should return true when .claude/CLAUDE.md contains NORI-AI MANAGED BLOCK (backwards compat)", () => {
+    const claudeDir = path.join(tempDir, ".claude");
+    fs.mkdirSync(claudeDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(claudeDir, "CLAUDE.md"),
+      "# BEGIN NORI-AI MANAGED BLOCK\nsome content\n# END NORI-AI MANAGED BLOCK",
+    );
+
+    expect(claudeCodeAgent.isInstalledAtDir({ path: tempDir })).toBe(true);
+  });
+
+  it("should return false when neither marker exists", () => {
+    expect(claudeCodeAgent.isInstalledAtDir({ path: tempDir })).toBe(false);
+  });
+
+  it("should return false when .claude/CLAUDE.md exists but has no managed block", () => {
+    const claudeDir = path.join(tempDir, ".claude");
+    fs.mkdirSync(claudeDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(claudeDir, "CLAUDE.md"),
+      "# Just some regular content",
+    );
+
+    expect(claudeCodeAgent.isInstalledAtDir({ path: tempDir })).toBe(false);
+  });
+});
+
+describe("claudeCodeAgent.markInstall", () => {
+  let tempDir: string;
+
+  beforeEach(() => {
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "agent-mark-test-"));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  it("should create .claude/.nori-managed with the skillset name", () => {
+    const claudeDir = path.join(tempDir, ".claude");
+    fs.mkdirSync(claudeDir, { recursive: true });
+
+    claudeCodeAgent.markInstall({ path: tempDir, skillsetName: "senior-swe" });
+
+    const content = fs.readFileSync(
+      path.join(claudeDir, ".nori-managed"),
+      "utf-8",
+    );
+    expect(content).toBe("senior-swe");
+  });
+
+  it("should create .claude directory if it does not exist", () => {
+    claudeCodeAgent.markInstall({ path: tempDir, skillsetName: "my-profile" });
+
+    const markerPath = path.join(tempDir, ".claude", ".nori-managed");
+    expect(fs.existsSync(markerPath)).toBe(true);
+    expect(fs.readFileSync(markerPath, "utf-8")).toBe("my-profile");
+  });
+
+  it("should overwrite existing .nori-managed with new skillset name", () => {
+    const claudeDir = path.join(tempDir, ".claude");
+    fs.mkdirSync(claudeDir, { recursive: true });
+    fs.writeFileSync(path.join(claudeDir, ".nori-managed"), "old-profile");
+
+    claudeCodeAgent.markInstall({ path: tempDir, skillsetName: "new-profile" });
+
+    const content = fs.readFileSync(
+      path.join(claudeDir, ".nori-managed"),
+      "utf-8",
+    );
+    expect(content).toBe("new-profile");
+  });
+});
+
+describe("claudeCodeAgent.switchSkillset", () => {
   let tempDir: string;
   const TEST_NORI_DIR = "/tmp/agent-test-nori";
 
@@ -58,10 +151,10 @@ describe("claudeCodeAgent.switchProfile", () => {
     } catch {}
 
     // Create profiles directory with a valid profile
-    const profileDir = path.join(TEST_NORI_DIR, "profiles", "senior-swe");
-    fs.mkdirSync(profileDir, { recursive: true });
+    const skillsetDir = path.join(TEST_NORI_DIR, "profiles", "senior-swe");
+    fs.mkdirSync(skillsetDir, { recursive: true });
     fs.writeFileSync(
-      path.join(profileDir, "nori.json"),
+      path.join(skillsetDir, "nori.json"),
       JSON.stringify({ name: "senior-swe", version: "1.0.0" }),
     );
 
@@ -90,16 +183,16 @@ describe("claudeCodeAgent.switchProfile", () => {
       refreshToken: "test-refresh-token",
       organizations: ["org-alpha", "org-beta"],
       isAdmin: true,
-      agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
+      activeSkillset: "senior-swe",
       version: "20.0.0",
       transcriptDestination: "myorg",
       installDir: tempDir,
     });
 
     // Switch to a different profile
-    await claudeCodeAgent.switchProfile({
+    await claudeCodeAgent.switchSkillset({
       installDir: tempDir,
-      profileName: "documenter",
+      skillsetName: "documenter",
     });
 
     // Verify organizations, isAdmin, and transcriptDestination are preserved
@@ -109,8 +202,6 @@ describe("claudeCodeAgent.switchProfile", () => {
     expect(fileContents.transcriptDestination).toBe("myorg");
 
     // Also verify the profile was actually switched
-    expect(fileContents.agents["claude-code"].profile.baseProfile).toBe(
-      "documenter",
-    );
+    expect(fileContents.activeSkillset).toBe("documenter");
   });
 });

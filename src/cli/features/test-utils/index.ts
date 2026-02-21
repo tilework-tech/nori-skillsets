@@ -137,8 +137,8 @@ export const createIsolatedTestContext = async (args: {
 
   // Create HOME structure within temp dir
   const noriDir = path.join(baseCtx.tempDir, ".nori");
-  const profilesDir = path.join(noriDir, "profiles");
-  await fs.mkdir(profilesDir, { recursive: true });
+  const skillsetsDir = path.join(noriDir, "profiles");
+  await fs.mkdir(skillsetsDir, { recursive: true });
 
   // Store original and set isolated HOME
   const originalGlobalConfig = process.env.NORI_GLOBAL_CONFIG;

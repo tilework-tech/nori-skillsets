@@ -6,7 +6,7 @@
  * - Persistence warning confirmation
  * - Ancestor installation detection and warning
  * - Existing config detection and capture
- * - Profile name collection with validation
+ * - Skillset name collection with validation
  * - Intro/outro framing
  */
 
@@ -20,9 +20,9 @@ import {
   cancel,
 } from "@clack/prompts";
 
-import { validateProfileName } from "@/cli/prompts/validators.js";
+import { validateSkillsetName } from "@/cli/prompts/validators.js";
 
-import type { ExistingConfig } from "@/cli/commands/install/existingConfigCapture.js";
+import type { ExistingConfig } from "@/cli/features/agentRegistry.js";
 
 import { unwrapPrompt } from "./utils.js";
 
@@ -36,11 +36,11 @@ export type InitFlowCallbacks = {
   }) => Promise<ExistingConfig | null>;
   onCaptureConfig: (args: {
     installDir: string;
-    profileName: string;
+    skillsetName: string;
   }) => Promise<void>;
   onInit: (args: {
     installDir: string;
-    capturedProfileName: string | null;
+    capturedSkillsetName: string | null;
   }) => Promise<void>;
 };
 
@@ -48,7 +48,7 @@ export type InitFlowCallbacks = {
  * Result of the init flow
  */
 export type InitFlowResult = {
-  capturedProfileName: string | null;
+  capturedSkillsetName: string | null;
 };
 
 /**
@@ -88,7 +88,7 @@ const buildExistingConfigSummary = (args: {
     lines.push("");
     lines.push("Your CLAUDE.md contains a Nori managed block, which suggests");
     lines.push(
-      "a previous installation. The captured profile will preserve this content.",
+      "a previous installation. The captured skillset will preserve this content.",
     );
   }
 
@@ -167,42 +167,42 @@ export const initFlow = async (args: {
   // Step 3: Detect existing configuration
   const existingConfig = await callbacks.onDetectExistingConfig({ installDir });
 
-  let capturedProfileName: string | null = null;
+  let capturedSkillsetName: string | null = null;
 
   if (existingConfig != null) {
     const summary = buildExistingConfigSummary({ config: existingConfig });
     note(summary, "Existing Configuration Detected");
 
-    const profileName = unwrapPrompt({
+    const skillsetName = unwrapPrompt({
       value: await text({
         message: "Enter a name for this skillset",
         placeholder: "my-skillset",
-        validate: (value) => validateProfileName({ value: value ?? "" }),
+        validate: (value) => validateSkillsetName({ value: value ?? "" }),
       }),
       cancelMessage: cancelMsg,
     });
 
-    if (profileName == null) return null;
+    if (skillsetName == null) return null;
 
     const captureSpinner = spinner();
     captureSpinner.start("Saving configuration...");
 
-    await callbacks.onCaptureConfig({ installDir, profileName });
+    await callbacks.onCaptureConfig({ installDir, skillsetName });
 
-    captureSpinner.stop(`Configuration saved as skillset: ${profileName}`);
+    captureSpinner.stop(`Configuration saved as skillset: ${skillsetName}`);
 
-    capturedProfileName = profileName;
+    capturedSkillsetName = skillsetName;
   }
 
   // Step 4: Initialize
   const s = spinner();
   s.start("Initializing Nori...");
 
-  await callbacks.onInit({ installDir, capturedProfileName });
+  await callbacks.onInit({ installDir, capturedSkillsetName });
 
   s.stop("Initialized");
 
   outro("Nori initialized successfully");
 
-  return { capturedProfileName };
+  return { capturedSkillsetName };
 };

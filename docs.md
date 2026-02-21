@@ -1,25 +1,42 @@
-# Noridoc: plugin
+# Noridoc: nori-skillsets
 
 Path: @/
 
 ### Overview
 
-Claude Code plugin package providing comprehensive integration with the Nori Profiles system through a directory-based profile system. Each profile is a complete, self-contained configuration with its own CLAUDE.md instructions, skills, subagents, and slash commands. The installer CLI manages profile installation and switching, while backend API tools enable analytics, registry, and transcript features for authenticated users.
+Nori Skillsets is a CLI client and plugin package for installing and managing "skillsets" -- complete, packaged agent configurations for Claude Code. It connects to the noriskillsets.dev registry to search, download, upload, and switch between skillsets and individual skills. The package is published to npm as `nori-skillsets` with binary aliases `nori-skillsets`, `nori-skillset`, and `sks`.
 
 ### How it fits into the larger codebase
 
-This package is a complete Claude Code plugin that installs multiple components to enhance Claude's capabilities. The nori-skillsets CLI (defined in @/package.json bin) prompts users to select a profile, then installs that profile's complete configuration to ~/.claude/. The package does not ship any built-in profiles -- profiles are obtained from the registry or created by users. User-installed profiles are stored in `~/.nori/profiles/` (the single source of truth). Feature loaders read from `~/.nori/profiles/` to install skills to ~/.claude/skills/, subagents to ~/.claude/subagents/, profile slash commands to ~/.claude/commands/, and generate CLAUDE.md by combining the profile's base instructions with a dynamically-generated skills list. For authenticated users, profiles can include skills that communicate with @/server via the API client in @/src/api.
+This is the repository root. The project is a TypeScript Node.js application built with esbuild, using Commander for CLI parsing, Firebase for authentication, and the noriskillsets.dev registry as its backend. The CLI installs configuration into the user's `~/.claude/` directory structure, where Claude Code reads it. Skillsets are stored in `~/.nori/profiles/` and activated by copying into the target `.claude/` directory.
+
+```
+User runs CLI command
+        |
+        v
+  @/src/cli/nori-skillsets.ts  (entrypoint)
+        |
+        v
+  @/src/cli/commands/*         (individual commands)
+        |
+        v
+  @/src/api/*                  (registry + auth API clients)
+  @/src/cli/features/*         (agent integration, skillset management)
+  @/src/norijson/*             (manifest parsing)
+  @/src/providers/*            (Firebase singleton)
+  @/src/utils/*                (URL, path, fetch helpers)
+```
 
 ### Core Implementation
 
-The src directory contains three main areas: installer (CLI for installation and feature loaders), api (backend client for server communication), and providers (shared authentication providers like Firebase). The package.json defines the nori-skillsets bin executable that runs the installer. The build process (@/scripts/build.sh) compiles TypeScript, sets permissions, and injects version strings. The publish process uses an interactive prepublish script (@/scripts/prepublish.sh) that prompts the user whether to generate release notes; if yes, it invokes Claude Code headless CLI (`claude -p`) to analyze git commits since the last version tag and update @/release-notes.txt following instructions in @/release-notes-update.md, then prompts whether to commit the changes (declining aborts publish with exit 1). The installer flow: (1) init to set up directories and capture existing config, (2) resolve profile from --profile flag or existing config and save merged config, (3) run feature loaders to install components. The profiles loader (runs first) ensures `~/.nori/profiles/` exists and configures permissions -- it does not copy any built-in profiles since the package ships none. The claudemd loader reads the selected profile's CLAUDE.md, generates a skills list by globbing the profile's skills/ directory for SKILL.md files, extracts frontmatter metadata (name, description) from each skill, and embeds the complete skills list in the managed block. The skills, subagents, and slashcommands loaders copy files from `~/.nori/profiles/{profileName}/{skills|subagents|slashcommands}/` to their respective `~/.claude/` installation directories. The statusline loader installs a bash script that displays git branch, profile name (from ~/.nori-config.json), token usage, cost, and Nori branding.
+The CLI entrypoint is `@/src/cli/nori-skillsets.ts`, which registers all commands via Commander. Configuration is persisted at `~/.nori-config.json` and managed by `@/src/cli/config.ts` with JSON Schema validation (via Ajv). Authentication flows through Firebase -- either legacy password auth or refresh-token-based auth -- with token caching at multiple levels (`@/src/api/base.ts`, `@/src/api/refreshToken.ts`, `@/src/api/registryAuth.ts`).
 
-The `nori-skillsets` npm package is published via @/scripts/package_skillsets.sh which uses a curated subset of runtime dependencies (listed in @/packages/nori-skillsets/dependencies.json) rather than the full dependency tree. The packaging script copies the compiled `build/` directory into a staging area, generates a `package.json` from the template at @/packages/nori-skillsets/ plus dependency versions from the main @/package.json, and produces a tarball. Releases are managed by @/scripts/create_skillsets_release.py which pushes git tags to trigger the CI workflow.
-
-Testing infrastructure includes unit tests in @/tests (Vitest-based, run on every commit) and integration tests in @/nori-tests (markdown specifications executed by external nori-tests CLI in Docker, run selectively pre-release).
+The build process compiles TypeScript, resolves `@/` path aliases via `tsc-alias`, and then bundles hook scripts into standalone executables using esbuild (`@/src/scripts/bundle-skills.ts`).
 
 ### Things to Know
 
-The package is published to npm as nori-skillsets and installed globally. The directory-based profile system replaced the old JSON-based preference customization system. Profiles are complete, self-contained configurations that can be modified by users. The package does not ship any built-in profiles -- users obtain profiles from the registry or create their own. Profile switching via `npx nori-skillsets switch` or `/nori-switch-profile` slash command preserves auth credentials while updating the selected profile, then re-runs installation non-interactively. All feature loaders read from `~/.nori/profiles/` as the single source of truth, enabling users to create and modify custom profiles. Skills are discovered at installation time via glob pattern \*\*/SKILL.md, so adding new skills to a profile requires re-running installation to regenerate the CLAUDE.md skills list. The API client uses Firebase authentication via @/src/providers/firebase.ts, which provides a singleton FirebaseProvider for credential management and token caching. The statusline displays the active profile name (added in commit 5da74b7) alongside git branch, cost, and token metrics. Changes to CLAUDE.md take effect in new conversations without requiring a Claude Code restart, but profile switching triggers a restart to fully reload the configuration. The plugin architecture enables modular installation where all users get local workflow enhancements and authenticated users additionally get backend integration for analytics, registry, and transcript features. The prepublishOnly hook (@/scripts/prepublish.sh) runs only on `npm publish` (not on `npm install`) and is interactive - it prompts whether to generate release notes (using Claude headless mode if yes), then prompts whether to commit the changes (aborting publish if declined); this requires a tty and cannot run headlessly in CI. The `nori-skillsets` CLI uses static imports throughout, so all third-party dependencies in its import chain must be declared in @/packages/nori-skillsets/dependencies.json or the CLI will crash at load time with `ERR_MODULE_NOT_FOUND` -- even for commands that are never invoked.
+The config system supports two formats: a legacy flat format (pre-v19) with credentials at the root level, and a nested `auth: {...}` format (v19+). Both are handled transparently by `loadConfig()` in `@/src/cli/config.ts` and `ConfigManager.loadConfig()` in `@/src/api/base.ts`.
+
+The registrar API (`@/src/api/registrar.ts`) uses a fallback mechanism: requests to `/api/skillsets/` that return 404 are silently retried against `/api/profiles/` to support older registry servers. Skillset operations and skill operations use separate API endpoint paths (`/api/skillsets/` vs `/api/skills/`).
 
 Created and maintained by Nori.

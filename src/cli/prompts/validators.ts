@@ -38,7 +38,7 @@ const validateSlugFormat = (args: {
 };
 
 /**
- * Validate a profile name
+ * Validate a skillset name
  *
  * Must be lowercase alphanumeric with hyphens, not starting or ending with hyphen
  *
@@ -47,48 +47,8 @@ const validateSlugFormat = (args: {
  *
  * @returns Undefined if valid, error message string if invalid
  */
-export const validateProfileName = (args: {
+export const validateSkillsetName = (args: {
   value: string;
 }): string | undefined => {
-  return validateSlugFormat({ value: args.value, fieldName: "Profile name" });
-};
-
-/**
- * Validate an organization ID
- *
- * Must be lowercase alphanumeric with hyphens, not starting or ending with hyphen
- *
- * @param args - Validation arguments
- * @param args.value - The value to validate
- *
- * @returns Undefined if valid, error message string if invalid
- */
-export const validateOrgId = (args: { value: string }): string | undefined => {
-  return validateSlugFormat({
-    value: args.value,
-    fieldName: "Organization ID",
-  });
-};
-
-/**
- * Validate a required field
- *
- * @param args - Validation arguments
- * @param args.value - The value to validate
- * @param args.fieldName - Optional field name for the error message
- *
- * @returns Undefined if valid, error message string if invalid
- */
-export const validateRequired = (args: {
-  value: string;
-  fieldName?: string | null;
-}): string | undefined => {
-  const { value, fieldName } = args;
-
-  if (!value || value.trim() === "") {
-    const name = fieldName ?? "This field";
-    return `${name} is required`;
-  }
-
-  return undefined;
+  return validateSlugFormat({ value: args.value, fieldName: "Skillset name" });
 };

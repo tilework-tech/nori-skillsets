@@ -11,7 +11,7 @@ import * as clack from "@clack/prompts";
 import * as tar from "tar";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
-// Mock os.homedir so getNoriProfilesDir resolves to the test directory
+// Mock os.homedir so getNoriSkillsetsDir resolves to the test directory
 vi.mock("os", async (importOriginal) => {
   const actual = await importOriginal<typeof os>();
   return {
@@ -54,24 +54,8 @@ vi.mock("@/cli/config.js", async () => {
   return {
     loadConfig: vi.fn(),
     getRegistryAuth: vi.fn(),
-    getInstalledAgents: (args: {
-      config: { agents?: Record<string, unknown> | null };
-    }) => {
-      const agents = Object.keys(args.config.agents ?? {});
-      return agents.length > 0 ? agents : ["claude-code"];
-    },
-    getAgentProfile: (args: {
-      config: {
-        agents?: Record<
-          string,
-          { profile?: { baseProfile: string } | null } | null
-        > | null;
-      };
-      agentName: string;
-    }) => {
-      const agentConfig = args.config.agents?.[args.agentName];
-      return agentConfig?.profile ?? null;
-    },
+    getActiveSkillset: (args: { config: { activeSkillset?: string | null } }) =>
+      args.config.activeSkillset ?? null,
   };
 });
 
@@ -156,6 +140,15 @@ const getClackErrorOutput = (): string => {
   return parts.join("\n");
 };
 
+const createManagedBlockMarker = async (dir: string): Promise<void> => {
+  const claudeDir = path.join(dir, ".claude");
+  await fs.mkdir(claudeDir, { recursive: true });
+  await fs.writeFile(
+    path.join(claudeDir, "CLAUDE.md"),
+    "# BEGIN NORI-AI MANAGED BLOCK\n# END NORI-AI MANAGED BLOCK\n",
+  );
+};
+
 describe("skill-download", () => {
   let testDir: string;
   let configPath: string;
@@ -184,10 +177,13 @@ describe("skill-download", () => {
       configPath,
       JSON.stringify({
         profile: {
-          baseProfile: "senior-swe",
+          activeSkillset: "senior-swe",
         },
       }),
     );
+
+    // Create managed block marker for installation detection
+    await createManagedBlockMarker(testDir);
 
     // Create skills directory
     await fs.mkdir(skillsDir, { recursive: true });
@@ -290,6 +286,11 @@ describe("skill-download", () => {
     });
 
     it("should error when skill already exists without .nori-version", async () => {
+      // Mock config so resolveInstallDir resolves to testDir
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+      });
+
       // Create existing skill directory without version file
       const existingSkillDir = path.join(skillsDir, "existing-skill");
       await fs.mkdir(existingSkillDir, { recursive: true });
@@ -400,6 +401,11 @@ describe("skill-download", () => {
     });
 
     it("should handle download errors gracefully", async () => {
+      // Mock config so resolveInstallDir resolves to testDir
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+      });
+
       vi.mocked(registrarApi.downloadSkillTarball).mockRejectedValue(
         new Error("Network error: Failed to fetch"),
       );
@@ -451,7 +457,7 @@ describe("skill-download", () => {
       await fs.mkdir(customSkillsDir, { recursive: true });
       await fs.writeFile(
         path.join(customInstallDir, ".nori-config.json"),
-        JSON.stringify({ profile: { baseProfile: "test" } }),
+        JSON.stringify({ activeSkillset: "test" }),
       );
 
       vi.mocked(loadConfig).mockResolvedValue({
@@ -663,6 +669,9 @@ describe("skill-download", () => {
       // Mock config to return null
       vi.mocked(loadConfig).mockResolvedValue(null);
 
+      // Set homedir to testDir so resolveInstallDir falls back correctly
+      vi.mocked(os.homedir).mockReturnValue(testDir);
+
       // Skill exists in public registry
       vi.mocked(registrarApi.getSkillPackument).mockResolvedValue({
         name: "test-skill",
@@ -715,6 +724,58 @@ describe("skill-download", () => {
 
       // Verify no download occurred
       expect(registrarApi.downloadSkillTarball).not.toHaveBeenCalled();
+    });
+
+    it("should download public skill without auth when signed into private registry", async () => {
+      // User is authenticated to a private org but NOT to "public"
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        auth: {
+          username: "testuser@example.com",
+          organizationUrl: "https://myorg.noriskillsets.dev",
+          refreshToken: "mock-refresh-token",
+          organizations: ["myorg"],
+        },
+      });
+
+      // Skill exists in public registry
+      vi.mocked(registrarApi.getSkillPackument).mockResolvedValue({
+        name: "test-skill",
+        "dist-tags": { latest: "1.0.0" },
+        versions: { "1.0.0": { name: "test-skill", version: "1.0.0" } },
+      });
+
+      const mockTarball = await createMockSkillTarball();
+      vi.mocked(registrarApi.downloadSkillTarball).mockResolvedValue(
+        mockTarball,
+      );
+
+      await skillDownloadMain({
+        skillSpec: "test-skill",
+        cwd: testDir,
+      });
+
+      // Verify public registry was searched without auth token
+      expect(registrarApi.getSkillPackument).toHaveBeenCalledWith({
+        skillName: "test-skill",
+        registryUrl: REGISTRAR_URL,
+      });
+
+      // Verify download was from public registry without auth
+      expect(registrarApi.downloadSkillTarball).toHaveBeenCalledWith({
+        skillName: "test-skill",
+        version: undefined,
+        registryUrl: REGISTRAR_URL,
+        authToken: undefined,
+      });
+
+      // Verify no auth token was requested
+      expect(getRegistryAuthToken).not.toHaveBeenCalled();
+
+      // Verify skill was installed
+      const skillDir = path.join(skillsDir, "test-skill");
+      const stats = await fs.stat(skillDir);
+      expect(stats.isDirectory()).toBe(true);
     });
   });
 
@@ -959,7 +1020,7 @@ describe("skill-download", () => {
 describe("--skillset option and manifest updates", () => {
   let testDir: string;
   let skillsDir: string;
-  let profilesDir: string;
+  let skillsetsDir: string;
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -975,20 +1036,23 @@ describe("--skillset option and manifest updates", () => {
     testDir = await fs.mkdtemp(path.join(tmpdir(), "nori-skillset-test-"));
     vi.mocked(os.homedir).mockReturnValue(testDir);
     skillsDir = path.join(testDir, ".claude", "skills");
-    profilesDir = path.join(testDir, ".nori", "profiles");
+    skillsetsDir = path.join(testDir, ".nori", "profiles");
 
     // Create directories
     await fs.mkdir(skillsDir, { recursive: true });
-    await fs.mkdir(profilesDir, { recursive: true });
+    await fs.mkdir(skillsetsDir, { recursive: true });
 
-    // Create config file so getInstallDirs() can find this installation
+    // Create config file
     await fs.writeFile(
       path.join(testDir, ".nori-config.json"),
       JSON.stringify({}),
     );
 
+    // Create managed block marker for installation detection
+    await createManagedBlockMarker(testDir);
+
     // Create a test profile with nori.json
-    const testProfileDir = path.join(profilesDir, "test-profile");
+    const testProfileDir = path.join(skillsetsDir, "test-profile");
     await fs.mkdir(testProfileDir, { recursive: true });
     await fs.writeFile(
       path.join(testProfileDir, "nori.json"),
@@ -1007,11 +1071,7 @@ describe("--skillset option and manifest updates", () => {
     vi.mocked(loadConfig).mockResolvedValue({
       installDir: testDir,
 
-      agents: {
-        "claude-code": {
-          profile: { baseProfile: "other-profile" },
-        },
-      },
+      activeSkillset: "other-profile",
     });
 
     vi.mocked(registrarApi.getSkillPackument).mockResolvedValue({
@@ -1036,7 +1096,7 @@ describe("--skillset option and manifest updates", () => {
 
     // Verify skill was added to the specified profile's skills.json
     const skillsJsonPath = path.join(
-      profilesDir,
+      skillsetsDir,
       "test-profile",
       "skills.json",
     );
@@ -1047,7 +1107,7 @@ describe("--skillset option and manifest updates", () => {
 
   it("should add skill to active profile's skills.json when --skillset not specified", async () => {
     // Create active profile directory
-    const activeProfileDir = path.join(profilesDir, "active-profile");
+    const activeProfileDir = path.join(skillsetsDir, "active-profile");
     await fs.mkdir(activeProfileDir, { recursive: true });
     await fs.writeFile(
       path.join(activeProfileDir, "nori.json"),
@@ -1057,11 +1117,7 @@ describe("--skillset option and manifest updates", () => {
     vi.mocked(loadConfig).mockResolvedValue({
       installDir: testDir,
 
-      agents: {
-        "claude-code": {
-          profile: { baseProfile: "active-profile" },
-        },
-      },
+      activeSkillset: "active-profile",
     });
 
     vi.mocked(registrarApi.getSkillPackument).mockResolvedValue({
@@ -1080,7 +1136,7 @@ describe("--skillset option and manifest updates", () => {
 
     // Verify skill was added to active profile's skills.json
     const skillsJsonPath = path.join(
-      profilesDir,
+      skillsetsDir,
       "active-profile",
       "skills.json",
     );
@@ -1155,11 +1211,7 @@ describe("--skillset option and manifest updates", () => {
     vi.mocked(loadConfig).mockResolvedValue({
       installDir: testDir,
 
-      agents: {
-        "claude-code": {
-          profile: { baseProfile: "test-profile" },
-        },
-      },
+      activeSkillset: "test-profile",
     });
 
     vi.mocked(registrarApi.getSkillPackument).mockResolvedValue({
@@ -1176,7 +1228,7 @@ describe("--skillset option and manifest updates", () => {
 
     // Verify no skills.json was created
     const skillsJsonPath = path.join(
-      profilesDir,
+      skillsetsDir,
       "test-profile",
       "skills.json",
     );
@@ -1190,18 +1242,14 @@ describe("--skillset option and manifest updates", () => {
       "another-skill": "*",
     };
     await fs.writeFile(
-      path.join(profilesDir, "test-profile", "skills.json"),
+      path.join(skillsetsDir, "test-profile", "skills.json"),
       JSON.stringify(existingSkillsJson),
     );
 
     vi.mocked(loadConfig).mockResolvedValue({
       installDir: testDir,
 
-      agents: {
-        "claude-code": {
-          profile: { baseProfile: "test-profile" },
-        },
-      },
+      activeSkillset: "test-profile",
     });
 
     vi.mocked(registrarApi.getSkillPackument).mockResolvedValue({
@@ -1221,7 +1269,7 @@ describe("--skillset option and manifest updates", () => {
 
     // Verify skills.json has both old and new entries
     const skillsJsonPath = path.join(
-      profilesDir,
+      skillsetsDir,
       "test-profile",
       "skills.json",
     );
@@ -1239,7 +1287,7 @@ describe("--skillset option and manifest updates", () => {
 describe("profile directory persistence", () => {
   let testDir: string;
   let skillsDir: string;
-  let profilesDir: string;
+  let skillsetsDir: string;
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -1256,19 +1304,22 @@ describe("profile directory persistence", () => {
     );
     vi.mocked(os.homedir).mockReturnValue(testDir);
     skillsDir = path.join(testDir, ".claude", "skills");
-    profilesDir = path.join(testDir, ".nori", "profiles");
+    skillsetsDir = path.join(testDir, ".nori", "profiles");
 
     await fs.mkdir(skillsDir, { recursive: true });
-    await fs.mkdir(profilesDir, { recursive: true });
+    await fs.mkdir(skillsetsDir, { recursive: true });
 
-    // Create config file so getInstallDirs() can find this installation
+    // Create config file
     await fs.writeFile(
       path.join(testDir, ".nori-config.json"),
       JSON.stringify({}),
     );
 
+    // Create managed block marker for installation detection
+    await createManagedBlockMarker(testDir);
+
     // Create active profile directory with nori.json
-    const activeProfileDir = path.join(profilesDir, "active-profile");
+    const activeProfileDir = path.join(skillsetsDir, "active-profile");
     await fs.mkdir(activeProfileDir, { recursive: true });
     await fs.writeFile(
       path.join(activeProfileDir, "nori.json"),
@@ -1287,11 +1338,7 @@ describe("profile directory persistence", () => {
     vi.mocked(loadConfig).mockResolvedValue({
       installDir: testDir,
 
-      agents: {
-        "claude-code": {
-          profile: { baseProfile: "active-profile" },
-        },
-      },
+      activeSkillset: "active-profile",
     });
 
     vi.mocked(registrarApi.getSkillPackument).mockResolvedValue({
@@ -1315,7 +1362,7 @@ describe("profile directory persistence", () => {
 
     // Verify skill also exists in the profile's skills directory
     const profileSkillDir = path.join(
-      profilesDir,
+      skillsetsDir,
       "active-profile",
       "skills",
       "test-skill",
@@ -1343,7 +1390,7 @@ describe("profile directory persistence", () => {
 
   it("should copy skill to specified skillset's skills directory when --skillset used", async () => {
     // Create specified profile
-    const specifiedProfileDir = path.join(profilesDir, "specified-profile");
+    const specifiedProfileDir = path.join(skillsetsDir, "specified-profile");
     await fs.mkdir(specifiedProfileDir, { recursive: true });
     await fs.writeFile(
       path.join(specifiedProfileDir, "nori.json"),
@@ -1353,11 +1400,7 @@ describe("profile directory persistence", () => {
     vi.mocked(loadConfig).mockResolvedValue({
       installDir: testDir,
 
-      agents: {
-        "claude-code": {
-          profile: { baseProfile: "active-profile" },
-        },
-      },
+      activeSkillset: "active-profile",
     });
 
     vi.mocked(registrarApi.getSkillPackument).mockResolvedValue({
@@ -1377,7 +1420,7 @@ describe("profile directory persistence", () => {
 
     // Verify skill exists in the specified profile's skills directory
     const profileSkillDir = path.join(
-      profilesDir,
+      skillsetsDir,
       "specified-profile",
       "skills",
       "test-skill",
@@ -1421,7 +1464,7 @@ describe("profile directory persistence", () => {
     // Verify no profile copy was attempted (no crash)
     // No profile skills directory should exist for any profile
     const activeProfileSkillsDir = path.join(
-      profilesDir,
+      skillsetsDir,
       "active-profile",
       "skills",
     );
@@ -1444,15 +1487,15 @@ describe("profile directory persistence", () => {
     vi.mocked(loadConfig).mockResolvedValue({
       installDir: testDir,
 
-      agents: {
-        "claude-code": {
-          profile: { baseProfile: "active-profile" },
-        },
-      },
+      activeSkillset: "active-profile",
     });
 
     // Verify no skills/ subdirectory exists in the profile yet
-    const profileSkillsDir = path.join(profilesDir, "active-profile", "skills");
+    const profileSkillsDir = path.join(
+      skillsetsDir,
+      "active-profile",
+      "skills",
+    );
     const dirExistsBefore = await fs
       .access(profileSkillsDir)
       .then(() => true)
@@ -1502,7 +1545,7 @@ describe("profile directory persistence", () => {
 
     // Create existing skill in profile with old version
     const existingProfileDir = path.join(
-      profilesDir,
+      skillsetsDir,
       "active-profile",
       "skills",
       "test-skill",
@@ -1520,11 +1563,7 @@ describe("profile directory persistence", () => {
     vi.mocked(loadConfig).mockResolvedValue({
       installDir: testDir,
 
-      agents: {
-        "claude-code": {
-          profile: { baseProfile: "active-profile" },
-        },
-      },
+      activeSkillset: "active-profile",
     });
 
     vi.mocked(registrarApi.getSkillPackument).mockResolvedValue({
@@ -1558,11 +1597,7 @@ describe("profile directory persistence", () => {
     vi.mocked(loadConfig).mockResolvedValue({
       installDir: testDir,
 
-      agents: {
-        "claude-code": {
-          profile: { baseProfile: "active-profile" },
-        },
-      },
+      activeSkillset: "active-profile",
     });
 
     vi.mocked(registrarApi.getSkillPackument).mockResolvedValue({
@@ -1595,7 +1630,7 @@ Install directory: {{install_dir}}
     // Profile copy should have RAW template variables (no substitution)
     const profileSkillMd = await fs.readFile(
       path.join(
-        profilesDir,
+        skillsetsDir,
         "active-profile",
         "skills",
         "templated-skill",
@@ -1622,7 +1657,7 @@ Install directory: {{install_dir}}
 describe("nori.json updates on skill download", () => {
   let testDir: string;
   let skillsDir: string;
-  let profilesDir: string;
+  let skillsetsDir: string;
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -1637,12 +1672,12 @@ describe("nori.json updates on skill download", () => {
     testDir = await fs.mkdtemp(path.join(tmpdir(), "nori-json-update-test-"));
     vi.mocked(os.homedir).mockReturnValue(testDir);
     skillsDir = path.join(testDir, ".claude", "skills");
-    profilesDir = path.join(testDir, ".nori", "profiles");
+    skillsetsDir = path.join(testDir, ".nori", "profiles");
 
     await fs.mkdir(skillsDir, { recursive: true });
-    await fs.mkdir(profilesDir, { recursive: true });
+    await fs.mkdir(skillsetsDir, { recursive: true });
 
-    // Create config file so getInstallDirs() can find this installation
+    // Create config file for installation detection
     await fs.writeFile(
       path.join(testDir, ".nori-config.json"),
       JSON.stringify({}),
@@ -1658,10 +1693,10 @@ describe("nori.json updates on skill download", () => {
 
   it("should add skill to nori.json dependencies.skills when nori.json exists", async () => {
     // Create profile with existing nori.json
-    const profileDir = path.join(profilesDir, "my-profile");
-    await fs.mkdir(profileDir, { recursive: true });
+    const skillsetDir = path.join(skillsetsDir, "my-profile");
+    await fs.mkdir(skillsetDir, { recursive: true });
     await fs.writeFile(
-      path.join(profileDir, "nori.json"),
+      path.join(skillsetDir, "nori.json"),
       JSON.stringify({
         name: "my-profile",
         version: "1.0.0",
@@ -1672,11 +1707,7 @@ describe("nori.json updates on skill download", () => {
     vi.mocked(loadConfig).mockResolvedValue({
       installDir: testDir,
 
-      agents: {
-        "claude-code": {
-          profile: { baseProfile: "my-profile" },
-        },
-      },
+      activeSkillset: "my-profile",
     });
 
     vi.mocked(registrarApi.getSkillPackument).mockResolvedValue({
@@ -1694,7 +1725,7 @@ describe("nori.json updates on skill download", () => {
     });
 
     // Verify nori.json was updated with the skill dependency
-    const noriJsonPath = path.join(profileDir, "nori.json");
+    const noriJsonPath = path.join(skillsetDir, "nori.json");
     const noriJsonContent = await fs.readFile(noriJsonPath, "utf-8");
     const noriJson = JSON.parse(noriJsonContent);
     expect(noriJson.name).toBe("my-profile");
@@ -1705,21 +1736,17 @@ describe("nori.json updates on skill download", () => {
 
   it("should auto-create nori.json when it does not exist", async () => {
     // Create profile WITHOUT nori.json (only directory exists)
-    const profileDir = path.join(profilesDir, "no-nori-json-profile");
-    await fs.mkdir(profileDir, { recursive: true });
+    const skillsetDir = path.join(skillsetsDir, "no-nori-json-profile");
+    await fs.mkdir(skillsetDir, { recursive: true });
     await fs.writeFile(
-      path.join(profileDir, "nori.json"),
+      path.join(skillsetDir, "nori.json"),
       JSON.stringify({ name: "no-nori-json-profile", version: "1.0.0" }),
     );
 
     vi.mocked(loadConfig).mockResolvedValue({
       installDir: testDir,
 
-      agents: {
-        "claude-code": {
-          profile: { baseProfile: "no-nori-json-profile" },
-        },
-      },
+      activeSkillset: "no-nori-json-profile",
     });
 
     vi.mocked(registrarApi.getSkillPackument).mockResolvedValue({
@@ -1737,7 +1764,7 @@ describe("nori.json updates on skill download", () => {
     });
 
     // Verify nori.json was auto-created with the skill
-    const noriJsonPath = path.join(profileDir, "nori.json");
+    const noriJsonPath = path.join(skillsetDir, "nori.json");
     const noriJsonContent = await fs.readFile(noriJsonPath, "utf-8");
     const noriJson = JSON.parse(noriJsonContent);
     expect(noriJson.name).toBe("no-nori-json-profile");
@@ -1747,10 +1774,10 @@ describe("nori.json updates on skill download", () => {
 
   it("should preserve existing nori.json dependencies when adding new skill", async () => {
     // Create profile with nori.json that has existing skill dependencies
-    const profileDir = path.join(profilesDir, "deps-profile");
-    await fs.mkdir(profileDir, { recursive: true });
+    const skillsetDir = path.join(skillsetsDir, "deps-profile");
+    await fs.mkdir(skillsetDir, { recursive: true });
     await fs.writeFile(
-      path.join(profileDir, "nori.json"),
+      path.join(skillsetDir, "nori.json"),
       JSON.stringify({
         name: "deps-profile",
         version: "2.0.0",
@@ -1766,11 +1793,7 @@ describe("nori.json updates on skill download", () => {
     vi.mocked(loadConfig).mockResolvedValue({
       installDir: testDir,
 
-      agents: {
-        "claude-code": {
-          profile: { baseProfile: "deps-profile" },
-        },
-      },
+      activeSkillset: "deps-profile",
     });
 
     vi.mocked(registrarApi.getSkillPackument).mockResolvedValue({
@@ -1788,7 +1811,7 @@ describe("nori.json updates on skill download", () => {
     });
 
     // Verify nori.json has all entries
-    const noriJsonPath = path.join(profileDir, "nori.json");
+    const noriJsonPath = path.join(skillsetDir, "nori.json");
     const noriJsonContent = await fs.readFile(noriJsonPath, "utf-8");
     const noriJson = JSON.parse(noriJsonContent);
     expect(noriJson.dependencies.skills).toEqual({
@@ -1825,7 +1848,7 @@ describe("nori.json updates on skill download", () => {
     expect(stats.isDirectory()).toBe(true);
 
     // Verify no profile directories were created (and hence no nori.json)
-    const profileEntries = await fs.readdir(profilesDir);
+    const profileEntries = await fs.readdir(skillsetsDir);
     expect(profileEntries).toHaveLength(0);
   });
 });
@@ -1853,10 +1876,13 @@ describe("namespaced package support", () => {
       path.join(testDir, ".nori-config.json"),
       JSON.stringify({
         profile: {
-          baseProfile: "senior-swe",
+          activeSkillset: "senior-swe",
         },
       }),
     );
+
+    // Create managed block marker for installation detection
+    await createManagedBlockMarker(testDir);
 
     // Create skills directory
     await fs.mkdir(skillsDir, { recursive: true });

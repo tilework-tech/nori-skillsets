@@ -1,7 +1,7 @@
 /**
- * Version tracking utilities for Nori Profiles installer
+ * Version tracking utilities for Nori Skillsets installer
  *
- * Manages version tracking for the Nori Profiles installer.
+ * Manages version tracking for the Nori Skillsets installer.
  */
 
 import { existsSync, readFileSync } from "fs";
@@ -11,7 +11,6 @@ import { fileURLToPath } from "url";
 import semver from "semver";
 
 import { loadConfig } from "@/cli/config.js";
-import { getHomeDir } from "@/utils/home.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -111,7 +110,7 @@ export const getInstalledVersion = async (args: {
 }): Promise<string> => {
   const { installDir } = args;
   // Use getHomeDir() since version is stored in global config
-  const config = await loadConfig({ startDir: getHomeDir() });
+  const config = await loadConfig();
 
   // If config has version, use it
   if (config?.version != null) {

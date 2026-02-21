@@ -54,26 +54,24 @@ describe("logout command", () => {
         organizationUrl: "https://noriskillsets.dev",
         organizations: ["acme", "orderco"],
         isAdmin: true,
-        agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
+        activeSkillset: "senior-swe",
         autoupdate: "enabled",
         installDir: tempDir,
       });
 
       // Verify auth exists before logout
-      const beforeLogout = await loadConfig({ startDir: tempDir });
+      const beforeLogout = await loadConfig();
       expect(beforeLogout?.auth).not.toBeNull();
 
       // Perform logout
-      await logoutMain({ installDir: tempDir, startDir: tempDir });
+      await logoutMain({ installDir: tempDir });
 
       // Verify auth is cleared
-      const afterLogout = await loadConfig({ startDir: tempDir });
+      const afterLogout = await loadConfig();
       expect(afterLogout?.auth).toBeNull();
 
       // Verify other fields are preserved
-      expect(afterLogout?.agents?.["claude-code"]?.profile?.baseProfile).toBe(
-        "senior-swe",
-      );
+      expect(afterLogout?.activeSkillset).toBe("senior-swe");
       expect(afterLogout?.autoupdate).toBe("enabled");
     });
 
@@ -84,11 +82,11 @@ describe("logout command", () => {
       await saveConfig({
         username: null,
         organizationUrl: null,
-        agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
+        activeSkillset: "senior-swe",
         installDir: tempDir,
       });
 
-      await logoutMain({ installDir: tempDir, startDir: tempDir });
+      await logoutMain({ installDir: tempDir });
 
       expect(log.info).toHaveBeenCalledWith(
         expect.stringContaining("Not currently logged in"),
@@ -98,7 +96,7 @@ describe("logout command", () => {
     it("should show info message when no config exists", async () => {
       const { log } = await import("@clack/prompts");
 
-      await logoutMain({ installDir: tempDir, startDir: tempDir });
+      await logoutMain({ installDir: tempDir });
 
       expect(log.info).toHaveBeenCalledWith(
         expect.stringContaining("Not currently logged in"),
@@ -116,7 +114,7 @@ describe("logout command", () => {
         installDir: tempDir,
       });
 
-      await logoutMain({ installDir: tempDir, startDir: tempDir });
+      await logoutMain({ installDir: tempDir });
 
       expect(log.success).toHaveBeenCalledWith(
         expect.stringContaining("Logged out"),
@@ -132,29 +130,27 @@ describe("logout command", () => {
         organizationUrl: "https://noriskillsets.dev",
         organizations: ["google-org"],
         isAdmin: false,
-        agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
+        activeSkillset: "senior-swe",
         autoupdate: "disabled",
         installDir: tempDir,
       });
 
       // Verify auth exists before logout
-      const beforeLogout = await loadConfig({ startDir: tempDir });
+      const beforeLogout = await loadConfig();
       expect(beforeLogout?.auth?.username).toBe("googleuser@gmail.com");
       expect(beforeLogout?.auth?.refreshToken).toBe(
         "firebase-refresh-token-from-google-sso",
       );
 
       // Perform logout
-      await logoutMain({ installDir: tempDir, startDir: tempDir });
+      await logoutMain({ installDir: tempDir });
 
       // Verify auth is cleared
-      const afterLogout = await loadConfig({ startDir: tempDir });
+      const afterLogout = await loadConfig();
       expect(afterLogout?.auth).toBeNull();
 
       // Verify other fields are preserved
-      expect(afterLogout?.agents?.["claude-code"]?.profile?.baseProfile).toBe(
-        "senior-swe",
-      );
+      expect(afterLogout?.activeSkillset).toBe("senior-swe");
       expect(afterLogout?.autoupdate).toBe("disabled");
     });
 
@@ -166,20 +162,20 @@ describe("logout command", () => {
         username: "user@example.com",
         refreshToken: "mock-refresh-token",
         organizationUrl: "https://noriskillsets.dev",
-        agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
+        activeSkillset: "senior-swe",
         installDir: tempDir,
       });
 
       // Verify auth exists before logout
-      const beforeLogout = await loadConfig({ startDir: tempDir });
+      const beforeLogout = await loadConfig();
       expect(beforeLogout?.auth?.username).toBe("user@example.com");
 
       // Perform logout without installDir - should find config at homedir
       // Config is centralized at ~/.nori-config.json (os.homedir() mocked to tempDir)
-      await logoutMain({ startDir: tempDir });
+      await logoutMain();
 
       // Verify auth is cleared
-      const afterLogout = await loadConfig({ startDir: tempDir });
+      const afterLogout = await loadConfig();
       expect(afterLogout?.auth).toBeNull();
 
       // Verify success message was shown

@@ -526,7 +526,7 @@ export const loginMain = async (args?: {
 
       // Load existing config to preserve other fields
       // Use getHomeDir() as startDir since login is home-directory-based
-      const existingConfig = await loadConfig({ startDir: getHomeDir() });
+      const existingConfig = await loadConfig();
 
       // Save credentials to config (using access info from flow result)
       await saveConfig({
@@ -537,7 +537,7 @@ export const loginMain = async (args?: {
         isAdmin: result.isAdmin,
         sendSessionTranscript: existingConfig?.sendSessionTranscript ?? null,
         autoupdate: existingConfig?.autoupdate ?? null,
-        agents: existingConfig?.agents ?? null,
+        activeSkillset: existingConfig?.activeSkillset ?? null,
         version: existingConfig?.version ?? null,
         transcriptDestination: existingConfig?.transcriptDestination ?? null,
         installDir: configDir,
@@ -587,7 +587,7 @@ export const loginMain = async (args?: {
 
   // Load existing config to preserve other fields
   // Use getHomeDir() as startDir since login is home-directory-based
-  const existingConfig = await loadConfig({ startDir: getHomeDir() });
+  const existingConfig = await loadConfig();
 
   // Save credentials to config
   await saveConfig({
@@ -598,7 +598,7 @@ export const loginMain = async (args?: {
     isAdmin,
     sendSessionTranscript: existingConfig?.sendSessionTranscript ?? null,
     autoupdate: existingConfig?.autoupdate ?? null,
-    agents: existingConfig?.agents ?? null,
+    activeSkillset: existingConfig?.activeSkillset ?? null,
     version: existingConfig?.version ?? null,
     transcriptDestination: existingConfig?.transcriptDestination ?? null,
     installDir: configDir,

@@ -24,7 +24,7 @@ vi.mock("@/cli/features/claude-code/paths.js", () => ({
   getClaudeCommandsDir: () => path.join(mockClaudeDir, "commands"),
   getClaudeMdFile: () => path.join(mockClaudeDir, "CLAUDE.md"),
   getClaudeSkillsDir: () => path.join(mockClaudeDir, "skills"),
-  getClaudeProfilesDir: () => path.join(mockClaudeDir, "profiles"),
+  getClaudeSkillsetsDir: () => path.join(mockClaudeDir, "profiles"),
 }));
 
 // Import loader after mocking env
@@ -155,9 +155,8 @@ describe("statuslineLoader", () => {
 
       expect(exists).toBe(true);
 
-      // Verify script contains upward search logic
+      // Verify script contains config reading logic
       const scriptContent = await fs.readFile(copiedScriptPath, "utf-8");
-      expect(scriptContent).toContain("find_install_dir");
       expect(scriptContent).toContain(".nori-config.json");
     });
 
@@ -226,16 +225,16 @@ describe("statuslineLoader", () => {
   });
 
   describe("statusline script", () => {
-    it("should include profile name in output when nori-config.json exists", async () => {
+    it("should include skillset name in output when nori-config.json exists", async () => {
       const config: Config = { installDir: claudeDir };
 
       // Install statusline
       await statuslineLoader.run({ config });
 
-      // Create mock .nori-config.json with profile in temp directory (install root)
+      // Create mock .nori-config.json with skillset in temp directory (install root)
       const noriConfigPath = path.join(tempDir, ".nori-config.json");
       const noriConfigContent = JSON.stringify({
-        profile: { baseProfile: "amol" },
+        activeSkillset: "amol",
       });
       await fs.writeFile(noriConfigPath, noriConfigContent);
 
@@ -270,7 +269,7 @@ describe("statuslineLoader", () => {
       }
     });
 
-    it("should not show profile when nori-config.json does not exist", async () => {
+    it("should not show skillset when nori-config.json does not exist", async () => {
       const config: Config = { installDir: claudeDir };
 
       // Install statusline
@@ -311,7 +310,7 @@ describe("statuslineLoader", () => {
       }
     });
 
-    it("should display single nori-ai-cli promotion tip", async () => {
+    it("should display single nori-skillsets promotion tip", async () => {
       const config: Config = { installDir: claudeDir };
 
       // Install statusline
@@ -340,7 +339,7 @@ describe("statuslineLoader", () => {
       });
 
       // Verify output contains the single promotional tip
-      expect(output).toContain("npm install -g nori-ai-cli");
+      expect(output).toContain("npm install -g nori-skillsets");
       // Verify it does NOT have the old "Nori Tip:" prefix
       expect(output).not.toContain("Nori Tip:");
     });
@@ -397,7 +396,7 @@ describe("statuslineLoader", () => {
       // Create mock .nori-config.json without version field
       const noriConfigPath = path.join(tempDir, ".nori-config.json");
       const noriConfigContent = JSON.stringify({
-        profile: { baseProfile: "test" },
+        activeSkillset: "test",
       });
       await fs.writeFile(noriConfigPath, noriConfigContent);
 

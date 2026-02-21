@@ -3,16 +3,25 @@
  * Implements the Agent interface for Claude Code
  */
 
+import * as fsSync from "fs";
 import * as fs from "fs/promises";
 import * as path from "path";
 
 import { log } from "@clack/prompts";
 
-import { loadConfig, saveConfig } from "@/cli/config.js";
+import { loadConfig, saveConfig, type Config } from "@/cli/config.js";
+import {
+  detectExistingConfig,
+  captureExistingConfigAsSkillset,
+} from "@/cli/features/claude-code/existingConfigCapture.js";
 import { factoryResetClaudeCode } from "@/cli/features/claude-code/factoryReset.js";
 import { LoaderRegistry } from "@/cli/features/claude-code/loaderRegistry.js";
-import { getNoriProfilesDir } from "@/cli/features/claude-code/paths.js";
-import { ensureNoriJson } from "@/cli/features/claude-code/profiles/metadata.js";
+import {
+  getClaudeMdFile,
+  getNoriSkillsetsDir,
+} from "@/cli/features/claude-code/paths.js";
+import { claudeMdLoader } from "@/cli/features/claude-code/skillsets/claudemd/loader.js";
+import { ensureNoriJson } from "@/cli/features/claude-code/skillsets/metadata.js";
 import { MANIFEST_FILE } from "@/cli/features/managedFolder.js";
 
 import type { Agent } from "@/cli/features/agentRegistry.js";
@@ -24,46 +33,95 @@ export const claudeCodeAgent: Agent = {
   name: "claude-code",
   displayName: "Claude Code",
 
+  getManagedFiles: () => ["CLAUDE.md", "settings.json", "nori-statusline.sh"],
+  getManagedDirs: () => ["skills", "commands", "agents"],
+
   getLoaderRegistry: () => {
     return LoaderRegistry.getInstance();
   },
 
   factoryReset: factoryResetClaudeCode,
 
-  switchProfile: async (args: {
+  isInstalledAtDir: (args: { path: string }): boolean => {
+    const claudeDir = path.join(args.path, ".claude");
+
+    // Check for .nori-managed marker file (new style)
+    const markerPath = path.join(claudeDir, ".nori-managed");
+    if (fsSync.existsSync(markerPath)) {
+      return true;
+    }
+
+    // Backwards compatibility: check for NORI-AI MANAGED BLOCK in CLAUDE.md
+    const claudeMdPath = path.join(claudeDir, "CLAUDE.md");
+    if (fsSync.existsSync(claudeMdPath)) {
+      try {
+        const content = fsSync.readFileSync(claudeMdPath, "utf-8");
+        if (content.includes("NORI-AI MANAGED BLOCK")) {
+          return true;
+        }
+      } catch {
+        // Ignore read errors
+      }
+    }
+
+    return false;
+  },
+
+  markInstall: (args: { path: string; skillsetName?: string | null }): void => {
+    const claudeDir = path.join(args.path, ".claude");
+    fsSync.mkdirSync(claudeDir, { recursive: true });
+    const markerPath = path.join(claudeDir, ".nori-managed");
+    fsSync.writeFileSync(markerPath, args.skillsetName ?? "", "utf-8");
+  },
+
+  detectExistingConfig: async (args: { installDir: string }) => {
+    return detectExistingConfig({ installDir: args.installDir });
+  },
+
+  captureExistingConfig: async (args: {
     installDir: string;
-    profileName: string;
+    skillsetName: string;
+    config: Config;
+  }) => {
+    const { installDir, skillsetName, config } = args;
+
+    // Capture the existing config as a named profile
+    await captureExistingConfigAsSkillset({ installDir, skillsetName });
+
+    // Clear original CLAUDE.md to prevent content duplication
+    const claudeMdPath = getClaudeMdFile({ installDir });
+    try {
+      await fs.unlink(claudeMdPath);
+    } catch {
+      // File may not exist, which is fine
+    }
+
+    // Install the managed CLAUDE.md block so the user isn't left without config
+    await claudeMdLoader.install({ config });
+  },
+
+  switchSkillset: async (args: {
+    installDir: string;
+    skillsetName: string;
   }): Promise<void> => {
-    const { installDir, profileName } = args;
-    const profilesDir = getNoriProfilesDir();
+    const { installDir, skillsetName } = args;
+    const skillsetsDir = getNoriSkillsetsDir();
 
     // Verify profile exists
-    // profileName can be flat (e.g., "senior-swe") or namespaced (e.g., "myorg/my-profile")
+    // skillsetName can be flat (e.g., "senior-swe") or namespaced (e.g., "myorg/my-profile")
     // path.join handles both cases correctly since it just joins the path components
-    const profileDir = path.join(profilesDir, profileName);
-    await ensureNoriJson({ profileDir });
-    const instructionsPath = path.join(profileDir, MANIFEST_FILE);
+    const skillsetDir = path.join(skillsetsDir, skillsetName);
+    await ensureNoriJson({ skillsetDir });
+    const instructionsPath = path.join(skillsetDir, MANIFEST_FILE);
 
     try {
       await fs.access(instructionsPath);
     } catch {
-      throw new Error(`Profile "${profileName}" not found in ${profilesDir}`);
+      throw new Error(`Profile "${skillsetName}" not found in ${skillsetsDir}`);
     }
 
-    // Load current config - use installDir as starting point for config search
-    const currentConfig = await loadConfig({ startDir: installDir });
-
-    // Get existing agents config (agents keys are the source of truth for installed agents)
-    const existingAgents = currentConfig?.agents ?? {};
-
-    // Update profile for this agent
-    const updatedAgents = {
-      ...existingAgents,
-      ["claude-code"]: {
-        ...existingAgents["claude-code"],
-        profile: { baseProfile: profileName },
-      },
-    };
+    // Load current config
+    const currentConfig = await loadConfig();
 
     await saveConfig({
       username: currentConfig?.auth?.username ?? null,
@@ -72,7 +130,7 @@ export const claudeCodeAgent: Agent = {
       organizationUrl: currentConfig?.auth?.organizationUrl ?? null,
       organizations: currentConfig?.auth?.organizations ?? null,
       isAdmin: currentConfig?.auth?.isAdmin ?? null,
-      agents: updatedAgents,
+      activeSkillset: skillsetName,
       sendSessionTranscript: currentConfig?.sendSessionTranscript ?? null,
       autoupdate: currentConfig?.autoupdate,
       version: currentConfig?.version ?? null,
@@ -80,7 +138,7 @@ export const claudeCodeAgent: Agent = {
       installDir,
     });
 
-    log.success(`Switched to "${profileName}" profile for Claude Code`);
+    log.success(`Switched to "${skillsetName}" profile for Claude Code`);
     log.info(`Restart Claude Code to load the new profile configuration`);
   },
 };

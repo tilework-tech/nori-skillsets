@@ -7,29 +7,25 @@
  * Responsibilities:
  * - Create .nori-config.json with minimal structure
  * - Create ~/.nori/profiles/ directory
- * - Detect and capture existing Claude Code configuration as a profile
+ * - Detect and capture existing Claude Code configuration as a skillset
  * - Warn about ancestor installations
  */
 
 import * as fs from "fs/promises";
 
-import { log, note } from "@clack/prompts";
+import { log } from "@clack/prompts";
 
 import {
-  detectExistingConfig,
-  captureExistingConfigAsProfile,
-} from "@/cli/commands/install/existingConfigCapture.js";
-import { loadConfig, saveConfig, type Config } from "@/cli/config.js";
-import {
-  getClaudeMdFile,
-  getNoriProfilesDir,
-} from "@/cli/features/claude-code/paths.js";
-import { claudeMdLoader } from "@/cli/features/claude-code/profiles/claudemd/loader.js";
-import { bold, yellow } from "@/cli/logger.js";
+  loadConfig,
+  saveConfig,
+  getDefaultAgents,
+  type Config,
+} from "@/cli/config.js";
+import { AgentRegistry } from "@/cli/features/agentRegistry.js";
+import { getNoriSkillsetsDir } from "@/cli/features/claude-code/paths.js";
 import { initFlow } from "@/cli/prompts/flows/init.js";
 import { getCurrentPackageVersion } from "@/cli/version.js";
-import { getHomeDir } from "@/utils/home.js";
-import { normalizeInstallDir, getInstallDirsWithTypes } from "@/utils/path.js";
+import { normalizeInstallDir } from "@/utils/path.js";
 
 import type { Command } from "commander";
 
@@ -55,7 +51,7 @@ const directoryExists = async (dirPath: string): Promise<boolean> => {
  * @param args - Configuration arguments
  * @param args.installDir - Installation directory
  * @param args.nonInteractive - Whether to run in non-interactive mode
- * @param args.skipWarning - Whether to skip the profile persistence warning (useful for auto-init in download flows)
+ * @param args.skipWarning - Whether to skip the skillset persistence warning (useful for auto-init in download flows)
  */
 export const initMain = async (args?: {
   installDir?: string | null;
@@ -65,53 +61,54 @@ export const initMain = async (args?: {
   const { installDir, nonInteractive, skipWarning } = args ?? {};
   const normalizedInstallDir = normalizeInstallDir({ installDir });
 
+  // Resolve the default agent for all agent-specific operations
+  const existingConfigForAgent = await loadConfig();
+  const defaultAgentName = getDefaultAgents({
+    config: existingConfigForAgent,
+  })[0];
+  const defaultAgent = AgentRegistry.getInstance().get({
+    name: defaultAgentName,
+  });
+
   // Interactive flow
   if (!nonInteractive) {
     await initFlow({
       installDir: normalizedInstallDir,
       skipWarning: skipWarning ?? null,
       callbacks: {
-        onCheckAncestors: async ({ installDir: dir }) => {
-          const allInstallations = getInstallDirsWithTypes({
-            currentDir: dir,
-          });
-          return allInstallations
-            .filter(
-              (installation) =>
-                installation.path !== dir &&
-                (installation.type === "managed" ||
-                  installation.type === "both"),
-            )
-            .map((installation) => installation.path);
+        onCheckAncestors: async () => {
+          return [];
         },
         onDetectExistingConfig: async ({ installDir: dir }) => {
-          // Use getHomeDir() since init is home-directory-based
-          const existingConfig = await loadConfig({ startDir: getHomeDir() });
+          const existingConfig = await loadConfig();
           if (existingConfig != null) return null;
-          return detectExistingConfig({ installDir: dir });
+          // Skip detection if default agent is already installed at this location
+          if (defaultAgent.isInstalledAtDir({ path: dir })) return null;
+          return (
+            (await defaultAgent.detectExistingConfig?.({ installDir: dir })) ??
+            null
+          );
         },
-        onCaptureConfig: async ({ installDir: dir, profileName }) => {
-          await captureExistingConfigAsProfile({
+        onCaptureConfig: async ({ installDir: dir, skillsetName }) => {
+          // Build a config object for the agent to use when restoring managed config
+          const config: Config = {
             installDir: dir,
-            profileName,
+            activeSkillset: skillsetName,
+          };
+          await defaultAgent.captureExistingConfig?.({
+            installDir: dir,
+            skillsetName,
+            config,
           });
-          // Clear original CLAUDE.md to prevent content duplication
-          const claudeMdPath = getClaudeMdFile({ installDir: dir });
-          try {
-            await fs.unlink(claudeMdPath);
-          } catch {
-            // File may not exist, which is fine
-          }
         },
-        onInit: async ({ installDir: dir, capturedProfileName }) => {
+        onInit: async ({ installDir: dir, capturedSkillsetName }) => {
           // Create ~/.nori/profiles/ directory
-          const profilesDir = getNoriProfilesDir();
-          if (!(await directoryExists(profilesDir))) {
-            await fs.mkdir(profilesDir, { recursive: true });
+          const skillsetsDir = getNoriSkillsetsDir();
+          if (!(await directoryExists(skillsetsDir))) {
+            await fs.mkdir(skillsetsDir, { recursive: true });
           }
 
-          // Load existing config - use getHomeDir() since init is home-directory-based
-          const existingConfig = await loadConfig({ startDir: getHomeDir() });
+          const existingConfig = await loadConfig();
           const currentVersion = getCurrentPackageVersion();
 
           const username = existingConfig?.auth?.username ?? null;
@@ -123,15 +120,8 @@ export const initMain = async (args?: {
           const autoupdate = existingConfig?.autoupdate ?? null;
           const version = currentVersion ?? null;
 
-          let agents = existingConfig?.agents ?? {};
-          if (capturedProfileName != null) {
-            agents = {
-              ...agents,
-              "claude-code": {
-                profile: { baseProfile: capturedProfileName },
-              },
-            };
-          }
+          const activeSkillset =
+            capturedSkillsetName ?? existingConfig?.activeSkillset ?? null;
 
           await saveConfig({
             username,
@@ -140,15 +130,16 @@ export const initMain = async (args?: {
             organizationUrl,
             sendSessionTranscript,
             autoupdate,
-            agents,
+            activeSkillset,
             version,
             installDir: dir,
           });
 
-          if (capturedProfileName != null) {
-            const config: Config = { installDir: dir, agents };
-            await claudeMdLoader.install({ config });
-          }
+          // Mark this directory as having the default agent installed
+          defaultAgent.markInstall({
+            path: dir,
+            skillsetName: capturedSkillsetName,
+          });
         },
       },
     });
@@ -157,76 +148,33 @@ export const initMain = async (args?: {
 
   // Non-interactive path
 
-  // Check for ancestor managed installations (warn only)
-  const allInstallations = getInstallDirsWithTypes({
-    currentDir: normalizedInstallDir,
-  });
-  const ancestorManagedInstallations = allInstallations.filter(
-    (installation) =>
-      installation.path !== normalizedInstallDir &&
-      (installation.type === "managed" || installation.type === "both"),
-  );
-
-  if (ancestorManagedInstallations.length > 0) {
-    const warningLines = [
-      yellow({ text: "Nested Nori managed installations detected" }),
-      "",
-      "Claude Code loads CLAUDE.md files from all parent directories.",
-      "Having multiple managed installations can cause duplicate or",
-      "conflicting configurations.",
-      "",
-      bold({ text: "Existing managed installations:" }),
-      ...ancestorManagedInstallations.map((a) => `  • ${a.path}`),
-      "",
-      "Please remove the conflicting installation before continuing.",
-    ];
-    note(warningLines.join("\n"), "Warning");
-  }
-
   // Create ~/.nori/profiles/ directory
-  const profilesDir = getNoriProfilesDir();
-  if (!(await directoryExists(profilesDir))) {
-    await fs.mkdir(profilesDir, { recursive: true });
+  const skillsetsDir = getNoriSkillsetsDir();
+  if (!(await directoryExists(skillsetsDir))) {
+    await fs.mkdir(skillsetsDir, { recursive: true });
   }
 
-  // Load existing config (if any) - use getHomeDir() since init is home-directory-based
-  const existingConfig = await loadConfig({ startDir: getHomeDir() });
+  // Load existing config (if any)
+  const existingConfig = await loadConfig();
   const currentVersion = getCurrentPackageVersion();
 
-  // Track captured profile name for setting in config
-  let capturedProfileName: string | null = null;
+  // Track captured skillset name for setting in config
+  let capturedSkillsetName: string | null = null;
 
-  // If no existing config, check for existing Claude Code configuration to capture
-  if (existingConfig == null) {
-    const detectedConfig = await detectExistingConfig({
+  // If no existing config and default agent not already installed, check for existing configuration to capture
+  if (
+    existingConfig == null &&
+    !defaultAgent.isInstalledAtDir({ path: normalizedInstallDir })
+  ) {
+    const detectedConfig = await defaultAgent.detectExistingConfig?.({
       installDir: normalizedInstallDir,
     });
     if (detectedConfig != null) {
-      // Non-interactive mode: auto-capture as "my-profile"
-      capturedProfileName = "my-profile";
-      await captureExistingConfigAsProfile({
-        installDir: normalizedInstallDir,
-        profileName: capturedProfileName,
-      });
-      log.success(`Configuration saved as skillset "${capturedProfileName}"`);
-
-      // Clear the original CLAUDE.md to prevent content duplication when the
-      // managed block is installed. The content has already been captured to
-      // the profile, so we delete it here before claudeMdLoader.install runs.
-      const claudeMdPath = getClaudeMdFile({
-        installDir: normalizedInstallDir,
-      });
-      try {
-        await fs.unlink(claudeMdPath);
-      } catch {
-        // File may not exist, which is fine
-      }
+      capturedSkillsetName = "my-profile";
     }
   }
 
   // Create or update config
-  // If existing config, preserve all fields and update version
-  // If new config, create minimal structure
   const username = existingConfig?.auth?.username ?? null;
   const password = existingConfig?.auth?.password ?? null;
   const refreshToken = existingConfig?.auth?.refreshToken ?? null;
@@ -238,14 +186,9 @@ export const initMain = async (args?: {
   const transcriptDestination = existingConfig?.transcriptDestination ?? null;
   const version = currentVersion ?? null;
 
-  // Set agents - if a profile was captured, set it as the active profile for claude-code
-  let agents = existingConfig?.agents ?? {};
-  if (capturedProfileName != null) {
-    agents = {
-      ...agents,
-      "claude-code": { profile: { baseProfile: capturedProfileName } },
-    };
-  }
+  // Set activeSkillset - if a skillset was captured, set it as the active skillset
+  const activeSkillset =
+    capturedSkillsetName ?? existingConfig?.activeSkillset ?? null;
 
   // Save config
   await saveConfig({
@@ -257,20 +200,31 @@ export const initMain = async (args?: {
     isAdmin,
     sendSessionTranscript,
     autoupdate,
-    agents,
+    activeSkillset,
     version,
     transcriptDestination,
     installDir: normalizedInstallDir,
   });
 
-  // If a profile was captured, install the managed block to CLAUDE.md
-  if (capturedProfileName != null) {
+  // If a skillset was captured, capture config and install managed block
+  if (capturedSkillsetName != null) {
     const config: Config = {
       installDir: normalizedInstallDir,
-      agents,
+      activeSkillset,
     };
-    await claudeMdLoader.install({ config });
+    await defaultAgent.captureExistingConfig?.({
+      installDir: normalizedInstallDir,
+      skillsetName: capturedSkillsetName,
+      config,
+    });
+    log.success(`Configuration saved as skillset "${capturedSkillsetName}"`);
   }
+
+  // Mark this directory as having the default agent installed
+  defaultAgent.markInstall({
+    path: normalizedInstallDir,
+    skillsetName: capturedSkillsetName,
+  });
 };
 
 /**

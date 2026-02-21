@@ -1,96 +1,27 @@
-# Noridoc: config
+# Noridoc: hooks/config
 
 Path: @/src/cli/features/claude-code/hooks/config
 
 ### Overview
 
-Executable hook scripts for context usage warnings, update availability checks, desktop notifications, and commit attribution replacement. Contains hook implementations that Claude Code invokes at lifecycle events.
+Contains the individual hook scripts that Claude Code invokes at various lifecycle events. Each script reads JSON from stdin (provided by Claude Code), performs its logic, and optionally outputs a JSON response to stdout.
 
 ### How it fits into the larger codebase
 
-These scripts are referenced by absolute paths in ~/.claude/settings.json, configured by the parent loader at @/src/cli/features/claude-code/hooks/loader.ts. TypeScript files are compiled to JavaScript during build and executed directly via `node {script}.js` commands.
-
-```
-┌──────────────────────────────────────────┐
-│  ~/.claude/settings.json                 │
-│  hooks: {                                │
-│    SessionStart: [...],                  │
-│    Notification: [...],                  │
-│    PreToolUse: [...]                     │
-│  }                                       │
-└───────────────┬──────────────────────────┘
-                │ references
-                ▼
-┌──────────────────────────────────────────┐
-│  hooks/config/                           │
-│  ├── context-usage-warning.ts            │
-│  ├── update-check.ts                     │
-│  ├── notify-hook.sh                      │
-│  └── commit-author.ts                    │
-└──────────────────────────────────────────┘
-```
+These scripts are referenced by absolute path in `@/src/cli/features/claude-code/hooks/loader.ts`, which writes the paths into `~/.claude/settings.json`. Claude Code executes them as child processes at the configured lifecycle events.
 
 ### Core Implementation
 
-**Active hook scripts:**
+`commit-author.ts` is a `PreToolUse` hook for the `Bash` tool. It intercepts `git commit` commands and replaces Claude Code's co-author attribution with Nori attribution. It handles both heredoc-format and simple `-m` flag commit messages. The hook outputs a JSON response with `permissionDecision: "allow"` and an `updatedInput` containing the modified command.
 
-| Script | Event | Purpose |
-|--------|-------|---------|
-| context-usage-warning.ts | SessionStart | Warns when settings.local.json files exceed 10KB (~2.5k tokens) |
-| update-check.ts | SessionStart | Outputs a systemMessage if a nori-skillsets update is available |
-| notify-hook.sh | Notification | Cross-platform desktop notifications with optional click-to-focus |
-| commit-author.ts | PreToolUse | Replaces Claude attribution with Nori in git commits |
+`update-check.ts` is a `SessionStart` hook that checks whether a newer version of `nori-skillsets` is available. It reads `~/.nori-config.json` for the current version and autoupdate preference, consults the version cache from `@/src/cli/updates/`, and outputs a `systemMessage` prompting the user to update if a newer version exists.
 
-**context-usage-warning.ts** - Checks both `~/.claude/settings.local.json` and `{cwd}/.claude/settings.local.json` for excessive size. When total exceeds 10KB, outputs a systemMessage with manual cleanup instructions directing users to clear their `permissions.allow` array directly in settings.local.json.
+`context-usage-warning.ts` is a `SessionStart` hook that checks the combined size of `settings.local.json` files (home-level and project-level). If the total exceeds 10KB, it outputs a `systemMessage` warning about excessive context token consumption from bloated permissions arrays.
 
-**update-check.ts** - Reads the version cache at `~/.nori/profiles/nori-skillsets-version.json` (populated by the CLI auto-update system at @/src/cli/updates/). If a newer non-prerelease version is found (and not dismissed), outputs a `systemMessage` JSON object to stdout telling Claude about the available update. Also triggers a fire-and-forget `refreshVersionCache()` if the cache is stale. Respects the `autoupdate` config field from `.nori-config.json`.
-
-**commit-author.ts** - Uses PreToolUse's updatedInput capability (introduced in Claude Code v2.0.10) to modify git commit commands before execution. Handles both simple `-m "message"` format and heredoc `$(cat <<'EOF' ... EOF)` format commits, preserving all original git flags.
+A `notify-hook.sh` shell script (not shown as TypeScript) sends desktop notifications when Claude Code needs input.
 
 ### Things to Know
 
-All hooks gracefully handle errors and exit with code 0 to avoid disrupting Claude Code sessions. Hook error logging uses `debug()` from @/cli/logger.ts (file-only, written to `/tmp/nori.log`), so hook failures are never visible on the console.
-
-### Optional Dependencies for Click-to-Focus Notifications
-
-The notify-hook.sh script sends desktop notifications when Claude needs attention. By default, notifications work on all platforms but may not support click-to-focus behavior without optional dependencies.
-
-**Linux (X11)**
-
-For clickable notifications that return focus to your terminal, install:
-
-**Ubuntu/Debian:**
-
-```bash
-sudo apt-get install libnotify-bin wmctrl xdotool
-```
-
-**Fedora:**
-
-```bash
-sudo dnf install libnotify wmctrl xdotool
-```
-
-**Arch:**
-
-```bash
-sudo pacman -S libnotify wmctrl xdotool
-```
-
-**Note:** Click-to-focus is not supported on Wayland yet. Basic notifications will still work, but clicking them won't restore terminal focus. The script auto-detects Wayland via $XDG_SESSION_TYPE and gracefully degrades to basic notifications.
-
-**macOS**
-
-For clickable notifications that return focus to your terminal, install terminal-notifier via Homebrew:
-
-```bash
-brew install terminal-notifier
-```
-
-Without terminal-notifier, notifications will appear via osascript but won't be clickable (clicking opens Script Editor instead).
-
-**Windows**
-
-Windows notifications use built-in PowerShell commands and don't require additional dependencies. Click-to-focus is not currently implemented for Windows.
+All hooks exit with code 0 even on error to avoid disrupting Claude Code sessions. The commit-author hook protects escaped template variables (backtick-wrapped `{{var}}`) from substitution. The update-check hook respects the `autoupdate: "disabled"` config setting and triggers background cache refreshes when the version cache is stale.
 
 Created and maintained by Nori.

@@ -16,7 +16,7 @@ import {
   getClaudeHomeSettingsFile,
   getClaudeHomeCommandsDir,
   getNoriDir,
-  getNoriProfilesDir,
+  getNoriSkillsetsDir,
 } from "./paths.js";
 
 describe("Claude Code paths", () => {
@@ -78,9 +78,9 @@ describe("Nori paths", () => {
     });
   });
 
-  describe("getNoriProfilesDir", () => {
+  describe("getNoriSkillsetsDir", () => {
     it("should always return ~/.nori/profiles regardless of any context", () => {
-      const result = getNoriProfilesDir();
+      const result = getNoriSkillsetsDir();
       expect(result).toBe(path.join(os.homedir(), ".nori", "profiles"));
     });
   });

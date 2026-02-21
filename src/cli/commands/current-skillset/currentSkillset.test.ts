@@ -69,9 +69,7 @@ describe("currentSkillsetMain", () => {
     await fs.writeFile(
       configPath,
       JSON.stringify({
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-        },
+        activeSkillset: "senior-swe",
         installDir: testHomeDir,
       }),
     );
@@ -100,7 +98,7 @@ describe("currentSkillsetMain", () => {
     await fs.writeFile(
       configPath,
       JSON.stringify({
-        agents: {},
+        activeSkillset: null,
         installDir: testHomeDir,
       }),
     );
@@ -119,10 +117,7 @@ describe("currentSkillsetMain", () => {
     await fs.writeFile(
       configPath,
       JSON.stringify({
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-          "custom-agent": { profile: { baseProfile: "custom-skillset" } },
-        },
+        activeSkillset: "senior-swe",
         installDir: testHomeDir,
       }),
     );
@@ -132,27 +127,24 @@ describe("currentSkillsetMain", () => {
     });
 
     // Should output the custom agent's skillset
-    expect(mockStdoutWrite).toHaveBeenCalledWith("custom-skillset\n");
+    expect(mockStdoutWrite).toHaveBeenCalledWith("senior-swe\n");
     expect(mockExit).not.toHaveBeenCalled();
   });
 
   it("should use first installed agent when no agent is specified", async () => {
-    // Config with multiple agents - first one should be used
+    // Config with activeSkillset - should be used regardless of agent
     const configPath = path.join(testHomeDir, ".nori-config.json");
     await fs.writeFile(
       configPath,
       JSON.stringify({
-        agents: {
-          "claude-code": { profile: { baseProfile: "senior-swe" } },
-          "other-agent": { profile: { baseProfile: "other-skillset" } },
-        },
+        activeSkillset: "senior-swe",
         installDir: testHomeDir,
       }),
     );
 
     await currentSkillsetMain({ agent: null });
 
-    // Should output the first agent's skillset (claude-code)
+    // Should output the active skillset
     expect(mockStdoutWrite).toHaveBeenCalledWith("senior-swe\n");
     expect(mockExit).not.toHaveBeenCalled();
   });
@@ -163,9 +155,7 @@ describe("currentSkillsetMain", () => {
     await fs.writeFile(
       configPath,
       JSON.stringify({
-        agents: {
-          "claude-code": { profile: { baseProfile: "myorg/my-profile" } },
-        },
+        activeSkillset: "myorg/my-profile",
         installDir: testHomeDir,
       }),
     );

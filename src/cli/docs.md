@@ -4,160 +4,30 @@ Path: @/src/cli
 
 ### Overview
 
-CLI for Nori Profiles that installs features into Claude Code, manages credentials, and tracks installation analytics via Google Analytics, with directory-based profile system. The CLI uses Commander.js for command routing, argument parsing, and help generation.
+The CLI module is the top-level entry point for the `nori-skillsets` command-line tool. It wires together command registration, configuration management, logging, analytics tracking, and auto-update checking into a single executable powered by the Commander library.
 
 ### How it fits into the larger codebase
 
-**CLI Architecture:** The package provides a single CLI binary (defined in @/package.json bin):
+The CLI module is the outermost shell of the application. `nori-skillsets.ts` is the executable entry point that bootstraps the process: it initializes proxy support from `@/utils/fetch`, sets up analytics via `installTracking.ts`, checks for updates via `@/cli/updates`, and registers all commands defined in `@/cli/commands/noriSkillsetsCommands`. Commands delegate their interactive UX to `@/cli/prompts/flows` and their business logic to `@/cli/features` and `@/api`. Configuration state flows through `config.ts`, which reads and writes `~/.nori-config.json` and is consumed by nearly every other module in the codebase.
 
-| Binary | Entry Point | Purpose |
-|--------|-------------|---------|
-| `nori-skillsets` | @/src/cli/nori-skillsets.ts | CLI with all commands for Nori Profiles installation, management, and registry operations |
+### Core Implementation
 
-The CLI uses Commander.js for command routing, argument parsing, validation, and help generation. It defines global options (`--install-dir`, `--non-interactive`, `--silent`, `--agent`) on the main program. Each command lives in its own subdirectory under @/src/cli/commands/ and exports a `registerXCommand({ program })` function that the entry point imports and calls. Commands access global options via `program.opts()`. The CLI provides automatic `--help`, `--version`, and unknown command detection. Running the binary with no arguments shows help. The CLI layer is responsible ONLY for parsing and routing - all business logic remains in the command modules. The entry point configures analytics tracking by calling `setTileworkSource()` and `trackInstallLifecycle()` at startup before any commands are registered, setting source to "nori-skillsets" to identify CLI usage in analytics data.
+`nori-skillsets.ts` creates a Commander `program`, attaches global options (`--install-dir`, `--non-interactive`, `--silent`, `--agent`), and registers all subcommands. Before parsing, it fires a background analytics lifecycle event and runs the update check (skipped for `--help`/`--version`).
 
-**Auto-update check at startup:** Before `program.parse()`, the entry point calls `checkForUpdateAndPrompt()` from @/src/cli/updates/checkForUpdate.ts. This reads `--silent` and `--non-interactive` flags from `process.argv` (before Commander parses them) and passes them along. The update check uses cached version data and may show an interactive prompt, a non-interactive one-liner, or nothing depending on flags and cache state. See @/src/cli/updates/docs.md for the full stale-while-revalidate architecture.
+`config.ts` manages the `~/.nori-config.json` file using AJV schema validation. It handles two auth formats: a legacy flat format (username/password at root level) and a nested `auth` object (v19+). Key exports include `loadConfig`, `saveConfig`, `getRegistryAuth` (derives registry credentials from the org URL), `getActiveSkillset`, and `getDefaultAgents` (resolution order: CLI flag override, then config, then `["claude-code"]`).
 
-**Global Options:**
+`logger.ts` provides colorized console output and file logging to `/tmp/nori.log` via Winston. Console transport suppresses debug-level messages; file transport captures everything. It exposes semantic log functions (`error`, `success`, `info`, `warn`, `debug`) and ANSI color helpers used throughout the prompt flows.
 
-| Option | Description |
-|--------|-------------|
-| `-d, --install-dir <path>` | Custom installation directory (default: current working directory) |
-| `-n, --non-interactive` | Run without interactive prompts |
-| `-s, --silent` | Suppress all output (implies non-interactive) |
-| `-a, --agent <name>` | AI agent to use (auto-detected from config, or claude-code) |
+`installTracking.ts` manages install lifecycle analytics. It maintains a `.nori-install.json` state file in `~/.nori/profiles/`, tracks first-install vs upgrade vs resurrection events, and sends fire-and-forget analytics via the Nori analytics proxy. It generates a deterministic client ID from hostname + username.
 
-**Directory Structure:**
-
-```
-src/cli/
-  nori-skillsets.ts      # CLI entry point
-  config.ts              # Unified config management (auth + profile + preferences)
-  env.ts                 # Environment and path utilities (re-exports from features/claude-code/paths.ts)
-  logger.ts              # File-only debug logging, silent mode flag, and ANSI color helpers
-  version.ts             # Version tracking for upgrades + package root discovery
-  installTracking.ts     # Install lifecycle and session tracking to Nori backend
-  updates/               # Auto-update check system (see @/src/cli/updates/docs.md)
-  features/              # Agent abstraction layer (see @/src/cli/features/docs.md)
-    agentRegistry.ts     # AgentRegistry singleton + shared Loader/LoaderRegistry types
-    config/              # Shared config loader (used by all agents)
-    claude-code/         # Claude Code agent implementation (see @/src/cli/features/claude-code/docs.md)
-  commands/              # Command implementations (see @/src/cli/commands/docs.md)
-    install/             # Install command + asciiArt, installState utilities
-    init/                # Initialize Nori configuration and directories
-    switch-profile/      # Profile switching command
-    install-location/    # Display installation directories
-    registry-search/     # Search for skillsets and skills in registrar
-    registry-download/   # Download from registrar
-    registry-install/    # Download + install + activate from public registrar
-    skill-download/      # Download a skill from registrar
-    external/            # Install skills from external GitHub repos
-    watch/               # Monitor Claude Code sessions and save transcripts
-    factory-reset/       # Remove all agent configuration
-    dir/                 # Open Nori profiles directory in file explorer
-    edit-skillset/       # Open skillset profile folder in VS Code
-    new-skillset/        # Create a new empty skillset
-    current-skillset/    # Display currently active skillset
-```
-
-**CLI Commands:**
-
-| Command | Module | Description |
-|---------|--------|-------------|
-| `init` | commands/init/init.ts | Initialize Nori configuration and directories |
-| `install` | commands/registry-install/registryInstall.ts | Download, install, and activate a skillset from the public registrar |
-| `search` | commands/registry-search/registrySearch.ts | Search registries for packages |
-| `download` | commands/registry-download/registryDownload.ts | Download a skillset from registrar |
-| `download-skill` | commands/skill-download/skillDownload.ts | Download a skill from registrar |
-| `external` | commands/external/external.ts | Install skills from an external GitHub repository |
-| `switch` | commands/switch-profile/profiles.ts | Switch the active skillset |
-| `list` | commands/list-skillsets/ | List available skillsets |
-| `current` | commands/current-skillset/currentSkillset.ts | Display the currently active skillset |
-| `login` | commands/login/ | Authenticate with Nori backend |
-| `logout` | commands/logout/ | Remove authentication credentials |
-| `watch` | commands/watch/ | Monitor Claude Code sessions and save transcripts |
-| `install-location` | commands/install-location/ | Display installation directories |
-| `fork` | commands/fork-skillset/forkSkillset.ts | Fork an existing skillset to a new name |
-| `new` | commands/new-skillset/newSkillset.ts | Create a new empty skillset |
-| `factory-reset` | commands/factory-reset/factoryReset.ts | Remove all agent configuration from the ancestor tree |
-| `dir` | commands/dir/dir.ts | Open the Nori profiles directory in the system file explorer |
-| `edit` | commands/edit-skillset/editSkillset.ts | Open active (or specified) skillset profile folder in VS Code |
-
-The nori-skillsets CLI uses simplified command names (no `registry-` prefix for registry read operations, `download-skill` for skill downloads, `switch` for profile switching, `init` for initialization, and `watch` for session monitoring). The commands are defined in @/src/cli/commands/noriSkillsetsCommands.ts and delegate to the underlying implementation functions (`*Main` functions from registry-*, skill-*, watch, and init commands, plus `switchSkillsetAction` from profiles.ts). Some commands have hidden aliases registered as separate Commander commands with `{ hidden: true }` -- these provide singular/plural variants (e.g., `switch-skillset` and `switch-skillsets` for `switch`) and long-form names (e.g., `list-skillsets` and `list-skillset` for `list`, `edit-skillset` for `edit`). Hidden aliases do not appear in `--help` output but are fully functional commands that delegate to the same action handler.
-
-Each command directory contains the command implementation, its tests, and any command-specific utilities (e.g., `install/` contains `asciiArt.ts` and `installState.ts`).
-
-**Installation Flow:** The installer (install.ts) orchestrates the installation process in non-interactive mode. It runs: (1) `initMain()` to set up directories and config, (2) inline profile resolution -- loads existing config, resolves profile from `--profile` flag or existing agent config, preserves auth credentials, and saves merged config via `saveConfig()`, (3) runs feature loaders from the agent's LoaderRegistry. The installer creates `~/.nori-config.json` containing auth credentials and selected profile name, and installs components into `<installDir>/.claude/`. The profile selection determines which complete directory structure (CLAUDE.md, skills/, subagents/, slashcommands/) gets installed from the user's profiles directory at `~/.nori/profiles/{profileName}/`. Each profile is a self-contained directory identified by a `nori.json` manifest file. Profiles are obtained from the registry or created by users; no built-in profiles are bundled with the package. The installTracking.ts module tracks installation and session events to the Nori backend.
-
-**Centralized Config and Nori Directory:** The `.nori` directory is centralized to the user's home directory. The config system supports both user-global (`~/.nori-config.json`) and project-local (`.nori-config.json` in any directory) config files, with upward directory search.
-
-**Config Path Resolution:**
-- `getConfigPath({ installDir })` returns `$installDir/.nori-config.json` when provided, or `~/.nori-config.json` when not provided
-- `findConfigPath({ startDir })` searches upward from `startDir` for `.nori-config.json`, falling back to `~/.nori-config.json` if none found
-- `loadConfig({ startDir })` uses `findConfigPath()` to discover the config file before loading it
-
-**Centralized Paths (zero-arg, always resolve to home):**
-- `getNoriDir()` returns `~/.nori`
-- `getNoriProfilesDir()` returns `~/.nori/profiles`
-
-**Command startDir Conventions:** Commands that are home-directory-based (login, logout, edit-skillset) pass `os.homedir()` as `startDir` to `loadConfig()` to ensure they always read `~/.nori-config.json`. Commands that are directory-specific (watch, agent) pass the relevant directory as `startDir` to enable project-local config discovery.
-
-The `installDir` parameter is still used by Claude-specific path functions (`getClaudeDir`, `getClaudeMdFile`, etc.) for the `.claude/` directory, which is project-relative. The `--install-dir` CLI option controls where `.claude/` is created, but profiles are always in the home directory at `~/.nori/profiles/`.
-
-**Config Migration During Install:** The installation flow uses the `loadAndMigrateConfig({ installDir })` helper early in the flow. This helper:
-1. Loads the existing config via `loadConfig()`
-2. If no config exists (first-time install), returns null and skips migration
-3. If config exists but has no `version` field, attempts fallback to deprecated `.nori-installed-version` file
-4. Calls `migrate()` from @/src/cli/features/migration.ts to apply any necessary migrations based on the config's version
-5. Returns the migrated config for use in the installation flow
-
-The version.ts module manages version tracking for installation upgrades and CLI flag compatibility. Version is stored as a `version` field in `.nori-config.json`. The `getInstalledVersion()` function reads from the config file via `loadConfig()`, with fallback to the deprecated `.nori-installed-version` file. The `getCurrentPackageVersion()` function reads the version from the package.json by using `findPackageRoot()` to walk up from the current file's directory looking for a package.json with the valid Nori package name (`nori-skillsets`). The `VALID_PACKAGE_NAMES` constant contains only `["nori-skillsets"]`.
-
-**Version Compatibility Checking:** The version.ts module provides CLI flag compatibility checking via `supportsAgentFlag({ version })`. The `--agent` flag was introduced in version 19.0.0 with multi-agent support.
-
-All user-facing console output uses `@clack/prompts`: `log.error()`, `log.info()`, `log.warn()`, `log.success()` for single-line status messages, and `note()` for multi-line structured content rendered as bordered boxes with a title. ASCII art uses raw `process.stdout.write()` to avoid clack bar-line prefixes. The logger.ts module retains file-only debug logging via Winston (all output appended to `/tmp/nori.log`), the `setSilentMode`/`isSilentMode` flag, and ANSI color helper functions (`bold`, `green`, `red`, `yellow`, `brightCyan`, `boldWhite`, `gray`, `wrapText`).
-
-**Silent Mode:** The logger module provides `setSilentMode({ silent: boolean })` and `isSilentMode()` functions for controlling console output globally. Silent mode is a module-scoped boolean flag. Because `@clack/prompts` `log.*` methods do not respect this flag automatically, callers must check `isSilentMode()` before emitting output. File logging via Winston continues regardless of silent mode. Silent mode is set/restored in a `finally` block by the install command's `main()` function to prevent state leakage.
-
-The config.ts module provides a unified `Config` type for both disk persistence and runtime use. The `Config` type contains: auth credentials via `AuthCredentials` type (username, organizationUrl, refreshToken, password), agents (per-agent configuration - keys indicate installed agents, each with their own profile), user preferences (sendSessionTranscript, autoupdate), and the required installDir field.
-
-**AuthCredentials Type:** Supports both token-based and legacy password-based authentication:
-- `username` and `organizationUrl` - required for all authenticated installs
-- `refreshToken` - preferred, secure token-based auth (Firebase refresh token)
-- `password` - legacy, deprecated (will be removed in future)
-- `organizations` - array of organization IDs the user has access to (populated by login command from `/api/auth/check-access`)
-- `isAdmin` - whether the user has admin privileges for their organization
-
-**transcriptDestination Config Field:** The `Config` type includes an optional `transcriptDestination` field that specifies which organization should receive transcript uploads. This is stored as an org ID string (e.g., `"myorg"`) which maps to a registry URL (e.g., `https://myorg.noriskillsets.dev`). The watch daemon sets this field on first run when the user selects a destination organization. This allows users with access to multiple private organizations to control where their transcripts are uploaded, independent of the `organizationUrl` used for authentication.
-
-**Agent Config Structure:** The config supports per-agent profiles via the `agents` field, a `Record<ConfigAgentName, AgentConfig>` where only "claude-code" is currently valid. The keys of the `agents` object serve as the source of truth for which agents are installed. Use `getInstalledAgents({ config })` helper to get the list of installed agents.
-
-**Profile Lookup Pattern (CRITICAL):** Code that needs to read a profile MUST use `getAgentProfile({ config, agentName })` - never access agent profiles directly. The function returns the profile from `config.agents[agentName].profile` or null if not found.
-
-The `getConfigPath({ installDir })` function returns `$installDir/.nori-config.json` when an `installDir` is provided, or `~/.nori-config.json` when not provided. The `loadConfig({ startDir })` function uses `findConfigPath()` to search upward from `startDir` for a config file, falling back to `~/.nori-config.json`. The `validateConfig()` function validates a config object in memory. The `saveConfig()` function always writes to `~/.nori-config.json` (user-global config).
-
-**JSON Schema Validation Architecture:** The config.ts module uses JSON schema (via Ajv with ajv-formats) as the single source of truth for configuration validation. The Ajv instance is configured with `useDefaults: true` (applies default values), `removeAdditional: true` (strips unknown properties), and ajv-formats for URI validation. A single compiled validator (`validateConfigSchema`) is used by both `loadConfig()` and `validateConfig()`.
-
-**Auth Format (Nested vs Flat):** The canonical auth format uses a nested `auth` object. The `saveConfig()` function always writes auth in this nested format. The `loadConfig()` function reads both formats for backwards compatibility with pre-v19.0.0 configs.
-
-**Installed Agents Tracking:** Installed agents are derived from the keys of the `agents` object. Use `getInstalledAgents({ config })` helper to get the list.
-
-**loadConfig() Config Discovery:** The `loadConfig({ startDir })` function uses `findConfigPath({ startDir })` to search upward from `startDir` for `.nori-config.json`, falling back to `~/.nori-config.json` if none found in the directory tree. If `startDir` is not provided, it defaults to `process.cwd()`. The returned Config object's `installDir` field comes from the JSON file (if present), defaulting to `os.homedir()` when not specified in the file.
-
-**CliName Type:** The `CliName` type in @/src/cli/commands/cliCommandNames.ts is a single literal type `"nori-skillsets"` (not a union). The `getCommandNames()` function always returns the same `NORI_SKILLSETS_COMMANDS` constant regardless of input.
+`version.ts` resolves the package version by walking up the directory tree to find `package.json`. It also reads the installed version from config (with fallback to a deprecated `.nori-installed-version` file) and checks `--agent` flag support via semver comparison.
 
 ### Things to Know
 
-The installer modifies several Claude Code configuration files and directories: CLAUDE.md, ~/.claude/hooks, ~/.claude/subagents, ~/.claude/slash-commands, ~/.claude/status-line, ~/.claude/profiles, ~/.claude/skills. Profiles are complete, self-contained directory structures at `~/.nori/profiles/{profileName}/` containing: CLAUDE.md (base instructions), nori.json (metadata), skills/ (skill directories with SKILL.md files), subagents/ (subagent .md files), slashcommands/ (slash command .md files). No built-in profiles are bundled with the package; profiles are obtained from the registry or created by users.
+The config module supports both legacy flat auth fields and nested `auth` objects for backward compatibility. `loadConfig` normalizes both formats into the same `Config` type. The schema validation uses `removeAdditional: true`, so unknown fields are silently stripped.
 
-The installer creates an install-in-progress marker file at ~/.nori-install-in-progress at the start of installation and deletes it on successful completion. This marker contains the version being installed and is checked by the statusline to display error messages if installation fails.
+Analytics are strictly fire-and-forget with 5-second timeouts and silent error handling, ensuring they never block CLI operations. The `NORI_NO_ANALYTICS=1` env var opts out entirely.
 
-Analytics tracking is non-blocking - all operations are wrapped in try/catch to ensure installation never fails due to analytics errors. The analytics system sends events to the Nori backend at `https://noriskillsets.dev/api/analytics/track` via `sendAnalyticsEvent()` in installTracking.ts. Events tracked include: `noriprof_install_started` and `noriprof_install_completed` (install command), `claude_session_started` (tracked by autoupdate hook on SessionStart), `noriprof_install_detected` (first install or version upgrade detected at CLI startup), and `noriprof_user_resurrected` (returning after 30+ days of inactivity). All events include `tilework_*` prefixed parameters for GA4 compliance. The `tilework_source` and `tilework_cli_executable_name` values are dynamically configured via `setTileworkSource()` in installTracking.ts - the entry point calls this at startup with `"nori-skillsets"`.
-
-Install lifecycle tracking (installTracking.ts) is called at CLI startup via `trackInstallLifecycle({ currentVersion })`. State is persisted to `~/.nori/profiles/.nori-install.json` containing: schema_version, client_id (deterministic hash of hostname + username), opt_out flag, timestamps, installed_version, and install_source. Analytics requests use a 5-second timeout with `unref()` to avoid blocking process exit. Users can opt out via the state file's `opt_out` field or the `NORI_NO_ANALYTICS=1` environment variable.
-
-**installTracking.ts default tileworkSource:** The default value of `tileworkSource` is `"nori-skillsets"`. The `setTileworkSource()` is called by the CLI entry point, but the default ensures correct behavior even before explicit initialization.
-
-**Test Isolation:** Tests that need to control the centralized config and profiles directories mock `os.homedir()` via `vi.mock("os")` to return a temp directory. This redirects centralized path functions (`getNoriDir()`, `getNoriProfilesDir()`) to the test's temp directory. For `loadConfig()`, tests pass the temp directory as `startDir` to control config discovery. Functions that still take `installDir` (e.g., `getClaudeDir`) receive the temp directory directly.
+The auto-update check runs before command parsing but after analytics setup. It uses a stale-while-revalidate cache pattern (see `@/cli/updates`) and can be disabled via the `autoupdate: "disabled"` config setting.
 
 Created and maintained by Nori.

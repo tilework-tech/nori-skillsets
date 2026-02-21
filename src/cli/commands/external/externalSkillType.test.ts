@@ -34,7 +34,7 @@ vi.mock("@clack/prompts", () => ({
   },
 }));
 
-// Mock os.homedir so getNoriProfilesDir() resolves to the test directory
+// Mock os.homedir so getNoriSkillsetsDir() resolves to the test directory
 vi.mock("os", async (importOriginal) => {
   const actual = await importOriginal<typeof os>();
   return {
@@ -49,24 +49,8 @@ vi.mock("@/cli/config.js", async () => {
   return {
     loadConfig: vi.fn(),
     getRegistryAuth: vi.fn(),
-    getInstalledAgents: (args: {
-      config: { agents?: Record<string, unknown> | null };
-    }) => {
-      const agents = Object.keys(args.config.agents ?? {});
-      return agents.length > 0 ? agents : ["claude-code"];
-    },
-    getAgentProfile: (args: {
-      config: {
-        agents?: Record<
-          string,
-          { profile?: { baseProfile: string } | null } | null
-        > | null;
-      };
-      agentName: string;
-    }) => {
-      const agentConfig = args.config.agents?.[args.agentName];
-      return agentConfig?.profile ?? null;
-    },
+    getActiveSkillset: (args: { config: { activeSkillset?: string | null } }) =>
+      args.config.activeSkillset ?? null,
   };
 });
 
@@ -84,7 +68,7 @@ describe("externalMain skill type prompting", () => {
   let testHomeDir: string;
   let testDir: string;
   let skillsDir: string;
-  let profilesDir: string;
+  let skillsetsDir: string;
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -96,13 +80,13 @@ describe("externalMain skill type prompting", () => {
 
     testDir = testHomeDir;
     skillsDir = path.join(testDir, ".claude", "skills");
-    profilesDir = path.join(testHomeDir, ".nori", "profiles");
+    skillsetsDir = path.join(testHomeDir, ".nori", "profiles");
 
     await fs.mkdir(skillsDir, { recursive: true });
-    await fs.mkdir(profilesDir, { recursive: true });
+    await fs.mkdir(skillsetsDir, { recursive: true });
 
     // Create a default skillset
-    const skillsetDir = path.join(profilesDir, "my-skillset");
+    const skillsetDir = path.join(skillsetsDir, "my-skillset");
     await fs.mkdir(skillsetDir, { recursive: true });
     await fs.writeFile(
       path.join(skillsetDir, "nori.json"),
@@ -220,7 +204,7 @@ describe("externalMain skill type prompting", () => {
     const profileNoriJson = JSON.parse(
       await fs.readFile(
         path.join(
-          profilesDir,
+          skillsetsDir,
           "my-skillset",
           "skills",
           "my-skill",

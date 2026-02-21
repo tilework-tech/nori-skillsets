@@ -23,6 +23,33 @@ vi.mock("@/cli/commands/watch/parser.js", () => ({
   extractSessionId: vi.fn().mockResolvedValue("test-session-id"),
 }));
 
+// Mock @clack/prompts to avoid blocking on confirm prompt
+vi.mock("@clack/prompts", () => ({
+  intro: vi.fn(),
+  note: vi.fn(),
+  outro: vi.fn(),
+  select: vi.fn(),
+  confirm: vi.fn(() => Promise.resolve(false)),
+  spinner: vi.fn(() => ({
+    start: vi.fn(),
+    stop: vi.fn(),
+    cancel: vi.fn(),
+    error: vi.fn(),
+    message: vi.fn(),
+    clear: vi.fn(),
+    isCancelled: false,
+  })),
+  log: {
+    info: vi.fn(),
+    success: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    message: vi.fn(),
+  },
+  isCancel: vi.fn(() => false),
+  cancel: vi.fn(),
+}));
+
 // Mock child_process spawn to prevent actual process spawning in tests
 vi.mock("child_process", () => ({
   spawn: vi.fn().mockReturnValue({
@@ -542,8 +569,8 @@ describe("event debouncing", () => {
       JSON.stringify({ sessionId: "test-session-id", type: "init" }) + "\n",
     );
 
-    // Wait for first event to be processed
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    // Wait for first event to be processed (polling interval is 2000ms + 2000ms stability threshold)
+    await new Promise((resolve) => setTimeout(resolve, 5000));
 
     const copyMock = vi.mocked(copyTranscript);
     const callsAfterFirstWrite = copyMock.mock.calls.length;
@@ -558,14 +585,14 @@ describe("event debouncing", () => {
       await new Promise((resolve) => setTimeout(resolve, 20));
     }
 
-    // Wait for events to be processed
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    // Wait for events to be processed (polling interval is 2000ms + 2000ms stability threshold)
+    await new Promise((resolve) => setTimeout(resolve, 5000));
 
     // With debouncing, should have at most 1-2 additional calls
     // (some events may coalesce, but without debouncing we'd see ~5)
     const additionalCalls = copyMock.mock.calls.length - callsAfterFirstWrite;
     expect(additionalCalls).toBeLessThanOrEqual(2);
-  });
+  }, 15000);
 
   test("processes events for different files separately", async () => {
     void watchMain({
@@ -588,13 +615,13 @@ describe("event debouncing", () => {
       JSON.stringify({ sessionId: "session-2", type: "init" }) + "\n",
     );
 
-    // Wait for events to be processed
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    // Wait for events to be processed (polling interval is 2000ms + 2000ms stability threshold)
+    await new Promise((resolve) => setTimeout(resolve, 5000));
 
     // Both files should trigger copy events
     const copyMock = vi.mocked(copyTranscript);
     expect(copyMock.mock.calls.length).toBeGreaterThanOrEqual(2);
-  });
+  }, 10000);
 });
 
 // Note: The "upload locking" tests were removed as they tested the deprecated

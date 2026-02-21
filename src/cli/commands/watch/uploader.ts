@@ -66,12 +66,12 @@ const extractSessionId = (args: {
 /**
  * Process a transcript file for upload
  *
- * Reads the transcript, extracts sessionId, uploads to registry,
- * and deletes local files on success.
+ * Reads the transcript, extracts sessionId, and uploads to the registry.
+ * File deletion is NOT handled here — callers are responsible for cleanup
+ * based on the user's garbage collection preference.
  *
  * @param args - Configuration arguments
  * @param args.transcriptPath - Path to the .jsonl transcript file
- * @param args.markerPath - Optional path to the .done marker file
  * @param args.projectName - Optional project name for server-side association
  * @param args.orgId - Optional organization ID for upload destination
  *
@@ -79,11 +79,10 @@ const extractSessionId = (args: {
  */
 export const processTranscriptForUpload = async (args: {
   transcriptPath: string;
-  markerPath?: string | null;
   projectName?: string | null;
   orgId?: string | null;
 }): Promise<boolean> => {
-  const { transcriptPath, markerPath, projectName, orgId } = args;
+  const { transcriptPath, projectName, orgId } = args;
 
   // Read transcript file
   let content: string;
@@ -121,31 +120,11 @@ export const processTranscriptForUpload = async (args: {
 
     debug({ message: `Uploaded transcript: ${sessionId}` });
 
-    // Delete local files on success
-    try {
-      await fs.unlink(transcriptPath);
-      debug({ message: `Deleted transcript file: ${transcriptPath}` });
-    } catch {
-      // Log but don't fail - upload succeeded
-      debug({ message: `Failed to delete transcript file: ${transcriptPath}` });
-    }
-
-    if (markerPath != null) {
-      try {
-        await fs.unlink(markerPath);
-        debug({ message: `Deleted marker file: ${markerPath}` });
-      } catch {
-        // Log but don't fail - upload succeeded
-        debug({ message: `Failed to delete marker file: ${markerPath}` });
-      }
-    }
-
     return true;
   } catch (err) {
     debug({
       message: `Failed to upload transcript ${sessionId}: ${err instanceof Error ? err.message : String(err)}`,
     });
-    // Preserve files on failure
     return false;
   }
 };

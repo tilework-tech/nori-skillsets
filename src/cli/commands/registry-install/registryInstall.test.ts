@@ -55,13 +55,18 @@ vi.mock("@/cli/commands/install/installState.js", () => ({
   hasExistingInstallation: vi.fn(() => false),
 }));
 
-const mockSwitchProfile = vi.fn();
+vi.mock("@/cli/config.js", () => ({
+  loadConfig: vi.fn().mockResolvedValue(null),
+  getDefaultAgents: vi.fn().mockReturnValue(["claude-code"]),
+}));
+
+const mockSwitchSkillset = vi.fn();
 
 vi.mock("@/cli/features/agentRegistry.js", () => ({
   AgentRegistry: {
     getInstance: () => ({
       get: () => ({
-        switchProfile: mockSwitchProfile,
+        switchSkillset: mockSwitchSkillset,
       }),
     }),
   },
@@ -104,7 +109,7 @@ describe("registry-install", () => {
     vi.clearAllMocks();
   });
 
-  it("should download profile first, then run install when no existing installation", async () => {
+  it("should download skillset first, then run install when no existing installation", async () => {
     await registryInstallMain({
       packageSpec: "senior-swe",
     });
@@ -117,22 +122,22 @@ describe("registry-install", () => {
       listVersions: null,
     });
 
-    // Step 2: Initial install with the downloaded profile - should use home dir
+    // Step 2: Initial install with the downloaded skillset - should use home dir
     expect(installMain).toHaveBeenCalledWith({
       nonInteractive: true,
       installDir: "/mock-home",
-      profile: "senior-swe",
+      skillset: "senior-swe",
       agent: "claude-code",
       silent: null,
     });
 
-    // Should NOT call switchProfile or second install (initial install handles it)
-    expect(mockSwitchProfile).not.toHaveBeenCalled();
+    // Should NOT call switchSkillset or second install (initial install handles it)
+    expect(mockSwitchSkillset).not.toHaveBeenCalled();
     expect(installMain).toHaveBeenCalledTimes(1);
     expect(registryDownloadMain).toHaveBeenCalledTimes(1);
   });
 
-  it("should download profile, switch profile, and regenerate when existing installation detected", async () => {
+  it("should download skillset, switch skillset, and regenerate when existing installation detected", async () => {
     vi.mocked(hasExistingInstallation).mockReturnValueOnce(true);
 
     await registryInstallMain({
@@ -149,10 +154,10 @@ describe("registry-install", () => {
       listVersions: null,
     });
 
-    // Step 3: Switch to downloaded profile
-    expect(mockSwitchProfile).toHaveBeenCalledWith({
+    // Step 3: Switch to downloaded skillset
+    expect(mockSwitchSkillset).toHaveBeenCalledWith({
       installDir: "/mock-home",
-      profileName: "senior-swe",
+      skillsetName: "senior-swe",
     });
 
     // Step 4: Regenerate files
@@ -167,10 +172,9 @@ describe("registry-install", () => {
     expect(registryDownloadMain).toHaveBeenCalledTimes(1);
   });
 
-  it("should install to the user home directory when --user is set", async () => {
+  it("should install to the user home directory by default", async () => {
     await registryInstallMain({
       packageSpec: "product-manager",
-      useHomeDir: true,
     });
 
     expect(registryDownloadMain).toHaveBeenCalledWith({
@@ -183,13 +187,13 @@ describe("registry-install", () => {
     expect(installMain).toHaveBeenCalledWith({
       nonInteractive: true,
       installDir: "/mock-home",
-      profile: "product-manager",
+      skillset: "product-manager",
       agent: "claude-code",
       silent: null,
     });
   });
 
-  it("should parse versioned package specs and use the profile name for install", async () => {
+  it("should parse versioned package specs and use the skillset name for install", async () => {
     await registryInstallMain({
       packageSpec: "documenter@2.1.0",
     });
@@ -204,7 +208,7 @@ describe("registry-install", () => {
     expect(installMain).toHaveBeenCalledWith({
       nonInteractive: true,
       installDir: "/mock-home",
-      profile: "documenter",
+      skillset: "documenter",
       agent: "claude-code",
       silent: null,
     });
@@ -227,7 +231,7 @@ describe("registry-install", () => {
 
     // Install should NOT have been called
     expect(installMain).not.toHaveBeenCalled();
-    expect(mockSwitchProfile).not.toHaveBeenCalled();
+    expect(mockSwitchSkillset).not.toHaveBeenCalled();
 
     // Should return failure
     expect(result.success).toBe(false);
@@ -258,7 +262,7 @@ describe("registry-install", () => {
     expect(clack.log.success).not.toHaveBeenCalled();
   });
 
-  it("should fallback to local profile when download fails but profile exists locally", async () => {
+  it("should fallback to local skillset when download fails but skillset exists locally", async () => {
     // Download fails
     vi.mocked(registryDownloadMain).mockResolvedValueOnce({ success: false });
     // Local profile exists
@@ -270,7 +274,7 @@ describe("registry-install", () => {
       packageSpec: "senior-swe",
     });
 
-    // Should warn about using local profile via clack
+    // Should warn about using local skillset via clack
     expect(clack.log.warn).toHaveBeenCalledWith(
       expect.stringContaining("senior-swe"),
     );
@@ -279,16 +283,16 @@ describe("registry-install", () => {
     );
 
     // Should still switch profile and complete installation - using home dir
-    expect(mockSwitchProfile).toHaveBeenCalledWith({
+    expect(mockSwitchSkillset).toHaveBeenCalledWith({
       installDir: "/mock-home",
-      profileName: "senior-swe",
+      skillsetName: "senior-swe",
     });
 
     // Should return success
     expect(result.success).toBe(true);
   });
 
-  it("should fail when download fails and profile does not exist locally", async () => {
+  it("should fail when download fails and skillset does not exist locally", async () => {
     // Download fails
     vi.mocked(registryDownloadMain).mockResolvedValueOnce({ success: false });
     // Local profile does NOT exist
@@ -299,7 +303,7 @@ describe("registry-install", () => {
     });
 
     // Should NOT switch profile or install
-    expect(mockSwitchProfile).not.toHaveBeenCalled();
+    expect(mockSwitchSkillset).not.toHaveBeenCalled();
     expect(installMain).not.toHaveBeenCalled();
 
     // Should return failure

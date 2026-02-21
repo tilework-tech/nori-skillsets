@@ -1,48 +1,48 @@
 /**
- * Managed folder utilities for profile discovery
- * Provides agent-agnostic profile listing from the .nori/profiles/ directory
+ * Managed folder utilities for skillset discovery
+ * Provides agent-agnostic skillset listing from the .nori/profiles/ directory
  */
 
 import * as fs from "fs/promises";
 import * as path from "path";
 
-import { getNoriProfilesDir } from "@/cli/features/claude-code/paths.js";
-import { ensureNoriJson } from "@/cli/features/claude-code/profiles/metadata.js";
+import { getNoriSkillsetsDir } from "@/cli/features/claude-code/paths.js";
+import { ensureNoriJson } from "@/cli/features/claude-code/skillsets/metadata.js";
 
-/** Manifest file name used to identify valid profiles */
+/** Manifest file name used to identify valid skillsets */
 export const MANIFEST_FILE = "nori.json";
 
 /**
- * List installed profiles from the .nori/profiles/ directory
+ * List installed skillsets from the .nori/profiles/ directory
  *
- * Discovers both flat profiles (e.g., "senior-swe") and namespaced profiles
- * (e.g., "myorg/my-profile"). A directory is considered a valid profile if it
+ * Discovers both flat skillsets (e.g., "senior-swe") and namespaced skillsets
+ * (e.g., "myorg/my-skillset"). A directory is considered a valid skillset if it
  * contains a nori.json file.
  *
- * @returns Sorted array of profile names
+ * @returns Sorted array of skillset names
  */
-export const listProfiles = async (): Promise<Array<string>> => {
-  const profilesDir = getNoriProfilesDir();
-  const profiles: Array<string> = [];
+export const listSkillsets = async (): Promise<Array<string>> => {
+  const skillsetsDir = getNoriSkillsetsDir();
+  const skillsets: Array<string> = [];
 
   try {
-    await fs.access(profilesDir);
-    const entries = await fs.readdir(profilesDir, { withFileTypes: true });
+    await fs.access(skillsetsDir);
+    const entries = await fs.readdir(skillsetsDir, { withFileTypes: true });
 
     for (const entry of entries) {
       if (entry.isDirectory()) {
-        const entryDir = path.join(profilesDir, entry.name);
-        await ensureNoriJson({ profileDir: entryDir });
+        const entryDir = path.join(skillsetsDir, entry.name);
+        await ensureNoriJson({ skillsetDir: entryDir });
         const instructionsPath = path.join(entryDir, MANIFEST_FILE);
         try {
-          // Check if this is a flat profile (has nori.json directly)
+          // Check if this is a flat skillset (has nori.json directly)
           await fs.access(instructionsPath);
-          profiles.push(entry.name);
+          skillsets.push(entry.name);
         } catch {
-          // Not a flat profile - check if it's an org directory with nested profiles
+          // Not a flat skillset - check if it's an org directory with nested skillsets
           // Org directories contain subdirectories with nori.json files
           try {
-            const orgDir = path.join(profilesDir, entry.name);
+            const orgDir = path.join(skillsetsDir, entry.name);
             const subEntries = await fs.readdir(orgDir, {
               withFileTypes: true,
             });
@@ -50,15 +50,15 @@ export const listProfiles = async (): Promise<Array<string>> => {
             for (const subEntry of subEntries) {
               if (subEntry.isDirectory()) {
                 const nestedDir = path.join(orgDir, subEntry.name);
-                await ensureNoriJson({ profileDir: nestedDir });
+                await ensureNoriJson({ skillsetDir: nestedDir });
                 const nestedInstructionsPath = path.join(
                   nestedDir,
                   MANIFEST_FILE,
                 );
                 try {
                   await fs.access(nestedInstructionsPath);
-                  // Found a nested profile - use org/profile format
-                  profiles.push(`${entry.name}/${subEntry.name}`);
+                  // Found a nested skillset - use org/skillset format
+                  skillsets.push(`${entry.name}/${subEntry.name}`);
                 } catch {
                   // Skip subdirectories without instructions file
                 }
@@ -71,8 +71,8 @@ export const listProfiles = async (): Promise<Array<string>> => {
       }
     }
   } catch {
-    // Profiles directory doesn't exist
+    // Skillsets directory doesn't exist
   }
 
-  return profiles.sort();
+  return skillsets.sort();
 };

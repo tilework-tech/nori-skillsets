@@ -8,6 +8,7 @@
  */
 
 import { completionMain } from "@/cli/commands/completion/completion.js";
+import { configMain } from "@/cli/commands/config/config.js";
 import { currentSkillsetMain } from "@/cli/commands/current-skillset/currentSkillset.js";
 import { dirMain } from "@/cli/commands/dir/dir.js";
 import { editSkillsetMain } from "@/cli/commands/edit-skillset/editSkillset.js";
@@ -26,7 +27,7 @@ import { registryInstallMain } from "@/cli/commands/registry-install/registryIns
 import { registrySearchMain } from "@/cli/commands/registry-search/registrySearch.js";
 import { registryUploadMain } from "@/cli/commands/registry-upload/registryUpload.js";
 import { skillDownloadMain } from "@/cli/commands/skill-download/skillDownload.js";
-import { switchSkillsetAction } from "@/cli/commands/switch-profile/profiles.js";
+import { switchSkillsetAction } from "@/cli/commands/switch-skillset/switchSkillset.js";
 import { watchMain, watchStopMain } from "@/cli/commands/watch/watch.js";
 
 import type { Command } from "commander";
@@ -291,18 +292,18 @@ export const registerNoriSkillsetsUploadCommand = (args: {
   const { program } = args;
 
   program
-    .command("upload <profile>")
-    .description("Upload a profile to the Nori registry")
+    .command("upload <skillset>")
+    .description("Upload a skillset to the Nori registry")
     .option("--registry <url>", "Upload to a specific registry URL")
     .option(
       "--list-versions",
-      "List available versions for the profile instead of uploading",
+      "List available versions for the skillset instead of uploading",
     )
     .option("--dry-run", "Show what would be uploaded without uploading")
     .option("--description <text>", "Description for this version")
     .action(
       async (
-        profileSpec: string,
+        skillsetSpec: string,
         options: {
           registry?: string;
           listVersions?: boolean;
@@ -313,7 +314,7 @@ export const registerNoriSkillsetsUploadCommand = (args: {
         const globalOpts = program.opts();
 
         const result = await registryUploadMain({
-          profileSpec,
+          profileSpec: skillsetSpec,
           cwd: process.cwd(),
           installDir: globalOpts.installDir || null,
           registryUrl: options.registry || null,
@@ -346,13 +347,11 @@ export const registerNoriSkillsetsInstallCommand = (args: {
     .description(
       "Download, install, and activate a skillset from the public registry in one step",
     )
-    .option("--user", "Install to the user home directory")
-    .action(async (packageSpec: string, options: { user?: boolean }) => {
+    .action(async (packageSpec: string) => {
       const globalOpts = program.opts();
 
       const result = await registryInstallMain({
         packageSpec,
-        useHomeDir: options.user ?? null,
         installDir: globalOpts.installDir || null,
         silent: globalOpts.silent || null,
         agent: globalOpts.agent || null,
@@ -483,34 +482,22 @@ export const registerNoriSkillsetsListSkillsetsCommand = (args: {
     .command("list")
     .description("List locally available skillsets (one per line)")
     .action(async () => {
-      const globalOpts = program.opts();
-      await listSkillsetsMain({
-        agent: globalOpts.agent || null,
-      });
+      await listSkillsetsMain();
     });
 
   // Hidden alias: list-skillsets (long form, plural)
   program.command("list-skillsets", { hidden: true }).action(async () => {
-    const globalOpts = program.opts();
-    await listSkillsetsMain({
-      agent: globalOpts.agent || null,
-    });
+    await listSkillsetsMain();
   });
 
   // Hidden alias: list-skillset (long form, singular)
   program.command("list-skillset", { hidden: true }).action(async () => {
-    const globalOpts = program.opts();
-    await listSkillsetsMain({
-      agent: globalOpts.agent || null,
-    });
+    await listSkillsetsMain();
   });
 
   // Hidden alias: ls (Unix convention)
   program.command("ls", { hidden: true }).action(async () => {
-    const globalOpts = program.opts();
-    await listSkillsetsMain({
-      agent: globalOpts.agent || null,
-    });
+    await listSkillsetsMain();
   });
 };
 
@@ -717,7 +704,7 @@ export const registerNoriSkillsetsDirCommand = (args: {
 
   program
     .command("dir")
-    .description("Open the Nori profiles directory")
+    .description("Open the Nori skillsets directory")
     .action(async () => {
       const globalOpts = program.opts();
       await dirMain({
@@ -739,54 +726,20 @@ export const registerNoriSkillsetsInstallLocationCommand = (args: {
   program
     .command("install-location")
     .description("Display Nori installation directories")
-    .option(
-      "--installation-source",
-      "Show only installation source directories (containing .nori-config.json)",
-    )
-    .option(
-      "--installation-managed",
-      "Show only managed installation directories (containing CLAUDE.md with managed block)",
-    )
-    .action(
-      async (options: {
-        installationSource?: boolean;
-        managedInstallation?: boolean;
-      }) => {
-        const globalOpts = program.opts();
-        await installLocationMain({
-          currentDir: process.cwd(),
-          installationSource: options.installationSource || null,
-          managedInstallation: options.managedInstallation || null,
-          nonInteractive: globalOpts.nonInteractive || null,
-        });
-      },
-    );
+    .action(async () => {
+      const globalOpts = program.opts();
+      await installLocationMain({
+        nonInteractive: globalOpts.nonInteractive || null,
+      });
+    });
 
   // Hidden alias: location (shorthand)
-  program
-    .command("location", { hidden: true })
-    .option(
-      "--installation-source",
-      "Show only installation source directories (containing .nori-config.json)",
-    )
-    .option(
-      "--installation-managed",
-      "Show only managed installation directories (containing CLAUDE.md with managed block)",
-    )
-    .action(
-      async (options: {
-        installationSource?: boolean;
-        managedInstallation?: boolean;
-      }) => {
-        const globalOpts = program.opts();
-        await installLocationMain({
-          currentDir: process.cwd(),
-          installationSource: options.installationSource || null,
-          managedInstallation: options.managedInstallation || null,
-          nonInteractive: globalOpts.nonInteractive || null,
-        });
-      },
-    );
+  program.command("location", { hidden: true }).action(async () => {
+    const globalOpts = program.opts();
+    await installLocationMain({
+      nonInteractive: globalOpts.nonInteractive || null,
+    });
+  });
 };
 
 /**
@@ -804,5 +757,23 @@ export const registerNoriSkillsetsCompletionCommand = (args: {
     .description("Generate shell completion script (bash, zsh)")
     .action((shell: string) => {
       completionMain({ shell });
+    });
+};
+
+/**
+ * Register the 'config' command for nori-skillsets CLI
+ * @param args - Configuration arguments
+ * @param args.program - Commander program instance
+ */
+export const registerNoriSkillsetsConfigCommand = (args: {
+  program: Command;
+}): void => {
+  const { program } = args;
+
+  program
+    .command("config")
+    .description("Configure default agent and install directory")
+    .action(async () => {
+      await configMain();
     });
 };

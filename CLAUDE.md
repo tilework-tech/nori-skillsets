@@ -106,3 +106,15 @@ masks the stack trace where the try catch originates.
 After ANY changes to the codebase, ALWAYS run `npm run format` and `npm run lint` to catch and fix lint errors.
 
 <system-reminder>ALWAYS fix failing tests, even if they aren't caused by you</system-reminder>
+
+## Do not re-export imports from other files.
+
+<bad-example>
+foo.ts
+```
+import { Foo } from './foo.ts'
+export { Foo }
+```
+</bad-example>
+
+Whenever functions or variables change locations in a refactor, adjust all callers to point to the new home location instead of leaving behind import-export patterns.

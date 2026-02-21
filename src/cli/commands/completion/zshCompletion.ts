@@ -29,7 +29,7 @@ _nori_skillsets() {
     'download-skill:Download and install a skill package'
     'external:Install skills from an external GitHub repository'
     'watch:Watch Claude Code sessions and save transcripts'
-    'dir:Open the Nori profiles directory'
+    'dir:Open the Nori skillsets directory'
     'fork:Fork an existing skillset to a new name'
     'edit:Open a skillset folder in VS Code'
     'install-location:Display Nori installation directories'
@@ -134,8 +134,6 @@ _nori_skillsets() {
           ;;
         install-location)
           _arguments \\
-            '--installation-source[Show only installation source directories]' \\
-            '--installation-managed[Show only managed installation directories]' \\
             \$global_opts
           ;;
         completion)

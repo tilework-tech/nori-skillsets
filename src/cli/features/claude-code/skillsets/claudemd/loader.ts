@@ -1,0 +1,379 @@
+/**
+ * CLAUDE.md feature loader
+ * Configures CLAUDE.md with coding task instructions
+ */
+
+import * as fs from "fs/promises";
+import * as path from "path";
+import { fileURLToPath } from "url";
+
+import { log } from "@clack/prompts";
+import { glob } from "glob";
+
+import { getActiveSkillset, type Config } from "@/cli/config.js";
+import {
+  getClaudeDir,
+  getClaudeMdFile,
+  getNoriDir,
+} from "@/cli/features/claude-code/paths.js";
+import { substituteTemplatePaths } from "@/cli/features/claude-code/template.js";
+
+import type { ProfileLoader } from "@/cli/features/claude-code/skillsets/skillsetLoaderRegistry.js";
+
+// Get directory of this loader file
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+/**
+ * Get path to CLAUDE.md for a profile
+ *
+ * @param args - Function arguments
+ * @param args.skillsetName - Name of the profile to load CLAUDE.md from
+ *
+ * @returns Path to the CLAUDE.md file for the profile
+ */
+const getProfileClaudeMd = (args: { skillsetName: string }): string => {
+  const { skillsetName } = args;
+  const noriDir = getNoriDir();
+  return path.join(noriDir, "profiles", skillsetName, "CLAUDE.md");
+};
+
+/**
+ * Extract front matter from markdown file content
+ * @param args - Function arguments
+ * @param args.content - Markdown file content
+ *
+ * @returns Front matter object or null
+ */
+const extractFrontMatter = (args: {
+  content: string;
+}): Record<string, string> | null => {
+  const { content } = args;
+
+  const frontMatterRegex = /^---\n([\s\S]*?)\n---/;
+  const match = content.match(frontMatterRegex);
+
+  if (match == null) {
+    return null;
+  }
+
+  const frontMatter: Record<string, string> = {};
+
+  if (match[1].trim() === "") {
+    return frontMatter;
+  }
+
+  const lines = match[1].split("\n");
+
+  for (const line of lines) {
+    const colonIndex = line.indexOf(":");
+    if (colonIndex === -1) {
+      continue;
+    }
+
+    const key = line.substring(0, colonIndex).trim();
+    let value = line.substring(colonIndex + 1).trim();
+
+    // Remove quotes if present
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.substring(1, value.length - 1);
+    }
+
+    frontMatter[key] = value;
+  }
+
+  return frontMatter;
+};
+
+/**
+ * Find all SKILL.md files in a directory using glob pattern
+ *
+ * INVARIANT: All skill files MUST be named "SKILL.md"
+ * If this naming convention changes, this function must be updated.
+ *
+ * @param args - Function arguments
+ * @param args.dir - Directory to search
+ *
+ * @returns Array of skill file paths
+ */
+const findSkillFiles = async (args: {
+  dir: string;
+}): Promise<Array<string>> => {
+  const { dir } = args;
+
+  // Use glob to find all SKILL.md files recursively
+  const files = await glob("**/SKILL.md", {
+    cwd: dir,
+    absolute: true,
+    nodir: true,
+  });
+
+  return files;
+};
+
+/**
+ * Format skill information for display in CLAUDE.md
+ * @param args - Function arguments
+ * @param args.skillPath - Path to SKILL.md file in config directory
+ * @param args.installDir - Custom installation directory (.claude path)
+ *
+ * @returns Formatted skill information or null if path doesn't match expected format
+ */
+const formatSkillInfo = async (args: {
+  skillPath: string;
+  installDir: string;
+}): Promise<string | null> => {
+  const { skillPath, installDir } = args;
+
+  try {
+    const content = await fs.readFile(skillPath, "utf-8");
+    const frontMatter = extractFrontMatter({ content });
+
+    // Extract the skill name from the path
+    // Path format: .../profiles/{profile}/skills/{skill-name}/SKILL.md
+    // The skillPath is an absolute path, so we need to extract just the skill directory name
+    const pathParts = skillPath.split(path.sep);
+    const skillMdIndex = pathParts.lastIndexOf("SKILL.md");
+    if (skillMdIndex === -1 || skillMdIndex === 0) {
+      return null;
+    }
+
+    // The skill name is the directory containing SKILL.md
+    const skillName = pathParts[skillMdIndex - 1];
+
+    // Format the installed path based on install directory
+    const installedPath = path.join(
+      installDir,
+      "skills",
+      skillName,
+      "SKILL.md",
+    );
+
+    let output = `\n${installedPath}`;
+
+    if (frontMatter != null) {
+      if (frontMatter.name != null) {
+        output += `\n  Name: ${frontMatter.name}`;
+      }
+      if (frontMatter.description != null) {
+        output += `\n  Description: ${frontMatter.description}`;
+      }
+    }
+
+    return output;
+  } catch {
+    // If we can't read or parse the skill file, skip it
+    return null;
+  }
+};
+
+/**
+ * Generate skills list content to embed in CLAUDE.md
+ *
+ * @param args - Function arguments
+ * @param args.skillsetName - Profile name to load skills from
+ * @param args.installDir - Installation directory
+ *
+ * @returns Formatted skills list markdown (empty string if skills cannot be found)
+ */
+const generateSkillsList = async (args: {
+  skillsetName: string;
+  installDir: string;
+}): Promise<string> => {
+  const { skillsetName, installDir } = args;
+
+  try {
+    // Get skills directory for the profile from installed profiles in .nori
+    const noriDir = getNoriDir();
+    const skillsDir = path.join(noriDir, "profiles", skillsetName, "skills");
+
+    // Find all skill files
+    const skillFiles = await findSkillFiles({ dir: skillsDir });
+
+    if (skillFiles.length === 0) {
+      return "";
+    }
+
+    // Format all skills - use the installed skills directory path
+    const claudeDir = getClaudeDir({ installDir });
+    const formattedSkills: Array<string> = [];
+    for (const file of skillFiles) {
+      const formatted = await formatSkillInfo({
+        skillPath: file,
+        installDir: claudeDir,
+      });
+      if (formatted != null) {
+        formattedSkills.push(formatted);
+      }
+    }
+
+    if (formattedSkills.length === 0) {
+      return "";
+    }
+
+    // Build skills list message with correct path for the install directory
+    const usingSkillsPath = path.join(
+      claudeDir,
+      "skills",
+      "using-skills",
+      "SKILL.md",
+    );
+
+    const contextMessage = `
+# Nori Skills System
+
+You have access to the Nori skills system. Read the full instructions at: ${usingSkillsPath}
+
+## Available Skills
+
+Found ${formattedSkills.length} skills:${formattedSkills.join("")}
+
+Check if any of these skills are relevant to the user's task. If relevant, use the Read tool to load the skill before proceeding.
+`;
+
+    return contextMessage;
+  } catch {
+    // If we can't find or read skills, silently return empty string
+    // Installation will continue without skills list
+    return "";
+  }
+};
+
+// Markers for managed block
+const BEGIN_MARKER = "# BEGIN NORI-AI MANAGED BLOCK";
+const END_MARKER = "# END NORI-AI MANAGED BLOCK";
+
+/**
+ * Insert or update CLAUDE.md with nori instructions in a managed block
+ * @param args - Configuration arguments
+ * @param args.config - Full configuration including profile
+ */
+const insertClaudeMd = async (args: { config: Config }): Promise<void> => {
+  const { config } = args;
+
+  log.info("Configuring CLAUDE.md with coding task instructions...");
+
+  // Get profile name from config - error if not configured
+  const skillsetName = getActiveSkillset({ config });
+  if (skillsetName == null) {
+    throw new Error(
+      "No skillset configured for claude-code. Run 'nori-skillsets init' to configure a skillset.",
+    );
+  }
+
+  // Get paths using installDir
+  const claudeDir = getClaudeDir({ installDir: config.installDir });
+  const claudeMdFile = getClaudeMdFile({ installDir: config.installDir });
+
+  // Read CLAUDE.md from the selected profile
+  const profileClaudeMdPath = getProfileClaudeMd({
+    skillsetName,
+  });
+
+  let instructions: string | null = null;
+  try {
+    instructions = await fs.readFile(profileClaudeMdPath, "utf-8");
+  } catch {
+    // Profile has no CLAUDE.md (e.g. empty skillset created by `nori-skillsets new`)
+    log.info("Profile CLAUDE.md not found, clearing managed block");
+  }
+
+  if (instructions == null) {
+    // No profile CLAUDE.md — clear the managed block from existing CLAUDE.md if present
+    let existingContent: string;
+    try {
+      existingContent = await fs.readFile(claudeMdFile, "utf-8");
+    } catch {
+      // No existing CLAUDE.md either — nothing to do
+      return;
+    }
+
+    if (existingContent.includes(BEGIN_MARKER)) {
+      const regex = new RegExp(
+        `${BEGIN_MARKER}\n[\\s\\S]*?\n${END_MARKER}\n?`,
+        "g",
+      );
+      const cleared = existingContent.replace(
+        regex,
+        `${BEGIN_MARKER}\n\n${END_MARKER}\n`,
+      );
+      await fs.writeFile(claudeMdFile, cleared);
+      log.success(`✓ Cleared managed block in ${claudeMdFile}`);
+    }
+    return;
+  }
+
+  // Strip existing managed block markers from instructions if present
+  // This handles the case where captureExistingConfigAsSkillset wrapped content with markers
+  // and prevents double-nesting when we wrap it again below
+  const stripMarkersRegex = new RegExp(
+    `^${BEGIN_MARKER}\\n([\\s\\S]*?)\\n${END_MARKER}\\n?$`,
+  );
+  const markerMatch = instructions.match(stripMarkersRegex);
+  if (markerMatch != null) {
+    instructions = markerMatch[1];
+  }
+
+  // Apply template substitution to replace placeholders with actual paths
+  instructions = substituteTemplatePaths({
+    content: instructions,
+    installDir: claudeDir,
+  });
+
+  // Generate and append skills list
+  const skillsList = await generateSkillsList({
+    skillsetName,
+    installDir: config.installDir,
+  });
+  if (skillsList.length > 0) {
+    instructions = instructions + skillsList;
+  }
+
+  // Create .claude directory if it doesn't exist
+  await fs.mkdir(claudeDir, { recursive: true });
+
+  // Read existing content or start with empty string
+  let content = "";
+  try {
+    content = await fs.readFile(claudeMdFile, "utf-8");
+  } catch {
+    // File doesn't exist, will create it
+  }
+
+  // Check if managed block already exists
+  if (content.includes(BEGIN_MARKER)) {
+    // Replace existing managed block
+    const regex = new RegExp(
+      `${BEGIN_MARKER}\n[\\s\\S]*?\n${END_MARKER}\n?`,
+      "g",
+    );
+    content = content.replace(
+      regex,
+      `${BEGIN_MARKER}\n${instructions}\n${END_MARKER}\n`,
+    );
+    log.info("Updating existing nori instructions in CLAUDE.md...");
+  } else {
+    // Append new managed block
+    const section = `\n${BEGIN_MARKER}\n${instructions}\n${END_MARKER}\n`;
+    content = content + section;
+    log.info("Adding nori instructions to CLAUDE.md...");
+  }
+
+  await fs.writeFile(claudeMdFile, content);
+  log.success(`✓ CLAUDE.md configured at ${claudeMdFile}`);
+};
+
+/**
+ * CLAUDE.md feature loader
+ */
+export const claudeMdLoader: ProfileLoader = {
+  name: "claudemd",
+  description: "Configure CLAUDE.md with coding task instructions",
+  install: async (args: { config: Config }) => {
+    const { config } = args;
+    await insertClaudeMd({ config });
+  },
+};

@@ -73,17 +73,11 @@ vi.mock("@/api/registrar.js", () => ({
   },
 }));
 
-// Mock the config module - include getInstalledAgents with real implementation
+// Mock the config module
 vi.mock("@/cli/config.js", async () => {
   return {
     loadConfig: vi.fn(),
     getRegistryAuth: vi.fn(),
-    getInstalledAgents: (args: {
-      config: { agents?: Record<string, unknown> | null };
-    }) => {
-      const agents = Object.keys(args.config.agents ?? {});
-      return agents.length > 0 ? agents : ["claude-code"];
-    },
   };
 });
 
@@ -103,6 +97,19 @@ import { initMain } from "@/cli/commands/init/init.js";
 import { loadConfig, getRegistryAuth } from "@/cli/config.js";
 
 import { registryDownloadMain } from "./registryDownload.js";
+
+/**
+ * Create a CLAUDE.md managed block marker for Nori installation detection
+ * @param dir - The directory to create the marker in
+ */
+const createManagedBlockMarker = async (dir: string): Promise<void> => {
+  const claudeDir = path.join(dir, ".claude");
+  await fs.mkdir(claudeDir, { recursive: true });
+  await fs.writeFile(
+    path.join(claudeDir, "CLAUDE.md"),
+    "# BEGIN NORI-AI MANAGED BLOCK\n# END NORI-AI MANAGED BLOCK\n",
+  );
+};
 
 /**
  * Collect all clack output (log.error, log.success, log.info, log.warn, note, outro)
@@ -146,7 +153,7 @@ const getClackErrorOutput = (): string => {
 describe("registry-download", () => {
   let testDir: string;
   let configPath: string;
-  let profilesDir: string;
+  let skillsetsDir: string;
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -157,7 +164,7 @@ describe("registry-download", () => {
     );
     configPath = path.join(testDir, ".nori-config.json");
     // Profiles are stored in .nori/profiles, not .claude/profiles
-    profilesDir = path.join(testDir, ".nori", "profiles");
+    skillsetsDir = path.join(testDir, ".nori", "profiles");
 
     // Set mock homedir to testDir so ~/.nori check doesn't find real user's ~/.nori
     mockHomedir = testDir;
@@ -167,13 +174,16 @@ describe("registry-download", () => {
       configPath,
       JSON.stringify({
         profile: {
-          baseProfile: "senior-swe",
+          activeSkillset: "senior-swe",
         },
       }),
     );
 
     // Create profiles directory
-    await fs.mkdir(profilesDir, { recursive: true });
+    await fs.mkdir(skillsetsDir, { recursive: true });
+
+    // Create CLAUDE.md managed block marker for installation detection
+    await createManagedBlockMarker(testDir);
   });
 
   afterEach(async () => {
@@ -214,13 +224,13 @@ describe("registry-download", () => {
       });
 
       // Verify profile was extracted to correct location
-      const profileDir = path.join(profilesDir, "test-profile");
-      const stats = await fs.stat(profileDir);
+      const skillsetDir = path.join(skillsetsDir, "test-profile");
+      const stats = await fs.stat(skillsetDir);
       expect(stats.isDirectory()).toBe(true);
 
       // Verify files were extracted
       const packageJson = await fs.readFile(
-        path.join(profileDir, "package.json"),
+        path.join(skillsetDir, "package.json"),
         "utf-8",
       );
       expect(JSON.parse(packageJson).name).toBe("test-profile");
@@ -231,7 +241,7 @@ describe("registry-download", () => {
       expect(allOutput).toContain("test-profile");
 
       // Verify .nori-version file was created
-      const versionFilePath = path.join(profileDir, ".nori-version");
+      const versionFilePath = path.join(skillsetDir, ".nori-version");
       const versionFileContent = await fs.readFile(versionFilePath, "utf-8");
       const versionInfo = JSON.parse(versionFileContent);
       expect(versionInfo.version).toBe("1.0.0");
@@ -270,7 +280,7 @@ describe("registry-download", () => {
 
     it("should error when profile already exists", async () => {
       // Create existing profile directory
-      const existingProfileDir = path.join(profilesDir, "existing-profile");
+      const existingProfileDir = path.join(skillsetsDir, "existing-profile");
       await fs.mkdir(existingProfileDir, { recursive: true });
 
       await registryDownloadMain({
@@ -284,36 +294,26 @@ describe("registry-download", () => {
     });
 
     it("should auto-init when no Nori installation found", async () => {
-      // Create directory without .nori-config.json
-      const noInstallDir = await fs.mkdtemp(
-        path.join(tmpdir(), "nori-no-install-"),
-      );
-
       // Set mock homedir to a directory without any installation
-      // so the home dir preference doesn't kick in
       const emptyHomeDir = await fs.mkdtemp(
         path.join(tmpdir(), "nori-empty-home-"),
       );
       mockHomedir = emptyHomeDir;
 
       // Mock initMain to simulate successful initialization
-      // After init, it creates the config file so subsequent loadConfig works
       vi.mocked(initMain).mockImplementation(async (args) => {
-        const installDir = args?.installDir ?? noInstallDir;
-        // Simulate what initMain does - create config file and profiles dir
+        const installDir = args?.installDir ?? emptyHomeDir;
         await fs.writeFile(
           path.join(installDir, ".nori-config.json"),
-          JSON.stringify({ agents: {} }),
+          JSON.stringify({ activeSkillset: null }),
         );
         await fs.mkdir(path.join(installDir, ".nori", "profiles"), {
           recursive: true,
         });
       });
 
-      // Mock config to return valid config after init
-      vi.mocked(loadConfig).mockResolvedValue({
-        installDir: noInstallDir,
-      });
+      // loadConfig returns null first (triggering auto-init), then a value after init
+      vi.mocked(loadConfig).mockResolvedValueOnce(null);
 
       // Mock package info
       vi.mocked(registrarApi.getPackument).mockResolvedValue({
@@ -328,7 +328,7 @@ describe("registry-download", () => {
       try {
         await registryDownloadMain({
           packageSpec: "test-profile",
-          cwd: noInstallDir,
+          cwd: emptyHomeDir,
         });
 
         // Verify initMain was called with home dir (interactive mode for user prompts, skip warning for download flow)
@@ -345,7 +345,6 @@ describe("registry-download", () => {
         // Verify download proceeded after init
         expect(registrarApi.downloadTarball).toHaveBeenCalled();
       } finally {
-        await fs.rm(noInstallDir, { recursive: true, force: true });
         await fs.rm(emptyHomeDir, { recursive: true, force: true });
       }
     });
@@ -361,17 +360,15 @@ describe("registry-download", () => {
         const installDir = args?.installDir ?? customInstallDir;
         await fs.writeFile(
           path.join(installDir, ".nori-config.json"),
-          JSON.stringify({ agents: {} }),
+          JSON.stringify({ activeSkillset: null }),
         );
         await fs.mkdir(path.join(installDir, ".nori", "profiles"), {
           recursive: true,
         });
       });
 
-      // Mock config to return valid config after init
-      vi.mocked(loadConfig).mockResolvedValue({
-        installDir: customInstallDir,
-      });
+      // loadConfig returns null first (triggering auto-init)
+      vi.mocked(loadConfig).mockResolvedValueOnce(null);
 
       // Mock package info
       vi.mocked(registrarApi.getPackument).mockResolvedValue({
@@ -441,9 +438,10 @@ describe("registry-download", () => {
       // Create cwd installation
       await fs.writeFile(
         cwdConfigPath,
-        JSON.stringify({ profile: { baseProfile: "cwd-profile" } }),
+        JSON.stringify({ activeSkillset: "cwd-profile" }),
       );
       await fs.mkdir(cwdProfilesDir, { recursive: true });
+      await createManagedBlockMarker(cwdInstall);
 
       // Set up home dir installation (mockHomedir is testDir)
       // Config is at ~/.nori/.nori-config.json (home directory installation style)
@@ -451,7 +449,7 @@ describe("registry-download", () => {
       await fs.mkdir(homeNoriDir, { recursive: true });
       await fs.writeFile(
         path.join(homeNoriDir, ".nori-config.json"),
-        JSON.stringify({ profile: { baseProfile: "home-profile" } }),
+        JSON.stringify({ activeSkillset: "home-profile" }),
       );
       // Correct profiles path: ~/.nori/profiles (NOT ~/.nori/.nori/profiles)
       const homeProfilesDir = path.join(testDir, ".nori", "profiles");
@@ -501,17 +499,14 @@ describe("registry-download", () => {
     });
 
     it("should return failure when auto-init fails", async () => {
-      // Create directory without .nori-config.json
-      const noInstallDir = await fs.mkdtemp(
-        path.join(tmpdir(), "nori-no-install-fail-"),
-      );
-
       // Set mock homedir to a directory without any installation
-      // so the home dir preference doesn't kick in
       const emptyHomeDir = await fs.mkdtemp(
         path.join(tmpdir(), "nori-empty-home-fail-"),
       );
       mockHomedir = emptyHomeDir;
+
+      // loadConfig returns null to trigger auto-init
+      vi.mocked(loadConfig).mockResolvedValueOnce(null);
 
       // Mock initMain to throw an error
       vi.mocked(initMain).mockRejectedValue(
@@ -521,7 +516,7 @@ describe("registry-download", () => {
       try {
         const result = await registryDownloadMain({
           packageSpec: "test-profile",
-          cwd: noInstallDir,
+          cwd: emptyHomeDir,
         });
 
         // Verify failure was returned
@@ -541,37 +536,6 @@ describe("registry-download", () => {
 
         // Verify no download was attempted
         expect(registrarApi.downloadTarball).not.toHaveBeenCalled();
-      } finally {
-        await fs.rm(noInstallDir, { recursive: true, force: true });
-        await fs.rm(emptyHomeDir, { recursive: true, force: true });
-      }
-    });
-
-    it("should error when multiple installations found", async () => {
-      // Set mock homedir to a directory without any installation
-      // so the home dir preference doesn't kick in
-      const emptyHomeDir = await fs.mkdtemp(
-        path.join(tmpdir(), "nori-empty-home-multi-"),
-      );
-      mockHomedir = emptyHomeDir;
-
-      // Create a nested installation
-      const nestedDir = path.join(testDir, "nested");
-      await fs.mkdir(nestedDir, { recursive: true });
-      await fs.writeFile(
-        path.join(nestedDir, ".nori-config.json"),
-        JSON.stringify({ profile: { baseProfile: "test" } }),
-      );
-
-      try {
-        await registryDownloadMain({
-          packageSpec: "test-profile",
-          cwd: nestedDir,
-        });
-
-        // Verify error message about multiple installations
-        const allErrorOutput = getClackErrorOutput();
-        expect(allErrorOutput.toLowerCase()).toContain("multiple");
       } finally {
         await fs.rm(emptyHomeDir, { recursive: true, force: true });
       }
@@ -603,8 +567,8 @@ describe("registry-download", () => {
       });
 
       // Verify profile was extracted
-      const profileDir = path.join(profilesDir, "gzipped-profile");
-      const stats = await fs.stat(profileDir);
+      const skillsetDir = path.join(skillsetsDir, "gzipped-profile");
+      const stats = await fs.stat(skillsetDir);
       expect(stats.isDirectory()).toBe(true);
     });
 
@@ -622,8 +586,9 @@ describe("registry-download", () => {
       await fs.mkdir(customProfilesDir, { recursive: true });
       await fs.writeFile(
         path.join(customInstallDir, ".nori-config.json"),
-        JSON.stringify({ profile: { baseProfile: "test" } }),
+        JSON.stringify({ activeSkillset: "test" }),
       );
+      await createManagedBlockMarker(customInstallDir);
 
       const mockTarball = await createMockTarball();
       vi.mocked(registrarApi.downloadTarball).mockResolvedValue(mockTarball);
@@ -635,9 +600,9 @@ describe("registry-download", () => {
         });
 
         // Profiles are always installed to the centralized ~/.nori/profiles
-        // regardless of --install-dir, since getNoriProfilesDir() uses os.homedir()
-        const profileDir = path.join(profilesDir, "custom-profile");
-        const stats = await fs.stat(profileDir);
+        // regardless of --install-dir, since getNoriSkillsetsDir() uses os.homedir()
+        const skillsetDir = path.join(skillsetsDir, "custom-profile");
+        const stats = await fs.stat(skillsetDir);
         expect(stats.isDirectory()).toBe(true);
       } finally {
         await fs.rm(customInstallDir, { recursive: true, force: true });
@@ -675,8 +640,8 @@ describe("registry-download", () => {
       });
 
       // Verify download succeeded from public registry
-      const profileDir = path.join(profilesDir, "test-profile");
-      const stats = await fs.stat(profileDir);
+      const skillsetDir = path.join(skillsetsDir, "test-profile");
+      const stats = await fs.stat(skillsetDir);
       expect(stats.isDirectory()).toBe(true);
     });
 
@@ -715,8 +680,9 @@ describe("registry-download", () => {
       await fs.mkdir(explicitProfilesDir, { recursive: true });
       await fs.writeFile(
         path.join(explicitInstallDir, ".nori-config.json"),
-        JSON.stringify({ profile: { baseProfile: "test" } }),
+        JSON.stringify({ activeSkillset: "test" }),
       );
+      await createManagedBlockMarker(explicitInstallDir);
 
       // Config is centralized at ~/.nori-config.json and always has auth
       // since loadConfig() is zero-arg and reads from a single location
@@ -768,10 +734,10 @@ describe("registry-download", () => {
         });
 
         // Profiles are always installed to the centralized ~/.nori/profiles
-        // regardless of --install-dir, since getNoriProfilesDir() uses os.homedir()
+        // regardless of --install-dir, since getNoriSkillsetsDir() uses os.homedir()
         // Namespaced packages are installed in a nested directory: profiles/{orgId}/{packageName}
-        const profileDir = path.join(profilesDir, "pangram", "high-autonomy");
-        const stats = await fs.stat(profileDir);
+        const skillsetDir = path.join(skillsetsDir, "pangram", "high-autonomy");
+        const stats = await fs.stat(skillsetDir);
         expect(stats.isDirectory()).toBe(true);
       } finally {
         await fs.rm(explicitInstallDir, { recursive: true, force: true });
@@ -893,8 +859,11 @@ describe("registry-download", () => {
     });
 
     it("should work when config is null (only searches public registry)", async () => {
-      // Mock config to return null
+      // Mock config to return null (triggers auto-init)
       vi.mocked(loadConfig).mockResolvedValue(null);
+
+      // Mock initMain to succeed silently (auto-init on first use)
+      vi.mocked(initMain).mockResolvedValue(undefined);
 
       // Package exists in public registry
       vi.mocked(registrarApi.getPackument).mockResolvedValue({
@@ -911,6 +880,9 @@ describe("registry-download", () => {
         cwd: testDir,
       });
 
+      // Verify auto-init was triggered
+      expect(initMain).toHaveBeenCalled();
+
       // Verify only public registry was searched
       expect(registrarApi.getPackument).toHaveBeenCalledTimes(1);
       expect(registrarApi.getPackument).toHaveBeenCalledWith({
@@ -919,8 +891,8 @@ describe("registry-download", () => {
       });
 
       // Verify download succeeded
-      const profileDir = path.join(profilesDir, "test-profile");
-      const stats = await fs.stat(profileDir);
+      const skillsetDir = path.join(skillsetsDir, "test-profile");
+      const stats = await fs.stat(skillsetDir);
       expect(stats.isDirectory()).toBe(true);
     });
 
@@ -946,6 +918,59 @@ describe("registry-download", () => {
 
       // Verify no download occurred
       expect(registrarApi.downloadTarball).not.toHaveBeenCalled();
+    });
+
+    it("should download public package without auth when signed into private registry", async () => {
+      // User is authenticated to a private org but NOT to "public"
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        auth: {
+          username: "testuser@example.com",
+          organizationUrl: "https://myorg.noriskillsets.dev",
+          refreshToken: "mock-refresh-token",
+          organizations: ["myorg"],
+        },
+      });
+
+      // Package exists in public registry
+      vi.mocked(registrarApi.getPackument).mockResolvedValue({
+        name: "test-profile",
+        "dist-tags": { latest: "1.0.0" },
+        versions: { "1.0.0": { name: "test-profile", version: "1.0.0" } },
+      });
+
+      const mockTarball = await createMockTarball();
+      vi.mocked(registrarApi.downloadTarball).mockResolvedValue(mockTarball);
+
+      const result = await registryDownloadMain({
+        packageSpec: "test-profile",
+        cwd: testDir,
+      });
+
+      // Verify success
+      expect(result.success).toBe(true);
+
+      // Verify public registry was searched without auth token
+      expect(registrarApi.getPackument).toHaveBeenCalledWith({
+        packageName: "test-profile",
+        registryUrl: REGISTRAR_URL,
+      });
+
+      // Verify download was from public registry without auth
+      expect(registrarApi.downloadTarball).toHaveBeenCalledWith({
+        packageName: "test-profile",
+        version: undefined,
+        registryUrl: REGISTRAR_URL,
+        authToken: undefined,
+      });
+
+      // Verify no auth token was requested
+      expect(getRegistryAuthToken).not.toHaveBeenCalled();
+
+      // Verify profile was installed
+      const skillsetDir = path.join(skillsetsDir, "test-profile");
+      const stats = await fs.stat(skillsetDir);
+      expect(stats.isDirectory()).toBe(true);
     });
   });
 
@@ -1053,7 +1078,7 @@ describe("registry-download", () => {
   describe("version comparison and update", () => {
     it("should update existing profile when newer version is available", async () => {
       // Create existing profile with old version
-      const existingProfileDir = path.join(profilesDir, "test-profile");
+      const existingProfileDir = path.join(skillsetsDir, "test-profile");
       await fs.mkdir(existingProfileDir, { recursive: true });
       await fs.writeFile(
         path.join(existingProfileDir, "nori.json"),
@@ -1096,7 +1121,7 @@ describe("registry-download", () => {
 
     it("should report when already at latest version", async () => {
       // Create existing profile with same version as latest
-      const existingProfileDir = path.join(profilesDir, "test-profile");
+      const existingProfileDir = path.join(skillsetsDir, "test-profile");
       await fs.mkdir(existingProfileDir, { recursive: true });
       await fs.writeFile(
         path.join(existingProfileDir, "nori.json"),
@@ -1135,7 +1160,7 @@ describe("registry-download", () => {
 
     it("should error when existing profile has no .nori-version", async () => {
       // Create existing profile without .nori-version (manual install)
-      const existingProfileDir = path.join(profilesDir, "test-profile");
+      const existingProfileDir = path.join(skillsetsDir, "test-profile");
       await fs.mkdir(existingProfileDir, { recursive: true });
       await fs.writeFile(
         path.join(existingProfileDir, "nori.json"),
@@ -1170,7 +1195,7 @@ describe("registry-download", () => {
 
     it("should report when installed version is newer than requested", async () => {
       // Create existing profile with newer version
-      const existingProfileDir = path.join(profilesDir, "test-profile");
+      const existingProfileDir = path.join(skillsetsDir, "test-profile");
       await fs.mkdir(existingProfileDir, { recursive: true });
       await fs.writeFile(
         path.join(existingProfileDir, "nori.json"),
@@ -1211,7 +1236,7 @@ describe("registry-download", () => {
   });
 
   describe("nori.json skill dependencies", () => {
-    // Note: Skills are installed to {profileDir}/skills/, NOT to a global .nori/skills/ directory
+    // Note: Skills are installed to {skillsetDir}/skills/, NOT to a global .nori/skills/ directory
 
     it("should download skill dependencies to profile directory", async () => {
       vi.mocked(loadConfig).mockResolvedValue({
@@ -1276,7 +1301,7 @@ describe("registry-download", () => {
 
       // Verify skill was installed to PROFILE directory, not global .nori/skills/
       const profileSkillDir = path.join(
-        profilesDir,
+        skillsetsDir,
         "test-profile",
         "skills",
         "test-skill",
@@ -1359,7 +1384,11 @@ describe("registry-download", () => {
       expect(registrarApi.downloadSkillTarball).toHaveBeenCalledTimes(2);
 
       // Verify both skills were installed to PROFILE directory
-      const profileSkillsDir = path.join(profilesDir, "test-profile", "skills");
+      const profileSkillsDir = path.join(
+        skillsetsDir,
+        "test-profile",
+        "skills",
+      );
       const skillOneDir = path.join(profileSkillsDir, "skill-one");
       const skillTwoDir = path.join(profileSkillsDir, "skill-two");
       expect((await fs.stat(skillOneDir)).isDirectory()).toBe(true);
@@ -1391,8 +1420,8 @@ describe("registry-download", () => {
       expect(registrarApi.downloadSkillTarball).not.toHaveBeenCalled();
 
       // Verify profile was still installed successfully
-      const profileDir = path.join(profilesDir, "legacy-profile");
-      expect((await fs.stat(profileDir)).isDirectory()).toBe(true);
+      const skillsetDir = path.join(skillsetsDir, "legacy-profile");
+      expect((await fs.stat(skillsetDir)).isDirectory()).toBe(true);
     });
 
     it("should skip profile with nori.json but no skill dependencies", async () => {
@@ -1460,8 +1489,8 @@ describe("registry-download", () => {
       });
 
       // Verify profile was still installed successfully
-      const profileDir = path.join(profilesDir, "test-profile");
-      expect((await fs.stat(profileDir)).isDirectory()).toBe(true);
+      const skillsetDir = path.join(skillsetsDir, "test-profile");
+      expect((await fs.stat(skillsetDir)).isDirectory()).toBe(true);
 
       // Verify warning was shown (via clack prompts note for skill dependency warnings)
       const allOutput = getAllClackOutput();
@@ -1470,7 +1499,7 @@ describe("registry-download", () => {
 
     it("should skip skill if already installed in profile with latest version", async () => {
       // Create profile directory with pre-installed skill at latest version
-      const existingProfileDir = path.join(profilesDir, "test-profile");
+      const existingProfileDir = path.join(skillsetsDir, "test-profile");
       const existingSkillDir = path.join(
         existingProfileDir,
         "skills",
@@ -1536,7 +1565,7 @@ describe("registry-download", () => {
 
     it("should update skill in profile if installed version is not latest", async () => {
       // Create profile directory with pre-installed skill at older version
-      const existingProfileDir = path.join(profilesDir, "test-profile");
+      const existingProfileDir = path.join(skillsetsDir, "test-profile");
       const existingSkillDir = path.join(
         existingProfileDir,
         "skills",
@@ -1754,8 +1783,8 @@ describe("registry-download", () => {
       });
 
       // Verify profile was installed successfully
-      const profileDir = path.join(profilesDir, "test-profile");
-      expect((await fs.stat(profileDir)).isDirectory()).toBe(true);
+      const skillsetDir = path.join(skillsetsDir, "test-profile");
+      expect((await fs.stat(skillsetDir)).isDirectory()).toBe(true);
     });
   });
 
@@ -1797,8 +1826,8 @@ describe("registry-download", () => {
       });
 
       // Verify profile was installed to nested directory (profiles/myorg/my-profile)
-      const profileDir = path.join(profilesDir, "myorg", "my-profile");
-      const stats = await fs.stat(profileDir);
+      const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+      const stats = await fs.stat(skillsetDir);
       expect(stats.isDirectory()).toBe(true);
     });
 
@@ -1812,8 +1841,6 @@ describe("registry-download", () => {
           organizations: ["public"],
         },
       });
-
-      vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
 
       // Package exists in public registry
       vi.mocked(registrarApi.getPackument).mockResolvedValue({
@@ -1831,17 +1858,21 @@ describe("registry-download", () => {
         cwd: testDir,
       });
 
-      // Verify download was from the public registry (apex domain)
+      // Verify download was from the public registry without auth
+      // (public packages never require authentication, even when user has unified auth)
       expect(registrarApi.downloadTarball).toHaveBeenCalledWith({
         packageName: "my-profile",
         version: undefined,
         registryUrl: "https://noriskillsets.dev",
-        authToken: "mock-auth-token",
+        authToken: undefined,
       });
 
+      // Verify no auth token was requested for public package
+      expect(getRegistryAuthToken).not.toHaveBeenCalled();
+
       // Verify profile was installed to flat directory (profiles/my-profile)
-      const profileDir = path.join(profilesDir, "my-profile");
-      const stats = await fs.stat(profileDir);
+      const skillsetDir = path.join(skillsetsDir, "my-profile");
+      const stats = await fs.stat(skillsetDir);
       expect(stats.isDirectory()).toBe(true);
     });
 
@@ -1977,7 +2008,7 @@ describe("registry-download", () => {
 
     it("should update existing namespaced profile in nested directory", async () => {
       // Create existing namespaced profile with old version
-      const existingProfileDir = path.join(profilesDir, "myorg", "my-profile");
+      const existingProfileDir = path.join(skillsetsDir, "myorg", "my-profile");
       await fs.mkdir(existingProfileDir, { recursive: true });
       await fs.writeFile(
         path.join(existingProfileDir, "nori.json"),

@@ -65,7 +65,7 @@ describe("uploader", () => {
       });
     });
 
-    test("deletes transcript file on successful upload", async () => {
+    test("preserves transcript file on successful upload", async () => {
       const transcriptPath = path.join(tempDir, "session-123.jsonl");
       await fs.writeFile(
         transcriptPath,
@@ -81,43 +81,17 @@ describe("uploader", () => {
 
       await processTranscriptForUpload({ transcriptPath });
 
-      // File should be deleted
-      await expect(fs.access(transcriptPath)).rejects.toThrow();
-    });
-
-    test("deletes marker file on successful upload", async () => {
-      const transcriptPath = path.join(tempDir, "session-123.jsonl");
-      const markerPath = path.join(tempDir, "session-123.done");
-
-      await fs.writeFile(
-        transcriptPath,
-        '{"sessionId":"session-123","type":"user","message":{"role":"user","content":"Hello"}}',
-      );
-      await fs.writeFile(markerPath, "");
-
-      vi.mocked(transcriptApi.upload).mockResolvedValueOnce({
-        id: "transcript-id",
-        title: "Test",
-        sessionId: "session-123",
-        createdAt: "2024-01-01T00:00:00Z",
-      });
-
-      await processTranscriptForUpload({ transcriptPath, markerPath });
-
-      // Both files should be deleted
-      await expect(fs.access(transcriptPath)).rejects.toThrow();
-      await expect(fs.access(markerPath)).rejects.toThrow();
+      // File should still exist — deletion is caller's responsibility
+      await expect(fs.access(transcriptPath)).resolves.not.toThrow();
     });
 
     test("preserves files on upload failure", async () => {
       const transcriptPath = path.join(tempDir, "session-123.jsonl");
-      const markerPath = path.join(tempDir, "session-123.done");
 
       await fs.writeFile(
         transcriptPath,
         '{"sessionId":"session-123","type":"user","message":{"role":"user","content":"Hello"}}',
       );
-      await fs.writeFile(markerPath, "");
 
       vi.mocked(transcriptApi.upload).mockRejectedValueOnce(
         new Error("Upload failed"),
@@ -125,14 +99,12 @@ describe("uploader", () => {
 
       const result = await processTranscriptForUpload({
         transcriptPath,
-        markerPath,
       });
 
       expect(result).toBe(false);
 
-      // Both files should still exist
+      // File should still exist
       await expect(fs.access(transcriptPath)).resolves.not.toThrow();
-      await expect(fs.access(markerPath)).resolves.not.toThrow();
     });
 
     test("returns false when transcript has no sessionId", async () => {

@@ -59,11 +59,12 @@ export type SkillConflictInfo = {
   owner?: string | null;
   availableActions: Array<SkillResolutionAction>;
   contentUnchanged?: boolean | null;
+  existingSkillMd?: string | null;
 };
 
 /**
- * Custom error class for skill collision errors during profile upload
- * Thrown when inline skills in a profile conflict with existing registry skills
+ * Custom error class for skill collision errors during skillset upload
+ * Thrown when inline skills in a skillset conflict with existing registry skills
  */
 export class SkillCollisionError extends Error {
   readonly conflicts: Array<SkillConflictInfo>;
@@ -194,31 +195,6 @@ export const formatNetworkError = (args: {
   }
 
   return new NetworkError(message, errorCode);
-};
-
-/**
- * Check if an error is a network-related error
- *
- * @param error - The error to check
- *
- * @returns True if the error is a network error
- */
-export const isNetworkError = (error: unknown): error is NetworkError => {
-  return (
-    error instanceof NetworkError ||
-    (error as NetworkError)?.isNetworkError === true
-  );
-};
-
-/**
- * Check if an error is an API error
- *
- * @param error - The error to check
- *
- * @returns True if the error is an API error
- */
-export const isApiError = (error: unknown): error is ApiError => {
-  return error instanceof ApiError || (error as ApiError)?.isApiError === true;
 };
 
 /**

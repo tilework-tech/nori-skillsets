@@ -14,19 +14,18 @@ import {
   type CliName,
 } from "@/cli/commands/cliCommandNames.js";
 import { createEmptySkillset } from "@/cli/commands/new-skillset/newSkillset.js";
-import { loadConfig, getAgentProfile } from "@/cli/config.js";
+import { loadConfig, getActiveSkillset } from "@/cli/config.js";
 import {
   getClaudeSkillsDir,
-  getNoriProfilesDir,
+  getNoriSkillsetsDir,
 } from "@/cli/features/claude-code/paths.js";
 import {
   addSkillToNoriJson,
   ensureNoriJson,
-} from "@/cli/features/claude-code/profiles/metadata.js";
+} from "@/cli/features/claude-code/skillsets/metadata.js";
 import { substituteTemplatePaths } from "@/cli/features/claude-code/template.js";
 import { promptSkillTypes } from "@/cli/prompts/flows/externalSkillType.js";
-import { getHomeDir } from "@/utils/home.js";
-import { getInstallDirs } from "@/utils/path.js";
+import { resolveInstallDir } from "@/utils/path.js";
 
 import type { NoriJsonType } from "@/norijson/nori.js";
 import type { Command } from "commander";
@@ -99,7 +98,7 @@ const applyTemplateSubstitutionToDir = async (args: {
  * @param args.skill - The discovered skill to install
  * @param args.skillsDir - Path to the live skills directory
  * @param args.installDir - Root installation directory
- * @param args.profilesDir - Path to the profiles directory
+ * @param args.skillsetsDir - Path to the profiles directory
  * @param args.targetSkillset - Skillset name to update manifests for
  * @param args.sourceUrl - Source repository URL for provenance
  * @param args.ref - Branch/tag that was checked out
@@ -111,7 +110,7 @@ const installSkill = async (args: {
   skill: DiscoveredSkill;
   skillsDir: string;
   installDir: string;
-  profilesDir: string;
+  skillsetsDir: string;
   targetSkillset: string | null;
   sourceUrl: string;
   ref: string | null;
@@ -123,7 +122,7 @@ const installSkill = async (args: {
     skill,
     skillsDir,
     installDir,
-    profilesDir,
+    skillsetsDir,
     targetSkillset,
     sourceUrl,
     ref,
@@ -179,7 +178,7 @@ const installSkill = async (args: {
   // Persist raw copy to profile's skills directory
   if (targetSkillset != null) {
     const profileSkillDir = path.join(
-      profilesDir,
+      skillsetsDir,
       targetSkillset,
       "skills",
       skillDirName,
@@ -213,10 +212,10 @@ const installSkill = async (args: {
 
   // Update skillset manifests
   if (targetSkillset != null) {
-    const skillsetDir = path.join(profilesDir, targetSkillset);
+    const skillsetDir = path.join(skillsetsDir, targetSkillset);
     try {
       await addSkillToNoriJson({
-        profileDir: skillsetDir,
+        skillsetDir: skillsetDir,
         skillName: skillDirName,
         version: "*",
       });
@@ -271,7 +270,6 @@ export const externalMain = async (args: {
   } = args;
   const inlineFlag = args.inline ?? false;
   const extractFlag = args.extract ?? false;
-  const cwd = args.cwd ?? process.cwd();
   const commandNames = getCommandNames({ cliName });
   const cliPrefix = cliName ?? "nori-skillsets";
 
@@ -309,36 +307,18 @@ export const externalMain = async (args: {
     return;
   }
 
-  // 2. Resolve install directory
-  let targetInstallDir: string;
-  if (installDir != null) {
-    targetInstallDir = installDir;
-  } else {
-    const allInstallations = getInstallDirs({ currentDir: cwd });
-    if (allInstallations.length === 0) {
-      targetInstallDir = getHomeDir();
-    } else if (allInstallations.length > 1) {
-      const installList = allInstallations
-        .map((dir, index) => `${index + 1}. ${dir}`)
-        .join("\n");
-      log.error(
-        `Found multiple Nori installations. Cannot determine which one to use.\n\nInstallations found:\n${installList}\n\nPlease use --install-dir to specify the target installation.`,
-      );
-      return;
-    } else {
-      targetInstallDir = allInstallations[0];
-    }
-  }
-
-  // 3. Load config and resolve target skillset
-  // Use home directory since config (auth, active profile) is a global setting
-  const config = await loadConfig({ startDir: getHomeDir() });
+  // 2. Resolve install directory from config
+  const config = await loadConfig();
+  const targetInstallDir = resolveInstallDir({
+    cliInstallDir: installDir,
+    config,
+  });
   let targetSkillset: string | null = null;
-  const profilesDir = getNoriProfilesDir();
+  const skillsetsDir = getNoriSkillsetsDir();
 
   // 3a. Handle --new: create a new skillset
   if (newSkillset != null) {
-    const newSkillsetDir = path.join(profilesDir, newSkillset);
+    const newSkillsetDir = path.join(skillsetsDir, newSkillset);
     try {
       await fs.access(newSkillsetDir);
       log.error(
@@ -353,8 +333,8 @@ export const externalMain = async (args: {
     targetSkillset = newSkillset;
     log.success(`Created new skillset "${newSkillset}"`);
   } else if (skillset != null) {
-    const skillsetDir = path.join(profilesDir, skillset);
-    await ensureNoriJson({ profileDir: skillsetDir });
+    const skillsetDir = path.join(skillsetsDir, skillset);
+    await ensureNoriJson({ skillsetDir: skillsetDir });
     const skillsetMarker = path.join(skillsetDir, "nori.json");
     try {
       await fs.access(skillsetMarker);
@@ -366,15 +346,12 @@ export const externalMain = async (args: {
       return;
     }
   } else if (config != null) {
-    const activeProfile = getAgentProfile({
-      config,
-      agentName: "claude-code",
-    });
-    if (activeProfile != null) {
-      const profileDir = path.join(profilesDir, activeProfile.baseProfile);
+    const activeSkillset = getActiveSkillset({ config });
+    if (activeSkillset != null) {
+      const skillsetDir = path.join(skillsetsDir, activeSkillset);
       try {
-        await fs.access(profileDir);
-        targetSkillset = activeProfile.baseProfile;
+        await fs.access(skillsetDir);
+        targetSkillset = activeSkillset;
       } catch {
         // Profile directory doesn't exist - skip manifest update
       }
@@ -485,7 +462,7 @@ export const externalMain = async (args: {
         skill: skillToInstall,
         skillsDir,
         installDir: targetInstallDir,
-        profilesDir,
+        skillsetsDir,
         targetSkillset,
         sourceUrl,
         ref: effectiveRef,

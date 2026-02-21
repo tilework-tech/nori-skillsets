@@ -132,6 +132,15 @@ import { isSkillCollisionError } from "@/utils/fetch.js";
 
 import { registryUploadMain } from "./registryUpload.js";
 
+const createManagedBlockMarker = async (dir: string): Promise<void> => {
+  const claudeDir = path.join(dir, ".claude");
+  await fs.mkdir(claudeDir, { recursive: true });
+  await fs.writeFile(
+    path.join(claudeDir, "CLAUDE.md"),
+    "# BEGIN NORI-AI MANAGED BLOCK\n# END NORI-AI MANAGED BLOCK\n",
+  );
+};
+
 /**
  * Helper to get all text output from clack prompts mocks
  * Combines outro, note, intro, log calls into a searchable string
@@ -180,7 +189,7 @@ const getSpinnerMessages = (): Array<string> => {
 describe("registry-upload", () => {
   let testDir: string;
   let configPath: string;
-  let profilesDir: string;
+  let skillsetsDir: string;
 
   beforeEach(async () => {
     vi.resetAllMocks();
@@ -200,7 +209,7 @@ describe("registry-upload", () => {
       path.join(tmpdir(), "nori-registry-upload-test-"),
     );
     configPath = path.join(testDir, ".nori-config.json");
-    profilesDir = path.join(testDir, ".nori", "profiles");
+    skillsetsDir = path.join(testDir, ".nori", "profiles");
 
     // Set mock homedir to testDir
     mockHomedir = testDir;
@@ -219,7 +228,10 @@ describe("registry-upload", () => {
     );
 
     // Create profiles directory
-    await fs.mkdir(profilesDir, { recursive: true });
+    await fs.mkdir(skillsetsDir, { recursive: true });
+
+    // Create managed block marker so Nori detects this as an installation
+    await createManagedBlockMarker(testDir);
   });
 
   afterEach(async () => {
@@ -302,55 +314,20 @@ describe("registry-upload", () => {
     });
 
     describe("installation detection", () => {
-      it("should fail when no installation found", async () => {
-        const noInstallDir = await fs.mkdtemp(
-          path.join(tmpdir(), "nori-no-install-"),
+      it("should fail when config cannot be loaded", async () => {
+        // loadConfig returns null when no config exists
+        vi.mocked(loadConfig).mockResolvedValue(null);
+
+        const result = await registryUploadMain({
+          profileSpec: "my-profile",
+          cwd: testDir,
+        });
+
+        expect(result.success).toBe(false);
+
+        expect(getClackOutput().toLowerCase()).toContain(
+          "could not load nori configuration",
         );
-        mockHomedir = noInstallDir;
-
-        try {
-          const result = await registryUploadMain({
-            profileSpec: "my-profile",
-            cwd: noInstallDir,
-          });
-
-          expect(result.success).toBe(false);
-
-          expect(getClackOutput().toLowerCase()).toContain(
-            "no nori installation",
-          );
-        } finally {
-          await fs.rm(noInstallDir, { recursive: true, force: true });
-        }
-      });
-
-      it("should fail when multiple installations found without --install-dir", async () => {
-        // Create a nested installation
-        const nestedDir = path.join(testDir, "nested");
-        await fs.mkdir(nestedDir, { recursive: true });
-        await fs.writeFile(
-          path.join(nestedDir, ".nori-config.json"),
-          JSON.stringify({ profile: { baseProfile: "test" } }),
-        );
-
-        // Set mock homedir to a directory without installation so home dir doesn't take precedence
-        const emptyHomeDir = await fs.mkdtemp(
-          path.join(tmpdir(), "nori-empty-home-"),
-        );
-        mockHomedir = emptyHomeDir;
-
-        try {
-          const result = await registryUploadMain({
-            profileSpec: "my-profile",
-            cwd: nestedDir,
-          });
-
-          expect(result.success).toBe(false);
-
-          expect(getClackOutput().toLowerCase()).toContain("multiple");
-        } finally {
-          await fs.rm(emptyHomeDir, { recursive: true, force: true });
-        }
       });
 
       it("should use explicit install-dir when provided", async () => {
@@ -419,10 +396,10 @@ describe("registry-upload", () => {
 
       it("should use unified auth when config.auth.organizations is present", async () => {
         // Create a profile to upload
-        const profileDir = path.join(profilesDir, "myorg", "my-profile");
-        await fs.mkdir(profileDir, { recursive: true });
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(profileDir, "CLAUDE.md"),
+          path.join(skillsetDir, "CLAUDE.md"),
           "# My Profile\n",
         );
 
@@ -469,14 +446,14 @@ describe("registry-upload", () => {
     describe("successful upload", () => {
       it("should upload profile to correct registry", async () => {
         // Create a profile to upload
-        const profileDir = path.join(profilesDir, "myorg", "my-profile");
-        await fs.mkdir(profileDir, { recursive: true });
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(profileDir, "CLAUDE.md"),
+          path.join(skillsetDir, "CLAUDE.md"),
           "# My Profile\n",
         );
         await fs.writeFile(
-          path.join(profileDir, "package.json"),
+          path.join(skillsetDir, "package.json"),
           JSON.stringify({ name: "my-profile", version: "1.0.0" }),
         );
 
@@ -529,10 +506,10 @@ describe("registry-upload", () => {
 
       it("should auto-bump version when not specified", async () => {
         // Create a profile to upload
-        const profileDir = path.join(profilesDir, "myorg", "my-profile");
-        await fs.mkdir(profileDir, { recursive: true });
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(profileDir, "CLAUDE.md"),
+          path.join(skillsetDir, "CLAUDE.md"),
           "# My Profile\n",
         );
 
@@ -581,10 +558,10 @@ describe("registry-upload", () => {
 
       it("should use explicit version when specified", async () => {
         // Create a profile to upload
-        const profileDir = path.join(profilesDir, "myorg", "my-profile");
-        await fs.mkdir(profileDir, { recursive: true });
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(profileDir, "CLAUDE.md"),
+          path.join(skillsetDir, "CLAUDE.md"),
           "# My Profile\n",
         );
 
@@ -707,10 +684,10 @@ describe("registry-upload", () => {
     describe("skill collision handling", () => {
       it("should auto-resolve unchanged skill conflicts", async () => {
         // Create a profile to upload
-        const profileDir = path.join(profilesDir, "myorg", "my-profile");
-        await fs.mkdir(profileDir, { recursive: true });
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(profileDir, "CLAUDE.md"),
+          path.join(skillsetDir, "CLAUDE.md"),
           "# My Profile\n",
         );
 
@@ -782,10 +759,10 @@ describe("registry-upload", () => {
 
       it("should fail for modified skill conflicts requiring manual resolution", async () => {
         // Create a profile to upload
-        const profileDir = path.join(profilesDir, "myorg", "my-profile");
-        await fs.mkdir(profileDir, { recursive: true });
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(profileDir, "CLAUDE.md"),
+          path.join(skillsetDir, "CLAUDE.md"),
           "# My Profile\n",
         );
 
@@ -872,10 +849,10 @@ describe("registry-upload", () => {
     describe("error handling", () => {
       it("should handle authentication failure gracefully", async () => {
         // Create a profile to upload
-        const profileDir = path.join(profilesDir, "myorg", "my-profile");
-        await fs.mkdir(profileDir, { recursive: true });
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(profileDir, "CLAUDE.md"),
+          path.join(skillsetDir, "CLAUDE.md"),
           "# My Profile\n",
         );
 
@@ -907,10 +884,10 @@ describe("registry-upload", () => {
 
       it("should handle upload failure gracefully", async () => {
         // Create a profile to upload
-        const profileDir = path.join(profilesDir, "myorg", "my-profile");
-        await fs.mkdir(profileDir, { recursive: true });
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(profileDir, "CLAUDE.md"),
+          path.join(skillsetDir, "CLAUDE.md"),
           "# My Profile\n",
         );
 
@@ -953,10 +930,10 @@ describe("registry-upload", () => {
         const customRegistryUrl = "https://custom.registry.com";
 
         // Create a profile to upload
-        const profileDir = path.join(profilesDir, "my-profile");
-        await fs.mkdir(profileDir, { recursive: true });
+        const skillsetDir = path.join(skillsetsDir, "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(profileDir, "CLAUDE.md"),
+          path.join(skillsetDir, "CLAUDE.md"),
           "# My Profile\n",
         );
 
@@ -1036,10 +1013,10 @@ describe("registry-upload", () => {
     describe("--dry-run flag", () => {
       it("should show target version without uploading", async () => {
         // Create a profile to upload
-        const profileDir = path.join(profilesDir, "myorg", "my-profile");
-        await fs.mkdir(profileDir, { recursive: true });
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(profileDir, "CLAUDE.md"),
+          path.join(skillsetDir, "CLAUDE.md"),
           "# My Profile\n",
         );
 
@@ -1083,10 +1060,10 @@ describe("registry-upload", () => {
 
       it("should display profile path and registry URL in dry-run", async () => {
         // Create a profile to upload
-        const profileDir = path.join(profilesDir, "myorg", "my-profile");
-        await fs.mkdir(profileDir, { recursive: true });
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(profileDir, "CLAUDE.md"),
+          path.join(skillsetDir, "CLAUDE.md"),
           "# My Profile\n",
         );
 
@@ -1121,10 +1098,10 @@ describe("registry-upload", () => {
 
       it("should show 1.0.0 for new packages in dry-run", async () => {
         // Create a profile to upload
-        const profileDir = path.join(profilesDir, "myorg", "new-profile");
-        await fs.mkdir(profileDir, { recursive: true });
+        const skillsetDir = path.join(skillsetsDir, "myorg", "new-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(profileDir, "CLAUDE.md"),
+          path.join(skillsetDir, "CLAUDE.md"),
           "# New Profile\n",
         );
 
@@ -1160,10 +1137,10 @@ describe("registry-upload", () => {
     describe("--description option", () => {
       it("should pass description to uploadSkillset API", async () => {
         // Create a profile to upload
-        const profileDir = path.join(profilesDir, "myorg", "my-profile");
-        await fs.mkdir(profileDir, { recursive: true });
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(profileDir, "CLAUDE.md"),
+          path.join(skillsetDir, "CLAUDE.md"),
           "# My Profile\n",
         );
 
@@ -1207,10 +1184,10 @@ describe("registry-upload", () => {
 
       it("should work without description (undefined)", async () => {
         // Create a profile to upload
-        const profileDir = path.join(profilesDir, "myorg", "my-profile");
-        await fs.mkdir(profileDir, { recursive: true });
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(profileDir, "CLAUDE.md"),
+          path.join(skillsetDir, "CLAUDE.md"),
           "# My Profile\n",
         );
 
@@ -1265,10 +1242,10 @@ describe("registry-upload", () => {
         vi.mocked(clack.spinner).mockReturnValue(spinnerMock);
 
         // Create a profile to upload
-        const profileDir = path.join(profilesDir, "myorg", "my-profile");
-        await fs.mkdir(profileDir, { recursive: true });
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(profileDir, "CLAUDE.md"),
+          path.join(skillsetDir, "CLAUDE.md"),
           "# My Profile\n",
         );
 
@@ -1319,10 +1296,10 @@ describe("registry-upload", () => {
         vi.mocked(clack.spinner).mockReturnValue(spinnerMock);
 
         // Create a profile to upload
-        const profileDir = path.join(profilesDir, "myorg", "my-profile");
-        await fs.mkdir(profileDir, { recursive: true });
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(profileDir, "CLAUDE.md"),
+          path.join(skillsetDir, "CLAUDE.md"),
           "# My Profile\n",
         );
 
@@ -1370,10 +1347,10 @@ describe("registry-upload", () => {
         vi.mocked(clack.spinner).mockReturnValue(spinnerMock);
 
         // Create a profile to upload
-        const profileDir = path.join(profilesDir, "myorg", "my-profile");
-        await fs.mkdir(profileDir, { recursive: true });
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(profileDir, "CLAUDE.md"),
+          path.join(skillsetDir, "CLAUDE.md"),
           "# My Profile\n",
         );
 
@@ -1416,10 +1393,10 @@ describe("registry-upload", () => {
     describe("interactive conflict resolution", () => {
       it("should prompt for resolution on conflicts in interactive mode", async () => {
         // Create a profile to upload
-        const profileDir = path.join(profilesDir, "myorg", "my-profile");
-        await fs.mkdir(profileDir, { recursive: true });
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(profileDir, "CLAUDE.md"),
+          path.join(skillsetDir, "CLAUDE.md"),
           "# My Profile\n",
         );
 
@@ -1491,10 +1468,10 @@ describe("registry-upload", () => {
 
       it("should not prompt in non-interactive mode", async () => {
         // Create a profile to upload
-        const profileDir = path.join(profilesDir, "myorg", "my-profile");
-        await fs.mkdir(profileDir, { recursive: true });
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(profileDir, "CLAUDE.md"),
+          path.join(skillsetDir, "CLAUDE.md"),
           "# My Profile\n",
         );
 
@@ -1549,10 +1526,10 @@ describe("registry-upload", () => {
     describe("skill summary on success", () => {
       it("should display uploaded skills summary on success", async () => {
         // Create a profile to upload
-        const profileDir = path.join(profilesDir, "myorg", "my-profile");
-        await fs.mkdir(profileDir, { recursive: true });
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(profileDir, "CLAUDE.md"),
+          path.join(skillsetDir, "CLAUDE.md"),
           "# My Profile\n",
         );
 
@@ -1601,10 +1578,10 @@ describe("registry-upload", () => {
 
       it("should show linked vs uploaded skills separately", async () => {
         // Create a profile to upload
-        const profileDir = path.join(profilesDir, "myorg", "my-profile");
-        await fs.mkdir(profileDir, { recursive: true });
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(profileDir, "CLAUDE.md"),
+          path.join(skillsetDir, "CLAUDE.md"),
           "# My Profile\n",
         );
 
@@ -1671,10 +1648,10 @@ describe("registry-upload", () => {
 
       it("should show namespaced skills with their new names", async () => {
         // Create a profile to upload
-        const profileDir = path.join(profilesDir, "myorg", "my-profile");
-        await fs.mkdir(profileDir, { recursive: true });
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(profileDir, "CLAUDE.md"),
+          path.join(skillsetDir, "CLAUDE.md"),
           "# My Profile\n",
         );
 
@@ -1744,15 +1721,15 @@ describe("registry-upload", () => {
     describe("inline skills detection", () => {
       it("should pass inlineSkills to uploadSkillset when profile has skills without nori.json", async () => {
         // Create a profile with mixed skills
-        const profileDir = path.join(profilesDir, "myorg", "my-profile");
-        await fs.mkdir(profileDir, { recursive: true });
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(profileDir, "CLAUDE.md"),
+          path.join(skillsetDir, "CLAUDE.md"),
           "# My Profile\n",
         );
 
         // Skill without nori.json (inline candidate)
-        const inlineSkillDir = path.join(profileDir, "skills", "init");
+        const inlineSkillDir = path.join(skillsetDir, "skills", "init");
         await fs.mkdir(inlineSkillDir, { recursive: true });
         await fs.writeFile(
           path.join(inlineSkillDir, "SKILL.md"),
@@ -1760,7 +1737,7 @@ describe("registry-upload", () => {
         );
 
         // Skill with nori.json (always extracted)
-        const extractedSkillDir = path.join(profileDir, "skills", "tdd");
+        const extractedSkillDir = path.join(skillsetDir, "skills", "tdd");
         await fs.mkdir(extractedSkillDir, { recursive: true });
         await fs.writeFile(
           path.join(extractedSkillDir, "SKILL.md"),
@@ -1819,10 +1796,10 @@ describe("registry-upload", () => {
 
       it("should not prompt for inline skills when no skills directory exists", async () => {
         // Create a profile without skills directory
-        const profileDir = path.join(profilesDir, "myorg", "my-profile");
-        await fs.mkdir(profileDir, { recursive: true });
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(profileDir, "CLAUDE.md"),
+          path.join(skillsetDir, "CLAUDE.md"),
           "# My Profile\n",
         );
 
@@ -1864,14 +1841,14 @@ describe("registry-upload", () => {
 
       it("should not prompt when all skills have nori.json", async () => {
         // Create a profile where all skills have nori.json
-        const profileDir = path.join(profilesDir, "myorg", "my-profile");
-        await fs.mkdir(profileDir, { recursive: true });
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(profileDir, "CLAUDE.md"),
+          path.join(skillsetDir, "CLAUDE.md"),
           "# My Profile\n",
         );
 
-        const skillDir = path.join(profileDir, "skills", "tdd");
+        const skillDir = path.join(skillsetDir, "skills", "tdd");
         await fs.mkdir(skillDir, { recursive: true });
         await fs.writeFile(path.join(skillDir, "SKILL.md"), "# TDD Skill\n");
         await fs.writeFile(
@@ -1917,14 +1894,14 @@ describe("registry-upload", () => {
 
       it("should skip inline skills prompt in non-interactive mode and extract all", async () => {
         // Create a profile with skills without nori.json
-        const profileDir = path.join(profilesDir, "myorg", "my-profile");
-        await fs.mkdir(profileDir, { recursive: true });
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(profileDir, "CLAUDE.md"),
+          path.join(skillsetDir, "CLAUDE.md"),
           "# My Profile\n",
         );
 
-        const skillDir = path.join(profileDir, "skills", "init");
+        const skillDir = path.join(skillsetDir, "skills", "init");
         await fs.mkdir(skillDir, { recursive: true });
         await fs.writeFile(path.join(skillDir, "SKILL.md"), "# Init Skill\n");
 
@@ -1967,14 +1944,14 @@ describe("registry-upload", () => {
 
       it("should skip inline skills prompt in silent mode and extract all", async () => {
         // Create a profile with skills without nori.json
-        const profileDir = path.join(profilesDir, "myorg", "my-profile");
-        await fs.mkdir(profileDir, { recursive: true });
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(profileDir, "CLAUDE.md"),
+          path.join(skillsetDir, "CLAUDE.md"),
           "# My Profile\n",
         );
 
-        const skillDir = path.join(profileDir, "skills", "init");
+        const skillDir = path.join(skillsetDir, "skills", "init");
         await fs.mkdir(skillDir, { recursive: true });
         await fs.writeFile(path.join(skillDir, "SKILL.md"), "# Init Skill\n");
 
@@ -2017,14 +1994,14 @@ describe("registry-upload", () => {
 
       it("should not pass inlineSkills when user selects extract for each skill", async () => {
         // Create a profile with skills without nori.json
-        const profileDir = path.join(profilesDir, "myorg", "my-profile");
-        await fs.mkdir(profileDir, { recursive: true });
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(profileDir, "CLAUDE.md"),
+          path.join(skillsetDir, "CLAUDE.md"),
           "# My Profile\n",
         );
 
-        const skillDir = path.join(profileDir, "skills", "init");
+        const skillDir = path.join(skillsetDir, "skills", "init");
         await fs.mkdir(skillDir, { recursive: true });
         await fs.writeFile(path.join(skillDir, "SKILL.md"), "# Init Skill\n");
 
@@ -2071,19 +2048,19 @@ describe("registry-upload", () => {
     describe("tarball file exclusion", () => {
       it("should exclude .nori-version files from upload tarball", async () => {
         // Create a profile with .nori-version file (simulating a previously downloaded profile)
-        const profileDir = path.join(profilesDir, "myorg", "my-profile");
-        await fs.mkdir(profileDir, { recursive: true });
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(profileDir, "CLAUDE.md"),
+          path.join(skillsetDir, "CLAUDE.md"),
           "# My Profile\n",
         );
         await fs.writeFile(
-          path.join(profileDir, "nori.json"),
+          path.join(skillsetDir, "nori.json"),
           JSON.stringify({ name: "my-profile", version: "1.0.0" }),
         );
         // This file should NOT be included in the tarball
         await fs.writeFile(
-          path.join(profileDir, ".nori-version"),
+          path.join(skillsetDir, ".nori-version"),
           JSON.stringify({
             version: "0.5.0",
             registryUrl: "https://old.registry.com",
@@ -2164,10 +2141,10 @@ describe("registry-upload", () => {
     describe("nori.json type field handling", () => {
       it("should set type to skillset on profile nori.json when type is missing before upload", async () => {
         // Create a profile with nori.json that has no type field
-        const profileDir = path.join(profilesDir, "myorg", "my-profile");
-        await fs.mkdir(profileDir, { recursive: true });
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(profileDir, "nori.json"),
+          path.join(skillsetDir, "nori.json"),
           JSON.stringify({ name: "my-profile", version: "1.0.0" }),
         );
 
@@ -2203,17 +2180,17 @@ describe("registry-upload", () => {
 
         // Verify the nori.json on disk now has type: "skillset"
         const noriJson = JSON.parse(
-          await fs.readFile(path.join(profileDir, "nori.json"), "utf-8"),
+          await fs.readFile(path.join(skillsetDir, "nori.json"), "utf-8"),
         );
         expect(noriJson.type).toBe("skillset");
       });
 
       it("should set type to skill on skill subdirectory nori.json when type is missing before upload", async () => {
         // Create a profile with a skill that has nori.json without type
-        const profileDir = path.join(profilesDir, "myorg", "my-profile");
-        await fs.mkdir(profileDir, { recursive: true });
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(profileDir, "nori.json"),
+          path.join(skillsetDir, "nori.json"),
           JSON.stringify({
             name: "my-profile",
             version: "1.0.0",
@@ -2221,7 +2198,7 @@ describe("registry-upload", () => {
           }),
         );
 
-        const skillDir = path.join(profileDir, "skills", "my-skill");
+        const skillDir = path.join(skillsetDir, "skills", "my-skill");
         await fs.mkdir(skillDir, { recursive: true });
         await fs.writeFile(
           path.join(skillDir, "SKILL.md"),
@@ -2271,10 +2248,10 @@ describe("registry-upload", () => {
 
       it("should not overwrite existing type field on nori.json during upload", async () => {
         // Create a profile with nori.json that already has a type field
-        const profileDir = path.join(profilesDir, "myorg", "my-profile");
-        await fs.mkdir(profileDir, { recursive: true });
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(profileDir, "nori.json"),
+          path.join(skillsetDir, "nori.json"),
           JSON.stringify({
             name: "my-profile",
             version: "1.0.0",
@@ -2314,17 +2291,17 @@ describe("registry-upload", () => {
 
         // Verify the type field was not changed
         const noriJson = JSON.parse(
-          await fs.readFile(path.join(profileDir, "nori.json"), "utf-8"),
+          await fs.readFile(path.join(skillsetDir, "nori.json"), "utf-8"),
         );
         expect(noriJson.type).toBe("skillset");
       });
 
       it("should create nori.json with type inlined-skill for inline candidates", async () => {
         // Create a profile with an inline skill candidate (no nori.json in skill dir)
-        const profileDir = path.join(profilesDir, "myorg", "my-profile");
-        await fs.mkdir(profileDir, { recursive: true });
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(profileDir, "nori.json"),
+          path.join(skillsetDir, "nori.json"),
           JSON.stringify({
             name: "my-profile",
             version: "1.0.0",
@@ -2332,7 +2309,7 @@ describe("registry-upload", () => {
           }),
         );
 
-        const skillDir = path.join(profileDir, "skills", "my-inline-skill");
+        const skillDir = path.join(skillsetDir, "skills", "my-inline-skill");
         await fs.mkdir(skillDir, { recursive: true });
         await fs.writeFile(
           path.join(skillDir, "SKILL.md"),
@@ -2381,10 +2358,10 @@ describe("registry-upload", () => {
 
       it("should create nori.json with type skill for extract candidates", async () => {
         // Create a profile with a skill candidate to be extracted (no nori.json)
-        const profileDir = path.join(profilesDir, "myorg", "my-profile");
-        await fs.mkdir(profileDir, { recursive: true });
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(profileDir, "nori.json"),
+          path.join(skillsetDir, "nori.json"),
           JSON.stringify({
             name: "my-profile",
             version: "1.0.0",
@@ -2392,7 +2369,7 @@ describe("registry-upload", () => {
           }),
         );
 
-        const skillDir = path.join(profileDir, "skills", "my-extract-skill");
+        const skillDir = path.join(skillsetDir, "skills", "my-extract-skill");
         await fs.mkdir(skillDir, { recursive: true });
         await fs.writeFile(
           path.join(skillDir, "SKILL.md"),

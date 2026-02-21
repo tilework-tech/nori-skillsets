@@ -5,7 +5,6 @@
 import { isSilentMode } from "@/cli/logger.js";
 
 // ANSI color codes
-const BLUE = "\x1b[0;34m";
 const NC = "\x1b[0m"; // No Color
 
 /**
@@ -15,39 +14,6 @@ const NC = "\x1b[0m"; // No Color
  */
 const writeLine = (args: { message: string }): void => {
   process.stdout.write(args.message + "\n");
-};
-
-/**
- * Display NORI ASCII art banner
- * @param args - Configuration arguments
- * @param args.color - ANSI color code to use (defaults to blue)
- */
-export const displayNoriBanner = (args?: { color?: string | null }): void => {
-  if (isSilentMode()) return;
-  const color = args?.color ?? BLUE;
-  const colorPrefix = color ?? "";
-  const colorSuffix = color ? NC : "";
-
-  writeLine({ message: "" });
-  writeLine({
-    message: `${colorPrefix}███╗   ██╗ ██████╗ ██████╗ ██╗${colorSuffix}`,
-  });
-  writeLine({
-    message: `${colorPrefix}████╗  ██║██╔═══██╗██╔══██╗██║${colorSuffix}`,
-  });
-  writeLine({
-    message: `${colorPrefix}██╔██╗ ██║██║   ██║██████╔╝██║${colorSuffix}`,
-  });
-  writeLine({
-    message: `${colorPrefix}██║╚██╗██║██║   ██║██╔══██╗██║${colorSuffix}`,
-  });
-  writeLine({
-    message: `${colorPrefix}██║ ╚████║╚██████╔╝██║  ██║██║${colorSuffix}`,
-  });
-  writeLine({
-    message: `${colorPrefix}╚═╝  ╚═══╝ ╚═════╝ ╚═╝  ╚═╝╚═╝${colorSuffix}`,
-  });
-  writeLine({ message: "" });
 };
 
 /**

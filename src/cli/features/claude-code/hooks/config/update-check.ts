@@ -31,36 +31,16 @@ const logToClaudeSession = (args: { message: string }): void => {
 };
 
 /**
- * Try to find the install directory by checking common config locations.
- * Searches for directories that contain .nori-config.json.
+ * Get the install directory. Config is always at ~/.nori-config.json.
  * @param args - Optional configuration arguments
  * @param args.installDir - Explicit install directory override
  *
- * @returns The install directory path, or null if not found
+ * @returns The install directory path
  */
-const findInstallDir = async (args?: {
-  installDir?: string | null;
-}): Promise<string | null> => {
+const getInstallDir = (args?: { installDir?: string | null }): string => {
   const explicitDir = args?.installDir;
   if (explicitDir != null) return explicitDir;
-
-  // Check common locations for .nori-config.json
-  const candidates = [
-    process.cwd(),
-    getHomeDir(),
-    path.join(getHomeDir(), ".claude"),
-  ];
-
-  for (const dir of candidates) {
-    try {
-      await fs.access(path.join(dir, ".nori-config.json"));
-      return dir;
-    } catch {
-      continue;
-    }
-  }
-
-  return null;
+  return getHomeDir();
 };
 
 /**
@@ -100,11 +80,10 @@ export const main = async (args?: {
   installDir?: string | null;
 }): Promise<void> => {
   try {
-    // Find install directory
-    const installDir = await findInstallDir({
+    // Get install directory
+    const installDir = getInstallDir({
       installDir: args?.installDir,
     });
-    if (installDir == null) return;
 
     // Read config to get installed version and autoupdate setting
     const config = await readConfig({ installDir });

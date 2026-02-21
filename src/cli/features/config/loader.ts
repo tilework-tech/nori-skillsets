@@ -10,9 +10,8 @@ import { getConfigPath, loadConfig, saveConfig } from "@/cli/config.js";
 import { debug } from "@/cli/logger.js";
 import { getCurrentPackageVersion } from "@/cli/version.js";
 import { configureFirebase, getFirebase } from "@/providers/firebase.js";
-import { getHomeDir } from "@/utils/home.js";
 
-import type { Config, AgentConfig, ConfigAgentName } from "@/cli/config.js";
+import type { Config } from "@/cli/config.js";
 import type { Loader } from "@/cli/features/agentRegistry.js";
 import type { AuthError } from "firebase/auth";
 
@@ -26,7 +25,7 @@ const installConfig = async (args: { config: Config }): Promise<void> => {
 
   // Load existing config to preserve user preferences (sendSessionTranscript, autoupdate)
   // Use getHomeDir() since this writes to global config
-  const existingConfig = await loadConfig({ startDir: getHomeDir() });
+  const existingConfig = await loadConfig();
 
   // Extract auth credentials from config
   const username = config.auth?.username ?? null;
@@ -36,12 +35,9 @@ const installConfig = async (args: { config: Config }): Promise<void> => {
 
   const sendSessionTranscript = config.sendSessionTranscript ?? null;
 
-  // Merge agents from existing config and new config
-  // The keys of the agents object indicate which agents are installed
-  const mergedAgents: { [key in ConfigAgentName]?: AgentConfig } = {
-    ...(existingConfig?.agents ?? {}),
-    ...(config.agents ?? {}),
-  };
+  // Preserve activeSkillset from existing config or new config
+  const activeSkillset =
+    config.activeSkillset ?? existingConfig?.activeSkillset ?? null;
 
   // If we have password but no refresh token, authenticate to get a refresh token
   // This converts password-based login to token-based storage
@@ -126,6 +122,11 @@ const installConfig = async (args: { config: Config }): Promise<void> => {
     existingConfig?.transcriptDestination ??
     null;
 
+  // Preserve installDir and defaultAgents from existing config if set
+  // These are user-configured settings that should only be changed via `nori-skillsets config`
+  const installDir = existingConfig?.installDir ?? config.installDir;
+  const defaultAgents = existingConfig?.defaultAgents ?? null;
+
   // Save config to disk with refresh token (not password)
   // This ensures we never store passwords, only secure tokens
   await saveConfig({
@@ -134,12 +135,13 @@ const installConfig = async (args: { config: Config }): Promise<void> => {
     organizationUrl,
     organizations,
     isAdmin,
-    agents: Object.keys(mergedAgents).length > 0 ? mergedAgents : null,
+    activeSkillset,
     sendSessionTranscript,
     autoupdate: existingConfig?.autoupdate,
     version: currentVersion,
+    defaultAgents,
     transcriptDestination,
-    installDir: config.installDir,
+    installDir,
   });
 
   const configPath = getConfigPath();

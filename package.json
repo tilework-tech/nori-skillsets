@@ -1,7 +1,7 @@
 {
   "name": "nori-skillsets",
   "version": "0.0.0",
-  "description": "Nori Profiles plugin for Claude Code",
+  "description": "Nori Skillsets plugin for Claude Code",
   "type": "module",
   "bin": {
     "nori-skillsets": "./build/src/cli/nori-skillsets.js",
@@ -14,7 +14,6 @@
     "codex",
     "skills",
     "skillsets",
-    "profiles",
     "registry",
     "nori",
     "agent",
@@ -59,6 +58,7 @@
     "better-sqlite3": "^12.5.0",
     "chokidar": "^5.0.0",
     "commander": "^14.0.2",
+    "diff": "^8.0.3",
     "firebase": "^12.3.0",
     "glob": "^13.0.0",
     "open": "^11.0.0",
@@ -69,6 +69,7 @@
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
+    "@types/diff": "^7.0.2",
     "@types/minimist": "^1.2.5",
     "@types/node": "^22.19.7",
     "@types/semver": "^7.7.1",

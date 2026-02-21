@@ -19,20 +19,23 @@ import {
   getCommandNames,
   type CliName,
 } from "@/cli/commands/cliCommandNames.js";
-import { getRegistryAuth, loadConfig, getAgentProfile } from "@/cli/config.js";
+import {
+  getRegistryAuth,
+  loadConfig,
+  getActiveSkillset,
+} from "@/cli/config.js";
 import {
   getClaudeSkillsDir,
-  getNoriProfilesDir,
+  getNoriSkillsetsDir,
 } from "@/cli/features/claude-code/paths.js";
 import {
   addSkillToNoriJson,
   ensureNoriJson,
-} from "@/cli/features/claude-code/profiles/metadata.js";
-import { addSkillDependency } from "@/cli/features/claude-code/profiles/skills/resolver.js";
+} from "@/cli/features/claude-code/skillsets/metadata.js";
+import { addSkillDependency } from "@/cli/features/claude-code/skillsets/skills/resolver.js";
 import { substituteTemplatePaths } from "@/cli/features/claude-code/template.js";
 import { skillDownloadFlow } from "@/cli/prompts/flows/index.js";
-import { getHomeDir } from "@/utils/home.js";
-import { getInstallDirs } from "@/utils/path.js";
+import { resolveInstallDir } from "@/utils/path.js";
 import {
   parseNamespacedPackage,
   buildOrganizationRegistryUrl,
@@ -341,7 +344,7 @@ const formatMultipleSkillsError = (args: {
  * @param args.installDir - Optional explicit install directory
  * @param args.registryUrl - Optional registry URL to download from
  * @param args.listVersions - If true, list available versions instead of downloading
- * @param args.skillset - Optional skillset name to add skill to (defaults to active profile)
+ * @param args.skillset - Optional skillset name to add skill to (defaults to active skillset)
  * @param args.cliName - CLI name for user-facing messages (defaults to nori-skillsets)
  */
 export const skillDownloadMain = async (args: {
@@ -361,7 +364,6 @@ export const skillDownloadMain = async (args: {
     skillset,
     cliName,
   } = args;
-  const cwd = args.cwd ?? process.cwd();
   const commandNames = getCommandNames({ cliName });
   const cliPrefix = cliName ?? "nori-skillsets";
 
@@ -386,46 +388,24 @@ export const skillDownloadMain = async (args: {
     return;
   }
 
-  // Find installation directory
-  // If installDir is provided, use it; otherwise check for existing installations
-  // If no installations found, use cwd (skills can be downloaded without prior Nori installation)
-  let targetInstallDir: string;
+  // Load config for auth and install dir resolution
+  const config = await loadConfig();
 
-  if (installDir != null) {
-    targetInstallDir = installDir;
-  } else {
-    const allInstallations = getInstallDirs({ currentDir: cwd });
-
-    if (allInstallations.length === 0) {
-      // No installation - use home directory as target
-      targetInstallDir = getHomeDir();
-    } else if (allInstallations.length > 1) {
-      const installList = allInstallations
-        .map((dir, index) => `${index + 1}. ${dir}`)
-        .join("\n");
-
-      log.error(
-        `Found multiple Nori installations. Cannot determine which one to use.\n\nInstallations found:\n${installList}\n\nPlease use --install-dir to specify the target installation.`,
-      );
-      return;
-    } else {
-      targetInstallDir = allInstallations[0];
-    }
-  }
-
-  // Load config if it exists (for private registry auth)
-  // Use home directory since auth is a global setting
-  const config = await loadConfig({ startDir: getHomeDir() });
+  // Resolve installation directory from CLI flag, config, or home dir fallback
+  const targetInstallDir = resolveInstallDir({
+    cliInstallDir: installDir,
+    config,
+  });
 
   // Resolve target skillset for manifest update
-  // Priority: --skillset option > active profile from config > no manifest update
+  // Priority: --skillset option > active skillset from config > no manifest update
   let targetSkillset: string | null = null;
-  const profilesDir = getNoriProfilesDir();
+  const skillsetsDir = getNoriSkillsetsDir();
 
   if (skillset != null) {
     // User specified a skillset - verify it exists
-    const skillsetDir = path.join(profilesDir, skillset);
-    await ensureNoriJson({ profileDir: skillsetDir });
+    const skillsetDir = path.join(skillsetsDir, skillset);
+    await ensureNoriJson({ skillsetDir: skillsetDir });
     const skillsetMarker = path.join(skillsetDir, "nori.json");
     try {
       await fs.access(skillsetMarker);
@@ -437,19 +417,16 @@ export const skillDownloadMain = async (args: {
       return;
     }
   } else if (config != null) {
-    // No skillset specified - try to use active profile
-    const activeProfile = getAgentProfile({
-      config,
-      agentName: "claude-code",
-    });
-    if (activeProfile != null) {
-      // Verify profile directory exists
-      const profileDir = path.join(profilesDir, activeProfile.baseProfile);
+    // No skillset specified - try to use active skillset
+    const activeSkillset = getActiveSkillset({ config });
+    if (activeSkillset != null) {
+      // Verify skillset directory exists
+      const skillsetDir = path.join(skillsetsDir, activeSkillset);
       try {
-        await fs.access(profileDir);
-        targetSkillset = activeProfile.baseProfile;
+        await fs.access(skillsetDir);
+        targetSkillset = activeSkillset;
       } catch {
-        // Profile directory doesn't exist - skip manifest update
+        // Skillset directory doesn't exist - skip manifest update
       }
     }
   }
@@ -507,6 +484,16 @@ export const skillDownloadMain = async (args: {
             config,
           });
           flowSearchResults = searchResult != null ? [searchResult] : [];
+        } else if (orgId === "public") {
+          try {
+            const packument = await registrarApi.getSkillPackument({
+              skillName,
+              registryUrl: REGISTRAR_URL,
+            });
+            flowSearchResults = [{ registryUrl: REGISTRAR_URL, packument }];
+          } catch {
+            flowSearchResults = [];
+          }
         } else if (hasUnifiedAuth) {
           const targetRegistryUrl = buildOrganizationRegistryUrl({ orgId });
           const userOrgs = config.auth!.organizations!;
@@ -535,16 +522,6 @@ export const skillDownloadMain = async (args: {
             flowSearchResults = [
               { registryUrl: targetRegistryUrl, packument, authToken },
             ];
-          } catch {
-            flowSearchResults = [];
-          }
-        } else if (orgId === "public") {
-          try {
-            const packument = await registrarApi.getSkillPackument({
-              skillName,
-              registryUrl: REGISTRAR_URL,
-            });
-            flowSearchResults = [{ registryUrl: REGISTRAR_URL, packument }];
           } catch {
             flowSearchResults = [];
           }
@@ -717,10 +694,10 @@ export const skillDownloadMain = async (args: {
             versionData,
           );
 
-          // Persist skill to profile's skills directory
+          // Persist skill to skillset's skills directory
           if (targetSkillset != null) {
             const profileSkillDir = path.join(
-              profilesDir,
+              skillsetsDir,
               targetSkillset,
               "skills",
               skillName,
@@ -740,7 +717,7 @@ export const skillDownloadMain = async (args: {
                   ? profileCopyErr.message
                   : String(profileCopyErr);
               warnings.push(
-                `Warning: Could not persist skill to profile: ${msg}`,
+                `Warning: Could not persist skill to skillset: ${msg}`,
               );
             }
           }
@@ -757,7 +734,7 @@ export const skillDownloadMain = async (args: {
           if (targetSkillset != null) {
             try {
               await addSkillDependency({
-                profileDir: path.join(profilesDir, targetSkillset),
+                skillsetDir: path.join(skillsetsDir, targetSkillset),
                 skillName,
                 version: "*",
               });
@@ -777,7 +754,7 @@ export const skillDownloadMain = async (args: {
           if (targetSkillset != null) {
             try {
               await addSkillToNoriJson({
-                profileDir: path.join(profilesDir, targetSkillset),
+                skillsetDir: path.join(skillsetsDir, targetSkillset),
                 skillName,
                 version: "*",
               });

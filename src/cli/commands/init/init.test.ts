@@ -40,10 +40,10 @@ vi.mock("@/cli/features/claude-code/paths.js", () => {
       `${testClaudeDir}/CLAUDE.md`,
     getClaudeSkillsDir: (_args: { installDir: string }) =>
       `${testClaudeDir}/skills`,
-    getClaudeProfilesDir: (_args: { installDir: string }) =>
+    getClaudeSkillsetsDir: (_args: { installDir: string }) =>
       `${testClaudeDir}/profiles`,
     getNoriDir: () => testNoriDir,
-    getNoriProfilesDir: () => `${testNoriDir}/profiles`,
+    getNoriSkillsetsDir: () => `${testNoriDir}/profiles`,
     getNoriConfigFile: () => `${testNoriDir}/config.json`,
   };
 });
@@ -169,24 +169,24 @@ describe("init command", () => {
       // Verify config has minimal structure
       const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
       expect(config.version).toBe("20.0.0");
-      expect(config.agents).toEqual({});
+      expect(config.activeSkillset).toBeUndefined();
       expect(config.installDir).toBe(tempDir);
     });
 
     it("should create ~/.nori/profiles/ directory", async () => {
-      const profilesDir = path.join(TEST_NORI_DIR, "profiles");
+      const skillsetsDir = path.join(TEST_NORI_DIR, "profiles");
 
       // Ensure profiles dir doesn't exist
       try {
-        fs.rmSync(profilesDir, { recursive: true, force: true });
+        fs.rmSync(skillsetsDir, { recursive: true, force: true });
       } catch {}
-      expect(fs.existsSync(profilesDir)).toBe(false);
+      expect(fs.existsSync(skillsetsDir)).toBe(false);
 
       // Run init
       await initMain({ installDir: tempDir, nonInteractive: true });
 
       // Verify profiles directory was created
-      expect(fs.existsSync(profilesDir)).toBe(true);
+      expect(fs.existsSync(skillsetsDir)).toBe(true);
     });
 
     it("should be idempotent - not overwrite existing config", async () => {
@@ -196,7 +196,7 @@ describe("init command", () => {
       // Note: loadConfig requires auth to have username + organizationUrl for it to be recognized
       const existingConfig = {
         version: "19.0.0",
-        agents: { "claude-code": { profile: { baseProfile: "amol" } } },
+        activeSkillset: "amol",
         auth: {
           username: "test@example.com",
           organizationUrl: "https://example.tilework.tech",
@@ -210,9 +210,7 @@ describe("init command", () => {
 
       // Verify existing config was preserved
       const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
-      expect(config.agents).toEqual({
-        "claude-code": { profile: { baseProfile: "amol" } },
-      });
+      expect(config.activeSkillset).toBe("amol");
       expect(config.auth.username).toBe("test@example.com");
       expect(config.auth.organizationUrl).toBe("https://example.tilework.tech");
       // Version should be updated to current
@@ -225,7 +223,7 @@ describe("init command", () => {
       // Create existing config with organizations, isAdmin, and transcriptDestination
       const existingConfig = {
         version: "19.0.0",
-        agents: { "claude-code": { profile: { baseProfile: "senior-swe" } } },
+        activeSkillset: "senior-swe",
         auth: {
           username: "test@example.com",
           organizationUrl: "https://example.tilework.tech",
@@ -281,9 +279,7 @@ describe("init command", () => {
       // Verify .nori-config.json has the profile set
       const CONFIG_PATH = getConfigPath();
       const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
-      expect(config.agents).toEqual({
-        "claude-code": { profile: { baseProfile: "my-profile" } },
-      });
+      expect(config.activeSkillset).toBe("my-profile");
 
       // Verify CLAUDE.md has the managed block
       const updatedClaudeMd = fs.readFileSync(claudeMdPath, "utf-8");
@@ -350,62 +346,88 @@ describe("init command", () => {
       ).toBe(true);
     });
 
-    it("should warn about ancestor managed installations via clack note", async () => {
-      // Create parent directory with a managed nori installation
-      const parentDir = path.join(tempDir, "parent");
-      const childDir = path.join(parentDir, "child");
-      const parentClaudeDir = path.join(parentDir, ".claude");
-      fs.mkdirSync(childDir, { recursive: true });
-      fs.mkdirSync(parentClaudeDir, { recursive: true });
+    it("should skip existing-config detection when .nori-managed marker exists", async () => {
+      // Create .nori-managed marker at the REAL install dir path (not mocked claude dir)
+      // because isInstalledAtDir uses path.join(installDir, ".claude") directly
+      const realClaudeDir = path.join(tempDir, ".claude");
+      fs.mkdirSync(realClaudeDir, { recursive: true });
+      fs.writeFileSync(path.join(realClaudeDir, ".nori-managed"), "senior-swe");
 
-      // Create managed CLAUDE.md in parent (this is what causes actual conflicts)
+      // Also create some existing config in the MOCKED claude dir that would normally trigger capture
       fs.writeFileSync(
-        path.join(parentClaudeDir, "CLAUDE.md"),
-        "# BEGIN NORI-AI MANAGED BLOCK\nsome content\n# END NORI-AI MANAGED BLOCK",
+        path.join(TEST_CLAUDE_DIR, "CLAUDE.md"),
+        "# My Custom Config\n\nSome content",
       );
+      const skillsDir = path.join(TEST_CLAUDE_DIR, "skills");
+      fs.mkdirSync(skillsDir, { recursive: true });
+      fs.mkdirSync(path.join(skillsDir, "my-skill"));
+      fs.writeFileSync(path.join(skillsDir, "my-skill", "SKILL.md"), "# Skill");
 
-      // Run init in child directory
-      await initMain({
-        installDir: path.join(childDir, ".claude"),
-        nonInteractive: true,
-      });
+      await initMain({ installDir: tempDir, nonInteractive: true });
 
-      // Verify note was called with warning content
-      expect(clack.note).toHaveBeenCalledTimes(1);
-      const noteContent = vi.mocked(clack.note).mock.calls[0][0];
-      const noteTitle = vi.mocked(clack.note).mock.calls[0][1];
-
-      // Title should be "Warning"
-      expect(noteTitle).toBe("Warning");
-
-      // Content should mention the ancestor path
-      expect(noteContent).toContain(parentDir);
-
-      // Content should explain the issue and provide guidance
-      expect(noteContent).toContain("duplicate");
-      expect(noteContent).toContain("conflicting");
+      // Verify that NO profile was captured (config should not have a profile set)
+      const CONFIG_PATH = getConfigPath();
+      const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
+      expect(config.activeSkillset).toBeUndefined();
     });
 
-    it("should not show ancestor warning note for source-only installations", async () => {
-      // Create parent directory with only a source installation (no managed CLAUDE.md)
-      const parentDir = path.join(tempDir, "parent");
-      const childDir = path.join(parentDir, "child");
-      fs.mkdirSync(childDir, { recursive: true });
+    it("should create .nori-managed marker after init with captured profile", async () => {
+      // Create existing Claude Code config to trigger capture
+      const claudeMdPath = path.join(TEST_CLAUDE_DIR, "CLAUDE.md");
+      fs.writeFileSync(claudeMdPath, "# My Custom Config\n\nSome content");
 
-      // Create only .nori-config.json in parent (source-only, no managed block)
+      await initMain({ installDir: tempDir, nonInteractive: true });
+
+      // Verify .nori-managed marker was created at the real install dir
+      // markInstall uses path.join(installDir, ".claude") directly
+      const markerPath = path.join(tempDir, ".claude", ".nori-managed");
+      expect(fs.existsSync(markerPath)).toBe(true);
+      expect(fs.readFileSync(markerPath, "utf-8")).toBe("my-profile");
+    });
+
+    it("should create .nori-managed marker after init without captured profile", async () => {
+      // No existing config - just a plain init
+      await initMain({ installDir: tempDir, nonInteractive: true });
+
+      // Verify .nori-managed marker was created at the real install dir
+      const markerPath = path.join(tempDir, ".claude", ".nori-managed");
+      expect(fs.existsSync(markerPath)).toBe(true);
+      expect(fs.readFileSync(markerPath, "utf-8")).toBe("");
+    });
+  });
+
+  describe("default agent usage", () => {
+    it("should respect defaultAgents config when checking for existing installations", async () => {
+      const CONFIG_PATH = getConfigPath();
+
+      // Set defaultAgents in config with claude-code already installed
+      const realClaudeDir = path.join(tempDir, ".claude");
+      fs.mkdirSync(realClaudeDir, { recursive: true });
+      fs.writeFileSync(path.join(realClaudeDir, ".nori-managed"), "senior-swe");
+
+      const existingConfig = {
+        defaultAgents: ["claude-code"],
+        activeSkillset: "senior-swe",
+        auth: {
+          username: "test@example.com",
+          organizationUrl: "https://example.tilework.tech",
+        },
+        installDir: tempDir,
+      };
+      fs.writeFileSync(CONFIG_PATH, JSON.stringify(existingConfig, null, 2));
+
+      // Create unmanaged config that would trigger capture if detection ran
       fs.writeFileSync(
-        path.join(parentDir, ".nori-config.json"),
-        JSON.stringify({ version: "19.0.0" }),
+        path.join(TEST_CLAUDE_DIR, "CLAUDE.md"),
+        "# My Custom Config",
       );
 
-      // Run init in child directory
-      await initMain({
-        installDir: path.join(childDir, ".claude"),
-        nonInteractive: true,
-      });
+      await initMain({ installDir: tempDir, nonInteractive: true });
 
-      // Verify note was NOT called
-      expect(clack.note).not.toHaveBeenCalled();
+      // Since default agent is already installed, no capture should happen
+      // and existing profile should be preserved
+      const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
+      expect(config.activeSkillset).toBe("senior-swe");
     });
   });
 

@@ -1,5 +1,5 @@
 /**
- * Configuration management for Nori Profiles installer
+ * Configuration management for Nori Skillsets installer
  * Functional library for loading and managing disk-based configuration
  */
 
@@ -39,39 +39,24 @@ export type AuthCredentials = {
 };
 
 /**
- * Agent-specific configuration
- */
-export type AgentConfig = {
-  profile?: { baseProfile: string } | null;
-};
-
-/**
- * Valid agent names for configuration.
- * Only "claude-code" is currently supported.
- */
-export type ConfigAgentName = "claude-code";
-
-/**
- * Unified configuration type for Nori Profiles
+ * Unified configuration type for Nori Skillsets
  * Contains all persisted fields from disk plus required installDir
- *
- * Note: Installed agents are derived from the keys of the `agents` object.
- * Use `getInstalledAgents({ config })` to get the list of installed agents.
  */
 export type Config = {
   auth?: AuthCredentials | null;
   sendSessionTranscript?: "enabled" | "disabled" | null;
   autoupdate?: "enabled" | "disabled" | null;
   installDir: string;
-  /**
-   * Per-agent configuration settings. Keys indicate which agents are installed.
-   * Note: Only "claude-code" is currently a valid agent name.
-   */
-  agents?: { [key in ConfigAgentName]?: AgentConfig } | null;
+  /** Default agents for CLI operations (set via `nori-skillsets config`) */
+  defaultAgents?: Array<string> | null;
+  /** The currently active skillset, shared across all agents */
+  activeSkillset?: string | null;
   /** Installed version of Nori */
   version?: string | null;
   /** Organization ID for transcript uploads (e.g., "myorg" -> https://myorg.noriskillsets.dev) */
   transcriptDestination?: string | null;
+  /** Whether to delete transcript files after successful upload */
+  garbageCollectTranscripts?: "enabled" | "disabled" | null;
 };
 
 /**
@@ -97,76 +82,25 @@ type RawDiskConfig = {
   // Common fields
   sendSessionTranscript?: "enabled" | "disabled" | null;
   autoupdate?: "enabled" | "disabled" | null;
-  // Legacy profile field - kept for reading old configs (not written anymore)
-  profile?: { baseProfile?: string | null } | null;
   installDir?: string | null;
-  agents?: { [key in ConfigAgentName]?: AgentConfig } | null;
+  defaultAgents?: Array<string> | null;
+  // Current format
+  activeSkillset?: string | null;
   version?: string | null;
   // Transcript upload destination org ID
   transcriptDestination?: string | null;
+  // Garbage collect transcripts after upload
+  garbageCollectTranscripts?: "enabled" | "disabled" | null;
 };
 
 /**
- * Get the path to the config file for a given install directory
- * Returns ~/.nori-config.json when no installDir provided (user-global config)
- * Returns $installDir/.nori-config.json when installDir provided (project-local config)
- *
- * @param args - Optional configuration arguments
- * @param args.installDir - Installation directory (null/undefined for user-global config)
+ * Get the path to the config file
+ * Always returns ~/.nori-config.json
  *
  * @returns The absolute path to the config file
  */
-export const getConfigPath = (args?: {
-  installDir?: string | null;
-}): string => {
-  const baseDir = args?.installDir ?? getHomeDir();
-  return path.join(baseDir, ".nori-config.json");
-};
-
-/**
- * Find the config file by searching upward from a starting directory
- * Searches current directory, then ancestors, falling back to ~/.nori-config.json
- *
- * @param args - Optional configuration arguments
- * @param args.startDir - Directory to start searching from (defaults to process.cwd())
- *
- * @returns The path to the found config file, or ~/.nori-config.json if none found
- */
-export const findConfigPath = async (args?: {
-  startDir?: string | null;
-}): Promise<string> => {
-  const startDir = args?.startDir ?? process.cwd();
-  const homeDir = getHomeDir();
-
-  let currentDir = startDir;
-  let previousDir = "";
-
-  // Search upward from startDir
-  while (currentDir !== previousDir) {
-    const configPath = path.join(currentDir, ".nori-config.json");
-    try {
-      await fs.access(configPath);
-      return configPath;
-    } catch {
-      // Config doesn't exist here, continue searching
-    }
-
-    previousDir = currentDir;
-    currentDir = path.dirname(currentDir);
-  }
-
-  // Fall back to user-global config
-  return path.join(homeDir, ".nori-config.json");
-};
-
-/**
- * Get default profile
- * @returns Default profile (senior-swe)
- */
-export const getDefaultProfile = (): { baseProfile: string } => {
-  return {
-    baseProfile: "senior-swe",
-  };
+export const getConfigPath = (): string => {
+  return path.join(getHomeDir(), ".nori-config.json");
 };
 
 /**
@@ -239,61 +173,53 @@ export const getRegistryAuth = (args: {
 };
 
 /**
- * Get list of installed agents from config
- * Derives installed agents from the keys of the agents object
- * Returns ['claude-code'] by default for backwards compatibility with older configs
+ * Get the currently active skillset from config
  * @param args - Configuration arguments
- * @param args.config - The config to check
+ * @param args.config - The config to read
  *
- * @returns Array of installed agent names
+ * @returns The active skillset name or null if not set
  */
-export const getInstalledAgents = (args: { config: Config }): Array<string> => {
+export const getActiveSkillset = (args: { config: Config }): string | null => {
   const { config } = args;
-  const agents = Object.keys(config.agents ?? {});
-  return agents.length > 0 ? agents : ["claude-code"];
+  return config.activeSkillset ?? null;
 };
 
 /**
- * Get the profile for a specific agent
- * @param args - Configuration arguments
- * @param args.config - The config to search
- * @param args.agentName - The agent name to get profile for
+ * Get all default agent names for CLI operations
+ * Resolution order: agentOverride as single-element array > config.defaultAgents > ["claude-code"]
  *
- * @returns The agent's profile or null if not found
+ * @param args - Configuration arguments
+ * @param args.config - The config to read defaultAgents from
+ * @param args.agentOverride - Explicit agent name override (e.g., from --agent CLI flag)
+ *
+ * @returns Array of resolved agent names
  */
-export const getAgentProfile = (args: {
-  config: Config;
-  agentName: ConfigAgentName;
-}): { baseProfile: string } | null => {
-  const { config, agentName } = args;
+export const getDefaultAgents = (args: {
+  config?: Config | null;
+  agentOverride?: string | null;
+}): Array<string> => {
+  const { config, agentOverride } = args;
 
-  if (config.agents == null) {
-    return null;
+  if (agentOverride != null && agentOverride !== "") {
+    return [agentOverride];
   }
 
-  const agentConfig = config.agents[agentName];
-  if (agentConfig?.profile != null) {
-    return agentConfig.profile;
+  if (config?.defaultAgents != null && config.defaultAgents.length > 0) {
+    return config.defaultAgents;
   }
 
-  return null;
+  return ["claude-code"];
 };
 
 /**
  * Load existing configuration from disk
  * Uses JSON schema validation for strict type checking.
- * Searches upward from startDir to find the nearest config file,
- * falling back to ~/.nori-config.json if none found.
- *
- * @param args - Optional configuration arguments
- * @param args.startDir - Directory to start searching from (defaults to process.cwd())
+ * Always reads from ~/.nori-config.json.
  *
  * @returns The config if valid, null otherwise
  */
-export const loadConfig = async (args?: {
-  startDir?: string | null;
-}): Promise<Config | null> => {
-  const configPath = await findConfigPath({ startDir: args?.startDir });
+export const loadConfig = async (): Promise<Config | null> => {
+  const configPath = getConfigPath();
 
   try {
     await fs.access(configPath);
@@ -330,10 +256,12 @@ export const loadConfig = async (args?: {
     const result: Config = {
       auth: null,
       installDir: validated.installDir ?? getHomeDir(),
+      defaultAgents: validated.defaultAgents,
       sendSessionTranscript: validated.sendSessionTranscript,
       autoupdate: validated.autoupdate,
       version: validated.version,
       transcriptDestination: validated.transcriptDestination,
+      garbageCollectTranscripts: validated.garbageCollectTranscripts,
     };
 
     // Build auth - handle both nested format (v19+) and flat format (legacy)
@@ -365,22 +293,14 @@ export const loadConfig = async (args?: {
       };
     }
 
-    // Set agents if present, or convert legacy profile to agents.claude-code
-    if (validated.agents != null) {
-      result.agents = validated.agents;
-    } else if (validated.profile?.baseProfile != null) {
-      // Convert legacy profile to agents.claude-code for backwards compat
-      result.agents = {
-        "claude-code": {
-          profile: { baseProfile: validated.profile.baseProfile },
-        },
-      };
+    if (validated.activeSkillset != null) {
+      result.activeSkillset = validated.activeSkillset;
     }
 
     // Return result if we have meaningful config data
     if (
       result.auth != null ||
-      result.agents != null ||
+      result.activeSkillset != null ||
       result.sendSessionTranscript != null
     ) {
       return result;
@@ -402,11 +322,13 @@ export const loadConfig = async (args?: {
  * @param args.sendSessionTranscript - Session transcript setting (null to skip)
  * @param args.autoupdate - Autoupdate setting (null to skip)
  * @param args.installDir - Installation directory
- * @param args.agents - Per-agent configuration settings (null to skip). Keys indicate installed agents.
+ * @param args.activeSkillset - The currently active skillset name (null to skip)
  * @param args.version - Installed version of Nori (null to skip)
  * @param args.organizations - List of organizations the user has access to (null to skip)
  * @param args.isAdmin - Whether the user is an admin for their organization (null to skip)
  * @param args.transcriptDestination - Organization ID for transcript uploads (null to skip)
+ * @param args.defaultAgents - Default agent names for CLI operations (null to skip)
+ * @param args.garbageCollectTranscripts - Whether to delete transcripts after upload (null to skip)
  */
 export const saveConfig = async (args: {
   username: string | null;
@@ -417,9 +339,11 @@ export const saveConfig = async (args: {
   isAdmin?: boolean | null;
   sendSessionTranscript?: "enabled" | "disabled" | null;
   autoupdate?: "enabled" | "disabled" | null;
-  agents?: { [key in ConfigAgentName]?: AgentConfig } | null;
+  activeSkillset?: string | null;
   version?: string | null;
+  defaultAgents?: Array<string> | null;
   transcriptDestination?: string | null;
+  garbageCollectTranscripts?: "enabled" | "disabled" | null;
   installDir: string;
 }): Promise<void> => {
   const {
@@ -431,9 +355,11 @@ export const saveConfig = async (args: {
     isAdmin,
     sendSessionTranscript,
     autoupdate,
-    agents,
+    activeSkillset,
     version,
+    defaultAgents,
     transcriptDestination,
+    garbageCollectTranscripts,
     installDir,
   } = args;
   const configPath = getConfigPath();
@@ -460,9 +386,9 @@ export const saveConfig = async (args: {
     };
   }
 
-  // Add agents if provided
-  if (agents != null) {
-    config.agents = agents;
+  // Add activeSkillset if provided
+  if (activeSkillset != null) {
+    config.activeSkillset = activeSkillset;
   }
 
   // Add sendSessionTranscript if provided
@@ -483,6 +409,16 @@ export const saveConfig = async (args: {
   // Add transcriptDestination if provided
   if (transcriptDestination != null) {
     config.transcriptDestination = transcriptDestination;
+  }
+
+  // Add defaultAgents if provided
+  if (defaultAgents != null) {
+    config.defaultAgents = defaultAgents;
+  }
+
+  // Add garbageCollectTranscripts if provided
+  if (garbageCollectTranscripts != null) {
+    config.garbageCollectTranscripts = garbageCollectTranscripts;
   }
 
   // Always save installDir
@@ -535,30 +471,19 @@ const configSchema = {
       enum: ["enabled", "disabled"],
       default: "disabled",
     },
-    // Legacy profile field - kept for reading old configs (not written anymore)
-    profile: {
-      type: ["object", "null"],
-      properties: {
-        baseProfile: { type: "string" },
-      },
-    },
     installDir: { type: "string" },
-    agents: {
-      type: "object",
-      additionalProperties: {
-        type: "object",
-        properties: {
-          profile: {
-            type: ["object", "null"],
-            properties: {
-              baseProfile: { type: "string" },
-            },
-          },
-        },
-      },
+    defaultAgents: {
+      type: ["array", "null"],
+      items: { type: "string" },
     },
+    // Current active skillset field
+    activeSkillset: { type: "string" },
     version: { type: "string" },
     transcriptDestination: { type: "string" },
+    garbageCollectTranscripts: {
+      type: "string",
+      enum: ["enabled", "disabled"],
+    },
   },
   additionalProperties: false,
 };

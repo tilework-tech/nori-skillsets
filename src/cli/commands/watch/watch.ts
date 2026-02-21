@@ -28,7 +28,7 @@ import {
   waitForWatcherReady,
   type WatcherInstance,
 } from "@/cli/commands/watch/watcher.js";
-import { loadConfig, saveConfig } from "@/cli/config.js";
+import { loadConfig, saveConfig, getDefaultAgents } from "@/cli/config.js";
 import { getHomeDir } from "@/utils/home.js";
 
 /**
@@ -48,8 +48,9 @@ const EXPIRE_THRESHOLD_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Scan interval in milliseconds - how often to scan for stale transcripts
+ * Files need to be 30s stale before upload, so 60s scan interval is sufficient
  */
-const SCAN_INTERVAL_MS = 10000;
+const SCAN_INTERVAL_MS = 60000;
 
 /**
  * Log stream for daemon mode
@@ -86,6 +87,11 @@ let projectsWatcher: WatcherInstance | null = null;
  * Current transcript destination org ID
  */
 let transcriptOrgId: string | null = null;
+
+/**
+ * Whether to garbage collect (delete) transcripts after successful upload
+ */
+let garbageCollectEnabled = false;
 
 /**
  * Transcript registry for tracking uploaded transcripts
@@ -213,48 +219,42 @@ const handleFileEvent = async (args: {
 };
 
 /**
- * Compute MD5 hash of file content
- *
- * @param args - Configuration arguments
- * @param args.filePath - Path to the file to hash
- *
- * @returns MD5 hash as hex string, or null if file can't be read
+ * Result of extracting file metadata
  */
-const computeFileHash = async (args: {
-  filePath: string;
-}): Promise<string | null> => {
-  const { filePath } = args;
-
-  try {
-    const content = await fs.readFile(filePath);
-    return createHash("md5").update(content).digest("hex");
-  } catch {
-    return null;
-  }
+type FileMetadata = {
+  sessionId: string | null;
+  fileHash: string | null;
 };
 
 /**
- * Extract sessionId from transcript file content
+ * Extract sessionId and compute hash from a transcript file in a single read
  *
  * @param args - Configuration arguments
  * @param args.filePath - Path to the transcript file
  *
- * @returns Session ID or null if not found
+ * @returns Object containing sessionId and fileHash, both null if file can't be read
  */
-const extractSessionIdFromFile = async (args: {
+const extractFileMetadata = async (args: {
   filePath: string;
-}): Promise<string | null> => {
+}): Promise<FileMetadata> => {
   const { filePath } = args;
 
   try {
-    const content = await fs.readFile(filePath, "utf-8");
-    // Match UUID format sessionId
+    const content = await fs.readFile(filePath);
+
+    // Compute hash from buffer
+    const fileHash = createHash("md5").update(content).digest("hex");
+
+    // Extract sessionId from content as string
+    const contentStr = content.toString("utf-8");
     const regex =
       /"sessionId"\s*:\s*"([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})"/;
-    const match = content.match(regex);
-    return match ? match[1] : null;
+    const match = contentStr.match(regex);
+    const sessionId = match ? match[1] : null;
+
+    return { sessionId, fileHash };
   } catch {
-    return null;
+    return { sessionId: null, fileHash: null };
   }
 };
 
@@ -314,8 +314,8 @@ const scanForStaleTranscripts = async (): Promise<void> => {
         continue;
       }
 
-      // Extract sessionId
-      const sessionId = await extractSessionIdFromFile({
+      // Extract sessionId and compute hash in a single read
+      const { sessionId, fileHash } = await extractFileMetadata({
         filePath: transcriptPath,
       });
 
@@ -323,9 +323,6 @@ const scanForStaleTranscripts = async (): Promise<void> => {
         await log(`Skipping stale file (no sessionId): ${transcriptPath}`);
         continue;
       }
-
-      // Compute file hash
-      const fileHash = await computeFileHash({ filePath: transcriptPath });
 
       if (fileHash == null) {
         await log(`Skipping stale file (can't hash): ${transcriptPath}`);
@@ -358,13 +355,23 @@ const scanForStaleTranscripts = async (): Promise<void> => {
 
         if (uploaded) {
           // Mark as uploaded in registry
-          // Note: The file may already be deleted by processTranscriptForUpload at this point
-          // If marking fails, log warning but don't fail - the upload did succeed
           try {
             registry.markUploaded({ sessionId, fileHash, transcriptPath });
             await log(
               `Successfully uploaded stale transcript: ${transcriptPath}`,
             );
+
+            // Garbage collect (delete) the transcript file if enabled
+            if (garbageCollectEnabled) {
+              try {
+                await fs.unlink(transcriptPath);
+                await log(`Garbage collected transcript: ${transcriptPath}`);
+              } catch (deleteErr) {
+                await log(
+                  `Warning: Failed to garbage collect transcript ${transcriptPath}: ${deleteErr}`,
+                );
+              }
+            }
           } catch (registryErr) {
             await log(
               `Warning: Upload succeeded but failed to update registry: ${registryErr}`,
@@ -450,9 +457,10 @@ export const cleanupWatch = async (args?: {
     signalHandler = null;
   }
 
-  // Reset shutdown flag and transcript destination for next run (important for tests)
+  // Reset shutdown flag, transcript destination, and garbage collect for next run (important for tests)
   isShuttingDown = false;
   transcriptOrgId = null;
+  garbageCollectEnabled = false;
 
   if (exitProcess) {
     process.exit(0);
@@ -460,21 +468,20 @@ export const cleanupWatch = async (args?: {
 };
 
 /**
- * Save transcript destination to config if changed
+ * Save watch settings to config
  *
  * @param args - Configuration arguments
  * @param args.org - Organization ID to save
+ * @param args.garbageCollect - Whether to garbage collect transcripts after upload
  * @param args.installDir - Installation directory for config
  */
-const saveTranscriptDestination = async (args: {
+const saveWatchSettings = async (args: {
   org: string;
+  garbageCollect: "enabled" | "disabled";
   installDir: string;
 }): Promise<void> => {
-  const { org, installDir } = args;
-  const config = await loadConfig({ startDir: getHomeDir() });
-  if (org === config?.transcriptDestination) {
-    return;
-  }
+  const { org, garbageCollect, installDir } = args;
+  const config = await loadConfig();
   await saveConfig({
     username: config?.auth?.username ?? null,
     password: config?.auth?.password ?? null,
@@ -484,9 +491,10 @@ const saveTranscriptDestination = async (args: {
     isAdmin: config?.auth?.isAdmin ?? null,
     sendSessionTranscript: config?.sendSessionTranscript ?? null,
     autoupdate: config?.autoupdate ?? null,
-    agents: config?.agents ?? null,
+    activeSkillset: config?.activeSkillset ?? null,
     version: config?.version ?? null,
     transcriptDestination: org,
+    garbageCollectTranscripts: garbageCollect,
     installDir,
   });
 };
@@ -541,9 +549,13 @@ export const watchMain = async (args?: {
   _background?: boolean | null;
   setDestination?: boolean | null;
 }): Promise<void> => {
-  const agent = args?.agent ?? "claude-code";
   const _background = args?._background ?? false;
   const setDestination = args?.setDestination ?? false;
+
+  // Resolve agent from config defaultAgents, with --agent as override
+  const agentOverride = args?.agent ?? null;
+  const resolvedConfig = await loadConfig();
+  const agent = getDefaultAgents({ config: resolvedConfig, agentOverride })[0];
 
   const homeDir = process.env.HOME ?? "";
   const installDir = homeDir; // Config is at ~/.nori-config.json (home dir is base)
@@ -562,18 +574,19 @@ export const watchMain = async (args?: {
             await watchStopMain({ quiet: true });
           }
 
-          const config = await loadConfig({ startDir: getHomeDir() });
+          const config = await loadConfig();
           const userOrgs = config?.auth?.organizations ?? [];
           const privateOrgs = userOrgs.filter((org) => org !== "public");
 
           return {
             privateOrgs,
             currentDestination: config?.transcriptDestination ?? null,
+            currentGarbageCollect: config?.garbageCollectTranscripts ?? null,
             isRunning: running,
           };
         },
-        onStartDaemon: async ({ org }) => {
-          await saveTranscriptDestination({ org, installDir });
+        onStartDaemon: async ({ org, garbageCollect }) => {
+          await saveWatchSettings({ org, garbageCollect, installDir });
 
           // Ensure log directory exists before spawning
           await fs.mkdir(path.dirname(logFile), { recursive: true });
@@ -603,10 +616,11 @@ export const watchMain = async (args?: {
   // Reset shutdown flag
   isShuttingDown = false;
 
-  // Load config to get saved transcript destination
+  // Load config to get saved transcript destination and garbage collect preference
   // Use getHomeDir() as startDir since watch is home-directory-based
-  const config = await loadConfig({ startDir: getHomeDir() });
+  const config = await loadConfig();
   transcriptOrgId = config?.transcriptDestination ?? null;
+  garbageCollectEnabled = config?.garbageCollectTranscripts === "enabled";
 
   const pidFile = getWatchPidFile();
 

@@ -9,7 +9,6 @@ import { type CliName } from "@/cli/commands/cliCommandNames.js";
 import { loadConfig, type Config } from "@/cli/config.js";
 import { getCurrentPackageVersion } from "@/cli/version.js";
 import { getHomeDir } from "@/utils/home.js";
-import { getInstallDirs } from "@/utils/path.js";
 
 const DEFAULT_ANALYTICS_URL = "https://noriskillsets.dev/api/analytics/track";
 const INSTALL_STATE_SCHEMA_VERSION = 1;
@@ -209,14 +208,12 @@ export const sendAnalyticsEvent = (args: {
 
 /**
  * Load config for analytics without failing.
- * Uses getHomeDir() since analytics needs global auth credentials.
+ * Config is at a fixed path (~/.nori-config.json), no need for CWD detection.
  * @returns Config or null if not found
  */
 const loadConfigForAnalytics = async (): Promise<Config | null> => {
   try {
-    const installations = getInstallDirs({ currentDir: process.cwd() });
-    if (installations.length === 0) return null;
-    return await loadConfig({ startDir: getHomeDir() });
+    return await loadConfig();
   } catch {
     return null;
   }
@@ -275,8 +272,8 @@ export const buildCLIEventParams = async (args?: {
         )
       : 0;
 
-  // Get profile from config (only claude-code is supported)
-  const profile = config?.agents?.["claude-code"]?.profile?.baseProfile ?? null;
+  // Get skillset from config (only claude-code is supported)
+  const skillset = config?.activeSkillset ?? null;
 
   // Determine install type
   const installType: "authenticated" | "unauthenticated" =
@@ -289,7 +286,7 @@ export const buildCLIEventParams = async (args?: {
     tilework_cli_install_source: state?.install_source ?? getInstallSource(),
     tilework_cli_days_since_install: daysSinceInstall,
     tilework_cli_node_version: process.versions.node,
-    tilework_cli_profile: profile,
+    tilework_cli_profile: skillset,
     tilework_cli_install_type: installType,
   };
 };
