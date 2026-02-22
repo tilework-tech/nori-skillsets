@@ -208,10 +208,12 @@ describe("cursorAgent.detectLocalChanges", () => {
     expect(diff).toBeNull();
   });
 
-  it("should return diff when managed files have been modified", async () => {
+  it("should detect modifications to root-level AGENTS.md", async () => {
     const agentDir = cursorAgent.getAgentDir({ installDir: testInstallDir });
     await fsPromises.mkdir(agentDir, { recursive: true });
-    const agentsMdPath = path.join(agentDir, "AGENTS.md");
+
+    // AGENTS.md is at the project root, not inside .cursor/
+    const agentsMdPath = path.join(testInstallDir, "AGENTS.md");
     await fsPromises.writeFile(agentsMdPath, "# Original content");
 
     const { computeFileHash, writeManifest, getManifestPath } =
@@ -228,7 +230,7 @@ describe("cursorAgent.detectLocalChanges", () => {
       },
     });
 
-    // Modify the file
+    // Modify the root-level file
     await fsPromises.writeFile(agentsMdPath, "# Modified content");
 
     const diff = await cursorAgent.detectLocalChanges({
@@ -256,19 +258,30 @@ describe("cursorAgent.removeSkillset", () => {
     }
   });
 
-  it("should remove managed files and manifest", async () => {
+  it("should remove managed files, root AGENTS.md, and manifest", async () => {
     const agentDir = cursorAgent.getAgentDir({ installDir: testInstallDir });
     await fsPromises.mkdir(agentDir, { recursive: true });
-    await fsPromises.writeFile(path.join(agentDir, "AGENTS.md"), "# Config");
+
+    // Create root-level AGENTS.md (where Cursor reads it)
+    const rootAgentsMd = path.join(testInstallDir, "AGENTS.md");
+    await fsPromises.writeFile(rootAgentsMd, "# Config");
     await fsPromises.writeFile(
       path.join(agentDir, ".nori-managed"),
       "test-skillset",
     );
 
+    // Create a skill file inside .cursor/ to verify managed dirs are cleaned
+    const skillsDir = path.join(agentDir, "skills", "test-skill");
+    await fsPromises.mkdir(skillsDir, { recursive: true });
+    await fsPromises.writeFile(
+      path.join(skillsDir, "SKILL.md"),
+      "# Test skill",
+    );
+
     const { computeFileHash, writeManifest, getManifestPath } =
       await import("@/cli/features/manifest.js");
-    const hash = await computeFileHash({
-      filePath: path.join(agentDir, "AGENTS.md"),
+    const skillHash = await computeFileHash({
+      filePath: path.join(skillsDir, "SKILL.md"),
     });
     const manifestPath = getManifestPath({ agentName: cursorAgent.name });
     await writeManifest({
@@ -277,18 +290,21 @@ describe("cursorAgent.removeSkillset", () => {
         version: 1,
         createdAt: new Date().toISOString(),
         skillsetName: "test-skillset",
-        files: { "AGENTS.md": hash },
+        files: {
+          "skills/test-skill/SKILL.md": skillHash,
+        },
       },
     });
 
     await cursorAgent.removeSkillset({ installDir: testInstallDir });
 
-    await expect(
-      fsPromises.access(path.join(agentDir, "AGENTS.md")),
-    ).rejects.toThrow();
+    // Root-level AGENTS.md should be cleaned up
+    await expect(fsPromises.access(rootAgentsMd)).rejects.toThrow();
+    // .nori-managed marker should be gone
     await expect(
       fsPromises.access(path.join(agentDir, ".nori-managed")),
     ).rejects.toThrow();
+    // Manifest should be gone
     await expect(fsPromises.access(manifestPath)).rejects.toThrow();
   });
 
@@ -369,7 +385,7 @@ describe("cursorAgent.installSkillset", () => {
     await expect(fsPromises.access(manifestPath)).resolves.not.toThrow();
   });
 
-  it("should produce AGENTS.md file with skillset instructions", async () => {
+  it("should produce AGENTS.md at project root with skillset instructions", async () => {
     // Create a skillset at the mocked profiles path
     const skillsetDir = path.join(TEST_NORI_DIR, "profiles", "test-skillset");
     await fsPromises.mkdir(skillsetDir, { recursive: true });
@@ -403,11 +419,16 @@ describe("cursorAgent.installSkillset", () => {
 
     await cursorAgent.installSkillset({ config });
 
-    // AGENTS.md should exist and contain the managed block
-    const agentsMdPath = path.join(agentDir, "AGENTS.md");
+    // AGENTS.md should be at the project root (installDir), NOT inside .cursor/
+    const agentsMdPath = path.join(testInstallDir, "AGENTS.md");
     const content = await fsPromises.readFile(agentsMdPath, "utf-8");
     expect(content).toContain("BEGIN NORI-AI MANAGED BLOCK");
     expect(content).toContain("My coding instructions");
     expect(content).toContain("END NORI-AI MANAGED BLOCK");
+
+    // Verify it's NOT inside .cursor/
+    await expect(
+      fsPromises.access(path.join(agentDir, "AGENTS.md")),
+    ).rejects.toThrow();
   });
 });

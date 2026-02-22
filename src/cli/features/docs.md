@@ -75,6 +75,7 @@ The init command (@/src/cli/commands/init/) uses `getDefaultAgent()` from @/src/
 **Agent Interface** (agentRegistry.ts):
 - `name`: `AgentName` - canonical identifier used as the registry key ("claude-code")
 - `displayName`: Human-readable name ("Claude Code")
+- `description`: Short string describing which skillset features the agent supports (e.g., "Instructions, skills, subagents, commands, hooks, statusline" for Claude Code). Surfaced as a hint in the config multiselect UI at @/src/cli/prompts/flows/config.ts.
 - `getAgentDir({ installDir })`: Returns the absolute path to this agent's config directory under the given install directory. Each agent declares its own directory (e.g., claude-code returns `{installDir}/.claude/`). Used by shared modules that need to locate agent-specific paths without importing agent internals.
 - `getSkillsDir({ installDir })`: Returns the absolute path to this agent's skills directory under the given install directory (e.g., claude-code returns `{installDir}/.claude/skills/`).
 - `getConfigFileName()`: Returns the filename of the agent's root configuration file (e.g., claude-code returns `"CLAUDE.md"`). Used by `parseSkillset()` to resolve which config file to look for in a skillset directory, allowing callers to pass `agent.getConfigFileName()` instead of hardcoding a filename.

@@ -51,6 +51,7 @@ import type { Agent } from "@/cli/features/agentRegistry.js";
 export const claudeCodeAgent: Agent = {
   name: "claude-code",
   displayName: "Claude Code",
+  description: "Instructions, skills, subagents, commands, hooks, statusline",
 
   getAgentDir: (args: { installDir: string }): string => {
     const { installDir } = args;

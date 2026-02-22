@@ -27,12 +27,27 @@
 - Updated `src/cli/features/docs.md` to reflect both agents
 - Created `src/cli/features/cursor-agent/docs.md`
 
-## Not Yet Implemented
+### AGENTS.md placement fix
+- Fixed `getCursorAgentsMdFile()` to return `{installDir}/AGENTS.md` (project root) instead of `{installDir}/.cursor/AGENTS.md`
+- Cursor reads AGENTS.md from the project root, not from inside `.cursor/`
+- `getManagedFiles()` now returns `[]` since AGENTS.md is outside the `.cursor/` agent directory
+- Root-level AGENTS.md is explicitly tracked in the manifest during `installSkillset`
+- Root-level AGENTS.md is explicitly checked during `detectLocalChanges`
+- Root-level AGENTS.md is explicitly deleted during `removeSkillset`
 
-### Config command multi-agent selection UI
-- The config flow already supports multi-select for agents (it reads from AgentRegistry)
-- The cursor-agent will appear automatically in the selection
-- No code changes needed — the existing config flow handles it
+### Agent description property and config UI hints
+- Added `description: string` to the `Agent` type interface
+- Claude Code: `"Instructions, skills, subagents, commands, hooks, statusline"`
+- Cursor: `"Instructions, skills, subagents, commands"`
+- Config multiselect now passes `hint: agent.description` so users see supported features
+- Updated `ConfigFlowCallbacks.onResolveAgents` return type to include `description`
+
+### Tests updated (55 tests, all passing)
+- Updated `paths.test.ts` to verify AGENTS.md at project root
+- Updated `agent.test.ts` to verify AGENTS.md placement, removal, and change detection at root
+- Added agent description test in `agentRegistry.test.ts`
+
+## Not Yet Implemented
 
 ### Features NOT included (by design)
 - No hooks loader (Cursor doesn't support Claude Code-style hooks)

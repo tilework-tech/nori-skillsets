@@ -72,6 +72,8 @@ export type Agent = {
   name: AgentName;
   /** Human-readable name, e.g., "Claude Code" */
   displayName: string;
+  /** Short description of supported skillset features for this agent */
+  description: string;
   /** Get the agent's config directory under the install directory */
   getAgentDir: (args: { installDir: string }) => string;
   /** Get the filename of the agent's root config file (e.g. "CLAUDE.md") */

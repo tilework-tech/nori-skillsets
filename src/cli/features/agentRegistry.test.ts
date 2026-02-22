@@ -119,6 +119,18 @@ describe("AgentRegistry", () => {
     });
   });
 
+  describe("agent description", () => {
+    test("every registered agent has a non-empty description", () => {
+      const registry = AgentRegistry.getInstance();
+      for (const name of registry.list()) {
+        const agent = registry.get({ name });
+        expect(agent.description).toBeDefined();
+        expect(typeof agent.description).toBe("string");
+        expect(agent.description.length).toBeGreaterThan(0);
+      }
+    });
+  });
+
   describe("getAgentDir", () => {
     test("claude-code agent returns .claude directory under installDir", () => {
       const registry = AgentRegistry.getInstance();
