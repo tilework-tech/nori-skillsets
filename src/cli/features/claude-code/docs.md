@@ -51,4 +51,6 @@ The agent detects installation by checking for a `.nori-managed` marker file in 
 
 The `LoaderRegistry` enforces installation order: config must run before profiles because profiles depend on config state. The `switchSkillset` method on the agent validates that the target skillset exists (has `nori.json`) before updating `~/.nori-config.json`. The `installDir` parameter in `switchSkillset` is a per-invocation override (e.g., `--install-dir` CLI flag) and is intentionally not written to the config file; only `sks config installDir <path>` changes the persisted `installDir`. The `markInstall` method writes the active skillset name into the `.nori-managed` marker file.
 
+- **`switchSkillset` must explicitly pass through all config fields to `saveConfig()`**: The `saveConfig()` function in @/src/cli/config.ts only persists fields that are explicitly provided. `switchSkillset` reads the current config and passes every field back to `saveConfig()` along with the new `activeSkillset`. If a field is omitted, it is silently dropped from the config file. This includes auth fields, `defaultAgents`, `garbageCollectTranscripts`, `transcriptDestination`, `autoupdate`, `version`, and `installDir`.
+
 Created and maintained by Nori.

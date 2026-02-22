@@ -182,6 +182,29 @@ describe("cursorAgent.switchSkillset", () => {
       }),
     ).rejects.toThrow(/Profile "non-existent" not found/);
   });
+
+  it("should preserve defaultAgents and garbageCollectTranscripts when switching profiles", async () => {
+    const configFile = getConfigPath();
+    await saveConfig({
+      username: "test@example.com",
+      organizationUrl: "https://example.tilework.tech",
+      refreshToken: "test-refresh-token",
+      activeSkillset: "senior-swe",
+      defaultAgents: ["claude-code", "cursor-agent"],
+      garbageCollectTranscripts: "enabled",
+      installDir: tempDir,
+    });
+
+    await cursorAgent.switchSkillset({
+      installDir: tempDir,
+      skillsetName: "documenter",
+    });
+
+    const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
+    expect(fileContents.defaultAgents).toEqual(["claude-code", "cursor-agent"]);
+    expect(fileContents.garbageCollectTranscripts).toBe("enabled");
+    expect(fileContents.activeSkillset).toBe("documenter");
+  });
 });
 
 describe("cursorAgent.detectLocalChanges", () => {

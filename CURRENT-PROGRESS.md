@@ -47,6 +47,11 @@
 - Updated `agent.test.ts` to verify AGENTS.md placement, removal, and change detection at root
 - Added agent description test in `agentRegistry.test.ts`
 
+### Fix: switchSkillset preserves all config fields
+- Both `claudeCodeAgent.switchSkillset` and `cursorAgent.switchSkillset` now pass `defaultAgents` and `garbageCollectTranscripts` through to `saveConfig`
+- Previously these fields were silently dropped on every skillset switch, causing data loss in multi-agent setups
+- Added tests for both agents verifying config field preservation
+
 ## Not Yet Implemented
 
 ### Features NOT included (by design)

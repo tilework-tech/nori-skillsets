@@ -41,5 +41,6 @@ The `cursorAgent` object in `agent.ts` implements the `Agent` interface with the
 - The `cursorProfilesLoader` in `skillsets/loader.ts` parses the skillset using `configFileName: "CLAUDE.md"` (not `"AGENTS.md"`), because the source skillset template always contains a `CLAUDE.md`. The mapping to `AGENTS.md` happens at write time in the agentsmd loader.
 - Installation is detected solely via the `.nori-managed` marker file in `.cursor/` -- there is no backwards-compatible content-sniffing fallback like the Claude Code agent has.
 - The `switchSkillset` method preserves the persisted `installDir` from the existing config rather than accepting the `installDir` argument, matching the Claude Code agent's behavior where only `sks config installDir <path>` changes the persisted install directory.
+- **`switchSkillset` must explicitly pass through all config fields to `saveConfig()`**: The `saveConfig()` function in @/src/cli/config.ts only persists fields that are explicitly provided. `switchSkillset` reads the current config and passes every field back to `saveConfig()` along with the new `activeSkillset`. If a field is omitted, it is silently dropped from the config file. This includes auth fields, `defaultAgents`, `garbageCollectTranscripts`, `transcriptDestination`, `autoupdate`, `version`, and `installDir`.
 
 Created and maintained by Nori.

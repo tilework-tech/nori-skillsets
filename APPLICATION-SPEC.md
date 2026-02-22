@@ -1,5 +1,7 @@
 We want to add support for cursor into nori-skillsets. This should translate nori skillsets into configuration that can be supported by the cursor agent.
 
+Read through spec/agent-broadcasting/ to understand the full scope of multi-agent behavior.
+
 User Journey A: Configuration on install.
 - User downloads nori-skillsets.
 - Immediately after install, `nori-skillsets config` is run automatically without any additional user input.
@@ -28,7 +30,7 @@ User Journey C: Using the cursor agent configs.
 
 Implementation details:
 - Do extensive research on what Cursor actually supports. A skillset is composed of a claude.md, skills, subagents, and slashcommands.
-  - The CLAUDE.md should map to the AGENTS.md (https://cursor.com/docs/context/rules#agentsmd)
+  - The CLAUDE.md should map to the AGENTS.md (https://cursor.com/docs/context/rules#agentsmd). <new-update> Note that the AGENTS.md should live inside the cursor rules directory and NOT the project root, to make management easier. The existing implementation is incorrect, the 'current progress' put the agents.md into the project root and this line was added as a fix. </new-update>
   - skills/ map seamlessly to cursor skills (https://cursor.com/docs/context/skills)
   - subagents map seamlessly to cursor subagents (https://cursor.com/docs/context/subagents)
   - slashcommands map seamlessly to cursor commands (https://cursor.com/docs/context/commands)

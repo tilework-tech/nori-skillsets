@@ -323,6 +323,9 @@ export const claudeCodeAgent: Agent = {
       autoupdate: currentConfig?.autoupdate,
       version: currentConfig?.version ?? null,
       transcriptDestination: currentConfig?.transcriptDestination ?? null,
+      defaultAgents: currentConfig?.defaultAgents ?? null,
+      garbageCollectTranscripts:
+        currentConfig?.garbageCollectTranscripts ?? null,
       installDir: persistedInstallDir,
     });
 
