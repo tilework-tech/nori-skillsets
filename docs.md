@@ -33,10 +33,14 @@ The CLI entrypoint is `@/src/cli/nori-skillsets.ts`, which registers all command
 
 The build process compiles TypeScript, resolves `@/` path aliases via `tsc-alias`, and then bundles hook scripts into standalone executables using esbuild (`@/src/scripts/bundle-skills.ts`).
 
+**Publishing process:** Releases are created exclusively through the CI/CD pipeline. Developers run `@/scripts/create_skillsets_release.py` to create a git tag, which triggers the GitHub Actions workflow at `@/.github/workflows/skillsets-release.yml`. The workflow builds, tests, and publishes to npm. Direct `npm publish` is blocked by a safeguard in `@/scripts/prepublish.sh` (invoked via the `prepublishOnly` npm hook in `@/package.json`).
+
 ### Things to Know
 
 The config system supports two formats: a legacy flat format (pre-v19) with credentials at the root level, and a nested `auth: {...}` format (v19+). Both are handled transparently by `loadConfig()` in `@/src/cli/config.ts` and `ConfigManager.loadConfig()` in `@/src/api/base.ts`.
 
 The registrar API (`@/src/api/registrar.ts`) uses a fallback mechanism: requests to `/api/skillsets/` that return 404 are silently retried against `/api/profiles/` to support older registry servers. Skillset operations and skill operations use separate API endpoint paths (`/api/skillsets/` vs `/api/skills/`).
+
+The `prepublishOnly` npm hook serves as a safeguard against accidental direct publishing rather than as an active part of the release workflow. It exits with a non-zero status and instructs the user to use the proper release script.
 
 Created and maintained by Nori.
