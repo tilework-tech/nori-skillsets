@@ -6,6 +6,8 @@
 import * as fs from "fs/promises";
 import * as path from "path";
 
+import { note } from "@clack/prompts";
+
 import { type Config } from "@/cli/config.js";
 import {
   getClaudeDir,
@@ -13,6 +15,7 @@ import {
   getClaudeSettingsFile,
 } from "@/cli/features/claude-code/paths.js";
 import { substituteTemplatePaths } from "@/cli/features/template.js";
+import { bold } from "@/cli/logger.js";
 
 import type { ProfileLoader } from "@/cli/features/claude-code/skillsets/skillsetLoaderRegistry.js";
 import type { Skillset } from "@/cli/features/skillset.js";
@@ -81,6 +84,8 @@ const installSkills = async (args: {
   // Create skills directory
   await fs.mkdir(claudeSkillsDir, { recursive: true });
 
+  const installed: Array<string> = [];
+
   // Install inline skills from profile's skills/ folder
   if (configDir == null) {
     // Profile skills directory not found — continue silently
@@ -114,10 +119,20 @@ const installSkills = async (args: {
           dest: destPath,
           installDir: claudeDir,
         });
+        installed.push(entry.name);
       }
     } catch {
       // Profile skills directory not found - continue silently
     }
+  }
+
+  if (installed.length > 0) {
+    const lines = installed.map((name) => `$ ${name}`);
+    const summary = bold({
+      text: `Installed ${installed.length} skill${installed.length === 1 ? "" : "s"}`,
+    });
+    lines.push("", summary);
+    note(lines.join("\n"), "Skills");
   }
 
   // Configure permissions for skills directory

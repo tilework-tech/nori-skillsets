@@ -40,7 +40,6 @@ import {
 import { getNoriSkillsetsDir } from "@/cli/features/paths.js";
 import { parseSkillset } from "@/cli/features/skillset.js";
 import { ensureNoriJson } from "@/cli/features/skillsetMetadata.js";
-import { bold } from "@/cli/logger.js";
 import { getHomeDir } from "@/utils/home.js";
 
 import type { Agent } from "@/cli/features/agentRegistry.js";
@@ -227,7 +226,7 @@ export const claudeCodeAgent: Agent = {
       note(lines.join("\n"), "Settings");
     }
 
-    // Write manifest and emit Skills note for the active skillset
+    // Write manifest for the active skillset
     const skillsetName = getActiveSkillset({ config });
     if (skillsetName != null) {
       const agentDir = claudeCodeAgent.getAgentDir({
@@ -245,33 +244,6 @@ export const claudeCodeAgent: Agent = {
         await writeManifest({ manifestPath, manifest });
       } catch {
         // Non-fatal — manifest writing failure shouldn't block installation
-      }
-
-      // Emit Skills note from the skillset's skills directory
-      try {
-        const skillset = await parseSkillset({
-          skillsetName,
-          configFileName: claudeCodeAgent.getConfigFileName(),
-        });
-        if (skillset.skillsDir != null) {
-          const entries = await fs.readdir(skillset.skillsDir, {
-            withFileTypes: true,
-          });
-          const skillNames = entries
-            .filter((e) => e.isDirectory())
-            .map((e) => e.name)
-            .sort();
-          if (skillNames.length > 0) {
-            const skillLines = skillNames.map((name) => `$ ${name}`);
-            const summary = bold({
-              text: `Registered ${skillNames.length} agent skill${skillNames.length === 1 ? "" : "s"}`,
-            });
-            skillLines.push("", summary);
-            note(skillLines.join("\n"), "Skills");
-          }
-        }
-      } catch {
-        // Non-fatal — skill listing failure shouldn't block installation
       }
     }
 
