@@ -231,12 +231,13 @@ describe("cursorAgent.detectLocalChanges", () => {
     expect(diff).toBeNull();
   });
 
-  it("should detect modifications to root-level AGENTS.md", async () => {
+  it("should detect modifications to AGENTS.md inside .cursor/rules/", async () => {
     const agentDir = cursorAgent.getAgentDir({ installDir: testInstallDir });
-    await fsPromises.mkdir(agentDir, { recursive: true });
+    const rulesDir = path.join(agentDir, "rules");
+    await fsPromises.mkdir(rulesDir, { recursive: true });
 
-    // AGENTS.md is at the project root, not inside .cursor/
-    const agentsMdPath = path.join(testInstallDir, "AGENTS.md");
+    // AGENTS.md lives inside .cursor/rules/
+    const agentsMdPath = path.join(rulesDir, "AGENTS.md");
     await fsPromises.writeFile(agentsMdPath, "# Original content");
 
     const { computeFileHash, writeManifest, getManifestPath } =
@@ -249,18 +250,18 @@ describe("cursorAgent.detectLocalChanges", () => {
         version: 1,
         createdAt: new Date().toISOString(),
         skillsetName: "test-skillset",
-        files: { "AGENTS.md": originalHash },
+        files: { "rules/AGENTS.md": originalHash },
       },
     });
 
-    // Modify the root-level file
+    // Modify the file
     await fsPromises.writeFile(agentsMdPath, "# Modified content");
 
     const diff = await cursorAgent.detectLocalChanges({
       installDir: testInstallDir,
     });
     expect(diff).not.toBeNull();
-    expect(diff!.modified).toContain("AGENTS.md");
+    expect(diff!.modified).toContain("rules/AGENTS.md");
   });
 });
 
@@ -281,13 +282,14 @@ describe("cursorAgent.removeSkillset", () => {
     }
   });
 
-  it("should remove managed files, root AGENTS.md, and manifest", async () => {
+  it("should remove managed files, AGENTS.md in rules dir, and manifest", async () => {
     const agentDir = cursorAgent.getAgentDir({ installDir: testInstallDir });
-    await fsPromises.mkdir(agentDir, { recursive: true });
+    const rulesDir = path.join(agentDir, "rules");
+    await fsPromises.mkdir(rulesDir, { recursive: true });
 
-    // Create root-level AGENTS.md (where Cursor reads it)
-    const rootAgentsMd = path.join(testInstallDir, "AGENTS.md");
-    await fsPromises.writeFile(rootAgentsMd, "# Config");
+    // Create AGENTS.md inside .cursor/rules/
+    const agentsMdPath = path.join(rulesDir, "AGENTS.md");
+    await fsPromises.writeFile(agentsMdPath, "# Config");
     await fsPromises.writeFile(
       path.join(agentDir, ".nori-managed"),
       "test-skillset",
@@ -306,6 +308,7 @@ describe("cursorAgent.removeSkillset", () => {
     const skillHash = await computeFileHash({
       filePath: path.join(skillsDir, "SKILL.md"),
     });
+    const agentsMdHash = await computeFileHash({ filePath: agentsMdPath });
     const manifestPath = getManifestPath({ agentName: cursorAgent.name });
     await writeManifest({
       manifestPath,
@@ -315,20 +318,25 @@ describe("cursorAgent.removeSkillset", () => {
         skillsetName: "test-skillset",
         files: {
           "skills/test-skill/SKILL.md": skillHash,
+          "rules/AGENTS.md": agentsMdHash,
         },
       },
     });
 
     await cursorAgent.removeSkillset({ installDir: testInstallDir });
 
-    // Root-level AGENTS.md should be cleaned up
-    await expect(fsPromises.access(rootAgentsMd)).rejects.toThrow();
+    // AGENTS.md inside .cursor/rules/ should be cleaned up
+    await expect(fsPromises.access(agentsMdPath)).rejects.toThrow();
     // .nori-managed marker should be gone
     await expect(
       fsPromises.access(path.join(agentDir, ".nori-managed")),
     ).rejects.toThrow();
     // Manifest should be gone
     await expect(fsPromises.access(manifestPath)).rejects.toThrow();
+    // Root-level AGENTS.md should NOT exist
+    await expect(
+      fsPromises.access(path.join(testInstallDir, "AGENTS.md")),
+    ).rejects.toThrow();
   });
 
   it("should complete without error when no manifest exists", async () => {
@@ -408,7 +416,7 @@ describe("cursorAgent.installSkillset", () => {
     await expect(fsPromises.access(manifestPath)).resolves.not.toThrow();
   });
 
-  it("should produce AGENTS.md at project root with skillset instructions", async () => {
+  it("should produce AGENTS.md inside .cursor/rules/ with skillset instructions", async () => {
     // Create a skillset at the mocked profiles path
     const skillsetDir = path.join(TEST_NORI_DIR, "profiles", "test-skillset");
     await fsPromises.mkdir(skillsetDir, { recursive: true });
@@ -442,16 +450,16 @@ describe("cursorAgent.installSkillset", () => {
 
     await cursorAgent.installSkillset({ config });
 
-    // AGENTS.md should be at the project root (installDir), NOT inside .cursor/
-    const agentsMdPath = path.join(testInstallDir, "AGENTS.md");
+    // AGENTS.md should be inside .cursor/rules/
+    const agentsMdPath = path.join(agentDir, "rules", "AGENTS.md");
     const content = await fsPromises.readFile(agentsMdPath, "utf-8");
     expect(content).toContain("BEGIN NORI-AI MANAGED BLOCK");
     expect(content).toContain("My coding instructions");
     expect(content).toContain("END NORI-AI MANAGED BLOCK");
 
-    // Verify it's NOT inside .cursor/
+    // Verify it's NOT at the project root
     await expect(
-      fsPromises.access(path.join(agentDir, "AGENTS.md")),
+      fsPromises.access(path.join(testInstallDir, "AGENTS.md")),
     ).rejects.toThrow();
   });
 });

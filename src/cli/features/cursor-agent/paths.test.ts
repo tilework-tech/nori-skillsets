@@ -17,11 +17,11 @@ describe("Cursor agent paths", () => {
   });
 
   describe("getCursorAgentsMdFile", () => {
-    it("should return AGENTS.md at the project root, not inside .cursor", () => {
+    it("should return AGENTS.md inside .cursor/rules directory", () => {
       const result = getCursorAgentsMdFile({
         installDir: "/home/user/project",
       });
-      expect(result).toBe("/home/user/project/AGENTS.md");
+      expect(result).toBe("/home/user/project/.cursor/rules/AGENTS.md");
     });
   });
 

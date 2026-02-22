@@ -28,12 +28,11 @@
 - Created `src/cli/features/cursor-agent/docs.md`
 
 ### AGENTS.md placement fix
-- Fixed `getCursorAgentsMdFile()` to return `{installDir}/AGENTS.md` (project root) instead of `{installDir}/.cursor/AGENTS.md`
-- Cursor reads AGENTS.md from the project root, not from inside `.cursor/`
-- `getManagedFiles()` now returns `[]` since AGENTS.md is outside the `.cursor/` agent directory
-- Root-level AGENTS.md is explicitly tracked in the manifest during `installSkillset`
-- Root-level AGENTS.md is explicitly checked during `detectLocalChanges`
-- Root-level AGENTS.md is explicitly deleted during `removeSkillset`
+- Fixed `getCursorAgentsMdFile()` to return `{installDir}/.cursor/rules/AGENTS.md` (inside cursor rules directory)
+- Per APPLICATION-SPEC: AGENTS.md should live inside the cursor rules directory, not the project root
+- `getManagedDirs()` includes `"rules"` so the standard manifest machinery handles AGENTS.md automatically
+- Removed ~40 lines of bespoke root-level AGENTS.md handling from `detectLocalChanges`, `removeSkillset`, and `installSkillset`
+- `agentsmd/loader.ts` creates `.cursor/rules/` directory before writing AGENTS.md
 
 ### Agent description property and config UI hints
 - Added `description: string` to the `Agent` type interface
@@ -43,8 +42,8 @@
 - Updated `ConfigFlowCallbacks.onResolveAgents` return type to include `description`
 
 ### Tests updated (55 tests, all passing)
-- Updated `paths.test.ts` to verify AGENTS.md at project root
-- Updated `agent.test.ts` to verify AGENTS.md placement, removal, and change detection at root
+- Updated `paths.test.ts` to verify AGENTS.md at `.cursor/rules/AGENTS.md`
+- Updated `agent.test.ts` to verify AGENTS.md placement, removal, and change detection inside `.cursor/rules/`
 - Added agent description test in `agentRegistry.test.ts`
 
 ### Fix: switchSkillset preserves all config fields

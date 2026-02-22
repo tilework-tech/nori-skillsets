@@ -4,7 +4,7 @@ Path: @/src/cli/features/cursor-agent
 
 ### Overview
 
-The Cursor agent implementation. This directory contains the `Agent` interface implementation for Cursor IDE, along with Cursor-specific path utilities and the `CursorLoaderRegistry` that orchestrates feature installation into the `.cursor/` directory and the project root (for `AGENTS.md`). The architecture mirrors @/src/cli/features/claude-code/ but maps skillset components to Cursor's configuration format.
+The Cursor agent implementation. This directory contains the `Agent` interface implementation for Cursor IDE, along with Cursor-specific path utilities and the `CursorLoaderRegistry` that orchestrates feature installation into the `.cursor/` directory. The architecture mirrors @/src/cli/features/claude-code/ but maps skillset components to Cursor's configuration format.
 
 ### How it fits into the larger codebase
 
@@ -22,22 +22,22 @@ The `cursorAgent` object in `agent.ts` implements the `Agent` interface with the
 
 | Skillset Component | Claude Code Target | Cursor Target |
 |---|---|---|
-| `CLAUDE.md` | `.claude/CLAUDE.md` | `{installDir}/AGENTS.md` (project root) |
+| `CLAUDE.md` | `.claude/CLAUDE.md` | `.cursor/rules/AGENTS.md` |
 | `skills/` | `.claude/skills/` | `.cursor/skills/` |
 | `slashcommands/` | `.claude/commands/` | `.cursor/commands/` |
 | `subagents/` | `.claude/agents/` | `.cursor/agents/` |
 
 **Loader pipeline** (`loaderRegistry.ts`): The `CursorLoaderRegistry` singleton registers two top-level loaders in order: `configLoader` then `cursorProfilesLoader`. The profiles loader (`skillsets/loader.ts`) parses the active skillset and delegates to the `CursorProfileLoaderRegistry` (`skillsets/skillsetLoaderRegistry.ts`), which runs four sub-loaders in order: `skills` -> `agentsmd` -> `slashcommands` -> `subagents`. Skills must install before agentsmd because the AGENTS.md generator reads installed skill paths to embed a skills discovery section.
 
-**AGENTS.md generation** (`skillsets/agentsmd/loader.ts`): Reads the skillset's `CLAUDE.md` (via `skillset.configFilePath`), strips any existing managed block markers, applies template substitution with the `.cursor` install directory, appends a generated skills list section (by scanning SKILL.md files for front matter metadata), and writes the result into a `# BEGIN NORI-AI MANAGED BLOCK` / `# END NORI-AI MANAGED BLOCK` section in `{installDir}/AGENTS.md` at the project root. If no config file exists, clears the managed block.
+**AGENTS.md generation** (`skillsets/agentsmd/loader.ts`): Reads the skillset's `CLAUDE.md` (via `skillset.configFilePath`), strips any existing managed block markers, applies template substitution with the `.cursor` install directory, appends a generated skills list section (by scanning SKILL.md files for front matter metadata), and writes the result into a `# BEGIN NORI-AI MANAGED BLOCK` / `# END NORI-AI MANAGED BLOCK` section in `.cursor/rules/AGENTS.md`. The loader creates the `.cursor/rules/` directory if it does not exist before writing. If no config file exists, clears the managed block.
 
-**Path helpers** (`paths.ts`): Provides `getCursorDir`, `getCursorAgentsMdFile`, `getCursorSkillsDir`, `getCursorCommandsDir`, and `getCursorAgentsDir`. Most paths derive from `{installDir}/.cursor/`, but `getCursorAgentsMdFile` returns `{installDir}/AGENTS.md` (project root) because Cursor IDE reads `AGENTS.md` from the project root, not from inside `.cursor/`.
+**Path helpers** (`paths.ts`): Provides `getCursorDir`, `getCursorAgentsMdFile`, `getCursorSkillsDir`, `getCursorCommandsDir`, and `getCursorAgentsDir`. All paths derive from `{installDir}/.cursor/`. `getCursorAgentsMdFile` returns `{installDir}/.cursor/rules/AGENTS.md`.
 
 **Differences from Claude Code agent**: The cursor agent does not implement `factoryReset`, `detectExistingConfig`, `captureExistingConfig`, `getProjectDirName`, `getProjectsDir`, or `findArtifacts` (these are optional `Agent` interface methods). It also has no hooks, statusline, or announcements loaders -- those are Claude Code specific features.
 
 ### Things to Know
 
-- **AGENTS.md lives at project root, not inside `.cursor/`**: Cursor IDE reads `AGENTS.md` from the project root. Because this file lives outside the `.cursor/` agent directory, it cannot be tracked by the standard manifest system (which tracks files relative to `agentDir`). Instead, `getManagedFiles()` returns `[]`, and the agent explicitly handles AGENTS.md in three places: `installSkillset` hashes and stores it in the manifest under the key `"AGENTS.md"`, `detectLocalChanges` compares the current AGENTS.md hash against the manifest entry, and `removeSkillset` deletes AGENTS.md via `fs.rm`.
+- **AGENTS.md lives inside `.cursor/rules/`**: The `getManagedDirs()` method returns `["skills", "commands", "agents", "rules"]`, so AGENTS.md at `.cursor/rules/AGENTS.md` is tracked by the standard manifest system automatically. There is no special-case code for AGENTS.md in `detectLocalChanges`, `removeSkillset`, or `installSkillset` -- the shared manifest infrastructure handles hashing, change detection, and cleanup for all managed directories including `rules/`.
 - The `cursorProfilesLoader` in `skillsets/loader.ts` parses the skillset using `configFileName: "CLAUDE.md"` (not `"AGENTS.md"`), because the source skillset template always contains a `CLAUDE.md`. The mapping to `AGENTS.md` happens at write time in the agentsmd loader.
 - Installation is detected solely via the `.nori-managed` marker file in `.cursor/` -- there is no backwards-compatible content-sniffing fallback like the Claude Code agent has.
 - The `switchSkillset` method preserves the persisted `installDir` from the existing config rather than accepting the `installDir` argument, matching the Claude Code agent's behavior where only `sks config installDir <path>` changes the persisted install directory.

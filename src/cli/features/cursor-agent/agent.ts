@@ -16,13 +16,11 @@ import {
   type Config,
 } from "@/cli/config.js";
 import { CursorLoaderRegistry } from "@/cli/features/cursor-agent/loaderRegistry.js";
-import { getCursorAgentsMdFile } from "@/cli/features/cursor-agent/paths.js";
 import { MANIFEST_FILE } from "@/cli/features/managedFolder.js";
 import {
   readManifest,
   compareManifest,
   hasChanges,
-  computeFileHash,
   computeDirectoryManifest,
   writeManifest,
   getManifestPath,
@@ -57,7 +55,7 @@ export const cursorAgent: Agent = {
   },
 
   getManagedFiles: () => [],
-  getManagedDirs: () => ["skills", "commands", "agents"],
+  getManagedDirs: () => ["skills", "commands", "agents", "rules"],
 
   getLoaderRegistry: () => {
     return CursorLoaderRegistry.getInstance();
@@ -104,28 +102,6 @@ export const cursorAgent: Agent = {
       managedDirs: cursorAgent.getManagedDirs(),
     });
 
-    // Also check the root-level AGENTS.md (lives outside .cursor/)
-    const agentsMdPath = getCursorAgentsMdFile({ installDir });
-    const manifestAgentsMdHash = manifest.files["AGENTS.md"];
-    if (manifestAgentsMdHash != null) {
-      try {
-        const currentHash = await computeFileHash({ filePath: agentsMdPath });
-        if (currentHash !== manifestAgentsMdHash) {
-          diff.modified.push("AGENTS.md");
-        }
-      } catch {
-        diff.deleted.push("AGENTS.md");
-      }
-    } else {
-      // Check if AGENTS.md was added after manifest was written
-      try {
-        await fs.access(agentsMdPath);
-        diff.added.push("AGENTS.md");
-      } catch {
-        // File doesn't exist, nothing to track
-      }
-    }
-
     return hasChanges(diff) ? diff : null;
   },
 
@@ -139,10 +115,6 @@ export const cursorAgent: Agent = {
       manifestPath,
       managedDirs: cursorAgent.getManagedDirs(),
     });
-
-    // Also remove the root-level AGENTS.md (lives outside .cursor/)
-    const agentsMdPath = getCursorAgentsMdFile({ installDir });
-    await fs.rm(agentsMdPath, { force: true });
   },
 
   installSkillset: async (args: { config: Config }): Promise<void> => {
@@ -181,19 +153,6 @@ export const cursorAgent: Agent = {
           managedFiles: cursorAgent.getManagedFiles(),
           managedDirs: cursorAgent.getManagedDirs(),
         });
-
-        // Also track root-level AGENTS.md in the manifest
-        const agentsMdPath = getCursorAgentsMdFile({
-          installDir: config.installDir,
-        });
-        try {
-          const agentsMdHash = await computeFileHash({
-            filePath: agentsMdPath,
-          });
-          manifest.files["AGENTS.md"] = agentsMdHash;
-        } catch {
-          // AGENTS.md may not exist if no config file was provided
-        }
 
         await writeManifest({ manifestPath, manifest });
       } catch {

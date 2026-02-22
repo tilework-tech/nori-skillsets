@@ -287,8 +287,9 @@ const insertAgentsMd = async (args: {
     instructions = instructions + skillsList;
   }
 
-  // Create .cursor directory if it doesn't exist
-  await fs.mkdir(cursorDir, { recursive: true });
+  // Create .cursor/rules directory if it doesn't exist
+  const rulesDir = path.join(cursorDir, "rules");
+  await fs.mkdir(rulesDir, { recursive: true });
 
   // Read existing content or start with empty string
   let content = "";

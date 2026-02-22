@@ -19,15 +19,15 @@ export const getCursorDir = (args: { installDir: string }): string => {
 
 /**
  * Get the AGENTS.md file path
- * Cursor reads AGENTS.md from the project root, not from inside .cursor/
+ * AGENTS.md lives inside .cursor/rules/ for easier management
  * @param args - Configuration arguments
  * @param args.installDir - Installation directory
  *
- * @returns Absolute path to AGENTS.md at the project root
+ * @returns Absolute path to AGENTS.md inside .cursor/rules/
  */
 export const getCursorAgentsMdFile = (args: { installDir: string }): string => {
   const { installDir } = args;
-  return path.join(installDir, "AGENTS.md");
+  return path.join(installDir, ".cursor", "rules", "AGENTS.md");
 };
 
 /**
