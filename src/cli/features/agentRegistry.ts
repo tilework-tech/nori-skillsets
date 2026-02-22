@@ -6,6 +6,7 @@
 import * as path from "path";
 
 import { claudeCodeAgent } from "@/cli/features/claude-code/agent.js";
+import { cursorAgent } from "@/cli/features/cursor-agent/agent.js";
 
 import type { Config } from "@/cli/config.js";
 import type { ManifestDiff } from "@/cli/features/manifest.js";
@@ -14,7 +15,7 @@ import type { ManifestDiff } from "@/cli/features/manifest.js";
  * Canonical agent names used as UIDs in the registry.
  * Each Agent.name must match one of these values.
  */
-export type AgentName = "claude-code";
+export type AgentName = "claude-code" | "cursor-agent";
 
 /**
  * Loader interface for feature installation
@@ -139,6 +140,7 @@ export class AgentRegistry {
   private constructor() {
     this.agents = new Map();
     this.agents.set(claudeCodeAgent.name, claudeCodeAgent);
+    this.agents.set(cursorAgent.name, cursorAgent);
   }
 
   /**

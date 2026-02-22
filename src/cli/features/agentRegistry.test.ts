@@ -65,7 +65,8 @@ describe("AgentRegistry", () => {
       const agents = registry.list();
 
       expect(agents).toContain("claude-code");
-      expect(agents).toHaveLength(1);
+      expect(agents).toContain("cursor-agent");
+      expect(agents).toHaveLength(2);
     });
   });
 
