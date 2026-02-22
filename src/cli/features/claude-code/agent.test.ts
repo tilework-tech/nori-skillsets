@@ -36,14 +36,16 @@ vi.mock("@/cli/features/paths.js", () => {
   };
 });
 
-// Mock logger to suppress output during tests
-vi.mock("@/cli/logger.js", () => ({
-  info: vi.fn(),
-  success: vi.fn(),
-  error: vi.fn(),
-  warn: vi.fn(),
-  debug: vi.fn(),
-  newline: vi.fn(),
+// Mock @clack/prompts to suppress output during tests
+vi.mock("@clack/prompts", () => ({
+  log: {
+    error: vi.fn(),
+    warn: vi.fn(),
+    info: vi.fn(),
+    success: vi.fn(),
+    step: vi.fn(),
+    message: vi.fn(),
+  },
 }));
 
 describe("claudeCodeAgent.isInstalledAtDir", () => {

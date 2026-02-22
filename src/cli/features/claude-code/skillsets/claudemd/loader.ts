@@ -6,6 +6,7 @@
 import * as fs from "fs/promises";
 import * as path from "path";
 
+import { log } from "@clack/prompts";
 import { glob } from "glob";
 
 import { type Config } from "@/cli/config.js";
@@ -14,7 +15,6 @@ import {
   getClaudeMdFile,
 } from "@/cli/features/claude-code/paths.js";
 import { substituteTemplatePaths } from "@/cli/features/template.js";
-import { success, info } from "@/cli/logger.js";
 
 import type { ProfileLoader } from "@/cli/features/claude-code/skillsets/skillsetLoaderRegistry.js";
 import type { Skillset } from "@/cli/features/skillset.js";
@@ -239,7 +239,7 @@ const insertClaudeMd = async (args: {
 }): Promise<void> => {
   const { config, skillset } = args;
 
-  info({ message: "Configuring CLAUDE.md with coding task instructions..." });
+  log.info("Configuring CLAUDE.md with coding task instructions...");
 
   // Get paths using installDir
   const claudeDir = getClaudeDir({ installDir: config.installDir });
@@ -254,14 +254,10 @@ const insertClaudeMd = async (args: {
       instructions = await fs.readFile(profileClaudeMdPath, "utf-8");
     } catch {
       // Profile has no CLAUDE.md (e.g. empty skillset created by `nori-skillsets new`)
-      info({
-        message: "Profile CLAUDE.md not found, clearing managed block",
-      });
+      log.info("Profile CLAUDE.md not found, clearing managed block");
     }
   } else {
-    info({
-      message: "Profile CLAUDE.md not found, clearing managed block",
-    });
+    log.info("Profile CLAUDE.md not found, clearing managed block");
   }
 
   if (instructions == null) {
@@ -284,9 +280,7 @@ const insertClaudeMd = async (args: {
         `${BEGIN_MARKER}\n\n${END_MARKER}\n`,
       );
       await fs.writeFile(claudeMdFile, cleared);
-      success({
-        message: `✓ Cleared managed block in ${claudeMdFile}`,
-      });
+      log.success(`Cleared managed block in ${claudeMdFile}`);
     }
     return;
   }
@@ -339,16 +333,16 @@ const insertClaudeMd = async (args: {
       regex,
       `${BEGIN_MARKER}\n${instructions}\n${END_MARKER}\n`,
     );
-    info({ message: "Updating existing nori instructions in CLAUDE.md..." });
+    log.info("Updating existing nori instructions in CLAUDE.md...");
   } else {
     // Append new managed block
     const section = `\n${BEGIN_MARKER}\n${instructions}\n${END_MARKER}\n`;
     content = content + section;
-    info({ message: "Adding nori instructions to CLAUDE.md..." });
+    log.info("Adding nori instructions to CLAUDE.md...");
   }
 
   await fs.writeFile(claudeMdFile, content);
-  success({ message: `✓ CLAUDE.md configured at ${claudeMdFile}` });
+  log.success(`CLAUDE.md configured at ${claudeMdFile}`);
 };
 
 /**

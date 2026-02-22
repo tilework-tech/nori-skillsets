@@ -17,7 +17,6 @@ import {
   text,
   spinner,
   note,
-  log,
   cancel,
 } from "@clack/prompts";
 
@@ -162,7 +161,7 @@ export const initFlow = async (args: {
       "",
       "Please remove the conflicting managed installation before continuing.",
     ];
-    log.warn(ancestorLines.join("\n"));
+    note(ancestorLines.join("\n"), "Warning");
   }
 
   // Step 3: Detect existing configuration

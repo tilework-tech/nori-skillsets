@@ -11,7 +11,7 @@
 import * as fs from "fs/promises";
 import * as path from "path";
 
-import { error } from "@/cli/logger.js";
+import { debug } from "@/cli/logger.js";
 import { getHomeDir } from "@/utils/home.js";
 
 // Threshold for warning (10KB ≈ 2.5k tokens)
@@ -106,7 +106,7 @@ export const main = async (args?: { cwd?: string | null }): Promise<void> => {
     }
   } catch (err) {
     // Silent failure - don't interrupt session startup
-    error({
+    debug({
       message: `Context usage warning: Error (non-fatal): ${err}`,
     });
   }
@@ -118,7 +118,7 @@ export { logToClaudeSession };
 // Run if executed directly
 if (import.meta.url === `file://${process.argv[1]}`) {
   main().catch((err) => {
-    error({
+    debug({
       message: `Context usage warning: Unhandled error (non-fatal): ${err}`,
     });
     process.exit(0); // Always exit 0 to not disrupt session

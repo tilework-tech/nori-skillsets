@@ -7,7 +7,7 @@
 import * as fs from "fs/promises";
 
 import { transcriptApi } from "@/api/transcript.js";
-import { debug, error as logError } from "@/cli/logger.js";
+import { debug } from "@/cli/logger.js";
 
 import type { TranscriptMessage } from "@/api/transcript.js";
 
@@ -122,7 +122,7 @@ export const processTranscriptForUpload = async (args: {
 
     return true;
   } catch (err) {
-    logError({
+    debug({
       message: `Failed to upload transcript ${sessionId}: ${err instanceof Error ? err.message : String(err)}`,
     });
     return false;

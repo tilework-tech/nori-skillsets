@@ -6,13 +6,15 @@
 import * as fs from "fs/promises";
 import * as path from "path";
 
+import { log, note } from "@clack/prompts";
+
 import { type Config } from "@/cli/config.js";
 import {
   getClaudeDir,
   getClaudeAgentsDir,
 } from "@/cli/features/claude-code/paths.js";
 import { substituteTemplatePaths } from "@/cli/features/template.js";
-import { success, info, warn } from "@/cli/logger.js";
+import { bold } from "@/cli/logger.js";
 
 import type { ProfileLoader } from "@/cli/features/claude-code/skillsets/skillsetLoaderRegistry.js";
 import type { Skillset } from "@/cli/features/skillset.js";
@@ -28,7 +30,6 @@ const registerSubagents = async (args: {
   skillset: Skillset;
 }): Promise<void> => {
   const { config, skillset } = args;
-  info({ message: "Registering Nori subagents..." });
 
   const configDir = skillset.subagentsDir;
   const claudeAgentsDir = getClaudeAgentsDir({ installDir: config.installDir });
@@ -37,19 +38,19 @@ const registerSubagents = async (args: {
   await fs.rm(claudeAgentsDir, { recursive: true, force: true });
   await fs.mkdir(claudeAgentsDir, { recursive: true });
 
-  let registeredCount = 0;
-  let skippedCount = 0;
+  const registered: Array<string> = [];
+  const skipped: Array<string> = [];
 
   // Read all .md files from the profile's subagents directory
   if (configDir == null) {
-    info({ message: "Skillset subagents directory not found, skipping" });
+    log.warn("Skillset subagents directory not found, skipping");
     return;
   }
   let files: Array<string>;
   try {
     files = await fs.readdir(configDir);
   } catch {
-    info({ message: "Skillset subagents directory not found, skipping" });
+    log.warn("Skillset subagents directory not found, skipping");
     return;
   }
   const mdFiles = files.filter(
@@ -59,6 +60,7 @@ const registerSubagents = async (args: {
   for (const file of mdFiles) {
     const subagentSrc = path.join(configDir, file);
     const subagentDest = path.join(claudeAgentsDir, file);
+    const subagentName = file.replace(/\.md$/, "");
 
     try {
       await fs.access(subagentSrc);
@@ -69,30 +71,26 @@ const registerSubagents = async (args: {
         installDir: claudeDir,
       });
       await fs.writeFile(subagentDest, substituted);
-      const subagentName = file.replace(/\.md$/, "");
-      success({ message: `✓ ${subagentName} subagent registered` });
-      registeredCount++;
+      registered.push(subagentName);
     } catch {
-      warn({
-        message: `Subagent definition not found at ${subagentSrc}, skipping`,
-      });
-      skippedCount++;
+      skipped.push(subagentName);
     }
   }
 
-  if (registeredCount > 0) {
-    success({
-      message: `Successfully registered ${registeredCount} subagent${
-        registeredCount === 1 ? "" : "s"
-      }`,
+  if (registered.length > 0) {
+    const lines = registered.map((name) => `✓ ${name}`);
+    const summary = bold({
+      text: `Registered ${registered.length} subagent${registered.length === 1 ? "" : "s"}`,
     });
+    lines.push("", summary);
+    note(lines.join("\n"), "Subagents");
   }
-  if (skippedCount > 0) {
-    warn({
-      message: `Skipped ${skippedCount} subagent${
-        skippedCount === 1 ? "" : "s"
-      } (not found)`,
-    });
+  if (skipped.length > 0) {
+    log.warn(
+      `Skipped ${skipped.length} subagent${
+        skipped.length === 1 ? "" : "s"
+      } (not found): ${skipped.join(", ")}`,
+    );
   }
 };
 

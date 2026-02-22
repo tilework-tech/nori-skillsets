@@ -1,10 +1,16 @@
 /**
  * Shared logging utilities for installer
- * Provides colorized console output functions and file logging using Winston
+ * Provides file logging using Winston and ANSI color helpers
+ *
+ * Console output (error, success, info, warn, raw, newline) has been migrated
+ * to @clack/prompts. This module retains:
+ *   - File-only debug logging via Winston
+ *   - Silent mode flag (used by install/asciiArt to guard output)
+ *   - ANSI color helper functions
+ *   - Text wrapping utility
  */
 
 import winston from "winston";
-import Transport from "winston-transport";
 
 // Log file path - exported for testing
 export const LOG_FILE = "/tmp/nori.log";
@@ -36,63 +42,11 @@ const formatColors = {
   DIM: "\x1b[2m",
 };
 
-/**
- * Custom console transport that uses console.log/console.error
- * This maintains compatibility with code that spies on console methods
- */
-class ConsoleTransport extends Transport {
-  log(logInfo: { level: string; message: string }, callback: () => void): void {
-    const { level, message } = logInfo;
-
-    // Check silent mode (inherited from Transport)
-    if (this.silent) {
-      callback();
-      return;
-    }
-
-    // Don't output debug to console
-    if (level === "debug") {
-      callback();
-      return;
-    }
-
-    // Format message with colors and prefixes
-    let formattedMessage: string;
-    switch (level) {
-      case "error":
-        formattedMessage = `${colors.RED}Error: ${message}${colors.NC}`;
-        console.error(formattedMessage);
-        break;
-      case "warn":
-        formattedMessage = `${colors.YELLOW}Warning: ${message}${colors.NC}`;
-        console.log(formattedMessage);
-        break;
-      case "success":
-        formattedMessage = `${colors.GREEN}${message}${colors.NC}`;
-        console.log(formattedMessage);
-        break;
-      case "info":
-        formattedMessage = `${colors.CYAN}${message}${colors.NC}`;
-        console.log(formattedMessage);
-        break;
-      default:
-        console.log(String(message));
-    }
-
-    callback();
-  }
-}
-
 // File format with timestamp and level
 const fileFormat = winston.format.printf((logInfo) => {
   const { level, message } = logInfo;
   const timestamp = new Date().toISOString();
   return `[${timestamp}] [${level.toUpperCase()}] ${message}`;
-});
-
-// Create custom console transport
-const consoleTransport = new ConsoleTransport({
-  level: "info", // Don't output debug to console
 });
 
 // Create file transport
@@ -102,22 +56,27 @@ const fileTransport = new winston.transports.File({
   level: "debug", // Log everything to file
 });
 
-// Create the logger
+// Create the logger (file transport only)
 const logger = winston.createLogger({
   levels,
-  transports: [consoleTransport, fileTransport],
+  transports: [fileTransport],
 });
+
+// ── Silent mode ──────────────────────────────────────────────────────────
+
+let silentMode = false;
 
 /**
  * Enable or disable silent mode
- * When silent mode is enabled, all console output is suppressed
- * but file logging continues
+ * When silent mode is enabled, callers should suppress visible output.
+ * Clack `log.*` methods do not respect this flag automatically — callers
+ * must check `isSilentMode()` before emitting output.
  *
  * @param args - Configuration arguments
  * @param args.silent - Whether to enable silent mode
  */
 export const setSilentMode = (args: { silent: boolean }): void => {
-  consoleTransport.silent = args.silent;
+  silentMode = args.silent;
 };
 
 /**
@@ -126,48 +85,10 @@ export const setSilentMode = (args: { silent: boolean }): void => {
  * @returns Whether silent mode is currently enabled
  */
 export const isSilentMode = (): boolean => {
-  return consoleTransport.silent ?? false;
+  return silentMode;
 };
 
-/**
- * Print error message in red with "Error: " prefix
- * @param args - Configuration arguments
- * @param args.message - Error message to display
- */
-export const error = (args: { message: string }): void => {
-  const { message } = args;
-  logger.error(message);
-};
-
-/**
- * Print success message in green
- * @param args - Configuration arguments
- * @param args.message - Success message to display
- */
-export const success = (args: { message: string }): void => {
-  const { message } = args;
-  logger.log("success", message);
-};
-
-/**
- * Print info message in cyan
- * @param args - Configuration arguments
- * @param args.message - Info message to display
- */
-export const info = (args: { message: string }): void => {
-  const { message } = args;
-  logger.info(message);
-};
-
-/**
- * Print warning message in yellow with "Warning: " prefix
- * @param args - Configuration arguments
- * @param args.message - Warning message to display
- */
-export const warn = (args: { message: string }): void => {
-  const { message } = args;
-  logger.warn(message);
-};
+// ── File-only logging ────────────────────────────────────────────────────
 
 /**
  * Log debug message to file only (no console output)
@@ -179,35 +100,7 @@ export const debug = (args: { message: string }): void => {
   logger.debug(message);
 };
 
-/**
- * Output a blank line to console for spacing
- * File logging is skipped for blank lines
- */
-export const newline = (): void => {
-  if (!consoleTransport.silent) {
-    console.log();
-  }
-};
-
-/**
- * Output raw text without any color formatting
- * Used for pre-formatted output like ASCII art
- * @param args - Configuration arguments
- * @param args.message - Raw message to display
- */
-export const raw = (args: { message: string }): void => {
-  const { message } = args;
-  // Log to file as info level
-  fileTransport.log?.(
-    { level: "info", message, [Symbol.for("level")]: "info" },
-    // eslint-disable-next-line @typescript-eslint/no-empty-function
-    () => {},
-  );
-  // Output to console without formatting
-  if (!consoleTransport.silent) {
-    console.log(message);
-  }
-};
+// ── Color helpers ────────────────────────────────────────────────────────
 
 /**
  * Wrap text in green (for positive/new values)

@@ -7,11 +7,12 @@ import * as fs from "fs/promises";
 import * as path from "path";
 import { fileURLToPath } from "url";
 
+import { log } from "@clack/prompts";
+
 import {
   getClaudeHomeDir,
   getClaudeHomeSettingsFile,
 } from "@/cli/features/claude-code/paths.js";
-import { success, info, warn } from "@/cli/logger.js";
 
 import type { Config } from "@/cli/config.js";
 import type { Loader } from "@/cli/features/agentRegistry.js";
@@ -24,13 +25,15 @@ const __dirname = path.dirname(__filename);
  * Configure status line to display git branch, session cost, token usage, and Nori branding
  * @param args - Configuration arguments
  * @param args.config - Runtime configuration
+ *
+ * @returns Label for the settings note, or void on failure
  */
-const configureStatusLine = async (args: { config: Config }): Promise<void> => {
+const configureStatusLine = async (args: {
+  config: Config;
+}): Promise<string | void> => {
   const { config: _config } = args;
   const claudeDir = getClaudeHomeDir();
   const claudeSettingsFile = getClaudeHomeSettingsFile();
-
-  info({ message: "Configuring status line..." });
 
   // Source script path (in build output)
   const sourceScript = path.join(__dirname, "config", "nori-statusline.sh");
@@ -42,9 +45,9 @@ const configureStatusLine = async (args: { config: Config }): Promise<void> => {
   try {
     await fs.access(sourceScript);
   } catch {
-    warn({
-      message: `Status line script not found at ${sourceScript}, skipping status line configuration`,
-    });
+    log.warn(
+      `Status line script not found at ${sourceScript}, skipping status line configuration`,
+    );
     return;
   }
 
@@ -76,11 +79,7 @@ const configureStatusLine = async (args: { config: Config }): Promise<void> => {
   };
 
   await fs.writeFile(claudeSettingsFile, JSON.stringify(settings, null, 2));
-  success({ message: `✓ Status line configured in ${claudeSettingsFile}` });
-  info({
-    message:
-      "Status line will display: git branch, session cost, tokens, promotional tip, and Nori branding",
-  });
+  return "Status line";
 };
 
 /**
@@ -90,6 +89,6 @@ export const statuslineLoader: Loader = {
   name: "statusline",
   description: "Claude Code status line configuration",
   run: async (args: { config: Config }) => {
-    await configureStatusLine(args);
+    return configureStatusLine(args);
   },
 };

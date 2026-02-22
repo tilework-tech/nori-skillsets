@@ -23,7 +23,7 @@ export type AgentName = "claude-code";
 export type Loader = {
   name: string;
   description: string;
-  run: (args: { config: Config }) => Promise<void>;
+  run: (args: { config: Config }) => Promise<string | void>;
 };
 
 /**

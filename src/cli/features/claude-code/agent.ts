@@ -7,6 +7,8 @@ import * as fsSync from "fs";
 import * as fs from "fs/promises";
 import * as path from "path";
 
+import { log, note } from "@clack/prompts";
+
 import {
   loadConfig,
   saveConfig,
@@ -38,7 +40,7 @@ import {
 import { getNoriSkillsetsDir } from "@/cli/features/paths.js";
 import { parseSkillset } from "@/cli/features/skillset.js";
 import { ensureNoriJson } from "@/cli/features/skillsetMetadata.js";
-import { success, info } from "@/cli/logger.js";
+import { bold } from "@/cli/logger.js";
 import { getHomeDir } from "@/utils/home.js";
 
 import type { Agent } from "@/cli/features/agentRegistry.js";
@@ -207,14 +209,25 @@ export const claudeCodeAgent: Agent = {
   installSkillset: async (args: { config: Config }): Promise<void> => {
     const { config } = args;
 
-    // Run all feature loaders
+    // Run all feature loaders, collecting settings labels
     const registry = claudeCodeAgent.getLoaderRegistry();
     const loaders = registry.getAll();
+
+    const settingsResults: Array<string> = [];
+
     for (const loader of loaders) {
-      await loader.run({ config });
+      const result = await loader.run({ config });
+      if (typeof result === "string") {
+        settingsResults.push(result);
+      }
     }
 
-    // Write manifest for change detection
+    if (settingsResults.length > 0) {
+      const lines = settingsResults.map((name) => `✓ ${name}`);
+      note(lines.join("\n"), "Settings");
+    }
+
+    // Write manifest and emit Skills note for the active skillset
     const skillsetName = getActiveSkillset({ config });
     if (skillsetName != null) {
       const agentDir = claudeCodeAgent.getAgentDir({
@@ -232,6 +245,33 @@ export const claudeCodeAgent: Agent = {
         await writeManifest({ manifestPath, manifest });
       } catch {
         // Non-fatal — manifest writing failure shouldn't block installation
+      }
+
+      // Emit Skills note from the skillset's skills directory
+      try {
+        const skillset = await parseSkillset({
+          skillsetName,
+          configFileName: claudeCodeAgent.getConfigFileName(),
+        });
+        if (skillset.skillsDir != null) {
+          const entries = await fs.readdir(skillset.skillsDir, {
+            withFileTypes: true,
+          });
+          const skillNames = entries
+            .filter((e) => e.isDirectory())
+            .map((e) => e.name)
+            .sort();
+          if (skillNames.length > 0) {
+            const skillLines = skillNames.map((name) => `$ ${name}`);
+            const summary = bold({
+              text: `Registered ${skillNames.length} agent skill${skillNames.length === 1 ? "" : "s"}`,
+            });
+            skillLines.push("", summary);
+            note(skillLines.join("\n"), "Skills");
+          }
+        }
+      } catch {
+        // Non-fatal — skill listing failure shouldn't block installation
       }
     }
 
@@ -285,11 +325,6 @@ export const claudeCodeAgent: Agent = {
       installDir: persistedInstallDir,
     });
 
-    success({
-      message: `Switched to "${skillsetName}" profile for Claude Code`,
-    });
-    info({
-      message: `Restart Claude Code to load the new profile configuration`,
-    });
+    log.success(`Switched to "${skillsetName}" profile for Claude Code`);
   },
 };

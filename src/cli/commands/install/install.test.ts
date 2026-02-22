@@ -93,6 +93,7 @@ vi.mock("@clack/prompts", () => ({
     step: vi.fn(),
     message: vi.fn(),
   },
+  note: vi.fn(),
   spinner: vi.fn(() => ({
     start: vi.fn(),
     stop: vi.fn(),
@@ -226,8 +227,10 @@ describe("install noninteractive", () => {
       expect(clack.log.error).toHaveBeenCalledWith(
         expect.stringContaining("--skillset"),
       );
-      expect(clack.log.info).toHaveBeenCalledWith(
+      // Usage example should be shown in a note, not log.info
+      expect(clack.note).toHaveBeenCalledWith(
         expect.stringContaining("nori-skillsets install"),
+        expect.any(String),
       );
     } finally {
       processExitSpy.mockRestore();

@@ -6,32 +6,29 @@
 
 import { describe, it, expect, vi, afterEach } from "vitest";
 
-import {
-  formatUpdateMessage,
-  getUpdateCommand,
-  showUpdatePrompt,
-} from "./updatePrompt.js";
+import { getUpdateCommand, showUpdatePrompt } from "./updatePrompt.js";
+
+vi.mock("@clack/prompts", () => ({
+  log: {
+    error: vi.fn(),
+    warn: vi.fn(),
+    info: vi.fn(),
+    success: vi.fn(),
+    step: vi.fn(),
+    message: vi.fn(),
+  },
+  spinner: vi.fn(() => ({
+    start: vi.fn(),
+    stop: vi.fn(),
+    message: "",
+  })),
+  confirm: vi.fn(),
+  text: vi.fn(),
+  select: vi.fn(),
+  isCancel: vi.fn(),
+}));
 
 describe("updatePrompt", () => {
-  describe("formatUpdateMessage", () => {
-    it("should include current and latest version", () => {
-      const message = formatUpdateMessage({
-        currentVersion: "1.0.0",
-        latestVersion: "2.0.0",
-      });
-      expect(message).toContain("1.0.0");
-      expect(message).toContain("2.0.0");
-    });
-
-    it("should include update available text", () => {
-      const message = formatUpdateMessage({
-        currentVersion: "1.0.0",
-        latestVersion: "2.0.0",
-      });
-      expect(message.toLowerCase()).toContain("update available");
-    });
-  });
-
   describe("getUpdateCommand", () => {
     it("should return npm command for npm install source", () => {
       const result = getUpdateCommand({ installSource: "npm" });
@@ -69,10 +66,8 @@ describe("updatePrompt", () => {
       vi.restoreAllMocks();
     });
 
-    it("should print to stderr and return skip in non-interactive mode", async () => {
-      const stderrSpy = vi
-        .spyOn(process.stderr, "write")
-        .mockImplementation(() => true);
+    it("should use log.warn and return skip in non-interactive mode", async () => {
+      const clack = await import("@clack/prompts");
 
       const result = await showUpdatePrompt({
         currentVersion: "1.0.0",
@@ -82,17 +77,19 @@ describe("updatePrompt", () => {
       });
 
       expect(result).toBe("skip");
-      expect(stderrSpy).toHaveBeenCalled();
-      const written = stderrSpy.mock.calls[0][0] as string;
-      expect(written).toContain("1.0.0");
-      expect(written).toContain("2.0.0");
-      expect(written).toContain("npm install");
+      expect(clack.log.warn).toHaveBeenCalledWith(
+        expect.stringContaining("1.0.0"),
+      );
+      expect(clack.log.warn).toHaveBeenCalledWith(
+        expect.stringContaining("2.0.0"),
+      );
+      expect(clack.log.warn).toHaveBeenCalledWith(
+        expect.stringContaining("npm install"),
+      );
     });
 
     it("should use fallback command in non-interactive mode when updateCommand is null", async () => {
-      const stderrSpy = vi
-        .spyOn(process.stderr, "write")
-        .mockImplementation(() => true);
+      const clack = await import("@clack/prompts");
 
       const result = await showUpdatePrompt({
         currentVersion: "1.0.0",
@@ -102,8 +99,65 @@ describe("updatePrompt", () => {
       });
 
       expect(result).toBe("skip");
-      const written = stderrSpy.mock.calls[0][0] as string;
-      expect(written).toContain("npm install -g nori-skillsets@latest");
+      expect(clack.log.warn).toHaveBeenCalledWith(
+        expect.stringContaining("npm install -g nori-skillsets@latest"),
+      );
+    });
+
+    it("should use clack select in interactive mode", async () => {
+      const clack = await import("@clack/prompts");
+      vi.mocked(clack.select).mockResolvedValueOnce("update");
+      vi.mocked(clack.isCancel).mockReturnValue(false);
+
+      const result = await showUpdatePrompt({
+        currentVersion: "1.0.0",
+        latestVersion: "2.0.0",
+        isInteractive: true,
+        updateCommand: getUpdateCommand({ installSource: "npm" }),
+      });
+
+      expect(result).toBe("update");
+      expect(clack.select).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.stringContaining("1.0.0"),
+          options: expect.arrayContaining([
+            expect.objectContaining({ value: "update" }),
+            expect.objectContaining({ value: "skip" }),
+            expect.objectContaining({ value: "dismiss" }),
+          ]),
+        }),
+      );
+    });
+
+    it("should return skip when user cancels the select prompt", async () => {
+      const clack = await import("@clack/prompts");
+      const cancelSymbol = Symbol("cancel");
+      vi.mocked(clack.select).mockResolvedValueOnce(cancelSymbol);
+      vi.mocked(clack.isCancel).mockReturnValue(true);
+
+      const result = await showUpdatePrompt({
+        currentVersion: "1.0.0",
+        latestVersion: "2.0.0",
+        isInteractive: true,
+        updateCommand: getUpdateCommand({ installSource: "npm" }),
+      });
+
+      expect(result).toBe("skip");
+    });
+
+    it("should return dismiss when user selects dismiss", async () => {
+      const clack = await import("@clack/prompts");
+      vi.mocked(clack.select).mockResolvedValueOnce("dismiss");
+      vi.mocked(clack.isCancel).mockReturnValue(false);
+
+      const result = await showUpdatePrompt({
+        currentVersion: "1.0.0",
+        latestVersion: "2.0.0",
+        isInteractive: true,
+        updateCommand: getUpdateCommand({ installSource: "npm" }),
+      });
+
+      expect(result).toBe("dismiss");
     });
   });
 });
