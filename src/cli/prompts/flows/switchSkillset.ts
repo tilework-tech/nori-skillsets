@@ -244,24 +244,10 @@ export const switchSkillsetFlow = async (args: {
     return null;
   }
 
-  // Step 4: Ask about redownloading from registry (if callback provided)
+  // Step 4: Re-download from registry (if callback provided)
+  // The download flow handles its own "already-current" prompt, so no need to ask here.
   if (callbacks.onRedownload != null) {
-    const redownload = unwrapPrompt({
-      value: await confirm({
-        message:
-          "Re-download from registry? This will update all skills in the skillset.",
-        initialValue: true,
-      }),
-      cancelMessage: cancelMsg,
-    });
-
-    if (redownload == null) {
-      return null;
-    }
-
-    if (redownload) {
-      await callbacks.onRedownload({ skillsetName });
-    }
+    await callbacks.onRedownload({ skillsetName });
   }
 
   // Step 5: Perform the switch for all agents
