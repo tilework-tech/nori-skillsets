@@ -34,8 +34,8 @@ The `addSkillToNoriJson()` function adds or updates a skill dependency in a skil
 
 | Constant | Values | Purpose |
 |----------|--------|---------|
-| `MANAGED_FILES` (internal) | `CLAUDE.md`, `settings.json`, `nori-statusline.sh` | Fallback default for root-level files Nori installs. Callers should prefer `agent.getManagedFiles()` when an agent is available. |
-| `MANAGED_DIRS` (internal) | `skills`, `commands`, `agents` | Fallback default for directories whose contents Nori installs. Callers should prefer `agent.getManagedDirs()` when an agent is available. |
+| `MANAGED_FILES` (internal) | `[]` (empty) | Empty default. All production callers MUST pass explicit values via `agent.getManagedFiles()`. |
+| `MANAGED_DIRS` (internal) | `[]` (empty) | Empty default. All production callers MUST pass explicit values via `agent.getManagedDirs()`. |
 | `EXCLUDED_FILES` | `.nori-version`, `nori.json` | Metadata files excluded from manifest tracking regardless of location |
 
 | Type | Purpose |
@@ -49,7 +49,7 @@ The `compareManifest()` function also uses `isManagedPath()` when iterating over
 
 **Per-agent manifest storage**: Manifests are stored per-agent at `~/.nori/manifests/<agentName>.json` via `getManifestPath({ agentName })`. A legacy fallback path (`~/.nori/installed-manifest.json` via `getLegacyManifestPath()`) is checked by `readManifest()` when the per-agent manifest does not exist, enabling transparent migration from the old single-manifest layout.
 
-The manifest is written after installation completes (via `writeInstalledManifest()` in @/src/cli/commands/install/install.ts), checked before skillset switching (via `detectLocalChanges()` in @/src/cli/commands/switch-skillset/switchSkillset.ts), and used for cleanup when the install directory changes. Functions that accept `managedFiles`/`managedDirs` parameters (`computeDirectoryManifest()`, `compareManifest()`, `collectFiles()`, `isManagedPath()`, `removeManagedFiles()`) fall back to the module-level constants when no agent-specific values are provided.
+The manifest is written after installation completes (via `writeInstalledManifest()` in @/src/cli/commands/install/install.ts), checked before skillset switching (via `detectLocalChanges()` in @/src/cli/commands/switch-skillset/switchSkillset.ts), and used for cleanup when the install directory changes. Functions that accept `managedFiles`/`managedDirs` parameters (`computeDirectoryManifest()`, `compareManifest()`, `collectFiles()`, `isManagedPath()`, `removeManagedFiles()`) fall back to the module-level constants (empty arrays) when no agent-specific values are provided. Since the defaults are empty, all production callers must pass explicit values via `agent.getManagedFiles()` and `agent.getManagedDirs()`.
 
 The `removeManagedFiles()` function reads the manifest to determine which files Nori installed into a `~/.claude/` directory, removes those files, removes the `.nori-managed` marker, and recursively cleans up empty directories under `MANAGED_DIRS` (deepest-first via `removeEmptyDirs()`). Files not tracked in the manifest are preserved. This function is called by the config command (@/src/cli/commands/config/config.ts) when the user changes `installDir` and opts to clean up the old directory.
 

@@ -51,6 +51,17 @@
 - Previously these fields were silently dropped on every skillset switch, causing data loss in multi-agent setups
 - Added tests for both agents verifying config field preservation
 
+### Agent-agnostic init flow and manifest defaults
+- Added `configFileName: string` to the `ExistingConfig` type in `agentRegistry.ts`
+- `detectExistingConfig` in `existingConfigCapture.ts` now returns `configFileName: "CLAUDE.md"`
+- `buildExistingConfigSummary` in `init.ts` uses `config.configFileName` instead of hardcoded `"CLAUDE.md"`
+- Ancestor warning text changed from `"Claude Code loads CLAUDE.md files..."` to agent-agnostic `"Some AI coding agents load config files..."`
+- `MANAGED_FILES` and `MANAGED_DIRS` defaults in `manifest.ts` changed to empty arrays (all production callers already pass explicit values)
+- Legacy `removeManagedFiles` call in `claude-code/agent.ts` now passes explicit `managedDirs`
+- Updated manifest tests to pass explicit `CLAUDE_MANAGED_FILES` and `CLAUDE_MANAGED_DIRS` constants
+- Added 3 new tests in `init.test.ts` for agent-agnostic display strings
+- Updated 4 docs.md files
+
 ## Not Yet Implemented
 
 ### Features NOT included (by design)

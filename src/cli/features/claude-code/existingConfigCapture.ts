@@ -166,6 +166,7 @@ export const detectExistingConfig = async (args: {
   }
 
   return {
+    configFileName: "CLAUDE.md",
     hasConfigFile,
     hasManagedBlock,
     hasSkills,

@@ -204,7 +204,11 @@ export const claudeCodeAgent: Agent = {
 
     // Also clean up legacy manifest
     const legacyPath = getLegacyManifestPath();
-    await removeManagedFiles({ agentDir, manifestPath: legacyPath });
+    await removeManagedFiles({
+      agentDir,
+      manifestPath: legacyPath,
+      managedDirs: claudeCodeAgent.getManagedDirs(),
+    });
   },
 
   installSkillset: async (args: { config: Config }): Promise<void> => {

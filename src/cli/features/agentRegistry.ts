@@ -54,6 +54,7 @@ export type AgentArtifact = {
  * Used during init to show the user what was found before capturing.
  */
 export type ExistingConfig = {
+  configFileName: string;
   hasConfigFile: boolean;
   hasManagedBlock: boolean;
   hasSkills: boolean;

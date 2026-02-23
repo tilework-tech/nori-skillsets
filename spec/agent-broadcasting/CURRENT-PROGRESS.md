@@ -186,12 +186,29 @@ Changes:
 - Added 3 tests in `switchSkillset.test.ts` (flow) for multi-agent change detection and aggregation
 - Updated 3 docs.md files
 
+### Commit 12: Agent-agnostic init flow and manifest defaults
+
+**Refactor A progress:** Removed the last hardcoded Claude-specific strings from shared production code. The init flow and manifest module are now fully agent-agnostic.
+
+Changes:
+- Added `configFileName: string` to `ExistingConfig` type in `agentRegistry.ts`
+- `detectExistingConfig` in `existingConfigCapture.ts` returns `configFileName: "CLAUDE.md"`
+- `buildExistingConfigSummary` in `init.ts` uses `config.configFileName` instead of hardcoded `"CLAUDE.md"`
+- Ancestor warning text changed from `"Claude Code loads CLAUDE.md files..."` to `"Some AI coding agents load config files..."`
+- `MANAGED_FILES` and `MANAGED_DIRS` defaults in `manifest.ts` changed to empty arrays
+- Legacy `removeManagedFiles` call in `claude-code/agent.ts` now passes explicit `managedDirs`
+- Updated manifest tests to pass explicit managed files/dirs constants
+- Added 3 new tests in `init.test.ts` for agent-agnostic display strings
+- Updated 4 docs.md files
+
 ## Remaining Work
 
 ### Refactor A (continued): Further agent decoupling
-- `AgentName` type is still a literal `"claude-code"` string union (will widen when a second agent is added)
+- `AgentName` type is a literal `"claude-code" | "cursor-agent"` string union (widened from original single-agent type)
 - Help text in `noriSkillsetsCommands.ts` still mentions "claude-code" as an example — this is documentation, not logic
 - JSDoc comments in `agentRegistry.ts`, `config.ts`, and `watch/paths.ts` mention "claude-code" as examples — documentation only
+- `parseSkillset()` default `configFileName` is still `"CLAUDE.md"` — this is the skillset source format, not agent-specific
+- `looksLikeSkillset()` and `ensureNoriJson()` defaults still reference `["CLAUDE.md"]` — same reason (skillset source format)
 
 ### Refactor B (continued): Further Skillset type usage
 - The `Skillset` type could be extended to include more parsed metadata as needed
