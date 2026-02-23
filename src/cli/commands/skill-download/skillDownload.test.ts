@@ -70,6 +70,7 @@ vi.mock("@/api/registryAuth.js", () => ({
 vi.mock("@clack/prompts", () => ({
   intro: vi.fn(),
   outro: vi.fn(),
+  confirm: vi.fn(() => false),
   spinner: vi.fn(() => ({
     start: vi.fn(),
     stop: vi.fn(),
@@ -83,6 +84,8 @@ vi.mock("@clack/prompts", () => ({
     error: vi.fn(),
     message: vi.fn(),
   },
+  isCancel: vi.fn(() => false),
+  cancel: vi.fn(),
 }));
 
 // Suppress direct console output from logger (used for pre-flow errors)
