@@ -6,7 +6,7 @@
 import { log, note } from "@clack/prompts";
 import { signInWithEmailAndPassword, AuthErrorCodes } from "firebase/auth";
 
-import { getConfigPath, loadConfig, saveConfig } from "@/cli/config.js";
+import { getConfigPath, loadConfig, updateConfig } from "@/cli/config.js";
 import { debug } from "@/cli/logger.js";
 import { getCurrentPackageVersion } from "@/cli/version.js";
 import { configureFirebase, getFirebase } from "@/providers/firebase.js";
@@ -113,35 +113,36 @@ const installConfig = async (args: { config: Config }): Promise<void> => {
   // Get current package version to save in config
   const currentVersion = getCurrentPackageVersion();
 
-  // Preserve organizations, isAdmin, and transcriptDestination from existing config
-  const organizations =
-    config.auth?.organizations ?? existingConfig?.auth?.organizations ?? null;
-  const isAdmin = config.auth?.isAdmin ?? existingConfig?.auth?.isAdmin ?? null;
-  const transcriptDestination =
-    config.transcriptDestination ??
-    existingConfig?.transcriptDestination ??
-    null;
-
-  // Preserve installDir and defaultAgents from existing config if set
-  // These are user-configured settings that should only be changed via `nori-skillsets config`
-  const installDir = existingConfig?.installDir ?? config.installDir;
-  const defaultAgents = existingConfig?.defaultAgents ?? null;
+  // Build auth object if we have credentials
+  const auth =
+    username != null && organizationUrl != null
+      ? {
+          username,
+          organizationUrl,
+          refreshToken: tokenToSave,
+          organizations:
+            config.auth?.organizations ??
+            existingConfig?.auth?.organizations ??
+            null,
+          isAdmin:
+            config.auth?.isAdmin ?? existingConfig?.auth?.isAdmin ?? null,
+        }
+      : undefined;
 
   // Save config to disk with refresh token (not password)
   // This ensures we never store passwords, only secure tokens
-  await saveConfig({
-    username,
-    refreshToken: tokenToSave,
-    organizationUrl,
-    organizations,
-    isAdmin,
+  await updateConfig({
+    ...(auth != null ? { auth } : {}),
     activeSkillset,
     sendSessionTranscript,
-    autoupdate: existingConfig?.autoupdate,
     version: currentVersion,
-    defaultAgents,
-    transcriptDestination,
-    installDir,
+    transcriptDestination:
+      config.transcriptDestination ??
+      existingConfig?.transcriptDestination ??
+      null,
+    ...(existingConfig?.installDir == null && config.installDir != null
+      ? { installDir: config.installDir }
+      : {}),
   });
 
   const configPath = getConfigPath();

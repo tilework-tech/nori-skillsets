@@ -21,7 +21,7 @@ import {
 } from "@/cli/commands/install/asciiArt.js";
 import {
   loadConfig,
-  saveConfig,
+  updateConfig,
   getActiveSkillset,
   type Config,
 } from "@/cli/config.js";
@@ -190,18 +190,8 @@ export const noninteractive = async (args?: {
 
   const selectedSkillset = skillset ?? existingSkillset!;
 
-  await saveConfig({
-    username: existingConfig.auth?.username ?? null,
-    password: existingConfig.auth?.password ?? null,
-    refreshToken: existingConfig.auth?.refreshToken ?? null,
-    organizationUrl: existingConfig.auth?.organizationUrl ?? null,
-    organizations: existingConfig.auth?.organizations ?? null,
-    isAdmin: existingConfig.auth?.isAdmin ?? null,
-    sendSessionTranscript: existingConfig.sendSessionTranscript ?? null,
-    autoupdate: existingConfig.autoupdate ?? null,
+  await updateConfig({
     activeSkillset: selectedSkillset,
-    version: existingConfig.version ?? null,
-    transcriptDestination: existingConfig.transcriptDestination ?? null,
     installDir: normalizedInstallDir,
   });
 

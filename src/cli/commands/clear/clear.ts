@@ -7,7 +7,7 @@
 
 import { log } from "@clack/prompts";
 
-import { loadConfig, saveConfig, getDefaultAgents } from "@/cli/config.js";
+import { loadConfig, updateConfig, getDefaultAgents } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { resolveInstallDir } from "@/utils/path.js";
 
@@ -46,22 +46,7 @@ export const clearMain = async (args?: {
     await agentImpl.removeSkillset({ installDir: effectiveInstallDir });
   }
 
-  await saveConfig({
-    username: config.auth?.username ?? null,
-    password: config.auth?.password ?? null,
-    refreshToken: config.auth?.refreshToken ?? null,
-    organizationUrl: config.auth?.organizationUrl ?? null,
-    organizations: config.auth?.organizations ?? null,
-    isAdmin: config.auth?.isAdmin ?? null,
-    sendSessionTranscript: config.sendSessionTranscript ?? null,
-    autoupdate: config.autoupdate ?? null,
-    version: config.version ?? null,
-    transcriptDestination: config.transcriptDestination ?? null,
-    defaultAgents: config.defaultAgents ?? null,
-    garbageCollectTranscripts: config.garbageCollectTranscripts ?? null,
-    activeSkillset: null,
-    installDir: config.installDir,
-  });
+  await updateConfig({ activeSkillset: null });
 
   log.success("Cleared all Nori-managed configuration.");
 };

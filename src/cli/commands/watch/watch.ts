@@ -27,7 +27,7 @@ import {
   waitForWatcherReady,
   type WatcherInstance,
 } from "@/cli/commands/watch/watcher.js";
-import { loadConfig, saveConfig, getDefaultAgents } from "@/cli/config.js";
+import { loadConfig, updateConfig, getDefaultAgents } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { getHomeDir } from "@/utils/home.js";
 
@@ -474,29 +474,15 @@ export const cleanupWatch = async (args?: {
  * @param args - Configuration arguments
  * @param args.org - Organization ID to save
  * @param args.garbageCollect - Whether to garbage collect transcripts after upload
- * @param args.installDir - Installation directory for config
  */
 const saveWatchSettings = async (args: {
   org: string;
   garbageCollect: "enabled" | "disabled";
-  installDir: string;
 }): Promise<void> => {
-  const { org, garbageCollect, installDir } = args;
-  const config = await loadConfig();
-  await saveConfig({
-    username: config?.auth?.username ?? null,
-    password: config?.auth?.password ?? null,
-    refreshToken: config?.auth?.refreshToken ?? null,
-    organizationUrl: config?.auth?.organizationUrl ?? null,
-    organizations: config?.auth?.organizations ?? null,
-    isAdmin: config?.auth?.isAdmin ?? null,
-    sendSessionTranscript: config?.sendSessionTranscript ?? null,
-    autoupdate: config?.autoupdate ?? null,
-    activeSkillset: config?.activeSkillset ?? null,
-    version: config?.version ?? null,
+  const { org, garbageCollect } = args;
+  await updateConfig({
     transcriptDestination: org,
     garbageCollectTranscripts: garbageCollect,
-    installDir,
   });
 };
 
@@ -559,7 +545,6 @@ export const watchMain = async (args?: {
   const agent = getDefaultAgents({ config: resolvedConfig, agentOverride })[0];
 
   const homeDir = process.env.HOME ?? "";
-  const installDir = homeDir; // Config is at ~/.nori-config.json (home dir is base)
   const logFile = getWatchLogFile();
 
   // Interactive flow (not in background daemon mode)
@@ -587,7 +572,7 @@ export const watchMain = async (args?: {
           };
         },
         onStartDaemon: async ({ org, garbageCollect }) => {
-          await saveWatchSettings({ org, garbageCollect, installDir });
+          await saveWatchSettings({ org, garbageCollect });
 
           // Ensure log directory exists before spawning
           await fs.mkdir(path.dirname(logFile), { recursive: true });

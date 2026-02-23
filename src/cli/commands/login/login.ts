@@ -23,7 +23,7 @@ import {
 } from "firebase/auth";
 import open from "open";
 
-import { loadConfig, saveConfig } from "@/cli/config.js";
+import { updateConfig } from "@/cli/config.js";
 import {
   loginFlow,
   confirmAction,
@@ -32,7 +32,6 @@ import {
 } from "@/cli/prompts/index.js";
 import { configureFirebase, getFirebase } from "@/providers/firebase.js";
 import { formatNetworkError } from "@/utils/fetch.js";
-import { getHomeDir } from "@/utils/home.js";
 
 import type { Command } from "commander";
 import type { AuthError } from "firebase/auth";
@@ -347,16 +346,12 @@ export const loginMain = async (args?: {
   noLocalhost?: boolean | null;
 }): Promise<void> => {
   const {
-    installDir,
     nonInteractive,
     email,
     password,
     google: useGoogle,
     noLocalhost,
   } = args ?? {};
-  // Default to home directory for config storage
-  const configDir = installDir ?? getHomeDir();
-
   // Validate flag combinations
   if (useGoogle && (email != null || password != null)) {
     log.error(
@@ -524,23 +519,15 @@ export const loginMain = async (args?: {
       idToken = result.idToken;
       userEmail = result.email;
 
-      // Load existing config to preserve other fields
-      // Use getHomeDir() as startDir since login is home-directory-based
-      const existingConfig = await loadConfig();
-
       // Save credentials to config (using access info from flow result)
-      await saveConfig({
-        username: userEmail,
-        refreshToken,
-        organizationUrl: NORI_SKILLSETS_API_URL,
-        organizations: result.organizations,
-        isAdmin: result.isAdmin,
-        sendSessionTranscript: existingConfig?.sendSessionTranscript ?? null,
-        autoupdate: existingConfig?.autoupdate ?? null,
-        activeSkillset: existingConfig?.activeSkillset ?? null,
-        version: existingConfig?.version ?? null,
-        transcriptDestination: existingConfig?.transcriptDestination ?? null,
-        installDir: configDir,
+      await updateConfig({
+        auth: {
+          username: userEmail,
+          refreshToken,
+          organizationUrl: NORI_SKILLSETS_API_URL,
+          organizations: result.organizations,
+          isAdmin: result.isAdmin,
+        },
       });
 
       // Flow already showed outro, so we're done
@@ -585,23 +572,15 @@ export const loginMain = async (args?: {
     isAdmin = accessInfo.isAdmin;
   }
 
-  // Load existing config to preserve other fields
-  // Use getHomeDir() as startDir since login is home-directory-based
-  const existingConfig = await loadConfig();
-
   // Save credentials to config
-  await saveConfig({
-    username: userEmail,
-    refreshToken,
-    organizationUrl: NORI_SKILLSETS_API_URL,
-    organizations,
-    isAdmin,
-    sendSessionTranscript: existingConfig?.sendSessionTranscript ?? null,
-    autoupdate: existingConfig?.autoupdate ?? null,
-    activeSkillset: existingConfig?.activeSkillset ?? null,
-    version: existingConfig?.version ?? null,
-    transcriptDestination: existingConfig?.transcriptDestination ?? null,
-    installDir: configDir,
+  await updateConfig({
+    auth: {
+      username: userEmail,
+      refreshToken,
+      organizationUrl: NORI_SKILLSETS_API_URL,
+      organizations,
+      isAdmin,
+    },
   });
 
   if (organizations.length > 0) {

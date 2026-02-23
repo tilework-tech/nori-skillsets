@@ -13,7 +13,7 @@ import {
   getActiveSkillset,
   getDefaultAgents,
   loadConfig,
-  saveConfig,
+  updateConfig,
 } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { confirmAction } from "@/cli/prompts/confirm.js";
@@ -94,18 +94,7 @@ export const configMain = async (): Promise<void> => {
     !arraysEqual({ a: oldAgents, b: result.defaultAgents });
 
   // Save config first (regardless of prompt answers)
-  await saveConfig({
-    username: existingConfig?.auth?.username ?? null,
-    refreshToken: existingConfig?.auth?.refreshToken ?? null,
-    password: existingConfig?.auth?.password ?? null,
-    organizationUrl: existingConfig?.auth?.organizationUrl ?? null,
-    organizations: existingConfig?.auth?.organizations ?? null,
-    isAdmin: existingConfig?.auth?.isAdmin ?? null,
-    sendSessionTranscript: existingConfig?.sendSessionTranscript ?? null,
-    autoupdate: existingConfig?.autoupdate ?? null,
-    activeSkillset: existingConfig?.activeSkillset ?? null,
-    version: existingConfig?.version ?? null,
-    transcriptDestination: existingConfig?.transcriptDestination ?? null,
+  await updateConfig({
     defaultAgents: result.defaultAgents,
     redownloadOnSwitch: result.redownloadOnSwitch,
     installDir: normalizedInstallDir,

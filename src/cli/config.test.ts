@@ -11,6 +11,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   loadConfig,
   saveConfig,
+  updateConfig,
   getConfigPath,
   validateConfig,
   getDefaultAgents,
@@ -875,5 +876,134 @@ describe("activeSkillset config", () => {
 
       expect(getActiveSkillset({ config })).toBeNull();
     });
+  });
+});
+
+describe("updateConfig", () => {
+  let tempDir: string;
+
+  beforeEach(async () => {
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "config-update-test-"));
+    vi.mocked(os.homedir).mockReturnValue(tempDir);
+  });
+
+  afterEach(async () => {
+    await fs.rm(tempDir, { recursive: true, force: true });
+    vi.clearAllMocks();
+  });
+
+  it("should preserve all existing fields when updating only activeSkillset", async () => {
+    // Set up a fully-populated config
+    await saveConfig({
+      username: "test@example.com",
+      refreshToken: "token-123",
+      organizationUrl: "https://example.com",
+      organizations: ["acme", "orderco"],
+      isAdmin: true,
+      activeSkillset: "old-skillset",
+      sendSessionTranscript: "disabled",
+      autoupdate: "enabled",
+      version: "20.0.0",
+      transcriptDestination: "acme",
+      defaultAgents: ["claude-code"],
+      garbageCollectTranscripts: "enabled",
+      redownloadOnSwitch: "disabled",
+      installDir: tempDir,
+    });
+
+    // Update only activeSkillset
+    await updateConfig({ activeSkillset: "new-skillset" });
+
+    // Verify everything else is preserved
+    const loaded = await loadConfig();
+    expect(loaded?.activeSkillset).toBe("new-skillset");
+    expect(loaded?.auth?.username).toBe("test@example.com");
+    expect(loaded?.auth?.refreshToken).toBe("token-123");
+    expect(loaded?.auth?.organizationUrl).toBe("https://example.com");
+    expect(loaded?.auth?.organizations).toEqual(["acme", "orderco"]);
+    expect(loaded?.auth?.isAdmin).toBe(true);
+    expect(loaded?.sendSessionTranscript).toBe("disabled");
+    expect(loaded?.autoupdate).toBe("enabled");
+    expect(loaded?.version).toBe("20.0.0");
+    expect(loaded?.transcriptDestination).toBe("acme");
+    expect(loaded?.defaultAgents).toEqual(["claude-code"]);
+    expect(loaded?.garbageCollectTranscripts).toBe("enabled");
+    expect(loaded?.redownloadOnSwitch).toBe("disabled");
+    expect(loaded?.installDir).toBe(tempDir);
+  });
+
+  it("should clear a field when explicitly set to null", async () => {
+    await saveConfig({
+      username: null,
+      organizationUrl: null,
+      activeSkillset: "senior-swe",
+      installDir: tempDir,
+    });
+
+    await updateConfig({ activeSkillset: null });
+
+    const loaded = await loadConfig();
+    // activeSkillset should be cleared (undefined means not present in config)
+    expect(loaded?.activeSkillset).toBeUndefined();
+  });
+
+  it("should create config from scratch when no existing config", async () => {
+    await updateConfig({
+      activeSkillset: "senior-swe",
+      installDir: tempDir,
+    });
+
+    const loaded = await loadConfig();
+    expect(loaded?.activeSkillset).toBe("senior-swe");
+    expect(loaded?.installDir).toBe(tempDir);
+  });
+
+  it("should clear auth when auth is explicitly set to null", async () => {
+    // Set up config with auth
+    await saveConfig({
+      username: "test@example.com",
+      refreshToken: "token-123",
+      organizationUrl: "https://example.com",
+      activeSkillset: "senior-swe",
+      autoupdate: "enabled",
+      installDir: tempDir,
+    });
+
+    // Clear auth
+    await updateConfig({ auth: null });
+
+    const loaded = await loadConfig();
+    expect(loaded?.auth).toBeNull();
+    // Other fields should be preserved
+    expect(loaded?.activeSkillset).toBe("senior-swe");
+    expect(loaded?.autoupdate).toBe("enabled");
+  });
+
+  it("should replace auth entirely when new auth is provided", async () => {
+    await saveConfig({
+      username: "old@example.com",
+      refreshToken: "old-token",
+      organizationUrl: "https://old.example.com",
+      organizations: ["old-org"],
+      isAdmin: false,
+      installDir: tempDir,
+    });
+
+    await updateConfig({
+      auth: {
+        username: "new@example.com",
+        refreshToken: "new-token",
+        organizationUrl: "https://new.example.com",
+        organizations: ["new-org"],
+        isAdmin: true,
+      },
+    });
+
+    const loaded = await loadConfig();
+    expect(loaded?.auth?.username).toBe("new@example.com");
+    expect(loaded?.auth?.refreshToken).toBe("new-token");
+    expect(loaded?.auth?.organizationUrl).toBe("https://new.example.com");
+    expect(loaded?.auth?.organizations).toEqual(["new-org"]);
+    expect(loaded?.auth?.isAdmin).toBe(true);
   });
 });
