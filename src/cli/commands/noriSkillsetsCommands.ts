@@ -649,10 +649,7 @@ export const registerNoriSkillsetsLogoutCommand = (args: {
     .command("logout")
     .description("Clear stored authentication credentials")
     .action(async () => {
-      const globalOpts = program.opts();
-      await logoutMain({
-        installDir: globalOpts.installDir || null,
-      });
+      await logoutMain();
     });
 };
 

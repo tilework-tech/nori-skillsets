@@ -9,12 +9,7 @@ import * as path from "path";
 
 import { log, note } from "@clack/prompts";
 
-import {
-  loadConfig,
-  saveConfig,
-  getActiveSkillset,
-  type Config,
-} from "@/cli/config.js";
+import { updateConfig, getActiveSkillset, type Config } from "@/cli/config.js";
 import {
   detectExistingConfig,
   captureExistingConfigAsSkillset,
@@ -281,31 +276,7 @@ export const claudeCodeAgent: Agent = {
       throw new Error(`Profile "${skillsetName}" not found in ${skillsetsDir}`);
     }
 
-    // Load current config
-    const currentConfig = await loadConfig();
-
-    // Preserve the persisted installDir from config (or default to home dir).
-    // The installDir argument is a per-invocation override (e.g. --install-dir flag)
-    // and should not be written to the config file.
-    const persistedInstallDir = currentConfig?.installDir ?? getHomeDir();
-
-    await saveConfig({
-      username: currentConfig?.auth?.username ?? null,
-      password: currentConfig?.auth?.password ?? null,
-      refreshToken: currentConfig?.auth?.refreshToken ?? null,
-      organizationUrl: currentConfig?.auth?.organizationUrl ?? null,
-      organizations: currentConfig?.auth?.organizations ?? null,
-      isAdmin: currentConfig?.auth?.isAdmin ?? null,
-      activeSkillset: skillsetName,
-      sendSessionTranscript: currentConfig?.sendSessionTranscript ?? null,
-      autoupdate: currentConfig?.autoupdate,
-      version: currentConfig?.version ?? null,
-      transcriptDestination: currentConfig?.transcriptDestination ?? null,
-      defaultAgents: currentConfig?.defaultAgents ?? null,
-      garbageCollectTranscripts:
-        currentConfig?.garbageCollectTranscripts ?? null,
-      installDir: persistedInstallDir,
-    });
+    await updateConfig({ activeSkillset: skillsetName });
 
     log.success(`Switched to "${skillsetName}" profile for Claude Code`);
   },

@@ -17,7 +17,7 @@ import { log } from "@clack/prompts";
 
 import {
   loadConfig,
-  saveConfig,
+  updateConfig,
   getDefaultAgents,
   type Config,
 } from "@/cli/config.js";
@@ -120,27 +120,12 @@ export const initMain = async (args?: {
           const existingConfig = await loadConfig();
           const currentVersion = getCurrentPackageVersion();
 
-          const username = existingConfig?.auth?.username ?? null;
-          const password = existingConfig?.auth?.password ?? null;
-          const refreshToken = existingConfig?.auth?.refreshToken ?? null;
-          const organizationUrl = existingConfig?.auth?.organizationUrl ?? null;
-          const sendSessionTranscript =
-            existingConfig?.sendSessionTranscript ?? null;
-          const autoupdate = existingConfig?.autoupdate ?? null;
-          const version = currentVersion ?? null;
-
           const activeSkillset =
             capturedSkillsetName ?? existingConfig?.activeSkillset ?? null;
 
-          await saveConfig({
-            username,
-            password,
-            refreshToken,
-            organizationUrl,
-            sendSessionTranscript,
-            autoupdate,
+          await updateConfig({
             activeSkillset,
-            version,
+            version: currentVersion ?? null,
             installDir: dir,
           });
 
@@ -188,35 +173,14 @@ export const initMain = async (args?: {
     }
   }
 
-  // Create or update config
-  const username = existingConfig?.auth?.username ?? null;
-  const password = existingConfig?.auth?.password ?? null;
-  const refreshToken = existingConfig?.auth?.refreshToken ?? null;
-  const organizationUrl = existingConfig?.auth?.organizationUrl ?? null;
-  const organizations = existingConfig?.auth?.organizations ?? null;
-  const isAdmin = existingConfig?.auth?.isAdmin ?? null;
-  const sendSessionTranscript = existingConfig?.sendSessionTranscript ?? null;
-  const autoupdate = existingConfig?.autoupdate ?? null;
-  const transcriptDestination = existingConfig?.transcriptDestination ?? null;
-  const version = currentVersion ?? null;
-
   // Set activeSkillset - if a skillset was captured, set it as the active skillset
   const activeSkillset =
     capturedSkillsetName ?? existingConfig?.activeSkillset ?? null;
 
   // Save config
-  await saveConfig({
-    username,
-    password,
-    refreshToken,
-    organizationUrl,
-    organizations,
-    isAdmin,
-    sendSessionTranscript,
-    autoupdate,
+  await updateConfig({
     activeSkillset,
-    version,
-    transcriptDestination,
+    version: currentVersion ?? null,
     installDir: normalizedInstallDir,
   });
 

@@ -20,6 +20,6 @@ The existing-config detection flow checks whether the first default agent (resol
 
 ### Things to Know
 
-The config save preserves all existing fields (auth credentials, autoupdate preference, transcript destination) when updating. The `skipWarning` parameter suppresses the skillset persistence warning during auto-init from download flows, where the warning would be confusing. Detection (`detectExistingConfig`, `isInstalledAtDir`) still uses only the first agent since it checks whether *any* agent is set up. Capture and mark operations broadcast to all agents to maintain consistency.
+Config is persisted via `updateConfig()` from @/src/cli/config.ts, which automatically preserves all existing fields (auth credentials, autoupdate preference, transcript destination) when updating. The `skipWarning` parameter suppresses the skillset persistence warning during auto-init from download flows, where the warning would be confusing. Detection (`detectExistingConfig`, `isInstalledAtDir`) still uses only the first agent since it checks whether *any* agent is set up. Capture and mark operations broadcast to all agents to maintain consistency.
 
 Created and maintained by Nori.

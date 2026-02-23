@@ -442,6 +442,67 @@ export const saveConfig = async (args: {
 };
 
 /**
+ * Update configuration on disk using read-merge-write.
+ * Loads existing config, merges caller-provided fields on top, and writes the result.
+ * Fields not included in the update are preserved from the existing config.
+ * Fields explicitly set to null are cleared.
+ *
+ * @param updates - Partial config fields to merge on top of existing config
+ */
+export const updateConfig = async (updates: Partial<Config>): Promise<void> => {
+  const existing = await loadConfig();
+
+  // Determine auth: if 'auth' key is present in updates, use the provided value;
+  // otherwise preserve existing auth.
+  const auth = "auth" in updates ? updates.auth : existing?.auth;
+
+  await saveConfig({
+    username: auth?.username ?? null,
+    password: auth?.password ?? null,
+    refreshToken: auth?.refreshToken ?? null,
+    organizationUrl: auth?.organizationUrl ?? null,
+    organizations: auth?.organizations ?? null,
+    isAdmin: auth?.isAdmin ?? null,
+    sendSessionTranscript:
+      "sendSessionTranscript" in updates
+        ? (updates.sendSessionTranscript ?? null)
+        : (existing?.sendSessionTranscript ?? null),
+    autoupdate:
+      "autoupdate" in updates
+        ? (updates.autoupdate ?? null)
+        : (existing?.autoupdate ?? null),
+    activeSkillset:
+      "activeSkillset" in updates
+        ? (updates.activeSkillset ?? null)
+        : (existing?.activeSkillset ?? null),
+    version:
+      "version" in updates
+        ? (updates.version ?? null)
+        : (existing?.version ?? null),
+    defaultAgents:
+      "defaultAgents" in updates
+        ? (updates.defaultAgents ?? null)
+        : (existing?.defaultAgents ?? null),
+    transcriptDestination:
+      "transcriptDestination" in updates
+        ? (updates.transcriptDestination ?? null)
+        : (existing?.transcriptDestination ?? null),
+    garbageCollectTranscripts:
+      "garbageCollectTranscripts" in updates
+        ? (updates.garbageCollectTranscripts ?? null)
+        : (existing?.garbageCollectTranscripts ?? null),
+    redownloadOnSwitch:
+      "redownloadOnSwitch" in updates
+        ? (updates.redownloadOnSwitch ?? null)
+        : (existing?.redownloadOnSwitch ?? null),
+    installDir:
+      "installDir" in updates
+        ? updates.installDir!
+        : (existing?.installDir ?? getHomeDir()),
+  });
+};
+
+/**
  * Validation result type
  */
 export type ConfigValidationResult = {

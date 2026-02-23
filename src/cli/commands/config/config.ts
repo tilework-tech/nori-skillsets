@@ -13,7 +13,7 @@ import {
   getActiveSkillset,
   getDefaultAgents,
   loadConfig,
-  saveConfig,
+  updateConfig,
 } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { confirmAction } from "@/cli/prompts/confirm.js";
@@ -94,18 +94,7 @@ export const configMain = async (): Promise<void> => {
     !arraysEqual({ a: oldAgents, b: result.defaultAgents });
 
   // Save config first (regardless of prompt answers)
-  await saveConfig({
-    username: existingConfig?.auth?.username ?? null,
-    refreshToken: existingConfig?.auth?.refreshToken ?? null,
-    password: existingConfig?.auth?.password ?? null,
-    organizationUrl: existingConfig?.auth?.organizationUrl ?? null,
-    organizations: existingConfig?.auth?.organizations ?? null,
-    isAdmin: existingConfig?.auth?.isAdmin ?? null,
-    sendSessionTranscript: existingConfig?.sendSessionTranscript ?? null,
-    autoupdate: existingConfig?.autoupdate ?? null,
-    activeSkillset: existingConfig?.activeSkillset ?? null,
-    version: existingConfig?.version ?? null,
-    transcriptDestination: existingConfig?.transcriptDestination ?? null,
+  await updateConfig({
     defaultAgents: result.defaultAgents,
     redownloadOnSwitch: result.redownloadOnSwitch,
     installDir: normalizedInstallDir,
@@ -128,10 +117,11 @@ export const configMain = async (): Promise<void> => {
 
     // Clean up old directory first (while manifest still reflects old dir)
     if (shouldCleanup) {
-      const agentNames = getDefaultAgents({ config: existingConfig });
-      for (const agentName of agentNames) {
-        const agent = AgentRegistry.getInstance().get({ name: agentName });
-        await agent.removeSkillset({ installDir: oldInstallDir });
+      const allAgents = AgentRegistry.getInstance().getAll();
+      for (const agent of allAgents) {
+        if (agent.isInstalledAtDir({ path: oldInstallDir })) {
+          await agent.removeSkillset({ installDir: oldInstallDir });
+        }
       }
       log.info(`Removed Nori configuration from "${oldInstallDir}".`);
     }

@@ -59,38 +59,37 @@ vi.mock("@/cli/features/manifest.js", () => ({
     .mockReturnValue("/mock/.nori/installed-manifest.json"),
 }));
 
-// Mock AgentRegistry
-vi.mock("@/cli/features/agentRegistry.js", () => ({
-  AgentRegistry: {
-    getInstance: vi.fn().mockReturnValue({
-      list: vi.fn().mockReturnValue(["claude-code"]),
-      getDefaultAgentName: vi.fn().mockReturnValue("claude-code"),
-      getAgentDirNames: vi.fn().mockReturnValue([".claude"]),
-      get: vi.fn().mockReturnValue({
-        name: "claude-code",
-        displayName: "Claude Code",
-        getAgentDir: vi
-          .fn()
-          .mockImplementation(
-            (args: { installDir: string }) => `${args.installDir}/.claude`,
-          ),
-        getManagedFiles: vi
-          .fn()
-          .mockReturnValue([
-            "CLAUDE.md",
-            "settings.json",
-            "nori-statusline.sh",
-          ]),
-        getManagedDirs: vi
-          .fn()
-          .mockReturnValue(["skills", "commands", "agents"]),
-        removeSkillset: vi.fn(),
-        installSkillset: vi.fn(),
-        detectLocalChanges: vi.fn().mockResolvedValue(null),
+// Mock AgentRegistry - agent object is defined inline so vi.mock hoisting works
+vi.mock("@/cli/features/agentRegistry.js", () => {
+  const mockAgent = {
+    name: "claude-code",
+    displayName: "Claude Code",
+    getAgentDir: vi
+      .fn()
+      .mockImplementation(
+        (args: { installDir: string }) => `${args.installDir}/.claude`,
+      ),
+    getManagedFiles: vi
+      .fn()
+      .mockReturnValue(["CLAUDE.md", "settings.json", "nori-statusline.sh"]),
+    getManagedDirs: vi.fn().mockReturnValue(["skills", "commands", "agents"]),
+    removeSkillset: vi.fn(),
+    installSkillset: vi.fn(),
+    isInstalledAtDir: vi.fn().mockReturnValue(true),
+    detectLocalChanges: vi.fn().mockResolvedValue(null),
+  };
+  return {
+    AgentRegistry: {
+      getInstance: vi.fn().mockReturnValue({
+        list: vi.fn().mockReturnValue(["claude-code"]),
+        getAll: vi.fn().mockReturnValue([mockAgent]),
+        getDefaultAgentName: vi.fn().mockReturnValue("claude-code"),
+        getAgentDirNames: vi.fn().mockReturnValue([".claude"]),
+        get: vi.fn().mockReturnValue(mockAgent),
       }),
-    }),
-  },
-}));
+    },
+  };
+});
 
 describe("configMain", () => {
   let tempDir: string;
@@ -260,6 +259,70 @@ describe("configMain installDir change prompts", () => {
 
     const mockAgent = AgentRegistry.getInstance().get({ name: "claude-code" });
     expect(mockAgent.removeSkillset).toHaveBeenCalledWith({
+      installDir: oldInstallDir,
+    });
+  });
+
+  it("should clean up all agents installed at old directory, not just defaultAgents", async () => {
+    const { configFlow } = await import("@/cli/prompts/flows/config.js");
+    const { confirmAction } = await import("@/cli/prompts/confirm.js");
+    const { AgentRegistry } = await import("@/cli/features/agentRegistry.js");
+
+    // Set up a second agent (cursor-agent) that is installed at the old dir
+    const mockCursorAgent = {
+      name: "cursor-agent",
+      displayName: "Cursor",
+      getAgentDir: vi
+        .fn()
+        .mockImplementation(
+          (args: { installDir: string }) => `${args.installDir}/.cursor`,
+        ),
+      getManagedFiles: vi.fn().mockReturnValue([]),
+      getManagedDirs: vi
+        .fn()
+        .mockReturnValue(["skills", "commands", "agents", "rules"]),
+      removeSkillset: vi.fn(),
+      installSkillset: vi.fn(),
+      isInstalledAtDir: vi.fn().mockReturnValue(true),
+      detectLocalChanges: vi.fn().mockResolvedValue(null),
+    };
+
+    const registry = AgentRegistry.getInstance();
+    const existingClaudeAgent = registry.get({ name: "claude-code" });
+
+    // Make getAll return both agents
+    vi.mocked(registry.getAll as any).mockReturnValue([
+      existingClaudeAgent,
+      mockCursorAgent,
+    ]);
+
+    vi.mocked(configFlow).mockResolvedValueOnce({
+      defaultAgents: ["claude-code"],
+      installDir: newInstallDir,
+      redownloadOnSwitch: "enabled",
+    });
+    // First confirm: install to new dir? No. Second confirm: clean up old? Yes.
+    vi.mocked(confirmAction)
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true);
+
+    // Old config only has claude-code as defaultAgent
+    await saveConfig({
+      username: null,
+      organizationUrl: null,
+      installDir: oldInstallDir,
+      activeSkillset: "senior-swe",
+      defaultAgents: ["claude-code"],
+    });
+
+    const { configMain } = await import("./config.js");
+    await configMain();
+
+    // Both agents should have removeSkillset called since both are installed
+    expect(existingClaudeAgent.removeSkillset).toHaveBeenCalledWith({
+      installDir: oldInstallDir,
+    });
+    expect(mockCursorAgent.removeSkillset).toHaveBeenCalledWith({
       installDir: oldInstallDir,
     });
   });

@@ -9,12 +9,7 @@ import * as path from "path";
 
 import { log, note } from "@clack/prompts";
 
-import {
-  loadConfig,
-  saveConfig,
-  getActiveSkillset,
-  type Config,
-} from "@/cli/config.js";
+import { updateConfig, getActiveSkillset, type Config } from "@/cli/config.js";
 import { CursorLoaderRegistry } from "@/cli/features/cursor-agent/loaderRegistry.js";
 import { MANIFEST_FILE } from "@/cli/features/managedFolder.js";
 import {
@@ -30,7 +25,6 @@ import { getNoriSkillsetsDir } from "@/cli/features/paths.js";
 import { parseSkillset } from "@/cli/features/skillset.js";
 import { ensureNoriJson } from "@/cli/features/skillsetMetadata.js";
 import { bold } from "@/cli/logger.js";
-import { getHomeDir } from "@/utils/home.js";
 
 import type { Agent } from "@/cli/features/agentRegistry.js";
 
@@ -209,29 +203,7 @@ export const cursorAgent: Agent = {
       throw new Error(`Profile "${skillsetName}" not found in ${skillsetsDir}`);
     }
 
-    // Load current config
-    const currentConfig = await loadConfig();
-
-    // Preserve the persisted installDir from config (or default to home dir)
-    const persistedInstallDir = currentConfig?.installDir ?? getHomeDir();
-
-    await saveConfig({
-      username: currentConfig?.auth?.username ?? null,
-      password: currentConfig?.auth?.password ?? null,
-      refreshToken: currentConfig?.auth?.refreshToken ?? null,
-      organizationUrl: currentConfig?.auth?.organizationUrl ?? null,
-      organizations: currentConfig?.auth?.organizations ?? null,
-      isAdmin: currentConfig?.auth?.isAdmin ?? null,
-      activeSkillset: skillsetName,
-      sendSessionTranscript: currentConfig?.sendSessionTranscript ?? null,
-      autoupdate: currentConfig?.autoupdate,
-      version: currentConfig?.version ?? null,
-      transcriptDestination: currentConfig?.transcriptDestination ?? null,
-      defaultAgents: currentConfig?.defaultAgents ?? null,
-      garbageCollectTranscripts:
-        currentConfig?.garbageCollectTranscripts ?? null,
-      installDir: persistedInstallDir,
-    });
+    await updateConfig({ activeSkillset: skillsetName });
 
     log.success(`Switched to "${skillsetName}" profile for Cursor`);
   },
