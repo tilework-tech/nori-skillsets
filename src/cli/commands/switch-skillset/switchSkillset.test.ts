@@ -695,6 +695,98 @@ describe("switch-skillset broadcasts to all default agents", () => {
   });
 });
 
+describe("switch-skillset does not persist --install-dir override to config", () => {
+  let testInstallDir: string;
+  let overrideInstallDir: string;
+
+  beforeEach(async () => {
+    testInstallDir = await fs.realpath(
+      await fs.mkdtemp(path.join(tmpdir(), "switch-skillset-installdir-test-")),
+    );
+    overrideInstallDir = await fs.realpath(
+      await fs.mkdtemp(path.join(tmpdir(), "switch-skillset-override-dir-")),
+    );
+    vi.mocked(os.homedir).mockReturnValue(testInstallDir);
+    const testClaudeDir = path.join(testInstallDir, ".claude");
+    const testNoriDir = path.join(testInstallDir, ".nori");
+    await fs.mkdir(testClaudeDir, { recursive: true });
+    await fs.mkdir(testNoriDir, { recursive: true });
+
+    // Create skillsets directory with test skillsets
+    const skillsetsDir = path.join(testNoriDir, "profiles");
+    await fs.mkdir(skillsetsDir, { recursive: true });
+    for (const name of ["senior-swe", "product-manager"]) {
+      const dir = path.join(skillsetsDir, name);
+      await fs.mkdir(dir, { recursive: true });
+      await fs.writeFile(
+        path.join(dir, "nori.json"),
+        JSON.stringify({ name, version: "1.0.0" }),
+      );
+    }
+
+    AgentRegistry.resetInstance();
+    mockSwitchSkillsetFlow.mockReset();
+    mockInstallMain.mockClear();
+  });
+
+  afterEach(async () => {
+    if (testInstallDir) {
+      await fs.rm(testInstallDir, { recursive: true, force: true });
+    }
+    if (overrideInstallDir) {
+      await fs.rm(overrideInstallDir, { recursive: true, force: true });
+    }
+    AgentRegistry.resetInstance();
+    vi.restoreAllMocks();
+  });
+
+  it("should preserve config installDir when --install-dir override is used in non-interactive mode", async () => {
+    // Config has installDir set to testInstallDir
+    const configPath = path.join(testInstallDir, ".nori-config.json");
+    await fs.writeFile(
+      configPath,
+      JSON.stringify({
+        activeSkillset: "senior-swe",
+        defaultAgents: ["claude-code"],
+        installDir: testInstallDir,
+      }),
+    );
+
+    const program = new Command();
+    program.exitOverride();
+    program.configureOutput({ writeErr: () => undefined });
+    program
+      .option("-d, --install-dir <path>", "Custom installation directory")
+      .option("-n, --non-interactive", "Run without interactive prompts")
+      .option("-a, --agent <name>", "AI agent to use");
+
+    registerSwitchSkillsetCommand({ program });
+
+    const claudeAgent = AgentRegistry.getInstance().get({
+      name: "claude-code",
+    });
+    vi.spyOn(claudeAgent, "switchSkillset").mockResolvedValue(undefined);
+
+    try {
+      await program.parseAsync([
+        "node",
+        "nori-skillsets",
+        "--non-interactive",
+        "switch-skillset",
+        "product-manager",
+        "--install-dir",
+        overrideInstallDir,
+      ]);
+    } catch {
+      // May throw due to exit
+    }
+
+    // Config's installDir should still be the original, NOT the override
+    const updatedConfig = JSON.parse(await fs.readFile(configPath, "utf-8"));
+    expect(updatedConfig.installDir).toBe(testInstallDir);
+  });
+});
+
 describe("switch-skillset onCaptureConfig broadcasts to all agents", () => {
   let testInstallDir: string;
 

@@ -192,7 +192,6 @@ export const noninteractive = async (args?: {
 
   await updateConfig({
     activeSkillset: selectedSkillset,
-    installDir: normalizedInstallDir,
   });
 
   // Reload config after saving
@@ -203,8 +202,10 @@ export const noninteractive = async (args?: {
   }
 
   // Step 3: Complete installation (run loaders, track analytics, display banners)
+  // Use the runtime installDir for operational purposes (where to write files),
+  // not the persisted one. Only `sks config` should change persisted installDir.
   await completeInstallation({
-    config,
+    config: { ...config, installDir: normalizedInstallDir },
     agent: agentImpl,
     nonInteractive: true,
   });
