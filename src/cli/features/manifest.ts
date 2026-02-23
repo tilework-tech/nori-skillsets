@@ -377,26 +377,63 @@ export const removeManagedFiles = async (args: {
   const dirList = args.managedDirs ?? MANAGED_DIRS;
 
   const manifest = await readManifest({ manifestPath });
-  if (manifest == null) {
-    return;
+
+  if (manifest != null) {
+    // Remove all files listed in the manifest
+    for (const relativePath of Object.keys(manifest.files)) {
+      const fullPath = path.join(agentDir, relativePath);
+      await fs.rm(fullPath, { force: true });
+    }
+
+    // Remove the .nori-managed marker
+    await fs.rm(path.join(agentDir, ".nori-managed"), { force: true });
+
+    // Delete the manifest itself since it no longer reflects reality
+    await fs.rm(manifestPath, { force: true });
   }
 
-  // Remove all files listed in the manifest
-  for (const relativePath of Object.keys(manifest.files)) {
-    const fullPath = path.join(agentDir, relativePath);
-    await fs.rm(fullPath, { force: true });
+  // Remove excluded files (e.g. nori.json, .nori-version) from managed directories.
+  // These files are not tracked in the manifest but should be cleaned up during removal.
+  // This runs even without a manifest to handle orphaned metadata files.
+  for (const dir of dirList) {
+    const dirPath = path.join(agentDir, dir);
+    await removeExcludedFiles({ dir: dirPath });
   }
-
-  // Remove the .nori-managed marker
-  await fs.rm(path.join(agentDir, ".nori-managed"), { force: true });
-
-  // Delete the manifest itself since it no longer reflects reality
-  await fs.rm(manifestPath, { force: true });
 
   // Clean up empty managed directories (deepest first)
   for (const dir of dirList) {
     const dirPath = path.join(agentDir, dir);
     await removeEmptyDirs({ dir: dirPath });
+  }
+};
+
+/**
+ * Recursively remove excluded files from a directory tree
+ *
+ * Walks the directory and removes any files whose names match EXCLUDED_FILES.
+ * This ensures metadata files like nori.json and .nori-version are cleaned up
+ * during removal, even though they are not tracked in the manifest.
+ *
+ * @param args - Configuration arguments
+ * @param args.dir - Directory to scan recursively
+ */
+const removeExcludedFiles = async (args: { dir: string }): Promise<void> => {
+  const { dir } = args;
+
+  let entries;
+  try {
+    entries = await fs.readdir(dir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      await removeExcludedFiles({ dir: fullPath });
+    } else if (entry.isFile() && excludedFileSet.has(entry.name)) {
+      await fs.rm(fullPath, { force: true });
+    }
   }
 };
 
