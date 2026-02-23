@@ -16,7 +16,7 @@ The `claudeCodeAgent` object in agent.ts provides:
 - `getAgentDir({ installDir })`: Returns `{installDir}/.claude` -- the Claude Code config directory path. Implements the `Agent` interface method from @/src/cli/features/agentRegistry.ts.
 - The module-level `CONFIG_FILE_NAME` constant (`"CLAUDE.md"`) defines the root config filename for Claude Code. It is passed to `parseSkillset()` as `configFileName` so the parser resolves the correct config file. This constant is internal to the agent module and not exposed on the `Agent` interface.
 - `getSkillsDir({ installDir })`: Returns `{installDir}/.claude/skills` -- the Claude Code skills directory path.
-- `getProjectsDir()`: Returns `~/.claude/projects` -- the directory where Claude Code stores per-project session data. Used by the watch command to locate transcript files.
+- `getTranscriptDirectory()`: Returns `~/.claude/projects` -- the directory where Claude Code stores session transcript files (JSONL). Used by the watch command to locate transcript files.
 - `findArtifacts({ startDir, stopDir? })`: Delegates to `findClaudeCodeArtifacts` from factoryReset.ts. Walks the ancestor directory tree from `startDir` to discover `.claude/` directories and `CLAUDE.md` files. Used by factory reset to enumerate what will be deleted.
 - `getManagedFiles()`: Returns `["CLAUDE.md", "settings.json", "nori-statusline.sh"]` -- the root-level files within `~/.claude/` that this agent installs and tracks
 - `getManagedDirs()`: Returns `["skills", "commands", "agents"]` -- the directories within `~/.claude/` whose contents this agent installs and tracks recursively

@@ -201,6 +201,26 @@ describe("AgentRegistry", () => {
     });
   });
 
+  describe("getTranscriptDirectory", () => {
+    test("claude-code agent returns ~/.claude/projects", () => {
+      const registry = AgentRegistry.getInstance();
+      const agent = registry.get({ name: "claude-code" });
+
+      const result = agent.getTranscriptDirectory?.();
+
+      expect(result).toBe(path.join(os.homedir(), ".claude", "projects"));
+    });
+
+    test("cursor-agent does not expose a transcript directory", () => {
+      const registry = AgentRegistry.getInstance();
+      const agent = registry.get({ name: "cursor-agent" });
+
+      const result = agent.getTranscriptDirectory?.();
+
+      expect(result).toBeUndefined();
+    });
+  });
+
   describe("claude-code agent detectExistingConfig", () => {
     let testInstallDir: string;
 
