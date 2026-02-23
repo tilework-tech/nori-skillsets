@@ -11,7 +11,6 @@ import { getClaudeSettingsFile } from "@/cli/features/claude-code/paths.js";
 import { ProfileLoaderRegistry } from "@/cli/features/claude-code/skillsets/skillsetLoaderRegistry.js";
 import { getNoriSkillsetsDir } from "@/cli/features/paths.js";
 import { parseSkillset } from "@/cli/features/skillset.js";
-import { success, info } from "@/cli/logger.js";
 
 import type { Loader } from "@/cli/features/agentRegistry.js";
 
@@ -53,7 +52,7 @@ const configureProfilesPermissions = async (args: {
   });
   const noriProfilesDir = getNoriSkillsetsDir();
 
-  info({ message: "Configuring permissions for profiles directory..." });
+  // Silently configure permissions — output is consolidated in the install note
 
   // Create .claude directory if it doesn't exist
   await fs.mkdir(path.dirname(claudeSettingsFile), { recursive: true });
@@ -87,7 +86,6 @@ const configureProfilesPermissions = async (args: {
 
   // Write back to file
   await fs.writeFile(claudeSettingsFile, JSON.stringify(settings, null, 2));
-  success({ message: `✓ Configured permissions for ${noriProfilesDir}` });
 };
 
 /**

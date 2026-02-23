@@ -603,5 +603,20 @@ Some custom instructions here.
       expect(content).toContain("BEGIN NORI-AI MANAGED BLOCK");
       expect(content).toContain("END NORI-AI MANAGED BLOCK");
     });
+
+    it("should include bundled skills in skills list", async () => {
+      const config: Config = {
+        activeSkillset: "senior-swe",
+        installDir: tempDir,
+      };
+
+      await installWithSkillset({ config });
+
+      const content = await fs.readFile(claudeMdPath, "utf-8");
+
+      // Should include the bundled nori-info skill in the list
+      expect(content).toContain("nori-info");
+      expect(content).toContain("Nori Skillsets");
+    });
   });
 });

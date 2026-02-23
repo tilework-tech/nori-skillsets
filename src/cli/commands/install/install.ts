@@ -12,7 +12,7 @@
 import { writeFileSync, unlinkSync, existsSync } from "fs";
 import * as path from "path";
 
-import { log } from "@clack/prompts";
+import { log, note } from "@clack/prompts";
 
 import { initMain } from "@/cli/commands/init/init.js";
 import {
@@ -74,14 +74,9 @@ const cleanupProgressMarker = (): void => {
 const displayCompletionBanners = (): void => {
   if (isSilentMode()) return;
   displayWelcomeBanner();
-  log.success(
-    "======================================================================",
-  );
-  log.success(
-    "        Restart your Claude Code instances to get started           ",
-  );
-  log.success(
-    "======================================================================",
+  note(
+    "Restart your Claude Code instances to get started",
+    "Installation Complete",
   );
   displaySeaweedBed();
 };
@@ -186,8 +181,9 @@ export const noninteractive = async (args?: {
     log.error(
       "Non-interactive install requires --skillset flag when no existing skillset is set",
     );
-    log.info(
-      "Example: nori-skillsets install --non-interactive --skillset <skillset-name>",
+    note(
+      "nori-skillsets install --non-interactive --skillset <skillset-name>",
+      "Example",
     );
     process.exit(1);
   }

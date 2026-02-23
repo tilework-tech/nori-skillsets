@@ -3,7 +3,10 @@
  *
  * These tests verify the registryDownloadFlow function behavior including:
  * - Happy path: new download and update
- * - Already-current: no download needed
+ * - Already-current: user prompted to re-download
+ * - Already-current: user declines re-download
+ * - Already-current: user cancels at prompt
+ * - Already-current with warnings: user confirms re-download
  * - List versions: display version list
  * - Search errors with and without hints
  * - Download errors
@@ -21,6 +24,7 @@ import {
 vi.mock("@clack/prompts", () => ({
   intro: vi.fn(),
   outro: vi.fn(),
+  confirm: vi.fn(),
   spinner: vi.fn(() => ({
     start: vi.fn(),
     stop: vi.fn(),
@@ -34,6 +38,8 @@ vi.mock("@clack/prompts", () => ({
     error: vi.fn(),
     message: vi.fn(),
   },
+  isCancel: vi.fn(() => false),
+  cancel: vi.fn(),
 }));
 
 describe("registryDownloadFlow", () => {
@@ -46,6 +52,7 @@ describe("registryDownloadFlow", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(clack.isCancel).mockReturnValue(false);
 
     spinnerMock = {
       start: vi.fn(),
@@ -211,15 +218,25 @@ describe("registryDownloadFlow", () => {
     });
   });
 
-  describe("already current", () => {
+  describe("already current: user confirms re-download", () => {
     beforeEach(() => {
       mockCallbacks.onSearch = vi.fn().mockResolvedValue({
         status: "already-current",
         version: "1.0.0",
       });
+      mockCallbacks.onDownload = vi.fn().mockResolvedValue({
+        success: true,
+        version: "1.0.0",
+        isUpdate: true,
+        installedTo: "/home/user/.nori/profiles/my-skillset",
+        switchHint: "nori-skillsets switch my-skillset",
+        profileDisplayName: "my-skillset",
+        warnings: [],
+      });
+      vi.mocked(clack.confirm).mockResolvedValueOnce(true);
     });
 
-    it("should show success message", async () => {
+    it("should show already-at-version message before prompting", async () => {
       await registryDownloadFlow({
         packageDisplayName: "my-skillset",
         callbacks: mockCallbacks,
@@ -228,6 +245,43 @@ describe("registryDownloadFlow", () => {
       expect(clack.log.success).toHaveBeenCalledWith(
         expect.stringContaining("already at version 1.0.0"),
       );
+    });
+
+    it("should prompt user to re-download", async () => {
+      await registryDownloadFlow({
+        packageDisplayName: "my-skillset",
+        callbacks: mockCallbacks,
+      });
+
+      expect(clack.confirm).toHaveBeenCalledTimes(1);
+    });
+
+    it("should call onDownload when user confirms", async () => {
+      await registryDownloadFlow({
+        packageDisplayName: "my-skillset",
+        callbacks: mockCallbacks,
+      });
+
+      expect(mockCallbacks.onDownload).toHaveBeenCalledTimes(1);
+    });
+
+    it("should return download result", async () => {
+      const result = await registryDownloadFlow({
+        packageDisplayName: "my-skillset",
+        callbacks: mockCallbacks,
+      });
+
+      expect(result).toEqual({ version: "1.0.0", isUpdate: true });
+    });
+  });
+
+  describe("already current: user declines re-download", () => {
+    beforeEach(() => {
+      mockCallbacks.onSearch = vi.fn().mockResolvedValue({
+        status: "already-current",
+        version: "1.0.0",
+      });
+      vi.mocked(clack.confirm).mockResolvedValueOnce(false);
     });
 
     it("should not call onDownload", async () => {
@@ -239,7 +293,7 @@ describe("registryDownloadFlow", () => {
       expect(mockCallbacks.onDownload).not.toHaveBeenCalled();
     });
 
-    it("should show outro", async () => {
+    it("should show Already up to date outro", async () => {
       await registryDownloadFlow({
         packageDisplayName: "my-skillset",
         callbacks: mockCallbacks,
@@ -255,6 +309,79 @@ describe("registryDownloadFlow", () => {
       });
 
       expect(result).toEqual({ version: "1.0.0", isUpdate: false });
+    });
+  });
+
+  describe("already current: user cancels at prompt", () => {
+    beforeEach(() => {
+      mockCallbacks.onSearch = vi.fn().mockResolvedValue({
+        status: "already-current",
+        version: "1.0.0",
+      });
+      const cancelSymbol = Symbol.for("cancel");
+      vi.mocked(clack.confirm).mockResolvedValueOnce(cancelSymbol as any);
+      vi.mocked(clack.isCancel).mockImplementation(
+        (value) => value === cancelSymbol,
+      );
+    });
+
+    it("should not call onDownload", async () => {
+      await registryDownloadFlow({
+        packageDisplayName: "my-skillset",
+        callbacks: mockCallbacks,
+      });
+
+      expect(mockCallbacks.onDownload).not.toHaveBeenCalled();
+    });
+
+    it("should return null", async () => {
+      const result = await registryDownloadFlow({
+        packageDisplayName: "my-skillset",
+        callbacks: mockCallbacks,
+      });
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe("already current with warnings: user confirms re-download", () => {
+    beforeEach(() => {
+      mockCallbacks.onSearch = vi.fn().mockResolvedValue({
+        status: "already-current",
+        version: "1.0.0",
+        warnings: ['Warning: Failed to download skill "broken-skill": 404'],
+      });
+      mockCallbacks.onDownload = vi.fn().mockResolvedValue({
+        success: true,
+        version: "1.0.0",
+        isUpdate: true,
+        installedTo: "/home/user/.nori/profiles/my-skillset",
+        switchHint: "nori-skillsets switch my-skillset",
+        profileDisplayName: "my-skillset",
+        warnings: [],
+      });
+      vi.mocked(clack.confirm).mockResolvedValueOnce(true);
+    });
+
+    it("should show dependency warnings before confirm prompt", async () => {
+      await registryDownloadFlow({
+        packageDisplayName: "my-skillset",
+        callbacks: mockCallbacks,
+      });
+
+      expect(clack.note).toHaveBeenCalledWith(
+        expect.stringContaining("broken-skill"),
+        "Skill Dependency Warnings",
+      );
+    });
+
+    it("should proceed to download after user confirms", async () => {
+      await registryDownloadFlow({
+        packageDisplayName: "my-skillset",
+        callbacks: mockCallbacks,
+      });
+
+      expect(mockCallbacks.onDownload).toHaveBeenCalledTimes(1);
     });
   });
 

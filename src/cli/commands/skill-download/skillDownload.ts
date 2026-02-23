@@ -21,6 +21,7 @@ import {
 } from "@/cli/commands/cliCommandNames.js";
 import {
   getRegistryAuth,
+  getDefaultAgents,
   loadConfig,
   getActiveSkillset,
 } from "@/cli/config.js";
@@ -430,12 +431,21 @@ export const skillDownloadMain = async (args: {
     }
   }
 
-  // Use the first default agent to resolve paths
-  const defaultAgent = AgentRegistry.getInstance().getAll()[0];
-  const skillsDir = defaultAgent.getSkillsDir({ installDir: targetInstallDir });
+  // Resolve all default agents for broadcasting
+  const defaultAgentNames = getDefaultAgents({ config });
+  const defaultAgents = defaultAgentNames.map((name) =>
+    AgentRegistry.getInstance().get({ name }),
+  );
+  const primaryAgent = defaultAgents[0];
 
-  // Ensure skills directory exists
-  await fs.mkdir(skillsDir, { recursive: true });
+  const skillsDir = primaryAgent.getSkillsDir({ installDir: targetInstallDir });
+
+  // Ensure skills directory exists for all agents
+  for (const agent of defaultAgents) {
+    await fs.mkdir(agent.getSkillsDir({ installDir: targetInstallDir }), {
+      recursive: true,
+    });
+  }
 
   const targetDir = path.join(skillsDir, skillName);
 
@@ -723,14 +733,40 @@ export const skillDownloadMain = async (args: {
             }
           }
 
-          // Apply template substitution
-          const agentDir = defaultAgent.getAgentDir({
+          // Apply template substitution for primary agent
+          const primaryAgentDir = primaryAgent.getAgentDir({
             installDir: targetInstallDir,
           });
           await applyTemplateSubstitutionToDir({
             dir: targetDir,
-            installDir: agentDir,
+            installDir: primaryAgentDir,
           });
+
+          // Broadcast: copy skill to all other agents' skills directories
+          for (const agent of defaultAgents.slice(1)) {
+            const agentSkillsDir = agent.getSkillsDir({
+              installDir: targetInstallDir,
+            });
+            const agentTargetDir = path.join(agentSkillsDir, skillName);
+            try {
+              await fs.rm(agentTargetDir, { recursive: true, force: true });
+              await copyDirRecursive({ src: targetDir, dest: agentTargetDir });
+              // Re-apply template substitution with this agent's dir
+              const agentDir = agent.getAgentDir({
+                installDir: targetInstallDir,
+              });
+              await applyTemplateSubstitutionToDir({
+                dir: agentTargetDir,
+                installDir: agentDir,
+              });
+            } catch (copyErr) {
+              const msg =
+                copyErr instanceof Error ? copyErr.message : String(copyErr);
+              warnings.push(
+                `Warning: Could not copy skill to ${agent.name}: ${msg}`,
+              );
+            }
+          }
 
           // Update skillset manifest
           let profileUpdateMessage: string | null = null;

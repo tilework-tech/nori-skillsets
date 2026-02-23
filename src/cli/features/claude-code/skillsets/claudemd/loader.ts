@@ -6,15 +6,16 @@
 import * as fs from "fs/promises";
 import * as path from "path";
 
+import { log } from "@clack/prompts";
 import { glob } from "glob";
 
 import { type Config } from "@/cli/config.js";
+import { getBundledSkillsDir } from "@/cli/features/bundled-skillsets/installer.js";
 import {
   getClaudeDir,
   getClaudeMdFile,
 } from "@/cli/features/claude-code/paths.js";
 import { substituteTemplatePaths } from "@/cli/features/template.js";
-import { success, info } from "@/cli/logger.js";
 
 import type { ProfileLoader } from "@/cli/features/claude-code/skillsets/skillsetLoaderRegistry.js";
 import type { Skillset } from "@/cli/features/skillset.js";
@@ -166,22 +167,46 @@ const generateSkillsList = async (args: {
 }): Promise<string> => {
   const { skillsDir, installDir } = args;
 
-  if (skillsDir == null) {
-    return "";
-  }
-
   try {
-    // Find all skill files
-    const skillFiles = await findSkillFiles({ dir: skillsDir });
+    // Find all skill files from the skillset
+    const skillFiles =
+      skillsDir != null ? await findSkillFiles({ dir: skillsDir }) : [];
 
-    if (skillFiles.length === 0) {
+    // Also find bundled skill files not already in the skillset
+    const bundledDir = getBundledSkillsDir();
+    let bundledSkillFiles: Array<string> = [];
+    try {
+      const bundledFiles = await findSkillFiles({ dir: bundledDir });
+      // Only include bundled skills whose name doesn't conflict with skillset skills
+      const skillsetSkillNames = new Set(
+        skillFiles
+          .map((f) => {
+            const parts = f.split(path.sep);
+            const idx = parts.lastIndexOf("SKILL.md");
+            return idx > 0 ? parts[idx - 1] : null;
+          })
+          .filter((n): n is string => n != null),
+      );
+      bundledSkillFiles = bundledFiles.filter((f) => {
+        const parts = f.split(path.sep);
+        const idx = parts.lastIndexOf("SKILL.md");
+        const name = idx > 0 ? parts[idx - 1] : null;
+        return name != null && !skillsetSkillNames.has(name);
+      });
+    } catch {
+      // Bundled skills directory not found — continue without them
+    }
+
+    const allSkillFiles = [...skillFiles, ...bundledSkillFiles];
+
+    if (allSkillFiles.length === 0) {
       return "";
     }
 
     // Format all skills - use the installed skills directory path
     const claudeDir = getClaudeDir({ installDir });
     const formattedSkills: Array<string> = [];
-    for (const file of skillFiles) {
+    for (const file of allSkillFiles) {
       const formatted = await formatSkillInfo({
         skillPath: file,
         installDir: claudeDir,
@@ -239,7 +264,7 @@ const insertClaudeMd = async (args: {
 }): Promise<void> => {
   const { config, skillset } = args;
 
-  info({ message: "Configuring CLAUDE.md with coding task instructions..." });
+  log.info("Configuring CLAUDE.md with coding task instructions...");
 
   // Get paths using installDir
   const claudeDir = getClaudeDir({ installDir: config.installDir });
@@ -254,14 +279,10 @@ const insertClaudeMd = async (args: {
       instructions = await fs.readFile(profileClaudeMdPath, "utf-8");
     } catch {
       // Profile has no CLAUDE.md (e.g. empty skillset created by `nori-skillsets new`)
-      info({
-        message: "Profile CLAUDE.md not found, clearing managed block",
-      });
+      log.info("Profile CLAUDE.md not found, clearing managed block");
     }
   } else {
-    info({
-      message: "Profile CLAUDE.md not found, clearing managed block",
-    });
+    log.info("Profile CLAUDE.md not found, clearing managed block");
   }
 
   if (instructions == null) {
@@ -284,9 +305,7 @@ const insertClaudeMd = async (args: {
         `${BEGIN_MARKER}\n\n${END_MARKER}\n`,
       );
       await fs.writeFile(claudeMdFile, cleared);
-      success({
-        message: `✓ Cleared managed block in ${claudeMdFile}`,
-      });
+      log.success(`Cleared managed block in ${claudeMdFile}`);
     }
     return;
   }
@@ -339,16 +358,16 @@ const insertClaudeMd = async (args: {
       regex,
       `${BEGIN_MARKER}\n${instructions}\n${END_MARKER}\n`,
     );
-    info({ message: "Updating existing nori instructions in CLAUDE.md..." });
+    log.info("Updating existing nori instructions in CLAUDE.md...");
   } else {
     // Append new managed block
     const section = `\n${BEGIN_MARKER}\n${instructions}\n${END_MARKER}\n`;
     content = content + section;
-    info({ message: "Adding nori instructions to CLAUDE.md..." });
+    log.info("Adding nori instructions to CLAUDE.md...");
   }
 
   await fs.writeFile(claudeMdFile, content);
-  success({ message: `✓ CLAUDE.md configured at ${claudeMdFile}` });
+  log.success(`CLAUDE.md configured at ${claudeMdFile}`);
 };
 
 /**

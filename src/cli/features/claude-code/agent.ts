@@ -7,6 +7,8 @@ import * as fsSync from "fs";
 import * as fs from "fs/promises";
 import * as path from "path";
 
+import { log, note } from "@clack/prompts";
+
 import {
   loadConfig,
   saveConfig,
@@ -38,10 +40,13 @@ import {
 import { getNoriSkillsetsDir } from "@/cli/features/paths.js";
 import { parseSkillset } from "@/cli/features/skillset.js";
 import { ensureNoriJson } from "@/cli/features/skillsetMetadata.js";
-import { success, info } from "@/cli/logger.js";
+import { bold } from "@/cli/logger.js";
 import { getHomeDir } from "@/utils/home.js";
 
 import type { Agent } from "@/cli/features/agentRegistry.js";
+
+/** The root config filename for Claude Code skillsets */
+const CONFIG_FILE_NAME = "CLAUDE.md";
 
 /**
  * Claude Code agent implementation
@@ -49,13 +54,12 @@ import type { Agent } from "@/cli/features/agentRegistry.js";
 export const claudeCodeAgent: Agent = {
   name: "claude-code",
   displayName: "Claude Code",
+  description: "Instructions, skills, subagents, commands, hooks, statusline",
 
   getAgentDir: (args: { installDir: string }): string => {
     const { installDir } = args;
     return path.join(installDir, ".claude");
   },
-
-  getConfigFileName: () => "CLAUDE.md",
 
   getSkillsDir: (args: { installDir: string }): string => {
     const { installDir } = args;
@@ -69,34 +73,7 @@ export const claudeCodeAgent: Agent = {
     return LoaderRegistry.getInstance();
   },
 
-  getSkillDiscoveryDirs: (): ReadonlyArray<string> => {
-    return [path.join(".claude", "skills")];
-  },
-
-  getProjectDirName: (args: { cwd: string }): string => {
-    const { cwd } = args;
-
-    // Resolve symlinks to match Claude Code's behavior
-    let resolvedPath: string;
-    try {
-      resolvedPath = fsSync.realpathSync(cwd);
-    } catch {
-      // If path doesn't exist, use it as-is
-      resolvedPath = cwd;
-    }
-
-    // Replace anything that's not alphanumeric or dash with a dash
-    let projectDirName = resolvedPath.replace(/[^a-zA-Z0-9-]/g, "-");
-
-    // Ensure leading dash if not already there
-    if (!projectDirName.startsWith("-")) {
-      projectDirName = "-" + projectDirName;
-    }
-
-    return projectDirName;
-  },
-
-  getProjectsDir: (): string => {
+  getTranscriptDirectory: (): string => {
     return path.join(getHomeDir(), ".claude", "projects");
   },
 
@@ -161,7 +138,7 @@ export const claudeCodeAgent: Agent = {
     // Install the managed CLAUDE.md block so the user isn't left without config
     const skillset = await parseSkillset({
       skillsetName,
-      configFileName: claudeCodeAgent.getConfigFileName(),
+      configFileName: CONFIG_FILE_NAME,
     });
     await claudeMdLoader.install({ config, skillset });
   },
@@ -201,20 +178,35 @@ export const claudeCodeAgent: Agent = {
 
     // Also clean up legacy manifest
     const legacyPath = getLegacyManifestPath();
-    await removeManagedFiles({ agentDir, manifestPath: legacyPath });
+    await removeManagedFiles({
+      agentDir,
+      manifestPath: legacyPath,
+      managedDirs: claudeCodeAgent.getManagedDirs(),
+    });
   },
 
   installSkillset: async (args: { config: Config }): Promise<void> => {
     const { config } = args;
 
-    // Run all feature loaders
+    // Run all feature loaders, collecting settings labels
     const registry = claudeCodeAgent.getLoaderRegistry();
     const loaders = registry.getAll();
+
+    const settingsResults: Array<string> = [];
+
     for (const loader of loaders) {
-      await loader.run({ config });
+      const result = await loader.run({ config });
+      if (typeof result === "string") {
+        settingsResults.push(result);
+      }
     }
 
-    // Write manifest for change detection
+    if (settingsResults.length > 0) {
+      const lines = settingsResults.map((name) => `✓ ${name}`);
+      note(lines.join("\n"), "Settings");
+    }
+
+    // Write manifest and emit Skills note for the active skillset
     const skillsetName = getActiveSkillset({ config });
     if (skillsetName != null) {
       const agentDir = claudeCodeAgent.getAgentDir({
@@ -232,6 +224,33 @@ export const claudeCodeAgent: Agent = {
         await writeManifest({ manifestPath, manifest });
       } catch {
         // Non-fatal — manifest writing failure shouldn't block installation
+      }
+
+      // Emit Skills note from the skillset's skills directory
+      try {
+        const skillset = await parseSkillset({
+          skillsetName,
+          configFileName: CONFIG_FILE_NAME,
+        });
+        if (skillset.skillsDir != null) {
+          const entries = await fs.readdir(skillset.skillsDir, {
+            withFileTypes: true,
+          });
+          const skillNames = entries
+            .filter((e) => e.isDirectory())
+            .map((e) => e.name)
+            .sort();
+          if (skillNames.length > 0) {
+            const skillLines = skillNames.map((name) => `$ ${name}`);
+            const summary = bold({
+              text: `Registered ${skillNames.length} agent skill${skillNames.length === 1 ? "" : "s"}`,
+            });
+            skillLines.push("", summary);
+            note(skillLines.join("\n"), "Skills");
+          }
+        }
+      } catch {
+        // Non-fatal — skill listing failure shouldn't block installation
       }
     }
 
@@ -282,14 +301,12 @@ export const claudeCodeAgent: Agent = {
       autoupdate: currentConfig?.autoupdate,
       version: currentConfig?.version ?? null,
       transcriptDestination: currentConfig?.transcriptDestination ?? null,
+      defaultAgents: currentConfig?.defaultAgents ?? null,
+      garbageCollectTranscripts:
+        currentConfig?.garbageCollectTranscripts ?? null,
       installDir: persistedInstallDir,
     });
 
-    success({
-      message: `Switched to "${skillsetName}" profile for Claude Code`,
-    });
-    info({
-      message: `Restart Claude Code to load the new profile configuration`,
-    });
+    log.success(`Switched to "${skillsetName}" profile for Claude Code`);
   },
 };

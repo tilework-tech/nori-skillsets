@@ -108,6 +108,7 @@ describe("initFlow", () => {
     it("should prompt for skillset name with text input", async () => {
       vi.mocked(clack.confirm).mockResolvedValueOnce(true);
       vi.mocked(mockCallbacks.onDetectExistingConfig).mockResolvedValueOnce({
+        configFileName: "CLAUDE.md",
         hasConfigFile: true,
         hasManagedBlock: false,
         hasSkills: false,
@@ -132,6 +133,7 @@ describe("initFlow", () => {
     it("should call onCaptureConfig with install dir and skillset name", async () => {
       vi.mocked(clack.confirm).mockResolvedValueOnce(true);
       vi.mocked(mockCallbacks.onDetectExistingConfig).mockResolvedValueOnce({
+        configFileName: "CLAUDE.md",
         hasConfigFile: true,
         hasManagedBlock: false,
         hasSkills: false,
@@ -157,6 +159,7 @@ describe("initFlow", () => {
     it("should call onInit with captured skillset name", async () => {
       vi.mocked(clack.confirm).mockResolvedValueOnce(true);
       vi.mocked(mockCallbacks.onDetectExistingConfig).mockResolvedValueOnce({
+        configFileName: "CLAUDE.md",
         hasConfigFile: true,
         hasManagedBlock: false,
         hasSkills: false,
@@ -182,6 +185,7 @@ describe("initFlow", () => {
     it("should return result with captured skillset name", async () => {
       vi.mocked(clack.confirm).mockResolvedValueOnce(true);
       vi.mocked(mockCallbacks.onDetectExistingConfig).mockResolvedValueOnce({
+        configFileName: "CLAUDE.md",
         hasConfigFile: true,
         hasManagedBlock: false,
         hasSkills: false,
@@ -216,6 +220,27 @@ describe("initFlow", () => {
 
       // Init should still be called despite ancestor warning
       expect(mockCallbacks.onInit).toHaveBeenCalled();
+    });
+
+    it("should display ancestor warning as a note with Warning title", async () => {
+      vi.mocked(clack.confirm).mockResolvedValueOnce(true);
+      vi.mocked(mockCallbacks.onCheckAncestors).mockResolvedValueOnce([
+        "/home/user/project",
+      ]);
+
+      await initFlow({
+        installDir: "/test/dir",
+        callbacks: mockCallbacks,
+      });
+
+      expect(clack.note).toHaveBeenCalledWith(
+        expect.stringContaining("ancestor directory"),
+        "Warning",
+      );
+      expect(clack.note).toHaveBeenCalledWith(
+        expect.stringContaining("/home/user/project"),
+        "Warning",
+      );
     });
   });
 
@@ -274,6 +299,7 @@ describe("initFlow", () => {
     it("should return null when user cancels at skillset name prompt", async () => {
       vi.mocked(clack.confirm).mockResolvedValueOnce(true);
       vi.mocked(mockCallbacks.onDetectExistingConfig).mockResolvedValueOnce({
+        configFileName: "CLAUDE.md",
         hasConfigFile: true,
         hasManagedBlock: false,
         hasSkills: false,
@@ -319,6 +345,81 @@ describe("initFlow", () => {
       });
 
       expect(mockCallbacks.onInit).toHaveBeenCalled();
+    });
+  });
+
+  describe("agent-agnostic display strings", () => {
+    it("should display the config file name from ExistingConfig in the summary note", async () => {
+      vi.mocked(clack.confirm).mockResolvedValueOnce(true);
+      vi.mocked(mockCallbacks.onDetectExistingConfig).mockResolvedValueOnce({
+        configFileName: "AGENTS.md",
+        hasConfigFile: true,
+        hasManagedBlock: false,
+        hasSkills: false,
+        skillCount: 0,
+        hasAgents: false,
+        agentCount: 0,
+        hasCommands: false,
+        commandCount: 0,
+      });
+      vi.mocked(clack.text).mockResolvedValueOnce("my-config");
+
+      await initFlow({
+        installDir: "/test/dir",
+        callbacks: mockCallbacks,
+      });
+
+      // The note should mention "AGENTS.md", not hardcoded "CLAUDE.md"
+      expect(clack.note).toHaveBeenCalledWith(
+        expect.stringContaining("AGENTS.md found"),
+        "Existing Configuration Detected",
+      );
+    });
+
+    it("should display managed block message using the config file name from ExistingConfig", async () => {
+      vi.mocked(clack.confirm).mockResolvedValueOnce(true);
+      vi.mocked(mockCallbacks.onDetectExistingConfig).mockResolvedValueOnce({
+        configFileName: "AGENTS.md",
+        hasConfigFile: true,
+        hasManagedBlock: true,
+        hasSkills: false,
+        skillCount: 0,
+        hasAgents: false,
+        agentCount: 0,
+        hasCommands: false,
+        commandCount: 0,
+      });
+      vi.mocked(clack.text).mockResolvedValueOnce("my-config");
+
+      await initFlow({
+        installDir: "/test/dir",
+        callbacks: mockCallbacks,
+      });
+
+      expect(clack.note).toHaveBeenCalledWith(
+        expect.stringContaining("Your AGENTS.md contains"),
+        "Existing Configuration Detected",
+      );
+    });
+
+    it("should not contain hardcoded 'Claude Code' or 'CLAUDE.md' in ancestor warning text", async () => {
+      vi.mocked(clack.confirm).mockResolvedValueOnce(true);
+      vi.mocked(mockCallbacks.onCheckAncestors).mockResolvedValueOnce([
+        "/home/user/project",
+      ]);
+
+      await initFlow({
+        installDir: "/test/dir",
+        callbacks: mockCallbacks,
+      });
+
+      const warningCall = vi
+        .mocked(clack.note)
+        .mock.calls.find((call) => call[1] === "Warning");
+      expect(warningCall).toBeDefined();
+      const warningText = warningCall![0] as string;
+      expect(warningText).not.toContain("Claude Code");
+      expect(warningText).not.toContain("CLAUDE.md");
     });
   });
 

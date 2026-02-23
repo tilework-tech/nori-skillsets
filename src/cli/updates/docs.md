@@ -26,7 +26,7 @@ checkForUpdateAndPrompt (orchestrator)
 
 `npmRegistryCheck.ts` fetches from `https://registry.npmjs.org/nori-skillsets/latest` with a 5-second timeout. `getAvailableUpdate` filters out prerelease versions, development builds (`0.0.0`), and dismissed versions. It also treats `-next` prerelease tags as equivalent to their base version to avoid prompting users on nightly builds to "downgrade."
 
-`updatePrompt.ts` formats the update message and resolves the correct global install command for npm, bun, yarn, or pnpm. In interactive mode it shows a 3-choice menu (update now / skip / dismiss); in non-interactive mode it writes a one-line notice to stderr and returns "skip."
+`updatePrompt.ts` resolves the correct global install command for npm, bun, yarn, or pnpm. In interactive mode it shows a `@clack/prompts` `select()` menu with three choices (update now / skip / skip until next version); in non-interactive mode it emits a `log.warn()` notice and returns "skip."
 
 ### Things to Know
 

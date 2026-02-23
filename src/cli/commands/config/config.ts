@@ -52,13 +52,18 @@ export const configMain = async (): Promise<void> => {
         return {
           currentAgents: config?.defaultAgents ?? null,
           currentInstallDir: config?.installDir ?? null,
+          currentRedownloadOnSwitch: config?.redownloadOnSwitch ?? null,
         };
       },
       onResolveAgents: async () => {
         const registry = AgentRegistry.getInstance();
         return registry.list().map((name) => {
           const agent = registry.get({ name });
-          return { name: agent.name, displayName: agent.displayName };
+          return {
+            name: agent.name,
+            displayName: agent.displayName,
+            description: agent.description,
+          };
         });
       },
     },
@@ -102,6 +107,7 @@ export const configMain = async (): Promise<void> => {
     version: existingConfig?.version ?? null,
     transcriptDestination: existingConfig?.transcriptDestination ?? null,
     defaultAgents: result.defaultAgents,
+    redownloadOnSwitch: result.redownloadOnSwitch,
     installDir: normalizedInstallDir,
   });
 

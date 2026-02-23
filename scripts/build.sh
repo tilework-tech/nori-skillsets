@@ -119,6 +119,10 @@ cp src/cli/features/claude-code/slashcommands/config/*.md build/src/cli/features
 # Copy entire profile directories (which contain skills, subagents, slashcommands, CLAUDE.md)
 cp -r src/cli/features/claude-code/profiles/config/* build/src/cli/features/claude-code/profiles/config/ 2>/dev/null || true
 
+# Copy bundled skillset files (skills that ship with every installation)
+mkdir -p build/src/cli/features/bundled-skillsets/skills
+cp -r src/cli/features/bundled-skillsets/skills/* build/src/cli/features/bundled-skillsets/skills/ 2>/dev/null || true
+
 # Make shell scripts executable
 chmod +x build/src/cli/features/claude-code/hooks/config/*.sh 2>/dev/null || true
 chmod +x build/src/cli/features/claude-code/statusline/config/*.sh 2>/dev/null || true

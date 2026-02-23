@@ -12,7 +12,6 @@ import {
   getClaudeHomeDir,
   getClaudeHomeSettingsFile,
 } from "@/cli/features/claude-code/paths.js";
-import { success, info } from "@/cli/logger.js";
 
 import type { Config } from "@/cli/config.js";
 import type { Loader } from "@/cli/features/agentRegistry.js";
@@ -150,8 +149,12 @@ const commitAuthorHook: HookInterface = {
  * Configure hooks
  * @param args - Configuration arguments
  * @param args.config - Runtime configuration
+ *
+ * @returns Label for the settings note, or void on failure
  */
-const configureHooks = async (args: { config: Config }): Promise<void> => {
+const configureHooks = async (args: {
+  config: Config;
+}): Promise<string | void> => {
   const { config: _config } = args;
 
   // Remove stale hooks from previous versions before writing new ones
@@ -159,8 +162,6 @@ const configureHooks = async (args: { config: Config }): Promise<void> => {
 
   const claudeDir = getClaudeHomeDir();
   const claudeSettingsFile = getClaudeHomeSettingsFile();
-
-  info({ message: "Configuring hooks..." });
 
   // Create .claude directory if it doesn't exist
   await fs.mkdir(claudeDir, { recursive: true });
@@ -204,7 +205,7 @@ const configureHooks = async (args: { config: Config }): Promise<void> => {
   settings.hooks = hooksConfig;
 
   await fs.writeFile(claudeSettingsFile, JSON.stringify(settings, null, 2));
-  success({ message: `✓ Hooks configured in ${claudeSettingsFile}` });
+  return "Hooks";
 };
 
 /**
@@ -215,6 +216,6 @@ export const hooksLoader: Loader = {
   description: "Claude Code hooks (memorization, notifications, etc.)",
   run: async (args: { config: Config }) => {
     const { config } = args;
-    await configureHooks({ config });
+    return configureHooks({ config });
   },
 };

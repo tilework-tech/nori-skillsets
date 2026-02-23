@@ -11,7 +11,7 @@
 import * as fs from "fs/promises";
 import * as path from "path";
 
-import { error } from "@/cli/logger.js";
+import { debug } from "@/cli/logger.js";
 import {
   getAvailableUpdate,
   refreshVersionCache,
@@ -111,7 +111,7 @@ export const main = async (args?: {
     logToClaudeSession({ message });
   } catch (err) {
     // Silent failure - don't interrupt session startup
-    error({
+    debug({
       message: `Update check hook: Error (non-fatal): ${err}`,
     });
   }
@@ -120,7 +120,7 @@ export const main = async (args?: {
 // Run if executed directly
 if (import.meta.url === `file://${process.argv[1]}`) {
   main().catch((err) => {
-    error({
+    debug({
       message: `Update check hook: Unhandled error (non-fatal): ${err}`,
     });
     process.exit(0); // Always exit 0 to not disrupt session

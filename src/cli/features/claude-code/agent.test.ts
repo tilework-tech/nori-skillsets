@@ -36,14 +36,16 @@ vi.mock("@/cli/features/paths.js", () => {
   };
 });
 
-// Mock logger to suppress output during tests
-vi.mock("@/cli/logger.js", () => ({
-  info: vi.fn(),
-  success: vi.fn(),
-  error: vi.fn(),
-  warn: vi.fn(),
-  debug: vi.fn(),
-  newline: vi.fn(),
+// Mock @clack/prompts to suppress output during tests
+vi.mock("@clack/prompts", () => ({
+  log: {
+    error: vi.fn(),
+    warn: vi.fn(),
+    info: vi.fn(),
+    success: vi.fn(),
+    step: vi.fn(),
+    message: vi.fn(),
+  },
 }));
 
 describe("claudeCodeAgent.isInstalledAtDir", () => {
@@ -243,6 +245,29 @@ describe("claudeCodeAgent.switchSkillset", () => {
     expect(fileContents.transcriptDestination).toBe("myorg");
 
     // Also verify the profile was actually switched
+    expect(fileContents.activeSkillset).toBe("documenter");
+  });
+
+  it("should preserve defaultAgents and garbageCollectTranscripts when switching profiles", async () => {
+    const configFile = getConfigPath();
+    await saveConfig({
+      username: "test@example.com",
+      organizationUrl: "https://example.tilework.tech",
+      refreshToken: "test-refresh-token",
+      activeSkillset: "senior-swe",
+      defaultAgents: ["claude-code", "cursor-agent"],
+      garbageCollectTranscripts: "enabled",
+      installDir: tempDir,
+    });
+
+    await claudeCodeAgent.switchSkillset({
+      installDir: tempDir,
+      skillsetName: "documenter",
+    });
+
+    const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
+    expect(fileContents.defaultAgents).toEqual(["claude-code", "cursor-agent"]);
+    expect(fileContents.garbageCollectTranscripts).toBe("enabled");
     expect(fileContents.activeSkillset).toBe("documenter");
   });
 });

@@ -84,6 +84,8 @@ export const switchSkillsetAction = async (args: {
 
   // Interactive flow
   if (!nonInteractive) {
+    const redownloadEnabled = config?.redownloadOnSwitch !== "disabled";
+
     await switchSkillsetFlow({
       skillsetName: name,
       installDir,
@@ -163,6 +165,15 @@ export const switchSkillsetAction = async (args: {
             silent: true,
           });
         },
+        onRedownload: redownloadEnabled
+          ? async ({ skillsetName: pName }) => {
+              const { registryDownloadMain } =
+                await import("@/cli/commands/registry-download/registryDownload.js");
+              await registryDownloadMain({
+                packageSpec: pName,
+              });
+            }
+          : undefined,
       },
     });
 

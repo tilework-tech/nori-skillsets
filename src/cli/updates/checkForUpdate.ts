@@ -9,8 +9,9 @@ import { execFileSync } from "child_process";
 import * as fs from "fs/promises";
 import * as path from "path";
 
+import { log, note } from "@clack/prompts";
+
 import { readInstallState } from "@/cli/installTracking.js";
-import { error } from "@/cli/logger.js";
 import {
   getAvailableUpdate,
   refreshVersionCache,
@@ -114,24 +115,21 @@ export const checkForUpdateAndPrompt = async (args: {
 
     if (choice === "update") {
       if (updateCommand == null) {
-        process.stderr.write(
-          `\nCould not detect package manager. Please update manually:\n  npm install -g nori-skillsets@latest\n\n`,
-        );
+        log.warn("Could not detect package manager. Please update manually:");
+        note("npm install -g nori-skillsets@latest", "Update Manually");
         return;
       }
 
-      process.stderr.write(`\nUpdating nori-skillsets...\n`);
+      log.info(`Updating nori-skillsets...`);
       try {
         execFileSync(updateCommand.command, updateCommand.args, {
           stdio: "inherit",
         });
-        process.stderr.write(
-          `\nUpdate complete! Please re-run your command.\n`,
-        );
+        log.success(`Update complete! Please re-run your command.`);
         process.exit(0);
       } catch {
-        process.stderr.write(
-          `\nUpdate failed. Try manually: ${updateCommand.displayCommand}\n`,
+        log.error(
+          `Update failed. Try manually: ${updateCommand.displayCommand}`,
         );
       }
     } else if (choice === "dismiss") {
@@ -139,8 +137,6 @@ export const checkForUpdateAndPrompt = async (args: {
     }
   } catch (err) {
     // Silent failure - never disrupt CLI operation
-    error({
-      message: `Update check failed (non-fatal): ${err}`,
-    });
+    log.error(`Update check failed (non-fatal): ${err}`);
   }
 };

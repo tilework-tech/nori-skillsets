@@ -58,6 +58,8 @@ export type Config = {
   transcriptDestination?: string | null;
   /** Whether to delete transcript files after successful upload */
   garbageCollectTranscripts?: "enabled" | "disabled" | null;
+  /** Whether to prompt to re-download skillsets from registry on switch */
+  redownloadOnSwitch?: "enabled" | "disabled" | null;
 };
 
 /**
@@ -92,6 +94,8 @@ type RawDiskConfig = {
   transcriptDestination?: string | null;
   // Garbage collect transcripts after upload
   garbageCollectTranscripts?: "enabled" | "disabled" | null;
+  // Prompt to re-download from registry on switch
+  redownloadOnSwitch?: "enabled" | "disabled" | null;
 };
 
 /**
@@ -263,6 +267,7 @@ export const loadConfig = async (): Promise<Config | null> => {
       version: validated.version,
       transcriptDestination: validated.transcriptDestination,
       garbageCollectTranscripts: validated.garbageCollectTranscripts,
+      redownloadOnSwitch: validated.redownloadOnSwitch,
     };
 
     // Build auth - handle both nested format (v19+) and flat format (legacy)
@@ -330,6 +335,7 @@ export const loadConfig = async (): Promise<Config | null> => {
  * @param args.transcriptDestination - Organization ID for transcript uploads (null to skip)
  * @param args.defaultAgents - Default agent names for CLI operations (null to skip)
  * @param args.garbageCollectTranscripts - Whether to delete transcripts after upload (null to skip)
+ * @param args.redownloadOnSwitch - Whether to prompt to re-download from registry on switch (null to skip)
  */
 export const saveConfig = async (args: {
   username: string | null;
@@ -345,6 +351,7 @@ export const saveConfig = async (args: {
   defaultAgents?: Array<string> | null;
   transcriptDestination?: string | null;
   garbageCollectTranscripts?: "enabled" | "disabled" | null;
+  redownloadOnSwitch?: "enabled" | "disabled" | null;
   installDir: string;
 }): Promise<void> => {
   const {
@@ -361,6 +368,7 @@ export const saveConfig = async (args: {
     defaultAgents,
     transcriptDestination,
     garbageCollectTranscripts,
+    redownloadOnSwitch,
     installDir,
   } = args;
   const configPath = getConfigPath();
@@ -420,6 +428,11 @@ export const saveConfig = async (args: {
   // Add garbageCollectTranscripts if provided
   if (garbageCollectTranscripts != null) {
     config.garbageCollectTranscripts = garbageCollectTranscripts;
+  }
+
+  // Add redownloadOnSwitch if provided
+  if (redownloadOnSwitch != null) {
+    config.redownloadOnSwitch = redownloadOnSwitch;
   }
 
   // Always save installDir
@@ -484,6 +497,11 @@ const configSchema = {
     garbageCollectTranscripts: {
       type: "string",
       enum: ["enabled", "disabled"],
+    },
+    redownloadOnSwitch: {
+      type: "string",
+      enum: ["enabled", "disabled"],
+      default: "enabled",
     },
   },
   additionalProperties: false,

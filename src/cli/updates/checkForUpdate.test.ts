@@ -9,19 +9,33 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 
-import {
-  describe,
-  it,
-  expect,
-  beforeEach,
-  afterEach,
-  vi,
-  type MockInstance,
-} from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 import { checkForUpdateAndPrompt } from "./checkForUpdate.js";
 
-// Mock the prompt module to avoid actual readline interaction
+// Mock @clack/prompts to suppress output and capture calls
+vi.mock("@clack/prompts", () => ({
+  log: {
+    error: vi.fn(),
+    warn: vi.fn(),
+    info: vi.fn(),
+    success: vi.fn(),
+    step: vi.fn(),
+    message: vi.fn(),
+  },
+  note: vi.fn(),
+  spinner: vi.fn(() => ({
+    start: vi.fn(),
+    stop: vi.fn(),
+    message: "",
+  })),
+  confirm: vi.fn(),
+  text: vi.fn(),
+  select: vi.fn(),
+  isCancel: vi.fn(),
+}));
+
+// Mock the prompt module to avoid actual clack interaction
 vi.mock("./updatePrompt.js", async (importOriginal) => {
   const original = (await importOriginal()) as Record<string, unknown>;
   return {
@@ -41,7 +55,6 @@ vi.mock("@/cli/installTracking.js", () => ({
 describe("checkForUpdate", () => {
   let tempDir: string;
   let originalHome: string | undefined;
-  let fetchSpy: MockInstance;
 
   beforeEach(() => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "check-for-update-test-"));
@@ -49,9 +62,7 @@ describe("checkForUpdate", () => {
     process.env.HOME = tempDir;
     fs.mkdirSync(path.join(tempDir, ".nori", "profiles"), { recursive: true });
 
-    fetchSpy = vi.spyOn(globalThis, "fetch");
-    // Suppress error logging during tests
-    vi.spyOn(console, "error").mockImplementation(/* noop */ () => undefined);
+    vi.spyOn(globalThis, "fetch");
   });
 
   afterEach(() => {
@@ -192,7 +203,7 @@ describe("checkForUpdate", () => {
       }),
     );
 
-    fetchSpy.mockResolvedValueOnce(
+    vi.mocked(globalThis.fetch).mockResolvedValueOnce(
       new Response(JSON.stringify({ version: "2.0.0" }), { status: 200 }),
     );
 
@@ -205,7 +216,7 @@ describe("checkForUpdate", () => {
 
     // Wait for background refresh to complete
     await vi.waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalled();
+      expect(globalThis.fetch).toHaveBeenCalled();
     });
   });
 
@@ -270,6 +281,48 @@ describe("checkForUpdate", () => {
         latestVersion: "2.0.0",
         isInteractive: true,
       }),
+    );
+  });
+
+  it("should display manual update command as a note when package manager is unknown", async () => {
+    const cachePath = path.join(
+      tempDir,
+      ".nori",
+      "profiles",
+      "nori-skillsets-version.json",
+    );
+    fs.writeFileSync(
+      cachePath,
+      JSON.stringify({
+        latest_version: "2.0.0",
+        last_checked_at: new Date().toISOString(),
+      }),
+    );
+
+    const { showUpdatePrompt } = await import("./updatePrompt.js");
+    vi.mocked(showUpdatePrompt).mockResolvedValueOnce("update");
+
+    // Mock install source as unknown to trigger null updateCommand
+    const { readInstallState } = await import("@/cli/installTracking.js");
+    vi.mocked(readInstallState).mockResolvedValueOnce({
+      install_source: "unknown",
+    } as any);
+
+    const clack = await import("@clack/prompts");
+
+    await checkForUpdateAndPrompt({
+      currentVersion: "1.0.0",
+      isInteractive: true,
+      isSilent: false,
+      autoupdate: null,
+    });
+
+    expect(clack.log.warn).toHaveBeenCalledWith(
+      expect.stringContaining("Could not detect package manager"),
+    );
+    expect(clack.note).toHaveBeenCalledWith(
+      expect.stringContaining("npm install -g nori-skillsets@latest"),
+      "Update Manually",
     );
   });
 

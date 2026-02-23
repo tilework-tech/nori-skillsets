@@ -195,7 +195,8 @@ Tests updated to assert on `clack.note` and `clack.log.success`.
 
 ### Phase 4 — `install` command and ASCII art ✅ DONE
 
-Completed on the `feat/migrate-loggers` branch. In `install.ts`, all
+Completed on the `feat/migrate-loggers` branch, refined on the
+`refactor/migrate-update-checker-to-clack` branch. In `install.ts`, all
 `error()` / `success()` / `info()` / `newline()` calls from `@/cli/logger.js`
 replaced with `log.error()` / `log.success()` / `log.info()` from
 `@clack/prompts`. `newline()` calls removed. `setSilentMode` kept in
@@ -203,29 +204,117 @@ replaced with `log.error()` / `log.success()` / `log.info()` from
 to `displayCompletionBanners()` and `runFeatureLoaders()` since clack
 `log.*` methods do not respect the logger's silent mode.
 
+Multi-line outputs migrated to `note()`:
+- `displayCompletionBanners()`: Three repeated `log.success()` calls (ASCII
+  "======" restart banner) replaced with a single `note("Restart your Claude
+  Code instances to get started", "Installation Complete")`.
+- `noninteractive()` missing-profile error path: `log.info()` usage example
+  replaced with `note()` with "Example" title.
+
+In `features/config/loader.ts`, the auth failure catch block consolidated
+4-6 separate `log.error()` calls (email, error code, message, hint) into a
+single `note()` with "Details" title. `log.error("Authentication failed")`
+kept as the header; `log.warn()` kept for the continuation warning.
+
 In `asciiArt.ts`, `raw()` / `newline()` calls replaced with direct
 `process.stdout.write()` via a local `writeLine()` helper. Each display
 function now has an `isSilentMode()` early-return guard. This approach
-preserves raw ASCII art output without clack bar prefixes.
+preserves raw ASCII art output without clack bar prefixes — the banner
+prints before clack's bar line.
 
-Tests updated to add `@clack/prompts` mock and assert error/info/success
-messages route through clack.
+In `prompts/flows/init.ts`, the ancestor installation warning (8-line block
+passed to `log.warn()`) was migrated to `note(ancestorLines.join("\n"),
+"Warning")`. The unused `log` import was removed. Tests updated in
+`init.test.ts` to assert `note()` is called with "Warning" title and
+ancestor paths.
+
+In `updates/checkForUpdate.ts`, the unknown-package-manager fallback path
+had a `log.warn()` with embedded `\n` (message + command on separate lines).
+Migrated to `log.warn("Could not detect package manager...")` header +
+`note("npm install -g nori-skillsets@latest", "Update Manually")`. `note`
+added to `@clack/prompts` import. Tests updated in `checkForUpdate.test.ts`
+with `note` mock and assertion.
+
+Tests updated to add `@clack/prompts` mock (including `note`) and assert
+error/info/success messages route through clack, and multi-line outputs
+route through `note()`.
 
 | Module | File | Status |
 |--------|------|--------|
 | `install` | `commands/install/install.ts` | ✅ Migrated |
 | ASCII art | `commands/install/asciiArt.ts` | ✅ Migrated |
+| Config loader | `features/config/loader.ts` | ✅ Multi-line note |
+| Init flow | `prompts/flows/init.ts` | ✅ Ancestor warning note |
+| Update checker | `updates/checkForUpdate.ts` | ✅ Manual update note |
 
-### Phase 5 — Update checker
+### Phase 5 — Update checker ✅ DONE
 
-| Module | File | Output method |
-|--------|------|--------------|
-| Update checker | `updates/checkForUpdate.ts` | `process.stderr.write` |
-| Update prompt | `updates/updatePrompt.ts` | `process.stderr.write`, raw ANSI, `readline` |
+Completed on the `feat/migrate-loggers` branch. All `process.stderr.write`
+calls in `checkForUpdate.ts` replaced with `log.warn()` / `log.info()` /
+`log.success()` / `log.error()` from `@clack/prompts`. The `error()` import
+from `@/cli/logger.js` was removed. In `updatePrompt.ts`, the raw ANSI
+`formatUpdateMessage()` box and `readline`-based interactive prompt were
+replaced with `@clack/prompts` `select()` for interactive mode and
+`log.warn()` for non-interactive mode. The `readline` import was removed
+entirely. Tests updated in both affected files.
 
-### Phase 6 — Deprecate console logger
+| Module | File | Status |
+|--------|------|--------|
+| Update checker | `updates/checkForUpdate.ts` | ✅ Migrated |
+| Update prompt | `updates/updatePrompt.ts` | ✅ Migrated |
 
-Once all consumers are migrated, remove/deprecate the console transport
-methods in `logger.ts` (`error`, `success`, `info`, `warn`, `raw`,
-`newline`, `setSilentMode`). Keep the file transport (`debug`) and color
-helpers.
+### Phase 6 — Deprecate console logger ✅ DONE
+
+Completed on the `refactor/migrate-update-checker-to-clack` branch. All
+remaining consumers of the legacy console transport methods (`error`,
+`success`, `info`, `warn`, `raw`, `newline`) have been migrated:
+
+**Feature loaders** (9 files) — `success()` / `info()` / `warn()` calls
+from `@/cli/logger.js` replaced with `log.success()` / `log.info()` /
+`log.warn()` from `@clack/prompts`:
+- `features/claude-code/announcements/loader.ts`
+- `features/claude-code/hooks/loader.ts`
+- `features/claude-code/profiles/loader.ts`
+- `features/claude-code/profiles/skills/loader.ts`
+- `features/claude-code/profiles/claudemd/loader.ts`
+- `features/claude-code/profiles/slashcommands/loader.ts`
+- `features/claude-code/profiles/subagents/loader.ts`
+- `features/claude-code/statusline/loader.ts`
+- `features/claude-code/agent.ts`
+
+**Config loader** — `info()` / `success()` / `error()` / `warn()` calls
+replaced with `log.*` from `@clack/prompts`; `debug()` kept in
+`@/cli/logger.js`:
+- `features/config/loader.ts`
+
+**Daemon/hook scripts** — `error()` calls replaced with `debug()` (file-only
+logging, appropriate for background scripts that should fail silently):
+- `commands/watch/uploader.ts`
+- `features/claude-code/hooks/config/update-check.ts`
+- `features/claude-code/hooks/config/context-usage-warning.ts`
+
+**Logger cleanup** — The `ConsoleTransport` class, `consoleTransport`
+instance, and all deprecated console output methods (`error`, `success`,
+`info`, `warn`, `raw`, `newline`) have been removed from `logger.ts`.
+The `setSilentMode` / `isSilentMode` mechanism was refactored from
+the console transport's `silent` flag to a simple module-scoped boolean.
+Retained exports: `debug`, `setSilentMode`, `isSilentMode`, `LOG_FILE`,
+and all color helpers (`green`, `red`, `yellow`, `bold`, `brightCyan`,
+`boldWhite`, `gray`, `wrapText`).
+
+| Module | File | Status |
+|--------|------|--------|
+| Announcements loader | `features/claude-code/announcements/loader.ts` | ✅ Migrated |
+| Hooks loader | `features/claude-code/hooks/loader.ts` | ✅ Migrated |
+| Profiles loader | `features/claude-code/profiles/loader.ts` | ✅ Migrated |
+| Skills loader | `features/claude-code/profiles/skills/loader.ts` | ✅ Migrated |
+| CLAUDE.md loader | `features/claude-code/profiles/claudemd/loader.ts` | ✅ Migrated |
+| Slash commands loader | `features/claude-code/profiles/slashcommands/loader.ts` | ✅ Migrated |
+| Subagents loader | `features/claude-code/profiles/subagents/loader.ts` | ✅ Migrated |
+| Statusline loader | `features/claude-code/statusline/loader.ts` | ✅ Migrated |
+| Agent | `features/claude-code/agent.ts` | ✅ Migrated |
+| Config loader | `features/config/loader.ts` | ✅ Migrated |
+| Watch uploader | `commands/watch/uploader.ts` | ✅ Migrated |
+| Update check hook | `features/claude-code/hooks/config/update-check.ts` | ✅ Migrated |
+| Context usage hook | `features/claude-code/hooks/config/context-usage-warning.ts` | ✅ Migrated |
+| Logger | `logger.ts` | ✅ Cleaned up |

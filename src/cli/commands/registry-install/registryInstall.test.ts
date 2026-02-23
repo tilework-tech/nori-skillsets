@@ -57,6 +57,7 @@ vi.mock("@/cli/commands/install/installState.js", () => ({
 
 vi.mock("@/cli/config.js", () => ({
   loadConfig: vi.fn().mockResolvedValue(null),
+  getActiveSkillset: vi.fn().mockReturnValue(null),
   getDefaultAgents: vi.fn().mockReturnValue(["claude-code"]),
 }));
 
@@ -82,6 +83,9 @@ vi.mock("@clack/prompts", () => ({
     step: vi.fn(),
     message: vi.fn(),
   },
+  intro: vi.fn(),
+  note: vi.fn(),
+  outro: vi.fn(),
   spinner: vi.fn(() => ({
     start: vi.fn(),
     stop: vi.fn(),
@@ -97,6 +101,9 @@ vi.mock("@/cli/logger.js", () => ({
   debug: vi.fn(),
   setSilentMode: vi.fn(),
   isSilentMode: vi.fn(),
+  bold: vi.fn(({ text }: { text: string }) => text),
+  brightCyan: vi.fn(({ text }: { text: string }) => text),
+  green: vi.fn(({ text }: { text: string }) => text),
 }));
 
 import { main as installMain } from "@/cli/commands/install/install.js";
@@ -238,29 +245,42 @@ describe("registry-install", () => {
     expect(result.success).toBe(false);
   });
 
-  it("should display success message when install completes", async () => {
+  it("should not display outro on initial install (installMain handles its own banners)", async () => {
     await registryInstallMain({
       packageSpec: "senior-swe",
     });
 
-    // Should display success message with profile name via clack
-    expect(clack.log.success).toHaveBeenCalledWith(
+    // Initial install delegates to installMain which shows its own completion banners
+    expect(clack.outro).not.toHaveBeenCalled();
+  });
+
+  it("should display outro on switch path for existing installation", async () => {
+    vi.mocked(hasExistingInstallation).mockReturnValueOnce(true);
+
+    await registryInstallMain({
+      packageSpec: "senior-swe",
+    });
+
+    // Switch path shows intro/outro framing
+    expect(clack.intro).toHaveBeenCalledWith("Switch Skillset");
+    expect(clack.note).toHaveBeenCalledWith(
       expect.stringContaining("senior-swe"),
+      "Switching Skillset",
     );
-    expect(clack.log.info).toHaveBeenCalledWith(
-      expect.stringContaining("Restart"),
+    expect(clack.outro).toHaveBeenCalledWith(
+      expect.stringContaining("senior-swe"),
     );
   });
 
-  it("should not display success message when download fails", async () => {
+  it("should not display outro when download fails", async () => {
     vi.mocked(registryDownloadMain).mockResolvedValueOnce({ success: false });
 
     await registryInstallMain({
       packageSpec: "nonexistent-profile",
     });
 
-    // Should NOT display success message
-    expect(clack.log.success).not.toHaveBeenCalled();
+    // Should NOT display outro
+    expect(clack.outro).not.toHaveBeenCalled();
   });
 
   it("should fallback to local skillset when download fails but skillset exists locally", async () => {

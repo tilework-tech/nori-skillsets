@@ -7,13 +7,13 @@ import * as fs from "fs/promises";
 import * as path from "path";
 
 import { type Config } from "@/cli/config.js";
+import { copyBundledSkills } from "@/cli/features/bundled-skillsets/installer.js";
 import {
   getClaudeDir,
   getClaudeSkillsDir,
   getClaudeSettingsFile,
 } from "@/cli/features/claude-code/paths.js";
 import { substituteTemplatePaths } from "@/cli/features/template.js";
-import { success, info } from "@/cli/logger.js";
 
 import type { ProfileLoader } from "@/cli/features/claude-code/skillsets/skillsetLoaderRegistry.js";
 import type { Skillset } from "@/cli/features/skillset.js";
@@ -71,7 +71,6 @@ const installSkills = async (args: {
   skillset: Skillset;
 }): Promise<void> => {
   const { config, skillset } = args;
-  info({ message: "Installing Nori skills..." });
 
   const configDir = skillset.skillsDir;
   const claudeDir = getClaudeDir({ installDir: config.installDir });
@@ -85,9 +84,7 @@ const installSkills = async (args: {
 
   // Install inline skills from profile's skills/ folder
   if (configDir == null) {
-    info({
-      message: "Profile skills directory not found, skipping skills install",
-    });
+    // Profile skills directory not found — continue silently
   } else {
     let entries: Array<Dirent>;
     try {
@@ -120,18 +117,15 @@ const installSkills = async (args: {
         });
       }
     } catch {
-      info({
-        message: "Profile skills directory not found, checking skills.json",
-      });
+      // Profile skills directory not found - continue silently
     }
   }
 
-  // Note: External skills from skills.json are now stored in the profile's own skills
-  // directory ({skillsetDir}/skills/) after being downloaded by registry-download.
-  // Step 1 already copies all skills from that directory, so no separate step is needed.
-  // The skills.json file is now just metadata for tracking which skills were downloaded.
-
-  success({ message: "✓ Installed skills" });
+  // Copy bundled skills (skips any already provided by the skillset)
+  await copyBundledSkills({
+    destSkillsDir: claudeSkillsDir,
+    installDir: claudeDir,
+  });
 
   // Configure permissions for skills directory
   await configureSkillsPermissions({ config });
@@ -148,7 +142,7 @@ const configureSkillsPermissions = async (args: {
   config: Config;
 }): Promise<void> => {
   const { config } = args;
-  info({ message: "Configuring permissions for skills directory..." });
+  // Silently configure permissions
 
   const claudeSettingsFile = getClaudeSettingsFile({
     installDir: config.installDir,
@@ -186,7 +180,6 @@ const configureSkillsPermissions = async (args: {
 
   // Write back to file
   await fs.writeFile(claudeSettingsFile, JSON.stringify(settings, null, 2));
-  success({ message: `✓ Configured permissions for ${claudeSkillsDir}` });
 };
 
 /**
