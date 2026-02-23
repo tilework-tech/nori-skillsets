@@ -22,7 +22,7 @@ Changes:
 **Refactor A progress:** CLI commands no longer import claude-code-specific paths directly. They use the Agent interface from `agentRegistry.ts` instead.
 
 Changes:
-- Added `AgentArtifact` type, `getSkillsDir()`, `getProjectsDir?()`, `findArtifacts?()` to Agent interface in `agentRegistry.ts`
+- Added `AgentArtifact` type, `getSkillsDir()`, `getTranscriptDirectory?()`, `findArtifacts?()` to Agent interface in `agentRegistry.ts`
 - Renamed `ExistingConfig.hasClaudeMd` → `hasConfigFile` (agent-agnostic name)
 - Implemented new methods on claude-code agent (`agent.ts`)
 - Relocated `manifest.ts` from `claude-code/skillsets/manifest.ts` to `src/cli/features/manifest.ts` (renamed `claudeDir` param to `agentDir` in `removeManagedFiles`)
@@ -32,7 +32,7 @@ Changes:
   - `config.ts`, `switchSkillset.ts`, `install.ts` → `agent.getAgentDir()` + shared manifest
   - `external.ts`, `skillDownload.ts` → `agent.getSkillsDir()` + shared resolver
   - `factoryReset.ts` → `agent.findArtifacts()`
-  - `watch.ts` → `agent.getProjectsDir()`
+  - `watch.ts` → `agent.getTranscriptDirectory()`
 - Removed dead `getClaudeProjectsDir()` from `watch/paths.ts`
 - Updated `init.ts`, `existingConfigCapture.ts` for `hasConfigFile` rename
 - Updated all test mocks and assertions for new import paths and param names

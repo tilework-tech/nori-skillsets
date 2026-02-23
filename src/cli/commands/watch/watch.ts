@@ -79,7 +79,7 @@ const lastEventTime: Map<string, number> = new Map();
 const uploadingFiles: Set<string> = new Set();
 
 /**
- * Watcher for Claude Code projects directory
+ * Watcher for agent transcript directory
  */
 let projectsWatcher: WatcherInstance | null = null;
 
@@ -194,8 +194,8 @@ const handleFileEvent = async (args: {
 
     // Get the project name from the directory structure
     const agentImpl = AgentRegistry.getInstance().get({ name: agent });
-    const projectsDir = agentImpl.getProjectsDir?.() ?? "";
-    const relativePath = path.relative(projectsDir, filePath);
+    const transcriptDir = agentImpl.getTranscriptDirectory?.() ?? "";
+    const relativePath = path.relative(transcriptDir, filePath);
     const projectName = relativePath.split(path.sep)[0];
 
     if (projectName == null) {
@@ -655,18 +655,18 @@ export const watchMain = async (args?: {
 
   // Start the watcher for agent projects
   const agentImpl = AgentRegistry.getInstance().get({ name: agent });
-  const watchDir = agentImpl.getProjectsDir?.();
+  const watchDir = agentImpl.getTranscriptDirectory?.();
 
   if (watchDir == null) {
-    await log(`Agent "${agent}" does not provide a projects directory`);
+    await log(`Agent "${agent}" does not provide a transcript directory`);
     return;
   }
 
-  // Check if agent projects directory exists
+  // Check if agent transcript directory exists
   try {
     await fs.access(watchDir);
   } catch {
-    await log(`Agent projects directory not found: ${watchDir}`);
+    await log(`Agent transcript directory not found: ${watchDir}`);
     await log("Will watch for directory creation...");
   }
 

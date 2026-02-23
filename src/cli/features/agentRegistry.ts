@@ -102,8 +102,9 @@ export type Agent = {
   removeSkillset: (args: { installDir: string }) => Promise<void>;
   /** Install a skillset: run feature loaders, write manifest, and mark install */
   installSkillset: (args: { config: Config }) => Promise<void>;
-  /** Get the agent's projects/sessions directory (home-relative) */
-  getProjectsDir?: (() => string) | null;
+  /** Get the directory where this agent stores session transcript files (e.g., JSONL files).
+   * Agents that store transcripts in non-file-based formats (like SQLite) should not implement this. */
+  getTranscriptDirectory?: (() => string) | null;
   /** Find agent configuration artifacts starting from a directory */
   findArtifacts?:
     | ((args: {
