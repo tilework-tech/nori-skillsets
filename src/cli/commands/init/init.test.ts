@@ -400,6 +400,28 @@ describe("init command", () => {
     });
   });
 
+  describe("installDir persistence", () => {
+    it("should not overwrite config installDir when called with a different installDir", async () => {
+      const CONFIG_PATH = getConfigPath();
+      const originalInstallDir = "/original/install/path";
+
+      // Create existing config with a specific installDir
+      const existingConfig = {
+        version: "19.0.0",
+        activeSkillset: "amol",
+        installDir: originalInstallDir,
+      };
+      fs.writeFileSync(CONFIG_PATH, JSON.stringify(existingConfig, null, 2));
+
+      // Run init with a DIFFERENT installDir (simulating --install-dir override)
+      await initMain({ installDir: tempDir, nonInteractive: true });
+
+      // The config's installDir should remain unchanged
+      const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
+      expect(config.installDir).toBe(originalInstallDir);
+    });
+  });
+
   describe("default agent usage", () => {
     it("should respect defaultAgents config when checking for existing installations", async () => {
       const CONFIG_PATH = getConfigPath();

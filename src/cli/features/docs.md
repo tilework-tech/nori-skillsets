@@ -104,7 +104,7 @@ The init command (@/src/cli/commands/init/) uses `getDefaultAgent()` from @/src/
 - Shared loader that manages the `.nori-config.json` file lifecycle (single source of truth for config and version)
 - All agents MUST include this loader in their registry
 - Handles saving/removing config with auth credentials, skillset selection, user preferences, and version tracking
-- During install: Calls `updateConfig()` from @/src/cli/config.ts to persist `activeSkillset`, version, auth credentials, and transcript settings. Because `updateConfig()` uses a read-merge-write pattern, fields like `installDir`, `defaultAgents`, `autoupdate`, and `redownloadOnSwitch` are automatically preserved from the existing config without explicit pass-through
+- During install: Calls `updateConfig()` from @/src/cli/config.ts to persist `activeSkillset`, version, auth credentials, and transcript settings. Because `updateConfig()` uses a read-merge-write pattern, fields like `installDir`, `defaultAgents`, `autoupdate`, and `redownloadOnSwitch` are automatically preserved from the existing config without explicit pass-through. The config loader does not write `installDir` -- only `sks config` persists that field
 - Uses `@clack/prompts` (`log.*`, `note()`) for user-facing output. Auth error details are consolidated into a `note()` section rather than individual log lines.
 
 **Bundled Skills Installer** (bundled-skillsets/installer.ts):

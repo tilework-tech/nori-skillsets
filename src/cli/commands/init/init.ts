@@ -126,7 +126,6 @@ export const initMain = async (args?: {
           await updateConfig({
             activeSkillset,
             version: currentVersion ?? null,
-            installDir: dir,
           });
 
           // Mark this directory as having all default agents installed
@@ -177,11 +176,10 @@ export const initMain = async (args?: {
   const activeSkillset =
     capturedSkillsetName ?? existingConfig?.activeSkillset ?? null;
 
-  // Save config
+  // Save config — do not persist installDir; only `sks config` should change it.
   await updateConfig({
     activeSkillset,
     version: currentVersion ?? null,
-    installDir: normalizedInstallDir,
   });
 
   // If a skillset was captured, capture config and install managed block for all agents
