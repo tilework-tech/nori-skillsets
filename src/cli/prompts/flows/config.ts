@@ -8,7 +8,7 @@
  * - Intro/outro framing
  */
 
-import { intro, multiselect, text } from "@clack/prompts";
+import { intro, multiselect, text, confirm } from "@clack/prompts";
 
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 
@@ -18,6 +18,7 @@ export type ConfigFlowCallbacks = {
   onLoadConfig: () => Promise<{
     currentAgents: Array<string> | null;
     currentInstallDir: string | null;
+    currentRedownloadOnSwitch?: "enabled" | "disabled" | null;
   }>;
   onResolveAgents: () => Promise<
     Array<{ name: string; displayName: string; description: string }>
@@ -27,6 +28,7 @@ export type ConfigFlowCallbacks = {
 export type ConfigFlowResult = {
   defaultAgents: Array<string>;
   installDir: string;
+  redownloadOnSwitch: "enabled" | "disabled";
 };
 
 /**
@@ -45,7 +47,8 @@ export const configFlow = async (args: {
   intro("Configure Nori");
 
   // Load current config values for defaults
-  const { currentAgents, currentInstallDir } = await callbacks.onLoadConfig();
+  const { currentAgents, currentInstallDir, currentRedownloadOnSwitch } =
+    await callbacks.onLoadConfig();
 
   // Resolve available agents from registry
   const agents = await callbacks.onResolveAgents();
@@ -81,8 +84,20 @@ export const configFlow = async (args: {
 
   if (installDir == null) return null;
 
+  // Step 3: Prompt to re-download skillsets on switch
+  const redownloadOnSwitchEnabled = unwrapPrompt({
+    value: await confirm({
+      message: "Prompt to re-download skillsets from registry on switch?",
+      initialValue: currentRedownloadOnSwitch !== "disabled",
+    }),
+    cancelMessage: "Configuration cancelled.",
+  });
+
+  if (redownloadOnSwitchEnabled == null) return null;
+
   return {
     defaultAgents: selectedAgents as Array<string>,
     installDir: installDir as string,
+    redownloadOnSwitch: redownloadOnSwitchEnabled ? "enabled" : "disabled",
   };
 };

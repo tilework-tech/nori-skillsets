@@ -18,6 +18,7 @@ vi.mock("@clack/prompts", () => ({
   intro: vi.fn(),
   outro: vi.fn(),
   select: vi.fn(),
+  confirm: vi.fn(),
   multiselect: vi.fn(),
   text: vi.fn(),
   spinner: vi.fn(() => ({
@@ -61,18 +62,21 @@ describe("configFlow", () => {
     it("should return selected agents array and install dir", async () => {
       vi.mocked(clack.multiselect).mockResolvedValueOnce(["claude-code"]);
       vi.mocked(clack.text).mockResolvedValueOnce("/home/testuser");
+      vi.mocked(clack.confirm).mockResolvedValueOnce(true);
 
       const result = await configFlow({ callbacks: mockCallbacks });
 
       expect(result).toEqual({
         defaultAgents: ["claude-code"],
         installDir: "/home/testuser",
+        redownloadOnSwitch: "enabled",
       });
     });
 
     it("should show agent multiselect with available agents", async () => {
       vi.mocked(clack.multiselect).mockResolvedValueOnce(["claude-code"]);
       vi.mocked(clack.text).mockResolvedValueOnce("/home/testuser");
+      vi.mocked(clack.confirm).mockResolvedValueOnce(true);
 
       await configFlow({ callbacks: mockCallbacks });
 
@@ -91,6 +95,7 @@ describe("configFlow", () => {
     it("should show text prompt for install dir", async () => {
       vi.mocked(clack.multiselect).mockResolvedValueOnce(["claude-code"]);
       vi.mocked(clack.text).mockResolvedValueOnce("/home/testuser");
+      vi.mocked(clack.confirm).mockResolvedValueOnce(true);
 
       await configFlow({ callbacks: mockCallbacks });
 
@@ -106,6 +111,7 @@ describe("configFlow", () => {
       });
       vi.mocked(clack.multiselect).mockResolvedValueOnce(["claude-code"]);
       vi.mocked(clack.text).mockResolvedValueOnce("/custom/path");
+      vi.mocked(clack.confirm).mockResolvedValueOnce(true);
 
       await configFlow({ callbacks: mockCallbacks });
 
@@ -146,11 +152,69 @@ describe("configFlow", () => {
     it("should require at least one agent to be selected", async () => {
       vi.mocked(clack.multiselect).mockResolvedValueOnce(["claude-code"]);
       vi.mocked(clack.text).mockResolvedValueOnce("/home/testuser");
+      vi.mocked(clack.confirm).mockResolvedValueOnce(true);
 
       await configFlow({ callbacks: mockCallbacks });
 
       const msCall = vi.mocked(clack.multiselect).mock.calls[0][0];
       expect(msCall.required).toBe(true);
+    });
+  });
+
+  describe("redownload on switch toggle", () => {
+    it("should include redownloadOnSwitch disabled in result when user says no", async () => {
+      vi.mocked(clack.multiselect).mockResolvedValueOnce(["claude-code"]);
+      vi.mocked(clack.text).mockResolvedValueOnce("/home/testuser");
+      vi.mocked(clack.confirm).mockResolvedValueOnce(false);
+
+      const result = await configFlow({ callbacks: mockCallbacks });
+
+      expect(result).toEqual({
+        defaultAgents: ["claude-code"],
+        installDir: "/home/testuser",
+        redownloadOnSwitch: "disabled",
+      });
+    });
+
+    it("should default to enabled when no existing config", async () => {
+      vi.mocked(clack.multiselect).mockResolvedValueOnce(["claude-code"]);
+      vi.mocked(clack.text).mockResolvedValueOnce("/home/testuser");
+      vi.mocked(clack.confirm).mockResolvedValueOnce(true);
+
+      await configFlow({ callbacks: mockCallbacks });
+
+      const confirmCall = vi.mocked(clack.confirm).mock.calls[0][0];
+      expect(confirmCall.initialValue).toBe(true);
+    });
+
+    it("should reflect existing disabled config as initial value", async () => {
+      vi.mocked(mockCallbacks.onLoadConfig).mockResolvedValueOnce({
+        currentAgents: ["claude-code"],
+        currentInstallDir: "/home/testuser",
+        currentRedownloadOnSwitch: "disabled",
+      });
+      vi.mocked(clack.multiselect).mockResolvedValueOnce(["claude-code"]);
+      vi.mocked(clack.text).mockResolvedValueOnce("/home/testuser");
+      vi.mocked(clack.confirm).mockResolvedValueOnce(false);
+
+      await configFlow({ callbacks: mockCallbacks });
+
+      const confirmCall = vi.mocked(clack.confirm).mock.calls[0][0];
+      expect(confirmCall.initialValue).toBe(false);
+    });
+
+    it("should return null when user cancels at redownload prompt", async () => {
+      vi.mocked(clack.multiselect).mockResolvedValueOnce(["claude-code"]);
+      vi.mocked(clack.text).mockResolvedValueOnce("/home/testuser");
+      const cancelSymbol = Symbol.for("cancel");
+      vi.mocked(clack.confirm).mockResolvedValueOnce(cancelSymbol as any);
+      vi.mocked(clack.isCancel).mockImplementation(
+        (value) => value === cancelSymbol,
+      );
+
+      const result = await configFlow({ callbacks: mockCallbacks });
+
+      expect(result).toBeNull();
     });
   });
 });

@@ -52,6 +52,7 @@ export const configMain = async (): Promise<void> => {
         return {
           currentAgents: config?.defaultAgents ?? null,
           currentInstallDir: config?.installDir ?? null,
+          currentRedownloadOnSwitch: config?.redownloadOnSwitch ?? null,
         };
       },
       onResolveAgents: async () => {
@@ -106,6 +107,7 @@ export const configMain = async (): Promise<void> => {
     version: existingConfig?.version ?? null,
     transcriptDestination: existingConfig?.transcriptDestination ?? null,
     defaultAgents: result.defaultAgents,
+    redownloadOnSwitch: result.redownloadOnSwitch,
     installDir: normalizedInstallDir,
   });
 

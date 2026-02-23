@@ -555,4 +555,73 @@ describe("switchSkillsetFlow", () => {
       expect(mockCallbacks.onExecuteSwitch).toHaveBeenCalled();
     });
   });
+
+  describe("redownload prompt", () => {
+    it("should call onRedownload when user confirms redownload", async () => {
+      mockCallbacks.onRedownload = vi.fn().mockResolvedValue(undefined);
+      vi.mocked(clack.confirm)
+        .mockResolvedValueOnce(true)
+        .mockResolvedValueOnce(true);
+
+      await switchSkillsetFlow({
+        skillsetName: "product-manager",
+        installDir: "/test/dir",
+        callbacks: mockCallbacks,
+      });
+
+      expect(mockCallbacks.onRedownload).toHaveBeenCalledWith({
+        skillsetName: "product-manager",
+      });
+    });
+
+    it("should not call onRedownload when user declines redownload", async () => {
+      mockCallbacks.onRedownload = vi.fn().mockResolvedValue(undefined);
+      vi.mocked(clack.confirm)
+        .mockResolvedValueOnce(true)
+        .mockResolvedValueOnce(false);
+
+      await switchSkillsetFlow({
+        skillsetName: "product-manager",
+        installDir: "/test/dir",
+        callbacks: mockCallbacks,
+      });
+
+      expect(mockCallbacks.onRedownload).not.toHaveBeenCalled();
+      // Should still complete the switch successfully
+      expect(mockCallbacks.onExecuteSwitch).toHaveBeenCalled();
+    });
+
+    it("should return null when user cancels at redownload prompt", async () => {
+      mockCallbacks.onRedownload = vi.fn().mockResolvedValue(undefined);
+      const cancelSymbol = Symbol.for("cancel");
+      vi.mocked(clack.confirm)
+        .mockResolvedValueOnce(true)
+        .mockResolvedValueOnce(cancelSymbol as any);
+      vi.mocked(clack.isCancel).mockImplementation(
+        (value) => value === cancelSymbol,
+      );
+
+      const result = await switchSkillsetFlow({
+        skillsetName: "product-manager",
+        installDir: "/test/dir",
+        callbacks: mockCallbacks,
+      });
+
+      expect(result).toBeNull();
+      expect(mockCallbacks.onExecuteSwitch).not.toHaveBeenCalled();
+    });
+
+    it("should not show redownload prompt when onRedownload is not provided", async () => {
+      vi.mocked(clack.confirm).mockResolvedValueOnce(true);
+
+      await switchSkillsetFlow({
+        skillsetName: "product-manager",
+        installDir: "/test/dir",
+        callbacks: mockCallbacks,
+      });
+
+      // Only one confirm call (the switch confirmation)
+      expect(clack.confirm).toHaveBeenCalledTimes(1);
+    });
+  });
 });
