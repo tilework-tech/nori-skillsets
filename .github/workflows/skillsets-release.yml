@@ -14,12 +14,24 @@
 #   # Test the build process without publishing
 #   gh workflow run skillsets-release.yml -f version=1.0.0 -f dry_run=true
 #
+#   # Automatic @next deploy: triggered by auto-next.yml on every push to main
+#
 name: Skillsets Release
 
 on:
   push:
     tags:
       - "skillsets-v*.*.*"
+  workflow_call:
+    inputs:
+      publish_next:
+        required: false
+        default: false
+        type: boolean
+      dry_run:
+        required: false
+        default: false
+        type: boolean
   workflow_dispatch:
     inputs:
       version:
@@ -66,7 +78,7 @@ jobs:
           IS_TAG_PUSH="false"
           PUBLISH_NEXT="false"
 
-          if [[ "${{ github.event_name }}" == "push" ]]; then
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
             IS_TAG_PUSH="true"
             # Extract version from tag name (skillsets-v1.0.0 -> 1.0.0)
             VERSION="${GITHUB_REF_NAME#${{ env.TAG_PREFIX }}}"
@@ -143,7 +155,6 @@ jobs:
           echo "| Version | \`$VERSION\` |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Tag | \`$TAG_NAME\` |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Pre-release | $IS_PRERELEASE |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Trigger | ${{ github.event_name }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Mode | $RUN_MODE |" >> "$GITHUB_STEP_SUMMARY"
 
   # ============================================================================
@@ -238,7 +249,7 @@ jobs:
     needs: [validate, build]
     # Publish for tag pushes OR when publish_next=true with dry_run=false
     # Note: create-next-tag runs in parallel for publish_next flows
-    if: ${{ !failure() && !cancelled() && (github.event_name == 'push' || (needs.validate.outputs.publish_next == 'true' && inputs.dry_run == false)) }}
+    if: ${{ !failure() && !cancelled() && (needs.validate.outputs.is_tag_push == 'true' || (needs.validate.outputs.publish_next == 'true' && inputs.dry_run == false)) }}
     runs-on: ubuntu-latest
     environment: npm-publish
     permissions:
@@ -325,8 +336,8 @@ jobs:
   # ============================================================================
   create-release:
     name: Create GitHub Release
-    needs: [validate, publish-npm]
-    if: ${{ !failure() && !cancelled() && (github.event_name == 'push' || (needs.validate.outputs.publish_next == 'true' && inputs.dry_run == false)) }}
+    needs: [validate, publish-npm, create-next-tag]
+    if: ${{ !failure() && !cancelled() && needs.validate.outputs.is_tag_push == 'true' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
