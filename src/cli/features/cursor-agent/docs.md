@@ -13,6 +13,7 @@ The Cursor agent implementation. This directory contains the `Agent` interface i
 - The `CursorLoaderRegistry` uses the shared `configLoader` from @/src/cli/features/config/loader.ts as its first loader, ensuring config is persisted before profile-dependent loaders run.
 - All profile sub-loaders read from the same `~/.nori/profiles/` directory as the Claude Code agent, using `parseSkillset()` from @/src/cli/features/skillset.ts. The skillset's `CLAUDE.md` is read as the source config file and its content is written to `AGENTS.md` for Cursor.
 - Template substitution via `substituteTemplatePaths()` from @/src/cli/features/template.ts uses the `.cursor` directory as `installDir` so `{{skills_dir}}` resolves to `.cursor/skills/`.
+- The skills loader (`skillsets/skills/loader.ts`) copies skillset skills then calls `copyBundledSkills()` from @/src/cli/features/bundled-skillsets/installer.ts to add package-bundled skills (e.g., `nori-info`) that are not already provided by the skillset.
 - Per-agent manifest is stored at `~/.nori/manifests/cursor-agent.json` via the shared manifest infrastructure in @/src/cli/features/manifest.ts.
 - The `description` property (e.g., "Instructions, skills, subagents, commands") is surfaced as a hint in the config multiselect UI in @/src/cli/prompts/flows/config.ts.
 

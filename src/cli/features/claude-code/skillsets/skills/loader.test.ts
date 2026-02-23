@@ -717,4 +717,92 @@ describe("skillsLoader", () => {
       expect(content).not.toContain("{{skills_dir}}");
     });
   });
+
+  describe("bundled skills", () => {
+    it("should install bundled nori-info skill alongside skillset skills", async () => {
+      const config: Config = {
+        installDir: tempDir,
+        activeSkillset: "senior-swe",
+      };
+
+      await installWithSkillset({ config });
+
+      // Skillset skills should be present
+      const usingSkillsExists = await fs
+        .access(path.join(skillsDir, "using-skills", "SKILL.md"))
+        .then(() => true)
+        .catch(() => false);
+      expect(usingSkillsExists).toBe(true);
+
+      // Bundled nori-info skill should also be present
+      const noriInfoExists = await fs
+        .access(path.join(skillsDir, "nori-info", "SKILL.md"))
+        .then(() => true)
+        .catch(() => false);
+      expect(noriInfoExists).toBe(true);
+
+      const content = await fs.readFile(
+        path.join(skillsDir, "nori-info", "SKILL.md"),
+        "utf-8",
+      );
+      expect(content).toContain("nori-skillsets --help");
+    });
+
+    it("should install bundled nori-info skill even when skillset has no skills", async () => {
+      // Create a profile with no skills directory
+      await createStubProfile({
+        skillsetsDir: noriProfilesDir,
+        skillsetName: "empty-skillset",
+      });
+
+      const config: Config = {
+        installDir: tempDir,
+        activeSkillset: "empty-skillset",
+      };
+
+      await installWithSkillset({ config });
+
+      // Bundled nori-info skill should still be present
+      const noriInfoExists = await fs
+        .access(path.join(skillsDir, "nori-info", "SKILL.md"))
+        .then(() => true)
+        .catch(() => false);
+      expect(noriInfoExists).toBe(true);
+    });
+
+    it("should not overwrite skillset-provided nori-info skill", async () => {
+      // Create a profile that has its own nori-info skill
+      await createStubProfile({
+        skillsetsDir: noriProfilesDir,
+        skillsetName: "custom-nori-info",
+        skills: {
+          ...TEST_SKILLS,
+          "nori-info": [
+            "---",
+            "name: Custom Nori Info",
+            "description: Skillset-specific nori info",
+            "---",
+            "# Custom Nori Info",
+            "",
+            "This is the skillset's own version.",
+          ].join("\n"),
+        },
+      });
+
+      const config: Config = {
+        installDir: tempDir,
+        activeSkillset: "custom-nori-info",
+      };
+
+      await installWithSkillset({ config });
+
+      // Should have the skillset's version, not the bundled one
+      const content = await fs.readFile(
+        path.join(skillsDir, "nori-info", "SKILL.md"),
+        "utf-8",
+      );
+      expect(content).toContain("Custom Nori Info");
+      expect(content).toContain("This is the skillset's own version.");
+    });
+  });
 });

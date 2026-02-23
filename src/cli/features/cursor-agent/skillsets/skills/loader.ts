@@ -7,6 +7,7 @@ import * as fs from "fs/promises";
 import * as path from "path";
 
 import { type Config } from "@/cli/config.js";
+import { copyBundledSkills } from "@/cli/features/bundled-skillsets/installer.js";
 import {
   getCursorDir,
   getCursorSkillsDir,
@@ -116,6 +117,12 @@ const installSkills = async (args: {
       // Profile skills directory not found - continue silently
     }
   }
+
+  // Copy bundled skills (skips any already provided by the skillset)
+  await copyBundledSkills({
+    destSkillsDir: cursorSkillsDir,
+    installDir: cursorDir,
+  });
 };
 
 /**
