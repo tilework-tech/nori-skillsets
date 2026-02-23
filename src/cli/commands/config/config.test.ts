@@ -110,6 +110,7 @@ describe("configMain", () => {
     vi.mocked(configFlow).mockResolvedValueOnce({
       defaultAgents: ["claude-code"],
       installDir: tempDir,
+      redownloadOnSwitch: "enabled",
     });
 
     // Create a minimal existing config so loadConfig returns something
@@ -154,6 +155,7 @@ describe("configMain", () => {
     vi.mocked(configFlow).mockResolvedValueOnce({
       defaultAgents: ["claude-code"],
       installDir: "/new/path",
+      redownloadOnSwitch: "enabled",
     });
 
     // Create config with auth and agents
@@ -206,6 +208,7 @@ describe("configMain installDir change prompts", () => {
     vi.mocked(configFlow).mockResolvedValueOnce({
       defaultAgents: ["claude-code"],
       installDir: newInstallDir,
+      redownloadOnSwitch: "enabled",
     });
     // First confirm: install to new dir? Yes. Second confirm: clean up old? No.
     vi.mocked(confirmAction)
@@ -238,6 +241,7 @@ describe("configMain installDir change prompts", () => {
     vi.mocked(configFlow).mockResolvedValueOnce({
       defaultAgents: ["claude-code"],
       installDir: newInstallDir,
+      redownloadOnSwitch: "enabled",
     });
     // First confirm: install to new dir? No. Second confirm: clean up old? Yes.
     vi.mocked(confirmAction)
@@ -270,6 +274,7 @@ describe("configMain installDir change prompts", () => {
     vi.mocked(configFlow).mockResolvedValueOnce({
       defaultAgents: ["claude-code"],
       installDir: newInstallDir,
+      redownloadOnSwitch: "enabled",
     });
     vi.mocked(confirmAction)
       .mockResolvedValueOnce(false)
@@ -297,6 +302,7 @@ describe("configMain installDir change prompts", () => {
     vi.mocked(configFlow).mockResolvedValueOnce({
       defaultAgents: ["claude-code"],
       installDir: newInstallDir,
+      redownloadOnSwitch: "enabled",
     });
 
     await saveConfig({
@@ -318,6 +324,7 @@ describe("configMain installDir change prompts", () => {
     vi.mocked(configFlow).mockResolvedValueOnce({
       defaultAgents: ["claude-code"],
       installDir: oldInstallDir,
+      redownloadOnSwitch: "enabled",
     });
 
     await saveConfig({
@@ -343,6 +350,7 @@ describe("configMain installDir change prompts", () => {
     vi.mocked(configFlow).mockResolvedValueOnce({
       defaultAgents: ["claude-code", "agent-b"],
       installDir: newInstallDir,
+      redownloadOnSwitch: "enabled",
     });
     // First confirm: install to new dir? Yes. Second confirm: clean up old? No.
     vi.mocked(confirmAction)
@@ -388,6 +396,7 @@ describe("configMain installDir change prompts", () => {
     vi.mocked(configFlow).mockResolvedValueOnce({
       defaultAgents: ["claude-code"],
       installDir: newInstallDir,
+      redownloadOnSwitch: "enabled",
     });
     // Yes to both: install and clean up
     vi.mocked(confirmAction)
@@ -441,6 +450,7 @@ describe("configMain defaultAgents change prompts", () => {
     vi.mocked(configFlow).mockResolvedValueOnce({
       defaultAgents: ["claude-code", "new-agent"],
       installDir: tempDir,
+      redownloadOnSwitch: "enabled",
     });
     vi.mocked(confirmAction).mockResolvedValueOnce(true);
 
@@ -472,6 +482,7 @@ describe("configMain defaultAgents change prompts", () => {
     vi.mocked(configFlow).mockResolvedValueOnce({
       defaultAgents: ["claude-code", "agent-b", "agent-c"],
       installDir: tempDir,
+      redownloadOnSwitch: "enabled",
     });
     vi.mocked(confirmAction).mockResolvedValueOnce(true);
 
@@ -513,6 +524,7 @@ describe("configMain defaultAgents change prompts", () => {
     vi.mocked(configFlow).mockResolvedValueOnce({
       defaultAgents: ["new-agent"],
       installDir: tempDir,
+      redownloadOnSwitch: "enabled",
     });
     vi.mocked(confirmAction).mockResolvedValueOnce(false);
 
@@ -538,6 +550,7 @@ describe("configMain defaultAgents change prompts", () => {
     vi.mocked(configFlow).mockResolvedValueOnce({
       defaultAgents: [],
       installDir: tempDir,
+      redownloadOnSwitch: "enabled",
     });
     // First confirm: clean up removed agents? Yes.
     vi.mocked(confirmAction).mockResolvedValueOnce(true);
@@ -567,6 +580,7 @@ describe("configMain defaultAgents change prompts", () => {
     vi.mocked(configFlow).mockResolvedValueOnce({
       defaultAgents: [],
       installDir: tempDir,
+      redownloadOnSwitch: "enabled",
     });
     // Decline all prompts
     vi.mocked(confirmAction).mockResolvedValue(false);

@@ -50,6 +50,7 @@ export type SwitchSkillsetCallbacks = {
     agentName: string;
     skillsetName: string;
   }) => Promise<void>;
+  onRedownload?: ((args: { skillsetName: string }) => Promise<void>) | null;
 };
 
 /**
@@ -243,7 +244,27 @@ export const switchSkillsetFlow = async (args: {
     return null;
   }
 
-  // Step 4: Perform the switch for all agents
+  // Step 4: Ask about redownloading from registry (if callback provided)
+  if (callbacks.onRedownload != null) {
+    const redownload = unwrapPrompt({
+      value: await confirm({
+        message:
+          "Re-download from registry? This will update all skills in the skillset.",
+        initialValue: true,
+      }),
+      cancelMessage: cancelMsg,
+    });
+
+    if (redownload == null) {
+      return null;
+    }
+
+    if (redownload) {
+      await callbacks.onRedownload({ skillsetName });
+    }
+  }
+
+  // Step 5: Perform the switch for all agents
   const s = spinner();
   s.start("Switching skillset...");
 
