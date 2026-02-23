@@ -10,6 +10,7 @@ import { log } from "@clack/prompts";
 import { glob } from "glob";
 
 import { type Config } from "@/cli/config.js";
+import { getBundledSkillsDir } from "@/cli/features/bundled-skillsets/installer.js";
 import {
   getCursorDir,
   getCursorAgentsMdFile,
@@ -152,20 +153,44 @@ const generateSkillsList = async (args: {
 }): Promise<string> => {
   const { skillsDir, installDir } = args;
 
-  if (skillsDir == null) {
-    return "";
-  }
-
   try {
-    const skillFiles = await findSkillFiles({ dir: skillsDir });
+    // Find all skill files from the skillset
+    const skillFiles =
+      skillsDir != null ? await findSkillFiles({ dir: skillsDir }) : [];
 
-    if (skillFiles.length === 0) {
+    // Also find bundled skill files not already in the skillset
+    const bundledDir = getBundledSkillsDir();
+    let bundledSkillFiles: Array<string> = [];
+    try {
+      const bundledFiles = await findSkillFiles({ dir: bundledDir });
+      const skillsetSkillNames = new Set(
+        skillFiles
+          .map((f) => {
+            const parts = f.split(path.sep);
+            const idx = parts.lastIndexOf("SKILL.md");
+            return idx > 0 ? parts[idx - 1] : null;
+          })
+          .filter((n): n is string => n != null),
+      );
+      bundledSkillFiles = bundledFiles.filter((f) => {
+        const parts = f.split(path.sep);
+        const idx = parts.lastIndexOf("SKILL.md");
+        const name = idx > 0 ? parts[idx - 1] : null;
+        return name != null && !skillsetSkillNames.has(name);
+      });
+    } catch {
+      // Bundled skills directory not found — continue without them
+    }
+
+    const allSkillFiles = [...skillFiles, ...bundledSkillFiles];
+
+    if (allSkillFiles.length === 0) {
       return "";
     }
 
     const cursorDir = getCursorDir({ installDir });
     const formattedSkills: Array<string> = [];
-    for (const file of skillFiles) {
+    for (const file of allSkillFiles) {
       const formatted = await formatSkillInfo({
         skillPath: file,
         installDir: cursorDir,
