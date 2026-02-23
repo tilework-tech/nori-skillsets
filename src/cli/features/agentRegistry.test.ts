@@ -221,18 +221,6 @@ describe("AgentRegistry", () => {
     });
   });
 
-  describe("getSkillDiscoveryDirs", () => {
-    test("claude-code agent returns skill discovery directories", () => {
-      const registry = AgentRegistry.getInstance();
-      const agent = registry.get({ name: "claude-code" });
-      const dirs = agent.getSkillDiscoveryDirs();
-
-      expect(dirs.length).toBeGreaterThan(0);
-      // Should include the .claude/skills path pattern
-      expect(dirs).toContain(path.join(".claude", "skills"));
-    });
-  });
-
   describe("claude-code agent detectExistingConfig", () => {
     let testInstallDir: string;
 

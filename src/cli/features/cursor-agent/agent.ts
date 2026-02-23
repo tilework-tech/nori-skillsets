@@ -61,10 +61,6 @@ export const cursorAgent: Agent = {
     return CursorLoaderRegistry.getInstance();
   },
 
-  getSkillDiscoveryDirs: (): ReadonlyArray<string> => {
-    return [path.join(".cursor", "skills")];
-  },
-
   isInstalledAtDir: (args: { path: string }): boolean => {
     const cursorDir = path.join(args.path, ".cursor");
 

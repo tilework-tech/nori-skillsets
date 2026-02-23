@@ -16,7 +16,7 @@ The pipeline in `externalMain` is: parse source -> resolve install/skillset targ
 
 `sourceParser.ts` converts various GitHub URL formats (full HTTPS, SSH, `owner/repo` shorthand, `owner/repo@skill` filter syntax) into a `ParsedGitHubSource` with `url`, `ref`, `subpath`, and `skillFilter` fields.
 
-`skillDiscovery.ts` searches the cloned repo for directories containing `SKILL.md` files with valid YAML frontmatter (`name` and `description`). It checks the root first, then `skills/` and `.claude/skills/` directories, falling back to recursive search up to 5 levels deep. Results are deduplicated by skill name.
+`skillDiscovery.ts` searches the cloned repo for directories containing `SKILL.md` files with valid YAML frontmatter (`name` and `description`). It checks the root first (returning immediately if the repo itself is a single skill), then performs a recursive search up to 5 levels deep. Results are deduplicated by skill name. The discovery is agent-agnostic -- it finds skills purely by searching for SKILL.md files rather than relying on agent-specific directory conventions.
 
 `gitClone.ts` performs a shallow `git clone --depth 1` to a temp directory with a 60-second timeout. `cleanupClone` validates the path is within the system temp directory before deletion to prevent accidental removal of non-temp paths.
 

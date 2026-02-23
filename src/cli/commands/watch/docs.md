@@ -26,7 +26,7 @@ Claude Code writes .jsonl -> chokidar detects change -> handleFileEvent
 
 `parser.ts` extracts UUID-format `sessionId` values from JSONL files using regex without full JSON parsing.
 
-`paths.ts` provides agent-agnostic filesystem path calculations: transcript storage dirs, PID file, log file, and registry DB path. Project directory naming (converting a working directory to the agent's dir name format) is handled by the agent's `getProjectDirName()` method on the Agent interface.
+`paths.ts` provides agent-agnostic filesystem path calculations: transcript storage dirs, PID file, log file, and registry DB path.
 
 `storage.ts` handles copying transcript files to the destination directory, named by session ID.
 

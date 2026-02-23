@@ -33,7 +33,7 @@ The `cursorAgent` object in `agent.ts` implements the `Agent` interface with the
 
 **Path helpers** (`paths.ts`): Provides `getCursorDir`, `getCursorAgentsMdFile`, `getCursorSkillsDir`, `getCursorCommandsDir`, and `getCursorAgentsDir`. All paths derive from `{installDir}/.cursor/`. `getCursorAgentsMdFile` returns `{installDir}/.cursor/rules/AGENTS.md`.
 
-**Differences from Claude Code agent**: The cursor agent does not implement `factoryReset`, `detectExistingConfig`, `captureExistingConfig`, `getProjectDirName`, `getProjectsDir`, or `findArtifacts` (these are optional `Agent` interface methods). It also has no hooks, statusline, or announcements loaders -- those are Claude Code specific features.
+**Differences from Claude Code agent**: The cursor agent does not implement `factoryReset`, `detectExistingConfig`, `captureExistingConfig`, `getProjectsDir`, or `findArtifacts` (these are optional `Agent` interface methods). It also has no hooks, statusline, or announcements loaders -- those are Claude Code specific features.
 
 ### Things to Know
 
