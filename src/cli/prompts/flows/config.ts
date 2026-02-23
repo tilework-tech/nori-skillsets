@@ -59,7 +59,8 @@ export const configFlow = async (args: {
 
   const selectedAgents = unwrapPrompt({
     value: await multiselect({
-      message: "Which agents do you want to use?",
+      message:
+        "Which agents do you want to use?\n(space to toggle, enter to confirm)",
       options: agentOptions,
       initialValues: currentAgents ?? AgentRegistry.getInstance().list(),
       required: true,
