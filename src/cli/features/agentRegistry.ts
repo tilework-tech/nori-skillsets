@@ -77,8 +77,6 @@ export type Agent = {
   description: string;
   /** Get the agent's config directory under the install directory */
   getAgentDir: (args: { installDir: string }) => string;
-  /** Get the filename of the agent's root config file (e.g. "CLAUDE.md") */
-  getConfigFileName: () => string;
   /** Get the agent's skills directory under the install directory */
   getSkillsDir: (args: { installDir: string }) => string;
   /** Get the root-level filenames this agent manages */

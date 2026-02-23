@@ -45,6 +45,9 @@ import { getHomeDir } from "@/utils/home.js";
 
 import type { Agent } from "@/cli/features/agentRegistry.js";
 
+/** The root config filename for Claude Code skillsets */
+const CONFIG_FILE_NAME = "CLAUDE.md";
+
 /**
  * Claude Code agent implementation
  */
@@ -57,8 +60,6 @@ export const claudeCodeAgent: Agent = {
     const { installDir } = args;
     return path.join(installDir, ".claude");
   },
-
-  getConfigFileName: () => "CLAUDE.md",
 
   getSkillsDir: (args: { installDir: string }): string => {
     const { installDir } = args;
@@ -137,7 +138,7 @@ export const claudeCodeAgent: Agent = {
     // Install the managed CLAUDE.md block so the user isn't left without config
     const skillset = await parseSkillset({
       skillsetName,
-      configFileName: claudeCodeAgent.getConfigFileName(),
+      configFileName: CONFIG_FILE_NAME,
     });
     await claudeMdLoader.install({ config, skillset });
   },
@@ -229,7 +230,7 @@ export const claudeCodeAgent: Agent = {
       try {
         const skillset = await parseSkillset({
           skillsetName,
-          configFileName: claudeCodeAgent.getConfigFileName(),
+          configFileName: CONFIG_FILE_NAME,
         });
         if (skillset.skillsDir != null) {
           const entries = await fs.readdir(skillset.skillsDir, {

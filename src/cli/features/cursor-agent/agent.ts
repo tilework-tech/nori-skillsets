@@ -34,6 +34,9 @@ import { getHomeDir } from "@/utils/home.js";
 
 import type { Agent } from "@/cli/features/agentRegistry.js";
 
+/** The root config filename for Cursor skillsets */
+const CONFIG_FILE_NAME = "AGENTS.md";
+
 /**
  * Cursor agent implementation
  */
@@ -46,8 +49,6 @@ export const cursorAgent: Agent = {
     const { installDir } = args;
     return path.join(installDir, ".cursor");
   },
-
-  getConfigFileName: () => "AGENTS.md",
 
   getSkillsDir: (args: { installDir: string }): string => {
     const { installDir } = args;
@@ -159,7 +160,7 @@ export const cursorAgent: Agent = {
       try {
         const skillset = await parseSkillset({
           skillsetName,
-          configFileName: cursorAgent.getConfigFileName(),
+          configFileName: CONFIG_FILE_NAME,
         });
         if (skillset.skillsDir != null) {
           const entries = await fs.readdir(skillset.skillsDir, {

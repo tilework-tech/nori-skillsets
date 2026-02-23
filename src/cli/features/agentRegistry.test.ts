@@ -141,26 +141,6 @@ describe("AgentRegistry", () => {
     });
   });
 
-  describe("getConfigFileName", () => {
-    test("claude-code agent returns its config file name", () => {
-      const registry = AgentRegistry.getInstance();
-      const agent = registry.get({ name: "claude-code" });
-      const configFileName = agent.getConfigFileName();
-
-      expect(configFileName).toBe("CLAUDE.md");
-    });
-
-    test("every registered agent exposes a config file name", () => {
-      const registry = AgentRegistry.getInstance();
-      for (const name of registry.list()) {
-        const agent = registry.get({ name });
-        const configFileName = agent.getConfigFileName();
-        expect(typeof configFileName).toBe("string");
-        expect(configFileName.length).toBeGreaterThan(0);
-      }
-    });
-  });
-
   describe("agent managed paths", () => {
     test("claude-code agent exposes getManagedFiles", () => {
       const registry = AgentRegistry.getInstance();

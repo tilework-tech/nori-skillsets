@@ -14,8 +14,12 @@ import {
   type CliName,
 } from "@/cli/commands/cliCommandNames.js";
 import { createEmptySkillset } from "@/cli/commands/new-skillset/newSkillset.js";
-import { loadConfig, getActiveSkillset } from "@/cli/config.js";
-import { AgentRegistry } from "@/cli/features/agentRegistry.js";
+import {
+  loadConfig,
+  getActiveSkillset,
+  getDefaultAgents,
+} from "@/cli/config.js";
+import { AgentRegistry, type Agent } from "@/cli/features/agentRegistry.js";
 import { getNoriSkillsetsDir } from "@/cli/features/paths.js";
 import {
   addSkillToNoriJson,
@@ -102,6 +106,7 @@ const applyTemplateSubstitutionToDir = async (args: {
  * @param args.ref - Branch/tag that was checked out
  * @param args.subpath - Subpath within the repository
  * @param args.type - The NoriJsonType to write to the skill's nori.json
+ * @param args.agents - The resolved default agents to broadcast the skill to
  * @param args.cliName - CLI name for user-facing messages
  */
 const installSkill = async (args: {
@@ -114,6 +119,7 @@ const installSkill = async (args: {
   ref: string | null;
   subpath: string | null;
   type: NoriJsonType;
+  agents: Array<Agent>;
   cliName?: CliName | null;
 }): Promise<void> => {
   const {
@@ -198,13 +204,31 @@ const installSkill = async (args: {
     }
   }
 
-  // Apply template substitution to .md files in the live copy
-  const agent = AgentRegistry.getInstance().getAll()[0];
-  const agentDir = agent.getAgentDir({ installDir });
+  // Apply template substitution to .md files in the live copy for primary agent
+  const agents = args.agents;
+  const primaryAgentDir = agents[0].getAgentDir({ installDir });
   await applyTemplateSubstitutionToDir({
     dir: targetDir,
-    installDir: agentDir,
+    installDir: primaryAgentDir,
   });
+
+  // Broadcast: copy skill to all other agents' skills directories
+  for (const agent of agents.slice(1)) {
+    const agentSkillsDir = agent.getSkillsDir({ installDir });
+    const agentTargetDir = path.join(agentSkillsDir, skillDirName);
+    try {
+      await fs.rm(agentTargetDir, { recursive: true, force: true });
+      await copyDirRecursive({ src: targetDir, dest: agentTargetDir });
+      const agentDir = agent.getAgentDir({ installDir });
+      await applyTemplateSubstitutionToDir({
+        dir: agentTargetDir,
+        installDir: agentDir,
+      });
+    } catch (copyErr) {
+      const msg = copyErr instanceof Error ? copyErr.message : String(copyErr);
+      log.warn(`Could not copy skill to ${agent.name}: ${msg}`);
+    }
+  }
 
   log.success(`Installed skill "${skill.name}" from GitHub`);
   log.info(`Installed to: ${targetDir}`);
@@ -358,9 +382,21 @@ export const externalMain = async (args: {
     }
   }
 
-  const defaultAgent = AgentRegistry.getInstance().getAll()[0];
-  const skillsDir = defaultAgent.getSkillsDir({ installDir: targetInstallDir });
-  await fs.mkdir(skillsDir, { recursive: true });
+  // Resolve all default agents for broadcasting
+  const defaultAgentNames = getDefaultAgents({ config });
+  const defaultAgents = defaultAgentNames.map((name) =>
+    AgentRegistry.getInstance().get({ name }),
+  );
+  const primaryAgent = defaultAgents[0];
+
+  const skillsDir = primaryAgent.getSkillsDir({ installDir: targetInstallDir });
+
+  // Ensure skills directory exists for all agents
+  for (const agent of defaultAgents) {
+    await fs.mkdir(agent.getSkillsDir({ installDir: targetInstallDir }), {
+      recursive: true,
+    });
+  }
 
   // 4. Clone repository
   let clonedDir: string;
@@ -469,6 +505,7 @@ export const externalMain = async (args: {
         ref: effectiveRef,
         subpath,
         type: skillTypeMap[skillToInstall.name] ?? "skill",
+        agents: defaultAgents,
         cliName,
       });
     }
