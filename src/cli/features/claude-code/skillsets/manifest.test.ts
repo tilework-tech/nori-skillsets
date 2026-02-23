@@ -823,6 +823,62 @@ describe("removeManagedFiles", () => {
     );
     expect(content).toBe("content");
   });
+
+  it("should remove excluded files (nori.json, .nori-version) from managed directories", async () => {
+    const claudeDir = path.join(tempDir, ".claude");
+    const skillDirA = path.join(claudeDir, "skills", "skill-a");
+    const skillDirB = path.join(claudeDir, "skills", "skill-b");
+    await fs.mkdir(skillDirA, { recursive: true });
+    await fs.mkdir(skillDirB, { recursive: true });
+
+    // Create tracked files
+    await fs.writeFile(path.join(skillDirA, "SKILL.md"), "skill a content");
+    await fs.writeFile(path.join(skillDirB, "SKILL.md"), "skill b content");
+
+    // Create excluded files that would normally be left behind
+    await fs.writeFile(
+      path.join(skillDirA, "nori.json"),
+      JSON.stringify({ name: "skill-a" }),
+    );
+    await fs.writeFile(
+      path.join(skillDirA, ".nori-version"),
+      JSON.stringify({ version: "1.0.0" }),
+    );
+    await fs.writeFile(
+      path.join(skillDirB, "nori.json"),
+      JSON.stringify({ name: "skill-b" }),
+    );
+
+    // Create manifest (excludes nori.json and .nori-version)
+    const manifest = await computeDirectoryManifest({
+      dir: claudeDir,
+      skillsetName: "test-skillset",
+      managedFiles: CLAUDE_MANAGED_FILES,
+      managedDirs: CLAUDE_MANAGED_DIRS,
+    });
+    const manifestPath = path.join(tempDir, "manifest.json");
+    await writeManifest({ manifestPath, manifest });
+
+    await removeManagedFiles({
+      agentDir: claudeDir,
+      manifestPath,
+      managedDirs: CLAUDE_MANAGED_DIRS,
+    });
+
+    // Excluded files should also be removed
+    await expect(
+      fs.access(path.join(skillDirA, "nori.json")),
+    ).rejects.toThrow();
+    await expect(
+      fs.access(path.join(skillDirA, ".nori-version")),
+    ).rejects.toThrow();
+    await expect(
+      fs.access(path.join(skillDirB, "nori.json")),
+    ).rejects.toThrow();
+
+    // The entire skills directory should be cleaned up since all files removed
+    await expect(fs.access(path.join(claudeDir, "skills"))).rejects.toThrow();
+  });
 });
 
 describe("manifest excluded files", () => {

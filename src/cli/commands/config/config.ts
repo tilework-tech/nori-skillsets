@@ -128,10 +128,11 @@ export const configMain = async (): Promise<void> => {
 
     // Clean up old directory first (while manifest still reflects old dir)
     if (shouldCleanup) {
-      const agentNames = getDefaultAgents({ config: existingConfig });
-      for (const agentName of agentNames) {
-        const agent = AgentRegistry.getInstance().get({ name: agentName });
-        await agent.removeSkillset({ installDir: oldInstallDir });
+      const allAgents = AgentRegistry.getInstance().getAll();
+      for (const agent of allAgents) {
+        if (agent.isInstalledAtDir({ path: oldInstallDir })) {
+          await agent.removeSkillset({ installDir: oldInstallDir });
+        }
       }
       log.info(`Removed Nori configuration from "${oldInstallDir}".`);
     }
