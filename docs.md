@@ -33,7 +33,7 @@ The CLI entrypoint is `@/src/cli/nori-skillsets.ts`, which registers all command
 
 The build process compiles TypeScript, resolves `@/` path aliases via `tsc-alias`, and then bundles hook scripts into standalone executables using esbuild (`@/src/scripts/bundle-skills.ts`).
 
-**Publishing process:** Releases are created exclusively through the CI/CD pipeline. Developers run `@/scripts/create_skillsets_release.py` to create a git tag, which triggers the GitHub Actions workflow at `@/.github/workflows/skillsets-release.yml`. The workflow builds, tests, and publishes to npm. Direct `npm publish` is blocked by a safeguard in `@/scripts/prepublish.sh` (invoked via the `prepublishOnly` npm hook in `@/package.json`).
+**Publishing process:** Releases are created exclusively through CI/CD (see `@/.github/workflows/docs.md`). Stable releases go through `@/scripts/create_skillsets_release.py`, which creates a git tag that triggers `@/.github/workflows/skillsets-release.yml`. Additionally, every push to `main` automatically publishes a `@next` prerelease to npm via `@/.github/workflows/auto-next.yml`, which calls the same release workflow as a reusable workflow. Direct `npm publish` is blocked by a safeguard in `@/scripts/prepublish.sh` (invoked via the `prepublishOnly` npm hook in `@/package.json`).
 
 ### Things to Know
 
