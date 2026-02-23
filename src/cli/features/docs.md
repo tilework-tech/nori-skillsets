@@ -48,6 +48,7 @@ Shared Resources (@/src/cli/features/)
     +-- skillset.ts: Skillset type, parseSkillset() (agent-agnostic skillset directory parser)
     +-- managedFolder.ts: listProfiles(), MANIFEST_FILE (agent-agnostic)
     +-- config/loader.ts: configLoader (shared across all agents)
+    +-- bundled-skillsets/: Bundled skills installer shared across all agents (copyBundledSkills, getBundledSkillsDir)
     +-- test-utils/: Shared test utilities (stripAnsi, pathExists, createTempTestContext)
 ```
 
@@ -105,6 +106,9 @@ The init command (@/src/cli/commands/init/) uses `getDefaultAgent()` from @/src/
 - Handles saving/removing config with auth credentials, skillset selection, user preferences, and version tracking
 - During install: Saves the `activeSkillset` and current package version in the `version` field. Preserves existing `activeSkillset` (ensures skillset set by `switchSkillset` survives reinstallation). Also preserves `organizations`, `isAdmin`, `transcriptDestination`, `installDir`, and `defaultAgents` from the existing config. The `installDir` and `defaultAgents` fields use the `existingConfig?.field ?? config.field` pattern so they are only changed via `nori-skillsets config` or on initial setup
 - Uses `@clack/prompts` (`log.*`, `note()`) for user-facing output. Auth error details are consolidated into a `note()` section rather than individual log lines.
+
+**Bundled Skills Installer** (bundled-skillsets/installer.ts):
+- Agent-agnostic module that copies bundled skills to any agent's skills directory during installation. Exports `copyBundledSkills({ destSkillsDir, installDir })` (called by both agent skill loaders after copying skillset skills) and `getBundledSkillsDir()` (called by the CLAUDE.md generator to include bundled skills in the skills list). Skillset-provided skills take precedence -- bundled skills with a conflicting name are skipped. See @/src/cli/features/bundled-skillsets/docs.md for details.
 
 **Managed Folder Utilities** (managedFolder.ts):
 - Agent-agnostic skillset discovery extracted from the Agent interface
