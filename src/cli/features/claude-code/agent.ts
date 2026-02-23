@@ -73,7 +73,7 @@ export const claudeCodeAgent: Agent = {
     return LoaderRegistry.getInstance();
   },
 
-  getProjectsDir: (): string => {
+  getTranscriptDirectory: (): string => {
     return path.join(getHomeDir(), ".claude", "projects");
   },
 
