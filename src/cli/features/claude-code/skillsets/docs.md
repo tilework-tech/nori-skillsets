@@ -14,7 +14,7 @@ The skillsets module manages the installation, composition, and metadata of skil
 
 `loader.ts` creates `~/.nori/profiles/` and adds it to `permissions.additionalDirectories` in `{installDir}/.claude/settings.json` so Claude Code can read skillset files. It then runs all `ProfileLoader` instances from the `ProfileLoaderRegistry`.
 
-`skillsetLoaderRegistry.ts` is a singleton registry ordering the profile sub-loaders: skills -> claudemd -> slashcommands -> subagents. Skills must install before claudemd because CLAUDE.md generation reads from the installed skills directory. The `ProfileLoader` interface accepts `{ config: Config; skillset: Skillset }` where `Skillset` (from @/src/cli/features/skillset.ts) is the pre-parsed filesystem structure of the active skillset. The `profilesLoader` calls `parseSkillset()` once and passes the result to all sub-loaders, so they no longer construct paths independently.
+`skillsetLoaderRegistry.ts` is a singleton registry ordering the profile sub-loaders: skills -> claudemd -> slashcommands -> subagents. Skills must install before claudemd because CLAUDE.md generation reads from the installed skills directory and also scans the bundled skills directory (via `getBundledSkillsDir()` from @/src/cli/features/bundled-skillsets/installer.ts) to include bundled skills in the skills list. The `ProfileLoader` interface accepts `{ config: Config; skillset: Skillset }` where `Skillset` (from @/src/cli/features/skillset.ts) is the pre-parsed filesystem structure of the active skillset. The `profilesLoader` calls `parseSkillset()` once and passes the result to all sub-loaders, so they no longer construct paths independently.
 
 The slashcommands and subagents sub-loaders emit consolidated `note()` sections via `@clack/prompts` (titled "Slash Commands" and "Subagents" respectively) listing all registered items. The skills loader operates silently -- its output is handled by `installSkillset()` in @/src/cli/features/claude-code/agent.ts, which emits a separate "Skills" `note()` after all loaders complete.
 
@@ -160,11 +160,12 @@ The `ProfileLoaderRegistry` enforces that skills install before CLAUDE.md. The m
 
 ### Skill Installation Flow
 
-The skills loader (@/src/cli/features/claude-code/skillsets/skills/loader.ts) installs skills in a single step:
+The skills loader (@/src/cli/features/claude-code/skillsets/skills/loader.ts) installs skills in two steps:
 
 1. **Install all skills**: Copy skills from skillset's `skills/` folder to `~/.claude/skills/`
    - This includes both inline skills (bundled with skillset) and external skills (downloaded by registry-download or skill-download)
    - Template placeholders are substituted during copy
+2. **Copy bundled skills**: After skillset skills are installed, `copyBundledSkills()` from @/src/cli/features/bundled-skillsets/installer.ts copies package-bundled skills (e.g., `nori-info`) to `~/.claude/skills/`, skipping any that already exist from the skillset
 
 The external skill system uses both `skills.json` (legacy dependency format) and `nori.json` `dependencies.skills` (unified format). Skills are downloaded from the Nori registry and stored in the skillset's own `skills/` directory.
 
