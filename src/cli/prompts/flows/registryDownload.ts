@@ -12,7 +12,9 @@
  * - Outro message
  */
 
-import { intro, outro, spinner, note, log } from "@clack/prompts";
+import { intro, outro, spinner, note, log, confirm } from "@clack/prompts";
+
+import { unwrapPrompt } from "./utils.js";
 
 /**
  * Result from the search callback
@@ -116,8 +118,23 @@ export const registryDownloadFlow = async (args: {
     log.success(
       `Skillset "${packageDisplayName}" is already at version ${searchResult.version}.`,
     );
-    outro("Already up to date");
-    return { version: searchResult.version, isUpdate: false };
+
+    const redownload = unwrapPrompt({
+      value: await confirm({
+        message: "Re-download from registry?",
+        initialValue: false,
+      }),
+      cancelMessage: "Download cancelled.",
+    });
+
+    if (redownload == null) {
+      return null;
+    }
+
+    if (!redownload) {
+      outro("Already up to date");
+      return { version: searchResult.version, isUpdate: false };
+    }
   }
 
   if (searchResult.status === "list-versions") {
@@ -131,10 +148,14 @@ export const registryDownloadFlow = async (args: {
   }
 
   // Phase 2: Download
-  const downloadMsg =
-    searchResult.isUpdate && searchResult.currentVersion != null
-      ? `Updating "${packageDisplayName}" from ${searchResult.currentVersion} to ${searchResult.targetVersion}...`
-      : `Downloading "${packageDisplayName}"...`;
+  let downloadMsg: string;
+  if (searchResult.status === "already-current") {
+    downloadMsg = `Re-downloading "${packageDisplayName}"...`;
+  } else if (searchResult.isUpdate && searchResult.currentVersion != null) {
+    downloadMsg = `Updating "${packageDisplayName}" from ${searchResult.currentVersion} to ${searchResult.targetVersion}...`;
+  } else {
+    downloadMsg = `Downloading "${packageDisplayName}"...`;
+  }
 
   s.start(downloadMsg);
   const downloadResult = await callbacks.onDownload();

@@ -17,6 +17,7 @@ let mockHomedir = "";
 vi.mock("@clack/prompts", () => ({
   intro: vi.fn(),
   outro: vi.fn(),
+  confirm: vi.fn(() => false),
   spinner: vi.fn(() => ({
     start: vi.fn(),
     stop: vi.fn(),
@@ -30,6 +31,8 @@ vi.mock("@clack/prompts", () => ({
     error: vi.fn(),
     message: vi.fn(),
   },
+  isCancel: vi.fn(() => false),
+  cancel: vi.fn(),
 }));
 
 // Mock the os module to control homedir() return value

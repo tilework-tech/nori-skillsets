@@ -12,7 +12,9 @@
  * - Outro message
  */
 
-import { intro, outro, spinner, note, log } from "@clack/prompts";
+import { intro, outro, spinner, note, log, confirm } from "@clack/prompts";
+
+import { unwrapPrompt } from "./utils.js";
 
 /**
  * Result from the search callback
@@ -109,8 +111,23 @@ export const skillDownloadFlow = async (args: {
     log.success(
       `Skill "${skillDisplayName}" is already at version ${searchResult.version}.`,
     );
-    outro("Already up to date");
-    return { version: searchResult.version, isUpdate: false };
+
+    const redownload = unwrapPrompt({
+      value: await confirm({
+        message: "Re-download from registry?",
+        initialValue: false,
+      }),
+      cancelMessage: "Download cancelled.",
+    });
+
+    if (redownload == null) {
+      return null;
+    }
+
+    if (!redownload) {
+      outro("Already up to date");
+      return { version: searchResult.version, isUpdate: false };
+    }
   }
 
   if (searchResult.status === "list-versions") {
@@ -124,10 +141,14 @@ export const skillDownloadFlow = async (args: {
   }
 
   // Phase 2: Download
-  const downloadMsg =
-    searchResult.isUpdate && searchResult.currentVersion != null
-      ? `Updating "${skillDisplayName}" from ${searchResult.currentVersion} to ${searchResult.targetVersion}...`
-      : `Downloading "${skillDisplayName}"...`;
+  let downloadMsg: string;
+  if (searchResult.status === "already-current") {
+    downloadMsg = `Re-downloading "${skillDisplayName}"...`;
+  } else if (searchResult.isUpdate && searchResult.currentVersion != null) {
+    downloadMsg = `Updating "${skillDisplayName}" from ${searchResult.currentVersion} to ${searchResult.targetVersion}...`;
+  } else {
+    downloadMsg = `Downloading "${skillDisplayName}"...`;
+  }
 
   s.start(downloadMsg);
   const downloadResult = await callbacks.onDownload();
