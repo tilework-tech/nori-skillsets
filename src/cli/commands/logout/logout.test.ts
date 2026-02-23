@@ -64,7 +64,7 @@ describe("logout command", () => {
       expect(beforeLogout?.auth).not.toBeNull();
 
       // Perform logout
-      await logoutMain({ installDir: tempDir });
+      await logoutMain();
 
       // Verify auth is cleared
       const afterLogout = await loadConfig();
@@ -86,7 +86,7 @@ describe("logout command", () => {
         installDir: tempDir,
       });
 
-      await logoutMain({ installDir: tempDir });
+      await logoutMain();
 
       expect(log.info).toHaveBeenCalledWith(
         expect.stringContaining("Not currently logged in"),
@@ -96,7 +96,7 @@ describe("logout command", () => {
     it("should show info message when no config exists", async () => {
       const { log } = await import("@clack/prompts");
 
-      await logoutMain({ installDir: tempDir });
+      await logoutMain();
 
       expect(log.info).toHaveBeenCalledWith(
         expect.stringContaining("Not currently logged in"),
@@ -114,7 +114,7 @@ describe("logout command", () => {
         installDir: tempDir,
       });
 
-      await logoutMain({ installDir: tempDir });
+      await logoutMain();
 
       expect(log.success).toHaveBeenCalledWith(
         expect.stringContaining("Logged out"),
@@ -143,7 +143,7 @@ describe("logout command", () => {
       );
 
       // Perform logout
-      await logoutMain({ installDir: tempDir });
+      await logoutMain();
 
       // Verify auth is cleared
       const afterLogout = await loadConfig();

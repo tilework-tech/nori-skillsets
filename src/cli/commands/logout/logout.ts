@@ -6,22 +6,14 @@
 
 import { log } from "@clack/prompts";
 
-import { loadConfig, saveConfig } from "@/cli/config.js";
-import { getHomeDir } from "@/utils/home.js";
+import { loadConfig, updateConfig } from "@/cli/config.js";
 
 import type { Command } from "commander";
 
 /**
  * Main logout function
- *
- * @param args - Configuration arguments
- * @param args.installDir - Installation directory (stored as data in config)
  */
-export const logoutMain = async (args?: {
-  installDir?: string | null;
-}): Promise<void> => {
-  const { installDir } = args ?? {};
-
+export const logoutMain = async (): Promise<void> => {
   const existingConfig = await loadConfig();
 
   if (existingConfig?.auth == null) {
@@ -29,15 +21,7 @@ export const logoutMain = async (args?: {
     return;
   }
 
-  await saveConfig({
-    username: null,
-    organizationUrl: null,
-    sendSessionTranscript: existingConfig.sendSessionTranscript ?? null,
-    autoupdate: existingConfig.autoupdate ?? null,
-    activeSkillset: existingConfig.activeSkillset ?? null,
-    version: existingConfig.version ?? null,
-    installDir: installDir ?? getHomeDir(),
-  });
+  await updateConfig({ auth: null });
   log.success("Logged out successfully.");
 };
 
@@ -54,10 +38,6 @@ export const registerLogoutCommand = (args: { program: Command }): void => {
     .command("logout")
     .description("Clear stored authentication credentials")
     .action(async () => {
-      const globalOpts = program.opts();
-
-      await logoutMain({
-        installDir: globalOpts.installDir || null,
-      });
+      await logoutMain();
     });
 };
