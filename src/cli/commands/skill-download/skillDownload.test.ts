@@ -50,12 +50,14 @@ vi.mock("@/api/registrar.js", () => ({
 }));
 
 // Mock the config module - include getInstalledAgents with real implementation
-vi.mock("@/cli/config.js", async () => {
+vi.mock("@/cli/config.js", async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
   return {
     loadConfig: vi.fn(),
     getRegistryAuth: vi.fn(),
     getActiveSkillset: (args: { config: { activeSkillset?: string | null } }) =>
       args.config.activeSkillset ?? null,
+    getDefaultAgents: actual.getDefaultAgents,
   };
 });
 
@@ -2098,6 +2100,84 @@ describe("namespaced package support", () => {
       const allOutput = getClackLogOutput();
       expect(allOutput).toContain("myorg/my-skill");
     });
+  });
+});
+
+describe("multi-agent broadcasting", () => {
+  let testDir: string;
+  let skillsetsDir: string;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+
+    vi.mocked(clack.spinner).mockReturnValue({
+      start: vi.fn(),
+      stop: vi.fn(),
+      message: vi.fn(),
+    } as any);
+
+    testDir = await fs.mkdtemp(
+      path.join(tmpdir(), "nori-multi-agent-download-test-"),
+    );
+    vi.mocked(os.homedir).mockReturnValue(testDir);
+    skillsetsDir = path.join(testDir, ".nori", "profiles");
+    await fs.mkdir(skillsetsDir, { recursive: true });
+
+    await fs.writeFile(
+      path.join(testDir, ".nori-config.json"),
+      JSON.stringify({}),
+    );
+  });
+
+  afterEach(async () => {
+    vi.clearAllMocks();
+    if (testDir) {
+      await fs.rm(testDir, { recursive: true, force: true });
+    }
+  });
+
+  it("should install skill into all configured agents' skills directories", async () => {
+    // Config has both claude-code and cursor-agent as defaultAgents
+    vi.mocked(loadConfig).mockResolvedValue({
+      installDir: testDir,
+      defaultAgents: ["claude-code", "cursor-agent"],
+    });
+
+    vi.mocked(registrarApi.getSkillPackument).mockResolvedValue({
+      name: "broadcast-skill",
+      "dist-tags": { latest: "1.0.0" },
+      versions: {
+        "1.0.0": { name: "broadcast-skill", version: "1.0.0" },
+      },
+    });
+
+    const mockTarball = await createMockSkillTarball();
+    vi.mocked(registrarApi.downloadSkillTarball).mockResolvedValue(mockTarball);
+
+    await skillDownloadMain({
+      skillSpec: "broadcast-skill",
+      cwd: testDir,
+    });
+
+    // Verify skill was installed into claude-code's skills directory
+    const claudeSkillDir = path.join(
+      testDir,
+      ".claude",
+      "skills",
+      "broadcast-skill",
+    );
+    const claudeStats = await fs.stat(claudeSkillDir);
+    expect(claudeStats.isDirectory()).toBe(true);
+
+    // Verify skill was ALSO installed into cursor-agent's skills directory
+    const cursorSkillDir = path.join(
+      testDir,
+      ".cursor",
+      "skills",
+      "broadcast-skill",
+    );
+    const cursorStats = await fs.stat(cursorSkillDir);
+    expect(cursorStats.isDirectory()).toBe(true);
   });
 });
 

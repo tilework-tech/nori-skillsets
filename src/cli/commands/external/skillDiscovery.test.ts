@@ -155,7 +155,7 @@ description: In skills subdir
     expect(skills[0].name).toBe("My Skill");
   });
 
-  it("should discover skills in .claude/skills/ subdirectory", async () => {
+  it("should discover skills in nested agent directories like .claude/skills/", async () => {
     const skillDir = path.join(testDir, ".claude", "skills", "claude-skill");
     await fs.mkdir(skillDir, { recursive: true });
     await fs.writeFile(
@@ -173,6 +173,38 @@ description: In .claude/skills
 
     expect(skills).toHaveLength(1);
     expect(skills[0].name).toBe("Claude Skill");
+  });
+
+  it("should discover skills in arbitrary directories alongside skills/", async () => {
+    // Skill in standard skills/ directory
+    const standardSkillDir = path.join(testDir, "skills", "standard-skill");
+    await fs.mkdir(standardSkillDir, { recursive: true });
+    await fs.writeFile(
+      path.join(standardSkillDir, "SKILL.md"),
+      `---
+name: Standard Skill
+description: In skills dir
+---
+`,
+    );
+
+    // Skill in a completely arbitrary directory
+    const arbitrarySkillDir = path.join(testDir, "my-tools", "custom-skill");
+    await fs.mkdir(arbitrarySkillDir, { recursive: true });
+    await fs.writeFile(
+      path.join(arbitrarySkillDir, "SKILL.md"),
+      `---
+name: Custom Skill
+description: In an arbitrary directory
+---
+`,
+    );
+
+    const skills = await discoverSkills({ basePath: testDir });
+
+    expect(skills).toHaveLength(2);
+    const names = skills.map((s) => s.name).sort();
+    expect(names).toEqual(["Custom Skill", "Standard Skill"]);
   });
 
   it("should discover multiple skills", async () => {

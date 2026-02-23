@@ -6,6 +6,7 @@
 import * as path from "path";
 
 import { claudeCodeAgent } from "@/cli/features/claude-code/agent.js";
+import { cursorAgent } from "@/cli/features/cursor-agent/agent.js";
 
 import type { Config } from "@/cli/config.js";
 import type { ManifestDiff } from "@/cli/features/manifest.js";
@@ -14,7 +15,7 @@ import type { ManifestDiff } from "@/cli/features/manifest.js";
  * Canonical agent names used as UIDs in the registry.
  * Each Agent.name must match one of these values.
  */
-export type AgentName = "claude-code";
+export type AgentName = "claude-code" | "cursor-agent";
 
 /**
  * Loader interface for feature installation
@@ -53,6 +54,7 @@ export type AgentArtifact = {
  * Used during init to show the user what was found before capturing.
  */
 export type ExistingConfig = {
+  configFileName: string;
   hasConfigFile: boolean;
   hasManagedBlock: boolean;
   hasSkills: boolean;
@@ -71,10 +73,10 @@ export type Agent = {
   name: AgentName;
   /** Human-readable name, e.g., "Claude Code" */
   displayName: string;
+  /** Short description of supported skillset features for this agent */
+  description: string;
   /** Get the agent's config directory under the install directory */
   getAgentDir: (args: { installDir: string }) => string;
-  /** Get the filename of the agent's root config file (e.g. "CLAUDE.md") */
-  getConfigFileName: () => string;
   /** Get the agent's skills directory under the install directory */
   getSkillsDir: (args: { installDir: string }) => string;
   /** Get the root-level filenames this agent manages */
@@ -100,10 +102,6 @@ export type Agent = {
   removeSkillset: (args: { installDir: string }) => Promise<void>;
   /** Install a skillset: run feature loaders, write manifest, and mark install */
   installSkillset: (args: { config: Config }) => Promise<void>;
-  /** Get relative directory paths where skills may be discovered in a repo */
-  getSkillDiscoveryDirs: () => ReadonlyArray<string>;
-  /** Convert a working directory path to the agent's project directory name format */
-  getProjectDirName?: ((args: { cwd: string }) => string) | null;
   /** Get the agent's projects/sessions directory (home-relative) */
   getProjectsDir?: (() => string) | null;
   /** Find agent configuration artifacts starting from a directory */
@@ -139,6 +137,7 @@ export class AgentRegistry {
   private constructor() {
     this.agents = new Map();
     this.agents.set(claudeCodeAgent.name, claudeCodeAgent);
+    this.agents.set(cursorAgent.name, cursorAgent);
   }
 
   /**

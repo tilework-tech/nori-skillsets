@@ -4,13 +4,13 @@ Path: @/src/cli/features
 
 ### Overview
 
-The features directory contains the agent abstraction layer and all agent-specific feature implementations. It defines the `Agent` and `Loader` interfaces that allow the system to support multiple AI coding agents, and houses the Claude Code agent implementation along with shared test utilities.
+The features directory contains the agent abstraction layer and all agent-specific feature implementations. It defines the `Agent` and `Loader` interfaces that allow the system to support multiple AI coding agents, and houses agent implementations (Claude Code and Cursor) along with shared test utilities.
 
 ### How it fits into the larger codebase
 
 The `AgentRegistry` singleton is the central entry point used by CLI commands (e.g., `@/src/cli/commands/init`) to discover and interact with agent implementations. Each agent provides a `LoaderRegistry` that returns ordered `Loader` instances, which the init flow executes sequentially to install configuration. The `managedFolder.ts` module provides agent-agnostic skillset discovery by scanning `~/.nori/profiles/` for directories containing `nori.json` manifests, and is used by commands that need to list available skillsets.
 
-The features directory sits between the CLI commands (@/src/cli/commands/) and the Claude Code agent implementation (@/src/cli/features/claude-code/). CLI commands use the AgentRegistry to look up the agent implementation by name, then delegate to the agent's loaders and skillset methods.
+The features directory sits between the CLI commands (@/src/cli/commands/) and agent implementations (@/src/cli/features/claude-code/, @/src/cli/features/cursor-agent/). CLI commands use the AgentRegistry to look up the agent implementation by name, then delegate to the agent's loaders and skillset methods.
 
 ```
 CLI Commands (install, switch-skillset, onboard, list, init)
@@ -21,9 +21,7 @@ CLI Commands (install, switch-skillset, onboard, list, init)
     |       +-- Agent interface
     |           |
     |           +-- getAgentDir({ installDir }) --> agent's config directory path
-    |           +-- getConfigFileName() --> agent's root config filename (e.g. "CLAUDE.md")
     |           +-- getSkillsDir({ installDir }) --> agent's skills directory path
-    |           +-- getSkillDiscoveryDirs() --> relative paths for skill discovery in repos
     |           +-- getManagedFiles() --> root-level filenames this agent manages
     |           +-- getManagedDirs() --> directory names this agent manages recursively
     |           +-- getLoaderRegistry() --> LoaderRegistry (interface)
@@ -36,7 +34,6 @@ CLI Commands (install, switch-skillset, onboard, list, init)
     |           +-- markInstall({ path, skillsetName }) --> Write agent installation marker
     |           +-- detectExistingConfig({ installDir }) --> Detect unmanaged config (optional)
     |           +-- captureExistingConfig({ installDir, skillsetName, config }) --> Capture and clean up (optional)
-    |           +-- getProjectDirName({ cwd }) --> convert cwd to project dir name (optional)
     |           +-- getProjectsDir() --> agent's projects directory (optional)
     |           +-- findArtifacts({ startDir }) --> discover agent config artifacts (optional)
     |
@@ -60,25 +57,24 @@ The init command (@/src/cli/commands/init/) uses `getDefaultAgent()` from @/src/
 
 ### Core Implementation
 
-`agentRegistry.ts` defines the `Agent` interface (install detection, skillset switching, factory reset, existing config capture) and the `AgentRegistry` singleton that maps agent names to implementations. Currently, the only registered agent is `claude-code`. `managedFolder.ts` provides `listSkillsets()` which discovers both flat skillsets (e.g., `"senior-swe"`) and namespaced skillsets (e.g., `"myorg/my-skillset"`) by walking the profiles directory and checking for `nori.json` manifests. The `Loader` type defined here is the contract that all feature loaders must satisfy: a `name`, `description`, and async `run` function.
+`agentRegistry.ts` defines the `Agent` interface (install detection, skillset switching, factory reset, existing config capture) and the `AgentRegistry` singleton that maps agent names to implementations. Registered agents are `claude-code` and `cursor-agent`. `managedFolder.ts` provides `listSkillsets()` which discovers both flat skillsets (e.g., `"senior-swe"`) and namespaced skillsets (e.g., `"myorg/my-skillset"`) by walking the profiles directory and checking for `nori.json` manifests. The `Loader` type defined here is the contract that all feature loaders must satisfy: a `name`, `description`, and async `run` function.
 
 **Shared Types** (agentRegistry.ts):
 
 | Type | Purpose |
 |------|---------|
-| `AgentName` | Type alias for the canonical agent identifier `"claude-code"`. Used as the registry key and source of truth for agent identity. |
+| `AgentName` | Union type of canonical agent identifiers (`"claude-code" | "cursor-agent"`). Used as the registry key and source of truth for agent identity. |
 | `Loader` | Interface for feature installation with `name`, `description`, and `run()` method. `run()` returns `Promise<string | void>` -- returning a string label (e.g., "Hooks", "Status line") signals inclusion in the consolidated Settings output note |
 | `LoaderRegistry` | Interface that agent-specific registry classes must implement (`getAll()`) |
-| `ExistingConfig` | Object describing detected unmanaged configuration (hasConfigFile, hasManagedBlock, hasSkills, skillCount, hasAgents, agentCount, hasCommands, commandCount). Returned by `detectExistingConfig` and used by init command to show users what was found. Canonical definition in agentRegistry.ts, re-exported from @/src/cli/commands/install/existingConfigCapture.ts for backward compatibility. |
+| `ExistingConfig` | Object describing detected unmanaged configuration (configFileName, hasConfigFile, hasManagedBlock, hasSkills, skillCount, hasAgents, agentCount, hasCommands, commandCount). The `configFileName` field carries the agent's config file name (e.g., "CLAUDE.md") so the init flow can display agent-appropriate strings without hardcoding. Returned by `detectExistingConfig` and used by init command to show users what was found. Canonical definition in agentRegistry.ts, re-exported from @/src/cli/commands/install/existingConfigCapture.ts for backward compatibility. |
 | `AgentArtifact` | Describes a discovered configuration artifact (path + type). Used by `findArtifacts` and factory reset to show what will be deleted. |
 
 **Agent Interface** (agentRegistry.ts):
 - `name`: `AgentName` - canonical identifier used as the registry key ("claude-code")
 - `displayName`: Human-readable name ("Claude Code")
+- `description`: Short string describing which skillset features the agent supports (e.g., "Instructions, skills, subagents, commands, hooks, statusline" for Claude Code). Surfaced as a hint in the config multiselect UI at @/src/cli/prompts/flows/config.ts.
 - `getAgentDir({ installDir })`: Returns the absolute path to this agent's config directory under the given install directory. Each agent declares its own directory (e.g., claude-code returns `{installDir}/.claude/`). Used by shared modules that need to locate agent-specific paths without importing agent internals.
 - `getSkillsDir({ installDir })`: Returns the absolute path to this agent's skills directory under the given install directory (e.g., claude-code returns `{installDir}/.claude/skills/`).
-- `getConfigFileName()`: Returns the filename of the agent's root configuration file (e.g., claude-code returns `"CLAUDE.md"`). Used by `parseSkillset()` to resolve which config file to look for in a skillset directory, allowing callers to pass `agent.getConfigFileName()` instead of hardcoding a filename.
-- `getSkillDiscoveryDirs()`: Returns relative directory paths where skills may be discovered within a repository (e.g., claude-code returns `[".claude/skills"]`). Used by the skill discovery command (@/src/cli/commands/external/skillDiscovery.ts) to search for skills in external repos.
 - `getManagedFiles()`: Returns the list of root-level filenames within the agent's config directory that this agent manages. Used by the manifest module for installation tracking and change detection.
 - `getManagedDirs()`: Returns the list of directory names within the agent's config directory that this agent manages recursively. Used by the manifest module and cleanup operations.
 - `getLoaderRegistry()`: Returns an object implementing the `LoaderRegistry` interface
@@ -91,7 +87,6 @@ The init command (@/src/cli/commands/init/) uses `getDefaultAgent()` from @/src/
 - `markInstall({ path, skillsetName })`: Writes an installation marker at the given directory. The optional `skillsetName` parameter records the active skillset in the marker. Called by init and install commands after feature loaders complete.
 - `detectExistingConfig({ installDir })`: Optional. Detects unmanaged existing configuration at the given install directory. Returns an `ExistingConfig` object describing what was found (CLAUDE.md presence, managed block detection, skill/agent/command counts) or null if no configuration exists. Used by init command to determine if existing config should be captured before Nori installation.
 - `captureExistingConfig({ installDir, skillsetName, config })`: Optional. Captures existing unmanaged configuration as a named skillset, cleans up original files to prevent duplication, and restores a working managed configuration. Takes the `config` parameter to know which skillset to activate. Used by init command when existing config is detected and user opts to preserve it.
-- `getProjectDirName({ cwd })`: Optional. Converts a working directory path into the agent's project directory name format. Each agent defines its own naming convention. Claude Code resolves symlinks and replaces non-alphanumeric characters (except dashes) with dashes, ensuring a leading dash (e.g., `/Users/sean/Projects/app` becomes `-Users-sean-Projects-app`). Used by the watch command to map working directories to transcript storage subdirectories.
 - `getProjectsDir()`: Optional. Returns the absolute path to the agent's projects/sessions directory (e.g., claude-code returns `~/.claude/projects`). Used by the watch command to locate transcript source files.
 - `findArtifacts({ startDir, stopDir? })`: Optional. Discovers agent configuration artifacts (directories and files) starting from `startDir` and walking up the ancestor tree. Returns an array of `AgentArtifact` objects. Used by factory reset to show what will be deleted before confirmation.
 
@@ -102,7 +97,7 @@ The init command (@/src/cli/commands/init/) uses `getDefaultAgent()` from @/src/
 - `list()`: Returns array of registered agent names
 - `getDefaultAgentName()`: Returns the name of the first registered agent. Used as the canonical fallback when code needs a default agent name without hardcoding "claude-code"
 - `resetInstance()`: For test isolation
-- `getAgentDirNames()`: Returns the config directory basenames (e.g., `[".claude"]`) for all registered agents. Used by `normalizeInstallDir()` and `resolveInstallDir()` in @/src/utils/path.ts to strip agent-specific directory suffixes from install paths without hardcoding agent directory names.
+- `getAgentDirNames()`: Returns the config directory basenames (e.g., `[".claude", ".cursor"]`) for all registered agents. Used by `normalizeInstallDir()` and `resolveInstallDir()` in @/src/utils/path.ts to strip agent-specific directory suffixes from install paths without hardcoding agent directory names.
 
 **Config Loader** (config/loader.ts):
 - Shared loader that manages the `.nori-config.json` file lifecycle (single source of truth for config and version)
@@ -133,7 +128,7 @@ The init command (@/src/cli/commands/init/) uses `getDefaultAgent()` from @/src/
 
 **Skillset Parser** (skillset.ts):
 - Defines the `Skillset` type: a content-agnostic representation of a skillset's filesystem structure with fields for `name`, `dir`, `metadata` (NoriJson), `skillsDir`, `configFilePath`, `slashcommandsDir`, and `subagentsDir` (all path fields nullable for optional components).
-- `parseSkillset({ skillsetName?, skillsetDir?, configFileName? })`: Resolves a skillset directory (by name from `~/.nori/profiles/` or by explicit path), calls `ensureNoriJson()` for backwards compatibility, reads metadata, and probes for optional subdirectories/files. The `configFileName` parameter (defaults to `"CLAUDE.md"`) controls which root config file is looked for in the skillset directory, enabling agent-agnostic resolution when called with `agent.getConfigFileName()`. Returns a `Skillset` object. Called by the `profilesLoader` to parse the active skillset once, then distribute to all sub-loaders.
+- `parseSkillset({ skillsetName?, skillsetDir?, configFileName? })`: Resolves a skillset directory (by name from `~/.nori/profiles/` or by explicit path), calls `ensureNoriJson()` for backwards compatibility, reads metadata, and probes for optional subdirectories/files. The `configFileName` parameter (defaults to `"CLAUDE.md"`) controls which root config file is looked for in the skillset directory, enabling agent-agnostic resolution when each agent passes its local `CONFIG_FILE_NAME` constant. Returns a `Skillset` object. Called by the `profilesLoader` to parse the active skillset once, then distribute to all sub-loaders.
 - The `ProfileLoader` interface in @/src/cli/features/claude-code/skillsets/skillsetLoaderRegistry.ts accepts `{ config, skillset }` so sub-loaders receive the pre-parsed `Skillset` instead of constructing paths independently.
 
 **Migration System** (migration.ts):
@@ -145,6 +140,6 @@ The init command (@/src/cli/commands/init/) uses `getDefaultAgent()` from @/src/
 
 ### Things to Know
 
-The `AgentRegistry` hardcodes `claude-code` as the only agent in its constructor. The `Agent` interface includes required lifecycle methods (`installSkillset`, `detectLocalChanges`, `removeSkillset`, `switchSkillset`) that all agents must implement for skillset management, and optional methods (`factoryReset`, `detectExistingConfig`, `captureExistingConfig`, `getProjectDirName`, `getProjectsDir`, `findArtifacts`) that not all agents need to implement. `listSkillsets` calls `ensureNoriJson` as a backwards-compatibility shim, auto-generating `nori.json` for legacy skillsets that lack one.
+The `AgentRegistry` registers `claude-code` and `cursor-agent` in its constructor. The `Agent` interface includes required lifecycle methods (`installSkillset`, `detectLocalChanges`, `removeSkillset`, `switchSkillset`) that all agents must implement for skillset management, and optional methods (`factoryReset`, `detectExistingConfig`, `captureExistingConfig`, `getProjectsDir`, `findArtifacts`) that not all agents need to implement. `listSkillsets` calls `ensureNoriJson` as a backwards-compatibility shim, auto-generating `nori.json` for legacy skillsets that lack one.
 
 Created and maintained by Nori.

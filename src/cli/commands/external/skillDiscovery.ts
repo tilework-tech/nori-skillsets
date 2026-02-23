@@ -8,8 +8,6 @@
 import * as fs from "fs/promises";
 import * as path from "path";
 
-import { AgentRegistry } from "@/cli/features/agentRegistry.js";
-
 const SKIP_DIRS = new Set([
   "node_modules",
   ".git",
@@ -181,10 +179,9 @@ const findSkillDirsRecursive = async (args: {
 /**
  * Discover skills within a cloned repository
  *
- * Searches in priority order:
- * 1. Root directory (if it has SKILL.md)
- * 2. Standard subdirectories: skills/, .claude/skills/
- * 3. Recursive fallback (up to 5 levels deep)
+ * Searches for SKILL.md files following the Agent Skills specification:
+ * 1. Root directory (if it has SKILL.md, return immediately)
+ * 2. Recursive search (up to 5 levels deep)
  *
  * Deduplicates by skill name.
  *
@@ -202,60 +199,24 @@ export const discoverSkills = async (args: {
   const searchPath =
     args.subpath != null ? path.join(basePath, args.subpath) : basePath;
 
-  const skills: Array<DiscoveredSkill> = [];
-  const seenNames = new Set<string>();
-
-  const addSkill = (skill: DiscoveredSkill): void => {
-    if (!seenNames.has(skill.name)) {
-      skills.push(skill);
-      seenNames.add(skill.name);
-    }
-  };
-
-  // 1. Check root for SKILL.md
+  // 1. Check root for SKILL.md — if the repo itself is a single skill
   if (await hasSkillMd({ dir: searchPath })) {
     const skill = await parseSkillAt({ dir: searchPath });
     if (skill != null) {
-      addSkill(skill);
-      return skills;
+      return [skill];
     }
   }
 
-  // 2. Search standard directories (skills/ + agent-specific skill directories)
-  const agentSkillDirs = AgentRegistry.getInstance()
-    .getAll()
-    .flatMap((agent) =>
-      agent.getSkillDiscoveryDirs().map((dir) => path.join(searchPath, dir)),
-    );
-  const priorityDirs = [path.join(searchPath, "skills"), ...agentSkillDirs];
+  // 2. Recursive search for all SKILL.md files
+  const skills: Array<DiscoveredSkill> = [];
+  const seenNames = new Set<string>();
 
-  for (const dir of priorityDirs) {
-    try {
-      const entries = await fs.readdir(dir, { withFileTypes: true });
-      for (const entry of entries) {
-        if (entry.isDirectory()) {
-          const skillDir = path.join(dir, entry.name);
-          if (await hasSkillMd({ dir: skillDir })) {
-            const skill = await parseSkillAt({ dir: skillDir });
-            if (skill != null) {
-              addSkill(skill);
-            }
-          }
-        }
-      }
-    } catch {
-      // Directory doesn't exist, skip
-    }
-  }
-
-  // 3. If nothing found, recursive fallback
-  if (skills.length === 0) {
-    const allDirs = await findSkillDirsRecursive({ dir: searchPath });
-    for (const dir of allDirs) {
-      const skill = await parseSkillAt({ dir });
-      if (skill != null) {
-        addSkill(skill);
-      }
+  const allDirs = await findSkillDirsRecursive({ dir: searchPath });
+  for (const dir of allDirs) {
+    const skill = await parseSkillAt({ dir });
+    if (skill != null && !seenNames.has(skill.name)) {
+      skills.push(skill);
+      seenNames.add(skill.name);
     }
   }
 

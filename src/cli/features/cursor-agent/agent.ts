@@ -1,6 +1,6 @@
 /**
- * Claude Code agent implementation
- * Implements the Agent interface for Claude Code
+ * Cursor agent implementation
+ * Implements the Agent interface for Cursor IDE
  */
 
 import * as fsSync from "fs";
@@ -15,17 +15,7 @@ import {
   getActiveSkillset,
   type Config,
 } from "@/cli/config.js";
-import {
-  detectExistingConfig,
-  captureExistingConfigAsSkillset,
-} from "@/cli/features/claude-code/existingConfigCapture.js";
-import {
-  factoryResetClaudeCode,
-  findClaudeCodeArtifacts,
-} from "@/cli/features/claude-code/factoryReset.js";
-import { LoaderRegistry } from "@/cli/features/claude-code/loaderRegistry.js";
-import { getClaudeMdFile } from "@/cli/features/claude-code/paths.js";
-import { claudeMdLoader } from "@/cli/features/claude-code/skillsets/claudemd/loader.js";
+import { CursorLoaderRegistry } from "@/cli/features/cursor-agent/loaderRegistry.js";
 import { MANIFEST_FILE } from "@/cli/features/managedFolder.js";
 import {
   readManifest,
@@ -34,7 +24,6 @@ import {
   computeDirectoryManifest,
   writeManifest,
   getManifestPath,
-  getLegacyManifestPath,
   removeManagedFiles,
 } from "@/cli/features/manifest.js";
 import { getNoriSkillsetsDir } from "@/cli/features/paths.js";
@@ -45,121 +34,69 @@ import { getHomeDir } from "@/utils/home.js";
 
 import type { Agent } from "@/cli/features/agentRegistry.js";
 
-/** The root config filename for Claude Code skillsets */
-const CONFIG_FILE_NAME = "CLAUDE.md";
+/** The root config filename for Cursor skillsets */
+const CONFIG_FILE_NAME = "AGENTS.md";
 
 /**
- * Claude Code agent implementation
+ * Cursor agent implementation
  */
-export const claudeCodeAgent: Agent = {
-  name: "claude-code",
-  displayName: "Claude Code",
-  description: "Instructions, skills, subagents, commands, hooks, statusline",
+export const cursorAgent: Agent = {
+  name: "cursor-agent",
+  displayName: "Cursor",
+  description: "Instructions, skills, subagents, commands",
 
   getAgentDir: (args: { installDir: string }): string => {
     const { installDir } = args;
-    return path.join(installDir, ".claude");
+    return path.join(installDir, ".cursor");
   },
 
   getSkillsDir: (args: { installDir: string }): string => {
     const { installDir } = args;
-    return path.join(installDir, ".claude", "skills");
+    return path.join(installDir, ".cursor", "skills");
   },
 
-  getManagedFiles: () => ["CLAUDE.md", "settings.json", "nori-statusline.sh"],
-  getManagedDirs: () => ["skills", "commands", "agents"],
+  getManagedFiles: () => [],
+  getManagedDirs: () => ["skills", "commands", "agents", "rules"],
 
   getLoaderRegistry: () => {
-    return LoaderRegistry.getInstance();
+    return CursorLoaderRegistry.getInstance();
   },
-
-  getProjectsDir: (): string => {
-    return path.join(getHomeDir(), ".claude", "projects");
-  },
-
-  findArtifacts: findClaudeCodeArtifacts,
-
-  factoryReset: factoryResetClaudeCode,
 
   isInstalledAtDir: (args: { path: string }): boolean => {
-    const claudeDir = path.join(args.path, ".claude");
+    const cursorDir = path.join(args.path, ".cursor");
 
-    // Check for .nori-managed marker file (new style)
-    const markerPath = path.join(claudeDir, ".nori-managed");
+    // Check for .nori-managed marker file
+    const markerPath = path.join(cursorDir, ".nori-managed");
     if (fsSync.existsSync(markerPath)) {
       return true;
-    }
-
-    // Backwards compatibility: check for NORI-AI MANAGED BLOCK in CLAUDE.md
-    const claudeMdPath = path.join(claudeDir, "CLAUDE.md");
-    if (fsSync.existsSync(claudeMdPath)) {
-      try {
-        const content = fsSync.readFileSync(claudeMdPath, "utf-8");
-        if (content.includes("NORI-AI MANAGED BLOCK")) {
-          return true;
-        }
-      } catch {
-        // Ignore read errors
-      }
     }
 
     return false;
   },
 
   markInstall: (args: { path: string; skillsetName?: string | null }): void => {
-    const claudeDir = path.join(args.path, ".claude");
-    fsSync.mkdirSync(claudeDir, { recursive: true });
-    const markerPath = path.join(claudeDir, ".nori-managed");
+    const cursorDir = path.join(args.path, ".cursor");
+    fsSync.mkdirSync(cursorDir, { recursive: true });
+    const markerPath = path.join(cursorDir, ".nori-managed");
     fsSync.writeFileSync(markerPath, args.skillsetName ?? "", "utf-8");
-  },
-
-  detectExistingConfig: async (args: { installDir: string }) => {
-    return detectExistingConfig({ installDir: args.installDir });
-  },
-
-  captureExistingConfig: async (args: {
-    installDir: string;
-    skillsetName: string;
-    config: Config;
-  }) => {
-    const { installDir, skillsetName, config } = args;
-
-    // Capture the existing config as a named profile
-    await captureExistingConfigAsSkillset({ installDir, skillsetName });
-
-    // Clear original CLAUDE.md to prevent content duplication
-    const claudeMdPath = getClaudeMdFile({ installDir });
-    try {
-      await fs.unlink(claudeMdPath);
-    } catch {
-      // File may not exist, which is fine
-    }
-
-    // Install the managed CLAUDE.md block so the user isn't left without config
-    const skillset = await parseSkillset({
-      skillsetName,
-      configFileName: CONFIG_FILE_NAME,
-    });
-    await claudeMdLoader.install({ config, skillset });
   },
 
   detectLocalChanges: async (args: { installDir: string }) => {
     const { installDir } = args;
 
-    const manifestPath = getManifestPath({ agentName: "claude-code" });
-    const legacyManifestPath = getLegacyManifestPath();
-    const manifest = await readManifest({ manifestPath, legacyManifestPath });
+    const manifestPath = getManifestPath({ agentName: "cursor-agent" });
+    const manifest = await readManifest({ manifestPath });
 
     if (manifest == null) {
       return null;
     }
 
-    const agentDir = path.join(installDir, ".claude");
+    const agentDir = path.join(installDir, ".cursor");
     const diff = await compareManifest({
       manifest,
       currentDir: agentDir,
-      managedFiles: claudeCodeAgent.getManagedFiles(),
-      managedDirs: claudeCodeAgent.getManagedDirs(),
+      managedFiles: cursorAgent.getManagedFiles(),
+      managedDirs: cursorAgent.getManagedDirs(),
     });
 
     return hasChanges(diff) ? diff : null;
@@ -167,21 +104,13 @@ export const claudeCodeAgent: Agent = {
 
   removeSkillset: async (args: { installDir: string }) => {
     const { installDir } = args;
-    const agentDir = path.join(installDir, ".claude");
-    const manifestPath = getManifestPath({ agentName: "claude-code" });
+    const agentDir = path.join(installDir, ".cursor");
+    const manifestPath = getManifestPath({ agentName: "cursor-agent" });
 
     await removeManagedFiles({
       agentDir,
       manifestPath,
-      managedDirs: claudeCodeAgent.getManagedDirs(),
-    });
-
-    // Also clean up legacy manifest
-    const legacyPath = getLegacyManifestPath();
-    await removeManagedFiles({
-      agentDir,
-      manifestPath: legacyPath,
-      managedDirs: claudeCodeAgent.getManagedDirs(),
+      managedDirs: cursorAgent.getManagedDirs(),
     });
   },
 
@@ -189,7 +118,7 @@ export const claudeCodeAgent: Agent = {
     const { config } = args;
 
     // Run all feature loaders, collecting settings labels
-    const registry = claudeCodeAgent.getLoaderRegistry();
+    const registry = cursorAgent.getLoaderRegistry();
     const loaders = registry.getAll();
 
     const settingsResults: Array<string> = [];
@@ -203,24 +132,25 @@ export const claudeCodeAgent: Agent = {
 
     if (settingsResults.length > 0) {
       const lines = settingsResults.map((name) => `✓ ${name}`);
-      note(lines.join("\n"), "Settings");
+      note(lines.join("\n"), "Cursor Settings");
     }
 
     // Write manifest and emit Skills note for the active skillset
     const skillsetName = getActiveSkillset({ config });
     if (skillsetName != null) {
-      const agentDir = claudeCodeAgent.getAgentDir({
+      const agentDir = cursorAgent.getAgentDir({
         installDir: config.installDir,
       });
-      const manifestPath = getManifestPath({ agentName: claudeCodeAgent.name });
+      const manifestPath = getManifestPath({ agentName: cursorAgent.name });
 
       try {
         const manifest = await computeDirectoryManifest({
           dir: agentDir,
           skillsetName,
-          managedFiles: claudeCodeAgent.getManagedFiles(),
-          managedDirs: claudeCodeAgent.getManagedDirs(),
+          managedFiles: cursorAgent.getManagedFiles(),
+          managedDirs: cursorAgent.getManagedDirs(),
         });
+
         await writeManifest({ manifestPath, manifest });
       } catch {
         // Non-fatal — manifest writing failure shouldn't block installation
@@ -243,10 +173,10 @@ export const claudeCodeAgent: Agent = {
           if (skillNames.length > 0) {
             const skillLines = skillNames.map((name) => `$ ${name}`);
             const summary = bold({
-              text: `Registered ${skillNames.length} agent skill${skillNames.length === 1 ? "" : "s"}`,
+              text: `Registered ${skillNames.length} Cursor skill${skillNames.length === 1 ? "" : "s"}`,
             });
             skillLines.push("", summary);
-            note(skillLines.join("\n"), "Skills");
+            note(skillLines.join("\n"), "Cursor Skills");
           }
         }
       } catch {
@@ -255,7 +185,7 @@ export const claudeCodeAgent: Agent = {
     }
 
     // Mark install directory
-    claudeCodeAgent.markInstall({
+    cursorAgent.markInstall({
       path: config.installDir,
       skillsetName,
     });
@@ -268,9 +198,7 @@ export const claudeCodeAgent: Agent = {
     const { skillsetName } = args;
     const skillsetsDir = getNoriSkillsetsDir();
 
-    // Verify profile exists
-    // skillsetName can be flat (e.g., "senior-swe") or namespaced (e.g., "myorg/my-profile")
-    // path.join handles both cases correctly since it just joins the path components
+    // Verify skillset exists
     const skillsetDir = path.join(skillsetsDir, skillsetName);
     await ensureNoriJson({ skillsetDir });
     const instructionsPath = path.join(skillsetDir, MANIFEST_FILE);
@@ -284,9 +212,7 @@ export const claudeCodeAgent: Agent = {
     // Load current config
     const currentConfig = await loadConfig();
 
-    // Preserve the persisted installDir from config (or default to home dir).
-    // The installDir argument is a per-invocation override (e.g. --install-dir flag)
-    // and should not be written to the config file.
+    // Preserve the persisted installDir from config (or default to home dir)
     const persistedInstallDir = currentConfig?.installDir ?? getHomeDir();
 
     await saveConfig({
@@ -307,6 +233,6 @@ export const claudeCodeAgent: Agent = {
       installDir: persistedInstallDir,
     });
 
-    log.success(`Switched to "${skillsetName}" profile for Claude Code`);
+    log.success(`Switched to "${skillsetName}" profile for Cursor`);
   },
 };

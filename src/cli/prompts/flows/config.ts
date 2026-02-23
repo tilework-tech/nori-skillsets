@@ -19,7 +19,9 @@ export type ConfigFlowCallbacks = {
     currentAgents: Array<string> | null;
     currentInstallDir: string | null;
   }>;
-  onResolveAgents: () => Promise<Array<{ name: string; displayName: string }>>;
+  onResolveAgents: () => Promise<
+    Array<{ name: string; displayName: string; description: string }>
+  >;
 };
 
 export type ConfigFlowResult = {
@@ -52,6 +54,7 @@ export const configFlow = async (args: {
   const agentOptions = agents.map((agent) => ({
     value: agent.name,
     label: agent.displayName,
+    hint: agent.description,
   }));
 
   const selectedAgents = unwrapPrompt({

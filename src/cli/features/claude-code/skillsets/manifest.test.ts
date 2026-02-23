@@ -23,6 +23,14 @@ import {
   type ManifestDiff,
 } from "@/cli/features/manifest.js";
 
+// Claude Code managed files/dirs for explicit test parameters
+const CLAUDE_MANAGED_FILES = [
+  "CLAUDE.md",
+  "settings.json",
+  "nori-statusline.sh",
+];
+const CLAUDE_MANAGED_DIRS = ["skills", "commands", "agents"];
+
 describe("manifest", () => {
   let tempDir: string;
 
@@ -94,6 +102,8 @@ describe("manifest", () => {
       const manifest = await computeDirectoryManifest({
         dir: tempDir,
         skillsetName: "test-profile",
+        managedFiles: CLAUDE_MANAGED_FILES,
+        managedDirs: CLAUDE_MANAGED_DIRS,
       });
 
       expect(manifest.files["CLAUDE.md"]).toBeDefined();
@@ -109,6 +119,8 @@ describe("manifest", () => {
       const manifest = await computeDirectoryManifest({
         dir: tempDir,
         skillsetName: "test-profile",
+        managedFiles: CLAUDE_MANAGED_FILES,
+        managedDirs: CLAUDE_MANAGED_DIRS,
       });
 
       // Should be relative to tempDir
@@ -121,6 +133,8 @@ describe("manifest", () => {
       const manifest = await computeDirectoryManifest({
         dir: tempDir,
         skillsetName: "my-profile",
+        managedFiles: CLAUDE_MANAGED_FILES,
+        managedDirs: CLAUDE_MANAGED_DIRS,
       });
 
       expect(manifest.version).toBe(1);
@@ -135,6 +149,8 @@ describe("manifest", () => {
       const manifest = await computeDirectoryManifest({
         dir: emptyDir,
         skillsetName: "test-profile",
+        managedFiles: CLAUDE_MANAGED_FILES,
+        managedDirs: CLAUDE_MANAGED_DIRS,
       });
 
       expect(Object.keys(manifest.files)).toHaveLength(0);
@@ -148,6 +164,8 @@ describe("manifest", () => {
       const manifest = await computeDirectoryManifest({
         dir: tempDir,
         skillsetName: "test-profile",
+        managedFiles: CLAUDE_MANAGED_FILES,
+        managedDirs: CLAUDE_MANAGED_DIRS,
       });
 
       // Should only have the file, not the directory itself
@@ -181,6 +199,8 @@ describe("manifest", () => {
       const manifest = await computeDirectoryManifest({
         dir: tempDir,
         skillsetName: "test-profile",
+        managedFiles: CLAUDE_MANAGED_FILES,
+        managedDirs: CLAUDE_MANAGED_DIRS,
       });
 
       // Nori-managed files should be present
@@ -213,6 +233,8 @@ describe("manifest", () => {
       const manifest = await computeDirectoryManifest({
         dir: tempDir,
         skillsetName: "test-profile",
+        managedFiles: CLAUDE_MANAGED_FILES,
+        managedDirs: CLAUDE_MANAGED_DIRS,
       });
 
       expect(manifest.files["skills/a/SKILL.md"]).toBeDefined();
@@ -230,6 +252,8 @@ describe("manifest", () => {
       const manifest = await computeDirectoryManifest({
         dir: tempDir,
         skillsetName: "test-profile",
+        managedFiles: CLAUDE_MANAGED_FILES,
+        managedDirs: CLAUDE_MANAGED_DIRS,
       });
 
       expect(manifest.files["CLAUDE.md"]).toBeDefined();
@@ -308,7 +332,12 @@ describe("manifest", () => {
       // Modify the file
       await fs.writeFile(path.join(tempDir, "CLAUDE.md"), "modified content");
 
-      const diff = await compareManifest({ manifest, currentDir: tempDir });
+      const diff = await compareManifest({
+        manifest,
+        currentDir: tempDir,
+        managedFiles: CLAUDE_MANAGED_FILES,
+        managedDirs: CLAUDE_MANAGED_DIRS,
+      });
 
       expect(diff.modified).toContain("CLAUDE.md");
       expect(diff.added).toHaveLength(0);
@@ -332,7 +361,12 @@ describe("manifest", () => {
       // Add a new managed file
       await fs.writeFile(path.join(tempDir, "settings.json"), '{"new": true}');
 
-      const diff = await compareManifest({ manifest, currentDir: tempDir });
+      const diff = await compareManifest({
+        manifest,
+        currentDir: tempDir,
+        managedFiles: CLAUDE_MANAGED_FILES,
+        managedDirs: CLAUDE_MANAGED_DIRS,
+      });
 
       expect(diff.added).toContain("settings.json");
       expect(diff.modified).toHaveLength(0);
@@ -350,7 +384,12 @@ describe("manifest", () => {
         },
       };
 
-      const diff = await compareManifest({ manifest, currentDir: tempDir });
+      const diff = await compareManifest({
+        manifest,
+        currentDir: tempDir,
+        managedFiles: CLAUDE_MANAGED_FILES,
+        managedDirs: CLAUDE_MANAGED_DIRS,
+      });
 
       expect(diff.deleted).toContain("settings.json");
       expect(diff.modified).toHaveLength(0);
@@ -372,7 +411,12 @@ describe("manifest", () => {
         },
       };
 
-      const diff = await compareManifest({ manifest, currentDir: tempDir });
+      const diff = await compareManifest({
+        manifest,
+        currentDir: tempDir,
+        managedFiles: CLAUDE_MANAGED_FILES,
+        managedDirs: CLAUDE_MANAGED_DIRS,
+      });
 
       expect(diff.modified).toHaveLength(0);
       expect(diff.added).toHaveLength(0);
@@ -411,7 +455,12 @@ describe("manifest", () => {
       await fs.mkdir(agentsDir, { recursive: true });
       await fs.writeFile(path.join(agentsDir, "new.md"), "new agent");
 
-      const diff = await compareManifest({ manifest, currentDir: tempDir });
+      const diff = await compareManifest({
+        manifest,
+        currentDir: tempDir,
+        managedFiles: CLAUDE_MANAGED_FILES,
+        managedDirs: CLAUDE_MANAGED_DIRS,
+      });
 
       expect(diff.modified).toContain("settings.json");
       expect(diff.added).toContain("agents/new.md");
@@ -438,7 +487,12 @@ describe("manifest", () => {
       // Modify nested file
       await fs.writeFile(path.join(skillDir, "SKILL.md"), "modified");
 
-      const diff = await compareManifest({ manifest, currentDir: tempDir });
+      const diff = await compareManifest({
+        manifest,
+        currentDir: tempDir,
+        managedFiles: CLAUDE_MANAGED_FILES,
+        managedDirs: CLAUDE_MANAGED_DIRS,
+      });
 
       expect(diff.modified).toContain("skills/my-skill/SKILL.md");
     });
@@ -463,7 +517,12 @@ describe("manifest", () => {
       await fs.writeFile(path.join(debugDir, "foo.txt"), "debug log");
       await fs.writeFile(path.join(tempDir, "keybindings.json"), "{}");
 
-      const diff = await compareManifest({ manifest, currentDir: tempDir });
+      const diff = await compareManifest({
+        manifest,
+        currentDir: tempDir,
+        managedFiles: CLAUDE_MANAGED_FILES,
+        managedDirs: CLAUDE_MANAGED_DIRS,
+      });
 
       // Non-whitelisted files should not appear as added
       expect(diff.added).toHaveLength(0);
@@ -488,7 +547,12 @@ describe("manifest", () => {
         },
       };
 
-      const diff = await compareManifest({ manifest, currentDir: tempDir });
+      const diff = await compareManifest({
+        manifest,
+        currentDir: tempDir,
+        managedFiles: CLAUDE_MANAGED_FILES,
+        managedDirs: CLAUDE_MANAGED_DIRS,
+      });
 
       // Old non-whitelisted entries should NOT appear as deleted
       expect(diff.deleted).toHaveLength(0);
@@ -636,11 +700,17 @@ describe("removeManagedFiles", () => {
     const manifest = await computeDirectoryManifest({
       dir: claudeDir,
       skillsetName: "test-skillset",
+      managedFiles: CLAUDE_MANAGED_FILES,
+      managedDirs: CLAUDE_MANAGED_DIRS,
     });
     const manifestPath = path.join(tempDir, "manifest.json");
     await writeManifest({ manifestPath, manifest });
 
-    await removeManagedFiles({ agentDir: claudeDir, manifestPath });
+    await removeManagedFiles({
+      agentDir: claudeDir,
+      manifestPath,
+      managedDirs: CLAUDE_MANAGED_DIRS,
+    });
 
     // All managed files should be gone
     await expect(
@@ -661,11 +731,17 @@ describe("removeManagedFiles", () => {
     const manifest = await computeDirectoryManifest({
       dir: claudeDir,
       skillsetName: "test-skillset",
+      managedFiles: CLAUDE_MANAGED_FILES,
+      managedDirs: CLAUDE_MANAGED_DIRS,
     });
     const manifestPath = path.join(tempDir, "manifest.json");
     await writeManifest({ manifestPath, manifest });
 
-    await removeManagedFiles({ agentDir: claudeDir, manifestPath });
+    await removeManagedFiles({
+      agentDir: claudeDir,
+      manifestPath,
+      managedDirs: CLAUDE_MANAGED_DIRS,
+    });
 
     await expect(
       fs.access(path.join(claudeDir, ".nori-managed")),
@@ -681,11 +757,17 @@ describe("removeManagedFiles", () => {
     const manifest = await computeDirectoryManifest({
       dir: claudeDir,
       skillsetName: "test-skillset",
+      managedFiles: CLAUDE_MANAGED_FILES,
+      managedDirs: CLAUDE_MANAGED_DIRS,
     });
     const manifestPath = path.join(tempDir, "manifest.json");
     await writeManifest({ manifestPath, manifest });
 
-    await removeManagedFiles({ agentDir: claudeDir, manifestPath });
+    await removeManagedFiles({
+      agentDir: claudeDir,
+      manifestPath,
+      managedDirs: CLAUDE_MANAGED_DIRS,
+    });
 
     // Non-managed file should still exist
     const content = await fs.readFile(
@@ -704,11 +786,17 @@ describe("removeManagedFiles", () => {
     const manifest = await computeDirectoryManifest({
       dir: claudeDir,
       skillsetName: "test-skillset",
+      managedFiles: CLAUDE_MANAGED_FILES,
+      managedDirs: CLAUDE_MANAGED_DIRS,
     });
     const manifestPath = path.join(tempDir, "manifest.json");
     await writeManifest({ manifestPath, manifest });
 
-    await removeManagedFiles({ agentDir: claudeDir, manifestPath });
+    await removeManagedFiles({
+      agentDir: claudeDir,
+      manifestPath,
+      managedDirs: CLAUDE_MANAGED_DIRS,
+    });
 
     // The empty skills directory tree should be cleaned up
     await expect(fs.access(path.join(claudeDir, "skills"))).rejects.toThrow();
@@ -722,7 +810,11 @@ describe("removeManagedFiles", () => {
     const manifestPath = path.join(tempDir, "nonexistent-manifest.json");
 
     // Should not throw
-    await removeManagedFiles({ agentDir: claudeDir, manifestPath });
+    await removeManagedFiles({
+      agentDir: claudeDir,
+      manifestPath,
+      managedDirs: CLAUDE_MANAGED_DIRS,
+    });
 
     // File should still exist since there was no manifest to guide removal
     const content = await fs.readFile(
@@ -766,6 +858,8 @@ describe("manifest excluded files", () => {
       const manifest = await computeDirectoryManifest({
         dir: tempDir,
         skillsetName: "test-profile",
+        managedFiles: CLAUDE_MANAGED_FILES,
+        managedDirs: CLAUDE_MANAGED_DIRS,
       });
 
       expect(manifest.files["skills/my-skill/SKILL.md"]).toBeDefined();
@@ -785,6 +879,8 @@ describe("manifest excluded files", () => {
       const manifest = await computeDirectoryManifest({
         dir: tempDir,
         skillsetName: "test-profile",
+        managedFiles: CLAUDE_MANAGED_FILES,
+        managedDirs: CLAUDE_MANAGED_DIRS,
       });
 
       expect(manifest.files["skills/my-skill/SKILL.md"]).toBeDefined();
@@ -809,6 +905,8 @@ describe("manifest excluded files", () => {
       const manifest = await computeDirectoryManifest({
         dir: tempDir,
         skillsetName: "test-profile",
+        managedFiles: CLAUDE_MANAGED_FILES,
+        managedDirs: CLAUDE_MANAGED_DIRS,
       });
 
       expect(
@@ -844,7 +942,12 @@ describe("manifest excluded files", () => {
         JSON.stringify({ version: "1.0.0" }),
       );
 
-      const diff = await compareManifest({ manifest, currentDir: tempDir });
+      const diff = await compareManifest({
+        manifest,
+        currentDir: tempDir,
+        managedFiles: CLAUDE_MANAGED_FILES,
+        managedDirs: CLAUDE_MANAGED_DIRS,
+      });
 
       expect(diff.added).not.toContain("skills/my-skill/.nori-version");
       expect(diff.added).toHaveLength(0);
@@ -875,7 +978,12 @@ describe("manifest excluded files", () => {
         JSON.stringify({ name: "my-skill" }),
       );
 
-      const diff = await compareManifest({ manifest, currentDir: tempDir });
+      const diff = await compareManifest({
+        manifest,
+        currentDir: tempDir,
+        managedFiles: CLAUDE_MANAGED_FILES,
+        managedDirs: CLAUDE_MANAGED_DIRS,
+      });
 
       expect(diff.added).not.toContain("skills/my-skill/nori.json");
       expect(diff.added).toHaveLength(0);

@@ -58,7 +58,11 @@ export const configMain = async (): Promise<void> => {
         const registry = AgentRegistry.getInstance();
         return registry.list().map((name) => {
           const agent = registry.get({ name });
-          return { name: agent.name, displayName: agent.displayName };
+          return {
+            name: agent.name,
+            displayName: agent.displayName,
+            description: agent.description,
+          };
         });
       },
     },

@@ -66,7 +66,7 @@ const buildExistingConfigSummary = (args: {
   const lines: Array<string> = [];
 
   if (config.hasConfigFile) {
-    lines.push("CLAUDE.md found");
+    lines.push(`${config.configFileName} found`);
   }
   if (config.hasSkills) {
     lines.push(
@@ -86,7 +86,9 @@ const buildExistingConfigSummary = (args: {
 
   if (config.hasManagedBlock) {
     lines.push("");
-    lines.push("Your CLAUDE.md contains a Nori managed block, which suggests");
+    lines.push(
+      `Your ${config.configFileName} contains a Nori managed block, which suggests`,
+    );
     lines.push(
       "a previous installation. The captured skillset will preserve this content.",
     );
@@ -153,7 +155,7 @@ export const initFlow = async (args: {
   if (ancestors.length > 0) {
     const ancestorLines = [
       "Nori managed installation detected in ancestor directory.",
-      "Claude Code loads CLAUDE.md files from all parent directories.",
+      "Some AI coding agents load config files from parent directories.",
       "Having multiple managed installations can cause conflicts.",
       "",
       "Existing installations:",

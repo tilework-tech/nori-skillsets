@@ -65,7 +65,8 @@ describe("AgentRegistry", () => {
       const agents = registry.list();
 
       expect(agents).toContain("claude-code");
-      expect(agents).toHaveLength(1);
+      expect(agents).toContain("cursor-agent");
+      expect(agents).toHaveLength(2);
     });
   });
 
@@ -118,6 +119,18 @@ describe("AgentRegistry", () => {
     });
   });
 
+  describe("agent description", () => {
+    test("every registered agent has a non-empty description", () => {
+      const registry = AgentRegistry.getInstance();
+      for (const name of registry.list()) {
+        const agent = registry.get({ name });
+        expect(agent.description).toBeDefined();
+        expect(typeof agent.description).toBe("string");
+        expect(agent.description.length).toBeGreaterThan(0);
+      }
+    });
+  });
+
   describe("getAgentDir", () => {
     test("claude-code agent returns .claude directory under installDir", () => {
       const registry = AgentRegistry.getInstance();
@@ -125,26 +138,6 @@ describe("AgentRegistry", () => {
       const result = agent.getAgentDir({ installDir: "/home/user/project" });
 
       expect(result).toBe("/home/user/project/.claude");
-    });
-  });
-
-  describe("getConfigFileName", () => {
-    test("claude-code agent returns its config file name", () => {
-      const registry = AgentRegistry.getInstance();
-      const agent = registry.get({ name: "claude-code" });
-      const configFileName = agent.getConfigFileName();
-
-      expect(configFileName).toBe("CLAUDE.md");
-    });
-
-    test("every registered agent exposes a config file name", () => {
-      const registry = AgentRegistry.getInstance();
-      for (const name of registry.list()) {
-        const agent = registry.get({ name });
-        const configFileName = agent.getConfigFileName();
-        expect(typeof configFileName).toBe("string");
-        expect(configFileName.length).toBeGreaterThan(0);
-      }
     });
   });
 
@@ -205,18 +198,6 @@ describe("AgentRegistry", () => {
       const loaderNames = loaders.map((l) => l.name);
 
       expect(loaderNames).toContain("config");
-    });
-  });
-
-  describe("getSkillDiscoveryDirs", () => {
-    test("claude-code agent returns skill discovery directories", () => {
-      const registry = AgentRegistry.getInstance();
-      const agent = registry.get({ name: "claude-code" });
-      const dirs = agent.getSkillDiscoveryDirs();
-
-      expect(dirs.length).toBeGreaterThan(0);
-      // Should include the .claude/skills path pattern
-      expect(dirs).toContain(path.join(".claude", "skills"));
     });
   });
 

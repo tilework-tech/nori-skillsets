@@ -35,20 +35,16 @@ export type ManifestDiff = {
 /**
  * Root-level files within the agent config directory that Nori manages.
  * Only these files are tracked in the manifest.
- * Callers should prefer passing agent.getManagedFiles() explicitly.
+ * Callers MUST pass agent.getManagedFiles() explicitly.
  */
-const MANAGED_FILES: ReadonlyArray<string> = [
-  "CLAUDE.md",
-  "settings.json",
-  "nori-statusline.sh",
-];
+const MANAGED_FILES: ReadonlyArray<string> = [];
 
 /**
  * Top-level directories within the agent config directory that Nori manages.
  * All files recursively within these directories are tracked in the manifest.
- * Callers should prefer passing agent.getManagedDirs() explicitly.
+ * Callers MUST pass agent.getManagedDirs() explicitly.
  */
-const MANAGED_DIRS: ReadonlyArray<string> = ["skills", "commands", "agents"];
+const MANAGED_DIRS: ReadonlyArray<string> = [];
 
 /**
  * Files to exclude from manifest tracking regardless of location.

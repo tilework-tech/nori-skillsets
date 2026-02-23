@@ -37,12 +37,14 @@ vi.mock("os", async (importOriginal) => {
 });
 
 // Mock the config module
-vi.mock("@/cli/config.js", async () => {
+vi.mock("@/cli/config.js", async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
   return {
     loadConfig: vi.fn(),
     getRegistryAuth: vi.fn(),
     getActiveSkillset: (args: { config: { activeSkillset?: string | null } }) =>
       args.config.activeSkillset ?? null,
+    getDefaultAgents: actual.getDefaultAgents,
   };
 });
 
