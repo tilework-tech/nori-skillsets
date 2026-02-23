@@ -121,7 +121,8 @@ export const registryDownloadFlow = async (args: {
 
     const redownload = unwrapPrompt({
       value: await confirm({
-        message: "Re-download from registry?",
+        message:
+          "Re-download from registry? This will update all skill dependencies.",
         initialValue: false,
       }),
       cancelMessage: "Download cancelled.",
