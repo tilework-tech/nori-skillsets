@@ -69,4 +69,4 @@
 - No statusline loader (Cursor-specific, not needed)
 - No announcements loader (Claude Code-specific)
 - No factoryReset, detectExistingConfig, captureExistingConfig (can be added later if needed)
-- No getProjectDirName, getProjectsDir (Cursor doesn't have the same project-scoping model)
+- No getProjectDirName, getTranscriptDirectory (Cursor stores conversations in SQLite, not file-based transcripts)
