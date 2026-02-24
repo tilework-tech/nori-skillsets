@@ -9,7 +9,7 @@ import * as path from "path";
 
 import { log, note } from "@clack/prompts";
 
-import { updateConfig, getActiveSkillset, type Config } from "@/cli/config.js";
+import { getActiveSkillset, type Config } from "@/cli/config.js";
 import {
   detectExistingConfig,
   captureExistingConfigAsSkillset,
@@ -283,8 +283,6 @@ export const claudeCodeAgent: Agent = {
     } catch {
       throw new Error(`Profile "${skillsetName}" not found in ${skillsetsDir}`);
     }
-
-    await updateConfig({ activeSkillset: skillsetName });
 
     log.success(`Switched to "${skillsetName}" profile for Claude Code`);
   },

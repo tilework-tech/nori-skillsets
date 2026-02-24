@@ -583,7 +583,7 @@ describe("AgentRegistry", () => {
       }
     });
 
-    test("updates config with new profile", async () => {
+    test("validates profile exists without modifying config on disk", async () => {
       // Create profiles directory with test profile
       const skillsetsDir = path.join(testInstallDir, ".nori", "profiles");
       const skillsetDir = path.join(skillsetsDir, "test-profile");
@@ -593,12 +593,16 @@ describe("AgentRegistry", () => {
         JSON.stringify({ name: "test-profile", version: "1.0.0" }),
       );
 
-      // Create initial config
+      // Create initial config with various fields
       const configPath = path.join(testInstallDir, ".nori-config.json");
-      await fs.writeFile(
-        configPath,
-        JSON.stringify({ activeSkillset: "old-profile" }),
-      );
+      const originalConfig = {
+        username: "test@example.com",
+        password: "secret",
+        organizationUrl: "https://org.example.com",
+        activeSkillset: "old-profile",
+        sendSessionTranscript: "enabled",
+      };
+      await fs.writeFile(configPath, JSON.stringify(originalConfig));
 
       const registry = AgentRegistry.getInstance();
       const agent = registry.get({ name: "claude-code" });
@@ -608,51 +612,9 @@ describe("AgentRegistry", () => {
         skillsetName: "test-profile",
       });
 
-      // Verify config was updated
-      const updatedConfig = JSON.parse(await fs.readFile(configPath, "utf-8"));
-      expect(updatedConfig.activeSkillset).toBe("test-profile");
-    });
-
-    test("preserves existing config fields when switching", async () => {
-      // Create profiles directory with test profile
-      const skillsetsDir = path.join(testInstallDir, ".nori", "profiles");
-      const skillsetDir = path.join(skillsetsDir, "new-profile");
-      await fs.mkdir(skillsetDir, { recursive: true });
-      await fs.writeFile(
-        path.join(skillsetDir, "nori.json"),
-        JSON.stringify({ name: "new-profile", version: "1.0.0" }),
-      );
-
-      // Create initial config with auth and other fields
-      const configPath = path.join(testInstallDir, ".nori-config.json");
-      await fs.writeFile(
-        configPath,
-        JSON.stringify({
-          username: "test@example.com",
-          password: "secret",
-          organizationUrl: "https://org.example.com",
-          activeSkillset: "old-profile",
-          sendSessionTranscript: "enabled",
-        }),
-      );
-
-      const registry = AgentRegistry.getInstance();
-      const agent = registry.get({ name: "claude-code" });
-
-      await agent.switchSkillset({
-        installDir: testInstallDir,
-        skillsetName: "new-profile",
-      });
-
-      // Verify all fields preserved (auth is now in nested format after save)
-      const updatedConfig = JSON.parse(await fs.readFile(configPath, "utf-8"));
-      expect(updatedConfig.auth.username).toBe("test@example.com");
-      expect(updatedConfig.auth.password).toBe("secret");
-      expect(updatedConfig.auth.organizationUrl).toBe(
-        "https://org.example.com",
-      );
-      expect(updatedConfig.sendSessionTranscript).toBe("enabled");
-      expect(updatedConfig.activeSkillset).toBe("new-profile");
+      // Config on disk should be completely unchanged
+      const configAfter = JSON.parse(await fs.readFile(configPath, "utf-8"));
+      expect(configAfter).toEqual(originalConfig);
     });
 
     test("throws error for non-existent profile", async () => {
@@ -671,7 +633,7 @@ describe("AgentRegistry", () => {
       ).rejects.toThrow(/Profile "non-existent" not found/);
     });
 
-    test("switches to namespaced profile in nested directory", async () => {
+    test("validates namespaced profile in nested directory without modifying config", async () => {
       // Create org directory with nested profile (e.g., profiles/myorg/my-profile)
       const skillsetsDir = path.join(testInstallDir, ".nori", "profiles");
       const orgDir = path.join(skillsetsDir, "myorg");
@@ -684,10 +646,8 @@ describe("AgentRegistry", () => {
 
       // Create initial config
       const configPath = path.join(testInstallDir, ".nori-config.json");
-      await fs.writeFile(
-        configPath,
-        JSON.stringify({ activeSkillset: "old-profile" }),
-      );
+      const originalConfig = { activeSkillset: "old-profile" };
+      await fs.writeFile(configPath, JSON.stringify(originalConfig));
 
       const registry = AgentRegistry.getInstance();
       const agent = registry.get({ name: "claude-code" });
@@ -697,9 +657,9 @@ describe("AgentRegistry", () => {
         skillsetName: "myorg/my-profile",
       });
 
-      // Verify config was updated with namespaced profile name
-      const updatedConfig = JSON.parse(await fs.readFile(configPath, "utf-8"));
-      expect(updatedConfig.activeSkillset).toBe("myorg/my-profile");
+      // Config on disk should be completely unchanged
+      const configAfter = JSON.parse(await fs.readFile(configPath, "utf-8"));
+      expect(configAfter).toEqual(originalConfig);
     });
   });
 

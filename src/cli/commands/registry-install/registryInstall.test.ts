@@ -57,6 +57,7 @@ vi.mock("@/cli/commands/install/installState.js", () => ({
 
 vi.mock("@/cli/config.js", () => ({
   loadConfig: vi.fn().mockResolvedValue(null),
+  updateConfig: vi.fn().mockResolvedValue(undefined),
   getActiveSkillset: vi.fn().mockReturnValue(null),
   getDefaultAgents: vi.fn().mockReturnValue(["claude-code"]),
 }));

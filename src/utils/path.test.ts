@@ -106,65 +106,109 @@ describe("resolveInstallDir", () => {
   it("should use CLI flag when provided", () => {
     const result = resolveInstallDir({
       cliInstallDir: "/custom/cli/path",
-      config: { installDir: "/config/path" },
+      configInstallDir: "/config/path",
     });
-    expect(result).toBe("/custom/cli/path");
+    expect(result.path).toBe("/custom/cli/path");
   });
 
-  it("should use config.installDir when no CLI flag provided", () => {
+  it("should use configInstallDir when no CLI flag provided", () => {
     const result = resolveInstallDir({
-      config: { installDir: "/config/path" },
+      configInstallDir: "/config/path",
     });
-    expect(result).toBe("/config/path");
+    expect(result.path).toBe("/config/path");
   });
 
   it("should fall back to home directory when no CLI flag and no config", () => {
     const result = resolveInstallDir({});
-    expect(result).toBe(os.homedir());
+    expect(result.path).toBe(os.homedir());
   });
 
   it("should fall back to home directory when CLI flag is empty string", () => {
     const result = resolveInstallDir({
       cliInstallDir: "",
-      config: null,
+      configInstallDir: null,
     });
-    expect(result).toBe(os.homedir());
+    expect(result.path).toBe(os.homedir());
   });
 
-  it("should fall back to home directory when config is null", () => {
+  it("should fall back to home directory when configInstallDir is null", () => {
     const result = resolveInstallDir({
-      config: null,
+      configInstallDir: null,
     });
-    expect(result).toBe(os.homedir());
+    expect(result.path).toBe(os.homedir());
   });
 
   it("should normalize CLI flag with tilde expansion", () => {
     const result = resolveInstallDir({
       cliInstallDir: "~/my-project",
-      config: null,
+      configInstallDir: null,
     });
-    expect(result).toBe(path.join(os.homedir(), "my-project"));
+    expect(result.path).toBe(path.join(os.homedir(), "my-project"));
   });
 
   it("should prefer CLI flag over config even when both are provided", () => {
     const result = resolveInstallDir({
       cliInstallDir: "/from-cli",
-      config: { installDir: "/from-config" },
+      configInstallDir: "/from-config",
     });
-    expect(result).toBe("/from-cli");
+    expect(result.path).toBe("/from-cli");
   });
 
-  it("should normalize config.installDir with tilde expansion", () => {
+  it("should normalize configInstallDir with tilde expansion", () => {
     const result = resolveInstallDir({
-      config: { installDir: "~/my-project" },
+      configInstallDir: "~/my-project",
     });
-    expect(result).toBe(path.join(os.homedir(), "my-project"));
+    expect(result.path).toBe(path.join(os.homedir(), "my-project"));
   });
 
-  it("should fall back to home directory when config.installDir is empty string", () => {
+  it("should fall back to home directory when configInstallDir is empty string", () => {
     const result = resolveInstallDir({
-      config: { installDir: "" },
+      configInstallDir: "",
     });
-    expect(result).toBe(os.homedir());
+    expect(result.path).toBe(os.homedir());
+  });
+
+  describe("source provenance", () => {
+    it("should return source 'cli' when cliInstallDir is provided", () => {
+      const result = resolveInstallDir({
+        cliInstallDir: "/from-cli",
+        configInstallDir: "/from-config",
+      });
+      expect(result.source).toBe("cli");
+    });
+
+    it("should return source 'config' when using configInstallDir", () => {
+      const result = resolveInstallDir({
+        configInstallDir: "/from-config",
+      });
+      expect(result.source).toBe("config");
+    });
+
+    it("should return source 'default' when falling back to home directory", () => {
+      const result = resolveInstallDir({});
+      expect(result.source).toBe("default");
+    });
+
+    it("should return source 'default' when configInstallDir is null", () => {
+      const result = resolveInstallDir({
+        configInstallDir: null,
+      });
+      expect(result.source).toBe("default");
+    });
+
+    it("should return source 'default' when configInstallDir is empty string", () => {
+      const result = resolveInstallDir({
+        configInstallDir: "",
+      });
+      expect(result.source).toBe("default");
+    });
+
+    it("should return source 'cli' even when cliInstallDir matches configInstallDir", () => {
+      const result = resolveInstallDir({
+        cliInstallDir: "/same/path",
+        configInstallDir: "/same/path",
+      });
+      expect(result.source).toBe("cli");
+    });
   });
 });

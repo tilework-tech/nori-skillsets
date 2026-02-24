@@ -9,7 +9,7 @@ import * as path from "path";
 
 import { log, note } from "@clack/prompts";
 
-import { updateConfig, getActiveSkillset, type Config } from "@/cli/config.js";
+import { getActiveSkillset, type Config } from "@/cli/config.js";
 import { CursorLoaderRegistry } from "@/cli/features/cursor-agent/loaderRegistry.js";
 import { MANIFEST_FILE } from "@/cli/features/managedFolder.js";
 import {
@@ -208,8 +208,6 @@ export const cursorAgent: Agent = {
     } catch {
       throw new Error(`Profile "${skillsetName}" not found in ${skillsetsDir}`);
     }
-
-    await updateConfig({ activeSkillset: skillsetName });
 
     log.success(`Switched to "${skillsetName}" profile for Cursor`);
   },

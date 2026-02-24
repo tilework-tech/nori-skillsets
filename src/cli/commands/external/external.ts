@@ -334,9 +334,9 @@ export const externalMain = async (args: {
   const config = await loadConfig();
   const targetInstallDir = resolveInstallDir({
     cliInstallDir: installDir,
-    config,
+    configInstallDir: config?.installDir,
     agentDirNames: AgentRegistry.getInstance().getAgentDirNames(),
-  });
+  }).path;
   let targetSkillset: string | null = null;
   const skillsetsDir = getNoriSkillsetsDir();
 

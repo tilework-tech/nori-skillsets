@@ -41,6 +41,6 @@ The `cursorAgent` object in `agent.ts` implements the `Agent` interface with the
 - **AGENTS.md lives inside `.cursor/rules/`**: The `getManagedDirs()` method returns `["skills", "commands", "agents", "rules"]`, so AGENTS.md at `.cursor/rules/AGENTS.md` is tracked by the standard manifest system automatically. There is no special-case code for AGENTS.md in `detectLocalChanges`, `removeSkillset`, or `installSkillset` -- the shared manifest infrastructure handles hashing, change detection, and cleanup for all managed directories including `rules/`.
 - The `cursorProfilesLoader` in `skillsets/loader.ts` parses the skillset using `configFileName: "CLAUDE.md"` (not `"AGENTS.md"`), because the source skillset template always contains a `CLAUDE.md`. The mapping to `AGENTS.md` happens at write time in the agentsmd loader.
 - Installation is detected solely via the `.nori-managed` marker file in `.cursor/` -- there is no backwards-compatible content-sniffing fallback like the Claude Code agent has.
-- The `switchSkillset` method calls `updateConfig({ activeSkillset: skillsetName })`, which automatically preserves all existing config fields. The `installDir` argument from the `Agent` interface is not persisted.
+- The `switchSkillset` method only validates the skillset exists and logs -- it does not persist config. Config persistence (`updateConfig({ activeSkillset })`) is the command layer's responsibility, gated on install-dir provenance so that transient `--install-dir` CLI overrides do not write state to `.nori-config.json`.
 
 Created and maintained by Nori.
