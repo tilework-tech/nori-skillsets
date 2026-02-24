@@ -480,7 +480,7 @@ Commands with interactive prompts that need full flow migration:
 
 - [ ] `login/login.ts` - Legacy path still uses `promptUser` (flow exists)
 - [x] `watch/watch.ts` - Uses legacy `promptUser` for transcript destination (flow exists, `watchStopMain` also migrated)
-- [ ] `install/existingConfigCapture.ts` - Legacy path (initFlow handles this)
+- [x] `install/existingConfigCapture.ts` - Removed (captureExistingConfig is now a shared handler in agentHandlers.ts)
 - [ ] `registry-download/registryDownload.ts` - Multiple `promptUser` calls
 - [ ] `registry-install/registryInstall.ts` - Interactive install prompts
 - [ ] `registry-search/registrySearch.ts` - Search result selection

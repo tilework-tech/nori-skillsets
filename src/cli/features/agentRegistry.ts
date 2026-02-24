@@ -8,7 +8,6 @@ import * as path from "path";
 import { type Config } from "@/cli/config.js";
 import { claudeCodeConfig } from "@/cli/features/claude-code/agent.js";
 import { cursorConfig } from "@/cli/features/cursor-agent/agent.js";
-import { type Skillset } from "@/cli/features/skillset.js";
 
 /**
  * Canonical agent names used as UIDs in the registry.
@@ -24,20 +23,6 @@ export type Loader = {
   name: string;
   description: string;
   run: (args: { config: Config }) => Promise<string | void>;
-};
-
-/**
- * Profile loader interface for profile-dependent feature installation.
- * Uses 'install' instead of 'run' to distinguish from main loaders.
- */
-export type ProfileLoader = {
-  name: string;
-  description: string;
-  install: (args: {
-    agentConfig: AgentConfig;
-    config: Config;
-    skillset: Skillset;
-  }) => Promise<void>;
 };
 
 /**

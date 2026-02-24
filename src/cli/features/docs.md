@@ -48,7 +48,7 @@ CLI Commands (install, switch-skillset, onboard, list, init)
 
 Shared Resources (@/src/cli/features/)
     |
-    +-- agentRegistry.ts: AgentName, AgentConfig, Loader, ProfileLoader, ExistingConfig types
+    +-- agentRegistry.ts: AgentName, AgentConfig, Loader, ExistingConfig types
     +-- shared/agentHandlers.ts: All behavioral operations as standalone functions
     +-- shared/profileLoaders/: Profile installation sub-loaders (skills, instructionsMd, slashCommands, subagents)
     +-- paths.ts: getNoriDir(), getNoriSkillsetsDir() (agent-agnostic Nori paths)
@@ -76,7 +76,6 @@ The init command (@/src/cli/commands/init/) uses `getDefaultAgents()` from @/src
 | `AgentName` | Union type of canonical agent identifiers (`"claude-code" | "cursor-agent"`). Used as the registry key and source of truth for agent identity. |
 | `AgentConfig` | Pure data struct describing an agent's filesystem layout and optional features. Contains declarative fields (paths, names, descriptions) and optional function fields for agent-specific behavior (legacyMarkerDetection, configurePermissions, findArtifacts, factoryReset). All generic operations live in shared handler functions. |
 | `Loader` | Interface for feature installation with `name`, `description`, and `run()` method. `run()` returns `Promise<string | void>` -- returning a string label (e.g., "Hooks", "Status line") signals inclusion in the consolidated Settings output note |
-| `ProfileLoader` | Interface for profile-dependent feature installation. Uses `install({ agentConfig, config, skillset })` instead of `run()` to distinguish from main loaders. |
 | `ExistingConfig` | Object describing detected unmanaged configuration (configFileName, hasConfigFile, hasManagedBlock, hasSkills, skillCount, hasAgents, agentCount, hasCommands, commandCount). The `configFileName` field carries the agent's config file name (e.g., "CLAUDE.md") so the init flow can display agent-appropriate strings without hardcoding. Returned by `detectExistingConfig` handler and used by init command to show users what was found. |
 | `AgentArtifact` | Describes a discovered configuration artifact (path + type). Used by `findArtifacts` and factory reset to show what will be deleted. |
 
@@ -161,7 +160,7 @@ The init command (@/src/cli/commands/init/) uses `getDefaultAgents()` from @/src
 **Skillset Parser** (skillset.ts):
 - Defines the `Skillset` type: a content-agnostic representation of a skillset's filesystem structure with fields for `name`, `dir`, `metadata` (NoriJson), `skillsDir`, `configFilePath`, `slashcommandsDir`, and `subagentsDir` (all path fields nullable for optional components).
 - `parseSkillset({ skillsetName?, skillsetDir?, configFileName? })`: Resolves a skillset directory (by name from `~/.nori/profiles/` or by explicit path), calls `ensureNoriJson()` for backwards compatibility, reads metadata, and probes for optional subdirectories/files. The `configFileName` parameter (defaults to `"CLAUDE.md"`) controls which root config file is looked for in the skillset directory, enabling agent-agnostic resolution when each agent passes its `configFileName` from `AgentConfig`. Returns a `Skillset` object. Called by the shared `installProfiles` loader to parse the active skillset once, then distribute to all sub-loaders.
-- The `ProfileLoader` interface in agentRegistry.ts accepts `{ agentConfig, config, skillset }` so sub-loaders receive the pre-parsed `Skillset` and the `AgentConfig` for path resolution.
+- The shared profile loaders in `shared/profileLoaders/` accept `{ agentConfig, config, skillset }` so sub-loaders receive the pre-parsed `Skillset` and the `AgentConfig` for path resolution.
 
 **Migration System** (migration.ts):
 - Versioned migration system for transforming config between formats during installation
