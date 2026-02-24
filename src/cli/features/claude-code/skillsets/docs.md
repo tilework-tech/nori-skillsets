@@ -4,20 +4,19 @@ Path: @/src/cli/features/claude-code/skillsets
 
 ### Overview
 
-This directory now serves primarily as a historical home for shared test files related to skillset infrastructure. The skillset installation loaders that previously lived here (`loader.ts`, `skillsetLoaderRegistry.ts`, and subdirectories `claudemd/`, `skills/`, `slashcommands/`, `subagents/`) have been extracted to shared profile loaders at @/src/cli/features/shared/profileLoaders/. Skillset metadata operations have been extracted to @/src/cli/features/skillsetMetadata.ts. The manifest module has been extracted to @/src/cli/features/manifest.ts.
+This directory is empty of source and test files. The skillset installation loaders that previously lived here (`loader.ts`, `skillsetLoaderRegistry.ts`, and subdirectories `claudemd/`, `skills/`, `slashcommands/`, `subagents/`) have been extracted to shared profile loaders at @/src/cli/features/shared/profileLoaders/. Skillset metadata operations have been extracted to @/src/cli/features/skillsetMetadata.ts. The manifest module has been extracted to @/src/cli/features/manifest.ts. Test files have been co-located with their source modules at @/src/cli/features/.
 
 ### How it fits into the larger codebase
 
-- The remaining test files validate shared infrastructure that was extracted from this directory: `manifest.test.ts` tests @/src/cli/features/manifest.ts, and `skills/resolver.test.ts` tests @/src/cli/features/skillResolver.ts.
 - All profile installation logic now lives in @/src/cli/features/shared/profileLoaders/, which is called by the shared `installSkillset` handler in @/src/cli/features/shared/agentHandlers.ts. The shared handler replaces the old per-agent `installSkillset` methods.
 - Skillset metadata CRUD operations (`readSkillsetMetadata`, `writeSkillsetMetadata`, `addSkillToNoriJson`, `ensureNoriJson`) live in @/src/cli/features/skillsetMetadata.ts.
 - The `Skillset` type and `parseSkillset()` parser live in @/src/cli/features/skillset.ts.
 
 ### Core Implementation
 
-**Remaining files:**
-- `manifest.test.ts` -- tests the shared manifest module at @/src/cli/features/manifest.ts (file-level SHA-256 change tracking, whitelist filtering, per-agent manifest storage)
-- `skills/resolver.test.ts` -- tests the shared skill resolver at @/src/cli/features/skillResolver.ts (skills.json parsing, version resolution)
+**Extracted modules and their tests (co-located at @/src/cli/features/):**
+- `manifest.ts` / `manifest.test.ts` -- file-level SHA-256 change tracking, whitelist filtering, per-agent manifest storage
+- `skillResolver.ts` / `skillResolver.test.ts` -- skills.json parsing, version resolution
 
 **Shared profile loaders** (at @/src/cli/features/shared/profileLoaders/):
 - `profilesLoader.ts` -- orchestrates profile installation: creates `~/.nori/profiles/`, configures agent-specific permissions, parses the active skillset via `parseSkillset()`, and runs sub-loaders in order

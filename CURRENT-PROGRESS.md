@@ -100,6 +100,15 @@
 - `src/cli/commands/factory-reset/factoryReset.test.ts` -- cleaned up last remaining old-pattern mock: replaced `getLoaderRegistry` and `switchSkillset` method fields with proper `AgentConfig` required fields (`description`, `agentDirName`, `instructionFilePath`, `configFileName`, `skillsPath`, `slashcommandsPath`, `subagentsPath`)
 - `src/cli/features/docs.md` -- removed stale "extracted from the Agent interface" reference from managedFolder.ts description, since the `Agent` interface no longer exists
 
+### Post-refactor cleanup: Co-locate mislocated test files
+
+Two test files were stranded under `src/cli/features/claude-code/skillsets/` after the refactor moved their source modules to `src/cli/features/`. Relocated them to follow the codebase's universal co-location convention:
+
+- `src/cli/features/claude-code/skillsets/manifest.test.ts` → `src/cli/features/manifest.test.ts`
+- `src/cli/features/claude-code/skillsets/skills/resolver.test.ts` → `src/cli/features/skillResolver.test.ts` (renamed to match source module)
+- Deleted empty `src/cli/features/claude-code/skillsets/skills/` directory
+- Updated `src/cli/features/claude-code/skillsets/docs.md` to reflect new locations
+
 ## Complete
 
 All 5 steps of the APPLICATION-SPEC have been implemented. The refactor replaced per-agent `Agent` objects (with ~15 duplicated methods each) with `AgentConfig` pure data structs and shared handler functions, eliminating ~5,400 lines of duplicated code.
