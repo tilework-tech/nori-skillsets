@@ -13,7 +13,7 @@
 - `cursorConfig` added to `src/cli/features/cursor-agent/agent.ts`
 - Configs registered in the registry alongside existing agents
 
-### Step 3: Migrate callers (in progress)
+### Step 3: Migrate callers (complete)
 
 #### Completed caller migrations:
 - `src/cli/commands/switch-skillset/switchSkillset.ts` -- replaced `agent.detectLocalChanges`, `agent.captureExistingConfig`, `agent.switchSkillset` with shared handler imports (`detectLocalChanges`, `captureExistingConfig`, `switchSkillset` from `@/cli/features/shared/agentHandlers.js`)
@@ -22,6 +22,14 @@
 - `src/cli/commands/registry-install/registryInstall.test.ts` -- updated assertions to use `expect.objectContaining` for the new `agentConfig` parameter
 - `src/cli/commands/external/external.ts` -- replaced `agent.getSkillsDir`, `agent.getAgentDir` with shared handlers, changed `type Agent` to `type AgentConfig`
 - `src/cli/commands/skill-download/skillDownload.ts` -- replaced `agent.getSkillsDir`, `agent.getAgentDir`, `primaryAgent.getSkillsDir`, `primaryAgent.getAgentDir` with shared handlers
+- `src/cli/commands/install/install.ts` -- replaced `agent.installSkillset()` with shared `installSkillset({ agentConfig: agent, ... })`, changed `ReturnType<typeof AgentRegistry.prototype.get>` to `AgentConfig`
+- `src/cli/commands/install/install.test.ts` -- changed spy from `agent.installSkillset` to `agentHandlers.installSkillset`
+- `src/cli/commands/config/config.ts` -- replaced `agent.isInstalledAtDir()` and `agent.removeSkillset()` with shared handlers `isInstalledAtDir({ agentConfig, ... })` and `removeSkillset({ agentConfig, ... })`
+- `src/cli/commands/clear/clear.ts` -- replaced `agentImpl.removeSkillset()` with shared `removeSkillset({ agentConfig, ... })`
+- `src/cli/commands/init/init.ts` -- replaced `defaultAgent.isInstalledAtDir()`, `defaultAgent.detectExistingConfig?.()`, `agent.captureExistingConfig?.()`, `agent.markInstall()` with shared handlers
+- `src/cli/commands/init/init.test.ts` -- updated test file creation paths from `TEST_CLAUDE_DIR` to `path.join(tempDir, ".claude")` to align with shared handler path resolution
+- `src/cli/commands/watch/watch.ts` -- replaced `agentImpl.getTranscriptDirectory?.()` with `agentImpl.transcriptDirectory` (data field access)
+- `src/cli/commands/factory-reset/factoryReset.ts` -- no changes needed (factoryReset, findArtifacts, displayName are already data fields on AgentConfig)
 - `src/cli/commands/docs.md` -- updated documentation to reflect shared handler pattern
 
 #### Completed test migrations:
@@ -29,15 +37,20 @@
 - `src/cli/features/claude-code/agent.test.ts` -- full rewrite: renamed `claudeCodeAgent` to `claudeCodeConfig`, imported shared handlers (`isInstalledAtDir`, `markInstall`, `switchSkillset`), converted all method calls
 - `src/cli/features/cursor-agent/agent.test.ts` -- full rewrite: renamed `cursorAgent` to `cursorConfig`, imported shared handlers (`isInstalledAtDir`, `markInstall`, `switchSkillset`, `detectLocalChanges`, `removeSkillset`, `installSkillset`, `getAgentDir`), converted all method calls
 - `src/cli/commands/config/config.test.ts` -- full rewrite: mock agent is now pure data `AgentConfig` (no methods), added `vi.mock("@/cli/features/shared/agentHandlers.js")` for `removeSkillset`, `isInstalledAtDir`, `detectLocalChanges`; assertions changed from `mockAgent.removeSkillset` to `mockRemoveSkillset`; fixed `mockReturnValue` -> `mockReturnValueOnce` for multi-agent test isolation
-- `src/cli/commands/install/install.test.ts` -- removed unused `AgentRegistry` import (file was already partially updated with `vi.spyOn(agentHandlers, "installSkillset")`)
+- `src/cli/commands/install/install.test.ts` -- changed spy from `agent.installSkillset` to `agentHandlers.installSkillset`
 - `src/cli/commands/registry-install/registryInstall.test.ts` -- changed mock agent from having `switchSkillset` method to pure data `AgentConfig`, added `vi.mock("@/cli/features/shared/agentHandlers.js")` for `switchSkillset`
 - `src/cli/commands/switch-skillset/switchSkillset.test.ts` -- was already fully migrated; updated comment from "agent methods" to "shared agent handlers"
 
-#### Bug fix in source code:
-- `src/cli/features/claude-code/agent.ts` -- changed `transcriptDirectory` from eagerly-evaluated `path.join(getHomeDir(), ...)` to a lazy getter to avoid calling `getHomeDir()` at module load time, which broke tests that mock `os.homedir`
+#### Bug fixes:
+- `src/cli/features/claude-code/agent.ts` -- changed `transcriptDirectory` from eagerly-evaluated `path.join(getHomeDir(), ...)` to a lazy getter to avoid calling `getHomeDir()` at module load time, which broke tests that mock `os.homedir`. Also fixed `Config` import to come from `@/cli/config.js` instead of `@/cli/features/agentRegistry.js`.
+- `src/cli/features/agentRegistry.ts` -- fixed import ordering: changed `import type { Config }` to `import { type Config }` to resolve Prettier/ESLint conflict with import/order rule.
 
-#### Remaining caller migrations (not yet started):
-- None -- all test files have been migrated to the new shared handler pattern
+#### Documentation updates:
+- `src/cli/features/docs.md` -- updated to reflect `AgentConfig` pure data struct pattern and shared handler functions, replaced `Agent` interface documentation with `AgentConfig` fields and shared handler function descriptions
+- `src/cli/features/claude-code/docs.md` -- updated from `Agent` interface methods to `AgentConfig` data fields, references to shared handlers
+- `src/cli/features/cursor-agent/docs.md` -- updated from `Agent` interface methods to `AgentConfig` data fields, references to shared handlers
+- `src/cli/commands/docs.md` -- updated command descriptions to reference shared handlers instead of agent methods
+- `src/cli/commands/init/docs.md` -- updated to reference shared handler functions
 
 ## Not Started
 

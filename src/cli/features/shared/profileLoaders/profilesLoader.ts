@@ -18,9 +18,9 @@ import type { AgentConfig } from "@/cli/features/agentRegistry.js";
 /**
  * Install profiles: create profiles directory, configure permissions,
  * parse active skillset, and run all profile sub-loaders in order.
- * @param args
- * @param args.agentConfig
- * @param args.config
+ * @param args - Function arguments
+ * @param args.agentConfig - The agent configuration
+ * @param args.config - The Nori configuration
  */
 export const installProfiles = async (args: {
   agentConfig: AgentConfig;

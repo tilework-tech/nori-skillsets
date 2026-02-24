@@ -20,10 +20,10 @@ import type { Dirent } from "fs";
 
 /**
  * Copy a directory recursively, applying template substitution to markdown files
- * @param args
- * @param args.src
- * @param args.dest
- * @param args.installDir
+ * @param args - Function arguments
+ * @param args.src - Source directory path
+ * @param args.dest - Destination directory path
+ * @param args.installDir - The installation directory for template substitution
  */
 const copyDirWithTemplateSubstitution = async (args: {
   src: string;
@@ -58,10 +58,10 @@ const copyDirWithTemplateSubstitution = async (args: {
 
 /**
  * Install skills from a skillset to the agent's skills directory
- * @param args
- * @param args.agentConfig
- * @param args.config
- * @param args.skillset
+ * @param args - Function arguments
+ * @param args.agentConfig - The agent configuration
+ * @param args.config - The Nori configuration
+ * @param args.skillset - The parsed skillset
  */
 export const installSkills = async (args: {
   agentConfig: AgentConfig;

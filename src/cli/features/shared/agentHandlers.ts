@@ -30,16 +30,17 @@ import { bold } from "@/cli/logger.js";
 
 import type {
   AgentConfig,
-  AgentArtifact,
   ExistingConfig,
 } from "@/cli/features/agentRegistry.js";
 import type { ManifestDiff } from "@/cli/features/manifest.js";
 
 /**
  * Get the agent's config directory under the install directory
- * @param args
- * @param args.agentConfig
- * @param args.installDir
+ * @param args - Handler arguments
+ * @param args.agentConfig - The agent configuration
+ * @param args.installDir - The installation directory
+ *
+ * @returns Absolute path to the agent's config directory
  */
 export const getAgentDir = (args: {
   agentConfig: AgentConfig;
@@ -51,9 +52,11 @@ export const getAgentDir = (args: {
 
 /**
  * Get the agent's skills directory under the install directory
- * @param args
- * @param args.agentConfig
- * @param args.installDir
+ * @param args - Handler arguments
+ * @param args.agentConfig - The agent configuration
+ * @param args.installDir - The installation directory
+ *
+ * @returns Absolute path to the agent's skills directory
  */
 export const getSkillsDir = (args: {
   agentConfig: AgentConfig;
@@ -69,8 +72,10 @@ export const getSkillsDir = (args: {
 
 /**
  * Get the root-level filenames this agent manages
- * @param args
- * @param args.agentConfig
+ * @param args - Handler arguments
+ * @param args.agentConfig - The agent configuration
+ *
+ * @returns Array of managed file basenames
  */
 export const getManagedFiles = (args: {
   agentConfig: AgentConfig;
@@ -86,8 +91,10 @@ export const getManagedFiles = (args: {
 
 /**
  * Get the directory names this agent manages recursively
- * @param args
- * @param args.agentConfig
+ * @param args - Handler arguments
+ * @param args.agentConfig - The agent configuration
+ *
+ * @returns Array of managed directory names
  */
 export const getManagedDirs = (args: {
   agentConfig: AgentConfig;
@@ -106,9 +113,11 @@ export const getManagedDirs = (args: {
 
 /**
  * Check if this agent is installed at the given directory
- * @param args
- * @param args.agentConfig
- * @param args.path
+ * @param args - Handler arguments
+ * @param args.agentConfig - The agent configuration
+ * @param args.path - The directory to check
+ *
+ * @returns True if the agent is installed at the directory
  */
 export const isInstalledAtDir = (args: {
   agentConfig: AgentConfig;
@@ -133,10 +142,10 @@ export const isInstalledAtDir = (args: {
 
 /**
  * Mark a directory as having this agent installed
- * @param args
- * @param args.agentConfig
- * @param args.path
- * @param args.skillsetName
+ * @param args - Handler arguments
+ * @param args.agentConfig - The agent configuration
+ * @param args.path - The directory to mark
+ * @param args.skillsetName - Optional skillset name to write in the marker
  */
 export const markInstall = (args: {
   agentConfig: AgentConfig;
@@ -152,9 +161,11 @@ export const markInstall = (args: {
 
 /**
  * Detect local changes to installed files by comparing against the stored manifest
- * @param args
- * @param args.agentConfig
- * @param args.installDir
+ * @param args - Handler arguments
+ * @param args.agentConfig - The agent configuration
+ * @param args.installDir - The installation directory
+ *
+ * @returns The diff if changes were detected, or null if no changes
  */
 export const detectLocalChanges = async (args: {
   agentConfig: AgentConfig;
@@ -185,9 +196,9 @@ export const detectLocalChanges = async (args: {
 
 /**
  * Remove all Nori-managed files for this agent at the given directory
- * @param args
- * @param args.agentConfig
- * @param args.installDir
+ * @param args - Handler arguments
+ * @param args.agentConfig - The agent configuration
+ * @param args.installDir - The installation directory
  */
 export const removeSkillset = async (args: {
   agentConfig: AgentConfig;
@@ -217,10 +228,10 @@ export const removeSkillset = async (args: {
 
 /**
  * Install a skillset: run feature loaders, write manifest, and mark install
- * @param args
- * @param args.agentConfig
- * @param args.config
- * @param args.skipManifest
+ * @param args - Handler arguments
+ * @param args.agentConfig - The agent configuration
+ * @param args.config - The Nori configuration
+ * @param args.skipManifest - Whether to skip manifest read/write operations
  */
 export const installSkillset = async (args: {
   agentConfig: AgentConfig;
@@ -323,10 +334,10 @@ export const installSkillset = async (args: {
 
 /**
  * Switch to a skillset (validates and updates config)
- * @param args
- * @param args.agentConfig
- * @param args.installDir
- * @param args.skillsetName
+ * @param args - Handler arguments
+ * @param args.agentConfig - The agent configuration
+ * @param args.installDir - The installation directory
+ * @param args.skillsetName - The skillset to switch to
  */
 export const switchSkillset = async (args: {
   agentConfig: AgentConfig;
@@ -354,9 +365,11 @@ export const switchSkillset = async (args: {
 
 /**
  * Detect pre-existing unmanaged configuration at the given directory
- * @param args
- * @param args.agentConfig
- * @param args.installDir
+ * @param args - Handler arguments
+ * @param args.agentConfig - The agent configuration
+ * @param args.installDir - The installation directory
+ *
+ * @returns Detected config details or null if none found
  */
 export const detectExistingConfig = async (args: {
   agentConfig: AgentConfig;
@@ -458,11 +471,11 @@ export const detectExistingConfig = async (args: {
 
 /**
  * Capture existing config as a named skillset, clean up originals, and restore working state
- * @param args
- * @param args.agentConfig
- * @param args.installDir
- * @param args.skillsetName
- * @param args.config
+ * @param args - Handler arguments
+ * @param args.agentConfig - The agent configuration
+ * @param args.installDir - The installation directory
+ * @param args.skillsetName - The name for the captured skillset
+ * @param args.config - The Nori configuration
  */
 export const captureExistingConfig = async (args: {
   agentConfig: AgentConfig;

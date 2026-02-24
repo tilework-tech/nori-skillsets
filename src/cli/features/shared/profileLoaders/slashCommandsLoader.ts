@@ -18,10 +18,10 @@ import type { Skillset } from "@/cli/features/skillset.js";
 
 /**
  * Register all slash commands from a skillset to the agent's commands directory
- * @param args
- * @param args.agentConfig
- * @param args.config
- * @param args.skillset
+ * @param args - Function arguments
+ * @param args.agentConfig - The agent configuration
+ * @param args.config - The Nori configuration
+ * @param args.skillset - The parsed skillset
  */
 export const installSlashCommands = async (args: {
   agentConfig: AgentConfig;

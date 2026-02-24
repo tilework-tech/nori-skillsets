@@ -27,9 +27,9 @@ import type { AgentConfig } from "@/cli/features/agentRegistry.js";
 /**
  * Configure permissions for Claude Code settings.json
  * Adds skills directory and profiles directory to additionalDirectories
- * @param args
- * @param args.config
- * @param args.installDir
+ * @param args - Configuration arguments
+ * @param args.config - The Nori configuration
+ * @param args.installDir - The installation directory
  */
 const configureClaudePermissions = async (args: {
   config: Config;

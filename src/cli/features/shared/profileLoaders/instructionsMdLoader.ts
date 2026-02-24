@@ -19,8 +19,10 @@ import type { Skillset } from "@/cli/features/skillset.js";
 
 /**
  * Extract front matter from markdown file content
- * @param args
- * @param args.content
+ * @param args - Function arguments
+ * @param args.content - The markdown content to parse
+ *
+ * @returns Parsed front matter key-value pairs or null if none found
  */
 const extractFrontMatter = (args: {
   content: string;
@@ -66,8 +68,10 @@ const extractFrontMatter = (args: {
 
 /**
  * Find all SKILL.md files in a directory using glob pattern
- * @param args
- * @param args.dir
+ * @param args - Function arguments
+ * @param args.dir - The directory to search
+ *
+ * @returns Array of absolute paths to SKILL.md files
  */
 const findSkillFiles = async (args: {
   dir: string;
@@ -85,9 +89,11 @@ const findSkillFiles = async (args: {
 
 /**
  * Format skill information for display in the instruction file
- * @param args
- * @param args.skillPath
- * @param args.installDir
+ * @param args - Function arguments
+ * @param args.skillPath - Absolute path to the SKILL.md file
+ * @param args.installDir - The agent directory path for relative path computation
+ *
+ * @returns Formatted skill info string or null on error
  */
 const formatSkillInfo = async (args: {
   skillPath: string;
@@ -132,17 +138,19 @@ const formatSkillInfo = async (args: {
 
 /**
  * Generate skills list content to embed in the instruction file
- * @param args
- * @param args.skillsDir
- * @param args.installDir
- * @param args.agentDirPath
+ * @param args - Function arguments
+ * @param args.skillsDir - Path to the skillset's skills directory, or null
+ * @param args.installDir - The installation directory (unused, reserved)
+ * @param args.agentDirPath - The agent's config directory path
+ *
+ * @returns Skills list markdown content
  */
 const generateSkillsList = async (args: {
   skillsDir: string | null;
   installDir: string;
   agentDirPath: string;
 }): Promise<string> => {
-  const { skillsDir, installDir, agentDirPath } = args;
+  const { skillsDir, agentDirPath } = args;
 
   try {
     const skillFiles =
@@ -223,10 +231,10 @@ const END_MARKER = "# END NORI-AI MANAGED BLOCK";
 
 /**
  * Insert or update the agent's instruction file with nori instructions in a managed block
- * @param args
- * @param args.agentConfig
- * @param args.config
- * @param args.skillset
+ * @param args - Function arguments
+ * @param args.agentConfig - The agent configuration
+ * @param args.config - The Nori configuration
+ * @param args.skillset - The parsed skillset
  */
 export const installInstructionsMd = async (args: {
   agentConfig: AgentConfig;
