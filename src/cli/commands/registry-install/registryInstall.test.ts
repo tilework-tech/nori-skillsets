@@ -330,4 +330,47 @@ describe("registry-install", () => {
     // Should return failure
     expect(result.success).toBe(false);
   });
+
+  it("should pass skipManifest to installMain when explicit installDir is provided", async () => {
+    await registryInstallMain({
+      packageSpec: "senior-swe",
+      installDir: "/tmp/explicit-dir",
+    });
+
+    // installMain should be called with skipManifest: true
+    expect(installMain).toHaveBeenCalledWith(
+      expect.objectContaining({
+        skipManifest: true,
+      }),
+    );
+  });
+
+  it("should NOT pass skipManifest to installMain when no explicit installDir is provided", async () => {
+    await registryInstallMain({
+      packageSpec: "senior-swe",
+    });
+
+    // installMain should NOT have skipManifest: true
+    expect(installMain).toHaveBeenCalledWith(
+      expect.not.objectContaining({
+        skipManifest: true,
+      }),
+    );
+  });
+
+  it("should pass skipManifest on existing installation switch path when explicit installDir is provided", async () => {
+    vi.mocked(hasExistingInstallation).mockReturnValueOnce(true);
+
+    await registryInstallMain({
+      packageSpec: "senior-swe",
+      installDir: "/tmp/explicit-dir",
+    });
+
+    // installMain should be called with skipManifest: true on the switch path
+    expect(installMain).toHaveBeenCalledWith(
+      expect.objectContaining({
+        skipManifest: true,
+      }),
+    );
+  });
 });

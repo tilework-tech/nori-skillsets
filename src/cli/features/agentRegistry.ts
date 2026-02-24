@@ -101,7 +101,10 @@ export type Agent = {
   /** Remove all Nori-managed files for this agent at the given directory */
   removeSkillset: (args: { installDir: string }) => Promise<void>;
   /** Install a skillset: run feature loaders, write manifest, and mark install */
-  installSkillset: (args: { config: Config }) => Promise<void>;
+  installSkillset: (args: {
+    config: Config;
+    skipManifest?: boolean | null;
+  }) => Promise<void>;
   /** Get the directory where this agent stores session transcript files (e.g., JSONL files).
    * Agents that store transcripts in non-file-based formats (like SQLite) should not implement this. */
   getTranscriptDirectory?: (() => string) | null;

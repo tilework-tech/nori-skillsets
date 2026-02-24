@@ -108,8 +108,11 @@ export const cursorAgent: Agent = {
     });
   },
 
-  installSkillset: async (args: { config: Config }): Promise<void> => {
-    const { config } = args;
+  installSkillset: async (args: {
+    config: Config;
+    skipManifest?: boolean | null;
+  }): Promise<void> => {
+    const { config, skipManifest } = args;
 
     // Run all feature loaders, collecting settings labels
     const registry = cursorAgent.getLoaderRegistry();
@@ -135,19 +138,22 @@ export const cursorAgent: Agent = {
       const agentDir = cursorAgent.getAgentDir({
         installDir: config.installDir,
       });
-      const manifestPath = getManifestPath({ agentName: cursorAgent.name });
 
-      try {
-        const manifest = await computeDirectoryManifest({
-          dir: agentDir,
-          skillsetName,
-          managedFiles: cursorAgent.getManagedFiles(),
-          managedDirs: cursorAgent.getManagedDirs(),
-        });
+      if (!skipManifest) {
+        const manifestPath = getManifestPath({ agentName: cursorAgent.name });
 
-        await writeManifest({ manifestPath, manifest });
-      } catch {
-        // Non-fatal — manifest writing failure shouldn't block installation
+        try {
+          const manifest = await computeDirectoryManifest({
+            dir: agentDir,
+            skillsetName,
+            managedFiles: cursorAgent.getManagedFiles(),
+            managedDirs: cursorAgent.getManagedDirs(),
+          });
+
+          await writeManifest({ manifestPath, manifest });
+        } catch {
+          // Non-fatal — manifest writing failure shouldn't block installation
+        }
       }
 
       // Emit Skills note from the skillset's skills directory

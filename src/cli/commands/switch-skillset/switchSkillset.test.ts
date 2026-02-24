@@ -509,14 +509,13 @@ describe("switch-skillset local change detection", () => {
 
     let thrownError: Error | null = null;
     try {
+      // No --install-dir flag: resolves from config/homedir so manifest is checked
       await program.parseAsync([
         "node",
         "nori-skillsets",
         "--non-interactive",
         "switch-skillset",
         "product-manager",
-        "--install-dir",
-        testInstallDir,
       ]);
     } catch (err) {
       thrownError = err as Error;
@@ -573,14 +572,13 @@ describe("switch-skillset local change detection", () => {
 
     let thrownError: Error | null = null;
     try {
+      // No --install-dir flag: resolves from config/homedir so manifest is checked
       await program.parseAsync([
         "node",
         "nori-skillsets",
         "--non-interactive",
         "switch-skillset",
         "product-manager",
-        "--install-dir",
-        testInstallDir,
         "--force",
       ]);
     } catch (err) {
@@ -1260,5 +1258,333 @@ describe("switch-skillset interactive selection when no name provided", () => {
 
     // Should NOT have called the flow since user cancelled
     expect(mockSwitchSkillsetFlow).not.toHaveBeenCalled();
+  });
+});
+
+describe("switch-skillset skips manifest operations when --install-dir is used", () => {
+  let testInstallDir: string;
+  let overrideInstallDir: string;
+
+  beforeEach(async () => {
+    testInstallDir = await fs.realpath(
+      await fs.mkdtemp(
+        path.join(tmpdir(), "switch-skillset-skip-manifest-test-"),
+      ),
+    );
+    overrideInstallDir = await fs.realpath(
+      await fs.mkdtemp(
+        path.join(tmpdir(), "switch-skillset-skip-manifest-override-"),
+      ),
+    );
+    vi.mocked(os.homedir).mockReturnValue(testInstallDir);
+    const testClaudeDir = path.join(testInstallDir, ".claude");
+    const testNoriDir = path.join(testInstallDir, ".nori");
+    await fs.mkdir(testClaudeDir, { recursive: true });
+    await fs.mkdir(testNoriDir, { recursive: true });
+
+    // Create skillsets directory with test skillsets
+    const skillsetsDir = path.join(testNoriDir, "profiles");
+    await fs.mkdir(skillsetsDir, { recursive: true });
+    for (const name of ["senior-swe", "product-manager"]) {
+      const dir = path.join(skillsetsDir, name);
+      await fs.mkdir(dir, { recursive: true });
+      await fs.writeFile(
+        path.join(dir, "nori.json"),
+        JSON.stringify({ name, version: "1.0.0" }),
+      );
+    }
+
+    AgentRegistry.resetInstance();
+    mockSwitchSkillsetFlow.mockReset();
+    mockInstallMain.mockClear();
+  });
+
+  afterEach(async () => {
+    if (testInstallDir) {
+      await fs.rm(testInstallDir, { recursive: true, force: true });
+    }
+    if (overrideInstallDir) {
+      await fs.rm(overrideInstallDir, { recursive: true, force: true });
+    }
+    AgentRegistry.resetInstance();
+    vi.restoreAllMocks();
+  });
+
+  it("should skip detectLocalChanges in non-interactive mode when --install-dir is provided", async () => {
+    // Set up a manifest that would cause false "deleted" warnings if consulted
+    const configPath = path.join(testInstallDir, ".nori-config.json");
+    await fs.writeFile(
+      configPath,
+      JSON.stringify({
+        activeSkillset: "senior-swe",
+        defaultAgents: ["claude-code"],
+        installDir: testInstallDir,
+      }),
+    );
+
+    // Create a manifest at the global location with files that don't exist at overrideInstallDir
+    const manifestDir = path.join(testInstallDir, ".nori", "manifests");
+    await fs.mkdir(manifestDir, { recursive: true });
+    await fs.writeFile(
+      path.join(manifestDir, "claude-code.json"),
+      JSON.stringify({
+        version: 1,
+        createdAt: new Date().toISOString(),
+        skillsetName: "senior-swe",
+        files: {
+          "skills/my-skill/SKILL.md": "some-hash-from-different-dir",
+        },
+      }),
+    );
+
+    const program = new Command();
+    program.exitOverride();
+    program.configureOutput({ writeErr: () => undefined });
+    program
+      .option("-d, --install-dir <path>", "Custom installation directory")
+      .option("-n, --non-interactive", "Run without interactive prompts")
+      .option("-a, --agent <name>", "AI agent to use");
+
+    registerSwitchSkillsetCommand({ program });
+
+    const claudeAgent = AgentRegistry.getInstance().get({
+      name: "claude-code",
+    });
+    vi.spyOn(claudeAgent, "switchSkillset").mockResolvedValue(undefined);
+
+    // This should NOT error even though the manifest has files that don't exist
+    // at overrideInstallDir, because --install-dir should skip manifest checks
+    let thrownError: Error | null = null;
+    try {
+      await program.parseAsync([
+        "node",
+        "nori-skillsets",
+        "--non-interactive",
+        "switch-skillset",
+        "product-manager",
+        "--install-dir",
+        overrideInstallDir,
+      ]);
+    } catch (err) {
+      thrownError = err as Error;
+    }
+
+    expect(thrownError).toBeNull();
+    expect(claudeAgent.switchSkillset).toHaveBeenCalled();
+  });
+
+  it("should pass skipManifest to installMain in non-interactive mode when --install-dir is provided", async () => {
+    const configPath = path.join(testInstallDir, ".nori-config.json");
+    await fs.writeFile(
+      configPath,
+      JSON.stringify({
+        activeSkillset: "senior-swe",
+        defaultAgents: ["claude-code"],
+        installDir: testInstallDir,
+      }),
+    );
+
+    const program = new Command();
+    program.exitOverride();
+    program.configureOutput({ writeErr: () => undefined });
+    program
+      .option("-d, --install-dir <path>", "Custom installation directory")
+      .option("-n, --non-interactive", "Run without interactive prompts")
+      .option("-a, --agent <name>", "AI agent to use");
+
+    registerSwitchSkillsetCommand({ program });
+
+    const claudeAgent = AgentRegistry.getInstance().get({
+      name: "claude-code",
+    });
+    vi.spyOn(claudeAgent, "switchSkillset").mockResolvedValue(undefined);
+
+    try {
+      await program.parseAsync([
+        "node",
+        "nori-skillsets",
+        "--non-interactive",
+        "switch-skillset",
+        "product-manager",
+        "--install-dir",
+        overrideInstallDir,
+      ]);
+    } catch {
+      // May throw due to exit
+    }
+
+    // installMain should be called with skipManifest: true
+    expect(mockInstallMain).toHaveBeenCalledWith(
+      expect.objectContaining({
+        skipManifest: true,
+      }),
+    );
+  });
+
+  it("should NOT pass skipManifest when no --install-dir flag is provided in non-interactive mode", async () => {
+    const configPath = path.join(testInstallDir, ".nori-config.json");
+    await fs.writeFile(
+      configPath,
+      JSON.stringify({
+        activeSkillset: "senior-swe",
+        defaultAgents: ["claude-code"],
+        installDir: testInstallDir,
+      }),
+    );
+
+    const program = new Command();
+    program.exitOverride();
+    program.configureOutput({ writeErr: () => undefined });
+    program
+      .option("-d, --install-dir <path>", "Custom installation directory")
+      .option("-n, --non-interactive", "Run without interactive prompts")
+      .option("-a, --agent <name>", "AI agent to use");
+
+    registerSwitchSkillsetCommand({ program });
+
+    const claudeAgent = AgentRegistry.getInstance().get({
+      name: "claude-code",
+    });
+    vi.spyOn(claudeAgent, "switchSkillset").mockResolvedValue(undefined);
+
+    try {
+      await program.parseAsync([
+        "node",
+        "nori-skillsets",
+        "--non-interactive",
+        "switch-skillset",
+        "product-manager",
+      ]);
+    } catch {
+      // May throw due to exit
+    }
+
+    // installMain should NOT have skipManifest: true
+    expect(mockInstallMain).toHaveBeenCalledWith(
+      expect.not.objectContaining({
+        skipManifest: true,
+      }),
+    );
+  });
+
+  it("should pass skipManifest to installMain in interactive mode when --install-dir is provided", async () => {
+    const configPath = path.join(testInstallDir, ".nori-config.json");
+    await fs.writeFile(
+      configPath,
+      JSON.stringify({
+        activeSkillset: "senior-swe",
+        defaultAgents: ["claude-code"],
+        installDir: testInstallDir,
+      }),
+    );
+
+    // Capture the callbacks and invoke onExecuteSwitch
+    mockSwitchSkillsetFlow.mockImplementationOnce(async (args: any) => {
+      await args.callbacks.onExecuteSwitch({
+        installDir: args.installDir,
+        agentName: "claude-code",
+        skillsetName: args.skillsetName,
+      });
+      return { agentName: "claude-code", skillsetName: args.skillsetName };
+    });
+
+    const program = new Command();
+    program.exitOverride();
+    program.configureOutput({ writeErr: () => undefined });
+    program
+      .option("-d, --install-dir <path>", "Custom installation directory")
+      .option("-n, --non-interactive", "Run without interactive prompts")
+      .option("-a, --agent <name>", "AI agent to use");
+
+    registerSwitchSkillsetCommand({ program });
+
+    const claudeAgent = AgentRegistry.getInstance().get({
+      name: "claude-code",
+    });
+    vi.spyOn(claudeAgent, "switchSkillset").mockResolvedValue(undefined);
+
+    try {
+      await program.parseAsync([
+        "node",
+        "nori-skillsets",
+        "switch-skillset",
+        "product-manager",
+        "--install-dir",
+        overrideInstallDir,
+      ]);
+    } catch {
+      // May throw due to exit
+    }
+
+    // installMain should be called with skipManifest: true
+    expect(mockInstallMain).toHaveBeenCalledWith(
+      expect.objectContaining({
+        skipManifest: true,
+      }),
+    );
+  });
+
+  it("should return null localChanges in interactive onPrepareSwitchInfo when --install-dir is provided", async () => {
+    const configPath = path.join(testInstallDir, ".nori-config.json");
+    await fs.writeFile(
+      configPath,
+      JSON.stringify({
+        activeSkillset: "senior-swe",
+        defaultAgents: ["claude-code"],
+        installDir: testInstallDir,
+      }),
+    );
+
+    // Create a manifest that would trigger changes if compared against overrideInstallDir
+    const manifestDir = path.join(testInstallDir, ".nori", "manifests");
+    await fs.mkdir(manifestDir, { recursive: true });
+    await fs.writeFile(
+      path.join(manifestDir, "claude-code.json"),
+      JSON.stringify({
+        version: 1,
+        createdAt: new Date().toISOString(),
+        skillsetName: "senior-swe",
+        files: {
+          "skills/my-skill/SKILL.md": "some-hash",
+        },
+      }),
+    );
+
+    // Capture the callbacks and invoke onPrepareSwitchInfo
+    let switchInfo: any = null;
+    mockSwitchSkillsetFlow.mockImplementationOnce(async (args: any) => {
+      switchInfo = await args.callbacks.onPrepareSwitchInfo({
+        installDir: args.installDir,
+        agentName: "claude-code",
+      });
+      return { agentName: "claude-code", skillsetName: args.skillsetName };
+    });
+
+    const program = new Command();
+    program.exitOverride();
+    program.configureOutput({ writeErr: () => undefined });
+    program
+      .option("-d, --install-dir <path>", "Custom installation directory")
+      .option("-n, --non-interactive", "Run without interactive prompts")
+      .option("-a, --agent <name>", "AI agent to use");
+
+    registerSwitchSkillsetCommand({ program });
+
+    try {
+      await program.parseAsync([
+        "node",
+        "nori-skillsets",
+        "switch-skillset",
+        "product-manager",
+        "--install-dir",
+        overrideInstallDir,
+      ]);
+    } catch {
+      // May throw due to exit
+    }
+
+    // localChanges should be null (skipped) because --install-dir was provided
+    expect(switchInfo).not.toBeNull();
+    expect(switchInfo.localChanges).toBeNull();
   });
 });

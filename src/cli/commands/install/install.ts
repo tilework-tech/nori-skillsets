@@ -88,13 +88,15 @@ const displayCompletionBanners = (): void => {
  * @param args.config - Configuration to use
  * @param args.agent - AI agent implementation
  * @param args.nonInteractive - Whether running in non-interactive mode
+ * @param args.skipManifest - Whether to skip manifest operations
  */
 const completeInstallation = async (args: {
   config: Config;
   agent: ReturnType<typeof AgentRegistry.prototype.get>;
   nonInteractive: boolean;
+  skipManifest?: boolean | null;
 }): Promise<void> => {
-  const { config, agent, nonInteractive } = args;
+  const { config, agent, nonInteractive, skipManifest } = args;
 
   // Track installation start (fire-and-forget)
   void (async () => {
@@ -114,7 +116,10 @@ const completeInstallation = async (args: {
   createProgressMarker();
 
   // Delegate to agent: run loaders, write manifest, mark install
-  await agent.installSkillset({ config });
+  await agent.installSkillset({
+    config,
+    ...(skipManifest ? { skipManifest: true } : {}),
+  });
 
   // Remove progress marker
   cleanupProgressMarker();
@@ -145,13 +150,15 @@ const completeInstallation = async (args: {
  * @param args.installDir - Installation directory (optional)
  * @param args.agent - AI agent to use (defaults to claude-code)
  * @param args.skillset - Skillset to use (required if no existing config)
+ * @param args.skipManifest - Whether to skip manifest read/write operations
  */
 export const noninteractive = async (args?: {
   installDir?: string | null;
   agent?: string | null;
   skillset?: string | null;
+  skipManifest?: boolean | null;
 }): Promise<void> => {
-  const { installDir, agent, skillset } = args || {};
+  const { installDir, agent, skillset, skipManifest } = args || {};
   const normalizedInstallDir = normalizeInstallDir({
     installDir,
     agentDirNames: AgentRegistry.getInstance().getAgentDirNames(),
@@ -208,6 +215,7 @@ export const noninteractive = async (args?: {
     config: { ...config, installDir: normalizedInstallDir },
     agent: agentImpl,
     nonInteractive: true,
+    ...(skipManifest ? { skipManifest: true } : {}),
   });
 };
 
@@ -219,6 +227,7 @@ export const noninteractive = async (args?: {
  * @param args.agent - AI agent to use (defaults to claude-code)
  * @param args.silent - Whether to suppress all output
  * @param args.skillset - Skillset to use (required if no existing config)
+ * @param args.skipManifest - Whether to skip manifest read/write operations
  */
 export const main = async (args?: {
   nonInteractive?: boolean | null;
@@ -226,8 +235,9 @@ export const main = async (args?: {
   agent?: string | null;
   silent?: boolean | null;
   skillset?: string | null;
+  skipManifest?: boolean | null;
 }): Promise<void> => {
-  const { installDir, agent, silent, skillset } = args || {};
+  const { installDir, agent, silent, skillset, skipManifest } = args || {};
 
   // Save original console.log and suppress all output if silent mode requested
   const originalConsoleLog = console.log;
@@ -241,6 +251,7 @@ export const main = async (args?: {
       installDir,
       agent,
       skillset,
+      ...(skipManifest ? { skipManifest: true } : {}),
     });
   } catch (err: any) {
     log.error(err.message);
