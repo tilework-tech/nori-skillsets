@@ -7,6 +7,7 @@ import * as clack from "@clack/prompts";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 import { getConfigPath, saveConfig } from "@/cli/config.js";
+import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 
 import type * as versionModule from "@/cli/version.js";
 
@@ -327,5 +328,62 @@ describe("install noninteractive", () => {
     const configPath = getConfigPath();
     const config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
     expect(config.installDir).toBe(originalInstallDir);
+  });
+
+  it("should pass skipManifest to agent.installSkillset when provided", async () => {
+    await saveConfig({
+      username: null,
+      organizationUrl: null,
+      activeSkillset: "senior-swe",
+      version: "20.0.0",
+      installDir: tempDir,
+    });
+
+    const agent = AgentRegistry.getInstance().get({ name: "claude-code" });
+    const installSkillsetSpy = vi
+      .spyOn(agent, "installSkillset")
+      .mockResolvedValue(undefined);
+
+    await noninteractive({
+      installDir: tempDir,
+      skillset: "senior-swe",
+      skipManifest: true,
+    });
+
+    expect(installSkillsetSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        skipManifest: true,
+      }),
+    );
+
+    installSkillsetSpy.mockRestore();
+  });
+
+  it("should NOT pass skipManifest to agent.installSkillset when not provided", async () => {
+    await saveConfig({
+      username: null,
+      organizationUrl: null,
+      activeSkillset: "senior-swe",
+      version: "20.0.0",
+      installDir: tempDir,
+    });
+
+    const agent = AgentRegistry.getInstance().get({ name: "claude-code" });
+    const installSkillsetSpy = vi
+      .spyOn(agent, "installSkillset")
+      .mockResolvedValue(undefined);
+
+    await noninteractive({
+      installDir: tempDir,
+      skillset: "senior-swe",
+    });
+
+    expect(installSkillsetSpy).toHaveBeenCalledWith(
+      expect.not.objectContaining({
+        skipManifest: true,
+      }),
+    );
+
+    installSkillsetSpy.mockRestore();
   });
 });

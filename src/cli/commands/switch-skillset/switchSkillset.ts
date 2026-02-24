@@ -41,6 +41,11 @@ export const switchSkillsetAction = async (args: {
   const nonInteractive = globalOpts.nonInteractive ?? false;
   const force = options.force ?? false;
 
+  // Skip manifest operations when an explicit --install-dir override is provided.
+  // The manifest is stored globally per-agent and would produce false positives
+  // when compared against a transient override directory.
+  const skipManifest = globalOpts.installDir != null;
+
   // Determine installation directory: CLI flag > config > home dir
   const config = await loadConfig();
   const installDir = resolveInstallDir({
@@ -105,9 +110,11 @@ export const switchSkillsetAction = async (args: {
           agentName: agentName,
         }) => {
           const agent = AgentRegistry.getInstance().get({ name: agentName });
-          const localChanges = await agent.detectLocalChanges({
-            installDir: dir,
-          });
+          const localChanges = skipManifest
+            ? null
+            : await agent.detectLocalChanges({
+                installDir: dir,
+              });
           const config = await loadConfig();
           const currentProfile =
             config != null ? getActiveSkillset({ config }) : null;
@@ -163,6 +170,7 @@ export const switchSkillsetAction = async (args: {
             installDir: dir,
             agent: agentName,
             silent: true,
+            ...(skipManifest ? { skipManifest: true } : {}),
           });
         },
         onRedownload: redownloadEnabled
@@ -190,11 +198,14 @@ export const switchSkillsetAction = async (args: {
   });
 
   // Check for local changes before proceeding (check first agent's manifest)
+  // Skip when --install-dir is explicitly provided to avoid false positives
   const firstAgentName = agentNames[0];
   const firstAgent = AgentRegistry.getInstance().get({ name: firstAgentName });
-  const localChanges = await firstAgent.detectLocalChanges({
-    installDir,
-  });
+  const localChanges = skipManifest
+    ? null
+    : await firstAgent.detectLocalChanges({
+        installDir,
+      });
 
   if (localChanges != null && !force) {
     throw new Error(
@@ -229,6 +240,7 @@ export const switchSkillsetAction = async (args: {
       installDir,
       agent: agentName,
       silent: true,
+      ...(skipManifest ? { skipManifest: true } : {}),
     });
   }
 };
