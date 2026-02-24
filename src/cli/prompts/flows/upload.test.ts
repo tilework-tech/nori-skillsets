@@ -1025,7 +1025,7 @@ describe("uploadFlow", () => {
       expect(secondOptions.find((o) => o.value === "viewDiff")).toBeUndefined();
     });
 
-    it("should truncate long diffs and show truncation message", async () => {
+    it("should show full diff without truncation for long content", async () => {
       // Generate a long existing content with many lines
       const longExisting = Array.from(
         { length: 100 },
@@ -1072,7 +1072,10 @@ describe("uploadFlow", () => {
       });
 
       const noteContent = getNoteContent().join("\n");
-      expect(noteContent).toContain("truncated");
+      expect(noteContent).not.toContain("truncated");
+      // Verify lines beyond the old 50-line limit are present
+      expect(noteContent).toContain("Old line 99");
+      expect(noteContent).toContain("New line 99");
     });
 
     it("should handle onReadLocalSkillMd returning null gracefully", async () => {

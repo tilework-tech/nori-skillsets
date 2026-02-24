@@ -248,11 +248,6 @@ const formatConflictMessage = (args: {
 };
 
 /**
- * Maximum number of diff output lines before truncation
- */
-const MAX_DIFF_LINES = 50;
-
-/**
  * Format a diff for terminal display with colored +/- lines
  *
  * @param args - The function arguments
@@ -280,13 +275,6 @@ const formatDiffForNote = (args: {
         lines.push(`  ${line}`);
       }
     }
-  }
-
-  if (lines.length > MAX_DIFF_LINES) {
-    const truncated = lines.slice(0, MAX_DIFF_LINES);
-    truncated.push("");
-    truncated.push(`... ${lines.length - MAX_DIFF_LINES} more lines truncated`);
-    return truncated.join("\n");
   }
 
   return lines.join("\n");
