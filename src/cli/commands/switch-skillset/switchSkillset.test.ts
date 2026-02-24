@@ -661,6 +661,152 @@ describe("switch-skillset broadcasts to all default agents", () => {
   });
 });
 
+describe("switch-skillset passes skillset name to installMain", () => {
+  let testInstallDir: string;
+
+  beforeEach(async () => {
+    testInstallDir = await fs.mkdtemp(
+      path.join(tmpdir(), "switch-skillset-skillset-arg-test-"),
+    );
+    vi.mocked(os.homedir).mockReturnValue(testInstallDir);
+    const testClaudeDir = path.join(testInstallDir, ".claude");
+    const testNoriDir = path.join(testInstallDir, ".nori");
+    await fs.mkdir(testClaudeDir, { recursive: true });
+    await fs.mkdir(testNoriDir, { recursive: true });
+
+    // Create skillsets directory with test skillsets
+    const skillsetsDir = path.join(testNoriDir, "profiles");
+    await fs.mkdir(skillsetsDir, { recursive: true });
+    for (const name of ["senior-swe", "product-manager"]) {
+      const dir = path.join(skillsetsDir, name);
+      await fs.mkdir(dir, { recursive: true });
+      await fs.writeFile(
+        path.join(dir, "nori.json"),
+        JSON.stringify({ name, version: "1.0.0" }),
+      );
+    }
+
+    AgentRegistry.resetInstance();
+    mockSwitchSkillsetFlow.mockReset();
+    mockInstallMain.mockClear();
+  });
+
+  afterEach(async () => {
+    if (testInstallDir) {
+      await fs.rm(testInstallDir, { recursive: true, force: true });
+    }
+    AgentRegistry.resetInstance();
+    vi.restoreAllMocks();
+  });
+
+  it("should pass skillset name to installMain in non-interactive mode when no existing skillset is set", async () => {
+    // Config has NO activeSkillset — reproduces the reported bug
+    const configPath = path.join(testInstallDir, ".nori-config.json");
+    await fs.writeFile(
+      configPath,
+      JSON.stringify({
+        defaultAgents: ["claude-code"],
+        installDir: testInstallDir,
+      }),
+    );
+
+    const program = new Command();
+    program.exitOverride();
+    program.configureOutput({ writeErr: () => undefined });
+    program
+      .option("-d, --install-dir <path>", "Custom installation directory")
+      .option("-n, --non-interactive", "Run without interactive prompts")
+      .option("-a, --agent <name>", "AI agent to use");
+
+    registerSwitchSkillsetCommand({ program });
+
+    const claudeAgent = AgentRegistry.getInstance().get({
+      name: "claude-code",
+    });
+    vi.spyOn(claudeAgent, "switchSkillset").mockResolvedValue(undefined);
+
+    try {
+      await program.parseAsync([
+        "node",
+        "nori-skillsets",
+        "--non-interactive",
+        "switch-skillset",
+        "product-manager",
+        "--install-dir",
+        testInstallDir,
+      ]);
+    } catch {
+      // May throw due to exit
+    }
+
+    // installMain must receive the skillset name so it doesn't fail
+    // when there's no existing skillset in config
+    expect(mockInstallMain).toHaveBeenCalledWith(
+      expect.objectContaining({
+        skillset: "product-manager",
+      }),
+    );
+  });
+
+  it("should pass skillset name to installMain in interactive onExecuteSwitch when no existing skillset is set", async () => {
+    // Config has NO activeSkillset — reproduces the reported bug for interactive path
+    const configPath = path.join(testInstallDir, ".nori-config.json");
+    await fs.writeFile(
+      configPath,
+      JSON.stringify({
+        defaultAgents: ["claude-code"],
+        installDir: testInstallDir,
+      }),
+    );
+
+    // Capture and invoke the onExecuteSwitch callback
+    mockSwitchSkillsetFlow.mockImplementationOnce(async (args: any) => {
+      await args.callbacks.onExecuteSwitch({
+        installDir: args.installDir,
+        agentName: "claude-code",
+        skillsetName: args.skillsetName,
+      });
+      return { agentName: "claude-code", skillsetName: args.skillsetName };
+    });
+
+    const program = new Command();
+    program.exitOverride();
+    program.configureOutput({ writeErr: () => undefined });
+    program
+      .option("-d, --install-dir <path>", "Custom installation directory")
+      .option("-n, --non-interactive", "Run without interactive prompts")
+      .option("-a, --agent <name>", "AI agent to use");
+
+    registerSwitchSkillsetCommand({ program });
+
+    const claudeAgent = AgentRegistry.getInstance().get({
+      name: "claude-code",
+    });
+    vi.spyOn(claudeAgent, "switchSkillset").mockResolvedValue(undefined);
+
+    try {
+      await program.parseAsync([
+        "node",
+        "nori-skillsets",
+        "switch-skillset",
+        "product-manager",
+        "--install-dir",
+        testInstallDir,
+      ]);
+    } catch {
+      // May throw due to exit
+    }
+
+    // installMain must receive the skillset name so it doesn't fail
+    // when there's no existing skillset in config
+    expect(mockInstallMain).toHaveBeenCalledWith(
+      expect.objectContaining({
+        skillset: "product-manager",
+      }),
+    );
+  });
+});
+
 describe("switch-skillset activeSkillset persistence with --install-dir override", () => {
   let testInstallDir: string;
   let overrideInstallDir: string;

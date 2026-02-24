@@ -172,6 +172,7 @@ export const switchSkillsetAction = async (args: {
             installDir: dir,
             agent: agentName,
             silent: true,
+            skillset: pName,
             ...(skipManifest ? { skipManifest: true } : {}),
           });
         },
@@ -247,6 +248,7 @@ export const switchSkillsetAction = async (args: {
       installDir,
       agent: agentName,
       silent: true,
+      skillset: name,
       ...(skipManifest ? { skipManifest: true } : {}),
     });
   }
