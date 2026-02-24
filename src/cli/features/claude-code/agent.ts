@@ -49,7 +49,8 @@ const CONFIG_FILE_NAME = "CLAUDE.md";
 export const claudeCodeAgent: Agent = {
   name: "claude-code",
   displayName: "Claude Code",
-  description: "Instructions, skills, subagents, commands, hooks, statusline",
+  description:
+    "Instructions, skills, subagents, commands, hooks, statusline, watch",
 
   getAgentDir: (args: { installDir: string }): string => {
     const { installDir } = args;
