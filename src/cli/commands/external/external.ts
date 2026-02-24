@@ -332,7 +332,7 @@ export const externalMain = async (args: {
 
   // 2. Resolve install directory from config
   const config = await loadConfig();
-  const targetInstallDir = resolveInstallDir({
+  const { path: targetInstallDir } = resolveInstallDir({
     cliInstallDir: installDir,
     config,
     agentDirNames: AgentRegistry.getInstance().getAgentDirNames(),

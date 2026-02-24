@@ -330,7 +330,7 @@ describe("install noninteractive", () => {
     expect(config.installDir).toBe(originalInstallDir);
   });
 
-  it("should pass skipManifest to agent.installSkillset when provided", async () => {
+  it("should pass skipManifest to agent.installSkillset when isOverride is true", async () => {
     await saveConfig({
       username: null,
       organizationUrl: null,
@@ -347,7 +347,7 @@ describe("install noninteractive", () => {
     await noninteractive({
       installDir: tempDir,
       skillset: "senior-swe",
-      skipManifest: true,
+      isOverride: true,
     });
 
     expect(installSkillsetSpy).toHaveBeenCalledWith(
@@ -359,7 +359,7 @@ describe("install noninteractive", () => {
     installSkillsetSpy.mockRestore();
   });
 
-  it("should NOT pass skipManifest to agent.installSkillset when not provided", async () => {
+  it("should NOT pass skipManifest to agent.installSkillset when isOverride is false", async () => {
     await saveConfig({
       username: null,
       organizationUrl: null,

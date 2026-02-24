@@ -25,7 +25,7 @@ export const installLocationMain = async (args?: {
   const { nonInteractive } = args ?? {};
 
   const config = await loadConfig();
-  const installDir = resolveInstallDir({
+  const { path: installDir } = resolveInstallDir({
     config,
     agentDirNames: AgentRegistry.getInstance().getAgentDirNames(),
   });

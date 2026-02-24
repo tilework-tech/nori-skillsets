@@ -94,12 +94,11 @@ export const registryInstallMain = async (
 
   const skillsetName = parsePackageName({ packageSpec });
 
-  // Skip manifest operations when an explicit installDir override is provided
-  const skipManifest = installDir != null;
-
   // Load config for auth and install dir resolution
+  // isOverride is true when an explicit installDir was provided, which means
+  // manifest operations should be skipped to avoid false positives
   const config = await loadConfig();
-  const targetInstallDir = resolveInstallDir({
+  const { path: targetInstallDir, isOverride } = resolveInstallDir({
     cliInstallDir: installDir,
     config,
     agentDirNames: AgentRegistry.getInstance().getAgentDirNames(),
@@ -142,7 +141,7 @@ export const registryInstallMain = async (
           skillset: skillsetName,
           agent: agentName,
           silent: silent ?? null,
-          ...(skipManifest ? { skipManifest: true } : {}),
+          ...(isOverride ? { skipManifest: true } : {}),
         });
       }
       // Initial install already sets the skillset and displays its own completion banners
@@ -178,7 +177,7 @@ export const registryInstallMain = async (
         installDir: targetInstallDir,
         agent: agentName,
         silent: true,
-        ...(skipManifest ? { skipManifest: true } : {}),
+        ...(isOverride ? { skipManifest: true } : {}),
       });
     }
 

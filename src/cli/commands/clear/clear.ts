@@ -33,7 +33,7 @@ export const clearMain = async (args?: {
     return;
   }
 
-  const effectiveInstallDir = resolveInstallDir({
+  const { path: effectiveInstallDir } = resolveInstallDir({
     cliInstallDir,
     config,
     agentDirNames: AgentRegistry.getInstance().getAgentDirNames(),

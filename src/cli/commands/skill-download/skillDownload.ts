@@ -391,7 +391,7 @@ export const skillDownloadMain = async (args: {
   const config = await loadConfig();
 
   // Resolve installation directory from CLI flag, config, or home dir fallback
-  const targetInstallDir = resolveInstallDir({
+  const { path: targetInstallDir } = resolveInstallDir({
     cliInstallDir: installDir,
     config,
     agentDirNames: AgentRegistry.getInstance().getAgentDirNames(),

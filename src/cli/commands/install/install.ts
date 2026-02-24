@@ -150,15 +150,15 @@ const completeInstallation = async (args: {
  * @param args.installDir - Installation directory (optional)
  * @param args.agent - AI agent to use (defaults to claude-code)
  * @param args.skillset - Skillset to use (required if no existing config)
- * @param args.skipManifest - Whether to skip manifest read/write operations
+ * @param args.isOverride - Whether installDir is a CLI override (skips manifest operations)
  */
 export const noninteractive = async (args?: {
   installDir?: string | null;
   agent?: string | null;
   skillset?: string | null;
-  skipManifest?: boolean | null;
+  isOverride?: boolean | null;
 }): Promise<void> => {
-  const { installDir, agent, skillset, skipManifest } = args || {};
+  const { installDir, agent, skillset, isOverride } = args || {};
   const normalizedInstallDir = normalizeInstallDir({
     installDir,
     agentDirNames: AgentRegistry.getInstance().getAgentDirNames(),
@@ -209,13 +209,13 @@ export const noninteractive = async (args?: {
   }
 
   // Step 3: Complete installation (run loaders, track analytics, display banners)
-  // Use the runtime installDir for operational purposes (where to write files),
-  // not the persisted one. Only `sks config` should change persisted installDir.
+  // Override config.installDir with the runtime value for operational purposes
+  // (where to write files). Only `sks config` should change persisted installDir.
   await completeInstallation({
     config: { ...config, installDir: normalizedInstallDir },
     agent: agentImpl,
     nonInteractive: true,
-    ...(skipManifest ? { skipManifest: true } : {}),
+    ...(isOverride ? { skipManifest: true } : {}),
   });
 };
 
@@ -251,7 +251,10 @@ export const main = async (args?: {
       installDir,
       agent,
       skillset,
-      ...(skipManifest ? { skipManifest: true } : {}),
+      // All callers that pass skipManifest do so because the install directory
+      // is a CLI override. If a future caller needs skipManifest for a different
+      // reason, noninteractive() should accept skipManifest directly.
+      ...(skipManifest ? { isOverride: true } : {}),
     });
   } catch (err: any) {
     log.error(err.message);

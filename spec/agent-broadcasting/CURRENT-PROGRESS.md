@@ -201,6 +201,24 @@ Changes:
 - Added 3 new tests in `init.test.ts` for agent-agnostic display strings
 - Updated 4 docs.md files
 
+### Commit 13: Centralize install-dir override semantics with ResolvedInstallDir
+
+**Refactor A progress:** Eliminated ad-hoc `skipManifest` derivations scattered across commands. `resolveInstallDir()` now returns a `ResolvedInstallDir` object that carries both the resolved path and an `isOverride` flag, making the install-dir override semantics explicit and centralized.
+
+Changes:
+- Added `ResolvedInstallDir` type to `src/utils/path.ts` with `{ path: string; isOverride: boolean }`
+- Changed `resolveInstallDir()` return type from `string` to `ResolvedInstallDir`
+- `isOverride` is `true` when path comes from CLI `--install-dir` flag, `false` for config or default
+- Removed 3 ad-hoc `skipManifest = installDir != null` derivations:
+  - `switchSkillset.ts` — now uses `isOverride` from `resolveInstallDir()`
+  - `registryInstall.ts` — now uses `isOverride` from `resolveInstallDir()`
+  - `install.ts` — `noninteractive()` now accepts `isOverride` instead of `skipManifest`
+- Updated 5 simple callers to destructure `{ path }` from result:
+  - `clear.ts`, `installLocation.ts`, `skillDownload.ts`, `external.ts`, `registryDownload.ts`
+- `install.ts` `main()` still accepts `skipManifest` for backwards compatibility, translates to `isOverride` for `noninteractive()`
+- Updated 11 tests across `path.test.ts` and `install.test.ts`
+- Updated 2 docs.md files
+
 ## Remaining Work
 
 ### Refactor A (continued): Further agent decoupling

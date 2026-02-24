@@ -103,39 +103,54 @@ describe("normalizeInstallDir", () => {
 });
 
 describe("resolveInstallDir", () => {
-  it("should use CLI flag when provided", () => {
+  it("should return the CLI flag path with isOverride true", () => {
     const result = resolveInstallDir({
       cliInstallDir: "/custom/cli/path",
       config: { installDir: "/config/path" },
     });
-    expect(result).toBe("/custom/cli/path");
+    expect(result).toEqual({
+      path: "/custom/cli/path",
+      isOverride: true,
+    });
   });
 
-  it("should use config.installDir when no CLI flag provided", () => {
+  it("should return config.installDir with isOverride false", () => {
     const result = resolveInstallDir({
       config: { installDir: "/config/path" },
     });
-    expect(result).toBe("/config/path");
+    expect(result).toEqual({
+      path: "/config/path",
+      isOverride: false,
+    });
   });
 
-  it("should fall back to home directory when no CLI flag and no config", () => {
+  it("should return home directory with isOverride false when no CLI flag and no config", () => {
     const result = resolveInstallDir({});
-    expect(result).toBe(os.homedir());
+    expect(result).toEqual({
+      path: os.homedir(),
+      isOverride: false,
+    });
   });
 
-  it("should fall back to home directory when CLI flag is empty string", () => {
+  it("should return home directory with isOverride false when CLI flag is empty string", () => {
     const result = resolveInstallDir({
       cliInstallDir: "",
       config: null,
     });
-    expect(result).toBe(os.homedir());
+    expect(result).toEqual({
+      path: os.homedir(),
+      isOverride: false,
+    });
   });
 
-  it("should fall back to home directory when config is null", () => {
+  it("should return home directory with isOverride false when config is null", () => {
     const result = resolveInstallDir({
       config: null,
     });
-    expect(result).toBe(os.homedir());
+    expect(result).toEqual({
+      path: os.homedir(),
+      isOverride: false,
+    });
   });
 
   it("should normalize CLI flag with tilde expansion", () => {
@@ -143,7 +158,10 @@ describe("resolveInstallDir", () => {
       cliInstallDir: "~/my-project",
       config: null,
     });
-    expect(result).toBe(path.join(os.homedir(), "my-project"));
+    expect(result).toEqual({
+      path: path.join(os.homedir(), "my-project"),
+      isOverride: true,
+    });
   });
 
   it("should prefer CLI flag over config even when both are provided", () => {
@@ -151,20 +169,29 @@ describe("resolveInstallDir", () => {
       cliInstallDir: "/from-cli",
       config: { installDir: "/from-config" },
     });
-    expect(result).toBe("/from-cli");
+    expect(result).toEqual({
+      path: "/from-cli",
+      isOverride: true,
+    });
   });
 
   it("should normalize config.installDir with tilde expansion", () => {
     const result = resolveInstallDir({
       config: { installDir: "~/my-project" },
     });
-    expect(result).toBe(path.join(os.homedir(), "my-project"));
+    expect(result).toEqual({
+      path: path.join(os.homedir(), "my-project"),
+      isOverride: false,
+    });
   });
 
-  it("should fall back to home directory when config.installDir is empty string", () => {
+  it("should return home directory with isOverride false when config.installDir is empty string", () => {
     const result = resolveInstallDir({
       config: { installDir: "" },
     });
-    expect(result).toBe(os.homedir());
+    expect(result).toEqual({
+      path: os.homedir(),
+      isOverride: false,
+    });
   });
 });

@@ -41,14 +41,11 @@ export const switchSkillsetAction = async (args: {
   const nonInteractive = globalOpts.nonInteractive ?? false;
   const force = options.force ?? false;
 
-  // Skip manifest operations when an explicit --install-dir override is provided.
-  // The manifest is stored globally per-agent and would produce false positives
-  // when compared against a transient override directory.
-  const skipManifest = globalOpts.installDir != null;
-
   // Determine installation directory: CLI flag > config > home dir
+  // isOverride is true when --install-dir was explicitly provided, which means
+  // manifest operations should be skipped to avoid false positives
   const config = await loadConfig();
-  const installDir = resolveInstallDir({
+  const { path: installDir, isOverride } = resolveInstallDir({
     cliInstallDir: globalOpts.installDir,
     config,
     agentDirNames: AgentRegistry.getInstance().getAgentDirNames(),
@@ -110,7 +107,7 @@ export const switchSkillsetAction = async (args: {
           agentName: agentName,
         }) => {
           const agent = AgentRegistry.getInstance().get({ name: agentName });
-          const localChanges = skipManifest
+          const localChanges = isOverride
             ? null
             : await agent.detectLocalChanges({
                 installDir: dir,
@@ -170,7 +167,7 @@ export const switchSkillsetAction = async (args: {
             installDir: dir,
             agent: agentName,
             silent: true,
-            ...(skipManifest ? { skipManifest: true } : {}),
+            ...(isOverride ? { skipManifest: true } : {}),
           });
         },
         onRedownload: redownloadEnabled
@@ -198,10 +195,10 @@ export const switchSkillsetAction = async (args: {
   });
 
   // Check for local changes before proceeding (check first agent's manifest)
-  // Skip when --install-dir is explicitly provided to avoid false positives
+  // Skip when --install-dir is an override to avoid false positives
   const firstAgentName = agentNames[0];
   const firstAgent = AgentRegistry.getInstance().get({ name: firstAgentName });
-  const localChanges = skipManifest
+  const localChanges = isOverride
     ? null
     : await firstAgent.detectLocalChanges({
         installDir,
@@ -240,7 +237,7 @@ export const switchSkillsetAction = async (args: {
       installDir,
       agent: agentName,
       silent: true,
-      ...(skipManifest ? { skipManifest: true } : {}),
+      ...(isOverride ? { skipManifest: true } : {}),
     });
   }
 };

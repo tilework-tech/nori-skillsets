@@ -60,8 +60,18 @@ export const normalizeInstallDir = (args: {
 };
 
 /**
+ * Result of resolving the installation directory.
+ * Carries metadata about whether the path came from an explicit CLI override.
+ */
+export type ResolvedInstallDir = {
+  path: string;
+  /** True when the path came from the CLI --install-dir flag */
+  isOverride: boolean;
+};
+
+/**
  * Resolve the installation directory using a priority chain:
- * 1. CLI --install-dir flag (highest priority)
+ * 1. CLI --install-dir flag (highest priority, isOverride = true)
  * 2. config.installDir from persisted config
  * 3. Home directory (fallback)
  *
@@ -70,25 +80,34 @@ export const normalizeInstallDir = (args: {
  * @param args.config - Loaded config object (optional)
  * @param args.agentDirNames - Agent config directory basenames to strip from path suffixes (optional)
  *
- * @returns Resolved absolute path to the installation directory
+ * @returns Resolved install directory with override metadata
  */
 export const resolveInstallDir = (args: {
   cliInstallDir?: string | null;
   config?: Config | null;
   agentDirNames?: Array<string> | null;
-}): string => {
+}): ResolvedInstallDir => {
   const { cliInstallDir, config, agentDirNames } = args;
 
   if (cliInstallDir != null && cliInstallDir !== "") {
-    return normalizeInstallDir({ installDir: cliInstallDir, agentDirNames });
+    return {
+      path: normalizeInstallDir({ installDir: cliInstallDir, agentDirNames }),
+      isOverride: true,
+    };
   }
 
   if (config?.installDir != null && config.installDir !== "") {
-    return normalizeInstallDir({
-      installDir: config.installDir,
-      agentDirNames,
-    });
+    return {
+      path: normalizeInstallDir({
+        installDir: config.installDir,
+        agentDirNames,
+      }),
+      isOverride: false,
+    };
   }
 
-  return getHomeDir();
+  return {
+    path: getHomeDir(),
+    isOverride: false,
+  };
 };

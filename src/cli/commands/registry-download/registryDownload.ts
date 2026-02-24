@@ -562,7 +562,7 @@ export const registryDownloadMain = async (args: {
 
   // Resolve install directory from config and auto-init if needed
   const config = await loadConfig();
-  const resolvedInstallDir = resolveInstallDir({
+  const { path: resolvedInstallDir } = resolveInstallDir({
     cliInstallDir: installDir,
     config,
     agentDirNames: AgentRegistry.getInstance().getAgentDirNames(),
