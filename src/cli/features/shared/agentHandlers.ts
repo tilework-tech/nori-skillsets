@@ -23,6 +23,7 @@ import {
   removeManagedFiles,
 } from "@/cli/features/manifest.js";
 import { getNoriSkillsetsDir } from "@/cli/features/paths.js";
+import { installInstructionsMd } from "@/cli/features/shared/profileLoaders/instructionsMdLoader.js";
 import { installProfiles } from "@/cli/features/shared/profileLoaders/profilesLoader.js";
 import { parseSkillset } from "@/cli/features/skillset.js";
 import { ensureNoriJson } from "@/cli/features/skillsetMetadata.js";
@@ -315,7 +316,7 @@ export const installSkillset = async (args: {
           skillLines.push("", summary);
           note(
             skillLines.join("\n"),
-            `${agentConfig.displayName === "Claude Code" ? "" : `${agentConfig.displayName} `}Skills`,
+            `${agentConfig.name === "claude-code" ? "" : `${agentConfig.displayName} `}Skills`,
           );
         }
       }
@@ -594,8 +595,6 @@ export const captureExistingConfig = async (args: {
   }
 
   // Install the managed instruction file block so the user isn't left without config
-  const { installInstructionsMd } =
-    await import("@/cli/features/shared/profileLoaders/instructionsMdLoader.js");
   const skillset = await parseSkillset({
     skillsetName,
     configFileName: agentConfig.configFileName,

@@ -169,9 +169,9 @@ export const registryInstallMain = async (
     note(detailLines.join("\n"), "Switching Skillset");
 
     for (const agentName of agentNames) {
-      const agentImpl = AgentRegistry.getInstance().get({ name: agentName });
+      const agentConfig = AgentRegistry.getInstance().get({ name: agentName });
       await switchSkillset({
-        agentConfig: agentImpl,
+        agentConfig,
         installDir: targetInstallDir,
         skillsetName,
       });

@@ -167,7 +167,7 @@ export const noninteractive = async (args?: {
     installDir,
     agentDirNames: AgentRegistry.getInstance().getAgentDirNames(),
   });
-  const agentImpl = AgentRegistry.getInstance().get({
+  const agentConfig = AgentRegistry.getInstance().get({
     name: agent ?? AgentRegistry.getInstance().getDefaultAgentName(),
   });
 
@@ -217,7 +217,7 @@ export const noninteractive = async (args?: {
   // not the persisted one. Only `sks config` should change persisted installDir.
   await completeInstallation({
     config: { ...config, installDir: normalizedInstallDir },
-    agent: agentImpl,
+    agent: agentConfig,
     nonInteractive: true,
     ...(skipManifest ? { skipManifest: true } : {}),
   });

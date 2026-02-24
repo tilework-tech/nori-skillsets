@@ -98,6 +98,7 @@
 - Type checking passes
 - No orphaned imports remain
 - `src/cli/commands/factory-reset/factoryReset.test.ts` -- cleaned up last remaining old-pattern mock: replaced `getLoaderRegistry` and `switchSkillset` method fields with proper `AgentConfig` required fields (`description`, `agentDirName`, `instructionFilePath`, `configFileName`, `skillsPath`, `slashcommandsPath`, `subagentsPath`)
+- `src/cli/features/docs.md` -- removed stale "extracted from the Agent interface" reference from managedFolder.ts description, since the `Agent` interface no longer exists
 
 ## Complete
 

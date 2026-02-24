@@ -138,7 +138,7 @@ The init command (@/src/cli/commands/init/) uses `getDefaultAgents()` from @/src
 - Agent-agnostic module that copies bundled skills to any agent's skills directory during installation. Exports `copyBundledSkills({ destSkillsDir, installDir })` (called by the shared skills loader after copying skillset skills) and `getBundledSkillsDir()` (called by the shared instruction file loader to include bundled skills in the skills list). Skillset-provided skills take precedence -- bundled skills with a conflicting name are skipped. See @/src/cli/features/bundled-skillsets/docs.md for details.
 
 **Managed Folder Utilities** (managedFolder.ts):
-- Agent-agnostic skillset discovery extracted from the Agent interface
+- Agent-agnostic skillset discovery
 - `listProfiles()`: Zero-arg function that scans `~/.nori/profiles/` for directories containing `nori.json`, supporting both flat profiles (e.g., `senior-swe`) and namespaced profiles (e.g., `myorg/my-profile`). Uses `getNoriSkillsetsDir()` from @/src/cli/features/paths.ts internally. Returns a sorted array of skillset names. Before checking each directory for `nori.json`, calls `ensureNoriJson()` from @/src/cli/features/skillsetMetadata.ts to auto-create the manifest for user-created skillsets that lack one (applies to both flat and nested org skillset directories).
 - `MANIFEST_FILE`: Constant (`"nori.json"`) used by both this module and the shared `switchSkillset` handler to identify valid skillsets
 - Imported directly by CLI commands (`list`, `switch-skillset`) rather than going through the registry

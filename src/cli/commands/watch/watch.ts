@@ -193,8 +193,8 @@ const handleFileEvent = async (args: {
     }
 
     // Get the project name from the directory structure
-    const agentImpl = AgentRegistry.getInstance().get({ name: agent });
-    const transcriptDir = agentImpl.transcriptDirectory ?? "";
+    const agentConfig = AgentRegistry.getInstance().get({ name: agent });
+    const transcriptDir = agentConfig.transcriptDirectory ?? "";
     const relativePath = path.relative(transcriptDir, filePath);
     const projectName = relativePath.split(path.sep)[0];
 
@@ -639,8 +639,8 @@ export const watchMain = async (args?: {
   process.on("SIGINT", signalHandler);
 
   // Start the watcher for agent projects
-  const agentImpl = AgentRegistry.getInstance().get({ name: agent });
-  const watchDir = agentImpl.transcriptDirectory;
+  const agentConfig = AgentRegistry.getInstance().get({ name: agent });
+  const watchDir = agentConfig.transcriptDirectory;
 
   if (watchDir == null) {
     await log(`Agent "${agent}" does not provide a transcript directory`);
