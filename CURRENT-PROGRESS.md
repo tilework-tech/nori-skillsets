@@ -97,6 +97,7 @@
 - All 1465 tests pass (100 test files)
 - Type checking passes
 - No orphaned imports remain
+- `src/cli/commands/factory-reset/factoryReset.test.ts` -- cleaned up last remaining old-pattern mock: replaced `getLoaderRegistry` and `switchSkillset` method fields with proper `AgentConfig` required fields (`description`, `agentDirName`, `instructionFilePath`, `configFileName`, `skillsPath`, `slashcommandsPath`, `subagentsPath`)
 
 ## Complete
 

@@ -135,9 +135,13 @@ describe("factoryResetMain", () => {
     agentsMap.set("test-agent", {
       name: "test-agent",
       displayName: "Test Agent",
-      getLoaderRegistry: () => ({ getAll: () => [] }),
-      // eslint-disable-next-line @typescript-eslint/no-empty-function
-      switchSkillset: async () => {},
+      description: "Test agent",
+      agentDirName: ".test",
+      instructionFilePath: "TEST.md",
+      configFileName: "TEST.md",
+      skillsPath: "skills",
+      slashcommandsPath: "commands",
+      subagentsPath: "agents",
       factoryReset: null,
     });
 
