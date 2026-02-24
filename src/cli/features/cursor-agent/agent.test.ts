@@ -7,8 +7,16 @@ import * as path from "path";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 import { getConfigPath, saveConfig } from "@/cli/config.js";
-
-import { cursorAgent } from "./agent.js";
+import { cursorConfig } from "@/cli/features/cursor-agent/agent.js";
+import {
+  isInstalledAtDir,
+  markInstall,
+  switchSkillset,
+  detectLocalChanges,
+  removeSkillset,
+  installSkillset,
+  getAgentDir,
+} from "@/cli/features/shared/agentHandlers.js";
 
 // Mock os.homedir so getConfigPath resolves to test directories
 vi.mock("os", async (importOriginal) => {
@@ -40,7 +48,7 @@ vi.mock("@clack/prompts", () => ({
   note: vi.fn(),
 }));
 
-describe("cursorAgent.isInstalledAtDir", () => {
+describe("cursorConfig isInstalledAtDir", () => {
   let tempDir: string;
 
   beforeEach(() => {
@@ -56,22 +64,28 @@ describe("cursorAgent.isInstalledAtDir", () => {
     fs.mkdirSync(cursorDir, { recursive: true });
     fs.writeFileSync(path.join(cursorDir, ".nori-managed"), "senior-swe");
 
-    expect(cursorAgent.isInstalledAtDir({ path: tempDir })).toBe(true);
+    expect(isInstalledAtDir({ agentConfig: cursorConfig, path: tempDir })).toBe(
+      true,
+    );
   });
 
   it("should return false when no marker exists", () => {
-    expect(cursorAgent.isInstalledAtDir({ path: tempDir })).toBe(false);
+    expect(isInstalledAtDir({ agentConfig: cursorConfig, path: tempDir })).toBe(
+      false,
+    );
   });
 
   it("should return false when .cursor exists but has no .nori-managed", () => {
     const cursorDir = path.join(tempDir, ".cursor");
     fs.mkdirSync(cursorDir, { recursive: true });
 
-    expect(cursorAgent.isInstalledAtDir({ path: tempDir })).toBe(false);
+    expect(isInstalledAtDir({ agentConfig: cursorConfig, path: tempDir })).toBe(
+      false,
+    );
   });
 });
 
-describe("cursorAgent.markInstall", () => {
+describe("cursorConfig markInstall", () => {
   let tempDir: string;
 
   beforeEach(() => {
@@ -86,7 +100,11 @@ describe("cursorAgent.markInstall", () => {
     const cursorDir = path.join(tempDir, ".cursor");
     fs.mkdirSync(cursorDir, { recursive: true });
 
-    cursorAgent.markInstall({ path: tempDir, skillsetName: "senior-swe" });
+    markInstall({
+      agentConfig: cursorConfig,
+      path: tempDir,
+      skillsetName: "senior-swe",
+    });
 
     const content = fs.readFileSync(
       path.join(cursorDir, ".nori-managed"),
@@ -96,7 +114,11 @@ describe("cursorAgent.markInstall", () => {
   });
 
   it("should create .cursor directory if it does not exist", () => {
-    cursorAgent.markInstall({ path: tempDir, skillsetName: "my-profile" });
+    markInstall({
+      agentConfig: cursorConfig,
+      path: tempDir,
+      skillsetName: "my-profile",
+    });
 
     const markerPath = path.join(tempDir, ".cursor", ".nori-managed");
     expect(fs.existsSync(markerPath)).toBe(true);
@@ -108,7 +130,11 @@ describe("cursorAgent.markInstall", () => {
     fs.mkdirSync(cursorDir, { recursive: true });
     fs.writeFileSync(path.join(cursorDir, ".nori-managed"), "old-profile");
 
-    cursorAgent.markInstall({ path: tempDir, skillsetName: "new-profile" });
+    markInstall({
+      agentConfig: cursorConfig,
+      path: tempDir,
+      skillsetName: "new-profile",
+    });
 
     const content = fs.readFileSync(
       path.join(cursorDir, ".nori-managed"),
@@ -118,7 +144,7 @@ describe("cursorAgent.markInstall", () => {
   });
 });
 
-describe("cursorAgent.switchSkillset", () => {
+describe("cursorConfig switchSkillset", () => {
   let tempDir: string;
   const TEST_NORI_DIR = "/tmp/cursor-agent-test-nori";
 
@@ -167,7 +193,8 @@ describe("cursorAgent.switchSkillset", () => {
 
     const configBefore = fs.readFileSync(configFile, "utf-8");
 
-    await cursorAgent.switchSkillset({
+    await switchSkillset({
+      agentConfig: cursorConfig,
       installDir: tempDir,
       skillsetName: "documenter",
     });
@@ -180,7 +207,8 @@ describe("cursorAgent.switchSkillset", () => {
 
   it("should throw error for non-existent skillset", async () => {
     await expect(
-      cursorAgent.switchSkillset({
+      switchSkillset({
+        agentConfig: cursorConfig,
         installDir: tempDir,
         skillsetName: "non-existent",
       }),
@@ -188,7 +216,7 @@ describe("cursorAgent.switchSkillset", () => {
   });
 });
 
-describe("cursorAgent.detectLocalChanges", () => {
+describe("cursorConfig detectLocalChanges", () => {
   let testInstallDir: string;
 
   beforeEach(async () => {
@@ -206,14 +234,18 @@ describe("cursorAgent.detectLocalChanges", () => {
   });
 
   it("should return null when no manifest exists", async () => {
-    const diff = await cursorAgent.detectLocalChanges({
+    const diff = await detectLocalChanges({
+      agentConfig: cursorConfig,
       installDir: testInstallDir,
     });
     expect(diff).toBeNull();
   });
 
   it("should detect modifications to AGENTS.md inside .cursor/rules/", async () => {
-    const agentDir = cursorAgent.getAgentDir({ installDir: testInstallDir });
+    const agentDir = getAgentDir({
+      agentConfig: cursorConfig,
+      installDir: testInstallDir,
+    });
     const rulesDir = path.join(agentDir, "rules");
     await fsPromises.mkdir(rulesDir, { recursive: true });
 
@@ -224,7 +256,7 @@ describe("cursorAgent.detectLocalChanges", () => {
     const { computeFileHash, writeManifest, getManifestPath } =
       await import("@/cli/features/manifest.js");
     const originalHash = await computeFileHash({ filePath: agentsMdPath });
-    const manifestPath = getManifestPath({ agentName: cursorAgent.name });
+    const manifestPath = getManifestPath({ agentName: cursorConfig.name });
     await writeManifest({
       manifestPath,
       manifest: {
@@ -238,7 +270,8 @@ describe("cursorAgent.detectLocalChanges", () => {
     // Modify the file
     await fsPromises.writeFile(agentsMdPath, "# Modified content");
 
-    const diff = await cursorAgent.detectLocalChanges({
+    const diff = await detectLocalChanges({
+      agentConfig: cursorConfig,
       installDir: testInstallDir,
     });
     expect(diff).not.toBeNull();
@@ -246,7 +279,7 @@ describe("cursorAgent.detectLocalChanges", () => {
   });
 });
 
-describe("cursorAgent.removeSkillset", () => {
+describe("cursorConfig removeSkillset", () => {
   let testInstallDir: string;
 
   beforeEach(async () => {
@@ -264,7 +297,10 @@ describe("cursorAgent.removeSkillset", () => {
   });
 
   it("should remove managed files, AGENTS.md in rules dir, and manifest", async () => {
-    const agentDir = cursorAgent.getAgentDir({ installDir: testInstallDir });
+    const agentDir = getAgentDir({
+      agentConfig: cursorConfig,
+      installDir: testInstallDir,
+    });
     const rulesDir = path.join(agentDir, "rules");
     await fsPromises.mkdir(rulesDir, { recursive: true });
 
@@ -290,7 +326,7 @@ describe("cursorAgent.removeSkillset", () => {
       filePath: path.join(skillsDir, "SKILL.md"),
     });
     const agentsMdHash = await computeFileHash({ filePath: agentsMdPath });
-    const manifestPath = getManifestPath({ agentName: cursorAgent.name });
+    const manifestPath = getManifestPath({ agentName: cursorConfig.name });
     await writeManifest({
       manifestPath,
       manifest: {
@@ -304,7 +340,10 @@ describe("cursorAgent.removeSkillset", () => {
       },
     });
 
-    await cursorAgent.removeSkillset({ installDir: testInstallDir });
+    await removeSkillset({
+      agentConfig: cursorConfig,
+      installDir: testInstallDir,
+    });
 
     // AGENTS.md inside .cursor/rules/ should be cleaned up
     await expect(fsPromises.access(agentsMdPath)).rejects.toThrow();
@@ -322,12 +361,15 @@ describe("cursorAgent.removeSkillset", () => {
 
   it("should complete without error when no manifest exists", async () => {
     await expect(
-      cursorAgent.removeSkillset({ installDir: testInstallDir }),
+      removeSkillset({
+        agentConfig: cursorConfig,
+        installDir: testInstallDir,
+      }),
     ).resolves.not.toThrow();
   });
 });
 
-describe("cursorAgent.installSkillset", () => {
+describe("cursorConfig installSkillset", () => {
   let testInstallDir: string;
   const TEST_NORI_DIR = "/tmp/cursor-agent-test-nori";
 
@@ -367,7 +409,10 @@ describe("cursorAgent.installSkillset", () => {
     );
 
     // Create agent dir
-    const agentDir = cursorAgent.getAgentDir({ installDir: testInstallDir });
+    const agentDir = getAgentDir({
+      agentConfig: cursorConfig,
+      installDir: testInstallDir,
+    });
     await fsPromises.mkdir(agentDir, { recursive: true });
 
     // Create config
@@ -385,7 +430,7 @@ describe("cursorAgent.installSkillset", () => {
       activeSkillset: "test-skillset",
     };
 
-    await cursorAgent.installSkillset({ config });
+    await installSkillset({ agentConfig: cursorConfig, config });
 
     // Marker file should exist
     const markerPath = path.join(agentDir, ".nori-managed");
@@ -393,7 +438,7 @@ describe("cursorAgent.installSkillset", () => {
 
     // Manifest should exist
     const { getManifestPath } = await import("@/cli/features/manifest.js");
-    const manifestPath = getManifestPath({ agentName: cursorAgent.name });
+    const manifestPath = getManifestPath({ agentName: cursorConfig.name });
     await expect(fsPromises.access(manifestPath)).resolves.not.toThrow();
   });
 
@@ -411,7 +456,10 @@ describe("cursorAgent.installSkillset", () => {
     );
 
     // Create agent dir
-    const agentDir = cursorAgent.getAgentDir({ installDir: testInstallDir });
+    const agentDir = getAgentDir({
+      agentConfig: cursorConfig,
+      installDir: testInstallDir,
+    });
     await fsPromises.mkdir(agentDir, { recursive: true });
 
     // Create config
@@ -429,7 +477,7 @@ describe("cursorAgent.installSkillset", () => {
       activeSkillset: "test-skillset",
     };
 
-    await cursorAgent.installSkillset({ config });
+    await installSkillset({ agentConfig: cursorConfig, config });
 
     // AGENTS.md should be inside .cursor/rules/
     const agentsMdPath = path.join(agentDir, "rules", "AGENTS.md");

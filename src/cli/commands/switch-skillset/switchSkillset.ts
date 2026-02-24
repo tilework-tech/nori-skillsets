@@ -14,6 +14,11 @@ import {
 } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { listSkillsets } from "@/cli/features/managedFolder.js";
+import {
+  detectLocalChanges,
+  captureExistingConfig,
+  switchSkillset,
+} from "@/cli/features/shared/agentHandlers.js";
 import { setSilentMode, isSilentMode } from "@/cli/logger.js";
 import { switchSkillsetFlow } from "@/cli/prompts/flows/switchSkillset.js";
 import { resolveInstallDir } from "@/utils/path.js";
@@ -114,7 +119,8 @@ export const switchSkillsetAction = async (args: {
           const agent = AgentRegistry.getInstance().get({ name: agentName });
           const localChanges = skipManifest
             ? null
-            : await agent.detectLocalChanges({
+            : await detectLocalChanges({
+                agentConfig: agent,
                 installDir: dir,
               });
           const config = await loadConfig();
@@ -131,12 +137,13 @@ export const switchSkillsetAction = async (args: {
             installDir: dir,
             activeSkillset: pName,
           };
-          // Capture existing config for all default agents that support it
+          // Capture existing config for all default agents
           for (const captureAgentName of captureAgentNames) {
             const captureAgent = AgentRegistry.getInstance().get({
               name: captureAgentName,
             });
-            await captureAgent.captureExistingConfig?.({
+            await captureExistingConfig({
+              agentConfig: captureAgent,
               installDir: dir,
               skillsetName: pName,
               config,
@@ -152,7 +159,8 @@ export const switchSkillsetAction = async (args: {
           const wasSilent = isSilentMode();
           setSilentMode({ silent: true });
           try {
-            await agent.switchSkillset({
+            await switchSkillset({
+              agentConfig: agent,
               installDir: dir,
               skillsetName: pName,
             });
@@ -210,7 +218,8 @@ export const switchSkillsetAction = async (args: {
   const firstAgent = AgentRegistry.getInstance().get({ name: firstAgentName });
   const localChanges = skipManifest
     ? null
-    : await firstAgent.detectLocalChanges({
+    : await detectLocalChanges({
+        agentConfig: firstAgent,
         installDir,
       });
 
@@ -228,8 +237,12 @@ export const switchSkillsetAction = async (args: {
     const agent = AgentRegistry.getInstance().get({ name: agentName });
 
     try {
-      // Delegate to agent's switchSkillset method
-      await agent.switchSkillset({ installDir, skillsetName: name });
+      // Delegate to shared switchSkillset handler
+      await switchSkillset({
+        agentConfig: agent,
+        installDir,
+        skillsetName: name,
+      });
     } catch (err) {
       // On failure, show available skillsets
       const profiles = await listSkillsets();

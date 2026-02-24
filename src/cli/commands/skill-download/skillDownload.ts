@@ -27,6 +27,10 @@ import {
 } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { getNoriSkillsetsDir } from "@/cli/features/paths.js";
+import {
+  getSkillsDir,
+  getAgentDir,
+} from "@/cli/features/shared/agentHandlers.js";
 import { addSkillDependency } from "@/cli/features/skillResolver.js";
 import {
   addSkillToNoriJson,
@@ -438,13 +442,17 @@ export const skillDownloadMain = async (args: {
   );
   const primaryAgent = defaultAgents[0];
 
-  const skillsDir = primaryAgent.getSkillsDir({ installDir: targetInstallDir });
+  const skillsDir = getSkillsDir({
+    agentConfig: primaryAgent,
+    installDir: targetInstallDir,
+  });
 
   // Ensure skills directory exists for all agents
   for (const agent of defaultAgents) {
-    await fs.mkdir(agent.getSkillsDir({ installDir: targetInstallDir }), {
-      recursive: true,
-    });
+    await fs.mkdir(
+      getSkillsDir({ agentConfig: agent, installDir: targetInstallDir }),
+      { recursive: true },
+    );
   }
 
   const targetDir = path.join(skillsDir, skillName);
@@ -734,7 +742,8 @@ export const skillDownloadMain = async (args: {
           }
 
           // Apply template substitution for primary agent
-          const primaryAgentDir = primaryAgent.getAgentDir({
+          const primaryAgentDir = getAgentDir({
+            agentConfig: primaryAgent,
             installDir: targetInstallDir,
           });
           await applyTemplateSubstitutionToDir({
@@ -744,7 +753,8 @@ export const skillDownloadMain = async (args: {
 
           // Broadcast: copy skill to all other agents' skills directories
           for (const agent of defaultAgents.slice(1)) {
-            const agentSkillsDir = agent.getSkillsDir({
+            const agentSkillsDir = getSkillsDir({
+              agentConfig: agent,
               installDir: targetInstallDir,
             });
             const agentTargetDir = path.join(agentSkillsDir, skillName);
@@ -752,12 +762,13 @@ export const skillDownloadMain = async (args: {
               await fs.rm(agentTargetDir, { recursive: true, force: true });
               await copyDirRecursive({ src: targetDir, dest: agentTargetDir });
               // Re-apply template substitution with this agent's dir
-              const agentDir = agent.getAgentDir({
+              const agentDirPath = getAgentDir({
+                agentConfig: agent,
                 installDir: targetInstallDir,
               });
               await applyTemplateSubstitutionToDir({
                 dir: agentTargetDir,
-                installDir: agentDir,
+                installDir: agentDirPath,
               });
             } catch (copyErr) {
               const msg =

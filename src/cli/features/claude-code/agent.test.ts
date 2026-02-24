@@ -5,8 +5,12 @@ import * as path from "path";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 import { getConfigPath, saveConfig } from "@/cli/config.js";
-
-import { claudeCodeAgent } from "./agent.js";
+import { claudeCodeConfig } from "@/cli/features/claude-code/agent.js";
+import {
+  isInstalledAtDir,
+  markInstall,
+  switchSkillset,
+} from "@/cli/features/shared/agentHandlers.js";
 
 // Mock os.homedir so getConfigPath resolves to test directories
 vi.mock("os", async (importOriginal) => {
@@ -48,7 +52,7 @@ vi.mock("@clack/prompts", () => ({
   },
 }));
 
-describe("claudeCodeAgent.isInstalledAtDir", () => {
+describe("claudeCodeConfig isInstalledAtDir", () => {
   let tempDir: string;
 
   beforeEach(() => {
@@ -64,7 +68,9 @@ describe("claudeCodeAgent.isInstalledAtDir", () => {
     fs.mkdirSync(claudeDir, { recursive: true });
     fs.writeFileSync(path.join(claudeDir, ".nori-managed"), "senior-swe");
 
-    expect(claudeCodeAgent.isInstalledAtDir({ path: tempDir })).toBe(true);
+    expect(
+      isInstalledAtDir({ agentConfig: claudeCodeConfig, path: tempDir }),
+    ).toBe(true);
   });
 
   it("should return true when .claude/CLAUDE.md contains NORI-AI MANAGED BLOCK (backwards compat)", () => {
@@ -75,11 +81,15 @@ describe("claudeCodeAgent.isInstalledAtDir", () => {
       "# BEGIN NORI-AI MANAGED BLOCK\nsome content\n# END NORI-AI MANAGED BLOCK",
     );
 
-    expect(claudeCodeAgent.isInstalledAtDir({ path: tempDir })).toBe(true);
+    expect(
+      isInstalledAtDir({ agentConfig: claudeCodeConfig, path: tempDir }),
+    ).toBe(true);
   });
 
   it("should return false when neither marker exists", () => {
-    expect(claudeCodeAgent.isInstalledAtDir({ path: tempDir })).toBe(false);
+    expect(
+      isInstalledAtDir({ agentConfig: claudeCodeConfig, path: tempDir }),
+    ).toBe(false);
   });
 
   it("should return false when .claude/CLAUDE.md exists but has no managed block", () => {
@@ -90,11 +100,13 @@ describe("claudeCodeAgent.isInstalledAtDir", () => {
       "# Just some regular content",
     );
 
-    expect(claudeCodeAgent.isInstalledAtDir({ path: tempDir })).toBe(false);
+    expect(
+      isInstalledAtDir({ agentConfig: claudeCodeConfig, path: tempDir }),
+    ).toBe(false);
   });
 });
 
-describe("claudeCodeAgent.markInstall", () => {
+describe("claudeCodeConfig markInstall", () => {
   let tempDir: string;
 
   beforeEach(() => {
@@ -109,7 +121,11 @@ describe("claudeCodeAgent.markInstall", () => {
     const claudeDir = path.join(tempDir, ".claude");
     fs.mkdirSync(claudeDir, { recursive: true });
 
-    claudeCodeAgent.markInstall({ path: tempDir, skillsetName: "senior-swe" });
+    markInstall({
+      agentConfig: claudeCodeConfig,
+      path: tempDir,
+      skillsetName: "senior-swe",
+    });
 
     const content = fs.readFileSync(
       path.join(claudeDir, ".nori-managed"),
@@ -119,7 +135,11 @@ describe("claudeCodeAgent.markInstall", () => {
   });
 
   it("should create .claude directory if it does not exist", () => {
-    claudeCodeAgent.markInstall({ path: tempDir, skillsetName: "my-profile" });
+    markInstall({
+      agentConfig: claudeCodeConfig,
+      path: tempDir,
+      skillsetName: "my-profile",
+    });
 
     const markerPath = path.join(tempDir, ".claude", ".nori-managed");
     expect(fs.existsSync(markerPath)).toBe(true);
@@ -131,7 +151,11 @@ describe("claudeCodeAgent.markInstall", () => {
     fs.mkdirSync(claudeDir, { recursive: true });
     fs.writeFileSync(path.join(claudeDir, ".nori-managed"), "old-profile");
 
-    claudeCodeAgent.markInstall({ path: tempDir, skillsetName: "new-profile" });
+    markInstall({
+      agentConfig: claudeCodeConfig,
+      path: tempDir,
+      skillsetName: "new-profile",
+    });
 
     const content = fs.readFileSync(
       path.join(claudeDir, ".nori-managed"),
@@ -141,7 +165,7 @@ describe("claudeCodeAgent.markInstall", () => {
   });
 });
 
-describe("claudeCodeAgent.switchSkillset", () => {
+describe("claudeCodeConfig switchSkillset", () => {
   let tempDir: string;
   const TEST_NORI_DIR = "/tmp/agent-test-nori";
 
@@ -191,8 +215,9 @@ describe("claudeCodeAgent.switchSkillset", () => {
 
     const configBefore = fs.readFileSync(configFile, "utf-8");
 
-    // Switch skillset via agent
-    await claudeCodeAgent.switchSkillset({
+    // Switch skillset via shared handler
+    await switchSkillset({
+      agentConfig: claudeCodeConfig,
       installDir: tempDir,
       skillsetName: "documenter",
     });
@@ -205,7 +230,8 @@ describe("claudeCodeAgent.switchSkillset", () => {
 
   it("should validate that the skillset exists", async () => {
     await expect(
-      claudeCodeAgent.switchSkillset({
+      switchSkillset({
+        agentConfig: claudeCodeConfig,
         installDir: tempDir,
         skillsetName: "nonexistent-profile",
       }),

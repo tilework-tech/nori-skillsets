@@ -26,6 +26,7 @@ import {
   type Config,
 } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
+import { installSkillset } from "@/cli/features/shared/agentHandlers.js";
 import {
   buildCLIEventParams,
   getUserId,
@@ -35,6 +36,8 @@ import { isSilentMode, setSilentMode } from "@/cli/logger.js";
 import { getCurrentPackageVersion } from "@/cli/version.js";
 import { getHomeDir } from "@/utils/home.js";
 import { normalizeInstallDir } from "@/utils/path.js";
+
+import type { AgentConfig } from "@/cli/features/agentRegistry.js";
 
 /**
  * Get the path for the progress marker file
@@ -92,7 +95,7 @@ const displayCompletionBanners = (): void => {
  */
 const completeInstallation = async (args: {
   config: Config;
-  agent: ReturnType<typeof AgentRegistry.prototype.get>;
+  agent: AgentConfig;
   nonInteractive: boolean;
   skipManifest?: boolean | null;
 }): Promise<void> => {
@@ -115,8 +118,9 @@ const completeInstallation = async (args: {
   // Create progress marker
   createProgressMarker();
 
-  // Delegate to agent: run loaders, write manifest, mark install
-  await agent.installSkillset({
+  // Delegate to shared handler: run loaders, write manifest, mark install
+  await installSkillset({
+    agentConfig: agent,
     config,
     ...(skipManifest ? { skipManifest: true } : {}),
   });

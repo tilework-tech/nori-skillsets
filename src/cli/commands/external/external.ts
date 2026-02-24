@@ -19,8 +19,15 @@ import {
   getActiveSkillset,
   getDefaultAgents,
 } from "@/cli/config.js";
-import { AgentRegistry, type Agent } from "@/cli/features/agentRegistry.js";
+import {
+  AgentRegistry,
+  type AgentConfig,
+} from "@/cli/features/agentRegistry.js";
 import { getNoriSkillsetsDir } from "@/cli/features/paths.js";
+import {
+  getSkillsDir,
+  getAgentDir,
+} from "@/cli/features/shared/agentHandlers.js";
 import {
   addSkillToNoriJson,
   ensureNoriJson,
@@ -119,7 +126,7 @@ const installSkill = async (args: {
   ref: string | null;
   subpath: string | null;
   type: NoriJsonType;
-  agents: Array<Agent>;
+  agents: Array<AgentConfig>;
   cliName?: CliName | null;
 }): Promise<void> => {
   const {
@@ -206,7 +213,10 @@ const installSkill = async (args: {
 
   // Apply template substitution to .md files in the live copy for primary agent
   const agents = args.agents;
-  const primaryAgentDir = agents[0].getAgentDir({ installDir });
+  const primaryAgentDir = getAgentDir({
+    agentConfig: agents[0],
+    installDir,
+  });
   await applyTemplateSubstitutionToDir({
     dir: targetDir,
     installDir: primaryAgentDir,
@@ -214,15 +224,15 @@ const installSkill = async (args: {
 
   // Broadcast: copy skill to all other agents' skills directories
   for (const agent of agents.slice(1)) {
-    const agentSkillsDir = agent.getSkillsDir({ installDir });
+    const agentSkillsDir = getSkillsDir({ agentConfig: agent, installDir });
     const agentTargetDir = path.join(agentSkillsDir, skillDirName);
     try {
       await fs.rm(agentTargetDir, { recursive: true, force: true });
       await copyDirRecursive({ src: targetDir, dest: agentTargetDir });
-      const agentDir = agent.getAgentDir({ installDir });
+      const agentDirPath = getAgentDir({ agentConfig: agent, installDir });
       await applyTemplateSubstitutionToDir({
         dir: agentTargetDir,
-        installDir: agentDir,
+        installDir: agentDirPath,
       });
     } catch (copyErr) {
       const msg = copyErr instanceof Error ? copyErr.message : String(copyErr);
@@ -389,13 +399,17 @@ export const externalMain = async (args: {
   );
   const primaryAgent = defaultAgents[0];
 
-  const skillsDir = primaryAgent.getSkillsDir({ installDir: targetInstallDir });
+  const skillsDir = getSkillsDir({
+    agentConfig: primaryAgent,
+    installDir: targetInstallDir,
+  });
 
   // Ensure skills directory exists for all agents
   for (const agent of defaultAgents) {
-    await fs.mkdir(agent.getSkillsDir({ installDir: targetInstallDir }), {
-      recursive: true,
-    });
+    await fs.mkdir(
+      getSkillsDir({ agentConfig: agent, installDir: targetInstallDir }),
+      { recursive: true },
+    );
   }
 
   // 4. Clone repository
