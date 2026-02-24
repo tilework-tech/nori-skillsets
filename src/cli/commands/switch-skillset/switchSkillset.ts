@@ -7,6 +7,7 @@ import { log, select, isCancel, cancel } from "@clack/prompts";
 
 import {
   loadConfig,
+  updateConfig,
   getActiveSkillset,
   getDefaultAgents,
   type Config,
@@ -41,18 +42,19 @@ export const switchSkillsetAction = async (args: {
   const nonInteractive = globalOpts.nonInteractive ?? false;
   const force = options.force ?? false;
 
-  // Skip manifest operations when an explicit --install-dir override is provided.
-  // The manifest is stored globally per-agent and would produce false positives
-  // when compared against a transient override directory.
-  const skipManifest = globalOpts.installDir != null;
-
   // Determine installation directory: CLI flag > config > home dir
   const config = await loadConfig();
-  const installDir = resolveInstallDir({
+  const resolved = resolveInstallDir({
     cliInstallDir: globalOpts.installDir,
-    config,
+    configInstallDir: config?.installDir,
     agentDirNames: AgentRegistry.getInstance().getAgentDirNames(),
   });
+  const installDir = resolved.path;
+
+  // Skip manifest operations when the install dir comes from a CLI override.
+  // The manifest is stored globally per-agent and would produce false positives
+  // when compared against a transient override directory.
+  const skipManifest = resolved.source === "cli";
 
   // If no name provided, prompt for selection or error in non-interactive mode
   if (name == null) {
@@ -185,6 +187,11 @@ export const switchSkillsetAction = async (args: {
       },
     });
 
+    // Persist activeSkillset to config unless this is a transient CLI override
+    if (resolved.source !== "cli") {
+      await updateConfig({ activeSkillset: name });
+    }
+
     // Flow handles all UI (cancel messages, success notes) internally.
     // result is null on cancel, non-null on success — either way we're done.
     return;
@@ -242,6 +249,11 @@ export const switchSkillsetAction = async (args: {
       silent: true,
       ...(skipManifest ? { skipManifest: true } : {}),
     });
+  }
+
+  // Persist activeSkillset to config unless this is a transient CLI override
+  if (resolved.source !== "cli") {
+    await updateConfig({ activeSkillset: name });
   }
 };
 

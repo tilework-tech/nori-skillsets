@@ -155,7 +155,7 @@ describe("cursorAgent.switchSkillset", () => {
     vi.clearAllMocks();
   });
 
-  it("should update config with new skillset name", async () => {
+  it("should not update config on disk when switching skillsets", async () => {
     const configFile = getConfigPath();
     await saveConfig({
       username: "test@example.com",
@@ -165,13 +165,17 @@ describe("cursorAgent.switchSkillset", () => {
       installDir: tempDir,
     });
 
+    const configBefore = fs.readFileSync(configFile, "utf-8");
+
     await cursorAgent.switchSkillset({
       installDir: tempDir,
       skillsetName: "documenter",
     });
 
-    const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
-    expect(fileContents.activeSkillset).toBe("documenter");
+    // Config on disk should be completely unchanged — the agent layer
+    // no longer owns config persistence
+    const configAfter = fs.readFileSync(configFile, "utf-8");
+    expect(configAfter).toBe(configBefore);
   });
 
   it("should throw error for non-existent skillset", async () => {
@@ -181,29 +185,6 @@ describe("cursorAgent.switchSkillset", () => {
         skillsetName: "non-existent",
       }),
     ).rejects.toThrow(/Profile "non-existent" not found/);
-  });
-
-  it("should preserve defaultAgents and garbageCollectTranscripts when switching profiles", async () => {
-    const configFile = getConfigPath();
-    await saveConfig({
-      username: "test@example.com",
-      organizationUrl: "https://example.tilework.tech",
-      refreshToken: "test-refresh-token",
-      activeSkillset: "senior-swe",
-      defaultAgents: ["claude-code", "cursor-agent"],
-      garbageCollectTranscripts: "enabled",
-      installDir: tempDir,
-    });
-
-    await cursorAgent.switchSkillset({
-      installDir: tempDir,
-      skillsetName: "documenter",
-    });
-
-    const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
-    expect(fileContents.defaultAgents).toEqual(["claude-code", "cursor-agent"]);
-    expect(fileContents.garbageCollectTranscripts).toBe("enabled");
-    expect(fileContents.activeSkillset).toBe("documenter");
   });
 });
 

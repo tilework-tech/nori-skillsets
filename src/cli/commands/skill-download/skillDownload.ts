@@ -393,9 +393,9 @@ export const skillDownloadMain = async (args: {
   // Resolve installation directory from CLI flag, config, or home dir fallback
   const targetInstallDir = resolveInstallDir({
     cliInstallDir: installDir,
-    config,
+    configInstallDir: config?.installDir,
     agentDirNames: AgentRegistry.getInstance().getAgentDirNames(),
-  });
+  }).path;
 
   // Resolve target skillset for manifest update
   // Priority: --skillset option > active skillset from config > no manifest update

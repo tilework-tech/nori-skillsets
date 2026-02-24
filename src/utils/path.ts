@@ -4,8 +4,25 @@
 
 import * as path from "path";
 
-import { type Config } from "@/cli/config.js";
 import { getHomeDir } from "@/utils/home.js";
+
+/**
+ * Tracks where the install directory was resolved from.
+ * - "cli": Explicitly provided via --install-dir flag (transient override)
+ * - "config": Read from persisted .nori-config.json
+ * - "default": Fallback to home directory
+ */
+export type InstallDirSource = "cli" | "config" | "default";
+
+/**
+ * A resolved installation directory with provenance tracking.
+ * The `source` field indicates where the path came from, allowing
+ * downstream code to decide whether to persist config or skip manifest ops.
+ */
+export type ResolvedInstallDir = {
+  path: string;
+  source: InstallDirSource;
+};
 
 /**
  * Normalize an installation directory path
@@ -61,34 +78,40 @@ export const normalizeInstallDir = (args: {
 
 /**
  * Resolve the installation directory using a priority chain:
- * 1. CLI --install-dir flag (highest priority)
- * 2. config.installDir from persisted config
- * 3. Home directory (fallback)
+ * 1. CLI --install-dir flag (highest priority, source: "cli")
+ * 2. configInstallDir from persisted config (source: "config")
+ * 3. Home directory (fallback, source: "default")
  *
  * @param args - Configuration arguments
  * @param args.cliInstallDir - Value from CLI --install-dir flag (optional)
- * @param args.config - Loaded config object (optional)
+ * @param args.configInstallDir - Value from persisted config installDir field (optional)
  * @param args.agentDirNames - Agent config directory basenames to strip from path suffixes (optional)
  *
- * @returns Resolved absolute path to the installation directory
+ * @returns Resolved install directory with provenance tracking
  */
 export const resolveInstallDir = (args: {
   cliInstallDir?: string | null;
-  config?: Config | null;
+  configInstallDir?: string | null;
   agentDirNames?: Array<string> | null;
-}): string => {
-  const { cliInstallDir, config, agentDirNames } = args;
+}): ResolvedInstallDir => {
+  const { cliInstallDir, configInstallDir, agentDirNames } = args;
 
   if (cliInstallDir != null && cliInstallDir !== "") {
-    return normalizeInstallDir({ installDir: cliInstallDir, agentDirNames });
+    return {
+      path: normalizeInstallDir({ installDir: cliInstallDir, agentDirNames }),
+      source: "cli",
+    };
   }
 
-  if (config?.installDir != null && config.installDir !== "") {
-    return normalizeInstallDir({
-      installDir: config.installDir,
-      agentDirNames,
-    });
+  if (configInstallDir != null && configInstallDir !== "") {
+    return {
+      path: normalizeInstallDir({
+        installDir: configInstallDir,
+        agentDirNames,
+      }),
+      source: "config",
+    };
   }
 
-  return getHomeDir();
+  return { path: getHomeDir(), source: "default" };
 };

@@ -564,9 +564,9 @@ export const registryDownloadMain = async (args: {
   const config = await loadConfig();
   const resolvedInstallDir = resolveInstallDir({
     cliInstallDir: installDir,
-    config,
+    configInstallDir: config?.installDir,
     agentDirNames: AgentRegistry.getInstance().getAgentDirNames(),
-  });
+  }).path;
 
   // Auto-init if no config exists yet (first time use)
   if (config == null) {

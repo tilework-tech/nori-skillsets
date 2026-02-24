@@ -35,9 +35,9 @@ export const clearMain = async (args?: {
 
   const effectiveInstallDir = resolveInstallDir({
     cliInstallDir,
-    config,
+    configInstallDir: config?.installDir,
     agentDirNames: AgentRegistry.getInstance().getAgentDirNames(),
-  });
+  }).path;
 
   const agentNames = getDefaultAgents({ config, agentOverride: agent });
 
