@@ -8,6 +8,7 @@ import * as path from "path";
 import { type Config } from "@/cli/config.js";
 import { claudeCodeConfig } from "@/cli/features/claude-code/agent.js";
 import { cursorConfig } from "@/cli/features/cursor-agent/agent.js";
+import { type Skillset } from "@/cli/features/skillset.js";
 
 /**
  * Canonical agent names used as UIDs in the registry.
@@ -264,7 +265,3 @@ export class AgentRegistry {
     return this.getAll().map((agent) => path.basename(agent.agentDirName));
   }
 }
-
-// Re-export Skillset type for ProfileLoader consumers
-import type { Skillset } from "@/cli/features/skillset.js";
-export type { Skillset };

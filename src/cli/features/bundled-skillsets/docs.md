@@ -10,8 +10,8 @@ Path: @/src/cli/features/bundled-skillsets
 
 ### How it fits into the larger codebase
 
-- Both agent skill loaders (@/src/cli/features/claude-code/skillsets/skills/loader.ts and @/src/cli/features/cursor-agent/skillsets/skills/loader.ts) call `copyBundledSkills()` after copying skillset-provided skills
-- The CLAUDE.md generator (@/src/cli/features/claude-code/skillsets/claudemd/loader.ts) calls `getBundledSkillsDir()` to scan bundled skills and include them in the skills list written to CLAUDE.md
+- The shared skills loader (@/src/cli/features/shared/profileLoaders/skillsLoader.ts) calls `copyBundledSkills()` after copying skillset-provided skills for any agent
+- The shared instruction file loader (@/src/cli/features/shared/profileLoaders/instructionsMdLoader.ts) calls `getBundledSkillsDir()` to scan bundled skills and include them in the skills list written to the agent's instruction file (CLAUDE.md, AGENTS.md, etc.)
 - Bundled skill files are stored as static assets at `@/src/cli/features/bundled-skillsets/skills/` alongside the installer module
 - Template substitution from @/src/cli/features/template.ts is applied to markdown files during copy, so bundled skills can use `{{skills_dir}}` and other placeholders
 

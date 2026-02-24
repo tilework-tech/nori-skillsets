@@ -350,10 +350,10 @@ export const switchSkillset = async (args: {
   // Verify profile exists
   const skillsetDir = path.join(skillsetsDir, skillsetName);
   await ensureNoriJson({ skillsetDir });
-  const instructionsPath = path.join(skillsetDir, MANIFEST_FILE);
+  const manifestPath = path.join(skillsetDir, MANIFEST_FILE);
 
   try {
-    await fs.access(instructionsPath);
+    await fs.access(manifestPath);
   } catch {
     throw new Error(`Profile "${skillsetName}" not found in ${skillsetsDir}`);
   }
@@ -544,11 +544,14 @@ export const captureExistingConfig = async (args: {
     if (!content.includes(BEGIN_MARKER)) {
       content = `${BEGIN_MARKER}\n${content}\n${END_MARKER}\n`;
     }
-    await fs.writeFile(path.join(skillsetDir, "CLAUDE.md"), content);
+    await fs.writeFile(
+      path.join(skillsetDir, agentConfig.configFileName),
+      content,
+    );
   } catch {
     // Instruction file doesn't exist — create empty
     await fs.writeFile(
-      path.join(skillsetDir, "CLAUDE.md"),
+      path.join(skillsetDir, agentConfig.configFileName),
       `${BEGIN_MARKER}\n\n${END_MARKER}\n`,
     );
   }

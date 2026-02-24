@@ -35,14 +35,14 @@ export type ManifestDiff = {
 /**
  * Root-level files within the agent config directory that Nori manages.
  * Only these files are tracked in the manifest.
- * Callers MUST pass agent.getManagedFiles() explicitly.
+ * Callers MUST pass getManagedFiles({ agentConfig }) explicitly.
  */
 const MANAGED_FILES: ReadonlyArray<string> = [];
 
 /**
  * Top-level directories within the agent config directory that Nori manages.
  * All files recursively within these directories are tracked in the manifest.
- * Callers MUST pass agent.getManagedDirs() explicitly.
+ * Callers MUST pass getManagedDirs({ agentConfig }) explicitly.
  */
 const MANAGED_DIRS: ReadonlyArray<string> = [];
 

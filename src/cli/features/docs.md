@@ -50,6 +50,7 @@ Shared Resources (@/src/cli/features/)
     |
     +-- agentRegistry.ts: AgentName, AgentConfig, Loader, ProfileLoader, ExistingConfig types
     +-- shared/agentHandlers.ts: All behavioral operations as standalone functions
+    +-- shared/profileLoaders/: Profile installation sub-loaders (skills, instructionsMd, slashCommands, subagents)
     +-- paths.ts: getNoriDir(), getNoriSkillsetsDir() (agent-agnostic Nori paths)
     +-- template.ts: substituteTemplatePaths() (agent-agnostic placeholder substitution)
     +-- skillsetMetadata.ts: readSkillsetMetadata(), writeSkillsetMetadata(), addSkillToNoriJson(), ensureNoriJson()
@@ -111,6 +112,13 @@ The init command (@/src/cli/commands/init/) uses `getDefaultAgents()` from @/src
 - `detectExistingConfig({ agentConfig, installDir })`: Scans agent directory for unmanaged config. Returns `ExistingConfig` or null.
 - `captureExistingConfig({ agentConfig, installDir, skillsetName, config })`: Captures existing config as a skillset, cleans up originals, restores managed instruction file.
 
+**Shared Profile Loaders** (shared/profileLoaders/):
+- `profilesLoader.ts`: Orchestrates profile installation for any agent. Creates `~/.nori/profiles/`, calls `agentConfig.configurePermissions` if defined, parses the active skillset via `parseSkillset()`, and runs sub-loaders in order (skills -> instructionsMd -> slashCommands -> subagents). Called by `installSkillset()` in agentHandlers.ts.
+- `skillsLoader.ts`: Copies skills from the skillset's `skills/` directory to the agent's skills directory with template substitution, then calls `copyBundledSkills()` from bundled-skillsets to add package-bundled skills.
+- `instructionsMdLoader.ts`: Generates the agent's instruction file (CLAUDE.md, AGENTS.md, etc.) with managed block markers. Reads source content from the skillset's config file path, strips existing markers to prevent nesting, and wraps with fresh markers.
+- `slashCommandsLoader.ts`: Copies slash command `.md` files to the agent's commands directory. Emits a consolidated "Slash Commands" note listing all installed commands.
+- `subagentsLoader.ts`: Copies subagent `.md` files to the agent's agents directory. Emits a consolidated "Subagents" note listing all installed subagents.
+
 **AgentRegistry** (agentRegistry.ts):
 - Singleton pattern with `getInstance()`
 - `get({ name })`: Look up agent config by name, throws if not found. Returns `AgentConfig`.
@@ -128,7 +136,7 @@ The init command (@/src/cli/commands/init/) uses `getDefaultAgents()` from @/src
 - Uses `@clack/prompts` (`log.*`, `note()`) for user-facing output. Auth error details are consolidated into a `note()` section rather than individual log lines.
 
 **Bundled Skills Installer** (bundled-skillsets/installer.ts):
-- Agent-agnostic module that copies bundled skills to any agent's skills directory during installation. Exports `copyBundledSkills({ destSkillsDir, installDir })` (called by both agent skill loaders after copying skillset skills) and `getBundledSkillsDir()` (called by the CLAUDE.md generator to include bundled skills in the skills list). Skillset-provided skills take precedence -- bundled skills with a conflicting name are skipped. See @/src/cli/features/bundled-skillsets/docs.md for details.
+- Agent-agnostic module that copies bundled skills to any agent's skills directory during installation. Exports `copyBundledSkills({ destSkillsDir, installDir })` (called by the shared skills loader after copying skillset skills) and `getBundledSkillsDir()` (called by the shared instruction file loader to include bundled skills in the skills list). Skillset-provided skills take precedence -- bundled skills with a conflicting name are skipped. See @/src/cli/features/bundled-skillsets/docs.md for details.
 
 **Managed Folder Utilities** (managedFolder.ts):
 - Agent-agnostic skillset discovery extracted from the Agent interface

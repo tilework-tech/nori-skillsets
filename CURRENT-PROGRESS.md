@@ -52,14 +52,52 @@
 - `src/cli/commands/docs.md` -- updated command descriptions to reference shared handlers instead of agent methods
 - `src/cli/commands/init/docs.md` -- updated to reference shared handler functions
 
-## Not Started
+### Step 4: Delete old code (complete)
 
-### Step 4: Delete old code
-- Remove `Agent` type from `agentRegistry.ts`
-- Delete per-agent loader registries, profile loaders, and paths files
-- Delete per-agent agent method implementations
+#### Deleted per-agent loader registries:
+- `src/cli/features/claude-code/loaderRegistry.ts`
+- `src/cli/features/cursor-agent/loaderRegistry.ts`
 
-### Step 5: Cleanup
-- Run format and lint
-- Verify all tests pass
-- Delete orphaned imports
+#### Deleted per-agent skillset loader registries:
+- `src/cli/features/claude-code/skillsets/skillsetLoaderRegistry.ts`
+- `src/cli/features/cursor-agent/skillsets/skillsetLoaderRegistry.ts`
+
+#### Deleted per-agent skillset orchestrator loaders:
+- `src/cli/features/claude-code/skillsets/loader.ts`
+- `src/cli/features/cursor-agent/skillsets/loader.ts`
+
+#### Deleted per-agent profile sub-loaders (8 files):
+- `src/cli/features/claude-code/skillsets/skills/loader.ts`
+- `src/cli/features/cursor-agent/skillsets/skills/loader.ts`
+- `src/cli/features/claude-code/skillsets/claudemd/loader.ts`
+- `src/cli/features/cursor-agent/skillsets/agentsmd/loader.ts`
+- `src/cli/features/claude-code/skillsets/slashcommands/loader.ts`
+- `src/cli/features/cursor-agent/skillsets/slashcommands/loader.ts`
+- `src/cli/features/claude-code/skillsets/subagents/loader.ts`
+- `src/cli/features/cursor-agent/skillsets/subagents/loader.ts`
+
+#### Deleted old claude-code-specific files:
+- `src/cli/features/claude-code/existingConfigCapture.ts` (replaced by shared `captureExistingConfig`)
+- `src/cli/features/claude-code/existingConfigCapture.test.ts`
+
+#### Deleted old test files (5 files):
+- `src/cli/features/claude-code/skillsets/loader.test.ts`
+- `src/cli/features/claude-code/skillsets/claudemd/loader.test.ts`
+- `src/cli/features/claude-code/skillsets/skills/loader.test.ts`
+- `src/cli/features/claude-code/skillsets/slashcommands/loader.test.ts`
+- `src/cli/features/claude-code/skillsets/subagents/loader.test.ts`
+
+#### Cleanup:
+- Removed unused `Skillset` re-export from `agentRegistry.ts`
+- Removed empty directories left after deletions
+- Updated docs.md files in affected directories
+
+### Step 5: Cleanup (complete)
+- Format and lint pass cleanly
+- All 1465 tests pass (100 test files)
+- Type checking passes
+- No orphaned imports remain
+
+## Complete
+
+All 5 steps of the APPLICATION-SPEC have been implemented. The refactor replaced per-agent `Agent` objects (with ~15 duplicated methods each) with `AgentConfig` pure data structs and shared handler functions, eliminating ~5,400 lines of duplicated code.

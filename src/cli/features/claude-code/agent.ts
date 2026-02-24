@@ -55,13 +55,11 @@ const configureClaudePermissions = async (args: {
     };
   }
 
-  // Initialize permissions object if needed
-  if (!settings.permissions) {
+  if (settings.permissions == null) {
     settings.permissions = {};
   }
 
-  // Initialize additionalDirectories array if needed
-  if (!settings.permissions.additionalDirectories) {
+  if (settings.permissions.additionalDirectories == null) {
     settings.permissions.additionalDirectories = [];
   }
 
