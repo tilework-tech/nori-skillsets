@@ -1,6 +1,6 @@
 /**
  * Tests for switch-skillset command
- * Tests that the CLI correctly delegates to agent methods
+ * Tests that the CLI correctly delegates to shared agent handlers
  */
 
 import * as fs from "fs/promises";
@@ -12,6 +12,7 @@ import { Command } from "commander";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
+import { switchSkillset as switchSkillsetHandler } from "@/cli/features/shared/agentHandlers.js";
 
 import { registerSwitchSkillsetCommand } from "./switchSkillset.js";
 
@@ -47,6 +48,23 @@ vi.mock("@/cli/features/managedFolder.js", async (importOriginal) => {
   };
 });
 
+// Mock shared agentHandlers for handler function tests
+const mockSwitchSkillsetHandler = vi.fn().mockResolvedValue(undefined);
+const mockDetectLocalChangesHandler = vi.fn().mockResolvedValue(null);
+const mockCaptureExistingConfigHandler = vi.fn().mockResolvedValue(undefined);
+vi.mock("@/cli/features/shared/agentHandlers.js", async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
+  return {
+    ...actual,
+    switchSkillset: (...args: Array<unknown>) =>
+      mockSwitchSkillsetHandler(...args),
+    detectLocalChanges: (...args: Array<unknown>) =>
+      mockDetectLocalChangesHandler(...args),
+    captureExistingConfig: (...args: Array<unknown>) =>
+      mockCaptureExistingConfigHandler(...args),
+  };
+});
+
 // Mock @clack/prompts for interactive selection tests
 const mockSelect = vi.fn();
 vi.mock("@clack/prompts", () => ({
@@ -62,7 +80,7 @@ vi.mock("@clack/prompts", () => ({
   cancel: vi.fn(),
 }));
 
-describe("agent.switchSkillset", () => {
+describe("switchSkillset handler", () => {
   let testInstallDir: string;
 
   beforeEach(async () => {
@@ -112,14 +130,17 @@ describe("agent.switchSkillset", () => {
 
     const configBefore = await fs.readFile(configPath, "utf-8");
 
-    // Switch to profile-b using agent method
-    const agent = AgentRegistry.getInstance().get({ name: "claude-code" });
-    await agent.switchSkillset({
+    // Switch to profile-b using the shared handler function
+    const agentConfig = AgentRegistry.getInstance().get({
+      name: "claude-code",
+    });
+    await switchSkillsetHandler({
+      agentConfig,
       installDir: testInstallDir,
       skillsetName: "profile-b",
     });
 
-    // Config on disk should be completely unchanged — the agent layer
+    // Config on disk should be completely unchanged -- the handler
     // no longer owns config persistence
     const configAfter = await fs.readFile(configPath, "utf-8");
     expect(configAfter).toBe(configBefore);
@@ -228,12 +249,7 @@ describe("registerSwitchSkillsetCommand", () => {
 
     // Reset mock to track this specific call
     mockInstallMain.mockClear();
-
-    // Mock claude-code's switchSkillset
-    const claudeAgent = AgentRegistry.getInstance().get({
-      name: "claude-code",
-    });
-    vi.spyOn(claudeAgent, "switchSkillset").mockResolvedValue(undefined);
+    mockSwitchSkillsetHandler.mockClear();
 
     try {
       await program.parseAsync([
@@ -433,29 +449,12 @@ describe("switch-skillset local change detection", () => {
   });
 
   it("should error in non-interactive mode when changes detected", async () => {
-    // Create skills directory with a file
-    const skillsDir = path.join(testInstallDir, ".claude", "skills");
-    const mySkillDir = path.join(skillsDir, "my-skill");
-    await fs.mkdir(mySkillDir, { recursive: true });
-    await fs.writeFile(path.join(mySkillDir, "SKILL.md"), "modified content");
-
-    // Create manifest with different hash
-    const manifestPath = path.join(
-      testInstallDir,
-      ".nori",
-      "installed-manifest.json",
-    );
-    await fs.writeFile(
-      manifestPath,
-      JSON.stringify({
-        version: 1,
-        createdAt: new Date().toISOString(),
-        skillsetName: "senior-swe",
-        files: {
-          "skills/my-skill/SKILL.md": "different-hash-representing-original",
-        },
-      }),
-    );
+    // Simulate detectLocalChanges returning changes
+    mockDetectLocalChangesHandler.mockResolvedValueOnce({
+      modified: [{ path: "skills/my-skill/SKILL.md" }],
+      added: [],
+      deleted: [],
+    });
 
     const program = new Command();
     program.exitOverride();
@@ -467,13 +466,7 @@ describe("switch-skillset local change detection", () => {
 
     registerSwitchSkillsetCommand({ program });
 
-    // Mock switchSkillset
-    const claudeAgent = AgentRegistry.getInstance().get({
-      name: "claude-code",
-    });
-    const switchSkillsetSpy = vi
-      .spyOn(claudeAgent, "switchSkillset")
-      .mockResolvedValue(undefined);
+    mockSwitchSkillsetHandler.mockClear();
 
     let thrownError: Error | null = null;
     try {
@@ -492,33 +485,16 @@ describe("switch-skillset local change detection", () => {
     // Should error because changes detected in non-interactive mode
     expect(thrownError).not.toBeNull();
     // switchSkillset should NOT have been called
-    expect(switchSkillsetSpy).not.toHaveBeenCalled();
+    expect(mockSwitchSkillsetHandler).not.toHaveBeenCalled();
   });
 
   it("should proceed in non-interactive mode when --force is used with local changes", async () => {
-    // Create skills directory with a file
-    const skillsDir = path.join(testInstallDir, ".claude", "skills");
-    const mySkillDir = path.join(skillsDir, "my-skill");
-    await fs.mkdir(mySkillDir, { recursive: true });
-    await fs.writeFile(path.join(mySkillDir, "SKILL.md"), "modified content");
-
-    // Create manifest with different hash (simulating user modification)
-    const manifestPath = path.join(
-      testInstallDir,
-      ".nori",
-      "installed-manifest.json",
-    );
-    await fs.writeFile(
-      manifestPath,
-      JSON.stringify({
-        version: 1,
-        createdAt: new Date().toISOString(),
-        skillsetName: "senior-swe",
-        files: {
-          "skills/my-skill/SKILL.md": "different-hash-representing-original",
-        },
-      }),
-    );
+    // Simulate detectLocalChanges returning changes
+    mockDetectLocalChangesHandler.mockResolvedValueOnce({
+      modified: [{ path: "skills/my-skill/SKILL.md" }],
+      added: [],
+      deleted: [],
+    });
 
     const program = new Command();
     program.exitOverride();
@@ -530,13 +506,7 @@ describe("switch-skillset local change detection", () => {
 
     registerSwitchSkillsetCommand({ program });
 
-    // Mock switchSkillset
-    const claudeAgent = AgentRegistry.getInstance().get({
-      name: "claude-code",
-    });
-    const switchSkillsetSpy = vi
-      .spyOn(claudeAgent, "switchSkillset")
-      .mockResolvedValue(undefined);
+    mockSwitchSkillsetHandler.mockClear();
 
     let thrownError: Error | null = null;
     try {
@@ -555,11 +525,13 @@ describe("switch-skillset local change detection", () => {
 
     // Should NOT error -- --force bypasses the local changes check
     expect(thrownError).toBeNull();
-    // switchSkillset SHOULD have been called
-    expect(switchSkillsetSpy).toHaveBeenCalledWith({
-      installDir: testInstallDir,
-      skillsetName: "product-manager",
-    });
+    // switchSkillset SHOULD have been called via the shared handler
+    expect(mockSwitchSkillsetHandler).toHaveBeenCalledWith(
+      expect.objectContaining({
+        installDir: testInstallDir,
+        skillsetName: "product-manager",
+      }),
+    );
   });
 });
 
@@ -623,13 +595,7 @@ describe("switch-skillset broadcasts to all default agents", () => {
 
     registerSwitchSkillsetCommand({ program });
 
-    // Mock switchSkillset on the agent
-    const claudeAgent = AgentRegistry.getInstance().get({
-      name: "claude-code",
-    });
-    const switchSkillsetSpy = vi
-      .spyOn(claudeAgent, "switchSkillset")
-      .mockResolvedValue(undefined);
+    mockSwitchSkillsetHandler.mockClear();
 
     try {
       await program.parseAsync([
@@ -645,11 +611,13 @@ describe("switch-skillset broadcasts to all default agents", () => {
       // May throw due to exit
     }
 
-    // switchSkillset should have been called for each agent
-    expect(switchSkillsetSpy).toHaveBeenCalledWith({
-      installDir: testInstallDir,
-      skillsetName: "product-manager",
-    });
+    // switchSkillset should have been called for each agent via shared handler
+    expect(mockSwitchSkillsetHandler).toHaveBeenCalledWith(
+      expect.objectContaining({
+        installDir: testInstallDir,
+        skillsetName: "product-manager",
+      }),
+    );
 
     // installMain should have been called for each agent
     expect(mockInstallMain).toHaveBeenCalledWith(
@@ -877,11 +845,6 @@ describe("switch-skillset activeSkillset persistence with --install-dir override
 
     registerSwitchSkillsetCommand({ program });
 
-    const claudeAgent = AgentRegistry.getInstance().get({
-      name: "claude-code",
-    });
-    vi.spyOn(claudeAgent, "switchSkillset").mockResolvedValue(undefined);
-
     try {
       await program.parseAsync([
         "node",
@@ -921,11 +884,6 @@ describe("switch-skillset activeSkillset persistence with --install-dir override
       .option("-a, --agent <name>", "AI agent to use");
 
     registerSwitchSkillsetCommand({ program });
-
-    const claudeAgent = AgentRegistry.getInstance().get({
-      name: "claude-code",
-    });
-    vi.spyOn(claudeAgent, "switchSkillset").mockResolvedValue(undefined);
 
     try {
       await program.parseAsync([
@@ -1011,11 +969,6 @@ describe("switch-skillset does not persist --install-dir override to config", ()
       .option("-a, --agent <name>", "AI agent to use");
 
     registerSwitchSkillsetCommand({ program });
-
-    const claudeAgent = AgentRegistry.getInstance().get({
-      name: "claude-code",
-    });
-    vi.spyOn(claudeAgent, "switchSkillset").mockResolvedValue(undefined);
 
     try {
       await program.parseAsync([
@@ -1103,13 +1056,7 @@ describe("switch-skillset onCaptureConfig broadcasts to all agents", () => {
 
     registerSwitchSkillsetCommand({ program });
 
-    // Spy on captureExistingConfig on the actual agent instance
-    const claudeAgent = AgentRegistry.getInstance().get({
-      name: "claude-code",
-    });
-    const originalCapture = claudeAgent.captureExistingConfig;
-    const captureExistingConfigSpy = vi.fn().mockResolvedValue(undefined);
-    claudeAgent.captureExistingConfig = captureExistingConfigSpy;
+    mockCaptureExistingConfigHandler.mockClear();
 
     try {
       await program.parseAsync([
@@ -1131,16 +1078,13 @@ describe("switch-skillset onCaptureConfig broadcasts to all agents", () => {
       skillsetName: "my-captured-config",
     });
 
-    // captureExistingConfig should have been called for each default agent
-    expect(captureExistingConfigSpy).toHaveBeenCalledWith(
+    // captureExistingConfig should have been called for each default agent via shared handler
+    expect(mockCaptureExistingConfigHandler).toHaveBeenCalledWith(
       expect.objectContaining({
         installDir: testInstallDir,
         skillsetName: "my-captured-config",
       }),
     );
-
-    // Restore original
-    claudeAgent.captureExistingConfig = originalCapture;
   });
 });
 
@@ -1222,10 +1166,7 @@ describe("switch-skillset interactive flow routing", () => {
 
     registerSwitchSkillsetCommand({ program });
 
-    const claudeAgent = AgentRegistry.getInstance().get({
-      name: "claude-code",
-    });
-    vi.spyOn(claudeAgent, "switchSkillset").mockResolvedValue(undefined);
+    mockSwitchSkillsetHandler.mockClear();
 
     try {
       await program.parseAsync([
@@ -1240,12 +1181,14 @@ describe("switch-skillset interactive flow routing", () => {
       // May throw due to exit
     }
 
-    // Verify the callback was invoked with the agent
+    // Verify the callback was invoked with the agent via shared handler
     expect(capturedCallbacks).not.toBeNull();
-    expect(claudeAgent.switchSkillset).toHaveBeenCalledWith({
-      installDir: testInstallDir,
-      skillsetName: "product-manager",
-    });
+    expect(mockSwitchSkillsetHandler).toHaveBeenCalledWith(
+      expect.objectContaining({
+        installDir: testInstallDir,
+        skillsetName: "product-manager",
+      }),
+    );
     expect(mockInstallMain).toHaveBeenCalledWith(
       expect.objectContaining({
         agent: "claude-code",
@@ -1269,12 +1212,6 @@ describe("switch-skillset interactive flow routing", () => {
       .option("-a, --agent <name>", "AI agent to use");
 
     registerSwitchSkillsetCommand({ program });
-
-    // Mock switchSkillset on the agent
-    const claudeAgent = AgentRegistry.getInstance().get({
-      name: "claude-code",
-    });
-    vi.spyOn(claudeAgent, "switchSkillset").mockResolvedValue(undefined);
 
     try {
       await program.parseAsync([
@@ -1309,12 +1246,6 @@ describe("switch-skillset interactive flow routing", () => {
       .option("-a, --agent <name>", "AI agent to use");
 
     registerSwitchSkillsetCommand({ program });
-
-    // Mock switchSkillset on the agent
-    const claudeAgent = AgentRegistry.getInstance().get({
-      name: "claude-code",
-    });
-    vi.spyOn(claudeAgent, "switchSkillset").mockResolvedValue(undefined);
 
     try {
       await program.parseAsync([
@@ -1574,21 +1505,6 @@ describe("switch-skillset skips manifest operations when --install-dir is used",
       }),
     );
 
-    // Create a manifest at the global location with files that don't exist at overrideInstallDir
-    const manifestDir = path.join(testInstallDir, ".nori", "manifests");
-    await fs.mkdir(manifestDir, { recursive: true });
-    await fs.writeFile(
-      path.join(manifestDir, "claude-code.json"),
-      JSON.stringify({
-        version: 1,
-        createdAt: new Date().toISOString(),
-        skillsetName: "senior-swe",
-        files: {
-          "skills/my-skill/SKILL.md": "some-hash-from-different-dir",
-        },
-      }),
-    );
-
     const program = new Command();
     program.exitOverride();
     program.configureOutput({ writeErr: () => undefined });
@@ -1599,10 +1515,8 @@ describe("switch-skillset skips manifest operations when --install-dir is used",
 
     registerSwitchSkillsetCommand({ program });
 
-    const claudeAgent = AgentRegistry.getInstance().get({
-      name: "claude-code",
-    });
-    vi.spyOn(claudeAgent, "switchSkillset").mockResolvedValue(undefined);
+    mockSwitchSkillsetHandler.mockClear();
+    mockDetectLocalChangesHandler.mockClear();
 
     // This should NOT error even though the manifest has files that don't exist
     // at overrideInstallDir, because --install-dir should skip manifest checks
@@ -1622,7 +1536,9 @@ describe("switch-skillset skips manifest operations when --install-dir is used",
     }
 
     expect(thrownError).toBeNull();
-    expect(claudeAgent.switchSkillset).toHaveBeenCalled();
+    expect(mockSwitchSkillsetHandler).toHaveBeenCalled();
+    // detectLocalChanges should NOT have been called because --install-dir skips manifest
+    expect(mockDetectLocalChangesHandler).not.toHaveBeenCalled();
   });
 
   it("should pass skipManifest to installMain in non-interactive mode when --install-dir is provided", async () => {
@@ -1645,11 +1561,6 @@ describe("switch-skillset skips manifest operations when --install-dir is used",
       .option("-a, --agent <name>", "AI agent to use");
 
     registerSwitchSkillsetCommand({ program });
-
-    const claudeAgent = AgentRegistry.getInstance().get({
-      name: "claude-code",
-    });
-    vi.spyOn(claudeAgent, "switchSkillset").mockResolvedValue(undefined);
 
     try {
       await program.parseAsync([
@@ -1693,11 +1604,6 @@ describe("switch-skillset skips manifest operations when --install-dir is used",
       .option("-a, --agent <name>", "AI agent to use");
 
     registerSwitchSkillsetCommand({ program });
-
-    const claudeAgent = AgentRegistry.getInstance().get({
-      name: "claude-code",
-    });
-    vi.spyOn(claudeAgent, "switchSkillset").mockResolvedValue(undefined);
 
     try {
       await program.parseAsync([
@@ -1750,11 +1656,6 @@ describe("switch-skillset skips manifest operations when --install-dir is used",
 
     registerSwitchSkillsetCommand({ program });
 
-    const claudeAgent = AgentRegistry.getInstance().get({
-      name: "claude-code",
-    });
-    vi.spyOn(claudeAgent, "switchSkillset").mockResolvedValue(undefined);
-
     try {
       await program.parseAsync([
         "node",
@@ -1787,21 +1688,6 @@ describe("switch-skillset skips manifest operations when --install-dir is used",
       }),
     );
 
-    // Create a manifest that would trigger changes if compared against overrideInstallDir
-    const manifestDir = path.join(testInstallDir, ".nori", "manifests");
-    await fs.mkdir(manifestDir, { recursive: true });
-    await fs.writeFile(
-      path.join(manifestDir, "claude-code.json"),
-      JSON.stringify({
-        version: 1,
-        createdAt: new Date().toISOString(),
-        skillsetName: "senior-swe",
-        files: {
-          "skills/my-skill/SKILL.md": "some-hash",
-        },
-      }),
-    );
-
     // Capture the callbacks and invoke onPrepareSwitchInfo
     let switchInfo: any = null;
     mockSwitchSkillsetFlow.mockImplementationOnce(async (args: any) => {
@@ -1822,6 +1708,8 @@ describe("switch-skillset skips manifest operations when --install-dir is used",
 
     registerSwitchSkillsetCommand({ program });
 
+    mockDetectLocalChangesHandler.mockClear();
+
     try {
       await program.parseAsync([
         "node",
@@ -1838,5 +1726,7 @@ describe("switch-skillset skips manifest operations when --install-dir is used",
     // localChanges should be null (skipped) because --install-dir was provided
     expect(switchInfo).not.toBeNull();
     expect(switchInfo.localChanges).toBeNull();
+    // detectLocalChanges should NOT have been called
+    expect(mockDetectLocalChangesHandler).not.toHaveBeenCalled();
   });
 });

@@ -10,7 +10,12 @@ import * as clack from "@clack/prompts";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 // Track the mock homedir value - will be set in beforeEach
-let mockHomedir = "";
+let mockHomedir = "/tmp/mock-home-default";
+
+// Mock home directory to prevent TDZ issues during module initialization
+vi.mock("@/utils/home.js", () => ({
+  getHomeDir: () => mockHomedir,
+}));
 
 // Mock the os module to control homedir() return value
 vi.mock("node:os", async (importOriginal) => {

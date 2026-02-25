@@ -8,7 +8,7 @@ The statusline feature installs a custom status line script into Claude Code tha
 
 ### How it fits into the larger codebase
 
-`statuslineLoader` is registered in `@/src/cli/features/claude-code/loaderRegistry.ts` and runs as part of the install pipeline. It writes configuration to `~/.claude/settings.json` (home-level, via `getClaudeHomeSettingsFile()` from `@/src/cli/features/claude-code/paths.ts`).
+`statuslineLoader` is listed in the `extraLoaders` field of `claudeCodeConfig` in @/src/cli/features/claude-code/agent.ts and runs as part of the install pipeline after shared profile loaders. It writes configuration to `~/.claude/settings.json` (home-level, via `getClaudeHomeSettingsFile()` from `@/src/cli/features/claude-code/paths.ts`).
 
 ### Core Implementation
 

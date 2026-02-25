@@ -1,6 +1,6 @@
 /**
- * Subagents feature loader for Cursor
- * Registers all Nori subagents with Cursor
+ * Shared subagents loader
+ * Copies subagent .md files to the agent's agents directory
  */
 
 import * as fs from "fs/promises";
@@ -9,37 +9,37 @@ import * as path from "path";
 import { log, note } from "@clack/prompts";
 
 import { type Config } from "@/cli/config.js";
-import {
-  getCursorDir,
-  getCursorAgentsDir,
-} from "@/cli/features/cursor-agent/paths.js";
+import { getAgentDir } from "@/cli/features/shared/agentHandlers.js";
 import { substituteTemplatePaths } from "@/cli/features/template.js";
 import { bold } from "@/cli/logger.js";
 
-import type { CursorProfileLoader } from "@/cli/features/cursor-agent/skillsets/skillsetLoaderRegistry.js";
+import type { AgentConfig } from "@/cli/features/agentRegistry.js";
 import type { Skillset } from "@/cli/features/skillset.js";
 
 /**
- * Register all subagents for Cursor
- *
- * @param args - Configuration arguments
- * @param args.config - Runtime configuration
- * @param args.skillset - Parsed skillset
+ * Register all subagents from a skillset to the agent's agents directory
+ * @param args - Function arguments
+ * @param args.agentConfig - The agent configuration
+ * @param args.config - The Nori configuration
+ * @param args.skillset - The parsed skillset
  */
-const registerSubagents = async (args: {
+export const installSubagents = async (args: {
+  agentConfig: AgentConfig;
   config: Config;
   skillset: Skillset;
 }): Promise<void> => {
-  const { config, skillset } = args;
+  const { agentConfig, config, skillset } = args;
 
   const configDir = skillset.subagentsDir;
-  const cursorAgentsDir = getCursorAgentsDir({
+  const agentDirPath = getAgentDir({
+    agentConfig,
     installDir: config.installDir,
   });
+  const agentsDir = path.join(agentDirPath, agentConfig.subagentsPath);
 
   // Remove existing agents directory if it exists, then recreate
-  await fs.rm(cursorAgentsDir, { recursive: true, force: true });
-  await fs.mkdir(cursorAgentsDir, { recursive: true });
+  await fs.rm(agentsDir, { recursive: true, force: true });
+  await fs.mkdir(agentsDir, { recursive: true });
 
   const registered: Array<string> = [];
   const skipped: Array<string> = [];
@@ -61,16 +61,15 @@ const registerSubagents = async (args: {
 
   for (const file of mdFiles) {
     const subagentSrc = path.join(configDir, file);
-    const subagentDest = path.join(cursorAgentsDir, file);
+    const subagentDest = path.join(agentsDir, file);
     const subagentName = file.replace(/\.md$/, "");
 
     try {
       await fs.access(subagentSrc);
       const content = await fs.readFile(subagentSrc, "utf-8");
-      const cursorDir = getCursorDir({ installDir: config.installDir });
       const substituted = substituteTemplatePaths({
         content,
-        installDir: cursorDir,
+        installDir: agentDirPath,
       });
       await fs.writeFile(subagentDest, substituted);
       registered.push(subagentName);
@@ -85,7 +84,11 @@ const registerSubagents = async (args: {
       text: `Registered ${registered.length} subagent${registered.length === 1 ? "" : "s"}`,
     });
     lines.push("", summary);
-    note(lines.join("\n"), "Cursor Subagents");
+    const noteTitle =
+      agentConfig.name === "claude-code"
+        ? "Subagents"
+        : `${agentConfig.displayName} Subagents`;
+    note(lines.join("\n"), noteTitle);
   }
   if (skipped.length > 0) {
     log.warn(
@@ -94,16 +97,4 @@ const registerSubagents = async (args: {
       } (not found): ${skipped.join(", ")}`,
     );
   }
-};
-
-/**
- * Subagents feature loader for Cursor
- */
-export const subagentsLoader: CursorProfileLoader = {
-  name: "subagents",
-  description: "Register all Nori subagents with Cursor",
-  install: async (args: { config: Config; skillset: Skillset }) => {
-    const { config, skillset } = args;
-    await registerSubagents({ config, skillset });
-  },
 };

@@ -64,11 +64,22 @@ vi.mock("@/cli/config.js", () => ({
 
 const mockSwitchSkillset = vi.fn();
 
+vi.mock("@/cli/features/shared/agentHandlers.js", () => ({
+  switchSkillset: (...args: Array<unknown>) => mockSwitchSkillset(...args),
+}));
+
 vi.mock("@/cli/features/agentRegistry.js", () => ({
   AgentRegistry: {
     getInstance: () => ({
       get: () => ({
-        switchSkillset: mockSwitchSkillset,
+        name: "claude-code",
+        displayName: "Claude Code",
+        agentDirName: ".claude",
+        instructionFilePath: "CLAUDE.md",
+        configFileName: "CLAUDE.md",
+        skillsPath: "skills",
+        slashcommandsPath: "commands",
+        subagentsPath: "agents",
       }),
       getAgentDirNames: () => [".claude"],
     }),
@@ -163,11 +174,13 @@ describe("registry-install", () => {
       listVersions: null,
     });
 
-    // Step 3: Switch to downloaded skillset
-    expect(mockSwitchSkillset).toHaveBeenCalledWith({
-      installDir: "/mock-home",
-      skillsetName: "senior-swe",
-    });
+    // Step 3: Switch to downloaded skillset via shared handler
+    expect(mockSwitchSkillset).toHaveBeenCalledWith(
+      expect.objectContaining({
+        installDir: "/mock-home",
+        skillsetName: "senior-swe",
+      }),
+    );
 
     // Step 4: Regenerate files
     expect(installMain).toHaveBeenCalledTimes(1);
@@ -305,10 +318,12 @@ describe("registry-install", () => {
     );
 
     // Should still switch profile and complete installation - using home dir
-    expect(mockSwitchSkillset).toHaveBeenCalledWith({
-      installDir: "/mock-home",
-      skillsetName: "senior-swe",
-    });
+    expect(mockSwitchSkillset).toHaveBeenCalledWith(
+      expect.objectContaining({
+        installDir: "/mock-home",
+        skillsetName: "senior-swe",
+      }),
+    );
 
     // Should return success
     expect(result.success).toBe(true);

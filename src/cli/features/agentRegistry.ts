@@ -1,19 +1,17 @@
 /**
- * Agent registry for managing AI agent implementations
- * Singleton registry that maps agent names to implementations
+ * Agent registry for managing AI agent configurations
+ * Singleton registry that maps agent names to pure data configurations
  */
 
 import * as path from "path";
 
-import { claudeCodeAgent } from "@/cli/features/claude-code/agent.js";
-import { cursorAgent } from "@/cli/features/cursor-agent/agent.js";
-
-import type { Config } from "@/cli/config.js";
-import type { ManifestDiff } from "@/cli/features/manifest.js";
+import { type Config } from "@/cli/config.js";
+import { claudeCodeConfig } from "@/cli/features/claude-code/agent.js";
+import { cursorConfig } from "@/cli/features/cursor-agent/agent.js";
 
 /**
  * Canonical agent names used as UIDs in the registry.
- * Each Agent.name must match one of these values.
+ * Each AgentConfig.name must match one of these values.
  */
 export type AgentName = "claude-code" | "cursor-agent";
 
@@ -25,19 +23,6 @@ export type Loader = {
   name: string;
   description: string;
   run: (args: { config: Config }) => Promise<string | void>;
-};
-
-/**
- * LoaderRegistry interface that agent-specific registries must implement.
- * Each agent maintains its own singleton registry class that implements this interface.
- *
- * IMPORTANT: All agents MUST include the config loader in their registry.
- * The config loader (from @/cli/features/config/loader.js) manages the shared
- * .nori-config.json file and must be included for proper installation.
- */
-export type LoaderRegistry = {
-  /** Get all registered loaders in installation order */
-  getAll: () => Array<Loader>;
 };
 
 /**
@@ -66,82 +51,128 @@ export type ExistingConfig = {
 };
 
 /**
- * Agent interface that each agent implementation must satisfy
+ * Pure data configuration for an agent.
+ * All behavior lives in shared handler functions that accept this as a parameter.
  */
-export type Agent = {
+export type AgentConfig = {
   /** Unique identifier used as registry key, e.g., "claude-code" */
   name: AgentName;
   /** Human-readable name, e.g., "Claude Code" */
   displayName: string;
   /** Short description of supported skillset features for this agent */
   description: string;
-  /** Get the agent's config directory under the install directory */
-  getAgentDir: (args: { installDir: string }) => string;
-  /** Get the agent's skills directory under the install directory */
-  getSkillsDir: (args: { installDir: string }) => string;
-  /** Get the root-level filenames this agent manages */
-  getManagedFiles: () => ReadonlyArray<string>;
-  /** Get the directory names this agent manages recursively */
-  getManagedDirs: () => ReadonlyArray<string>;
-  /** Get the LoaderRegistry for this agent */
-  getLoaderRegistry: () => LoaderRegistry;
-  /** Check if this agent is installed at the given directory */
-  isInstalledAtDir: (args: { path: string }) => boolean;
-  /** Mark a directory as having this agent installed */
-  markInstall: (args: { path: string; skillsetName?: string | null }) => void;
-  /** Switch to a skillset (validates and updates config) */
-  switchSkillset: (args: {
-    installDir: string;
-    skillsetName: string;
-  }) => Promise<void>;
-  /** Detect local changes to installed files by comparing against the stored manifest */
-  detectLocalChanges: (args: {
-    installDir: string;
-  }) => Promise<ManifestDiff | null>;
-  /** Remove all Nori-managed files for this agent at the given directory */
-  removeSkillset: (args: { installDir: string }) => Promise<void>;
-  /** Install a skillset: run feature loaders, write manifest, and mark install */
-  installSkillset: (args: {
-    config: Config;
-    skipManifest?: boolean | null;
-  }) => Promise<void>;
-  /** Get the directory where this agent stores session transcript files (e.g., JSONL files).
-   * Agents that store transcripts in non-file-based formats (like SQLite) should not implement this. */
-  getTranscriptDirectory?: (() => string) | null;
-  /** Find agent configuration artifacts starting from a directory */
+
+  /**
+   * Relative path from installDir to the agent's config directory.
+   * e.g. ".claude" or ".cursor"
+   */
+  agentDirName: string;
+
+  /**
+   * Relative path from the agent dir to the instruction file.
+   * e.g. "CLAUDE.md" or "rules/AGENTS.md"
+   */
+  instructionFilePath: string;
+
+  /**
+   * The config file name used when parsing skillsets from ~/.nori/profiles/.
+   * This is the SOURCE file name (e.g., "CLAUDE.md"), not the destination.
+   */
+  configFileName: string;
+
+  /**
+   * Relative path from the agent dir to the skills directory.
+   * e.g. "skills"
+   */
+  skillsPath: string;
+
+  /**
+   * Relative path from the agent dir to the slashcommands directory.
+   * e.g. "commands"
+   */
+  slashcommandsPath: string;
+
+  /**
+   * Relative path from the agent dir to the subagents directory.
+   * e.g. "agents"
+   */
+  subagentsPath: string;
+
+  /**
+   * Extra loaders specific to this agent (hooks, statusline, announcements).
+   * These run after the shared profile loaders during installSkillset.
+   */
+  extraLoaders?: ReadonlyArray<Loader> | null;
+
+  /**
+   * Additional root-level filenames this agent manages beyond the instruction file.
+   * e.g. ["settings.json", "nori-statusline.sh"] for claude-code.
+   * The instruction file basename is always included automatically.
+   */
+  extraManagedFiles?: ReadonlyArray<string> | null;
+
+  /**
+   * Additional managed directories beyond skills/commands/agents.
+   * e.g. ["rules"] for cursor-agent (because AGENTS.md lives in .cursor/rules/).
+   */
+  extraManagedDirs?: ReadonlyArray<string> | null;
+
+  /**
+   * Absolute path where this agent stores session transcripts.
+   * Used by the watch command. null if the agent doesn't support transcripts.
+   */
+  transcriptDirectory?: string | null;
+
+  /**
+   * Optional function for backwards-compatible installation detection.
+   * For Claude Code, checks if CLAUDE.md contains "NORI-AI MANAGED BLOCK".
+   * Returns true if the agent is detected as installed via legacy means.
+   */
+  legacyMarkerDetection?: ((args: { agentDir: string }) => boolean) | null;
+
+  /**
+   * Whether this agent has a legacy manifest path to clean up.
+   * Only claude-code has this (getLegacyManifestPath).
+   */
+  hasLegacyManifest?: boolean | null;
+
+  /**
+   * Optional function to configure agent-specific permissions after profile installation.
+   * For Claude Code, adds skills dir and profiles dir to settings.json additionalDirectories.
+   */
+  configurePermissions?:
+    | ((args: { config: Config; installDir: string }) => Promise<void>)
+    | null;
+
+  /**
+   * Optional function to find agent-specific artifacts in ancestor directories.
+   * Used by factory reset to discover what to delete.
+   */
   findArtifacts?:
     | ((args: {
         startDir: string;
         stopDir?: string | null;
       }) => Promise<Array<AgentArtifact>>)
     | null;
-  /** Factory reset: remove all agent configuration from the filesystem */
+
+  /**
+   * Optional function to perform agent-specific factory reset.
+   * If null, the shared handler will walk the ancestor tree.
+   */
   factoryReset?: ((args: { path: string }) => Promise<void>) | null;
-  /** Detect pre-existing unmanaged configuration at the given directory */
-  detectExistingConfig?:
-    | ((args: { installDir: string }) => Promise<ExistingConfig | null>)
-    | null;
-  /** Capture existing config as a named skillset, clean up originals, and restore working state */
-  captureExistingConfig?:
-    | ((args: {
-        installDir: string;
-        skillsetName: string;
-        config: Config;
-      }) => Promise<void>)
-    | null;
 };
 
 /**
- * Registry singleton for managing agent implementations
+ * Registry singleton for managing agent configurations
  */
 export class AgentRegistry {
   private static instance: AgentRegistry | null = null;
-  private agents: Map<string, Agent>;
+  private agents: Map<string, AgentConfig>;
 
   private constructor() {
     this.agents = new Map();
-    this.agents.set(claudeCodeAgent.name, claudeCodeAgent);
-    this.agents.set(cursorAgent.name, cursorAgent);
+    this.agents.set(claudeCodeConfig.name, claudeCodeConfig);
+    this.agents.set(cursorConfig.name, cursorConfig);
   }
 
   /**
@@ -163,15 +194,15 @@ export class AgentRegistry {
   }
 
   /**
-   * Get an agent by name
+   * Get an agent config by name
    * @param args - Configuration arguments
    * @param args.name - The agent name to look up (validated at runtime)
    *
    * @throws Error if agent not found
    *
-   * @returns The agent implementation
+   * @returns The agent configuration
    */
-  public get(args: { name: string }): Agent {
+  public get(args: { name: string }): AgentConfig {
     const { name } = args;
     const agent = this.agents.get(name);
 
@@ -186,10 +217,10 @@ export class AgentRegistry {
   }
 
   /**
-   * Get all registered agents
-   * @returns Array of all agent implementations
+   * Get all registered agent configs
+   * @returns Array of all agent configurations
    */
-  public getAll(): Array<Agent> {
+  public getAll(): Array<AgentConfig> {
     return Array.from(this.agents.values());
   }
 
@@ -213,12 +244,9 @@ export class AgentRegistry {
   /**
    * Get the basenames of all agent config directories.
    * Used by normalizeInstallDir to strip known agent dir suffixes from paths.
-   * @returns Array of agent directory basenames (e.g., [".claude"])
+   * @returns Array of agent directory basenames (e.g., [".claude", ".cursor"])
    */
   public getAgentDirNames(): Array<string> {
-    return this.getAll().map((agent) => {
-      const agentDir = agent.getAgentDir({ installDir: "/" });
-      return path.basename(agentDir);
-    });
+    return this.getAll().map((agent) => path.basename(agent.agentDirName));
   }
 }

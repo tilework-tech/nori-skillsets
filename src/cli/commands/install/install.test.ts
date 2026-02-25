@@ -7,7 +7,7 @@ import * as clack from "@clack/prompts";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 import { getConfigPath, saveConfig } from "@/cli/config.js";
-import { AgentRegistry } from "@/cli/features/agentRegistry.js";
+import * as agentHandlers from "@/cli/features/shared/agentHandlers.js";
 
 import type * as versionModule from "@/cli/version.js";
 
@@ -330,7 +330,7 @@ describe("install noninteractive", () => {
     expect(config.installDir).toBe(originalInstallDir);
   });
 
-  it("should pass skipManifest to agent.installSkillset when provided", async () => {
+  it("should pass skipManifest to installSkillset when provided", async () => {
     await saveConfig({
       username: null,
       organizationUrl: null,
@@ -339,9 +339,8 @@ describe("install noninteractive", () => {
       installDir: tempDir,
     });
 
-    const agent = AgentRegistry.getInstance().get({ name: "claude-code" });
     const installSkillsetSpy = vi
-      .spyOn(agent, "installSkillset")
+      .spyOn(agentHandlers, "installSkillset")
       .mockResolvedValue(undefined);
 
     await noninteractive({
@@ -359,7 +358,7 @@ describe("install noninteractive", () => {
     installSkillsetSpy.mockRestore();
   });
 
-  it("should NOT pass skipManifest to agent.installSkillset when not provided", async () => {
+  it("should NOT pass skipManifest to installSkillset when not provided", async () => {
     await saveConfig({
       username: null,
       organizationUrl: null,
@@ -368,9 +367,8 @@ describe("install noninteractive", () => {
       installDir: tempDir,
     });
 
-    const agent = AgentRegistry.getInstance().get({ name: "claude-code" });
     const installSkillsetSpy = vi
-      .spyOn(agent, "installSkillset")
+      .spyOn(agentHandlers, "installSkillset")
       .mockResolvedValue(undefined);
 
     await noninteractive({

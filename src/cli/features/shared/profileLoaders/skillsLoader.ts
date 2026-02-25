@@ -1,6 +1,6 @@
 /**
- * Skills feature loader for Cursor
- * Installs skill configuration files to .cursor/skills/
+ * Shared skills loader
+ * Installs skill configuration files to the agent's skills directory
  */
 
 import * as fs from "fs/promises";
@@ -9,22 +9,21 @@ import * as path from "path";
 import { type Config } from "@/cli/config.js";
 import { copyBundledSkills } from "@/cli/features/bundled-skillsets/installer.js";
 import {
-  getCursorDir,
-  getCursorSkillsDir,
-} from "@/cli/features/cursor-agent/paths.js";
+  getAgentDir,
+  getSkillsDir,
+} from "@/cli/features/shared/agentHandlers.js";
 import { substituteTemplatePaths } from "@/cli/features/template.js";
 
-import type { CursorProfileLoader } from "@/cli/features/cursor-agent/skillsets/skillsetLoaderRegistry.js";
+import type { AgentConfig } from "@/cli/features/agentRegistry.js";
 import type { Skillset } from "@/cli/features/skillset.js";
 import type { Dirent } from "fs";
 
 /**
  * Copy a directory recursively, applying template substitution to markdown files
- *
- * @param args - Copy arguments
+ * @param args - Function arguments
  * @param args.src - Source directory path
  * @param args.dest - Destination directory path
- * @param args.installDir - Installation directory for template substitution
+ * @param args.installDir - The installation directory for template substitution
  */
 const copyDirWithTemplateSubstitution = async (args: {
   src: string;
@@ -58,29 +57,34 @@ const copyDirWithTemplateSubstitution = async (args: {
 };
 
 /**
- * Install skills
- *
- * @param args - Configuration arguments
- * @param args.config - Runtime configuration
- * @param args.skillset - Parsed skillset
+ * Install skills from a skillset to the agent's skills directory
+ * @param args - Function arguments
+ * @param args.agentConfig - The agent configuration
+ * @param args.config - The Nori configuration
+ * @param args.skillset - The parsed skillset
  */
-const installSkills = async (args: {
+export const installSkills = async (args: {
+  agentConfig: AgentConfig;
   config: Config;
   skillset: Skillset;
 }): Promise<void> => {
-  const { config, skillset } = args;
+  const { agentConfig, config, skillset } = args;
 
   const configDir = skillset.skillsDir;
-  const cursorDir = getCursorDir({ installDir: config.installDir });
-  const cursorSkillsDir = getCursorSkillsDir({
+  const agentDirPath = getAgentDir({
+    agentConfig,
+    installDir: config.installDir,
+  });
+  const skillsDirPath = getSkillsDir({
+    agentConfig,
     installDir: config.installDir,
   });
 
   // Remove existing skills directory if it exists
-  await fs.rm(cursorSkillsDir, { recursive: true, force: true });
+  await fs.rm(skillsDirPath, { recursive: true, force: true });
 
   // Create skills directory
-  await fs.mkdir(cursorSkillsDir, { recursive: true });
+  await fs.mkdir(skillsDirPath, { recursive: true });
 
   // Install inline skills from skillset's skills/ folder
   if (configDir != null) {
@@ -92,12 +96,12 @@ const installSkills = async (args: {
         const sourcePath = path.join(configDir, entry.name);
 
         if (!entry.isDirectory()) {
-          const destPath = path.join(cursorSkillsDir, entry.name);
+          const destPath = path.join(skillsDirPath, entry.name);
           if (entry.name.endsWith(".md")) {
             const content = await fs.readFile(sourcePath, "utf-8");
             const substituted = substituteTemplatePaths({
               content,
-              installDir: cursorDir,
+              installDir: agentDirPath,
             });
             await fs.writeFile(destPath, substituted);
           } else {
@@ -106,33 +110,21 @@ const installSkills = async (args: {
           continue;
         }
 
-        const destPath = path.join(cursorSkillsDir, entry.name);
+        const destPath = path.join(skillsDirPath, entry.name);
         await copyDirWithTemplateSubstitution({
           src: sourcePath,
           dest: destPath,
-          installDir: cursorDir,
+          installDir: agentDirPath,
         });
       }
     } catch {
-      // Profile skills directory not found - continue silently
+      // Skillset skills directory not found — continue silently
     }
   }
 
   // Copy bundled skills (skips any already provided by the skillset)
   await copyBundledSkills({
-    destSkillsDir: cursorSkillsDir,
-    installDir: cursorDir,
+    destSkillsDir: skillsDirPath,
+    installDir: agentDirPath,
   });
-};
-
-/**
- * Skills feature loader for Cursor
- */
-export const skillsLoader: CursorProfileLoader = {
-  name: "skills",
-  description: "Install skill configuration files for Cursor",
-  install: async (args: { config: Config; skillset: Skillset }) => {
-    const { config, skillset } = args;
-    await installSkills({ config, skillset });
-  },
 };

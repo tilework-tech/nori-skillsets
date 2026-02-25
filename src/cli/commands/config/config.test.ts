@@ -59,24 +59,41 @@ vi.mock("@/cli/features/manifest.js", () => ({
     .mockReturnValue("/mock/.nori/installed-manifest.json"),
 }));
 
-// Mock AgentRegistry - agent object is defined inline so vi.mock hoisting works
+// Mock shared agent handlers
+const mockRemoveSkillset = vi.fn();
+const mockIsInstalledAtDir = vi.fn().mockReturnValue(true);
+const mockDetectLocalChanges = vi.fn().mockResolvedValue(null);
+
+vi.mock("@/cli/features/shared/agentHandlers.js", () => ({
+  removeSkillset: (...args: Array<unknown>) => mockRemoveSkillset(...args),
+  isInstalledAtDir: (...args: Array<unknown>) => mockIsInstalledAtDir(...args),
+  detectLocalChanges: (...args: Array<unknown>) =>
+    mockDetectLocalChanges(...args),
+  getAgentDir: vi
+    .fn()
+    .mockImplementation(
+      (args: { agentConfig: { agentDirName: string }; installDir: string }) =>
+        `${args.installDir}/${args.agentConfig.agentDirName}`,
+    ),
+  getManagedFiles: vi
+    .fn()
+    .mockReturnValue(["CLAUDE.md", "settings.json", "nori-statusline.sh"]),
+  getManagedDirs: vi.fn().mockReturnValue(["skills", "commands", "agents"]),
+}));
+
+// Mock AgentRegistry - agent object is pure data config (no methods)
 vi.mock("@/cli/features/agentRegistry.js", () => {
   const mockAgent = {
     name: "claude-code",
     displayName: "Claude Code",
-    getAgentDir: vi
-      .fn()
-      .mockImplementation(
-        (args: { installDir: string }) => `${args.installDir}/.claude`,
-      ),
-    getManagedFiles: vi
-      .fn()
-      .mockReturnValue(["CLAUDE.md", "settings.json", "nori-statusline.sh"]),
-    getManagedDirs: vi.fn().mockReturnValue(["skills", "commands", "agents"]),
-    removeSkillset: vi.fn(),
-    installSkillset: vi.fn(),
-    isInstalledAtDir: vi.fn().mockReturnValue(true),
-    detectLocalChanges: vi.fn().mockResolvedValue(null),
+    description:
+      "Instructions, skills, subagents, commands, hooks, statusline, watch",
+    agentDirName: ".claude",
+    instructionFilePath: "CLAUDE.md",
+    configFileName: "CLAUDE.md",
+    skillsPath: "skills",
+    slashcommandsPath: "commands",
+    subagentsPath: "agents",
   };
   return {
     AgentRegistry: {
@@ -235,7 +252,6 @@ describe("configMain installDir change prompts", () => {
   it("should prompt to clean up old directory when installDir changes", async () => {
     const { configFlow } = await import("@/cli/prompts/flows/config.js");
     const { confirmAction } = await import("@/cli/prompts/confirm.js");
-    const { AgentRegistry } = await import("@/cli/features/agentRegistry.js");
 
     vi.mocked(configFlow).mockResolvedValueOnce({
       defaultAgents: ["claude-code"],
@@ -257,10 +273,11 @@ describe("configMain installDir change prompts", () => {
     const { configMain } = await import("./config.js");
     await configMain();
 
-    const mockAgent = AgentRegistry.getInstance().get({ name: "claude-code" });
-    expect(mockAgent.removeSkillset).toHaveBeenCalledWith({
-      installDir: oldInstallDir,
-    });
+    expect(mockRemoveSkillset).toHaveBeenCalledWith(
+      expect.objectContaining({
+        installDir: oldInstallDir,
+      }),
+    );
   });
 
   it("should clean up all agents installed at old directory, not just defaultAgents", async () => {
@@ -272,26 +289,21 @@ describe("configMain installDir change prompts", () => {
     const mockCursorAgent = {
       name: "cursor-agent",
       displayName: "Cursor",
-      getAgentDir: vi
-        .fn()
-        .mockImplementation(
-          (args: { installDir: string }) => `${args.installDir}/.cursor`,
-        ),
-      getManagedFiles: vi.fn().mockReturnValue([]),
-      getManagedDirs: vi
-        .fn()
-        .mockReturnValue(["skills", "commands", "agents", "rules"]),
-      removeSkillset: vi.fn(),
-      installSkillset: vi.fn(),
-      isInstalledAtDir: vi.fn().mockReturnValue(true),
-      detectLocalChanges: vi.fn().mockResolvedValue(null),
+      description: "Instructions, skills, subagents, commands",
+      agentDirName: ".cursor",
+      instructionFilePath: "rules/AGENTS.md",
+      configFileName: "CLAUDE.md",
+      skillsPath: "skills",
+      slashcommandsPath: "commands",
+      subagentsPath: "agents",
+      extraManagedDirs: ["rules"],
     };
 
     const registry = AgentRegistry.getInstance();
     const existingClaudeAgent = registry.get({ name: "claude-code" });
 
     // Make getAll return both agents
-    vi.mocked(registry.getAll as any).mockReturnValue([
+    vi.mocked(registry.getAll as any).mockReturnValueOnce([
       existingClaudeAgent,
       mockCursorAgent,
     ]);
@@ -319,12 +331,18 @@ describe("configMain installDir change prompts", () => {
     await configMain();
 
     // Both agents should have removeSkillset called since both are installed
-    expect(existingClaudeAgent.removeSkillset).toHaveBeenCalledWith({
-      installDir: oldInstallDir,
-    });
-    expect(mockCursorAgent.removeSkillset).toHaveBeenCalledWith({
-      installDir: oldInstallDir,
-    });
+    expect(mockRemoveSkillset).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentConfig: existingClaudeAgent,
+        installDir: oldInstallDir,
+      }),
+    );
+    expect(mockRemoveSkillset).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentConfig: mockCursorAgent,
+        installDir: oldInstallDir,
+      }),
+    );
   });
 
   it("should not install or clean up when user declines both prompts", async () => {
@@ -332,7 +350,6 @@ describe("configMain installDir change prompts", () => {
     const { confirmAction } = await import("@/cli/prompts/confirm.js");
     const { main: installMain } =
       await import("@/cli/commands/install/install.js");
-    const { AgentRegistry } = await import("@/cli/features/agentRegistry.js");
 
     vi.mocked(configFlow).mockResolvedValueOnce({
       defaultAgents: ["claude-code"],
@@ -353,9 +370,8 @@ describe("configMain installDir change prompts", () => {
     const { configMain } = await import("./config.js");
     await configMain();
 
-    const mockAgent = AgentRegistry.getInstance().get({ name: "claude-code" });
     expect(installMain).not.toHaveBeenCalled();
-    expect(mockAgent.removeSkillset).not.toHaveBeenCalled();
+    expect(mockRemoveSkillset).not.toHaveBeenCalled();
   });
 
   it("should skip all prompts when there is no active skillset", async () => {
@@ -454,7 +470,6 @@ describe("configMain installDir change prompts", () => {
     const { confirmAction } = await import("@/cli/prompts/confirm.js");
     const { main: installMain } =
       await import("@/cli/commands/install/install.js");
-    const { AgentRegistry } = await import("@/cli/features/agentRegistry.js");
 
     vi.mocked(configFlow).mockResolvedValueOnce({
       defaultAgents: ["claude-code"],
@@ -475,8 +490,7 @@ describe("configMain installDir change prompts", () => {
 
     // Track call order
     const callOrder: Array<string> = [];
-    const mockAgent = AgentRegistry.getInstance().get({ name: "claude-code" });
-    vi.mocked(mockAgent.removeSkillset).mockImplementation(async () => {
+    mockRemoveSkillset.mockImplementation(async () => {
       callOrder.push("cleanup");
     });
     vi.mocked(installMain).mockImplementation(async () => {
@@ -608,7 +622,6 @@ describe("configMain defaultAgents change prompts", () => {
   it("should prompt to clean up removed agents when defaultAgents shrinks", async () => {
     const { configFlow } = await import("@/cli/prompts/flows/config.js");
     const { confirmAction } = await import("@/cli/prompts/confirm.js");
-    const { AgentRegistry } = await import("@/cli/features/agentRegistry.js");
 
     vi.mocked(configFlow).mockResolvedValueOnce({
       defaultAgents: [],
@@ -629,16 +642,16 @@ describe("configMain defaultAgents change prompts", () => {
     const { configMain } = await import("./config.js");
     await configMain();
 
-    const mockAgent = AgentRegistry.getInstance().get({ name: "claude-code" });
-    expect(mockAgent.removeSkillset).toHaveBeenCalledWith({
-      installDir: tempDir,
-    });
+    expect(mockRemoveSkillset).toHaveBeenCalledWith(
+      expect.objectContaining({
+        installDir: tempDir,
+      }),
+    );
   });
 
   it("should not clean up removed agents when user declines", async () => {
     const { configFlow } = await import("@/cli/prompts/flows/config.js");
     const { confirmAction } = await import("@/cli/prompts/confirm.js");
-    const { AgentRegistry } = await import("@/cli/features/agentRegistry.js");
 
     vi.mocked(configFlow).mockResolvedValueOnce({
       defaultAgents: [],
@@ -665,7 +678,6 @@ describe("configMain defaultAgents change prompts", () => {
         message: expect.stringContaining("Remove"),
       }),
     );
-    const mockAgent = AgentRegistry.getInstance().get({ name: "claude-code" });
-    expect(mockAgent.removeSkillset).not.toHaveBeenCalled();
+    expect(mockRemoveSkillset).not.toHaveBeenCalled();
   });
 });

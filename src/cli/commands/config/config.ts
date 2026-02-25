@@ -16,6 +16,10 @@ import {
   updateConfig,
 } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
+import {
+  isInstalledAtDir,
+  removeSkillset,
+} from "@/cli/features/shared/agentHandlers.js";
 import { confirmAction } from "@/cli/prompts/confirm.js";
 import { configFlow } from "@/cli/prompts/flows/config.js";
 import { normalizeInstallDir } from "@/utils/path.js";
@@ -118,9 +122,9 @@ export const configMain = async (): Promise<void> => {
     // Clean up old directory first (while manifest still reflects old dir)
     if (shouldCleanup) {
       const allAgents = AgentRegistry.getInstance().getAll();
-      for (const agent of allAgents) {
-        if (agent.isInstalledAtDir({ path: oldInstallDir })) {
-          await agent.removeSkillset({ installDir: oldInstallDir });
+      for (const agentConfig of allAgents) {
+        if (isInstalledAtDir({ agentConfig, path: oldInstallDir })) {
+          await removeSkillset({ agentConfig, installDir: oldInstallDir });
         }
       }
       log.info(`Removed Nori configuration from "${oldInstallDir}".`);
@@ -170,8 +174,13 @@ export const configMain = async (): Promise<void> => {
 
       if (shouldCleanup) {
         for (const agentName of removedAgents) {
-          const agent = AgentRegistry.getInstance().get({ name: agentName });
-          await agent.removeSkillset({ installDir: normalizedInstallDir });
+          const agentConfig = AgentRegistry.getInstance().get({
+            name: agentName,
+          });
+          await removeSkillset({
+            agentConfig,
+            installDir: normalizedInstallDir,
+          });
         }
         log.info(
           `Removed configuration for ${removedAgents.join(", ")} at "${normalizedInstallDir}".`,

@@ -1,6 +1,6 @@
 /**
- * Slash commands feature loader for Cursor
- * Registers all Nori slash commands with Cursor
+ * Shared slash commands loader
+ * Copies slash command .md files to the agent's commands directory
  */
 
 import * as fs from "fs/promises";
@@ -9,37 +9,37 @@ import * as path from "path";
 import { log, note } from "@clack/prompts";
 
 import { type Config } from "@/cli/config.js";
-import {
-  getCursorDir,
-  getCursorCommandsDir,
-} from "@/cli/features/cursor-agent/paths.js";
+import { getAgentDir } from "@/cli/features/shared/agentHandlers.js";
 import { substituteTemplatePaths } from "@/cli/features/template.js";
 import { bold } from "@/cli/logger.js";
 
-import type { CursorProfileLoader } from "@/cli/features/cursor-agent/skillsets/skillsetLoaderRegistry.js";
+import type { AgentConfig } from "@/cli/features/agentRegistry.js";
 import type { Skillset } from "@/cli/features/skillset.js";
 
 /**
- * Register all slash commands for Cursor
- *
- * @param args - Configuration arguments
- * @param args.config - Runtime configuration
- * @param args.skillset - Parsed skillset
+ * Register all slash commands from a skillset to the agent's commands directory
+ * @param args - Function arguments
+ * @param args.agentConfig - The agent configuration
+ * @param args.config - The Nori configuration
+ * @param args.skillset - The parsed skillset
  */
-const registerSlashCommands = async (args: {
+export const installSlashCommands = async (args: {
+  agentConfig: AgentConfig;
   config: Config;
   skillset: Skillset;
 }): Promise<void> => {
-  const { config, skillset } = args;
+  const { agentConfig, config, skillset } = args;
 
   const configDir = skillset.slashcommandsDir;
-  const cursorCommandsDir = getCursorCommandsDir({
+  const agentDirPath = getAgentDir({
+    agentConfig,
     installDir: config.installDir,
   });
+  const commandsDir = path.join(agentDirPath, agentConfig.slashcommandsPath);
 
   // Remove existing commands directory if it exists, then recreate
-  await fs.rm(cursorCommandsDir, { recursive: true, force: true });
-  await fs.mkdir(cursorCommandsDir, { recursive: true });
+  await fs.rm(commandsDir, { recursive: true, force: true });
+  await fs.mkdir(commandsDir, { recursive: true });
 
   const registered: Array<string> = [];
   const skipped: Array<string> = [];
@@ -61,16 +61,15 @@ const registerSlashCommands = async (args: {
 
   for (const file of mdFiles) {
     const commandSrc = path.join(configDir, file);
-    const commandDest = path.join(cursorCommandsDir, file);
+    const commandDest = path.join(commandsDir, file);
     const commandName = file.replace(/\.md$/, "");
 
     try {
       await fs.access(commandSrc);
       const content = await fs.readFile(commandSrc, "utf-8");
-      const cursorDir = getCursorDir({ installDir: config.installDir });
       const substituted = substituteTemplatePaths({
         content,
-        installDir: cursorDir,
+        installDir: agentDirPath,
       });
       await fs.writeFile(commandDest, substituted);
       registered.push(commandName);
@@ -85,7 +84,11 @@ const registerSlashCommands = async (args: {
       text: `Registered ${registered.length} slash command${registered.length === 1 ? "" : "s"}`,
     });
     lines.push("", summary);
-    note(lines.join("\n"), "Cursor Slash Commands");
+    const noteTitle =
+      agentConfig.name === "claude-code"
+        ? "Slash Commands"
+        : `${agentConfig.displayName} Slash Commands`;
+    note(lines.join("\n"), noteTitle);
   }
   if (skipped.length > 0) {
     log.warn(
@@ -94,16 +97,4 @@ const registerSlashCommands = async (args: {
       } (not found): ${skipped.join(", ")}`,
     );
   }
-};
-
-/**
- * Slash commands feature loader for Cursor
- */
-export const slashCommandsLoader: CursorProfileLoader = {
-  name: "slashcommands",
-  description: "Register all Nori slash commands with Cursor",
-  install: async (args: { config: Config; skillset: Skillset }) => {
-    const { config, skillset } = args;
-    await registerSlashCommands({ config, skillset });
-  },
 };
