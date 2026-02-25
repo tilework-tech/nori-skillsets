@@ -9,7 +9,7 @@ import * as path from "path";
 
 import { log, note } from "@clack/prompts";
 
-import { updateConfig, getActiveSkillset, type Config } from "@/cli/config.js";
+import { getActiveSkillset, type Config } from "@/cli/config.js";
 import {
   detectExistingConfig,
   captureExistingConfigAsSkillset,
@@ -49,7 +49,8 @@ const CONFIG_FILE_NAME = "CLAUDE.md";
 export const claudeCodeAgent: Agent = {
   name: "claude-code",
   displayName: "Claude Code",
-  description: "Instructions, skills, subagents, commands, hooks, statusline",
+  description:
+    "Instructions, skills, subagents, commands, hooks, statusline, watch",
 
   getAgentDir: (args: { installDir: string }): string => {
     const { installDir } = args;
@@ -180,8 +181,11 @@ export const claudeCodeAgent: Agent = {
     });
   },
 
-  installSkillset: async (args: { config: Config }): Promise<void> => {
-    const { config } = args;
+  installSkillset: async (args: {
+    config: Config;
+    skipManifest?: boolean | null;
+  }): Promise<void> => {
+    const { config, skipManifest } = args;
 
     // Run all feature loaders, collecting settings labels
     const registry = claudeCodeAgent.getLoaderRegistry();
@@ -207,18 +211,23 @@ export const claudeCodeAgent: Agent = {
       const agentDir = claudeCodeAgent.getAgentDir({
         installDir: config.installDir,
       });
-      const manifestPath = getManifestPath({ agentName: claudeCodeAgent.name });
 
-      try {
-        const manifest = await computeDirectoryManifest({
-          dir: agentDir,
-          skillsetName,
-          managedFiles: claudeCodeAgent.getManagedFiles(),
-          managedDirs: claudeCodeAgent.getManagedDirs(),
+      if (!skipManifest) {
+        const manifestPath = getManifestPath({
+          agentName: claudeCodeAgent.name,
         });
-        await writeManifest({ manifestPath, manifest });
-      } catch {
-        // Non-fatal — manifest writing failure shouldn't block installation
+
+        try {
+          const manifest = await computeDirectoryManifest({
+            dir: agentDir,
+            skillsetName,
+            managedFiles: claudeCodeAgent.getManagedFiles(),
+            managedDirs: claudeCodeAgent.getManagedDirs(),
+          });
+          await writeManifest({ manifestPath, manifest });
+        } catch {
+          // Non-fatal — manifest writing failure shouldn't block installation
+        }
       }
 
       // Emit Skills note from the skillset's skills directory
@@ -275,8 +284,6 @@ export const claudeCodeAgent: Agent = {
     } catch {
       throw new Error(`Profile "${skillsetName}" not found in ${skillsetsDir}`);
     }
-
-    await updateConfig({ activeSkillset: skillsetName });
 
     log.success(`Switched to "${skillsetName}" profile for Claude Code`);
   },

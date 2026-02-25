@@ -13,6 +13,7 @@ import { hasExistingInstallation } from "@/cli/commands/install/installState.js"
 import { registryDownloadMain } from "@/cli/commands/registry-download/registryDownload.js";
 import {
   loadConfig,
+  updateConfig,
   getActiveSkillset,
   getDefaultAgents,
 } from "@/cli/config.js";
@@ -96,11 +97,15 @@ export const registryInstallMain = async (
 
   // Load config for auth and install dir resolution
   const config = await loadConfig();
-  const targetInstallDir = resolveInstallDir({
+  const resolved = resolveInstallDir({
     cliInstallDir: installDir,
-    config,
+    configInstallDir: config?.installDir,
     agentDirNames: AgentRegistry.getInstance().getAgentDirNames(),
   });
+  const targetInstallDir = resolved.path;
+
+  // Skip manifest operations when the install dir comes from a CLI override
+  const skipManifest = resolved.source === "cli";
   const agentNames = getDefaultAgents({ config, agentOverride: agent });
 
   // Step 1: Download the skillset from registry first (so it's available for install)
@@ -139,6 +144,7 @@ export const registryInstallMain = async (
           skillset: skillsetName,
           agent: agentName,
           silent: silent ?? null,
+          ...(skipManifest ? { skipManifest: true } : {}),
         });
       }
       // Initial install already sets the skillset and displays its own completion banners
@@ -174,7 +180,13 @@ export const registryInstallMain = async (
         installDir: targetInstallDir,
         agent: agentName,
         silent: true,
+        ...(skipManifest ? { skipManifest: true } : {}),
       });
+    }
+
+    // Persist activeSkillset to config unless this is a transient CLI override
+    if (resolved.source !== "cli") {
+      await updateConfig({ activeSkillset: skillsetName });
     }
 
     displaySuccessMessage({ skillsetName });

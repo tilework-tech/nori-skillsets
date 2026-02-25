@@ -7,6 +7,7 @@ import { log, select, isCancel, cancel } from "@clack/prompts";
 
 import {
   loadConfig,
+  updateConfig,
   getActiveSkillset,
   getDefaultAgents,
   type Config,
@@ -43,11 +44,17 @@ export const switchSkillsetAction = async (args: {
 
   // Determine installation directory: CLI flag > config > home dir
   const config = await loadConfig();
-  const installDir = resolveInstallDir({
+  const resolved = resolveInstallDir({
     cliInstallDir: globalOpts.installDir,
-    config,
+    configInstallDir: config?.installDir,
     agentDirNames: AgentRegistry.getInstance().getAgentDirNames(),
   });
+  const installDir = resolved.path;
+
+  // Skip manifest operations when the install dir comes from a CLI override.
+  // The manifest is stored globally per-agent and would produce false positives
+  // when compared against a transient override directory.
+  const skipManifest = resolved.source === "cli";
 
   // If no name provided, prompt for selection or error in non-interactive mode
   if (name == null) {
@@ -105,9 +112,11 @@ export const switchSkillsetAction = async (args: {
           agentName: agentName,
         }) => {
           const agent = AgentRegistry.getInstance().get({ name: agentName });
-          const localChanges = await agent.detectLocalChanges({
-            installDir: dir,
-          });
+          const localChanges = skipManifest
+            ? null
+            : await agent.detectLocalChanges({
+                installDir: dir,
+              });
           const config = await loadConfig();
           const currentProfile =
             config != null ? getActiveSkillset({ config }) : null;
@@ -163,6 +172,8 @@ export const switchSkillsetAction = async (args: {
             installDir: dir,
             agent: agentName,
             silent: true,
+            skillset: pName,
+            ...(skipManifest ? { skipManifest: true } : {}),
           });
         },
         onRedownload: redownloadEnabled
@@ -177,6 +188,11 @@ export const switchSkillsetAction = async (args: {
       },
     });
 
+    // Persist activeSkillset to config unless this is a transient CLI override
+    if (resolved.source !== "cli") {
+      await updateConfig({ activeSkillset: name });
+    }
+
     // Flow handles all UI (cancel messages, success notes) internally.
     // result is null on cancel, non-null on success — either way we're done.
     return;
@@ -190,11 +206,14 @@ export const switchSkillsetAction = async (args: {
   });
 
   // Check for local changes before proceeding (check first agent's manifest)
+  // Skip when --install-dir is explicitly provided to avoid false positives
   const firstAgentName = agentNames[0];
   const firstAgent = AgentRegistry.getInstance().get({ name: firstAgentName });
-  const localChanges = await firstAgent.detectLocalChanges({
-    installDir,
-  });
+  const localChanges = skipManifest
+    ? null
+    : await firstAgent.detectLocalChanges({
+        installDir,
+      });
 
   if (localChanges != null && !force) {
     throw new Error(
@@ -229,7 +248,14 @@ export const switchSkillsetAction = async (args: {
       installDir,
       agent: agentName,
       silent: true,
+      skillset: name,
+      ...(skipManifest ? { skipManifest: true } : {}),
     });
+  }
+
+  // Persist activeSkillset to config unless this is a transient CLI override
+  if (resolved.source !== "cli") {
+    await updateConfig({ activeSkillset: name });
   }
 };
 

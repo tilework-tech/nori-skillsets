@@ -382,7 +382,7 @@ describe("configLoader", () => {
       expect(fileContents.defaultAgents).toEqual(["claude-code"]);
     });
 
-    it("should use incoming installDir when no existing config exists", async () => {
+    it("should not persist incoming installDir to config even when no existing config exists", async () => {
       const config: Config = {
         installDir: "/fresh/install/path",
         activeSkillset: "senior-swe",
@@ -392,8 +392,9 @@ describe("configLoader", () => {
 
       const configFile = getConfigPath();
       const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
-      // No existing config, so incoming installDir should be used
-      expect(fileContents.installDir).toBe("/fresh/install/path");
+      // installDir should default to home dir, NOT the incoming value.
+      // Only `sks config` should persist installDir.
+      expect(fileContents.installDir).toBe(tempDir);
     });
 
     it("should use existing refresh token when provided instead of password", async () => {

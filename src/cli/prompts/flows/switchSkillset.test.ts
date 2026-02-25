@@ -556,12 +556,10 @@ describe("switchSkillsetFlow", () => {
     });
   });
 
-  describe("redownload prompt", () => {
-    it("should call onRedownload when user confirms redownload", async () => {
+  describe("redownload behavior", () => {
+    it("should call onRedownload unconditionally when callback is provided", async () => {
       mockCallbacks.onRedownload = vi.fn().mockResolvedValue(undefined);
-      vi.mocked(clack.confirm)
-        .mockResolvedValueOnce(true)
-        .mockResolvedValueOnce(true);
+      vi.mocked(clack.confirm).mockResolvedValueOnce(true);
 
       await switchSkillsetFlow({
         skillsetName: "product-manager",
@@ -572,46 +570,18 @@ describe("switchSkillsetFlow", () => {
       expect(mockCallbacks.onRedownload).toHaveBeenCalledWith({
         skillsetName: "product-manager",
       });
+      // Only one confirm call (the switch confirmation), no redownload prompt
+      expect(clack.confirm).toHaveBeenCalledTimes(1);
     });
 
-    it("should not call onRedownload when user declines redownload", async () => {
-      mockCallbacks.onRedownload = vi.fn().mockResolvedValue(undefined);
-      vi.mocked(clack.confirm)
-        .mockResolvedValueOnce(true)
-        .mockResolvedValueOnce(false);
-
-      await switchSkillsetFlow({
-        skillsetName: "product-manager",
-        installDir: "/test/dir",
-        callbacks: mockCallbacks,
+    it("should call onRedownload before executing the switch", async () => {
+      const callOrder: Array<string> = [];
+      mockCallbacks.onRedownload = vi.fn().mockImplementation(async () => {
+        callOrder.push("redownload");
       });
-
-      expect(mockCallbacks.onRedownload).not.toHaveBeenCalled();
-      // Should still complete the switch successfully
-      expect(mockCallbacks.onExecuteSwitch).toHaveBeenCalled();
-    });
-
-    it("should return null when user cancels at redownload prompt", async () => {
-      mockCallbacks.onRedownload = vi.fn().mockResolvedValue(undefined);
-      const cancelSymbol = Symbol.for("cancel");
-      vi.mocked(clack.confirm)
-        .mockResolvedValueOnce(true)
-        .mockResolvedValueOnce(cancelSymbol as any);
-      vi.mocked(clack.isCancel).mockImplementation(
-        (value) => value === cancelSymbol,
-      );
-
-      const result = await switchSkillsetFlow({
-        skillsetName: "product-manager",
-        installDir: "/test/dir",
-        callbacks: mockCallbacks,
+      mockCallbacks.onExecuteSwitch = vi.fn().mockImplementation(async () => {
+        callOrder.push("switch");
       });
-
-      expect(result).toBeNull();
-      expect(mockCallbacks.onExecuteSwitch).not.toHaveBeenCalled();
-    });
-
-    it("should not show redownload prompt when onRedownload is not provided", async () => {
       vi.mocked(clack.confirm).mockResolvedValueOnce(true);
 
       await switchSkillsetFlow({
@@ -620,8 +590,7 @@ describe("switchSkillsetFlow", () => {
         callbacks: mockCallbacks,
       });
 
-      // Only one confirm call (the switch confirmation)
-      expect(clack.confirm).toHaveBeenCalledTimes(1);
+      expect(callOrder).toEqual(["redownload", "switch"]);
     });
   });
 });

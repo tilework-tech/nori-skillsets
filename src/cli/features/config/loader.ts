@@ -140,9 +140,6 @@ const installConfig = async (args: { config: Config }): Promise<void> => {
       config.transcriptDestination ??
       existingConfig?.transcriptDestination ??
       null,
-    ...(existingConfig?.installDir == null && config.installDir != null
-      ? { installDir: config.installDir }
-      : {}),
   });
 
   const configPath = getConfigPath();

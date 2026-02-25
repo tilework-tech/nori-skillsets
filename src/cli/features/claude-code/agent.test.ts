@@ -178,8 +178,8 @@ describe("claudeCodeAgent.switchSkillset", () => {
     vi.clearAllMocks();
   });
 
-  it("should not persist a CLI-provided installDir override to the config", async () => {
-    // Create existing config with a specific installDir
+  it("should not update config on disk when switching skillsets", async () => {
+    // Create existing config
     const configFile = getConfigPath();
     await saveConfig({
       username: "test@example.com",
@@ -189,85 +189,26 @@ describe("claudeCodeAgent.switchSkillset", () => {
       installDir: tempDir,
     });
 
-    // Switch using a different installDir (simulating --install-dir /other/path)
-    const overrideDir = "/tmp/some-other-install-dir";
-    await claudeCodeAgent.switchSkillset({
-      installDir: overrideDir,
-      skillsetName: "documenter",
-    });
+    const configBefore = fs.readFileSync(configFile, "utf-8");
 
-    // The config should retain the original installDir, not the override
-    const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
-    expect(fileContents.installDir).toBe(tempDir);
-    expect(fileContents.activeSkillset).toBe("documenter");
-  });
-
-  it("should use home directory as installDir in config when no prior config exists", async () => {
-    const configFile = getConfigPath();
-
-    // No prior config exists — switch directly
-    await claudeCodeAgent.switchSkillset({
-      installDir: "/tmp/some-override-path",
-      skillsetName: "senior-swe",
-    });
-
-    const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
-    // Should default to home dir, not the override
-    expect(fileContents.installDir).toBe(tempDir);
-    expect(fileContents.activeSkillset).toBe("senior-swe");
-  });
-
-  it("should preserve organizations, isAdmin, and transcriptDestination when switching profiles", async () => {
-    // Create existing config with organizations, isAdmin, and transcriptDestination
-    const configFile = getConfigPath();
-    await saveConfig({
-      username: "test@example.com",
-      organizationUrl: "https://example.tilework.tech",
-      refreshToken: "test-refresh-token",
-      organizations: ["org-alpha", "org-beta"],
-      isAdmin: true,
-      activeSkillset: "senior-swe",
-      version: "20.0.0",
-      transcriptDestination: "myorg",
-      installDir: tempDir,
-    });
-
-    // Switch to a different profile
+    // Switch skillset via agent
     await claudeCodeAgent.switchSkillset({
       installDir: tempDir,
       skillsetName: "documenter",
     });
 
-    // Verify organizations, isAdmin, and transcriptDestination are preserved
-    const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
-    expect(fileContents.auth.organizations).toEqual(["org-alpha", "org-beta"]);
-    expect(fileContents.auth.isAdmin).toBe(true);
-    expect(fileContents.transcriptDestination).toBe("myorg");
-
-    // Also verify the profile was actually switched
-    expect(fileContents.activeSkillset).toBe("documenter");
+    // Config on disk should be completely unchanged — the agent layer
+    // no longer owns config persistence
+    const configAfter = fs.readFileSync(configFile, "utf-8");
+    expect(configAfter).toBe(configBefore);
   });
 
-  it("should preserve defaultAgents and garbageCollectTranscripts when switching profiles", async () => {
-    const configFile = getConfigPath();
-    await saveConfig({
-      username: "test@example.com",
-      organizationUrl: "https://example.tilework.tech",
-      refreshToken: "test-refresh-token",
-      activeSkillset: "senior-swe",
-      defaultAgents: ["claude-code", "cursor-agent"],
-      garbageCollectTranscripts: "enabled",
-      installDir: tempDir,
-    });
-
-    await claudeCodeAgent.switchSkillset({
-      installDir: tempDir,
-      skillsetName: "documenter",
-    });
-
-    const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
-    expect(fileContents.defaultAgents).toEqual(["claude-code", "cursor-agent"]);
-    expect(fileContents.garbageCollectTranscripts).toBe("enabled");
-    expect(fileContents.activeSkillset).toBe("documenter");
+  it("should validate that the skillset exists", async () => {
+    await expect(
+      claudeCodeAgent.switchSkillset({
+        installDir: tempDir,
+        skillsetName: "nonexistent-profile",
+      }),
+    ).rejects.toThrow("not found");
   });
 });
