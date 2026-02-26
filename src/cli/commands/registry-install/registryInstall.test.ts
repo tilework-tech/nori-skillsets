@@ -169,13 +169,14 @@ describe("registry-install", () => {
       skillsetName: "senior-swe",
     });
 
-    // Step 4: Regenerate files
+    // Step 4: Regenerate files - must include skillset name
     expect(installMain).toHaveBeenCalledTimes(1);
     expect(installMain).toHaveBeenCalledWith({
       nonInteractive: true,
       installDir: "/mock-home",
       agent: "claude-code",
       silent: true,
+      skillset: "senior-swe",
     });
 
     expect(registryDownloadMain).toHaveBeenCalledTimes(1);
