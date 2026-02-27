@@ -556,6 +556,287 @@ describe("switchSkillsetFlow", () => {
     });
   });
 
+  describe("local changes detected - view changes", () => {
+    it("should include viewDiff option when modified files exist and onReadFileDiff is provided", async () => {
+      mockCallbacks.onReadFileDiff = vi
+        .fn()
+        .mockResolvedValue({ original: "old", current: "new" });
+      vi.mocked(mockCallbacks.onPrepareSwitchInfo).mockResolvedValueOnce({
+        currentProfile: "senior-swe",
+        localChanges: {
+          modified: ["skills/my-skill/SKILL.md"],
+          added: [],
+          deleted: [],
+        },
+      });
+      vi.mocked(clack.select).mockResolvedValueOnce("proceed");
+      vi.mocked(clack.confirm).mockResolvedValueOnce(true);
+
+      await switchSkillsetFlow({
+        skillsetName: "product-manager",
+        installDir: "/test/dir",
+        callbacks: mockCallbacks,
+      });
+
+      const selectCall = vi.mocked(clack.select).mock.calls[0][0];
+      expect(selectCall.options).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ value: "viewDiff" }),
+        ]),
+      );
+    });
+
+    it("should not include viewDiff option when onReadFileDiff is not provided", async () => {
+      vi.mocked(mockCallbacks.onPrepareSwitchInfo).mockResolvedValueOnce({
+        currentProfile: "senior-swe",
+        localChanges: {
+          modified: ["skills/my-skill/SKILL.md"],
+          added: [],
+          deleted: [],
+        },
+      });
+      vi.mocked(clack.select).mockResolvedValueOnce("proceed");
+      vi.mocked(clack.confirm).mockResolvedValueOnce(true);
+
+      await switchSkillsetFlow({
+        skillsetName: "product-manager",
+        installDir: "/test/dir",
+        callbacks: mockCallbacks,
+      });
+
+      const selectCall = vi.mocked(clack.select).mock.calls[0][0];
+      expect(selectCall.options).not.toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ value: "viewDiff" }),
+        ]),
+      );
+    });
+
+    it("should not include viewDiff option when no modified files exist", async () => {
+      mockCallbacks.onReadFileDiff = vi.fn();
+      vi.mocked(mockCallbacks.onPrepareSwitchInfo).mockResolvedValueOnce({
+        currentProfile: "senior-swe",
+        localChanges: {
+          modified: [],
+          added: ["skills/new-skill/SKILL.md"],
+          deleted: ["skills/old-skill/SKILL.md"],
+        },
+      });
+      vi.mocked(clack.select).mockResolvedValueOnce("proceed");
+      vi.mocked(clack.confirm).mockResolvedValueOnce(true);
+
+      await switchSkillsetFlow({
+        skillsetName: "product-manager",
+        installDir: "/test/dir",
+        callbacks: mockCallbacks,
+      });
+
+      const selectCall = vi.mocked(clack.select).mock.calls[0][0];
+      expect(selectCall.options).not.toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ value: "viewDiff" }),
+        ]),
+      );
+    });
+
+    it("should show file picker when viewDiff selected with multiple modified files", async () => {
+      mockCallbacks.onReadFileDiff = vi
+        .fn()
+        .mockResolvedValue({ original: "old", current: "new" });
+      vi.mocked(mockCallbacks.onPrepareSwitchInfo).mockResolvedValueOnce({
+        currentProfile: "senior-swe",
+        localChanges: {
+          modified: ["skills/my-skill/SKILL.md", "skills/other/SKILL.md"],
+          added: [],
+          deleted: [],
+        },
+      });
+      // First select: viewDiff, second select: pick file, third select: proceed
+      vi.mocked(clack.select)
+        .mockResolvedValueOnce("viewDiff")
+        .mockResolvedValueOnce("skills/my-skill/SKILL.md")
+        .mockResolvedValueOnce("proceed");
+      vi.mocked(clack.confirm).mockResolvedValueOnce(true);
+
+      await switchSkillsetFlow({
+        skillsetName: "product-manager",
+        installDir: "/test/dir",
+        callbacks: mockCallbacks,
+      });
+
+      // Second select call should be the file picker
+      const filePickerCall = vi.mocked(clack.select).mock.calls[1][0];
+      expect(filePickerCall.options).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ value: "skills/my-skill/SKILL.md" }),
+          expect.objectContaining({ value: "skills/other/SKILL.md" }),
+        ]),
+      );
+    });
+
+    it("should skip file picker and show diff directly when only one modified file", async () => {
+      mockCallbacks.onReadFileDiff = vi.fn().mockResolvedValue({
+        original: "old content\n",
+        current: "new content\n",
+      });
+      vi.mocked(mockCallbacks.onPrepareSwitchInfo).mockResolvedValueOnce({
+        currentProfile: "senior-swe",
+        localChanges: {
+          modified: ["skills/my-skill/SKILL.md"],
+          added: [],
+          deleted: [],
+        },
+      });
+      // First select: viewDiff, second select: proceed (no file picker needed)
+      vi.mocked(clack.select)
+        .mockResolvedValueOnce("viewDiff")
+        .mockResolvedValueOnce("proceed");
+      vi.mocked(clack.confirm).mockResolvedValueOnce(true);
+
+      await switchSkillsetFlow({
+        skillsetName: "product-manager",
+        installDir: "/test/dir",
+        callbacks: mockCallbacks,
+      });
+
+      // Should call onReadFileDiff with the single modified file
+      expect(mockCallbacks.onReadFileDiff).toHaveBeenCalledWith({
+        relativePath: "skills/my-skill/SKILL.md",
+        installDir: "/test/dir",
+      });
+      // Should show a note with the diff content
+      expect(clack.note).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.stringContaining("skills/my-skill/SKILL.md"),
+      );
+      // Only 2 select calls: viewDiff + proceed (no file picker)
+      expect(clack.select).toHaveBeenCalledTimes(2);
+    });
+
+    it("should call onReadFileDiff and display diff note", async () => {
+      mockCallbacks.onReadFileDiff = vi.fn().mockResolvedValue({
+        original: "old content\n",
+        current: "new content\n",
+      });
+      vi.mocked(mockCallbacks.onPrepareSwitchInfo).mockResolvedValueOnce({
+        currentProfile: "senior-swe",
+        localChanges: {
+          modified: ["skills/my-skill/SKILL.md", "CLAUDE.md"],
+          added: [],
+          deleted: [],
+        },
+      });
+      vi.mocked(clack.select)
+        .mockResolvedValueOnce("viewDiff")
+        .mockResolvedValueOnce("skills/my-skill/SKILL.md")
+        .mockResolvedValueOnce("proceed");
+      vi.mocked(clack.confirm).mockResolvedValueOnce(true);
+
+      await switchSkillsetFlow({
+        skillsetName: "product-manager",
+        installDir: "/test/dir",
+        callbacks: mockCallbacks,
+      });
+
+      expect(mockCallbacks.onReadFileDiff).toHaveBeenCalledWith({
+        relativePath: "skills/my-skill/SKILL.md",
+        installDir: "/test/dir",
+      });
+      // Should show a note containing the diff
+      expect(clack.note).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.stringContaining("skills/my-skill/SKILL.md"),
+      );
+    });
+
+    it("should show diff unavailable note when onReadFileDiff returns null", async () => {
+      mockCallbacks.onReadFileDiff = vi.fn().mockResolvedValue(null);
+      vi.mocked(mockCallbacks.onPrepareSwitchInfo).mockResolvedValueOnce({
+        currentProfile: "senior-swe",
+        localChanges: {
+          modified: ["CLAUDE.md"],
+          added: [],
+          deleted: [],
+        },
+      });
+      vi.mocked(clack.select)
+        .mockResolvedValueOnce("viewDiff")
+        .mockResolvedValueOnce("proceed");
+      vi.mocked(clack.confirm).mockResolvedValueOnce(true);
+
+      await switchSkillsetFlow({
+        skillsetName: "product-manager",
+        installDir: "/test/dir",
+        callbacks: mockCallbacks,
+      });
+
+      expect(clack.note).toHaveBeenCalledWith(
+        expect.stringContaining("not available"),
+        expect.any(String),
+      );
+    });
+
+    it("should loop back to main select after viewing a diff", async () => {
+      mockCallbacks.onReadFileDiff = vi
+        .fn()
+        .mockResolvedValue({ original: "old\n", current: "new\n" });
+      vi.mocked(mockCallbacks.onPrepareSwitchInfo).mockResolvedValueOnce({
+        currentProfile: "senior-swe",
+        localChanges: {
+          modified: ["skills/my-skill/SKILL.md"],
+          added: [],
+          deleted: [],
+        },
+      });
+      // First select: viewDiff, second select: proceed
+      vi.mocked(clack.select)
+        .mockResolvedValueOnce("viewDiff")
+        .mockResolvedValueOnce("proceed");
+      vi.mocked(clack.confirm).mockResolvedValueOnce(true);
+
+      const result = await switchSkillsetFlow({
+        skillsetName: "product-manager",
+        installDir: "/test/dir",
+        callbacks: mockCallbacks,
+      });
+
+      // Should successfully complete after viewing diff and selecting proceed
+      expect(result).toEqual({
+        agentName: "claude-code",
+        skillsetName: "product-manager",
+      });
+      expect(mockCallbacks.onExecuteSwitch).toHaveBeenCalled();
+    });
+
+    it("should return null when user cancels at file picker", async () => {
+      mockCallbacks.onReadFileDiff = vi.fn();
+      vi.mocked(mockCallbacks.onPrepareSwitchInfo).mockResolvedValueOnce({
+        currentProfile: "senior-swe",
+        localChanges: {
+          modified: ["skills/my-skill/SKILL.md", "CLAUDE.md"],
+          added: [],
+          deleted: [],
+        },
+      });
+      const cancelSymbol = Symbol.for("cancel");
+      vi.mocked(clack.select)
+        .mockResolvedValueOnce("viewDiff")
+        .mockResolvedValueOnce(cancelSymbol as any);
+      vi.mocked(clack.isCancel).mockImplementation(
+        (value) => value === cancelSymbol,
+      );
+
+      const result = await switchSkillsetFlow({
+        skillsetName: "product-manager",
+        installDir: "/test/dir",
+        callbacks: mockCallbacks,
+      });
+
+      expect(result).toBeNull();
+      expect(mockCallbacks.onExecuteSwitch).not.toHaveBeenCalled();
+    });
+  });
+
   describe("redownload behavior", () => {
     it("should call onRedownload unconditionally when callback is provided", async () => {
       mockCallbacks.onRedownload = vi.fn().mockResolvedValue(undefined);

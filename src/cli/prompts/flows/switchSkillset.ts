@@ -27,6 +27,7 @@ import { validateSkillsetName } from "@/cli/prompts/validators.js";
 
 import type { ManifestDiff } from "@/cli/features/manifest.js";
 
+import { formatDiffForNote } from "./diffFormat.js";
 import { unwrapPrompt } from "./utils.js";
 
 /**
@@ -51,6 +52,12 @@ export type SwitchSkillsetCallbacks = {
     skillsetName: string;
   }) => Promise<void>;
   onRedownload?: ((args: { skillsetName: string }) => Promise<void>) | null;
+  onReadFileDiff?:
+    | ((args: {
+        relativePath: string;
+        installDir: string;
+      }) => Promise<{ original: string; current: string } | null>)
+    | null;
 };
 
 /**
@@ -167,26 +174,85 @@ export const switchSkillsetFlow = async (args: {
     const summary = buildChangesSummary({ diff: localChanges });
     note(summary, "Local Changes Detected");
 
-    const changeAction = unwrapPrompt({
-      value: await select({
-        message: "How would you like to proceed?",
-        options: [
-          {
-            value: "proceed" as const,
-            label: "Proceed anyway",
-            hint: "changes will be lost",
-          },
-          {
-            value: "capture" as const,
-            label: "Save current config as new skillset first",
-          },
-          { value: "abort" as const, label: "Abort" },
-        ],
-      }),
-      cancelMessage: cancelMsg,
-    });
+    const hasModified = localChanges.modified.length > 0;
+    const hasViewDiff = hasModified && callbacks.onReadFileDiff != null;
 
-    if (changeAction == null) return null;
+    type ChangeAction = "proceed" | "capture" | "abort" | "viewDiff";
+    let changeAction: ChangeAction | null = null;
+
+    while (changeAction == null || changeAction === "viewDiff") {
+      const options: Array<{
+        value: ChangeAction;
+        label: string;
+        hint?: string;
+      }> = [
+        {
+          value: "proceed",
+          label: "Proceed anyway",
+          hint: "changes will be lost",
+        },
+        {
+          value: "capture",
+          label: "Save current config as new skillset first",
+        },
+        ...(hasViewDiff
+          ? [
+              {
+                value: "viewDiff" as const,
+                label: "View changes",
+                hint: "see what was modified",
+              },
+            ]
+          : []),
+        { value: "abort", label: "Abort" },
+      ];
+
+      changeAction = unwrapPrompt({
+        value: await select({
+          message: "How would you like to proceed?",
+          options,
+        }),
+        cancelMessage: cancelMsg,
+      });
+
+      if (changeAction == null) return null;
+
+      if (changeAction === "viewDiff") {
+        let selectedFile: string | null = null;
+
+        if (localChanges.modified.length === 1) {
+          selectedFile = localChanges.modified[0];
+        } else {
+          selectedFile = unwrapPrompt({
+            value: await select({
+              message: "Which file would you like to view?",
+              options: localChanges.modified.map((file) => ({
+                value: file,
+                label: file,
+              })),
+            }),
+            cancelMessage: cancelMsg,
+          });
+
+          if (selectedFile == null) return null;
+        }
+
+        const diffResult = await callbacks.onReadFileDiff!({
+          relativePath: selectedFile,
+          installDir,
+        });
+
+        if (diffResult == null) {
+          note("Diff not available for this file.", `Diff unavailable`);
+        } else {
+          const diffContent = formatDiffForNote({
+            existingContent: diffResult.original,
+            localContent: diffResult.current,
+          });
+          note(diffContent, `Changes in "${selectedFile}"`);
+        }
+      }
+    }
 
     if (changeAction === "abort") {
       cancel(cancelMsg);

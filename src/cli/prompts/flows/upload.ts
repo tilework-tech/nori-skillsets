@@ -12,10 +12,9 @@
  */
 
 import { intro, outro, select, text, spinner, note, log } from "@clack/prompts";
-import { diffLines } from "diff";
 import * as semver from "semver";
 
-import { bold, green, red } from "@/cli/logger.js";
+import { bold, red } from "@/cli/logger.js";
 
 import type {
   SkillConflict,
@@ -24,6 +23,7 @@ import type {
   ExtractedSkillsSummary,
 } from "@/api/registrar.js";
 
+import { formatDiffForNote } from "./diffFormat.js";
 import { unwrapPrompt } from "./utils.js";
 
 /**
@@ -245,39 +245,6 @@ const formatConflictMessage = (args: {
   }
 
   return parts.join(" ");
-};
-
-/**
- * Format a diff for terminal display with colored +/- lines
- *
- * @param args - The function arguments
- * @param args.existingContent - The existing SKILL.md content from the registry
- * @param args.localContent - The local SKILL.md content
- *
- * @returns Formatted diff string for display in a note
- */
-const formatDiffForNote = (args: {
-  existingContent: string;
-  localContent: string;
-}): string => {
-  const { existingContent, localContent } = args;
-  const changes = diffLines(existingContent, localContent);
-  const lines: Array<string> = [];
-
-  for (const change of changes) {
-    const changeLines = change.value.replace(/\n$/, "").split("\n");
-    for (const line of changeLines) {
-      if (change.added) {
-        lines.push(green({ text: `+ ${line}` }));
-      } else if (change.removed) {
-        lines.push(red({ text: `- ${line}` }));
-      } else {
-        lines.push(`  ${line}`);
-      }
-    }
-  }
-
-  return lines.join("\n");
 };
 
 /**
