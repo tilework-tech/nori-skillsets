@@ -201,7 +201,7 @@ describe("install noninteractive", () => {
     expect(config.activeSkillset).toBe("senior-swe");
   });
 
-  it("should exit with error when no --skillset flag and no existing skillset", async () => {
+  it("should exit with error when no skillset provided and no existing skillset", async () => {
     // Create minimal config without a skillset
     await saveConfig({
       username: null,
@@ -226,11 +226,20 @@ describe("install noninteractive", () => {
 
       // Error messages should go through @clack/prompts, not legacy logger
       expect(clack.log.error).toHaveBeenCalledWith(
+        expect.stringContaining("requires a skillset"),
+      );
+      // Error message should NOT reference non-existent --skillset CLI flag
+      expect(clack.log.error).not.toHaveBeenCalledWith(
         expect.stringContaining("--skillset"),
       );
-      // Usage example should be shown in a note, not log.info
+      // Usage example should show correct CLI syntax
       expect(clack.note).toHaveBeenCalledWith(
         expect.stringContaining("nori-skillsets install"),
+        expect.any(String),
+      );
+      // Usage example should NOT reference non-existent --skillset flag
+      expect(clack.note).not.toHaveBeenCalledWith(
+        expect.stringContaining("--skillset"),
         expect.any(String),
       );
     } finally {
