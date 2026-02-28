@@ -7,7 +7,6 @@ import * as clack from "@clack/prompts";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 import { getConfigPath, saveConfig } from "@/cli/config.js";
-import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 
 import type * as versionModule from "@/cli/version.js";
 
@@ -83,6 +82,15 @@ vi.mock("@/cli/features/manifest.js", () => ({
   writeManifest: vi.fn().mockResolvedValue(undefined),
   getManifestPath: vi.fn().mockReturnValue("/mock/manifest.json"),
 }));
+
+// Mock agentOperations - shared functions that replaced agent methods
+vi.mock("@/cli/features/agentOperations.js", async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
+  return {
+    ...actual,
+    installSkillset: vi.fn().mockResolvedValue(undefined),
+  };
+});
 
 // Mock @clack/prompts for UI output assertions
 vi.mock("@clack/prompts", () => ({
@@ -330,7 +338,10 @@ describe("install noninteractive", () => {
     expect(config.installDir).toBe(originalInstallDir);
   });
 
-  it("should pass skipManifest to agent.installSkillset when provided", async () => {
+  it("should pass skipManifest to installSkillset when provided", async () => {
+    const { installSkillset } =
+      await import("@/cli/features/agentOperations.js");
+
     await saveConfig({
       username: null,
       organizationUrl: null,
@@ -338,11 +349,6 @@ describe("install noninteractive", () => {
       version: "20.0.0",
       installDir: tempDir,
     });
-
-    const agent = AgentRegistry.getInstance().get({ name: "claude-code" });
-    const installSkillsetSpy = vi
-      .spyOn(agent, "installSkillset")
-      .mockResolvedValue(undefined);
 
     await noninteractive({
       installDir: tempDir,
@@ -350,16 +356,17 @@ describe("install noninteractive", () => {
       skipManifest: true,
     });
 
-    expect(installSkillsetSpy).toHaveBeenCalledWith(
+    expect(vi.mocked(installSkillset)).toHaveBeenCalledWith(
       expect.objectContaining({
         skipManifest: true,
       }),
     );
-
-    installSkillsetSpy.mockRestore();
   });
 
-  it("should NOT pass skipManifest to agent.installSkillset when not provided", async () => {
+  it("should NOT pass skipManifest to installSkillset when not provided", async () => {
+    const { installSkillset } =
+      await import("@/cli/features/agentOperations.js");
+
     await saveConfig({
       username: null,
       organizationUrl: null,
@@ -368,22 +375,15 @@ describe("install noninteractive", () => {
       installDir: tempDir,
     });
 
-    const agent = AgentRegistry.getInstance().get({ name: "claude-code" });
-    const installSkillsetSpy = vi
-      .spyOn(agent, "installSkillset")
-      .mockResolvedValue(undefined);
-
     await noninteractive({
       installDir: tempDir,
       skillset: "senior-swe",
     });
 
-    expect(installSkillsetSpy).toHaveBeenCalledWith(
+    expect(vi.mocked(installSkillset)).toHaveBeenCalledWith(
       expect.not.objectContaining({
         skipManifest: true,
       }),
     );
-
-    installSkillsetSpy.mockRestore();
   });
 });

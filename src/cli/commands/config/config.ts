@@ -15,6 +15,10 @@ import {
   loadConfig,
   updateConfig,
 } from "@/cli/config.js";
+import {
+  isInstalledAtDir,
+  removeSkillset,
+} from "@/cli/features/agentOperations.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { confirmAction } from "@/cli/prompts/confirm.js";
 import { configFlow } from "@/cli/prompts/flows/config.js";
@@ -119,8 +123,8 @@ export const configMain = async (): Promise<void> => {
     if (shouldCleanup) {
       const allAgents = AgentRegistry.getInstance().getAll();
       for (const agent of allAgents) {
-        if (agent.isInstalledAtDir({ path: oldInstallDir })) {
-          await agent.removeSkillset({ installDir: oldInstallDir });
+        if (isInstalledAtDir({ agent, path: oldInstallDir })) {
+          await removeSkillset({ agent, installDir: oldInstallDir });
         }
       }
       log.info(`Removed Nori configuration from "${oldInstallDir}".`);
@@ -171,7 +175,7 @@ export const configMain = async (): Promise<void> => {
       if (shouldCleanup) {
         for (const agentName of removedAgents) {
           const agent = AgentRegistry.getInstance().get({ name: agentName });
-          await agent.removeSkillset({ installDir: normalizedInstallDir });
+          await removeSkillset({ agent, installDir: normalizedInstallDir });
         }
         log.info(
           `Removed configuration for ${removedAgents.join(", ")} at "${normalizedInstallDir}".`,

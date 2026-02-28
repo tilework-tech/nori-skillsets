@@ -17,6 +17,7 @@ import {
   getActiveSkillset,
   getDefaultAgents,
 } from "@/cli/config.js";
+import { switchSkillset } from "@/cli/features/agentOperations.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { getNoriSkillsetsDir } from "@/cli/features/paths.js";
 import { bold, brightCyan, green } from "@/cli/logger.js";
@@ -169,7 +170,8 @@ export const registryInstallMain = async (
 
     for (const agentName of agentNames) {
       const agentImpl = AgentRegistry.getInstance().get({ name: agentName });
-      await agentImpl.switchSkillset({
+      await switchSkillset({
+        agent: agentImpl,
         installDir: targetInstallDir,
         skillsetName,
       });

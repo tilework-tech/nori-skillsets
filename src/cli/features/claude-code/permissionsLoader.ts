@@ -7,7 +7,6 @@
 import * as fs from "fs/promises";
 import * as path from "path";
 
-import { getClaudeSettingsFile } from "@/cli/features/claude-code/paths.js";
 import { getNoriSkillsetsDir } from "@/cli/features/paths.js";
 
 import type { AgentLoader } from "@/cli/features/agentRegistry.js";
@@ -17,19 +16,18 @@ export const permissionsLoader: AgentLoader = {
   description: "Configure permissions for profiles and skills directories",
   managedFiles: ["settings.json"],
   run: async ({ agent, config }) => {
-    const claudeSettingsFile = getClaudeSettingsFile({
-      installDir: config.installDir,
-    });
+    const agentDir = agent.getAgentDir({ installDir: config.installDir });
+    const settingsFile = path.join(agentDir, "settings.json");
     const noriProfilesDir = getNoriSkillsetsDir();
     const skillsDir = agent.getSkillsDir({ installDir: config.installDir });
 
-    // Create .claude directory if it doesn't exist
-    await fs.mkdir(path.dirname(claudeSettingsFile), { recursive: true });
+    // Create agent directory if it doesn't exist
+    await fs.mkdir(agentDir, { recursive: true });
 
     // Read or initialize settings
     let settings: Record<string, unknown> = {};
     try {
-      const content = await fs.readFile(claudeSettingsFile, "utf-8");
+      const content = await fs.readFile(settingsFile, "utf-8");
       settings = JSON.parse(content);
     } catch {
       settings = {
@@ -59,6 +57,6 @@ export const permissionsLoader: AgentLoader = {
     settings.permissions = permissions;
 
     // Write back
-    await fs.writeFile(claudeSettingsFile, JSON.stringify(settings, null, 2));
+    await fs.writeFile(settingsFile, JSON.stringify(settings, null, 2));
   },
 };

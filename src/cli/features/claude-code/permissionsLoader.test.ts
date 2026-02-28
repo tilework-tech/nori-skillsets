@@ -10,25 +10,18 @@ import * as path from "path";
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
+import { permissionsLoader } from "@/cli/features/claude-code/permissionsLoader.js";
+
 import type { Config } from "@/cli/config.js";
 import type { AgentConfig } from "@/cli/features/agentRegistry.js";
 
-// Mock paths to use test directories
-const TEST_NORI_DIR = "/tmp/permissions-loader-test-nori";
+// Use os.tmpdir() for test nori directory
+let TEST_NORI_DIR: string;
 
 vi.mock("@/cli/features/paths.js", () => ({
   getNoriDir: () => TEST_NORI_DIR,
   getNoriSkillsetsDir: () => `${TEST_NORI_DIR}/profiles`,
 }));
-
-// Mock os.homedir
-vi.mock("os", async (importOriginal) => {
-  const actual = await importOriginal<typeof os>();
-  return {
-    ...actual,
-    homedir: vi.fn().mockReturnValue(actual.homedir()),
-  };
-});
 
 describe("permissionsLoader", () => {
   let tempDir: string;
@@ -37,19 +30,15 @@ describe("permissionsLoader", () => {
     tempDir = fs.mkdtempSync(
       path.join(os.tmpdir(), "permissions-loader-test-"),
     );
-
-    // Clean up test nori dir
-    try {
-      fs.rmSync(TEST_NORI_DIR, { recursive: true, force: true });
-    } catch {}
+    TEST_NORI_DIR = fs.mkdtempSync(
+      path.join(os.tmpdir(), "permissions-loader-nori-"),
+    );
     fs.mkdirSync(`${TEST_NORI_DIR}/profiles`, { recursive: true });
   });
 
   afterEach(() => {
     fs.rmSync(tempDir, { recursive: true, force: true });
-    try {
-      fs.rmSync(TEST_NORI_DIR, { recursive: true, force: true });
-    } catch {}
+    fs.rmSync(TEST_NORI_DIR, { recursive: true, force: true });
     vi.clearAllMocks();
   });
 
@@ -70,9 +59,6 @@ describe("permissionsLoader", () => {
   });
 
   it("should create settings.json with permissions when it does not exist", async () => {
-    const { permissionsLoader } =
-      await import("@/cli/features/claude-code/permissionsLoader.js");
-
     const agent = createTestAgent();
     const config: Config = { installDir: tempDir };
 
@@ -91,9 +77,6 @@ describe("permissionsLoader", () => {
   });
 
   it("should add directories to existing settings.json without overwriting other settings", async () => {
-    const { permissionsLoader } =
-      await import("@/cli/features/claude-code/permissionsLoader.js");
-
     const agent = createTestAgent();
     const config: Config = { installDir: tempDir };
 
@@ -122,9 +105,6 @@ describe("permissionsLoader", () => {
   });
 
   it("should not duplicate directories when run multiple times", async () => {
-    const { permissionsLoader } =
-      await import("@/cli/features/claude-code/permissionsLoader.js");
-
     const agent = createTestAgent();
     const config: Config = { installDir: tempDir };
 
@@ -146,10 +126,7 @@ describe("permissionsLoader", () => {
     expect(skillsCount).toBe(1);
   });
 
-  it("should have the correct name and description", async () => {
-    const { permissionsLoader } =
-      await import("@/cli/features/claude-code/permissionsLoader.js");
-
+  it("should have the correct name and description", () => {
     expect(permissionsLoader.name).toBe("permissions");
     expect(permissionsLoader.managedFiles).toContain("settings.json");
   });

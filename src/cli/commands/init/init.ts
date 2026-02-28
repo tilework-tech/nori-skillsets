@@ -21,6 +21,12 @@ import {
   getDefaultAgents,
   type Config,
 } from "@/cli/config.js";
+import {
+  isInstalledAtDir,
+  detectExistingConfig,
+  captureExistingConfig,
+  markInstall,
+} from "@/cli/features/agentOperations.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { getNoriSkillsetsDir } from "@/cli/features/paths.js";
 import { initFlow } from "@/cli/prompts/flows/init.js";
@@ -86,11 +92,11 @@ export const initMain = async (args?: {
           const existingConfig = await loadConfig();
           if (existingConfig != null) return null;
           // Skip detection if default agent is already installed at this location
-          if (defaultAgent.isInstalledAtDir({ path: dir })) return null;
-          return (
-            (await defaultAgent.detectExistingConfig?.({ installDir: dir })) ??
-            null
-          );
+          if (isInstalledAtDir({ agent: defaultAgent, path: dir })) return null;
+          return await detectExistingConfig({
+            agent: defaultAgent,
+            installDir: dir,
+          });
         },
         onCaptureConfig: async ({ installDir: dir, skillsetName }) => {
           // Build a config object for the agent to use when restoring managed config
@@ -103,7 +109,8 @@ export const initMain = async (args?: {
             const agent = AgentRegistry.getInstance().get({
               name: agentName,
             });
-            await agent.captureExistingConfig?.({
+            await captureExistingConfig({
+              agent,
               installDir: dir,
               skillsetName,
               config,
@@ -133,7 +140,8 @@ export const initMain = async (args?: {
             const agent = AgentRegistry.getInstance().get({
               name: agentName,
             });
-            agent.markInstall({
+            markInstall({
+              agent,
               path: dir,
               skillsetName: capturedSkillsetName,
             });
@@ -162,9 +170,10 @@ export const initMain = async (args?: {
   // If no existing config and default agent not already installed, check for existing configuration to capture
   if (
     existingConfig == null &&
-    !defaultAgent.isInstalledAtDir({ path: normalizedInstallDir })
+    !isInstalledAtDir({ agent: defaultAgent, path: normalizedInstallDir })
   ) {
-    const detectedConfig = await defaultAgent.detectExistingConfig?.({
+    const detectedConfig = await detectExistingConfig({
+      agent: defaultAgent,
       installDir: normalizedInstallDir,
     });
     if (detectedConfig != null) {
@@ -190,7 +199,8 @@ export const initMain = async (args?: {
     };
     for (const agentName of defaultAgentNames) {
       const agent = AgentRegistry.getInstance().get({ name: agentName });
-      await agent.captureExistingConfig?.({
+      await captureExistingConfig({
+        agent,
         installDir: normalizedInstallDir,
         skillsetName: capturedSkillsetName,
         config,
@@ -202,7 +212,8 @@ export const initMain = async (args?: {
   // Mark this directory as having all default agents installed
   for (const agentName of defaultAgentNames) {
     const agent = AgentRegistry.getInstance().get({ name: agentName });
-    agent.markInstall({
+    markInstall({
+      agent,
       path: normalizedInstallDir,
       skillsetName: capturedSkillsetName,
     });

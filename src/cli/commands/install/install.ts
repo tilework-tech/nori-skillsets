@@ -25,6 +25,7 @@ import {
   getActiveSkillset,
   type Config,
 } from "@/cli/config.js";
+import { installSkillset } from "@/cli/features/agentOperations.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import {
   buildCLIEventParams,
@@ -116,7 +117,8 @@ const completeInstallation = async (args: {
   createProgressMarker();
 
   // Delegate to agent: run loaders, write manifest, mark install
-  await agent.installSkillset({
+  await installSkillset({
+    agent,
     config,
     ...(skipManifest ? { skipManifest: true } : {}),
   });

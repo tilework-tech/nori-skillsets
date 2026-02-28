@@ -19,7 +19,10 @@ import {
   getActiveSkillset,
   getDefaultAgents,
 } from "@/cli/config.js";
-import { AgentRegistry, type Agent } from "@/cli/features/agentRegistry.js";
+import {
+  AgentRegistry,
+  type AgentConfig,
+} from "@/cli/features/agentRegistry.js";
 import { getNoriSkillsetsDir } from "@/cli/features/paths.js";
 import {
   addSkillToNoriJson,
@@ -119,7 +122,7 @@ const installSkill = async (args: {
   ref: string | null;
   subpath: string | null;
   type: NoriJsonType;
-  agents: Array<Agent>;
+  agents: Array<AgentConfig>;
   cliName?: CliName | null;
 }): Promise<void> => {
   const {

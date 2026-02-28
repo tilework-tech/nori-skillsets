@@ -78,7 +78,6 @@ const fileExists = async (args: { filePath: string }): Promise<boolean> => {
  * @param args - Either { skillsetName } or { skillsetDir }
  * @param args.skillsetName - Name of the skillset to resolve relative to ~/.nori/profiles/
  * @param args.skillsetDir - Direct absolute path to the skillset directory
- * @param args.configFileName - Override the root config filename (defaults to "CLAUDE.md")
  *
  * @throws Error if the directory doesn't exist or has no nori.json
  *
@@ -88,10 +87,9 @@ const fileExists = async (args: { filePath: string }): Promise<boolean> => {
 export const parseSkillset = async (args: {
   skillsetName?: string | null;
   skillsetDir?: string | null;
-  configFileName?: string | null;
 }): Promise<Skillset> => {
   const { skillsetName, skillsetDir: explicitDir } = args;
-  const configFileName = args.configFileName ?? "CLAUDE.md";
+  const configFileName = "CLAUDE.md";
 
   const dir =
     explicitDir != null
