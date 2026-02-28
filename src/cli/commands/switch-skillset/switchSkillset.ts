@@ -3,6 +3,9 @@
  * Handles skillset listing, loading, and switching
  */
 
+import * as fs from "fs/promises";
+import * as path from "path";
+
 import { log, select, isCancel, cancel } from "@clack/prompts";
 
 import {
@@ -19,6 +22,8 @@ import {
 } from "@/cli/features/agentOperations.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { listSkillsets } from "@/cli/features/managedFolder.js";
+import { getNoriSkillsetsDir } from "@/cli/features/paths.js";
+import { substituteTemplatePaths } from "@/cli/features/template.js";
 import { setSilentMode, isSilentMode } from "@/cli/logger.js";
 import { switchSkillsetFlow } from "@/cli/prompts/flows/switchSkillset.js";
 import { resolveInstallDir } from "@/utils/path.js";
@@ -193,6 +198,64 @@ export const switchSkillsetAction = async (args: {
               });
             }
           : undefined,
+        onReadFileDiff: async ({ relativePath, installDir: dir }) => {
+          const currentConfig = await loadConfig();
+          const currentProfileName =
+            currentConfig != null
+              ? getActiveSkillset({ config: currentConfig })
+              : null;
+          if (currentProfileName == null) return null;
+
+          const diffAgentNames = getDefaultAgents({ config: currentConfig });
+          const diffAgent = AgentRegistry.getInstance().get({
+            name: diffAgentNames[0],
+          });
+          const agentDir = diffAgent.getAgentDir({ installDir: dir });
+          const currentPath = path.join(agentDir, relativePath);
+          const profileDir = path.join(
+            getNoriSkillsetsDir(),
+            currentProfileName,
+          );
+
+          // Map installed path back to profile source path
+          let sourcePath: string | null = null;
+          if (relativePath.startsWith("skills/")) {
+            sourcePath = path.join(profileDir, relativePath);
+          } else if (relativePath.startsWith("commands/")) {
+            sourcePath = path.join(
+              profileDir,
+              "slashcommands",
+              relativePath.slice("commands/".length),
+            );
+          } else if (relativePath.startsWith("agents/")) {
+            sourcePath = path.join(
+              profileDir,
+              "subagents",
+              relativePath.slice("agents/".length),
+            );
+          }
+
+          if (sourcePath == null) return null;
+
+          try {
+            const [currentContent, sourceContent] = await Promise.all([
+              fs.readFile(currentPath, "utf-8"),
+              fs.readFile(sourcePath, "utf-8"),
+            ]);
+
+            // Apply template substitution to .md files (matches install behavior)
+            const original = relativePath.endsWith(".md")
+              ? substituteTemplatePaths({
+                  content: sourceContent,
+                  installDir: agentDir,
+                })
+              : sourceContent;
+
+            return { original, current: currentContent };
+          } catch {
+            return null;
+          }
+        },
       },
     });
 

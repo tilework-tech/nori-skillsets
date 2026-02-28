@@ -188,12 +188,9 @@ export const noninteractive = async (args?: {
 
   if (skillset == null && existingSkillset == null) {
     log.error(
-      "Non-interactive install requires --skillset flag when no existing skillset is set",
+      "Non-interactive install requires a skillset when no existing skillset is set",
     );
-    note(
-      "nori-skillsets install --non-interactive --skillset <skillset-name>",
-      "Example",
-    );
+    note("nori-skillsets install <skillset-name>", "Example");
     process.exit(1);
   }
 

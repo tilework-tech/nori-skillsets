@@ -182,6 +182,7 @@ export const registryInstallMain = async (
         installDir: targetInstallDir,
         agent: agentName,
         silent: true,
+        skillset: skillsetName,
         ...(skipManifest ? { skipManifest: true } : {}),
       });
     }
