@@ -8,6 +8,7 @@
 import { log } from "@clack/prompts";
 
 import { loadConfig, updateConfig, getDefaultAgents } from "@/cli/config.js";
+import { removeSkillset } from "@/cli/features/agentOperations.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { resolveInstallDir } from "@/utils/path.js";
 
@@ -43,7 +44,7 @@ export const clearMain = async (args?: {
 
   for (const agentName of agentNames) {
     const agentImpl = AgentRegistry.getInstance().get({ name: agentName });
-    await agentImpl.removeSkillset({ installDir: effectiveInstallDir });
+    await removeSkillset({ agent: agentImpl, installDir: effectiveInstallDir });
   }
 
   await updateConfig({ activeSkillset: null });

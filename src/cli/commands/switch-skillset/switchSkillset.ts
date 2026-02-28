@@ -15,6 +15,11 @@ import {
   getDefaultAgents,
   type Config,
 } from "@/cli/config.js";
+import {
+  switchSkillset as switchSkillsetOp,
+  detectLocalChanges,
+  captureExistingConfig,
+} from "@/cli/features/agentOperations.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { listSkillsets } from "@/cli/features/managedFolder.js";
 import { getNoriSkillsetsDir } from "@/cli/features/paths.js";
@@ -119,7 +124,8 @@ export const switchSkillsetAction = async (args: {
           const agent = AgentRegistry.getInstance().get({ name: agentName });
           const localChanges = skipManifest
             ? null
-            : await agent.detectLocalChanges({
+            : await detectLocalChanges({
+                agent,
                 installDir: dir,
               });
           const config = await loadConfig();
@@ -141,7 +147,8 @@ export const switchSkillsetAction = async (args: {
             const captureAgent = AgentRegistry.getInstance().get({
               name: captureAgentName,
             });
-            await captureAgent.captureExistingConfig?.({
+            await captureExistingConfig({
+              agent: captureAgent,
               installDir: dir,
               skillsetName: pName,
               config,
@@ -157,7 +164,8 @@ export const switchSkillsetAction = async (args: {
           const wasSilent = isSilentMode();
           setSilentMode({ silent: true });
           try {
-            await agent.switchSkillset({
+            await switchSkillsetOp({
+              agent,
               installDir: dir,
               skillsetName: pName,
             });
@@ -274,7 +282,8 @@ export const switchSkillsetAction = async (args: {
   const firstAgent = AgentRegistry.getInstance().get({ name: firstAgentName });
   const localChanges = skipManifest
     ? null
-    : await firstAgent.detectLocalChanges({
+    : await detectLocalChanges({
+        agent: firstAgent,
         installDir,
       });
 
@@ -293,7 +302,7 @@ export const switchSkillsetAction = async (args: {
 
     try {
       // Delegate to agent's switchSkillset method
-      await agent.switchSkillset({ installDir, skillsetName: name });
+      await switchSkillsetOp({ agent, installDir, skillsetName: name });
     } catch (err) {
       // On failure, show available skillsets
       const profiles = await listSkillsets();

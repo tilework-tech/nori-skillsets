@@ -8,6 +8,7 @@ import * as fs from "fs/promises";
 
 import { log } from "@clack/prompts";
 
+import { findArtifacts } from "@/cli/features/agentOperations.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { factoryResetFlow } from "@/cli/prompts/flows/factoryReset.js";
 
@@ -37,7 +38,7 @@ export const factoryResetMain = async (args: {
 
   const agent = AgentRegistry.getInstance().get({ name: agentName });
 
-  if (agent.factoryReset == null) {
+  if (agent.getArtifactPatterns == null) {
     log.error(`Agent '${agentName}' does not support factory reset.`);
     process.exit(1);
     return;
@@ -48,10 +49,7 @@ export const factoryResetMain = async (args: {
     path: effectivePath,
     callbacks: {
       onFindArtifacts: async ({ path }) => {
-        if (agent.findArtifacts == null) {
-          return { artifacts: [] };
-        }
-        const artifacts = await agent.findArtifacts({ startDir: path });
+        const artifacts = await findArtifacts({ agent, startDir: path });
         return { artifacts };
       },
       onDeleteArtifacts: async ({ artifacts }) => {

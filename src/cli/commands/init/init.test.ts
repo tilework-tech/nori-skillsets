@@ -251,11 +251,14 @@ describe("init command", () => {
     });
 
     it("should auto-capture existing config as my-profile in non-interactive mode", async () => {
-      // Create existing Claude Code config
-      const claudeMdPath = path.join(TEST_CLAUDE_DIR, "CLAUDE.md");
+      // Create existing Claude Code config at the real install dir path
+      // (agentOperations uses agent.getInstructionsFilePath which resolves to installDir/.claude/CLAUDE.md)
+      const realClaudeDir = path.join(tempDir, ".claude");
+      fs.mkdirSync(realClaudeDir, { recursive: true });
+      const claudeMdPath = path.join(realClaudeDir, "CLAUDE.md");
       fs.writeFileSync(claudeMdPath, "# My Custom Config\n\nSome content");
 
-      const skillsDir = path.join(TEST_CLAUDE_DIR, "skills");
+      const skillsDir = path.join(realClaudeDir, "skills");
       fs.mkdirSync(skillsDir, { recursive: true });
       fs.mkdirSync(path.join(skillsDir, "my-skill"));
       fs.writeFileSync(path.join(skillsDir, "my-skill", "SKILL.md"), "# Skill");
@@ -297,8 +300,10 @@ describe("init command", () => {
     });
 
     it("should not produce double-nested managed block markers when capturing existing config", async () => {
-      // Create existing CLAUDE.md with plain content (no managed block)
-      const claudeMdPath = path.join(TEST_CLAUDE_DIR, "CLAUDE.md");
+      // Create existing CLAUDE.md at the real install dir path
+      const realClaudeDir = path.join(tempDir, ".claude");
+      fs.mkdirSync(realClaudeDir, { recursive: true });
+      const claudeMdPath = path.join(realClaudeDir, "CLAUDE.md");
       fs.writeFileSync(claudeMdPath, "hello");
 
       // Run init in non-interactive mode (which captures config and installs managed block)
@@ -330,7 +335,9 @@ describe("init command", () => {
       // Expected: # BEGIN NORI-AI MANAGED BLOCK\nhello\n# END NORI-AI MANAGED BLOCK
       // Bug:      hello\n\n# BEGIN NORI-AI MANAGED BLOCK\nhello\n# END NORI-AI MANAGED BLOCK
 
-      const claudeMdPath = path.join(TEST_CLAUDE_DIR, "CLAUDE.md");
+      const realClaudeDir = path.join(tempDir, ".claude");
+      fs.mkdirSync(realClaudeDir, { recursive: true });
+      const claudeMdPath = path.join(realClaudeDir, "CLAUDE.md");
       fs.writeFileSync(claudeMdPath, "hello");
 
       // Run init in non-interactive mode
@@ -376,9 +383,13 @@ describe("init command", () => {
     });
 
     it("should create .nori-managed marker after init with captured profile", async () => {
-      // Create existing Claude Code config to trigger capture
-      const claudeMdPath = path.join(TEST_CLAUDE_DIR, "CLAUDE.md");
-      fs.writeFileSync(claudeMdPath, "# My Custom Config\n\nSome content");
+      // Create existing Claude Code config at the real install dir path to trigger capture
+      const realClaudeDir = path.join(tempDir, ".claude");
+      fs.mkdirSync(realClaudeDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(realClaudeDir, "CLAUDE.md"),
+        "# My Custom Config\n\nSome content",
+      );
 
       await initMain({ installDir: tempDir, nonInteractive: true });
 
@@ -477,11 +488,15 @@ describe("init command", () => {
     });
 
     it("should call captureExistingConfig for all default agents when capturing in non-interactive mode", async () => {
-      // Create existing Claude Code config to trigger capture
-      const claudeMdPath = path.join(TEST_CLAUDE_DIR, "CLAUDE.md");
-      fs.writeFileSync(claudeMdPath, "# My Custom Config\n\nSome content");
+      // Create existing Claude Code config at the real install dir path to trigger capture
+      const realClaudeDir = path.join(tempDir, ".claude");
+      fs.mkdirSync(realClaudeDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(realClaudeDir, "CLAUDE.md"),
+        "# My Custom Config\n\nSome content",
+      );
 
-      const skillsDir = path.join(TEST_CLAUDE_DIR, "skills");
+      const skillsDir = path.join(realClaudeDir, "skills");
       fs.mkdirSync(skillsDir, { recursive: true });
       fs.mkdirSync(path.join(skillsDir, "my-skill"));
       fs.writeFileSync(path.join(skillsDir, "my-skill", "SKILL.md"), "# Skill");
