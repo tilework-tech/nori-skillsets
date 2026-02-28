@@ -8,7 +8,7 @@ The Cursor agent implementation. This directory contains the `Agent` interface i
 
 ### How it fits into the larger codebase
 
-- `agent.ts` exports `cursorAgent`, which is registered in `@/src/cli/features/agentRegistry.ts` alongside `claudeCodeAgent`. Both agents share the same `activeSkillset` in the Config -- switching skillsets applies to all agents.
+- `agent.ts` exports both the legacy `cursorAgent` (implements `Agent` interface) and the new data-oriented `cursorAgentConfig` (implements `AgentConfig` interface). The legacy agent is registered in `@/src/cli/features/agentRegistry.ts` alongside `claudeCodeAgent`. The `cursorAgentConfig` declares its own ordered loader list via `getLoaders()`, wrapping the shared `configLoader` with `wrapLegacyLoader()` and using shared `AgentLoader` implementations (skillsLoader, instructionsLoader, slashCommandsLoader, subagentsLoader). Both agents share the same `activeSkillset` in the Config -- switching skillsets applies to all agents.
 - CLI commands interact with this agent through the `Agent` interface from @/src/cli/features/agentRegistry.ts for install detection, skillset switching, and installation.
 - The `CursorLoaderRegistry` uses the shared `configLoader` from @/src/cli/features/config/loader.ts as its first loader, ensuring config is persisted before profile-dependent loaders run.
 - All profile sub-loaders read from the same `~/.nori/profiles/` directory as the Claude Code agent, using `parseSkillset()` from @/src/cli/features/skillset.ts. The skillset's `CLAUDE.md` is read as the source config file and its content is written to `AGENTS.md` for Cursor.

@@ -6,7 +6,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 import { getConfigPath, saveConfig } from "@/cli/config.js";
 
-import { claudeCodeAgent } from "./agent.js";
+import { claudeCodeAgent, claudeCodeAgentConfig } from "./agent.js";
 
 // Mock os.homedir so getConfigPath resolves to test directories
 vi.mock("os", async (importOriginal) => {
@@ -210,5 +210,78 @@ describe("claudeCodeAgent.switchSkillset", () => {
         skillsetName: "nonexistent-profile",
       }),
     ).rejects.toThrow("not found");
+  });
+});
+
+describe("claudeCodeAgentConfig", () => {
+  it("should have correct name, displayName, and description", () => {
+    expect(claudeCodeAgentConfig.name).toBe("claude-code");
+    expect(claudeCodeAgentConfig.displayName).toBe("Claude Code");
+    expect(claudeCodeAgentConfig.description).toBe(
+      "Instructions, skills, subagents, commands, hooks, statusline, watch",
+    );
+  });
+
+  it("should return correct agent directory path", () => {
+    const result = claudeCodeAgentConfig.getAgentDir({
+      installDir: "/project",
+    });
+    expect(result).toBe("/project/.claude");
+  });
+
+  it("should return correct skills directory path", () => {
+    const result = claudeCodeAgentConfig.getSkillsDir({
+      installDir: "/project",
+    });
+    expect(result).toBe("/project/.claude/skills");
+  });
+
+  it("should return correct subagents directory path", () => {
+    const result = claudeCodeAgentConfig.getSubagentsDir({
+      installDir: "/project",
+    });
+    expect(result).toBe("/project/.claude/agents");
+  });
+
+  it("should return correct slashcommands directory path", () => {
+    const result = claudeCodeAgentConfig.getSlashcommandsDir({
+      installDir: "/project",
+    });
+    expect(result).toBe("/project/.claude/commands");
+  });
+
+  it("should return correct instructions file path", () => {
+    const result = claudeCodeAgentConfig.getInstructionsFilePath({
+      installDir: "/project",
+    });
+    expect(result).toBe("/project/.claude/CLAUDE.md");
+  });
+
+  it("should return loaders including all expected names", () => {
+    const loaders = claudeCodeAgentConfig.getLoaders();
+    const loaderNames = loaders.map((l) => l.name);
+
+    expect(loaderNames).toContain("config");
+    expect(loaderNames).toContain("permissions");
+    expect(loaderNames).toContain("skills");
+    expect(loaderNames).toContain("instructions");
+    expect(loaderNames).toContain("slashcommands");
+    expect(loaderNames).toContain("subagents");
+    expect(loaderNames).toContain("hooks");
+    expect(loaderNames).toContain("statusline");
+    expect(loaderNames).toContain("announcements");
+  });
+
+  it("should return transcript directory ending with .claude/projects", () => {
+    expect(claudeCodeAgentConfig.getTranscriptDirectory).toBeDefined();
+    const dir = claudeCodeAgentConfig.getTranscriptDirectory!();
+    expect(dir).toMatch(/\.claude\/projects$/);
+  });
+
+  it("should return artifact patterns with .claude dir and CLAUDE.md file", () => {
+    expect(claudeCodeAgentConfig.getArtifactPatterns).toBeDefined();
+    const patterns = claudeCodeAgentConfig.getArtifactPatterns!();
+    expect(patterns.dirs).toContain(".claude");
+    expect(patterns.files).toContain("CLAUDE.md");
   });
 });

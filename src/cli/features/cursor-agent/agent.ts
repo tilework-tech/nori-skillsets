@@ -10,6 +10,7 @@ import * as path from "path";
 import { log, note } from "@clack/prompts";
 
 import { getActiveSkillset, type Config } from "@/cli/config.js";
+import { configLoader } from "@/cli/features/config/loader.js";
 import { CursorLoaderRegistry } from "@/cli/features/cursor-agent/loaderRegistry.js";
 import { MANIFEST_FILE } from "@/cli/features/managedFolder.js";
 import {
@@ -22,11 +23,20 @@ import {
   removeManagedFiles,
 } from "@/cli/features/manifest.js";
 import { getNoriSkillsetsDir } from "@/cli/features/paths.js";
+import { createInstructionsLoader } from "@/cli/features/shared/instructionsLoader.js";
+import { skillsLoader } from "@/cli/features/shared/skillsLoader.js";
+import { createSlashCommandsLoader } from "@/cli/features/shared/slashCommandsLoader.js";
+import { createSubagentsLoader } from "@/cli/features/shared/subagentsLoader.js";
 import { parseSkillset } from "@/cli/features/skillset.js";
 import { ensureNoriJson } from "@/cli/features/skillsetMetadata.js";
 import { bold } from "@/cli/logger.js";
 
-import type { Agent } from "@/cli/features/agentRegistry.js";
+import type {
+  Agent,
+  AgentConfig,
+  AgentLoader,
+  Loader,
+} from "@/cli/features/agentRegistry.js";
 
 /** The root config filename for Cursor skillsets */
 const CONFIG_FILE_NAME = "AGENTS.md";
@@ -211,4 +221,54 @@ export const cursorAgent: Agent = {
 
     log.success(`Switched to "${skillsetName}" profile for Cursor`);
   },
+};
+
+/**
+ * Wrap a legacy Loader (takes { config }) into an AgentLoader (takes { agent, config, skillset })
+ * @param args - Wrapper arguments
+ * @param args.loader - The legacy Loader to wrap
+ * @param args.managedFiles - Files this loader manages
+ * @param args.managedDirs - Directories this loader manages
+ *
+ * @returns An AgentLoader that delegates to the legacy loader
+ */
+const wrapLegacyLoader = (args: {
+  loader: Loader;
+  managedFiles?: ReadonlyArray<string> | null;
+  managedDirs?: ReadonlyArray<string> | null;
+}): AgentLoader => {
+  const { loader, managedFiles, managedDirs } = args;
+  return {
+    name: loader.name,
+    description: loader.description,
+    managedFiles: managedFiles ?? undefined,
+    managedDirs: managedDirs ?? undefined,
+    run: async ({ config }) => loader.run({ config }),
+  };
+};
+
+/**
+ * Data-oriented Cursor agent configuration
+ */
+export const cursorAgentConfig: AgentConfig = {
+  name: "cursor-agent",
+  displayName: "Cursor",
+  description: "Instructions, skills, subagents, commands",
+
+  getAgentDir: ({ installDir }) => path.join(installDir, ".cursor"),
+  getSkillsDir: ({ installDir }) => path.join(installDir, ".cursor", "skills"),
+  getSubagentsDir: ({ installDir }) =>
+    path.join(installDir, ".cursor", "agents"),
+  getSlashcommandsDir: ({ installDir }) =>
+    path.join(installDir, ".cursor", "commands"),
+  getInstructionsFilePath: ({ installDir }) =>
+    path.join(installDir, ".cursor", "rules", "AGENTS.md"),
+
+  getLoaders: () => [
+    wrapLegacyLoader({ loader: configLoader }),
+    skillsLoader,
+    createInstructionsLoader({ managedDirs: ["rules"] }),
+    createSlashCommandsLoader({ managedDirs: ["commands"] }),
+    createSubagentsLoader({ managedDirs: ["agents"] }),
+  ],
 };

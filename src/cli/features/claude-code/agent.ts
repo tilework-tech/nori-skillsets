@@ -10,6 +10,7 @@ import * as path from "path";
 import { log, note } from "@clack/prompts";
 
 import { getActiveSkillset, type Config } from "@/cli/config.js";
+import { announcementsLoader } from "@/cli/features/claude-code/announcements/loader.js";
 import {
   detectExistingConfig,
   captureExistingConfigAsSkillset,
@@ -18,9 +19,13 @@ import {
   factoryResetClaudeCode,
   findClaudeCodeArtifacts,
 } from "@/cli/features/claude-code/factoryReset.js";
+import { hooksLoader } from "@/cli/features/claude-code/hooks/loader.js";
 import { LoaderRegistry } from "@/cli/features/claude-code/loaderRegistry.js";
 import { getClaudeMdFile } from "@/cli/features/claude-code/paths.js";
+import { permissionsLoader } from "@/cli/features/claude-code/permissionsLoader.js";
 import { claudeMdLoader } from "@/cli/features/claude-code/skillsets/claudemd/loader.js";
+import { statuslineLoader } from "@/cli/features/claude-code/statusline/loader.js";
+import { configLoader } from "@/cli/features/config/loader.js";
 import { MANIFEST_FILE } from "@/cli/features/managedFolder.js";
 import {
   readManifest,
@@ -33,12 +38,21 @@ import {
   removeManagedFiles,
 } from "@/cli/features/manifest.js";
 import { getNoriSkillsetsDir } from "@/cli/features/paths.js";
+import { createInstructionsLoader } from "@/cli/features/shared/instructionsLoader.js";
+import { skillsLoader } from "@/cli/features/shared/skillsLoader.js";
+import { createSlashCommandsLoader } from "@/cli/features/shared/slashCommandsLoader.js";
+import { createSubagentsLoader } from "@/cli/features/shared/subagentsLoader.js";
 import { parseSkillset } from "@/cli/features/skillset.js";
 import { ensureNoriJson } from "@/cli/features/skillsetMetadata.js";
 import { bold } from "@/cli/logger.js";
 import { getHomeDir } from "@/utils/home.js";
 
-import type { Agent } from "@/cli/features/agentRegistry.js";
+import type {
+  Agent,
+  AgentConfig,
+  AgentLoader,
+  Loader,
+} from "@/cli/features/agentRegistry.js";
 
 /** The root config filename for Claude Code skillsets */
 const CONFIG_FILE_NAME = "CLAUDE.md";
@@ -287,4 +301,74 @@ export const claudeCodeAgent: Agent = {
 
     log.success(`Switched to "${skillsetName}" profile for Claude Code`);
   },
+};
+
+/**
+ * Wrap a legacy Loader (takes { config }) into an AgentLoader (takes { agent, config, skillset })
+ * @param args - Wrapper arguments
+ * @param args.loader - The legacy Loader to wrap
+ * @param args.managedFiles - Files this loader manages
+ * @param args.managedDirs - Directories this loader manages
+ *
+ * @returns An AgentLoader that delegates to the legacy loader
+ */
+const wrapLegacyLoader = (args: {
+  loader: Loader;
+  managedFiles?: ReadonlyArray<string> | null;
+  managedDirs?: ReadonlyArray<string> | null;
+}): AgentLoader => {
+  const { loader, managedFiles, managedDirs } = args;
+  return {
+    name: loader.name,
+    description: loader.description,
+    managedFiles: managedFiles ?? undefined,
+    managedDirs: managedDirs ?? undefined,
+    run: async ({ config }) => loader.run({ config }),
+  };
+};
+
+/**
+ * Data-oriented Claude Code agent configuration
+ */
+export const claudeCodeAgentConfig: AgentConfig = {
+  name: "claude-code",
+  displayName: "Claude Code",
+  description:
+    "Instructions, skills, subagents, commands, hooks, statusline, watch",
+
+  getAgentDir: ({ installDir }) => path.join(installDir, ".claude"),
+  getSkillsDir: ({ installDir }) => path.join(installDir, ".claude", "skills"),
+  getSubagentsDir: ({ installDir }) =>
+    path.join(installDir, ".claude", "agents"),
+  getSlashcommandsDir: ({ installDir }) =>
+    path.join(installDir, ".claude", "commands"),
+  getInstructionsFilePath: ({ installDir }) =>
+    path.join(installDir, ".claude", "CLAUDE.md"),
+
+  getLoaders: () => [
+    wrapLegacyLoader({ loader: configLoader }),
+    permissionsLoader,
+    skillsLoader,
+    createInstructionsLoader({ managedFiles: ["CLAUDE.md"] }),
+    createSlashCommandsLoader({ managedDirs: ["commands"] }),
+    createSubagentsLoader({ managedDirs: ["agents"] }),
+    wrapLegacyLoader({
+      loader: hooksLoader,
+      managedFiles: ["settings.json"],
+    }),
+    wrapLegacyLoader({
+      loader: statuslineLoader,
+      managedFiles: ["nori-statusline.sh", "settings.json"],
+    }),
+    wrapLegacyLoader({
+      loader: announcementsLoader,
+      managedFiles: ["settings.json"],
+    }),
+  ],
+
+  getTranscriptDirectory: () => path.join(getHomeDir(), ".claude", "projects"),
+  getArtifactPatterns: () => ({
+    dirs: [".claude"],
+    files: ["CLAUDE.md"],
+  }),
 };

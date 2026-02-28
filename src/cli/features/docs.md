@@ -65,8 +65,10 @@ The init command (@/src/cli/commands/init/) uses `getDefaultAgent()` from @/src/
 | Type | Purpose |
 |------|---------|
 | `AgentName` | Union type of canonical agent identifiers (`"claude-code" | "cursor-agent"`). Used as the registry key and source of truth for agent identity. |
-| `Loader` | Interface for feature installation with `name`, `description`, and `run()` method. `run()` returns `Promise<string | void>` -- returning a string label (e.g., "Hooks", "Status line") signals inclusion in the consolidated Settings output note |
-| `LoaderRegistry` | Interface that agent-specific registry classes must implement (`getAll()`) |
+| `Loader` | Legacy interface for feature installation with `name`, `description`, and `run()` method. `run()` takes `{ config }` and returns `Promise<string | void>` -- returning a string label (e.g., "Hooks", "Status line") signals inclusion in the consolidated Settings output note. Deprecated in favor of `AgentLoader`. |
+| `AgentLoader` | Unified loader interface for `AgentConfig`. Each loader receives `{ agent, config, skillset }` and declares `managedFiles` and `managedDirs` for manifest tracking. |
+| `AgentConfig` | Data-oriented agent configuration that replaces the monolithic `Agent` type. Declares path functions, loader list, and optional transcript/artifact patterns. Shared operations are provided by `agentOperations.ts`. |
+| `LoaderRegistry` | Interface that agent-specific registry classes must implement (`getAll()`). Deprecated in favor of `AgentConfig.getLoaders()`. |
 | `ExistingConfig` | Object describing detected unmanaged configuration (configFileName, hasConfigFile, hasManagedBlock, hasSkills, skillCount, hasAgents, agentCount, hasCommands, commandCount). The `configFileName` field carries the agent's config file name (e.g., "CLAUDE.md") so the init flow can display agent-appropriate strings without hardcoding. Returned by `detectExistingConfig` and used by init command to show users what was found. Canonical definition in agentRegistry.ts, re-exported from @/src/cli/commands/install/existingConfigCapture.ts for backward compatibility. |
 | `AgentArtifact` | Describes a discovered configuration artifact (path + type). Used by `findArtifacts` and factory reset to show what will be deleted. |
 

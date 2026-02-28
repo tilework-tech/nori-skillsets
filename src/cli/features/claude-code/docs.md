@@ -8,7 +8,7 @@ The Claude Code agent implementation. This directory contains the `Agent` interf
 
 ### How it fits into the larger codebase
 
-`agent.ts` exports `claudeCodeAgent`, which is registered in `@/src/cli/features/agentRegistry.ts` as the sole agent implementation. The `LoaderRegistry` in `loaderRegistry.ts` defines the ordered pipeline of feature loaders that run during `nori-skillsets install`: config -> profiles -> hooks -> statusline -> announcements. CLI commands like init, watch, and switch interact with this agent through the `Agent` interface for install detection (`isInstalledAtDir`), skillset switching (`switchSkillset`), and factory reset.
+`agent.ts` exports both the legacy `claudeCodeAgent` (implements `Agent` interface) and the new data-oriented `claudeCodeAgentConfig` (implements `AgentConfig` interface). The legacy agent is registered in `@/src/cli/features/agentRegistry.ts`. The `LoaderRegistry` in `loaderRegistry.ts` defines the ordered pipeline of feature loaders that run during `nori-skillsets install`: config -> profiles -> hooks -> statusline -> announcements. The new `claudeCodeAgentConfig` declares its own ordered loader list via `getLoaders()`, wrapping legacy loaders with `wrapLegacyLoader()` to adapt them from the `Loader` signature (`{ config }`) to the `AgentLoader` signature (`{ agent, config, skillset }`). CLI commands like init, watch, and switch interact with this agent through the `Agent` interface for install detection (`isInstalledAtDir`), skillset switching (`switchSkillset`), and factory reset.
 
 The `claudeCodeAgent` object in agent.ts provides:
 - `name`: "claude-code"
@@ -38,6 +38,8 @@ The AgentRegistry (@/src/cli/features/agentRegistry.ts) registers this agent and
 The `LoaderRegistry` class (@/src/cli/features/claude-code/loaderRegistry.ts) implements the shared `LoaderRegistry` interface. Loaders execute in order: config, skillsets, hooks, statusline, announcements.
 
 Each loader implements the `Loader` interface with a `run()` method. The shared `configLoader` (@/src/cli/features/config/loader.ts) serves as the single point of config persistence during installation.
+
+`permissionsLoader.ts` is a Claude-specific `AgentLoader` that configures `settings.json` to grant Claude Code read access to the profiles directory (`~/.nori/profiles/`) and the agent's skills directory. It consolidates the permissions logic previously split between `skillsets/loader.ts` (`configureProfilesPermissions`) and `skillsets/skills/loader.ts` (`configureSkillsPermissions`).
 
 **Global settings** (hooks, statusline, announcements) install to `~/.claude/` and are shared across all Nori installations. Skillset-dependent features (claudemd, skills, slashcommands, subagents) are handled by sub-loaders within the skillsets feature at @/src/cli/features/claude-code/skillsets/.
 
