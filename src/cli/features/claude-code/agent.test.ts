@@ -63,7 +63,6 @@ describe("claudeCodeAgentConfig", () => {
     const loaderNames = loaders.map((l) => l.name);
 
     expect(loaderNames).toContain("config");
-    expect(loaderNames).toContain("permissions");
     expect(loaderNames).toContain("skills");
     expect(loaderNames).toContain("instructions");
     expect(loaderNames).toContain("slashcommands");

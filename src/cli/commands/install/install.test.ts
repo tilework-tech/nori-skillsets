@@ -35,14 +35,6 @@ vi.mock("@/cli/features/claude-code/paths.js", () => {
   };
 });
 
-vi.mock("@/cli/features/paths.js", () => {
-  const testNoriDir = "/tmp/install-test-nori";
-  return {
-    getNoriDir: () => testNoriDir,
-    getNoriSkillsetsDir: () => `${testNoriDir}/profiles`,
-  };
-});
-
 // Mock getCurrentPackageVersion to return a controlled version for tests
 vi.mock("@/cli/version.js", async (importOriginal) => {
   const actual = await importOriginal<typeof versionModule>();

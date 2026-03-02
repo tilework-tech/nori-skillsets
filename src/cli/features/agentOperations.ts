@@ -10,7 +10,6 @@ import * as path from "path";
 import { log, note } from "@clack/prompts";
 
 import { getActiveSkillset, type Config } from "@/cli/config.js";
-import { MANIFEST_FILE } from "@/cli/features/managedFolder.js";
 import {
   readManifest,
   compareManifest,
@@ -21,10 +20,13 @@ import {
   getLegacyManifestPath,
   removeManagedFiles,
 } from "@/cli/features/manifest.js";
-import { getNoriSkillsetsDir } from "@/cli/features/paths.js";
-import { parseSkillset } from "@/cli/features/skillset.js";
-import { ensureNoriJson } from "@/cli/features/skillsetMetadata.js";
 import { bold } from "@/cli/logger.js";
+import { ensureNoriJson } from "@/norijson/nori.js";
+import {
+  MANIFEST_FILE,
+  getNoriSkillsetsDir,
+  parseSkillset,
+} from "@/norijson/skillset.js";
 
 import type {
   AgentConfig,
@@ -478,7 +480,7 @@ export const captureExistingConfig = async (args: {
   }
 
   // Run the shared instructions loader to write fresh managed block
-  const skillset = await parseSkillset({ skillsetName });
+  const skillset = await parseSkillset({ skillsetDir });
   const instructionsLoader = agent
     .getLoaders()
     .find((l) => l.name === "instructions");

@@ -29,9 +29,13 @@ const mockStdoutWrite = vi
 
 // Mock getNoriSkillsetsDir
 const MOCK_PROFILES_DIR = "/home/testuser/.nori/profiles";
-vi.mock("@/cli/features/paths.js", () => ({
-  getNoriSkillsetsDir: () => MOCK_PROFILES_DIR,
-}));
+vi.mock("@/norijson/skillset.js", async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
+  return {
+    ...actual,
+    getNoriSkillsetsDir: () => MOCK_PROFILES_DIR,
+  };
+});
 
 // Mock child_process.spawn
 vi.mock("child_process", () => ({

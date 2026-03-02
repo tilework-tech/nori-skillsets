@@ -46,7 +46,7 @@ CLI Commands (install, switch-skillset, init, config, factory-reset, clear)
     |       +-- skillsLoader, createInstructionsLoader,
     |       +-- createSlashCommandsLoader, createSubagentsLoader
     |
-    +-- listProfiles() --> Available skillset names (from managedFolder.ts)
+    +-- listSkillsets() --> Available skillset names (from @/norijson/skillset.ts)
 ```
 
 The `--agent` global CLI option (default: "claude-code") determines which agent implementation is used. The active skillset is stored as `activeSkillset` in the Config type, shared across all agents.
@@ -60,8 +60,7 @@ The `--agent` global CLI option (default: "claude-code") determines which agent 
 | Type | Purpose |
 |------|---------|
 | `AgentName` | Union type of canonical agent identifiers (`"claude-code" \| "cursor-agent"`). Registry key. |
-| `Loader` | Legacy interface for agent-specific loaders (hooks, statusline, announcements). Wrapped via `wrapLegacyLoader()` into `AgentLoader`. |
-| `AgentLoader` | Unified loader interface. Receives `{ agent, config, skillset }` and declares `managedFiles`/`managedDirs` for manifest tracking. |
+| `AgentLoader` | Unified loader interface. Receives `{ agent, config, skillset }` and declares `managedFiles`/`managedDirs` for manifest tracking. All loaders (shared and agent-specific) implement this type directly. |
 | `AgentConfig` | Data-oriented agent configuration. Declares path functions, `getLoaders()`, and optional `getTranscriptDirectory`/`getArtifactPatterns`. |
 | `ExistingConfig` | Describes detected unmanaged configuration. The `configFileName` field derives from `agent.getInstructionsFilePath()` so the init flow displays agent-appropriate strings. |
 | `AgentArtifact` | Describes a discovered configuration artifact (path + type). Used by `findArtifacts` and factory reset. |
@@ -90,24 +89,19 @@ The `--agent` global CLI option (default: "claude-code") determines which agent 
 - `createSlashCommandsLoader` (shared/slashCommandsLoader.ts): Factory function. Copies `.md` files from skillset's slashcommands dir, applies template substitution, emits a "Slash Commands" note.
 - `createSubagentsLoader` (shared/subagentsLoader.ts): Factory function. Copies `.md` files from skillset's subagents dir, applies template substitution, emits a "Subagents" note.
 
-**Config Loader** (config/loader.ts):
-- Shared `Loader` (legacy interface) that manages `.nori-config.json`. All agents MUST include this loader (wrapped via `wrapLegacyLoader`).
+**Config Loader** (configLoader.ts):
+- Shared `AgentLoader` that manages `.nori-config.json`. All agents include this loader in their `getLoaders()` pipeline.
 - Persists `activeSkillset`, version, auth credentials, and transcript settings via `updateConfig()`.
 
-**Skillset Parser** (skillset.ts):
-- `parseSkillset({ skillsetName?, skillsetDir? })`: Resolves a skillset directory, calls `ensureNoriJson()`, reads metadata, probes for optional subdirectories/files. The `configFileName` is hardcoded to `"CLAUDE.md"` internally -- all agents read from the same skillset source file. Each agent's instructions loader handles mapping to the agent-specific destination (e.g., Cursor writes to `AGENTS.md`).
+**Other shared modules**: `template.ts` (placeholder substitution), `manifest.ts` (file-level change tracking with SHA-256 hashes), `bundled-skillsets/` (bundled skills installer).
 
-**Managed Folder Utilities** (managedFolder.ts):
-- `listProfiles()`: Scans `~/.nori/profiles/` for directories containing `nori.json`, supporting flat and namespaced layouts. Calls `ensureNoriJson()` for backwards compatibility.
-- Imported directly by CLI commands rather than going through the agent layer.
-
-**Other shared modules**: `paths.ts` (Nori directory paths), `template.ts` (placeholder substitution), `skillsetMetadata.ts` (nori.json CRUD), `manifest.ts` (file-level change tracking with SHA-256 hashes), `migration.ts` (versioned config migrations), `bundled-skillsets/` (bundled skills installer).
+Skillset path utilities (`getNoriDir`, `getNoriSkillsetsDir`), the `Skillset` type, `parseSkillset()`, and `listSkillsets()` now live in @/src/norijson/skillset.ts. Metadata CRUD functions (`readSkillsetMetadata`, `writeSkillsetMetadata`, `addSkillToNoriJson`, `ensureNoriJson`) now live in @/src/norijson/nori.ts.
 
 ### Things to Know
 
 - The `AgentRegistry` registers both agents in its constructor by importing their config objects directly. There is no separate registration step or loader registry class.
 - `getManagedFiles()` and `getManagedDirs()` are now derived from the union of all loader declarations rather than being hardcoded on each agent. This means adding a new loader with `managedFiles` or `managedDirs` automatically updates the manifest tracking scope.
-- The `wrapLegacyLoader()` function in each agent's `agent.ts` adapts `Loader` (legacy, `{ config }` signature) to `AgentLoader` (`{ agent, config, skillset }` signature). This is used for agent-specific loaders that have not yet been migrated to the shared `AgentLoader` pattern (hooks, statusline, announcements for Claude Code; configLoader for both agents).
-- `parseSkillset` no longer accepts a `configFileName` parameter. It hardcodes `"CLAUDE.md"` because all skillsets use `CLAUDE.md` as the source file. The mapping to each agent's native format happens at write time in the instructions loader.
+- All loaders (shared and agent-specific) implement the `AgentLoader` interface directly. There is no legacy adapter layer; every loader exports an `AgentLoader` object with `name`, `description`, `managedFiles`/`managedDirs`, and a `run` function.
+- `parseSkillset` hardcodes `"CLAUDE.md"` because all skillsets use `CLAUDE.md` as the source file. The mapping to each agent's native format happens at write time in the instructions loader. `parseSkillset` now lives in @/src/norijson/skillset.ts.
 
 Created and maintained by Nori.

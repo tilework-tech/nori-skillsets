@@ -5,7 +5,7 @@
 
 import * as path from "path";
 
-import { getNoriSkillsetsDir } from "@/cli/features/paths.js";
+import { getNoriSkillsetsDir } from "@/norijson/skillset.js";
 
 /**
  * Substitute template placeholders in content with actual paths

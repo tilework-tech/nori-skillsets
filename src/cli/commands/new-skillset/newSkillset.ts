@@ -9,11 +9,9 @@ import * as path from "path";
 
 import { log, note, outro } from "@clack/prompts";
 
-import { getNoriSkillsetsDir } from "@/cli/features/paths.js";
-import { writeSkillsetMetadata } from "@/cli/features/skillsetMetadata.js";
 import { newSkillsetFlow } from "@/cli/prompts/flows/newSkillset.js";
-
-import type { NoriJson } from "@/norijson/nori.js";
+import { writeSkillsetMetadata, type NoriJson } from "@/norijson/nori.js";
+import { getNoriSkillsetsDir } from "@/norijson/skillset.js";
 
 /**
  * Create the directory and nori.json for a new skillset.

@@ -5,7 +5,7 @@
 
 import { log } from "@clack/prompts";
 
-import { listSkillsets } from "@/cli/features/managedFolder.js";
+import { listSkillsets } from "@/norijson/skillset.js";
 
 import type { Command } from "commander";
 

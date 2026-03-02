@@ -43,7 +43,7 @@ vi.mock("@/cli/prompts/flows/switchSkillset.js", () => ({
 
 // Mock listSkillsets for interactive selection tests
 const mockListSkillsets = vi.fn();
-vi.mock("@/cli/features/managedFolder.js", async (importOriginal) => {
+vi.mock("@/norijson/skillset.js", async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
   return {
     ...actual,

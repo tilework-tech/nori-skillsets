@@ -19,8 +19,8 @@ import {
 } from "@/cli/config.js";
 import { switchSkillset } from "@/cli/features/agentOperations.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
-import { getNoriSkillsetsDir } from "@/cli/features/paths.js";
 import { bold, brightCyan, green } from "@/cli/logger.js";
+import { getNoriSkillsetsDir } from "@/norijson/skillset.js";
 import { resolveInstallDir } from "@/utils/path.js";
 
 import type { Command } from "commander";

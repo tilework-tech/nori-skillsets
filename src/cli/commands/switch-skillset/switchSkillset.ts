@@ -21,11 +21,10 @@ import {
   captureExistingConfig,
 } from "@/cli/features/agentOperations.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
-import { listSkillsets } from "@/cli/features/managedFolder.js";
-import { getNoriSkillsetsDir } from "@/cli/features/paths.js";
 import { substituteTemplatePaths } from "@/cli/features/template.js";
 import { setSilentMode, isSilentMode } from "@/cli/logger.js";
 import { switchSkillsetFlow } from "@/cli/prompts/flows/switchSkillset.js";
+import { listSkillsets, getNoriSkillsetsDir } from "@/norijson/skillset.js";
 import { resolveInstallDir } from "@/utils/path.js";
 
 import type { Command } from "commander";

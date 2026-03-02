@@ -15,7 +15,7 @@ import {
 } from "@/cli/features/claude-code/paths.js";
 
 import type { Config } from "@/cli/config.js";
-import type { Loader } from "@/cli/features/agentRegistry.js";
+import type { AgentLoader } from "@/cli/features/agentRegistry.js";
 
 // Get directory of this loader file
 const __filename = fileURLToPath(import.meta.url);
@@ -85,10 +85,11 @@ const configureStatusLine = async (args: {
 /**
  * Statusline feature loader
  */
-export const statuslineLoader: Loader = {
+export const statuslineLoader: AgentLoader = {
   name: "statusline",
   description: "Claude Code status line configuration",
-  run: async (args: { config: Config }) => {
-    return configureStatusLine(args);
+  managedFiles: ["nori-statusline.sh", "settings.json"],
+  run: async ({ config }) => {
+    return configureStatusLine({ config });
   },
 };

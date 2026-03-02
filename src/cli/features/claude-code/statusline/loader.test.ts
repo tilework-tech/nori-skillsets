@@ -71,7 +71,7 @@ describe("statuslineLoader", () => {
     it("should create settings.json with statusLine configuration", async () => {
       const config: Config = { installDir: tempDir };
 
-      await statuslineLoader.run({ config });
+      await statuslineLoader.run({ agent: {} as any, config });
 
       // Verify settings.json exists
       const exists = await fs
@@ -105,7 +105,7 @@ describe("statuslineLoader", () => {
         JSON.stringify(existingSettings, null, 2),
       );
 
-      await statuslineLoader.run({ config });
+      await statuslineLoader.run({ agent: {} as any, config });
 
       // Read and parse settings
       const content = await fs.readFile(settingsPath, "utf-8");
@@ -125,10 +125,10 @@ describe("statuslineLoader", () => {
       const config: Config = { installDir: tempDir };
 
       // First installation
-      await statuslineLoader.run({ config });
+      await statuslineLoader.run({ agent: {} as any, config });
 
       // Second installation (update)
-      await statuslineLoader.run({ config });
+      await statuslineLoader.run({ agent: {} as any, config });
 
       // Read updated statusLine
       const content = await fs.readFile(settingsPath, "utf-8");
@@ -144,7 +144,7 @@ describe("statuslineLoader", () => {
     it("should copy script to .claude directory", async () => {
       const config: Config = { installDir: claudeDir };
 
-      await statuslineLoader.run({ config });
+      await statuslineLoader.run({ agent: {} as any, config });
 
       // Verify script was copied to .claude directory
       const copiedScriptPath = path.join(claudeDir, "nori-statusline.sh");
@@ -163,7 +163,7 @@ describe("statuslineLoader", () => {
     it("should point settings.json to copied script in .claude directory", async () => {
       const config: Config = { installDir: claudeDir };
 
-      await statuslineLoader.run({ config });
+      await statuslineLoader.run({ agent: {} as any, config });
 
       // Read settings.json
       const content = await fs.readFile(settingsPath, "utf-8");
@@ -180,7 +180,7 @@ describe("statuslineLoader", () => {
       const config: Config = { installDir: claudeDir };
 
       // Install statusline
-      await statuslineLoader.run({ config });
+      await statuslineLoader.run({ agent: {} as any, config });
 
       // Create mock .nori-config.json in install root
       const noriConfigPath = path.join(tempDir, ".nori-config.json");
@@ -229,7 +229,7 @@ describe("statuslineLoader", () => {
       const config: Config = { installDir: claudeDir };
 
       // Install statusline
-      await statuslineLoader.run({ config });
+      await statuslineLoader.run({ agent: {} as any, config });
 
       // Create mock .nori-config.json with skillset in temp directory (install root)
       const noriConfigPath = path.join(tempDir, ".nori-config.json");
@@ -273,7 +273,7 @@ describe("statuslineLoader", () => {
       const config: Config = { installDir: claudeDir };
 
       // Install statusline
-      await statuslineLoader.run({ config });
+      await statuslineLoader.run({ agent: {} as any, config });
 
       // Ensure nori-config.json does not exist in temp directory
       const noriConfigPath = path.join(tempDir, "nori-config.json");
@@ -314,7 +314,7 @@ describe("statuslineLoader", () => {
       const config: Config = { installDir: claudeDir };
 
       // Install statusline
-      await statuslineLoader.run({ config });
+      await statuslineLoader.run({ agent: {} as any, config });
 
       // Read settings to get the statusLine command
       const content = await fs.readFile(settingsPath, "utf-8");
@@ -348,7 +348,7 @@ describe("statuslineLoader", () => {
       const config: Config = { installDir: claudeDir };
 
       // Install statusline
-      await statuslineLoader.run({ config });
+      await statuslineLoader.run({ agent: {} as any, config });
 
       // Create mock .nori-config.json with version
       const noriConfigPath = path.join(tempDir, ".nori-config.json");
@@ -391,7 +391,7 @@ describe("statuslineLoader", () => {
       const config: Config = { installDir: claudeDir };
 
       // Install statusline
-      await statuslineLoader.run({ config });
+      await statuslineLoader.run({ agent: {} as any, config });
 
       // Create mock .nori-config.json without version field
       const noriConfigPath = path.join(tempDir, ".nori-config.json");
@@ -435,7 +435,7 @@ describe("statuslineLoader", () => {
       const config: Config = { installDir: claudeDir };
 
       // Install statusline
-      await statuslineLoader.run({ config });
+      await statuslineLoader.run({ agent: {} as any, config });
 
       // Read the statusline script content
       const copiedScriptPath = path.join(claudeDir, "nori-statusline.sh");

@@ -71,7 +71,7 @@ describe("announcementsLoader", () => {
     it("should create settings.json with companyAnnouncements", async () => {
       const config: Config = { installDir: tempDir };
 
-      await announcementsLoader.run({ config });
+      await announcementsLoader.run({ agent: {} as any, config });
 
       // Verify settings.json exists
       const exists = await fs
@@ -106,7 +106,7 @@ describe("announcementsLoader", () => {
         JSON.stringify(existingSettings, null, 2),
       );
 
-      await announcementsLoader.run({ config });
+      await announcementsLoader.run({ agent: {} as any, config });
 
       // Read and parse settings
       const content = await fs.readFile(settingsPath, "utf-8");
@@ -126,10 +126,10 @@ describe("announcementsLoader", () => {
       const config: Config = { installDir: tempDir };
 
       // First installation
-      await announcementsLoader.run({ config });
+      await announcementsLoader.run({ agent: {} as any, config });
 
       // Second installation (update)
-      await announcementsLoader.run({ config });
+      await announcementsLoader.run({ agent: {} as any, config });
 
       // Read updated settings
       const content = await fs.readFile(settingsPath, "utf-8");

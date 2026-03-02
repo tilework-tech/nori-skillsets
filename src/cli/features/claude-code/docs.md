@@ -4,7 +4,7 @@ Path: @/src/cli/features/claude-code
 
 ### Overview
 
-The Claude Code agent implementation. This directory contains the `AgentConfig` declaration for Claude Code, Claude-Code-specific path utilities, a permissions loader, factory reset logic, and legacy loaders for Claude-specific features (hooks, statusline, announcements). Skillset-dependent features (instructions, skills, slashcommands, subagents) use shared loaders from @/src/cli/features/shared/.
+The Claude Code agent implementation. This directory contains the `AgentConfig` declaration for Claude Code, Claude-Code-specific path utilities, factory reset logic, and agent-specific loaders for Claude-specific features (hooks, statusline, announcements). Skillset-dependent features (instructions, skills, slashcommands, subagents) use shared loaders from @/src/cli/features/shared/.
 
 ### How it fits into the larger codebase
 
@@ -12,19 +12,16 @@ The Claude Code agent implementation. This directory contains the `AgentConfig` 
 
 The `claudeCodeAgentConfig` declares its ordered loader pipeline via `getLoaders()`:
 
-1. `configLoader` (wrapped via `wrapLegacyLoader`) -- shared config persistence
-2. `permissionsLoader` -- Claude-specific, configures `settings.json` permissions
-3. `skillsLoader` -- shared, from @/src/cli/features/shared/skillsLoader.ts
-4. `createInstructionsLoader({ managedFiles: ["CLAUDE.md"] })` -- shared, from @/src/cli/features/shared/instructionsLoader.ts
-5. `createSlashCommandsLoader({ managedDirs: ["commands"] })` -- shared
-6. `createSubagentsLoader({ managedDirs: ["agents"] })` -- shared
-7. `hooksLoader` (wrapped via `wrapLegacyLoader`, `managedFiles: ["settings.json"]`)
-8. `statuslineLoader` (wrapped via `wrapLegacyLoader`, `managedFiles: ["nori-statusline.sh", "settings.json"]`)
-9. `announcementsLoader` (wrapped via `wrapLegacyLoader`, `managedFiles: ["settings.json"]`)
+1. `configLoader` -- shared config persistence, from @/src/cli/features/configLoader.ts
+2. `skillsLoader` -- shared, from @/src/cli/features/shared/skillsLoader.ts
+3. `createInstructionsLoader({ managedFiles: ["CLAUDE.md"] })` -- shared, from @/src/cli/features/shared/instructionsLoader.ts
+4. `createSlashCommandsLoader({ managedDirs: ["commands"] })` -- shared
+5. `createSubagentsLoader({ managedDirs: ["agents"] })` -- shared
+6. `hooksLoader` (`managedFiles: ["settings.json"]`) -- Claude-specific
+7. `statuslineLoader` (`managedFiles: ["nori-statusline.sh", "settings.json"]`) -- Claude-specific
+8. `announcementsLoader` (`managedFiles: ["settings.json"]`) -- Claude-specific
 
-Agent-specific loaders (hooks, statusline, announcements) use the legacy `Loader` interface and are adapted via `wrapLegacyLoader()`, which maps the `{ config }` signature to the `{ agent, config, skillset }` signature expected by `AgentLoader`.
-
-`permissionsLoader.ts` is a Claude-specific `AgentLoader` that configures `settings.json` to grant Claude Code read access to the profiles directory (`~/.nori/profiles/`) and the agent's skills directory. It consolidates permissions logic that was previously split across multiple files.
+All loaders implement the `AgentLoader` interface directly.
 
 `paths.ts` centralizes Claude-Code-specific path computations (`getClaudeDir`, `getClaudeSettingsFile`, `getClaudeHomeDir`), distinguishing between the install directory (`{installDir}/.claude/`) and the home directory (`~/.claude/`). Hooks and statusline write to `~/.claude/settings.json` so they work from any subdirectory, while skillset-specific config writes to the install directory.
 
@@ -39,13 +36,12 @@ The `claudeCodeAgentConfig` object declares:
 - `getTranscriptDirectory()`: Returns `~/.claude/projects` for the watch command
 - `getArtifactPatterns()`: Returns `{ dirs: [".claude"], files: ["CLAUDE.md"] }` for factory reset artifact discovery
 
-The managed files and directories are no longer hardcoded on the agent; they are derived from loader declarations by `getManagedFiles()` and `getManagedDirs()` in @/src/cli/features/agentOperations.ts.
+The managed files and directories are derived from loader declarations by `getManagedFiles()` and `getManagedDirs()` in @/src/cli/features/agentOperations.ts.
 
 ### Things to Know
 
-- The `wrapLegacyLoader()` function is defined locally in `agent.ts` (not shared) because it is a thin adapter. Each agent module has its own copy.
 - `getTranscriptDirectory()` and `getArtifactPatterns()` are the two optional `AgentConfig` properties that Claude Code implements but Cursor does not. `getTranscriptDirectory` enables the watch command; `getArtifactPatterns` enables factory reset.
-- Profile discovery (`listProfiles()`) is not part of the agent -- it lives in @/src/cli/features/managedFolder.ts.
-- All lifecycle operations (install, switch, remove, detect changes, detect/capture existing config, find artifacts) are now in @/src/cli/features/agentOperations.ts, not on the agent object.
+- Profile discovery (`listSkillsets()`) is not part of the agent -- it lives in @/src/norijson/skillset.ts.
+- All lifecycle operations (install, switch, remove, detect changes, detect/capture existing config, find artifacts) are in @/src/cli/features/agentOperations.ts, not on the agent object.
 
 Created and maintained by Nori.

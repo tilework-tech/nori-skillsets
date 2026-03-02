@@ -17,12 +17,12 @@ import {
 } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
 import { loadConfig, getRegistryAuth } from "@/cli/config.js";
-import { getNoriSkillsetsDir } from "@/cli/features/paths.js";
 import {
   uploadFlow,
   listVersionsFlow,
   type UploadResult,
 } from "@/cli/prompts/flows/index.js";
+import { getNoriSkillsetsDir } from "@/norijson/skillset.js";
 import { isSkillCollisionError } from "@/utils/fetch.js";
 import {
   parseNamespacedPackage,

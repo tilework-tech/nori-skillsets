@@ -8,7 +8,7 @@ The external command installs skills from GitHub repositories into the local Nor
 
 ### How it fits into the larger codebase
 
-This command is registered via `@/src/cli/commands/noriSkillsetsCommands.ts`. It writes skills to each configured default agent's skills directory and persists copies into the skillset's `skills/` subfolder under `~/.nori/profiles/`. It updates the skillset's `nori.json` manifest through `@/cli/features/skillsetMetadata.js`. Template path substitution is applied to `.md` files via `@/cli/features/template.js`. When multiple skills are found and the user has not specified `--skill` or `--all`, it prompts for skill type selection through `@/cli/prompts/flows/externalSkillType.js`.
+This command is registered via `@/src/cli/commands/noriSkillsetsCommands.ts`. It writes skills to each configured default agent's skills directory and persists copies into the skillset's `skills/` subfolder under `~/.nori/profiles/`. It updates the skillset's `nori.json` manifest through `@/norijson/nori.js`. Template path substitution is applied to `.md` files via `@/cli/features/template.js`. When multiple skills are found and the user has not specified `--skill` or `--all`, it prompts for skill type selection through `@/cli/prompts/flows/externalSkillType.js`.
 
 The command resolves default agents via `getDefaultAgents({ config })` from `@/src/cli/config.ts`, then iterates over all returned agents. This is the same multi-agent broadcasting pattern used by `switchSkillset` (@/src/cli/commands/switch-skillset/) and the skill-download command (@/src/cli/commands/skill-download/).
 

@@ -66,7 +66,7 @@ describe("hooksLoader", () => {
     it("should configure hooks", async () => {
       const config: Config = { installDir: tempDir };
 
-      await hooksLoader.run({ config });
+      await hooksLoader.run({ agent: {} as any, config });
 
       // Verify settings.json exists
       const exists = await fs
@@ -157,7 +157,7 @@ describe("hooksLoader", () => {
         JSON.stringify(existingSettings, null, 2),
       );
 
-      await hooksLoader.run({ config });
+      await hooksLoader.run({ agent: {} as any, config });
 
       // Read and parse settings
       const content = await fs.readFile(settingsPath, "utf-8");
@@ -177,10 +177,10 @@ describe("hooksLoader", () => {
       const config: Config = { installDir: tempDir };
 
       // First installation
-      await hooksLoader.run({ config });
+      await hooksLoader.run({ agent: {} as any, config });
 
       // Second installation (update)
-      await hooksLoader.run({ config });
+      await hooksLoader.run({ agent: {} as any, config });
 
       // Read updated settings
       const content = await fs.readFile(settingsPath, "utf-8");
@@ -196,7 +196,7 @@ describe("hooksLoader", () => {
     it("should configure PreToolUse hook for commit-author", async () => {
       const config: Config = { installDir: tempDir };
 
-      await hooksLoader.run({ config });
+      await hooksLoader.run({ agent: {} as any, config });
 
       const content = await fs.readFile(settingsPath, "utf-8");
       const settings = JSON.parse(content);
@@ -223,7 +223,7 @@ describe("hooksLoader", () => {
     it("should configure context-usage-warning hook", async () => {
       const config: Config = { installDir: tempDir };
 
-      await hooksLoader.run({ config });
+      await hooksLoader.run({ agent: {} as any, config });
 
       const content = await fs.readFile(settingsPath, "utf-8");
       const settings = JSON.parse(content);
