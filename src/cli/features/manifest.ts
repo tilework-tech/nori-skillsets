@@ -11,7 +11,7 @@ import * as fs from "fs/promises";
 import { createHash } from "node:crypto";
 import * as path from "path";
 
-import { getNoriDir } from "@/cli/features/paths.js";
+import { getNoriDir } from "@/norijson/skillset.js";
 
 /**
  * Manifest file structure storing hashes of all installed files

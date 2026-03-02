@@ -10,7 +10,7 @@ The Cursor agent implementation. This directory contains the `AgentConfig` decla
 
 - `agent.ts` exports `cursorAgentConfig` (implements `AgentConfig`), which is imported directly by the `AgentRegistry` constructor in @/src/cli/features/agentRegistry.ts. CLI commands interact with this agent through shared operations in @/src/cli/features/agentOperations.ts, not through methods on the agent object.
 - Both agents share the same `activeSkillset` in the Config -- switching skillsets applies to all agents.
-- All shared loaders read from the same `~/.nori/profiles/` directory as Claude Code, using `parseSkillset()` from @/src/cli/features/skillset.ts. The skillset's `CLAUDE.md` is the source config file; the shared `createInstructionsLoader` handles writing it to `.cursor/rules/AGENTS.md` via `agent.getInstructionsFilePath()`.
+- All shared loaders read from the same `~/.nori/profiles/` directory as Claude Code, using `parseSkillset()` from @/src/norijson/skillset.ts. The skillset's `CLAUDE.md` is the source config file; the shared `createInstructionsLoader` handles writing it to `.cursor/rules/AGENTS.md` via `agent.getInstructionsFilePath()`.
 - Template substitution uses the `.cursor` directory as `installDir` so `{{skills_dir}}` resolves to `.cursor/skills/`.
 - Per-agent manifest is stored at `~/.nori/manifests/cursor-agent.json` via the shared manifest infrastructure in @/src/cli/features/manifest.ts.
 
@@ -18,7 +18,7 @@ The Cursor agent implementation. This directory contains the `AgentConfig` decla
 
 The `cursorAgentConfig` declares its loader pipeline via `getLoaders()`:
 
-1. `configLoader` (wrapped via `wrapLegacyLoader`) -- shared config persistence
+1. `configLoader` -- shared config persistence, from @/src/cli/features/configLoader.ts
 2. `skillsLoader` -- shared, from @/src/cli/features/shared/skillsLoader.ts
 3. `createInstructionsLoader({ managedDirs: ["rules"] })` -- shared
 4. `createSlashCommandsLoader({ managedDirs: ["commands"] })` -- shared

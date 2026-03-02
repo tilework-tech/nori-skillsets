@@ -8,7 +8,7 @@ The hooks system configures Claude Code lifecycle hooks that run automatically d
 
 ### How it fits into the larger codebase
 
-`hooksLoader` is registered in `@/src/cli/features/claude-code/loaderRegistry.ts` and runs as part of the install pipeline. It writes to `~/.claude/settings.json` (the home-level settings file, via `getClaudeHomeSettingsFile()` from `@/src/cli/features/claude-code/paths.ts`), which ensures hooks are active regardless of the current working directory.
+`hooksLoader` is an `AgentLoader` included in the `claudeCodeAgentConfig.getLoaders()` pipeline in `@/src/cli/features/claude-code/agent.ts`. It writes to `~/.claude/settings.json` (the home-level settings file, via `getClaudeHomeSettingsFile()` from `@/src/cli/features/claude-code/paths.ts`), which ensures hooks are active regardless of the current working directory.
 
 ### Core Implementation
 

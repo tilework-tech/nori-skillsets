@@ -11,7 +11,7 @@ import {
 } from "@/cli/features/claude-code/paths.js";
 
 import type { Config } from "@/cli/config.js";
-import type { Loader } from "@/cli/features/agentRegistry.js";
+import type { AgentLoader } from "@/cli/features/agentRegistry.js";
 
 const NORI_ANNOUNCEMENT = "🍙🍙🍙 Powered by Nori AI 🍙🍙🍙";
 
@@ -53,10 +53,11 @@ const configureAnnouncements = async (args: {
 /**
  * Announcements feature loader
  */
-export const announcementsLoader: Loader = {
+export const announcementsLoader: AgentLoader = {
   name: "announcements",
   description: "Claude Code announcements configuration",
-  run: async (args: { config: Config }) => {
-    return configureAnnouncements(args);
+  managedFiles: ["settings.json"],
+  run: async ({ config }) => {
+    return configureAnnouncements({ config });
   },
 };

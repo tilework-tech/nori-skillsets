@@ -15,7 +15,7 @@ import { createSubagentsLoader } from "@/cli/features/shared/subagentsLoader.js"
 
 import type { Config } from "@/cli/config.js";
 import type { AgentConfig } from "@/cli/features/agentRegistry.js";
-import type { Skillset } from "@/cli/features/skillset.js";
+import type { Skillset } from "@/norijson/skillset.js";
 
 // Suppress clack output during tests
 vi.mock("@clack/prompts", () => ({
@@ -34,12 +34,7 @@ vi.mock("os", async (importOriginal) => {
   };
 });
 
-// Mock paths to resolve against temp dirs
 let mockNoriDir: string;
-vi.mock("@/cli/features/paths.js", () => ({
-  getNoriDir: () => mockNoriDir,
-  getNoriSkillsetsDir: () => path.join(mockNoriDir, "profiles"),
-}));
 
 // ---- helpers ----------------------------------------------------------------
 

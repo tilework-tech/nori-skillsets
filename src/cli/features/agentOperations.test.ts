@@ -41,8 +41,10 @@ vi.mock("os", async (importOriginal) => {
 // Test-scoped nori dir (set in each suite's beforeEach via os.homedir mock)
 const TEST_NORI_DIR = "/tmp/agent-ops-test-nori";
 
-vi.mock("@/cli/features/paths.js", () => {
+vi.mock("@/norijson/skillset.js", async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
   return {
+    ...actual,
     getNoriDir: () => TEST_NORI_DIR,
     getNoriSkillsetsDir: () => `${TEST_NORI_DIR}/profiles`,
   };
@@ -448,12 +450,24 @@ describe("installSkillset", () => {
       ],
     });
 
+    // Create skillset at both the mocked path and the os.homedir-based path
+    // so that both external callers (via mocked getNoriSkillsetsDir) and
+    // internal module calls (via os.homedir) can find the skillset.
+    const noriJsonContent = JSON.stringify({
+      name: "test-skillset",
+      version: "1.0.0",
+    });
     const skillsetDir = path.join(TEST_NORI_DIR, "profiles", "test-skillset");
     fs.mkdirSync(skillsetDir, { recursive: true });
-    fs.writeFileSync(
-      path.join(skillsetDir, "nori.json"),
-      JSON.stringify({ name: "test-skillset", version: "1.0.0" }),
+    fs.writeFileSync(path.join(skillsetDir, "nori.json"), noriJsonContent);
+    const homeSkillsetDir = path.join(
+      tempDir,
+      ".nori",
+      "profiles",
+      "test-skillset",
     );
+    fs.mkdirSync(homeSkillsetDir, { recursive: true });
+    fs.writeFileSync(path.join(homeSkillsetDir, "nori.json"), noriJsonContent);
 
     const config: Config = {
       installDir: tempDir,

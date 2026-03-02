@@ -8,7 +8,7 @@ The registry-download command downloads and installs skillset packages from the 
 
 ### How it fits into the larger codebase
 
-Registered via `@/src/cli/commands/noriSkillsetsCommands.ts` as the `download` command. It calls `@/cli/commands/init/init.js` to auto-initialize if no config exists. It searches registries using `@/api/registrar.js`, resolves auth tokens via `@/api/registryAuth.js`, and manages skillset metadata through `@/cli/features/claude-code/skillsets/`. Skill dependencies declared in a skillset's `nori.json` are recursively downloaded using the skill resolver at `@/cli/features/skillResolver.js`. The interactive search/download flow is driven by `@/cli/prompts/flows/` callbacks.
+Registered via `@/src/cli/commands/noriSkillsetsCommands.ts` as the `download` command. It calls `@/cli/commands/init/init.js` to auto-initialize if no config exists. It searches registries using `@/api/registrar.js`, resolves auth tokens via `@/api/registryAuth.js`, and manages skillset metadata through `@/norijson/nori.js`. Skill dependencies declared in a skillset's `nori.json` are recursively downloaded using the skill resolver at `@/cli/features/skillResolver.js`. The interactive search/download flow is driven by `@/cli/prompts/flows/` callbacks.
 
 ### Core Implementation
 

@@ -1,5 +1,5 @@
 /**
- * Tests for skillset metadata utilities (nori.json read/write)
+ * Tests for nori.json metadata utilities (read/write/ensure)
  */
 
 import * as fs from "fs/promises";
@@ -13,7 +13,7 @@ import {
   writeSkillsetMetadata,
   addSkillToNoriJson,
   ensureNoriJson,
-} from "@/cli/features/skillsetMetadata.js";
+} from "@/norijson/nori.js";
 
 describe("writeSkillsetMetadata", () => {
   let skillsetDir: string;

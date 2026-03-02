@@ -9,23 +9,13 @@ import { claudeCodeAgentConfig } from "@/cli/features/claude-code/agent.js";
 import { cursorAgentConfig } from "@/cli/features/cursor-agent/agent.js";
 
 import type { Config } from "@/cli/config.js";
-import type { Skillset } from "@/cli/features/skillset.js";
+import type { Skillset } from "@/norijson/skillset.js";
 
 /**
  * Canonical agent names used as UIDs in the registry.
  * Each AgentConfig.name must match one of these values.
  */
 export type AgentName = "claude-code" | "cursor-agent";
-
-/**
- * Legacy loader interface for agent-specific loaders (hooks, statusline, etc.)
- * These are wrapped via wrapLegacyLoader into AgentLoader.
- */
-export type Loader = {
-  name: string;
-  description: string;
-  run: (args: { config: Config }) => Promise<string | void>;
-};
 
 /**
  * Unified loader interface for AgentConfig
@@ -43,30 +33,6 @@ export type AgentLoader = {
     config: Config;
     skillset?: Skillset | null;
   }) => Promise<string | void>;
-};
-
-/**
- * Wrap a legacy Loader (takes { config }) into an AgentLoader (takes { agent, config, skillset })
- * @param args - Wrapper arguments
- * @param args.loader - The legacy Loader to wrap
- * @param args.managedFiles - Files this loader manages
- * @param args.managedDirs - Directories this loader manages
- *
- * @returns An AgentLoader that delegates to the legacy loader
- */
-export const wrapLegacyLoader = (args: {
-  loader: Loader;
-  managedFiles?: ReadonlyArray<string> | null;
-  managedDirs?: ReadonlyArray<string> | null;
-}): AgentLoader => {
-  const { loader, managedFiles, managedDirs } = args;
-  return {
-    name: loader.name,
-    description: loader.description,
-    managedFiles: managedFiles ?? undefined,
-    managedDirs: managedDirs ?? undefined,
-    run: async ({ config }) => loader.run({ config }),
-  };
 };
 
 /**

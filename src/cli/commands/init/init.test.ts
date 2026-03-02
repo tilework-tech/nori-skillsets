@@ -44,9 +44,11 @@ vi.mock("@/cli/features/claude-code/paths.js", () => {
   };
 });
 
-vi.mock("@/cli/features/paths.js", () => {
+vi.mock("@/norijson/skillset.js", async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
   const testNoriDir = "/tmp/init-test-nori";
   return {
+    ...actual,
     getNoriDir: () => testNoriDir,
     getNoriSkillsetsDir: () => `${testNoriDir}/profiles`,
   };

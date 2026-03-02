@@ -8,7 +8,7 @@ The skill-download command downloads and installs individual skill packages from
 
 ### How it fits into the larger codebase
 
-Registered as `download-skill` via `@/src/cli/commands/noriSkillsetsCommands.ts`. It uses the same `@/api/registrar.js` API (via `getSkillPackument` and `downloadSkillTarball`) but against skill-specific endpoints. Skills are installed to each configured default agent's skills directory and persisted to the active skillset's `skills/` subdirectory. Manifest updates go through both `addSkillDependency` (in the skillset's `skills/` resolver) and `addSkillToNoriJson` (from `@/cli/features/skillsetMetadata.js`).
+Registered as `download-skill` via `@/src/cli/commands/noriSkillsetsCommands.ts`. It uses the same `@/api/registrar.js` API (via `getSkillPackument` and `downloadSkillTarball`) but against skill-specific endpoints. Skills are installed to each configured default agent's skills directory and persisted to the active skillset's `skills/` subdirectory. Manifest updates go through both `addSkillDependency` (in the skillset's `skills/` resolver) and `addSkillToNoriJson` (from `@/norijson/nori.js`).
 
 The command resolves default agents via `getDefaultAgents({ config })` from `@/src/cli/config.ts`, then iterates over all returned agents. This is the same multi-agent broadcasting pattern used by `switchSkillset` (@/src/cli/commands/switch-skillset/) and the external install command (@/src/cli/commands/external/).
 

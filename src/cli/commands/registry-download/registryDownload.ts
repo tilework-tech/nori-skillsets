@@ -27,8 +27,8 @@ import {
 import { initMain } from "@/cli/commands/init/init.js";
 import { getRegistryAuth, loadConfig } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
-import { getNoriSkillsetsDir } from "@/cli/features/paths.js";
 import { registryDownloadFlow } from "@/cli/prompts/flows/index.js";
+import { getNoriSkillsetsDir } from "@/norijson/skillset.js";
 import { resolveInstallDir } from "@/utils/path.js";
 import {
   parseNamespacedPackage,

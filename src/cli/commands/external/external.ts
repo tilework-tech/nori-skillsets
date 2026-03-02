@@ -23,16 +23,16 @@ import {
   AgentRegistry,
   type AgentConfig,
 } from "@/cli/features/agentRegistry.js";
-import { getNoriSkillsetsDir } from "@/cli/features/paths.js";
+import { substituteTemplatePaths } from "@/cli/features/template.js";
+import { promptSkillTypes } from "@/cli/prompts/flows/externalSkillType.js";
 import {
   addSkillToNoriJson,
   ensureNoriJson,
-} from "@/cli/features/skillsetMetadata.js";
-import { substituteTemplatePaths } from "@/cli/features/template.js";
-import { promptSkillTypes } from "@/cli/prompts/flows/externalSkillType.js";
+  type NoriJsonType,
+} from "@/norijson/nori.js";
+import { getNoriSkillsetsDir } from "@/norijson/skillset.js";
 import { resolveInstallDir } from "@/utils/path.js";
 
-import type { NoriJsonType } from "@/norijson/nori.js";
 import type { Command } from "commander";
 
 import { cloneRepo, cleanupClone, GitCloneError } from "./gitClone.js";

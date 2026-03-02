@@ -1,23 +1,200 @@
 /**
- * Tests for managedFolder utilities
- * Tests profile discovery against real filesystem structures
+ * Tests for norijson/skillset: paths, parseSkillset, and listSkillsets
  */
 
 import * as fs from "fs/promises";
 import * as os from "os";
 import * as path from "path";
 
-import { describe, test, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, test, expect, beforeEach, afterEach, vi } from "vitest";
 
-import { listSkillsets } from "@/cli/features/managedFolder.js";
-
-// Mock os.homedir to use a test directory so getNoriSkillsetsDir resolves there
+// Mock os.homedir so getNoriSkillsetsDir() resolves to test directories
 vi.mock("os", async (importOriginal) => {
   const actual = await importOriginal<typeof os>();
   return {
     ...actual,
     homedir: vi.fn().mockReturnValue(actual.homedir()),
   };
+});
+
+import {
+  getNoriDir,
+  getNoriSkillsetsDir,
+  parseSkillset,
+  listSkillsets,
+} from "@/norijson/skillset.js";
+
+describe("Shared Nori paths", () => {
+  describe("getNoriDir", () => {
+    it("should return ~/.nori", () => {
+      const result = getNoriDir();
+      expect(result).toBe(path.join(os.homedir(), ".nori"));
+    });
+  });
+
+  describe("getNoriSkillsetsDir", () => {
+    it("should return ~/.nori/profiles", () => {
+      const result = getNoriSkillsetsDir();
+      expect(result).toBe(path.join(os.homedir(), ".nori", "profiles"));
+    });
+  });
+});
+
+describe("parseSkillset", () => {
+  let tempDir: string;
+  let profilesDir: string;
+
+  beforeEach(async () => {
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "skillset-parse-test-"));
+    const mockNoriDir = path.join(tempDir, ".nori");
+    profilesDir = path.join(mockNoriDir, "profiles");
+    await fs.mkdir(profilesDir, { recursive: true });
+    vi.mocked(os.homedir).mockReturnValue(tempDir);
+  });
+
+  afterEach(async () => {
+    await fs.rm(tempDir, { recursive: true, force: true });
+    vi.clearAllMocks();
+  });
+
+  it("should parse a fully-populated skillset directory", async () => {
+    const skillsetName = "full-skillset";
+    const skillsetDir = path.join(profilesDir, skillsetName);
+    await fs.mkdir(skillsetDir, { recursive: true });
+    await fs.writeFile(
+      path.join(skillsetDir, "nori.json"),
+      JSON.stringify({
+        name: "full-skillset",
+        version: "1.0.0",
+        type: "skillset",
+      }),
+    );
+    await fs.writeFile(path.join(skillsetDir, "CLAUDE.md"), "# My Profile\n");
+    await fs.mkdir(path.join(skillsetDir, "skills"), { recursive: true });
+    await fs.mkdir(path.join(skillsetDir, "slashcommands"), {
+      recursive: true,
+    });
+    await fs.mkdir(path.join(skillsetDir, "subagents"), { recursive: true });
+
+    const skillset = await parseSkillset({ skillsetName });
+
+    expect(skillset.name).toBe("full-skillset");
+    expect(skillset.dir).toBe(skillsetDir);
+    expect(skillset.metadata.name).toBe("full-skillset");
+    expect(skillset.metadata.version).toBe("1.0.0");
+    expect(skillset.skillsDir).toBe(path.join(skillsetDir, "skills"));
+    expect(skillset.configFilePath).toBe(path.join(skillsetDir, "CLAUDE.md"));
+    expect(skillset.slashcommandsDir).toBe(
+      path.join(skillsetDir, "slashcommands"),
+    );
+    expect(skillset.subagentsDir).toBe(path.join(skillsetDir, "subagents"));
+  });
+
+  it("should parse a minimal skillset with only nori.json", async () => {
+    const skillsetName = "minimal-skillset";
+    const skillsetDir = path.join(profilesDir, skillsetName);
+    await fs.mkdir(skillsetDir, { recursive: true });
+    await fs.writeFile(
+      path.join(skillsetDir, "nori.json"),
+      JSON.stringify({
+        name: "minimal-skillset",
+        version: "0.1.0",
+      }),
+    );
+
+    const skillset = await parseSkillset({ skillsetName });
+
+    expect(skillset.name).toBe("minimal-skillset");
+    expect(skillset.dir).toBe(skillsetDir);
+    expect(skillset.metadata.name).toBe("minimal-skillset");
+    expect(skillset.skillsDir).toBeNull();
+    expect(skillset.configFilePath).toBeNull();
+    expect(skillset.slashcommandsDir).toBeNull();
+    expect(skillset.subagentsDir).toBeNull();
+  });
+
+  it("should handle namespaced skillsets like org/name", async () => {
+    const skillsetName = "myorg/my-skillset";
+    const skillsetDir = path.join(profilesDir, "myorg", "my-skillset");
+    await fs.mkdir(skillsetDir, { recursive: true });
+    await fs.writeFile(
+      path.join(skillsetDir, "nori.json"),
+      JSON.stringify({
+        name: "myorg/my-skillset",
+        version: "1.0.0",
+      }),
+    );
+    await fs.writeFile(path.join(skillsetDir, "CLAUDE.md"), "# Org Profile\n");
+
+    const skillset = await parseSkillset({ skillsetName });
+
+    expect(skillset.name).toBe("myorg/my-skillset");
+    expect(skillset.dir).toBe(skillsetDir);
+    expect(skillset.configFilePath).toBe(path.join(skillsetDir, "CLAUDE.md"));
+  });
+
+  it("should throw when skillset directory does not exist", async () => {
+    await expect(
+      parseSkillset({ skillsetName: "nonexistent" }),
+    ).rejects.toThrow();
+  });
+
+  it("should throw when nori.json is missing and directory doesn't look like a skillset", async () => {
+    const skillsetName = "no-manifest";
+    const skillsetDir = path.join(profilesDir, skillsetName);
+    await fs.mkdir(skillsetDir, { recursive: true });
+    await fs.writeFile(path.join(skillsetDir, "readme.txt"), "not a skillset");
+
+    await expect(parseSkillset({ skillsetName })).rejects.toThrow();
+  });
+
+  it("should parse legacy skillsets that have CLAUDE.md but no nori.json", async () => {
+    const skillsetName = "legacy-skillset";
+    const skillsetDir = path.join(profilesDir, skillsetName);
+    await fs.mkdir(skillsetDir, { recursive: true });
+    await fs.writeFile(
+      path.join(skillsetDir, "CLAUDE.md"),
+      "# Legacy Profile\n",
+    );
+
+    const skillset = await parseSkillset({ skillsetName });
+
+    expect(skillset.name).toBe("legacy-skillset");
+    expect(skillset.metadata.version).toBe("0.0.1");
+    expect(skillset.configFilePath).toBe(path.join(skillsetDir, "CLAUDE.md"));
+  });
+
+  it("should detect partial skillset with only skills dir", async () => {
+    const skillsetName = "skills-only";
+    const skillsetDir = path.join(profilesDir, skillsetName);
+    await fs.mkdir(skillsetDir, { recursive: true });
+    await fs.writeFile(
+      path.join(skillsetDir, "nori.json"),
+      JSON.stringify({ name: "skills-only", version: "1.0.0" }),
+    );
+    await fs.mkdir(path.join(skillsetDir, "skills"), { recursive: true });
+
+    const skillset = await parseSkillset({ skillsetName });
+
+    expect(skillset.skillsDir).toBe(path.join(skillsetDir, "skills"));
+    expect(skillset.configFilePath).toBeNull();
+    expect(skillset.slashcommandsDir).toBeNull();
+    expect(skillset.subagentsDir).toBeNull();
+  });
+
+  it("should also accept a direct skillsetDir path", async () => {
+    const skillsetDir = path.join(profilesDir, "direct-path");
+    await fs.mkdir(skillsetDir, { recursive: true });
+    await fs.writeFile(
+      path.join(skillsetDir, "nori.json"),
+      JSON.stringify({ name: "direct-path", version: "1.0.0" }),
+    );
+
+    const skillset = await parseSkillset({ skillsetDir });
+
+    expect(skillset.name).toBe("direct-path");
+    expect(skillset.dir).toBe(skillsetDir);
+  });
 });
 
 describe("listSkillsets", () => {

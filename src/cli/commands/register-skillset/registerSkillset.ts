@@ -9,11 +9,9 @@ import * as path from "path";
 
 import { log, note, outro } from "@clack/prompts";
 
-import { getNoriSkillsetsDir } from "@/cli/features/paths.js";
-import { writeSkillsetMetadata } from "@/cli/features/skillsetMetadata.js";
 import { registerSkillsetFlow } from "@/cli/prompts/flows/registerSkillset.js";
-
-import type { NoriJson } from "@/norijson/nori.js";
+import { writeSkillsetMetadata, type NoriJson } from "@/norijson/nori.js";
+import { getNoriSkillsetsDir } from "@/norijson/skillset.js";
 
 /**
  * Main function for register-skillset command

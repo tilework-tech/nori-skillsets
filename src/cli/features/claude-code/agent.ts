@@ -4,12 +4,10 @@
 
 import * as path from "path";
 
-import { wrapLegacyLoader } from "@/cli/features/agentRegistry.js";
 import { announcementsLoader } from "@/cli/features/claude-code/announcements/loader.js";
 import { hooksLoader } from "@/cli/features/claude-code/hooks/loader.js";
-import { permissionsLoader } from "@/cli/features/claude-code/permissionsLoader.js";
 import { statuslineLoader } from "@/cli/features/claude-code/statusline/loader.js";
-import { configLoader } from "@/cli/features/config/loader.js";
+import { configLoader } from "@/cli/features/configLoader.js";
 import { createInstructionsLoader } from "@/cli/features/shared/instructionsLoader.js";
 import { skillsLoader } from "@/cli/features/shared/skillsLoader.js";
 import { createSlashCommandsLoader } from "@/cli/features/shared/slashCommandsLoader.js";
@@ -37,24 +35,14 @@ export const claudeCodeAgentConfig: AgentConfig = {
     path.join(installDir, ".claude", "CLAUDE.md"),
 
   getLoaders: () => [
-    wrapLegacyLoader({ loader: configLoader }),
-    permissionsLoader,
+    configLoader,
     skillsLoader,
     createInstructionsLoader({ managedFiles: ["CLAUDE.md"] }),
     createSlashCommandsLoader({ managedDirs: ["commands"] }),
     createSubagentsLoader({ managedDirs: ["agents"] }),
-    wrapLegacyLoader({
-      loader: hooksLoader,
-      managedFiles: ["settings.json"],
-    }),
-    wrapLegacyLoader({
-      loader: statuslineLoader,
-      managedFiles: ["nori-statusline.sh", "settings.json"],
-    }),
-    wrapLegacyLoader({
-      loader: announcementsLoader,
-      managedFiles: ["settings.json"],
-    }),
+    hooksLoader,
+    statuslineLoader,
+    announcementsLoader,
   ],
 
   getTranscriptDirectory: () => path.join(getHomeDir(), ".claude", "projects"),

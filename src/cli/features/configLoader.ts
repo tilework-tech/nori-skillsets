@@ -12,7 +12,7 @@ import { getCurrentPackageVersion } from "@/cli/version.js";
 import { configureFirebase, getFirebase } from "@/providers/firebase.js";
 
 import type { Config } from "@/cli/config.js";
-import type { Loader } from "@/cli/features/agentRegistry.js";
+import type { AgentLoader } from "@/cli/features/agentRegistry.js";
 import type { AuthError } from "firebase/auth";
 
 /**
@@ -152,8 +152,10 @@ const installConfig = async (args: { config: Config }): Promise<void> => {
 /**
  * Config loader
  */
-export const configLoader: Loader = {
+export const configLoader: AgentLoader = {
   name: "config",
   description: "Configuration file (.nori-config.json)",
-  run: installConfig,
+  run: async ({ config }) => {
+    await installConfig({ config });
+  },
 };

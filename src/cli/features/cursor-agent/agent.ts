@@ -4,8 +4,7 @@
 
 import * as path from "path";
 
-import { wrapLegacyLoader } from "@/cli/features/agentRegistry.js";
-import { configLoader } from "@/cli/features/config/loader.js";
+import { configLoader } from "@/cli/features/configLoader.js";
 import { createInstructionsLoader } from "@/cli/features/shared/instructionsLoader.js";
 import { skillsLoader } from "@/cli/features/shared/skillsLoader.js";
 import { createSlashCommandsLoader } from "@/cli/features/shared/slashCommandsLoader.js";
@@ -31,7 +30,7 @@ export const cursorAgentConfig: AgentConfig = {
     path.join(installDir, ".cursor", "rules", "AGENTS.md"),
 
   getLoaders: () => [
-    wrapLegacyLoader({ loader: configLoader }),
+    configLoader,
     skillsLoader,
     createInstructionsLoader({ managedDirs: ["rules"] }),
     createSlashCommandsLoader({ managedDirs: ["commands"] }),

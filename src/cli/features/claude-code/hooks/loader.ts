@@ -14,7 +14,7 @@ import {
 } from "@/cli/features/claude-code/paths.js";
 
 import type { Config } from "@/cli/config.js";
-import type { Loader } from "@/cli/features/agentRegistry.js";
+import type { AgentLoader } from "@/cli/features/agentRegistry.js";
 
 // Get directory of this loader file
 const __filename = fileURLToPath(import.meta.url);
@@ -211,11 +211,11 @@ const configureHooks = async (args: {
 /**
  * Hooks feature loader
  */
-export const hooksLoader: Loader = {
+export const hooksLoader: AgentLoader = {
   name: "hooks",
   description: "Claude Code hooks (memorization, notifications, etc.)",
-  run: async (args: { config: Config }) => {
-    const { config } = args;
+  managedFiles: ["settings.json"],
+  run: async ({ config }) => {
     return configureHooks({ config });
   },
 };

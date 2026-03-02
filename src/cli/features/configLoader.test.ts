@@ -10,11 +10,10 @@ import * as clack from "@clack/prompts";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 import { getConfigPath } from "@/cli/config.js";
+import { configLoader } from "@/cli/features/configLoader.js";
 
 import type { Config } from "@/cli/config.js";
 import type * as firebaseAuth from "firebase/auth";
-
-import { configLoader } from "./loader.js";
 
 // Mock os.homedir so getConfigPath resolves to test directories
 vi.mock("os", async (importOriginal) => {
@@ -77,7 +76,7 @@ describe("configLoader", () => {
         activeSkillset: "senior-swe",
       };
 
-      await configLoader.run({ config });
+      await configLoader.run({ agent: {} as any, config });
 
       const configFile = getConfigPath();
       expect(fs.existsSync(configFile)).toBe(true);
@@ -95,7 +94,7 @@ describe("configLoader", () => {
         sendSessionTranscript: "enabled",
       };
 
-      await configLoader.run({ config });
+      await configLoader.run({ agent: {} as any, config });
 
       const configFile = getConfigPath();
       const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
@@ -108,7 +107,7 @@ describe("configLoader", () => {
         activeSkillset: "senior-swe",
       };
 
-      await configLoader.run({ config });
+      await configLoader.run({ agent: {} as any, config });
 
       const configFile = getConfigPath();
       const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
@@ -122,7 +121,7 @@ describe("configLoader", () => {
         sendSessionTranscript: "disabled",
       };
 
-      await configLoader.run({ config });
+      await configLoader.run({ agent: {} as any, config });
 
       const configFile = getConfigPath();
       const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
@@ -135,7 +134,7 @@ describe("configLoader", () => {
         activeSkillset: "senior-swe",
       };
 
-      await configLoader.run({ config });
+      await configLoader.run({ agent: {} as any, config });
 
       const configFile = getConfigPath();
       const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
@@ -160,7 +159,7 @@ describe("configLoader", () => {
         activeSkillset: "documenter",
       };
 
-      await configLoader.run({ config });
+      await configLoader.run({ agent: {} as any, config });
 
       const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
       expect(fileContents.activeSkillset).toBe("documenter");
@@ -184,7 +183,7 @@ describe("configLoader", () => {
         activeSkillset: "senior-swe",
       };
 
-      await configLoader.run({ config });
+      await configLoader.run({ agent: {} as any, config });
 
       const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
       expect(fileContents.activeSkillset).toBe("senior-swe");
@@ -196,7 +195,7 @@ describe("configLoader", () => {
         activeSkillset: "none",
       };
 
-      await configLoader.run({ config });
+      await configLoader.run({ agent: {} as any, config });
 
       const configFile = getConfigPath();
       const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
@@ -221,7 +220,7 @@ describe("configLoader", () => {
         installDir: tempDir,
       };
 
-      await configLoader.run({ config });
+      await configLoader.run({ agent: {} as any, config });
 
       const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
       // activeSkillset should be preserved from existing config
@@ -239,7 +238,7 @@ describe("configLoader", () => {
         },
       };
 
-      await configLoader.run({ config });
+      await configLoader.run({ agent: {} as any, config });
 
       const configFile = getConfigPath();
       const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
@@ -281,7 +280,7 @@ describe("configLoader", () => {
         },
       };
 
-      await configLoader.run({ config });
+      await configLoader.run({ agent: {} as any, config });
 
       const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
       expect(fileContents.auth.organizations).toEqual([
@@ -310,7 +309,7 @@ describe("configLoader", () => {
         },
       };
 
-      await configLoader.run({ config });
+      await configLoader.run({ agent: {} as any, config });
 
       // The auth failure header should use log.error
       expect(clack.log.error).toHaveBeenCalledWith("Authentication failed");
@@ -349,7 +348,7 @@ describe("configLoader", () => {
         activeSkillset: "senior-swe",
       };
 
-      await configLoader.run({ config });
+      await configLoader.run({ agent: {} as any, config });
 
       const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
       // installDir should be preserved from existing config, not overwritten
@@ -375,7 +374,7 @@ describe("configLoader", () => {
         activeSkillset: "senior-swe",
       };
 
-      await configLoader.run({ config });
+      await configLoader.run({ agent: {} as any, config });
 
       const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
       // defaultAgents should be preserved from existing config
@@ -388,7 +387,7 @@ describe("configLoader", () => {
         activeSkillset: "senior-swe",
       };
 
-      await configLoader.run({ config });
+      await configLoader.run({ agent: {} as any, config });
 
       const configFile = getConfigPath();
       const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
@@ -408,7 +407,7 @@ describe("configLoader", () => {
         },
       };
 
-      await configLoader.run({ config });
+      await configLoader.run({ agent: {} as any, config });
 
       const configFile = getConfigPath();
       const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
