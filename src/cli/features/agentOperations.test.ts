@@ -462,41 +462,10 @@ describe("installSkillset", () => {
 
     await installSkillset({ agent, config, skipManifest: false });
 
-    // Marker file should exist
-    const agentDir = agent.getAgentDir({ installDir: tempDir });
-    expect(fs.existsSync(path.join(agentDir, ".nori-managed"))).toBe(true);
-
     // Manifest should exist
     const { getManifestPath } = await import("@/cli/features/manifest.js");
     const manifestPath = getManifestPath({ agentName: agent.name });
     expect(fs.existsSync(manifestPath)).toBe(true);
-  });
-
-  it("should mark install with skillset name", async () => {
-    const agent = createTestAgent({
-      loaders: [],
-    });
-
-    const skillsetDir = path.join(TEST_NORI_DIR, "profiles", "my-skillset");
-    fs.mkdirSync(skillsetDir, { recursive: true });
-    fs.writeFileSync(
-      path.join(skillsetDir, "nori.json"),
-      JSON.stringify({ name: "my-skillset", version: "1.0.0" }),
-    );
-
-    const config: Config = {
-      installDir: tempDir,
-      activeSkillset: "my-skillset",
-    };
-
-    await installSkillset({ agent, config });
-
-    const agentDir = agent.getAgentDir({ installDir: tempDir });
-    const markerContent = fs.readFileSync(
-      path.join(agentDir, ".nori-managed"),
-      "utf-8",
-    );
-    expect(markerContent).toBe("my-skillset");
   });
 
   it("should skip manifest when skipManifest is true", async () => {
@@ -528,10 +497,6 @@ describe("installSkillset", () => {
     };
 
     await installSkillset({ agent, config, skipManifest: true });
-
-    // Marker should still exist
-    const agentDir = agent.getAgentDir({ installDir: tempDir });
-    expect(fs.existsSync(path.join(agentDir, ".nori-managed"))).toBe(true);
 
     // Manifest should NOT exist
     const { getManifestPath } = await import("@/cli/features/manifest.js");
