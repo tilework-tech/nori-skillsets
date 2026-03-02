@@ -188,13 +188,6 @@ export const installSkillset = async (args: {
       // Non-fatal
     }
   }
-
-  // Mark install directory
-  markInstall({
-    agent,
-    path: config.installDir,
-    skillsetName,
-  });
 };
 
 export const switchSkillset = async (args: {

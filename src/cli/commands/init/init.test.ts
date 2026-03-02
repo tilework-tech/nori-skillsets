@@ -411,6 +411,34 @@ describe("init command", () => {
       expect(fs.existsSync(markerPath)).toBe(true);
       expect(fs.readFileSync(markerPath, "utf-8")).toBe("");
     });
+
+    it("should write skillset name to .nori-managed when skillset param is provided", async () => {
+      const CONFIG_PATH = getConfigPath();
+
+      // Create existing config (simulates switch scenario where config already exists)
+      const existingConfig = {
+        version: "19.0.0",
+        activeSkillset: "old-skillset",
+        auth: {
+          username: "test@example.com",
+          organizationUrl: "https://example.tilework.tech",
+        },
+        installDir: tempDir,
+      };
+      fs.writeFileSync(CONFIG_PATH, JSON.stringify(existingConfig, null, 2));
+
+      // Run init with skillset param (as happens during switch)
+      await initMain({
+        installDir: tempDir,
+        nonInteractive: true,
+        skillset: "senior-swe",
+      });
+
+      // Verify .nori-managed contains the skillset name, not empty string
+      const markerPath = path.join(tempDir, ".claude", ".nori-managed");
+      expect(fs.existsSync(markerPath)).toBe(true);
+      expect(fs.readFileSync(markerPath, "utf-8")).toBe("senior-swe");
+    });
   });
 
   describe("installDir persistence", () => {

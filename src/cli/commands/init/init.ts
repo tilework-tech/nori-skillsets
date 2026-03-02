@@ -58,13 +58,15 @@ const directoryExists = async (dirPath: string): Promise<boolean> => {
  * @param args.installDir - Installation directory
  * @param args.nonInteractive - Whether to run in non-interactive mode
  * @param args.skipWarning - Whether to skip the skillset persistence warning (useful for auto-init in download flows)
+ * @param args.skillset - Skillset name to write to .nori-managed markers
  */
 export const initMain = async (args?: {
   installDir?: string | null;
   nonInteractive?: boolean | null;
   skipWarning?: boolean | null;
+  skillset?: string | null;
 }): Promise<void> => {
-  const { installDir, nonInteractive, skipWarning } = args ?? {};
+  const { installDir, nonInteractive, skipWarning, skillset } = args ?? {};
   const normalizedInstallDir = normalizeInstallDir({
     installDir,
     agentDirNames: AgentRegistry.getInstance().getAgentDirNames(),
@@ -215,7 +217,11 @@ export const initMain = async (args?: {
     markInstall({
       agent,
       path: normalizedInstallDir,
-      skillsetName: capturedSkillsetName,
+      skillsetName:
+        capturedSkillsetName ??
+        skillset ??
+        existingConfig?.activeSkillset ??
+        null,
     });
   }
 };

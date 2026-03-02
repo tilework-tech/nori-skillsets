@@ -75,7 +75,7 @@ The `--agent` global CLI option (default: "claude-code") determines which agent 
 - `getManagedFiles/getManagedDirs`: Aggregates managed paths from all loaders' `managedFiles`/`managedDirs` declarations. This replaces hardcoded lists that were previously on each agent object.
 - `isInstalledAtDir`: Checks for `.nori-managed` marker file, then falls back to checking the agent's instructions file for `NORI-AI MANAGED BLOCK`.
 - `markInstall`: Writes `.nori-managed` marker containing the skillset name.
-- `installSkillset`: Parses the active skillset via `parseSkillset()`, runs all loaders from `agent.getLoaders()`, collects settings labels for a consolidated output note, optionally writes the manifest, emits a Skills note, and calls `markInstall`.
+- `installSkillset`: Parses the active skillset via `parseSkillset()`, runs all loaders from `agent.getLoaders()`, collects settings labels for a consolidated output note, optionally writes the manifest, and emits a Skills note. It does **not** write `.nori-managed` markers; that responsibility belongs solely to `initMain` in @/src/cli/commands/init/init.ts, which calls `markInstall` for all default agents.
 - `switchSkillset`: Validates the target skillset exists (has `nori.json`) and logs success. Does not persist config.
 - `removeSkillset`: Reads per-agent manifest, calls `removeManagedFiles()`. Includes legacy manifest cleanup for claude-code.
 - `detectLocalChanges`: Reads per-agent manifest (with legacy fallback for claude-code), compares file hashes.

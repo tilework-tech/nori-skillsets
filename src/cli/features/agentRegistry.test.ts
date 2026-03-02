@@ -696,7 +696,7 @@ describe("AgentRegistry", () => {
       }
     });
 
-    test("creates marker file and manifest after installation", async () => {
+    test("creates manifest after installation (marker is handled by initMain)", async () => {
       const registry = AgentRegistry.getInstance();
       const agent = registry.get({ name: "claude-code" });
 
@@ -733,10 +733,6 @@ describe("AgentRegistry", () => {
       };
 
       await installSkillset({ agent, config });
-
-      // Marker file should exist
-      const markerPath = path.join(agentDir, ".nori-managed");
-      await expect(fs.access(markerPath)).resolves.not.toThrow();
 
       // Manifest should exist
       const { getManifestPath } = await import("@/cli/features/manifest.js");
