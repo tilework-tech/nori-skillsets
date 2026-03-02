@@ -173,6 +173,7 @@ export const noninteractive = async (args?: {
   await initMain({
     installDir: normalizedInstallDir,
     nonInteractive: true,
+    skillset,
   });
 
   // Step 2: Resolve skillset and save to config
