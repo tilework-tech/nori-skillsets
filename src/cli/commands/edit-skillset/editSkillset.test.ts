@@ -124,7 +124,7 @@ describe("editSkillsetMain", () => {
       expect.stringContaining("senior-swe"),
     );
     // Should end with outro
-    expect(outro).toHaveBeenCalled();
+    expect(outro).not.toHaveBeenCalled();
     expect(mockExit).not.toHaveBeenCalled();
   });
 
@@ -183,7 +183,7 @@ describe("editSkillsetMain", () => {
     expect(log.info).toHaveBeenCalledWith(expect.stringContaining("cd"));
 
     // Should end with outro
-    expect(outro).toHaveBeenCalled();
+    expect(outro).not.toHaveBeenCalled();
 
     // Should NOT exit with error
     expect(mockExit).not.toHaveBeenCalled();
@@ -270,7 +270,7 @@ describe("editSkillsetMain", () => {
     expect(log.success).toHaveBeenCalledWith(
       expect.stringContaining("senior-swe"),
     );
-    expect(outro).toHaveBeenCalled();
+    expect(outro).not.toHaveBeenCalled();
   });
 
   it("should resolve namespaced profiles correctly", async () => {
@@ -312,7 +312,7 @@ describe("editSkillsetMain", () => {
     expect(log.success).toHaveBeenCalledWith(
       expect.stringContaining("myorg/my-profile"),
     );
-    expect(outro).toHaveBeenCalled();
+    expect(outro).not.toHaveBeenCalled();
   });
 
   it("should open specified profile when name argument is provided", async () => {
@@ -358,7 +358,7 @@ describe("editSkillsetMain", () => {
     expect(log.success).toHaveBeenCalledWith(
       expect.stringContaining("product-manager"),
     );
-    expect(outro).toHaveBeenCalled();
+    expect(outro).not.toHaveBeenCalled();
   });
 
   it("should auto-detect agent and use its active profile when no agent or name is given", async () => {
@@ -401,7 +401,7 @@ describe("editSkillsetMain", () => {
     expect(log.success).toHaveBeenCalledWith(
       expect.stringContaining("senior-swe"),
     );
-    expect(outro).toHaveBeenCalled();
+    expect(outro).not.toHaveBeenCalled();
   });
 
   it("should error when no config exists and no name argument is given", async () => {

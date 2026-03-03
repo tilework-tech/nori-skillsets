@@ -7,21 +7,25 @@
 import * as fs from "fs/promises";
 import * as path from "path";
 
-import { log, note, outro } from "@clack/prompts";
+import { log, note } from "@clack/prompts";
 
 import { registerSkillsetFlow } from "@/cli/prompts/flows/registerSkillset.js";
 import { writeSkillsetMetadata, type NoriJson } from "@/norijson/nori.js";
 import { getNoriSkillsetsDir } from "@/norijson/skillset.js";
+
+import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 
 /**
  * Main function for register-skillset command
  *
  * @param args - The function arguments
  * @param args.skillsetName - Skillset name (null to use current active skillset)
+ *
+ * @returns Command status
  */
 export const registerSkillsetMain = async (args: {
   skillsetName: string | null;
-}): Promise<void> => {
+}): Promise<CommandStatus> => {
   let { skillsetName } = args;
 
   // If no skillset name provided, use current active skillset
@@ -37,7 +41,11 @@ export const registerSkillsetMain = async (args: {
         "No active skillset configured. Use 'nori-skillsets switch <name>' to set one, or specify a skillset name.",
       );
       process.exit(1);
-      return;
+      return {
+        success: false,
+        cancelled: false,
+        message: "No active skillset configured.",
+      };
     }
 
     const activeSkillset = getActiveSkillset({ config });
@@ -47,7 +55,11 @@ export const registerSkillsetMain = async (args: {
         "No active skillset configured. Use 'nori-skillsets switch <name>' to set one, or specify a skillset name.",
       );
       process.exit(1);
-      return;
+      return {
+        success: false,
+        cancelled: false,
+        message: "No active skillset configured.",
+      };
     }
 
     skillsetName = activeSkillset;
@@ -64,7 +76,11 @@ export const registerSkillsetMain = async (args: {
       `Skillset '${skillsetName}' does not exist at ${destPath}. Please create it first.`,
     );
     process.exit(1);
-    return;
+    return {
+      success: false,
+      cancelled: false,
+      message: `Skillset '${skillsetName}' does not exist.`,
+    };
   }
 
   // Validate that nori.json does NOT already exist
@@ -75,7 +91,11 @@ export const registerSkillsetMain = async (args: {
       `Skillset '${skillsetName}' already has a nori.json manifest at ${noriJsonPath}.`,
     );
     process.exit(1);
-    return;
+    return {
+      success: false,
+      cancelled: false,
+      message: `Skillset '${skillsetName}' already has a nori.json manifest.`,
+    };
   } catch {
     // Expected - nori.json should not exist
   }
@@ -85,7 +105,7 @@ export const registerSkillsetMain = async (args: {
 
   if (flowResult == null) {
     // User cancelled
-    return;
+    return { success: false, cancelled: true, message: "" };
   }
 
   const { description, license, keywords, version, repository } = flowResult;
@@ -125,5 +145,9 @@ export const registerSkillsetMain = async (args: {
   ].join("\n");
   note(nextSteps, "Next Steps");
 
-  outro(`Registered skillset '${skillsetName}'`);
+  return {
+    success: true,
+    cancelled: false,
+    message: `Registered skillset '${skillsetName}'`,
+  };
 };

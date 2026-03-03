@@ -313,6 +313,11 @@ describe("registry-download", () => {
         await fs.mkdir(path.join(installDir, ".nori", "profiles"), {
           recursive: true,
         });
+        return {
+          success: true,
+          cancelled: false,
+          message: "Nori initialized successfully",
+        };
       });
 
       // loadConfig returns null first (triggering auto-init), then a value after init
@@ -368,6 +373,11 @@ describe("registry-download", () => {
         await fs.mkdir(path.join(installDir, ".nori", "profiles"), {
           recursive: true,
         });
+        return {
+          success: true,
+          cancelled: false,
+          message: "Nori initialized successfully",
+        };
       });
 
       // loadConfig returns null first (triggering auto-init)
@@ -866,7 +876,11 @@ describe("registry-download", () => {
       vi.mocked(loadConfig).mockResolvedValue(null);
 
       // Mock initMain to succeed silently (auto-init on first use)
-      vi.mocked(initMain).mockResolvedValue(undefined);
+      vi.mocked(initMain).mockResolvedValue({
+        success: true,
+        cancelled: false,
+        message: "Nori initialized successfully",
+      });
 
       // Package exists in public registry
       vi.mocked(registrarApi.getPackument).mockResolvedValue({

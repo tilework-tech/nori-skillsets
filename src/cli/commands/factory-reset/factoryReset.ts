@@ -12,6 +12,8 @@ import { findArtifacts } from "@/cli/features/agentOperations.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { factoryResetFlow } from "@/cli/prompts/flows/factoryReset.js";
 
+import type { CommandStatus } from "@/cli/commands/commandStatus.js";
+
 /**
  * Main function for factory-reset command
  *
@@ -19,12 +21,14 @@ import { factoryResetFlow } from "@/cli/prompts/flows/factoryReset.js";
  * @param args.agentName - Name of the agent to factory reset
  * @param args.path - Directory to start searching from (defaults to cwd)
  * @param args.nonInteractive - Whether running in non-interactive mode
+ *
+ * @returns Command status
  */
 export const factoryResetMain = async (args: {
   agentName: string;
   path?: string | null;
   nonInteractive?: boolean | null;
-}): Promise<void> => {
+}): Promise<CommandStatus> => {
   const { agentName, nonInteractive } = args;
   const effectivePath = args.path ?? process.cwd();
 
@@ -33,7 +37,12 @@ export const factoryResetMain = async (args: {
       "Factory reset requires explicit confirmation. Cannot proceed in non-interactive mode.",
     );
     process.exit(1);
-    return;
+    return {
+      success: false,
+      cancelled: false,
+      message:
+        "Factory reset requires explicit confirmation. Cannot proceed in non-interactive mode.",
+    };
   }
 
   const agent = AgentRegistry.getInstance().get({ name: agentName });
@@ -41,10 +50,14 @@ export const factoryResetMain = async (args: {
   if (agent.getArtifactPatterns == null) {
     log.error(`Agent '${agentName}' does not support factory reset.`);
     process.exit(1);
-    return;
+    return {
+      success: false,
+      cancelled: false,
+      message: `Agent '${agentName}' does not support factory reset.`,
+    };
   }
 
-  await factoryResetFlow({
+  const result = await factoryResetFlow({
     agentName: agent.displayName,
     path: effectivePath,
     callbacks: {
@@ -63,4 +76,10 @@ export const factoryResetMain = async (args: {
       },
     },
   });
+
+  if (result == null) {
+    return { success: false, cancelled: true, message: "" };
+  }
+
+  return { success: true, cancelled: false, message: result.statusMessage };
 };

@@ -7,9 +7,11 @@
 
 import { spawn } from "child_process";
 
-import { log, outro } from "@clack/prompts";
+import { log } from "@clack/prompts";
 
 import { getNoriSkillsetsDir } from "@/norijson/skillset.js";
+
+import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 
 const openInExplorer = (args: { dirPath: string }): void => {
   const { dirPath } = args;
@@ -31,17 +33,19 @@ const openInExplorer = (args: { dirPath: string }): void => {
  *
  * @param args - Configuration arguments
  * @param args.nonInteractive - If true, output plain path without opening explorer
+ *
+ * @returns Command status
  */
 export const dirMain = async (args?: {
   nonInteractive?: boolean | null;
-}): Promise<void> => {
+}): Promise<CommandStatus> => {
   const { nonInteractive } = args ?? {};
   const skillsetsDir = getNoriSkillsetsDir();
 
   if (nonInteractive) {
     // Plain output for scripting
     process.stdout.write(skillsetsDir + "\n");
-    return;
+    return { success: true, cancelled: false, message: "Done" };
   }
 
   let opened = false;
@@ -57,5 +61,5 @@ export const dirMain = async (args?: {
   } else {
     log.step(`Nori profiles directory: ${skillsetsDir}`);
   }
-  outro("Done");
+  return { success: true, cancelled: false, message: "Done" };
 };

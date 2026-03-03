@@ -231,7 +231,11 @@ describe("registry-install", () => {
   });
 
   it("should not proceed with install if download fails", async () => {
-    vi.mocked(registryDownloadMain).mockResolvedValueOnce({ success: false });
+    vi.mocked(registryDownloadMain).mockResolvedValueOnce({
+      success: false,
+      cancelled: false,
+      message: "",
+    });
 
     const result = await registryInstallMain({
       packageSpec: "nonexistent-profile",
@@ -262,26 +266,32 @@ describe("registry-install", () => {
     expect(clack.outro).not.toHaveBeenCalled();
   });
 
-  it("should display outro on switch path for existing installation", async () => {
+  it("should show switching note and return success on switch path for existing installation", async () => {
     vi.mocked(hasExistingInstallation).mockReturnValueOnce(true);
 
-    await registryInstallMain({
+    const result = await registryInstallMain({
       packageSpec: "senior-swe",
     });
 
-    // Switch path shows intro/outro framing
-    expect(clack.intro).toHaveBeenCalledWith("Switch Skillset");
+    // Switch path shows note but no intro/outro
+    expect(clack.intro).not.toHaveBeenCalled();
     expect(clack.note).toHaveBeenCalledWith(
       expect.stringContaining("senior-swe"),
       "Switching Skillset",
     );
-    expect(clack.outro).toHaveBeenCalledWith(
-      expect.stringContaining("senior-swe"),
-    );
+    expect(clack.outro).not.toHaveBeenCalled();
+
+    // Return status contains skillset name
+    expect(result.success).toBe(true);
+    expect(result.message).toContain("senior-swe");
   });
 
   it("should not display outro when download fails", async () => {
-    vi.mocked(registryDownloadMain).mockResolvedValueOnce({ success: false });
+    vi.mocked(registryDownloadMain).mockResolvedValueOnce({
+      success: false,
+      cancelled: false,
+      message: "",
+    });
 
     await registryInstallMain({
       packageSpec: "nonexistent-profile",
@@ -293,7 +303,11 @@ describe("registry-install", () => {
 
   it("should fallback to local skillset when download fails but skillset exists locally", async () => {
     // Download fails
-    vi.mocked(registryDownloadMain).mockResolvedValueOnce({ success: false });
+    vi.mocked(registryDownloadMain).mockResolvedValueOnce({
+      success: false,
+      cancelled: false,
+      message: "",
+    });
     // Local profile exists
     vi.mocked(fs.access).mockResolvedValueOnce(undefined);
     // Has existing installation
@@ -325,7 +339,11 @@ describe("registry-install", () => {
 
   it("should fail when download fails and skillset does not exist locally", async () => {
     // Download fails
-    vi.mocked(registryDownloadMain).mockResolvedValueOnce({ success: false });
+    vi.mocked(registryDownloadMain).mockResolvedValueOnce({
+      success: false,
+      cancelled: false,
+      message: "",
+    });
     // Local profile does NOT exist
     vi.mocked(fs.access).mockRejectedValueOnce(new Error("ENOENT"));
 

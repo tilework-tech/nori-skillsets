@@ -90,7 +90,9 @@ describe("registerSkillsetMain", () => {
       repository: "https://github.com/user/repo",
     });
 
-    await registerSkillsetMain({ skillsetName: "my-existing-skillset" });
+    const result = await registerSkillsetMain({
+      skillsetName: "my-existing-skillset",
+    });
 
     // Verify nori.json was created
     const noriJson = JSON.parse(
@@ -106,9 +108,10 @@ describe("registerSkillsetMain", () => {
       repository: "https://github.com/user/repo",
     });
 
-    expect(mockOutro).toHaveBeenCalledWith(
-      expect.stringContaining("my-existing-skillset"),
-    );
+    // Verify return status contains skillset name
+    expect(result.success).toBe(true);
+    expect(result.message).toContain("my-existing-skillset");
+    expect(mockOutro).not.toHaveBeenCalled();
     expect(mockExit).not.toHaveBeenCalled();
   });
 

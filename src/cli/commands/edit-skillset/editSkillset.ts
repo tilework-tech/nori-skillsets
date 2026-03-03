@@ -7,21 +7,25 @@ import { execFile } from "child_process";
 import * as fs from "fs/promises";
 import * as path from "path";
 
-import { log, note, outro } from "@clack/prompts";
+import { log, note } from "@clack/prompts";
 
 import { loadConfig, getActiveSkillset } from "@/cli/config.js";
 import { getNoriSkillsetsDir } from "@/norijson/skillset.js";
+
+import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 
 /**
  * Main function for edit-skillset command
  * @param args - Configuration arguments
  * @param args.name - Optional skillset name to open (defaults to active skillset)
  * @param args.agent - Optional agent name override
+ *
+ * @returns Command status
  */
 export const editSkillsetMain = async (args: {
   name?: string | null;
   agent?: string | null;
-}): Promise<void> => {
+}): Promise<CommandStatus> => {
   const { name } = args;
 
   // Determine which skillset to open
@@ -40,7 +44,11 @@ export const editSkillsetMain = async (args: {
         "No active skillset configured. Use 'nori-skillsets switch <name>' to set one.",
       );
       process.exit(1);
-      return;
+      return {
+        success: false,
+        cancelled: false,
+        message: "No active skillset configured.",
+      };
     }
 
     skillsetName = activeSkillset;
@@ -56,7 +64,11 @@ export const editSkillsetMain = async (args: {
   } catch {
     log.error(`Skillset '${skillsetName}' not found at ${skillsetDir}`);
     process.exit(1);
-    return;
+    return {
+      success: false,
+      cancelled: false,
+      message: `Skillset '${skillsetName}' not found at ${skillsetDir}`,
+    };
   }
 
   // Try to open in VS Code
@@ -64,7 +76,6 @@ export const editSkillsetMain = async (args: {
 
   if (opened) {
     log.success(`Opened '${skillsetName}' in VS Code`);
-    outro("Done");
   } else {
     // Fallback: show directory contents in a note
     let noteContent = skillsetDir;
@@ -91,8 +102,8 @@ export const editSkillsetMain = async (args: {
 
     log.info(`To open in VS Code: code ${skillsetDir}`);
     log.info(`To navigate there:  cd ${skillsetDir}`);
-    outro("Done");
   }
+  return { success: true, cancelled: false, message: "Done" };
 };
 
 /**

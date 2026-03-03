@@ -497,17 +497,14 @@ describe("login command", () => {
     });
 
     it("should require email and password in non-interactive mode", async () => {
-      const clack = await import("@clack/prompts");
-
-      await loginMain({
+      const result = await loginMain({
         installDir: tempDir,
         nonInteractive: true,
         // Missing email and password
       });
 
-      expect(clack.log.error).toHaveBeenCalledWith(
-        expect.stringContaining("--email"),
-      );
+      expect(result.success).toBe(false);
+      expect(result.message).toContain("--email");
     });
 
     it("should handle login flow cancellation", async () => {
@@ -596,8 +593,8 @@ describe("login command", () => {
 
       await loginMain({ installDir: tempDir });
 
-      // Verify intro was called
-      expect(clack.intro).toHaveBeenCalledWith("Login to Nori Skillsets");
+      // Verify intro is no longer called (moved to command wrapper)
+      expect(clack.intro).not.toHaveBeenCalled();
 
       // Verify select was called with email and google options
       expect(clack.select).toHaveBeenCalledWith(
@@ -794,17 +791,14 @@ describe("login command", () => {
     });
 
     it("should show error when --no-localhost is used without --google", async () => {
-      const clack = await import("@clack/prompts");
-
-      await loginMain({
+      const result = await loginMain({
         installDir: tempDir,
         noLocalhost: true,
       });
 
-      // Should show the --no-localhost error
-      expect(clack.log.error).toHaveBeenCalledWith(
-        expect.stringContaining("--no-localhost"),
-      );
+      // Should return failure with --no-localhost error
+      expect(result.success).toBe(false);
+      expect(result.message).toContain("--no-localhost");
 
       // No config should be saved
       const config = await loadConfig();
@@ -943,17 +937,14 @@ describe("login command", () => {
     });
 
     it("should show error when --google is used with --email", async () => {
-      const clack = await import("@clack/prompts");
-
-      await loginMain({
+      const result = await loginMain({
         installDir: tempDir,
         google: true,
         email: "user@example.com",
       });
 
-      expect(clack.log.error).toHaveBeenCalledWith(
-        expect.stringContaining("--google"),
-      );
+      expect(result.success).toBe(false);
+      expect(result.message).toContain("--google");
 
       // No config should be saved
       const config = await loadConfig();
@@ -961,31 +952,25 @@ describe("login command", () => {
     });
 
     it("should show error when --google is used with --password", async () => {
-      const clack = await import("@clack/prompts");
-
-      await loginMain({
+      const result = await loginMain({
         installDir: tempDir,
         google: true,
         password: "secret",
       });
 
-      expect(clack.log.error).toHaveBeenCalledWith(
-        expect.stringContaining("--google"),
-      );
+      expect(result.success).toBe(false);
+      expect(result.message).toContain("--google");
     });
 
     it("should show error when --google is used with --non-interactive", async () => {
-      const clack = await import("@clack/prompts");
-
-      await loginMain({
+      const result = await loginMain({
         installDir: tempDir,
         google: true,
         nonInteractive: true,
       });
 
-      expect(clack.log.error).toHaveBeenCalledWith(
-        expect.stringContaining("--non-interactive"),
-      );
+      expect(result.success).toBe(false);
+      expect(result.message).toContain("--non-interactive");
 
       // No config should be saved
       const config = await loadConfig();
@@ -1389,13 +1374,14 @@ describe("login command", () => {
     });
 
     it("should show error when --no-localhost is used without --google", async () => {
-      const clack = await import("@clack/prompts");
+      const result = await loginMain({
+        installDir: tempDir,
+        noLocalhost: true,
+      });
 
-      await loginMain({ installDir: tempDir, noLocalhost: true });
-
-      expect(clack.log.error).toHaveBeenCalledWith(
-        expect.stringContaining("--no-localhost"),
-      );
+      // Should return failure with --no-localhost error
+      expect(result.success).toBe(false);
+      expect(result.message).toContain("--no-localhost");
 
       // No config should be saved
       const config = await loadConfig();

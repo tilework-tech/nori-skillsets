@@ -6,7 +6,7 @@
 import * as fs from "fs/promises";
 import * as path from "path";
 
-import { intro, log, note, outro } from "@clack/prompts";
+import { log, note } from "@clack/prompts";
 
 import { main as installMain } from "@/cli/commands/install/install.js";
 import { hasExistingInstallation } from "@/cli/commands/install/installState.js";
@@ -65,16 +65,8 @@ const checkLocalSkillsetExists = async (args: {
  */
 export type RegistryInstallResult = {
   success: boolean;
-};
-
-/**
- * Display success message after installation completes
- * @param args - Function arguments
- * @param args.skillsetName - Name of the skillset that was installed
- */
-const displaySuccessMessage = (args: { skillsetName: string }): void => {
-  const { skillsetName } = args;
-  outro(`Skillset "${skillsetName}" is now active.`);
+  cancelled: boolean;
+  message: string;
 };
 
 /**
@@ -126,7 +118,11 @@ export const registryInstallMain = async (
     });
 
     if (!localExists) {
-      return { success: false };
+      return {
+        success: false,
+        cancelled: false,
+        message: `Skillset "${skillsetName}" not found in registry or locally.`,
+      };
     }
 
     log.warn(
@@ -149,11 +145,14 @@ export const registryInstallMain = async (
         });
       }
       // Initial install already sets the skillset and displays its own completion banners
-      return { success: true };
+      return {
+        success: true,
+        cancelled: false,
+        message: `Skillset "${skillsetName}" installed and activated.`,
+      };
     }
 
     // Step 3 (existing installation): Broadcast switch to all configured agents
-    intro("Switch Skillset");
 
     // Show context note with switch details
     const currentSkillset =
@@ -192,12 +191,19 @@ export const registryInstallMain = async (
       await updateConfig({ activeSkillset: skillsetName });
     }
 
-    displaySuccessMessage({ skillsetName });
-    return { success: true };
+    return {
+      success: true,
+      cancelled: false,
+      message: `Skillset "${skillsetName}" is now active.`,
+    };
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
     log.error(`Failed to install skillset "${skillsetName}": ${errorMessage}`);
-    return { success: false };
+    return {
+      success: false,
+      cancelled: false,
+      message: `Failed to install skillset "${skillsetName}": ${errorMessage}`,
+    };
   }
 };
 

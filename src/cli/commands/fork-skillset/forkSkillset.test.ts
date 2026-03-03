@@ -72,7 +72,7 @@ describe("forkSkillsetMain", () => {
     await fs.mkdir(skillsDir, { recursive: true });
     await fs.writeFile(path.join(skillsDir, "SKILL.md"), "# My Skill");
 
-    await forkSkillsetMain({
+    const result = await forkSkillsetMain({
       baseSkillset: "senior-swe",
       newSkillset: "my-custom",
     });
@@ -92,13 +92,11 @@ describe("forkSkillsetMain", () => {
     expect(noriJson.name).toBe("my-custom");
     expect(noriJson.version).toBe("1.0.0");
 
-    // Verify outro message contains both source and destination
-    expect(mockOutro).toHaveBeenCalledWith(
-      expect.stringContaining("senior-swe"),
-    );
-    expect(mockOutro).toHaveBeenCalledWith(
-      expect.stringContaining("my-custom"),
-    );
+    // Verify return status contains both source and destination
+    expect(result.success).toBe(true);
+    expect(result.message).toContain("senior-swe");
+    expect(result.message).toContain("my-custom");
+    expect(mockOutro).not.toHaveBeenCalled();
     expect(mockExit).not.toHaveBeenCalled();
   });
 

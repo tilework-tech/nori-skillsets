@@ -4,12 +4,13 @@
  * Displays the Nori installation directory from config.
  */
 
-import { note, outro } from "@clack/prompts";
+import { note } from "@clack/prompts";
 
 import { loadConfig } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { resolveInstallDir } from "@/utils/path.js";
 
+import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 import type { Command } from "commander";
 
 /**
@@ -18,10 +19,12 @@ import type { Command } from "commander";
  *
  * @param args - Configuration arguments
  * @param args.nonInteractive - If true, output plain path without formatting
+ *
+ * @returns Command status
  */
 export const installLocationMain = async (args?: {
   nonInteractive?: boolean | null;
-}): Promise<void> => {
+}): Promise<CommandStatus> => {
   const { nonInteractive } = args ?? {};
 
   const config = await loadConfig();
@@ -33,11 +36,11 @@ export const installLocationMain = async (args?: {
   // Non-interactive output: plain path
   if (nonInteractive) {
     process.stdout.write(installDir + "\n");
-    return;
+    return { success: true, cancelled: false, message: "Done" };
   }
 
   note(installDir, "Nori installation directory");
-  outro("Done");
+  return { success: true, cancelled: false, message: "Done" };
 };
 
 /**

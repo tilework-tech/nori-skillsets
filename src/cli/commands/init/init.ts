@@ -33,6 +33,7 @@ import { getCurrentPackageVersion } from "@/cli/version.js";
 import { getNoriSkillsetsDir } from "@/norijson/skillset.js";
 import { normalizeInstallDir } from "@/utils/path.js";
 
+import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 import type { Command } from "commander";
 
 /**
@@ -59,13 +60,15 @@ const directoryExists = async (dirPath: string): Promise<boolean> => {
  * @param args.nonInteractive - Whether to run in non-interactive mode
  * @param args.skipWarning - Whether to skip the skillset persistence warning (useful for auto-init in download flows)
  * @param args.skillset - Skillset name to write to .nori-managed markers
+ *
+ * @returns Command status
  */
 export const initMain = async (args?: {
   installDir?: string | null;
   nonInteractive?: boolean | null;
   skipWarning?: boolean | null;
   skillset?: string | null;
-}): Promise<void> => {
+}): Promise<CommandStatus> => {
   const { installDir, nonInteractive, skipWarning, skillset } = args ?? {};
   const normalizedInstallDir = normalizeInstallDir({
     installDir,
@@ -83,7 +86,7 @@ export const initMain = async (args?: {
 
   // Interactive flow
   if (!nonInteractive) {
-    await initFlow({
+    const result = await initFlow({
       installDir: normalizedInstallDir,
       skipWarning: skipWarning ?? null,
       callbacks: {
@@ -151,7 +154,12 @@ export const initMain = async (args?: {
         },
       },
     });
-    return;
+
+    if (result == null) {
+      return { success: false, cancelled: true, message: "" };
+    }
+
+    return { success: true, cancelled: false, message: result.statusMessage };
   }
 
   // Non-interactive path
@@ -224,6 +232,12 @@ export const initMain = async (args?: {
         null,
     });
   }
+
+  return {
+    success: true,
+    cancelled: false,
+    message: "Nori initialized successfully",
+  };
 };
 
 /**
