@@ -10,7 +10,6 @@
  */
 
 import { select, text, spinner, note, log } from "@clack/prompts";
-import { diffLines } from "diff";
 import * as semver from "semver";
 
 import { bold, red } from "@/cli/logger.js";

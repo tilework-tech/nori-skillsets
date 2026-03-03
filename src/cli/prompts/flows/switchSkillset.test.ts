@@ -803,6 +803,7 @@ describe("switchSkillsetFlow", () => {
       expect(result).toEqual({
         agentName: "claude-code",
         skillsetName: "product-manager",
+        statusMessage: expect.stringContaining("Restart your agents to apply"),
       });
       expect(mockCallbacks.onExecuteSwitch).toHaveBeenCalled();
     });
