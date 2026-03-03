@@ -7,6 +7,8 @@
  * The registry-* prefixed commands are also available as aliases.
  */
 
+import { intro, outro } from "@clack/prompts";
+
 import { clearMain } from "@/cli/commands/clear/clear.js";
 import { completionMain } from "@/cli/commands/completion/completion.js";
 import { configMain } from "@/cli/commands/config/config.js";
@@ -35,6 +37,39 @@ import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import type { Command } from "commander";
 
 /**
+ * Wrap a command action with intro/outro framing.
+ * The intro is displayed before the command runs, and the outro is displayed
+ * after based on the command's returned status.
+ *
+ * @param args - Wrapper configuration
+ * @param args.title - The intro title to display
+ * @param args.action - The async action to execute
+ * @param args.exitOnFailure - If true, call process.exit(1) when result.success is false
+ */
+const wrapWithFraming = async <
+  T extends { success: boolean; cancelled: boolean; message: string },
+>(args: {
+  title: string;
+  action: () => Promise<T>;
+  exitOnFailure?: boolean | null;
+}): Promise<void> => {
+  const { title, action, exitOnFailure } = args;
+  intro(title);
+  try {
+    const result = await action();
+    if (!result.cancelled) {
+      outro(result.message);
+    }
+    if (exitOnFailure && !result.success && !result.cancelled) {
+      process.exit(1);
+    }
+  } catch (err) {
+    outro(`Error: ${err instanceof Error ? err.message : String(err)}`);
+    process.exit(1);
+  }
+};
+
+/**
  * Register the 'factory-reset' command for nori-skillsets CLI
  * @param args - Configuration arguments
  * @param args.program - Commander program instance
@@ -51,9 +86,13 @@ export const registerNoriSkillsetsFactoryResetCommand = (args: {
     )
     .action(async (agentName: string) => {
       const globalOpts = program.opts();
-      await factoryResetMain({
-        agentName,
-        nonInteractive: globalOpts.nonInteractive || null,
+      await wrapWithFraming({
+        title: `Factory Reset ${agentName}`,
+        action: () =>
+          factoryResetMain({
+            agentName,
+            nonInteractive: globalOpts.nonInteractive || null,
+          }),
       });
     });
 };
@@ -68,27 +107,28 @@ export const registerNoriSkillsetsForkCommand = (args: {
 }): void => {
   const { program } = args;
 
+  const forkAction = async (baseSkillset: string, newSkillset: string) => {
+    await wrapWithFraming({
+      title: "Fork Skillset",
+      action: () => forkSkillsetMain({ baseSkillset, newSkillset }),
+    });
+  };
+
   // Primary command: fork (shorthand, canonical)
   program
     .command("fork <base-skillset> <new-skillset>")
     .description("Fork an existing skillset to a new name")
-    .action(async (baseSkillset: string, newSkillset: string) => {
-      await forkSkillsetMain({ baseSkillset, newSkillset });
-    });
+    .action(forkAction);
 
   // Hidden alias: fork-skillset (long form)
   program
     .command("fork-skillset <base-skillset> <new-skillset>", { hidden: true })
-    .action(async (baseSkillset: string, newSkillset: string) => {
-      await forkSkillsetMain({ baseSkillset, newSkillset });
-    });
+    .action(forkAction);
 
   // Hidden alias: fork-skillsets (plural)
   program
     .command("fork-skillsets <base-skillset> <new-skillset>", { hidden: true })
-    .action(async (baseSkillset: string, newSkillset: string) => {
-      await forkSkillsetMain({ baseSkillset, newSkillset });
-    });
+    .action(forkAction);
 };
 
 /**
@@ -101,18 +141,21 @@ export const registerNoriSkillsetsNewCommand = (args: {
 }): void => {
   const { program } = args;
 
+  const newAction = async () => {
+    await wrapWithFraming({
+      title: "Create New Skillset",
+      action: () => newSkillsetMain(),
+    });
+  };
+
   // Primary command: new
   program
     .command("new")
     .description("Create a new empty skillset")
-    .action(async () => {
-      await newSkillsetMain();
-    });
+    .action(newAction);
 
   // Hidden alias: new-skillset
-  program.command("new-skillset", { hidden: true }).action(async () => {
-    await newSkillsetMain();
-  });
+  program.command("new-skillset", { hidden: true }).action(newAction);
 };
 
 /**
@@ -125,22 +168,25 @@ export const registerNoriSkillsetsRegisterCommand = (args: {
 }): void => {
   const { program } = args;
 
+  const registerAction = async (name: string | undefined) => {
+    await wrapWithFraming({
+      title: "Register Skillset",
+      action: () => registerSkillsetMain({ skillsetName: name || null }),
+    });
+  };
+
   // Primary command: register
   program
     .command("register [name]")
     .description(
       "Create nori.json for an existing skillset (defaults to current active skillset)",
     )
-    .action(async (name: string | undefined) => {
-      await registerSkillsetMain({ skillsetName: name || null });
-    });
+    .action(registerAction);
 
   // Hidden alias: register-skillset
   program
     .command("register-skillset [name]", { hidden: true })
-    .action(async (name: string | undefined) => {
-      await registerSkillsetMain({ skillsetName: name || null });
-    });
+    .action(registerAction);
 };
 
 /**
@@ -153,6 +199,21 @@ export const registerNoriSkillsetsEditSkillsetCommand = (args: {
 }): void => {
   const { program } = args;
 
+  const editAction = async (
+    name: string | undefined,
+    options: { agent?: string },
+  ) => {
+    const globalOpts = program.opts();
+    await wrapWithFraming({
+      title: "Edit Skillset",
+      action: () =>
+        editSkillsetMain({
+          name: name || null,
+          agent: options.agent || globalOpts.agent || null,
+        }),
+    });
+  };
+
   // Primary command: edit (shorthand, canonical)
   program
     .command("edit [name]")
@@ -160,37 +221,19 @@ export const registerNoriSkillsetsEditSkillsetCommand = (args: {
       "Open the active skillset folder in VS Code (or a specified skillset)",
     )
     .option("-a, --agent <name>", "AI agent to get skillset for")
-    .action(async (name: string | undefined, options: { agent?: string }) => {
-      const globalOpts = program.opts();
-      await editSkillsetMain({
-        name: name || null,
-        agent: options.agent || globalOpts.agent || null,
-      });
-    });
+    .action(editAction);
 
   // Hidden alias: edit-skillset (long form)
   program
     .command("edit-skillset [name]", { hidden: true })
     .option("-a, --agent <name>", "AI agent to get skillset for")
-    .action(async (name: string | undefined, options: { agent?: string }) => {
-      const globalOpts = program.opts();
-      await editSkillsetMain({
-        name: name || null,
-        agent: options.agent || globalOpts.agent || null,
-      });
-    });
+    .action(editAction);
 
   // Hidden alias: edit-skillsets (plural)
   program
     .command("edit-skillsets [name]", { hidden: true })
     .option("-a, --agent <name>", "AI agent to get skillset for")
-    .action(async (name: string | undefined, options: { agent?: string }) => {
-      const globalOpts = program.opts();
-      await editSkillsetMain({
-        name: name || null,
-        agent: options.agent || globalOpts.agent || null,
-      });
-    });
+    .action(editAction);
 };
 
 /**
@@ -208,9 +251,13 @@ export const registerNoriSkillsetsInitCommand = (args: {
     .description("Initialize Nori configuration and directories")
     .action(async () => {
       const globalOpts = program.opts();
-      await initMain({
-        installDir: globalOpts.installDir || null,
-        nonInteractive: globalOpts.nonInteractive || null,
+      await wrapWithFraming({
+        title: "Initialize Nori",
+        action: () =>
+          initMain({
+            installDir: globalOpts.installDir || null,
+            nonInteractive: globalOpts.nonInteractive || null,
+          }),
       });
     });
 };
@@ -230,10 +277,14 @@ export const registerNoriSkillsetsSearchCommand = (args: {
     .description("Search for skillsets and skills in your org's registry")
     .action(async (query: string) => {
       const globalOpts = program.opts();
-      await registrySearchMain({
-        query,
-        installDir: globalOpts.installDir || null,
-        cliName: "nori-skillsets",
+      await wrapWithFraming({
+        title: "Search Nori Registry",
+        action: () =>
+          registrySearchMain({
+            query,
+            installDir: globalOpts.installDir || null,
+            cliName: "nori-skillsets",
+          }),
       });
     });
 };
@@ -268,17 +319,18 @@ export const registerNoriSkillsetsDownloadCommand = (args: {
       ) => {
         const globalOpts = program.opts();
 
-        const result = await registryDownloadMain({
-          packageSpec,
-          installDir: globalOpts.installDir || null,
-          registryUrl: options.registry || null,
-          listVersions: options.listVersions || null,
-          cliName: "nori-skillsets",
+        await wrapWithFraming({
+          title: "Download Skillset",
+          exitOnFailure: true,
+          action: () =>
+            registryDownloadMain({
+              packageSpec,
+              installDir: globalOpts.installDir || null,
+              registryUrl: options.registry || null,
+              listVersions: options.listVersions || null,
+              cliName: "nori-skillsets",
+            }),
         });
-
-        if (!result.success) {
-          process.exit(1);
-        }
       },
     );
 };
@@ -315,21 +367,22 @@ export const registerNoriSkillsetsUploadCommand = (args: {
       ) => {
         const globalOpts = program.opts();
 
-        const result = await registryUploadMain({
-          profileSpec: skillsetSpec,
-          cwd: process.cwd(),
-          installDir: globalOpts.installDir || null,
-          registryUrl: options.registry || null,
-          listVersions: options.listVersions || null,
-          nonInteractive: globalOpts.nonInteractive || null,
-          silent: globalOpts.silent || null,
-          dryRun: options.dryRun || null,
-          description: options.description || null,
+        await wrapWithFraming({
+          title: "Upload Skillset",
+          exitOnFailure: true,
+          action: () =>
+            registryUploadMain({
+              profileSpec: skillsetSpec,
+              cwd: process.cwd(),
+              installDir: globalOpts.installDir || null,
+              registryUrl: options.registry || null,
+              listVersions: options.listVersions || null,
+              nonInteractive: globalOpts.nonInteractive || null,
+              silent: globalOpts.silent || null,
+              dryRun: options.dryRun || null,
+              description: options.description || null,
+            }),
         });
-
-        if (!result.success) {
-          process.exit(1);
-        }
       },
     );
 };
@@ -352,16 +405,17 @@ export const registerNoriSkillsetsInstallCommand = (args: {
     .action(async (packageSpec: string) => {
       const globalOpts = program.opts();
 
-      const result = await registryInstallMain({
-        packageSpec,
-        installDir: globalOpts.installDir || null,
-        silent: globalOpts.silent || null,
-        agent: globalOpts.agent || null,
+      await wrapWithFraming({
+        title: "Install Skillset",
+        exitOnFailure: true,
+        action: () =>
+          registryInstallMain({
+            packageSpec,
+            installDir: globalOpts.installDir || null,
+            silent: globalOpts.silent || null,
+            agent: globalOpts.agent || null,
+          }),
       });
-
-      if (!result.success) {
-        process.exit(1);
-      }
     });
 };
 
@@ -375,62 +429,45 @@ export const registerNoriSkillsetsSwitchSkillsetCommand = (args: {
 }): void => {
   const { program } = args;
 
+  const switchAction = async (
+    name: string | undefined,
+    options: { agent?: string; force?: boolean },
+  ) => {
+    await wrapWithFraming({
+      title: "Switch Skillset",
+      action: () =>
+        switchSkillsetAction({ name: name ?? null, options, program }),
+    });
+  };
+
   // Primary command: switch (shorthand, canonical)
   program
     .command("switch [name]")
     .description("Switch to a different skillset and reinstall")
     .option("-a, --agent <name>", "AI agent to switch skillset for")
     .option("--force", "Force switch even when local changes are detected")
-    .action(
-      async (
-        name: string | undefined,
-        options: { agent?: string; force?: boolean },
-      ) => {
-        await switchSkillsetAction({ name: name ?? null, options, program });
-      },
-    );
+    .action(switchAction);
 
   // Hidden alias: switch-skillset (long form)
   program
     .command("switch-skillset [name]", { hidden: true })
     .option("-a, --agent <name>", "AI agent to switch skillset for")
     .option("--force", "Force switch even when local changes are detected")
-    .action(
-      async (
-        name: string | undefined,
-        options: { agent?: string; force?: boolean },
-      ) => {
-        await switchSkillsetAction({ name: name ?? null, options, program });
-      },
-    );
+    .action(switchAction);
 
   // Hidden alias: switch-skillsets (plural)
   program
     .command("switch-skillsets [name]", { hidden: true })
     .option("-a, --agent <name>", "AI agent to switch skillset for")
     .option("--force", "Force switch even when local changes are detected")
-    .action(
-      async (
-        name: string | undefined,
-        options: { agent?: string; force?: boolean },
-      ) => {
-        await switchSkillsetAction({ name: name ?? null, options, program });
-      },
-    );
+    .action(switchAction);
 
   // Hidden alias: use (semantic shorthand, like nvm use)
   program
     .command("use [name]", { hidden: true })
     .option("-a, --agent <name>", "AI agent to switch skillset for")
     .option("--force", "Force switch even when local changes are detected")
-    .action(
-      async (
-        name: string | undefined,
-        options: { agent?: string; force?: boolean },
-      ) => {
-        await switchSkillsetAction({ name: name ?? null, options, program });
-      },
-    );
+    .action(switchAction);
 };
 
 /**
@@ -469,13 +506,17 @@ export const registerNoriSkillsetsDownloadSkillCommand = (args: {
       ) => {
         const globalOpts = program.opts();
 
-        await skillDownloadMain({
-          skillSpec,
-          installDir: globalOpts.installDir || null,
-          registryUrl: options.registry || null,
-          listVersions: options.listVersions || null,
-          skillset: options.skillset || null,
-          cliName: "nori-skillsets",
+        await wrapWithFraming({
+          title: "Download Skill",
+          action: () =>
+            skillDownloadMain({
+              skillSpec,
+              installDir: globalOpts.installDir || null,
+              registryUrl: options.registry || null,
+              listVersions: options.listVersions || null,
+              skillset: options.skillset || null,
+              cliName: "nori-skillsets",
+            }),
         });
       },
     );
@@ -576,11 +617,16 @@ export const registerNoriSkillsetsWatchCommand = (args: {
         setDestination?: boolean;
         _background?: boolean;
       }) => {
-        await watchMain({
-          agent:
-            options.agent ?? AgentRegistry.getInstance().getDefaultAgentName(),
-          setDestination: options.setDestination ?? false,
-          _background: options._background ?? false,
+        await wrapWithFraming({
+          title: "nori watch",
+          action: () =>
+            watchMain({
+              agent:
+                options.agent ??
+                AgentRegistry.getInstance().getDefaultAgentName(),
+              setDestination: options.setDestination ?? false,
+              _background: options._background ?? false,
+            }),
         });
       },
     );
@@ -623,13 +669,17 @@ export const registerNoriSkillsetsLoginCommand = (args: {
         localhost?: boolean;
       }) => {
         const globalOpts = program.opts();
-        await loginMain({
-          installDir: globalOpts.installDir || null,
-          nonInteractive: globalOpts.nonInteractive || null,
-          email: options.email || null,
-          password: options.password || null,
-          google: options.google || null,
-          noLocalhost: options.localhost === false ? true : null,
+        await wrapWithFraming({
+          title: "Login to Nori Skillsets",
+          action: () =>
+            loginMain({
+              installDir: globalOpts.installDir || null,
+              nonInteractive: globalOpts.nonInteractive || null,
+              email: options.email || null,
+              password: options.password || null,
+              google: options.google || null,
+              noLocalhost: options.localhost === false ? true : null,
+            }),
         });
       },
     );
@@ -690,15 +740,19 @@ export const registerNoriSkillsetsExternalCommand = (args: {
       ) => {
         const globalOpts = program.opts();
 
-        await externalMain({
-          source,
-          installDir: globalOpts.installDir || null,
-          skillset: options.skillset || null,
-          newSkillset: options.new || null,
-          skill: options.skill || null,
-          all: options.all || null,
-          ref: options.ref || null,
-          cliName: "nori-skillsets",
+        await wrapWithFraming({
+          title: "External Skills",
+          action: () =>
+            externalMain({
+              source,
+              installDir: globalOpts.installDir || null,
+              skillset: options.skillset || null,
+              newSkillset: options.new || null,
+              skill: options.skill || null,
+              all: options.all || null,
+              ref: options.ref || null,
+              cliName: "nori-skillsets",
+            }),
         });
       },
     );
@@ -735,23 +789,20 @@ export const registerNoriSkillsetsInstallLocationCommand = (args: {
 }): void => {
   const { program } = args;
 
-  program
-    .command("install-location")
-    .description("Display Nori installation directories")
-    .action(async () => {
-      const globalOpts = program.opts();
-      await installLocationMain({
-        nonInteractive: globalOpts.nonInteractive || null,
-      });
-    });
-
-  // Hidden alias: location (shorthand)
-  program.command("location", { hidden: true }).action(async () => {
+  const installLocationAction = async () => {
     const globalOpts = program.opts();
     await installLocationMain({
       nonInteractive: globalOpts.nonInteractive || null,
     });
-  });
+  };
+
+  program
+    .command("install-location")
+    .description("Display Nori installation directories")
+    .action(installLocationAction);
+
+  // Hidden alias: location (shorthand)
+  program.command("location", { hidden: true }).action(installLocationAction);
 };
 
 /**
@@ -810,6 +861,9 @@ export const registerNoriSkillsetsConfigCommand = (args: {
     .command("config")
     .description("Configure default agent and install directory")
     .action(async () => {
-      await configMain();
+      await wrapWithFraming({
+        title: "Configure Nori",
+        action: () => configMain(),
+      });
     });
 };

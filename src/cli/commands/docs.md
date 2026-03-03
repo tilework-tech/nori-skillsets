@@ -14,7 +14,23 @@ The CLI entry point delegates to `noriSkillsetsCommands.ts`, which registers eve
 
 `cliCommandNames.ts` defines the `CommandNames` type and a lookup table that maps logical command names (e.g., `download`, `externalSkill`) to their CLI string equivalents. This is consumed by commands that need to display command hints in error messages.
 
-`noriSkillsetsCommands.ts` is the central registration hub. It exports one `registerNoriSkillsets*Command` function per command, each taking a `{ program: Command }` argument. Many commands have hidden aliases (e.g., `switch` also registers `switch-skillset`, `switch-skillsets`, and `use`) to support both short and long forms.
+`noriSkillsetsCommands.ts` is the central registration hub and the **sole caller** of `@clack/prompts` `intro()` and `outro()`. It exports one `registerNoriSkillsets*Command` function per command, each taking a `{ program: Command }` argument. Many commands have hidden aliases (e.g., `switch` also registers `switch-skillset`, `switch-skillsets`, and `use`) to support both short and long forms.
+
+The file defines `wrapWithFraming()`, which enforces the three-layer separation of concerns for CLI visual framing:
+
+```
+Registration layer (noriSkillsetsCommands.ts)      <-- intro() / outro() live here
+    |
+    +-- wrapWithFraming({ title, action, exitOnFailure? })
+            |
+            +-- calls intro(title) before the action
+            +-- calls action(), which returns { success, cancelled, message }
+            +-- calls outro(result.message) after (skipped when cancelled)
+            +-- calls process.exit(1) if exitOnFailure && !success
+            +-- catches thrown errors, displays them via outro, and exits
+```
+
+Commands that do not need visual framing (single-step, scriptable, or producing raw output) are called directly without `wrapWithFraming`. These include `clear`, `completion`, `list`, `current`, `logout`, `dir`, `install-location`, and `watch stop`.
 
 **install-location** (@/src/cli/commands/install-location/): Displays the resolved Nori installation directory from config. Supports `--non-interactive` (plain output for scripts). Uses `resolveInstallDir()` from @/src/utils/path.ts with the standard priority chain (CLI flag > config > home directory).
 
