@@ -7,7 +7,7 @@
  * installing the active skillset and cleaning up the old directory.
  */
 
-import { log, outro } from "@clack/prompts";
+import { log } from "@clack/prompts";
 
 import {
   getActiveSkillset,
@@ -23,6 +23,8 @@ import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { confirmAction } from "@/cli/prompts/confirm.js";
 import { configFlow } from "@/cli/prompts/flows/config.js";
 import { normalizeInstallDir } from "@/utils/path.js";
+
+import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 
 /**
  * Check if two arrays of strings contain the same elements (order-independent)
@@ -47,8 +49,10 @@ const arraysEqual = (args: { a: Array<string>; b: Array<string> }): boolean => {
  * Runs the interactive config flow and saves results to .nori-config.json.
  * After saving, detects changes to installDir and defaultAgents, and
  * prompts the user to install/clean up accordingly.
+ *
+ * @returns Command status indicating success or cancellation
  */
-export const configMain = async (): Promise<void> => {
+export const configMain = async (): Promise<CommandStatus> => {
   const result = await configFlow({
     callbacks: {
       onLoadConfig: async () => {
@@ -73,7 +77,13 @@ export const configMain = async (): Promise<void> => {
     },
   });
 
-  if (result == null) return;
+  if (result == null) {
+    return {
+      success: false,
+      cancelled: true,
+      message: "Configuration cancelled.",
+    };
+  }
 
   // Load existing config to preserve all other fields
   const existingConfig = await loadConfig();
@@ -207,5 +217,5 @@ export const configMain = async (): Promise<void> => {
     }
   }
 
-  outro("Configuration saved.");
+  return { success: true, cancelled: false, message: "Configuration saved." };
 };

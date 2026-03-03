@@ -55,10 +55,11 @@ describe("registrySearchFlow", () => {
   });
 
   describe("happy path: search results found", () => {
-    it("should show intro", async () => {
+    it("should not call intro or outro (top-level caller handles framing)", async () => {
       await registrySearchFlow({ callbacks: mockCallbacks });
 
-      expect(clack.intro).toHaveBeenCalledWith("Search Nori Registry");
+      expect(clack.intro).not.toHaveBeenCalled();
+      expect(clack.outro).not.toHaveBeenCalled();
     });
 
     it("should show spinner during search", async () => {
@@ -99,16 +100,17 @@ describe("registrySearchFlow", () => {
       );
     });
 
-    it("should show outro with count", async () => {
-      await registrySearchFlow({ callbacks: mockCallbacks });
+    it("should include statusMessage with count in result", async () => {
+      const result = await registrySearchFlow({ callbacks: mockCallbacks });
 
-      expect(clack.outro).toHaveBeenCalledWith("Search returned 1 skillset");
+      expect(result?.statusMessage).toContain("Search returned 1 skillset");
     });
 
     it("should return found: true", async () => {
       const result = await registrySearchFlow({ callbacks: mockCallbacks });
 
-      expect(result).toEqual({ found: true });
+      expect(result?.found).toBe(true);
+      expect(result?.statusMessage).toBeDefined();
     });
   });
 
@@ -135,16 +137,17 @@ describe("registrySearchFlow", () => {
       expect(clack.note).not.toHaveBeenCalled();
     });
 
-    it("should show outro with no results message", async () => {
-      await registrySearchFlow({ callbacks: mockCallbacks });
-
-      expect(clack.outro).toHaveBeenCalledWith("Search returned no results");
-    });
-
-    it("should return found: false", async () => {
+    it("should include statusMessage with no results message", async () => {
       const result = await registrySearchFlow({ callbacks: mockCallbacks });
 
-      expect(result).toEqual({ found: false });
+      expect(result?.statusMessage).toContain("Search returned no results");
+    });
+
+    it("should return found: false with statusMessage", async () => {
+      const result = await registrySearchFlow({ callbacks: mockCallbacks });
+
+      expect(result?.found).toBe(false);
+      expect(result?.statusMessage).toBeDefined();
     });
   });
 
@@ -177,7 +180,7 @@ describe("registrySearchFlow", () => {
       );
     });
 
-    it("should not show outro", async () => {
+    it("should not call outro", async () => {
       await registrySearchFlow({ callbacks: mockCallbacks });
 
       expect(clack.outro).not.toHaveBeenCalled();
@@ -208,11 +211,11 @@ describe("registrySearchFlow", () => {
       expect(clack.log.info).not.toHaveBeenCalled();
     });
 
-    it("should still display results and outro", async () => {
-      await registrySearchFlow({ callbacks: mockCallbacks });
+    it("should still display results and return statusMessage", async () => {
+      const result = await registrySearchFlow({ callbacks: mockCallbacks });
 
       expect(clack.note).toHaveBeenCalled();
-      expect(clack.outro).toHaveBeenCalledWith("Search returned 1 skillset");
+      expect(result?.statusMessage).toContain("Search returned 1 skillset");
     });
   });
 });

@@ -7,10 +7,9 @@
  * - Artifact listing in a note
  * - Type-confirm safety prompt
  * - Artifact deletion via callback
- * - Intro/outro framing with agent name
  */
 
-import { intro, outro, text, spinner, note, log } from "@clack/prompts";
+import { text, spinner, note, log } from "@clack/prompts";
 
 import { unwrapPrompt } from "./utils.js";
 
@@ -32,6 +31,7 @@ export type FactoryResetFlowCallbacks = {
 
 export type FactoryResetFlowResult = {
   deletedCount: number;
+  statusMessage: string;
 };
 
 const buildArtifactListing = (args: {
@@ -61,10 +61,8 @@ export const factoryResetFlow = async (args: {
   path: string;
   callbacks: FactoryResetFlowCallbacks;
 }): Promise<FactoryResetFlowResult | null> => {
-  const { agentName, path, callbacks } = args;
+  const { agentName: _agentName, path, callbacks } = args;
   const cancelMsg = "Factory reset cancelled.";
-
-  intro(`Factory Reset ${agentName}`);
 
   // Step 1: Discover artifacts
   const s = spinner();
@@ -77,8 +75,7 @@ export const factoryResetFlow = async (args: {
   // Step 2: Handle no artifacts
   if (artifacts.length === 0) {
     log.info("No configuration found.");
-    outro("Nothing to reset");
-    return { deletedCount: 0 };
+    return { deletedCount: 0, statusMessage: "Nothing to reset" };
   }
 
   // Step 3: Display artifacts and confirm
@@ -107,7 +104,9 @@ export const factoryResetFlow = async (args: {
 
   deleteSpinner.stop("Deleted");
 
-  outro("Factory reset complete. All configuration has been removed.");
-
-  return { deletedCount: artifacts.length };
+  return {
+    deletedCount: artifacts.length,
+    statusMessage:
+      "Factory reset complete. All configuration has been removed.",
+  };
 };

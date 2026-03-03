@@ -46,7 +46,7 @@ describe("loginFlow", () => {
   });
 
   describe("successful login", () => {
-    it("should call intro with login title", async () => {
+    it("should not call intro or outro (top-level caller handles framing)", async () => {
       vi.mocked(clack.group).mockResolvedValueOnce({
         email: "test@example.com",
         password: "secret123",
@@ -62,26 +62,8 @@ describe("loginFlow", () => {
 
       await loginFlow({ callbacks: mockCallbacks });
 
-      expect(clack.intro).toHaveBeenCalledWith("Log in to Nori Skillsets");
-    });
-
-    it("should skip intro when skipIntro is true", async () => {
-      vi.mocked(clack.group).mockResolvedValueOnce({
-        email: "test@example.com",
-        password: "secret123",
-      });
-      vi.mocked(mockCallbacks.onAuthenticate).mockResolvedValueOnce({
-        success: true,
-        userEmail: "test@example.com",
-        organizations: [],
-        isAdmin: false,
-        refreshToken: "mock-refresh-token",
-        idToken: "mock-id-token",
-      });
-
-      await loginFlow({ callbacks: mockCallbacks, skipIntro: true });
-
       expect(clack.intro).not.toHaveBeenCalled();
+      expect(clack.outro).not.toHaveBeenCalled();
     });
 
     it("should use group to collect email and password together", async () => {
@@ -218,7 +200,7 @@ describe("loginFlow", () => {
       expect(clack.note).not.toHaveBeenCalled();
     });
 
-    it("should call outro with logged in message", async () => {
+    it("should include statusMessage in result", async () => {
       vi.mocked(clack.group).mockResolvedValueOnce({
         email: "test@example.com",
         password: "secret",
@@ -232,9 +214,9 @@ describe("loginFlow", () => {
         idToken: "mock-id-token",
       });
 
-      await loginFlow({ callbacks: mockCallbacks });
+      const result = await loginFlow({ callbacks: mockCallbacks });
 
-      expect(clack.outro).toHaveBeenCalledWith("Logged in as test@example.com");
+      expect(result?.statusMessage).toContain("Logged in as test@example.com");
     });
 
     it("should return credentials on successful login", async () => {
@@ -259,6 +241,7 @@ describe("loginFlow", () => {
         idToken: "mock-id-token",
         organizations: ["dev"],
         isAdmin: true,
+        statusMessage: "Logged in as test@example.com",
       });
     });
   });
@@ -319,7 +302,7 @@ describe("loginFlow", () => {
       );
     });
 
-    it("should not call outro on auth failure", async () => {
+    it("should not call intro or outro on auth failure", async () => {
       vi.mocked(clack.group).mockResolvedValueOnce({
         email: "test@example.com",
         password: "wrongpassword",
@@ -331,6 +314,7 @@ describe("loginFlow", () => {
 
       await loginFlow({ callbacks: mockCallbacks });
 
+      expect(clack.intro).not.toHaveBeenCalled();
       expect(clack.outro).not.toHaveBeenCalled();
     });
 

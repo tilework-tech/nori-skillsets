@@ -125,7 +125,7 @@ describe("switchSkillsetFlow", () => {
       });
     });
 
-    it("should return result with agent and profile name", async () => {
+    it("should return result with agent, profile name, and statusMessage", async () => {
       vi.mocked(clack.confirm).mockResolvedValueOnce(true);
 
       const result = await switchSkillsetFlow({
@@ -134,10 +134,22 @@ describe("switchSkillsetFlow", () => {
         callbacks: mockCallbacks,
       });
 
-      expect(result).toEqual({
-        agentName: "claude-code",
+      expect(result?.agentName).toBe("claude-code");
+      expect(result?.skillsetName).toBe("product-manager");
+      expect(result?.statusMessage).toBeDefined();
+    });
+
+    it("should not call intro or outro (top-level caller handles framing)", async () => {
+      vi.mocked(clack.confirm).mockResolvedValueOnce(true);
+
+      await switchSkillsetFlow({
         skillsetName: "product-manager",
+        installDir: "/test/dir",
+        callbacks: mockCallbacks,
       });
+
+      expect(clack.intro).not.toHaveBeenCalled();
+      expect(clack.outro).not.toHaveBeenCalled();
     });
   });
 

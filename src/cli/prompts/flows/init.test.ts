@@ -6,7 +6,7 @@
  * - Existing config: skillset name collected, capture callback invoked
  * - Ancestor warnings don't block init
  * - Decline/cancel at each prompt returns null without side effects
- * - skipWarning and skipIntro parameter behavior
+ * - skipWarning parameter behavior
  */
 
 import * as clack from "@clack/prompts";
@@ -92,7 +92,7 @@ describe("initFlow", () => {
       });
     });
 
-    it("should return result with null capturedSkillsetName", async () => {
+    it("should return result with null capturedSkillsetName and statusMessage", async () => {
       vi.mocked(clack.confirm).mockResolvedValueOnce(true);
 
       const result = await initFlow({
@@ -100,7 +100,8 @@ describe("initFlow", () => {
         callbacks: mockCallbacks,
       });
 
-      expect(result).toEqual({ capturedSkillsetName: null });
+      expect(result?.capturedSkillsetName).toBeNull();
+      expect(result?.statusMessage).toContain("Nori initialized successfully");
     });
   });
 
@@ -182,7 +183,7 @@ describe("initFlow", () => {
       });
     });
 
-    it("should return result with captured skillset name", async () => {
+    it("should return result with captured skillset name and statusMessage", async () => {
       vi.mocked(clack.confirm).mockResolvedValueOnce(true);
       vi.mocked(mockCallbacks.onDetectExistingConfig).mockResolvedValueOnce({
         configFileName: "CLAUDE.md",
@@ -202,7 +203,8 @@ describe("initFlow", () => {
         callbacks: mockCallbacks,
       });
 
-      expect(result).toEqual({ capturedSkillsetName: "my-captured" });
+      expect(result?.capturedSkillsetName).toBe("my-captured");
+      expect(result?.statusMessage).toContain("Nori initialized successfully");
     });
   });
 
@@ -423,28 +425,17 @@ describe("initFlow", () => {
     });
   });
 
-  describe("skipIntro parameter", () => {
-    it("should skip intro when skipIntro is true", async () => {
+  describe("no intro/outro framing", () => {
+    it("should not call intro or outro (top-level caller handles framing)", async () => {
       vi.mocked(clack.confirm).mockResolvedValueOnce(true);
 
       await initFlow({
         installDir: "/test/dir",
-        skipIntro: true,
         callbacks: mockCallbacks,
       });
 
       expect(clack.intro).not.toHaveBeenCalled();
-    });
-
-    it("should show intro by default", async () => {
-      vi.mocked(clack.confirm).mockResolvedValueOnce(true);
-
-      await initFlow({
-        installDir: "/test/dir",
-        callbacks: mockCallbacks,
-      });
-
-      expect(clack.intro).toHaveBeenCalled();
+      expect(clack.outro).not.toHaveBeenCalled();
     });
   });
 });

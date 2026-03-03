@@ -75,6 +75,7 @@ describe("watchFlow", () => {
         org: "org-alpha",
         pid: 12345,
         logFile: "/tmp/watch.log",
+        statusMessage: "Watching for sessions.",
       });
       expect(mockCallbacks.onPrepare).toHaveBeenCalled();
       expect(mockCallbacks.onStartDaemon).toHaveBeenCalledWith({
@@ -83,15 +84,21 @@ describe("watchFlow", () => {
       });
     });
 
-    it("should show intro and outro", async () => {
+    it("should not call intro or outro (top-level caller handles framing)", async () => {
       await watchFlow({ callbacks: mockCallbacks });
 
-      expect(clack.intro).toHaveBeenCalledWith("nori watch");
+      expect(clack.intro).not.toHaveBeenCalled();
+      expect(clack.outro).not.toHaveBeenCalled();
+    });
+
+    it("should include statusMessage and show watch details note", async () => {
+      const result = await watchFlow({ callbacks: mockCallbacks });
+
       expect(clack.note).toHaveBeenCalledWith(
         expect.stringContaining("12345"),
         "Watch Details",
       );
-      expect(clack.outro).toHaveBeenCalledWith("Watching for sessions.");
+      expect(result?.statusMessage).toContain("Watching for sessions.");
     });
 
     it("should not prompt for org selection with single org", async () => {
@@ -122,6 +129,7 @@ describe("watchFlow", () => {
         org: "org-beta",
         pid: 12345,
         logFile: "/tmp/watch.log",
+        statusMessage: "Watching for sessions.",
       });
       expect(mockCallbacks.onStartDaemon).toHaveBeenCalledWith({
         org: "org-beta",
@@ -148,6 +156,7 @@ describe("watchFlow", () => {
         org: "org-beta",
         pid: 12345,
         logFile: "/tmp/watch.log",
+        statusMessage: "Watching for sessions.",
       });
     });
   });
@@ -170,6 +179,7 @@ describe("watchFlow", () => {
         org: "org-beta",
         pid: 12345,
         logFile: "/tmp/watch.log",
+        statusMessage: "Watching for sessions.",
       });
     });
 
@@ -191,6 +201,7 @@ describe("watchFlow", () => {
         org: "org-alpha",
         pid: 12345,
         logFile: "/tmp/watch.log",
+        statusMessage: "Watching for sessions.",
       });
     });
   });
@@ -225,7 +236,7 @@ describe("watchFlow", () => {
   });
 
   describe("no private orgs", () => {
-    it("should warn and return null when no private orgs available", async () => {
+    it("should warn and return result with statusMessage when no private orgs available", async () => {
       vi.mocked(mockCallbacks.onPrepare).mockResolvedValue({
         privateOrgs: [],
         currentDestination: null,
@@ -237,11 +248,11 @@ describe("watchFlow", () => {
         callbacks: mockCallbacks,
       });
 
-      expect(result).toBeNull();
+      expect(result?.statusMessage).toContain("Watch cancelled.");
       expect(clack.log.warn).toHaveBeenCalledWith(
         expect.stringContaining("No private organizations"),
       );
-      expect(clack.outro).toHaveBeenCalledWith("Watch cancelled.");
+      expect(clack.outro).not.toHaveBeenCalled();
       expect(mockCallbacks.onStartDaemon).not.toHaveBeenCalled();
     });
   });
@@ -271,7 +282,7 @@ describe("watchFlow", () => {
   });
 
   describe("daemon start failure", () => {
-    it("should log error and return null when daemon fails to start", async () => {
+    it("should log error and return result with statusMessage when daemon fails to start", async () => {
       vi.mocked(mockCallbacks.onStartDaemon).mockResolvedValue({
         success: false,
         error: "Failed to spawn daemon process",
@@ -281,11 +292,11 @@ describe("watchFlow", () => {
         callbacks: mockCallbacks,
       });
 
-      expect(result).toBeNull();
+      expect(result?.statusMessage).toContain("Watch failed.");
       expect(clack.log.error).toHaveBeenCalledWith(
         expect.stringContaining("Failed to spawn daemon process"),
       );
-      expect(clack.outro).toHaveBeenCalledWith("Watch failed.");
+      expect(clack.outro).not.toHaveBeenCalled();
     });
   });
 });

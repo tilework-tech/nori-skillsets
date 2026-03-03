@@ -1117,9 +1117,9 @@ describe("registry-download", () => {
       // Verify download occurred
       expect(registrarApi.downloadTarball).toHaveBeenCalled();
 
-      // Verify success message about update (via clack prompts)
+      // Verify success output (installed to, switch hint via note)
       const allOutput = getAllClackOutput();
-      expect(allOutput.toLowerCase()).toContain("updated");
+      expect(allOutput.toLowerCase()).toContain("installed");
     });
 
     it("should report when already at latest version", async () => {

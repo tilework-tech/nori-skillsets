@@ -126,10 +126,26 @@ describe("factoryResetFlow", () => {
         callbacks: mockCallbacks,
       });
 
-      expect(result).toEqual({ deletedCount: 2 });
+      expect(result?.deletedCount).toBe(2);
+      expect(result?.statusMessage).toBeDefined();
     });
 
-    it("should call outro with completion message", async () => {
+    it("should include statusMessage in result", async () => {
+      vi.mocked(mockCallbacks.onFindArtifacts).mockResolvedValueOnce({
+        artifacts: [{ path: "/test/.claude", type: "directory" }],
+      });
+      vi.mocked(clack.text).mockResolvedValueOnce("confirm");
+
+      const result = await factoryResetFlow({
+        agentName: "Claude Code",
+        path: "/test",
+        callbacks: mockCallbacks,
+      });
+
+      expect(result?.statusMessage).toContain("Factory reset complete");
+    });
+
+    it("should not call intro or outro", async () => {
       vi.mocked(mockCallbacks.onFindArtifacts).mockResolvedValueOnce({
         artifacts: [{ path: "/test/.claude", type: "directory" }],
       });
@@ -141,19 +157,21 @@ describe("factoryResetFlow", () => {
         callbacks: mockCallbacks,
       });
 
-      expect(clack.outro).toHaveBeenCalledTimes(1);
+      expect(clack.intro).not.toHaveBeenCalled();
+      expect(clack.outro).not.toHaveBeenCalled();
     });
   });
 
   describe("no artifacts found", () => {
-    it("should return result with deletedCount 0", async () => {
+    it("should return result with deletedCount 0 and statusMessage", async () => {
       const result = await factoryResetFlow({
         agentName: "Claude Code",
         path: "/test",
         callbacks: mockCallbacks,
       });
 
-      expect(result).toEqual({ deletedCount: 0 });
+      expect(result?.deletedCount).toBe(0);
+      expect(result?.statusMessage).toContain("Nothing to reset");
     });
 
     it("should display info message about no configuration found", async () => {
@@ -261,17 +279,16 @@ describe("factoryResetFlow", () => {
     });
   });
 
-  describe("intro displays agent name", () => {
-    it("should include agent name in intro message", async () => {
+  describe("no intro/outro framing", () => {
+    it("should not call intro or outro (top-level caller handles framing)", async () => {
       await factoryResetFlow({
         agentName: "Claude Code",
         path: "/test",
         callbacks: mockCallbacks,
       });
 
-      expect(clack.intro).toHaveBeenCalledWith(
-        expect.stringContaining("Claude Code"),
-      );
+      expect(clack.intro).not.toHaveBeenCalled();
+      expect(clack.outro).not.toHaveBeenCalled();
     });
   });
 });

@@ -96,7 +96,11 @@ describe("factoryResetMain", () => {
         path: tempDir,
       });
       await args.callbacks.onDeleteArtifacts({ artifacts });
-      return { deletedCount: artifacts.length };
+      return {
+        deletedCount: artifacts.length,
+        statusMessage:
+          "Factory reset complete. All configuration has been removed.",
+      };
     });
 
     await factoryResetMain({

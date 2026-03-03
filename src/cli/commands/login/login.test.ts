@@ -153,6 +153,7 @@ describe("login command", () => {
           idToken: result.idToken,
           organizations: result.organizations,
           isAdmin: result.isAdmin,
+          statusMessage: `Logged in as ${result.userEmail}`,
         };
       });
 
@@ -261,6 +262,7 @@ describe("login command", () => {
           idToken: result.idToken,
           organizations: result.organizations,
           isAdmin: result.isAdmin,
+          statusMessage: `Logged in as ${result.userEmail}`,
         };
       });
 
@@ -308,6 +310,7 @@ describe("login command", () => {
           idToken: result.idToken,
           organizations: result.organizations,
           isAdmin: result.isAdmin,
+          statusMessage: `Logged in as ${result.userEmail}`,
         };
       });
 
@@ -368,6 +371,7 @@ describe("login command", () => {
           idToken: result.idToken,
           organizations: result.organizations,
           isAdmin: result.isAdmin,
+          statusMessage: `Logged in as ${result.userEmail}`,
         };
       });
 
@@ -420,6 +424,7 @@ describe("login command", () => {
           idToken: result.idToken,
           organizations: result.organizations,
           isAdmin: result.isAdmin,
+          statusMessage: `Logged in as ${result.userEmail}`,
         };
       });
 
@@ -469,6 +474,7 @@ describe("login command", () => {
           idToken: result.idToken,
           organizations: result.organizations,
           isAdmin: result.isAdmin,
+          statusMessage: `Logged in as ${result.userEmail}`,
         };
       });
 
@@ -524,7 +530,7 @@ describe("login command", () => {
       expect(config?.auth).toBeUndefined();
     });
 
-    it("should pass skipIntro to loginFlow when called after select prompt", async () => {
+    it("should call loginFlow with callbacks when email auth method selected", async () => {
       const { signInWithEmailAndPassword } = await import("firebase/auth");
       const { loginFlow } = await import("@/cli/prompts/index.js");
       const clack = await import("@clack/prompts");
@@ -547,6 +553,7 @@ describe("login command", () => {
           idToken: result.idToken,
           organizations: result.organizations,
           isAdmin: result.isAdmin,
+          statusMessage: `Logged in as user@example.com`,
         };
       });
 
@@ -569,10 +576,10 @@ describe("login command", () => {
 
       await loginMain({ installDir: tempDir });
 
-      // Verify loginFlow was called with skipIntro: true since intro already shown
+      // Verify loginFlow was called with callbacks (no skipIntro)
       expect(loginFlow).toHaveBeenCalledWith(
         expect.objectContaining({
-          skipIntro: true,
+          callbacks: expect.any(Object),
         }),
       );
     });

@@ -80,13 +80,14 @@ describe("skillDownloadFlow", () => {
   });
 
   describe("happy path: new download", () => {
-    it("should show intro", async () => {
+    it("should not call intro or outro (top-level caller handles framing)", async () => {
       await skillDownloadFlow({
         skillDisplayName: "my-skill",
         callbacks: mockCallbacks,
       });
 
-      expect(clack.intro).toHaveBeenCalledWith("Download Skill");
+      expect(clack.intro).not.toHaveBeenCalled();
+      expect(clack.outro).not.toHaveBeenCalled();
     });
 
     it("should show search spinner", async () => {
@@ -143,18 +144,14 @@ describe("skillDownloadFlow", () => {
       );
     });
 
-    it("should show outro with downloaded message", async () => {
-      await skillDownloadFlow({
+    it("should include statusMessage in result", async () => {
+      const result = await skillDownloadFlow({
         skillDisplayName: "my-skill",
         callbacks: mockCallbacks,
       });
 
-      expect(clack.outro).toHaveBeenCalledWith(
-        expect.stringContaining("Downloaded"),
-      );
-      expect(clack.outro).toHaveBeenCalledWith(
-        expect.stringContaining("my-skill"),
-      );
+      expect(result?.statusMessage).toContain("Downloaded");
+      expect(result?.statusMessage).toContain("my-skill");
     });
 
     it("should return version and isUpdate", async () => {
@@ -163,7 +160,9 @@ describe("skillDownloadFlow", () => {
         callbacks: mockCallbacks,
       });
 
-      expect(result).toEqual({ version: "1.0.0", isUpdate: false });
+      expect(result?.version).toBe("1.0.0");
+      expect(result?.isUpdate).toBe(false);
+      expect(result?.statusMessage).toBeDefined();
     });
   });
 
@@ -196,15 +195,13 @@ describe("skillDownloadFlow", () => {
       );
     });
 
-    it("should show updated outro message", async () => {
-      await skillDownloadFlow({
+    it("should include statusMessage with Updated", async () => {
+      const result = await skillDownloadFlow({
         skillDisplayName: "my-skill",
         callbacks: mockCallbacks,
       });
 
-      expect(clack.outro).toHaveBeenCalledWith(
-        expect.stringContaining("Updated"),
-      );
+      expect(result?.statusMessage).toContain("Updated");
     });
 
     it("should return isUpdate: true", async () => {
@@ -213,7 +210,9 @@ describe("skillDownloadFlow", () => {
         callbacks: mockCallbacks,
       });
 
-      expect(result).toEqual({ version: "2.0.0", isUpdate: true });
+      expect(result?.version).toBe("2.0.0");
+      expect(result?.isUpdate).toBe(true);
+      expect(result?.statusMessage).toBeDefined();
     });
   });
 
@@ -269,7 +268,11 @@ describe("skillDownloadFlow", () => {
         callbacks: mockCallbacks,
       });
 
-      expect(result).toEqual({ version: "1.0.0", isUpdate: true });
+      expect(result).toEqual({
+        version: "1.0.0",
+        isUpdate: true,
+        statusMessage: 'Updated "my-skill" to 1.0.0',
+      });
     });
   });
 
@@ -291,22 +294,15 @@ describe("skillDownloadFlow", () => {
       expect(mockCallbacks.onDownload).not.toHaveBeenCalled();
     });
 
-    it("should show Already up to date outro", async () => {
-      await skillDownloadFlow({
-        skillDisplayName: "my-skill",
-        callbacks: mockCallbacks,
-      });
-
-      expect(clack.outro).toHaveBeenCalledWith("Already up to date");
-    });
-
-    it("should return version with isUpdate false", async () => {
+    it("should return result with statusMessage Already up to date", async () => {
       const result = await skillDownloadFlow({
         skillDisplayName: "my-skill",
         callbacks: mockCallbacks,
       });
 
-      expect(result).toEqual({ version: "1.0.0", isUpdate: false });
+      expect(result?.statusMessage).toContain("Already up to date");
+      expect(result?.version).toBe("1.0.0");
+      expect(result?.isUpdate).toBe(false);
     });
   });
 
@@ -504,15 +500,13 @@ describe("skillDownloadFlow", () => {
       );
     });
 
-    it("should still show success outro", async () => {
-      await skillDownloadFlow({
+    it("should still include statusMessage with Downloaded", async () => {
+      const result = await skillDownloadFlow({
         skillDisplayName: "my-skill",
         callbacks: mockCallbacks,
       });
 
-      expect(clack.outro).toHaveBeenCalledWith(
-        expect.stringContaining("Downloaded"),
-      );
+      expect(result?.statusMessage).toContain("Downloaded");
     });
   });
 

@@ -5,15 +5,7 @@
  * including transcript destination org selection using @clack/prompts.
  */
 
-import {
-  intro,
-  note,
-  outro,
-  select,
-  confirm,
-  spinner,
-  log,
-} from "@clack/prompts";
+import { note, select, confirm, spinner, log } from "@clack/prompts";
 
 import { unwrapPrompt } from "./utils.js";
 
@@ -52,17 +44,17 @@ export type WatchFlowResult = {
   org: string;
   pid: number;
   logFile: string;
+  statusMessage: string;
 } | null;
 
 /**
  * Execute the interactive watch daemon startup flow
  *
  * This function handles the complete watch startup UX:
- * 1. Shows intro
- * 2. Stops existing daemon and loads config via onPrepare
- * 3. Selects transcript destination org (auto or prompted)
- * 4. Starts daemon via onStartDaemon
- * 5. Shows outro with PID and log file
+ * 1. Stops existing daemon and loads config via onPrepare
+ * 2. Selects transcript destination org (auto or prompted)
+ * 3. Starts daemon via onStartDaemon
+ * 4. Shows note with PID and log file
  *
  * @param args - Flow configuration
  * @param args.forceSelection - Force re-selection of transcript destination
@@ -76,8 +68,6 @@ export const watchFlow = async (args: {
 }): Promise<WatchFlowResult> => {
   const { forceSelection, callbacks } = args;
   const cancelMsg = "Watch cancelled.";
-
-  intro("nori watch");
 
   // Prepare: stop existing daemon if running, load config
   const s = spinner();
@@ -97,8 +87,12 @@ export const watchFlow = async (args: {
 
   if (privateOrgs.length === 0) {
     log.warn("No private organizations available. Cannot upload transcripts.");
-    outro("Watch cancelled.");
-    return null;
+    return {
+      org: "",
+      pid: 0,
+      logFile: "",
+      statusMessage: "Watch cancelled.",
+    };
   } else if (
     !forceSelection &&
     currentDestination != null &&
@@ -150,8 +144,12 @@ export const watchFlow = async (args: {
   if (!daemonResult.success) {
     s.stop("Failed to start watch daemon.");
     log.error(`Failed to start watch daemon: ${daemonResult.error}`);
-    outro("Watch failed.");
-    return null;
+    return {
+      org: selectedOrg,
+      pid: 0,
+      logFile: "",
+      statusMessage: "Watch failed.",
+    };
   }
 
   s.stop("Watch daemon started.");
@@ -163,11 +161,10 @@ export const watchFlow = async (args: {
   ];
   note(noteLines.join("\n"), "Watch Details");
 
-  outro("Watching for sessions.");
-
   return {
     org: selectedOrg,
     pid: daemonResult.pid,
     logFile: daemonResult.logFile,
+    statusMessage: "Watching for sessions.",
   };
 };

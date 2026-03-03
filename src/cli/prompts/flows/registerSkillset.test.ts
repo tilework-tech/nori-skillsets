@@ -39,6 +39,7 @@ describe("registerSkillsetFlow", () => {
         keywords: ["testing", "automation", "cli"],
         version: "2.0.0",
         repository: "https://github.com/user/repo",
+        statusMessage: "Skillset metadata collected",
       });
     });
 
@@ -75,6 +76,7 @@ describe("registerSkillsetFlow", () => {
         keywords: null,
         version: null,
         repository: null,
+        statusMessage: "Skillset metadata collected",
       });
     });
 
@@ -116,6 +118,37 @@ describe("registerSkillsetFlow", () => {
       const result = await registerSkillsetFlow();
 
       expect(result).toBeNull();
+    });
+  });
+
+  describe("no intro/outro framing", () => {
+    it("should not call intro or outro (top-level caller handles framing)", async () => {
+      vi.mocked(clack.group).mockResolvedValueOnce({
+        description: "",
+        license: "",
+        keywords: "",
+        version: "",
+        repository: "",
+      });
+
+      await registerSkillsetFlow();
+
+      expect(clack.intro).not.toHaveBeenCalled();
+      expect(clack.outro).not.toHaveBeenCalled();
+    });
+
+    it("should include statusMessage in result", async () => {
+      vi.mocked(clack.group).mockResolvedValueOnce({
+        description: "",
+        license: "",
+        keywords: "",
+        version: "",
+        repository: "",
+      });
+
+      const result = await registerSkillsetFlow();
+
+      expect(result?.statusMessage).toContain("Skillset metadata collected");
     });
   });
 });

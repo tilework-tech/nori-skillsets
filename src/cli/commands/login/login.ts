@@ -446,9 +446,8 @@ export const loginMain = async (args?: {
     }
 
     if (authMethod === "email") {
-      // Email/password flow via loginFlow (skip intro since we already showed it)
+      // Email/password flow via loginFlow
       const result = await loginFlow({
-        skipIntro: true,
         callbacks: {
           onAuthenticate: async (args): Promise<AuthenticateResult> => {
             const { email: inputEmail, password: inputPassword } = args;
