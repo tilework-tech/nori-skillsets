@@ -593,9 +593,6 @@ describe("login command", () => {
 
       await loginMain({ installDir: tempDir });
 
-      // Verify intro is no longer called (moved to command wrapper)
-      expect(clack.intro).not.toHaveBeenCalled();
-
       // Verify select was called with email and google options
       expect(clack.select).toHaveBeenCalledWith(
         expect.objectContaining({

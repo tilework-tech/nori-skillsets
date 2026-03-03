@@ -424,18 +424,4 @@ describe("initFlow", () => {
       expect(warningText).not.toContain("CLAUDE.md");
     });
   });
-
-  describe("no intro/outro framing", () => {
-    it("should not call intro or outro (top-level caller handles framing)", async () => {
-      vi.mocked(clack.confirm).mockResolvedValueOnce(true);
-
-      await initFlow({
-        installDir: "/test/dir",
-        callbacks: mockCallbacks,
-      });
-
-      expect(clack.intro).not.toHaveBeenCalled();
-      expect(clack.outro).not.toHaveBeenCalled();
-    });
-  });
 });

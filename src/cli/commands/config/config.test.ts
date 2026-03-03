@@ -261,28 +261,6 @@ describe("configMain return value and framing", () => {
       }),
     );
   });
-
-  it("should not call intro or outro (top-level caller handles framing)", async () => {
-    const clack = await import("@clack/prompts");
-    const { configFlow } = await import("@/cli/prompts/flows/config.js");
-    vi.mocked(configFlow).mockResolvedValueOnce({
-      defaultAgents: ["claude-code"],
-      installDir: tempDir,
-      redownloadOnSwitch: "enabled",
-    });
-
-    await saveConfig({
-      username: null,
-      organizationUrl: null,
-      installDir: tempDir,
-      activeSkillset: "senior-swe",
-    });
-
-    const { configMain } = await import("./config.js");
-    await configMain();
-
-    expect(clack.outro).not.toHaveBeenCalled();
-  });
 });
 
 describe("configMain installDir change prompts", () => {

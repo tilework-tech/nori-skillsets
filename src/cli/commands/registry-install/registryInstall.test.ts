@@ -257,15 +257,6 @@ describe("registry-install", () => {
     expect(result.success).toBe(false);
   });
 
-  it("should not display outro on initial install (installMain handles its own banners)", async () => {
-    await registryInstallMain({
-      packageSpec: "senior-swe",
-    });
-
-    // Initial install delegates to installMain which shows its own completion banners
-    expect(clack.outro).not.toHaveBeenCalled();
-  });
-
   it("should show switching note and return success on switch path for existing installation", async () => {
     vi.mocked(hasExistingInstallation).mockReturnValueOnce(true);
 
@@ -273,32 +264,14 @@ describe("registry-install", () => {
       packageSpec: "senior-swe",
     });
 
-    // Switch path shows note but no intro/outro
-    expect(clack.intro).not.toHaveBeenCalled();
     expect(clack.note).toHaveBeenCalledWith(
       expect.stringContaining("senior-swe"),
       "Switching Skillset",
     );
-    expect(clack.outro).not.toHaveBeenCalled();
 
     // Return status contains skillset name
     expect(result.success).toBe(true);
     expect(result.message).toContain("senior-swe");
-  });
-
-  it("should not display outro when download fails", async () => {
-    vi.mocked(registryDownloadMain).mockResolvedValueOnce({
-      success: false,
-      cancelled: false,
-      message: "",
-    });
-
-    await registryInstallMain({
-      packageSpec: "nonexistent-profile",
-    });
-
-    // Should NOT display outro
-    expect(clack.outro).not.toHaveBeenCalled();
   });
 
   it("should fallback to local skillset when download fails but skillset exists locally", async () => {

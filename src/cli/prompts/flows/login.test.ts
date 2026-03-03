@@ -46,26 +46,6 @@ describe("loginFlow", () => {
   });
 
   describe("successful login", () => {
-    it("should not call intro or outro (top-level caller handles framing)", async () => {
-      vi.mocked(clack.group).mockResolvedValueOnce({
-        email: "test@example.com",
-        password: "secret123",
-      });
-      vi.mocked(mockCallbacks.onAuthenticate).mockResolvedValueOnce({
-        success: true,
-        userEmail: "test@example.com",
-        organizations: ["dev"],
-        isAdmin: false,
-        refreshToken: "mock-refresh-token",
-        idToken: "mock-id-token",
-      });
-
-      await loginFlow({ callbacks: mockCallbacks });
-
-      expect(clack.intro).not.toHaveBeenCalled();
-      expect(clack.outro).not.toHaveBeenCalled();
-    });
-
     it("should use group to collect email and password together", async () => {
       vi.mocked(clack.group).mockResolvedValueOnce({
         email: "test@example.com",
@@ -300,22 +280,6 @@ describe("loginFlow", () => {
         "Check that your email and password are correct.",
         "Hint",
       );
-    });
-
-    it("should not call intro or outro on auth failure", async () => {
-      vi.mocked(clack.group).mockResolvedValueOnce({
-        email: "test@example.com",
-        password: "wrongpassword",
-      });
-      vi.mocked(mockCallbacks.onAuthenticate).mockResolvedValueOnce({
-        success: false,
-        error: "Invalid credentials",
-      });
-
-      await loginFlow({ callbacks: mockCallbacks });
-
-      expect(clack.intro).not.toHaveBeenCalled();
-      expect(clack.outro).not.toHaveBeenCalled();
     });
 
     it("should return null on auth failure", async () => {

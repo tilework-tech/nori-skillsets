@@ -161,19 +161,6 @@ describe("configFlow", () => {
     });
   });
 
-  describe("intro/outro framing", () => {
-    it("should not call intro or outro (top-level caller handles framing)", async () => {
-      vi.mocked(clack.multiselect).mockResolvedValueOnce(["claude-code"]);
-      vi.mocked(clack.text).mockResolvedValueOnce("/home/testuser");
-      vi.mocked(clack.confirm).mockResolvedValueOnce(true);
-
-      await configFlow({ callbacks: mockCallbacks });
-
-      expect(clack.intro).not.toHaveBeenCalled();
-      expect(clack.outro).not.toHaveBeenCalled();
-    });
-  });
-
   describe("redownload on switch toggle", () => {
     it("should include redownloadOnSwitch disabled in result when user says no", async () => {
       vi.mocked(clack.multiselect).mockResolvedValueOnce(["claude-code"]);

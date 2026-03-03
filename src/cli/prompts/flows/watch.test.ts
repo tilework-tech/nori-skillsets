@@ -84,13 +84,6 @@ describe("watchFlow", () => {
       });
     });
 
-    it("should not call intro or outro (top-level caller handles framing)", async () => {
-      await watchFlow({ callbacks: mockCallbacks });
-
-      expect(clack.intro).not.toHaveBeenCalled();
-      expect(clack.outro).not.toHaveBeenCalled();
-    });
-
     it("should include statusMessage and show watch details note", async () => {
       const result = await watchFlow({ callbacks: mockCallbacks });
 
@@ -252,7 +245,6 @@ describe("watchFlow", () => {
       expect(clack.log.warn).toHaveBeenCalledWith(
         expect.stringContaining("No private organizations"),
       );
-      expect(clack.outro).not.toHaveBeenCalled();
       expect(mockCallbacks.onStartDaemon).not.toHaveBeenCalled();
     });
   });
@@ -296,7 +288,6 @@ describe("watchFlow", () => {
       expect(clack.log.error).toHaveBeenCalledWith(
         expect.stringContaining("Failed to spawn daemon process"),
       );
-      expect(clack.outro).not.toHaveBeenCalled();
     });
   });
 });

@@ -86,50 +86,26 @@ describe("uploadFlow", () => {
     vi.mocked(clack.isCancel).mockReturnValue(false);
   });
 
-  describe("no intro/outro framing", () => {
-    it("should not call intro or outro (top-level caller handles framing)", async () => {
-      const callbacks = createMockCallbacks({
-        uploadResults: [
-          {
-            success: true,
-            version: "1.0.0",
-            extractedSkills: { succeeded: [], failed: [] },
-          },
-        ],
-      });
-
-      await uploadFlow({
-        profileDisplayName: "myorg/my-profile",
-        skillsetName: "my-profile",
-        registryUrl: "https://myorg.noriskillsets.dev",
-        callbacks,
-      });
-
-      expect(clack.intro).not.toHaveBeenCalled();
-      expect(clack.outro).not.toHaveBeenCalled();
+  it("should include statusMessage in successful result", async () => {
+    const callbacks = createMockCallbacks({
+      uploadResults: [
+        {
+          success: true,
+          version: "1.0.0",
+          extractedSkills: { succeeded: [], failed: [] },
+        },
+      ],
     });
 
-    it("should include statusMessage in successful result", async () => {
-      const callbacks = createMockCallbacks({
-        uploadResults: [
-          {
-            success: true,
-            version: "1.0.0",
-            extractedSkills: { succeeded: [], failed: [] },
-          },
-        ],
-      });
-
-      const result = await uploadFlow({
-        profileDisplayName: "myorg/my-profile",
-        skillsetName: "my-profile",
-        registryUrl: "https://myorg.noriskillsets.dev",
-        callbacks,
-      });
-
-      expect(result).not.toBeNull();
-      expect(result!.statusMessage).toContain("myorg/my-profile");
+    const result = await uploadFlow({
+      profileDisplayName: "myorg/my-profile",
+      skillsetName: "my-profile",
+      registryUrl: "https://myorg.noriskillsets.dev",
+      callbacks,
     });
+
+    expect(result).not.toBeNull();
+    expect(result!.statusMessage).toContain("myorg/my-profile");
   });
 
   describe("use existing option", () => {

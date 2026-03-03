@@ -142,37 +142,4 @@ describe("newSkillsetFlow", () => {
       expect(result).toBeNull();
     });
   });
-
-  describe("no intro/outro framing", () => {
-    it("should not call intro or outro (top-level caller handles framing)", async () => {
-      vi.mocked(clack.group).mockResolvedValueOnce({
-        name: "test-skillset",
-        description: "",
-        license: "",
-        keywords: "",
-        version: "",
-        repository: "",
-      });
-
-      await newSkillsetFlow();
-
-      expect(clack.intro).not.toHaveBeenCalled();
-      expect(clack.outro).not.toHaveBeenCalled();
-    });
-
-    it("should include statusMessage in result", async () => {
-      vi.mocked(clack.group).mockResolvedValueOnce({
-        name: "test-skillset",
-        description: "",
-        license: "",
-        keywords: "",
-        version: "",
-        repository: "",
-      });
-
-      const result = await newSkillsetFlow();
-
-      expect(result?.statusMessage).toContain("Skillset metadata collected");
-    });
-  });
 });

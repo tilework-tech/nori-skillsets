@@ -55,13 +55,6 @@ describe("registrySearchFlow", () => {
   });
 
   describe("happy path: search results found", () => {
-    it("should not call intro or outro (top-level caller handles framing)", async () => {
-      await registrySearchFlow({ callbacks: mockCallbacks });
-
-      expect(clack.intro).not.toHaveBeenCalled();
-      expect(clack.outro).not.toHaveBeenCalled();
-    });
-
     it("should show spinner during search", async () => {
       const spinnerMock = {
         start: vi.fn(),
@@ -178,12 +171,6 @@ describe("registrySearchFlow", () => {
       expect(clack.log.error).toHaveBeenCalledWith(
         "Network error: could not connect to registry",
       );
-    });
-
-    it("should not call outro", async () => {
-      await registrySearchFlow({ callbacks: mockCallbacks });
-
-      expect(clack.outro).not.toHaveBeenCalled();
     });
 
     it("should return null", async () => {

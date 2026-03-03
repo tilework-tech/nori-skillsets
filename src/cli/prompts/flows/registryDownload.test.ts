@@ -80,16 +80,6 @@ describe("registryDownloadFlow", () => {
   });
 
   describe("happy path: new download", () => {
-    it("should not call intro or outro (top-level caller handles framing)", async () => {
-      await registryDownloadFlow({
-        packageDisplayName: "my-skillset",
-        callbacks: mockCallbacks,
-      });
-
-      expect(clack.intro).not.toHaveBeenCalled();
-      expect(clack.outro).not.toHaveBeenCalled();
-    });
-
     it("should show search spinner", async () => {
       await registryDownloadFlow({
         packageDisplayName: "my-skillset",

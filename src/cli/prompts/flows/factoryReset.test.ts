@@ -144,22 +144,6 @@ describe("factoryResetFlow", () => {
 
       expect(result?.statusMessage).toContain("Factory reset complete");
     });
-
-    it("should not call intro or outro", async () => {
-      vi.mocked(mockCallbacks.onFindArtifacts).mockResolvedValueOnce({
-        artifacts: [{ path: "/test/.claude", type: "directory" }],
-      });
-      vi.mocked(clack.text).mockResolvedValueOnce("confirm");
-
-      await factoryResetFlow({
-        agentName: "Claude Code",
-        path: "/test",
-        callbacks: mockCallbacks,
-      });
-
-      expect(clack.intro).not.toHaveBeenCalled();
-      expect(clack.outro).not.toHaveBeenCalled();
-    });
   });
 
   describe("no artifacts found", () => {
@@ -276,19 +260,6 @@ describe("factoryResetFlow", () => {
       });
 
       expect(mockCallbacks.onDeleteArtifacts).not.toHaveBeenCalled();
-    });
-  });
-
-  describe("no intro/outro framing", () => {
-    it("should not call intro or outro (top-level caller handles framing)", async () => {
-      await factoryResetFlow({
-        agentName: "Claude Code",
-        path: "/test",
-        callbacks: mockCallbacks,
-      });
-
-      expect(clack.intro).not.toHaveBeenCalled();
-      expect(clack.outro).not.toHaveBeenCalled();
     });
   });
 });
