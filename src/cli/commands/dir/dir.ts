@@ -45,7 +45,11 @@ export const dirMain = async (args?: {
   if (nonInteractive) {
     // Plain output for scripting
     process.stdout.write(skillsetsDir + "\n");
-    return { success: true, cancelled: false, message: "Done" };
+    return {
+      success: true,
+      cancelled: false,
+      message: `Profiles directory: ${skillsetsDir}`,
+    };
   }
 
   let opened = false;
@@ -61,5 +65,9 @@ export const dirMain = async (args?: {
   } else {
     log.step(`Nori profiles directory: ${skillsetsDir}`);
   }
-  return { success: true, cancelled: false, message: "Done" };
+  return {
+    success: true,
+    cancelled: false,
+    message: `Opened profiles directory`,
+  };
 };

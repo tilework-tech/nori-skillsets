@@ -73,7 +73,7 @@ export const newSkillsetMain = async (): Promise<CommandStatus> => {
     return {
       success: false,
       cancelled: false,
-      message: `Skillset '${name}' already exists.`,
+      message: `Skillset "${name}" already exists`,
     };
   } catch {
     // Expected — destination should not exist
@@ -124,6 +124,6 @@ export const newSkillsetMain = async (): Promise<CommandStatus> => {
   return {
     success: true,
     cancelled: false,
-    message: `Created new skillset '${name}'`,
+    message: `Created new skillset "${name}"`,
   };
 };

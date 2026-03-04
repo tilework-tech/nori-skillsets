@@ -39,7 +39,7 @@ export const forkSkillsetMain = async (args: {
     return {
       success: false,
       cancelled: false,
-      message: `Skillset '${baseSkillset}' not found.`,
+      message: `Skillset "${baseSkillset}" not found`,
     };
   }
 
@@ -53,7 +53,7 @@ export const forkSkillsetMain = async (args: {
     return {
       success: false,
       cancelled: false,
-      message: `Skillset '${newSkillset}' already exists.`,
+      message: `Skillset "${newSkillset}" already exists`,
     };
   } catch {
     // Expected — destination should not exist
@@ -80,6 +80,6 @@ export const forkSkillsetMain = async (args: {
   return {
     success: true,
     cancelled: false,
-    message: `Forked '${baseSkillset}' to '${newSkillset}'`,
+    message: `Forked "${baseSkillset}" to "${newSkillset}"`,
   };
 };

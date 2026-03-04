@@ -36,11 +36,19 @@ export const installLocationMain = async (args?: {
   // Non-interactive output: plain path
   if (nonInteractive) {
     process.stdout.write(installDir + "\n");
-    return { success: true, cancelled: false, message: "Done" };
+    return {
+      success: true,
+      cancelled: false,
+      message: `Install directory: ${installDir}`,
+    };
   }
 
   note(installDir, "Nori installation directory");
-  return { success: true, cancelled: false, message: "Done" };
+  return {
+    success: true,
+    cancelled: false,
+    message: `Install directory: ${installDir}`,
+  };
 };
 
 /**

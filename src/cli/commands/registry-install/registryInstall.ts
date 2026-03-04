@@ -23,6 +23,7 @@ import { bold, brightCyan, green } from "@/cli/logger.js";
 import { getNoriSkillsetsDir } from "@/norijson/skillset.js";
 import { resolveInstallDir } from "@/utils/path.js";
 
+import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 import type { Command } from "commander";
 
 type RegistryInstallArgs = {
@@ -61,15 +62,6 @@ const checkLocalSkillsetExists = async (args: {
 };
 
 /**
- * Result of registry install operation
- */
-export type RegistryInstallResult = {
-  success: boolean;
-  cancelled: boolean;
-  message: string;
-};
-
-/**
  * Install a skillset from the public registry in one step
  * Downloads the skillset, then either performs initial installation or
  * switches to the skillset and regenerates files.
@@ -83,7 +75,7 @@ export type RegistryInstallResult = {
  */
 export const registryInstallMain = async (
   args: RegistryInstallArgs,
-): Promise<RegistryInstallResult> => {
+): Promise<CommandStatus> => {
   const { packageSpec, installDir, silent, agent } = args;
 
   const skillsetName = parsePackageName({ packageSpec });
@@ -121,7 +113,7 @@ export const registryInstallMain = async (
       return {
         success: false,
         cancelled: false,
-        message: `Skillset "${skillsetName}" not found in registry or locally.`,
+        message: `Skillset "${skillsetName}" not found in registry or locally`,
       };
     }
 
@@ -148,7 +140,7 @@ export const registryInstallMain = async (
       return {
         success: true,
         cancelled: false,
-        message: `Skillset "${skillsetName}" installed and activated.`,
+        message: `Skillset "${skillsetName}" installed and activated`,
       };
     }
 
@@ -194,7 +186,7 @@ export const registryInstallMain = async (
     return {
       success: true,
       cancelled: false,
-      message: `Skillset "${skillsetName}" is now active.`,
+      message: `Skillset "${skillsetName}" is now active`,
     };
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);

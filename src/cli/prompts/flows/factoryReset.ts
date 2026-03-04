@@ -106,7 +106,6 @@ export const factoryResetFlow = async (args: {
 
   return {
     deletedCount: artifacts.length,
-    statusMessage:
-      "Factory reset complete. All configuration has been removed.",
+    statusMessage: "Factory reset complete. All configuration has been removed",
   };
 };

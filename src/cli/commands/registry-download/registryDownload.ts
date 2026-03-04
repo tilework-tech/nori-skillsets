@@ -35,6 +35,7 @@ import {
   buildOrganizationRegistryUrl,
 } from "@/utils/url.js";
 
+import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 import type { Config } from "@/cli/config.js";
 import type {
   DownloadSearchResult,
@@ -517,15 +518,6 @@ const formatMultiplePackagesError = (args: {
 };
 
 /**
- * Result of registry download operation
- */
-export type RegistryDownloadResult = {
-  success: boolean;
-  cancelled: boolean;
-  message: string;
-};
-
-/**
  * Download and install a skillset from the registrar
  * @param args - The download parameters
  * @param args.packageSpec - Package name with optional version (e.g., "my-profile" or "my-profile@1.0.0")
@@ -544,7 +536,7 @@ export const registryDownloadMain = async (args: {
   registryUrl?: string | null;
   listVersions?: boolean | null;
   cliName?: CliName | null;
-}): Promise<RegistryDownloadResult> => {
+}): Promise<CommandStatus> => {
   const { packageSpec, installDir, registryUrl, listVersions, cliName } = args;
   const commandNames = getCommandNames({ cliName });
   const cliPrefix = cliName ?? "nori-skillsets";
@@ -558,7 +550,7 @@ export const registryDownloadMain = async (args: {
     return {
       success: false,
       cancelled: false,
-      message: `Invalid package specification: "${packageSpec}".`,
+      message: `Invalid package specification: "${packageSpec}"`,
     };
   }
   const { orgId, packageName, version } = parsed;

@@ -91,7 +91,7 @@ export const watchFlow = async (args: {
       org: "",
       pid: 0,
       logFile: "",
-      statusMessage: "Watch cancelled.",
+      statusMessage: "Watch cancelled",
     };
   } else if (
     !forceSelection &&
@@ -148,7 +148,7 @@ export const watchFlow = async (args: {
       org: selectedOrg,
       pid: 0,
       logFile: "",
-      statusMessage: "Watch failed.",
+      statusMessage: "Watch failed",
     };
   }
 
@@ -165,6 +165,6 @@ export const watchFlow = async (args: {
     org: selectedOrg,
     pid: daemonResult.pid,
     logFile: daemonResult.logFile,
-    statusMessage: "Watching for sessions.",
+    statusMessage: "Watching for sessions",
   };
 };

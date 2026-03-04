@@ -81,7 +81,7 @@ export const configMain = async (): Promise<CommandStatus> => {
     return {
       success: false,
       cancelled: true,
-      message: "Configuration cancelled.",
+      message: "Configuration cancelled",
     };
   }
 
@@ -217,5 +217,5 @@ export const configMain = async (): Promise<CommandStatus> => {
     }
   }
 
-  return { success: true, cancelled: false, message: "Configuration saved." };
+  return { success: true, cancelled: false, message: "Configuration saved" };
 };

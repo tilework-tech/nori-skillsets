@@ -41,7 +41,7 @@ export const factoryResetMain = async (args: {
       success: false,
       cancelled: false,
       message:
-        "Factory reset requires explicit confirmation. Cannot proceed in non-interactive mode.",
+        "Factory reset requires explicit confirmation. Cannot proceed in non-interactive mode",
     };
   }
 
@@ -53,7 +53,7 @@ export const factoryResetMain = async (args: {
     return {
       success: false,
       cancelled: false,
-      message: `Agent '${agentName}' does not support factory reset.`,
+      message: `Agent "${agentName}" does not support factory reset`,
     };
   }
 

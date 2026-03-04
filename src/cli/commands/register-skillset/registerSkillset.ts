@@ -44,7 +44,7 @@ export const registerSkillsetMain = async (args: {
       return {
         success: false,
         cancelled: false,
-        message: "No active skillset configured.",
+        message: "No active skillset configured",
       };
     }
 
@@ -58,7 +58,7 @@ export const registerSkillsetMain = async (args: {
       return {
         success: false,
         cancelled: false,
-        message: "No active skillset configured.",
+        message: "No active skillset configured",
       };
     }
 
@@ -79,7 +79,7 @@ export const registerSkillsetMain = async (args: {
     return {
       success: false,
       cancelled: false,
-      message: `Skillset '${skillsetName}' does not exist.`,
+      message: `Skillset "${skillsetName}" does not exist`,
     };
   }
 
@@ -94,7 +94,7 @@ export const registerSkillsetMain = async (args: {
     return {
       success: false,
       cancelled: false,
-      message: `Skillset '${skillsetName}' already has a nori.json manifest.`,
+      message: `Skillset "${skillsetName}" already has a nori.json manifest`,
     };
   } catch {
     // Expected - nori.json should not exist
@@ -148,6 +148,6 @@ export const registerSkillsetMain = async (args: {
   return {
     success: true,
     cancelled: false,
-    message: `Registered skillset '${skillsetName}'`,
+    message: `Registered skillset "${skillsetName}"`,
   };
 };

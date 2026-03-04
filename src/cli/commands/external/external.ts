@@ -311,7 +311,7 @@ export const externalMain = async (args: {
     return {
       success: false,
       cancelled: false,
-      message: `Invalid source: "${source}".`,
+      message: `Invalid source: "${source}"`,
     };
   }
 
@@ -326,7 +326,7 @@ export const externalMain = async (args: {
     return {
       success: false,
       cancelled: false,
-      message: "Cannot use --inline and --extract together.",
+      message: "Cannot use --inline and --extract together",
     };
   }
 
@@ -338,7 +338,7 @@ export const externalMain = async (args: {
     return {
       success: false,
       cancelled: false,
-      message: "Cannot use --new and --skillset together.",
+      message: "Cannot use --new and --skillset together",
     };
   }
 
@@ -348,7 +348,7 @@ export const externalMain = async (args: {
     return {
       success: false,
       cancelled: false,
-      message: "The --new flag requires a non-empty skillset name.",
+      message: "The --new flag requires a non-empty skillset name",
     };
   }
 
@@ -373,7 +373,7 @@ export const externalMain = async (args: {
       return {
         success: false,
         cancelled: false,
-        message: `Skillset "${newSkillset}" already exists.`,
+        message: `Skillset "${newSkillset}" already exists`,
       };
     } catch {
       // Expected — directory should not exist
@@ -396,7 +396,7 @@ export const externalMain = async (args: {
       return {
         success: false,
         cancelled: false,
-        message: `Skillset "${skillset}" not found.`,
+        message: `Skillset "${skillset}" not found`,
       };
     }
   } else if (config != null) {
@@ -463,7 +463,7 @@ export const externalMain = async (args: {
         return {
           success: false,
           cancelled: false,
-          message: `Skill "${parsed.skillFilter}" not found in repository.`,
+          message: `Skill "${parsed.skillFilter}" not found in repository`,
         };
       }
     }
@@ -475,7 +475,7 @@ export const externalMain = async (args: {
       return {
         success: false,
         cancelled: false,
-        message: `No skills found in ${source}.`,
+        message: `No skills found in ${source}`,
       };
     }
 
@@ -495,7 +495,7 @@ export const externalMain = async (args: {
         return {
           success: false,
           cancelled: false,
-          message: `Skill "${skill}" not found.`,
+          message: `Skill "${skill}" not found`,
         };
       }
       skillsToInstall = matched;
@@ -513,7 +513,7 @@ export const externalMain = async (args: {
       return {
         success: false,
         cancelled: false,
-        message: `Found ${discovered.length} skills but no selection made.`,
+        message: `Found ${discovered.length} skills but no selection made`,
       };
     }
 

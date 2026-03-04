@@ -47,7 +47,7 @@ export const editSkillsetMain = async (args: {
       return {
         success: false,
         cancelled: false,
-        message: "No active skillset configured.",
+        message: "No active skillset configured",
       };
     }
 
@@ -67,7 +67,7 @@ export const editSkillsetMain = async (args: {
     return {
       success: false,
       cancelled: false,
-      message: `Skillset '${skillsetName}' not found at ${skillsetDir}`,
+      message: `Skillset "${skillsetName}" not found at ${skillsetDir}`,
     };
   }
 
@@ -103,7 +103,11 @@ export const editSkillsetMain = async (args: {
     log.info(`To open in VS Code: code ${skillsetDir}`);
     log.info(`To navigate there:  cd ${skillsetDir}`);
   }
-  return { success: true, cancelled: false, message: "Done" };
+  return {
+    success: true,
+    cancelled: false,
+    message: `Opened skillset "${skillsetName}"`,
+  };
 };
 
 /**

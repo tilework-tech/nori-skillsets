@@ -352,7 +352,7 @@ export const loginMain = async (args?: {
       success: false,
       cancelled: false,
       message:
-        "Cannot use --google with --email or --password. Google SSO handles authentication via the browser.",
+        "Cannot use --google with --email or --password. Google SSO handles authentication via the browser",
     };
   }
 
@@ -361,7 +361,7 @@ export const loginMain = async (args?: {
       success: false,
       cancelled: false,
       message:
-        "Cannot use --google with --non-interactive. Google SSO requires a browser for authentication.",
+        "Cannot use --google with --non-interactive. Google SSO requires a browser for authentication",
     };
   }
 
@@ -370,7 +370,7 @@ export const loginMain = async (args?: {
       success: false,
       cancelled: false,
       message:
-        "Cannot use --no-localhost without --google. This flag is only for Google SSO.",
+        "Cannot use --no-localhost without --google. This flag is only for Google SSO",
     };
   }
 
@@ -410,7 +410,7 @@ export const loginMain = async (args?: {
       return {
         success: false,
         cancelled: false,
-        message: "Non-interactive mode requires --email and --password flags.",
+        message: "Non-interactive mode requires --email and --password flags",
       };
     }
 

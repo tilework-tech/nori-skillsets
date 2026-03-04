@@ -29,18 +29,10 @@ import {
   buildOrganizationRegistryUrl,
 } from "@/utils/url.js";
 
+import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 import type { RegistryAuth } from "@/cli/config.js";
 import type { NoriJson } from "@/norijson/nori.js";
 import type { Command } from "commander";
-
-/**
- * Result of upload operation
- */
-export type RegistryUploadResult = {
-  success: boolean;
-  cancelled: boolean;
-  message: string;
-};
 
 /**
  * Determine the version to upload (auto-bump if not specified)
@@ -302,7 +294,7 @@ export const registryUploadMain = async (args: {
   silent?: boolean | null;
   dryRun?: boolean | null;
   description?: string | null;
-}): Promise<RegistryUploadResult> => {
+}): Promise<CommandStatus> => {
   const {
     profileSpec,
     registryUrl,
@@ -322,7 +314,7 @@ export const registryUploadMain = async (args: {
     return {
       success: false,
       cancelled: false,
-      message: `Invalid skillset specification: "${profileSpec}".`,
+      message: `Invalid skillset specification: "${profileSpec}"`,
     };
   }
 
@@ -337,7 +329,7 @@ export const registryUploadMain = async (args: {
     return {
       success: false,
       cancelled: false,
-      message: "Could not load Nori configuration.",
+      message: "Could not load Nori configuration",
     };
   }
 
@@ -386,7 +378,7 @@ export const registryUploadMain = async (args: {
       return {
         success: false,
         cancelled: false,
-        message: `No authentication configured for ${registryUrl}.`,
+        message: `No authentication configured for ${registryUrl}`,
       };
     }
 
@@ -415,7 +407,7 @@ export const registryUploadMain = async (args: {
       return {
         success: false,
         cancelled: false,
-        message: `You do not have access to organization "${orgId}".`,
+        message: `You do not have access to organization "${orgId}"`,
       };
     }
 
@@ -445,7 +437,7 @@ export const registryUploadMain = async (args: {
     return {
       success: false,
       cancelled: false,
-      message: "Authentication required to upload to public registry.",
+      message: "Authentication required to upload to public registry",
     };
   } else {
     // Namespaced package without unified auth
@@ -455,7 +447,7 @@ export const registryUploadMain = async (args: {
     return {
       success: false,
       cancelled: false,
-      message: `Cannot upload "${profileDisplayName}". Login required.`,
+      message: `Cannot upload "${profileDisplayName}". Login required`,
     };
   }
 
