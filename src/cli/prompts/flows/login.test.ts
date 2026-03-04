@@ -196,7 +196,8 @@ describe("loginFlow", () => {
 
       const result = await loginFlow({ callbacks: mockCallbacks });
 
-      expect(result?.statusMessage).toContain("Logged in as test@example.com");
+      expect(result?.statusMessage).toContain("Logged in as");
+      expect(result?.statusMessage).toContain("test@example.com");
     });
 
     it("should return credentials on successful login", async () => {
@@ -221,7 +222,7 @@ describe("loginFlow", () => {
         idToken: "mock-id-token",
         organizations: ["dev"],
         isAdmin: true,
-        statusMessage: "Logged in as test@example.com",
+        statusMessage: expect.stringContaining("test@example.com"),
       });
     });
   });

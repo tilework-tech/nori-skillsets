@@ -17,6 +17,7 @@ import {
 } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
 import { loadConfig, getRegistryAuth } from "@/cli/config.js";
+import { bold } from "@/cli/logger.js";
 import {
   uploadFlow,
   listVersionsFlow,
@@ -593,7 +594,7 @@ export const registryUploadMain = async (args: {
       return {
         success: true,
         cancelled: false,
-        message: `Uploaded "${profileDisplayName}@${versionResult.version}"`,
+        message: `Uploaded "${bold({ text: `${profileDisplayName}@${versionResult.version}` })}"`,
       };
     }
 

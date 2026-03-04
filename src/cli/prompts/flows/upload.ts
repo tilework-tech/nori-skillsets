@@ -1065,6 +1065,6 @@ export const uploadFlow = async (args: {
     namespacedSkillIds,
     skippedSkillIds,
     inlineSkillIds,
-    statusMessage: `Uploaded ${profileDisplayName}@${result.version}`,
+    statusMessage: `Uploaded ${bold({ text: `${profileDisplayName}@${result.version}` })}`,
   };
 };

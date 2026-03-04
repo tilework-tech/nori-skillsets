@@ -10,6 +10,7 @@ import * as path from "path";
 import { log, note } from "@clack/prompts";
 
 import { loadConfig, getActiveSkillset } from "@/cli/config.js";
+import { bold } from "@/cli/logger.js";
 import { getNoriSkillsetsDir } from "@/norijson/skillset.js";
 
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
@@ -104,7 +105,7 @@ export const editSkillsetMain = async (args: {
   return {
     success: true,
     cancelled: false,
-    message: `Opened skillset "${skillsetName}"`,
+    message: `Opened skillset "${bold({ text: skillsetName })}"`,
   };
 };
 

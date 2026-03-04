@@ -21,6 +21,8 @@ import {
   cancel,
 } from "@clack/prompts";
 
+import { bold } from "@/cli/logger.js";
+
 /**
  * Result of successful authentication callback
  */
@@ -138,6 +140,6 @@ export const loginFlow = async (args: {
     idToken: result.idToken,
     organizations: result.organizations,
     isAdmin: result.isAdmin,
-    statusMessage: `Logged in as ${result.userEmail}`,
+    statusMessage: `Logged in as ${bold({ text: result.userEmail })}`,
   };
 };

@@ -9,6 +9,7 @@ import * as path from "path";
 
 import { log, note } from "@clack/prompts";
 
+import { bold } from "@/cli/logger.js";
 import {
   ensureNoriJson,
   readSkillsetMetadata,
@@ -78,6 +79,6 @@ export const forkSkillsetMain = async (args: {
   return {
     success: true,
     cancelled: false,
-    message: `Forked "${baseSkillset}" to "${newSkillset}"`,
+    message: `Forked "${bold({ text: baseSkillset })}" to "${bold({ text: newSkillset })}"`,
   };
 };

@@ -9,6 +9,7 @@ import * as path from "path";
 
 import { log, note } from "@clack/prompts";
 
+import { bold } from "@/cli/logger.js";
 import { registerSkillsetFlow } from "@/cli/prompts/flows/registerSkillset.js";
 import { writeSkillsetMetadata, type NoriJson } from "@/norijson/nori.js";
 import { getNoriSkillsetsDir } from "@/norijson/skillset.js";
@@ -144,6 +145,6 @@ export const registerSkillsetMain = async (args: {
   return {
     success: true,
     cancelled: false,
-    message: `Registered skillset "${skillsetName}"`,
+    message: `Registered skillset "${bold({ text: skillsetName })}"`,
   };
 };

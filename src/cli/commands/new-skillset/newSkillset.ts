@@ -9,6 +9,7 @@ import * as path from "path";
 
 import { log, note } from "@clack/prompts";
 
+import { bold } from "@/cli/logger.js";
 import { newSkillsetFlow } from "@/cli/prompts/flows/newSkillset.js";
 import { writeSkillsetMetadata, type NoriJson } from "@/norijson/nori.js";
 import { getNoriSkillsetsDir } from "@/norijson/skillset.js";
@@ -123,6 +124,6 @@ export const newSkillsetMain = async (): Promise<CommandStatus> => {
   return {
     success: true,
     cancelled: false,
-    message: `Created new skillset "${name}"`,
+    message: `Created new skillset "${bold({ text: name })}"`,
   };
 };
