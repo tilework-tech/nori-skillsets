@@ -195,15 +195,15 @@ describe("editSkillsetMain", () => {
       }),
     );
 
-    await editSkillsetMain({ agent: "claude-code" });
+    const result = await editSkillsetMain({ agent: "claude-code" });
 
     expect(log.error).toHaveBeenCalledWith(
       expect.stringContaining("No active skillset"),
     );
-    expect(mockExit).toHaveBeenCalledWith(1);
+    expect(result.success).toBe(false);
   });
 
-  it("should error when profile directory does not exist on disk", async () => {
+  it("should return failure status when profile directory does not exist on disk", async () => {
     // Config references a profile that doesn't exist on disk
     const configPath = path.join(testHomeDir, ".nori-config.json");
     await fs.writeFile(
@@ -218,12 +218,12 @@ describe("editSkillsetMain", () => {
     const skillsetsDir = path.join(testHomeDir, ".nori", "profiles");
     await fs.mkdir(skillsetsDir, { recursive: true });
 
-    await editSkillsetMain({ agent: "claude-code" });
+    const result = await editSkillsetMain({ agent: "claude-code" });
 
     expect(log.error).toHaveBeenCalledWith(
       expect.stringContaining("nonexistent"),
     );
-    expect(mockExit).toHaveBeenCalledWith(1);
+    expect(result.success).toBe(false);
   });
 
   it("should use the --agent flag to select the agent profile", async () => {
@@ -395,13 +395,13 @@ describe("editSkillsetMain", () => {
     );
   });
 
-  it("should error when no config exists and no name argument is given", async () => {
+  it("should return failure status when no config exists and no name argument is given", async () => {
     // No config file at all
-    await editSkillsetMain({ agent: "claude-code" });
+    const result = await editSkillsetMain({ agent: "claude-code" });
 
     expect(log.error).toHaveBeenCalledWith(
       expect.stringContaining("No active skillset"),
     );
-    expect(mockExit).toHaveBeenCalledWith(1);
+    expect(result.success).toBe(false);
   });
 });

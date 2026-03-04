@@ -40,7 +40,6 @@ export const registerSkillsetMain = async (args: {
       log.error(
         "No active skillset configured. Use 'nori-skillsets switch <name>' to set one, or specify a skillset name.",
       );
-      process.exit(1);
       return {
         success: false,
         cancelled: false,
@@ -54,7 +53,6 @@ export const registerSkillsetMain = async (args: {
       log.error(
         "No active skillset configured. Use 'nori-skillsets switch <name>' to set one, or specify a skillset name.",
       );
-      process.exit(1);
       return {
         success: false,
         cancelled: false,
@@ -75,7 +73,6 @@ export const registerSkillsetMain = async (args: {
     log.error(
       `Skillset '${skillsetName}' does not exist at ${destPath}. Please create it first.`,
     );
-    process.exit(1);
     return {
       success: false,
       cancelled: false,
@@ -90,7 +87,6 @@ export const registerSkillsetMain = async (args: {
     log.error(
       `Skillset '${skillsetName}' already has a nori.json manifest at ${noriJsonPath}.`,
     );
-    process.exit(1);
     return {
       success: false,
       cancelled: false,

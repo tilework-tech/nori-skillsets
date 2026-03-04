@@ -139,7 +139,7 @@ describe("newSkillsetMain", () => {
       repository: null,
     });
 
-    await newSkillsetMain();
+    const result = await newSkillsetMain();
 
     expect(mockLogError).toHaveBeenCalledWith(
       expect.stringContaining("existing-skillset"),
@@ -147,7 +147,7 @@ describe("newSkillsetMain", () => {
     expect(mockLogError).toHaveBeenCalledWith(
       expect.stringContaining("already exists"),
     );
-    expect(mockExit).toHaveBeenCalledWith(1);
+    expect(result.success).toBe(false);
   });
 
   it("should print instructions for switching and editing after creation", async () => {

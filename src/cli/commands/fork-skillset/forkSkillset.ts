@@ -35,7 +35,6 @@ export const forkSkillsetMain = async (args: {
     log.error(
       `Skillset '${baseSkillset}' not found. Run 'nori-skillsets list' to see available skillsets.`,
     );
-    process.exit(1);
     return {
       success: false,
       cancelled: false,
@@ -49,7 +48,6 @@ export const forkSkillsetMain = async (args: {
     log.error(
       `Skillset '${newSkillset}' already exists. Choose a different name.`,
     );
-    process.exit(1);
     return {
       success: false,
       cancelled: false,

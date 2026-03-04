@@ -330,6 +330,6 @@ export const switchSkillsetFlow = async (args: {
   return {
     agentName,
     skillsetName,
-    statusMessage: brightCyan({ text: "Restart your agents to apply" }),
+    statusMessage: "Restart your agents to apply",
   };
 };

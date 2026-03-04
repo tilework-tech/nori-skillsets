@@ -69,7 +69,6 @@ export const newSkillsetMain = async (): Promise<CommandStatus> => {
   try {
     await fs.access(destPath);
     log.error(`Skillset '${name}' already exists. Choose a different name.`);
-    process.exit(1);
     return {
       success: false,
       cancelled: false,

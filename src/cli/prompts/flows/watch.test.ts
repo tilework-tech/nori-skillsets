@@ -229,7 +229,7 @@ describe("watchFlow", () => {
   });
 
   describe("no private orgs", () => {
-    it("should warn and return result with statusMessage when no private orgs available", async () => {
+    it("should warn and return null when no private orgs available", async () => {
       vi.mocked(mockCallbacks.onPrepare).mockResolvedValue({
         privateOrgs: [],
         currentDestination: null,
@@ -241,7 +241,7 @@ describe("watchFlow", () => {
         callbacks: mockCallbacks,
       });
 
-      expect(result?.statusMessage).toContain("Watch cancelled");
+      expect(result).toBeNull();
       expect(clack.log.warn).toHaveBeenCalledWith(
         expect.stringContaining("No private organizations"),
       );
@@ -274,7 +274,7 @@ describe("watchFlow", () => {
   });
 
   describe("daemon start failure", () => {
-    it("should log error and return result with statusMessage when daemon fails to start", async () => {
+    it("should log error and return null when daemon fails to start", async () => {
       vi.mocked(mockCallbacks.onStartDaemon).mockResolvedValue({
         success: false,
         error: "Failed to spawn daemon process",
@@ -284,7 +284,7 @@ describe("watchFlow", () => {
         callbacks: mockCallbacks,
       });
 
-      expect(result?.statusMessage).toContain("Watch failed");
+      expect(result).toBeNull();
       expect(clack.log.error).toHaveBeenCalledWith(
         expect.stringContaining("Failed to spawn daemon process"),
       );

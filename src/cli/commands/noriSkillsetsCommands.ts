@@ -88,6 +88,7 @@ export const registerNoriSkillsetsFactoryResetCommand = (args: {
       const globalOpts = program.opts();
       await wrapWithFraming({
         title: `Factory Reset ${agentName}`,
+        exitOnFailure: true,
         action: () =>
           factoryResetMain({
             agentName,
@@ -110,6 +111,7 @@ export const registerNoriSkillsetsForkCommand = (args: {
   const forkAction = async (baseSkillset: string, newSkillset: string) => {
     await wrapWithFraming({
       title: "Fork Skillset",
+      exitOnFailure: true,
       action: () => forkSkillsetMain({ baseSkillset, newSkillset }),
     });
   };
@@ -144,6 +146,7 @@ export const registerNoriSkillsetsNewCommand = (args: {
   const newAction = async () => {
     await wrapWithFraming({
       title: "Create New Skillset",
+      exitOnFailure: true,
       action: () => newSkillsetMain(),
     });
   };
@@ -171,6 +174,7 @@ export const registerNoriSkillsetsRegisterCommand = (args: {
   const registerAction = async (name: string | undefined) => {
     await wrapWithFraming({
       title: "Register Skillset",
+      exitOnFailure: true,
       action: () => registerSkillsetMain({ skillsetName: name || null }),
     });
   };
@@ -206,6 +210,7 @@ export const registerNoriSkillsetsEditSkillsetCommand = (args: {
     const globalOpts = program.opts();
     await wrapWithFraming({
       title: "Edit Skillset",
+      exitOnFailure: true,
       action: () =>
         editSkillsetMain({
           name: name || null,

@@ -36,7 +36,6 @@ export const factoryResetMain = async (args: {
     log.error(
       "Factory reset requires explicit confirmation. Cannot proceed in non-interactive mode.",
     );
-    process.exit(1);
     return {
       success: false,
       cancelled: false,
@@ -49,7 +48,6 @@ export const factoryResetMain = async (args: {
 
   if (agent.getArtifactPatterns == null) {
     log.error(`Agent '${agentName}' does not support factory reset.`);
-    process.exit(1);
     return {
       success: false,
       cancelled: false,

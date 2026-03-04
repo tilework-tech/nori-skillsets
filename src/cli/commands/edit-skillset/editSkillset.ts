@@ -43,7 +43,6 @@ export const editSkillsetMain = async (args: {
       log.error(
         "No active skillset configured. Use 'nori-skillsets switch <name>' to set one.",
       );
-      process.exit(1);
       return {
         success: false,
         cancelled: false,
@@ -63,7 +62,6 @@ export const editSkillsetMain = async (args: {
     await fs.access(skillsetDir);
   } catch {
     log.error(`Skillset '${skillsetName}' not found at ${skillsetDir}`);
-    process.exit(1);
     return {
       success: false,
       cancelled: false,

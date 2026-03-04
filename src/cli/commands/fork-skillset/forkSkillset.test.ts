@@ -100,8 +100,8 @@ describe("forkSkillsetMain", () => {
     expect(mockExit).not.toHaveBeenCalled();
   });
 
-  it("should error when base skillset does not exist", async () => {
-    await forkSkillsetMain({
+  it("should return failure status when base skillset does not exist", async () => {
+    const result = await forkSkillsetMain({
       baseSkillset: "nonexistent",
       newSkillset: "my-copy",
     });
@@ -109,16 +109,16 @@ describe("forkSkillsetMain", () => {
     expect(mockLogError).toHaveBeenCalledWith(
       expect.stringContaining("nonexistent"),
     );
-    expect(mockExit).toHaveBeenCalledWith(1);
+    expect(result.success).toBe(false);
   });
 
-  it("should error when base skillset directory exists but has no nori.json", async () => {
+  it("should return failure status when base skillset directory exists but has no nori.json", async () => {
     // Create a directory that is not a valid skillset
     const invalidDir = path.join(skillsetsDir, "not-a-skillset");
     await fs.mkdir(invalidDir, { recursive: true });
     await fs.writeFile(path.join(invalidDir, "readme.txt"), "not a profile");
 
-    await forkSkillsetMain({
+    const result = await forkSkillsetMain({
       baseSkillset: "not-a-skillset",
       newSkillset: "my-copy",
     });
@@ -126,7 +126,7 @@ describe("forkSkillsetMain", () => {
     expect(mockLogError).toHaveBeenCalledWith(
       expect.stringContaining("not-a-skillset"),
     );
-    expect(mockExit).toHaveBeenCalledWith(1);
+    expect(result.success).toBe(false);
   });
 
   it("should error when destination skillset already exists", async () => {
@@ -146,7 +146,7 @@ describe("forkSkillsetMain", () => {
       JSON.stringify({ name: "existing-profile", version: "1.0.0" }),
     );
 
-    await forkSkillsetMain({
+    const result = await forkSkillsetMain({
       baseSkillset: "base-profile",
       newSkillset: "existing-profile",
     });
@@ -157,7 +157,7 @@ describe("forkSkillsetMain", () => {
     expect(mockLogError).toHaveBeenCalledWith(
       expect.stringContaining("already exists"),
     );
-    expect(mockExit).toHaveBeenCalledWith(1);
+    expect(result.success).toBe(false);
   });
 
   it("should work with namespaced profile names", async () => {

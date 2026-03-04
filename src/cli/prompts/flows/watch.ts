@@ -87,12 +87,7 @@ export const watchFlow = async (args: {
 
   if (privateOrgs.length === 0) {
     log.warn("No private organizations available. Cannot upload transcripts.");
-    return {
-      org: "",
-      pid: 0,
-      logFile: "",
-      statusMessage: "Watch cancelled",
-    };
+    return null;
   } else if (
     !forceSelection &&
     currentDestination != null &&
@@ -144,12 +139,7 @@ export const watchFlow = async (args: {
   if (!daemonResult.success) {
     s.stop("Failed to start watch daemon.");
     log.error(`Failed to start watch daemon: ${daemonResult.error}`);
-    return {
-      org: selectedOrg,
-      pid: 0,
-      logFile: "",
-      statusMessage: "Watch failed",
-    };
+    return null;
   }
 
   s.stop("Watch daemon started.");
