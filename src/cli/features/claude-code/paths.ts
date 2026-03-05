@@ -1,89 +1,17 @@
 /**
  * Path helper functions for the Claude Code agent
- * Contains all path-related utilities specific to Claude Code installation
+ *
+ * These provide paths to the user-level ~/.claude directory,
+ * which is where hooks, statusline, and announcements config
+ * must be written so Claude Code picks them up from any subdirectory.
+ *
+ * Install-directory paths (e.g. {installDir}/.claude/) are handled
+ * inline in the AgentConfig in agent.ts.
  */
 
 import * as path from "path";
 
 import { getHomeDir } from "@/utils/home.js";
-
-/**
- * Get the Claude directory path
- * @param args - Configuration arguments
- * @param args.installDir - Installation directory
- *
- * @returns Absolute path to the .claude directory
- */
-export const getClaudeDir = (args: { installDir: string }): string => {
-  const { installDir } = args;
-  return path.join(installDir, ".claude");
-};
-
-/**
- * Get the Claude settings file path
- * @param args - Configuration arguments
- * @param args.installDir - Installation directory
- *
- * @returns Absolute path to settings.json
- */
-export const getClaudeSettingsFile = (args: { installDir: string }): string => {
-  return path.join(getClaudeDir(args), "settings.json");
-};
-
-/**
- * Get the Claude agents directory path
- * @param args - Configuration arguments
- * @param args.installDir - Installation directory
- *
- * @returns Absolute path to the agents directory
- */
-export const getClaudeAgentsDir = (args: { installDir: string }): string => {
-  return path.join(getClaudeDir(args), "agents");
-};
-
-/**
- * Get the Claude commands directory path
- * @param args - Configuration arguments
- * @param args.installDir - Installation directory
- *
- * @returns Absolute path to the commands directory
- */
-export const getClaudeCommandsDir = (args: { installDir: string }): string => {
-  return path.join(getClaudeDir(args), "commands");
-};
-
-/**
- * Get the CLAUDE.md file path
- * @param args - Configuration arguments
- * @param args.installDir - Installation directory
- *
- * @returns Absolute path to CLAUDE.md
- */
-export const getClaudeMdFile = (args: { installDir: string }): string => {
-  return path.join(getClaudeDir(args), "CLAUDE.md");
-};
-
-/**
- * Get the Claude skills directory path
- * @param args - Configuration arguments
- * @param args.installDir - Installation directory
- *
- * @returns Absolute path to the skills directory
- */
-export const getClaudeSkillsDir = (args: { installDir: string }): string => {
-  return path.join(getClaudeDir(args), "skills");
-};
-
-/**
- * Get the Claude skillsets directory path
- * @param args - Configuration arguments
- * @param args.installDir - Installation directory
- *
- * @returns Absolute path to the skillsets directory
- */
-export const getClaudeSkillsetsDir = (args: { installDir: string }): string => {
-  return path.join(getClaudeDir(args), "profiles");
-};
 
 /**
  * Get the Claude home directory path (always ~/.claude)

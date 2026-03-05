@@ -6,7 +6,17 @@
 import * as path from "path";
 
 import { claudeCodeAgentConfig } from "@/cli/features/claude-code/agent.js";
+import { codexAgentConfig } from "@/cli/features/codex/agent.js";
 import { cursorAgentConfig } from "@/cli/features/cursor-agent/agent.js";
+import { droidAgentConfig } from "@/cli/features/droid/agent.js";
+import { geminiCliAgentConfig } from "@/cli/features/gemini-cli/agent.js";
+import { githubCopilotAgentConfig } from "@/cli/features/github-copilot/agent.js";
+import { gooseAgentConfig } from "@/cli/features/goose/agent.js";
+import { kiloAgentConfig } from "@/cli/features/kilo/agent.js";
+import { kimiCliAgentConfig } from "@/cli/features/kimi-cli/agent.js";
+import { openclawAgentConfig } from "@/cli/features/openclaw/agent.js";
+import { opencodeAgentConfig } from "@/cli/features/opencode/agent.js";
+import { piAgentConfig } from "@/cli/features/pi/agent.js";
 
 import type { Config } from "@/cli/config.js";
 import type { Skillset } from "@/norijson/skillset.js";
@@ -15,7 +25,19 @@ import type { Skillset } from "@/norijson/skillset.js";
  * Canonical agent names used as UIDs in the registry.
  * Each AgentConfig.name must match one of these values.
  */
-export type AgentName = "claude-code" | "cursor-agent";
+export type AgentName =
+  | "claude-code"
+  | "codex"
+  | "cursor-agent"
+  | "droid"
+  | "gemini-cli"
+  | "github-copilot"
+  | "goose"
+  | "kilo"
+  | "kimi-cli"
+  | "opencode"
+  | "openclaw"
+  | "pi";
 
 /**
  * Unified loader interface for AgentConfig
@@ -97,7 +119,17 @@ export class AgentRegistry {
   private constructor() {
     this.agents = new Map();
     this.agents.set(claudeCodeAgentConfig.name, claudeCodeAgentConfig);
+    this.agents.set(codexAgentConfig.name, codexAgentConfig);
     this.agents.set(cursorAgentConfig.name, cursorAgentConfig);
+    this.agents.set(droidAgentConfig.name, droidAgentConfig);
+    this.agents.set(geminiCliAgentConfig.name, geminiCliAgentConfig);
+    this.agents.set(githubCopilotAgentConfig.name, githubCopilotAgentConfig);
+    this.agents.set(gooseAgentConfig.name, gooseAgentConfig);
+    this.agents.set(kiloAgentConfig.name, kiloAgentConfig);
+    this.agents.set(kimiCliAgentConfig.name, kimiCliAgentConfig);
+    this.agents.set(opencodeAgentConfig.name, opencodeAgentConfig);
+    this.agents.set(openclawAgentConfig.name, openclawAgentConfig);
+    this.agents.set(piAgentConfig.name, piAgentConfig);
   }
 
   /**

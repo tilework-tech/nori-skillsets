@@ -4,7 +4,7 @@ Path: @/src/cli/features
 
 ### Overview
 
-The features directory contains the agent abstraction layer, shared loaders, and all agent-specific feature implementations. It defines the `AgentConfig` and `AgentLoader` types that allow the system to support multiple AI coding agents, and houses agent implementations (Claude Code and Cursor) along with shared infrastructure for skillset installation.
+The features directory contains the agent abstraction layer, shared loaders, and all agent-specific feature implementations. It defines the `AgentConfig` and `AgentLoader` types that allow the system to support multiple AI coding agents, and houses agent implementations for Claude Code, Cursor, and many other agents (Codex, Droid, Gemini CLI, GitHub Copilot, Goose, Kilo, Kimi CLI, OpenCode, OpenClaw, Pi) along with shared infrastructure for skillset installation.
 
 ### How it fits into the larger codebase
 
@@ -41,7 +41,7 @@ CLI Commands (install, switch-skillset, init, config, factory-reset, clear)
     |       +-- getTranscriptDirectory?()
     |       +-- getArtifactPatterns?()
     |
-    +-- shared/ (agent-agnostic loaders used by both agents)
+    +-- shared/ (agent-agnostic loaders used by all agents)
     |       |
     |       +-- skillsLoader, createInstructionsLoader,
     |       +-- createSlashCommandsLoader, createSubagentsLoader
@@ -59,17 +59,17 @@ The `--agent` global CLI option (default: "claude-code") determines which agent 
 
 | Type | Purpose |
 |------|---------|
-| `AgentName` | Union type of canonical agent identifiers (`"claude-code" \| "cursor-agent"`). Registry key. |
+| `AgentName` | Union type of canonical agent identifiers (e.g., `"claude-code"`, `"cursor-agent"`, `"codex"`, `"gemini-cli"`, `"github-copilot"`, etc.). Registry key. |
 | `AgentLoader` | Unified loader interface. Receives `{ agent, config, skillset }` and declares `managedFiles`/`managedDirs` for manifest tracking. All loaders (shared and agent-specific) implement this type directly. |
 | `AgentConfig` | Data-oriented agent configuration. Declares path functions, `getLoaders()`, and optional `getTranscriptDirectory`/`getArtifactPatterns`. |
 | `ExistingConfig` | Describes detected unmanaged configuration. The `configFileName` field derives from `agent.getInstructionsFilePath()` so the init flow displays agent-appropriate strings. |
 | `AgentArtifact` | Describes a discovered configuration artifact (path + type). Used by `findArtifacts` and factory reset. |
 
 **AgentRegistry** (agentRegistry.ts):
-- Singleton pattern. Constructor registers `claudeCodeAgentConfig` and `cursorAgentConfig` directly (imported from their agent modules).
+- Singleton pattern. Constructor registers all agent configs directly (imported from their respective agent modules).
 - `get({ name })`: Returns `AgentConfig`, throws if not found.
 - `getAll()`: Returns all registered `AgentConfig` objects.
-- `getAgentDirNames()`: Returns config directory basenames (e.g., `[".claude", ".cursor"]`). Used by `normalizeInstallDir()` and `resolveInstallDir()` in @/src/utils/path.ts.
+- `getAgentDirNames()`: Returns config directory basenames (e.g., `[".claude", ".cursor", ".codex", ".gemini", ...]`). Used by `normalizeInstallDir()` and `resolveInstallDir()` in @/src/utils/path.ts.
 
 **Agent Operations** (agentOperations.ts): Shared functions that replace duplicated methods from the old `Agent` interface. Every function accepts an `AgentConfig` as its first parameter:
 - `getManagedFiles/getManagedDirs`: Aggregates managed paths from all loaders' `managedFiles`/`managedDirs` declarations. This replaces hardcoded lists that were previously on each agent object.
@@ -99,7 +99,10 @@ Skillset path utilities (`getNoriDir`, `getNoriSkillsetsDir`), the `Skillset` ty
 
 ### Things to Know
 
-- The `AgentRegistry` registers both agents in its constructor by importing their config objects directly. There is no separate registration step or loader registry class.
+- The `AgentRegistry` registers all agents in its constructor by importing their config objects directly. There is no separate registration step or loader registry class.
+- All new agents (everything except claude-code and cursor-agent) follow an identical pattern: they use only the 5 shared loaders (`configLoader`, `skillsLoader`, `createInstructionsLoader`, `createSlashCommandsLoader`, `createSubagentsLoader`). Only Claude Code has agent-specific loaders (hooks, statusline, announcements) and optional methods (`getTranscriptDirectory`, `getArtifactPatterns`).
+- Each agent maps to its own dot-directory convention and instructions file name. Most agents use `AGENTS.md` as their instructions file. Notable exceptions: Claude Code uses `CLAUDE.md`, Gemini CLI uses `GEMINI.md`, GitHub Copilot uses `copilot-instructions.md`, and Cursor places its instructions at `rules/AGENTS.md`. GitHub Copilot also uses `prompts/` instead of `commands/` for its slash commands directory.
+- The instructions loader factory (`createInstructionsLoader`) is parameterized differently depending on whether the instructions file lives at the root of the agent dir (`managedFiles: ["AGENTS.md"]`) vs. in a subdirectory (`managedDirs: ["rules"]` for Cursor).
 - `getManagedFiles()` and `getManagedDirs()` are now derived from the union of all loader declarations rather than being hardcoded on each agent. This means adding a new loader with `managedFiles` or `managedDirs` automatically updates the manifest tracking scope.
 - All loaders (shared and agent-specific) implement the `AgentLoader` interface directly. There is no legacy adapter layer; every loader exports an `AgentLoader` object with `name`, `description`, `managedFiles`/`managedDirs`, and a `run` function.
 - `parseSkillset` hardcodes `"CLAUDE.md"` because all skillsets use `CLAUDE.md` as the source file. The mapping to each agent's native format happens at write time in the instructions loader. `parseSkillset` now lives in @/src/norijson/skillset.ts.

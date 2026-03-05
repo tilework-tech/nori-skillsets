@@ -75,8 +75,18 @@ describe("AgentRegistry", () => {
       const agents = registry.list();
 
       expect(agents).toContain("claude-code");
+      expect(agents).toContain("codex");
       expect(agents).toContain("cursor-agent");
-      expect(agents).toHaveLength(2);
+      expect(agents).toContain("droid");
+      expect(agents).toContain("gemini-cli");
+      expect(agents).toContain("github-copilot");
+      expect(agents).toContain("goose");
+      expect(agents).toContain("kilo");
+      expect(agents).toContain("kimi-cli");
+      expect(agents).toContain("opencode");
+      expect(agents).toContain("openclaw");
+      expect(agents).toContain("pi");
+      expect(agents).toHaveLength(12);
     });
   });
 

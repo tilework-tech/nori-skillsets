@@ -62,7 +62,9 @@ export const configFlow = async (args: {
       message:
         "Which agents do you want to use?\n(space to toggle, enter to confirm)",
       options: agentOptions,
-      initialValues: currentAgents ?? AgentRegistry.getInstance().list(),
+      initialValues: currentAgents ?? [
+        AgentRegistry.getInstance().getDefaultAgentName(),
+      ],
       required: true,
     }),
     cancelMessage: "Configuration cancelled.",

@@ -38,6 +38,7 @@ __pycache__/
 
 # duh.
 .claude/
+.cursor/
 .nori-installed-version
 .nori/
 .nori-config.json
