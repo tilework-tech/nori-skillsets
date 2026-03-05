@@ -6,11 +6,11 @@ Path: @/src/cli/features/bundled-skillsets
 
 - Provides skills that are automatically included in every skillset installation, regardless of which skillset is active
 - Currently bundles a single `nori-info` skill that gives agents pointers to CLI help, docs site, GitHub repo, and company homepage
-- Shared across all agent implementations (claude-code and cursor-agent)
+- Shared across all agent implementations
 
 ### How it fits into the larger codebase
 
-- Both agent skill loaders (@/src/cli/features/shared/skillsLoader.ts and cursor-agent equivalent) call `copyBundledSkills()` after copying skillset-provided skills
+- The shared skill loader (@/src/cli/features/shared/skillsLoader.ts) calls `copyBundledSkills()` after copying skillset-provided skills, so all agents receive bundled skills
 - The instructions loader (@/src/cli/features/shared/instructionsLoader.ts) calls `getBundledSkillsDir()` to scan bundled skills and include them in the skills list written to CLAUDE.md
 - Bundled skill files are stored as static assets at `@/src/cli/features/bundled-skillsets/skills/` alongside the installer module
 - Template substitution from @/src/cli/features/template.ts is applied to markdown files during copy, so bundled skills can use `{{skills_dir}}` and other placeholders

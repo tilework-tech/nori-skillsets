@@ -4,12 +4,12 @@ Path: @/src/cli/features/cursor-agent
 
 ### Overview
 
-The Cursor agent implementation. This directory contains the `AgentConfig` declaration for Cursor IDE along with Cursor-specific path utilities. The agent uses shared loaders from @/src/cli/features/shared/ for all skillset-dependent features and has no agent-specific loaders beyond the shared `configLoader`.
+The Cursor agent implementation. This directory contains the `AgentConfig` declaration for Cursor IDE. All path computations are inline in the `AgentConfig` in `agent.ts`. The agent uses shared loaders from @/src/cli/features/shared/ for all skillset-dependent features and has no agent-specific loaders beyond the shared `configLoader`.
 
 ### How it fits into the larger codebase
 
 - `agent.ts` exports `cursorAgentConfig` (implements `AgentConfig`), which is imported directly by the `AgentRegistry` constructor in @/src/cli/features/agentRegistry.ts. CLI commands interact with this agent through shared operations in @/src/cli/features/agentOperations.ts, not through methods on the agent object.
-- Both agents share the same `activeSkillset` in the Config -- switching skillsets applies to all agents.
+- All agents share the same `activeSkillset` in the Config -- switching skillsets applies to all agents.
 - All shared loaders read from the same `~/.nori/profiles/` directory as Claude Code, using `parseSkillset()` from @/src/norijson/skillset.ts. The skillset's `CLAUDE.md` is the source config file; the shared `createInstructionsLoader` handles writing it to `.cursor/rules/AGENTS.md` via `agent.getInstructionsFilePath()`.
 - Template substitution uses the `.cursor` directory as `installDir` so `{{skills_dir}}` resolves to `.cursor/skills/`.
 - Per-agent manifest is stored at `~/.nori/manifests/cursor-agent.json` via the shared manifest infrastructure in @/src/cli/features/manifest.ts.
@@ -24,7 +24,7 @@ The `cursorAgentConfig` declares its loader pipeline via `getLoaders()`:
 4. `createSlashCommandsLoader({ managedDirs: ["commands"] })` -- shared
 5. `createSubagentsLoader({ managedDirs: ["agents"] })` -- shared
 
-Cursor-specific path mappings (all declared on the `AgentConfig`):
+Cursor-specific path mappings (all declared inline on the `AgentConfig` in `agent.ts`):
 
 | Skillset Component | Claude Code Target | Cursor Target |
 |---|---|---|
@@ -34,8 +34,6 @@ Cursor-specific path mappings (all declared on the `AgentConfig`):
 | `subagents/` | `.claude/agents/` | `.cursor/agents/` |
 
 The key difference is `getInstructionsFilePath()` returns `.cursor/rules/AGENTS.md`, so the shared instructions loader writes to `AGENTS.md` inside a `rules/` subdirectory. The instructions loader is parameterized with `managedDirs: ["rules"]` so that directory is tracked by the manifest system.
-
-**Path helpers** (`paths.ts`): Provides `getCursorDir`, `getCursorAgentsMdFile`, `getCursorSkillsDir`, `getCursorCommandsDir`, and `getCursorAgentsDir`. All paths derive from `{installDir}/.cursor/`.
 
 ### Things to Know
 

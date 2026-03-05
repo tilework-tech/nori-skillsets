@@ -11,6 +11,9 @@ let testHomeDir: string | null = null;
 // Store original HOME value for restoration
 let originalHome: string | undefined;
 
+// Snapshot of pre-existing pollution so we only flag NEW pollution in afterAll
+let preExistingPollution: Set<string> = new Set();
+
 /**
  * Check if a file is tracked by git
  * @param args - Function arguments
@@ -111,16 +114,13 @@ beforeAll(() => {
   // Individual tests can override HOME to use their own temp directories
   process.env.HOME = testHomeDir;
 
-  // Pre-test check: Verify CWD is clean (no Nori installation pollution)
+  // Snapshot pre-existing pollution so afterAll only flags NEW pollution.
+  // This handles the case where nori is installed in CWD (e.g., worktrees).
   const cwdPath = process.cwd();
-  const pollution = detectNoriPollution(cwdPath);
-
-  if (pollution.length > 0) {
-    throw new Error(
-      `CONTAINMENT BREAK: Nori installation files exist in CWD before tests run!\n` +
-        `This indicates test pollution from a previous run.\n` +
-        `Polluted files/directories:\n${pollution.map((p) => `  - ${p}`).join("\n")}\n` +
-        `Manually remove these files from ${cwdPath}`,
+  preExistingPollution = new Set(detectNoriPollution(cwdPath));
+  if (preExistingPollution.size > 0) {
+    console.warn(
+      `[test-setup] Pre-existing nori artifacts in CWD (will be ignored): ${[...preExistingPollution].join(", ")}`,
     );
   }
 });
@@ -131,17 +131,19 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-// Post-test check: Verify no Nori installation was created in CWD
+// Post-test check: Verify no NEW Nori installation was created in CWD
 afterAll(() => {
   const cwdPath = process.cwd();
-  const pollution = detectNoriPollution(cwdPath);
+  const newPollution = detectNoriPollution(cwdPath).filter(
+    (p) => !preExistingPollution.has(p),
+  );
 
-  if (pollution.length > 0) {
+  if (newPollution.length > 0) {
     throw new Error(
       `CONTAINMENT BREAK: Tests created Nori installation files in CWD!\n` +
         `This means a test leaked installation files outside temp directories.\n` +
         `All integration tests must mock HOME or installDir to point to temp directories.\n` +
-        `Leaked files/directories:\n${pollution.map((p) => `  - ${p}`).join("\n")}\n` +
+        `Leaked files/directories:\n${newPollution.map((p) => `  - ${p}`).join("\n")}\n` +
         `Please manually remove these files from ${cwdPath}`,
     );
   }

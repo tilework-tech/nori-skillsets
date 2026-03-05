@@ -23,7 +23,7 @@ The `claudeCodeAgentConfig` declares its ordered loader pipeline via `getLoaders
 
 All loaders implement the `AgentLoader` interface directly.
 
-`paths.ts` centralizes Claude-Code-specific path computations (`getClaudeDir`, `getClaudeSettingsFile`, `getClaudeHomeDir`), distinguishing between the install directory (`{installDir}/.claude/`) and the home directory (`~/.claude/`). Hooks and statusline write to `~/.claude/settings.json` so they work from any subdirectory, while skillset-specific config writes to the install directory.
+`paths.ts` provides home-level path helpers (`getClaudeHomeDir`, `getClaudeHomeSettingsFile`, `getClaudeHomeCommandsDir`) that always resolve to `~/.claude/`. These are used by hooks, statusline, and announcements loaders which write to `~/.claude/settings.json` so they work from any subdirectory. Install-directory paths (e.g., `{installDir}/.claude/`) are handled inline in the `AgentConfig` in `agent.ts` via path getters (`getAgentDir`, `getSkillsDir`, etc.).
 
 `factoryReset.ts` walks the ancestor directory tree to find and remove all `.claude/` directories and `CLAUDE.md` files. The `getArtifactPatterns()` function on the agent config declares `dirs: [".claude"]` and `files: ["CLAUDE.md"]`, which are used by the shared `findArtifacts()` operation in @/src/cli/features/agentOperations.ts.
 
