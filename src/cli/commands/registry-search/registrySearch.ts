@@ -24,6 +24,7 @@ import {
   buildOrganizationRegistryUrl,
 } from "@/utils/url.js";
 
+import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 import type { RegistryAuth } from "@/cli/config.js";
 import type { SearchFlowResult } from "@/cli/prompts/flows/index.js";
 import type { Command } from "commander";
@@ -508,18 +509,20 @@ const performSearch = async (args: {
  * @param args.query - The search query
  * @param args.installDir - Optional installation directory (detected if not provided)
  * @param args.cliName - CLI name for user-facing messages (defaults to nori-skillsets)
+ *
+ * @returns Command status
  */
 export const registrySearchMain = async (args: {
   query: string;
   installDir?: string | null;
   cliName?: CliName | null;
-}): Promise<void> => {
+}): Promise<CommandStatus> => {
   const { query, cliName } = args;
 
   // Load config for auth discovery
   const config = await loadConfig();
 
-  await registrySearchFlow({
+  const result = await registrySearchFlow({
     callbacks: {
       onSearch: async (): Promise<SearchFlowResult> => {
         const searchResults = await performSearch({ query, config, cliName });
@@ -527,6 +530,12 @@ export const registrySearchMain = async (args: {
       },
     },
   });
+
+  if (result == null) {
+    return { success: false, cancelled: true, message: "" };
+  }
+
+  return { success: true, cancelled: false, message: result.statusMessage };
 };
 
 /**

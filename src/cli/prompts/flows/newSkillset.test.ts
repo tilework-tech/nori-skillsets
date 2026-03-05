@@ -41,6 +41,7 @@ describe("newSkillsetFlow", () => {
         keywords: ["testing", "automation", "cli"],
         version: "2.0.0",
         repository: "https://github.com/user/repo",
+        statusMessage: "Skillset metadata collected",
       });
     });
 
@@ -95,6 +96,7 @@ describe("newSkillsetFlow", () => {
         keywords: null,
         version: null,
         repository: null,
+        statusMessage: "Skillset metadata collected",
       });
     });
 
@@ -138,24 +140,6 @@ describe("newSkillsetFlow", () => {
       const result = await newSkillsetFlow();
 
       expect(result).toBeNull();
-    });
-  });
-
-  describe("display messages", () => {
-    it("should show intro and outro messages", async () => {
-      vi.mocked(clack.group).mockResolvedValueOnce({
-        name: "test-skillset",
-        description: "",
-        license: "",
-        keywords: "",
-        version: "",
-        repository: "",
-      });
-
-      await newSkillsetFlow();
-
-      expect(clack.intro).toHaveBeenCalledWith("Create New Skillset");
-      expect(clack.outro).toHaveBeenCalledWith("Skillset metadata collected");
     });
   });
 });

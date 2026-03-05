@@ -12,7 +12,7 @@
  * - Outro message
  */
 
-import { intro, outro, spinner, note, log, confirm } from "@clack/prompts";
+import { spinner, note, log, confirm } from "@clack/prompts";
 
 import { unwrapPrompt } from "./utils.js";
 
@@ -63,18 +63,17 @@ export type SkillDownloadFlowCallbacks = {
 export type SkillDownloadFlowResult = {
   version: string;
   isUpdate: boolean;
+  statusMessage: string;
 };
 
 /**
  * Execute the skill download flow
  *
  * This function handles the complete skill download UX:
- * 1. Shows intro message
- * 2. Shows spinner while searching registries
- * 3. Handles search outcomes (error, already-current, list-versions, ready)
- * 4. Shows spinner while downloading
- * 5. Displays success note with install location and skillset status
- * 6. Shows outro
+ * 1. Shows spinner while searching registries
+ * 2. Handles search outcomes (error, already-current, list-versions, ready)
+ * 3. Shows spinner while downloading
+ * 4. Displays success note with install location and skillset status
  *
  * @param args - Flow configuration
  * @param args.skillDisplayName - Display name of the skill being downloaded
@@ -87,8 +86,6 @@ export const skillDownloadFlow = async (args: {
   callbacks: SkillDownloadFlowCallbacks;
 }): Promise<SkillDownloadFlowResult | null> => {
   const { skillDisplayName, callbacks } = args;
-
-  intro("Download Skill");
 
   const s = spinner();
 
@@ -126,8 +123,11 @@ export const skillDownloadFlow = async (args: {
     }
 
     if (!redownload) {
-      outro("Already up to date");
-      return { version: searchResult.version, isUpdate: false };
+      return {
+        version: searchResult.version,
+        isUpdate: false,
+        statusMessage: "Already up to date",
+      };
     }
   }
 
@@ -137,8 +137,11 @@ export const skillDownloadFlow = async (args: {
       searchResult.versionCount === 1
         ? "1 version"
         : `${searchResult.versionCount} versions`;
-    outro(`${versionLabel} available`);
-    return { version: "", isUpdate: false };
+    return {
+      version: "",
+      isUpdate: false,
+      statusMessage: `${versionLabel} available`,
+    };
   }
 
   // Phase 2: Download
@@ -173,13 +176,13 @@ export const skillDownloadFlow = async (args: {
   }
   note(nextStepsLines.join("\n"), "Next Steps");
 
-  const outroMsg = downloadResult.isUpdate
+  const statusMessage = downloadResult.isUpdate
     ? `Updated "${skillDisplayName}" to ${downloadResult.version}`
     : `Downloaded "${skillDisplayName}" ${downloadResult.version}`;
-  outro(outroMsg);
 
   return {
     version: downloadResult.version,
     isUpdate: downloadResult.isUpdate,
+    statusMessage,
   };
 };

@@ -125,7 +125,7 @@ describe("switchSkillsetFlow", () => {
       });
     });
 
-    it("should return result with agent and profile name", async () => {
+    it("should return result with agent, profile name, and statusMessage", async () => {
       vi.mocked(clack.confirm).mockResolvedValueOnce(true);
 
       const result = await switchSkillsetFlow({
@@ -134,10 +134,9 @@ describe("switchSkillsetFlow", () => {
         callbacks: mockCallbacks,
       });
 
-      expect(result).toEqual({
-        agentName: "claude-code",
-        skillsetName: "product-manager",
-      });
+      expect(result?.agentName).toBe("claude-code");
+      expect(result?.skillsetName).toBe("product-manager");
+      expect(result?.statusMessage).toBeDefined();
     });
   });
 
@@ -804,6 +803,7 @@ describe("switchSkillsetFlow", () => {
       expect(result).toEqual({
         agentName: "claude-code",
         skillsetName: "product-manager",
+        statusMessage: expect.stringContaining("Restart your agents to apply"),
       });
       expect(mockCallbacks.onExecuteSwitch).toHaveBeenCalled();
     });

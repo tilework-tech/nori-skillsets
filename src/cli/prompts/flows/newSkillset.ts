@@ -6,10 +6,9 @@
  * - Collecting skillset metadata (name, description, license, keywords, version, repository)
  * - Validating skillset name
  * - Parsing keywords from comma-separated string to array
- * - Intro/outro framing
  */
 
-import { intro, outro, group, text, isCancel, cancel } from "@clack/prompts";
+import { group, text, isCancel, cancel } from "@clack/prompts";
 
 import { validateSkillsetName } from "@/cli/prompts/validators.js";
 
@@ -23,6 +22,7 @@ export type NewSkillsetFlowResult = {
   keywords: Array<string> | null;
   version: string | null;
   repository: string | null;
+  statusMessage: string;
 };
 
 /**
@@ -90,8 +90,6 @@ const validateNamespacedSkillsetName = (args: {
  */
 export const newSkillsetFlow =
   async (): Promise<NewSkillsetFlowResult | null> => {
-    intro("Create New Skillset");
-
     const result = await group(
       {
         name: () =>
@@ -148,8 +146,6 @@ export const newSkillsetFlow =
     const version = (result.version as string)?.trim() || null;
     const repository = (result.repository as string)?.trim() || null;
 
-    outro("Skillset metadata collected");
-
     return {
       name,
       description,
@@ -157,5 +153,6 @@ export const newSkillsetFlow =
       keywords,
       version,
       repository,
+      statusMessage: "Skillset metadata collected",
     };
   };

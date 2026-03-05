@@ -123,8 +123,6 @@ describe("editSkillsetMain", () => {
     expect(log.success).toHaveBeenCalledWith(
       expect.stringContaining("senior-swe"),
     );
-    // Should end with outro
-    expect(outro).toHaveBeenCalled();
     expect(mockExit).not.toHaveBeenCalled();
   });
 
@@ -182,9 +180,6 @@ describe("editSkillsetMain", () => {
     expect(log.info).toHaveBeenCalledWith(expect.stringContaining("code"));
     expect(log.info).toHaveBeenCalledWith(expect.stringContaining("cd"));
 
-    // Should end with outro
-    expect(outro).toHaveBeenCalled();
-
     // Should NOT exit with error
     expect(mockExit).not.toHaveBeenCalled();
   });
@@ -200,15 +195,15 @@ describe("editSkillsetMain", () => {
       }),
     );
 
-    await editSkillsetMain({ agent: "claude-code" });
+    const result = await editSkillsetMain({ agent: "claude-code" });
 
     expect(log.error).toHaveBeenCalledWith(
       expect.stringContaining("No active skillset"),
     );
-    expect(mockExit).toHaveBeenCalledWith(1);
+    expect(result.success).toBe(false);
   });
 
-  it("should error when profile directory does not exist on disk", async () => {
+  it("should return failure status when profile directory does not exist on disk", async () => {
     // Config references a profile that doesn't exist on disk
     const configPath = path.join(testHomeDir, ".nori-config.json");
     await fs.writeFile(
@@ -223,12 +218,12 @@ describe("editSkillsetMain", () => {
     const skillsetsDir = path.join(testHomeDir, ".nori", "profiles");
     await fs.mkdir(skillsetsDir, { recursive: true });
 
-    await editSkillsetMain({ agent: "claude-code" });
+    const result = await editSkillsetMain({ agent: "claude-code" });
 
     expect(log.error).toHaveBeenCalledWith(
       expect.stringContaining("nonexistent"),
     );
-    expect(mockExit).toHaveBeenCalledWith(1);
+    expect(result.success).toBe(false);
   });
 
   it("should use the --agent flag to select the agent profile", async () => {
@@ -270,7 +265,6 @@ describe("editSkillsetMain", () => {
     expect(log.success).toHaveBeenCalledWith(
       expect.stringContaining("senior-swe"),
     );
-    expect(outro).toHaveBeenCalled();
   });
 
   it("should resolve namespaced profiles correctly", async () => {
@@ -312,7 +306,6 @@ describe("editSkillsetMain", () => {
     expect(log.success).toHaveBeenCalledWith(
       expect.stringContaining("myorg/my-profile"),
     );
-    expect(outro).toHaveBeenCalled();
   });
 
   it("should open specified profile when name argument is provided", async () => {
@@ -358,7 +351,6 @@ describe("editSkillsetMain", () => {
     expect(log.success).toHaveBeenCalledWith(
       expect.stringContaining("product-manager"),
     );
-    expect(outro).toHaveBeenCalled();
   });
 
   it("should auto-detect agent and use its active profile when no agent or name is given", async () => {
@@ -401,16 +393,15 @@ describe("editSkillsetMain", () => {
     expect(log.success).toHaveBeenCalledWith(
       expect.stringContaining("senior-swe"),
     );
-    expect(outro).toHaveBeenCalled();
   });
 
-  it("should error when no config exists and no name argument is given", async () => {
+  it("should return failure status when no config exists and no name argument is given", async () => {
     // No config file at all
-    await editSkillsetMain({ agent: "claude-code" });
+    const result = await editSkillsetMain({ agent: "claude-code" });
 
     expect(log.error).toHaveBeenCalledWith(
       expect.stringContaining("No active skillset"),
     );
-    expect(mockExit).toHaveBeenCalledWith(1);
+    expect(result.success).toBe(false);
   });
 });

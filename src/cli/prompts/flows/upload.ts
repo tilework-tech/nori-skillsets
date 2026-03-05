@@ -3,15 +3,13 @@
  *
  * Provides the complete interactive upload experience using @clack/prompts.
  * This flow handles:
- * - Intro message with skillset and registry info
  * - Spinner during version determination
  * - Skill conflict resolution prompts
  * - Spinner during upload
  * - Note display for upload summary
- * - Outro message on success
  */
 
-import { intro, outro, select, text, spinner, note, log } from "@clack/prompts";
+import { select, text, spinner, note, log } from "@clack/prompts";
 import * as semver from "semver";
 
 import { bold, red } from "@/cli/logger.js";
@@ -76,6 +74,7 @@ export type UploadFlowResult = {
   namespacedSkillIds: Set<string>;
   skippedSkillIds: Set<string>;
   inlineSkillIds?: Array<string> | null;
+  statusMessage: string;
 } | null;
 
 /**
@@ -789,12 +788,10 @@ const hasConflicts = (
  * Execute the interactive upload flow
  *
  * This function handles the complete upload UX:
- * 1. Shows intro message with skillset and registry
- * 2. Shows spinner while determining version
- * 3. Attempts upload
- * 4. If conflicts detected, auto-resolves where possible and prompts for rest
- * 5. Shows upload summary in a note
- * 6. Shows outro message
+ * 1. Shows spinner while determining version
+ * 2. Attempts upload
+ * 3. If conflicts detected, auto-resolves where possible and prompts for rest
+ * 4. Shows upload summary in a note
  *
  * @param args - Flow configuration
  * @param args.profileDisplayName - Display name for the skillset (e.g., "dev/onboarding")
@@ -817,7 +814,7 @@ export const uploadFlow = async (args: {
   const {
     profileDisplayName,
     skillsetName,
-    registryUrl,
+    registryUrl: _registryUrl,
     callbacks,
     nonInteractive,
     inlineCandidates,
@@ -829,8 +826,7 @@ export const uploadFlow = async (args: {
   const namespacedSkillIds = new Set<string>();
   const skippedSkillIds = new Set<string>();
 
-  // Show intro first
-  intro(`Upload ${profileDisplayName} to ${registryUrl}`);
+  // profileDisplayName and registryUrl available for use by caller
 
   // Resolve inline skill candidates before upload
   let inlineSkillIds: Array<string> | undefined;
@@ -930,7 +926,7 @@ export const uploadFlow = async (args: {
 
       note(formatConflictsForNote({ conflicts: result.conflicts }), "Error");
 
-      outro(red({ text: "Upload failed: unresolved skill conflicts" }));
+      log.error(red({ text: "Upload failed: unresolved skill conflicts" }));
       return null;
     } else {
       // Interactive resolution needed
@@ -1035,7 +1031,7 @@ export const uploadFlow = async (args: {
       log.error(result.error);
     }
 
-    outro(red({ text: "Upload failed" }));
+    log.error(red({ text: "Upload failed" }));
     return null;
   }
 
@@ -1062,9 +1058,6 @@ export const uploadFlow = async (args: {
 
   note(summaryLines.join("\n"), "Upload Summary");
 
-  // Step 6: Outro
-  outro(`Uploaded ${profileDisplayName}@${result.version}`);
-
   return {
     version: result.version,
     extractedSkills: result.extractedSkills,
@@ -1072,5 +1065,6 @@ export const uploadFlow = async (args: {
     namespacedSkillIds,
     skippedSkillIds,
     inlineSkillIds,
+    statusMessage: `Uploaded ${bold({ text: `${profileDisplayName}@${result.version}` })}`,
   };
 };

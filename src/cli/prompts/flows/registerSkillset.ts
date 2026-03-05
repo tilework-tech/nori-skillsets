@@ -5,12 +5,11 @@
  * This flow handles:
  * - Collecting skillset metadata (description, license, keywords, version, repository)
  * - Parsing keywords from comma-separated string to array
- * - Intro/outro framing
  *
  * Note: Unlike newSkillsetFlow, this does NOT collect the name field since it's derived from the folder path.
  */
 
-import { intro, outro, group, text, isCancel, cancel } from "@clack/prompts";
+import { group, text, isCancel, cancel } from "@clack/prompts";
 
 /**
  * Result of the register skillset flow
@@ -21,6 +20,7 @@ export type RegisterSkillsetFlowResult = {
   keywords: Array<string> | null;
   version: string | null;
   repository: string | null;
+  statusMessage: string;
 };
 
 /**
@@ -53,8 +53,6 @@ const parseKeywords = (args: { value: string }): Array<string> | null => {
  */
 export const registerSkillsetFlow =
   async (): Promise<RegisterSkillsetFlowResult | null> => {
-    intro("Register Skillset");
-
     const result = await group(
       {
         description: () =>
@@ -103,13 +101,12 @@ export const registerSkillsetFlow =
     const version = (result.version as string)?.trim() || null;
     const repository = (result.repository as string)?.trim() || null;
 
-    outro("Skillset metadata collected");
-
     return {
       description,
       license,
       keywords,
       version,
       repository,
+      statusMessage: "Skillset metadata collected",
     };
   };

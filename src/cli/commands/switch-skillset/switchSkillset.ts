@@ -27,6 +27,7 @@ import { switchSkillsetFlow } from "@/cli/prompts/flows/switchSkillset.js";
 import { listSkillsets, getNoriSkillsetsDir } from "@/norijson/skillset.js";
 import { resolveInstallDir } from "@/utils/path.js";
 
+import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 import type { Command } from "commander";
 
 /**
@@ -37,12 +38,14 @@ import type { Command } from "commander";
  * @param args.options.agent - Optional agent name override
  * @param args.program - Commander program instance
  * @param args.options.force - Whether to force through local changes without prompting
+ *
+ * @returns Command status
  */
 export const switchSkillsetAction = async (args: {
   name?: string | null;
   options: { agent?: string; force?: boolean };
   program: Command;
-}): Promise<void> => {
+}): Promise<CommandStatus> => {
   const { options, program } = args;
   let { name } = args;
 
@@ -92,7 +95,7 @@ export const switchSkillsetAction = async (args: {
 
     if (isCancel(selected)) {
       cancel("Skillset switch cancelled.");
-      return;
+      return { success: false, cancelled: true, message: "" };
     }
 
     name = selected as string;
@@ -102,7 +105,7 @@ export const switchSkillsetAction = async (args: {
   if (!nonInteractive) {
     const redownloadEnabled = config?.redownloadOnSwitch !== "disabled";
 
-    await switchSkillsetFlow({
+    const flowResult = await switchSkillsetFlow({
       skillsetName: name,
       installDir,
       callbacks: {
@@ -263,9 +266,15 @@ export const switchSkillsetAction = async (args: {
       await updateConfig({ activeSkillset: name });
     }
 
-    // Flow handles all UI (cancel messages, success notes) internally.
-    // result is null on cancel, non-null on success — either way we're done.
-    return;
+    if (flowResult == null) {
+      return { success: false, cancelled: true, message: "" };
+    }
+
+    return {
+      success: true,
+      cancelled: false,
+      message: flowResult.statusMessage,
+    };
   }
 
   // Non-interactive flow
@@ -328,6 +337,12 @@ export const switchSkillsetAction = async (args: {
   if (resolved.source !== "cli") {
     await updateConfig({ activeSkillset: name });
   }
+
+  return {
+    success: true,
+    cancelled: false,
+    message: `Switched to skillset "${name}"`,
+  };
 };
 
 /**

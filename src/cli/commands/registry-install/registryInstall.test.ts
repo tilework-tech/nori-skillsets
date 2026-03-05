@@ -44,7 +44,9 @@ vi.mock("fs/promises", () => ({
 }));
 
 vi.mock("@/cli/commands/registry-download/registryDownload.js", () => ({
-  registryDownloadMain: vi.fn().mockResolvedValue({ success: true }),
+  registryDownloadMain: vi
+    .fn()
+    .mockResolvedValue({ success: true, cancelled: false, message: "" }),
 }));
 
 vi.mock("@/cli/commands/install/install.js", () => ({
@@ -106,7 +108,7 @@ vi.mock("@/cli/logger.js", () => ({
   debug: vi.fn(),
   setSilentMode: vi.fn(),
   isSilentMode: vi.fn(),
-  bold: vi.fn(({ text }: { text: string }) => text),
+  bold: vi.fn(({ text }: { text: string }) => `**${text}**`),
   brightCyan: vi.fn(({ text }: { text: string }) => text),
   green: vi.fn(({ text }: { text: string }) => text),
 }));
@@ -114,6 +116,7 @@ vi.mock("@/cli/logger.js", () => ({
 import { main as installMain } from "@/cli/commands/install/install.js";
 import { hasExistingInstallation } from "@/cli/commands/install/installState.js";
 import { registryDownloadMain } from "@/cli/commands/registry-download/registryDownload.js";
+import { bold } from "@/cli/logger.js";
 
 import { registryInstallMain } from "./registryInstall.js";
 
@@ -231,7 +234,11 @@ describe("registry-install", () => {
   });
 
   it("should not proceed with install if download fails", async () => {
-    vi.mocked(registryDownloadMain).mockResolvedValueOnce({ success: false });
+    vi.mocked(registryDownloadMain).mockResolvedValueOnce({
+      success: false,
+      cancelled: false,
+      message: "",
+    });
 
     const result = await registryInstallMain({
       packageSpec: "nonexistent-profile",
@@ -253,47 +260,30 @@ describe("registry-install", () => {
     expect(result.success).toBe(false);
   });
 
-  it("should not display outro on initial install (installMain handles its own banners)", async () => {
-    await registryInstallMain({
-      packageSpec: "senior-swe",
-    });
-
-    // Initial install delegates to installMain which shows its own completion banners
-    expect(clack.outro).not.toHaveBeenCalled();
-  });
-
-  it("should display outro on switch path for existing installation", async () => {
+  it("should show switching note and return success on switch path for existing installation", async () => {
     vi.mocked(hasExistingInstallation).mockReturnValueOnce(true);
 
-    await registryInstallMain({
+    const result = await registryInstallMain({
       packageSpec: "senior-swe",
     });
 
-    // Switch path shows intro/outro framing
-    expect(clack.intro).toHaveBeenCalledWith("Switch Skillset");
     expect(clack.note).toHaveBeenCalledWith(
       expect.stringContaining("senior-swe"),
       "Switching Skillset",
     );
-    expect(clack.outro).toHaveBeenCalledWith(
-      expect.stringContaining("senior-swe"),
-    );
-  });
 
-  it("should not display outro when download fails", async () => {
-    vi.mocked(registryDownloadMain).mockResolvedValueOnce({ success: false });
-
-    await registryInstallMain({
-      packageSpec: "nonexistent-profile",
-    });
-
-    // Should NOT display outro
-    expect(clack.outro).not.toHaveBeenCalled();
+    // Return status contains skillset name
+    expect(result.success).toBe(true);
+    expect(result.message).toContain("senior-swe");
   });
 
   it("should fallback to local skillset when download fails but skillset exists locally", async () => {
     // Download fails
-    vi.mocked(registryDownloadMain).mockResolvedValueOnce({ success: false });
+    vi.mocked(registryDownloadMain).mockResolvedValueOnce({
+      success: false,
+      cancelled: false,
+      message: "",
+    });
     // Local profile exists
     vi.mocked(fs.access).mockResolvedValueOnce(undefined);
     // Has existing installation
@@ -325,7 +315,11 @@ describe("registry-install", () => {
 
   it("should fail when download fails and skillset does not exist locally", async () => {
     // Download fails
-    vi.mocked(registryDownloadMain).mockResolvedValueOnce({ success: false });
+    vi.mocked(registryDownloadMain).mockResolvedValueOnce({
+      success: false,
+      cancelled: false,
+      message: "",
+    });
     // Local profile does NOT exist
     vi.mocked(fs.access).mockRejectedValueOnce(new Error("ENOENT"));
 
@@ -381,6 +375,58 @@ describe("registry-install", () => {
       expect.objectContaining({
         skipManifest: true,
       }),
+    );
+  });
+
+  it("should check hasExistingInstallation before calling registryDownloadMain", async () => {
+    // Simulate download side-effect: hasExistingInstallation returns false initially,
+    // but would return true after download (as auto-init creates config).
+    // The fix snapshots the value before download, so the first-time path is taken.
+    const callOrder: Array<string> = [];
+
+    vi.mocked(hasExistingInstallation).mockImplementation(() => {
+      callOrder.push("hasExistingInstallation");
+      return false;
+    });
+
+    vi.mocked(registryDownloadMain).mockImplementation(async () => {
+      callOrder.push("registryDownloadMain");
+      return { success: true, cancelled: false, message: "" };
+    });
+
+    await registryInstallMain({ packageSpec: "test-skillset" });
+
+    // hasExistingInstallation must be called BEFORE registryDownloadMain
+    const hasExistingIdx = callOrder.indexOf("hasExistingInstallation");
+    const downloadIdx = callOrder.indexOf("registryDownloadMain");
+    expect(hasExistingIdx).toBeLessThan(downloadIdx);
+
+    // First-time path should be taken (installMain called, no switchSkillset)
+    expect(installMain).toHaveBeenCalled();
+    expect(mockSwitchSkillset).not.toHaveBeenCalled();
+  });
+
+  it("should return outro message with past tense and bolded skillset name on first-time install", async () => {
+    const result = await registryInstallMain({
+      packageSpec: "senior-swe",
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.message).toBe(
+      `Installed and activated skillset "${bold({ text: "senior-swe" })}"`,
+    );
+  });
+
+  it("should return outro message with past tense and bolded skillset name on existing installation", async () => {
+    vi.mocked(hasExistingInstallation).mockReturnValueOnce(true);
+
+    const result = await registryInstallMain({
+      packageSpec: "senior-swe",
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.message).toBe(
+      `Installed and activated skillset "${bold({ text: "senior-swe" })}"`,
     );
   });
 });

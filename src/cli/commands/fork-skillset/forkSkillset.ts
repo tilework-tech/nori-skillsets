@@ -7,8 +7,9 @@
 import * as fs from "fs/promises";
 import * as path from "path";
 
-import { log, note, outro } from "@clack/prompts";
+import { log, note } from "@clack/prompts";
 
+import { bold } from "@/cli/logger.js";
 import {
   ensureNoriJson,
   readSkillsetMetadata,
@@ -16,10 +17,12 @@ import {
 } from "@/norijson/nori.js";
 import { MANIFEST_FILE, getNoriSkillsetsDir } from "@/norijson/skillset.js";
 
+import type { CommandStatus } from "@/cli/commands/commandStatus.js";
+
 export const forkSkillsetMain = async (args: {
   baseSkillset: string;
   newSkillset: string;
-}): Promise<void> => {
+}): Promise<CommandStatus> => {
   const { baseSkillset, newSkillset } = args;
   const skillsetsDir = getNoriSkillsetsDir();
   const sourcePath = path.join(skillsetsDir, baseSkillset);
@@ -33,8 +36,11 @@ export const forkSkillsetMain = async (args: {
     log.error(
       `Skillset '${baseSkillset}' not found. Run 'nori-skillsets list' to see available skillsets.`,
     );
-    process.exit(1);
-    return;
+    return {
+      success: false,
+      cancelled: false,
+      message: `Skillset "${baseSkillset}" not found`,
+    };
   }
 
   // Validate destination does not already exist
@@ -43,8 +49,11 @@ export const forkSkillsetMain = async (args: {
     log.error(
       `Skillset '${newSkillset}' already exists. Choose a different name.`,
     );
-    process.exit(1);
-    return;
+    return {
+      success: false,
+      cancelled: false,
+      message: `Skillset "${newSkillset}" already exists`,
+    };
   } catch {
     // Expected — destination should not exist
   }
@@ -67,5 +76,9 @@ export const forkSkillsetMain = async (args: {
   ].join("\n");
   note(nextSteps, "Next Steps");
 
-  outro(`Forked '${baseSkillset}' to '${newSkillset}'`);
+  return {
+    success: true,
+    cancelled: false,
+    message: `Forked "${bold({ text: baseSkillset })}" to "${bold({ text: newSkillset })}"`,
+  };
 };

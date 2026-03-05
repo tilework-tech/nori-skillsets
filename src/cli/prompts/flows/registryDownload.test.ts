@@ -80,15 +80,6 @@ describe("registryDownloadFlow", () => {
   });
 
   describe("happy path: new download", () => {
-    it("should show intro", async () => {
-      await registryDownloadFlow({
-        packageDisplayName: "my-skillset",
-        callbacks: mockCallbacks,
-      });
-
-      expect(clack.intro).toHaveBeenCalledWith("Download Skillset");
-    });
-
     it("should show search spinner", async () => {
       await registryDownloadFlow({
         packageDisplayName: "my-skillset",
@@ -143,18 +134,14 @@ describe("registryDownloadFlow", () => {
       );
     });
 
-    it("should show outro with downloaded message", async () => {
-      await registryDownloadFlow({
+    it("should include statusMessage in result", async () => {
+      const result = await registryDownloadFlow({
         packageDisplayName: "my-skillset",
         callbacks: mockCallbacks,
       });
 
-      expect(clack.outro).toHaveBeenCalledWith(
-        expect.stringContaining("Downloaded"),
-      );
-      expect(clack.outro).toHaveBeenCalledWith(
-        expect.stringContaining("my-skillset"),
-      );
+      expect(result?.statusMessage).toContain("Downloaded");
+      expect(result?.statusMessage).toContain("my-skillset");
     });
 
     it("should return version and isUpdate", async () => {
@@ -163,7 +150,9 @@ describe("registryDownloadFlow", () => {
         callbacks: mockCallbacks,
       });
 
-      expect(result).toEqual({ version: "1.0.0", isUpdate: false });
+      expect(result?.version).toBe("1.0.0");
+      expect(result?.isUpdate).toBe(false);
+      expect(result?.statusMessage).toBeDefined();
     });
   });
 
@@ -197,15 +186,13 @@ describe("registryDownloadFlow", () => {
       );
     });
 
-    it("should show updated outro message", async () => {
-      await registryDownloadFlow({
+    it("should include statusMessage with Updated", async () => {
+      const result = await registryDownloadFlow({
         packageDisplayName: "my-skillset",
         callbacks: mockCallbacks,
       });
 
-      expect(clack.outro).toHaveBeenCalledWith(
-        expect.stringContaining("Updated"),
-      );
+      expect(result?.statusMessage).toContain("Updated");
     });
 
     it("should return isUpdate: true", async () => {
@@ -214,7 +201,9 @@ describe("registryDownloadFlow", () => {
         callbacks: mockCallbacks,
       });
 
-      expect(result).toEqual({ version: "2.0.0", isUpdate: true });
+      expect(result?.version).toBe("2.0.0");
+      expect(result?.isUpdate).toBe(true);
+      expect(result?.statusMessage).toBeDefined();
     });
   });
 
@@ -265,13 +254,15 @@ describe("registryDownloadFlow", () => {
       expect(mockCallbacks.onDownload).toHaveBeenCalledTimes(1);
     });
 
-    it("should return download result", async () => {
+    it("should return download result with statusMessage", async () => {
       const result = await registryDownloadFlow({
         packageDisplayName: "my-skillset",
         callbacks: mockCallbacks,
       });
 
-      expect(result).toEqual({ version: "1.0.0", isUpdate: true });
+      expect(result?.version).toBe("1.0.0");
+      expect(result?.isUpdate).toBe(true);
+      expect(result?.statusMessage).toBeDefined();
     });
   });
 
@@ -293,22 +284,15 @@ describe("registryDownloadFlow", () => {
       expect(mockCallbacks.onDownload).not.toHaveBeenCalled();
     });
 
-    it("should show Already up to date outro", async () => {
-      await registryDownloadFlow({
-        packageDisplayName: "my-skillset",
-        callbacks: mockCallbacks,
-      });
-
-      expect(clack.outro).toHaveBeenCalledWith("Already up to date");
-    });
-
-    it("should return version with isUpdate false", async () => {
+    it("should return result with statusMessage Already up to date", async () => {
       const result = await registryDownloadFlow({
         packageDisplayName: "my-skillset",
         callbacks: mockCallbacks,
       });
 
-      expect(result).toEqual({ version: "1.0.0", isUpdate: false });
+      expect(result?.statusMessage).toContain("Already up to date");
+      expect(result?.version).toBe("1.0.0");
+      expect(result?.isUpdate).toBe(false);
     });
   });
 
@@ -416,15 +400,13 @@ describe("registryDownloadFlow", () => {
       expect(mockCallbacks.onDownload).not.toHaveBeenCalled();
     });
 
-    it("should show outro with version count", async () => {
-      await registryDownloadFlow({
+    it("should return result with statusMessage containing version count", async () => {
+      const result = await registryDownloadFlow({
         packageDisplayName: "my-skillset",
         callbacks: mockCallbacks,
       });
 
-      expect(clack.outro).toHaveBeenCalledWith(
-        expect.stringContaining("1 version"),
-      );
+      expect(result?.statusMessage).toContain("1 version");
     });
   });
 
@@ -570,15 +552,13 @@ describe("registryDownloadFlow", () => {
       );
     });
 
-    it("should still show success outro", async () => {
-      await registryDownloadFlow({
+    it("should still include statusMessage with Downloaded", async () => {
+      const result = await registryDownloadFlow({
         packageDisplayName: "my-skillset",
         callbacks: mockCallbacks,
       });
 
-      expect(clack.outro).toHaveBeenCalledWith(
-        expect.stringContaining("Downloaded"),
-      );
+      expect(result?.statusMessage).toContain("Downloaded");
     });
   });
 });

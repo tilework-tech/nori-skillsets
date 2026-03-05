@@ -31,6 +31,8 @@ import { loadConfig, updateConfig, getDefaultAgents } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { getHomeDir } from "@/utils/home.js";
 
+import type { CommandStatus } from "@/cli/commands/commandStatus.js";
+
 /**
  * Debounce window in milliseconds for file events
  */
@@ -529,13 +531,15 @@ const spawnDaemonProcess = async (args: { agent: string }): Promise<number> => {
  * @param args.daemon - Whether to run as daemon (deprecated, kept for compatibility)
  * @param args.setDestination - Force re-selection of transcript destination
  * @param args._background - Internal flag: run as background daemon (set by spawn)
+ *
+ * @returns Command status
  */
 export const watchMain = async (args?: {
   agent?: string | null;
   daemon?: boolean | null;
   _background?: boolean | null;
   setDestination?: boolean | null;
-}): Promise<void> => {
+}): Promise<CommandStatus> => {
   const _background = args?._background ?? false;
   const setDestination = args?.setDestination ?? false;
 
@@ -551,7 +555,7 @@ export const watchMain = async (args?: {
   if (!_background) {
     const { watchFlow } = await import("@/cli/prompts/flows/watch.js");
 
-    await watchFlow({
+    const flowResult = await watchFlow({
       forceSelection: setDestination,
       callbacks: {
         onPrepare: async () => {
@@ -595,7 +599,15 @@ export const watchMain = async (args?: {
       },
     });
 
-    return;
+    if (flowResult == null) {
+      return { success: false, cancelled: true, message: "" };
+    }
+
+    return {
+      success: true,
+      cancelled: false,
+      message: flowResult.statusMessage,
+    };
   }
 
   // BACKGROUND MODE: Run the actual daemon (spawned by interactive mode)
@@ -644,7 +656,11 @@ export const watchMain = async (args?: {
 
   if (watchDir == null) {
     await log(`Agent "${agent}" does not provide a transcript directory`);
-    return;
+    return {
+      success: false,
+      cancelled: false,
+      message: "No transcript directory",
+    };
   }
 
   // Check if agent transcript directory exists
@@ -697,6 +713,7 @@ export const watchMain = async (args?: {
   await log(`Transcript storage directory: ${transcriptStorageDir}`);
 
   // Process stays running due to active watchers and interval timers
+  return { success: true, cancelled: false, message: "Watch daemon started" };
 };
 
 /**

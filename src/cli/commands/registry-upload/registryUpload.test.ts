@@ -498,10 +498,10 @@ describe("registry-upload", () => {
           }),
         );
 
-        // Verify success message from clack prompts
+        // Verify success output from clack prompts (install hint in summary note)
         const clackOutput = getClackOutput();
-        expect(clackOutput.toLowerCase()).toContain("uploaded");
-        expect(clackOutput).toContain("my-profile@1.0.0");
+        expect(clackOutput.toLowerCase()).toContain("install");
+        expect(clackOutput).toContain("my-profile");
       });
 
       it("should auto-bump version when not specified", async () => {

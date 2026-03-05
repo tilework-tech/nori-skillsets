@@ -5,10 +5,9 @@
  * This flow handles:
  * - Agent selection from the registry
  * - Install directory input with tilde expansion
- * - Intro/outro framing
  */
 
-import { intro, multiselect, text, confirm } from "@clack/prompts";
+import { multiselect, text, confirm } from "@clack/prompts";
 
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 
@@ -43,8 +42,6 @@ export const configFlow = async (args: {
   callbacks: ConfigFlowCallbacks;
 }): Promise<ConfigFlowResult | null> => {
   const { callbacks } = args;
-
-  intro("Configure Nori");
 
   // Load current config values for defaults
   const { currentAgents, currentInstallDir, currentRedownloadOnSwitch } =

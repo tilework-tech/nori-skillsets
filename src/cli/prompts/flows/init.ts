@@ -7,18 +7,9 @@
  * - Ancestor installation detection and warning
  * - Existing config detection and capture
  * - Skillset name collection with validation
- * - Intro/outro framing
  */
 
-import {
-  intro,
-  outro,
-  confirm,
-  text,
-  spinner,
-  note,
-  cancel,
-} from "@clack/prompts";
+import { confirm, text, spinner, note, cancel } from "@clack/prompts";
 
 import { validateSkillsetName } from "@/cli/prompts/validators.js";
 
@@ -49,6 +40,7 @@ export type InitFlowCallbacks = {
  */
 export type InitFlowResult = {
   capturedSkillsetName: string | null;
+  statusMessage: string;
 };
 
 /**
@@ -103,7 +95,6 @@ const buildExistingConfigSummary = (args: {
  * @param args - Flow configuration
  * @param args.installDir - Installation directory
  * @param args.skipWarning - If true, skip the persistence warning confirmation
- * @param args.skipIntro - If true, skip the intro message
  * @param args.callbacks - Callback functions for side-effectful operations
  *
  * @returns Result on success, null on cancel
@@ -111,15 +102,10 @@ const buildExistingConfigSummary = (args: {
 export const initFlow = async (args: {
   installDir: string;
   skipWarning?: boolean | null;
-  skipIntro?: boolean | null;
   callbacks: InitFlowCallbacks;
 }): Promise<InitFlowResult | null> => {
-  const { installDir, skipWarning, skipIntro, callbacks } = args;
+  const { installDir, skipWarning, callbacks } = args;
   const cancelMsg = "Initialization cancelled.";
-
-  if (skipIntro !== true) {
-    intro("Initialize Nori");
-  }
 
   // Step 1: Persistence warning confirmation
   if (skipWarning !== true) {
@@ -204,7 +190,8 @@ export const initFlow = async (args: {
 
   s.stop("Initialized");
 
-  outro("Nori initialized successfully");
-
-  return { capturedSkillsetName };
+  return {
+    capturedSkillsetName,
+    statusMessage: "Nori initialized successfully",
+  };
 };

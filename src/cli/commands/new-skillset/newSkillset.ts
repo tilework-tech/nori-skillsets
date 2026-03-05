@@ -7,11 +7,14 @@
 import * as fs from "fs/promises";
 import * as path from "path";
 
-import { log, note, outro } from "@clack/prompts";
+import { log, note } from "@clack/prompts";
 
+import { bold } from "@/cli/logger.js";
 import { newSkillsetFlow } from "@/cli/prompts/flows/newSkillset.js";
 import { writeSkillsetMetadata, type NoriJson } from "@/norijson/nori.js";
 import { getNoriSkillsetsDir } from "@/norijson/skillset.js";
+
+import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 
 /**
  * Create the directory and nori.json for a new skillset.
@@ -49,13 +52,13 @@ export const createEmptySkillset = async (args: {
   });
 };
 
-export const newSkillsetMain = async (): Promise<void> => {
+export const newSkillsetMain = async (): Promise<CommandStatus> => {
   // Collect metadata from user
   const flowResult = await newSkillsetFlow();
 
   if (flowResult == null) {
     // User cancelled
-    return;
+    return { success: false, cancelled: true, message: "" };
   }
 
   const { name, description, license, keywords, version, repository } =
@@ -67,8 +70,11 @@ export const newSkillsetMain = async (): Promise<void> => {
   try {
     await fs.access(destPath);
     log.error(`Skillset '${name}' already exists. Choose a different name.`);
-    process.exit(1);
-    return;
+    return {
+      success: false,
+      cancelled: false,
+      message: `Skillset "${name}" already exists`,
+    };
   } catch {
     // Expected — destination should not exist
   }
@@ -115,5 +121,9 @@ export const newSkillsetMain = async (): Promise<void> => {
   ].join("\n");
   note(nextSteps, "Next Steps");
 
-  outro(`Created new skillset '${name}'`);
+  return {
+    success: true,
+    cancelled: false,
+    message: `Created new skillset "${bold({ text: name })}"`,
+  };
 };

@@ -35,6 +35,7 @@ import {
   buildOrganizationRegistryUrl,
 } from "@/utils/url.js";
 
+import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 import type { Config } from "@/cli/config.js";
 import type {
   DownloadSearchResult,
@@ -517,13 +518,6 @@ const formatMultiplePackagesError = (args: {
 };
 
 /**
- * Result of registry download operation
- */
-export type RegistryDownloadResult = {
-  success: boolean;
-};
-
-/**
  * Download and install a skillset from the registrar
  * @param args - The download parameters
  * @param args.packageSpec - Package name with optional version (e.g., "my-profile" or "my-profile@1.0.0")
@@ -542,7 +536,7 @@ export const registryDownloadMain = async (args: {
   registryUrl?: string | null;
   listVersions?: boolean | null;
   cliName?: CliName | null;
-}): Promise<RegistryDownloadResult> => {
+}): Promise<CommandStatus> => {
   const { packageSpec, installDir, registryUrl, listVersions, cliName } = args;
   const commandNames = getCommandNames({ cliName });
   const cliPrefix = cliName ?? "nori-skillsets";
@@ -553,7 +547,11 @@ export const registryDownloadMain = async (args: {
     log.error(
       `Invalid package specification: "${packageSpec}".\nExpected format: skillset-name or org/skillset-name[@version]`,
     );
-    return { success: false };
+    return {
+      success: false,
+      cancelled: false,
+      message: `Invalid package specification: "${packageSpec}"`,
+    };
   }
   const { orgId, packageName, version } = parsed;
   // Display name includes org prefix for namespaced packages (e.g., "myorg/my-profile")
@@ -581,7 +579,11 @@ export const registryDownloadMain = async (args: {
       log.error(
         `Failed to initialize Nori: ${err instanceof Error ? err.message : String(err)}`,
       );
-      return { success: false };
+      return {
+        success: false,
+        cancelled: false,
+        message: `Failed to initialize Nori: ${err instanceof Error ? err.message : String(err)}`,
+      };
     }
   }
 
@@ -938,7 +940,15 @@ export const registryDownloadMain = async (args: {
       },
     },
   });
-  return { success: result != null };
+  if (result == null) {
+    return { success: false, cancelled: true, message: "" };
+  }
+
+  return {
+    success: true,
+    cancelled: false,
+    message: result.statusMessage,
+  };
 };
 
 /**

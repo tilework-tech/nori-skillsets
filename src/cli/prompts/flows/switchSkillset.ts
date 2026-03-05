@@ -7,19 +7,9 @@
  * - Local change detection and handling (proceed, capture, abort)
  * - Switch confirmation with current/new skillset info
  * - Spinner during switch and reinstall
- * - Intro/outro framing
  */
 
-import {
-  intro,
-  outro,
-  select,
-  confirm,
-  text,
-  spinner,
-  note,
-  cancel,
-} from "@clack/prompts";
+import { select, confirm, text, spinner, note, cancel } from "@clack/prompts";
 
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { bold, brightCyan, green } from "@/cli/logger.js";
@@ -66,6 +56,7 @@ export type SwitchSkillsetCallbacks = {
 export type SwitchSkillsetFlowResult = {
   agentName: string;
   skillsetName: string;
+  statusMessage: string;
 } | null;
 
 /**
@@ -132,8 +123,6 @@ export const switchSkillsetFlow = async (args: {
 }): Promise<SwitchSkillsetFlowResult> => {
   const { skillsetName, installDir, callbacks } = args;
   const cancelMsg = "Skillset switch cancelled.";
-
-  intro("Switch Skillset");
 
   // Step 1: Resolve all agents (broadcast to all, no selection prompt)
   const agents = await callbacks.onResolveAgents();
@@ -338,10 +327,9 @@ export const switchSkillsetFlow = async (args: {
   ];
   note(successLines.join("\n"), "Success");
 
-  outro(brightCyan({ text: "Restart your agents to apply" }));
-
   return {
     agentName,
     skillsetName,
+    statusMessage: bold({ text: "Restart your agents to apply" }),
   };
 };

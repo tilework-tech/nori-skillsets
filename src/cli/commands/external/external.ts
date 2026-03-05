@@ -33,6 +33,7 @@ import {
 import { getNoriSkillsetsDir } from "@/norijson/skillset.js";
 import { resolveInstallDir } from "@/utils/path.js";
 
+import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 import type { Command } from "commander";
 
 import { cloneRepo, cleanupClone, GitCloneError } from "./gitClone.js";
@@ -270,6 +271,8 @@ const installSkill = async (args: {
  * @param args.inline - If true, set all skills to inlined-skill without prompting
  * @param args.extract - If true, set all skills to skill without prompting
  * @param args.cliName - CLI name for user-facing messages
+ *
+ * @returns Command status
  */
 export const externalMain = async (args: {
   source: string;
@@ -283,7 +286,7 @@ export const externalMain = async (args: {
   inline?: boolean | null;
   extract?: boolean | null;
   cliName?: CliName | null;
-}): Promise<void> => {
+}): Promise<CommandStatus> => {
   const {
     source,
     installDir,
@@ -305,7 +308,11 @@ export const externalMain = async (args: {
     log.error(
       `Invalid source: "${source}".\n\nOnly GitHub repositories are supported. Expected formats:\n  - https://github.com/owner/repo\n  - https://github.com/owner/repo/tree/branch/path\n  - owner/repo\n  - owner/repo@skill-name`,
     );
-    return;
+    return {
+      success: false,
+      cancelled: false,
+      message: `Invalid source: "${source}"`,
+    };
   }
 
   // Use --ref flag if provided, otherwise use ref from URL
@@ -316,7 +323,11 @@ export const externalMain = async (args: {
     log.error(
       `Cannot use --inline and --extract together. Use one or the other.`,
     );
-    return;
+    return {
+      success: false,
+      cancelled: false,
+      message: "Cannot use --inline and --extract together",
+    };
   }
 
   // 1c. Validate --new and --skillset mutual exclusivity
@@ -324,13 +335,21 @@ export const externalMain = async (args: {
     log.error(
       `Cannot use --new and --skillset together. Use --new to create a new skillset, or --skillset to target an existing one.`,
     );
-    return;
+    return {
+      success: false,
+      cancelled: false,
+      message: "Cannot use --new and --skillset together",
+    };
   }
 
   // 1d. Validate --new name
   if (newSkillset != null && newSkillset.trim().length === 0) {
     log.error(`The --new flag requires a non-empty skillset name.`);
-    return;
+    return {
+      success: false,
+      cancelled: false,
+      message: "The --new flag requires a non-empty skillset name",
+    };
   }
 
   // 2. Resolve install directory from config
@@ -351,7 +370,11 @@ export const externalMain = async (args: {
       log.error(
         `Skillset "${newSkillset}" already exists at: ${newSkillsetDir}\n\nChoose a different name or use --skillset to target the existing one.`,
       );
-      return;
+      return {
+        success: false,
+        cancelled: false,
+        message: `Skillset "${newSkillset}" already exists`,
+      };
     } catch {
       // Expected — directory should not exist
     }
@@ -370,7 +393,11 @@ export const externalMain = async (args: {
       log.error(
         `Skillset "${skillset}" not found at: ${skillsetDir}\n\nMake sure the skillset exists and contains a nori.json file.`,
       );
-      return;
+      return {
+        success: false,
+        cancelled: false,
+        message: `Skillset "${skillset}" not found`,
+      };
     }
   } else if (config != null) {
     const activeSkillset = getActiveSkillset({ config });
@@ -414,7 +441,11 @@ export const externalMain = async (args: {
       const msg = err instanceof Error ? err.message : String(err);
       log.error(`Failed to clone repository: ${msg}`);
     }
-    return;
+    return {
+      success: false,
+      cancelled: false,
+      message: `Failed to clone repository: ${source}`,
+    };
   }
 
   try {
@@ -429,7 +460,11 @@ export const externalMain = async (args: {
       );
       if (discovered.length === 0) {
         log.error(`Skill "${parsed.skillFilter}" not found in repository.`);
-        return;
+        return {
+          success: false,
+          cancelled: false,
+          message: `Skill "${parsed.skillFilter}" not found in repository`,
+        };
       }
     }
 
@@ -437,7 +472,11 @@ export const externalMain = async (args: {
       log.error(
         `No skills found in ${source}.\n\nA valid skill requires a SKILL.md file with name and description in the YAML frontmatter.`,
       );
-      return;
+      return {
+        success: false,
+        cancelled: false,
+        message: `No skills found in ${source}`,
+      };
     }
 
     // 6. Determine which skills to install
@@ -453,7 +492,11 @@ export const externalMain = async (args: {
         log.error(
           `Skill "${skill}" not found. Available skills:\n${available}`,
         );
-        return;
+        return {
+          success: false,
+          cancelled: false,
+          message: `Skill "${skill}" not found`,
+        };
       }
       skillsToInstall = matched;
     } else if (all || discovered.length === 1) {
@@ -467,7 +510,11 @@ export const externalMain = async (args: {
       log.error(
         `Found ${discovered.length} skills in ${source}:\n${available}\n\nSpecify which skill to install:\n  ${cliPrefix} ${commandNames.externalSkill} ${source} --skill <name>\n\nOr install all:\n  ${cliPrefix} ${commandNames.externalSkill} ${source} --all`,
       );
-      return;
+      return {
+        success: false,
+        cancelled: false,
+        message: `Found ${discovered.length} skills but no selection made`,
+      };
     }
 
     // Reconstruct source URL for provenance (without .git suffix for display)
@@ -491,7 +538,7 @@ export const externalMain = async (args: {
         candidates: skillsToInstall.map((s) => ({ name: s.name })),
       });
       if (prompted == null) {
-        return;
+        return { success: false, cancelled: true, message: "" };
       }
       skillTypeMap = prompted;
     }
@@ -526,6 +573,16 @@ export const externalMain = async (args: {
     if (targetSkillset == null) {
       log.info(`No active skillset - skills not added to any manifest.`);
     }
+
+    const skillNames = skillsToInstall.map((s) => s.name).join(", ");
+    return {
+      success: true,
+      cancelled: false,
+      message:
+        skillsToInstall.length === 1
+          ? `Installed skill "${skillsToInstall[0].name}" from GitHub`
+          : `Installed ${skillsToInstall.length} skills from GitHub: ${skillNames}`,
+    };
   } finally {
     // 8. Always clean up cloned directory
     await cleanupClone({ dir: clonedDir });
