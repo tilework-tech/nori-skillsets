@@ -93,6 +93,10 @@ export const registryInstallMain = async (
   const skipManifest = resolved.source === "cli";
   const agentNames = getDefaultAgents({ config, agentOverride: agent });
 
+  // Snapshot before download — registryDownloadMain may auto-init and create config,
+  // which would make hasExistingInstallation() return true after download completes.
+  const isFirstTimeInstall = !hasExistingInstallation();
+
   // Step 1: Download the skillset from registry first (so it's available for install)
   // Note: registryUrl is null to let registryDownloadMain determine the correct
   // registry based on the package namespace (e.g., "org/package" -> org's registry)
@@ -124,7 +128,7 @@ export const registryInstallMain = async (
 
   try {
     // Step 2: Run initial install if no existing installation
-    if (!hasExistingInstallation()) {
+    if (isFirstTimeInstall) {
       // Broadcast initial install to all configured agents
       for (const agentName of agentNames) {
         await installMain({
@@ -140,7 +144,7 @@ export const registryInstallMain = async (
       return {
         success: true,
         cancelled: false,
-        message: `Skillset "${skillsetName}" installed and activated`,
+        message: `Installed and activated skillset "${bold({ text: skillsetName })}"`,
       };
     }
 
@@ -186,7 +190,7 @@ export const registryInstallMain = async (
     return {
       success: true,
       cancelled: false,
-      message: `Skillset "${skillsetName}" is now active`,
+      message: `Installed and activated skillset "${bold({ text: skillsetName })}"`,
     };
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
