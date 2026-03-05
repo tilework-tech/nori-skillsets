@@ -65,11 +65,15 @@ describe("piAgentConfig", () => {
     expect(loaderNames).toContain("subagents");
   });
 
-  it("should not have transcript directory", () => {
-    expect(piAgentConfig.getTranscriptDirectory).toBeUndefined();
+  it("should have transcript directory under ~/.pi/agent/sessions", () => {
+    expect(piAgentConfig.getTranscriptDirectory?.()).toMatch(
+      /\.pi[/\\]agent[/\\]sessions$/,
+    );
   });
 
-  it("should not have artifact patterns", () => {
-    expect(piAgentConfig.getArtifactPatterns).toBeUndefined();
+  it("should have artifact patterns for .pi dir and AGENTS.md", () => {
+    const patterns = piAgentConfig.getArtifactPatterns?.();
+    expect(patterns?.dirs).toEqual([".pi"]);
+    expect(patterns?.files).toEqual(["AGENTS.md"]);
   });
 });

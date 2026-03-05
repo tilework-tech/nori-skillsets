@@ -33,4 +33,9 @@ export const githubCopilotAgentConfig: AgentConfig = {
     createSlashCommandsLoader({ managedDirs: ["prompts"] }),
     createSubagentsLoader({ managedDirs: ["agents"] }),
   ],
+
+  getArtifactPatterns: () => ({
+    dirs: [".github"],
+    files: ["copilot-instructions.md"],
+  }),
 };

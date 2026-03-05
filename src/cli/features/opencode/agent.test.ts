@@ -69,7 +69,9 @@ describe("opencodeAgentConfig", () => {
     expect(opencodeAgentConfig.getTranscriptDirectory).toBeUndefined();
   });
 
-  it("should not have artifact patterns", () => {
-    expect(opencodeAgentConfig.getArtifactPatterns).toBeUndefined();
+  it("should have artifact patterns for .opencode dir and AGENTS.md", () => {
+    const patterns = opencodeAgentConfig.getArtifactPatterns?.();
+    expect(patterns?.dirs).toEqual([".opencode"]);
+    expect(patterns?.files).toEqual(["AGENTS.md"]);
   });
 });

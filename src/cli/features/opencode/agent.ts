@@ -34,4 +34,9 @@ export const opencodeAgentConfig: AgentConfig = {
     createSlashCommandsLoader({ managedDirs: ["commands"] }),
     createSubagentsLoader({ managedDirs: ["agents"] }),
   ],
+
+  getArtifactPatterns: () => ({
+    dirs: [".opencode"],
+    files: ["AGENTS.md"],
+  }),
 };

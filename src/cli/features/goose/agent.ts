@@ -33,4 +33,9 @@ export const gooseAgentConfig: AgentConfig = {
     createSlashCommandsLoader({ managedDirs: ["commands"] }),
     createSubagentsLoader({ managedDirs: ["agents"] }),
   ],
+
+  getArtifactPatterns: () => ({
+    dirs: [".goose"],
+    files: ["AGENTS.md"],
+  }),
 };

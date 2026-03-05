@@ -65,11 +65,13 @@ describe("droidAgentConfig", () => {
     expect(loaderNames).toContain("subagents");
   });
 
-  it("should not have transcript directory", () => {
-    expect(droidAgentConfig.getTranscriptDirectory).toBeUndefined();
+  it("should have transcript directory under ~/.factory", () => {
+    expect(droidAgentConfig.getTranscriptDirectory?.()).toMatch(/\.factory$/);
   });
 
-  it("should not have artifact patterns", () => {
-    expect(droidAgentConfig.getArtifactPatterns).toBeUndefined();
+  it("should have artifact patterns for .factory dir and AGENTS.md", () => {
+    const patterns = droidAgentConfig.getArtifactPatterns?.();
+    expect(patterns?.dirs).toEqual([".factory"]);
+    expect(patterns?.files).toEqual(["AGENTS.md"]);
   });
 });

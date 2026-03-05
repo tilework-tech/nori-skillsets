@@ -70,7 +70,9 @@ describe("cursorAgentConfig", () => {
     expect(cursorAgentConfig.getTranscriptDirectory).toBeUndefined();
   });
 
-  it("should not have artifact patterns", () => {
-    expect(cursorAgentConfig.getArtifactPatterns).toBeUndefined();
+  it("should have artifact patterns for .cursor dir", () => {
+    const patterns = cursorAgentConfig.getArtifactPatterns?.();
+    expect(patterns?.dirs).toEqual([".cursor"]);
+    expect(patterns?.files).toEqual([]);
   });
 });

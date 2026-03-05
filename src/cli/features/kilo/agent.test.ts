@@ -69,7 +69,9 @@ describe("kiloAgentConfig", () => {
     expect(kiloAgentConfig.getTranscriptDirectory).toBeUndefined();
   });
 
-  it("should not have artifact patterns", () => {
-    expect(kiloAgentConfig.getArtifactPatterns).toBeUndefined();
+  it("should have artifact patterns for .kilocode dir", () => {
+    const patterns = kiloAgentConfig.getArtifactPatterns?.();
+    expect(patterns?.dirs).toEqual([".kilocode"]);
+    expect(patterns?.files).toEqual([]);
   });
 });

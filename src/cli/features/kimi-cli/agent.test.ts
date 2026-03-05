@@ -65,11 +65,15 @@ describe("kimiCliAgentConfig", () => {
     expect(loaderNames).toContain("subagents");
   });
 
-  it("should not have transcript directory", () => {
-    expect(kimiCliAgentConfig.getTranscriptDirectory).toBeUndefined();
+  it("should have transcript directory under ~/.kimi/sessions", () => {
+    expect(kimiCliAgentConfig.getTranscriptDirectory?.()).toMatch(
+      /\.kimi[/\\]sessions$/,
+    );
   });
 
-  it("should not have artifact patterns", () => {
-    expect(kimiCliAgentConfig.getArtifactPatterns).toBeUndefined();
+  it("should have artifact patterns for .kimi dir and AGENTS.md", () => {
+    const patterns = kimiCliAgentConfig.getArtifactPatterns?.();
+    expect(patterns?.dirs).toEqual([".kimi"]);
+    expect(patterns?.files).toEqual(["AGENTS.md"]);
   });
 });

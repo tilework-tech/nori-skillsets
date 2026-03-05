@@ -9,6 +9,7 @@ import { createInstructionsLoader } from "@/cli/features/shared/instructionsLoad
 import { skillsLoader } from "@/cli/features/shared/skillsLoader.js";
 import { createSlashCommandsLoader } from "@/cli/features/shared/slashCommandsLoader.js";
 import { createSubagentsLoader } from "@/cli/features/shared/subagentsLoader.js";
+import { getHomeDir } from "@/utils/home.js";
 
 import type { AgentConfig } from "@/cli/features/agentRegistry.js";
 
@@ -32,4 +33,11 @@ export const piAgentConfig: AgentConfig = {
     createSlashCommandsLoader({ managedDirs: ["commands"] }),
     createSubagentsLoader({ managedDirs: ["agents"] }),
   ],
+
+  getTranscriptDirectory: () =>
+    path.join(getHomeDir(), ".pi", "agent", "sessions"),
+  getArtifactPatterns: () => ({
+    dirs: [".pi"],
+    files: ["AGENTS.md"],
+  }),
 };

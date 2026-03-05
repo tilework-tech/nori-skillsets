@@ -34,4 +34,9 @@ export const kiloAgentConfig: AgentConfig = {
     createSlashCommandsLoader({ managedDirs: ["commands"] }),
     createSubagentsLoader({ managedDirs: ["agents"] }),
   ],
+
+  getArtifactPatterns: () => ({
+    dirs: [".kilocode"],
+    files: [],
+  }),
 };

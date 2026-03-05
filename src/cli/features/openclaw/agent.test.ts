@@ -65,11 +65,15 @@ describe("openclawAgentConfig", () => {
     expect(loaderNames).toContain("subagents");
   });
 
-  it("should not have transcript directory", () => {
-    expect(openclawAgentConfig.getTranscriptDirectory).toBeUndefined();
+  it("should have transcript directory under ~/.openclaw/agents", () => {
+    expect(openclawAgentConfig.getTranscriptDirectory?.()).toMatch(
+      /\.openclaw[/\\]agents$/,
+    );
   });
 
-  it("should not have artifact patterns", () => {
-    expect(openclawAgentConfig.getArtifactPatterns).toBeUndefined();
+  it("should have artifact patterns for .openclaw dir and AGENTS.md", () => {
+    const patterns = openclawAgentConfig.getArtifactPatterns?.();
+    expect(patterns?.dirs).toEqual([".openclaw"]);
+    expect(patterns?.files).toEqual(["AGENTS.md"]);
   });
 });

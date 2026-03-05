@@ -36,4 +36,9 @@ export const cursorAgentConfig: AgentConfig = {
     createSlashCommandsLoader({ managedDirs: ["commands"] }),
     createSubagentsLoader({ managedDirs: ["agents"] }),
   ],
+
+  getArtifactPatterns: () => ({
+    dirs: [".cursor"],
+    files: [],
+  }),
 };

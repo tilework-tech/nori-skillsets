@@ -69,11 +69,15 @@ describe("geminiCliAgentConfig", () => {
     expect(loaderNames).toContain("subagents");
   });
 
-  it("should not have transcript directory", () => {
-    expect(geminiCliAgentConfig.getTranscriptDirectory).toBeUndefined();
+  it("should have transcript directory under ~/.gemini/tmp", () => {
+    expect(geminiCliAgentConfig.getTranscriptDirectory?.()).toMatch(
+      /\.gemini[/\\]tmp$/,
+    );
   });
 
-  it("should not have artifact patterns", () => {
-    expect(geminiCliAgentConfig.getArtifactPatterns).toBeUndefined();
+  it("should have artifact patterns for .gemini dir and GEMINI.md", () => {
+    const patterns = geminiCliAgentConfig.getArtifactPatterns?.();
+    expect(patterns?.dirs).toEqual([".gemini"]);
+    expect(patterns?.files).toEqual(["GEMINI.md"]);
   });
 });

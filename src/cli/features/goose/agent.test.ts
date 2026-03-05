@@ -69,7 +69,9 @@ describe("gooseAgentConfig", () => {
     expect(gooseAgentConfig.getTranscriptDirectory).toBeUndefined();
   });
 
-  it("should not have artifact patterns", () => {
-    expect(gooseAgentConfig.getArtifactPatterns).toBeUndefined();
+  it("should have artifact patterns for .goose dir and AGENTS.md", () => {
+    const patterns = gooseAgentConfig.getArtifactPatterns?.();
+    expect(patterns?.dirs).toEqual([".goose"]);
+    expect(patterns?.files).toEqual(["AGENTS.md"]);
   });
 });

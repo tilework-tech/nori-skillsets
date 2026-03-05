@@ -73,7 +73,9 @@ describe("githubCopilotAgentConfig", () => {
     expect(githubCopilotAgentConfig.getTranscriptDirectory).toBeUndefined();
   });
 
-  it("should not have artifact patterns", () => {
-    expect(githubCopilotAgentConfig.getArtifactPatterns).toBeUndefined();
+  it("should have artifact patterns for .github dir and copilot-instructions.md", () => {
+    const patterns = githubCopilotAgentConfig.getArtifactPatterns?.();
+    expect(patterns?.dirs).toEqual([".github"]);
+    expect(patterns?.files).toEqual(["copilot-instructions.md"]);
   });
 });

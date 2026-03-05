@@ -65,11 +65,15 @@ describe("codexAgentConfig", () => {
     expect(loaderNames).toContain("subagents");
   });
 
-  it("should not have transcript directory", () => {
-    expect(codexAgentConfig.getTranscriptDirectory).toBeUndefined();
+  it("should have transcript directory under ~/.codex/sessions", () => {
+    expect(codexAgentConfig.getTranscriptDirectory?.()).toMatch(
+      /\.codex[/\\]sessions$/,
+    );
   });
 
-  it("should not have artifact patterns", () => {
-    expect(codexAgentConfig.getArtifactPatterns).toBeUndefined();
+  it("should have artifact patterns for .codex dir and AGENTS.md", () => {
+    const patterns = codexAgentConfig.getArtifactPatterns?.();
+    expect(patterns?.dirs).toEqual([".codex"]);
+    expect(patterns?.files).toEqual(["AGENTS.md"]);
   });
 });
