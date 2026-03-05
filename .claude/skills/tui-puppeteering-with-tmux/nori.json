@@ -1,0 +1,10 @@
+{
+  "name": "tui-puppeteering-with-tmux",
+  "version": "1.0.1",
+  "type": "skill",
+  "description": "Use when automating or testing TUI/CLI applications - provides isolated tmux sessions with scripts for input, output capture, and state verification",
+  "scripts": [
+    "test_tui_scripts.sh"
+  ],
+  "registryURL": "http://noriskillsets.dev"
+}

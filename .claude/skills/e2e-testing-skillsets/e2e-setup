@@ -1,0 +1,104 @@
+#!/usr/bin/env bash
+# e2e-setup: Build nori-skillsets and create an isolated e2e environment.
+#
+# Usage: source /path/to/e2e-setup
+#
+# This script MUST be sourced (not executed) so that the exported variables
+# are available in the caller's shell. It:
+#
+# 1. Finds the nori-skillsets repo root
+# 2. Runs npm run build
+# 3. Wipes and recreates /tmp/nori/skillsets-e2e-scenario/
+# 4. Creates the minimal directory structure
+# 5. Exports E2E_DIR, SKS, and NORI_GLOBAL_CONFIG
+
+set -euo pipefail
+
+E2E_DIR="/tmp/nori/skillsets-e2e-scenario"
+
+# --- Find repo root ---
+# Walk up from this script's location looking for package.json with nori-skillsets
+_e2e_find_repo() {
+    local dir
+    # Try NORI_SKILLSETS_REPO first
+    if [[ -n "${NORI_SKILLSETS_REPO:-}" ]] && [[ -f "$NORI_SKILLSETS_REPO/package.json" ]]; then
+        echo "$NORI_SKILLSETS_REPO"
+        return 0
+    fi
+
+    # Try current working directory and walk up
+    dir="$(pwd)"
+    while [[ "$dir" != "/" ]]; do
+        if [[ -f "$dir/package.json" ]] && grep -q '"nori-skillsets"' "$dir/package.json" 2>/dev/null; then
+            echo "$dir"
+            return 0
+        fi
+        dir="$(dirname "$dir")"
+    done
+
+    echo "ERROR: Could not find nori-skillsets repo root." >&2
+    echo "Set NORI_SKILLSETS_REPO or run from within the repo." >&2
+    return 1
+}
+
+REPO_ROOT="$(_e2e_find_repo)"
+unset -f _e2e_find_repo
+
+echo "=== e2e-setup ==="
+echo "Repo root: $REPO_ROOT"
+
+# --- Build ---
+echo ""
+echo "[1/3] Building project..."
+(cd "$REPO_ROOT" && npm run build)
+echo "Build complete."
+
+# --- Verify the built CLI exists ---
+SKS="$REPO_ROOT/build/src/cli/nori-skillsets.js"
+if [[ ! -f "$SKS" ]]; then
+    echo "ERROR: Built CLI not found at $SKS" >&2
+    return 1 2>/dev/null || exit 1
+fi
+
+# --- Create isolated environment ---
+echo ""
+echo "[2/3] Creating isolated environment at $E2E_DIR..."
+
+# Snapshot real home mtimes for later verification
+_E2E_REAL_NORI_MTIME=""
+_E2E_REAL_CLAUDE_MTIME=""
+if [[ -d "$HOME/.nori" ]]; then
+    _E2E_REAL_NORI_MTIME="$(stat -c %Y "$HOME/.nori" 2>/dev/null || stat -f %m "$HOME/.nori" 2>/dev/null || echo "")"
+fi
+if [[ -d "$HOME/.claude" ]]; then
+    _E2E_REAL_CLAUDE_MTIME="$(stat -c %Y "$HOME/.claude" 2>/dev/null || stat -f %m "$HOME/.claude" 2>/dev/null || echo "")"
+fi
+
+command rm -rf "$E2E_DIR"
+mkdir -p "$E2E_DIR/.nori/profiles"
+mkdir -p "$E2E_DIR/.claude"
+
+# Write a minimal config so the CLI has something to read
+cat > "$E2E_DIR/.nori-config.json" << 'EOF'
+{"version":"1.0.0"}
+EOF
+
+# --- Export ---
+echo ""
+echo "[3/3] Exporting environment variables..."
+
+export E2E_DIR
+export SKS
+export NORI_GLOBAL_CONFIG="$E2E_DIR"
+
+# Also export the mtime snapshots for teardown verification
+export _E2E_REAL_NORI_MTIME
+export _E2E_REAL_CLAUDE_MTIME
+
+echo ""
+echo "Environment ready:"
+echo "  E2E_DIR=$E2E_DIR"
+echo "  SKS=$SKS"
+echo "  NORI_GLOBAL_CONFIG=$NORI_GLOBAL_CONFIG"
+echo ""
+echo "Next: read the TUI Puppeteering skill and write your test plan."

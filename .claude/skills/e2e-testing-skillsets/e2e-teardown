@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+# e2e-teardown: Remove the e2e temp directory and verify isolation.
+#
+# Usage: /path/to/e2e-teardown
+#
+# This script:
+# 1. Removes /tmp/nori/skillsets-e2e-scenario/
+# 2. Verifies that the real ~/.nori/ and ~/.claude/ were not modified
+# 3. Unsets the exported environment variables
+#
+# NOTE: This does NOT stop tmux sessions. Run tui-stop first.
+
+set -euo pipefail
+
+E2E_DIR="/tmp/nori/skillsets-e2e-scenario"
+FAILED=0
+
+echo "=== e2e-teardown ==="
+
+# --- Verify isolation ---
+echo ""
+echo "[1/2] Verifying isolation..."
+
+if [[ -n "${_E2E_REAL_NORI_MTIME:-}" ]] && [[ -d "$HOME/.nori" ]]; then
+    current_mtime="$(stat -c %Y "$HOME/.nori" 2>/dev/null || stat -f %m "$HOME/.nori" 2>/dev/null || echo "")"
+    if [[ -n "$current_mtime" ]] && [[ "$current_mtime" != "$_E2E_REAL_NORI_MTIME" ]]; then
+        echo "WARNING: ~/.nori/ was modified during the test!" >&2
+        echo "  Before: $_E2E_REAL_NORI_MTIME" >&2
+        echo "  After:  $current_mtime" >&2
+        FAILED=1
+    else
+        echo "  ~/.nori/ OK (unchanged)"
+    fi
+else
+    echo "  ~/.nori/ OK (no baseline or does not exist)"
+fi
+
+if [[ -n "${_E2E_REAL_CLAUDE_MTIME:-}" ]] && [[ -d "$HOME/.claude" ]]; then
+    current_mtime="$(stat -c %Y "$HOME/.claude" 2>/dev/null || stat -f %m "$HOME/.claude" 2>/dev/null || echo "")"
+    if [[ -n "$current_mtime" ]] && [[ "$current_mtime" != "$_E2E_REAL_CLAUDE_MTIME" ]]; then
+        echo "WARNING: ~/.claude/ was modified during the test!" >&2
+        echo "  Before: $_E2E_REAL_CLAUDE_MTIME" >&2
+        echo "  After:  $current_mtime" >&2
+        FAILED=1
+    else
+        echo "  ~/.claude/ OK (unchanged)"
+    fi
+else
+    echo "  ~/.claude/ OK (no baseline or does not exist)"
+fi
+
+# --- Remove temp directory ---
+echo ""
+echo "[2/2] Cleaning up $E2E_DIR..."
+
+if [[ -d "$E2E_DIR" ]]; then
+    command rm -rf "$E2E_DIR"
+    echo "  Removed $E2E_DIR"
+else
+    echo "  $E2E_DIR already removed"
+fi
+
+# --- Unset env vars ---
+unset E2E_DIR 2>/dev/null || true
+unset SKS 2>/dev/null || true
+unset NORI_GLOBAL_CONFIG 2>/dev/null || true
+unset _E2E_REAL_NORI_MTIME 2>/dev/null || true
+unset _E2E_REAL_CLAUDE_MTIME 2>/dev/null || true
+
+echo ""
+if [[ "$FAILED" -eq 1 ]]; then
+    echo "ISOLATION CHECK FAILED - see warnings above"
+    exit 1
+else
+    echo "Teardown complete. Isolation verified."
+fi
