@@ -4,11 +4,11 @@ Path: @/
 
 ### Overview
 
-Nori Skillsets is a CLI client and plugin package for installing and managing "skillsets" -- complete, packaged agent configurations for Claude Code. It connects to the noriskillsets.dev registry to search, download, upload, and switch between skillsets and individual skills. The package is published to npm as `nori-skillsets` with binary aliases `nori-skillsets`, `nori-skillset`, and `sks`.
+Nori Skillsets is a CLI client and plugin package for installing and managing "skillsets" -- complete, packaged agent configurations for AI coding agents. It supports multiple agents (Claude Code, Cursor, Codex, Droid, Gemini CLI, GitHub Copilot, Goose, Kilo, Kimi CLI, OpenCode, OpenClaw, Pi) through a data-oriented `AgentConfig` type with shared operation functions. It connects to the noriskillsets.dev registry to search, download, upload, and switch between skillsets and individual skills. The package is published to npm as `nori-skillsets` with binary aliases `nori-skillsets`, `nori-skillset`, and `sks`.
 
 ### How it fits into the larger codebase
 
-This is the repository root. The project is a TypeScript Node.js application built with esbuild, using Commander for CLI parsing, Firebase for authentication, and the noriskillsets.dev registry as its backend. The CLI installs configuration into the user's `~/.claude/` directory structure, where Claude Code reads it. Skillsets are stored in `~/.nori/profiles/` and activated by copying into the target `.claude/` directory.
+This is the repository root. The project is a TypeScript Node.js application built with esbuild, using Commander for CLI parsing, Firebase for authentication, and the noriskillsets.dev registry as its backend. The CLI installs configuration into each agent's directory structure (e.g., `.claude/`, `.cursor/`, `.codex/`, etc.), where the respective agent reads it. Skillsets are stored in `~/.nori/profiles/` and activated by copying into each configured agent's target directory. The multi-agent architecture uses a single `AgentConfig` type (defined in @/src/cli/features/agentRegistry.ts) with shared lifecycle operations in @/src/cli/features/agentOperations.ts, so all agents share the same install/switch/remove logic.
 
 ```
 User runs CLI command

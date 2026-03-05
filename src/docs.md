@@ -16,7 +16,7 @@ This is the sole source directory. Everything under `@/src` is compiled to `@/bu
 |-----------|---------|
 | `cli/` | CLI entrypoint, commands, features (agent integrations), prompts, and update checking |
 | `api/` | HTTP clients for the registry, analytics, transcripts, and authentication token management |
-| `norijson/` | Types and runtime operations for the `nori.json` manifest format, plus skillset path utilities, parsing, and discovery |
+| `norijson/` | Types and runtime operations for the `nori.json` manifest format, including metadata CRUD (`readSkillsetMetadata`, `writeSkillsetMetadata`, `addSkillToNoriJson`, `ensureNoriJson`), plus skillset path utilities, parsing, and discovery |
 | `providers/` | External service singletons (Firebase) |
 | `scripts/` | Build-time scripts for bundling hook scripts with esbuild |
 | `utils/` | Shared helpers for URL normalization, path resolution, proxy/fetch error handling, and home directory detection |
