@@ -82,7 +82,7 @@ describe("dirMain", () => {
       const mockChild = createMockChild({ pid: 12345 });
       vi.mocked(childProcess.spawn).mockReturnValue(mockChild);
 
-      await dirMain();
+      const result = await dirMain();
 
       expect(childProcess.spawn).toHaveBeenCalledWith(
         "open",
@@ -93,7 +93,7 @@ describe("dirMain", () => {
       expect(mockLogSuccess).toHaveBeenCalledWith(
         expect.stringContaining(MOCK_PROFILES_DIR),
       );
-      expect(mockOutro).toHaveBeenCalled();
+      expect(result.success).toBe(true);
 
       Object.defineProperty(process, "platform", { value: originalPlatform });
     });
@@ -113,7 +113,7 @@ describe("dirMain", () => {
         { detached: true, stdio: "ignore" },
       );
       expect(mockChild.unref).toHaveBeenCalled();
-      expect(mockOutro).toHaveBeenCalled();
+      expect(mockOutro).not.toHaveBeenCalled();
 
       Object.defineProperty(process, "platform", { value: originalPlatform });
     });
@@ -135,7 +135,7 @@ describe("dirMain", () => {
         expect.stringContaining(MOCK_PROFILES_DIR),
       );
       expect(mockLogSuccess).not.toHaveBeenCalled();
-      expect(mockOutro).toHaveBeenCalled();
+      expect(mockOutro).not.toHaveBeenCalled();
 
       Object.defineProperty(process, "platform", { value: originalPlatform });
     });
@@ -154,7 +154,7 @@ describe("dirMain", () => {
         expect.stringContaining(MOCK_PROFILES_DIR),
       );
       expect(mockLogSuccess).not.toHaveBeenCalled();
-      expect(mockOutro).toHaveBeenCalled();
+      expect(mockOutro).not.toHaveBeenCalled();
 
       Object.defineProperty(process, "platform", { value: originalPlatform });
     });
@@ -165,11 +165,11 @@ describe("dirMain", () => {
       const mockChild = createMockChild({ pid: 12345 });
       vi.mocked(childProcess.spawn).mockReturnValue(mockChild);
 
-      await dirMain();
+      const result = await dirMain();
 
       // Should attempt to open (interactive by default)
       expect(childProcess.spawn).toHaveBeenCalled();
-      expect(mockOutro).toHaveBeenCalled();
+      expect(result.success).toBe(true);
     });
   });
 });

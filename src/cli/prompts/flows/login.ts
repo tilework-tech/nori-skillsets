@@ -11,8 +11,6 @@
  */
 
 import {
-  intro,
-  outro,
   group,
   text,
   password,
@@ -22,6 +20,8 @@ import {
   isCancel,
   cancel,
 } from "@clack/prompts";
+
+import { bold } from "@/cli/logger.js";
 
 /**
  * Result of successful authentication callback
@@ -60,33 +60,26 @@ export type LoginFlowResult = {
   idToken: string;
   organizations: Array<string>;
   isAdmin: boolean;
+  statusMessage: string;
 } | null;
 
 /**
  * Execute the interactive login flow
  *
  * This function handles the complete login UX:
- * 1. Shows intro message
- * 2. Collects email and password in a grouped prompt
- * 3. Shows spinner while authenticating
- * 4. Displays organization info in a note (if available)
- * 5. Shows outro message on success
+ * 1. Collects email and password in a grouped prompt
+ * 2. Shows spinner while authenticating
+ * 3. Displays organization info in a note (if available)
  *
  * @param args - Flow configuration
  * @param args.callbacks - Callback functions for authentication
- * @param args.skipIntro - If true, skip the intro message (useful when called after another prompt)
  *
  * @returns Credentials on success, null on failure or cancellation
  */
 export const loginFlow = async (args: {
   callbacks: LoginFlowCallbacks;
-  skipIntro?: boolean | null;
 }): Promise<LoginFlowResult> => {
-  const { callbacks, skipIntro } = args;
-
-  if (skipIntro !== true) {
-    intro("Log in to Nori Skillsets");
-  }
+  const { callbacks } = args;
 
   const credentials = await group(
     {
@@ -141,13 +134,12 @@ export const loginFlow = async (args: {
     note(orgLines.join("\n"), "Account Info");
   }
 
-  outro(`Logged in as ${result.userEmail}`);
-
   return {
     email: credentials.email,
     refreshToken: result.refreshToken,
     idToken: result.idToken,
     organizations: result.organizations,
     isAdmin: result.isAdmin,
+    statusMessage: `Logged in as ${bold({ text: result.userEmail })}`,
   };
 };

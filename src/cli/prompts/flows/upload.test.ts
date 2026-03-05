@@ -86,6 +86,28 @@ describe("uploadFlow", () => {
     vi.mocked(clack.isCancel).mockReturnValue(false);
   });
 
+  it("should include statusMessage in successful result", async () => {
+    const callbacks = createMockCallbacks({
+      uploadResults: [
+        {
+          success: true,
+          version: "1.0.0",
+          extractedSkills: { succeeded: [], failed: [] },
+        },
+      ],
+    });
+
+    const result = await uploadFlow({
+      profileDisplayName: "myorg/my-profile",
+      skillsetName: "my-profile",
+      registryUrl: "https://myorg.noriskillsets.dev",
+      callbacks,
+    });
+
+    expect(result).not.toBeNull();
+    expect(result!.statusMessage).toContain("myorg/my-profile");
+  });
+
   describe("use existing option", () => {
     it("should show use existing option for changed skills", async () => {
       const conflicts: Array<SkillConflict> = [

@@ -54,11 +54,6 @@ vi.mock("@/cli/prompts/flows/factoryReset.js", () => ({
   factoryResetFlow: vi.fn().mockResolvedValue({ deletedCount: 0 }),
 }));
 
-// Mock process.exit
-const mockExit = vi
-  .spyOn(process, "exit")
-  .mockImplementation(() => undefined as never);
-
 describe("factoryResetMain", () => {
   let tempDir: string;
 
@@ -96,7 +91,11 @@ describe("factoryResetMain", () => {
         path: tempDir,
       });
       await args.callbacks.onDeleteArtifacts({ artifacts });
-      return { deletedCount: artifacts.length };
+      return {
+        deletedCount: artifacts.length,
+        statusMessage:
+          "Factory reset complete. All configuration has been removed.",
+      };
     });
 
     await factoryResetMain({
@@ -110,10 +109,10 @@ describe("factoryResetMain", () => {
     await expect(fs.access(claudeDir)).rejects.toThrow();
   });
 
-  it("should exit with error in non-interactive mode", async () => {
+  it("should return failure status in non-interactive mode", async () => {
     const clack = await import("@clack/prompts");
 
-    await factoryResetMain({
+    const result = await factoryResetMain({
       agentName: "claude-code",
       path: tempDir,
       nonInteractive: true,
@@ -122,10 +121,10 @@ describe("factoryResetMain", () => {
     expect(clack.log.error).toHaveBeenCalledWith(
       expect.stringContaining("non-interactive"),
     );
-    expect(mockExit).toHaveBeenCalledWith(1);
+    expect(result.success).toBe(false);
   });
 
-  it("should exit with error when agent does not support factory reset", async () => {
+  it("should return failure status when agent does not support factory reset", async () => {
     const clack = await import("@clack/prompts");
 
     // Register a test agent without factoryReset
@@ -143,7 +142,7 @@ describe("factoryResetMain", () => {
       getLoaders: () => [],
     });
 
-    await factoryResetMain({
+    const result = await factoryResetMain({
       agentName: "test-agent",
       path: tempDir,
     });
@@ -151,7 +150,7 @@ describe("factoryResetMain", () => {
     expect(clack.log.error).toHaveBeenCalledWith(
       expect.stringContaining("does not support factory reset"),
     );
-    expect(mockExit).toHaveBeenCalledWith(1);
+    expect(result.success).toBe(false);
   });
 
   it("should use factoryResetFlow", async () => {

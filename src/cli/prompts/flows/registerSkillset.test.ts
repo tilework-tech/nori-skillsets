@@ -39,6 +39,7 @@ describe("registerSkillsetFlow", () => {
         keywords: ["testing", "automation", "cli"],
         version: "2.0.0",
         repository: "https://github.com/user/repo",
+        statusMessage: "Skillset metadata collected",
       });
     });
 
@@ -75,6 +76,7 @@ describe("registerSkillsetFlow", () => {
         keywords: null,
         version: null,
         repository: null,
+        statusMessage: "Skillset metadata collected",
       });
     });
 

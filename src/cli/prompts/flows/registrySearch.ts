@@ -10,7 +10,7 @@
  * - Outro message
  */
 
-import { intro, outro, spinner, note, log } from "@clack/prompts";
+import { spinner, note, log } from "@clack/prompts";
 
 /**
  * Result from the search callback
@@ -39,17 +39,16 @@ export type RegistrySearchFlowCallbacks = {
  */
 export type RegistrySearchFlowResult = {
   found: boolean;
+  statusMessage: string;
 };
 
 /**
  * Execute the registry search flow
  *
  * This function handles the complete search UX:
- * 1. Shows intro message
- * 2. Shows spinner while searching registries
- * 3. Displays results in a note or shows no-results message
- * 4. Shows download hints if results were found
- * 5. Shows outro
+ * 1. Shows spinner while searching registries
+ * 2. Displays results in a note or shows no-results message
+ * 3. Shows download hints if results were found
  *
  * @param args - Flow configuration
  * @param args.callbacks - Callback functions for searching
@@ -60,8 +59,6 @@ export const registrySearchFlow = async (args: {
   callbacks: RegistrySearchFlowCallbacks;
 }): Promise<RegistrySearchFlowResult | null> => {
   const { callbacks } = args;
-
-  intro("Search Nori Registry");
 
   const s = spinner();
   s.start("Searching...");
@@ -78,8 +75,7 @@ export const registrySearchFlow = async (args: {
 
   if (!searchResult.hasResults) {
     log.info(`No skillsets or skills found matching "${searchResult.query}".`);
-    outro("Search returned no results");
-    return { found: false };
+    return { found: false, statusMessage: "Search returned no results" };
   }
 
   note(searchResult.formattedResults, "Results");
@@ -98,6 +94,8 @@ export const registrySearchFlow = async (args: {
   if (skillCount > 0) {
     parts.push(`${skillCount} ${skillCount === 1 ? "skill" : "skills"}`);
   }
-  outro(`Search returned ${parts.join(" and ")}`);
-  return { found: true };
+  return {
+    found: true,
+    statusMessage: `Search returned ${parts.join(" and ")}`,
+  };
 };

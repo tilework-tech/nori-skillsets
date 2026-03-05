@@ -200,6 +200,69 @@ describe("configMain", () => {
   });
 });
 
+describe("configMain return value and framing", () => {
+  let tempDir: string;
+
+  beforeEach(async () => {
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "config-cmd-test-"));
+    vi.mocked(os.homedir).mockReturnValue(tempDir);
+  });
+
+  afterEach(async () => {
+    await fs.rm(tempDir, { recursive: true, force: true });
+    vi.clearAllMocks();
+  });
+
+  it("should return CommandStatus with success on flow success", async () => {
+    const { configFlow } = await import("@/cli/prompts/flows/config.js");
+    vi.mocked(configFlow).mockResolvedValueOnce({
+      defaultAgents: ["claude-code"],
+      installDir: tempDir,
+      redownloadOnSwitch: "enabled",
+    });
+
+    await saveConfig({
+      username: null,
+      organizationUrl: null,
+      installDir: tempDir,
+      activeSkillset: "senior-swe",
+    });
+
+    const { configMain } = await import("./config.js");
+    const result = await configMain();
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        success: true,
+        cancelled: false,
+        message: expect.any(String),
+      }),
+    );
+  });
+
+  it("should return CommandStatus with cancelled when flow returns null", async () => {
+    const { configFlow } = await import("@/cli/prompts/flows/config.js");
+    vi.mocked(configFlow).mockResolvedValueOnce(null);
+
+    await saveConfig({
+      username: null,
+      organizationUrl: null,
+      installDir: tempDir,
+      activeSkillset: "senior-swe",
+    });
+
+    const { configMain } = await import("./config.js");
+    const result = await configMain();
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        success: false,
+        cancelled: true,
+      }),
+    );
+  });
+});
+
 describe("configMain installDir change prompts", () => {
   let tempDir: string;
   let oldInstallDir: string;

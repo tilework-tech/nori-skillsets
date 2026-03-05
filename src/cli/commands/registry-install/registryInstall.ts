@@ -6,7 +6,7 @@
 import * as fs from "fs/promises";
 import * as path from "path";
 
-import { intro, log, note, outro } from "@clack/prompts";
+import { log, note } from "@clack/prompts";
 
 import { main as installMain } from "@/cli/commands/install/install.js";
 import { hasExistingInstallation } from "@/cli/commands/install/installState.js";
@@ -23,6 +23,7 @@ import { bold, brightCyan, green } from "@/cli/logger.js";
 import { getNoriSkillsetsDir } from "@/norijson/skillset.js";
 import { resolveInstallDir } from "@/utils/path.js";
 
+import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 import type { Command } from "commander";
 
 type RegistryInstallArgs = {
@@ -61,23 +62,6 @@ const checkLocalSkillsetExists = async (args: {
 };
 
 /**
- * Result of registry install operation
- */
-export type RegistryInstallResult = {
-  success: boolean;
-};
-
-/**
- * Display success message after installation completes
- * @param args - Function arguments
- * @param args.skillsetName - Name of the skillset that was installed
- */
-const displaySuccessMessage = (args: { skillsetName: string }): void => {
-  const { skillsetName } = args;
-  outro(`Skillset "${skillsetName}" is now active.`);
-};
-
-/**
  * Install a skillset from the public registry in one step
  * Downloads the skillset, then either performs initial installation or
  * switches to the skillset and regenerates files.
@@ -91,7 +75,7 @@ const displaySuccessMessage = (args: { skillsetName: string }): void => {
  */
 export const registryInstallMain = async (
   args: RegistryInstallArgs,
-): Promise<RegistryInstallResult> => {
+): Promise<CommandStatus> => {
   const { packageSpec, installDir, silent, agent } = args;
 
   const skillsetName = parsePackageName({ packageSpec });
@@ -108,6 +92,10 @@ export const registryInstallMain = async (
   // Skip manifest operations when the install dir comes from a CLI override
   const skipManifest = resolved.source === "cli";
   const agentNames = getDefaultAgents({ config, agentOverride: agent });
+
+  // Snapshot before download — registryDownloadMain may auto-init and create config,
+  // which would make hasExistingInstallation() return true after download completes.
+  const isFirstTimeInstall = !hasExistingInstallation();
 
   // Step 1: Download the skillset from registry first (so it's available for install)
   // Note: registryUrl is null to let registryDownloadMain determine the correct
@@ -126,7 +114,11 @@ export const registryInstallMain = async (
     });
 
     if (!localExists) {
-      return { success: false };
+      return {
+        success: false,
+        cancelled: false,
+        message: `Skillset "${skillsetName}" not found in registry or locally`,
+      };
     }
 
     log.warn(
@@ -136,7 +128,7 @@ export const registryInstallMain = async (
 
   try {
     // Step 2: Run initial install if no existing installation
-    if (!hasExistingInstallation()) {
+    if (isFirstTimeInstall) {
       // Broadcast initial install to all configured agents
       for (const agentName of agentNames) {
         await installMain({
@@ -149,11 +141,14 @@ export const registryInstallMain = async (
         });
       }
       // Initial install already sets the skillset and displays its own completion banners
-      return { success: true };
+      return {
+        success: true,
+        cancelled: false,
+        message: `Installed and activated skillset "${bold({ text: skillsetName })}"`,
+      };
     }
 
     // Step 3 (existing installation): Broadcast switch to all configured agents
-    intro("Switch Skillset");
 
     // Show context note with switch details
     const currentSkillset =
@@ -192,12 +187,19 @@ export const registryInstallMain = async (
       await updateConfig({ activeSkillset: skillsetName });
     }
 
-    displaySuccessMessage({ skillsetName });
-    return { success: true };
+    return {
+      success: true,
+      cancelled: false,
+      message: `Installed and activated skillset "${bold({ text: skillsetName })}"`,
+    };
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
     log.error(`Failed to install skillset "${skillsetName}": ${errorMessage}`);
-    return { success: false };
+    return {
+      success: false,
+      cancelled: false,
+      message: `Failed to install skillset "${skillsetName}": ${errorMessage}`,
+    };
   }
 };
 

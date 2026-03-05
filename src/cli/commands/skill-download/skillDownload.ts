@@ -38,6 +38,7 @@ import {
 } from "@/utils/url.js";
 
 import type { Packument } from "@/api/registrar.js";
+import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 import type { Config } from "@/cli/config.js";
 import type {
   SkillSearchResult,
@@ -342,6 +343,8 @@ const formatMultipleSkillsError = (args: {
  * @param args.listVersions - If true, list available versions instead of downloading
  * @param args.skillset - Optional skillset name to add skill to (defaults to active skillset)
  * @param args.cliName - CLI name for user-facing messages (defaults to nori-skillsets)
+ *
+ * @returns Command status
  */
 export const skillDownloadMain = async (args: {
   skillSpec: string;
@@ -351,7 +354,7 @@ export const skillDownloadMain = async (args: {
   listVersions?: boolean | null;
   skillset?: string | null;
   cliName?: CliName | null;
-}): Promise<void> => {
+}): Promise<CommandStatus> => {
   const {
     skillSpec,
     installDir,
@@ -369,7 +372,11 @@ export const skillDownloadMain = async (args: {
     log.error(
       `Invalid skill specification: "${skillSpec}".\nExpected format: skill-name or org/skill-name[@version]`,
     );
-    return;
+    return {
+      success: false,
+      cancelled: false,
+      message: "Invalid skill specification",
+    };
   }
   const { orgId, packageName: skillName, version } = parsed;
   // Display name includes org prefix for namespaced packages (e.g., "myorg/my-skill")
@@ -381,7 +388,11 @@ export const skillDownloadMain = async (args: {
     log.error(
       `Cannot specify both namespace and --registry flag.\n\nThe namespace "${orgId}/" determines the registry automatically.\nUse either "${skillDisplayName}" (derived registry) or "${skillName} --registry ${registryUrl}" (explicit registry).`,
     );
-    return;
+    return {
+      success: false,
+      cancelled: false,
+      message: "Invalid flag combination",
+    };
   }
 
   // Load config for auth and install dir resolution
@@ -411,7 +422,11 @@ export const skillDownloadMain = async (args: {
       log.error(
         `Skillset "${skillset}" not found at: ${skillsetDir}\n\nMake sure the skillset exists and contains a nori.json file.`,
       );
-      return;
+      return {
+        success: false,
+        cancelled: false,
+        message: "Skillset not found",
+      };
     }
   } else if (config != null) {
     // No skillset specified - try to use active skillset
@@ -461,7 +476,7 @@ export const skillDownloadMain = async (args: {
   let foundRegistry: RegistrySearchResult | null = null;
   let resolvedTargetVersion = "";
 
-  await skillDownloadFlow({
+  const result = await skillDownloadFlow({
     skillDisplayName,
     callbacks: {
       onSearch: async (): Promise<SkillSearchResult> => {
@@ -822,6 +837,12 @@ export const skillDownloadMain = async (args: {
       },
     },
   });
+
+  if (result == null) {
+    return { success: false, cancelled: true, message: "" };
+  }
+
+  return { success: true, cancelled: false, message: result.statusMessage };
 };
 
 /**

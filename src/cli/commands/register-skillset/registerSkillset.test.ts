@@ -90,7 +90,9 @@ describe("registerSkillsetMain", () => {
       repository: "https://github.com/user/repo",
     });
 
-    await registerSkillsetMain({ skillsetName: "my-existing-skillset" });
+    const result = await registerSkillsetMain({
+      skillsetName: "my-existing-skillset",
+    });
 
     // Verify nori.json was created
     const noriJson = JSON.parse(
@@ -106,9 +108,10 @@ describe("registerSkillsetMain", () => {
       repository: "https://github.com/user/repo",
     });
 
-    expect(mockOutro).toHaveBeenCalledWith(
-      expect.stringContaining("my-existing-skillset"),
-    );
+    // Verify return status contains skillset name
+    expect(result.success).toBe(true);
+    expect(result.message).toContain("my-existing-skillset");
+    expect(mockOutro).not.toHaveBeenCalled();
     expect(mockExit).not.toHaveBeenCalled();
   });
 
@@ -158,8 +161,10 @@ describe("registerSkillsetMain", () => {
     expect(noriJson.name).toBe("current-skillset");
   });
 
-  it("should error when skillset directory does not exist", async () => {
-    await registerSkillsetMain({ skillsetName: "non-existent-skillset" });
+  it("should return failure status when skillset directory does not exist", async () => {
+    const result = await registerSkillsetMain({
+      skillsetName: "non-existent-skillset",
+    });
 
     expect(mockLogError).toHaveBeenCalledWith(
       expect.stringContaining("non-existent-skillset"),
@@ -167,10 +172,10 @@ describe("registerSkillsetMain", () => {
     expect(mockLogError).toHaveBeenCalledWith(
       expect.stringContaining("does not exist"),
     );
-    expect(mockExit).toHaveBeenCalledWith(1);
+    expect(result.success).toBe(false);
   });
 
-  it("should error when nori.json already exists", async () => {
+  it("should return failure status when nori.json already exists", async () => {
     // Create existing skillset directory with nori.json
     const existingDir = path.join(skillsetsDir, "already-registered");
     await fs.mkdir(existingDir, { recursive: true });
@@ -179,7 +184,9 @@ describe("registerSkillsetMain", () => {
       JSON.stringify({ name: "already-registered", version: "1.0.0" }),
     );
 
-    await registerSkillsetMain({ skillsetName: "already-registered" });
+    const result = await registerSkillsetMain({
+      skillsetName: "already-registered",
+    });
 
     expect(mockLogError).toHaveBeenCalledWith(
       expect.stringContaining("already-registered"),
@@ -187,7 +194,7 @@ describe("registerSkillsetMain", () => {
     expect(mockLogError).toHaveBeenCalledWith(
       expect.stringContaining("already has"),
     );
-    expect(mockExit).toHaveBeenCalledWith(1);
+    expect(result.success).toBe(false);
   });
 
   it("should handle flow cancellation gracefully", async () => {

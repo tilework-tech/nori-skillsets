@@ -42,3 +42,6 @@ __pycache__/
 .nori-installed-version
 .nori/
 .nori-config.json
+
+# Track repo specific skills
+!.claude/skills/

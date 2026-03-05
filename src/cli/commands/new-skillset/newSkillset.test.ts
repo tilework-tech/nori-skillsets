@@ -77,7 +77,7 @@ describe("newSkillsetMain", () => {
       repository: null,
     });
 
-    await newSkillsetMain();
+    const result = await newSkillsetMain();
 
     const destDir = path.join(skillsetsDir, "my-new-skillset");
 
@@ -91,10 +91,10 @@ describe("newSkillsetMain", () => {
       type: "skillset",
     });
 
-    // Verify outro message
-    expect(mockOutro).toHaveBeenCalledWith(
-      expect.stringContaining("my-new-skillset"),
-    );
+    // Verify return status contains skillset name
+    expect(result.success).toBe(true);
+    expect(result.message).toContain("my-new-skillset");
+    expect(mockOutro).not.toHaveBeenCalled();
     expect(mockExit).not.toHaveBeenCalled();
   });
 
@@ -139,7 +139,7 @@ describe("newSkillsetMain", () => {
       repository: null,
     });
 
-    await newSkillsetMain();
+    const result = await newSkillsetMain();
 
     expect(mockLogError).toHaveBeenCalledWith(
       expect.stringContaining("existing-skillset"),
@@ -147,7 +147,7 @@ describe("newSkillsetMain", () => {
     expect(mockLogError).toHaveBeenCalledWith(
       expect.stringContaining("already exists"),
     );
-    expect(mockExit).toHaveBeenCalledWith(1);
+    expect(result.success).toBe(false);
   });
 
   it("should print instructions for switching and editing after creation", async () => {

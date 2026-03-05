@@ -887,9 +887,9 @@ describe("skill-download", () => {
       // Verify download occurred
       expect(registrarApi.downloadSkillTarball).toHaveBeenCalled();
 
-      // Verify success message about update via clack output
+      // Verify success output (installed to via note)
       const allOutput = getClackLogOutput();
-      expect(allOutput.toLowerCase()).toContain("updated");
+      expect(allOutput.toLowerCase()).toContain("installed");
     });
 
     it("should report when already at latest version", async () => {
@@ -1201,9 +1201,9 @@ describe("--skillset option and manifest updates", () => {
     const stats = await fs.stat(skillDir);
     expect(stats.isDirectory()).toBe(true);
 
-    // Verify download succeeded but no profile update message was included
+    // Verify download succeeded (installed to via note)
     const allOutput = getClackLogOutput();
-    expect(allOutput.toLowerCase()).toContain("download");
+    expect(allOutput.toLowerCase()).toContain("installed");
     // The "Next Steps" note should not contain profile update info
     const nextStepsCall = vi
       .mocked(clack.note)
@@ -2099,9 +2099,9 @@ describe("namespaced package support", () => {
         cwd: testDir,
       });
 
-      // Verify success message includes namespaced format via clack output
+      // Verify success output includes install path via clack output
       const allOutput = getClackLogOutput();
-      expect(allOutput).toContain("myorg/my-skill");
+      expect(allOutput).toContain("my-skill");
     });
   });
 });

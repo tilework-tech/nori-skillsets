@@ -5,16 +5,7 @@
  * Supports email/password and Google SSO authentication.
  */
 
-import {
-  select,
-  isCancel,
-  cancel,
-  intro,
-  outro,
-  note,
-  log,
-  spinner,
-} from "@clack/prompts";
+import { select, isCancel, cancel, note, log, spinner } from "@clack/prompts";
 import {
   signInWithEmailAndPassword,
   signInWithCredential,
@@ -33,6 +24,7 @@ import {
 import { configureFirebase, getFirebase } from "@/providers/firebase.js";
 import { formatNetworkError } from "@/utils/fetch.js";
 
+import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 import type { Command } from "commander";
 import type { AuthError } from "firebase/auth";
 
@@ -336,6 +328,8 @@ const authenticateWithGoogle = async (args?: {
  * @param args.password - Password (for non-interactive mode)
  * @param args.google - Whether to use Google SSO
  * @param args.noLocalhost - Whether to use hosted callback page instead of localhost
+ *
+ * @returns Command status
  */
 export const loginMain = async (args?: {
   installDir?: string | null;
@@ -344,7 +338,7 @@ export const loginMain = async (args?: {
   password?: string | null;
   google?: boolean | null;
   noLocalhost?: boolean | null;
-}): Promise<void> => {
+}): Promise<CommandStatus> => {
   const {
     nonInteractive,
     email,
@@ -354,24 +348,30 @@ export const loginMain = async (args?: {
   } = args ?? {};
   // Validate flag combinations
   if (useGoogle && (email != null || password != null)) {
-    log.error(
-      "Cannot use --google with --email or --password. Google SSO handles authentication via the browser.",
-    );
-    return;
+    return {
+      success: false,
+      cancelled: false,
+      message:
+        "Cannot use --google with --email or --password. Google SSO handles authentication via the browser",
+    };
   }
 
   if (useGoogle && nonInteractive) {
-    log.error(
-      "Cannot use --google with --non-interactive. Google SSO requires a browser for authentication.",
-    );
-    return;
+    return {
+      success: false,
+      cancelled: false,
+      message:
+        "Cannot use --google with --non-interactive. Google SSO requires a browser for authentication",
+    };
   }
 
   if (noLocalhost && !useGoogle) {
-    log.error(
-      "Cannot use --no-localhost without --google. This flag is only for Google SSO.",
-    );
-    return;
+    return {
+      success: false,
+      cancelled: false,
+      message:
+        "Cannot use --no-localhost without --google. This flag is only for Google SSO",
+    };
   }
 
   let refreshToken: string;
@@ -398,13 +398,20 @@ export const loginMain = async (args?: {
         );
       }
 
-      return;
+      return {
+        success: false,
+        cancelled: false,
+        message: `Authentication failed: ${authError.message}`,
+      };
     }
   } else if (nonInteractive) {
     // Non-interactive email/password flow: use provided credentials directly
     if (email == null || password == null) {
-      log.error("Non-interactive mode requires --email and --password flags.");
-      return;
+      return {
+        success: false,
+        cancelled: false,
+        message: "Non-interactive mode requires --email and --password flags",
+      };
     }
 
     log.info("Authenticating...");
@@ -426,11 +433,14 @@ export const loginMain = async (args?: {
       const authError = err as AuthError;
       log.error("Authentication failed");
       log.error(`  Error: ${authError.message}`);
-      return;
+      return {
+        success: false,
+        cancelled: false,
+        message: `Authentication failed: ${authError.message}`,
+      };
     }
   } else {
     // Interactive mode: show auth method selection
-    intro("Login to Nori Skillsets");
 
     const authMethod = await select({
       message: "Authentication method",
@@ -442,13 +452,12 @@ export const loginMain = async (args?: {
 
     if (isCancel(authMethod)) {
       cancel("Login cancelled.");
-      return;
+      return { success: false, cancelled: true, message: "" };
     }
 
     if (authMethod === "email") {
-      // Email/password flow via loginFlow (skip intro since we already showed it)
+      // Email/password flow via loginFlow
       const result = await loginFlow({
-        skipIntro: true,
         callbacks: {
           onAuthenticate: async (args): Promise<AuthenticateResult> => {
             const { email: inputEmail, password: inputPassword } = args;
@@ -511,7 +520,7 @@ export const loginMain = async (args?: {
 
       if (result == null) {
         // User cancelled or auth failed (flow handles the UI)
-        return;
+        return { success: false, cancelled: true, message: "" };
       }
 
       // Use the tokens from the flow result (no need to re-authenticate)
@@ -530,8 +539,11 @@ export const loginMain = async (args?: {
         },
       });
 
-      // Flow already showed outro, so we're done
-      return;
+      return {
+        success: true,
+        cancelled: false,
+        message: `Logged in as ${userEmail}`,
+      };
     } else {
       // Google SSO flow selected from interactive UI
       try {
@@ -552,7 +564,11 @@ export const loginMain = async (args?: {
           );
         }
 
-        return;
+        return {
+          success: false,
+          cancelled: false,
+          message: `Authentication failed: ${authError.message}`,
+        };
       }
     }
   }
@@ -595,8 +611,11 @@ export const loginMain = async (args?: {
       "Account Info",
     );
   }
-  // Use clack outro to balance the intro shown earlier
-  outro(`Logged in as ${userEmail}`);
+  return {
+    success: true,
+    cancelled: false,
+    message: `Logged in as ${userEmail}`,
+  };
 };
 
 /**

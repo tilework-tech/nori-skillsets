@@ -17,6 +17,7 @@ import {
 } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
 import { loadConfig, getRegistryAuth } from "@/cli/config.js";
+import { bold } from "@/cli/logger.js";
 import {
   uploadFlow,
   listVersionsFlow,
@@ -29,16 +30,10 @@ import {
   buildOrganizationRegistryUrl,
 } from "@/utils/url.js";
 
+import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 import type { RegistryAuth } from "@/cli/config.js";
 import type { NoriJson } from "@/norijson/nori.js";
 import type { Command } from "commander";
-
-/**
- * Result of upload operation
- */
-export type RegistryUploadResult = {
-  success: boolean;
-};
 
 /**
  * Determine the version to upload (auto-bump if not specified)
@@ -300,7 +295,7 @@ export const registryUploadMain = async (args: {
   silent?: boolean | null;
   dryRun?: boolean | null;
   description?: string | null;
-}): Promise<RegistryUploadResult> => {
+}): Promise<CommandStatus> => {
   const {
     profileSpec,
     registryUrl,
@@ -317,7 +312,11 @@ export const registryUploadMain = async (args: {
     log.error(
       `Invalid skillset specification: "${profileSpec}".\nExpected format: skillset-name or org/skillset-name[@version]`,
     );
-    return { success: false };
+    return {
+      success: false,
+      cancelled: false,
+      message: `Invalid skillset specification: "${profileSpec}"`,
+    };
   }
 
   const { orgId, packageName, version } = parsed;
@@ -328,7 +327,11 @@ export const registryUploadMain = async (args: {
   const config = await loadConfig();
   if (config == null) {
     log.error(`Could not load Nori configuration.`);
-    return { success: false };
+    return {
+      success: false,
+      cancelled: false,
+      message: "Could not load Nori configuration",
+    };
   }
 
   // Check for unified auth with organizations (new flow)
@@ -373,7 +376,11 @@ export const registryUploadMain = async (args: {
       log.error(
         `No authentication configured for ${registryUrl}.\n\nLog in with 'nori-skillsets login' to configure registry access.`,
       );
-      return { success: false };
+      return {
+        success: false,
+        cancelled: false,
+        message: `No authentication configured for ${registryUrl}`,
+      };
     }
 
     try {
@@ -382,7 +389,11 @@ export const registryUploadMain = async (args: {
       log.error(
         `Authentication failed: ${err instanceof Error ? err.message : String(err)}`,
       );
-      return { success: false };
+      return {
+        success: false,
+        cancelled: false,
+        message: `Authentication failed: ${err instanceof Error ? err.message : String(err)}`,
+      };
     }
   } else if (hasUnifiedAuthWithOrgs) {
     // Derive registry from namespace
@@ -394,7 +405,11 @@ export const registryUploadMain = async (args: {
       log.error(
         `You do not have access to organization "${orgId}".\n\nCannot upload "${profileDisplayName}" to ${targetRegistryUrl}.\n\nYour available organizations: ${userOrgs.length > 0 ? userOrgs.join(", ") : "(none)"}`,
       );
-      return { success: false };
+      return {
+        success: false,
+        cancelled: false,
+        message: `You do not have access to organization "${orgId}"`,
+      };
     }
 
     const registryAuth: RegistryAuth = {
@@ -409,20 +424,32 @@ export const registryUploadMain = async (args: {
       log.error(
         `Authentication failed: ${err instanceof Error ? err.message : String(err)}`,
       );
-      return { success: false };
+      return {
+        success: false,
+        cancelled: false,
+        message: `Authentication failed: ${err instanceof Error ? err.message : String(err)}`,
+      };
     }
   } else if (orgId === "public") {
     // Public registry requires auth for uploads
     log.error(
       `Authentication required to upload to public registry.\n\nLog in with 'nori-skillsets login' to configure registry access.`,
     );
-    return { success: false };
+    return {
+      success: false,
+      cancelled: false,
+      message: "Authentication required to upload to public registry",
+    };
   } else {
     // Namespaced package without unified auth
     log.error(
       `Cannot upload "${profileDisplayName}". To upload to organization "${orgId}", log in with:\n\n  nori-skillsets login`,
     );
-    return { success: false };
+    return {
+      success: false,
+      cancelled: false,
+      message: `Cannot upload "${profileDisplayName}". Login required`,
+    };
   }
 
   // If --list-versions flag is set, use list versions flow
@@ -445,7 +472,14 @@ export const registryUploadMain = async (args: {
       },
     });
 
-    return { success: result != null };
+    if (result == null) {
+      return { success: false, cancelled: true, message: "" };
+    }
+    return {
+      success: true,
+      cancelled: false,
+      message: result.statusMessage,
+    };
   }
 
   // Check skillset exists locally
@@ -459,7 +493,11 @@ export const registryUploadMain = async (args: {
     await fs.access(skillsetDir);
   } catch {
     log.error(`Skillset "${profileDisplayName}" not found at:\n${skillsetDir}`);
-    return { success: false };
+    return {
+      success: false,
+      cancelled: false,
+      message: `Skillset "${profileDisplayName}" not found at: ${skillsetDir}`,
+    };
   }
 
   // Handle dry-run mode (simple output, no flow)
@@ -475,7 +513,11 @@ export const registryUploadMain = async (args: {
       `[Dry run] Would upload "${profileDisplayName}@${versionResult.version}" to ${targetRegistryUrl}`,
     );
     log.info(`[Dry run] Skillset path: ${skillsetDir}`);
-    return { success: true };
+    return {
+      success: true,
+      cancelled: false,
+      message: `[Dry run] Would upload "${profileDisplayName}@${versionResult.version}" to ${targetRegistryUrl}`,
+    };
   }
 
   // Backfill type field on existing nori.json files before upload
@@ -548,7 +590,21 @@ export const registryUploadMain = async (args: {
       uploadVersion: versionResult.version,
     });
 
-    return { success: uploadResult.success };
+    if (uploadResult.success) {
+      return {
+        success: true,
+        cancelled: false,
+        message: `Uploaded "${bold({ text: `${profileDisplayName}@${versionResult.version}` })}"`,
+      };
+    }
+
+    const errorMessage =
+      "error" in uploadResult ? uploadResult.error : "Upload failed";
+    return {
+      success: false,
+      cancelled: false,
+      message: errorMessage,
+    };
   }
 
   // Use the upload flow for interactive upload
@@ -599,7 +655,15 @@ export const registryUploadMain = async (args: {
     },
   });
 
-  return { success: result != null };
+  if (result == null) {
+    return { success: false, cancelled: true, message: "" };
+  }
+
+  return {
+    success: true,
+    cancelled: false,
+    message: result.statusMessage,
+  };
 };
 
 /**

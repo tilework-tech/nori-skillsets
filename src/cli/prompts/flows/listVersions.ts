@@ -9,9 +9,9 @@
  * - Outro message
  */
 
-import { intro, outro, spinner, note, log } from "@clack/prompts";
+import { spinner, note, log } from "@clack/prompts";
 
-import { bold, brightCyan, red } from "@/cli/logger.js";
+import { bold, brightCyan } from "@/cli/logger.js";
 
 import type { Packument } from "@/api/registrar.js";
 
@@ -28,6 +28,7 @@ export type ListVersionsFlowCallbacks = {
 export type ListVersionsFlowResult = {
   versions: Array<string>;
   latestVersion: string | null;
+  statusMessage: string;
 } | null;
 
 /**
@@ -82,10 +83,8 @@ const formatVersionsForNote = (args: { packument: Packument }): string => {
  * Execute the list versions flow
  *
  * This function handles the complete list versions UX:
- * 1. Shows intro message
- * 2. Shows spinner while fetching package info
- * 3. Displays version info in a note
- * 4. Shows outro with upload hint
+ * 1. Shows spinner while fetching package info
+ * 2. Displays version info in a note
  *
  * @param args - Flow configuration
  * @param args.profileDisplayName - Display name for the skillset
@@ -101,7 +100,7 @@ export const listVersionsFlow = async (args: {
 }): Promise<ListVersionsFlowResult> => {
   const { profileDisplayName, registryUrl, callbacks } = args;
 
-  intro(`List versions for ${profileDisplayName}`);
+  // profileDisplayName available for use by caller
 
   const s = spinner();
   s.start(`Fetching from ${registryUrl}...`);
@@ -111,7 +110,6 @@ export const listVersionsFlow = async (args: {
   if (packument == null) {
     s.stop("Not found");
     log.error(`Skillset "${profileDisplayName}" not found in ${registryUrl}`);
-    outro(red({ text: "No versions available" }));
     return null;
   }
 
@@ -120,7 +118,6 @@ export const listVersionsFlow = async (args: {
   if (versions.length === 0) {
     s.stop("No versions");
     log.warn(`Skillset "${profileDisplayName}" has no published versions`);
-    outro("No versions available");
     return null;
   }
 
@@ -128,10 +125,9 @@ export const listVersionsFlow = async (args: {
 
   note(formatVersionsForNote({ packument }), profileDisplayName);
 
-  outro(`Upload with: nori-skillsets upload ${profileDisplayName}@<version>`);
-
   return {
     versions,
     latestVersion: packument["dist-tags"].latest ?? null,
+    statusMessage: `Upload with: nori-skillsets upload ${profileDisplayName}@<version>`,
   };
 };
