@@ -16,15 +16,9 @@ let mockClaudeDir: string;
 let mockClaudeSettingsFile: string;
 
 vi.mock("@/cli/features/claude-code/paths.js", () => ({
-  getClaudeDir: () => mockClaudeDir,
-  getClaudeSettingsFile: () => mockClaudeSettingsFile,
   getClaudeHomeDir: () => mockClaudeDir,
   getClaudeHomeSettingsFile: () => mockClaudeSettingsFile,
-  getClaudeAgentsDir: () => path.join(mockClaudeDir, "agents"),
-  getClaudeCommandsDir: () => path.join(mockClaudeDir, "commands"),
-  getClaudeMdFile: () => path.join(mockClaudeDir, "CLAUDE.md"),
-  getClaudeSkillsDir: () => path.join(mockClaudeDir, "skills"),
-  getClaudeSkillsetsDir: () => path.join(mockClaudeDir, "profiles"),
+  getClaudeHomeCommandsDir: () => path.join(mockClaudeDir, "commands"),
 }));
 
 // Mock cleanupLegacyHooks to prevent it from touching real ~/.claude/settings.json

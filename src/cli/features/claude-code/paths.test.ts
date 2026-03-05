@@ -8,44 +8,12 @@ import * as path from "path";
 import { describe, it, expect } from "vitest";
 
 import {
-  getClaudeDir,
-  getClaudeSettingsFile,
-  getClaudeSkillsDir,
-  getClaudeMdFile,
   getClaudeHomeDir,
   getClaudeHomeSettingsFile,
   getClaudeHomeCommandsDir,
 } from "./paths.js";
 
 describe("Claude Code paths", () => {
-  describe("getClaudeDir", () => {
-    it("should return .claude directory under installDir", () => {
-      const result = getClaudeDir({ installDir: "/home/user" });
-      expect(result).toBe("/home/user/.claude");
-    });
-  });
-
-  describe("getClaudeSettingsFile", () => {
-    it("should return settings.json path under .claude", () => {
-      const result = getClaudeSettingsFile({ installDir: "/home/user" });
-      expect(result).toBe("/home/user/.claude/settings.json");
-    });
-  });
-
-  describe("getClaudeSkillsDir", () => {
-    it("should return skills directory under .claude", () => {
-      const result = getClaudeSkillsDir({ installDir: "/home/user" });
-      expect(result).toBe("/home/user/.claude/skills");
-    });
-  });
-
-  describe("getClaudeMdFile", () => {
-    it("should return CLAUDE.md path under .claude", () => {
-      const result = getClaudeMdFile({ installDir: "/home/user" });
-      expect(result).toBe("/home/user/.claude/CLAUDE.md");
-    });
-  });
-
   describe("getClaudeHomeDir", () => {
     it("should return ~/.claude regardless of installDir", () => {
       const result = getClaudeHomeDir();
