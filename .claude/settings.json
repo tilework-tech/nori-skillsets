@@ -11,11 +11,5 @@
         ]
       }
     ]
-  },
-  "permissions": {
-    "additionalDirectories": [
-      "/home/amol/.nori/profiles",
-      "/home/amol/code/nori/nori-skillsets/.worktrees/new-agents/.claude/skills"
-    ]
   }
 }
