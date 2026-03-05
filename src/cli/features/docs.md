@@ -66,7 +66,7 @@ The `--agent` global CLI option (default: "claude-code") determines which agent 
 | `AgentArtifact` | Describes a discovered configuration artifact (path + type). Used by `findArtifacts` and factory reset. |
 
 **AgentRegistry** (agentRegistry.ts):
-- Singleton pattern. Constructor registers all agent configs directly (imported from their respective agent modules). As of this writing, 12 agents are registered: claude-code, codex, cursor-agent, droid, gemini-cli, github-copilot, goose, kilo, kimi-cli, opencode, openclaw, pi.
+- Singleton pattern. Constructor registers all agent configs directly (imported from their respective agent modules).
 - `get({ name })`: Returns `AgentConfig`, throws if not found.
 - `getAll()`: Returns all registered `AgentConfig` objects.
 - `getAgentDirNames()`: Returns config directory basenames (e.g., `[".claude", ".cursor", ".codex", ".gemini", ...]`). Used by `normalizeInstallDir()` and `resolveInstallDir()` in @/src/utils/path.ts.
