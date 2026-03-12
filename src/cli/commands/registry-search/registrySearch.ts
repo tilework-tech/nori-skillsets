@@ -22,12 +22,65 @@ import {
   extractOrgId,
   buildRegistryUrl,
   buildOrganizationRegistryUrl,
+  isValidOrgId,
 } from "@/utils/url.js";
 
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 import type { RegistryAuth } from "@/cli/config.js";
 import type { SearchFlowResult } from "@/cli/prompts/flows/index.js";
 import type { Command } from "commander";
+
+/**
+ * Result of parsing an org prefix query (e.g., "myorg/")
+ */
+type OrgPrefixQuery = {
+  orgId: string;
+  searchQuery: string;
+};
+
+/**
+ * Parse a query that might be an org prefix pattern (e.g., "myorg/")
+ * When a user searches for "orgname/", they want to list all items from that org
+ *
+ * @param args - The parsing arguments
+ * @param args.query - The raw query string
+ *
+ * @returns Parsed org prefix info if the query matches "orgId/", null otherwise
+ *
+ * @example
+ * parseOrgPrefixQuery({ query: "myorg/" })
+ * // Returns: { orgId: "myorg", searchQuery: "" }
+ * @example
+ * parseOrgPrefixQuery({ query: "public/" })
+ * // Returns: { orgId: "public", searchQuery: "" }
+ * @example
+ * parseOrgPrefixQuery({ query: "typescript" })
+ * // Returns: null (not an org prefix)
+ */
+const parseOrgPrefixQuery = (args: {
+  query: string;
+}): OrgPrefixQuery | null => {
+  const { query } = args;
+
+  // Check if query ends with "/" and has a valid org prefix
+  if (!query.endsWith("/")) {
+    return null;
+  }
+
+  // Extract the org part (everything before the trailing slash)
+  const orgPart = query.slice(0, -1);
+
+  // Validate org ID (must be lowercase alphanumeric with hyphens)
+  // Special case: "public" is always valid
+  if (orgPart !== "public" && !isValidOrgId({ orgId: orgPart })) {
+    return null;
+  }
+
+  return {
+    orgId: orgPart,
+    searchQuery: "",
+  };
+};
 
 /**
  * Result from searching profiles in a registry
@@ -359,75 +412,133 @@ const performSearch = async (args: {
   // Collect results from all registries
   const results: Array<RegistrySearchResult> = [];
 
-  // Check for unified auth with organizations (new multi-org flow)
-  const hasUnifiedAuthWithOrgs =
-    config?.auth != null &&
-    config.auth.refreshToken != null &&
-    config.auth.organizations != null;
+  // Check if query is an org prefix pattern (e.g., "myorg/")
+  const orgPrefix = parseOrgPrefixQuery({ query });
 
-  if (hasUnifiedAuthWithOrgs) {
-    const userOrgs = config.auth!.organizations!;
-    const orgSearchPromises: Array<Promise<RegistrySearchResult>> = [];
+  if (orgPrefix != null) {
+    // User wants to list all items from a specific org
+    const { orgId, searchQuery } = orgPrefix;
 
-    for (const orgId of userOrgs) {
-      if (orgId === "public") {
-        continue;
+    if (orgId === "public") {
+      // Search only public registry with empty query
+      const [publicProfileResult, publicSkillResult] = await Promise.all([
+        searchPublicRegistryProfiles({ query: searchQuery }),
+        searchPublicRegistrySkills({ query: searchQuery }),
+      ]);
+
+      results.push({
+        registryUrl: REGISTRAR_URL,
+        profileResult: publicProfileResult,
+        skillResult: publicSkillResult,
+      });
+    } else {
+      // Search the specific org registry
+      // Check if user has access to this org
+      const hasUnifiedAuth =
+        config?.auth != null && config.auth.refreshToken != null;
+
+      if (hasUnifiedAuth) {
+        const registryUrl = buildOrganizationRegistryUrl({ orgId });
+        const registryAuth: RegistryAuth = {
+          registryUrl,
+          username: config.auth!.username,
+          refreshToken: config.auth!.refreshToken,
+        };
+
+        const [profileResult, skillResult] = await Promise.all([
+          searchOrgRegistryProfiles({
+            query: searchQuery,
+            registryUrl,
+            registryAuth,
+          }),
+          searchOrgRegistrySkills({
+            query: searchQuery,
+            registryUrl,
+            registryAuth,
+          }),
+        ]);
+
+        results.push({ registryUrl, profileResult, skillResult });
+      } else {
+        // No auth configured, can't search org registries
+        return {
+          success: false,
+          error: `Cannot search org "${orgId}" - not authenticated. Run login first.`,
+        };
+      }
+    }
+  } else {
+    // Standard search across all accessible registries
+    // Check for unified auth with organizations (new multi-org flow)
+    const hasUnifiedAuthWithOrgs =
+      config?.auth != null &&
+      config.auth.refreshToken != null &&
+      config.auth.organizations != null;
+
+    if (hasUnifiedAuthWithOrgs) {
+      const userOrgs = config.auth!.organizations!;
+      const orgSearchPromises: Array<Promise<RegistrySearchResult>> = [];
+
+      for (const orgId of userOrgs) {
+        if (orgId === "public") {
+          continue;
+        }
+
+        const registryUrl = buildOrganizationRegistryUrl({ orgId });
+        const registryAuth: RegistryAuth = {
+          registryUrl,
+          username: config.auth!.username,
+          refreshToken: config.auth!.refreshToken,
+        };
+
+        const orgSearchPromise = (async (): Promise<RegistrySearchResult> => {
+          const [profileResult, skillResult] = await Promise.all([
+            searchOrgRegistryProfiles({ query, registryUrl, registryAuth }),
+            searchOrgRegistrySkills({ query, registryUrl, registryAuth }),
+          ]);
+          return { registryUrl, profileResult, skillResult };
+        })();
+
+        orgSearchPromises.push(orgSearchPromise);
       }
 
-      const registryUrl = buildOrganizationRegistryUrl({ orgId });
-      const registryAuth: RegistryAuth = {
-        registryUrl,
-        username: config.auth!.username,
-        refreshToken: config.auth!.refreshToken,
-      };
+      const orgResults = await Promise.all(orgSearchPromises);
+      results.push(...orgResults);
+    } else if (
+      config?.auth != null &&
+      config.auth.organizationUrl != null &&
+      config.auth.refreshToken != null
+    ) {
+      const orgId = extractOrgId({ url: config.auth.organizationUrl });
+      if (orgId != null) {
+        const registryUrl = buildRegistryUrl({ orgId });
+        const registryAuth: RegistryAuth = {
+          registryUrl,
+          username: config.auth.username,
+          refreshToken: config.auth.refreshToken,
+        };
 
-      const orgSearchPromise = (async (): Promise<RegistrySearchResult> => {
         const [profileResult, skillResult] = await Promise.all([
           searchOrgRegistryProfiles({ query, registryUrl, registryAuth }),
           searchOrgRegistrySkills({ query, registryUrl, registryAuth }),
         ]);
-        return { registryUrl, profileResult, skillResult };
-      })();
 
-      orgSearchPromises.push(orgSearchPromise);
+        results.push({ registryUrl, profileResult, skillResult });
+      }
     }
 
-    const orgResults = await Promise.all(orgSearchPromises);
-    results.push(...orgResults);
-  } else if (
-    config?.auth != null &&
-    config.auth.organizationUrl != null &&
-    config.auth.refreshToken != null
-  ) {
-    const orgId = extractOrgId({ url: config.auth.organizationUrl });
-    if (orgId != null) {
-      const registryUrl = buildRegistryUrl({ orgId });
-      const registryAuth: RegistryAuth = {
-        registryUrl,
-        username: config.auth.username,
-        refreshToken: config.auth.refreshToken,
-      };
+    // Always search public registry
+    const [publicProfileResult, publicSkillResult] = await Promise.all([
+      searchPublicRegistryProfiles({ query }),
+      searchPublicRegistrySkills({ query }),
+    ]);
 
-      const [profileResult, skillResult] = await Promise.all([
-        searchOrgRegistryProfiles({ query, registryUrl, registryAuth }),
-        searchOrgRegistrySkills({ query, registryUrl, registryAuth }),
-      ]);
-
-      results.push({ registryUrl, profileResult, skillResult });
-    }
+    results.push({
+      registryUrl: REGISTRAR_URL,
+      profileResult: publicProfileResult,
+      skillResult: publicSkillResult,
+    });
   }
-
-  // Always search public registry
-  const [publicProfileResult, publicSkillResult] = await Promise.all([
-    searchPublicRegistryProfiles({ query }),
-    searchPublicRegistrySkills({ query }),
-  ]);
-
-  results.push({
-    registryUrl: REGISTRAR_URL,
-    profileResult: publicProfileResult,
-    skillResult: publicSkillResult,
-  });
 
   // Check if we have any results or all errors
   const hasProfileResults = results.some(
