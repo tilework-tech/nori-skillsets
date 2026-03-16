@@ -11,7 +11,7 @@ The Nori Skillsets Client connects you to [noriskillsets.dev](https://noriskills
 
 For complete documentation and to browse available Skillsets, visit:
 - **Skillsets Registry**: [noriskillsets.dev](https://noriskillsets.dev/)
-- **Documentation**: [usenori.ai/docs/skillsets.html](https://usenori.ai/docs/skillsets.html)
+- **Documentation**: [noriskillsets.dev/docs](https://noriskillsets.dev/docs/building-a-skillset)
 
 ## What is a Skillset?
 
@@ -113,12 +113,12 @@ Teams can set up private registries to share custom Skillsets across the organiz
 - Teammates install the exact setup that proved successful
 - Optional Skills Review service: professional evaluation before publication
 
-Contact us at [usenori.ai](https://usenori.ai/#contact) to set up a private registry for your team.
+Contact us at [noriagentic.com](https://noriagentic.com) to set up a private registry for your team.
 
 ## Resources
 
 - **Skillsets Registry**: [noriskillsets.dev](https://noriskillsets.dev/)
-- **Documentation**: [usenori.ai/docs/skillsets.html](https://usenori.ai/docs/skillsets.html)
+- **Documentation**: [noriskillsets.dev/docs](https://noriskillsets.dev/docs/building-a-skillset)
 - **GitHub**: [github.com/tilework-tech/nori-skillsets](https://github.com/tilework-tech/nori-skillsets)
 - **npm**: [npmjs.com/package/nori-skillsets](https://www.npmjs.com/package/nori-skillsets)
-- **Contact**: [usenori.ai](https://usenori.ai/#contact)
+- **Contact**: [noriagentic.com](https://noriagentic.com)
