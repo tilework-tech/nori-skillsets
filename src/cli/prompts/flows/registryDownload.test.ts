@@ -593,5 +593,4 @@ describe("registryDownloadFlow", () => {
       expect(mockCallbacks.onDownload).not.toHaveBeenCalled();
     });
   });
-
 });
