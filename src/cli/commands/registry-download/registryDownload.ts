@@ -526,6 +526,8 @@ const formatMultiplePackagesError = (args: {
  * @param args.registryUrl - Optional registry URL to download from
  * @param args.listVersions - If true, list available versions instead of downloading
  * @param args.cliName - CLI name for user-facing messages (defaults to nori-skillsets)
+ * @param args.nonInteractive - If true, skip interactive prompts and use defaults
+ * @param args.silent - If true, suppress output (implies nonInteractive)
  *
  * @returns Result indicating success or failure
  */
@@ -536,8 +538,18 @@ export const registryDownloadMain = async (args: {
   registryUrl?: string | null;
   listVersions?: boolean | null;
   cliName?: CliName | null;
+  nonInteractive?: boolean | null;
+  silent?: boolean | null;
 }): Promise<CommandStatus> => {
-  const { packageSpec, installDir, registryUrl, listVersions, cliName } = args;
+  const {
+    packageSpec,
+    installDir,
+    registryUrl,
+    listVersions,
+    cliName,
+    nonInteractive,
+    silent,
+  } = args;
   const commandNames = getCommandNames({ cliName });
   const cliPrefix = cliName ?? "nori-skillsets";
 
@@ -572,7 +584,7 @@ export const registryDownloadMain = async (args: {
     try {
       await initMain({
         installDir: resolvedInstallDir,
-        nonInteractive: false,
+        nonInteractive: nonInteractive ?? silent ?? false,
         skipWarning: true,
       });
     } catch (err) {
@@ -611,6 +623,7 @@ export const registryDownloadMain = async (args: {
 
   const result = await registryDownloadFlow({
     packageDisplayName: profileDisplayName,
+    nonInteractive: nonInteractive ?? silent ?? null,
     callbacks: {
       onSearch: async (): Promise<DownloadSearchResult> => {
         // Inline search logic
@@ -986,6 +999,8 @@ export const registerRegistryDownloadCommand = (args: {
           installDir: globalOpts.installDir || null,
           registryUrl: options.registry || null,
           listVersions: options.listVersions || null,
+          nonInteractive: globalOpts.nonInteractive || null,
+          silent: globalOpts.silent || null,
         });
 
         if (!result.success) {

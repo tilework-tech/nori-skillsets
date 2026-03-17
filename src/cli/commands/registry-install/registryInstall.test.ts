@@ -136,6 +136,8 @@ describe("registry-install", () => {
       installDir: "/mock-home",
       registryUrl: null,
       listVersions: null,
+      nonInteractive: null,
+      silent: null,
     });
 
     // Step 2: Initial install with the downloaded skillset - should use home dir
@@ -168,6 +170,8 @@ describe("registry-install", () => {
       installDir: "/mock-home",
       registryUrl: null,
       listVersions: null,
+      nonInteractive: null,
+      silent: null,
     });
 
     // Step 3: Switch to downloaded skillset
@@ -201,6 +205,8 @@ describe("registry-install", () => {
       installDir: "/mock-home",
       registryUrl: null,
       listVersions: null,
+      nonInteractive: null,
+      silent: null,
     });
 
     expect(installMain).toHaveBeenCalledWith({
@@ -222,6 +228,8 @@ describe("registry-install", () => {
       installDir: "/mock-home",
       registryUrl: null,
       listVersions: null,
+      nonInteractive: null,
+      silent: null,
     });
 
     expect(installMain).toHaveBeenCalledWith({
@@ -250,6 +258,8 @@ describe("registry-install", () => {
       installDir: "/mock-home",
       registryUrl: null,
       listVersions: null,
+      nonInteractive: null,
+      silent: null,
     });
 
     // Install should NOT have been called
@@ -427,6 +437,32 @@ describe("registry-install", () => {
     expect(result.success).toBe(true);
     expect(result.message).toBe(
       `Installed and activated skillset "${bold({ text: "senior-swe" })}"`,
+    );
+  });
+
+  it("should pass nonInteractive to registryDownloadMain", async () => {
+    await registryInstallMain({
+      packageSpec: "senior-swe",
+      nonInteractive: true,
+    });
+
+    expect(registryDownloadMain).toHaveBeenCalledWith(
+      expect.objectContaining({
+        nonInteractive: true,
+      }),
+    );
+  });
+
+  it("should pass silent to registryDownloadMain", async () => {
+    await registryInstallMain({
+      packageSpec: "senior-swe",
+      silent: true,
+    });
+
+    expect(registryDownloadMain).toHaveBeenCalledWith(
+      expect.objectContaining({
+        silent: true,
+      }),
     );
   });
 });

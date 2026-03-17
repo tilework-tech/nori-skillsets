@@ -527,4 +527,36 @@ describe("skillDownloadFlow", () => {
       expect(noteCall![0]).not.toContain("Added");
     });
   });
+
+  describe("non-interactive mode: already-current", () => {
+    beforeEach(() => {
+      mockCallbacks.onSearch = vi.fn().mockResolvedValue({
+        status: "already-current",
+        version: "1.0.0",
+      });
+    });
+
+    it("should skip confirm prompt and return already up to date", async () => {
+      const result = await skillDownloadFlow({
+        skillDisplayName: "my-skill",
+        nonInteractive: true,
+        callbacks: mockCallbacks,
+      });
+
+      expect(clack.confirm).not.toHaveBeenCalled();
+      expect(result?.statusMessage).toContain("Already up to date");
+      expect(result?.version).toBe("1.0.0");
+      expect(result?.isUpdate).toBe(false);
+    });
+
+    it("should not call onDownload", async () => {
+      await skillDownloadFlow({
+        skillDisplayName: "my-skill",
+        nonInteractive: true,
+        callbacks: mockCallbacks,
+      });
+
+      expect(mockCallbacks.onDownload).not.toHaveBeenCalled();
+    });
+  });
 });

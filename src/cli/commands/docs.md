@@ -21,14 +21,16 @@ The file defines `wrapWithFraming()`, which enforces the three-layer separation 
 ```
 Registration layer (noriSkillsetsCommands.ts)      <-- intro() / outro() live here
     |
-    +-- wrapWithFraming({ title, action, exitOnFailure? })
+    +-- wrapWithFraming({ title, action, exitOnFailure?, silent? })
             |
-            +-- calls intro(title) before the action
+            +-- calls intro(title) before the action (suppressed when silent)
             +-- calls action(), which returns { success, cancelled, message }
-            +-- calls outro(result.message) after (skipped when cancelled)
+            +-- calls outro(result.message) after (suppressed when cancelled or silent)
             +-- calls process.exit(1) if exitOnFailure && !success
-            +-- catches thrown errors, displays them via outro, and exits
+            +-- catches thrown errors, displays them via outro (suppressed when silent), and exits
 ```
+
+When `silent` is true, `wrapWithFraming` suppresses all `intro()`/`outro()` output, including error messages. The `silent` flag is forwarded from the global `--silent` CLI option at the registration layer.
 
 Commands that do not need visual framing (single-step, scriptable, or producing raw output) are called directly without `wrapWithFraming`. These include `clear`, `completion`, `list`, `current`, `logout`, `dir`, `install-location`, and `watch stop`.
 
@@ -75,7 +77,7 @@ The change detection is delegated to `agent.detectLocalChanges()`, which interna
 
 ### Things to Know
 
-Command implementations follow a consistent pattern: the subdirectory exports a `*Main` function containing the business logic and a `register*Command` function for Commander registration. All `*Main` functions return `CommandStatus` (from `@/cli/commands/commandStatus.ts`) with `success`, `cancelled`, and `message` fields. Commands do not call `intro()` or `outro()` from `@clack/prompts` directly; visual framing is the responsibility of the top-level caller. The `noriSkillsetsCommands.ts` file uses its own registration wrappers rather than calling `register*Command` directly, because it adds global option forwarding (e.g., `installDir`, `nonInteractive`, `silent`).
+Command implementations follow a consistent pattern: the subdirectory exports a `*Main` function containing the business logic and a `register*Command` function for Commander registration. All `*Main` functions return `CommandStatus` (from `@/cli/commands/commandStatus.ts`) with `success`, `cancelled`, and `message` fields. Commands do not call `intro()` or `outro()` from `@clack/prompts` directly; visual framing is the responsibility of the top-level caller. The `noriSkillsetsCommands.ts` file uses its own registration wrappers rather than calling `register*Command` directly, because it adds global option forwarding (e.g., `installDir`, `nonInteractive`, `silent`). The `install`, `download`, and `download-skill` commands all forward `nonInteractive` and `silent` from `globalOpts` (extracted via `program.opts()`) to their respective `*Main` functions, which in turn propagate them to interactive flows. The coercion pattern is `nonInteractive ?? silent ?? false` at the boundary where a boolean is needed, so `--silent` implies non-interactive behavior.
 
 - **Config persistence is the command layer's responsibility:** The `installDir` field in `.nori-config.json` has a single writer: `sks config`. The `activeSkillset` field is persisted by the command layer (`switch-skillset`, `registry-install`) via `updateConfig()`, gated on the install directory provenance: when `resolved.source === "cli"`, config persistence is skipped to prevent transient `--install-dir` overrides from writing state to `.nori-config.json`. Agent-layer `switchSkillset()` methods only validate and log -- they no longer call `updateConfig()`. All commands use `resolveInstallDir()` at runtime to determine the operational install directory (CLI `--install-dir` flag > config > home dir) but never write `installDir` back to config. When the install command's `noninteractive()` function needs to pass a runtime `installDir` override to `completeInstallation()`, it overlays it on the reloaded config object (`{ ...config, installDir: normalizedInstallDir }`) rather than persisting it.
 - **`skipManifest` derived from install-dir provenance:** Commands derive `skipManifest` from the `source` field of the `ResolvedInstallDir` returned by `resolveInstallDir()` (from @/src/utils/path.ts). When `resolved.source === "cli"`, it means the install directory came from a transient `--install-dir` CLI flag, and `skipManifest` is set to `true`. This skips both manifest reads (`detectLocalChanges`) and writes (`computeDirectoryManifest`/`writeManifest`). The manifest is stored globally per-agent at `~/.nori/manifests/<agentName>.json` keyed only by agent name, so comparing it against a transient directory would produce false "deleted file" warnings. The provenance check happens at the command boundary (`switchSkillset`, `registryInstall`) where the resolved install dir is available, and the boolean is threaded through `install.main()` -> `noninteractive()` -> `completeInstallation()` -> `agent.installSkillset()`.
