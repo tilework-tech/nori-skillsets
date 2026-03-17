@@ -78,14 +78,16 @@ export type SkillDownloadFlowResult = {
  * @param args - Flow configuration
  * @param args.skillDisplayName - Display name of the skill being downloaded
  * @param args.callbacks - Callback functions for searching and downloading
+ * @param args.nonInteractive - If true, skip interactive prompts and use defaults
  *
  * @returns Download result on success, null on failure
  */
 export const skillDownloadFlow = async (args: {
   skillDisplayName: string;
+  nonInteractive?: boolean | null;
   callbacks: SkillDownloadFlowCallbacks;
 }): Promise<SkillDownloadFlowResult | null> => {
-  const { skillDisplayName, callbacks } = args;
+  const { skillDisplayName, nonInteractive, callbacks } = args;
 
   const s = spinner();
 
@@ -108,6 +110,14 @@ export const skillDownloadFlow = async (args: {
     log.success(
       `Skill "${skillDisplayName}" is already at version ${searchResult.version}.`,
     );
+
+    if (nonInteractive) {
+      return {
+        version: searchResult.version,
+        isUpdate: false,
+        statusMessage: "Already up to date",
+      };
+    }
 
     const redownload = unwrapPrompt({
       value: await confirm({

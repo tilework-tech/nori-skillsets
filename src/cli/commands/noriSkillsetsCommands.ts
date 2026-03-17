@@ -45,6 +45,7 @@ import type { Command } from "commander";
  * @param args.title - The intro title to display
  * @param args.action - The async action to execute
  * @param args.exitOnFailure - If true, call process.exit(1) when result.success is false
+ * @param args.silent - If true, suppress intro/outro framing output
  */
 const wrapWithFraming = async <
   T extends { success: boolean; cancelled: boolean; message: string },
@@ -52,19 +53,24 @@ const wrapWithFraming = async <
   title: string;
   action: () => Promise<T>;
   exitOnFailure?: boolean | null;
+  silent?: boolean | null;
 }): Promise<void> => {
-  const { title, action, exitOnFailure } = args;
-  intro(title);
+  const { title, action, exitOnFailure, silent } = args;
+  if (!silent) {
+    intro(title);
+  }
   try {
     const result = await action();
-    if (!result.cancelled) {
+    if (!result.cancelled && !silent) {
       outro(result.message);
     }
     if (exitOnFailure && !result.success && !result.cancelled) {
       process.exit(1);
     }
   } catch (err) {
-    outro(`Error: ${err instanceof Error ? err.message : String(err)}`);
+    if (!silent) {
+      outro(`Error: ${err instanceof Error ? err.message : String(err)}`);
+    }
     process.exit(1);
   }
 };
@@ -327,6 +333,7 @@ export const registerNoriSkillsetsDownloadCommand = (args: {
         await wrapWithFraming({
           title: "Download Skillset",
           exitOnFailure: true,
+          silent: globalOpts.silent || null,
           action: () =>
             registryDownloadMain({
               packageSpec,
@@ -334,6 +341,8 @@ export const registerNoriSkillsetsDownloadCommand = (args: {
               registryUrl: options.registry || null,
               listVersions: options.listVersions || null,
               cliName: "nori-skillsets",
+              nonInteractive: globalOpts.nonInteractive || null,
+              silent: globalOpts.silent || null,
             }),
         });
       },
@@ -413,10 +422,12 @@ export const registerNoriSkillsetsInstallCommand = (args: {
       await wrapWithFraming({
         title: "Install Skillset",
         exitOnFailure: true,
+        silent: globalOpts.silent || null,
         action: () =>
           registryInstallMain({
             packageSpec,
             installDir: globalOpts.installDir || null,
+            nonInteractive: globalOpts.nonInteractive || null,
             silent: globalOpts.silent || null,
             agent: globalOpts.agent || null,
           }),
@@ -513,6 +524,7 @@ export const registerNoriSkillsetsDownloadSkillCommand = (args: {
 
         await wrapWithFraming({
           title: "Download Skill",
+          silent: globalOpts.silent || null,
           action: () =>
             skillDownloadMain({
               skillSpec,
@@ -521,6 +533,8 @@ export const registerNoriSkillsetsDownloadSkillCommand = (args: {
               listVersions: options.listVersions || null,
               skillset: options.skillset || null,
               cliName: "nori-skillsets",
+              nonInteractive: globalOpts.nonInteractive || null,
+              silent: globalOpts.silent || null,
             }),
         });
       },

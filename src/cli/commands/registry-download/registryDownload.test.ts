@@ -2176,6 +2176,58 @@ describe("registry-download", () => {
       expect(allErrorOutput.toLowerCase()).toContain("not found");
     });
   });
+
+  describe("non-interactive mode", () => {
+    it("should pass nonInteractive to initMain during auto-init", async () => {
+      const emptyHomeDir = await fs.mkdtemp(
+        path.join(tmpdir(), "nori-empty-home-ni-"),
+      );
+      mockHomedir = emptyHomeDir;
+
+      vi.mocked(initMain).mockImplementation(async (args) => {
+        const installDir = args?.installDir ?? emptyHomeDir;
+        await fs.writeFile(
+          path.join(installDir, ".nori-config.json"),
+          JSON.stringify({ activeSkillset: null }),
+        );
+        await fs.mkdir(path.join(installDir, ".nori", "profiles"), {
+          recursive: true,
+        });
+        return {
+          success: true,
+          cancelled: false,
+          message: "Nori initialized successfully",
+        };
+      });
+
+      vi.mocked(loadConfig).mockResolvedValueOnce(null);
+
+      vi.mocked(registrarApi.getPackument).mockResolvedValue({
+        name: "test-profile",
+        "dist-tags": { latest: "1.0.0" },
+        versions: { "1.0.0": { name: "test-profile", version: "1.0.0" } },
+      });
+
+      const mockTarball = await createMockTarball();
+      vi.mocked(registrarApi.downloadTarball).mockResolvedValue(mockTarball);
+
+      try {
+        await registryDownloadMain({
+          packageSpec: "test-profile",
+          cwd: emptyHomeDir,
+          nonInteractive: true,
+        });
+
+        expect(initMain).toHaveBeenCalledWith({
+          installDir: emptyHomeDir,
+          nonInteractive: true,
+          skipWarning: true,
+        });
+      } finally {
+        await fs.rm(emptyHomeDir, { recursive: true, force: true });
+      }
+    });
+  });
 });
 
 /**
