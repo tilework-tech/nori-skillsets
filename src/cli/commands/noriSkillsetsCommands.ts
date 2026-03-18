@@ -879,10 +879,32 @@ export const registerNoriSkillsetsConfigCommand = (args: {
   program
     .command("config")
     .description("Configure default agent and install directory")
-    .action(async () => {
-      await wrapWithFraming({
-        title: "Configure Nori",
-        action: () => configMain(),
-      });
-    });
+    .option(
+      "--agents <agents>",
+      "Comma-separated list of agents (e.g., claude-code,cursor)",
+    )
+    .option(
+      "--redownload-on-switch",
+      "Enable re-download prompt on skillset switch",
+    )
+    .option(
+      "--no-redownload-on-switch",
+      "Disable re-download prompt on skillset switch",
+    )
+    .action(
+      async (options: { agents?: string; redownloadOnSwitch?: boolean }) => {
+        const globalOpts = program.opts();
+        await wrapWithFraming({
+          title: "Configure Nori",
+          silent: globalOpts.silent || null,
+          action: () =>
+            configMain({
+              agents: options.agents ?? null,
+              installDir: globalOpts.installDir || null,
+              redownloadOnSwitch: options.redownloadOnSwitch ?? null,
+              nonInteractive: globalOpts.nonInteractive || null,
+            }),
+        });
+      },
+    );
 };
