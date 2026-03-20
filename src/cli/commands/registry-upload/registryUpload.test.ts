@@ -2756,6 +2756,174 @@ describe("registry-upload", () => {
           await fs.chmod(skillsetDir, 0o755);
         }
       });
+
+      it("should update local dependency versions for linked skills after interactive upload", async () => {
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        const skillDir = path.join(skillsetDir, "skills", "my-skill");
+        await fs.mkdir(skillDir, { recursive: true });
+        await fs.writeFile(
+          path.join(skillsetDir, "nori.json"),
+          JSON.stringify({
+            name: "my-profile",
+            version: "1.0.0",
+            type: "skillset",
+          }),
+        );
+        await fs.writeFile(path.join(skillDir, "SKILL.md"), "# My Skill\n");
+        await fs.writeFile(
+          path.join(skillDir, "nori.json"),
+          JSON.stringify({
+            name: "my-skill",
+            version: "1.0.0",
+            type: "skill",
+          }),
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+
+        // First upload fails with conflict — skill exists on remote at v3.0.0
+        const collisionError = {
+          message: "Skill conflicts detected",
+          conflicts: [
+            {
+              skillId: "my-skill",
+              exists: true,
+              canPublish: true,
+              latestVersion: "3.0.0",
+              owner: "me@example.com",
+              availableActions: [
+                "link",
+                "namespace",
+                "updateVersion",
+                "cancel",
+              ],
+              contentUnchanged: false,
+            },
+          ],
+        };
+
+        vi.mocked(registrarApi.uploadSkillset)
+          .mockRejectedValueOnce(collisionError)
+          .mockResolvedValueOnce({
+            name: "my-profile",
+            version: "2.0.0",
+            tarballSha: "abc123",
+            createdAt: new Date().toISOString(),
+          });
+
+        // User chooses "link" (use existing remote version)
+        vi.mocked(clack.select).mockResolvedValue("link");
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+        });
+
+        expect(result.success).toBe(true);
+
+        // Local nori.json should have dependencies.skills with the linked version
+        const noriJson = JSON.parse(
+          await fs.readFile(path.join(skillsetDir, "nori.json"), "utf-8"),
+        );
+        expect(noriJson.dependencies?.skills?.["my-skill"]).toBe("3.0.0");
+      });
+
+      it("should update local dependency versions for auto-resolved linked skills", async () => {
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        const skillDir = path.join(skillsetDir, "skills", "my-skill");
+        await fs.mkdir(skillDir, { recursive: true });
+        await fs.writeFile(
+          path.join(skillsetDir, "nori.json"),
+          JSON.stringify({
+            name: "my-profile",
+            version: "1.0.0",
+            type: "skillset",
+          }),
+        );
+        await fs.writeFile(path.join(skillDir, "SKILL.md"), "# My Skill\n");
+        await fs.writeFile(
+          path.join(skillDir, "nori.json"),
+          JSON.stringify({
+            name: "my-skill",
+            version: "1.0.0",
+            type: "skill",
+          }),
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+
+        // First upload fails with conflict — content unchanged, auto-resolves to link
+        const collisionError = {
+          message: "Skill conflicts detected",
+          conflicts: [
+            {
+              skillId: "my-skill",
+              exists: true,
+              canPublish: true,
+              latestVersion: "5.0.0",
+              owner: "me@example.com",
+              availableActions: [
+                "link",
+                "namespace",
+                "updateVersion",
+                "cancel",
+              ],
+              contentUnchanged: true,
+            },
+          ],
+        };
+
+        vi.mocked(registrarApi.uploadSkillset)
+          .mockRejectedValueOnce(collisionError)
+          .mockResolvedValueOnce({
+            name: "my-profile",
+            version: "2.0.0",
+            tarballSha: "abc123",
+            createdAt: new Date().toISOString(),
+          });
+
+        // Interactive mode — contentUnchanged: true means auto-resolve to link (no prompt)
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+        });
+
+        expect(result.success).toBe(true);
+
+        // Local nori.json should have dependencies.skills with the auto-linked version
+        const noriJson = JSON.parse(
+          await fs.readFile(path.join(skillsetDir, "nori.json"), "utf-8"),
+        );
+        expect(noriJson.dependencies?.skills?.["my-skill"]).toBe("5.0.0");
+      });
     });
   });
 });

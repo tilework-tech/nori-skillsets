@@ -287,14 +287,22 @@ const createCandidateNoriJsonFiles = async (args: {
  * @param args.uploadedVersion - The version that was uploaded
  * @param args.registryUrl - The registry URL
  * @param args.extractedSkills - Optional extracted skills info from the response
+ * @param args.linkedSkillVersions - Optional map of linked skill IDs to their remote versions
  */
 const syncLocalStateAfterUpload = async (args: {
   skillsetDir: string;
   uploadedVersion: string;
   registryUrl: string;
   extractedSkills?: ExtractedSkillsSummary | null;
+  linkedSkillVersions?: Map<string, string> | null;
 }): Promise<void> => {
-  const { skillsetDir, uploadedVersion, registryUrl, extractedSkills } = args;
+  const {
+    skillsetDir,
+    uploadedVersion,
+    registryUrl,
+    extractedSkills,
+    linkedSkillVersions,
+  } = args;
 
   // Update skillset nori.json version and registryURL
   let metadata: NoriJson;
@@ -351,6 +359,20 @@ const syncLocalStateAfterUpload = async (args: {
       } catch {
         // Skill nori.json may not exist (e.g., inlined skills)
       }
+    }
+  }
+
+  // Update dependency versions for linked skills (kept existing remote version)
+  if (linkedSkillVersions != null && linkedSkillVersions.size > 0) {
+    if (metadata.dependencies == null) {
+      metadata.dependencies = {};
+    }
+    if (metadata.dependencies.skills == null) {
+      metadata.dependencies.skills = {};
+    }
+
+    for (const [skillId, version] of linkedSkillVersions) {
+      metadata.dependencies.skills[skillId] = version;
     }
   }
 
@@ -604,6 +626,7 @@ export const registryUploadMain = async (args: {
   const trySyncLocalState = async (syncArgs: {
     uploadedVersion: string;
     extractedSkills?: ExtractedSkillsSummary | null;
+    linkedSkillVersions?: Map<string, string> | null;
   }): Promise<void> => {
     try {
       await syncLocalStateAfterUpload({
@@ -785,6 +808,7 @@ export const registryUploadMain = async (args: {
   await trySyncLocalState({
     uploadedVersion: result.version,
     extractedSkills: result.extractedSkills,
+    linkedSkillVersions: result.linkedSkillVersions,
   });
 
   return {
