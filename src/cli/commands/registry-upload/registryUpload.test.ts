@@ -2416,5 +2416,514 @@ describe("registry-upload", () => {
         expect(skillNoriJson.type).toBe("skill");
       });
     });
+
+    describe("post-upload local state sync", () => {
+      it("should update local nori.json version after successful upload", async () => {
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
+        await fs.writeFile(
+          path.join(skillsetDir, "nori.json"),
+          JSON.stringify({
+            name: "my-profile",
+            version: "1.0.0",
+            type: "skillset",
+          }),
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+
+        vi.mocked(registrarApi.getPackument).mockResolvedValue({
+          name: "my-profile",
+          "dist-tags": { latest: "1.0.0" },
+          versions: {
+            "1.0.0": { name: "my-profile", version: "1.0.0" },
+          },
+        });
+
+        vi.mocked(registrarApi.uploadSkillset).mockResolvedValue({
+          name: "my-profile",
+          version: "1.0.1",
+          tarballSha: "abc123",
+          createdAt: new Date().toISOString(),
+        });
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+        });
+
+        expect(result.success).toBe(true);
+
+        const noriJson = JSON.parse(
+          await fs.readFile(path.join(skillsetDir, "nori.json"), "utf-8"),
+        );
+        expect(noriJson.version).toBe("1.0.1");
+      });
+
+      it("should write .nori-version file after successful upload", async () => {
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
+        await fs.writeFile(
+          path.join(skillsetDir, "nori.json"),
+          JSON.stringify({
+            name: "my-profile",
+            version: "1.0.0",
+            type: "skillset",
+          }),
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+
+        vi.mocked(registrarApi.uploadSkillset).mockResolvedValue({
+          name: "my-profile",
+          version: "1.0.0",
+          tarballSha: "abc123",
+          createdAt: new Date().toISOString(),
+        });
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+        });
+
+        expect(result.success).toBe(true);
+
+        const versionInfo = JSON.parse(
+          await fs.readFile(path.join(skillsetDir, ".nori-version"), "utf-8"),
+        );
+        expect(versionInfo.version).toBe("1.0.0");
+        expect(versionInfo.registryUrl).toContain("myorg");
+
+        const noriJson = JSON.parse(
+          await fs.readFile(path.join(skillsetDir, "nori.json"), "utf-8"),
+        );
+        expect(noriJson.registryURL).toContain("myorg");
+      });
+
+      it("should update extracted skill versions in local nori.json after upload", async () => {
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
+        await fs.writeFile(
+          path.join(skillsetDir, "nori.json"),
+          JSON.stringify({
+            name: "my-profile",
+            version: "1.0.0",
+            type: "skillset",
+          }),
+        );
+
+        const skillDir = path.join(skillsetDir, "skills", "my-skill");
+        await fs.mkdir(skillDir, { recursive: true });
+        await fs.writeFile(
+          path.join(skillDir, "SKILL.md"),
+          "---\nname: my-skill\ndescription: A skill\n---\n",
+        );
+        await fs.writeFile(
+          path.join(skillDir, "nori.json"),
+          JSON.stringify({
+            name: "my-skill",
+            version: "1.0.0",
+            type: "skill",
+          }),
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+
+        vi.mocked(registrarApi.uploadSkillset).mockResolvedValue({
+          name: "my-profile",
+          version: "1.0.0",
+          tarballSha: "abc123",
+          createdAt: new Date().toISOString(),
+          extractedSkills: {
+            succeeded: [{ name: "my-skill", version: "2.0.0" }],
+            failed: [],
+          },
+        });
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+        });
+
+        expect(result.success).toBe(true);
+
+        // Skill nori.json should have the version from the server response
+        const skillNoriJson = JSON.parse(
+          await fs.readFile(path.join(skillDir, "nori.json"), "utf-8"),
+        );
+        expect(skillNoriJson.version).toBe("2.0.0");
+
+        // Skillset nori.json dependencies should be updated
+        const skillsetNoriJson = JSON.parse(
+          await fs.readFile(path.join(skillsetDir, "nori.json"), "utf-8"),
+        );
+        expect(skillsetNoriJson.dependencies?.skills?.["my-skill"]).toBe(
+          "2.0.0",
+        );
+      });
+
+      it("should NOT sync local state during dry-run", async () => {
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
+        await fs.writeFile(
+          path.join(skillsetDir, "nori.json"),
+          JSON.stringify({
+            name: "my-profile",
+            version: "1.0.0",
+            type: "skillset",
+          }),
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+          dryRun: true,
+        });
+
+        expect(result.success).toBe(true);
+
+        // nori.json version should be unchanged
+        const noriJson = JSON.parse(
+          await fs.readFile(path.join(skillsetDir, "nori.json"), "utf-8"),
+        );
+        expect(noriJson.version).toBe("1.0.0");
+
+        // .nori-version should not exist
+        await expect(
+          fs.access(path.join(skillsetDir, ".nori-version")),
+        ).rejects.toThrow();
+      });
+
+      it("should sync local state in silent mode", async () => {
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
+        await fs.writeFile(
+          path.join(skillsetDir, "nori.json"),
+          JSON.stringify({
+            name: "my-profile",
+            version: "1.0.0",
+            type: "skillset",
+          }),
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+
+        vi.mocked(registrarApi.uploadSkillset).mockResolvedValue({
+          name: "my-profile",
+          version: "1.0.0",
+          tarballSha: "abc123",
+          createdAt: new Date().toISOString(),
+        });
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+          silent: true,
+        });
+
+        expect(result.success).toBe(true);
+
+        // nori.json version should be updated
+        const noriJson = JSON.parse(
+          await fs.readFile(path.join(skillsetDir, "nori.json"), "utf-8"),
+        );
+        expect(noriJson.version).toBe("1.0.0");
+
+        // .nori-version should exist
+        const versionInfo = JSON.parse(
+          await fs.readFile(path.join(skillsetDir, ".nori-version"), "utf-8"),
+        );
+        expect(versionInfo.version).toBe("1.0.0");
+      });
+
+      it("should still return success when sync fails but upload succeeded", async () => {
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
+        await fs.writeFile(
+          path.join(skillsetDir, "nori.json"),
+          JSON.stringify({
+            name: "my-profile",
+            version: "1.0.0",
+            type: "skillset",
+          }),
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+
+        vi.mocked(registrarApi.uploadSkillset).mockResolvedValue({
+          name: "my-profile",
+          version: "1.0.0",
+          tarballSha: "abc123",
+          createdAt: new Date().toISOString(),
+        });
+
+        // Make the skillset directory read+execute but not writable to force sync failure
+        await fs.chmod(skillsetDir, 0o555);
+
+        try {
+          const result = await registryUploadMain({
+            profileSpec: "myorg/my-profile",
+            cwd: testDir,
+            silent: true,
+          });
+
+          // Upload should still succeed even though sync failed
+          expect(result.success).toBe(true);
+        } finally {
+          // Restore permissions for cleanup
+          await fs.chmod(skillsetDir, 0o755);
+        }
+      });
+
+      it("should update local dependency versions for linked skills after interactive upload", async () => {
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        const skillDir = path.join(skillsetDir, "skills", "my-skill");
+        await fs.mkdir(skillDir, { recursive: true });
+        await fs.writeFile(
+          path.join(skillsetDir, "nori.json"),
+          JSON.stringify({
+            name: "my-profile",
+            version: "1.0.0",
+            type: "skillset",
+          }),
+        );
+        await fs.writeFile(path.join(skillDir, "SKILL.md"), "# My Skill\n");
+        await fs.writeFile(
+          path.join(skillDir, "nori.json"),
+          JSON.stringify({
+            name: "my-skill",
+            version: "1.0.0",
+            type: "skill",
+          }),
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+
+        // First upload fails with conflict — skill exists on remote at v3.0.0
+        const collisionError = {
+          message: "Skill conflicts detected",
+          conflicts: [
+            {
+              skillId: "my-skill",
+              exists: true,
+              canPublish: true,
+              latestVersion: "3.0.0",
+              owner: "me@example.com",
+              availableActions: [
+                "link",
+                "namespace",
+                "updateVersion",
+                "cancel",
+              ],
+              contentUnchanged: false,
+            },
+          ],
+        };
+
+        vi.mocked(registrarApi.uploadSkillset)
+          .mockRejectedValueOnce(collisionError)
+          .mockResolvedValueOnce({
+            name: "my-profile",
+            version: "2.0.0",
+            tarballSha: "abc123",
+            createdAt: new Date().toISOString(),
+          });
+
+        // User chooses "link" (use existing remote version)
+        vi.mocked(clack.select).mockResolvedValue("link");
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+        });
+
+        expect(result.success).toBe(true);
+
+        // Local nori.json should have dependencies.skills with the linked version
+        const noriJson = JSON.parse(
+          await fs.readFile(path.join(skillsetDir, "nori.json"), "utf-8"),
+        );
+        expect(noriJson.dependencies?.skills?.["my-skill"]).toBe("3.0.0");
+      });
+
+      it("should update local dependency versions for auto-resolved linked skills", async () => {
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        const skillDir = path.join(skillsetDir, "skills", "my-skill");
+        await fs.mkdir(skillDir, { recursive: true });
+        await fs.writeFile(
+          path.join(skillsetDir, "nori.json"),
+          JSON.stringify({
+            name: "my-profile",
+            version: "1.0.0",
+            type: "skillset",
+          }),
+        );
+        await fs.writeFile(path.join(skillDir, "SKILL.md"), "# My Skill\n");
+        await fs.writeFile(
+          path.join(skillDir, "nori.json"),
+          JSON.stringify({
+            name: "my-skill",
+            version: "1.0.0",
+            type: "skill",
+          }),
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+
+        // First upload fails with conflict — content unchanged, auto-resolves to link
+        const collisionError = {
+          message: "Skill conflicts detected",
+          conflicts: [
+            {
+              skillId: "my-skill",
+              exists: true,
+              canPublish: true,
+              latestVersion: "5.0.0",
+              owner: "me@example.com",
+              availableActions: [
+                "link",
+                "namespace",
+                "updateVersion",
+                "cancel",
+              ],
+              contentUnchanged: true,
+            },
+          ],
+        };
+
+        vi.mocked(registrarApi.uploadSkillset)
+          .mockRejectedValueOnce(collisionError)
+          .mockResolvedValueOnce({
+            name: "my-profile",
+            version: "2.0.0",
+            tarballSha: "abc123",
+            createdAt: new Date().toISOString(),
+          });
+
+        // Interactive mode — contentUnchanged: true means auto-resolve to link (no prompt)
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+        });
+
+        expect(result.success).toBe(true);
+
+        // Local nori.json should have dependencies.skills with the auto-linked version
+        const noriJson = JSON.parse(
+          await fs.readFile(path.join(skillsetDir, "nori.json"), "utf-8"),
+        );
+        expect(noriJson.dependencies?.skills?.["my-skill"]).toBe("5.0.0");
+      });
+    });
   });
 });
