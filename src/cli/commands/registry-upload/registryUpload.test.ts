@@ -2739,20 +2739,22 @@ describe("registry-upload", () => {
           createdAt: new Date().toISOString(),
         });
 
-        // Make the skillset directory read-only to force sync failure
-        await fs.chmod(skillsetDir, 0o444);
+        // Make the skillset directory read+execute but not writable to force sync failure
+        await fs.chmod(skillsetDir, 0o555);
 
-        const result = await registryUploadMain({
-          profileSpec: "myorg/my-profile",
-          cwd: testDir,
-          silent: true,
-        });
+        try {
+          const result = await registryUploadMain({
+            profileSpec: "myorg/my-profile",
+            cwd: testDir,
+            silent: true,
+          });
 
-        // Restore permissions for cleanup
-        await fs.chmod(skillsetDir, 0o755);
-
-        // Upload should still succeed even though sync failed
-        expect(result.success).toBe(true);
+          // Upload should still succeed even though sync failed
+          expect(result.success).toBe(true);
+        } finally {
+          // Restore permissions for cleanup
+          await fs.chmod(skillsetDir, 0o755);
+        }
       });
     });
   });
