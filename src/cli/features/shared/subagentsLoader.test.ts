@@ -1,8 +1,9 @@
 /**
  * Tests for shared subagents loader
- * Verifies that createSubagentsLoader copies .md files from the
- * skillset's subagents directory to the agent's subagents directory,
- * applies template substitution, and filters out docs.md.
+ * Verifies that createSubagentsLoader copies files matching the configured
+ * fileExtension from the skillset's subagents directory to the agent's
+ * subagents directory, applies template substitution, and filters out
+ * docs files (e.g. docs.md, docs.toml).
  */
 
 import * as fs from "fs/promises";
@@ -108,6 +109,18 @@ const TEST_SUBAGENTS: Record<string, string> = {
     "# Codebase Analyzer\n\nAnalyze codebase.\nRead: `{{skills_dir}}/some-skill/SKILL.md`\n",
   "nori-web-search-researcher.md":
     "# Web Search Researcher\n\nResearch on the web.\n",
+};
+
+const TEST_TOML_SUBAGENTS: Record<string, string> = {
+  "nori-codebase-analyzer.toml":
+    'name = "nori-codebase-analyzer"\ndescription = "Analyzes codebase"\nsandbox_mode = "read-only"\n\ndeveloper_instructions = """\nRead: {{skills_dir}}/some-skill/SKILL.md\n"""\n',
+  "nori-knowledge-researcher.toml":
+    'name = "nori-knowledge-researcher"\ndescription = "Research specialist"\nsandbox_mode = "read-only"\n',
+};
+
+const TEST_MIXED_SUBAGENTS: Record<string, string> = {
+  ...TEST_SUBAGENTS,
+  ...TEST_TOML_SUBAGENTS,
 };
 
 // ---- tests ------------------------------------------------------------------
@@ -245,8 +258,136 @@ describe("createSubagentsLoader", () => {
     it("should set managedDirs from factory args on the returned loader", () => {
       const loader = createSubagentsLoader({
         managedDirs: ["agents", "extra-agents"],
+        fileExtension: ".md",
       });
       expect(loader.managedDirs).toEqual(["agents", "extra-agents"]);
+    });
+  });
+
+  describe("fileExtension filtering", () => {
+    it("should copy only .toml files when fileExtension is .toml", async () => {
+      const loader = createSubagentsLoader({
+        managedDirs: ["agents"],
+        fileExtension: ".toml",
+      });
+      const config = createTestConfig({
+        installDir: tempDir,
+        activeSkillset: "toml-test",
+      });
+      const skillset = await createTestSkillset({
+        skillsetsDir: noriProfilesDir,
+        skillsetName: "toml-test",
+        subagents: TEST_TOML_SUBAGENTS,
+      });
+
+      await loader.run({ agent, config, skillset });
+
+      const analyzerExists = await fs
+        .access(path.join(agentsDir, "nori-codebase-analyzer.toml"))
+        .then(() => true)
+        .catch(() => false);
+      const researcherExists = await fs
+        .access(path.join(agentsDir, "nori-knowledge-researcher.toml"))
+        .then(() => true)
+        .catch(() => false);
+
+      expect(analyzerExists).toBe(true);
+      expect(researcherExists).toBe(true);
+    });
+
+    it("should copy only matching extension from a mixed directory", async () => {
+      const loader = createSubagentsLoader({
+        managedDirs: ["agents"],
+        fileExtension: ".toml",
+      });
+      const config = createTestConfig({
+        installDir: tempDir,
+        activeSkillset: "mixed-test",
+      });
+      const skillset = await createTestSkillset({
+        skillsetsDir: noriProfilesDir,
+        skillsetName: "mixed-test",
+        subagents: TEST_MIXED_SUBAGENTS,
+      });
+
+      await loader.run({ agent, config, skillset });
+
+      // .toml files should be copied
+      const tomlAnalyzerExists = await fs
+        .access(path.join(agentsDir, "nori-codebase-analyzer.toml"))
+        .then(() => true)
+        .catch(() => false);
+      expect(tomlAnalyzerExists).toBe(true);
+
+      // .md files should NOT be copied
+      const mdAnalyzerExists = await fs
+        .access(path.join(agentsDir, "nori-codebase-analyzer.md"))
+        .then(() => true)
+        .catch(() => false);
+      expect(mdAnalyzerExists).toBe(false);
+    });
+
+    it("should exclude docs.toml when fileExtension is .toml", async () => {
+      const loader = createSubagentsLoader({
+        managedDirs: ["agents"],
+        fileExtension: ".toml",
+      });
+      const config = createTestConfig({
+        installDir: tempDir,
+        activeSkillset: "docs-toml-test",
+      });
+      const skillset = await createTestSkillset({
+        skillsetsDir: noriProfilesDir,
+        skillsetName: "docs-toml-test",
+        subagents: {
+          ...TEST_TOML_SUBAGENTS,
+          "docs.toml": 'name = "docs"\ndescription = "Should be excluded"\n',
+        },
+      });
+
+      await loader.run({ agent, config, skillset });
+
+      const docsExists = await fs
+        .access(path.join(agentsDir, "docs.toml"))
+        .then(() => true)
+        .catch(() => false);
+      expect(docsExists).toBe(false);
+
+      // Other .toml files should still be copied
+      const analyzerExists = await fs
+        .access(path.join(agentsDir, "nori-codebase-analyzer.toml"))
+        .then(() => true)
+        .catch(() => false);
+      expect(analyzerExists).toBe(true);
+    });
+
+    it("should apply template substitution to .toml files", async () => {
+      const loader = createSubagentsLoader({
+        managedDirs: ["agents"],
+        fileExtension: ".toml",
+      });
+      const config = createTestConfig({
+        installDir: tempDir,
+        activeSkillset: "toml-template-test",
+      });
+      const skillset = await createTestSkillset({
+        skillsetsDir: noriProfilesDir,
+        skillsetName: "toml-template-test",
+        subagents: TEST_TOML_SUBAGENTS,
+      });
+
+      await loader.run({ agent, config, skillset });
+
+      const content = await fs.readFile(
+        path.join(agentsDir, "nori-codebase-analyzer.toml"),
+        "utf-8",
+      );
+      // Template should be substituted — should NOT contain the raw placeholder
+      expect(content).not.toContain("{{skills_dir}}");
+      // Should contain the resolved path
+      expect(content).toContain(
+        path.join(agentDir, "skills", "some-skill", "SKILL.md"),
+      );
     });
   });
 });

@@ -15,8 +15,10 @@ import type { AgentLoader } from "@/cli/features/agentRegistry.js";
 
 export const createSubagentsLoader = (args: {
   managedDirs: ReadonlyArray<string>;
+  fileExtension?: string | null;
 }): AgentLoader => {
   const { managedDirs } = args;
+  const fileExtension = args.fileExtension ?? ".md";
 
   return {
     name: "subagents",
@@ -53,14 +55,15 @@ export const createSubagentsLoader = (args: {
         return;
       }
 
-      const mdFiles = files.filter(
-        (file) => file.endsWith(".md") && file !== "docs.md",
+      const docsFile = `docs${fileExtension}`;
+      const matchingFiles = files.filter(
+        (file) => file.endsWith(fileExtension) && file !== docsFile,
       );
 
-      for (const file of mdFiles) {
+      for (const file of matchingFiles) {
         const subagentSrc = path.join(configDir, file);
         const subagentDest = path.join(destAgentsDir, file);
-        const subagentName = file.replace(/\.md$/, "");
+        const subagentName = file.slice(0, -fileExtension.length);
 
         try {
           await fs.access(subagentSrc);
