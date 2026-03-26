@@ -31,6 +31,6 @@ export const droidAgentConfig: AgentConfig = {
     skillsLoader,
     createInstructionsLoader({ managedFiles: ["AGENTS.md"] }),
     createSlashCommandsLoader({ managedDirs: ["commands"] }),
-    createSubagentsLoader({ managedDirs: ["droids"] }),
+    createSubagentsLoader({ managedDirs: ["droids"], fileExtension: ".md" }),
   ],
 };

@@ -31,6 +31,6 @@ export const githubCopilotAgentConfig: AgentConfig = {
     skillsLoader,
     createInstructionsLoader({ managedFiles: ["copilot-instructions.md"] }),
     createSlashCommandsLoader({ managedDirs: ["prompts"] }),
-    createSubagentsLoader({ managedDirs: ["agents"] }),
+    createSubagentsLoader({ managedDirs: ["agents"], fileExtension: ".md" }),
   ],
 };

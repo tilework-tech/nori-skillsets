@@ -32,6 +32,6 @@ export const kiloAgentConfig: AgentConfig = {
     skillsLoader,
     createInstructionsLoader({ managedDirs: ["rules"] }),
     createSlashCommandsLoader({ managedDirs: ["commands"] }),
-    createSubagentsLoader({ managedDirs: ["agents"] }),
+    createSubagentsLoader({ managedDirs: ["agents"], fileExtension: ".md" }),
   ],
 };

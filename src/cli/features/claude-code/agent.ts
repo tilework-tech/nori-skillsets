@@ -39,7 +39,7 @@ export const claudeCodeAgentConfig: AgentConfig = {
     skillsLoader,
     createInstructionsLoader({ managedFiles: ["CLAUDE.md"] }),
     createSlashCommandsLoader({ managedDirs: ["commands"] }),
-    createSubagentsLoader({ managedDirs: ["agents"] }),
+    createSubagentsLoader({ managedDirs: ["agents"], fileExtension: ".md" }),
     hooksLoader,
     statuslineLoader,
     announcementsLoader,

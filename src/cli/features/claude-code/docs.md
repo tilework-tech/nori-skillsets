@@ -16,7 +16,7 @@ The `claudeCodeAgentConfig` declares its ordered loader pipeline via `getLoaders
 2. `skillsLoader` -- shared, from @/src/cli/features/shared/skillsLoader.ts
 3. `createInstructionsLoader({ managedFiles: ["CLAUDE.md"] })` -- shared, from @/src/cli/features/shared/instructionsLoader.ts
 4. `createSlashCommandsLoader({ managedDirs: ["commands"] })` -- shared
-5. `createSubagentsLoader({ managedDirs: ["agents"] })` -- shared
+5. `createSubagentsLoader({ managedDirs: ["agents"], fileExtension: ".md" })` -- shared
 6. `hooksLoader` (`managedFiles: ["settings.json"]`) -- Claude-specific
 7. `statuslineLoader` (`managedFiles: ["nori-statusline.sh", "settings.json"]`) -- Claude-specific
 8. `announcementsLoader` (`managedFiles: ["settings.json"]`) -- Claude-specific

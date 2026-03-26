@@ -87,7 +87,7 @@ The `--agent` global CLI option (default: "claude-code") determines which agent 
 - `skillsLoader` (shared/skillsLoader.ts): Copies skills from skillset to agent's skills directory with template substitution on `.md` files, then calls `copyBundledSkills()`.
 - `createInstructionsLoader` (shared/instructionsLoader.ts): Factory function. Reads the skillset's `CLAUDE.md`, strips existing managed block markers, applies template substitution, generates a skills list section (scanning SKILL.md front matter), and writes/replaces the managed block in the agent's instructions file. Parameterized by `managedFiles`/`managedDirs` so Claude Code passes `managedFiles: ["CLAUDE.md"]` while Cursor passes `managedDirs: ["rules"]`.
 - `createSlashCommandsLoader` (shared/slashCommandsLoader.ts): Factory function. Copies `.md` files from skillset's slashcommands dir, applies template substitution, emits a "Slash Commands" note.
-- `createSubagentsLoader` (shared/subagentsLoader.ts): Factory function. Copies `.md` files from skillset's subagents dir, applies template substitution, emits a "Subagents" note.
+- `createSubagentsLoader` (shared/subagentsLoader.ts): Factory function. Copies files matching the configured `fileExtension` (e.g. `.md` or `.toml`) from skillset's subagents dir, applies template substitution, excludes `docs${fileExtension}`, and emits a "Subagents" note.
 
 **Config Loader** (configLoader.ts):
 - Shared `AgentLoader` that manages `.nori-config.json`. All agents include this loader in their `getLoaders()` pipeline.

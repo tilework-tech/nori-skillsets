@@ -22,7 +22,7 @@ The `cursorAgentConfig` declares its loader pipeline via `getLoaders()`:
 2. `skillsLoader` -- shared, from @/src/cli/features/shared/skillsLoader.ts
 3. `createInstructionsLoader({ managedDirs: ["rules"] })` -- shared
 4. `createSlashCommandsLoader({ managedDirs: ["commands"] })` -- shared
-5. `createSubagentsLoader({ managedDirs: ["agents"] })` -- shared
+5. `createSubagentsLoader({ managedDirs: ["agents"], fileExtension: ".md" })` -- shared
 
 Cursor-specific path mappings (all declared inline on the `AgentConfig` in `agent.ts`):
 

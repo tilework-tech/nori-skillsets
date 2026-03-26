@@ -34,6 +34,6 @@ export const cursorAgentConfig: AgentConfig = {
     skillsLoader,
     createInstructionsLoader({ managedDirs: ["rules"] }),
     createSlashCommandsLoader({ managedDirs: ["commands"] }),
-    createSubagentsLoader({ managedDirs: ["agents"] }),
+    createSubagentsLoader({ managedDirs: ["agents"], fileExtension: ".md" }),
   ],
 };
