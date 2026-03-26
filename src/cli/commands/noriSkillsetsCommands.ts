@@ -20,6 +20,7 @@ import { factoryResetMain } from "@/cli/commands/factory-reset/factoryReset.js";
 import { forkSkillsetMain } from "@/cli/commands/fork-skillset/forkSkillset.js";
 import { initMain } from "@/cli/commands/init/init.js";
 import { installLocationMain } from "@/cli/commands/install-location/installLocation.js";
+import { listActiveMain } from "@/cli/commands/list-active/listActive.js";
 import { listSkillsetsMain } from "@/cli/commands/list-skillsets/listSkillsets.js";
 import { loginMain } from "@/cli/commands/login/login.js";
 import { logoutMain } from "@/cli/commands/logout/logout.js";
@@ -573,6 +574,32 @@ export const registerNoriSkillsetsListSkillsetsCommand = (args: {
   program.command("ls", { hidden: true }).action(async () => {
     await listSkillsetsMain();
   });
+};
+
+/**
+ * Register the 'list-active' command for nori-skillsets CLI
+ * @param args - Configuration arguments
+ * @param args.program - Commander program instance
+ */
+export const registerNoriSkillsetsListActiveCommand = (args: {
+  program: Command;
+}): void => {
+  const { program } = args;
+
+  const action = async () => {
+    const installDir = program.opts().installDir as string | undefined;
+    await listActiveMain({ dir: installDir });
+  };
+
+  program
+    .command("list-active")
+    .description(
+      "List active skillsets in current directory and parent directories (one per line)",
+    )
+    .action(action);
+
+  // Hidden alias: la (shorthand)
+  program.command("la", { hidden: true }).action(action);
 };
 
 /**
