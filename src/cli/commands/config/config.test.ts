@@ -106,7 +106,14 @@ vi.mock("@/cli/features/agentRegistry.js", () => {
         getAll: vi.fn().mockReturnValue([mockAgent]),
         getDefaultAgentName: vi.fn().mockReturnValue("claude-code"),
         getAgentDirNames: vi.fn().mockReturnValue([".claude"]),
-        get: vi.fn().mockReturnValue(mockAgent),
+        get: vi.fn().mockImplementation((args: { name: string }) => {
+          if (args.name !== "claude-code") {
+            throw new Error(
+              `Unknown agent '${args.name}'. Available agents: claude-code`,
+            );
+          }
+          return mockAgent;
+        }),
       }),
     },
   };
@@ -782,5 +789,157 @@ describe("configMain defaultAgents change prompts", () => {
       }),
     );
     expect(vi.mocked(removeSkillset)).not.toHaveBeenCalled();
+  });
+});
+
+describe("configMain non-interactive mode", () => {
+  let tempDir: string;
+
+  beforeEach(async () => {
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "config-cmd-test-"));
+    vi.mocked(os.homedir).mockReturnValue(tempDir);
+  });
+
+  afterEach(async () => {
+    await fs.rm(tempDir, { recursive: true, force: true });
+    vi.clearAllMocks();
+  });
+
+  it("should save agents when --agents is provided", async () => {
+    await saveConfig({
+      username: null,
+      organizationUrl: null,
+      installDir: tempDir,
+    });
+
+    const { configMain } = await import("./config.js");
+    const result = await configMain({ agents: "claude-code" });
+
+    const loaded = await loadConfig();
+    expect(loaded?.defaultAgents).toEqual(["claude-code"]);
+    expect(result.success).toBe(true);
+  });
+
+  it("should save install dir when --install-dir is provided", async () => {
+    await saveConfig({
+      username: null,
+      organizationUrl: null,
+      installDir: tempDir,
+    });
+
+    const { configMain } = await import("./config.js");
+    await configMain({ installDir: "/new/dir" });
+
+    const loaded = await loadConfig();
+    expect(loaded?.installDir).toBe("/new/dir");
+  });
+
+  it("should save redownloadOnSwitch when --redownload-on-switch is provided", async () => {
+    await saveConfig({
+      username: null,
+      organizationUrl: null,
+      installDir: tempDir,
+    });
+
+    const { configMain } = await import("./config.js");
+    await configMain({ redownloadOnSwitch: true });
+
+    const loaded = await loadConfig();
+    expect(loaded?.redownloadOnSwitch).toBe("enabled");
+  });
+
+  it("should save redownloadOnSwitch as disabled when --no-redownload-on-switch", async () => {
+    await saveConfig({
+      username: null,
+      organizationUrl: null,
+      installDir: tempDir,
+      redownloadOnSwitch: "enabled",
+    });
+
+    const { configMain } = await import("./config.js");
+    await configMain({ redownloadOnSwitch: false });
+
+    const loaded = await loadConfig();
+    expect(loaded?.redownloadOnSwitch).toBe("disabled");
+  });
+
+  it("should save multiple options at once", async () => {
+    await saveConfig({
+      username: null,
+      organizationUrl: null,
+      installDir: tempDir,
+    });
+
+    const { configMain } = await import("./config.js");
+    await configMain({
+      agents: "claude-code",
+      installDir: "/new/dir",
+      redownloadOnSwitch: false,
+    });
+
+    const loaded = await loadConfig();
+    expect(loaded?.defaultAgents).toEqual(["claude-code"]);
+    expect(loaded?.installDir).toBe("/new/dir");
+    expect(loaded?.redownloadOnSwitch).toBe("disabled");
+  });
+
+  it("should error when --non-interactive is set but no options provided", async () => {
+    await saveConfig({
+      username: null,
+      organizationUrl: null,
+      installDir: tempDir,
+    });
+
+    const { configMain } = await import("./config.js");
+    await expect(configMain({ nonInteractive: true })).rejects.toThrow(
+      /No configuration options provided/,
+    );
+  });
+
+  it("should error when --agents contains an invalid agent name", async () => {
+    await saveConfig({
+      username: null,
+      organizationUrl: null,
+      installDir: tempDir,
+    });
+
+    const { configMain } = await import("./config.js");
+    await expect(configMain({ agents: "not-real" })).rejects.toThrow(
+      /Unknown agent/,
+    );
+  });
+
+  it("should error when --agents is empty string", async () => {
+    await saveConfig({
+      username: null,
+      organizationUrl: null,
+      installDir: tempDir,
+    });
+
+    const { configMain } = await import("./config.js");
+    await expect(configMain({ agents: "" })).rejects.toThrow(
+      /No agent names provided/,
+    );
+  });
+
+  it("should preserve existing config fields when applying partial update", async () => {
+    await saveConfig({
+      username: "test@example.com",
+      refreshToken: "token-123",
+      organizationUrl: "https://example.com",
+      installDir: tempDir,
+      activeSkillset: "senior-swe",
+      defaultAgents: ["claude-code"],
+    });
+
+    const { configMain } = await import("./config.js");
+    await configMain({ redownloadOnSwitch: true });
+
+    const loaded = await loadConfig();
+    expect(loaded?.auth?.username).toBe("test@example.com");
+    expect(loaded?.activeSkillset).toBe("senior-swe");
+    expect(loaded?.defaultAgents).toEqual(["claude-code"]);
+    expect(loaded?.installDir).toBe(tempDir);
+    expect(loaded?.redownloadOnSwitch).toBe("enabled");
   });
 });

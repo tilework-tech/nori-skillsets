@@ -343,6 +343,8 @@ const formatMultipleSkillsError = (args: {
  * @param args.listVersions - If true, list available versions instead of downloading
  * @param args.skillset - Optional skillset name to add skill to (defaults to active skillset)
  * @param args.cliName - CLI name for user-facing messages (defaults to nori-skillsets)
+ * @param args.nonInteractive - If true, skip interactive prompts and use defaults
+ * @param args.silent - If true, suppress output (implies nonInteractive)
  *
  * @returns Command status
  */
@@ -354,6 +356,8 @@ export const skillDownloadMain = async (args: {
   listVersions?: boolean | null;
   skillset?: string | null;
   cliName?: CliName | null;
+  nonInteractive?: boolean | null;
+  silent?: boolean | null;
 }): Promise<CommandStatus> => {
   const {
     skillSpec,
@@ -362,6 +366,8 @@ export const skillDownloadMain = async (args: {
     listVersions,
     skillset,
     cliName,
+    nonInteractive,
+    silent,
   } = args;
   const commandNames = getCommandNames({ cliName });
   const cliPrefix = cliName ?? "nori-skillsets";
@@ -478,6 +484,7 @@ export const skillDownloadMain = async (args: {
 
   const result = await skillDownloadFlow({
     skillDisplayName,
+    nonInteractive: nonInteractive ?? silent ?? null,
     callbacks: {
       onSearch: async (): Promise<SkillSearchResult> => {
         // Inline search logic
@@ -887,6 +894,8 @@ export const registerSkillDownloadCommand = (args: {
           registryUrl: options.registry || null,
           listVersions: options.listVersions || null,
           skillset: options.skillset || null,
+          nonInteractive: globalOpts.nonInteractive || null,
+          silent: globalOpts.silent || null,
         });
       },
     );

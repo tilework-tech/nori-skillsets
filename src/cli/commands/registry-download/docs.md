@@ -18,6 +18,6 @@ Registry search supports three strategies: explicit registry URL, namespace-deri
 
 ### Things to Know
 
-The download uses an atomic swap strategy for updates: extract to a temp directory, rename the existing directory to a backup, rename temp to target, then delete backup. If any step fails, it attempts to restore from backup. The `--list-versions` flag short-circuits the flow to display available versions without downloading. Auto-init is triggered when no config exists, passing `skipWarning: true` to suppress the interactive warning.
+The download uses an atomic swap strategy for updates: extract to a temp directory, rename the existing directory to a backup, rename temp to target, then delete backup. If any step fails, it attempts to restore from backup. The `--list-versions` flag short-circuits the flow to display available versions without downloading. Auto-init is triggered when no config exists, passing `skipWarning: true` to suppress the interactive warning. The `nonInteractive` and `silent` params are threaded from the CLI registration layer through `registryDownloadMain` to both the `initMain` call (which previously hardcoded `nonInteractive: false`) and to `registryDownloadFlow` where they control whether interactive prompts (e.g., "Re-download from registry?") are skipped. The coercion `nonInteractive ?? silent ?? false` is applied at these boundaries so that `--silent` implies non-interactive behavior.
 
 Created and maintained by Nori.

@@ -82,14 +82,16 @@ export type RegistryDownloadFlowResult = {
  * @param args - Flow configuration
  * @param args.packageDisplayName - Display name of the package being downloaded
  * @param args.callbacks - Callback functions for searching and downloading
+ * @param args.nonInteractive - If true, skip interactive prompts and use defaults
  *
  * @returns Download result on success, null on failure
  */
 export const registryDownloadFlow = async (args: {
   packageDisplayName: string;
+  nonInteractive?: boolean | null;
   callbacks: RegistryDownloadFlowCallbacks;
 }): Promise<RegistryDownloadFlowResult | null> => {
-  const { packageDisplayName, callbacks } = args;
+  const { packageDisplayName, nonInteractive, callbacks } = args;
 
   const s = spinner();
 
@@ -115,6 +117,14 @@ export const registryDownloadFlow = async (args: {
     log.success(
       `Skillset "${packageDisplayName}" is already at version ${searchResult.version}.`,
     );
+
+    if (nonInteractive) {
+      return {
+        version: searchResult.version,
+        isUpdate: false,
+        statusMessage: "Already up to date",
+      };
+    }
 
     const redownload = unwrapPrompt({
       value: await confirm({

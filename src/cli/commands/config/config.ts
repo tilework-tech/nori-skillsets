@@ -1,10 +1,10 @@
 /**
  * Config Command
  *
- * Interactive configuration of Nori settings.
- * Sets defaultAgents and installDir in .nori-config.json.
- * When installDir or defaultAgents change, prompts user about
- * installing the active skillset and cleaning up the old directory.
+ * Configuration of Nori settings, either interactively or via CLI options.
+ * Sets defaultAgents, installDir, and redownloadOnSwitch in .nori-config.json.
+ * When installDir or defaultAgents change in interactive mode, prompts user
+ * about installing the active skillset and cleaning up the old directory.
  */
 
 import { log } from "@clack/prompts";
@@ -44,15 +44,100 @@ const arraysEqual = (args: { a: Array<string>; b: Array<string> }): boolean => {
 };
 
 /**
+ * Parse and validate a comma-separated agents string
+ *
+ * @param args - Arguments
+ * @param args.agents - Comma-separated agent names
+ *
+ * @throws {Error} If no agent names provided or if any agent name is invalid
+ *
+ * @returns Array of validated agent names
+ */
+const parseAgents = (args: { agents: string }): Array<string> => {
+  const { agents } = args;
+  const agentNames = agents
+    .split(",")
+    .map((a) => a.trim())
+    .filter((a) => a.length > 0);
+
+  if (agentNames.length === 0) {
+    throw new Error(
+      "No agent names provided. Use a comma-separated list (e.g., --agents claude-code,cursor).",
+    );
+  }
+
+  const registry = AgentRegistry.getInstance();
+  for (const name of agentNames) {
+    registry.get({ name });
+  }
+
+  return agentNames;
+};
+
+/**
  * Main config function
  *
- * Runs the interactive config flow and saves results to .nori-config.json.
- * After saving, detects changes to installDir and defaultAgents, and
- * prompts the user to install/clean up accordingly.
+ * When CLI options are provided (agents, installDir, redownloadOnSwitch),
+ * applies them directly without interactive prompts.
+ * Otherwise, runs the interactive config flow and saves results to
+ * .nori-config.json. After saving in interactive mode, detects changes
+ * to installDir and defaultAgents, and prompts the user to install/clean
+ * up accordingly.
+ *
+ * @param args - Optional CLI arguments for non-interactive mode
+ * @param args.agents - Comma-separated agent names
+ * @param args.installDir - Install directory path
+ * @param args.redownloadOnSwitch - Whether to prompt for re-download on switch
+ * @param args.nonInteractive - Force non-interactive mode
  *
  * @returns Command status indicating success or cancellation
  */
-export const configMain = async (): Promise<CommandStatus> => {
+export const configMain = async (
+  args?: {
+    agents?: string | null;
+    installDir?: string | null;
+    redownloadOnSwitch?: boolean | null;
+    nonInteractive?: boolean | null;
+  } | null,
+): Promise<CommandStatus> => {
+  const { agents, installDir, redownloadOnSwitch, nonInteractive } = args ?? {};
+
+  const hasOptions =
+    agents != null || installDir != null || redownloadOnSwitch != null;
+
+  if (hasOptions || nonInteractive) {
+    if (!hasOptions) {
+      throw new Error(
+        "No configuration options provided. Use --agents, --install-dir, or --redownload-on-switch.",
+      );
+    }
+
+    const update: {
+      defaultAgents?: Array<string>;
+      installDir?: string;
+      redownloadOnSwitch?: "enabled" | "disabled";
+    } = {};
+
+    if (agents != null) {
+      update.defaultAgents = parseAgents({ agents });
+    }
+
+    if (installDir != null) {
+      update.installDir = normalizeInstallDir({
+        installDir,
+        agentDirNames: AgentRegistry.getInstance().getAgentDirNames(),
+      });
+    }
+
+    if (redownloadOnSwitch != null) {
+      update.redownloadOnSwitch = redownloadOnSwitch ? "enabled" : "disabled";
+    }
+
+    await updateConfig(update);
+
+    return { success: true, cancelled: false, message: "Configuration saved" };
+  }
+
   const result = await configFlow({
     callbacks: {
       onLoadConfig: async () => {

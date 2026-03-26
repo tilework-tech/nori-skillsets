@@ -14,6 +14,7 @@ import {
   registrarApi,
   type SkillResolutionStrategy,
   type UploadSkillsetResponse,
+  type ExtractedSkillsSummary,
 } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
 import { loadConfig, getRegistryAuth } from "@/cli/config.js";
@@ -23,6 +24,10 @@ import {
   listVersionsFlow,
   type UploadResult,
 } from "@/cli/prompts/flows/index.js";
+import {
+  readSkillsetMetadata,
+  writeSkillsetMetadata,
+} from "@/norijson/nori.js";
 import { getNoriSkillsetsDir } from "@/norijson/skillset.js";
 import { isSkillCollisionError } from "@/utils/fetch.js";
 import {
@@ -271,6 +276,123 @@ const createCandidateNoriJsonFiles = async (args: {
 };
 
 /**
+ * Sync local state after a successful upload.
+ *
+ * Updates the local nori.json version and registryURL, writes a .nori-version
+ * file, and updates extracted skill versions in their nori.json files and in
+ * the skillset's dependencies.
+ *
+ * @param args - The function arguments
+ * @param args.skillsetDir - The local skillset directory
+ * @param args.uploadedVersion - The version that was uploaded
+ * @param args.registryUrl - The registry URL
+ * @param args.extractedSkills - Optional extracted skills info from the response
+ * @param args.linkedSkillVersions - Optional map of linked skill IDs to their remote versions
+ */
+const syncLocalStateAfterUpload = async (args: {
+  skillsetDir: string;
+  uploadedVersion: string;
+  registryUrl: string;
+  extractedSkills?: ExtractedSkillsSummary | null;
+  linkedSkillVersions?: Map<string, string> | null;
+}): Promise<void> => {
+  const {
+    skillsetDir,
+    uploadedVersion,
+    registryUrl,
+    extractedSkills,
+    linkedSkillVersions,
+  } = args;
+
+  // Update skillset nori.json version and registryURL
+  let metadata: NoriJson;
+  try {
+    metadata = await readSkillsetMetadata({ skillsetDir });
+  } catch (err) {
+    if (
+      err != null &&
+      typeof err === "object" &&
+      "code" in err &&
+      err.code === "ENOENT"
+    ) {
+      metadata = {
+        name: path.basename(skillsetDir),
+        version: uploadedVersion,
+        type: "skillset",
+      };
+    } else {
+      throw err;
+    }
+  }
+
+  metadata.version = uploadedVersion;
+  metadata.registryURL = registryUrl;
+
+  // Update extracted skill versions in dependencies
+  const succeeded = extractedSkills?.succeeded ?? [];
+  if (succeeded.length > 0) {
+    if (metadata.dependencies == null) {
+      metadata.dependencies = {};
+    }
+    if (metadata.dependencies.skills == null) {
+      metadata.dependencies.skills = {};
+    }
+
+    for (const skill of succeeded) {
+      metadata.dependencies.skills[skill.name] = skill.version;
+
+      // Update individual skill nori.json
+      const skillNoriJsonPath = path.join(
+        skillsetDir,
+        "skills",
+        skill.name,
+        "nori.json",
+      );
+      try {
+        const content = await fs.readFile(skillNoriJsonPath, "utf-8");
+        const skillMetadata = JSON.parse(content) as NoriJson;
+        skillMetadata.version = skill.version;
+        await fs.writeFile(
+          skillNoriJsonPath,
+          JSON.stringify(skillMetadata, null, 2),
+        );
+      } catch {
+        // Skill nori.json may not exist (e.g., inlined skills)
+      }
+    }
+  }
+
+  // Update dependency versions for linked skills (kept existing remote version)
+  if (linkedSkillVersions != null && linkedSkillVersions.size > 0) {
+    if (metadata.dependencies == null) {
+      metadata.dependencies = {};
+    }
+    if (metadata.dependencies.skills == null) {
+      metadata.dependencies.skills = {};
+    }
+
+    for (const [skillId, version] of linkedSkillVersions) {
+      metadata.dependencies.skills[skillId] = version;
+    }
+  }
+
+  await writeSkillsetMetadata({ skillsetDir, metadata });
+
+  // Write .nori-version file
+  await fs.writeFile(
+    path.join(skillsetDir, ".nori-version"),
+    JSON.stringify(
+      {
+        version: uploadedVersion,
+        registryUrl,
+      },
+      null,
+      2,
+    ),
+  );
+};
+
+/**
  * Main upload function
  * @param args - The function arguments
  * @param args.profileSpec - Skillset specification (name[@version] or org/name[@version])
@@ -500,6 +622,25 @@ export const registryUploadMain = async (args: {
     };
   }
 
+  // Helper to sync local state after upload, swallowing errors
+  const trySyncLocalState = async (syncArgs: {
+    uploadedVersion: string;
+    extractedSkills?: ExtractedSkillsSummary | null;
+    linkedSkillVersions?: Map<string, string> | null;
+  }): Promise<void> => {
+    try {
+      await syncLocalStateAfterUpload({
+        skillsetDir,
+        registryUrl: targetRegistryUrl,
+        ...syncArgs,
+      });
+    } catch (syncErr) {
+      log.warn(
+        `Upload succeeded but failed to sync local state: ${syncErr instanceof Error ? syncErr.message : String(syncErr)}`,
+      );
+    }
+  };
+
   // Handle dry-run mode (simple output, no flow)
   if (dryRun) {
     const versionResult = await determineUploadVersion({
@@ -591,6 +732,11 @@ export const registryUploadMain = async (args: {
     });
 
     if (uploadResult.success) {
+      await trySyncLocalState({
+        uploadedVersion: uploadResult.version,
+        extractedSkills: uploadResult.extractedSkills,
+      });
+
       return {
         success: true,
         cancelled: false,
@@ -658,6 +804,12 @@ export const registryUploadMain = async (args: {
   if (result == null) {
     return { success: false, cancelled: true, message: "" };
   }
+
+  await trySyncLocalState({
+    uploadedVersion: result.version,
+    extractedSkills: result.extractedSkills,
+    linkedSkillVersions: result.linkedSkillVersions,
+  });
 
   return {
     success: true,

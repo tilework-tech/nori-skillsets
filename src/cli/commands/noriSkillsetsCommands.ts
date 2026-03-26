@@ -20,6 +20,7 @@ import { factoryResetMain } from "@/cli/commands/factory-reset/factoryReset.js";
 import { forkSkillsetMain } from "@/cli/commands/fork-skillset/forkSkillset.js";
 import { initMain } from "@/cli/commands/init/init.js";
 import { installLocationMain } from "@/cli/commands/install-location/installLocation.js";
+import { listActiveMain } from "@/cli/commands/list-active/listActive.js";
 import { listSkillsetsMain } from "@/cli/commands/list-skillsets/listSkillsets.js";
 import { loginMain } from "@/cli/commands/login/login.js";
 import { logoutMain } from "@/cli/commands/logout/logout.js";
@@ -45,6 +46,7 @@ import type { Command } from "commander";
  * @param args.title - The intro title to display
  * @param args.action - The async action to execute
  * @param args.exitOnFailure - If true, call process.exit(1) when result.success is false
+ * @param args.silent - If true, suppress intro/outro framing output
  */
 const wrapWithFraming = async <
   T extends { success: boolean; cancelled: boolean; message: string },
@@ -52,19 +54,24 @@ const wrapWithFraming = async <
   title: string;
   action: () => Promise<T>;
   exitOnFailure?: boolean | null;
+  silent?: boolean | null;
 }): Promise<void> => {
-  const { title, action, exitOnFailure } = args;
-  intro(title);
+  const { title, action, exitOnFailure, silent } = args;
+  if (!silent) {
+    intro(title);
+  }
   try {
     const result = await action();
-    if (!result.cancelled) {
+    if (!result.cancelled && !silent) {
       outro(result.message);
     }
     if (exitOnFailure && !result.success && !result.cancelled) {
       process.exit(1);
     }
   } catch (err) {
-    outro(`Error: ${err instanceof Error ? err.message : String(err)}`);
+    if (!silent) {
+      outro(`Error: ${err instanceof Error ? err.message : String(err)}`);
+    }
     process.exit(1);
   }
 };
@@ -327,6 +334,7 @@ export const registerNoriSkillsetsDownloadCommand = (args: {
         await wrapWithFraming({
           title: "Download Skillset",
           exitOnFailure: true,
+          silent: globalOpts.silent || null,
           action: () =>
             registryDownloadMain({
               packageSpec,
@@ -334,6 +342,8 @@ export const registerNoriSkillsetsDownloadCommand = (args: {
               registryUrl: options.registry || null,
               listVersions: options.listVersions || null,
               cliName: "nori-skillsets",
+              nonInteractive: globalOpts.nonInteractive || null,
+              silent: globalOpts.silent || null,
             }),
         });
       },
@@ -413,10 +423,12 @@ export const registerNoriSkillsetsInstallCommand = (args: {
       await wrapWithFraming({
         title: "Install Skillset",
         exitOnFailure: true,
+        silent: globalOpts.silent || null,
         action: () =>
           registryInstallMain({
             packageSpec,
             installDir: globalOpts.installDir || null,
+            nonInteractive: globalOpts.nonInteractive || null,
             silent: globalOpts.silent || null,
             agent: globalOpts.agent || null,
           }),
@@ -513,6 +525,7 @@ export const registerNoriSkillsetsDownloadSkillCommand = (args: {
 
         await wrapWithFraming({
           title: "Download Skill",
+          silent: globalOpts.silent || null,
           action: () =>
             skillDownloadMain({
               skillSpec,
@@ -521,6 +534,8 @@ export const registerNoriSkillsetsDownloadSkillCommand = (args: {
               listVersions: options.listVersions || null,
               skillset: options.skillset || null,
               cliName: "nori-skillsets",
+              nonInteractive: globalOpts.nonInteractive || null,
+              silent: globalOpts.silent || null,
             }),
         });
       },
@@ -559,6 +574,32 @@ export const registerNoriSkillsetsListSkillsetsCommand = (args: {
   program.command("ls", { hidden: true }).action(async () => {
     await listSkillsetsMain();
   });
+};
+
+/**
+ * Register the 'list-active' command for nori-skillsets CLI
+ * @param args - Configuration arguments
+ * @param args.program - Commander program instance
+ */
+export const registerNoriSkillsetsListActiveCommand = (args: {
+  program: Command;
+}): void => {
+  const { program } = args;
+
+  const action = async () => {
+    const installDir = program.opts().installDir as string | undefined;
+    await listActiveMain({ dir: installDir });
+  };
+
+  program
+    .command("list-active")
+    .description(
+      "List active skillsets in current directory and parent directories (one per line)",
+    )
+    .action(action);
+
+  // Hidden alias: la (shorthand)
+  program.command("la", { hidden: true }).action(action);
 };
 
 /**
@@ -865,10 +906,32 @@ export const registerNoriSkillsetsConfigCommand = (args: {
   program
     .command("config")
     .description("Configure default agent and install directory")
-    .action(async () => {
-      await wrapWithFraming({
-        title: "Configure Nori",
-        action: () => configMain(),
-      });
-    });
+    .option(
+      "--agents <agents>",
+      "Comma-separated list of agents (e.g., claude-code,cursor)",
+    )
+    .option(
+      "--redownload-on-switch",
+      "Enable re-download prompt on skillset switch",
+    )
+    .option(
+      "--no-redownload-on-switch",
+      "Disable re-download prompt on skillset switch",
+    )
+    .action(
+      async (options: { agents?: string; redownloadOnSwitch?: boolean }) => {
+        const globalOpts = program.opts();
+        await wrapWithFraming({
+          title: "Configure Nori",
+          silent: globalOpts.silent || null,
+          action: () =>
+            configMain({
+              agents: options.agents ?? null,
+              installDir: globalOpts.installDir || null,
+              redownloadOnSwitch: options.redownloadOnSwitch ?? null,
+              nonInteractive: globalOpts.nonInteractive || null,
+            }),
+        });
+      },
+    );
 };

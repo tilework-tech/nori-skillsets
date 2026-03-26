@@ -29,6 +29,7 @@ import type { Command } from "commander";
 type RegistryInstallArgs = {
   packageSpec: string;
   installDir?: string | null;
+  nonInteractive?: boolean | null;
   silent?: boolean | null;
   agent?: string | null;
 };
@@ -76,7 +77,7 @@ const checkLocalSkillsetExists = async (args: {
 export const registryInstallMain = async (
   args: RegistryInstallArgs,
 ): Promise<CommandStatus> => {
-  const { packageSpec, installDir, silent, agent } = args;
+  const { packageSpec, installDir, nonInteractive, silent, agent } = args;
 
   const skillsetName = parsePackageName({ packageSpec });
 
@@ -105,6 +106,8 @@ export const registryInstallMain = async (
     installDir: targetInstallDir,
     registryUrl: null,
     listVersions: null,
+    nonInteractive: nonInteractive ?? null,
+    silent: silent ?? null,
   });
 
   // If download failed, check if skillset exists locally as fallback
@@ -224,6 +227,7 @@ export const registerRegistryInstallCommand = (args: {
       const result = await registryInstallMain({
         packageSpec,
         installDir: globalOpts.installDir || null,
+        nonInteractive: globalOpts.nonInteractive || null,
         silent: globalOpts.silent || null,
         agent: globalOpts.agent || null,
       });

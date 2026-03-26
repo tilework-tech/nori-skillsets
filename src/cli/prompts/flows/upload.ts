@@ -70,7 +70,7 @@ export type UploadFlowCallbacks = {
 export type UploadFlowResult = {
   version: string;
   extractedSkills?: ExtractedSkillsSummary | null;
-  linkedSkillIds: Set<string>;
+  linkedSkillVersions: Map<string, string>;
   namespacedSkillIds: Set<string>;
   skippedSkillIds: Set<string>;
   inlineSkillIds?: Array<string> | null;
@@ -633,7 +633,7 @@ const resolveAllInlineSkillsSameWay = async (args: {
  * Format skill summary for display in a note
  * @param args - The function arguments
  * @param args.extractedSkills - Skills extracted during upload
- * @param args.linkedSkillIds - Set of skill IDs that were linked
+ * @param args.linkedSkillVersions - Map of skill IDs to linked versions
  * @param args.namespacedSkillIds - Set of skill IDs that were namespaced
  * @param args.skippedSkillIds - Set of skill IDs that were skipped
  * @param args.inlineSkillIds - Skill IDs kept inline in the tarball
@@ -642,14 +642,14 @@ const resolveAllInlineSkillsSameWay = async (args: {
  */
 const formatSkillSummaryForNote = (args: {
   extractedSkills?: ExtractedSkillsSummary | null;
-  linkedSkillIds: Set<string>;
+  linkedSkillVersions: Map<string, string>;
   namespacedSkillIds: Set<string>;
   skippedSkillIds: Set<string>;
   inlineSkillIds?: Array<string> | null;
 }): string | null => {
   const {
     extractedSkills,
-    linkedSkillIds,
+    linkedSkillVersions,
     namespacedSkillIds,
     skippedSkillIds,
     inlineSkillIds,
@@ -672,14 +672,14 @@ const formatSkillSummaryForNote = (args: {
 
   const skippedSkills = succeeded.filter((s) => skippedSkillIds.has(s.name));
   const linkedSkills = succeeded.filter(
-    (s) => linkedSkillIds.has(s.name) && !skippedSkillIds.has(s.name),
+    (s) => linkedSkillVersions.has(s.name) && !skippedSkillIds.has(s.name),
   );
   const namespacedSkills = succeeded.filter((s) =>
     namespacedSkillIds.has(s.name),
   );
   const uploadedSkills = succeeded.filter(
     (s) =>
-      !linkedSkillIds.has(s.name) &&
+      !linkedSkillVersions.has(s.name) &&
       !namespacedSkillIds.has(s.name) &&
       !skippedSkillIds.has(s.name),
   );
@@ -822,7 +822,7 @@ export const uploadFlow = async (args: {
   const cancelMsg = "Upload cancelled.";
 
   // Track resolution actions for summary
-  const linkedSkillIds = new Set<string>();
+  const linkedSkillVersions = new Map<string, string>();
   const namespacedSkillIds = new Set<string>();
   const skippedSkillIds = new Set<string>();
 
@@ -906,7 +906,10 @@ export const uploadFlow = async (args: {
     // Track auto-resolved links
     for (const [skillId, resolution] of Object.entries(autoStrategy)) {
       if (resolution.action === "link") {
-        linkedSkillIds.add(skillId);
+        const conflict = result.conflicts.find((c) => c.skillId === skillId);
+        if (conflict?.latestVersion != null) {
+          linkedSkillVersions.set(skillId, conflict.latestVersion);
+        }
       }
     }
 
@@ -1002,7 +1005,9 @@ export const uploadFlow = async (args: {
           if (conflict != null && conflict.contentUnchanged !== true) {
             skippedSkillIds.add(skillId);
           }
-          linkedSkillIds.add(skillId);
+          if (conflict?.latestVersion != null) {
+            linkedSkillVersions.set(skillId, conflict.latestVersion);
+          }
         } else if (resolution.action === "namespace") {
           namespacedSkillIds.add(skillId);
         }
@@ -1040,7 +1045,7 @@ export const uploadFlow = async (args: {
   // Step 5: Show summary
   const skillSummary = formatSkillSummaryForNote({
     extractedSkills: result.extractedSkills,
-    linkedSkillIds,
+    linkedSkillVersions,
     namespacedSkillIds,
     skippedSkillIds,
     inlineSkillIds,
@@ -1061,7 +1066,7 @@ export const uploadFlow = async (args: {
   return {
     version: result.version,
     extractedSkills: result.extractedSkills,
-    linkedSkillIds,
+    linkedSkillVersions,
     namespacedSkillIds,
     skippedSkillIds,
     inlineSkillIds,

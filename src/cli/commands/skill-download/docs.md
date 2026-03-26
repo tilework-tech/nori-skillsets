@@ -22,6 +22,6 @@ The `onDownload` callback extracts the tarball, writes `.nori-version` provenanc
 
 ### Things to Know
 
-The `--skillset` flag lets the user target a specific skillset for manifest updates; otherwise it defaults to the active skillset from config. Like registry-download, updates use an atomic swap with backup/restore on failure. The `--registry` flag and namespace prefix (`org/`) are mutually exclusive since the namespace implicitly determines the registry URL.
+The `--skillset` flag lets the user target a specific skillset for manifest updates; otherwise it defaults to the active skillset from config. Like registry-download, updates use an atomic swap with backup/restore on failure. The `--registry` flag and namespace prefix (`org/`) are mutually exclusive since the namespace implicitly determines the registry URL. The `nonInteractive` and `silent` params are threaded from the CLI registration layer through `skillDownloadMain` to `skillDownloadFlow`, where they control whether the "Re-download from registry?" confirm prompt is skipped when the skill is already at the current version. The coercion `nonInteractive ?? silent ?? false` is applied so `--silent` implies non-interactive behavior.
 
 Created and maintained by Nori.
