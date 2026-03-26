@@ -32,9 +32,11 @@ Registration layer (noriSkillsetsCommands.ts)      <-- intro() / outro() live he
 
 When `silent` is true, `wrapWithFraming` suppresses all `intro()`/`outro()` output, including error messages. The `silent` flag is forwarded from the global `--silent` CLI option at the registration layer.
 
-Commands that do not need visual framing (single-step, scriptable, or producing raw output) are called directly without `wrapWithFraming`. These include `clear`, `completion`, `list`, `current`, `logout`, `dir`, `install-location`, and `watch stop`.
+Commands that do not need visual framing (single-step, scriptable, or producing raw output) are called directly without `wrapWithFraming`. These include `clear`, `completion`, `list`, `list-active`, `current`, `logout`, `dir`, `install-location`, and `watch stop`.
 
 **install-location** (@/src/cli/commands/install-location/): Displays the resolved Nori installation directory from config. Supports `--non-interactive` (plain output for scripts). Uses `resolveInstallDir()` from @/src/utils/path.ts with the standard priority chain (CLI flag > config > home directory).
+
+**list-active** (@/src/cli/commands/list-active/listActive.ts): Discovers which skillsets are currently active in the directory hierarchy. `findActiveSkillsets` resolves a start directory (from the global `--install-dir` option or `process.cwd()`), then walks upward to the filesystem root. At each directory level, it iterates all agents from `AgentRegistry.getInstance().getAll()`, checks for a `.nori-managed` marker file in each agent's directory (e.g., `.claude/.nori-managed`), and reads its content as the skillset name. Results are deduplicated via `Set` and returned sorted. `listActiveMain` writes each skillset name to stdout one per line (raw `process.stdout.write`, no framing), or exits with code 1 if none are found. Hidden alias: `la`. This command only checks `.nori-managed` marker files and does not support legacy NORI-AI MANAGED BLOCK detection.
 
 **switch-skillset** (@/src/cli/commands/switch-skillset/switchSkillset.ts): The `switchSkillsetAction` function handles skillset switching with local change detection and multi-agent broadcasting. The `name` argument is optional; when omitted, the command resolves it before proceeding:
 
