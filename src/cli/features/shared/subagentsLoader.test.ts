@@ -156,10 +156,7 @@ describe("createSubagentsLoader", () => {
 
   describe("copying .md files", () => {
     it("should copy .md files from skillset subagents dir to agent subagents dir", async () => {
-      const loader = createSubagentsLoader({
-        managedDirs: ["agents"],
-        fileExtension: ".md",
-      });
+      const loader = createSubagentsLoader({ managedDirs: ["agents"] });
       const config = createTestConfig({
         installDir: tempDir,
         activeSkillset: "subagent-test",
@@ -194,10 +191,7 @@ describe("createSubagentsLoader", () => {
 
   describe("template substitution", () => {
     it("should apply template substitution to copied subagent .md files", async () => {
-      const loader = createSubagentsLoader({
-        managedDirs: ["agents"],
-        fileExtension: ".md",
-      });
+      const loader = createSubagentsLoader({ managedDirs: ["agents"] });
       const config = createTestConfig({
         installDir: tempDir,
         activeSkillset: "template-subagent-test",
@@ -228,10 +222,7 @@ describe("createSubagentsLoader", () => {
 
   describe("filtering docs.md", () => {
     it("should not copy docs.md files", async () => {
-      const loader = createSubagentsLoader({
-        managedDirs: ["agents"],
-        fileExtension: ".md",
-      });
+      const loader = createSubagentsLoader({ managedDirs: ["agents"] });
       const config = createTestConfig({
         installDir: tempDir,
         activeSkillset: "docs-filter-test",

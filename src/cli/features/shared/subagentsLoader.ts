@@ -15,9 +15,10 @@ import type { AgentLoader } from "@/cli/features/agentRegistry.js";
 
 export const createSubagentsLoader = (args: {
   managedDirs: ReadonlyArray<string>;
-  fileExtension: string;
+  fileExtension?: string | null;
 }): AgentLoader => {
-  const { managedDirs, fileExtension } = args;
+  const { managedDirs } = args;
+  const fileExtension = args.fileExtension ?? ".md";
 
   return {
     name: "subagents",

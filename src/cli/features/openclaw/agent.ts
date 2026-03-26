@@ -32,6 +32,6 @@ export const openclawAgentConfig: AgentConfig = {
     skillsLoader,
     createInstructionsLoader({ managedFiles: ["AGENTS.md"] }),
     createSlashCommandsLoader({ managedDirs: ["commands"] }),
-    createSubagentsLoader({ managedDirs: ["agents"], fileExtension: ".md" }),
+    createSubagentsLoader({ managedDirs: ["agents"] }),
   ],
 };

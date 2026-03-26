@@ -31,6 +31,6 @@ export const geminiCliAgentConfig: AgentConfig = {
     skillsLoader,
     createInstructionsLoader({ managedFiles: ["GEMINI.md"] }),
     createSlashCommandsLoader({ managedDirs: ["commands"] }),
-    createSubagentsLoader({ managedDirs: ["agents"], fileExtension: ".md" }),
+    createSubagentsLoader({ managedDirs: ["agents"] }),
   ],
 };
