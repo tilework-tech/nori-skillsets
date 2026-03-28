@@ -517,22 +517,9 @@ export const registryUploadMain = async (args: {
         message: `Authentication failed: ${err instanceof Error ? err.message : String(err)}`,
       };
     }
-  } else if (hasUnifiedAuthWithOrgs) {
-    // Derive registry from namespace
+  } else if (orgId === "public" && hasUnifiedAuthWithOrgs) {
+    // Public registry is open to any authenticated user
     targetRegistryUrl = buildOrganizationRegistryUrl({ orgId });
-    const userOrgs = config.auth!.organizations!;
-
-    // Check if user has access to this org
-    if (!userOrgs.includes(orgId)) {
-      log.error(
-        `You do not have access to organization "${orgId}".\n\nCannot upload "${profileDisplayName}" to ${targetRegistryUrl}.\n\nYour available organizations: ${userOrgs.length > 0 ? userOrgs.join(", ") : "(none)"}`,
-      );
-      return {
-        success: false,
-        cancelled: false,
-        message: `You do not have access to organization "${orgId}"`,
-      };
-    }
 
     const registryAuth: RegistryAuth = {
       registryUrl: targetRegistryUrl,
@@ -562,8 +549,42 @@ export const registryUploadMain = async (args: {
       cancelled: false,
       message: "Authentication required to upload to public registry",
     };
+  } else if (hasUnifiedAuthWithOrgs) {
+    // Org-scoped upload requires org membership
+    targetRegistryUrl = buildOrganizationRegistryUrl({ orgId });
+    const userOrgs = config.auth!.organizations!;
+
+    if (!userOrgs.includes(orgId)) {
+      log.error(
+        `You do not have access to organization "${orgId}".\n\nCannot upload "${profileDisplayName}" to ${targetRegistryUrl}.\n\nYour available organizations: ${userOrgs.length > 0 ? userOrgs.join(", ") : "(none)"}`,
+      );
+      return {
+        success: false,
+        cancelled: false,
+        message: `You do not have access to organization "${orgId}"`,
+      };
+    }
+
+    const registryAuth: RegistryAuth = {
+      registryUrl: targetRegistryUrl,
+      username: config.auth!.username,
+      refreshToken: config.auth!.refreshToken,
+    };
+
+    try {
+      authToken = await getRegistryAuthToken({ registryAuth });
+    } catch (err) {
+      log.error(
+        `Authentication failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      return {
+        success: false,
+        cancelled: false,
+        message: `Authentication failed: ${err instanceof Error ? err.message : String(err)}`,
+      };
+    }
   } else {
-    // Namespaced package without unified auth
+    // No auth configured - login required
     log.error(
       `Cannot upload "${profileDisplayName}". To upload to organization "${orgId}", log in with:\n\n  nori-skillsets login`,
     );
