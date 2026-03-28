@@ -25,7 +25,7 @@ import {
  */
 const waitFor = async (
   condition: () => boolean,
-  timeoutMs = 15000,
+  timeoutMs = 5000,
 ): Promise<void> => {
   const start = Date.now();
   while (!condition()) {
@@ -54,8 +54,7 @@ describe("createWatcher", () => {
     await fs.rm(tempDir, { recursive: true, force: true });
   });
 
-  // Skipped: chokidar polling is unreliable in some CI/VM environments
-  test.skip("emits add event when new JSONL file is created", async () => {
+  test("emits add event when new JSONL file is created", async () => {
     const events: Array<WatcherEvents> = [];
 
     watcherInstance = createWatcher({
@@ -78,8 +77,7 @@ describe("createWatcher", () => {
     expect(addEvent?.filePath).toBe(testFile);
   });
 
-  // Skipped: chokidar polling is unreliable in some CI/VM environments
-  test.skip("emits change event when JSONL file is modified", async () => {
+  test("emits change event when JSONL file is modified", async () => {
     // Create file before starting watcher
     const testFile = path.join(tempDir, "existing.jsonl");
     await fs.writeFile(testFile, '{"initial": true}', "utf-8");
@@ -130,8 +128,7 @@ describe("createWatcher", () => {
     expect(jsonlEvents.length).toBe(0);
   });
 
-  // Skipped: chokidar polling is unreliable in some CI/VM environments
-  test.skip("watches nested directories", { timeout: 30000 }, async () => {
+  test("watches nested directories", async () => {
     const nestedDir = path.join(tempDir, "nested", "project");
     await fs.mkdir(nestedDir, { recursive: true });
 
