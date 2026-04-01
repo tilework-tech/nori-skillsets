@@ -394,6 +394,90 @@ describe("registry-upload", () => {
         expect(clackOutput).toContain("myorg");
       });
 
+      it("should allow any authenticated user to upload to public registry", async () => {
+        // User is authenticated but does NOT have "public" in their orgs list
+        const skillsetDir = path.join(skillsetsDir, "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
+        await fs.writeFile(
+          path.join(skillsetDir, "CLAUDE.md"),
+          "# My Profile\n",
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["someorg"],
+            organizationUrl: "https://someorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+
+        vi.mocked(registrarApi.uploadSkillset).mockResolvedValue({
+          name: "my-profile",
+          version: "1.0.0",
+          tarballSha: "abc123",
+          createdAt: new Date().toISOString(),
+        });
+
+        const result = await registryUploadMain({
+          profileSpec: "my-profile",
+          cwd: testDir,
+        });
+
+        expect(result.success).toBe(true);
+        expect(registrarApi.uploadSkillset).toHaveBeenCalledWith(
+          expect.objectContaining({
+            registryUrl: "https://noriskillsets.dev",
+          }),
+        );
+      });
+
+      it("should allow authenticated user with empty orgs to upload to public registry", async () => {
+        const skillsetDir = path.join(skillsetsDir, "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
+        await fs.writeFile(
+          path.join(skillsetDir, "CLAUDE.md"),
+          "# My Profile\n",
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: [],
+            organizationUrl: "https://noriskillsets.dev",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+
+        vi.mocked(registrarApi.uploadSkillset).mockResolvedValue({
+          name: "my-profile",
+          version: "1.0.0",
+          tarballSha: "abc123",
+          createdAt: new Date().toISOString(),
+        });
+
+        const result = await registryUploadMain({
+          profileSpec: "my-profile",
+          cwd: testDir,
+        });
+
+        expect(result.success).toBe(true);
+      });
+
       it("should use unified auth when config.auth.organizations is present", async () => {
         // Create a profile to upload
         const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
