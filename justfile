@@ -3,9 +3,6 @@
 
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
-# Override with NORI_SERVICES_FILE env var for testing
-services_file := env("NORI_SERVICES_FILE", env("HOME", "") + "/.nori/local-services.yml")
-
 # Print curated repo orientation
 help:
     #!/usr/bin/env bash
@@ -20,7 +17,6 @@ help:
       just dev                   Build and run the CLI locally
       just test [-- args]        Run the test suite (vitest)
       just doctor                Verify local toolchain and dependencies
-      just services              Show nearby local services
 
     Repo-specific targets:
       just build                 Full production build
@@ -75,74 +71,12 @@ doctor:
     fi
 
     echo ""
-    echo "Services file:"
-    if [ -f "{{services_file}}" ]; then
-        printf "  ✓ %s\n" "{{services_file}}"
-    else
-        printf "  ⚠ %s not found\n" "{{services_file}}"
-        printf "    Copy the seed: cp configs/local-services.yml ~/.nori/local-services.yml\n"
-    fi
-
-    echo ""
     if [ "$ok" = true ]; then
         echo "All checks passed."
     else
         echo "Some checks failed. See above."
         exit 1
     fi
-
-# Show nearby local services from the shared registry
-services:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    file="{{services_file}}"
-
-    if [ ! -f "$file" ]; then
-        echo "No services file found at: $file"
-        echo ""
-        echo "To set up the shared local services registry:"
-        echo "  mkdir -p ~/.nori"
-        echo "  cp configs/local-services.yml ~/.nori/local-services.yml"
-        echo "  # Then edit paths to match your local workspace"
-        exit 0
-    fi
-
-    echo "Local services (from $file):"
-    echo ""
-
-    current_name=""
-    while IFS= read -r line; do
-        # Service name line: exactly 2 spaces + word + colon (no {2} — macOS bash 3.2 compat)
-        if [[ "$line" =~ ^[[:space:]][[:space:]][a-zA-Z][a-zA-Z0-9_-]*:$ ]]; then
-            name="${line#"${line%%[![:space:]]*}"}"
-            name="${name%:}"
-            current_name="$name"
-            echo "  $current_name"
-        elif [[ -n "$current_name" ]]; then
-            key="${line#"${line%%[![:space:]]*}"}"
-            case "$key" in
-                role:*)
-                    val="${key#role: }"
-                    echo "    role: $val"
-                    ;;
-                repo:*)
-                    val="${key#repo: }"
-                    echo "    repo: $val"
-                    ;;
-                start_cmd:*)
-                    val="${key#start_cmd: }"
-                    echo "    start_cmd: $val"
-                    ;;
-                default_port:*)
-                    val="${key#default_port: }"
-                    echo "    port: $val"
-                    ;;
-                services:*)
-                    current_name=""
-                    ;;
-            esac
-        fi
-    done < "$file"
 
 # Full production build
 build:

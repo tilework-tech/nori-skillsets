@@ -10,7 +10,7 @@ Nori Skillsets is a CLI client and plugin package for installing and managing "s
 
 This is the repository root. The project is a TypeScript Node.js application built with esbuild, using Commander for CLI parsing, Firebase for authentication, and the noriskillsets.dev registry as its backend. The CLI installs configuration into each agent's directory structure (e.g., `.claude/`, `.cursor/`, `.codex/`, etc.), where the respective agent reads it. Skillsets are stored in `~/.nori/profiles/` and activated by copying into each configured agent's target directory. The multi-agent architecture uses a single `AgentConfig` type (defined in @/src/cli/features/agentRegistry.ts) with shared lifecycle operations in @/src/cli/features/agentOperations.ts, so all agents share the same install/switch/remove logic.
 
-This repo participates in the Nori shared local runner layer -- a cross-repo convention providing standardized `just` targets (`help`, `dev`, `test`, `doctor`, `services`) for orientation and discovery. The same target contract exists in `sessions`, `registrar`, `admin`, and `cli`. The shared services registry at `~/.nori/local-services.yml` is read by `just services` across all participating repos; the seed file lives at `@/configs/local-services.yml`.
+This repo participates in the Nori shared local runner layer -- a cross-repo convention providing standardized `just` targets (`help`, `dev`, `test`, `doctor`) for orientation and discovery. The same target contract exists in `sessions`, `registrar`, `admin`, and `cli`.
 
 ```
 User runs CLI command
@@ -37,7 +37,7 @@ The build process compiles TypeScript, resolves `@/` path aliases via `tsc-alias
 
 **Publishing process:** Releases are created exclusively through CI/CD (see `@/.github/workflows/docs.md`). All publishing goes through a single workflow, `@/.github/workflows/skillsets-release.yml`, which handles tag pushes (stable `@latest`), pushes to `main` (`@next` prereleases), and manual dispatch. Stable releases go through `@/scripts/create_skillsets_release.py`, which creates a git tag that triggers the workflow. All npm publishing uses OIDC Trusted Publishing, which requires a single whitelisted workflow file. Direct `npm publish` is blocked by a safeguard in `@/scripts/prepublish.sh` (invoked via the `prepublishOnly` npm hook in `@/package.json`).
 
-**Local runner layer:** The `@/justfile` provides standardized `just` targets that wrap existing npm scripts. The `configs/` directory contains both lint/build configuration (eslint, prettier, typescript) and the `local-services.yml` seed file for the shared services registry. The `services` target in the justfile parses YAML using pure bash (no external YAML parser), reading from `~/.nori/local-services.yml` by default. Integration tests for the justfile live at `@/tests/justfile.test.ts`.
+**Local runner layer:** The `@/justfile` provides standardized `just` targets that wrap existing npm scripts. Integration tests for the justfile live at `@/tests/justfile.test.ts`.
 
 ### Things to Know
 
@@ -46,7 +46,5 @@ The config system supports two formats: a legacy flat format (pre-v19) with cred
 The registrar API (`@/src/api/registrar.ts`) uses a fallback mechanism: requests to `/api/skillsets/` that return 404 are silently retried against `/api/profiles/` to support older registry servers. Skillset operations and skill operations use separate API endpoint paths (`/api/skillsets/` vs `/api/skills/`).
 
 The `prepublishOnly` npm hook serves as a safeguard against accidental direct publishing rather than as an active part of the release workflow. It exits with a non-zero status and instructs the user to use the proper release script.
-
-The `NORI_SERVICES_FILE` environment variable overrides the default `~/.nori/local-services.yml` path used by `just services` and `just doctor`. This is used in tests (`@/tests/justfile.test.ts`) to point at temporary fixture files and to test the missing-file fallback path. The `services` target exits 0 with setup guidance when the file is absent rather than failing.
 
 Created and maintained by Nori.
