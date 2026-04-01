@@ -10,6 +10,8 @@ Nori Skillsets is a CLI client and plugin package for installing and managing "s
 
 This is the repository root. The project is a TypeScript Node.js application built with esbuild, using Commander for CLI parsing, Firebase for authentication, and the noriskillsets.dev registry as its backend. The CLI installs configuration into each agent's directory structure (e.g., `.claude/`, `.cursor/`, `.codex/`, etc.), where the respective agent reads it. Skillsets are stored in `~/.nori/profiles/` and activated by copying into each configured agent's target directory. The multi-agent architecture uses a single `AgentConfig` type (defined in @/src/cli/features/agentRegistry.ts) with shared lifecycle operations in @/src/cli/features/agentOperations.ts, so all agents share the same install/switch/remove logic.
 
+This repo participates in the Nori shared local runner layer -- a cross-repo convention providing standardized `just` targets (`help`, `dev`, `test`, `doctor`) for orientation and discovery. The same target contract exists in `sessions`, `registrar`, `admin`, and `cli`.
+
 ```
 User runs CLI command
         |
@@ -34,6 +36,8 @@ The CLI entrypoint is `@/src/cli/nori-skillsets.ts`, which registers all command
 The build process compiles TypeScript, resolves `@/` path aliases via `tsc-alias`, and then bundles hook scripts into standalone executables using esbuild (`@/src/scripts/bundle-skills.ts`).
 
 **Publishing process:** Releases are created exclusively through CI/CD (see `@/.github/workflows/docs.md`). All publishing goes through a single workflow, `@/.github/workflows/skillsets-release.yml`, which handles tag pushes (stable `@latest`), pushes to `main` (`@next` prereleases), and manual dispatch. Stable releases go through `@/scripts/create_skillsets_release.py`, which creates a git tag that triggers the workflow. All npm publishing uses OIDC Trusted Publishing, which requires a single whitelisted workflow file. Direct `npm publish` is blocked by a safeguard in `@/scripts/prepublish.sh` (invoked via the `prepublishOnly` npm hook in `@/package.json`).
+
+**Local runner layer:** The `@/justfile` provides standardized `just` targets that wrap existing npm scripts. Integration tests for the justfile live at `@/tests/justfile.test.ts`.
 
 ### Things to Know
 

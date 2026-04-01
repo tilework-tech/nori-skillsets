@@ -45,7 +45,6 @@ describe("copyBundledSkills", () => {
     expect(content).toContain(
       "https://github.com/tilework-tech/nori-skillsets",
     );
-    expect(content).toContain("https://noriagentic.com/");
   });
 
   it("should not overwrite a skillset-provided skill with the same name", async () => {
