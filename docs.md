@@ -43,4 +43,6 @@ The registrar API (`@/src/api/registrar.ts`) uses a fallback mechanism: requests
 
 The `prepublishOnly` npm hook serves as a safeguard against accidental direct publishing rather than as an active part of the release workflow. It exits with a non-zero status and instructs the user to use the proper release script.
 
+The repo's agent instruction file is `@/AGENTS.md` -- this is the single source of truth for agent-facing instructions (style guide, disambiguation rules, close-the-loop verification). `@/CLAUDE.md` is a symlink to `AGENTS.md`, preserving Claude Code's auto-discovery while keeping `AGENTS.md` canonical. The last `## ` section in `AGENTS.md` is "Critical: How to Close the Loop", which provides agents with end-to-end verification steps organized by command type (non-interactive, interactive, registry-dependent). Structural invariants of these files are enforced by tests in `@/tests/agents-md.test.ts`.
+
 Created and maintained by Nori.
