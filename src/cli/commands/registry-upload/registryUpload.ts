@@ -181,6 +181,49 @@ const detectInlineSkillCandidates = async (args: {
 };
 
 /**
+ * Detect skills that already have nori.json with type "inlined-skill".
+ * These were previously inlined and should remain inline on re-upload
+ * without re-prompting the user.
+ *
+ * @param args - The function arguments
+ * @param args.skillsetDir - The skillset directory to scan
+ *
+ * @returns Array of skill IDs that are already marked as inlined
+ */
+const detectExistingInlineSkills = async (args: {
+  skillsetDir: string;
+}): Promise<Array<string>> => {
+  const { skillsetDir } = args;
+  const skillsDir = path.join(skillsetDir, "skills");
+
+  try {
+    await fs.access(skillsDir);
+  } catch {
+    return [];
+  }
+
+  const entries = await fs.readdir(skillsDir, { withFileTypes: true });
+  const inlineSkills: Array<string> = [];
+
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+
+    const noriJsonPath = path.join(skillsDir, entry.name, "nori.json");
+    try {
+      const content = await fs.readFile(noriJsonPath, "utf-8");
+      const metadata = JSON.parse(content) as NoriJson;
+      if (metadata.type === "inlined-skill") {
+        inlineSkills.push(entry.name);
+      }
+    } catch {
+      // No nori.json or invalid JSON — skip
+    }
+  }
+
+  return inlineSkills;
+};
+
+/**
  * Backfill the `type` field on nori.json files before upload.
  *
  * - Sets `type: "skillset"` on the skillset's nori.json if missing
@@ -688,6 +731,11 @@ export const registryUploadMain = async (args: {
   // Detect inline skill candidates (skills without nori.json)
   const inlineCandidates = await detectInlineSkillCandidates({ skillsetDir });
 
+  // Detect skills already marked as inlined from a previous upload
+  const existingInlineSkills = await detectExistingInlineSkills({
+    skillsetDir,
+  });
+
   // Helper to perform upload with optional resolution strategy
   const performUpload = async (uploadArgs: {
     resolutionStrategy?: SkillResolutionStrategy | null;
@@ -708,6 +756,12 @@ export const registryUploadMain = async (args: {
       const archiveData = new ArrayBuffer(tarballBuffer.byteLength);
       new Uint8Array(archiveData).set(tarballBuffer);
 
+      // Merge existing inlined skills with newly-resolved inline candidates
+      const allInlineSkills = [
+        ...existingInlineSkills,
+        ...(uploadArgs.inlineSkills ?? []),
+      ];
+
       const result: UploadSkillsetResponse = await registrarApi.uploadSkillset({
         packageName,
         version: uploadArgs.uploadVersion,
@@ -716,7 +770,7 @@ export const registryUploadMain = async (args: {
         registryUrl: targetRegistryUrl,
         description: description ?? undefined,
         resolutionStrategy: uploadArgs.resolutionStrategy ?? undefined,
-        inlineSkills: uploadArgs.inlineSkills ?? undefined,
+        inlineSkills: allInlineSkills.length > 0 ? allInlineSkills : undefined,
       });
 
       return {
