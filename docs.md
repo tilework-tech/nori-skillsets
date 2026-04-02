@@ -10,6 +10,8 @@ Nori Skillsets is a CLI client and plugin package for installing and managing "s
 
 This is the repository root. The project is a TypeScript Node.js application built with esbuild, using Commander for CLI parsing, Firebase for authentication, and the noriskillsets.dev registry as its backend. The CLI installs configuration into each agent's directory structure (e.g., `.claude/`, `.cursor/`, `.codex/`, etc.), where the respective agent reads it. Skillsets are stored in `~/.nori/profiles/` and activated by copying into each configured agent's target directory. The multi-agent architecture uses a single `AgentConfig` type (defined in @/src/cli/features/agentRegistry.ts) with shared lifecycle operations in @/src/cli/features/agentOperations.ts, so all agents share the same install/switch/remove logic.
 
+This repo participates in the Nori shared local runner layer -- a cross-repo convention providing standardized `just` targets (`help`, `dev`, `test`, `doctor`) for orientation and discovery. The same target contract exists in `sessions`, `registrar`, `admin`, and `cli`.
+
 ```
 User runs CLI command
         |
@@ -35,6 +37,8 @@ The build process compiles TypeScript, resolves `@/` path aliases via `tsc-alias
 
 **Publishing process:** Releases are created exclusively through CI/CD (see `@/.github/workflows/docs.md`). All publishing goes through a single workflow, `@/.github/workflows/skillsets-release.yml`, which handles tag pushes (stable `@latest`), pushes to `main` (`@next` prereleases), and manual dispatch. Stable releases go through `@/scripts/create_skillsets_release.py`, which creates a git tag that triggers the workflow. All npm publishing uses OIDC Trusted Publishing, which requires a single whitelisted workflow file. Direct `npm publish` is blocked by a safeguard in `@/scripts/prepublish.sh` (invoked via the `prepublishOnly` npm hook in `@/package.json`).
 
+**Local runner layer:** The `@/justfile` provides standardized `just` targets that wrap existing npm scripts. Integration tests for the justfile live at `@/tests/justfile.test.ts`.
+
 ### Things to Know
 
 The config system supports two formats: a legacy flat format (pre-v19) with credentials at the root level, and a nested `auth: {...}` format (v19+). Both are handled transparently by `loadConfig()` in `@/src/cli/config.ts` and `ConfigManager.loadConfig()` in `@/src/api/base.ts`.
@@ -42,5 +46,7 @@ The config system supports two formats: a legacy flat format (pre-v19) with cred
 The registrar API (`@/src/api/registrar.ts`) uses a fallback mechanism: requests to `/api/skillsets/` that return 404 are silently retried against `/api/profiles/` to support older registry servers. Skillset operations and skill operations use separate API endpoint paths (`/api/skillsets/` vs `/api/skills/`).
 
 The `prepublishOnly` npm hook serves as a safeguard against accidental direct publishing rather than as an active part of the release workflow. It exits with a non-zero status and instructs the user to use the proper release script.
+
+The repo's agent instruction file is `@/AGENTS.md` -- this is the single source of truth for agent-facing instructions (style guide, disambiguation rules, close-the-loop verification). `@/CLAUDE.md` is a symlink to `AGENTS.md`, preserving Claude Code's auto-discovery while keeping `AGENTS.md` canonical. The last `## ` section in `AGENTS.md` is "Critical: How to Close the Loop", which provides agents with end-to-end verification steps organized by command type (non-interactive, interactive, registry-dependent). Structural invariants of these files are enforced by tests in `@/tests/agents-md.test.ts`.
 
 Created and maintained by Nori.
