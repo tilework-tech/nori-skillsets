@@ -3009,5 +3009,263 @@ describe("registry-upload", () => {
         expect(noriJson.dependencies?.skills?.["my-skill"]).toBe("5.0.0");
       });
     });
+
+    describe("existing inlined skills on re-upload", () => {
+      it("should include previously-inlined skills in inlineSkills on re-upload", async () => {
+        // Simulate re-upload: skill already has nori.json with type "inlined-skill"
+        // (written by first upload's createCandidateNoriJsonFiles)
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
+        await fs.writeFile(
+          path.join(skillsetDir, "CLAUDE.md"),
+          "# My Profile\n",
+        );
+
+        const skillDir = path.join(skillsetDir, "skills", "init");
+        await fs.mkdir(skillDir, { recursive: true });
+        await fs.writeFile(path.join(skillDir, "SKILL.md"), "# Init Skill\n");
+        await fs.writeFile(
+          path.join(skillDir, "nori.json"),
+          JSON.stringify({
+            name: "init",
+            version: "1.0.0",
+            type: "inlined-skill",
+          }),
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+
+        vi.mocked(registrarApi.getPackument).mockResolvedValue({
+          name: "my-profile",
+          "dist-tags": { latest: "1.0.0" },
+          versions: {
+            "1.0.0": {
+              name: "my-profile",
+              version: "1.0.0",
+              dist: {
+                tarball: "https://example.com/my-profile-1.0.0.tgz",
+                shasum: "abc123",
+              },
+            },
+          },
+        });
+
+        vi.mocked(registrarApi.uploadSkillset).mockResolvedValue({
+          name: "my-profile",
+          version: "1.0.1",
+          tarballSha: "def456",
+          createdAt: new Date().toISOString(),
+        });
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+        });
+
+        expect(result.success).toBe(true);
+
+        // The previously-inlined skill should be included in inlineSkills
+        const uploadCall = vi.mocked(registrarApi.uploadSkillset).mock
+          .calls[0][0];
+        expect(uploadCall.inlineSkills).toEqual(["init"]);
+      });
+
+      it("should not include skills with type 'skill' as inline on re-upload", async () => {
+        // Skill has nori.json with type "skill" — should NOT be treated as inline
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
+        await fs.writeFile(
+          path.join(skillsetDir, "CLAUDE.md"),
+          "# My Profile\n",
+        );
+
+        const skillDir = path.join(skillsetDir, "skills", "tdd");
+        await fs.mkdir(skillDir, { recursive: true });
+        await fs.writeFile(path.join(skillDir, "SKILL.md"), "# TDD Skill\n");
+        await fs.writeFile(
+          path.join(skillDir, "nori.json"),
+          JSON.stringify({ name: "tdd", version: "1.0.0", type: "skill" }),
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+
+        vi.mocked(registrarApi.uploadSkillset).mockResolvedValue({
+          name: "my-profile",
+          version: "1.0.0",
+          tarballSha: "abc123",
+          createdAt: new Date().toISOString(),
+        });
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+        });
+
+        expect(result.success).toBe(true);
+
+        // Skills with type "skill" should NOT be in inlineSkills
+        const uploadCall = vi.mocked(registrarApi.uploadSkillset).mock
+          .calls[0][0];
+        expect(uploadCall.inlineSkills).toBeUndefined();
+      });
+
+      it("should merge existing inlined skills with new candidates", async () => {
+        // One skill already inlined (has nori.json with type "inlined-skill")
+        // Another skill is new (no nori.json)
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
+        await fs.writeFile(
+          path.join(skillsetDir, "CLAUDE.md"),
+          "# My Profile\n",
+        );
+
+        // Previously-inlined skill
+        const inlinedSkillDir = path.join(skillsetDir, "skills", "init");
+        await fs.mkdir(inlinedSkillDir, { recursive: true });
+        await fs.writeFile(
+          path.join(inlinedSkillDir, "SKILL.md"),
+          "# Init Skill\n",
+        );
+        await fs.writeFile(
+          path.join(inlinedSkillDir, "nori.json"),
+          JSON.stringify({
+            name: "init",
+            version: "1.0.0",
+            type: "inlined-skill",
+          }),
+        );
+
+        // New skill without nori.json (candidate)
+        const newSkillDir = path.join(skillsetDir, "skills", "debug");
+        await fs.mkdir(newSkillDir, { recursive: true });
+        await fs.writeFile(
+          path.join(newSkillDir, "SKILL.md"),
+          "# Debug Skill\n",
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+
+        vi.mocked(registrarApi.uploadSkillset).mockResolvedValue({
+          name: "my-profile",
+          version: "1.0.0",
+          tarballSha: "abc123",
+          createdAt: new Date().toISOString(),
+        });
+
+        // User chooses "inline" for the new candidate
+        vi.mocked(clack.select).mockResolvedValueOnce("inline");
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+        });
+
+        expect(result.success).toBe(true);
+
+        // Both the existing inlined skill and the new inline candidate should be in inlineSkills
+        const uploadCall = vi.mocked(registrarApi.uploadSkillset).mock
+          .calls[0][0];
+        expect(uploadCall.inlineSkills).toEqual(
+          expect.arrayContaining(["init", "debug"]),
+        );
+        expect(uploadCall.inlineSkills).toHaveLength(2);
+      });
+
+      it("should include existing inlined skills in silent mode re-upload", async () => {
+        // Silent mode should also honor existing inlined skills
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
+        await fs.writeFile(
+          path.join(skillsetDir, "CLAUDE.md"),
+          "# My Profile\n",
+        );
+
+        const skillDir = path.join(skillsetDir, "skills", "init");
+        await fs.mkdir(skillDir, { recursive: true });
+        await fs.writeFile(path.join(skillDir, "SKILL.md"), "# Init Skill\n");
+        await fs.writeFile(
+          path.join(skillDir, "nori.json"),
+          JSON.stringify({
+            name: "init",
+            version: "1.0.0",
+            type: "inlined-skill",
+          }),
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+
+        vi.mocked(registrarApi.uploadSkillset).mockResolvedValue({
+          name: "my-profile",
+          version: "1.0.0",
+          tarballSha: "abc123",
+          createdAt: new Date().toISOString(),
+        });
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+          silent: true,
+        });
+
+        expect(result.success).toBe(true);
+
+        // Even in silent mode, existing inlined skills should be sent
+        const uploadCall = vi.mocked(registrarApi.uploadSkillset).mock
+          .calls[0][0];
+        expect(uploadCall.inlineSkills).toEqual(["init"]);
+      });
+    });
   });
 });
