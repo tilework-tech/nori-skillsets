@@ -756,4 +756,220 @@ describe("registry-search", () => {
       expect(output).toContain("nori-skillsets download");
     });
   });
+
+  describe("org prefix search with trailing slash", () => {
+    it("should search only public registry when query is 'public/'", async () => {
+      const mockPublicPackages = [
+        {
+          id: "1",
+          name: "public-profile-1",
+          description: "First public profile",
+          authorEmail: "public@example.com",
+          createdAt: "2024-01-01",
+          updatedAt: "2024-01-01",
+        },
+        {
+          id: "2",
+          name: "public-profile-2",
+          description: "Second public profile",
+          authorEmail: "public@example.com",
+          createdAt: "2024-01-01",
+          updatedAt: "2024-01-01",
+        },
+      ];
+      const mockPublicSkills = [
+        {
+          id: "3",
+          name: "public-skill-1",
+          description: "A public skill",
+          authorEmail: "public@example.com",
+          createdAt: "2024-01-01",
+          updatedAt: "2024-01-01",
+        },
+      ];
+      vi.mocked(registrarApi.searchPackages).mockResolvedValue(
+        mockPublicPackages,
+      );
+      vi.mocked(registrarApi.searchSkills).mockResolvedValue(mockPublicSkills);
+
+      await registrySearchMain({ query: "public/", installDir: testDir });
+
+      // Should search public registry with empty query
+      expect(registrarApi.searchPackages).toHaveBeenCalledWith(
+        expect.objectContaining({
+          query: "",
+        }),
+      );
+      expect(registrarApi.searchSkills).toHaveBeenCalledWith(
+        expect.objectContaining({
+          query: "",
+        }),
+      );
+      // Should NOT search org registry
+      expect(registrarApi.searchPackagesOnRegistry).not.toHaveBeenCalled();
+
+      const output = getSearchOutput();
+      expect(output).toContain("public:");
+      expect(output).toContain("public-profile-1");
+      expect(output).toContain("public-profile-2");
+      expect(output).toContain("public-skill-1");
+    });
+
+    it("should search only specific org when query is 'orgname/'", async () => {
+      const mockOrgPackages = [
+        {
+          id: "1",
+          name: "org-profile-1",
+          description: "An org profile",
+          authorEmail: "org@example.com",
+          createdAt: "2024-01-01",
+          updatedAt: "2024-01-01",
+        },
+      ];
+      const mockOrgSkills = [
+        {
+          id: "2",
+          name: "org-skill-1",
+          description: "An org skill",
+          authorEmail: "org@example.com",
+          createdAt: "2024-01-01",
+          updatedAt: "2024-01-01",
+        },
+      ];
+      vi.mocked(registrarApi.searchPackagesOnRegistry).mockResolvedValue(
+        mockOrgPackages,
+      );
+      vi.mocked(registrarApi.searchSkills).mockImplementation(async (args) => {
+        if (args.authToken != null) {
+          return mockOrgSkills;
+        }
+        return [];
+      });
+
+      // Search for a specific org that might not match user's configured org
+      await registrySearchMain({ query: "myorg/", installDir: testDir });
+
+      // Should search org registry with empty query
+      expect(registrarApi.searchPackagesOnRegistry).toHaveBeenCalledWith(
+        expect.objectContaining({
+          query: "",
+          registryUrl: "https://myorg.noriskillsets.dev",
+          authToken: "mock-auth-token",
+        }),
+      );
+      // Should NOT search public registry
+      expect(registrarApi.searchPackages).not.toHaveBeenCalled();
+
+      const output = getSearchOutput();
+      expect(output).toContain("myorg:");
+      expect(output).toContain("myorg/org-profile-1");
+      expect(output).toContain("myorg/org-skill-1");
+    });
+
+    it("should search different org registry when query is 'otheorg/'", async () => {
+      const mockOrgPackages = [
+        {
+          id: "1",
+          name: "other-profile",
+          description: "A profile from another org",
+          authorEmail: "org@example.com",
+          createdAt: "2024-01-01",
+          updatedAt: "2024-01-01",
+        },
+      ];
+      vi.mocked(registrarApi.searchPackagesOnRegistry).mockResolvedValue(
+        mockOrgPackages,
+      );
+      vi.mocked(registrarApi.searchSkills).mockResolvedValue([]);
+
+      await registrySearchMain({ query: "otherorg/", installDir: testDir });
+
+      // Should search the specified org registry
+      expect(registrarApi.searchPackagesOnRegistry).toHaveBeenCalledWith(
+        expect.objectContaining({
+          query: "",
+          registryUrl: "https://otherorg.noriskillsets.dev",
+        }),
+      );
+
+      const output = getSearchOutput();
+      expect(output).toContain("otherorg:");
+      expect(output).toContain("otherorg/other-profile");
+    });
+
+    it("should return error when searching org without auth configured", async () => {
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        activeSkillset: "senior-swe",
+        // No auth configured
+      });
+
+      await registrySearchMain({ query: "someorg/", installDir: testDir });
+
+      const output = getSearchOutput();
+      expect(output).toContain("Cannot search org");
+      expect(output).toContain("someorg");
+      expect(output).toContain("not authenticated");
+    });
+
+    it("should treat invalid org patterns as regular search queries", async () => {
+      const mockPublicPackages = [
+        {
+          id: "1",
+          name: "some-profile",
+          description: "A profile",
+          authorEmail: "test@example.com",
+          createdAt: "2024-01-01",
+          updatedAt: "2024-01-01",
+        },
+      ];
+      vi.mocked(registrarApi.searchPackages).mockResolvedValue(
+        mockPublicPackages,
+      );
+      vi.mocked(registrarApi.searchSkills).mockResolvedValue([]);
+
+      // Uppercase org IDs are invalid, so this should be treated as regular search
+      await registrySearchMain({ query: "INVALID/", installDir: testDir });
+
+      // Should perform standard search with the full query
+      expect(registrarApi.searchPackages).toHaveBeenCalledWith(
+        expect.objectContaining({
+          query: "INVALID/",
+        }),
+      );
+    });
+
+    it("should handle org prefix with hyphenated org names", async () => {
+      const mockOrgPackages = [
+        {
+          id: "1",
+          name: "my-profile",
+          description: "A profile",
+          authorEmail: "org@example.com",
+          createdAt: "2024-01-01",
+          updatedAt: "2024-01-01",
+        },
+      ];
+      vi.mocked(registrarApi.searchPackagesOnRegistry).mockResolvedValue(
+        mockOrgPackages,
+      );
+      vi.mocked(registrarApi.searchSkills).mockResolvedValue([]);
+
+      await registrySearchMain({
+        query: "my-company/",
+        installDir: testDir,
+      });
+
+      // Should search the hyphenated org registry
+      expect(registrarApi.searchPackagesOnRegistry).toHaveBeenCalledWith(
+        expect.objectContaining({
+          query: "",
+          registryUrl: "https://my-company.noriskillsets.dev",
+        }),
+      );
+
+      const output = getSearchOutput();
+      expect(output).toContain("my-company:");
+    });
+  });
 });
