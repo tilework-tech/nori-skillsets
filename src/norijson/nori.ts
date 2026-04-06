@@ -167,7 +167,7 @@ export const addSkillToNoriJson = async (args: {
  *
  * @param args - Function arguments
  * @param args.skillsetDir - Path to the directory to check
- * @param args.configFileNames - Config file names to look for (defaults to ["CLAUDE.md"])
+ * @param args.configFileNames - Config file names to look for (defaults to ["AGENTS.md", "CLAUDE.md"])
  *
  * @returns True if the directory has skillset markers
  */
@@ -176,7 +176,7 @@ const looksLikeSkillset = async (args: {
   configFileNames?: Array<string> | null;
 }): Promise<boolean> => {
   const { skillsetDir } = args;
-  const configFileNames = args.configFileNames ?? ["CLAUDE.md"];
+  const configFileNames = args.configFileNames ?? ["AGENTS.md", "CLAUDE.md"];
 
   for (const fileName of configFileNames) {
     try {
@@ -210,7 +210,7 @@ const looksLikeSkillset = async (args: {
  *
  * @param args - Function arguments
  * @param args.skillsetDir - Path to skillset directory
- * @param args.configFileNames - Config file names to look for (defaults to ["CLAUDE.md"])
+ * @param args.configFileNames - Config file names to look for (defaults to ["AGENTS.md", "CLAUDE.md"])
  */
 export const ensureNoriJson = async (args: {
   skillsetDir: string;

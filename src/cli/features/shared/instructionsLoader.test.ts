@@ -83,7 +83,7 @@ const createTestConfig = (args: {
  * @param args - Function arguments
  * @param args.skillsetsDir - Path to the profiles directory
  * @param args.skillsetName - Name of the skillset
- * @param args.claudeMd - Content for the skillset's CLAUDE.md
+ * @param args.configContent - Content for the skillset's AGENTS.md
  * @param args.skills - Map of skill name to frontmatter and body content
  *
  * @returns A Skillset pointing at the created directory
@@ -91,10 +91,10 @@ const createTestConfig = (args: {
 const createTestSkillset = async (args: {
   skillsetsDir: string;
   skillsetName: string;
-  claudeMd?: string | null;
+  configContent?: string | null;
   skills?: Record<string, { frontmatter: string; body: string }> | null;
 }): Promise<Skillset> => {
-  const { skillsetsDir, skillsetName, claudeMd, skills } = args;
+  const { skillsetsDir, skillsetName, configContent, skills } = args;
   const skillsetDir = path.join(skillsetsDir, skillsetName);
   await fs.mkdir(skillsetDir, { recursive: true });
   await fs.writeFile(
@@ -107,9 +107,9 @@ const createTestSkillset = async (args: {
   );
 
   let configFilePath: string | null = null;
-  if (claudeMd != null) {
-    const cfgPath = path.join(skillsetDir, "CLAUDE.md");
-    await fs.writeFile(cfgPath, claudeMd);
+  if (configContent != null) {
+    const cfgPath = path.join(skillsetDir, "AGENTS.md");
+    await fs.writeFile(cfgPath, configContent);
     configFilePath = cfgPath;
   }
 
@@ -219,7 +219,7 @@ describe("createInstructionsLoader", () => {
       const skillset = await createTestSkillset({
         skillsetsDir: noriProfilesDir,
         skillsetName: "test-skillset",
-        claudeMd: SAMPLE_CLAUDE_MD,
+        configContent: SAMPLE_CLAUDE_MD,
       });
 
       await loader.run({ agent, config, skillset });
@@ -242,7 +242,7 @@ describe("createInstructionsLoader", () => {
       const skillset = await createTestSkillset({
         skillsetsDir: noriProfilesDir,
         skillsetName: "template-test",
-        claudeMd: CLAUDE_MD_WITH_TEMPLATE,
+        configContent: CLAUDE_MD_WITH_TEMPLATE,
       });
 
       await loader.run({ agent, config, skillset });
@@ -265,7 +265,7 @@ describe("createInstructionsLoader", () => {
       const skillset = await createTestSkillset({
         skillsetsDir: noriProfilesDir,
         skillsetName: "skills-test",
-        claudeMd: SAMPLE_CLAUDE_MD,
+        configContent: SAMPLE_CLAUDE_MD,
         skills: TEST_SKILLS,
       });
 
@@ -303,7 +303,7 @@ More custom instructions.
       const skillset = await createTestSkillset({
         skillsetsDir: noriProfilesDir,
         skillsetName: "preserve-test",
-        claudeMd: SAMPLE_CLAUDE_MD,
+        configContent: SAMPLE_CLAUDE_MD,
       });
 
       await loader.run({ agent, config, skillset });
@@ -344,7 +344,7 @@ Old nori instructions that should be cleared.
       const skillset = await createTestSkillset({
         skillsetsDir: noriProfilesDir,
         skillsetName: "empty-test",
-        // no claudeMd -> configFilePath will be null
+        // no configContent -> configFilePath will be null
       });
 
       await loader.run({ agent, config, skillset });

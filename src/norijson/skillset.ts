@@ -51,7 +51,7 @@ export type Skillset = {
   metadata: NoriJson;
   /** Path to skills/ subdirectory, or null if it doesn't exist */
   skillsDir: string | null;
-  /** Path to the root config file (e.g. CLAUDE.md), or null if it doesn't exist */
+  /** Path to the root config file (e.g. AGENTS.md), or null if it doesn't exist */
   configFilePath: string | null;
   /** Path to slashcommands/ subdirectory, or null if it doesn't exist */
   slashcommandsDir: string | null;
@@ -112,7 +112,7 @@ export const parseSkillset = async (args: {
   skillsetDir?: string | null;
 }): Promise<Skillset> => {
   const { skillsetName, skillsetDir: explicitDir } = args;
-  const configFileName = "CLAUDE.md";
+  const configFileNames = ["AGENTS.md", "CLAUDE.md"];
 
   const dir =
     explicitDir != null
@@ -134,24 +134,31 @@ export const parseSkillset = async (args: {
 
   // Check for optional components
   const skillsDirPath = path.join(dir, "skills");
-  const configFileFullPath = path.join(dir, configFileName);
   const slashcommandsDirPath = path.join(dir, "slashcommands");
   const subagentsDirPath = path.join(dir, "subagents");
 
-  const [hasSkills, hasConfigFile, hasSlashcommands, hasSubagents] =
-    await Promise.all([
-      dirExists({ dirPath: skillsDirPath }),
-      fileExists({ filePath: configFileFullPath }),
-      dirExists({ dirPath: slashcommandsDirPath }),
-      dirExists({ dirPath: subagentsDirPath }),
-    ]);
+  // Find config file: prefer AGENTS.md, fall back to CLAUDE.md
+  let resolvedConfigFilePath: string | null = null;
+  for (const fileName of configFileNames) {
+    const candidate = path.join(dir, fileName);
+    if (await fileExists({ filePath: candidate })) {
+      resolvedConfigFilePath = candidate;
+      break;
+    }
+  }
+
+  const [hasSkills, hasSlashcommands, hasSubagents] = await Promise.all([
+    dirExists({ dirPath: skillsDirPath }),
+    dirExists({ dirPath: slashcommandsDirPath }),
+    dirExists({ dirPath: subagentsDirPath }),
+  ]);
 
   return {
     name,
     dir,
     metadata,
     skillsDir: hasSkills ? skillsDirPath : null,
-    configFilePath: hasConfigFile ? configFileFullPath : null,
+    configFilePath: resolvedConfigFilePath,
     slashcommandsDir: hasSlashcommands ? slashcommandsDirPath : null,
     subagentsDir: hasSubagents ? subagentsDirPath : null,
   };

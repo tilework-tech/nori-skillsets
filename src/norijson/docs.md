@@ -43,13 +43,13 @@ CLI Commands (fork, new, register, switch, list, external, skill-download)
 - `getNoriDir()` / `getNoriSkillsetsDir()`: Canonical path getters for `~/.nori/` and `~/.nori/profiles/`.
 - `MANIFEST_FILE`: The constant `"nori.json"`, used to identify valid skillsets.
 - `Skillset` type: Represents a parsed skillset directory with `name`, `dir`, `metadata` (the parsed `NoriJson`), and nullable paths for `skillsDir`, `configFilePath`, `slashcommandsDir`, `subagentsDir`.
-- `parseSkillset({ skillsetName?, skillsetDir? })`: Resolves a skillset directory, calls `ensureNoriJson()`, reads metadata, probes for optional subdirectories/files. The `configFileName` is hardcoded to `"CLAUDE.md"` internally.
+- `parseSkillset({ skillsetName?, skillsetDir? })`: Resolves a skillset directory, calls `ensureNoriJson()`, reads metadata, probes for optional subdirectories/files. Checks for `AGENTS.md` first, then falls back to `CLAUDE.md` for backward compatibility.
 - `listSkillsets()`: Scans `~/.nori/profiles/` for directories containing `nori.json`, supporting flat and namespaced (org/name) layouts. Calls `ensureNoriJson()` for backwards compatibility.
 
 ### Things to Know
 
 - The `type` field distinguishes between full skillsets, standalone skills, and skills that were inlined (extracted) from a skillset upload. The `"inlined-skill"` type is set server-side during upload when skills are extracted from a skillset package.
-- `ensureNoriJson` uses a `looksLikeSkillset` heuristic: it checks for the presence of a known config file name (default `"CLAUDE.md"`) or both `skills/` and `subagents/` subdirectories. This allows it to auto-generate manifests for user-created skillsets that predate the `nori.json` convention.
-- `parseSkillset` hardcodes `"CLAUDE.md"` as the config file name because all skillsets use `CLAUDE.md` as the source file. The mapping to each agent's native format happens at write time in the instructions loader.
+- `ensureNoriJson` uses a `looksLikeSkillset` heuristic: it checks for the presence of a known config file name (defaults to `["AGENTS.md", "CLAUDE.md"]`) or both `skills/` and `subagents/` subdirectories. This allows it to auto-generate manifests for user-created skillsets that predate the `nori.json` convention.
+- `parseSkillset` checks for config files in priority order: `AGENTS.md` first, then `CLAUDE.md`. When both exist, `AGENTS.md` wins. New skillsets are created with `AGENTS.md`; `CLAUDE.md` is supported for backward compatibility with existing skillsets.
 
 Created and maintained by Nori.

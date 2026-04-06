@@ -2322,7 +2322,7 @@ const createMockTarballWithNoriJson = async (args: {
       path.join(tempDir, "nori.json"),
       JSON.stringify(noriJson, null, 2),
     );
-    await fs.writeFile(path.join(tempDir, "CLAUDE.md"), "# Test Profile");
+    await fs.writeFile(path.join(tempDir, "AGENTS.md"), "# Test Profile");
 
     // Create the tarball synchronously
     tar.create(
@@ -2332,7 +2332,7 @@ const createMockTarballWithNoriJson = async (args: {
         cwd: tempDir,
         sync: true,
       },
-      ["package.json", "nori.json", "CLAUDE.md"],
+      ["package.json", "nori.json", "AGENTS.md"],
     );
 
     // Read the tarball as ArrayBuffer

@@ -399,7 +399,7 @@ describe("registry-upload", () => {
         const skillsetDir = path.join(skillsetsDir, "my-profile");
         await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(skillsetDir, "CLAUDE.md"),
+          path.join(skillsetDir, "AGENTS.md"),
           "# My Profile\n",
         );
 
@@ -443,7 +443,7 @@ describe("registry-upload", () => {
         const skillsetDir = path.join(skillsetsDir, "my-profile");
         await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(skillsetDir, "CLAUDE.md"),
+          path.join(skillsetDir, "AGENTS.md"),
           "# My Profile\n",
         );
 
@@ -483,7 +483,7 @@ describe("registry-upload", () => {
         const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
         await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(skillsetDir, "CLAUDE.md"),
+          path.join(skillsetDir, "AGENTS.md"),
           "# My Profile\n",
         );
 
@@ -533,7 +533,7 @@ describe("registry-upload", () => {
         const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
         await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(skillsetDir, "CLAUDE.md"),
+          path.join(skillsetDir, "AGENTS.md"),
           "# My Profile\n",
         );
         await fs.writeFile(
@@ -593,7 +593,7 @@ describe("registry-upload", () => {
         const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
         await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(skillsetDir, "CLAUDE.md"),
+          path.join(skillsetDir, "AGENTS.md"),
           "# My Profile\n",
         );
 
@@ -645,7 +645,7 @@ describe("registry-upload", () => {
         const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
         await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(skillsetDir, "CLAUDE.md"),
+          path.join(skillsetDir, "AGENTS.md"),
           "# My Profile\n",
         );
 
@@ -771,7 +771,7 @@ describe("registry-upload", () => {
         const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
         await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(skillsetDir, "CLAUDE.md"),
+          path.join(skillsetDir, "AGENTS.md"),
           "# My Profile\n",
         );
 
@@ -846,7 +846,7 @@ describe("registry-upload", () => {
         const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
         await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(skillsetDir, "CLAUDE.md"),
+          path.join(skillsetDir, "AGENTS.md"),
           "# My Profile\n",
         );
 
@@ -936,7 +936,7 @@ describe("registry-upload", () => {
         const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
         await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(skillsetDir, "CLAUDE.md"),
+          path.join(skillsetDir, "AGENTS.md"),
           "# My Profile\n",
         );
 
@@ -971,7 +971,7 @@ describe("registry-upload", () => {
         const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
         await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(skillsetDir, "CLAUDE.md"),
+          path.join(skillsetDir, "AGENTS.md"),
           "# My Profile\n",
         );
 
@@ -1017,7 +1017,7 @@ describe("registry-upload", () => {
         const skillsetDir = path.join(skillsetsDir, "my-profile");
         await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(skillsetDir, "CLAUDE.md"),
+          path.join(skillsetDir, "AGENTS.md"),
           "# My Profile\n",
         );
 
@@ -1100,7 +1100,7 @@ describe("registry-upload", () => {
         const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
         await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(skillsetDir, "CLAUDE.md"),
+          path.join(skillsetDir, "AGENTS.md"),
           "# My Profile\n",
         );
 
@@ -1147,7 +1147,7 @@ describe("registry-upload", () => {
         const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
         await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(skillsetDir, "CLAUDE.md"),
+          path.join(skillsetDir, "AGENTS.md"),
           "# My Profile\n",
         );
 
@@ -1185,7 +1185,7 @@ describe("registry-upload", () => {
         const skillsetDir = path.join(skillsetsDir, "myorg", "new-profile");
         await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(skillsetDir, "CLAUDE.md"),
+          path.join(skillsetDir, "AGENTS.md"),
           "# New Profile\n",
         );
 
@@ -1224,7 +1224,7 @@ describe("registry-upload", () => {
         const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
         await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(skillsetDir, "CLAUDE.md"),
+          path.join(skillsetDir, "AGENTS.md"),
           "# My Profile\n",
         );
 
@@ -1271,7 +1271,7 @@ describe("registry-upload", () => {
         const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
         await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(skillsetDir, "CLAUDE.md"),
+          path.join(skillsetDir, "AGENTS.md"),
           "# My Profile\n",
         );
 
@@ -1329,7 +1329,7 @@ describe("registry-upload", () => {
         const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
         await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(skillsetDir, "CLAUDE.md"),
+          path.join(skillsetDir, "AGENTS.md"),
           "# My Profile\n",
         );
 
@@ -1383,7 +1383,7 @@ describe("registry-upload", () => {
         const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
         await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(skillsetDir, "CLAUDE.md"),
+          path.join(skillsetDir, "AGENTS.md"),
           "# My Profile\n",
         );
 
@@ -1434,7 +1434,7 @@ describe("registry-upload", () => {
         const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
         await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(skillsetDir, "CLAUDE.md"),
+          path.join(skillsetDir, "AGENTS.md"),
           "# My Profile\n",
         );
 
@@ -1480,7 +1480,7 @@ describe("registry-upload", () => {
         const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
         await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(skillsetDir, "CLAUDE.md"),
+          path.join(skillsetDir, "AGENTS.md"),
           "# My Profile\n",
         );
 
@@ -1555,7 +1555,7 @@ describe("registry-upload", () => {
         const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
         await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(skillsetDir, "CLAUDE.md"),
+          path.join(skillsetDir, "AGENTS.md"),
           "# My Profile\n",
         );
 
@@ -1613,7 +1613,7 @@ describe("registry-upload", () => {
         const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
         await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(skillsetDir, "CLAUDE.md"),
+          path.join(skillsetDir, "AGENTS.md"),
           "# My Profile\n",
         );
 
@@ -1665,7 +1665,7 @@ describe("registry-upload", () => {
         const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
         await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(skillsetDir, "CLAUDE.md"),
+          path.join(skillsetDir, "AGENTS.md"),
           "# My Profile\n",
         );
 
@@ -1735,7 +1735,7 @@ describe("registry-upload", () => {
         const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
         await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(skillsetDir, "CLAUDE.md"),
+          path.join(skillsetDir, "AGENTS.md"),
           "# My Profile\n",
         );
 
@@ -1808,7 +1808,7 @@ describe("registry-upload", () => {
         const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
         await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(skillsetDir, "CLAUDE.md"),
+          path.join(skillsetDir, "AGENTS.md"),
           "# My Profile\n",
         );
 
@@ -1883,7 +1883,7 @@ describe("registry-upload", () => {
         const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
         await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(skillsetDir, "CLAUDE.md"),
+          path.join(skillsetDir, "AGENTS.md"),
           "# My Profile\n",
         );
 
@@ -1928,7 +1928,7 @@ describe("registry-upload", () => {
         const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
         await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(skillsetDir, "CLAUDE.md"),
+          path.join(skillsetDir, "AGENTS.md"),
           "# My Profile\n",
         );
 
@@ -1981,7 +1981,7 @@ describe("registry-upload", () => {
         const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
         await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(skillsetDir, "CLAUDE.md"),
+          path.join(skillsetDir, "AGENTS.md"),
           "# My Profile\n",
         );
 
@@ -2031,7 +2031,7 @@ describe("registry-upload", () => {
         const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
         await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(skillsetDir, "CLAUDE.md"),
+          path.join(skillsetDir, "AGENTS.md"),
           "# My Profile\n",
         );
 
@@ -2081,7 +2081,7 @@ describe("registry-upload", () => {
         const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
         await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(skillsetDir, "CLAUDE.md"),
+          path.join(skillsetDir, "AGENTS.md"),
           "# My Profile\n",
         );
 
@@ -2135,7 +2135,7 @@ describe("registry-upload", () => {
         const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
         await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(skillsetDir, "CLAUDE.md"),
+          path.join(skillsetDir, "AGENTS.md"),
           "# My Profile\n",
         );
         await fs.writeFile(
@@ -2210,8 +2210,8 @@ describe("registry-upload", () => {
             recursive: true,
           });
 
-          // CLAUDE.md and nori.json should be present
-          expect(extractedFiles).toContain("CLAUDE.md");
+          // AGENTS.md and nori.json should be present
+          expect(extractedFiles).toContain("AGENTS.md");
           expect(extractedFiles).toContain("nori.json");
 
           // .nori-version should NOT be present
@@ -3017,7 +3017,7 @@ describe("registry-upload", () => {
         const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
         await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(skillsetDir, "CLAUDE.md"),
+          path.join(skillsetDir, "AGENTS.md"),
           "# My Profile\n",
         );
 
@@ -3085,7 +3085,7 @@ describe("registry-upload", () => {
         const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
         await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(skillsetDir, "CLAUDE.md"),
+          path.join(skillsetDir, "AGENTS.md"),
           "# My Profile\n",
         );
 
@@ -3139,7 +3139,7 @@ describe("registry-upload", () => {
         const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
         await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(skillsetDir, "CLAUDE.md"),
+          path.join(skillsetDir, "AGENTS.md"),
           "# My Profile\n",
         );
 
@@ -3214,7 +3214,7 @@ describe("registry-upload", () => {
         const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
         await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
-          path.join(skillsetDir, "CLAUDE.md"),
+          path.join(skillsetDir, "AGENTS.md"),
           "# My Profile\n",
         );
 
