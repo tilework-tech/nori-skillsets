@@ -278,7 +278,7 @@ describe("init command", () => {
       expect(fs.existsSync(path.join(capturedProfileDir, "nori.json"))).toBe(
         true,
       );
-      expect(fs.existsSync(path.join(capturedProfileDir, "CLAUDE.md"))).toBe(
+      expect(fs.existsSync(path.join(capturedProfileDir, "AGENTS.md"))).toBe(
         true,
       );
       expect(

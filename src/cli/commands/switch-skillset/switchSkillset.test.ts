@@ -1114,7 +1114,7 @@ describe("switch-skillset interactive flow routing", () => {
     for (const name of ["senior-swe", "product-manager"]) {
       const dir = path.join(skillsetsDir, name);
       await fs.mkdir(dir, { recursive: true });
-      await fs.writeFile(path.join(dir, "CLAUDE.md"), `# ${name}`);
+      await fs.writeFile(path.join(dir, "AGENTS.md"), `# ${name}`);
     }
 
     // Create config with current profile

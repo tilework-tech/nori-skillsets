@@ -423,7 +423,7 @@ export const captureExistingConfig = async (args: {
     JSON.stringify(noriJson, null, 2),
   );
 
-  // Copy instructions file to skillset dir as CLAUDE.md with managed block markers
+  // Copy instructions file to skillset dir as AGENTS.md with managed block markers
   const instructionsPath = agent.getInstructionsFilePath({ installDir });
   try {
     await fs.access(instructionsPath);
@@ -434,11 +434,11 @@ export const captureExistingConfig = async (args: {
       content = `${BEGIN_MARKER}\n${content}\n${END_MARKER}\n`;
     }
 
-    await fs.writeFile(path.join(skillsetDir, "CLAUDE.md"), content);
+    await fs.writeFile(path.join(skillsetDir, "AGENTS.md"), content);
   } catch {
-    // Create empty CLAUDE.md with markers
+    // Create empty AGENTS.md with markers
     await fs.writeFile(
-      path.join(skillsetDir, "CLAUDE.md"),
+      path.join(skillsetDir, "AGENTS.md"),
       `${BEGIN_MARKER}\n\n${END_MARKER}\n`,
     );
   }

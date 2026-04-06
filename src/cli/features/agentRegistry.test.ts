@@ -710,12 +710,12 @@ describe("AgentRegistry", () => {
       const registry = AgentRegistry.getInstance();
       const agent = registry.get({ name: "claude-code" });
 
-      // Create a skillset with CLAUDE.md
+      // Create a skillset with AGENTS.md
       const skillsetsDir = path.join(testInstallDir, ".nori", "profiles");
       const skillsetDir = path.join(skillsetsDir, "test-skillset");
       await fs.mkdir(skillsetDir, { recursive: true });
       await fs.writeFile(
-        path.join(skillsetDir, "CLAUDE.md"),
+        path.join(skillsetDir, "AGENTS.md"),
         "# Test skillset config",
       );
       await fs.writeFile(
@@ -754,12 +754,12 @@ describe("AgentRegistry", () => {
       const registry = AgentRegistry.getInstance();
       const agent = registry.get({ name: "claude-code" });
 
-      // Create a skillset with CLAUDE.md
+      // Create a skillset with AGENTS.md
       const skillsetsDir = path.join(testInstallDir, ".nori", "profiles");
       const skillsetDir = path.join(skillsetsDir, "test-skillset");
       await fs.mkdir(skillsetDir, { recursive: true });
       await fs.writeFile(
-        path.join(skillsetDir, "CLAUDE.md"),
+        path.join(skillsetDir, "AGENTS.md"),
         "# Test skillset config",
       );
       await fs.writeFile(
@@ -804,7 +804,7 @@ describe("AgentRegistry", () => {
       const skillsetsDir = path.join(testInstallDir, ".nori", "profiles");
       const skillsetDir = path.join(skillsetsDir, "minimal-skillset");
       await fs.mkdir(skillsetDir, { recursive: true });
-      await fs.writeFile(path.join(skillsetDir, "CLAUDE.md"), "# Minimal");
+      await fs.writeFile(path.join(skillsetDir, "AGENTS.md"), "# Minimal");
       await fs.writeFile(
         path.join(skillsetDir, "nori.json"),
         JSON.stringify({ name: "minimal-skillset", version: "1.0.0" }),

@@ -950,6 +950,40 @@ describe("captureExistingConfig", () => {
     ).toBe(true);
   });
 
+  it("should write captured instructions to AGENTS.md in skillset dir", async () => {
+    const agent = createTestAgent();
+    const agentDir = agent.getAgentDir({ installDir: tempDir });
+    fs.mkdirSync(agentDir, { recursive: true });
+
+    // Create instructions file
+    const instructionsPath = agent.getInstructionsFilePath({
+      installDir: tempDir,
+    });
+    fs.writeFileSync(instructionsPath, "# My custom config");
+
+    // Create profiles directory
+    const profilesDir = path.join(TEST_NORI_DIR, "profiles");
+    fs.mkdirSync(profilesDir, { recursive: true });
+
+    const config: Config = {
+      installDir: tempDir,
+      activeSkillset: "captured",
+    };
+
+    await captureExistingConfig({
+      agent,
+      installDir: tempDir,
+      skillsetName: "captured",
+      config,
+    });
+
+    const capturedDir = path.join(profilesDir, "captured");
+
+    // Should write AGENTS.md, not CLAUDE.md
+    expect(fs.existsSync(path.join(capturedDir, "AGENTS.md"))).toBe(true);
+    expect(fs.existsSync(path.join(capturedDir, "CLAUDE.md"))).toBe(false);
+  });
+
   it("should create nori.json with skill names", async () => {
     const agent = createTestAgent();
     const agentDir = agent.getAgentDir({ installDir: tempDir });
