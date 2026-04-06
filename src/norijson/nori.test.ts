@@ -232,7 +232,17 @@ describe("ensureNoriJson", () => {
     await fs.rm(skillsetDir, { recursive: true, force: true });
   });
 
-  it("should create nori.json when directory has CLAUDE.md but no nori.json", async () => {
+  it("should create nori.json when directory has AGENTS.md but no nori.json", async () => {
+    await fs.writeFile(path.join(skillsetDir, "AGENTS.md"), "# My Profile");
+
+    await ensureNoriJson({ skillsetDir });
+
+    const metadata = await readSkillsetMetadata({ skillsetDir });
+    expect(metadata.name).toBe(path.basename(skillsetDir));
+    expect(metadata.version).toBe("0.0.1");
+  });
+
+  it("should create nori.json when directory has CLAUDE.md but no nori.json (backward compat)", async () => {
     await fs.writeFile(path.join(skillsetDir, "CLAUDE.md"), "# My Profile");
 
     await ensureNoriJson({ skillsetDir });
@@ -243,7 +253,7 @@ describe("ensureNoriJson", () => {
   });
 
   it("should set type to skillset on auto-created nori.json", async () => {
-    await fs.writeFile(path.join(skillsetDir, "CLAUDE.md"), "# My Profile");
+    await fs.writeFile(path.join(skillsetDir, "AGENTS.md"), "# My Profile");
 
     await ensureNoriJson({ skillsetDir });
 
@@ -258,7 +268,7 @@ describe("ensureNoriJson", () => {
       type: "skill" as const,
     };
     await writeSkillsetMetadata({ skillsetDir, metadata: existing });
-    await fs.writeFile(path.join(skillsetDir, "CLAUDE.md"), "# My Profile");
+    await fs.writeFile(path.join(skillsetDir, "AGENTS.md"), "# My Profile");
 
     await ensureNoriJson({ skillsetDir });
 
@@ -298,7 +308,7 @@ describe("ensureNoriJson", () => {
   it("should not overwrite existing nori.json", async () => {
     const existing = { name: "my-profile", version: "2.0.0" };
     await writeSkillsetMetadata({ skillsetDir, metadata: existing });
-    await fs.writeFile(path.join(skillsetDir, "CLAUDE.md"), "# My Profile");
+    await fs.writeFile(path.join(skillsetDir, "AGENTS.md"), "# My Profile");
 
     await ensureNoriJson({ skillsetDir });
 

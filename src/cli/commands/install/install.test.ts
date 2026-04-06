@@ -155,7 +155,7 @@ describe("install noninteractive", () => {
       const skillsetDir = path.join(TEST_NORI_DIR, "profiles", skillsetName);
       fs.mkdirSync(skillsetDir, { recursive: true });
       fs.writeFileSync(
-        path.join(skillsetDir, "CLAUDE.md"),
+        path.join(skillsetDir, "AGENTS.md"),
         `# ${skillsetName}\n`,
       );
       fs.writeFileSync(
