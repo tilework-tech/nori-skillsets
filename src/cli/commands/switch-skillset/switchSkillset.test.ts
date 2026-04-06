@@ -1770,3 +1770,260 @@ describe("switch-skillset skips manifest operations when --install-dir is used",
     expect(switchInfo.localChanges).toBeNull();
   });
 });
+
+describe("onReadFileDiff subagent path mapping", () => {
+  let testInstallDir: string;
+
+  beforeEach(async () => {
+    testInstallDir = await fs.realpath(
+      await fs.mkdtemp(
+        path.join(tmpdir(), "switch-skillset-readfilediff-test-"),
+      ),
+    );
+    vi.mocked(os.homedir).mockReturnValue(testInstallDir);
+
+    // Create basic directory structure
+    const claudeDir = path.join(testInstallDir, ".claude");
+    const agentsDir = path.join(claudeDir, "agents");
+    const noriDir = path.join(testInstallDir, ".nori");
+    const skillsetsDir = path.join(noriDir, "profiles");
+    await fs.mkdir(agentsDir, { recursive: true });
+    await fs.mkdir(skillsetsDir, { recursive: true });
+
+    // Create skillset with nori.json
+    const profileDir = path.join(skillsetsDir, "test-profile");
+    await fs.mkdir(profileDir, { recursive: true });
+    await fs.writeFile(
+      path.join(profileDir, "nori.json"),
+      JSON.stringify({ name: "test-profile", version: "1.0.0" }),
+    );
+
+    // Create config with active skillset
+    const configPath = path.join(testInstallDir, ".nori-config.json");
+    await fs.writeFile(
+      configPath,
+      JSON.stringify({
+        activeSkillset: "test-profile",
+        installDir: testInstallDir,
+      }),
+    );
+
+    AgentRegistry.resetInstance();
+    mockSwitchSkillsetFlow.mockReset();
+  });
+
+  afterEach(async () => {
+    if (testInstallDir) {
+      await fs.rm(testInstallDir, { recursive: true, force: true });
+    }
+    AgentRegistry.resetInstance();
+    vi.restoreAllMocks();
+  });
+
+  it("should map agents/foo.md to subagents/foo/SUBAGENT.md for directory-based subagents", async () => {
+    const profileDir = path.join(
+      testInstallDir,
+      ".nori",
+      "profiles",
+      "test-profile",
+    );
+    const subagentDir = path.join(profileDir, "subagents", "my-agent");
+    await fs.mkdir(subagentDir, { recursive: true });
+    await fs.writeFile(
+      path.join(subagentDir, "SUBAGENT.md"),
+      "# Directory-based agent content",
+    );
+
+    // Create the installed agent file
+    const agentsDir = path.join(testInstallDir, ".claude", "agents");
+    await fs.writeFile(
+      path.join(agentsDir, "my-agent.md"),
+      "# Installed agent content",
+    );
+
+    // Capture callbacks from switchSkillsetFlow
+    let capturedCallbacks: Record<string, unknown> = {};
+    mockSwitchSkillsetFlow.mockImplementation(async (args) => {
+      capturedCallbacks = (args as Record<string, unknown>).callbacks as Record<
+        string,
+        unknown
+      >;
+      return {
+        agentName: "claude-code",
+        skillsetName: "test-profile",
+        statusMessage: "ok",
+      };
+    });
+
+    const program = new Command();
+    program.exitOverride();
+    program.configureOutput({ writeErr: () => undefined });
+    program
+      .option("-d, --install-dir <path>", "Custom installation directory")
+      .option("-n, --non-interactive", "Run without interactive prompts")
+      .option("-a, --agent <name>", "AI agent to use");
+
+    registerSwitchSkillsetCommand({ program });
+
+    try {
+      await program.parseAsync([
+        "node",
+        "nori-skillsets",
+        "switch-skillset",
+        "test-profile",
+      ]);
+    } catch {
+      // May throw due to exit
+    }
+
+    // Invoke the captured onReadFileDiff
+    const onReadFileDiff = capturedCallbacks.onReadFileDiff as (args: {
+      relativePath: string;
+      installDir: string;
+    }) => Promise<{ original: string; current: string } | null>;
+    expect(onReadFileDiff).toBeDefined();
+
+    const result = await onReadFileDiff({
+      relativePath: "agents/my-agent.md",
+      installDir: testInstallDir,
+    });
+
+    expect(result).not.toBeNull();
+    expect(result!.original).toContain("# Directory-based agent content");
+    expect(result!.current).toContain("# Installed agent content");
+  });
+
+  it("should map agents/foo.md to subagents/foo.md for flat subagents", async () => {
+    const profileDir = path.join(
+      testInstallDir,
+      ".nori",
+      "profiles",
+      "test-profile",
+    );
+    const subagentsDir = path.join(profileDir, "subagents");
+    await fs.mkdir(subagentsDir, { recursive: true });
+    await fs.writeFile(
+      path.join(subagentsDir, "simple-agent.md"),
+      "# Flat subagent content",
+    );
+
+    // Create the installed agent file
+    const agentsDir = path.join(testInstallDir, ".claude", "agents");
+    await fs.writeFile(
+      path.join(agentsDir, "simple-agent.md"),
+      "# Installed flat content",
+    );
+
+    let capturedCallbacks: Record<string, unknown> = {};
+    mockSwitchSkillsetFlow.mockImplementation(async (args) => {
+      capturedCallbacks = (args as Record<string, unknown>).callbacks as Record<
+        string,
+        unknown
+      >;
+      return {
+        agentName: "claude-code",
+        skillsetName: "test-profile",
+        statusMessage: "ok",
+      };
+    });
+
+    const program = new Command();
+    program.exitOverride();
+    program.configureOutput({ writeErr: () => undefined });
+    program
+      .option("-d, --install-dir <path>", "Custom installation directory")
+      .option("-n, --non-interactive", "Run without interactive prompts")
+      .option("-a, --agent <name>", "AI agent to use");
+
+    registerSwitchSkillsetCommand({ program });
+
+    try {
+      await program.parseAsync([
+        "node",
+        "nori-skillsets",
+        "switch-skillset",
+        "test-profile",
+      ]);
+    } catch {
+      // May throw due to exit
+    }
+
+    const onReadFileDiff = capturedCallbacks.onReadFileDiff as (args: {
+      relativePath: string;
+      installDir: string;
+    }) => Promise<{ original: string; current: string } | null>;
+
+    const result = await onReadFileDiff({
+      relativePath: "agents/simple-agent.md",
+      installDir: testInstallDir,
+    });
+
+    expect(result).not.toBeNull();
+    expect(result!.original).toContain("# Flat subagent content");
+    expect(result!.current).toContain("# Installed flat content");
+  });
+
+  it("should return null when neither flat nor directory-based source exists", async () => {
+    // Create the installed agent file with no matching source
+    const agentsDir = path.join(testInstallDir, ".claude", "agents");
+    await fs.writeFile(
+      path.join(agentsDir, "orphan-agent.md"),
+      "# Orphan content",
+    );
+
+    // Create subagents dir (empty)
+    const profileDir = path.join(
+      testInstallDir,
+      ".nori",
+      "profiles",
+      "test-profile",
+    );
+    await fs.mkdir(path.join(profileDir, "subagents"), { recursive: true });
+
+    let capturedCallbacks: Record<string, unknown> = {};
+    mockSwitchSkillsetFlow.mockImplementation(async (args) => {
+      capturedCallbacks = (args as Record<string, unknown>).callbacks as Record<
+        string,
+        unknown
+      >;
+      return {
+        agentName: "claude-code",
+        skillsetName: "test-profile",
+        statusMessage: "ok",
+      };
+    });
+
+    const program = new Command();
+    program.exitOverride();
+    program.configureOutput({ writeErr: () => undefined });
+    program
+      .option("-d, --install-dir <path>", "Custom installation directory")
+      .option("-n, --non-interactive", "Run without interactive prompts")
+      .option("-a, --agent <name>", "AI agent to use");
+
+    registerSwitchSkillsetCommand({ program });
+
+    try {
+      await program.parseAsync([
+        "node",
+        "nori-skillsets",
+        "switch-skillset",
+        "test-profile",
+      ]);
+    } catch {
+      // May throw due to exit
+    }
+
+    const onReadFileDiff = capturedCallbacks.onReadFileDiff as (args: {
+      relativePath: string;
+      installDir: string;
+    }) => Promise<{ original: string; current: string } | null>;
+
+    const result = await onReadFileDiff({
+      relativePath: "agents/orphan-agent.md",
+      installDir: testInstallDir,
+    });
+
+    expect(result).toBeNull();
+  });
+});

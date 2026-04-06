@@ -65,3 +65,17 @@ This commit implements Tasks 1-6 from the spec:
 4. **Detection updates** — Count directory-based subagents, add inline detection functions, update backfill
 5. **Upload flow updates** — Detect subagent candidates, add inline resolution, pass to API, conflict handling, sync state
 6. **Switch and capture updates** — Map agents back to directory-based sources, update capture to preserve directories
+
+## Test Coverage Gaps (identified in follow-up review)
+
+### Real gaps requiring new tests:
+1. **Switch flow path mapping** — `onReadFileDiff` in `switchSkillset.ts` maps `agents/foo.md` back to `subagents/foo/SUBAGENT.md` for directory-based subagents. This code path has zero test coverage. Need tests in `switchSkillset.test.ts`.
+2. **Loader output messages** — The subagentsLoader logs registered/skipped messages for both flat and directory-based subagents via clack, but no test asserts on these log calls for the directory-based path. Minor.
+
+### Non-gaps (explained by design decisions):
+3. **`syncLocalStateAfterUpload` for subagents** — Not implemented because `UploadSkillsetResponse` lacks `extractedSubagents` field. Server-side API is deferred (Task 7). No test needed until server support exists.
+4. **`detectExistingConfig` counting subagent dirs** — Spec originally required this, but the "flatten on install" design decision (spec Q1) means the installed `agents/` directory only contains flat files. Directory-based subagents are never present in the installed location, making this requirement moot.
+
+### Key test files for the switch flow:
+- `src/cli/commands/switch-skillset/switchSkillset.ts` (lines 203-284) — `onReadFileDiff` implementation
+- `src/cli/commands/switch-skillset/switchSkillset.test.ts` — existing test file (no subagent tests yet)

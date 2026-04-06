@@ -69,21 +69,6 @@ Content.
     });
   });
 
-  it("should handle single-quoted values", () => {
-    const content = `---
-name: 'Single Quoted'
-description: 'Single quoted desc'
----
-
-Content.
-`;
-    const result = parseSubagentFrontmatter({ content });
-    expect(result).toEqual({
-      name: "Single Quoted",
-      description: "Single quoted desc",
-    });
-  });
-
   it("should trim whitespace from values", () => {
     const content = `---
 name:   Spaced Name

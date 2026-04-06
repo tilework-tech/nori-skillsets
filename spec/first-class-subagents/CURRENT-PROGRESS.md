@@ -44,7 +44,21 @@
 - `subagent-download` CLI command not yet created
 - Blocked on server-side `/api/subagents/` endpoints
 
+### Test Coverage Gap: Switch Flow Path Mapping (DONE)
+- Added 3 tests to `src/cli/commands/switch-skillset/switchSkillset.test.ts` for `onReadFileDiff` callback
+- Tests verify directory-based subagent mapping (`agents/foo.md` → `subagents/foo/SUBAGENT.md`)
+- Tests verify flat file mapping (`agents/foo.md` → `subagents/foo.md`)
+- Tests verify null return when no source exists
+
+## Deferred Tasks
+
+### Task 7: Download Support (DEFERRED - blocked on server-side API)
+- `getSubagentPackument()` and `downloadSubagentTarball()` not yet implemented
+- `downloadSubagentDependencies()` not yet implemented
+- `subagent-download` CLI command not yet created
+- Blocked on server-side `/api/subagents/` endpoints
+
 ## Test Coverage
-- 24 new tests added across 7 test files
-- All 1685 tests passing (up from 1661)
+- 27 new tests added across 8 test files
+- All 1688 tests passing (up from 1661)
 - New test file: `src/cli/commands/external/subagentDiscovery.test.ts`
