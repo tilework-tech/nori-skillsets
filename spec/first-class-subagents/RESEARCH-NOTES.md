@@ -79,3 +79,18 @@ This commit implements Tasks 1-6 from the spec:
 ### Key test files for the switch flow:
 - `src/cli/commands/switch-skillset/switchSkillset.ts` (lines 203-284) — `onReadFileDiff` implementation
 - `src/cli/commands/switch-skillset/switchSkillset.test.ts` — existing test file (no subagent tests yet)
+
+## Test Coverage Parity (Session 2)
+
+### Upload flow subagent tests added (registryUpload.test.ts):
+These mirror existing inline skills test patterns:
+1. **No subagents directory** — verifies upload succeeds with `inlineSubagents` undefined when no `subagents/` dir
+2. **Non-interactive mode** — verifies `inlineSubagents` undefined (extract all) in non-interactive mode
+3. **User selects extract** — verifies `inlineSubagents` undefined when user picks "extract" for each subagent
+4. **Merge existing + new** — verifies both previously-inlined and newly-inlined subagents appear in `inlineSubagents`
+
+### Loader edge case tests added (subagentsLoader.test.ts):
+1. **Null skillset** — loader returns early without error, agents dir not created
+2. **Null subagentsDir** — loader returns early without error, agents dir empty
+
+### Test count: 1691 tests (up from 1685)

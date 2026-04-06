@@ -58,7 +58,17 @@
 - `subagent-download` CLI command not yet created
 - Blocked on server-side `/api/subagents/` endpoints
 
+### Test Coverage Parity: Upload Flow & Loader Edge Cases (DONE)
+- Added 4 tests to `src/cli/commands/registry-upload/registryUpload.test.ts` for inline subagent upload flow parity:
+  - No subagents directory → no `inlineSubagents` sent
+  - Non-interactive mode → extract all (no `inlineSubagents`)
+  - User selects extract → no `inlineSubagents`
+  - Merge existing inlined + new candidates → both in `inlineSubagents`
+- Added 2 tests to `src/cli/features/shared/subagentsLoader.test.ts` for edge cases:
+  - Null skillset → returns early, agents dir not created
+  - Null subagentsDir → returns early, agents dir empty
+
 ## Test Coverage
-- 27 new tests added across 8 test files
-- All 1688 tests passing (up from 1661)
+- 33 new tests added across 8 test files
+- All 1691 tests passing (up from 1685 prior to this session; 1661 at project start)
 - New test file: `src/cli/commands/external/subagentDiscovery.test.ts`

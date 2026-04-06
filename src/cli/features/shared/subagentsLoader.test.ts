@@ -435,6 +435,51 @@ describe("createSubagentsLoader", () => {
     });
   });
 
+  describe("edge cases", () => {
+    it("should return early without error when skillset is null", async () => {
+      const loader = createSubagentsLoader({ managedDirs: ["agents"] });
+      const config = createTestConfig({
+        installDir: tempDir,
+        activeSkillset: "null-skillset-test",
+      });
+
+      // Should complete without throwing
+      await loader.run({ agent, config, skillset: null });
+
+      // agents dir should not be created (loader returns before mkdir)
+      const agentsDirExists = await fs
+        .access(agentsDir)
+        .then(() => true)
+        .catch(() => false);
+      expect(agentsDirExists).toBe(false);
+    });
+
+    it("should return early without error when skillset has null subagentsDir", async () => {
+      const loader = createSubagentsLoader({ managedDirs: ["agents"] });
+      const config = createTestConfig({
+        installDir: tempDir,
+        activeSkillset: "no-subagents-dir-test",
+      });
+
+      const skillset: Skillset = {
+        name: "no-subagents-dir-test",
+        dir: path.join(noriProfilesDir, "no-subagents-dir-test"),
+        metadata: { name: "no-subagents-dir-test", version: "1.0.0" },
+        skillsDir: null,
+        configFilePath: null,
+        slashcommandsDir: null,
+        subagentsDir: null,
+      };
+
+      // Should complete without throwing
+      await loader.run({ agent, config, skillset });
+
+      // agents dir should be empty (loader clears it then returns early)
+      const files = await fs.readdir(agentsDir);
+      expect(files).toHaveLength(0);
+    });
+  });
+
   describe("directory-based subagents", () => {
     it("should flatten directory-based subagent to a single .md file", async () => {
       const loader = createSubagentsLoader({ managedDirs: ["agents"] });
