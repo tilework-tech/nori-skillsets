@@ -996,6 +996,78 @@ describe("captureExistingConfig", () => {
     expect(noriJson.dependencies.skills["skill-alpha"]).toBe("*");
     expect(noriJson.dependencies.skills["skill-beta"]).toBe("*");
   });
+
+  it("should update SUBAGENT.md when directory-based subagent already exists in skillset", async () => {
+    const agent = createTestAgent();
+    const agentDir = agent.getAgentDir({ installDir: tempDir });
+    fs.mkdirSync(agentDir, { recursive: true });
+
+    // Create instructions file
+    const instructionsPath = agent.getInstructionsFilePath({
+      installDir: tempDir,
+    });
+    fs.writeFileSync(instructionsPath, "# Config");
+
+    // Create installed flat agent file (as it would appear after install)
+    const agentsDir = agent.getSubagentsDir({ installDir: tempDir });
+    fs.mkdirSync(agentsDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(agentsDir, "my-agent.md"),
+      "# Updated Agent Content\n",
+    );
+
+    // Create profiles directory with existing directory-based subagent
+    const profilesDir = path.join(TEST_NORI_DIR, "profiles");
+    fs.mkdirSync(profilesDir, { recursive: true });
+    const existingSubagentDir = path.join(
+      profilesDir,
+      "captured",
+      "subagents",
+      "my-agent",
+    );
+    fs.mkdirSync(existingSubagentDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(existingSubagentDir, "SUBAGENT.md"),
+      "# Old Agent Content\n",
+    );
+    fs.writeFileSync(
+      path.join(existingSubagentDir, "nori.json"),
+      JSON.stringify({ name: "my-agent", version: "1.0.0", type: "subagent" }),
+    );
+
+    const config: Config = {
+      installDir: tempDir,
+      activeSkillset: "captured",
+    };
+
+    await captureExistingConfig({
+      agent,
+      installDir: tempDir,
+      skillsetName: "captured",
+      config,
+    });
+
+    const capturedDir = path.join(profilesDir, "captured");
+
+    // SUBAGENT.md should be updated with the new content
+    const subagentMdContent = fs.readFileSync(
+      path.join(capturedDir, "subagents", "my-agent", "SUBAGENT.md"),
+      "utf-8",
+    );
+    expect(subagentMdContent).toContain("Updated Agent Content");
+
+    // nori.json should be preserved in the directory
+    expect(
+      fs.existsSync(
+        path.join(capturedDir, "subagents", "my-agent", "nori.json"),
+      ),
+    ).toBe(true);
+
+    // Should NOT create a flat file
+    expect(
+      fs.existsSync(path.join(capturedDir, "subagents", "my-agent.md")),
+    ).toBe(false);
+  });
 });
 
 describe("findArtifacts", () => {

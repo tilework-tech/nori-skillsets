@@ -20,6 +20,8 @@ The pipeline in `externalMain` is: parse source -> resolve install/skillset targ
 
 `skillDiscovery.ts` searches the cloned repo for directories containing `SKILL.md` files with valid YAML frontmatter (`name` and `description`). It checks the root first (returning immediately if the repo itself is a single skill), then performs a recursive search up to 5 levels deep. Results are deduplicated by skill name. The discovery is agent-agnostic -- it finds skills purely by searching for SKILL.md files rather than relying on agent-specific directory conventions.
 
+`subagentDiscovery.ts` provides `parseSubagentFrontmatter`, which extracts `name` and `description` from `SUBAGENT.md` YAML frontmatter. It mirrors the frontmatter parsing pattern from `skillDiscovery.ts`, using regex parsing to avoid a `gray-matter` dependency. This supports directory-based subagent packages that use `SUBAGENT.md` as their canonical marker file.
+
 `gitClone.ts` performs a shallow `git clone --depth 1` to a temp directory with a 60-second timeout. `cleanupClone` validates the path is within the system temp directory before deletion to prevent accidental removal of non-temp paths.
 
 **Multi-agent broadcasting**: The `installSkill` function accepts an `agents` array parameter. It installs to the primary agent's skills directory first, applies template substitution, then copies the skill directory to each additional agent's skills directory with agent-specific template substitution. Copy failures for secondary agents emit warnings via `log.warn` but do not fail the install. The `externalMain` function resolves the agents list and ensures all agents' skills directories exist before cloning begins.

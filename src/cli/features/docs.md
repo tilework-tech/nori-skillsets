@@ -80,14 +80,14 @@ The `--agent` global CLI option (default: "claude-code") determines which agent 
 - `removeSkillset`: Reads per-agent manifest, calls `removeManagedFiles()`. Includes legacy manifest cleanup for claude-code.
 - `detectLocalChanges`: Reads per-agent manifest (with legacy fallback for claude-code), compares file hashes.
 - `detectExistingConfig`: Scans the agent directory for instructions file, skills, subagents, and slashcommands using the agent's path getters.
-- `captureExistingConfig`: Captures existing config as a named skillset, deletes the original instructions file, then runs the instructions loader to restore a managed block.
+- `captureExistingConfig`: Captures existing config as a named skillset, deletes the original instructions file, then runs the instructions loader to restore a managed block. When copying subagents back from the installed flat files, it checks whether a directory-based subagent already exists in the skillset's `subagents/` directory; if so, it updates the existing `SUBAGENT.md` instead of creating a duplicate flat file.
 - `findArtifacts`: Walks the ancestor directory tree checking for patterns declared by `agent.getArtifactPatterns()`.
 
 **Shared Loaders** (shared/): Agent-agnostic loaders that replaced duplicated per-agent implementations. Each loader uses `AgentConfig` path getters to resolve source and destination paths:
 - `skillsLoader` (shared/skillsLoader.ts): Copies skills from skillset to agent's skills directory with template substitution on `.md` files, then calls `copyBundledSkills()`.
 - `createInstructionsLoader` (shared/instructionsLoader.ts): Factory function. Reads the skillset's `CLAUDE.md`, strips existing managed block markers, applies template substitution, generates a skills list section (scanning SKILL.md front matter), and writes/replaces the managed block in the agent's instructions file. Parameterized by `managedFiles`/`managedDirs` so Claude Code passes `managedFiles: ["CLAUDE.md"]` while Cursor passes `managedDirs: ["rules"]`.
 - `createSlashCommandsLoader` (shared/slashCommandsLoader.ts): Factory function. Copies `.md` files from skillset's slashcommands dir, applies template substitution, emits a "Slash Commands" note.
-- `createSubagentsLoader` (shared/subagentsLoader.ts): Factory function. Copies files matching the configured `fileExtension` (e.g. `.md` or `.toml`) from skillset's subagents dir, applies template substitution, excludes `docs${fileExtension}`, and emits a "Subagents" note.
+- `createSubagentsLoader` (shared/subagentsLoader.ts): Factory function. Handles both flat files and directory-based subagents from the skillset's subagents dir. Directory-based subagents (those containing `SUBAGENT.md`) are flattened to single files during installation. On name collisions between a flat file and a directory, the directory-based subagent takes precedence. Directories without `SUBAGENT.md` are silently ignored. All content gets template substitution applied, and `docs${fileExtension}` files are excluded.
 
 **Config Loader** (configLoader.ts):
 - Shared `AgentLoader` that manages `.nori-config.json`. All agents include this loader in their `getLoaders()` pipeline.

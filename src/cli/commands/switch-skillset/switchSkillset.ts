@@ -230,11 +230,35 @@ export const switchSkillsetAction = async (args: {
               relativePath.slice("commands/".length),
             );
           } else if (relativePath.startsWith("agents/")) {
-            sourcePath = path.join(
+            // Check flat file first, then directory-based subagent
+            const flatPath = path.join(
               profileDir,
               "subagents",
               relativePath.slice("agents/".length),
             );
+            const agentFileName = relativePath.slice("agents/".length);
+            const ext = path.extname(agentFileName);
+            const agentName = ext
+              ? agentFileName.slice(0, -ext.length)
+              : agentFileName;
+            const dirPath = path.join(
+              profileDir,
+              "subagents",
+              agentName,
+              "SUBAGENT.md",
+            );
+
+            try {
+              await fs.access(flatPath);
+              sourcePath = flatPath;
+            } catch {
+              try {
+                await fs.access(dirPath);
+                sourcePath = dirPath;
+              } catch {
+                // Neither exists
+              }
+            }
           }
 
           if (sourcePath == null) return null;

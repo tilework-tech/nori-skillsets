@@ -287,6 +287,40 @@ const backfillNoriJsonTypes = async (args: {
   } catch {
     // No skills directory — nothing to backfill
   }
+
+  // Backfill subagent subdirectory nori.json files
+  const subagentsDir = path.join(skillsetDir, "subagents");
+  try {
+    const entries = await fs.readdir(subagentsDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const subagentNoriJsonPath = path.join(
+        subagentsDir,
+        entry.name,
+        "nori.json",
+      );
+      try {
+        const content = await fs.readFile(subagentNoriJsonPath, "utf-8");
+        const metadata = JSON.parse(content) as NoriJson;
+        if (metadata.type == null) {
+          metadata.type = "subagent";
+          await fs.writeFile(
+            subagentNoriJsonPath,
+            JSON.stringify(metadata, null, 2),
+          );
+        }
+      } catch (err: unknown) {
+        if (err instanceof SyntaxError) {
+          throw new Error(
+            `subagents/${entry.name}/nori.json exists but contains invalid JSON: ${err.message}`,
+          );
+        }
+        // No nori.json for this subagent — skip
+      }
+    }
+  } catch {
+    // No subagents directory — nothing to backfill
+  }
 };
 
 /**
@@ -309,6 +343,126 @@ const createCandidateNoriJsonFiles = async (args: {
     const skillDir = path.join(skillsetDir, "skills", candidate);
     const noriJsonPath = path.join(skillDir, "nori.json");
     const type = inlineSet.has(candidate) ? "inlined-skill" : "skill";
+    const metadata: NoriJson = {
+      name: candidate,
+      version: "1.0.0",
+      type,
+    };
+    await fs.writeFile(noriJsonPath, JSON.stringify(metadata, null, 2));
+  }
+};
+
+/**
+ * Detect directory-based subagents that don't have a nori.json file.
+ * Only directories containing SUBAGENT.md are considered subagent directories.
+ * Flat .md files are NOT candidates (they are always inlined).
+ *
+ * @param args - The function arguments
+ * @param args.skillsetDir - The skillset directory to scan
+ *
+ * @returns Array of subagent IDs that are inline candidates, or empty array
+ */
+const detectInlineSubagentCandidates = async (args: {
+  skillsetDir: string;
+}): Promise<Array<string>> => {
+  const { skillsetDir } = args;
+  const subagentsDir = path.join(skillsetDir, "subagents");
+
+  try {
+    await fs.access(subagentsDir);
+  } catch {
+    return [];
+  }
+
+  const entries = await fs.readdir(subagentsDir, { withFileTypes: true });
+  const candidates: Array<string> = [];
+
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+
+    // Only directories with SUBAGENT.md are subagent directories
+    const subagentMdPath = path.join(subagentsDir, entry.name, "SUBAGENT.md");
+    try {
+      await fs.access(subagentMdPath);
+    } catch {
+      continue;
+    }
+
+    // Check if it already has a nori.json
+    const noriJsonPath = path.join(subagentsDir, entry.name, "nori.json");
+    try {
+      await fs.access(noriJsonPath);
+    } catch {
+      candidates.push(entry.name);
+    }
+  }
+
+  return candidates;
+};
+
+/**
+ * Detect subagents that already have nori.json with type "inlined-subagent".
+ * These were previously inlined and should remain inline on re-upload
+ * without re-prompting the user.
+ *
+ * @param args - The function arguments
+ * @param args.skillsetDir - The skillset directory to scan
+ *
+ * @returns Array of subagent IDs that are already marked as inlined
+ */
+const detectExistingInlineSubagents = async (args: {
+  skillsetDir: string;
+}): Promise<Array<string>> => {
+  const { skillsetDir } = args;
+  const subagentsDir = path.join(skillsetDir, "subagents");
+
+  try {
+    await fs.access(subagentsDir);
+  } catch {
+    return [];
+  }
+
+  const entries = await fs.readdir(subagentsDir, { withFileTypes: true });
+  const inlineSubagents: Array<string> = [];
+
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+
+    const noriJsonPath = path.join(subagentsDir, entry.name, "nori.json");
+    try {
+      const content = await fs.readFile(noriJsonPath, "utf-8");
+      const metadata = JSON.parse(content) as NoriJson;
+      if (metadata.type === "inlined-subagent") {
+        inlineSubagents.push(entry.name);
+      }
+    } catch {
+      // No nori.json or invalid JSON — skip
+    }
+  }
+
+  return inlineSubagents;
+};
+
+/**
+ * Create nori.json files for inline/extract subagent candidates after resolution.
+ *
+ * @param args - The function arguments
+ * @param args.skillsetDir - The skillset directory
+ * @param args.inlineCandidates - All subagent IDs that were candidates (no nori.json)
+ * @param args.inlineSubagentIds - Subagent IDs that were chosen to be kept inline
+ */
+const createCandidateSubagentNoriJsonFiles = async (args: {
+  skillsetDir: string;
+  inlineCandidates: Array<string>;
+  inlineSubagentIds: Array<string>;
+}): Promise<void> => {
+  const { skillsetDir, inlineCandidates, inlineSubagentIds } = args;
+  const inlineSet = new Set(inlineSubagentIds);
+
+  for (const candidate of inlineCandidates) {
+    const subagentDir = path.join(skillsetDir, "subagents", candidate);
+    const noriJsonPath = path.join(subagentDir, "nori.json");
+    const type = inlineSet.has(candidate) ? "inlined-subagent" : "subagent";
     const metadata: NoriJson = {
       name: candidate,
       version: "1.0.0",
@@ -736,10 +890,21 @@ export const registryUploadMain = async (args: {
     skillsetDir,
   });
 
+  // Detect inline subagent candidates (directory-based subagents without nori.json)
+  const subagentInlineCandidates = await detectInlineSubagentCandidates({
+    skillsetDir,
+  });
+
+  // Detect subagents already marked as inlined from a previous upload
+  const existingInlineSubagents = await detectExistingInlineSubagents({
+    skillsetDir,
+  });
+
   // Helper to perform upload with optional resolution strategy
   const performUpload = async (uploadArgs: {
     resolutionStrategy?: SkillResolutionStrategy | null;
     inlineSkills?: Array<string> | null;
+    inlineSubagents?: Array<string> | null;
     uploadVersion: string;
   }): Promise<UploadResult> => {
     try {
@@ -749,6 +914,15 @@ export const registryUploadMain = async (args: {
           skillsetDir,
           inlineCandidates,
           inlineSkillIds: uploadArgs.inlineSkills ?? [],
+        });
+      }
+
+      // Create nori.json for subagent inline/extract candidates
+      if (subagentInlineCandidates.length > 0) {
+        await createCandidateSubagentNoriJsonFiles({
+          skillsetDir,
+          inlineCandidates: subagentInlineCandidates,
+          inlineSubagentIds: uploadArgs.inlineSubagents ?? [],
         });
       }
 
@@ -762,6 +936,12 @@ export const registryUploadMain = async (args: {
         ...(uploadArgs.inlineSkills ?? []),
       ];
 
+      // Merge existing inlined subagents with newly-resolved inline candidates
+      const allInlineSubagents = [
+        ...existingInlineSubagents,
+        ...(uploadArgs.inlineSubagents ?? []),
+      ];
+
       const result: UploadSkillsetResponse = await registrarApi.uploadSkillset({
         packageName,
         version: uploadArgs.uploadVersion,
@@ -771,6 +951,8 @@ export const registryUploadMain = async (args: {
         description: description ?? undefined,
         resolutionStrategy: uploadArgs.resolutionStrategy ?? undefined,
         inlineSkills: allInlineSkills.length > 0 ? allInlineSkills : undefined,
+        inlineSubagents:
+          allInlineSubagents.length > 0 ? allInlineSubagents : undefined,
       });
 
       return {
@@ -839,6 +1021,10 @@ export const registryUploadMain = async (args: {
     nonInteractive: nonInteractive ?? false,
     inlineCandidates:
       inlineCandidates.length > 0 ? inlineCandidates : undefined,
+    inlineSubagentCandidates:
+      subagentInlineCandidates.length > 0
+        ? subagentInlineCandidates
+        : undefined,
     callbacks: {
       onDetermineVersion: async () => {
         const versionResult = await determineUploadVersion({
@@ -857,6 +1043,7 @@ export const registryUploadMain = async (args: {
         return performUpload({
           resolutionStrategy: uploadCallbackArgs.resolutionStrategy,
           inlineSkills: uploadCallbackArgs.inlineSkillIds,
+          inlineSubagents: uploadCallbackArgs.inlineSubagentIds,
           uploadVersion,
         });
       },

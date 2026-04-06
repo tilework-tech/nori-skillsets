@@ -58,6 +58,7 @@ export type UploadFlowCallbacks = {
   onUpload: (args: {
     resolutionStrategy?: SkillResolutionStrategy | null;
     inlineSkillIds?: Array<string> | null;
+    inlineSubagentIds?: Array<string> | null;
   }) => Promise<UploadResult>;
   onReadLocalSkillMd?:
     | ((args: { skillId: string }) => Promise<string | null>)
@@ -539,14 +540,17 @@ const resolveAllConflictsSameWay = async (args: {
  * @param args - The function arguments
  * @param args.candidates - Array of skill IDs without nori.json
  * @param args.cancelMessage - Message to display on cancel
+ * @param args.entityLabel - Label for the entity type (e.g., "skill" or "subagent")
  *
  * @returns Array of skill IDs to keep inline, or null if cancelled
  */
 const resolveInlineSkillsInFlow = async (args: {
   candidates: Array<string>;
   cancelMessage: string;
+  entityLabel?: string | null;
 }): Promise<Array<string> | null> => {
   const { candidates, cancelMessage } = args;
+  const label = args.entityLabel ?? "skill";
   const inlineSkillIds: Array<string> = [];
 
   for (let i = 0; i < candidates.length; i++) {
@@ -566,12 +570,12 @@ const resolveInlineSkillsInFlow = async (args: {
           {
             value: "inline" as const,
             label: "Keep inline",
-            hint: "Skill stays bundled in the skillset tarball",
+            hint: `${label.charAt(0).toUpperCase() + label.slice(1)} stays bundled in the skillset tarball`,
           },
           {
             value: "extract" as const,
             label: "Extract as package",
-            hint: "Publish as an independent skill package",
+            hint: `Publish as an independent ${label} package`,
           },
         ],
         initialValue: "inline" as const,
@@ -595,28 +599,32 @@ const resolveInlineSkillsInFlow = async (args: {
  * @param args - The function arguments
  * @param args.candidates - Array of skill IDs without nori.json
  * @param args.cancelMessage - Message to display on cancel
+ * @param args.entityLabel - Label for the entity type (e.g., "skill" or "subagent")
  *
  * @returns Array of skill IDs to keep inline, or null if cancelled
  */
 const resolveAllInlineSkillsSameWay = async (args: {
   candidates: Array<string>;
   cancelMessage: string;
+  entityLabel?: string | null;
 }): Promise<Array<string> | null> => {
   const { candidates, cancelMessage } = args;
+  const label = args.entityLabel ?? "skill";
+  const labelPlural = `${label}s`;
 
   const action = unwrapPrompt({
     value: await select({
-      message: "Keep all skills without nori.json inline?",
+      message: `Keep all ${labelPlural} without nori.json inline?`,
       options: [
         {
           value: "inline" as const,
           label: "Keep all inline",
-          hint: "Skills stay bundled in the skillset tarball",
+          hint: `${labelPlural.charAt(0).toUpperCase() + labelPlural.slice(1)} stay bundled in the skillset tarball`,
         },
         {
           value: "extract" as const,
           label: "Extract all as packages",
-          hint: "Publish each as an independent skill package",
+          hint: `Publish each as an independent ${label} package`,
         },
       ],
       initialValue: "inline" as const,
@@ -800,6 +808,7 @@ const hasConflicts = (
  * @param args.callbacks - Callback functions for version determination and upload
  * @param args.nonInteractive - If true, don't prompt for conflict resolution
  * @param args.inlineCandidates - Skill IDs without nori.json that need inline/extract decision
+ * @param args.inlineSubagentCandidates - Subagent IDs without nori.json that need inline/extract decision
  *
  * @returns Upload result on success, null on failure or cancellation
  */
@@ -810,6 +819,7 @@ export const uploadFlow = async (args: {
   callbacks: UploadFlowCallbacks;
   nonInteractive?: boolean | null;
   inlineCandidates?: Array<string> | null;
+  inlineSubagentCandidates?: Array<string> | null;
 }): Promise<UploadFlowResult> => {
   const {
     profileDisplayName,
@@ -818,6 +828,7 @@ export const uploadFlow = async (args: {
     callbacks,
     nonInteractive,
     inlineCandidates,
+    inlineSubagentCandidates,
   } = args;
   const cancelMsg = "Upload cancelled.";
 
@@ -886,6 +897,68 @@ export const uploadFlow = async (args: {
     }
   }
 
+  // Resolve inline subagent candidates before upload
+  let inlineSubagentIds: Array<string> | undefined;
+  const hasSubagentCandidates =
+    inlineSubagentCandidates != null && inlineSubagentCandidates.length > 0;
+
+  if (hasSubagentCandidates && !nonInteractive) {
+    let resolvedInlineSubagents: Array<string> | null = null;
+
+    if (inlineSubagentCandidates.length > 1) {
+      const batchChoice = unwrapPrompt({
+        value: await select({
+          message: `Found ${inlineSubagentCandidates.length} subagent(s) without nori.json. How would you like to handle them?`,
+          options: [
+            {
+              value: "all-same" as const,
+              label: "Resolve all the same way",
+              hint: "Apply a single choice to all subagents",
+            },
+            {
+              value: "one-by-one" as const,
+              label: "Choose one-by-one",
+              hint: "Decide for each subagent individually",
+            },
+          ],
+        }),
+        cancelMessage: cancelMsg,
+      });
+
+      if (batchChoice == null) {
+        return null;
+      }
+
+      if (batchChoice === "all-same") {
+        resolvedInlineSubagents = await resolveAllInlineSkillsSameWay({
+          candidates: inlineSubagentCandidates,
+          cancelMessage: cancelMsg,
+          entityLabel: "subagent",
+        });
+      } else {
+        resolvedInlineSubagents = await resolveInlineSkillsInFlow({
+          candidates: inlineSubagentCandidates,
+          cancelMessage: cancelMsg,
+          entityLabel: "subagent",
+        });
+      }
+    } else {
+      resolvedInlineSubagents = await resolveInlineSkillsInFlow({
+        candidates: inlineSubagentCandidates,
+        cancelMessage: cancelMsg,
+        entityLabel: "subagent",
+      });
+    }
+
+    if (resolvedInlineSubagents == null) {
+      return null;
+    }
+
+    if (resolvedInlineSubagents.length > 0) {
+      inlineSubagentIds = resolvedInlineSubagents;
+    }
+  }
+
   // Determine version and upload with a single spinner
   const uploadSpinner = spinner();
   uploadSpinner.start("Preparing upload...");
@@ -896,6 +969,7 @@ export const uploadFlow = async (args: {
 
   let result = await callbacks.onUpload({
     inlineSkillIds,
+    inlineSubagentIds,
   });
 
   // Step 3: Handle conflicts if any
@@ -922,6 +996,7 @@ export const uploadFlow = async (args: {
       result = await callbacks.onUpload({
         resolutionStrategy: autoStrategy,
         inlineSkillIds,
+        inlineSubagentIds,
       });
     } else if (nonInteractive) {
       // Non-interactive mode with unresolved conflicts
@@ -1024,6 +1099,7 @@ export const uploadFlow = async (args: {
       result = await callbacks.onUpload({
         resolutionStrategy: combinedStrategy,
         inlineSkillIds,
+        inlineSubagentIds,
       });
     }
   }

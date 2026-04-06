@@ -38,7 +38,7 @@ The flows cover the full lifecycle of skillset management:
 | `loginFlow` | Email/password collection and authentication |
 | `initFlow` | First-time initialization with config capture |
 | `switchSkillsetFlow` | Switch active skillset with local change detection |
-| `uploadFlow` | Version determination, skill conflict resolution, and upload |
+| `uploadFlow` | Version determination, skill/subagent conflict resolution, inline decisions, and upload |
 | `registryDownloadFlow` | Search, version comparison, and skillset download |
 | `skillDownloadFlow` | Search and download for individual skills |
 | `registrySearchFlow` | Search the registry for skillsets and skills |
@@ -61,5 +61,7 @@ The callback-injection pattern is a deliberate architectural choice. Flows are t
 `registryDownloadFlow` and `skillDownloadFlow` allow re-downloading packages even when the local version matches the registry version. This supports the case where registry contents change without a version bump (e.g., updated skill dependencies). The confirm prompt defaults to `false` to preserve the previous behavior of skipping the download when already current. Both flows accept a `nonInteractive` param; when true, the "already-current" path returns immediately with "Already up to date" instead of prompting. This supports CI/automated workflows where interactive prompts would block execution.
 
 `uploadFlow` handles skill conflict resolution in a two-pass pattern. If the first upload attempt returns conflicts, it prompts for resolution strategy (link, namespace, or per-skill), then retries the upload with the chosen strategy. When a skill is resolved as "link" (use existing remote version), the flow captures both the skill ID and the remote's `latestVersion` in a `linkedSkillVersions: Map<string, string>` on the `UploadFlowResult`. This allows the caller to sync the linked version back to the local `nori.json` `dependencies.skills` so local state stays consistent with the registry. Auto-resolved links (where `contentUnchanged` is true) and user-chosen links both populate this map.
+
+`uploadFlow` accepts optional `inlineSubagentCandidates` in addition to `inlineCandidates`. When subagent candidates are present, the flow runs a subagent inline resolution phase immediately after the skill inline resolution phase, using the same UX pattern (batch vs. per-item decision). The resolved `inlineSubagentIds` are passed through `UploadFlowCallbacks.onUpload` alongside `inlineSkillIds`, so the caller can forward both to the API.
 
 Created and maintained by Nori.
