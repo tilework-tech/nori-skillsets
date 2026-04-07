@@ -64,25 +64,26 @@ vi.mock("@/api/registryAuth.js", () => ({
   getRegistryAuthToken: vi.fn(),
 }));
 
-// Mock the fetch utils for skill collision error
-vi.mock("@/utils/fetch.js", () => ({
-  isSkillCollisionError: vi.fn((err) => {
-    return err && typeof err === "object" && "conflicts" in err;
-  }),
-  SkillCollisionError: class SkillCollisionError extends Error {
-    conflicts: Array<unknown>;
-    requiresVersions?: boolean;
-    constructor(args: {
-      message: string;
-      conflicts: Array<unknown>;
-      requiresVersions?: boolean;
-    }) {
-      super(args.message);
-      this.conflicts = args.conflicts;
-      this.requiresVersions = args.requiresVersions;
-    }
-  },
-}));
+// Mock the fetch utils for skill and subagent collision errors
+vi.mock("@/utils/fetch.js", async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
+  return {
+    ...actual,
+    isSkillCollisionError: vi.fn((err: unknown) => {
+      return err && typeof err === "object" && "conflicts" in err;
+    }),
+    isSubagentCollisionError: vi.fn((err: unknown) => {
+      return (
+        err != null &&
+        typeof err === "object" &&
+        (("isSubagentCollisionError" in err &&
+          (err as Record<string, unknown>).isSubagentCollisionError === true) ||
+          ("subagentConflicts" in err &&
+            Array.isArray((err as Record<string, unknown>).subagentConflicts)))
+      );
+    }),
+  };
+});
 
 // Create a shared spinner mock that tracks all message calls
 const createSpinnerMock = () => ({
@@ -128,7 +129,10 @@ const _mockConsoleError = vi
 import { registrarApi } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
 import { loadConfig, getRegistryAuth } from "@/cli/config.js";
-import { isSkillCollisionError } from "@/utils/fetch.js";
+import {
+  isSkillCollisionError,
+  isSubagentCollisionError,
+} from "@/utils/fetch.js";
 
 import { registryUploadMain } from "./registryUpload.js";
 
@@ -202,6 +206,19 @@ describe("registry-upload", () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (vi.mocked(isSkillCollisionError) as any).mockImplementation(
       (err: unknown) => err && typeof err === "object" && "conflicts" in err,
+    );
+
+    // Re-establish isSubagentCollisionError mock implementation
+    // Detects both the duck-typed flag and the subagentConflicts property
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (vi.mocked(isSubagentCollisionError) as any).mockImplementation(
+      (err: unknown) =>
+        err != null &&
+        typeof err === "object" &&
+        (("isSubagentCollisionError" in err &&
+          (err as Record<string, unknown>).isSubagentCollisionError === true) ||
+          ("subagentConflicts" in err &&
+            Array.isArray((err as Record<string, unknown>).subagentConflicts))),
     );
 
     // Create test directory structure simulating a Nori installation

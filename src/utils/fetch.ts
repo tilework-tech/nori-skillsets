@@ -212,3 +212,65 @@ export const isSkillCollisionError = (
     (error as SkillCollisionError)?.isSkillCollisionError === true
   );
 };
+
+/**
+ * Resolution action for subagent conflicts
+ * Must match SubagentResolutionAction in registrar.ts
+ */
+export type SubagentResolutionAction =
+  | "cancel"
+  | "namespace"
+  | "updateVersion"
+  | "link";
+
+/**
+ * Conflict information for a single subagent (used in SubagentCollisionError)
+ */
+export type SubagentConflictInfo = {
+  subagentId: string;
+  exists: boolean;
+  canPublish: boolean;
+  latestVersion?: string | null;
+  owner?: string | null;
+  availableActions: Array<SubagentResolutionAction>;
+  contentUnchanged?: boolean | null;
+  existingSubagentMd?: string | null;
+};
+
+/**
+ * Custom error class for subagent collision errors during skillset upload
+ * Thrown when inline subagents in a skillset conflict with existing registry subagents
+ */
+export class SubagentCollisionError extends Error {
+  readonly conflicts: Array<SubagentConflictInfo>;
+  readonly requiresVersions: boolean;
+  readonly isSubagentCollisionError = true;
+
+  constructor(args: {
+    message: string;
+    conflicts: Array<SubagentConflictInfo>;
+    requiresVersions?: boolean | null;
+  }) {
+    const { message, conflicts, requiresVersions } = args;
+    super(message);
+    this.name = "SubagentCollisionError";
+    this.conflicts = conflicts;
+    this.requiresVersions = requiresVersions ?? false;
+  }
+}
+
+/**
+ * Check if an error is a subagent collision error
+ *
+ * @param error - The error to check
+ *
+ * @returns True if the error is a subagent collision error
+ */
+export const isSubagentCollisionError = (
+  error: unknown,
+): error is SubagentCollisionError => {
+  return (
+    error instanceof SubagentCollisionError ||
+    (error as SubagentCollisionError)?.isSubagentCollisionError === true
+  );
+};

@@ -273,6 +273,186 @@ const downloadSkillDependencies = async (args: {
 };
 
 /**
+ * Result of downloading a single subagent dependency
+ */
+type SubagentDependencyResult = {
+  downloaded: boolean;
+  warning?: string | null;
+};
+
+/**
+ * Download and install a single subagent dependency (always uses latest version)
+ * @param args - The download parameters
+ * @param args.subagentName - The name of the subagent to download
+ * @param args.subagentsDir - The directory where subagents are installed
+ * @param args.registryUrl - The registry URL to download from
+ * @param args.authToken - Optional authentication token for private registries
+ * @param args.silent - If true, collect warnings as return values instead of logging
+ *
+ * @returns Result indicating whether the subagent was downloaded and any warning
+ */
+const downloadSubagentDependency = async (args: {
+  subagentName: string;
+  subagentsDir: string;
+  registryUrl: string;
+  authToken?: string | null;
+  silent?: boolean | null;
+}): Promise<SubagentDependencyResult> => {
+  const { subagentName, subagentsDir, registryUrl, authToken, silent } = args;
+  const subagentDir = path.join(subagentsDir, subagentName);
+
+  try {
+    // Fetch subagent packument to get latest version
+    const packument = await registrarApi.getSubagentPackument({
+      subagentName,
+      registryUrl,
+      authToken: authToken ?? undefined,
+    });
+
+    const latestVersion = packument["dist-tags"].latest;
+    if (latestVersion == null) {
+      const warning = `Warning: No latest version found for subagent "${subagentName}"`;
+      if (!silent) {
+        log.warn(warning);
+      }
+      return { downloaded: false, warning };
+    }
+
+    // Check if subagent already exists with same version
+    let subagentExists = false;
+    try {
+      await fs.access(subagentDir);
+      subagentExists = true;
+    } catch {
+      // Subagent doesn't exist
+    }
+
+    if (subagentExists) {
+      const existingVersionInfo = await readVersionInfo({ dir: subagentDir });
+      if (existingVersionInfo != null) {
+        // Skip if already at latest version
+        if (existingVersionInfo.version === latestVersion) {
+          return { downloaded: false }; // Already installed with latest version
+        }
+      }
+    }
+
+    // Download the subagent tarball (latest version)
+    const tarballData = await registrarApi.downloadSubagentTarball({
+      subagentName,
+      version: latestVersion,
+      registryUrl,
+      authToken: authToken ?? undefined,
+    });
+
+    // Extract to subagent directory
+    if (subagentExists) {
+      // Update existing subagent - extract to temp dir first
+      const tempDir = path.join(subagentsDir, `.${subagentName}-download-temp`);
+      const backupDir = path.join(subagentsDir, `.${subagentName}-backup`);
+      await fs.mkdir(tempDir, { recursive: true });
+
+      try {
+        await extractTarball({ tarballData, targetDir: tempDir });
+
+        // Atomic swap
+        await fs.rename(subagentDir, backupDir);
+        await fs.rename(tempDir, subagentDir);
+        await fs.rm(backupDir, { recursive: true, force: true });
+      } catch (err) {
+        // Restore from backup if swap failed
+        try {
+          await fs.access(backupDir);
+          await fs
+            .rm(subagentDir, { recursive: true, force: true })
+            .catch(() => {
+              /* ignore */
+            });
+          await fs.rename(backupDir, subagentDir);
+        } catch {
+          /* ignore */
+        }
+        await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {
+          /* ignore */
+        });
+        throw err;
+      }
+    } else {
+      // New install
+      await fs.mkdir(subagentDir, { recursive: true });
+      await extractTarball({ tarballData, targetDir: subagentDir });
+    }
+
+    // Write .nori-version file
+    await fs.writeFile(
+      path.join(subagentDir, ".nori-version"),
+      JSON.stringify(
+        {
+          version: latestVersion,
+          registryUrl,
+        },
+        null,
+        2,
+      ),
+    );
+
+    return { downloaded: true };
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    const warning = `Warning: Failed to download subagent "${subagentName}": ${errorMessage}`;
+    if (!silent) {
+      log.warn(warning);
+    }
+    return { downloaded: false, warning };
+  }
+};
+
+/**
+ * Download all subagent dependencies from a nori.json (always uses latest versions)
+ * @param args - The download parameters
+ * @param args.noriJson - The parsed nori.json manifest containing dependencies
+ * @param args.subagentsDir - The directory where subagents are installed
+ * @param args.registryUrl - The registry URL to download from
+ * @param args.authToken - Optional authentication token for private registries
+ * @param args.silent - If true, suppress log output and return warnings instead
+ *
+ * @returns Array of warning messages from failed dependency downloads
+ */
+const downloadSubagentDependencies = async (args: {
+  noriJson: NoriJson;
+  subagentsDir: string;
+  registryUrl: string;
+  authToken?: string | null;
+  silent?: boolean | null;
+}): Promise<Array<string>> => {
+  const { noriJson, subagentsDir, registryUrl, authToken, silent } = args;
+
+  const subagentDeps = noriJson.dependencies?.subagents;
+  if (subagentDeps == null || Object.keys(subagentDeps).length === 0) {
+    return [];
+  }
+
+  if (!silent) {
+    log.info("Installing subagent dependencies...");
+  }
+
+  const warnings: Array<string> = [];
+  for (const subagentName of Object.keys(subagentDeps)) {
+    const result = await downloadSubagentDependency({
+      subagentName,
+      subagentsDir,
+      registryUrl,
+      authToken,
+      silent,
+    });
+    if (result.warning != null) {
+      warnings.push(result.warning);
+    }
+  }
+  return warnings;
+};
+
+/**
  * Check if buffer starts with gzip magic bytes (0x1f 0x8b)
  * @param args - The check parameters
  * @param args.buffer - The buffer to check
@@ -798,6 +978,15 @@ export const registryDownloadMain = async (args: {
                   authToken: foundRegistry.authToken,
                   silent: true,
                 });
+                const profileSubagentsDir = path.join(targetDir, "subagents");
+                const subagentWarnings = await downloadSubagentDependencies({
+                  noriJson,
+                  subagentsDir: profileSubagentsDir,
+                  registryUrl: foundRegistry.registryUrl,
+                  authToken: foundRegistry.authToken,
+                  silent: true,
+                });
+                depWarnings = [...depWarnings, ...subagentWarnings];
               }
               return {
                 status: "already-current",
@@ -823,6 +1012,15 @@ export const registryDownloadMain = async (args: {
                 authToken: foundRegistry.authToken,
                 silent: true,
               });
+              const profileSubagentsDir = path.join(targetDir, "subagents");
+              const subagentWarnings = await downloadSubagentDependencies({
+                noriJson,
+                subagentsDir: profileSubagentsDir,
+                registryUrl: foundRegistry.registryUrl,
+                authToken: foundRegistry.authToken,
+                silent: true,
+              });
+              depWarnings = [...depWarnings, ...subagentWarnings];
             }
             return {
               status: "already-current",
@@ -873,7 +1071,11 @@ export const registryDownloadMain = async (args: {
 
             const existingFiles = await fs.readdir(targetDir);
             for (const file of existingFiles) {
-              if (file !== ".nori-version" && file !== "skills") {
+              if (
+                file !== ".nori-version" &&
+                file !== "skills" &&
+                file !== "subagents"
+              ) {
                 await fs.rm(path.join(targetDir, file), {
                   recursive: true,
                   force: true,
@@ -883,7 +1085,7 @@ export const registryDownloadMain = async (args: {
 
             const extractedFiles = await fs.readdir(tempDir);
             for (const file of extractedFiles) {
-              if (file === "skills") {
+              if (file === "skills" || file === "subagents") {
                 await fs.rm(path.join(tempDir, file), {
                   recursive: true,
                   force: true,
@@ -920,7 +1122,7 @@ export const registryDownloadMain = async (args: {
             ),
           );
 
-          // Download skill dependencies and collect warnings
+          // Download skill and subagent dependencies and collect warnings
           let warnings: Array<string> = [];
           const noriJson = await readNoriJson({ skillsetDir: targetDir });
           if (noriJson != null) {
@@ -932,6 +1134,16 @@ export const registryDownloadMain = async (args: {
               authToken: selectedRegistry.authToken,
               silent: true,
             });
+
+            const profileSubagentsDir = path.join(targetDir, "subagents");
+            const subagentWarnings = await downloadSubagentDependencies({
+              noriJson,
+              subagentsDir: profileSubagentsDir,
+              registryUrl: selectedRegistry.registryUrl,
+              authToken: selectedRegistry.authToken,
+              silent: true,
+            });
+            warnings = [...warnings, ...subagentWarnings];
           }
 
           return {

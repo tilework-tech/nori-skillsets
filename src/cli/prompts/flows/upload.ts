@@ -19,6 +19,9 @@ import type {
   SkillResolutionStrategy,
   SkillResolutionAction,
   ExtractedSkillsSummary,
+  SubagentConflict,
+  SubagentResolutionStrategy,
+  ExtractedSubagentsSummary,
 } from "@/api/registrar.js";
 
 import { formatDiffForNote } from "./diffFormat.js";
@@ -40,6 +43,7 @@ export type UploadResult =
       success: true;
       version: string;
       extractedSkills?: ExtractedSkillsSummary | null;
+      extractedSubagents?: ExtractedSubagentsSummary | null;
     }
   | {
       success: false;
@@ -48,6 +52,10 @@ export type UploadResult =
   | {
       success: false;
       conflicts: Array<SkillConflict>;
+    }
+  | {
+      success: false;
+      subagentConflicts: Array<SubagentConflict>;
     };
 
 /**
@@ -57,11 +65,15 @@ export type UploadFlowCallbacks = {
   onDetermineVersion: () => Promise<DetermineVersionResult>;
   onUpload: (args: {
     resolutionStrategy?: SkillResolutionStrategy | null;
+    subagentResolutionStrategy?: SubagentResolutionStrategy | null;
     inlineSkillIds?: Array<string> | null;
     inlineSubagentIds?: Array<string> | null;
   }) => Promise<UploadResult>;
   onReadLocalSkillMd?:
     | ((args: { skillId: string }) => Promise<string | null>)
+    | null;
+  onReadLocalSubagentMd?:
+    | ((args: { subagentId: string }) => Promise<string | null>)
     | null;
 };
 
@@ -71,7 +83,9 @@ export type UploadFlowCallbacks = {
 export type UploadFlowResult = {
   version: string;
   extractedSkills?: ExtractedSkillsSummary | null;
+  extractedSubagents?: ExtractedSubagentsSummary | null;
   linkedSkillVersions: Map<string, string>;
+  linkedSubagentVersions: Map<string, string>;
   namespacedSkillIds: Set<string>;
   skippedSkillIds: Set<string>;
   inlineSkillIds?: Array<string> | null;
@@ -793,6 +807,22 @@ const hasConflicts = (
 };
 
 /**
+ * Check if an upload result has subagent conflicts
+ * @param result - The upload result to check
+ *
+ * @returns True if the result contains subagent conflicts
+ */
+const hasSubagentConflicts = (
+  result: UploadResult,
+): result is { success: false; subagentConflicts: Array<SubagentConflict> } => {
+  return (
+    !result.success &&
+    "subagentConflicts" in result &&
+    Array.isArray(result.subagentConflicts)
+  );
+};
+
+/**
  * Execute the interactive upload flow
  *
  * This function handles the complete upload UX:
@@ -834,6 +864,7 @@ export const uploadFlow = async (args: {
 
   // Track resolution actions for summary
   const linkedSkillVersions = new Map<string, string>();
+  const linkedSubagentVersions = new Map<string, string>();
   const namespacedSkillIds = new Set<string>();
   const skippedSkillIds = new Set<string>();
 
@@ -972,6 +1003,9 @@ export const uploadFlow = async (args: {
     inlineSubagentIds,
   });
 
+  // Track the last skill resolution strategy for forwarding to subagent conflict retries
+  let lastSkillResolutionStrategy: SkillResolutionStrategy | undefined;
+
   // Step 3: Handle conflicts if any
   if (hasConflicts(result)) {
     const { strategy: autoStrategy, unresolvedConflicts } =
@@ -993,6 +1027,7 @@ export const uploadFlow = async (args: {
         `Auto-resolving ${Object.keys(autoStrategy).length} unchanged skill(s)...`,
       );
 
+      lastSkillResolutionStrategy = autoStrategy;
       result = await callbacks.onUpload({
         resolutionStrategy: autoStrategy,
         inlineSkillIds,
@@ -1095,9 +1130,170 @@ export const uploadFlow = async (args: {
       };
 
       // Retry upload with resolution strategy
+      lastSkillResolutionStrategy = combinedStrategy;
       uploadSpinner.start("Uploading with resolutions...");
       result = await callbacks.onUpload({
         resolutionStrategy: combinedStrategy,
+        inlineSkillIds,
+        inlineSubagentIds,
+      });
+    }
+  }
+
+  // Step 3b: Handle subagent conflicts if any
+  if (hasSubagentConflicts(result)) {
+    uploadSpinner.message("Resolving subagent conflicts...");
+    const subagentConflicts = result.subagentConflicts;
+
+    // Auto-resolve unchanged subagents (same pattern as skills)
+    const autoResolved: SubagentResolutionStrategy = {};
+    const unresolvedSubagentConflicts: Array<SubagentConflict> = [];
+
+    for (const conflict of subagentConflicts) {
+      if (
+        conflict.contentUnchanged === true &&
+        conflict.availableActions.includes("link")
+      ) {
+        autoResolved[conflict.subagentId] = { action: "link" };
+        if (conflict.latestVersion != null) {
+          linkedSubagentVersions.set(
+            conflict.subagentId,
+            conflict.latestVersion,
+          );
+        }
+      } else {
+        unresolvedSubagentConflicts.push(conflict);
+      }
+    }
+
+    if (unresolvedSubagentConflicts.length === 0) {
+      uploadSpinner.message(
+        `Auto-resolving ${Object.keys(autoResolved).length} unchanged subagent(s)...`,
+      );
+      result = await callbacks.onUpload({
+        resolutionStrategy: lastSkillResolutionStrategy,
+        subagentResolutionStrategy: autoResolved,
+        inlineSkillIds,
+        inlineSubagentIds,
+      });
+    } else if (nonInteractive) {
+      uploadSpinner.stop("Upload blocked");
+      log.error(red({ text: "Upload failed: unresolved subagent conflicts" }));
+      return null;
+    } else {
+      uploadSpinner.stop("Subagent conflicts detected");
+
+      // Resolve subagent conflicts interactively (reuse skill conflict resolver adapted for subagents)
+      const subagentStrategy: SubagentResolutionStrategy = {};
+
+      for (const conflict of unresolvedSubagentConflicts) {
+        // Build options for this subagent conflict
+        const skillLikeConflict: SkillConflict = {
+          skillId: conflict.subagentId,
+          exists: conflict.exists,
+          canPublish: conflict.canPublish,
+          latestVersion: conflict.latestVersion,
+          owner: conflict.owner,
+          availableActions:
+            conflict.availableActions as unknown as Array<SkillResolutionAction>,
+          contentUnchanged: conflict.contentUnchanged,
+          existingSkillMd: conflict.existingSubagentMd,
+        };
+        const options = buildResolutionOptions({
+          conflict: skillLikeConflict,
+          skillsetName,
+          hasDiffCallback: callbacks.onReadLocalSubagentMd != null,
+        });
+        const defaultAction = getDefaultAction({ conflict: skillLikeConflict });
+
+        const message = `Resolve subagent conflict for "${conflict.subagentId}"${conflict.latestVersion != null ? ` (current: v${conflict.latestVersion})` : ""}`;
+
+        let action: ConflictSelectAction | null = null;
+
+        while (action == null || action === "viewDiff") {
+          action = unwrapPrompt({
+            value: await select({
+              message,
+              options,
+              initialValue: defaultAction,
+            }),
+            cancelMessage: cancelMsg,
+          });
+
+          if (action == null) return null;
+
+          if (action === "viewDiff") {
+            if (
+              callbacks.onReadLocalSubagentMd != null &&
+              conflict.existingSubagentMd != null
+            ) {
+              const localContent = await callbacks.onReadLocalSubagentMd({
+                subagentId: conflict.subagentId,
+              });
+
+              if (localContent == null) {
+                note(
+                  "Local SUBAGENT.md not found for this subagent.",
+                  `Diff unavailable for "${conflict.subagentId}"`,
+                );
+              } else {
+                const diffContent = formatDiffForNote({
+                  existingContent: conflict.existingSubagentMd,
+                  localContent,
+                });
+                note(diffContent, `Diff for "${conflict.subagentId}"`);
+              }
+            }
+          }
+        }
+
+        if (action === "link") {
+          if (conflict.latestVersion != null) {
+            linkedSubagentVersions.set(
+              conflict.subagentId,
+              conflict.latestVersion,
+            );
+          }
+        }
+
+        if (action === "updateVersion") {
+          const suggestedVersion = getSuggestedVersion({
+            currentVersion: conflict.latestVersion,
+          });
+          const version = unwrapPrompt({
+            value: await text({
+              message: `Enter new version for "${conflict.subagentId}"`,
+              defaultValue: suggestedVersion,
+              validate: (value) => {
+                if (!semver.valid(value)) {
+                  return "Please enter a valid semver version (e.g., 1.0.0)";
+                }
+                return undefined;
+              },
+            }),
+            cancelMessage: cancelMsg,
+          });
+
+          if (version == null) return null;
+
+          subagentStrategy[conflict.subagentId] = {
+            action: "updateVersion",
+            version,
+          };
+        } else {
+          subagentStrategy[conflict.subagentId] = { action };
+        }
+      }
+
+      // Merge auto-resolved and interactive strategies
+      const combinedSubagentStrategy: SubagentResolutionStrategy = {
+        ...autoResolved,
+        ...subagentStrategy,
+      };
+      uploadSpinner.start("Uploading with subagent resolutions...");
+      result = await callbacks.onUpload({
+        resolutionStrategy: lastSkillResolutionStrategy,
+        subagentResolutionStrategy: combinedSubagentStrategy,
         inlineSkillIds,
         inlineSubagentIds,
       });
@@ -1134,6 +1330,30 @@ export const uploadFlow = async (args: {
     summaryLines.push("");
   }
 
+  // Format subagent summary
+  const extractedSubagents = result.extractedSubagents;
+  if (extractedSubagents != null) {
+    const succeeded = extractedSubagents.succeeded ?? [];
+    const failed = extractedSubagents.failed ?? [];
+
+    if (succeeded.length > 0 || failed.length > 0) {
+      summaryLines.push("Subagents:");
+      if (succeeded.length > 0) {
+        summaryLines.push("  Extracted:");
+        for (const subagent of succeeded) {
+          summaryLines.push(`    - ${subagent.name}@${subagent.version}`);
+        }
+      }
+      if (failed.length > 0) {
+        summaryLines.push("  Failed:");
+        for (const subagent of failed) {
+          summaryLines.push(`    - ${subagent.name}: ${subagent.reason}`);
+        }
+      }
+      summaryLines.push("");
+    }
+  }
+
   summaryLines.push("Others can install it with:");
   summaryLines.push(`  nori-skillsets download ${profileDisplayName}`);
 
@@ -1142,7 +1362,9 @@ export const uploadFlow = async (args: {
   return {
     version: result.version,
     extractedSkills: result.extractedSkills,
+    extractedSubagents: result.extractedSubagents,
     linkedSkillVersions,
+    linkedSubagentVersions,
     namespacedSkillIds,
     skippedSkillIds,
     inlineSkillIds,

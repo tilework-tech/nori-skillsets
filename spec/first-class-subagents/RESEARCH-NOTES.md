@@ -152,3 +152,35 @@ The server now supports the full subagent lifecycle. Key API endpoints:
 - `skillDownloadMain` (skillDownload.ts:351-853) → `subagentDownloadMain`
 - Upload conflict flow (upload.ts) handles both skill and subagent conflicts sequentially
 - `syncLocalStateAfterUpload` (registryUpload.ts:489-590) needs subagent dep sync
+
+### Implementation scope for this session (Session 3)
+
+Based on the scope of changes and to keep this PR manageable, we'll split Task 7 into two commits:
+
+**Commit A: Upload completion + API types + subagent dependency download**
+1. `SubagentCollisionError` + `SubagentConflictInfo` + `isSubagentCollisionError` in `fetch.ts`
+2. `SubagentConflict` + `SubagentResolutionAction/Resolution/Strategy` types in `registrar.ts`
+3. `subagentResolutionStrategy` field on `UploadSkillsetRequest`
+4. `ExtractedSubagentInfo/Summary` + `extractedSubagents` on `UploadSkillsetResponse`
+5. Collision error handling in `uploadSkillset()` for subagent 409s
+6. Subagent collision resolution UI in `upload.ts` (after skill conflicts)
+7. `syncLocalStateAfterUpload` updated for extracted subagent dependencies
+8. `getSubagentPackument()` and `downloadSubagentTarball()` API methods
+9. `downloadSubagentDependency/downloadSubagentDependencies` in `registryDownload.ts`
+10. Download flow calls `downloadSubagentDependencies` after skill deps
+
+**Commit B: `subagent-download` CLI command (follow-up)**
+- Full standalone command mirroring `skill-download`
+- Command registration in `cliCommandNames.ts` and `noriSkillsetsCommands.ts`
+- Entry in `nori-skillsets.ts`
+
+### Key design decisions for upload collision flow
+
+The server sends skill and subagent collisions as separate 409 responses:
+- `SkillCollisionError` has `conflicts` at top level with `skillId` field
+- `SubagentCollisionError` has `conflicts` at top level with `subagentId` field
+- Differentiator: `code` field — `"SKILL_COLLISION_ERROR"` vs `"SUBAGENT_COLLISION_ERROR"`
+
+The CLI can distinguish them by checking the `code` field in the error response body, OR by checking whether `conflicts[0].skillId` or `conflicts[0].subagentId` exists. The server returns one type of collision at a time (skills first, then subagents after skills are resolved).
+
+**Note on `failed` array shape difference:** Skills use `{ name, error }` in `ExtractedSkillsSummary.failed`, but the server's subagent extraction uses `{ name, reason }`. The CLI type should match the server: `{ name: string; reason: string }`.

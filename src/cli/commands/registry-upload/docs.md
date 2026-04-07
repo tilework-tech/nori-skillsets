@@ -44,7 +44,7 @@ This branch order mirrors the download commands (`@/src/cli/commands/registry-do
 
 **Version resolution**: `determineUploadVersion` queries the registry's packument for the latest version and auto-bumps the patch version. Falls back to `1.0.0` for new packages. Explicit versions (from the `@version` suffix in the spec) bypass this logic.
 
-**Upload pipeline**: `registryUploadMain` calls `backfillNoriJsonTypes` to ensure `type` fields exist on all `nori.json` files (including subagent subdirectory nori.json files), then runs inline detection for both skills and subagents before creating a tarball via `createProfileTarball` and uploading via `registrarApi.uploadSkillset`. Skill collision errors are caught and surfaced to the interactive flow for resolution.
+**Upload pipeline**: `registryUploadMain` calls `backfillNoriJsonTypes` to ensure `type` fields exist on all `nori.json` files (including subagent subdirectory nori.json files), then runs inline detection for both skills and subagents before creating a tarball via `createProfileTarball` and uploading via `registrarApi.uploadSkillset`. Both `SkillCollisionError` and `SubagentCollisionError` are caught and surfaced to the interactive flow for resolution. The `performUpload` helper passes `subagentResolutionStrategy` alongside `resolutionStrategy` to the API, and returns `subagentConflicts` in the `UploadResult` union type.
 
 **Two-phase inline detection** (applied to both skills and subagents): The upload flow distinguishes between new inline candidates and previously-inlined items:
 
@@ -53,7 +53,7 @@ This branch order mirrors the download commands (`@/src/cli/commands/registry-do
 
 The `performUpload` helper merges both existing and newly-resolved lists into `allInlineSkills` and `allInlineSubagents` before passing to `registrarApi.uploadSkillset`. This is necessary because `createCandidateNoriJsonFiles` / `createCandidateSubagentNoriJsonFiles` write `nori.json` after the first upload, so on subsequent uploads the candidate detectors no longer find those items. Without the second detection phase, re-uploads would omit the inline parameters entirely, causing the server to treat previously-inlined items as extracted.
 
-**Post-upload sync**: `syncLocalStateAfterUpload` writes the uploaded version and registry URL back to the local `nori.json` and `.nori-version` file, and updates extracted/linked skill versions in `metadata.dependencies.skills`. This sync is wrapped in try/catch so failures produce a warning but do not mask a successful upload. Dry-run mode skips the sync entirely.
+**Post-upload sync**: `syncLocalStateAfterUpload` writes the uploaded version and registry URL back to the local `nori.json` and `.nori-version` file, and updates extracted/linked versions for both skills (in `metadata.dependencies.skills`) and subagents (in `metadata.dependencies.subagents`). For each extracted or linked subagent, the function updates both the skillset-level dependency map and the individual subagent's `nori.json` version. This sync is wrapped in try/catch so failures produce a warning but do not mask a successful upload. Dry-run mode skips the sync entirely.
 
 ### Things to Know
 
@@ -62,6 +62,7 @@ The `performUpload` helper merges both existing and newly-resolved lists into `a
 - `createProfileTarball` writes a temp `.tgz` to the parent directory (not inside the skillset dir) and cleans it up in a `finally` block.
 - The inline detection pattern is applied symmetrically to both skills and subagents. `detectInlineSkillCandidates` / `detectInlineSubagentCandidates` identify subdirectories lacking `nori.json`, while `detectExistingInlineSkills` / `detectExistingInlineSubagents` find items with `type: "inlined-skill"` or `type: "inlined-subagent"` to preserve inline status across re-uploads. For subagents, only directories containing `SUBAGENT.md` are treated as candidates; flat `.md` files are not surfaced for inline/extract decisions.
 - `backfillNoriJsonTypes` now also iterates `subagents/` subdirectories to backfill `type: "subagent"` on existing `nori.json` files that lack a type field.
+- The `onReadLocalSubagentMd` callback reads `SUBAGENT.md` from the local subagent directory, enabling diff display during interactive subagent conflict resolution.
 - Silent mode bypasses the interactive flow entirely and performs a direct upload without UI.
 
 Created and maintained by Nori.

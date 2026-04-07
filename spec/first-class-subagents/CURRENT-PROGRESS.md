@@ -36,39 +36,66 @@
 - Updated `onReadFileDiff` to check both flat file and directory-based subagent sources
 - Updated `captureExistingConfig` to preserve directory-based subagents
 
-## Deferred Tasks
+### Task 7: Upload Completion + API Methods + Dependency Download (DONE)
 
-### Task 7: Download Support (DEFERRED - blocked on server-side API)
-- `getSubagentPackument()` and `downloadSubagentTarball()` not yet implemented
-- `downloadSubagentDependencies()` not yet implemented
-- `subagent-download` CLI command not yet created
-- Blocked on server-side `/api/subagents/` endpoints
+#### Error types and type guards (`src/utils/fetch.ts`)
+- Added `SubagentResolutionAction`, `SubagentConflictInfo` types
+- Added `SubagentCollisionError` class mirroring `SkillCollisionError` with `subagentId` field
+- Added `isSubagentCollisionError` type guard
+
+#### API types and methods (`src/api/registrar.ts`)
+- Added `SubagentResolutionAction`, `SubagentConflict`, `SubagentResolution`, `SubagentResolutionStrategy` types
+- Added `subagentResolutionStrategy` field to `UploadSkillsetRequest`
+- Added `ExtractedSubagentInfo`, `ExtractedSubagentsSummary` types (note: failed uses `reason` not `error`)
+- Added `extractedSubagents` field to `UploadSkillsetResponse`
+- Added `GetSubagentPackumentRequest`, `DownloadSubagentTarballRequest` types
+- Added `getSubagentPackument()` API method (hits `/api/subagents/<name>`)
+- Added `downloadSubagentTarball()` API method (hits `/api/subagents/<name>/tarball/<name>-<version>.tgz`)
+- Re-exported `SubagentCollisionError` and `isSubagentCollisionError` from fetch.ts
+
+#### Upload collision handling (`src/api/registrar.ts`)
+- `uploadSkillset()` now sends `subagentResolutionStrategy` as form field
+- `uploadSkillset()` detects subagent collision 409 responses (via `subagentConflicts` array) and throws `SubagentCollisionError`
+
+#### Upload flow UI (`src/cli/prompts/flows/upload.ts`)
+- `UploadResult` now includes `extractedSubagents` and `subagentConflicts` variants
+- `UploadFlowCallbacks.onUpload` accepts `subagentResolutionStrategy`
+- `UploadFlowCallbacks` includes `onReadLocalSubagentMd` callback
+- `UploadFlowResult` includes `extractedSubagents` and `linkedSubagentVersions`
+- Added subagent conflict resolution: auto-resolve unchanged + interactive for modified (same UX as skills)
+- Added subagent summary in upload note (extracted + failed)
+
+#### Upload main (`src/cli/commands/registry-upload/registryUpload.ts`)
+- `performUpload` handles `isSubagentCollisionError` and returns `subagentConflicts`
+- `syncLocalStateAfterUpload` processes `extractedSubagents` — updates `dependencies.subagents` and individual subagent `nori.json` files
+- `syncLocalStateAfterUpload` handles `linkedSubagentVersions` for linked (unchanged) subagents
+- Added `onReadLocalSubagentMd` callback
+
+#### Subagent dependency download (`src/cli/commands/registry-download/registryDownload.ts`)
+- Added `downloadSubagentDependency()` — mirrors `downloadSkillDependency()` with atomic swap, version checking, and .nori-version writing
+- Added `downloadSubagentDependencies()` — mirrors `downloadSkillDependencies()`
+- Download flow now calls `downloadSubagentDependencies` after skill deps in all 3 locations (main download, and both "already-current" paths)
+- Profile update now preserves `subagents/` directory alongside `skills/` during updates
 
 ### Test Coverage Gap: Switch Flow Path Mapping (DONE)
 - Added 3 tests to `src/cli/commands/switch-skillset/switchSkillset.test.ts` for `onReadFileDiff` callback
-- Tests verify directory-based subagent mapping (`agents/foo.md` → `subagents/foo/SUBAGENT.md`)
-- Tests verify flat file mapping (`agents/foo.md` → `subagents/foo.md`)
-- Tests verify null return when no source exists
+
+### Test Coverage Parity: Upload Flow & Loader Edge Cases (DONE)
+- Added 4+4 tests to `registryUpload.test.ts` for inline subagent upload flow
+- Added 2 tests to `subagentsLoader.test.ts` for edge cases
 
 ## Deferred Tasks
 
-### Task 7: Download Support (DEFERRED - blocked on server-side API)
-- `getSubagentPackument()` and `downloadSubagentTarball()` not yet implemented
-- `downloadSubagentDependencies()` not yet implemented
-- `subagent-download` CLI command not yet created
-- Blocked on server-side `/api/subagents/` endpoints
-
-### Test Coverage Parity: Upload Flow & Loader Edge Cases (DONE)
-- Added 4 tests to `src/cli/commands/registry-upload/registryUpload.test.ts` for inline subagent upload flow parity:
-  - No subagents directory → no `inlineSubagents` sent
-  - Non-interactive mode → extract all (no `inlineSubagents`)
-  - User selects extract → no `inlineSubagents`
-  - Merge existing inlined + new candidates → both in `inlineSubagents`
-- Added 2 tests to `src/cli/features/shared/subagentsLoader.test.ts` for edge cases:
-  - Null skillset → returns early, agents dir not created
-  - Null subagentsDir → returns early, agents dir empty
+### `subagent-download` CLI Command (follow-up PR)
+- Full standalone command mirroring `skill-download`
+- Command registration in `cliCommandNames.ts` and `noriSkillsetsCommands.ts`
+- Entry in `nori-skillsets.ts`
+- Depends on Task 7 being complete (now done)
 
 ## Test Coverage
-- 33 new tests added across 8 test files
-- All 1691 tests passing (up from 1685 prior to this session; 1661 at project start)
-- New test file: `src/cli/commands/external/subagentDiscovery.test.ts`
+- All 1703 unit/integration tests passing (excluding build-dependent tests)
+- New test coverage added:
+  - `src/utils/fetch.test.ts`: 14 tests for SubagentCollisionError + isSubagentCollisionError
+  - `src/api/registrar.test.ts`: 9 tests for subagent API methods + collision handling
+  - `src/cli/commands/registry-upload/registryUpload.test.ts`: 4 tests for subagent collision handling + extracted subagents + sync
+  - `src/cli/commands/registry-download/registryDownload.test.ts`: 2 tests for subagent dependency download

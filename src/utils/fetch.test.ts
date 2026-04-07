@@ -4,7 +4,6 @@ import {
   SubagentCollisionError,
   isSubagentCollisionError,
   SkillCollisionError,
-  isSkillCollisionError,
 } from "@/utils/fetch.js";
 
 import type { SubagentConflictInfo } from "@/utils/fetch.js";
