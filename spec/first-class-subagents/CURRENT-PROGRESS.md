@@ -84,18 +84,39 @@
 - Added 4+4 tests to `registryUpload.test.ts` for inline subagent upload flow
 - Added 2 tests to `subagentsLoader.test.ts` for edge cases
 
+### Task 8: `subagent-download` CLI Command (DONE)
+
+#### Command registration
+- Added `downloadSubagent: "download-subagent"` to `CommandNames` type and `NORI_SKILLSETS_COMMANDS` in `cliCommandNames.ts`
+- Added `registerNoriSkillsetsDownloadSubagentCommand` in `noriSkillsetsCommands.ts`
+- Registered command in `nori-skillsets.ts` with usage examples
+
+#### UX flow layer (`src/cli/prompts/flows/subagentDownload.ts`)
+- `SubagentSearchResult`, `SubagentDownloadActionResult`, `SubagentDownloadFlowCallbacks`, `SubagentDownloadFlowResult` types
+- `subagentDownloadFlow` with three phases: Search → Download → Report
+- Mirrors `skillDownloadFlow` with "subagent" terminology
+- Re-exported from `flows/index.ts`
+
+#### Business logic (`src/cli/commands/subagent-download/subagentDownload.ts`)
+- `subagentDownloadMain` mirrors `skillDownloadMain` with key differences:
+  - Downloads tarball, extracts full directory to skillset profile's `subagents/<name>/`
+  - Flattens `SUBAGENT.md` content to `agents/<name>.md` for agent installation
+  - Updates `nori.json` `dependencies.subagents` via `addSubagentToNoriJson()` (no skills.json equivalent)
+  - Broadcasts flattened `.md` to all configured agents
+  - Template substitution only on SUBAGENT.md content
+- `registerSubagentDownloadCommand` (hidden alias `subagent-download`)
+- Registry search, version comparison, namespace support, atomic swap updates
+
 ## Deferred Tasks
 
-### `subagent-download` CLI Command (follow-up PR)
-- Full standalone command mirroring `skill-download`
-- Command registration in `cliCommandNames.ts` and `noriSkillsetsCommands.ts`
-- Entry in `nori-skillsets.ts`
-- Depends on Task 7 being complete (now done)
+None — all tasks are complete.
 
 ## Test Coverage
-- All 1703 unit/integration tests passing (excluding build-dependent tests)
+- All 1770 unit/integration tests passing
 - New test coverage added:
   - `src/utils/fetch.test.ts`: 14 tests for SubagentCollisionError + isSubagentCollisionError
   - `src/api/registrar.test.ts`: 9 tests for subagent API methods + collision handling
   - `src/cli/commands/registry-upload/registryUpload.test.ts`: 4 tests for subagent collision handling + extracted subagents + sync
   - `src/cli/commands/registry-download/registryDownload.test.ts`: 2 tests for subagent dependency download
+  - `src/cli/prompts/flows/subagentDownload.test.ts`: 32 tests for subagent download flow UX
+  - `src/cli/commands/subagent-download/subagentDownload.test.ts`: 8 tests for subagent download command

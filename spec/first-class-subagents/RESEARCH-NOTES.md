@@ -184,3 +184,40 @@ The server sends skill and subagent collisions as separate 409 responses:
 The CLI can distinguish them by checking the `code` field in the error response body, OR by checking whether `conflicts[0].skillId` or `conflicts[0].subagentId` exists. The server returns one type of collision at a time (skills first, then subagents after skills are resolved).
 
 **Note on `failed` array shape difference:** Skills use `{ name, error }` in `ExtractedSkillsSummary.failed`, but the server's subagent extraction uses `{ name, reason }`. The CLI type should match the server: `{ name: string; reason: string }`.
+
+## Session 4: `subagent-download` CLI Command Research
+
+### Prerequisites already in place
+All API and helper functions needed for the command already exist:
+- `registrarApi.getSubagentPackument()` — fetches packument from `/api/subagents/:name`
+- `registrarApi.downloadSubagentTarball()` — downloads tarball, auto-resolves latest
+- `addSubagentToNoriJson()` — adds `dependencies.subagents` entry
+- `downloadSubagentDependency()`/`downloadSubagentDependencies()` — used during skillset download
+
+### Key differences from `skill-download`
+
+1. **Installation target**: Skills install to `agent.getSkillsDir()` (e.g., `~/.claude/skills/`); subagents install to `agent.getSubagentsDir()` (e.g., `~/.claude/agents/`)
+2. **Flattening**: Downloaded subagent tarballs contain a directory with `SUBAGENT.md`. The tarball extracts to `subagents/<name>/` in the skillset profile, but installs to `agents/<name>.md` as a flat file (SUBAGENT.md content only, template-substituted)
+3. **No `skills.json` equivalent**: Skills have both `skills.json` (manifest) and `nori.json` dependencies. Subagents only have `nori.json` dependencies — no separate manifest file
+4. **Template substitution scope**: For skills, template substitution applies to all `.md` files recursively in the skill directory. For subagents, it only applies to the single `SUBAGENT.md` content being flattened
+5. **Broadcasting**: Same pattern — copy the flattened `.md` file to all agents' `agents/` directories
+
+### Files to create
+1. `src/cli/commands/subagent-download/subagentDownload.ts` — `subagentDownloadMain` + `registerSubagentDownloadCommand`
+2. `src/cli/commands/subagent-download/subagentDownload.test.ts` — integration tests
+3. `src/cli/prompts/flows/subagentDownload.ts` — `subagentDownloadFlow` (UX layer)
+4. `src/cli/prompts/flows/subagentDownload.test.ts` — flow unit tests
+
+### Files to modify
+1. `src/cli/commands/cliCommandNames.ts` — add `downloadSubagent: "download-subagent"`
+2. `src/cli/commands/noriSkillsetsCommands.ts` — add `registerNoriSkillsetsDownloadSubagentCommand`
+3. `src/cli/nori-skillsets.ts` — register the command
+4. `src/cli/prompts/flows/index.ts` — re-export flow types
+
+### Shared utilities to reuse from skill-download
+- `readVersionInfo` — reads `.nori-version` file (already exists in skillDownload.ts but not exported)
+- `isGzipped` / `extractTarball` / `copyDirRecursive` — tarball utilities (same, not exported)
+- These are duplicated in `registryDownload.ts` as well — will duplicate into subagentDownload.ts per existing pattern
+
+### No registrar changes needed
+The registrar already has all required endpoints. Only a small refactor on bc262a9 (test helpers) since a86602c — no functional changes.

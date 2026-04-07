@@ -11,6 +11,7 @@ export type CommandNames = {
   clear: string;
   download: string;
   downloadSkill: string;
+  downloadSubagent: string;
   externalSkill: string;
   fork: string;
   new: string;
@@ -25,6 +26,7 @@ const NORI_SKILLSETS_COMMANDS: CommandNames = {
   clear: "clear",
   download: "download",
   downloadSkill: "download-skill",
+  downloadSubagent: "download-subagent",
   externalSkill: "external",
   fork: "fork-skillset",
   new: "new",

@@ -16,6 +16,7 @@ import {
   registerNoriSkillsetsDirCommand,
   registerNoriSkillsetsDownloadCommand,
   registerNoriSkillsetsDownloadSkillCommand,
+  registerNoriSkillsetsDownloadSubagentCommand,
   registerNoriSkillsetsEditSkillsetCommand,
   registerNoriSkillsetsExternalCommand,
   registerNoriSkillsetsFactoryResetCommand,
@@ -116,6 +117,9 @@ Examples:
   $ nori-skillsets download-skill my-skill
   $ nori-skillsets download-skill my-skill@1.0.0
   $ nori-skillsets download-skill my-skill --list-versions
+  $ nori-skillsets download-subagent my-subagent
+  $ nori-skillsets download-subagent my-subagent@1.0.0
+  $ nori-skillsets download-subagent my-subagent --list-versions
   $ nori-skillsets external owner/repo
   $ nori-skillsets external https://github.com/owner/repo --skill my-skill
   $ nori-skillsets external owner/repo --all --ref main
@@ -149,6 +153,7 @@ registerNoriSkillsetsListSkillsetsCommand({ program });
 registerNoriSkillsetsListActiveCommand({ program });
 registerNoriSkillsetsCurrentCommand({ program });
 registerNoriSkillsetsDownloadSkillCommand({ program });
+registerNoriSkillsetsDownloadSubagentCommand({ program });
 registerNoriSkillsetsExternalCommand({ program });
 registerNoriSkillsetsWatchCommand({ program });
 registerNoriSkillsetsDirCommand({ program });
