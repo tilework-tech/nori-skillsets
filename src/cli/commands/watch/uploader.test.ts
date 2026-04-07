@@ -257,5 +257,51 @@ describe("uploader", () => {
         messages: expect.any(Array),
       });
     });
+
+    test("passes skillsetName to transcriptApi.upload when provided", async () => {
+      const transcriptPath = path.join(tempDir, "session-123.jsonl");
+      await fs.writeFile(
+        transcriptPath,
+        '{"sessionId":"session-123","type":"user","message":{"role":"user","content":"Hello"}}',
+      );
+
+      vi.mocked(transcriptApi.upload).mockResolvedValueOnce({
+        id: "transcript-id",
+        title: "Test",
+        sessionId: "session-123",
+        createdAt: "2024-01-01T00:00:00Z",
+      });
+
+      await processTranscriptForUpload({
+        transcriptPath,
+        skillsetName: "senior-swe",
+      });
+
+      expect(transcriptApi.upload).toHaveBeenCalledWith({
+        sessionId: "session-123",
+        messages: expect.any(Array),
+        skillsetName: "senior-swe",
+      });
+    });
+
+    test("does not pass skillsetName when not provided", async () => {
+      const transcriptPath = path.join(tempDir, "session-123.jsonl");
+      await fs.writeFile(
+        transcriptPath,
+        '{"sessionId":"session-123","type":"user","message":{"role":"user","content":"Hello"}}',
+      );
+
+      vi.mocked(transcriptApi.upload).mockResolvedValueOnce({
+        id: "transcript-id",
+        title: "Test",
+        sessionId: "session-123",
+        createdAt: "2024-01-01T00:00:00Z",
+      });
+
+      await processTranscriptForUpload({ transcriptPath });
+
+      const callArgs = vi.mocked(transcriptApi.upload).mock.calls[0][0];
+      expect(callArgs).not.toHaveProperty("skillsetName");
+    });
   });
 });
