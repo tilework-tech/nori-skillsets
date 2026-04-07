@@ -53,6 +53,8 @@ vi.mock("@/api/registrar.js", () => ({
     downloadTarball: vi.fn(),
     getSkillPackument: vi.fn(),
     downloadSkillTarball: vi.fn(),
+    getSubagentPackument: vi.fn(),
+    downloadSubagentTarball: vi.fn(),
   },
   NetworkError: class NetworkError extends Error {
     readonly isNetworkError = true;
@@ -1805,6 +1807,156 @@ describe("registry-download", () => {
     });
   });
 
+  describe("nori.json subagent dependencies", () => {
+    it("should download subagent dependencies from nori.json", async () => {
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+      });
+
+      vi.mocked(registrarApi.getPackument).mockResolvedValue({
+        name: "test-profile",
+        "dist-tags": { latest: "1.0.0" },
+        versions: { "1.0.0": { name: "test-profile", version: "1.0.0" } },
+      });
+
+      // Create profile tarball with nori.json containing subagent dependencies
+      const profileTarball = await createMockTarballWithNoriJson({
+        noriJson: {
+          name: "test-profile",
+          version: "1.0.0",
+          dependencies: {
+            subagents: { "my-subagent": "1.0.0" },
+          },
+        },
+      });
+      vi.mocked(registrarApi.downloadTarball).mockResolvedValue(profileTarball);
+
+      // Mock subagent packument
+      vi.mocked(registrarApi.getSubagentPackument).mockResolvedValue({
+        name: "my-subagent",
+        "dist-tags": { latest: "1.2.0" },
+        versions: {
+          "1.0.0": { name: "my-subagent", version: "1.0.0" },
+          "1.2.0": { name: "my-subagent", version: "1.2.0" },
+        },
+      });
+
+      // Mock subagent tarball download
+      const subagentTarball = await createMockSubagentTarball({
+        subagentName: "my-subagent",
+      });
+      vi.mocked(registrarApi.downloadSubagentTarball).mockResolvedValue(
+        subagentTarball,
+      );
+
+      await registryDownloadMain({
+        packageSpec: "test-profile",
+        cwd: testDir,
+      });
+
+      // Verify subagent packument was fetched
+      expect(registrarApi.getSubagentPackument).toHaveBeenCalledWith({
+        subagentName: "my-subagent",
+        registryUrl: REGISTRAR_URL,
+        authToken: undefined,
+      });
+
+      // Verify subagent tarball was downloaded with latest version
+      expect(registrarApi.downloadSubagentTarball).toHaveBeenCalledWith({
+        subagentName: "my-subagent",
+        version: "1.2.0",
+        registryUrl: REGISTRAR_URL,
+        authToken: undefined,
+      });
+
+      // Verify subagent was extracted to profile's subagents directory
+      const profileDir = path.join(skillsetsDir, "test-profile");
+      const subagentDir = path.join(profileDir, "subagents", "my-subagent");
+      const stats = await fs.stat(subagentDir);
+      expect(stats.isDirectory()).toBe(true);
+
+      // Verify .nori-version file was written for the subagent
+      const versionFilePath = path.join(subagentDir, ".nori-version");
+      const versionFileContent = await fs.readFile(versionFilePath, "utf-8");
+      const versionInfo = JSON.parse(versionFileContent);
+      expect(versionInfo.version).toBe("1.2.0");
+    });
+
+    it("should skip already-current subagent dependencies", async () => {
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+      });
+
+      // Create existing profile with a subagent already at latest version
+      const existingProfileDir = path.join(skillsetsDir, "test-profile");
+      await fs.mkdir(existingProfileDir, { recursive: true });
+      await fs.writeFile(
+        path.join(existingProfileDir, ".nori-version"),
+        JSON.stringify({ version: "1.0.0", registryUrl: REGISTRAR_URL }),
+      );
+      // Create nori.json with subagent dependencies
+      await fs.writeFile(
+        path.join(existingProfileDir, "nori.json"),
+        JSON.stringify({
+          name: "test-profile",
+          version: "1.0.0",
+          dependencies: {
+            subagents: { "my-subagent": "1.0.0" },
+          },
+        }),
+      );
+
+      // Create existing subagent directory with matching version
+      const subagentDir = path.join(
+        existingProfileDir,
+        "subagents",
+        "my-subagent",
+      );
+      await fs.mkdir(subagentDir, { recursive: true });
+      await fs.writeFile(
+        path.join(subagentDir, ".nori-version"),
+        JSON.stringify({ version: "1.2.0", registryUrl: REGISTRAR_URL }),
+      );
+
+      // Mock packument to return same latest version
+      vi.mocked(registrarApi.getSubagentPackument).mockResolvedValue({
+        name: "my-subagent",
+        "dist-tags": { latest: "1.2.0" },
+        versions: {
+          "1.2.0": { name: "my-subagent", version: "1.2.0" },
+        },
+      });
+
+      vi.mocked(registrarApi.getPackument).mockResolvedValue({
+        name: "test-profile",
+        "dist-tags": { latest: "1.0.0" },
+        versions: { "1.0.0": { name: "test-profile", version: "1.0.0" } },
+      });
+
+      // Use confirm mock to allow overwrite of existing profile
+      vi.mocked(clack.confirm).mockResolvedValue(true);
+
+      const profileTarball = await createMockTarballWithNoriJson({
+        noriJson: {
+          name: "test-profile",
+          version: "1.0.0",
+          dependencies: {
+            subagents: { "my-subagent": "1.0.0" },
+          },
+        },
+      });
+      vi.mocked(registrarApi.downloadTarball).mockResolvedValue(profileTarball);
+
+      await registryDownloadMain({
+        packageSpec: "test-profile",
+        cwd: testDir,
+      });
+
+      // Verify subagent was NOT downloaded (already installed with latest version)
+      expect(registrarApi.downloadSubagentTarball).not.toHaveBeenCalled();
+    });
+  });
+
   describe("namespaced package download", () => {
     it("should download namespaced package to nested directory", async () => {
       vi.mocked(loadConfig).mockResolvedValue({
@@ -2298,6 +2450,7 @@ const createMockTarballWithNoriJson = async (args: {
     version: string;
     dependencies?: {
       skills?: Record<string, string>;
+      subagents?: Record<string, string>;
     } | null;
   };
   gzip?: boolean | null;
@@ -2386,6 +2539,61 @@ const createMockSkillTarball = async (args: {
         sync: true,
       },
       ["SKILL.md"],
+    );
+
+    // Read the tarball as ArrayBuffer
+    const tarballBuffer = await fs.readFile(tarballPath);
+    const arrayBuffer = new ArrayBuffer(tarballBuffer.byteLength);
+    new Uint8Array(arrayBuffer).set(tarballBuffer);
+    return arrayBuffer;
+  } finally {
+    await fs.rm(tempDir, { recursive: true, force: true });
+    try {
+      await fs.unlink(tarballPath);
+    } catch {
+      // Ignore if file doesn't exist
+    }
+  }
+};
+
+/**
+ * Creates a minimal mock subagent tarball for testing
+ * @param args - The tarball options
+ * @param args.subagentName - The subagent name
+ * @param args.gzip - Whether to gzip the tarball (default: true)
+ *
+ * @returns A valid tarball as ArrayBuffer
+ */
+const createMockSubagentTarball = async (args: {
+  subagentName: string;
+  gzip?: boolean | null;
+}): Promise<ArrayBuffer> => {
+  const { subagentName } = args;
+  const gzip = args.gzip ?? true;
+  const tempDir = await fs.mkdtemp(
+    path.join(tmpdir(), "mock-subagent-tarball-"),
+  );
+  const tarballPath = path.join(
+    tmpdir(),
+    `mock-subagent-${Date.now()}.${gzip ? "tgz" : "tar"}`,
+  );
+
+  try {
+    // Create mock subagent files
+    await fs.writeFile(
+      path.join(tempDir, "AGENT.md"),
+      `---\nname: ${subagentName}\ndescription: A test subagent\n---\n\n# ${subagentName}\n\nTest subagent content.`,
+    );
+
+    // Create the tarball synchronously
+    tar.create(
+      {
+        gzip,
+        file: tarballPath,
+        cwd: tempDir,
+        sync: true,
+      },
+      ["AGENT.md"],
     );
 
     // Read the tarball as ArrayBuffer

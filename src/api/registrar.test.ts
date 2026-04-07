@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
-import { isSkillCollisionError } from "@/utils/fetch.js";
+import {
+  isSkillCollisionError,
+  isSubagentCollisionError,
+} from "@/utils/fetch.js";
 
 import { registrarApi } from "./registrar.js";
 
@@ -1421,6 +1424,275 @@ describe("registrarApi", () => {
       const callArgs = mockFetch.mock.calls[0];
       const formData = callArgs[1].body as FormData;
       expect(formData.get("resolutionStrategy")).toBeNull();
+    });
+
+    it("should include subagentResolutionStrategy in FormData when provided", async () => {
+      const mockResponse = {
+        name: "test-profile",
+        version: "1.0.0",
+        tarballSha: "sha512-abc123",
+        createdAt: "2024-01-01T00:00:00.000Z",
+      };
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(mockResponse),
+      });
+
+      const archiveData = new ArrayBuffer(100);
+      const subagentResolutionStrategy = {
+        "my-subagent": { action: "link" as const },
+      };
+
+      await registrarApi.uploadSkillset({
+        packageName: "test-profile",
+        version: "1.0.0",
+        archiveData,
+        authToken: "test-token",
+        subagentResolutionStrategy,
+      });
+
+      const callArgs = mockFetch.mock.calls[0];
+      const formData = callArgs[1].body as FormData;
+      expect(formData.get("subagentResolutionStrategy")).toBe(
+        JSON.stringify(subagentResolutionStrategy),
+      );
+    });
+
+    it("should throw SubagentCollisionError on 409 with subagent conflicts", async () => {
+      const conflictResponse = {
+        error: "Subagent conflicts detected: my-subagent. Resolution required.",
+        subagentConflicts: [
+          {
+            subagentId: "my-subagent",
+            exists: true,
+            canPublish: false,
+            latestVersion: "1.0.0",
+            owner: "other@example.com",
+            availableActions: ["cancel", "namespace", "link"],
+            contentUnchanged: false,
+          },
+        ],
+        requiresVersions: true,
+      };
+
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 409,
+        json: () => Promise.resolve(conflictResponse),
+      });
+
+      const archiveData = new ArrayBuffer(100);
+
+      await expect(
+        registrarApi.uploadSkillset({
+          packageName: "test-profile",
+          version: "1.0.0",
+          archiveData,
+          authToken: "test-token",
+        }),
+      ).rejects.toThrow("Subagent conflicts detected");
+
+      // Verify it throws SubagentCollisionError with correct properties
+      try {
+        await registrarApi.uploadSkillset({
+          packageName: "test-profile",
+          version: "1.0.0",
+          archiveData,
+          authToken: "test-token",
+        });
+      } catch (err) {
+        expect(isSubagentCollisionError(err)).toBe(true);
+        if (isSubagentCollisionError(err)) {
+          expect(err.conflicts).toHaveLength(1);
+          expect(err.conflicts[0].subagentId).toBe("my-subagent");
+          expect(err.conflicts[0].contentUnchanged).toBe(false);
+          expect(err.requiresVersions).toBe(true);
+        }
+      }
+    });
+  });
+
+  // Subagent API tests
+  describe("getSubagentPackument", () => {
+    it("should fetch subagent packument from /api/subagents/:name", async () => {
+      const mockPackument = {
+        name: "my-subagent",
+        description: "A test subagent",
+        "dist-tags": { latest: "1.0.0" },
+        versions: {
+          "1.0.0": {
+            name: "my-subagent",
+            version: "1.0.0",
+            dist: {
+              tarball: "/subagents/my-subagent/tarball/my-subagent-1.0.0.tgz",
+            },
+          },
+        },
+      };
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(mockPackument),
+      });
+
+      const result = await registrarApi.getSubagentPackument({
+        subagentName: "my-subagent",
+      });
+
+      expect(result).toEqual(mockPackument);
+      expect(mockFetch).toHaveBeenCalledWith(
+        "https://noriskillsets.dev/api/subagents/my-subagent",
+        expect.objectContaining({
+          method: "GET",
+        }),
+      );
+    });
+
+    it("should use custom registryUrl when provided", async () => {
+      const mockPackument = {
+        name: "my-subagent",
+        "dist-tags": { latest: "1.0.0" },
+        versions: {
+          "1.0.0": { name: "my-subagent", version: "1.0.0" },
+        },
+      };
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(mockPackument),
+      });
+
+      await registrarApi.getSubagentPackument({
+        subagentName: "my-subagent",
+        registryUrl: "https://custom.registry",
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "https://custom.registry/api/subagents/my-subagent",
+        expect.objectContaining({
+          method: "GET",
+        }),
+      );
+    });
+
+    it("should throw error when subagent not found", async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 404,
+        json: () => Promise.resolve({ error: "Subagent not found" }),
+      });
+
+      await expect(
+        registrarApi.getSubagentPackument({ subagentName: "nonexistent" }),
+      ).rejects.toThrow("Subagent not found");
+    });
+  });
+
+  describe("downloadSubagentTarball", () => {
+    it("should resolve latest version from packument when no version specified", async () => {
+      const mockPackument = {
+        name: "my-subagent",
+        "dist-tags": { latest: "1.0.0" },
+        versions: {
+          "1.0.0": { name: "my-subagent", version: "1.0.0" },
+        },
+      };
+
+      const mockTarballData = new ArrayBuffer(100);
+
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve(mockPackument),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          arrayBuffer: () => Promise.resolve(mockTarballData),
+        });
+
+      const result = await registrarApi.downloadSubagentTarball({
+        subagentName: "my-subagent",
+      });
+
+      expect(result).toBe(mockTarballData);
+
+      // First call should be to get packument
+      expect(mockFetch).toHaveBeenNthCalledWith(
+        1,
+        "https://noriskillsets.dev/api/subagents/my-subagent",
+        expect.objectContaining({
+          method: "GET",
+        }),
+      );
+
+      // Second call should be to download tarball with resolved version
+      expect(mockFetch).toHaveBeenNthCalledWith(
+        2,
+        "https://noriskillsets.dev/api/subagents/my-subagent/tarball/my-subagent-1.0.0.tgz",
+        expect.objectContaining({
+          method: "GET",
+        }),
+      );
+    });
+
+    it("should use specified version", async () => {
+      const mockTarballData = new ArrayBuffer(100);
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        arrayBuffer: () => Promise.resolve(mockTarballData),
+      });
+
+      const result = await registrarApi.downloadSubagentTarball({
+        subagentName: "my-subagent",
+        version: "2.0.0",
+      });
+
+      expect(result).toBe(mockTarballData);
+      expect(mockFetch).toHaveBeenCalledWith(
+        "https://noriskillsets.dev/api/subagents/my-subagent/tarball/my-subagent-2.0.0.tgz",
+        expect.objectContaining({
+          method: "GET",
+        }),
+      );
+    });
+
+    it("should return ArrayBuffer on successful download", async () => {
+      const mockTarballData = new ArrayBuffer(100);
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        arrayBuffer: () => Promise.resolve(mockTarballData),
+      });
+
+      const result = await registrarApi.downloadSubagentTarball({
+        subagentName: "my-subagent",
+        version: "1.0.0",
+      });
+
+      expect(result).toBe(mockTarballData);
+      expect(mockFetch).toHaveBeenCalledWith(
+        "https://noriskillsets.dev/api/subagents/my-subagent/tarball/my-subagent-1.0.0.tgz",
+        expect.objectContaining({
+          method: "GET",
+        }),
+      );
+    });
+
+    it("should throw error when tarball not found", async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 404,
+        json: () => Promise.resolve({ error: "Tarball not found" }),
+      });
+
+      await expect(
+        registrarApi.downloadSubagentTarball({
+          subagentName: "nonexistent",
+          version: "1.0.0",
+        }),
+      ).rejects.toThrow("Tarball not found");
     });
   });
 });

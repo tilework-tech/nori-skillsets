@@ -94,3 +94,61 @@ These mirror existing inline skills test patterns:
 2. **Null subagentsDir** — loader returns early without error, agents dir empty
 
 ### Test count: 1691 tests (up from 1685)
+
+## Task 7 Research: Server-Side API Now Available (Session 3)
+
+### nori-registrar commit a86602c ("feat: add public API endpoints for subagents (#312)")
+
+The server now supports the full subagent lifecycle. Key API endpoints:
+
+#### Public endpoints (`/api/subagents/`)
+- `GET /api/subagents/all` — list all subagents with pagination
+- `GET /api/subagents/search?q=...` — search subagents
+- `GET /api/subagents/:name` — get subagent packument (same shape as skillset/skill packuments)
+- `GET /api/subagents/:name/tarball/:name-:version.tgz` — download tarball
+- `GET /api/subagents/:name/dist-tags` — get dist-tags
+- `GET /api/subagents/:name/:version` — get version metadata
+- `GET /api/subagents/:name/:version/files` — list files
+- `GET /api/subagents/:name/maintainers` — list maintainers
+- `GET /api/subagents/:name/skillsets` — reverse dependency lookup
+
+#### Authenticated endpoints
+- `PUT /api/subagents/:name/subagent` — upload standalone subagent (archive + version + description)
+- `PUT /api/subagents/:name/dist-tags/:tag` — set dist-tag
+- Maintainer management, vouch status, rename, delete, featured, metadata patch, reingest
+
+#### Skillset upload now handles subagents
+- Request accepts `subagentResolutionStrategy` (same shape as `resolutionStrategy` for skills) and `inlineSubagents` (array of IDs)
+- Response includes `extractedSubagents: { succeeded: Array<{name, version}>, failed: Array<{name, reason}> }`
+- Throws 409 with `SubagentCollisionError` (conflicts array with `subagentId`, `exists`, `canPublish`, `latestVersion`, `owner`, `availableActions`, `contentUnchanged`, `existingSubagentMd`)
+- Available resolution actions: `cancel`, `namespace`, `updateVersion`, `link` (same as skills)
+- `stampInlinedSubagentTypes` stamps `type: "inlined-subagent"` on nori.json files in tarball
+- `updateNoriJsonWithSubagentDependencies` adds `dependencies.subagents` entries
+
+### CLI-side gaps to fill
+
+| Component | Status |
+|-----------|--------|
+| `SubagentCollisionError` in `fetch.ts` | Missing |
+| `SubagentConflict` type in `registrar.ts` | Missing |
+| `subagentResolutionStrategy` in `UploadSkillsetRequest` | Missing |
+| `extractedSubagents` in `UploadSkillsetResponse` | Missing |
+| Collision error handling in upload response (`registrar.ts:494-503`) | Only handles `SkillCollisionError` |
+| Subagent collision resolution UI in `upload.ts` | Missing |
+| `syncLocalStateAfterUpload` subagent handling | Missing |
+| `getSubagentPackument()` API method | Missing |
+| `downloadSubagentTarball()` API method | Missing |
+| `downloadSubagentDependencies` in registry download | Missing |
+| `subagent-download` CLI command | Missing |
+| Command name in `cliCommandNames.ts` | Missing |
+| Command registration in `noriSkillsetsCommands.ts` | Missing |
+
+### Patterns to mirror
+
+- `SkillCollisionError` (fetch.ts:69-85) → `SubagentCollisionError`
+- `getSkillPackument` (registrar.ts:566-594) → `getSubagentPackument`
+- `downloadSkillTarball` (registrar.ts:605-650) → `downloadSubagentTarball`
+- `downloadSkillDependency/downloadSkillDependencies` (registryDownload.ts:116-273) → `downloadSubagentDependency/downloadSubagentDependencies`
+- `skillDownloadMain` (skillDownload.ts:351-853) → `subagentDownloadMain`
+- Upload conflict flow (upload.ts) handles both skill and subagent conflicts sequentially
+- `syncLocalStateAfterUpload` (registryUpload.ts:489-590) needs subagent dep sync
