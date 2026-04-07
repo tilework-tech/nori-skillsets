@@ -32,12 +32,14 @@ Claude Code writes .jsonl -> chokidar detects change -> handleFileEvent
 
 `staleScanner.ts` periodically scans transcript directories for `.jsonl` files. Files idle longer than 30 seconds are considered stale (ready for upload); files idle longer than 24 hours are expired and deleted.
 
-`uploader.ts` reads, parses, and uploads transcript files via `transcriptApi.upload`, then deletes the local file on success.
+`uploader.ts` reads, parses, and uploads transcript files via `transcriptApi.upload`, then deletes the local file on success. It accepts optional `projectName`, `orgId`, and `skillsetName` parameters, forwarding them to the API when non-null.
 
 `transcriptRegistry.ts` is a SQLite-backed (via `better-sqlite3`) deduplication layer. It tracks session ID + content hash pairs to avoid re-uploading unchanged transcripts.
 
 ### Things to Know
 
-File events are debounced at 500ms per file path. The stale scanner runs every 10 seconds. The daemon writes logs to `~/.nori/logs/watch.log` since stdout/stderr are detached. Signal handlers (SIGTERM, SIGINT) trigger graceful shutdown that stops the watcher, closes the registry DB, removes the PID file, and clears all state. The `cleanupWatch` function resets all module-level state for test isolation.
+File events are debounced at 500ms per file path. The stale scanner runs every 60 seconds. The daemon writes logs to `~/.nori/logs/watch.log` since stdout/stderr are detached. Signal handlers (SIGTERM, SIGINT) trigger graceful shutdown that stops the watcher, closes the registry DB, removes the PID file, and clears all state. The `cleanupWatch` function resets all module-level state for test isolation.
+
+The active skillset name is read fresh from config at each scan cycle via `loadConfig()` + `getActiveSkillset()` in `scanForStaleTranscripts`, rather than being captured once at daemon startup. This means if a user switches skillsets mid-session, the next scan picks up the new value. This is distinct from `transcriptOrgId`, which is set once at daemon startup from saved config.
 
 Created and maintained by Nori.

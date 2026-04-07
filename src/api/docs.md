@@ -22,7 +22,7 @@ CLI commands in `@/src/cli/commands/` call into this module for registry operati
 
 **`analytics.ts`** fires analytics events to the organization URL (or a default). Failures are silently swallowed to avoid interrupting user flow.
 
-**`transcript.ts`** uploads session transcripts via `apiRequest`, optionally routing to organization-specific subdomains.
+**`transcript.ts`** uploads session transcripts via `apiRequest`, optionally routing to organization-specific subdomains. The upload payload conditionally includes `projectName` and `skillsetName` -- both are nullable and only included when non-null.
 
 ### Things to Know
 

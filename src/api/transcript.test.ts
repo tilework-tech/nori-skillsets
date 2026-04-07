@@ -228,5 +228,59 @@ describe("transcriptApi", () => {
         },
       });
     });
+
+    test("includes skillsetName in body when provided", async () => {
+      const mockResponse = {
+        id: "transcript-123",
+        title: "Test Session",
+        sessionId: "session-abc",
+        createdAt: "2024-01-01T00:00:00Z",
+      };
+
+      vi.mocked(apiRequest).mockResolvedValueOnce(mockResponse);
+
+      await transcriptApi.upload({
+        sessionId: "session-abc",
+        messages: [
+          { type: "user", message: { role: "user", content: "Hello" } },
+        ],
+        skillsetName: "senior-swe",
+      });
+
+      expect(apiRequest).toHaveBeenCalledWith({
+        path: "/transcripts",
+        method: "POST",
+        body: {
+          sessionId: "session-abc",
+          messages: [
+            { type: "user", message: { role: "user", content: "Hello" } },
+          ],
+          skillsetName: "senior-swe",
+        },
+      });
+    });
+
+    test("does not include skillsetName in body when not provided", async () => {
+      const mockResponse = {
+        id: "transcript-123",
+        title: "Test Session",
+        sessionId: "session-abc",
+        createdAt: "2024-01-01T00:00:00Z",
+      };
+
+      vi.mocked(apiRequest).mockResolvedValueOnce(mockResponse);
+
+      await transcriptApi.upload({
+        sessionId: "session-abc",
+        messages: [
+          { type: "user", message: { role: "user", content: "Hello" } },
+        ],
+      });
+
+      const callArgs = vi.mocked(apiRequest).mock.calls[0][0] as {
+        body: Record<string, unknown>;
+      };
+      expect(callArgs.body).not.toHaveProperty("skillsetName");
+    });
   });
 });
