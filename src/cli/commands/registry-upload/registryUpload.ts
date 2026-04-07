@@ -330,6 +330,36 @@ const backfillNoriJsonTypes = async (args: {
 };
 
 /**
+ * Migrate legacy CLAUDE.md to AGENTS.md in a skillset directory.
+ * Renames CLAUDE.md → AGENTS.md if CLAUDE.md exists and AGENTS.md does not.
+ * Does nothing if AGENTS.md already exists or neither file exists.
+ *
+ * @param args - The function arguments
+ * @param args.skillsetDir - The skillset directory
+ */
+const migrateConfigToAgentsMd = async (args: {
+  skillsetDir: string;
+}): Promise<void> => {
+  const { skillsetDir } = args;
+  const agentsPath = path.join(skillsetDir, "AGENTS.md");
+  const claudePath = path.join(skillsetDir, "CLAUDE.md");
+
+  try {
+    await fs.access(agentsPath);
+    return; // AGENTS.md already exists, nothing to do
+  } catch {
+    // AGENTS.md doesn't exist, check for CLAUDE.md
+  }
+
+  try {
+    await fs.access(claudePath);
+    await fs.rename(claudePath, agentsPath);
+  } catch {
+    // Neither file exists, nothing to do
+  }
+};
+
+/**
  * Create nori.json files for inline/extract skill candidates after resolution.
  *
  * @param args - The function arguments
@@ -943,6 +973,9 @@ export const registryUploadMain = async (args: {
 
   // Backfill type field on existing nori.json files before upload
   await backfillNoriJsonTypes({ skillsetDir });
+
+  // Migrate legacy CLAUDE.md → AGENTS.md
+  await migrateConfigToAgentsMd({ skillsetDir });
 
   // Detect inline skill candidates (skills without nori.json)
   const inlineCandidates = await detectInlineSkillCandidates({ skillsetDir });

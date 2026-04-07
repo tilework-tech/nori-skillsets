@@ -27,7 +27,12 @@ import {
   waitForWatcherReady,
   type WatcherInstance,
 } from "@/cli/commands/watch/watcher.js";
-import { loadConfig, updateConfig, getDefaultAgents } from "@/cli/config.js";
+import {
+  loadConfig,
+  updateConfig,
+  getDefaultAgents,
+  getActiveSkillset,
+} from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { getHomeDir } from "@/utils/home.js";
 
@@ -306,6 +311,11 @@ const scanForStaleTranscripts = async (): Promise<void> => {
       await deleteExpiredFiles({ expiredFiles });
     }
 
+    // Read active skillset at scan time (not daemon startup) for freshness
+    const scanConfig = await loadConfig();
+    const skillsetName =
+      scanConfig != null ? getActiveSkillset({ config: scanConfig }) : null;
+
     // Process stale files for upload
     for (const transcriptPath of staleFiles) {
       if (isShuttingDown) {
@@ -354,6 +364,7 @@ const scanForStaleTranscripts = async (): Promise<void> => {
           transcriptPath,
           ...(projectName != null && { projectName }),
           orgId: transcriptOrgId,
+          ...(skillsetName != null && { skillsetName }),
         });
 
         if (uploaded) {

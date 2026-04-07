@@ -32,6 +32,8 @@ export type UploadTranscriptRequest = {
   projectName?: string | null;
   /** Organization ID to upload to (e.g., "myorg" -> https://myorg.noriskillsets.dev) */
   orgId?: string | null;
+  /** Active skillset name at time of upload */
+  skillsetName?: string | null;
 };
 
 /**
@@ -55,7 +57,8 @@ export const transcriptApi = {
   upload: async (
     args: UploadTranscriptRequest,
   ): Promise<UploadTranscriptResponse> => {
-    const { sessionId, messages, title, projectName, orgId } = args;
+    const { sessionId, messages, title, projectName, orgId, skillsetName } =
+      args;
 
     const body: Record<string, unknown> = {
       sessionId,
@@ -68,6 +71,10 @@ export const transcriptApi = {
 
     if (projectName != null) {
       body.projectName = projectName;
+    }
+
+    if (skillsetName != null) {
+      body.skillsetName = skillsetName;
     }
 
     // Build org-specific base URL if orgId is provided

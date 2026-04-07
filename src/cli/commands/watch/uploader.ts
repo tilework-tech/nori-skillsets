@@ -74,6 +74,7 @@ const extractSessionId = (args: {
  * @param args.transcriptPath - Path to the .jsonl transcript file
  * @param args.projectName - Optional project name for server-side association
  * @param args.orgId - Optional organization ID for upload destination
+ * @param args.skillsetName - Optional active skillset name for server-side association
  *
  * @returns True if upload succeeded, false otherwise
  */
@@ -81,8 +82,9 @@ export const processTranscriptForUpload = async (args: {
   transcriptPath: string;
   projectName?: string | null;
   orgId?: string | null;
+  skillsetName?: string | null;
 }): Promise<boolean> => {
-  const { transcriptPath, projectName, orgId } = args;
+  const { transcriptPath, projectName, orgId, skillsetName } = args;
 
   // Read transcript file
   let content: string;
@@ -116,6 +118,7 @@ export const processTranscriptForUpload = async (args: {
       messages,
       ...(projectName != null && { projectName }),
       ...(orgId != null && { orgId }),
+      ...(skillsetName != null && { skillsetName }),
     });
 
     debug({ message: `Uploaded transcript: ${sessionId}` });
