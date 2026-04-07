@@ -3267,5 +3267,176 @@ describe("registry-upload", () => {
         expect(uploadCall.inlineSkills).toEqual(["init"]);
       });
     });
+
+    describe("CLAUDE.md to AGENTS.md migration on upload", () => {
+      it("should rename CLAUDE.md to AGENTS.md before uploading", async () => {
+        // Create a profile with legacy CLAUDE.md (no AGENTS.md)
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
+        await fs.writeFile(
+          path.join(skillsetDir, "CLAUDE.md"),
+          "# Legacy config\n",
+        );
+        await fs.writeFile(
+          path.join(skillsetDir, "nori.json"),
+          JSON.stringify({
+            name: "my-profile",
+            version: "1.0.0",
+            type: "skillset",
+          }),
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+
+        // Capture the uploaded archive data
+        let capturedArchiveData: ArrayBuffer | null = null;
+        vi.mocked(registrarApi.uploadSkillset).mockImplementation(
+          async (uploadArgs) => {
+            capturedArchiveData = uploadArgs.archiveData;
+            return {
+              name: "my-profile",
+              version: "1.0.0",
+              tarballSha: "abc123",
+              createdAt: new Date().toISOString(),
+            };
+          },
+        );
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+          silent: true,
+        });
+
+        expect(result.success).toBe(true);
+
+        // Local directory should now have AGENTS.md, not CLAUDE.md
+        const agentsExists = await fs
+          .access(path.join(skillsetDir, "AGENTS.md"))
+          .then(() => true)
+          .catch(() => false);
+        const claudeExists = await fs
+          .access(path.join(skillsetDir, "CLAUDE.md"))
+          .then(() => true)
+          .catch(() => false);
+
+        expect(agentsExists).toBe(true);
+        expect(claudeExists).toBe(false);
+
+        // Verify the content was preserved
+        const content = await fs.readFile(
+          path.join(skillsetDir, "AGENTS.md"),
+          "utf-8",
+        );
+        expect(content).toBe("# Legacy config\n");
+
+        // Verify the uploaded tarball contains AGENTS.md, not CLAUDE.md
+        expect(capturedArchiveData).not.toBeNull();
+        const tar = await import("tar");
+        const extractDir = await fs.mkdtemp(
+          path.join(tmpdir(), "tarball-extract-"),
+        );
+
+        try {
+          const tarballBuffer = Buffer.from(capturedArchiveData!);
+          const tarballPath = path.join(extractDir, "upload.tgz");
+          await fs.writeFile(tarballPath, tarballBuffer);
+
+          await tar.extract({
+            file: tarballPath,
+            cwd: extractDir,
+          });
+
+          const extractedFiles = await fs.readdir(extractDir, {
+            recursive: true,
+          });
+
+          expect(extractedFiles).toContain("AGENTS.md");
+          expect(extractedFiles).not.toContain("CLAUDE.md");
+        } finally {
+          await fs.rm(extractDir, { recursive: true, force: true });
+        }
+      });
+
+      it("should not modify files when AGENTS.md already exists alongside CLAUDE.md", async () => {
+        // Create a profile with both AGENTS.md and CLAUDE.md
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
+        await fs.writeFile(
+          path.join(skillsetDir, "AGENTS.md"),
+          "# New config\n",
+        );
+        await fs.writeFile(
+          path.join(skillsetDir, "CLAUDE.md"),
+          "# Old config\n",
+        );
+        await fs.writeFile(
+          path.join(skillsetDir, "nori.json"),
+          JSON.stringify({
+            name: "my-profile",
+            version: "1.0.0",
+            type: "skillset",
+          }),
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+
+        vi.mocked(registrarApi.uploadSkillset).mockResolvedValue({
+          name: "my-profile",
+          version: "1.0.0",
+          tarballSha: "abc123",
+          createdAt: new Date().toISOString(),
+        });
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+          silent: true,
+        });
+
+        expect(result.success).toBe(true);
+
+        // Both files should still exist with original content
+        const agentsContent = await fs.readFile(
+          path.join(skillsetDir, "AGENTS.md"),
+          "utf-8",
+        );
+        const claudeContent = await fs.readFile(
+          path.join(skillsetDir, "CLAUDE.md"),
+          "utf-8",
+        );
+
+        expect(agentsContent).toBe("# New config\n");
+        expect(claudeContent).toBe("# Old config\n");
+      });
+    });
   });
 });

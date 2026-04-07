@@ -44,7 +44,7 @@ This branch order mirrors the download commands (`@/src/cli/commands/registry-do
 
 **Version resolution**: `determineUploadVersion` queries the registry's packument for the latest version and auto-bumps the patch version. Falls back to `1.0.0` for new packages. Explicit versions (from the `@version` suffix in the spec) bypass this logic.
 
-**Upload pipeline**: `registryUploadMain` calls `backfillNoriJsonTypes` to ensure `type` fields exist on all `nori.json` files, then runs two inline skill detection phases before creating a tarball via `createProfileTarball` and uploading via `registrarApi.uploadSkillset`. Skill collision errors are caught and surfaced to the interactive flow for resolution.
+**Upload pipeline**: `registryUploadMain` runs pre-upload migrations (`backfillNoriJsonTypes` for `nori.json` type fields, `migrateConfigToAgentsMd` to rename legacy `CLAUDE.md` to `AGENTS.md`), then runs two inline skill detection phases before creating a tarball via `createProfileTarball` and uploading via `registrarApi.uploadSkillset`. Skill collision errors are caught and surfaced to the interactive flow for resolution.
 
 **Two-phase inline skill detection**: The upload flow distinguishes between new inline candidates and previously-inlined skills:
 
@@ -58,6 +58,7 @@ The `performUpload` helper merges both lists into `allInlineSkills` before passi
 ### Things to Know
 
 - The `hasUnifiedAuthWithOrgs` check requires all three: `config.auth`, `config.auth.refreshToken`, and `config.auth.organizations`. If organizations is null (e.g., legacy auth), the unified auth branches are skipped entirely.
+- `migrateConfigToAgentsMd` renames `CLAUDE.md` to `AGENTS.md` in the local skillset directory before tarball creation, ensuring uploaded packages always use the current config filename. The migration is a no-op if `AGENTS.md` already exists or if neither file is present.
 - `UPLOAD_EXCLUDED_FILES` filters out `.nori-version` from tarballs to prevent distributing local download metadata.
 - `createProfileTarball` writes a temp `.tgz` to the parent directory (not inside the skillset dir) and cleans it up in a `finally` block.
 - `detectInlineSkillCandidates` identifies skill subdirectories lacking `nori.json` -- these are presented to the user as candidates for inlining (bundling in the tarball) vs. extracting as independent packages. `detectExistingInlineSkills` separately finds skills with `type: "inlined-skill"` in their `nori.json` to preserve inline status across re-uploads.
