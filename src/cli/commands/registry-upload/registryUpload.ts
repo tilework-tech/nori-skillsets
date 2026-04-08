@@ -20,6 +20,7 @@ import {
   type ExtractedSubagentsSummary,
 } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
+import { parseSubagentFrontmatter } from "@/cli/commands/external/subagentDiscovery.js";
 import { loadConfig, getRegistryAuth } from "@/cli/config.js";
 import { bold } from "@/cli/logger.js";
 import {
@@ -477,6 +478,213 @@ const detectExistingInlineSubagents = async (args: {
   }
 
   return inlineSubagents;
+};
+
+/**
+ * Detect flat .md subagent files that are already recorded in the skillset's
+ * nori.json subagents array. These were previously decided to be inline and
+ * should be included in the upload without re-prompting.
+ *
+ * @param args - The function arguments
+ * @param args.skillsetDir - The skillset directory to scan
+ *
+ * @returns Array of subagent IDs that are already declared as inline flat subagents
+ */
+const detectExistingFlatInlineSubagents = async (args: {
+  skillsetDir: string;
+}): Promise<Array<string>> => {
+  const { skillsetDir } = args;
+
+  let declaredIds: Set<string>;
+  try {
+    const metadata = await readSkillsetMetadata({ skillsetDir });
+    declaredIds = new Set((metadata.subagents ?? []).map((s) => s.id));
+  } catch {
+    return [];
+  }
+
+  const subagentsDir = path.join(skillsetDir, "subagents");
+  try {
+    const entries = await fs.readdir(subagentsDir, { withFileTypes: true });
+    return entries
+      .filter(
+        (e) =>
+          !e.isDirectory() && e.name.endsWith(".md") && e.name !== "docs.md",
+      )
+      .map((e) => e.name.slice(0, -".md".length))
+      .filter((id) => declaredIds.has(id));
+  } catch {
+    return [];
+  }
+};
+
+/**
+ * Detect flat .md subagent files that are not yet recorded in the skillset's
+ * nori.json subagents array. These are candidates for the inline/extract prompt.
+ *
+ * Flat files are .md files directly in subagents/ (not in subdirectories).
+ * Excludes docs.md and files that have a corresponding directory-based subagent.
+ *
+ * @param args - The function arguments
+ * @param args.skillsetDir - The skillset directory to scan
+ *
+ * @returns Array of subagent IDs (filename without .md) that need a decision
+ */
+const detectFlatSubagentCandidates = async (args: {
+  skillsetDir: string;
+}): Promise<Array<string>> => {
+  const { skillsetDir } = args;
+  const subagentsDir = path.join(skillsetDir, "subagents");
+
+  try {
+    await fs.access(subagentsDir);
+  } catch {
+    return [];
+  }
+
+  // Read the skillset's nori.json to check which flat subagents are already declared
+  let declaredSubagentIds: Set<string>;
+  try {
+    const metadata = await readSkillsetMetadata({ skillsetDir });
+    declaredSubagentIds = new Set((metadata.subagents ?? []).map((s) => s.id));
+  } catch {
+    declaredSubagentIds = new Set();
+  }
+
+  const entries = await fs.readdir(subagentsDir, { withFileTypes: true });
+
+  // Collect directory-based subagent names to skip flat files that collide
+  const dirSubagentNames = new Set<string>();
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const subagentMdPath = path.join(subagentsDir, entry.name, "SUBAGENT.md");
+    try {
+      await fs.access(subagentMdPath);
+      dirSubagentNames.add(entry.name);
+    } catch {
+      // Not a subagent directory
+    }
+  }
+
+  const candidates: Array<string> = [];
+
+  for (const entry of entries) {
+    if (entry.isDirectory()) continue;
+    if (!entry.name.endsWith(".md")) continue;
+    if (entry.name === "docs.md") continue;
+
+    const id = entry.name.slice(0, -".md".length);
+
+    // Skip if a directory-based subagent with the same name exists
+    if (dirSubagentNames.has(id)) continue;
+
+    // Skip if already declared in nori.json subagents array
+    if (declaredSubagentIds.has(id)) continue;
+
+    candidates.push(id);
+  }
+
+  return candidates;
+};
+
+/**
+ * Persist "keep inline" decisions for flat .md subagents by adding them
+ * to the skillset's nori.json subagents array. Parses frontmatter for
+ * name and description.
+ *
+ * @param args - The function arguments
+ * @param args.skillsetDir - The skillset directory
+ * @param args.flatSubagentIds - IDs of flat subagents chosen to be kept inline
+ */
+const persistFlatSubagentInlineChoices = async (args: {
+  skillsetDir: string;
+  flatSubagentIds: Array<string>;
+}): Promise<void> => {
+  const { skillsetDir, flatSubagentIds } = args;
+  if (flatSubagentIds.length === 0) return;
+
+  const subagentsDir = path.join(skillsetDir, "subagents");
+  let metadata: NoriJson;
+  try {
+    metadata = await readSkillsetMetadata({ skillsetDir });
+  } catch {
+    return;
+  }
+
+  const subagents = metadata.subagents ?? [];
+  const existingIds = new Set(subagents.map((s) => s.id));
+
+  for (const id of flatSubagentIds) {
+    if (existingIds.has(id)) continue;
+
+    const filePath = path.join(subagentsDir, `${id}.md`);
+    let name = id;
+    let description = "";
+
+    try {
+      const content = await fs.readFile(filePath, "utf-8");
+      const parsed = parseSubagentFrontmatter({ content });
+      if (parsed != null) {
+        name = parsed.name;
+        description = parsed.description;
+      }
+    } catch {
+      // File read failed — use defaults
+    }
+
+    subagents.push({ id, name, description });
+  }
+
+  metadata.subagents = subagents;
+  await writeSkillsetMetadata({ skillsetDir, metadata });
+};
+
+/**
+ * Restructure flat .md subagent files into directory-based format for extraction.
+ * Moves foo.md → foo/SUBAGENT.md and creates foo/nori.json.
+ *
+ * @param args - The function arguments
+ * @param args.skillsetDir - The skillset directory
+ * @param args.flatSubagentIds - IDs of flat subagents chosen to be extracted
+ */
+const restructureFlatSubagentsToDirectories = async (args: {
+  skillsetDir: string;
+  flatSubagentIds: Array<string>;
+}): Promise<void> => {
+  const { skillsetDir, flatSubagentIds } = args;
+  if (flatSubagentIds.length === 0) return;
+
+  const subagentsDir = path.join(skillsetDir, "subagents");
+
+  for (const id of flatSubagentIds) {
+    const flatFilePath = path.join(subagentsDir, `${id}.md`);
+
+    // Skip if already restructured on a previous call (idempotent)
+    try {
+      await fs.access(flatFilePath);
+    } catch {
+      continue;
+    }
+
+    const dirPath = path.join(subagentsDir, id);
+    const subagentMdPath = path.join(dirPath, "SUBAGENT.md");
+    const noriJsonPath = path.join(dirPath, "nori.json");
+
+    const content = await fs.readFile(flatFilePath, "utf-8");
+    const parsed = parseSubagentFrontmatter({ content });
+    const name = parsed?.name ?? id;
+
+    await fs.mkdir(dirPath, { recursive: true });
+    await fs.writeFile(subagentMdPath, content);
+    await fs.rm(flatFilePath);
+
+    const noriJson: NoriJson = {
+      name,
+      version: "1.0.0",
+      type: "subagent",
+    };
+    await fs.writeFile(noriJsonPath, JSON.stringify(noriJson, null, 2));
+  }
 };
 
 /**
@@ -990,11 +1198,36 @@ export const registryUploadMain = async (args: {
     skillsetDir,
   });
 
+  // Detect flat .md subagent candidates not yet recorded in nori.json.subagents
+  const flatSubagentCandidates = await detectFlatSubagentCandidates({
+    skillsetDir,
+  });
+
+  // In non-interactive mode, auto-inline flat subagents (persist decision silently)
+  if (flatSubagentCandidates.length > 0 && nonInteractive) {
+    await persistFlatSubagentInlineChoices({
+      skillsetDir,
+      flatSubagentIds: flatSubagentCandidates,
+    });
+  }
+
+  // Detect flat subagents already declared in nori.json.subagents (existing inline)
+  const existingFlatInlineSubagents = await detectExistingFlatInlineSubagents({
+    skillsetDir,
+  });
+
   // Detect subagents already marked as inlined from a previous upload
   const existingInlineSubagents = await detectExistingInlineSubagents({
     skillsetDir,
   });
 
+  // Merge flat candidates into the subagent inline candidates for prompting
+  // (only undecided ones — non-interactive flat candidates were already handled above)
+  const flatCandidatesForPrompt = nonInteractive ? [] : flatSubagentCandidates;
+  const allSubagentInlineCandidates = [
+    ...subagentInlineCandidates,
+    ...flatCandidatesForPrompt,
+  ];
   // Helper to perform upload with optional resolution strategy
   const performUpload = async (uploadArgs: {
     resolutionStrategy?: SkillResolutionStrategy | null;
@@ -1013,12 +1246,39 @@ export const registryUploadMain = async (args: {
         });
       }
 
-      // Create nori.json for subagent inline/extract candidates
+      // Create nori.json for directory-based subagent inline/extract candidates
       if (subagentInlineCandidates.length > 0) {
         await createCandidateSubagentNoriJsonFiles({
           skillsetDir,
           inlineCandidates: subagentInlineCandidates,
           inlineSubagentIds: uploadArgs.inlineSubagents ?? [],
+        });
+      }
+
+      // Handle flat subagent resolution: partition into inline vs extract
+      const resolvedInlineSubagentIds = new Set(
+        uploadArgs.inlineSubagents ?? [],
+      );
+      const flatInlineIds = flatCandidatesForPrompt.filter((id) =>
+        resolvedInlineSubagentIds.has(id),
+      );
+      const flatExtractIds = flatCandidatesForPrompt.filter(
+        (id) => !resolvedInlineSubagentIds.has(id),
+      );
+
+      // Persist "keep inline" decisions for flat subagents
+      if (flatInlineIds.length > 0) {
+        await persistFlatSubagentInlineChoices({
+          skillsetDir,
+          flatSubagentIds: flatInlineIds,
+        });
+      }
+
+      // Restructure "extract" flat subagents into directory format
+      if (flatExtractIds.length > 0) {
+        await restructureFlatSubagentsToDirectories({
+          skillsetDir,
+          flatSubagentIds: flatExtractIds,
         });
       }
 
@@ -1033,8 +1293,10 @@ export const registryUploadMain = async (args: {
       ];
 
       // Merge existing inlined subagents with newly-resolved inline candidates
+      // Include both directory-based and flat inline subagents
       const allInlineSubagents = [
         ...existingInlineSubagents,
+        ...existingFlatInlineSubagents,
         ...(uploadArgs.inlineSubagents ?? []),
       ];
 
@@ -1135,8 +1397,8 @@ export const registryUploadMain = async (args: {
     inlineCandidates:
       inlineCandidates.length > 0 ? inlineCandidates : undefined,
     inlineSubagentCandidates:
-      subagentInlineCandidates.length > 0
-        ? subagentInlineCandidates
+      allSubagentInlineCandidates.length > 0
+        ? allSubagentInlineCandidates
         : undefined,
     callbacks: {
       onDetermineVersion: async () => {
@@ -1176,6 +1438,7 @@ export const registryUploadMain = async (args: {
         }
       },
       onReadLocalSubagentMd: async ({ subagentId }) => {
+        // Try directory-based first, then fall back to flat file
         const subagentMdPath = path.join(
           skillsetDir,
           "subagents",
@@ -1185,7 +1448,16 @@ export const registryUploadMain = async (args: {
         try {
           return await fs.readFile(subagentMdPath, "utf-8");
         } catch {
-          return null;
+          const flatPath = path.join(
+            skillsetDir,
+            "subagents",
+            `${subagentId}.md`,
+          );
+          try {
+            return await fs.readFile(flatPath, "utf-8");
+          } catch {
+            return null;
+          }
         }
       },
     },
