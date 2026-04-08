@@ -3673,20 +3673,266 @@ describe("registry-upload", () => {
         expect(uploadCall.inlineSubagents).not.toContain("other-agent");
       });
 
-      it("should not detect flat .md files as inline subagent candidates", async () => {
+      it("should detect flat .md subagent files as inline candidates and prompt user", async () => {
         const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
         await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
           path.join(skillsetDir, "CLAUDE.md"),
           "# My Profile\n",
         );
+        await fs.writeFile(
+          path.join(skillsetDir, "nori.json"),
+          JSON.stringify({
+            name: "my-profile",
+            version: "1.0.0",
+            type: "skillset",
+          }),
+        );
 
-        // Flat .md subagent (not a candidate)
+        // Flat .md subagent with frontmatter
         const subagentsDir = path.join(skillsetDir, "subagents");
         await fs.mkdir(subagentsDir, { recursive: true });
         await fs.writeFile(
           path.join(subagentsDir, "flat-agent.md"),
-          "# Flat Agent\n",
+          "---\nname: Flat Agent\ndescription: A flat agent\n---\n# Flat Agent\n",
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+        vi.mocked(registrarApi.uploadSkillset).mockResolvedValue({
+          name: "my-profile",
+          version: "1.0.0",
+          tarballSha: "abc123",
+          createdAt: new Date().toISOString(),
+        });
+
+        // User chooses "inline" for the flat subagent
+        vi.mocked(clack.select).mockResolvedValueOnce("inline");
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+        });
+
+        expect(result.success).toBe(true);
+
+        // Flat subagent should be sent as inline
+        const uploadCall = vi.mocked(registrarApi.uploadSkillset).mock
+          .calls[0][0];
+        expect(uploadCall.inlineSubagents).toEqual(
+          expect.arrayContaining(["flat-agent"]),
+        );
+
+        // nori.json should be updated with the subagent in the subagents array
+        const noriJsonContent = await fs.readFile(
+          path.join(skillsetDir, "nori.json"),
+          "utf-8",
+        );
+        const metadata = JSON.parse(noriJsonContent);
+        expect(metadata.subagents).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              id: "flat-agent",
+              name: "Flat Agent",
+              description: "A flat agent",
+            }),
+          ]),
+        );
+      });
+
+      it("should not prompt for flat .md subagents already in nori.json subagents array", async () => {
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
+        await fs.writeFile(
+          path.join(skillsetDir, "CLAUDE.md"),
+          "# My Profile\n",
+        );
+        await fs.writeFile(
+          path.join(skillsetDir, "nori.json"),
+          JSON.stringify({
+            name: "my-profile",
+            version: "1.0.0",
+            type: "skillset",
+            subagents: [
+              {
+                id: "flat-agent",
+                name: "Flat Agent",
+                description: "A flat agent",
+              },
+            ],
+          }),
+        );
+
+        // Flat .md subagent already recorded in nori.json
+        const subagentsDir = path.join(skillsetDir, "subagents");
+        await fs.mkdir(subagentsDir, { recursive: true });
+        await fs.writeFile(
+          path.join(subagentsDir, "flat-agent.md"),
+          "---\nname: Flat Agent\ndescription: A flat agent\n---\n# Flat Agent\n",
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+        vi.mocked(registrarApi.uploadSkillset).mockResolvedValue({
+          name: "my-profile",
+          version: "1.0.0",
+          tarballSha: "abc123",
+          createdAt: new Date().toISOString(),
+        });
+
+        // Run in interactive mode (NOT silent) to prove the prompt is skipped
+        // because the subagent is already declared, not because of silent mode
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+        });
+
+        expect(result.success).toBe(true);
+
+        // Should be included as inline without prompting
+        const uploadCall = vi.mocked(registrarApi.uploadSkillset).mock
+          .calls[0][0];
+        expect(uploadCall.inlineSubagents).toEqual(
+          expect.arrayContaining(["flat-agent"]),
+        );
+
+        // No select prompts should have been called — the decision was already recorded
+        expect(vi.mocked(clack.select)).not.toHaveBeenCalled();
+      });
+
+      it("should restructure flat .md subagent to directory when user chooses extract", async () => {
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
+        await fs.writeFile(
+          path.join(skillsetDir, "CLAUDE.md"),
+          "# My Profile\n",
+        );
+        await fs.writeFile(
+          path.join(skillsetDir, "nori.json"),
+          JSON.stringify({
+            name: "my-profile",
+            version: "1.0.0",
+            type: "skillset",
+          }),
+        );
+
+        // Flat .md subagent with frontmatter
+        const subagentsDir = path.join(skillsetDir, "subagents");
+        await fs.mkdir(subagentsDir, { recursive: true });
+        await fs.writeFile(
+          path.join(subagentsDir, "my-agent.md"),
+          "---\nname: My Agent\ndescription: An extractable agent\n---\n# My Agent\n",
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+        vi.mocked(registrarApi.uploadSkillset).mockResolvedValue({
+          name: "my-profile",
+          version: "1.0.0",
+          tarballSha: "abc123",
+          createdAt: new Date().toISOString(),
+        });
+
+        // User chooses "extract" for the flat subagent
+        vi.mocked(clack.select).mockResolvedValueOnce("extract");
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+        });
+
+        expect(result.success).toBe(true);
+
+        // Flat file should be gone
+        const flatFileExists = await fs
+          .access(path.join(subagentsDir, "my-agent.md"))
+          .then(() => true)
+          .catch(() => false);
+        expect(flatFileExists).toBe(false);
+
+        // Directory structure should exist
+        const subagentMdContent = await fs.readFile(
+          path.join(subagentsDir, "my-agent", "SUBAGENT.md"),
+          "utf-8",
+        );
+        expect(subagentMdContent).toBe(
+          "---\nname: My Agent\ndescription: An extractable agent\n---\n# My Agent\n",
+        );
+
+        // nori.json should be created in the subagent directory
+        const subagentNoriJson = JSON.parse(
+          await fs.readFile(
+            path.join(subagentsDir, "my-agent", "nori.json"),
+            "utf-8",
+          ),
+        );
+        expect(subagentNoriJson.name).toBe("My Agent");
+        expect(subagentNoriJson.type).toBe("subagent");
+        expect(subagentNoriJson.version).toBe("1.0.0");
+
+        // Should NOT be in inlineSubagents
+        const uploadCall = vi.mocked(registrarApi.uploadSkillset).mock
+          .calls[0][0];
+        expect(uploadCall.inlineSubagents).toBeUndefined();
+      });
+
+      it("should skip docs.md when detecting flat subagent candidates", async () => {
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
+        await fs.writeFile(
+          path.join(skillsetDir, "CLAUDE.md"),
+          "# My Profile\n",
+        );
+        await fs.writeFile(
+          path.join(skillsetDir, "nori.json"),
+          JSON.stringify({
+            name: "my-profile",
+            version: "1.0.0",
+            type: "skillset",
+          }),
+        );
+
+        const subagentsDir = path.join(skillsetDir, "subagents");
+        await fs.mkdir(subagentsDir, { recursive: true });
+        await fs.writeFile(
+          path.join(subagentsDir, "docs.md"),
+          "# Subagents Documentation\n",
         );
 
         vi.mocked(loadConfig).mockResolvedValue({
@@ -3721,6 +3967,154 @@ describe("registry-upload", () => {
         const uploadCall = vi.mocked(registrarApi.uploadSkillset).mock
           .calls[0][0];
         expect(uploadCall.inlineSubagents).toBeUndefined();
+      });
+
+      it("should skip flat .md files that have a corresponding directory-based subagent", async () => {
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
+        await fs.writeFile(
+          path.join(skillsetDir, "CLAUDE.md"),
+          "# My Profile\n",
+        );
+        await fs.writeFile(
+          path.join(skillsetDir, "nori.json"),
+          JSON.stringify({
+            name: "my-profile",
+            version: "1.0.0",
+            type: "skillset",
+          }),
+        );
+
+        const subagentsDir = path.join(skillsetDir, "subagents");
+        await fs.mkdir(subagentsDir, { recursive: true });
+
+        // Flat file
+        await fs.writeFile(
+          path.join(subagentsDir, "my-agent.md"),
+          "---\nname: My Agent\ndescription: Flat version\n---\n# Flat\n",
+        );
+
+        // Directory-based subagent with same name (takes precedence)
+        await fs.mkdir(path.join(subagentsDir, "my-agent"), {
+          recursive: true,
+        });
+        await fs.writeFile(
+          path.join(subagentsDir, "my-agent", "SUBAGENT.md"),
+          "---\nname: My Agent\ndescription: Directory version\n---\n# Dir\n",
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+        vi.mocked(registrarApi.uploadSkillset).mockResolvedValue({
+          name: "my-profile",
+          version: "1.0.0",
+          tarballSha: "abc123",
+          createdAt: new Date().toISOString(),
+        });
+
+        // Only the directory-based subagent should be prompted (it has no nori.json)
+        vi.mocked(clack.select).mockResolvedValueOnce("inline");
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+        });
+
+        expect(result.success).toBe(true);
+
+        // Only the directory-based subagent should be in inlineSubagents
+        const uploadCall = vi.mocked(registrarApi.uploadSkillset).mock
+          .calls[0][0];
+        expect(uploadCall.inlineSubagents).toEqual(["my-agent"]);
+        // Only one select prompt (for the directory-based one, not the flat file)
+        expect(vi.mocked(clack.select)).toHaveBeenCalledTimes(1);
+      });
+
+      it("should default flat .md subagents to inline in non-interactive mode", async () => {
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
+        await fs.writeFile(
+          path.join(skillsetDir, "CLAUDE.md"),
+          "# My Profile\n",
+        );
+        await fs.writeFile(
+          path.join(skillsetDir, "nori.json"),
+          JSON.stringify({
+            name: "my-profile",
+            version: "1.0.0",
+            type: "skillset",
+          }),
+        );
+
+        const subagentsDir = path.join(skillsetDir, "subagents");
+        await fs.mkdir(subagentsDir, { recursive: true });
+        await fs.writeFile(
+          path.join(subagentsDir, "flat-agent.md"),
+          "---\nname: Flat Agent\ndescription: A flat agent\n---\n# Flat Agent\n",
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+        vi.mocked(registrarApi.uploadSkillset).mockResolvedValue({
+          name: "my-profile",
+          version: "1.0.0",
+          tarballSha: "abc123",
+          createdAt: new Date().toISOString(),
+        });
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+          nonInteractive: true,
+        });
+
+        expect(result.success).toBe(true);
+
+        // In non-interactive mode, flat subagents should be auto-inlined
+        const uploadCall = vi.mocked(registrarApi.uploadSkillset).mock
+          .calls[0][0];
+        expect(uploadCall.inlineSubagents).toEqual(
+          expect.arrayContaining(["flat-agent"]),
+        );
+
+        // nori.json should be updated with the subagent entry
+        const noriJsonContent = await fs.readFile(
+          path.join(skillsetDir, "nori.json"),
+          "utf-8",
+        );
+        const metadata = JSON.parse(noriJsonContent);
+        expect(metadata.subagents).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              id: "flat-agent",
+              name: "Flat Agent",
+            }),
+          ]),
+        );
       });
 
       it("should not detect directories without SUBAGENT.md as subagent candidates", async () => {
