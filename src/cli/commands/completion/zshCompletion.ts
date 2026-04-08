@@ -21,7 +21,7 @@ _nori_skillsets() {
     'login:Authenticate with noriskillsets.dev'
     'logout:Clear stored authentication credentials'
     'init:Initialize Nori configuration and directories'
-    'search:Search for skillsets and skills in registry'
+    'search:Search for skillsets, skills, and subagents in registry'
     'download:Download and install a skillset package'
     'install:Download, install, and activate a skillset'
     'switch:Switch to a different skillset and reinstall'

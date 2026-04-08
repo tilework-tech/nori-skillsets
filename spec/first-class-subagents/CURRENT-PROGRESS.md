@@ -107,12 +107,34 @@
 - `registerSubagentDownloadCommand` (hidden alias `subagent-download`)
 - Registry search, version comparison, namespace support, atomic swap updates
 
+### Task 9: Search Command Subagent Support (DONE)
+
+#### API client (`src/api/registrar.ts`)
+- Added `SearchSubagentsRequest` type
+- Added `searchSubagents()` API method hitting `GET /api/subagents/search?q=...`
+
+#### Search command (`src/cli/commands/registry-search/registrySearch.ts`)
+- Added `SubagentSearchResult` type and `subagentResult` to `RegistrySearchResult`
+- Added `searchOrgRegistrySubagents()` and `searchPublicRegistrySubagents()` functions
+- Updated `performSearch` to search subagents in parallel alongside profiles and skills
+- Updated `formatUnifiedSearchResults` to include "Subagents:" section
+- Updated `buildDownloadHints` to include `download-subagent` hint
+- Added `subagentCount` computation
+
+#### Search flow (`src/cli/prompts/flows/registrySearch.ts`)
+- Added `subagentCount` to `SearchFlowResult` type
+- Updated no-results message to "No skillsets, skills, or subagents found"
+- Updated status message to include subagent count
+
+#### Description updates
+- Updated search descriptions in `noriSkillsetsCommands.ts`, `zshCompletion.ts`, and `registrySearch.ts`
+
 ## Deferred Tasks
 
 None — all tasks are complete.
 
 ## Test Coverage
-- All 1770 unit/integration tests passing
+- All 1779 unit/integration tests passing
 - New test coverage added:
   - `src/utils/fetch.test.ts`: 14 tests for SubagentCollisionError + isSubagentCollisionError
   - `src/api/registrar.test.ts`: 9 tests for subagent API methods + collision handling
@@ -120,3 +142,5 @@ None — all tasks are complete.
   - `src/cli/commands/registry-download/registryDownload.test.ts`: 2 tests for subagent dependency download
   - `src/cli/prompts/flows/subagentDownload.test.ts`: 32 tests for subagent download flow UX
   - `src/cli/commands/subagent-download/subagentDownload.test.ts`: 8 tests for subagent download command
+  - `src/cli/commands/registry-search/registrySearch.test.ts`: 7 tests for subagent search (org, public, display, hints, combined)
+  - `src/cli/prompts/flows/registrySearch.test.ts`: 2 tests for subagent count in summary

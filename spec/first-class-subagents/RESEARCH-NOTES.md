@@ -221,3 +221,48 @@ All API and helper functions needed for the command already exist:
 
 ### No registrar changes needed
 The registrar already has all required endpoints. Only a small refactor on bc262a9 (test helpers) since a86602c — no functional changes.
+
+## Session 5: Search Command Subagent Support
+
+### Gap identified
+The `search` command (`registrySearch.ts`) only searches for skillsets (profiles) and skills. The registrar supports subagent search via:
+- `GET /api/subagents/search?q=...` — dedicated subagent search (same response format as `/api/skills/search`)
+- Unified `GET /search` endpoint includes `ContentType.SUBAGENT` in results
+
+### Registrar search API format
+The `/api/subagents/search?q=...` endpoint:
+- Query params: `q` (required), `limit` (default 20), `offset` (default 0)
+- Returns `Array<Package>` — same shape as skill/skillset search results
+- No auth required for public registry
+
+### Files to modify
+1. `src/api/registrar.ts` — add `SearchSubagentsRequest` type + `searchSubagents` method (mirror `searchSkills`)
+2. `src/cli/commands/registry-search/registrySearch.ts`:
+   - Add `SubagentSearchResult` type (mirrors `SkillSearchResult`)
+   - Add `subagentResult` to `RegistrySearchResult`
+   - Add `searchOrgRegistrySubagents` + `searchPublicRegistrySubagents` functions
+   - Update `performSearch` to search subagents in parallel with profiles/skills
+   - Update `formatUnifiedSearchResults` to include "Subagents:" section
+   - Update `buildDownloadHints` to include `download-subagent` hint
+   - Add `hasSubagents` param and `subagentCount` to `SearchFlowResult`
+3. `src/cli/prompts/flows/registrySearch.ts`:
+   - Add `subagentCount` to `SearchFlowResult`
+   - Update flow display to include subagent count
+   - Update no-results message to mention subagents
+4. `src/cli/commands/registry-search/registrySearch.test.ts` — tests for subagent search
+5. `src/cli/commands/noriSkillsetsCommands.ts` — update search description to mention subagents
+
+### Patterns to mirror
+- `searchSkills` API method (registrar.ts:618-653) → `searchSubagents` (hits `/api/subagents/search`)
+- `searchOrgRegistrySkills` (registrySearch.ts:105-129) → `searchOrgRegistrySubagents`
+- `searchPublicRegistrySkills` (registrySearch.ts:166-186) → `searchPublicRegistrySubagents`
+- `SkillSearchResult` type → `SubagentSearchResult`
+- `skillResult` field in `RegistrySearchResult` → `subagentResult`
+
+### Test coverage plan
+Existing tests pattern: mock `registrarApi.searchSkills` and assert on formatted output. New tests will:
+- Mock `registrarApi.searchSubagents` + verify it's called with correct params
+- Assert "Subagents:" section appears in output when subagents found
+- Assert `download-subagent` hint appears when subagents found
+- Assert subagent results don't appear when API returns empty
+- Assert combined results (profiles + skills + subagents) all render correctly

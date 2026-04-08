@@ -50,6 +50,7 @@ describe("registrySearchFlow", () => {
           "To install a skillset, run: nori-skillsets download <package-name>",
         skillsetCount: 1,
         skillCount: 0,
+        subagentCount: 0,
       }),
     };
   });
@@ -107,6 +108,44 @@ describe("registrySearchFlow", () => {
     });
   });
 
+  describe("subagent count in summary", () => {
+    it("should include subagent count in statusMessage", async () => {
+      mockCallbacks.onSearch = vi.fn().mockResolvedValue({
+        success: true,
+        hasResults: true,
+        formattedResults:
+          "Subagents:\npublic:\n  my-subagent - A test subagent",
+        downloadHints:
+          "To install a subagent, run: nori-skillsets download-subagent <name>",
+        skillsetCount: 0,
+        skillCount: 0,
+        subagentCount: 2,
+      });
+
+      const result = await registrySearchFlow({ callbacks: mockCallbacks });
+
+      expect(result?.statusMessage).toContain("2 subagents");
+    });
+
+    it("should include all counts in statusMessage when all types found", async () => {
+      mockCallbacks.onSearch = vi.fn().mockResolvedValue({
+        success: true,
+        hasResults: true,
+        formattedResults: "All results",
+        downloadHints: "Hints",
+        skillsetCount: 1,
+        skillCount: 2,
+        subagentCount: 3,
+      });
+
+      const result = await registrySearchFlow({ callbacks: mockCallbacks });
+
+      expect(result?.statusMessage).toBe(
+        "Search returned 1 skillset, 2 skills, and 3 subagents",
+      );
+    });
+  });
+
   describe("no results found", () => {
     beforeEach(() => {
       mockCallbacks.onSearch = vi.fn().mockResolvedValue({
@@ -120,7 +159,7 @@ describe("registrySearchFlow", () => {
       await registrySearchFlow({ callbacks: mockCallbacks });
 
       expect(clack.log.info).toHaveBeenCalledWith(
-        'No skillsets or skills found matching "nonexistent".',
+        'No skillsets, skills, or subagents found matching "nonexistent".',
       );
     });
 

@@ -42,7 +42,7 @@ The flows cover the full lifecycle of skillset management:
 | `registryDownloadFlow` | Search, version comparison, and skillset download |
 | `skillDownloadFlow` | Search and download for individual skills |
 | `subagentDownloadFlow` | Search and download for individual subagents |
-| `registrySearchFlow` | Search the registry for skillsets and skills |
+| `registrySearchFlow` | Search the registry for skillsets, skills, and subagents |
 | `listVersionsFlow` | Display available versions of a package |
 | `newSkillsetFlow` | Collect metadata for a new skillset |
 | `registerSkillsetFlow` | Collect metadata for an existing skillset (no name prompt) |

@@ -287,7 +287,9 @@ export const registerNoriSkillsetsSearchCommand = (args: {
 
   program
     .command("search <query>")
-    .description("Search for skillsets and skills in your org's registry")
+    .description(
+      "Search for skillsets, skills, and subagents in your org's registry",
+    )
     .action(async (query: string) => {
       const globalOpts = program.opts();
       await wrapWithFraming({

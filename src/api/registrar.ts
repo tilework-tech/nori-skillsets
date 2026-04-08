@@ -282,6 +282,14 @@ export type DownloadSkillTarballRequest = {
 };
 
 // Subagent API types
+export type SearchSubagentsRequest = {
+  query: string;
+  limit?: number | null;
+  offset?: number | null;
+  registryUrl?: string | null;
+  authToken?: string | null;
+};
+
 export type GetSubagentPackumentRequest = {
   subagentName: string;
   registryUrl?: string | null;
@@ -794,6 +802,51 @@ export const registrarApi = {
   },
 
   // Subagent API methods
+
+  /**
+   * Search for subagents in a registry
+   * @param args - The request parameters
+   *
+   * @returns Array of matching subagents
+   */
+  searchSubagents: async (
+    args: SearchSubagentsRequest,
+  ): Promise<Array<Package>> => {
+    const { query, limit, offset, registryUrl, authToken } = args;
+    const baseUrl = registryUrl ?? REGISTRAR_URL;
+
+    const params = new URLSearchParams({ q: query });
+    if (limit != null) {
+      params.set("limit", limit.toString());
+    }
+    if (offset != null) {
+      params.set("offset", offset.toString());
+    }
+
+    const url = `${baseUrl}/api/subagents/search?${params.toString()}`;
+
+    const headers: Record<string, string> = {};
+    if (authToken != null) {
+      headers.Authorization = `Bearer ${authToken}`;
+    }
+
+    const response = await fetch(url, {
+      method: "GET",
+      ...(Object.keys(headers).length > 0 ? { headers } : {}),
+    });
+
+    if (!response.ok) {
+      const errorData = (await response.json().catch(() => ({
+        error: `HTTP ${response.status}`,
+      }))) as { error?: string };
+      throw new ApiError(
+        errorData.error ?? `HTTP ${response.status}`,
+        response.status,
+      );
+    }
+
+    return (await response.json()) as Array<Package>;
+  },
 
   /**
    * Get the packument (package metadata) for a subagent
