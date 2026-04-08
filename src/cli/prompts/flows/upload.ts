@@ -19,6 +19,9 @@ import type {
   SkillResolutionStrategy,
   SkillResolutionAction,
   ExtractedSkillsSummary,
+  SubagentConflict,
+  SubagentResolutionStrategy,
+  ExtractedSubagentsSummary,
 } from "@/api/registrar.js";
 
 import { formatDiffForNote } from "./diffFormat.js";
@@ -40,6 +43,7 @@ export type UploadResult =
       success: true;
       version: string;
       extractedSkills?: ExtractedSkillsSummary | null;
+      extractedSubagents?: ExtractedSubagentsSummary | null;
     }
   | {
       success: false;
@@ -48,6 +52,10 @@ export type UploadResult =
   | {
       success: false;
       conflicts: Array<SkillConflict>;
+    }
+  | {
+      success: false;
+      subagentConflicts: Array<SubagentConflict>;
     };
 
 /**
@@ -57,10 +65,15 @@ export type UploadFlowCallbacks = {
   onDetermineVersion: () => Promise<DetermineVersionResult>;
   onUpload: (args: {
     resolutionStrategy?: SkillResolutionStrategy | null;
+    subagentResolutionStrategy?: SubagentResolutionStrategy | null;
     inlineSkillIds?: Array<string> | null;
+    inlineSubagentIds?: Array<string> | null;
   }) => Promise<UploadResult>;
   onReadLocalSkillMd?:
     | ((args: { skillId: string }) => Promise<string | null>)
+    | null;
+  onReadLocalSubagentMd?:
+    | ((args: { subagentId: string }) => Promise<string | null>)
     | null;
 };
 
@@ -70,7 +83,9 @@ export type UploadFlowCallbacks = {
 export type UploadFlowResult = {
   version: string;
   extractedSkills?: ExtractedSkillsSummary | null;
+  extractedSubagents?: ExtractedSubagentsSummary | null;
   linkedSkillVersions: Map<string, string>;
+  linkedSubagentVersions: Map<string, string>;
   namespacedSkillIds: Set<string>;
   skippedSkillIds: Set<string>;
   inlineSkillIds?: Array<string> | null;
@@ -539,14 +554,17 @@ const resolveAllConflictsSameWay = async (args: {
  * @param args - The function arguments
  * @param args.candidates - Array of skill IDs without nori.json
  * @param args.cancelMessage - Message to display on cancel
+ * @param args.entityLabel - Label for the entity type (e.g., "skill" or "subagent")
  *
  * @returns Array of skill IDs to keep inline, or null if cancelled
  */
 const resolveInlineSkillsInFlow = async (args: {
   candidates: Array<string>;
   cancelMessage: string;
+  entityLabel?: string | null;
 }): Promise<Array<string> | null> => {
   const { candidates, cancelMessage } = args;
+  const label = args.entityLabel ?? "skill";
   const inlineSkillIds: Array<string> = [];
 
   for (let i = 0; i < candidates.length; i++) {
@@ -566,12 +584,12 @@ const resolveInlineSkillsInFlow = async (args: {
           {
             value: "inline" as const,
             label: "Keep inline",
-            hint: "Skill stays bundled in the skillset tarball",
+            hint: `${label.charAt(0).toUpperCase() + label.slice(1)} stays bundled in the skillset tarball`,
           },
           {
             value: "extract" as const,
             label: "Extract as package",
-            hint: "Publish as an independent skill package",
+            hint: `Publish as an independent ${label} package`,
           },
         ],
         initialValue: "inline" as const,
@@ -595,28 +613,32 @@ const resolveInlineSkillsInFlow = async (args: {
  * @param args - The function arguments
  * @param args.candidates - Array of skill IDs without nori.json
  * @param args.cancelMessage - Message to display on cancel
+ * @param args.entityLabel - Label for the entity type (e.g., "skill" or "subagent")
  *
  * @returns Array of skill IDs to keep inline, or null if cancelled
  */
 const resolveAllInlineSkillsSameWay = async (args: {
   candidates: Array<string>;
   cancelMessage: string;
+  entityLabel?: string | null;
 }): Promise<Array<string> | null> => {
   const { candidates, cancelMessage } = args;
+  const label = args.entityLabel ?? "skill";
+  const labelPlural = `${label}s`;
 
   const action = unwrapPrompt({
     value: await select({
-      message: "Keep all skills without nori.json inline?",
+      message: `Keep all ${labelPlural} without nori.json inline?`,
       options: [
         {
           value: "inline" as const,
           label: "Keep all inline",
-          hint: "Skills stay bundled in the skillset tarball",
+          hint: `${labelPlural.charAt(0).toUpperCase() + labelPlural.slice(1)} stay bundled in the skillset tarball`,
         },
         {
           value: "extract" as const,
           label: "Extract all as packages",
-          hint: "Publish each as an independent skill package",
+          hint: `Publish each as an independent ${label} package`,
         },
       ],
       initialValue: "inline" as const,
@@ -785,6 +807,22 @@ const hasConflicts = (
 };
 
 /**
+ * Check if an upload result has subagent conflicts
+ * @param result - The upload result to check
+ *
+ * @returns True if the result contains subagent conflicts
+ */
+const hasSubagentConflicts = (
+  result: UploadResult,
+): result is { success: false; subagentConflicts: Array<SubagentConflict> } => {
+  return (
+    !result.success &&
+    "subagentConflicts" in result &&
+    Array.isArray(result.subagentConflicts)
+  );
+};
+
+/**
  * Execute the interactive upload flow
  *
  * This function handles the complete upload UX:
@@ -800,6 +838,7 @@ const hasConflicts = (
  * @param args.callbacks - Callback functions for version determination and upload
  * @param args.nonInteractive - If true, don't prompt for conflict resolution
  * @param args.inlineCandidates - Skill IDs without nori.json that need inline/extract decision
+ * @param args.inlineSubagentCandidates - Subagent IDs without nori.json that need inline/extract decision
  *
  * @returns Upload result on success, null on failure or cancellation
  */
@@ -810,6 +849,7 @@ export const uploadFlow = async (args: {
   callbacks: UploadFlowCallbacks;
   nonInteractive?: boolean | null;
   inlineCandidates?: Array<string> | null;
+  inlineSubagentCandidates?: Array<string> | null;
 }): Promise<UploadFlowResult> => {
   const {
     profileDisplayName,
@@ -818,11 +858,13 @@ export const uploadFlow = async (args: {
     callbacks,
     nonInteractive,
     inlineCandidates,
+    inlineSubagentCandidates,
   } = args;
   const cancelMsg = "Upload cancelled.";
 
   // Track resolution actions for summary
   const linkedSkillVersions = new Map<string, string>();
+  const linkedSubagentVersions = new Map<string, string>();
   const namespacedSkillIds = new Set<string>();
   const skippedSkillIds = new Set<string>();
 
@@ -886,6 +928,68 @@ export const uploadFlow = async (args: {
     }
   }
 
+  // Resolve inline subagent candidates before upload
+  let inlineSubagentIds: Array<string> | undefined;
+  const hasSubagentCandidates =
+    inlineSubagentCandidates != null && inlineSubagentCandidates.length > 0;
+
+  if (hasSubagentCandidates && !nonInteractive) {
+    let resolvedInlineSubagents: Array<string> | null = null;
+
+    if (inlineSubagentCandidates.length > 1) {
+      const batchChoice = unwrapPrompt({
+        value: await select({
+          message: `Found ${inlineSubagentCandidates.length} subagent(s) without nori.json. How would you like to handle them?`,
+          options: [
+            {
+              value: "all-same" as const,
+              label: "Resolve all the same way",
+              hint: "Apply a single choice to all subagents",
+            },
+            {
+              value: "one-by-one" as const,
+              label: "Choose one-by-one",
+              hint: "Decide for each subagent individually",
+            },
+          ],
+        }),
+        cancelMessage: cancelMsg,
+      });
+
+      if (batchChoice == null) {
+        return null;
+      }
+
+      if (batchChoice === "all-same") {
+        resolvedInlineSubagents = await resolveAllInlineSkillsSameWay({
+          candidates: inlineSubagentCandidates,
+          cancelMessage: cancelMsg,
+          entityLabel: "subagent",
+        });
+      } else {
+        resolvedInlineSubagents = await resolveInlineSkillsInFlow({
+          candidates: inlineSubagentCandidates,
+          cancelMessage: cancelMsg,
+          entityLabel: "subagent",
+        });
+      }
+    } else {
+      resolvedInlineSubagents = await resolveInlineSkillsInFlow({
+        candidates: inlineSubagentCandidates,
+        cancelMessage: cancelMsg,
+        entityLabel: "subagent",
+      });
+    }
+
+    if (resolvedInlineSubagents == null) {
+      return null;
+    }
+
+    if (resolvedInlineSubagents.length > 0) {
+      inlineSubagentIds = resolvedInlineSubagents;
+    }
+  }
+
   // Determine version and upload with a single spinner
   const uploadSpinner = spinner();
   uploadSpinner.start("Preparing upload...");
@@ -896,7 +1000,11 @@ export const uploadFlow = async (args: {
 
   let result = await callbacks.onUpload({
     inlineSkillIds,
+    inlineSubagentIds,
   });
+
+  // Track the last skill resolution strategy for forwarding to subagent conflict retries
+  let lastSkillResolutionStrategy: SkillResolutionStrategy | undefined;
 
   // Step 3: Handle conflicts if any
   if (hasConflicts(result)) {
@@ -919,9 +1027,11 @@ export const uploadFlow = async (args: {
         `Auto-resolving ${Object.keys(autoStrategy).length} unchanged skill(s)...`,
       );
 
+      lastSkillResolutionStrategy = autoStrategy;
       result = await callbacks.onUpload({
         resolutionStrategy: autoStrategy,
         inlineSkillIds,
+        inlineSubagentIds,
       });
     } else if (nonInteractive) {
       // Non-interactive mode with unresolved conflicts
@@ -1020,10 +1130,172 @@ export const uploadFlow = async (args: {
       };
 
       // Retry upload with resolution strategy
+      lastSkillResolutionStrategy = combinedStrategy;
       uploadSpinner.start("Uploading with resolutions...");
       result = await callbacks.onUpload({
         resolutionStrategy: combinedStrategy,
         inlineSkillIds,
+        inlineSubagentIds,
+      });
+    }
+  }
+
+  // Step 3b: Handle subagent conflicts if any
+  if (hasSubagentConflicts(result)) {
+    uploadSpinner.message("Resolving subagent conflicts...");
+    const subagentConflicts = result.subagentConflicts;
+
+    // Auto-resolve unchanged subagents (same pattern as skills)
+    const autoResolved: SubagentResolutionStrategy = {};
+    const unresolvedSubagentConflicts: Array<SubagentConflict> = [];
+
+    for (const conflict of subagentConflicts) {
+      if (
+        conflict.contentUnchanged === true &&
+        conflict.availableActions.includes("link")
+      ) {
+        autoResolved[conflict.subagentId] = { action: "link" };
+        if (conflict.latestVersion != null) {
+          linkedSubagentVersions.set(
+            conflict.subagentId,
+            conflict.latestVersion,
+          );
+        }
+      } else {
+        unresolvedSubagentConflicts.push(conflict);
+      }
+    }
+
+    if (unresolvedSubagentConflicts.length === 0) {
+      uploadSpinner.message(
+        `Auto-resolving ${Object.keys(autoResolved).length} unchanged subagent(s)...`,
+      );
+      result = await callbacks.onUpload({
+        resolutionStrategy: lastSkillResolutionStrategy,
+        subagentResolutionStrategy: autoResolved,
+        inlineSkillIds,
+        inlineSubagentIds,
+      });
+    } else if (nonInteractive) {
+      uploadSpinner.stop("Upload blocked");
+      log.error(red({ text: "Upload failed: unresolved subagent conflicts" }));
+      return null;
+    } else {
+      uploadSpinner.stop("Subagent conflicts detected");
+
+      // Resolve subagent conflicts interactively (reuse skill conflict resolver adapted for subagents)
+      const subagentStrategy: SubagentResolutionStrategy = {};
+
+      for (const conflict of unresolvedSubagentConflicts) {
+        // Build options for this subagent conflict
+        const skillLikeConflict: SkillConflict = {
+          skillId: conflict.subagentId,
+          exists: conflict.exists,
+          canPublish: conflict.canPublish,
+          latestVersion: conflict.latestVersion,
+          owner: conflict.owner,
+          availableActions:
+            conflict.availableActions as unknown as Array<SkillResolutionAction>,
+          contentUnchanged: conflict.contentUnchanged,
+          existingSkillMd: conflict.existingSubagentMd,
+        };
+        const options = buildResolutionOptions({
+          conflict: skillLikeConflict,
+          skillsetName,
+          hasDiffCallback: callbacks.onReadLocalSubagentMd != null,
+        });
+        const defaultAction = getDefaultAction({ conflict: skillLikeConflict });
+
+        const message = `Resolve subagent conflict for "${conflict.subagentId}"${conflict.latestVersion != null ? ` (current: v${conflict.latestVersion})` : ""}`;
+
+        let action: ConflictSelectAction | null = null;
+
+        while (action == null || action === "viewDiff") {
+          action = unwrapPrompt({
+            value: await select({
+              message,
+              options,
+              initialValue: defaultAction,
+            }),
+            cancelMessage: cancelMsg,
+          });
+
+          if (action == null) return null;
+
+          if (action === "viewDiff") {
+            if (
+              callbacks.onReadLocalSubagentMd != null &&
+              conflict.existingSubagentMd != null
+            ) {
+              const localContent = await callbacks.onReadLocalSubagentMd({
+                subagentId: conflict.subagentId,
+              });
+
+              if (localContent == null) {
+                note(
+                  "Local SUBAGENT.md not found for this subagent.",
+                  `Diff unavailable for "${conflict.subagentId}"`,
+                );
+              } else {
+                const diffContent = formatDiffForNote({
+                  existingContent: conflict.existingSubagentMd,
+                  localContent,
+                });
+                note(diffContent, `Diff for "${conflict.subagentId}"`);
+              }
+            }
+          }
+        }
+
+        if (action === "link") {
+          if (conflict.latestVersion != null) {
+            linkedSubagentVersions.set(
+              conflict.subagentId,
+              conflict.latestVersion,
+            );
+          }
+        }
+
+        if (action === "updateVersion") {
+          const suggestedVersion = getSuggestedVersion({
+            currentVersion: conflict.latestVersion,
+          });
+          const version = unwrapPrompt({
+            value: await text({
+              message: `Enter new version for "${conflict.subagentId}"`,
+              defaultValue: suggestedVersion,
+              validate: (value) => {
+                if (!semver.valid(value)) {
+                  return "Please enter a valid semver version (e.g., 1.0.0)";
+                }
+                return undefined;
+              },
+            }),
+            cancelMessage: cancelMsg,
+          });
+
+          if (version == null) return null;
+
+          subagentStrategy[conflict.subagentId] = {
+            action: "updateVersion",
+            version,
+          };
+        } else {
+          subagentStrategy[conflict.subagentId] = { action };
+        }
+      }
+
+      // Merge auto-resolved and interactive strategies
+      const combinedSubagentStrategy: SubagentResolutionStrategy = {
+        ...autoResolved,
+        ...subagentStrategy,
+      };
+      uploadSpinner.start("Uploading with subagent resolutions...");
+      result = await callbacks.onUpload({
+        resolutionStrategy: lastSkillResolutionStrategy,
+        subagentResolutionStrategy: combinedSubagentStrategy,
+        inlineSkillIds,
+        inlineSubagentIds,
       });
     }
   }
@@ -1058,6 +1330,30 @@ export const uploadFlow = async (args: {
     summaryLines.push("");
   }
 
+  // Format subagent summary
+  const extractedSubagents = result.extractedSubagents;
+  if (extractedSubagents != null) {
+    const succeeded = extractedSubagents.succeeded ?? [];
+    const failed = extractedSubagents.failed ?? [];
+
+    if (succeeded.length > 0 || failed.length > 0) {
+      summaryLines.push("Subagents:");
+      if (succeeded.length > 0) {
+        summaryLines.push("  Extracted:");
+        for (const subagent of succeeded) {
+          summaryLines.push(`    - ${subagent.name}@${subagent.version}`);
+        }
+      }
+      if (failed.length > 0) {
+        summaryLines.push("  Failed:");
+        for (const subagent of failed) {
+          summaryLines.push(`    - ${subagent.name}: ${subagent.reason}`);
+        }
+      }
+      summaryLines.push("");
+    }
+  }
+
   summaryLines.push("Others can install it with:");
   summaryLines.push(`  nori-skillsets download ${profileDisplayName}`);
 
@@ -1066,7 +1362,9 @@ export const uploadFlow = async (args: {
   return {
     version: result.version,
     extractedSkills: result.extractedSkills,
+    extractedSubagents: result.extractedSubagents,
     linkedSkillVersions,
+    linkedSubagentVersions,
     namespacedSkillIds,
     skippedSkillIds,
     inlineSkillIds,

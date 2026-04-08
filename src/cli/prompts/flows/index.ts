@@ -69,6 +69,14 @@ export {
 } from "./skillDownload.js";
 
 export {
+  subagentDownloadFlow,
+  type SubagentDownloadFlowCallbacks,
+  type SubagentDownloadFlowResult,
+  type SubagentSearchResult,
+  type SubagentDownloadActionResult,
+} from "./subagentDownload.js";
+
+export {
   factoryResetFlow,
   type FactoryResetFlowCallbacks,
   type FactoryResetFlowResult,

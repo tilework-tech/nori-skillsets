@@ -12,6 +12,7 @@ import {
   readSkillsetMetadata,
   writeSkillsetMetadata,
   addSkillToNoriJson,
+  addSubagentToNoriJson,
   ensureNoriJson,
 } from "@/norijson/nori.js";
 
@@ -218,6 +219,95 @@ describe("addSkillToNoriJson", () => {
 
     const metadata = await readSkillsetMetadata({ skillsetDir });
     expect(metadata.dependencies?.skills).toEqual({ "my-skill": "*" });
+  });
+});
+
+describe("addSubagentToNoriJson", () => {
+  let skillsetDir: string;
+
+  beforeEach(async () => {
+    skillsetDir = await fs.mkdtemp(path.join(tmpdir(), "nori-metadata-test-"));
+  });
+
+  afterEach(async () => {
+    await fs.rm(skillsetDir, { recursive: true, force: true });
+  });
+
+  it("should create nori.json when none exists and add the subagent", async () => {
+    await addSubagentToNoriJson({
+      skillsetDir,
+      subagentName: "my-subagent",
+      version: "*",
+    });
+
+    const metadata = await readSkillsetMetadata({ skillsetDir });
+    expect(metadata.name).toBe(path.basename(skillsetDir));
+    expect(metadata.version).toBe("1.0.0");
+    expect(metadata.dependencies?.subagents).toEqual({ "my-subagent": "*" });
+  });
+
+  it("should add subagent to existing nori.json preserving other dependencies", async () => {
+    await writeSkillsetMetadata({
+      skillsetDir,
+      metadata: {
+        name: "my-profile",
+        version: "1.0.0",
+        dependencies: {
+          skills: { "existing-skill": "^1.0.0" },
+        },
+      },
+    });
+
+    await addSubagentToNoriJson({
+      skillsetDir,
+      subagentName: "my-subagent",
+      version: "^2.0.0",
+    });
+
+    const metadata = await readSkillsetMetadata({ skillsetDir });
+    expect(metadata.dependencies?.skills).toEqual({
+      "existing-skill": "^1.0.0",
+    });
+    expect(metadata.dependencies?.subagents).toEqual({
+      "my-subagent": "^2.0.0",
+    });
+  });
+
+  it("should update version for an already-present subagent", async () => {
+    await writeSkillsetMetadata({
+      skillsetDir,
+      metadata: {
+        name: "my-profile",
+        version: "1.0.0",
+        dependencies: {
+          subagents: { "my-subagent": "^1.0.0" },
+        },
+      },
+    });
+
+    await addSubagentToNoriJson({
+      skillsetDir,
+      subagentName: "my-subagent",
+      version: "*",
+    });
+
+    const metadata = await readSkillsetMetadata({ skillsetDir });
+    expect(metadata.dependencies?.subagents).toEqual({ "my-subagent": "*" });
+  });
+
+  it("should throw when nori.json contains corrupt JSON", async () => {
+    await fs.writeFile(
+      path.join(skillsetDir, "nori.json"),
+      "{ this is not valid json",
+    );
+
+    await expect(
+      addSubagentToNoriJson({
+        skillsetDir,
+        subagentName: "my-subagent",
+        version: "*",
+      }),
+    ).rejects.toThrow("nori.json exists but contains invalid JSON");
   });
 });
 

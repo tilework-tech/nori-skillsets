@@ -10,7 +10,7 @@ Path: @/src/norijson
 ### How it fits into the larger codebase
 
 - `NoriJson` is consumed by CLI commands for skillset packaging (@/src/cli/commands/registry-upload/), downloading, and installation.
-- The metadata CRUD functions (`readSkillsetMetadata`, `writeSkillsetMetadata`, `addSkillToNoriJson`, `ensureNoriJson`) in `nori.ts` are called by CLI commands (fork, new, register, external, skill-download) and by `parseSkillset()` in `skillset.ts`.
+- The metadata CRUD functions (`readSkillsetMetadata`, `writeSkillsetMetadata`, `addSkillToNoriJson`, `addSubagentToNoriJson`, `ensureNoriJson`) in `nori.ts` are called by CLI commands (fork, new, register, external, skill-download) and by `parseSkillset()` in `skillset.ts`.
 - `parseSkillset()` in `skillset.ts` is called by `agentOperations.installSkillset()` in @/src/cli/features/agentOperations.ts to resolve the active skillset before running loaders.
 - `listSkillsets()` in `skillset.ts` is called directly by CLI commands (switch-skillset, list-skillsets) to discover installed skillsets.
 - `getNoriDir()` and `getNoriSkillsetsDir()` in `skillset.ts` provide the canonical paths (`~/.nori/` and `~/.nori/profiles/`) used throughout the CLI for skillset directory resolution.
@@ -18,7 +18,7 @@ Path: @/src/norijson
 ```
 CLI Commands (fork, new, register, switch, list, external, skill-download)
     |
-    +-- nori.ts: readSkillsetMetadata / writeSkillsetMetadata / addSkillToNoriJson / ensureNoriJson
+    +-- nori.ts: readSkillsetMetadata / writeSkillsetMetadata / addSkillToNoriJson / addSubagentToNoriJson / ensureNoriJson
     |
     +-- skillset.ts: parseSkillset / listSkillsets / getNoriDir / getNoriSkillsetsDir
             |
@@ -27,15 +27,16 @@ CLI Commands (fork, new, register, switch, list, external, skill-download)
 
 ### Core Implementation
 
-**`nori.ts`** defines `NoriJson`, the unified manifest type. Key fields: `name`, `version` (required), `type` (one of `"skillset"`, `"skill"`, `"inlined-skill"`), and optional content arrays (`skills`, `subagents`, `slashcommands` for skillsets; `scripts` for skills). The `dependencies` field maps skill names to version ranges. The type allows arbitrary additional fields via an index signature.
+**`nori.ts`** defines `NoriJson`, the unified manifest type. Key fields: `name`, `version` (required), `type` (one of `"skillset"`, `"skill"`, `"inlined-skill"`, `"subagent"`, `"inlined-subagent"`), and optional content arrays (`skills`, `subagents`, `slashcommands` for skillsets; `scripts` for skills). The `dependencies` field maps skill names and subagent names to version ranges. The type allows arbitrary additional fields via an index signature.
 
-`nori.ts` also defines the skillset content types (`SkillsetSkill`, `SkillsetSubagent`, `SkillsetSlashCommand`) that describe discovered skillset components, and provides runtime functions for `nori.json` file I/O:
+`nori.ts` also defines the skillset content types (`SkillsetSkill`, `SkillsetSubagent`, `SkillsetSlashCommand`) that describe discovered skillset components. `SkillsetSubagent` includes an optional `scripts` field for directory-based subagents that bundle scripts alongside their `SUBAGENT.md`. Runtime functions for `nori.json` file I/O:
 
 | Function | Purpose |
 |----------|---------|
 | `readSkillsetMetadata` | Reads and parses `nori.json` from a skillset directory |
 | `writeSkillsetMetadata` | Writes `NoriJson` to `nori.json` in a skillset directory |
 | `addSkillToNoriJson` | Adds/updates a skill dependency in `nori.json`, creating the file if missing |
+| `addSubagentToNoriJson` | Adds/updates a subagent dependency in `nori.json`, creating the file if missing (mirrors `addSkillToNoriJson`) |
 | `ensureNoriJson` | Backwards-compat shim: creates `nori.json` for legacy skillset dirs that have a config file or both `skills/` and `subagents/` subdirectories but no manifest |
 
 **`skillset.ts`** provides path utilities, the `Skillset` type, and discovery:
@@ -48,7 +49,8 @@ CLI Commands (fork, new, register, switch, list, external, skill-download)
 
 ### Things to Know
 
-- The `type` field distinguishes between full skillsets, standalone skills, and skills that were inlined (extracted) from a skillset upload. The `"inlined-skill"` type is set server-side during upload when skills are extracted from a skillset package.
+- The `type` field distinguishes between full skillsets, standalone skills/subagents, and skills/subagents that were inlined from a skillset upload. `"inlined-skill"` and `"inlined-subagent"` types are set during the upload flow when the user chooses to keep a skill or subagent bundled in the skillset tarball rather than extracting it as an independent package. The `"subagent"` and `"inlined-subagent"` types mirror the skill types, giving subagents the same lifecycle as skills for upload, versioning, and registry distribution.
+- `NoriJsonDependencies.subagents` maps subagent names to version ranges, mirroring the `skills` dependency map.
 - `ensureNoriJson` uses a `looksLikeSkillset` heuristic: it checks for the presence of a known config file name (defaults to `["AGENTS.md", "CLAUDE.md"]`) or both `skills/` and `subagents/` subdirectories. This allows it to auto-generate manifests for user-created skillsets that predate the `nori.json` convention.
 - `parseSkillset` checks for config files in priority order: `AGENTS.md` first, then `CLAUDE.md`. When both exist, `AGENTS.md` wins. New skillsets are created with `AGENTS.md`; `CLAUDE.md` is supported for backward compatibility with existing skillsets.
 

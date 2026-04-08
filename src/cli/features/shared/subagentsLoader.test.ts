@@ -102,6 +102,50 @@ const createTestSkillset = async (args: {
   };
 };
 
+const createTestSkillsetWithDirs = async (args: {
+  skillsetsDir: string;
+  skillsetName: string;
+  flatFiles?: Record<string, string> | null;
+  directories?: Record<string, Record<string, string>> | null;
+}): Promise<Skillset> => {
+  const { skillsetsDir, skillsetName, flatFiles, directories } = args;
+  const skillsetDir = path.join(skillsetsDir, skillsetName);
+  await fs.mkdir(skillsetDir, { recursive: true });
+  await fs.writeFile(
+    path.join(skillsetDir, "nori.json"),
+    JSON.stringify({ name: skillsetName, version: "1.0.0" }),
+  );
+
+  const sDir = path.join(skillsetDir, "subagents");
+  await fs.mkdir(sDir, { recursive: true });
+
+  if (flatFiles != null) {
+    for (const [filename, content] of Object.entries(flatFiles)) {
+      await fs.writeFile(path.join(sDir, filename), content);
+    }
+  }
+
+  if (directories != null) {
+    for (const [dirName, files] of Object.entries(directories)) {
+      const subDir = path.join(sDir, dirName);
+      await fs.mkdir(subDir, { recursive: true });
+      for (const [filename, content] of Object.entries(files)) {
+        await fs.writeFile(path.join(subDir, filename), content);
+      }
+    }
+  }
+
+  return {
+    name: skillsetName,
+    dir: skillsetDir,
+    metadata: { name: skillsetName, version: "1.0.0" },
+    skillsDir: null,
+    configFilePath: null,
+    slashcommandsDir: null,
+    subagentsDir: sDir,
+  };
+};
+
 // ---- test data --------------------------------------------------------------
 
 const TEST_SUBAGENTS: Record<string, string> = {
@@ -388,6 +432,251 @@ describe("createSubagentsLoader", () => {
       expect(content).toContain(
         path.join(agentDir, "skills", "some-skill", "SKILL.md"),
       );
+    });
+  });
+
+  describe("edge cases", () => {
+    it("should return early without error when skillset is null", async () => {
+      const loader = createSubagentsLoader({ managedDirs: ["agents"] });
+      const config = createTestConfig({
+        installDir: tempDir,
+        activeSkillset: "null-skillset-test",
+      });
+
+      // Should complete without throwing
+      await loader.run({ agent, config, skillset: null });
+
+      // agents dir should not be created (loader returns before mkdir)
+      const agentsDirExists = await fs
+        .access(agentsDir)
+        .then(() => true)
+        .catch(() => false);
+      expect(agentsDirExists).toBe(false);
+    });
+
+    it("should return early without error when skillset has null subagentsDir", async () => {
+      const loader = createSubagentsLoader({ managedDirs: ["agents"] });
+      const config = createTestConfig({
+        installDir: tempDir,
+        activeSkillset: "no-subagents-dir-test",
+      });
+
+      const skillset: Skillset = {
+        name: "no-subagents-dir-test",
+        dir: path.join(noriProfilesDir, "no-subagents-dir-test"),
+        metadata: { name: "no-subagents-dir-test", version: "1.0.0" },
+        skillsDir: null,
+        configFilePath: null,
+        slashcommandsDir: null,
+        subagentsDir: null,
+      };
+
+      // Should complete without throwing
+      await loader.run({ agent, config, skillset });
+
+      // agents dir should be empty (loader clears it then returns early)
+      const files = await fs.readdir(agentsDir);
+      expect(files).toHaveLength(0);
+    });
+  });
+
+  describe("directory-based subagents", () => {
+    it("should flatten directory-based subagent to a single .md file", async () => {
+      const loader = createSubagentsLoader({ managedDirs: ["agents"] });
+      const config = createTestConfig({
+        installDir: tempDir,
+        activeSkillset: "dir-subagent-test",
+      });
+      const skillset = await createTestSkillsetWithDirs({
+        skillsetsDir: noriProfilesDir,
+        skillsetName: "dir-subagent-test",
+        directories: {
+          "complex-agent": {
+            "SUBAGENT.md":
+              "---\nname: Complex Agent\ndescription: A complex agent\n---\n\n# Complex Agent\n\nDo complex things.\n",
+            "nori.json": '{"name":"complex-agent","version":"1.0.0"}',
+            "README.md": "# README\n\nDocumentation for complex-agent.\n",
+          },
+        },
+      });
+
+      await loader.run({ agent, config, skillset });
+
+      // SUBAGENT.md should be flattened to agents/complex-agent.md
+      const content = await fs.readFile(
+        path.join(agentsDir, "complex-agent.md"),
+        "utf-8",
+      );
+      expect(content).toContain("# Complex Agent");
+      expect(content).toContain("Do complex things.");
+    });
+
+    it("should apply template substitution to directory-based subagent SUBAGENT.md", async () => {
+      const loader = createSubagentsLoader({ managedDirs: ["agents"] });
+      const config = createTestConfig({
+        installDir: tempDir,
+        activeSkillset: "dir-template-test",
+      });
+      const skillset = await createTestSkillsetWithDirs({
+        skillsetsDir: noriProfilesDir,
+        skillsetName: "dir-template-test",
+        directories: {
+          "template-agent": {
+            "SUBAGENT.md":
+              "# Template Agent\n\nRead: `{{skills_dir}}/some-skill/SKILL.md`\n",
+          },
+        },
+      });
+
+      await loader.run({ agent, config, skillset });
+
+      const content = await fs.readFile(
+        path.join(agentsDir, "template-agent.md"),
+        "utf-8",
+      );
+      expect(content).not.toContain("{{skills_dir}}");
+      expect(content).toContain(
+        path.join(agentDir, "skills", "some-skill", "SKILL.md"),
+      );
+    });
+
+    it("should handle mixed flat files and directory-based subagents", async () => {
+      const loader = createSubagentsLoader({ managedDirs: ["agents"] });
+      const config = createTestConfig({
+        installDir: tempDir,
+        activeSkillset: "mixed-format-test",
+      });
+      const skillset = await createTestSkillsetWithDirs({
+        skillsetsDir: noriProfilesDir,
+        skillsetName: "mixed-format-test",
+        flatFiles: {
+          "simple-agent.md": "# Simple Agent\n\nI am simple.\n",
+        },
+        directories: {
+          "complex-agent": {
+            "SUBAGENT.md": "# Complex Agent\n\nI am complex.\n",
+          },
+        },
+      });
+
+      await loader.run({ agent, config, skillset });
+
+      // Both should be installed
+      const simpleContent = await fs.readFile(
+        path.join(agentsDir, "simple-agent.md"),
+        "utf-8",
+      );
+      expect(simpleContent).toContain("I am simple.");
+
+      const complexContent = await fs.readFile(
+        path.join(agentsDir, "complex-agent.md"),
+        "utf-8",
+      );
+      expect(complexContent).toContain("I am complex.");
+    });
+
+    it("should prefer directory over flat file on name collision", async () => {
+      const loader = createSubagentsLoader({ managedDirs: ["agents"] });
+      const config = createTestConfig({
+        installDir: tempDir,
+        activeSkillset: "collision-test",
+      });
+      const skillset = await createTestSkillsetWithDirs({
+        skillsetsDir: noriProfilesDir,
+        skillsetName: "collision-test",
+        flatFiles: {
+          "foo.md": "# Flat Foo\n\nI am the flat version.\n",
+        },
+        directories: {
+          foo: {
+            "SUBAGENT.md": "# Directory Foo\n\nI am the directory version.\n",
+          },
+        },
+      });
+
+      await loader.run({ agent, config, skillset });
+
+      // Directory version should win
+      const content = await fs.readFile(
+        path.join(agentsDir, "foo.md"),
+        "utf-8",
+      );
+      expect(content).toContain("I am the directory version.");
+      expect(content).not.toContain("I am the flat version.");
+    });
+
+    it("should ignore directories without SUBAGENT.md", async () => {
+      const loader = createSubagentsLoader({ managedDirs: ["agents"] });
+      const config = createTestConfig({
+        installDir: tempDir,
+        activeSkillset: "no-subagent-md-test",
+      });
+      const skillset = await createTestSkillsetWithDirs({
+        skillsetsDir: noriProfilesDir,
+        skillsetName: "no-subagent-md-test",
+        flatFiles: {
+          "real-agent.md": "# Real Agent\n\nI exist.\n",
+        },
+        directories: {
+          "random-dir": {
+            "README.md": "# Some random directory\n",
+          },
+        },
+      });
+
+      await loader.run({ agent, config, skillset });
+
+      // Real agent should be installed
+      const realExists = await fs
+        .access(path.join(agentsDir, "real-agent.md"))
+        .then(() => true)
+        .catch(() => false);
+      expect(realExists).toBe(true);
+
+      // Random dir should NOT produce an installed agent
+      const randomExists = await fs
+        .access(path.join(agentsDir, "random-dir.md"))
+        .then(() => true)
+        .catch(() => false);
+      expect(randomExists).toBe(false);
+    });
+
+    it("should not exclude docs.md inside a subagent directory", async () => {
+      const loader = createSubagentsLoader({ managedDirs: ["agents"] });
+      const config = createTestConfig({
+        installDir: tempDir,
+        activeSkillset: "docs-inside-dir-test",
+      });
+      const skillset = await createTestSkillsetWithDirs({
+        skillsetsDir: noriProfilesDir,
+        skillsetName: "docs-inside-dir-test",
+        flatFiles: {
+          "docs.md": "# Top-level docs should be excluded\n",
+        },
+        directories: {
+          "my-agent": {
+            "SUBAGENT.md":
+              "# My Agent\n\nI reference docs.md in my directory.\n",
+            "docs.md": "# Internal docs - should not affect anything\n",
+          },
+        },
+      });
+
+      await loader.run({ agent, config, skillset });
+
+      // Top-level docs.md should still be excluded
+      const topDocsExists = await fs
+        .access(path.join(agentsDir, "docs.md"))
+        .then(() => true)
+        .catch(() => false);
+      expect(topDocsExists).toBe(false);
+
+      // The directory-based subagent should still be installed
+      const agentExists = await fs
+        .access(path.join(agentsDir, "my-agent.md"))
+        .then(() => true)
+        .catch(() => false);
+      expect(agentExists).toBe(true);
     });
   });
 });

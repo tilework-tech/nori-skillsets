@@ -26,22 +26,28 @@ export type SkillsetSlashCommand = {
 };
 
 export type SkillsetSubagent = {
-  id: string; // filename without .md
-  name: string; // from .md frontmatter
-  description: string; // from .md frontmatter
+  id: string; // directory name or filename without extension
+  name: string; // from frontmatter
+  description: string; // from frontmatter
+  scripts?: Array<string> | null; // list of script filenames
 };
 
 /**
  * The type of package this nori.json represents
  */
-export type NoriJsonType = "skillset" | "skill" | "inlined-skill";
+export type NoriJsonType =
+  | "skillset"
+  | "skill"
+  | "inlined-skill"
+  | "subagent"
+  | "inlined-subagent";
 
 /**
  * Dependencies section of nori.json
  */
 export type NoriJsonDependencies = {
   skills?: Record<string, string> | null; // skill name -> version range
-  subagents?: Record<string, string> | null; // future use
+  subagents?: Record<string, string> | null; // subagent name -> version range
   slashCommands?: Record<string, string> | null; // future use
 };
 
@@ -157,6 +163,54 @@ export const addSkillToNoriJson = async (args: {
   }
 
   metadata.dependencies.skills[skillName] = version;
+
+  await writeSkillsetMetadata({ skillsetDir, metadata });
+};
+
+/**
+ * Add or update a subagent dependency in a skillset's nori.json
+ *
+ * If nori.json does not exist, creates a basic one using the skillset directory
+ * name as the skillset name.
+ *
+ * @param args - Function arguments
+ * @param args.skillsetDir - Path to skillset directory
+ * @param args.subagentName - Name of the subagent to add
+ * @param args.version - Version string (e.g., "*", "^1.0.0", "1.2.3")
+ */
+export const addSubagentToNoriJson = async (args: {
+  skillsetDir: string;
+  subagentName: string;
+  version: string;
+}): Promise<void> => {
+  const { skillsetDir, subagentName, version } = args;
+  const noriJsonPath = path.join(skillsetDir, "nori.json");
+
+  let metadata: NoriJson;
+  try {
+    const content = await fs.readFile(noriJsonPath, "utf-8");
+    metadata = JSON.parse(content) as NoriJson;
+  } catch (err: unknown) {
+    if (err instanceof SyntaxError) {
+      throw new Error(
+        `nori.json exists but contains invalid JSON: ${err.message}`,
+      );
+    }
+    metadata = {
+      name: path.basename(skillsetDir),
+      version: "1.0.0",
+      type: "skillset",
+    };
+  }
+
+  if (metadata.dependencies == null) {
+    metadata.dependencies = {};
+  }
+  if (metadata.dependencies.subagents == null) {
+    metadata.dependencies.subagents = {};
+  }
+
+  metadata.dependencies.subagents[subagentName] = version;
 
   await writeSkillsetMetadata({ skillsetDir, metadata });
 };

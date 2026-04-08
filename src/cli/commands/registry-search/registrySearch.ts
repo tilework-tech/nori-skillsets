@@ -1,8 +1,8 @@
 /**
- * CLI command for searching profile packages and skills in the Nori registrar
+ * CLI command for searching profile packages, skills, and subagents in the Nori registrar
  * Handles: nori-skillsets search <query>
  * Searches both org registry (with auth) and public registry (no auth)
- * Returns both profiles and skills from each registry
+ * Returns profiles, skills, and subagents from each registry
  */
 
 import {
@@ -50,12 +50,23 @@ type SkillSearchResult = {
 };
 
 /**
+ * Result from searching subagents in a registry
+ */
+type SubagentSearchResult = {
+  registryUrl: string;
+  subagents: Array<Package>;
+  error?: string | null;
+  isNetworkError?: boolean | null;
+};
+
+/**
  * Combined result from searching a registry
  */
 type RegistrySearchResult = {
   registryUrl: string;
   profileResult: ProfileSearchResult;
   skillResult: SkillSearchResult;
+  subagentResult: SubagentSearchResult;
 };
 
 /**
@@ -186,6 +197,69 @@ const searchPublicRegistrySkills = async (args: {
 };
 
 /**
+ * Search the org registry for subagents
+ * @param args - Search parameters
+ * @param args.query - The search query string
+ * @param args.registryUrl - The registry URL to search
+ * @param args.registryAuth - The registry authentication credentials
+ *
+ * @returns Search result for subagents
+ */
+const searchOrgRegistrySubagents = async (args: {
+  query: string;
+  registryUrl: string;
+  registryAuth: RegistryAuth;
+}): Promise<SubagentSearchResult> => {
+  const { query, registryUrl, registryAuth } = args;
+
+  try {
+    const authToken = await getRegistryAuthToken({ registryAuth });
+    const subagents = await registrarApi.searchSubagents({
+      query,
+      registryUrl,
+      authToken,
+    });
+    return { registryUrl, subagents };
+  } catch (err) {
+    const isNetworkError = err instanceof NetworkError;
+    return {
+      registryUrl,
+      subagents: [],
+      error: err instanceof Error ? err.message : String(err),
+      isNetworkError,
+    };
+  }
+};
+
+/**
+ * Search the public registry for subagents (no auth required)
+ * @param args - Search parameters
+ * @param args.query - The search query string
+ *
+ * @returns Search result for subagents
+ */
+const searchPublicRegistrySubagents = async (args: {
+  query: string;
+}): Promise<SubagentSearchResult> => {
+  const { query } = args;
+
+  try {
+    const subagents = await registrarApi.searchSubagents({
+      query,
+    });
+    return { registryUrl: REGISTRAR_URL, subagents };
+  } catch (err) {
+    const isNetworkError = err instanceof NetworkError;
+    return {
+      registryUrl: REGISTRAR_URL,
+      subagents: [],
+      error: err instanceof Error ? err.message : String(err),
+      isNetworkError,
+    };
+  }
+};
+
+/**
  * Get the namespaced package name for display
  * @param args - The arguments
  * @param args.packageName - The base package name
@@ -251,10 +325,11 @@ const formatUnifiedSearchResults = (args: {
   const { results } = args;
   const profileSections: Array<string> = [];
   const skillSections: Array<string> = [];
+  const subagentSections: Array<string> = [];
   const errorSections: Array<string> = [];
 
   for (const result of results) {
-    const { profileResult, skillResult } = result;
+    const { profileResult, skillResult, subagentResult } = result;
 
     // Collect profile results (skip errors - just noise for unavailable registries)
     if (profileResult.error == null && profileResult.packages.length > 0) {
@@ -276,6 +351,16 @@ const formatUnifiedSearchResults = (args: {
       );
     }
 
+    // Collect subagent results (skip errors - just noise for unavailable registries)
+    if (subagentResult.error == null && subagentResult.subagents.length > 0) {
+      subagentSections.push(
+        formatItems({
+          registryUrl: subagentResult.registryUrl,
+          items: subagentResult.subagents,
+        }),
+      );
+    }
+
     // Collect network errors (these are important to show to the user)
     if (profileResult.isNetworkError && profileResult.error != null) {
       errorSections.push(profileResult.error);
@@ -286,6 +371,14 @@ const formatUnifiedSearchResults = (args: {
       skillResult.error !== profileResult.error
     ) {
       errorSections.push(skillResult.error);
+    }
+    if (
+      subagentResult.isNetworkError &&
+      subagentResult.error != null &&
+      subagentResult.error !== profileResult.error &&
+      subagentResult.error !== skillResult.error
+    ) {
+      errorSections.push(subagentResult.error);
     }
   }
 
@@ -304,6 +397,10 @@ const formatUnifiedSearchResults = (args: {
     sections.push(`Skills:\n${skillSections.join("\n\n")}`);
   }
 
+  if (subagentSections.length > 0) {
+    sections.push(`Subagents:\n${subagentSections.join("\n\n")}`);
+  }
+
   return sections.join("\n\n");
 };
 
@@ -312,6 +409,7 @@ const formatUnifiedSearchResults = (args: {
  * @param args - The results
  * @param args.hasProfiles - Whether profiles were found
  * @param args.hasSkills - Whether skills were found
+ * @param args.hasSubagents - Whether subagents were found
  * @param args.cliName - The CLI name for command hints
  *
  * @returns Hint message
@@ -319,9 +417,10 @@ const formatUnifiedSearchResults = (args: {
 const buildDownloadHints = (args: {
   hasProfiles: boolean;
   hasSkills: boolean;
+  hasSubagents: boolean;
   cliName?: CliName | null;
 }): string => {
-  const { hasProfiles, hasSkills, cliName } = args;
+  const { hasProfiles, hasSkills, hasSubagents, cliName } = args;
   const commandNames = getCommandNames({ cliName });
   const cliPrefix = cliName ?? "nori-skillsets";
   const hints: Array<string> = [];
@@ -334,6 +433,11 @@ const buildDownloadHints = (args: {
   if (hasSkills) {
     hints.push(
       `To install a skill, run: ${cliPrefix} ${commandNames.downloadSkill} <skill-name>`,
+    );
+  }
+  if (hasSubagents) {
+    hints.push(
+      `To install a subagent, run: ${cliPrefix} ${commandNames.downloadSubagent} <subagent-name>`,
     );
   }
 
@@ -382,11 +486,12 @@ const performSearch = async (args: {
       };
 
       const orgSearchPromise = (async (): Promise<RegistrySearchResult> => {
-        const [profileResult, skillResult] = await Promise.all([
+        const [profileResult, skillResult, subagentResult] = await Promise.all([
           searchOrgRegistryProfiles({ query, registryUrl, registryAuth }),
           searchOrgRegistrySkills({ query, registryUrl, registryAuth }),
+          searchOrgRegistrySubagents({ query, registryUrl, registryAuth }),
         ]);
-        return { registryUrl, profileResult, skillResult };
+        return { registryUrl, profileResult, skillResult, subagentResult };
       })();
 
       orgSearchPromises.push(orgSearchPromise);
@@ -408,25 +513,29 @@ const performSearch = async (args: {
         refreshToken: config.auth.refreshToken,
       };
 
-      const [profileResult, skillResult] = await Promise.all([
+      const [profileResult, skillResult, subagentResult] = await Promise.all([
         searchOrgRegistryProfiles({ query, registryUrl, registryAuth }),
         searchOrgRegistrySkills({ query, registryUrl, registryAuth }),
+        searchOrgRegistrySubagents({ query, registryUrl, registryAuth }),
       ]);
 
-      results.push({ registryUrl, profileResult, skillResult });
+      results.push({ registryUrl, profileResult, skillResult, subagentResult });
     }
   }
 
   // Always search public registry
-  const [publicProfileResult, publicSkillResult] = await Promise.all([
-    searchPublicRegistryProfiles({ query }),
-    searchPublicRegistrySkills({ query }),
-  ]);
+  const [publicProfileResult, publicSkillResult, publicSubagentResult] =
+    await Promise.all([
+      searchPublicRegistryProfiles({ query }),
+      searchPublicRegistrySkills({ query }),
+      searchPublicRegistrySubagents({ query }),
+    ]);
 
   results.push({
     registryUrl: REGISTRAR_URL,
     profileResult: publicProfileResult,
     skillResult: publicSkillResult,
+    subagentResult: publicSubagentResult,
   });
 
   // Check if we have any results or all errors
@@ -436,6 +545,10 @@ const performSearch = async (args: {
   const hasSkillResults = results.some(
     (r) => r.skillResult.error == null && r.skillResult.skills.length > 0,
   );
+  const hasSubagentResults = results.some(
+    (r) =>
+      r.subagentResult.error == null && r.subagentResult.subagents.length > 0,
+  );
   const allProfileErrors = results.every(
     (r) =>
       r.profileResult.error != null || r.profileResult.packages.length === 0,
@@ -443,18 +556,28 @@ const performSearch = async (args: {
   const allSkillErrors = results.every(
     (r) => r.skillResult.error != null || r.skillResult.skills.length === 0,
   );
+  const allSubagentErrors = results.every(
+    (r) =>
+      r.subagentResult.error != null || r.subagentResult.subagents.length === 0,
+  );
 
   const hasAnyProfileError = results.some((r) => r.profileResult.error != null);
   const hasAnySkillError = results.some((r) => r.skillResult.error != null);
+  const hasAnySubagentError = results.some(
+    (r) => r.subagentResult.error != null,
+  );
   const hasNetworkError = results.some(
-    (r) => r.profileResult.isNetworkError || r.skillResult.isNetworkError,
+    (r) =>
+      r.profileResult.isNetworkError ||
+      r.skillResult.isNetworkError ||
+      r.subagentResult.isNetworkError,
   );
 
   if (
     allProfileErrors &&
     allSkillErrors &&
-    hasAnyProfileError &&
-    hasAnySkillError
+    allSubagentErrors &&
+    (hasAnyProfileError || hasAnySkillError || hasAnySubagentError)
   ) {
     const errorPrefix = hasNetworkError
       ? "Failed to search due to network connectivity issues:\n\n"
@@ -468,8 +591,10 @@ const performSearch = async (args: {
   if (
     !hasProfileResults &&
     !hasSkillResults &&
+    !hasSubagentResults &&
     !hasAnyProfileError &&
-    !hasAnySkillError
+    !hasAnySkillError &&
+    !hasAnySubagentError
   ) {
     return { success: true, hasResults: false, query };
   }
@@ -478,6 +603,7 @@ const performSearch = async (args: {
   const downloadHints = buildDownloadHints({
     hasProfiles: hasProfileResults,
     hasSkills: hasSkillResults,
+    hasSubagents: hasSubagentResults,
     cliName,
   });
 
@@ -492,6 +618,12 @@ const performSearch = async (args: {
       sum + (r.skillResult.error == null ? r.skillResult.skills.length : 0),
     0,
   );
+  const subagentCount = results.reduce(
+    (sum, r) =>
+      sum +
+      (r.subagentResult.error == null ? r.subagentResult.subagents.length : 0),
+    0,
+  );
 
   return {
     success: true,
@@ -500,6 +632,7 @@ const performSearch = async (args: {
     downloadHints,
     skillsetCount,
     skillCount,
+    subagentCount,
   };
 };
 
@@ -550,7 +683,9 @@ export const registerRegistrySearchCommand = (args: {
 
   program
     .command("registry-search <query>")
-    .description("Search for skillsets and skills in Nori registries")
+    .description(
+      "Search for skillsets, skills, and subagents in Nori registries",
+    )
     .action(async (query: string) => {
       // Get global options from parent
       const globalOpts = program.opts();

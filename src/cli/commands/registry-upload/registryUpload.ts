@@ -13,8 +13,11 @@ import * as tar from "tar";
 import {
   registrarApi,
   type SkillResolutionStrategy,
+  type SubagentResolutionStrategy,
+  type SubagentConflict,
   type UploadSkillsetResponse,
   type ExtractedSkillsSummary,
+  type ExtractedSubagentsSummary,
 } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
 import { loadConfig, getRegistryAuth } from "@/cli/config.js";
@@ -29,7 +32,10 @@ import {
   writeSkillsetMetadata,
 } from "@/norijson/nori.js";
 import { getNoriSkillsetsDir } from "@/norijson/skillset.js";
-import { isSkillCollisionError } from "@/utils/fetch.js";
+import {
+  isSkillCollisionError,
+  isSubagentCollisionError,
+} from "@/utils/fetch.js";
 import {
   parseNamespacedPackage,
   buildOrganizationRegistryUrl,
@@ -287,6 +293,40 @@ const backfillNoriJsonTypes = async (args: {
   } catch {
     // No skills directory — nothing to backfill
   }
+
+  // Backfill subagent subdirectory nori.json files
+  const subagentsDir = path.join(skillsetDir, "subagents");
+  try {
+    const entries = await fs.readdir(subagentsDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const subagentNoriJsonPath = path.join(
+        subagentsDir,
+        entry.name,
+        "nori.json",
+      );
+      try {
+        const content = await fs.readFile(subagentNoriJsonPath, "utf-8");
+        const metadata = JSON.parse(content) as NoriJson;
+        if (metadata.type == null) {
+          metadata.type = "subagent";
+          await fs.writeFile(
+            subagentNoriJsonPath,
+            JSON.stringify(metadata, null, 2),
+          );
+        }
+      } catch (err: unknown) {
+        if (err instanceof SyntaxError) {
+          throw new Error(
+            `subagents/${entry.name}/nori.json exists but contains invalid JSON: ${err.message}`,
+          );
+        }
+        // No nori.json for this subagent — skip
+      }
+    }
+  } catch {
+    // No subagents directory — nothing to backfill
+  }
 };
 
 /**
@@ -349,6 +389,126 @@ const createCandidateNoriJsonFiles = async (args: {
 };
 
 /**
+ * Detect directory-based subagents that don't have a nori.json file.
+ * Only directories containing SUBAGENT.md are considered subagent directories.
+ * Flat .md files are NOT candidates (they are always inlined).
+ *
+ * @param args - The function arguments
+ * @param args.skillsetDir - The skillset directory to scan
+ *
+ * @returns Array of subagent IDs that are inline candidates, or empty array
+ */
+const detectInlineSubagentCandidates = async (args: {
+  skillsetDir: string;
+}): Promise<Array<string>> => {
+  const { skillsetDir } = args;
+  const subagentsDir = path.join(skillsetDir, "subagents");
+
+  try {
+    await fs.access(subagentsDir);
+  } catch {
+    return [];
+  }
+
+  const entries = await fs.readdir(subagentsDir, { withFileTypes: true });
+  const candidates: Array<string> = [];
+
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+
+    // Only directories with SUBAGENT.md are subagent directories
+    const subagentMdPath = path.join(subagentsDir, entry.name, "SUBAGENT.md");
+    try {
+      await fs.access(subagentMdPath);
+    } catch {
+      continue;
+    }
+
+    // Check if it already has a nori.json
+    const noriJsonPath = path.join(subagentsDir, entry.name, "nori.json");
+    try {
+      await fs.access(noriJsonPath);
+    } catch {
+      candidates.push(entry.name);
+    }
+  }
+
+  return candidates;
+};
+
+/**
+ * Detect subagents that already have nori.json with type "inlined-subagent".
+ * These were previously inlined and should remain inline on re-upload
+ * without re-prompting the user.
+ *
+ * @param args - The function arguments
+ * @param args.skillsetDir - The skillset directory to scan
+ *
+ * @returns Array of subagent IDs that are already marked as inlined
+ */
+const detectExistingInlineSubagents = async (args: {
+  skillsetDir: string;
+}): Promise<Array<string>> => {
+  const { skillsetDir } = args;
+  const subagentsDir = path.join(skillsetDir, "subagents");
+
+  try {
+    await fs.access(subagentsDir);
+  } catch {
+    return [];
+  }
+
+  const entries = await fs.readdir(subagentsDir, { withFileTypes: true });
+  const inlineSubagents: Array<string> = [];
+
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+
+    const noriJsonPath = path.join(subagentsDir, entry.name, "nori.json");
+    try {
+      const content = await fs.readFile(noriJsonPath, "utf-8");
+      const metadata = JSON.parse(content) as NoriJson;
+      if (metadata.type === "inlined-subagent") {
+        inlineSubagents.push(entry.name);
+      }
+    } catch {
+      // No nori.json or invalid JSON — skip
+    }
+  }
+
+  return inlineSubagents;
+};
+
+/**
+ * Create nori.json files for inline/extract subagent candidates after resolution.
+ *
+ * @param args - The function arguments
+ * @param args.skillsetDir - The skillset directory
+ * @param args.inlineCandidates - All subagent IDs that were candidates (no nori.json)
+ * @param args.inlineSubagentIds - Subagent IDs that were chosen to be kept inline
+ */
+const createCandidateSubagentNoriJsonFiles = async (args: {
+  skillsetDir: string;
+  inlineCandidates: Array<string>;
+  inlineSubagentIds: Array<string>;
+}): Promise<void> => {
+  const { skillsetDir, inlineCandidates, inlineSubagentIds } = args;
+  const inlineSet = new Set(inlineSubagentIds);
+
+  for (const candidate of inlineCandidates) {
+    const subagentDir = path.join(skillsetDir, "subagents", candidate);
+    const noriJsonPath = path.join(subagentDir, "nori.json");
+    const type = inlineSet.has(candidate) ? "inlined-subagent" : "subagent";
+    const metadata: NoriJson = {
+      name: candidate,
+      version: "1.0.0",
+      type,
+    };
+    await fs.writeFile(noriJsonPath, JSON.stringify(metadata, null, 2));
+  }
+};
+
+/**
  * Sync local state after a successful upload.
  *
  * Updates the local nori.json version and registryURL, writes a .nori-version
@@ -361,20 +521,26 @@ const createCandidateNoriJsonFiles = async (args: {
  * @param args.registryUrl - The registry URL
  * @param args.extractedSkills - Optional extracted skills info from the response
  * @param args.linkedSkillVersions - Optional map of linked skill IDs to their remote versions
+ * @param args.extractedSubagents - Optional extracted subagents info from the response
+ * @param args.linkedSubagentVersions - Optional map of linked subagent IDs to their remote versions
  */
 const syncLocalStateAfterUpload = async (args: {
   skillsetDir: string;
   uploadedVersion: string;
   registryUrl: string;
   extractedSkills?: ExtractedSkillsSummary | null;
+  extractedSubagents?: ExtractedSubagentsSummary | null;
   linkedSkillVersions?: Map<string, string> | null;
+  linkedSubagentVersions?: Map<string, string> | null;
 }): Promise<void> => {
   const {
     skillsetDir,
     uploadedVersion,
     registryUrl,
     extractedSkills,
+    extractedSubagents,
     linkedSkillVersions,
+    linkedSubagentVersions,
   } = args;
 
   // Update skillset nori.json version and registryURL
@@ -446,6 +612,54 @@ const syncLocalStateAfterUpload = async (args: {
 
     for (const [skillId, version] of linkedSkillVersions) {
       metadata.dependencies.skills[skillId] = version;
+    }
+  }
+
+  // Update extracted subagent versions in dependencies
+  const succeededSubagents = extractedSubagents?.succeeded ?? [];
+  if (succeededSubagents.length > 0) {
+    if (metadata.dependencies == null) {
+      metadata.dependencies = {};
+    }
+    if (metadata.dependencies.subagents == null) {
+      metadata.dependencies.subagents = {};
+    }
+
+    for (const subagent of succeededSubagents) {
+      metadata.dependencies.subagents[subagent.name] = subagent.version;
+
+      // Update individual subagent nori.json
+      const subagentNoriJsonPath = path.join(
+        skillsetDir,
+        "subagents",
+        subagent.name,
+        "nori.json",
+      );
+      try {
+        const content = await fs.readFile(subagentNoriJsonPath, "utf-8");
+        const subagentMetadata = JSON.parse(content) as NoriJson;
+        subagentMetadata.version = subagent.version;
+        await fs.writeFile(
+          subagentNoriJsonPath,
+          JSON.stringify(subagentMetadata, null, 2),
+        );
+      } catch {
+        // Subagent nori.json may not exist (e.g., inlined subagents)
+      }
+    }
+  }
+
+  // Update dependency versions for linked subagents
+  if (linkedSubagentVersions != null && linkedSubagentVersions.size > 0) {
+    if (metadata.dependencies == null) {
+      metadata.dependencies = {};
+    }
+    if (metadata.dependencies.subagents == null) {
+      metadata.dependencies.subagents = {};
+    }
+
+    for (const [subagentId, version] of linkedSubagentVersions) {
+      metadata.dependencies.subagents[subagentId] = version;
     }
   }
 
@@ -720,7 +934,9 @@ export const registryUploadMain = async (args: {
   const trySyncLocalState = async (syncArgs: {
     uploadedVersion: string;
     extractedSkills?: ExtractedSkillsSummary | null;
+    extractedSubagents?: ExtractedSubagentsSummary | null;
     linkedSkillVersions?: Map<string, string> | null;
+    linkedSubagentVersions?: Map<string, string> | null;
   }): Promise<void> => {
     try {
       await syncLocalStateAfterUpload({
@@ -769,10 +985,22 @@ export const registryUploadMain = async (args: {
     skillsetDir,
   });
 
+  // Detect inline subagent candidates (directory-based subagents without nori.json)
+  const subagentInlineCandidates = await detectInlineSubagentCandidates({
+    skillsetDir,
+  });
+
+  // Detect subagents already marked as inlined from a previous upload
+  const existingInlineSubagents = await detectExistingInlineSubagents({
+    skillsetDir,
+  });
+
   // Helper to perform upload with optional resolution strategy
   const performUpload = async (uploadArgs: {
     resolutionStrategy?: SkillResolutionStrategy | null;
+    subagentResolutionStrategy?: SubagentResolutionStrategy | null;
     inlineSkills?: Array<string> | null;
+    inlineSubagents?: Array<string> | null;
     uploadVersion: string;
   }): Promise<UploadResult> => {
     try {
@@ -782,6 +1010,15 @@ export const registryUploadMain = async (args: {
           skillsetDir,
           inlineCandidates,
           inlineSkillIds: uploadArgs.inlineSkills ?? [],
+        });
+      }
+
+      // Create nori.json for subagent inline/extract candidates
+      if (subagentInlineCandidates.length > 0) {
+        await createCandidateSubagentNoriJsonFiles({
+          skillsetDir,
+          inlineCandidates: subagentInlineCandidates,
+          inlineSubagentIds: uploadArgs.inlineSubagents ?? [],
         });
       }
 
@@ -795,6 +1032,12 @@ export const registryUploadMain = async (args: {
         ...(uploadArgs.inlineSkills ?? []),
       ];
 
+      // Merge existing inlined subagents with newly-resolved inline candidates
+      const allInlineSubagents = [
+        ...existingInlineSubagents,
+        ...(uploadArgs.inlineSubagents ?? []),
+      ];
+
       const result: UploadSkillsetResponse = await registrarApi.uploadSkillset({
         packageName,
         version: uploadArgs.uploadVersion,
@@ -803,19 +1046,38 @@ export const registryUploadMain = async (args: {
         registryUrl: targetRegistryUrl,
         description: description ?? undefined,
         resolutionStrategy: uploadArgs.resolutionStrategy ?? undefined,
+        subagentResolutionStrategy:
+          uploadArgs.subagentResolutionStrategy ?? undefined,
         inlineSkills: allInlineSkills.length > 0 ? allInlineSkills : undefined,
+        inlineSubagents:
+          allInlineSubagents.length > 0 ? allInlineSubagents : undefined,
       });
 
       return {
         success: true,
         version: result.version,
         extractedSkills: result.extractedSkills,
+        extractedSubagents: result.extractedSubagents,
       };
     } catch (err) {
       if (isSkillCollisionError(err)) {
         return {
           success: false,
           conflicts: err.conflicts,
+        };
+      }
+
+      if (isSubagentCollisionError(err)) {
+        // SubagentCollisionError stores conflicts in `conflicts` property,
+        // but also check `subagentConflicts` for raw error objects from the API
+        const rawConflicts =
+          err.conflicts ??
+          (err as unknown as { subagentConflicts?: Array<SubagentConflict> })
+            .subagentConflicts ??
+          [];
+        return {
+          success: false,
+          subagentConflicts: rawConflicts as Array<SubagentConflict>,
         };
       }
 
@@ -872,6 +1134,10 @@ export const registryUploadMain = async (args: {
     nonInteractive: nonInteractive ?? false,
     inlineCandidates:
       inlineCandidates.length > 0 ? inlineCandidates : undefined,
+    inlineSubagentCandidates:
+      subagentInlineCandidates.length > 0
+        ? subagentInlineCandidates
+        : undefined,
     callbacks: {
       onDetermineVersion: async () => {
         const versionResult = await determineUploadVersion({
@@ -889,7 +1155,10 @@ export const registryUploadMain = async (args: {
         }
         return performUpload({
           resolutionStrategy: uploadCallbackArgs.resolutionStrategy,
+          subagentResolutionStrategy:
+            uploadCallbackArgs.subagentResolutionStrategy,
           inlineSkills: uploadCallbackArgs.inlineSkillIds,
+          inlineSubagents: uploadCallbackArgs.inlineSubagentIds,
           uploadVersion,
         });
       },
@@ -906,6 +1175,19 @@ export const registryUploadMain = async (args: {
           return null;
         }
       },
+      onReadLocalSubagentMd: async ({ subagentId }) => {
+        const subagentMdPath = path.join(
+          skillsetDir,
+          "subagents",
+          subagentId,
+          "SUBAGENT.md",
+        );
+        try {
+          return await fs.readFile(subagentMdPath, "utf-8");
+        } catch {
+          return null;
+        }
+      },
     },
   });
 
@@ -916,7 +1198,9 @@ export const registryUploadMain = async (args: {
   await trySyncLocalState({
     uploadedVersion: result.version,
     extractedSkills: result.extractedSkills,
+    extractedSubagents: result.extractedSubagents,
     linkedSkillVersions: result.linkedSkillVersions,
+    linkedSubagentVersions: result.linkedSubagentVersions,
   });
 
   return {

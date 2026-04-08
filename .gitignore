@@ -8,6 +8,9 @@ logs
 *.log
 npm-debug.log*
 
+# Agent config (managed by nori, not checked in)
+.codex/
+
 # Editor directories and files
 .vscode/*
 *.suo

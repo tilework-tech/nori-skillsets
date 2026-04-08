@@ -452,12 +452,50 @@ export const captureExistingConfig = async (args: {
     // Skills dir doesn't exist
   }
 
-  // Copy subagents directory
+  // Copy subagents — if a directory-based subagent already exists in the
+  // skillset, update its SUBAGENT.md instead of creating a flat file
   const subagentsDir = agent.getSubagentsDir({ installDir });
   try {
     await fs.access(subagentsDir);
     const destSubagentsDir = path.join(skillsetDir, "subagents");
-    await fs.cp(subagentsDir, destSubagentsDir, { recursive: true });
+    await fs.mkdir(destSubagentsDir, { recursive: true });
+
+    const installedEntries = await fs.readdir(subagentsDir, {
+      withFileTypes: true,
+    });
+    for (const entry of installedEntries) {
+      if (!entry.isFile()) continue;
+
+      const agentName = entry.name.replace(/\.[^.]+$/, "");
+      const existingDirSubagent = path.join(
+        destSubagentsDir,
+        agentName,
+        "SUBAGENT.md",
+      );
+
+      let hasDirSubagent = false;
+      try {
+        await fs.access(existingDirSubagent);
+        hasDirSubagent = true;
+      } catch {
+        // No directory-based subagent exists
+      }
+
+      if (hasDirSubagent) {
+        // Update SUBAGENT.md in existing directory
+        const content = await fs.readFile(
+          path.join(subagentsDir, entry.name),
+          "utf-8",
+        );
+        await fs.writeFile(existingDirSubagent, content);
+      } else {
+        // Copy as flat file
+        await fs.cp(
+          path.join(subagentsDir, entry.name),
+          path.join(destSubagentsDir, entry.name),
+        );
+      }
+    }
   } catch {
     // Subagents dir doesn't exist
   }

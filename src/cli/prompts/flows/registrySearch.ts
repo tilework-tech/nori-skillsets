@@ -1,7 +1,7 @@
 /**
  * Registry search flow module
  *
- * Provides a flow for searching skillsets and skills in the Nori registry.
+ * Provides a flow for searching skillsets, skills, and subagents in the Nori registry.
  * This flow handles:
  * - Intro message
  * - Spinner while searching
@@ -23,6 +23,7 @@ export type SearchFlowResult =
       downloadHints: string;
       skillsetCount: number;
       skillCount: number;
+      subagentCount: number;
     }
   | { success: true; hasResults: false; query: string }
   | { success: false; error: string };
@@ -74,7 +75,9 @@ export const registrySearchFlow = async (args: {
   s.stop("Search complete");
 
   if (!searchResult.hasResults) {
-    log.info(`No skillsets or skills found matching "${searchResult.query}".`);
+    log.info(
+      `No skillsets, skills, or subagents found matching "${searchResult.query}".`,
+    );
     return { found: false, statusMessage: "Search returned no results" };
   }
 
@@ -84,7 +87,7 @@ export const registrySearchFlow = async (args: {
     log.info(searchResult.downloadHints);
   }
 
-  const { skillsetCount, skillCount } = searchResult;
+  const { skillsetCount, skillCount, subagentCount } = searchResult;
   const parts: Array<string> = [];
   if (skillsetCount > 0) {
     parts.push(
@@ -94,8 +97,17 @@ export const registrySearchFlow = async (args: {
   if (skillCount > 0) {
     parts.push(`${skillCount} ${skillCount === 1 ? "skill" : "skills"}`);
   }
+  if (subagentCount > 0) {
+    parts.push(
+      `${subagentCount} ${subagentCount === 1 ? "subagent" : "subagents"}`,
+    );
+  }
   return {
     found: true,
-    statusMessage: `Search returned ${parts.join(" and ")}`,
+    statusMessage: `Search returned ${
+      parts.length <= 2
+        ? parts.join(" and ")
+        : `${parts.slice(0, -1).join(", ")}, and ${parts[parts.length - 1]}`
+    }`,
   };
 };

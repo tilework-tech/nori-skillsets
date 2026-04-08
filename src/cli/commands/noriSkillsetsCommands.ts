@@ -31,6 +31,7 @@ import { registryInstallMain } from "@/cli/commands/registry-install/registryIns
 import { registrySearchMain } from "@/cli/commands/registry-search/registrySearch.js";
 import { registryUploadMain } from "@/cli/commands/registry-upload/registryUpload.js";
 import { skillDownloadMain } from "@/cli/commands/skill-download/skillDownload.js";
+import { subagentDownloadMain } from "@/cli/commands/subagent-download/subagentDownload.js";
 import { switchSkillsetAction } from "@/cli/commands/switch-skillset/switchSkillset.js";
 import { watchMain, watchStopMain } from "@/cli/commands/watch/watch.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
@@ -286,7 +287,9 @@ export const registerNoriSkillsetsSearchCommand = (args: {
 
   program
     .command("search <query>")
-    .description("Search for skillsets and skills in your org's registry")
+    .description(
+      "Search for skillsets, skills, and subagents in your org's registry",
+    )
     .action(async (query: string) => {
       const globalOpts = program.opts();
       await wrapWithFraming({
@@ -529,6 +532,63 @@ export const registerNoriSkillsetsDownloadSkillCommand = (args: {
           action: () =>
             skillDownloadMain({
               skillSpec,
+              installDir: globalOpts.installDir || null,
+              registryUrl: options.registry || null,
+              listVersions: options.listVersions || null,
+              skillset: options.skillset || null,
+              cliName: "nori-skillsets",
+              nonInteractive: globalOpts.nonInteractive || null,
+              silent: globalOpts.silent || null,
+            }),
+        });
+      },
+    );
+};
+
+/**
+ * Register the 'download-subagent' command for nori-skillsets CLI
+ * @param args - Configuration arguments
+ * @param args.program - Commander program instance
+ */
+export const registerNoriSkillsetsDownloadSubagentCommand = (args: {
+  program: Command;
+}): void => {
+  const { program } = args;
+
+  program
+    .command("download-subagent <subagent>")
+    .description(
+      "Download and install a subagent package from the Nori registrar",
+    )
+    .option(
+      "--registry <url>",
+      "Download from a specific registry URL instead of searching all registries",
+    )
+    .option(
+      "--list-versions",
+      "List available versions for the subagent instead of downloading",
+    )
+    .option(
+      "--skillset <name>",
+      "Add subagent to the specified skillset's nori.json (defaults to active skillset)",
+    )
+    .action(
+      async (
+        subagentSpec: string,
+        options: {
+          registry?: string;
+          listVersions?: boolean;
+          skillset?: string;
+        },
+      ) => {
+        const globalOpts = program.opts();
+
+        await wrapWithFraming({
+          title: "Download Subagent",
+          silent: globalOpts.silent || null,
+          action: () =>
+            subagentDownloadMain({
+              subagentSpec,
               installDir: globalOpts.installDir || null,
               registryUrl: options.registry || null,
               listVersions: options.listVersions || null,

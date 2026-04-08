@@ -21,6 +21,7 @@ vi.mock("@/api/registrar.js", () => ({
     searchPackages: vi.fn(),
     searchPackagesOnRegistry: vi.fn(),
     searchSkills: vi.fn(),
+    searchSubagents: vi.fn(),
   },
   NetworkError: class NetworkError extends Error {
     readonly isNetworkError = true;
@@ -106,7 +107,7 @@ const getSearchOutput = (): string => {
     return capturedSearchResult.error;
   }
   if (!capturedSearchResult.hasResults) {
-    return `No skillsets or skills found matching "${capturedSearchResult.query}".`;
+    return `No skillsets, skills, or subagents found matching "${capturedSearchResult.query}".`;
   }
   const parts: Array<string> = [];
   if (capturedSearchResult.formattedResults) {
@@ -144,6 +145,7 @@ describe("registry-search", () => {
     // Default: mock public registry returns empty
     vi.mocked(registrarApi.searchPackages).mockResolvedValue([]);
     vi.mocked(registrarApi.searchSkills).mockResolvedValue([]);
+    vi.mocked(registrarApi.searchSubagents).mockResolvedValue([]);
   });
 
   afterEach(async () => {
@@ -754,6 +756,248 @@ describe("registry-search", () => {
       // When no cliName is provided, prefix defaults to nori-skillsets
       const output = getSearchOutput();
       expect(output).toContain("nori-skillsets download");
+    });
+  });
+
+  describe("subagent search", () => {
+    it("should search subagents on org registry with auth", async () => {
+      const mockSubagents = [
+        {
+          id: "3",
+          name: "code-reviewer",
+          description: "A code review subagent",
+          authorEmail: "test@example.com",
+          createdAt: "2024-01-01",
+          updatedAt: "2024-01-01",
+        },
+      ];
+      vi.mocked(registrarApi.searchSubagents).mockImplementation(
+        async (args) => {
+          if (args.authToken != null) {
+            return mockSubagents;
+          }
+          return [];
+        },
+      );
+
+      await registrySearchMain({ query: "code", installDir: testDir });
+
+      expect(registrarApi.searchSubagents).toHaveBeenCalledWith(
+        expect.objectContaining({
+          query: "code",
+          registryUrl: "https://myorg.nori-registry.ai",
+          authToken: "mock-auth-token",
+        }),
+      );
+    });
+
+    it("should search subagents on public registry without auth", async () => {
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        activeSkillset: "senior-swe",
+      });
+
+      const mockSubagents = [
+        {
+          id: "3",
+          name: "public-subagent",
+          description: "A public subagent",
+          authorEmail: "test@example.com",
+          createdAt: "2024-01-01",
+          updatedAt: "2024-01-01",
+        },
+      ];
+      vi.mocked(registrarApi.searchSubagents).mockResolvedValue(mockSubagents);
+
+      await registrySearchMain({ query: "subagent", installDir: testDir });
+
+      expect(registrarApi.searchSubagents).toHaveBeenCalledWith(
+        expect.objectContaining({
+          query: "subagent",
+        }),
+      );
+      // Should NOT have authToken for public registry call
+      expect(registrarApi.searchSubagents).toHaveBeenCalledWith(
+        expect.not.objectContaining({
+          authToken: expect.any(String),
+        }),
+      );
+    });
+
+    it("should display Subagents section when subagents found", async () => {
+      const mockSubagents = [
+        {
+          id: "3",
+          name: "my-subagent",
+          description: "A subagent",
+          authorEmail: "test@example.com",
+          createdAt: "2024-01-01",
+          updatedAt: "2024-01-01",
+        },
+      ];
+      vi.mocked(registrarApi.searchPackagesOnRegistry).mockResolvedValue([]);
+      vi.mocked(registrarApi.searchSubagents).mockImplementation(
+        async (args) => {
+          if (args.authToken != null) {
+            return mockSubagents;
+          }
+          return [];
+        },
+      );
+
+      await registrySearchMain({ query: "my", installDir: testDir });
+
+      const output = getSearchOutput();
+      expect(output).toContain("Subagents:");
+      expect(output).toContain("my-subagent");
+    });
+
+    it("should show download-subagent hint when subagents found", async () => {
+      const mockSubagents = [
+        {
+          id: "3",
+          name: "test-subagent",
+          description: "A subagent",
+          authorEmail: "test@example.com",
+          createdAt: "2024-01-01",
+          updatedAt: "2024-01-01",
+        },
+      ];
+      vi.mocked(registrarApi.searchPackagesOnRegistry).mockResolvedValue([]);
+      vi.mocked(registrarApi.searchSubagents).mockImplementation(
+        async (args) => {
+          if (args.authToken != null) {
+            return mockSubagents;
+          }
+          return [];
+        },
+      );
+
+      await registrySearchMain({ query: "test", installDir: testDir });
+
+      const output = getSearchOutput();
+      expect(output).toContain("download-subagent");
+    });
+
+    it("should not show Subagents section when no subagents found", async () => {
+      const mockPackages = [
+        {
+          id: "1",
+          name: "test-profile",
+          description: "A profile",
+          authorEmail: "test@example.com",
+          createdAt: "2024-01-01",
+          updatedAt: "2024-01-01",
+        },
+      ];
+      vi.mocked(registrarApi.searchPackagesOnRegistry).mockResolvedValue(
+        mockPackages,
+      );
+      vi.mocked(registrarApi.searchSubagents).mockResolvedValue([]);
+
+      await registrySearchMain({ query: "test", installDir: testDir });
+
+      const output = getSearchOutput();
+      expect(output).toContain("Skillsets:");
+      expect(output).not.toContain("Subagents:");
+    });
+
+    it("should display all three sections when profiles, skills, and subagents found", async () => {
+      const mockPackages = [
+        {
+          id: "1",
+          name: "test-profile",
+          description: "A profile",
+          authorEmail: "test@example.com",
+          createdAt: "2024-01-01",
+          updatedAt: "2024-01-01",
+        },
+      ];
+      const mockSkills = [
+        {
+          id: "2",
+          name: "test-skill",
+          description: "A skill",
+          authorEmail: "test@example.com",
+          createdAt: "2024-01-01",
+          updatedAt: "2024-01-01",
+        },
+      ];
+      const mockSubagents = [
+        {
+          id: "3",
+          name: "test-subagent",
+          description: "A subagent",
+          authorEmail: "test@example.com",
+          createdAt: "2024-01-01",
+          updatedAt: "2024-01-01",
+        },
+      ];
+      vi.mocked(registrarApi.searchPackagesOnRegistry).mockResolvedValue(
+        mockPackages,
+      );
+      vi.mocked(registrarApi.searchSkills).mockImplementation(async (args) => {
+        if (args.authToken != null) {
+          return mockSkills;
+        }
+        return [];
+      });
+      vi.mocked(registrarApi.searchSubagents).mockImplementation(
+        async (args) => {
+          if (args.authToken != null) {
+            return mockSubagents;
+          }
+          return [];
+        },
+      );
+
+      await registrySearchMain({ query: "test", installDir: testDir });
+
+      const output = getSearchOutput();
+      expect(output).toContain("Skillsets:");
+      expect(output).toContain("test-profile");
+      expect(output).toContain("Skills:");
+      expect(output).toContain("test-skill");
+      expect(output).toContain("Subagents:");
+      expect(output).toContain("test-subagent");
+      expect(output).toContain("download-subagent");
+    });
+
+    it("should show subagent results from both org and public registries", async () => {
+      const orgSubagents = [
+        {
+          id: "3",
+          name: "org-subagent",
+          description: "An org subagent",
+          authorEmail: "test@example.com",
+          createdAt: "2024-01-01",
+          updatedAt: "2024-01-01",
+        },
+      ];
+      const publicSubagents = [
+        {
+          id: "4",
+          name: "public-subagent",
+          description: "A public subagent",
+          authorEmail: "test@example.com",
+          createdAt: "2024-01-01",
+          updatedAt: "2024-01-01",
+        },
+      ];
+      vi.mocked(registrarApi.searchSubagents).mockImplementation(
+        async (args) => {
+          if (args.authToken != null) {
+            return orgSubagents;
+          }
+          return publicSubagents;
+        },
+      );
+
+      await registrySearchMain({ query: "subagent", installDir: testDir });
+
+      const output = getSearchOutput();
+      expect(output).toContain("myorg/org-subagent");
+      expect(output).toContain("public-subagent");
     });
   });
 });

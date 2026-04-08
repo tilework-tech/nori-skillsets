@@ -9,13 +9,19 @@
  * fallback to /api/profiles/ for older registrar instances.
  */
 
-import { ApiError, SkillCollisionError } from "@/utils/fetch.js";
+import {
+  ApiError,
+  SkillCollisionError,
+  SubagentCollisionError,
+} from "@/utils/fetch.js";
 
 export {
   NetworkError,
   ApiError,
   SkillCollisionError,
   isSkillCollisionError,
+  SubagentCollisionError,
+  isSubagentCollisionError,
 } from "@/utils/fetch.js";
 
 /**
@@ -53,6 +59,42 @@ export type SkillResolution = {
  * Map of skill IDs to resolution decisions
  */
 export type SkillResolutionStrategy = Record<string, SkillResolution>;
+
+/**
+ * Resolution actions for subagent collisions
+ */
+export type SubagentResolutionAction =
+  | "cancel"
+  | "namespace"
+  | "updateVersion"
+  | "link";
+
+/**
+ * Conflict information for a single subagent
+ */
+export type SubagentConflict = {
+  subagentId: string;
+  exists: boolean;
+  canPublish: boolean;
+  latestVersion?: string | null;
+  owner?: string | null;
+  availableActions: Array<SubagentResolutionAction>;
+  contentUnchanged?: boolean | null;
+  existingSubagentMd?: string | null;
+};
+
+/**
+ * Resolution decision for a single subagent
+ */
+export type SubagentResolution = {
+  action: SubagentResolutionAction;
+  version?: string | null;
+};
+
+/**
+ * Map of subagent IDs to resolution decisions
+ */
+export type SubagentResolutionStrategy = Record<string, SubagentResolution>;
 
 export const REGISTRAR_URL = "https://noriskillsets.dev";
 
@@ -170,7 +212,9 @@ export type UploadSkillsetRequest = {
   authToken: string;
   registryUrl?: string | null;
   resolutionStrategy?: SkillResolutionStrategy | null;
+  subagentResolutionStrategy?: SubagentResolutionStrategy | null;
   inlineSkills?: Array<string> | null;
+  inlineSubagents?: Array<string> | null;
 };
 
 /**
@@ -189,6 +233,22 @@ export type ExtractedSkillsSummary = {
   failed: Array<{ name: string; error: string }>;
 };
 
+/**
+ * Information about an extracted subagent from a profile upload
+ */
+export type ExtractedSubagentInfo = {
+  name: string;
+  version: string;
+};
+
+/**
+ * Summary of subagents extracted during profile upload
+ */
+export type ExtractedSubagentsSummary = {
+  succeeded: Array<ExtractedSubagentInfo>;
+  failed: Array<{ name: string; reason: string }>;
+};
+
 export type UploadSkillsetResponse = {
   name: string;
   version: string;
@@ -196,6 +256,7 @@ export type UploadSkillsetResponse = {
   tarballSha: string;
   createdAt: string;
   extractedSkills?: ExtractedSkillsSummary | null;
+  extractedSubagents?: ExtractedSubagentsSummary | null;
 };
 
 // Skill API types
@@ -215,6 +276,28 @@ export type GetSkillPackumentRequest = {
 
 export type DownloadSkillTarballRequest = {
   skillName: string;
+  version?: string | null;
+  registryUrl?: string | null;
+  authToken?: string | null;
+};
+
+// Subagent API types
+export type SearchSubagentsRequest = {
+  query: string;
+  limit?: number | null;
+  offset?: number | null;
+  registryUrl?: string | null;
+  authToken?: string | null;
+};
+
+export type GetSubagentPackumentRequest = {
+  subagentName: string;
+  registryUrl?: string | null;
+  authToken?: string | null;
+};
+
+export type DownloadSubagentTarballRequest = {
+  subagentName: string;
   version?: string | null;
   registryUrl?: string | null;
   authToken?: string | null;
@@ -446,7 +529,9 @@ export const registrarApi = {
       authToken,
       registryUrl,
       resolutionStrategy,
+      subagentResolutionStrategy,
       inlineSkills,
+      inlineSubagents,
     } = args;
     const baseUrl = registryUrl ?? REGISTRAR_URL;
 
@@ -461,6 +546,15 @@ export const registrarApi = {
     }
     if (inlineSkills != null && inlineSkills.length > 0) {
       formData.append("inlineSkills", JSON.stringify(inlineSkills));
+    }
+    if (inlineSubagents != null && inlineSubagents.length > 0) {
+      formData.append("inlineSubagents", JSON.stringify(inlineSubagents));
+    }
+    if (subagentResolutionStrategy != null) {
+      formData.append(
+        "subagentResolutionStrategy",
+        JSON.stringify(subagentResolutionStrategy),
+      );
     }
 
     const url = `${baseUrl}/api/skillsets/${packageName}/skillset`;
@@ -482,6 +576,7 @@ export const registrarApi = {
       }))) as {
         error?: string;
         conflicts?: Array<SkillConflict>;
+        subagentConflicts?: Array<SubagentConflict>;
         requiresVersions?: boolean;
       };
 
@@ -494,6 +589,19 @@ export const registrarApi = {
         throw new SkillCollisionError({
           message: errorData.error ?? "Skill conflicts detected",
           conflicts: errorData.conflicts,
+          requiresVersions: errorData.requiresVersions,
+        });
+      }
+
+      // Check for subagent collision response (409 with subagentConflicts array)
+      if (
+        response.status === 409 &&
+        Array.isArray(errorData.subagentConflicts) &&
+        errorData.subagentConflicts.length > 0
+      ) {
+        throw new SubagentCollisionError({
+          message: errorData.error ?? "Subagent conflicts detected",
+          conflicts: errorData.subagentConflicts,
           requiresVersions: errorData.requiresVersions,
         });
       }
@@ -691,5 +799,146 @@ export const registrarApi = {
     }
 
     return (await response.json()) as UploadSkillResponse;
+  },
+
+  // Subagent API methods
+
+  /**
+   * Search for subagents in a registry
+   * @param args - The request parameters
+   *
+   * @returns Array of matching subagents
+   */
+  searchSubagents: async (
+    args: SearchSubagentsRequest,
+  ): Promise<Array<Package>> => {
+    const { query, limit, offset, registryUrl, authToken } = args;
+    const baseUrl = registryUrl ?? REGISTRAR_URL;
+
+    const params = new URLSearchParams({ q: query });
+    if (limit != null) {
+      params.set("limit", limit.toString());
+    }
+    if (offset != null) {
+      params.set("offset", offset.toString());
+    }
+
+    const url = `${baseUrl}/api/subagents/search?${params.toString()}`;
+
+    const headers: Record<string, string> = {};
+    if (authToken != null) {
+      headers.Authorization = `Bearer ${authToken}`;
+    }
+
+    const response = await fetch(url, {
+      method: "GET",
+      ...(Object.keys(headers).length > 0 ? { headers } : {}),
+    });
+
+    if (!response.ok) {
+      const errorData = (await response.json().catch(() => ({
+        error: `HTTP ${response.status}`,
+      }))) as { error?: string };
+      throw new ApiError(
+        errorData.error ?? `HTTP ${response.status}`,
+        response.status,
+      );
+    }
+
+    return (await response.json()) as Array<Package>;
+  },
+
+  /**
+   * Get the packument (package metadata) for a subagent
+   * @param args - The request parameters
+   *
+   * @returns The subagent packument
+   */
+  getSubagentPackument: async (
+    args: GetSubagentPackumentRequest,
+  ): Promise<Packument> => {
+    const { subagentName, registryUrl, authToken } = args;
+    const baseUrl = registryUrl ?? REGISTRAR_URL;
+
+    const url = `${baseUrl}/api/subagents/${subagentName}`;
+
+    const headers: Record<string, string> = {};
+    if (authToken != null) {
+      headers.Authorization = `Bearer ${authToken}`;
+    }
+
+    const response = await fetch(url, {
+      method: "GET",
+      ...(Object.keys(headers).length > 0 ? { headers } : {}),
+    });
+
+    if (!response.ok) {
+      const errorData = (await response.json().catch(() => ({
+        error: `HTTP ${response.status}`,
+      }))) as { error?: string };
+      throw new ApiError(
+        errorData.error ?? `HTTP ${response.status}`,
+        response.status,
+      );
+    }
+
+    return (await response.json()) as Packument;
+  },
+
+  /**
+   * Download a tarball for a subagent
+   *
+   * If no version is specified, the latest version is downloaded.
+   * @param args - The download parameters
+   *
+   * @returns The tarball data as ArrayBuffer
+   */
+  downloadSubagentTarball: async (
+    args: DownloadSubagentTarballRequest,
+  ): Promise<ArrayBuffer> => {
+    const { subagentName, registryUrl, authToken } = args;
+    const baseUrl = registryUrl ?? REGISTRAR_URL;
+    let { version } = args;
+
+    // If no version specified, resolve latest from packument
+    if (version == null) {
+      const packument = await registrarApi.getSubagentPackument({
+        subagentName,
+        registryUrl,
+        authToken,
+      });
+      version = packument["dist-tags"].latest;
+
+      if (version == null) {
+        throw new Error(
+          `No latest version found for subagent: ${subagentName}`,
+        );
+      }
+    }
+
+    const tarballFilename = `${subagentName}-${version}.tgz`;
+    const url = `${baseUrl}/api/subagents/${subagentName}/tarball/${tarballFilename}`;
+
+    const headers: Record<string, string> = {};
+    if (authToken != null) {
+      headers.Authorization = `Bearer ${authToken}`;
+    }
+
+    const response = await fetch(url, {
+      method: "GET",
+      ...(Object.keys(headers).length > 0 ? { headers } : {}),
+    });
+
+    if (!response.ok) {
+      const errorData = (await response.json().catch(() => ({
+        error: `HTTP ${response.status}`,
+      }))) as { error?: string };
+      throw new ApiError(
+        errorData.error ?? `HTTP ${response.status}`,
+        response.status,
+      );
+    }
+
+    return await response.arrayBuffer();
   },
 };
