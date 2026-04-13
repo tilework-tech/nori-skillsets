@@ -30,14 +30,14 @@ describe("piAgentConfig", () => {
 
   it("should return correct skills directory path", () => {
     const result = piAgentConfig.getSkillsDir({ installDir: "/project" });
-    expect(result).toBe("/project/.pi/skills");
+    expect(result).toBe("/project/.pi/agent/skills");
   });
 
   it("should return correct subagents directory path", () => {
     const result = piAgentConfig.getSubagentsDir({
       installDir: "/project",
     });
-    expect(result).toBe("/project/.pi/agents");
+    expect(result).toBe("/project/.pi/agent/subagents");
   });
 
   it("should return correct slashcommands directory path", () => {

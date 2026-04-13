@@ -17,14 +17,18 @@ import type { AgentLoader } from "@/cli/features/agentRegistry.js";
  * @param args - Copy arguments
  * @param args.src - Source directory path
  * @param args.dest - Destination directory path
+ * @param args.commandsDir - Installed slash-commands directory
  * @param args.installDir - Installation directory for template substitution
+ * @param args.skillsDir - Installed skills directory
  */
 const copyDirWithTemplateSubstitution = async (args: {
   src: string;
   dest: string;
+  commandsDir: string;
   installDir: string;
+  skillsDir: string;
 }): Promise<void> => {
-  const { src, dest, installDir } = args;
+  const { src, dest, commandsDir, installDir, skillsDir } = args;
 
   await fs.mkdir(dest, { recursive: true });
 
@@ -38,12 +42,19 @@ const copyDirWithTemplateSubstitution = async (args: {
       await copyDirWithTemplateSubstitution({
         src: srcPath,
         dest: destPath,
+        commandsDir,
         installDir,
+        skillsDir,
       });
     } else if (entry.name.endsWith(".md")) {
       // Apply template substitution to markdown files
       const content = await fs.readFile(srcPath, "utf-8");
-      const substituted = substituteTemplatePaths({ content, installDir });
+      const substituted = substituteTemplatePaths({
+        content,
+        commandsDir,
+        installDir,
+        skillsDir,
+      });
       await fs.writeFile(destPath, substituted);
     } else {
       // Copy other files directly
@@ -64,6 +75,9 @@ export const skillsLoader: AgentLoader = {
     const configDir = skillset.skillsDir;
     const agentDir = agent.getAgentDir({ installDir: config.installDir });
     const destSkillsDir = agent.getSkillsDir({ installDir: config.installDir });
+    const destCommandsDir = agent.getSlashcommandsDir({
+      installDir: config.installDir,
+    });
 
     // Remove existing skills directory if it exists
     await fs.rm(destSkillsDir, { recursive: true, force: true });
@@ -85,7 +99,9 @@ export const skillsLoader: AgentLoader = {
               const content = await fs.readFile(sourcePath, "utf-8");
               const substituted = substituteTemplatePaths({
                 content,
+                commandsDir: destCommandsDir,
                 installDir: agentDir,
+                skillsDir: destSkillsDir,
               });
               await fs.writeFile(destPath, substituted);
             } else {
@@ -98,7 +114,9 @@ export const skillsLoader: AgentLoader = {
           await copyDirWithTemplateSubstitution({
             src: sourcePath,
             dest: destPath,
+            commandsDir: destCommandsDir,
             installDir: agentDir,
+            skillsDir: destSkillsDir,
           });
         }
       } catch {
@@ -108,6 +126,7 @@ export const skillsLoader: AgentLoader = {
 
     // Copy bundled skills (skips any already provided by the skillset)
     await copyBundledSkills({
+      commandsDir: destCommandsDir,
       destSkillsDir,
       installDir: agentDir,
     });

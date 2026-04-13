@@ -32,6 +32,7 @@ export const createSlashCommandsLoader = (args: {
         installDir: config.installDir,
       });
       const agentDir = agent.getAgentDir({ installDir: config.installDir });
+      const skillsDir = agent.getSkillsDir({ installDir: config.installDir });
 
       // Remove existing commands directory if it exists, then recreate
       await fs.rm(destCommandsDir, { recursive: true, force: true });
@@ -67,7 +68,9 @@ export const createSlashCommandsLoader = (args: {
           const content = await fs.readFile(commandSrc, "utf-8");
           const substituted = substituteTemplatePaths({
             content,
+            commandsDir: destCommandsDir,
             installDir: agentDir,
+            skillsDir,
           });
           await fs.writeFile(commandDest, substituted);
           registered.push(commandName);

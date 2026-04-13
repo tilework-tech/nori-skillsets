@@ -31,6 +31,9 @@ export const codexAgentConfig: AgentConfig = {
     skillsLoader,
     createInstructionsLoader({ managedFiles: ["AGENTS.md"] }),
     createSlashCommandsLoader({ managedDirs: ["commands"] }),
-    createSubagentsLoader({ managedDirs: ["agents"], fileExtension: ".toml" }),
+    createSubagentsLoader({
+      managedDirs: ["agents"],
+      targetFormat: "codex-toml",
+    }),
   ],
 };

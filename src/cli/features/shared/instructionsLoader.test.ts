@@ -70,6 +70,26 @@ const createTestAgent = (args: { agentDir: string }): AgentConfig => {
   };
 };
 
+const createSplitPathAgent = (args: {
+  agentDir: string;
+  commandsDir: string;
+  instructionsFilePath: string;
+  skillsDir: string;
+}): AgentConfig => {
+  const { agentDir, commandsDir, instructionsFilePath, skillsDir } = args;
+  return {
+    name: "pi",
+    displayName: "Pi",
+    description: "Pi test agent for shared loader tests",
+    getAgentDir: () => agentDir,
+    getSkillsDir: () => skillsDir,
+    getSubagentsDir: () => path.join(agentDir, "agent", "subagents"),
+    getSlashcommandsDir: () => commandsDir,
+    getInstructionsFilePath: () => instructionsFilePath,
+    getLoaders: () => [],
+  };
+};
+
 const createTestConfig = (args: {
   installDir: string;
   activeSkillset?: string | null;
@@ -252,6 +272,50 @@ describe("createInstructionsLoader", () => {
       expect(content).not.toContain("{{install_dir}}");
       // The substituted path should include the agent dir's skills subdirectory
       expect(content).toContain(path.join(agentDir, "skills"));
+    });
+
+    it("should use agent-specific skills and commands paths when they differ from agentDir", async () => {
+      const loader = createInstructionsLoader({});
+      const piAgentDir = path.join(tempDir, ".pi");
+      const piSkillsDir = path.join(tempDir, ".pi", "agent", "skills");
+      const piCommandsDir = path.join(tempDir, ".pi", "commands");
+      const piInstructionsFile = path.join(tempDir, ".pi", "AGENTS.md");
+      await fs.mkdir(piAgentDir, { recursive: true });
+
+      agent = createSplitPathAgent({
+        agentDir: piAgentDir,
+        commandsDir: piCommandsDir,
+        instructionsFilePath: piInstructionsFile,
+        skillsDir: piSkillsDir,
+      });
+
+      const loaderConfig = createTestConfig({
+        installDir: tempDir,
+        activeSkillset: "pi-template-test",
+      });
+      const skillset = await createTestSkillset({
+        skillsetsDir: noriProfilesDir,
+        skillsetName: "pi-template-test",
+        configContent:
+          "Read {{skills_dir}}/using-skills/SKILL.md\nCommands live at {{commands_dir}}\n",
+        skills: TEST_SKILLS,
+      });
+
+      await loader.run({ agent, config: loaderConfig, skillset });
+
+      const content = await fs.readFile(piInstructionsFile, "utf-8");
+      expect(content).toContain(
+        path.join(
+          tempDir,
+          ".pi",
+          "agent",
+          "skills",
+          "using-skills",
+          "SKILL.md",
+        ),
+      );
+      expect(content).toContain(path.join(tempDir, ".pi", "commands"));
+      expect(content).not.toContain(path.join(tempDir, ".pi", "skills"));
     });
   });
 

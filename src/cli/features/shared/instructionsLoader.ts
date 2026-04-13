@@ -97,15 +97,15 @@ const findSkillFiles = async (args: {
  * Format skill information for display in instructions file
  * @param args - Function arguments
  * @param args.skillPath - Path to SKILL.md file
- * @param args.agentDir - Agent config directory path for installed path resolution
+ * @param args.installedSkillsDir - Installed skills directory path for path resolution
  *
  * @returns Formatted skill information or null if path doesn't match expected format
  */
 const formatSkillInfo = async (args: {
+  installedSkillsDir: string;
   skillPath: string;
-  agentDir: string;
 }): Promise<string | null> => {
-  const { skillPath, agentDir } = args;
+  const { installedSkillsDir, skillPath } = args;
 
   try {
     const content = await fs.readFile(skillPath, "utf-8");
@@ -118,7 +118,7 @@ const formatSkillInfo = async (args: {
     }
 
     const skillName = pathParts[skillMdIndex - 1];
-    const installedPath = path.join(agentDir, "skills", skillName, "SKILL.md");
+    const installedPath = path.join(installedSkillsDir, skillName, "SKILL.md");
 
     let output = `\n${installedPath}`;
 
@@ -142,15 +142,15 @@ const formatSkillInfo = async (args: {
  *
  * @param args - Function arguments
  * @param args.skillsDir - Path to the skills directory (from parsed Skillset), or null
- * @param args.agentDir - Agent config directory path
+ * @param args.installedSkillsDir - Installed skills directory path
  *
  * @returns Formatted skills list markdown (empty string if skills cannot be found)
  */
 const generateSkillsList = async (args: {
+  installedSkillsDir: string;
   skillsDir: string | null;
-  agentDir: string;
 }): Promise<string> => {
-  const { skillsDir, agentDir } = args;
+  const { installedSkillsDir, skillsDir } = args;
 
   try {
     const skillFiles =
@@ -189,8 +189,8 @@ const generateSkillsList = async (args: {
     const formattedSkills: Array<string> = [];
     for (const file of allSkillFiles) {
       const formatted = await formatSkillInfo({
+        installedSkillsDir,
         skillPath: file,
-        agentDir,
       });
       if (formatted != null) {
         formattedSkills.push(formatted);
@@ -202,8 +202,7 @@ const generateSkillsList = async (args: {
     }
 
     const usingSkillsPath = path.join(
-      agentDir,
-      "skills",
+      installedSkillsDir,
       "using-skills",
       "SKILL.md",
     );
@@ -243,6 +242,12 @@ export const createInstructionsLoader = (args: {
       }
 
       const agentDir = agent.getAgentDir({ installDir: config.installDir });
+      const installedSkillsDir = agent.getSkillsDir({
+        installDir: config.installDir,
+      });
+      const installedCommandsDir = agent.getSlashcommandsDir({
+        installDir: config.installDir,
+      });
       const instructionsFilePath = agent.getInstructionsFilePath({
         installDir: config.installDir,
       });
@@ -301,13 +306,15 @@ export const createInstructionsLoader = (args: {
       // Apply template substitution to replace placeholders with actual paths
       instructions = substituteTemplatePaths({
         content: instructions,
+        commandsDir: installedCommandsDir,
         installDir: agentDir,
+        skillsDir: installedSkillsDir,
       });
 
       // Generate and append skills list
       const skillsList = await generateSkillsList({
+        installedSkillsDir,
         skillsDir: skillset.skillsDir,
-        agentDir,
       });
       if (skillsList.length > 0) {
         instructions = instructions + skillsList;

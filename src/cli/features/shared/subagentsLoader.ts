@@ -12,6 +12,10 @@ import * as path from "path";
 
 import { log, note } from "@clack/prompts";
 
+import {
+  emitSubagentContent,
+  type SubagentTargetFormat,
+} from "@/cli/features/shared/subagentEmitter.js";
 import { substituteTemplatePaths } from "@/cli/features/template.js";
 import { bold } from "@/cli/logger.js";
 
@@ -21,10 +25,10 @@ const SUBAGENT_MD = "SUBAGENT.md";
 
 export const createSubagentsLoader = (args: {
   managedDirs: ReadonlyArray<string>;
-  fileExtension?: string | null;
+  targetFormat?: SubagentTargetFormat | null;
 }): AgentLoader => {
   const { managedDirs } = args;
-  const fileExtension = args.fileExtension ?? ".md";
+  const targetFormat = args.targetFormat ?? "markdown";
 
   return {
     name: "subagents",
@@ -81,15 +85,20 @@ export const createSubagentsLoader = (args: {
       // Install directory-based subagents (flattened: SUBAGENT.md -> name.ext)
       for (const dirName of dirSubagentNames) {
         const subagentMdPath = path.join(configDir, dirName, SUBAGENT_MD);
-        const destFile = path.join(destAgentsDir, `${dirName}${fileExtension}`);
 
         try {
-          const content = await fs.readFile(subagentMdPath, "utf-8");
-          const substituted = substituteTemplatePaths({
-            content,
-            installDir: agentDir,
+          const markdownContent = await fs.readFile(subagentMdPath, "utf-8");
+          await writeSubagent({
+            agentDir,
+            commandsDir: agent.getSlashcommandsDir({
+              installDir: config.installDir,
+            }),
+            destAgentsDir,
+            fallbackName: dirName,
+            markdownContent,
+            skillsDir: agent.getSkillsDir({ installDir: config.installDir }),
+            targetFormat,
           });
-          await fs.writeFile(destFile, substituted);
           registered.push(dirName);
         } catch {
           skipped.push(dirName);
@@ -97,13 +106,21 @@ export const createSubagentsLoader = (args: {
       }
 
       // Install flat files (skip those that collide with directory-based subagents)
-      const docsFile = `docs${fileExtension}`;
+      const flatSubagents = new Map<
+        string,
+        { markdownContent?: string | null; tomlContent?: string | null }
+      >();
+
       for (const entry of entries) {
         if (entry.isDirectory) continue;
-        if (!entry.name.endsWith(fileExtension)) continue;
-        if (entry.name === docsFile) continue;
+        if (entry.name === "docs.md" || entry.name === "docs.toml") continue;
 
-        const subagentName = entry.name.slice(0, -fileExtension.length);
+        const extension = path.extname(entry.name);
+        if (extension !== ".md" && extension !== ".toml") continue;
+
+        if (targetFormat === "markdown" && extension !== ".md") continue;
+
+        const subagentName = path.basename(entry.name, extension);
 
         // Directory-based subagent takes precedence on name collision
         if (dirSubagentNames.has(subagentName)) {
@@ -114,15 +131,35 @@ export const createSubagentsLoader = (args: {
         }
 
         const subagentSrc = path.join(configDir, entry.name);
-        const subagentDest = path.join(destAgentsDir, entry.name);
 
         try {
           const content = await fs.readFile(subagentSrc, "utf-8");
-          const substituted = substituteTemplatePaths({
-            content,
-            installDir: agentDir,
+          const existing = flatSubagents.get(subagentName) ?? {};
+          flatSubagents.set(subagentName, {
+            ...existing,
+            markdownContent:
+              extension === ".md" ? content : existing.markdownContent,
+            tomlContent: extension === ".toml" ? content : existing.tomlContent,
           });
-          await fs.writeFile(subagentDest, substituted);
+        } catch {
+          skipped.push(subagentName);
+        }
+      }
+
+      for (const [subagentName, flatSubagent] of flatSubagents.entries()) {
+        try {
+          await writeSubagent({
+            agentDir,
+            commandsDir: agent.getSlashcommandsDir({
+              installDir: config.installDir,
+            }),
+            destAgentsDir,
+            fallbackName: subagentName,
+            markdownContent: flatSubagent.markdownContent ?? null,
+            skillsDir: agent.getSkillsDir({ installDir: config.installDir }),
+            targetFormat,
+            tomlContent: flatSubagent.tomlContent ?? null,
+          });
           registered.push(subagentName);
         } catch {
           skipped.push(subagentName);
@@ -146,4 +183,65 @@ export const createSubagentsLoader = (args: {
       }
     },
   };
+};
+
+const writeSubagent = async (args: {
+  agentDir: string;
+  commandsDir: string;
+  destAgentsDir: string;
+  fallbackName: string;
+  markdownContent?: string | null;
+  skillsDir: string;
+  targetFormat: SubagentTargetFormat;
+  tomlContent?: string | null;
+}) => {
+  const {
+    agentDir,
+    commandsDir,
+    destAgentsDir,
+    fallbackName,
+    markdownContent,
+    skillsDir,
+    targetFormat,
+    tomlContent,
+  } = args;
+
+  if (targetFormat === "markdown") {
+    if (markdownContent == null) {
+      throw new Error(`Missing markdown content for ${fallbackName}`);
+    }
+
+    const substituted = substituteTemplatePaths({
+      content: markdownContent,
+      commandsDir,
+      installDir: agentDir,
+      skillsDir,
+    });
+    await fs.writeFile(
+      path.join(destAgentsDir, `${fallbackName}.md`),
+      substituted,
+    );
+    return;
+  }
+
+  const emitted = emitSubagentContent({
+    fallbackName,
+    markdownContent,
+    targetFormat,
+    tomlContent,
+  });
+  if (emitted == null) {
+    throw new Error(`Missing subagent source for ${fallbackName}`);
+  }
+
+  const substituted = substituteTemplatePaths({
+    content: emitted.content,
+    commandsDir,
+    installDir: agentDir,
+    skillsDir,
+  });
+  await fs.writeFile(
+    path.join(destAgentsDir, `${fallbackName}${emitted.extension}`),
+    substituted,
+  );
 };
