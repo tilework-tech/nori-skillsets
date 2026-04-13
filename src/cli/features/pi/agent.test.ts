@@ -25,7 +25,7 @@ describe("piAgentConfig", () => {
 
   it("should return correct agent directory path", () => {
     const result = piAgentConfig.getAgentDir({ installDir: "/project" });
-    expect(result).toBe("/project/.pi");
+    expect(result).toBe("/project/.pi/agent");
   });
 
   it("should return correct skills directory path", () => {
@@ -44,14 +44,14 @@ describe("piAgentConfig", () => {
     const result = piAgentConfig.getSlashcommandsDir({
       installDir: "/project",
     });
-    expect(result).toBe("/project/.pi/commands");
+    expect(result).toBe("/project/.pi/agent/prompts");
   });
 
   it("should return correct instructions file path", () => {
     const result = piAgentConfig.getInstructionsFilePath({
       installDir: "/project",
     });
-    expect(result).toBe("/project/.pi/AGENTS.md");
+    expect(result).toBe("/project/.pi/agent/AGENTS.md");
   });
 
   it("should return loaders including all expected names", () => {
@@ -63,6 +63,19 @@ describe("piAgentConfig", () => {
     expect(loaderNames).toContain("instructions");
     expect(loaderNames).toContain("slashcommands");
     expect(loaderNames).toContain("subagents");
+  });
+
+  it("should manage prompts and subagents directories relative to the Pi agent root", () => {
+    const loaders = piAgentConfig.getLoaders();
+    const slashcommandsLoader = loaders.find(
+      (loader) => loader.name === "slashcommands",
+    );
+    const subagentsLoader = loaders.find(
+      (loader) => loader.name === "subagents",
+    );
+
+    expect(slashcommandsLoader?.managedDirs).toEqual(["prompts"]);
+    expect(subagentsLoader?.managedDirs).toEqual(["subagents"]);
   });
 
   it("should not have transcript directory", () => {

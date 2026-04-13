@@ -89,11 +89,11 @@ Claude-specific loaders: hooksLoader, statuslineLoader, announcementsLoader.
 - **Transcripts**: `~/.openclaw/agents/<id>/sessions/`
 
 ### pi (Pi Coding Agent)
-- **Config dir**: `.pi/` (managed by Nori), `~/.pi/agent/` (user state)
-- **Instructions**: `.pi/AGENTS.md` in the managed Nori install layout
+- **Config dir**: `.pi/agent/` (managed by Nori), `~/.pi/agent/` (user state)
+- **Instructions**: `.pi/agent/AGENTS.md` in the managed Nori install layout
 - **Skills**: `~/.pi/agent/skills/` with markdown-based skills
 - **Subagents**: `~/.pi/agent/subagents/` via `pi-subagents-minimal`
-- **Slash commands**: `.pi/commands/` in the managed Nori install layout
+- **Slash commands**: `.pi/agent/prompts/` in the managed Nori install layout
 - **Transcripts**: `~/.pi/agent/sessions/` (JSONL)
 
 ## Implementation Mapping
@@ -111,7 +111,7 @@ Each agent maps to an `AgentConfig` with these paths:
 | kimi-cli | .kimi/ | .kimi/AGENTS.md | .kimi/skills/ | .kimi/agents/ | .kimi/commands/ |
 | opencode | .opencode/ | .opencode/AGENTS.md | .opencode/skills/ | .opencode/agents/ | .opencode/commands/ |
 | openclaw | .openclaw/ | .openclaw/AGENTS.md | .openclaw/skills/ | .openclaw/agents/ | .openclaw/commands/ |
-| pi | .pi/ | .pi/AGENTS.md | .pi/agent/skills/ | .pi/agent/subagents/ | .pi/commands/ |
+| pi | .pi/agent/ | .pi/agent/AGENTS.md | .pi/agent/skills/ | .pi/agent/subagents/ | .pi/agent/prompts/ |
 
 All new agents use the same 5 shared loaders as cursor (configLoader, skillsLoader, instructionsLoader, slashCommandsLoader, subagentsLoader). No new agent needs agent-specific loaders.
 
