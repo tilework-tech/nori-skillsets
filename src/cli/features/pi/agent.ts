@@ -17,19 +17,24 @@ export const piAgentConfig: AgentConfig = {
   displayName: "Pi",
   description: "Instructions, skills, subagents, commands",
 
-  getAgentDir: ({ installDir }) => path.join(installDir, ".pi"),
-  getSkillsDir: ({ installDir }) => path.join(installDir, ".pi", "skills"),
-  getSubagentsDir: ({ installDir }) => path.join(installDir, ".pi", "agents"),
+  getAgentDir: ({ installDir }) => path.join(installDir, ".pi", "agent"),
+  getSkillsDir: ({ installDir }) =>
+    path.join(installDir, ".pi", "agent", "skills"),
+  getSubagentsDir: ({ installDir }) =>
+    path.join(installDir, ".pi", "agent", "subagents"),
   getSlashcommandsDir: ({ installDir }) =>
-    path.join(installDir, ".pi", "commands"),
+    path.join(installDir, ".pi", "agent", "prompts"),
   getInstructionsFilePath: ({ installDir }) =>
-    path.join(installDir, ".pi", "AGENTS.md"),
+    path.join(installDir, ".pi", "agent", "AGENTS.md"),
 
   getLoaders: () => [
     configLoader,
     skillsLoader,
     createInstructionsLoader({ managedFiles: ["AGENTS.md"] }),
-    createSlashCommandsLoader({ managedDirs: ["commands"] }),
-    createSubagentsLoader({ managedDirs: ["agents"] }),
+    createSlashCommandsLoader({ managedDirs: ["prompts"] }),
+    createSubagentsLoader({
+      managedDirs: ["subagents"],
+      targetFormat: "pi-markdown",
+    }),
   ],
 };

@@ -58,6 +58,19 @@ describe("substituteTemplatePaths", () => {
       });
       expect(result).toBe("See `/project/.claude/commands/nori-init-docs.md`");
     });
+
+    it("should allow overriding skills and commands directories", () => {
+      const content = "Skills: {{skills_dir}} Commands: {{commands_dir}}";
+      const result = substituteTemplatePaths({
+        content,
+        installDir: "/project/.pi",
+        skillsDir: "/project/.pi/agent/skills",
+        commandsDir: "/project/.pi/commands",
+      });
+      expect(result).toBe(
+        "Skills: /project/.pi/agent/skills Commands: /project/.pi/commands",
+      );
+    });
   });
 
   describe("install_dir placeholder", () => {

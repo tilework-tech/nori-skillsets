@@ -116,6 +116,15 @@ describe("AgentRegistry", () => {
     });
   });
 
+  describe("getAgentDirNames", () => {
+    test("returns top-level install directory names rather than nested path basenames", () => {
+      const registry = AgentRegistry.getInstance();
+
+      expect(registry.getAgentDirNames()).toContain(".pi");
+      expect(registry.getAgentDirNames()).not.toContain("agent");
+    });
+  });
+
   describe("agent name as UID", () => {
     test("agent.name matches the registry key used to look it up", () => {
       const registry = AgentRegistry.getInstance();

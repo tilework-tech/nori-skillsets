@@ -205,8 +205,14 @@ export class AgentRegistry {
    */
   public getAgentDirNames(): Array<string> {
     return this.getAll().map((agent) => {
-      const agentDir = agent.getAgentDir({ installDir: "/" });
-      return path.basename(agentDir);
+      const installDir = "/";
+      const agentDir = agent.getAgentDir({ installDir });
+      const relativeDir = path.relative(installDir, agentDir);
+      const topLevelDir = relativeDir.split(path.sep)[0];
+
+      return topLevelDir && topLevelDir.length > 0
+        ? topLevelDir
+        : path.basename(agentDir);
     });
   }
 }

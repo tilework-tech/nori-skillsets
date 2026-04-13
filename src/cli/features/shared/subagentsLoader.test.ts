@@ -1,9 +1,8 @@
 /**
  * Tests for shared subagents loader
- * Verifies that createSubagentsLoader copies files matching the configured
- * fileExtension from the skillset's subagents directory to the agent's
- * subagents directory, applies template substitution, and filters out
- * docs files (e.g. docs.md, docs.toml).
+ * Verifies that createSubagentsLoader emits target-specific subagent files from
+ * the skillset's subagents directory to the agent's subagents directory,
+ * applies template substitution, and filters out docs files.
  */
 
 import * as fs from "fs/promises";
@@ -162,9 +161,16 @@ const TEST_TOML_SUBAGENTS: Record<string, string> = {
     'name = "nori-knowledge-researcher"\ndescription = "Research specialist"\nsandbox_mode = "read-only"\n',
 };
 
-const TEST_MIXED_SUBAGENTS: Record<string, string> = {
-  ...TEST_SUBAGENTS,
-  ...TEST_TOML_SUBAGENTS,
+const TEST_PAIRED_SUBAGENTS: Record<string, string> = {
+  "nori-code-reviewer.md":
+    "---\nname: nori-code-reviewer\ndescription: Review changed code\ntools: Read, Grep, Glob, Bash, TodoWrite\nmodel: inherit\n---\n\nReview the diff carefully.\nRead: {{skills_dir}}/review/SKILL.md\n",
+  "nori-code-reviewer.toml":
+    'name = "nori-code-reviewer"\ndescription = "Review changed code"\nsandbox_mode = "read-only"\nmodel = "gpt-5.3-codex-spark"\nmodel_reasoning_effort = "high"\n\ndeveloper_instructions = """\nThis text should not win.\n"""\n',
+};
+
+const TEST_MARKDOWN_ONLY_SUBAGENTS: Record<string, string> = {
+  "nori-task-runner.md":
+    "---\nname: nori-task-runner\ndescription: Run a task outside the main context\nmodel: inherit\n---\n\nComplete the delegated task without stopping.\n",
 };
 
 // ---- tests ------------------------------------------------------------------
@@ -302,136 +308,178 @@ describe("createSubagentsLoader", () => {
     it("should set managedDirs from factory args on the returned loader", () => {
       const loader = createSubagentsLoader({
         managedDirs: ["agents", "extra-agents"],
-        fileExtension: ".md",
+        targetFormat: "markdown",
       });
       expect(loader.managedDirs).toEqual(["agents", "extra-agents"]);
     });
   });
 
-  describe("fileExtension filtering", () => {
-    it("should copy only .toml files when fileExtension is .toml", async () => {
+  describe("target-specific emission", () => {
+    it("should emit markdown-only subagents as Codex TOML", async () => {
       const loader = createSubagentsLoader({
         managedDirs: ["agents"],
-        fileExtension: ".toml",
+        targetFormat: "codex-toml",
       });
       const config = createTestConfig({
         installDir: tempDir,
-        activeSkillset: "toml-test",
+        activeSkillset: "codex-markdown-only-test",
       });
       const skillset = await createTestSkillset({
         skillsetsDir: noriProfilesDir,
-        skillsetName: "toml-test",
-        subagents: TEST_TOML_SUBAGENTS,
+        skillsetName: "codex-markdown-only-test",
+        subagents: TEST_MARKDOWN_ONLY_SUBAGENTS,
       });
 
       await loader.run({ agent, config, skillset });
 
-      const analyzerExists = await fs
-        .access(path.join(agentsDir, "nori-codebase-analyzer.toml"))
-        .then(() => true)
-        .catch(() => false);
-      const researcherExists = await fs
-        .access(path.join(agentsDir, "nori-knowledge-researcher.toml"))
-        .then(() => true)
-        .catch(() => false);
-
-      expect(analyzerExists).toBe(true);
-      expect(researcherExists).toBe(true);
+      const emittedContent = await fs.readFile(
+        path.join(agentsDir, "nori-task-runner.toml"),
+        "utf-8",
+      );
+      expect(emittedContent).toContain('name = "nori-task-runner"');
+      expect(emittedContent).toContain(
+        'description = "Run a task outside the main context"',
+      );
+      expect(emittedContent).toContain('sandbox_mode = "read-only"');
+      expect(emittedContent).toContain(
+        "Complete the delegated task without stopping.",
+      );
+      expect(emittedContent).not.toContain('model = "inherit"');
     });
 
-    it("should copy only matching extension from a mixed directory", async () => {
+    it("should emit paired markdown and TOML sources as Codex TOML", async () => {
       const loader = createSubagentsLoader({
         managedDirs: ["agents"],
-        fileExtension: ".toml",
+        targetFormat: "codex-toml",
       });
       const config = createTestConfig({
         installDir: tempDir,
-        activeSkillset: "mixed-test",
+        activeSkillset: "codex-paired-test",
       });
       const skillset = await createTestSkillset({
         skillsetsDir: noriProfilesDir,
-        skillsetName: "mixed-test",
-        subagents: TEST_MIXED_SUBAGENTS,
+        skillsetName: "codex-paired-test",
+        subagents: TEST_PAIRED_SUBAGENTS,
       });
 
       await loader.run({ agent, config, skillset });
 
-      // .toml files should be copied
-      const tomlAnalyzerExists = await fs
-        .access(path.join(agentsDir, "nori-codebase-analyzer.toml"))
-        .then(() => true)
-        .catch(() => false);
-      expect(tomlAnalyzerExists).toBe(true);
+      const emittedContent = await fs.readFile(
+        path.join(agentsDir, "nori-code-reviewer.toml"),
+        "utf-8",
+      );
+      expect(emittedContent).toContain('model = "gpt-5.3-codex-spark"');
+      expect(emittedContent).toContain('model_reasoning_effort = "high"');
+      expect(emittedContent).toContain('sandbox_mode = "read-only"');
+      expect(emittedContent).toContain("Review the diff carefully.");
+      expect(emittedContent).toContain(
+        path.join(agentDir, "skills", "review", "SKILL.md"),
+      );
+      expect(emittedContent).not.toContain("This text should not win.");
 
-      // .md files should NOT be copied
-      const mdAnalyzerExists = await fs
-        .access(path.join(agentsDir, "nori-codebase-analyzer.md"))
+      const markdownExists = await fs
+        .access(path.join(agentsDir, "nori-code-reviewer.md"))
         .then(() => true)
         .catch(() => false);
-      expect(mdAnalyzerExists).toBe(false);
+      expect(markdownExists).toBe(false);
     });
 
-    it("should exclude docs.toml when fileExtension is .toml", async () => {
+    it("should emit paired markdown and TOML sources as Pi markdown", async () => {
       const loader = createSubagentsLoader({
         managedDirs: ["agents"],
-        fileExtension: ".toml",
+        targetFormat: "pi-markdown",
       });
       const config = createTestConfig({
         installDir: tempDir,
-        activeSkillset: "docs-toml-test",
+        activeSkillset: "pi-paired-test",
       });
       const skillset = await createTestSkillset({
         skillsetsDir: noriProfilesDir,
-        skillsetName: "docs-toml-test",
-        subagents: {
-          ...TEST_TOML_SUBAGENTS,
-          "docs.toml": 'name = "docs"\ndescription = "Should be excluded"\n',
-        },
+        skillsetName: "pi-paired-test",
+        subagents: TEST_PAIRED_SUBAGENTS,
       });
 
       await loader.run({ agent, config, skillset });
 
-      const docsExists = await fs
-        .access(path.join(agentsDir, "docs.toml"))
-        .then(() => true)
-        .catch(() => false);
-      expect(docsExists).toBe(false);
-
-      // Other .toml files should still be copied
-      const analyzerExists = await fs
-        .access(path.join(agentsDir, "nori-codebase-analyzer.toml"))
-        .then(() => true)
-        .catch(() => false);
-      expect(analyzerExists).toBe(true);
+      const emittedContent = await fs.readFile(
+        path.join(agentsDir, "nori-code-reviewer.md"),
+        "utf-8",
+      );
+      expect(emittedContent).toContain("name: nori-code-reviewer");
+      expect(emittedContent).toContain("description: Review changed code");
+      expect(emittedContent).toContain("thinking: high");
+      expect(emittedContent).toContain("tools: read, grep, find, bash");
+      expect(emittedContent).toContain("Review the diff carefully.");
+      expect(emittedContent).toContain(
+        path.join(agentDir, "skills", "review", "SKILL.md"),
+      );
+      expect(emittedContent).not.toContain("This text should not win.");
+      expect(emittedContent).not.toContain("model:");
     });
 
-    it("should apply template substitution to .toml files", async () => {
+    it("should emit TOML-only subagents as Pi markdown fallback", async () => {
       const loader = createSubagentsLoader({
         managedDirs: ["agents"],
-        fileExtension: ".toml",
+        targetFormat: "pi-markdown",
       });
       const config = createTestConfig({
         installDir: tempDir,
-        activeSkillset: "toml-template-test",
+        activeSkillset: "pi-toml-fallback-test",
       });
       const skillset = await createTestSkillset({
         skillsetsDir: noriProfilesDir,
-        skillsetName: "toml-template-test",
+        skillsetName: "pi-toml-fallback-test",
         subagents: TEST_TOML_SUBAGENTS,
       });
 
       await loader.run({ agent, config, skillset });
 
       const content = await fs.readFile(
-        path.join(agentsDir, "nori-codebase-analyzer.toml"),
+        path.join(agentsDir, "nori-codebase-analyzer.md"),
         "utf-8",
       );
-      // Template should be substituted — should NOT contain the raw placeholder
+      expect(content).toContain("name: nori-codebase-analyzer");
+      expect(content).toContain("description: Analyzes codebase");
+      expect(content).toContain("tools: read, grep, find, ls");
+      expect(content).toContain("Read:");
       expect(content).not.toContain("{{skills_dir}}");
-      // Should contain the resolved path
       expect(content).toContain(
         path.join(agentDir, "skills", "some-skill", "SKILL.md"),
       );
+    });
+
+    it("should exclude docs for Codex emission", async () => {
+      const loader = createSubagentsLoader({
+        managedDirs: ["agents"],
+        targetFormat: "codex-toml",
+      });
+      const config = createTestConfig({
+        installDir: tempDir,
+        activeSkillset: "docs-codex-test",
+      });
+      const skillset = await createTestSkillset({
+        skillsetsDir: noriProfilesDir,
+        skillsetName: "docs-codex-test",
+        subagents: {
+          ...TEST_MARKDOWN_ONLY_SUBAGENTS,
+          "docs.md": "# Markdown docs\n",
+          "docs.toml": 'name = "docs"\ndescription = "Ignored docs"\n',
+        },
+      });
+
+      await loader.run({ agent, config, skillset });
+
+      const docsTomlExists = await fs
+        .access(path.join(agentsDir, "docs.toml"))
+        .then(() => true)
+        .catch(() => false);
+      const docsMdExists = await fs
+        .access(path.join(agentsDir, "docs.md"))
+        .then(() => true)
+        .catch(() => false);
+
+      expect(docsTomlExists).toBe(false);
+      expect(docsMdExists).toBe(false);
     });
   });
 
