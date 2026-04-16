@@ -1,0 +1,30 @@
+# Noridoc: skill-upload
+
+Path: @/src/cli/commands/skill-upload
+
+### Overview
+
+The skill-upload command uploads a single skill from `~/.nori/profiles/<skillset>/skills/<skill>` to the Nori registry. Unlike `registry-upload` which packs and publishes an entire skillset, this command targets one skill at a time — useful for publishing or bumping a standalone skill that lives inside a skillset.
+
+### How it fits into the larger codebase
+
+Registered as `upload-skill` via `@/src/cli/commands/noriSkillsetsCommands.ts`. It uses the `registrarApi.uploadSkill` endpoint from `@/api/registrar.js` (`PUT /api/skills/:skillName/skill`) for the upload itself, and `registrarApi.getSkillPackument` + `registrarApi.downloadSkillTarball` for collision detection against the remote. Authentication mirrors the skill-download flow — `getRegistryAuth` + `getRegistryAuthToken` per target registry URL with a fallback to the unified `config.auth` refresh token.
+
+### Core Implementation
+
+`skillUploadMain` resolves the source skill directory, reads the skill's local `nori.json` for metadata defaults, and guards against uploading `type: "inlined-skill"` skills (those are bundled with their parent skillset and cannot be published independently). It drives `skillUploadFlow` with two callbacks:
+
+- `onCheckExisting` fetches the packument for the skill name. On 404 it reports `exists: false`. On success it downloads the latest-version tarball, extracts the `SKILL.md` entry via a streaming tar parser, and compares byte-exact against the local `SKILL.md`. The flow uses this to decide whether to short-circuit as "already up to date", auto-publish (no remote), or prompt for conflict resolution.
+- `onUpload` creates a gzipped tarball of the skill directory (excluding `.nori-version`), then calls `registrarApi.uploadSkill`. The description defaults to the skill's local `nori.json.description` when `--description` is not passed explicitly.
+
+After a successful upload, `writeSkillVersion` updates the local `nori.json.version` so subsequent `skillUploadMain` calls will detect the bumped version cleanly.
+
+### Conflict Resolution
+
+The single-skill endpoint does not return server-side `SkillCollisionError` payloads the way `uploadSkillset` does, so conflict handling is implemented client-side in `skillUploadFlow`. When the remote skill exists and local content differs, the user is prompted with three choices: **Bump version** (opens a text prompt with `semver.inc(latest, "patch")` as the default), **View diff** (renders a colored unified diff of remote vs. local `SKILL.md` via `formatDiffForNote`), or **Cancel**. View-diff re-prompts the same choice until the user picks bump or cancel.
+
+### Things to Know
+
+The `--skillset` flag overrides the active skillset as the source location. The `--registry` flag is mutually exclusive with a namespace prefix (`org/skill-name`). Non-interactive mode with a content-differs collision fails unless `--version` is also passed, to avoid accidental overwrite of another publisher's content. The `UPLOAD_EXCLUDED_FILES` set currently includes only `.nori-version`, matching the exclusion list used by `registryUpload.createProfileTarball`.
+
+Created and maintained by Nori.

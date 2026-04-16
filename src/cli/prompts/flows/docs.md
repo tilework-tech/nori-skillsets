@@ -39,6 +39,7 @@ The flows cover the full lifecycle of skillset management:
 | `initFlow` | First-time initialization with config capture |
 | `switchSkillsetFlow` | Switch active skillset with local change detection |
 | `uploadFlow` | Version determination, skill/subagent conflict resolution, inline decisions, and upload |
+| `skillUploadFlow` | Client-side collision detection and bump/diff/cancel resolution for single-skill uploads |
 | `registryDownloadFlow` | Search, version comparison, and skillset download |
 | `skillDownloadFlow` | Search and download for individual skills |
 | `subagentDownloadFlow` | Search and download for individual subagents |
@@ -72,5 +73,7 @@ The `link` ("Use Existing") action has two presentations. When `conflict.content
 `uploadFlow` Step 4 (final result handling) guards against protocol drift. If `result.success` is false and the result has neither an `error` field nor one of the known conflict variants (`conflicts`, `subagentConflicts`), the flow logs a diagnostic line prefixed with "Unexpected upload result shape from registrar" that embeds the first 500 chars of the JSON-serialized result before printing the final "Upload failed" banner. This replaces a previous silent-failure mode where a shape mismatch would surface only as a bare "Upload failed" with no actionable detail.
 
 `uploadFlow` accepts optional `inlineSubagentCandidates` in addition to `inlineCandidates`. When subagent candidates are present, the flow runs a subagent inline resolution phase immediately after the skill inline resolution phase, using the same UX pattern (batch vs. per-item decision). The resolved `inlineSubagentIds` are passed through `UploadFlowCallbacks.onUpload` alongside `inlineSkillIds`, so the caller can forward both to the API.
+
+`skillUploadFlow` implements collision handling client-side because the `uploadSkill` endpoint (`PUT /api/skills/:skillName/skill`) does not return structured `SkillCollisionError` payloads like `uploadSkillset` does. The flow drives an `onCheckExisting` callback that fetches the remote tarball and byte-compares `SKILL.md`, then decides between a silent short-circuit (content unchanged), a silent upload (no remote), or a three-way prompt (bump version / view diff / cancel). The bump prompt pre-fills `semver.inc(latest, "patch")`; the diff view reuses `formatDiffForNote` and re-prompts until the user picks bump or cancel.
 
 Created and maintained by Nori.
