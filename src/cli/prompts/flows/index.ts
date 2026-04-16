@@ -77,6 +77,14 @@ export {
 } from "./subagentDownload.js";
 
 export {
+  skillUploadFlow,
+  type SkillUploadFlowCallbacks,
+  type SkillUploadFlowResult,
+  type SkillUploadActionResult,
+  type CheckExistingResult,
+} from "./skillUpload.js";
+
+export {
   factoryResetFlow,
   type FactoryResetFlowCallbacks,
   type FactoryResetFlowResult,
