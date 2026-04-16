@@ -9,31 +9,6 @@
 
 import { intro, outro } from "@clack/prompts";
 
-import { clearMain } from "@/cli/commands/clear/clear.js";
-import { completionMain } from "@/cli/commands/completion/completion.js";
-import { configMain } from "@/cli/commands/config/config.js";
-import { currentSkillsetMain } from "@/cli/commands/current-skillset/currentSkillset.js";
-import { dirMain } from "@/cli/commands/dir/dir.js";
-import { editSkillsetMain } from "@/cli/commands/edit-skillset/editSkillset.js";
-import { externalMain } from "@/cli/commands/external/external.js";
-import { factoryResetMain } from "@/cli/commands/factory-reset/factoryReset.js";
-import { forkSkillsetMain } from "@/cli/commands/fork-skillset/forkSkillset.js";
-import { initMain } from "@/cli/commands/init/init.js";
-import { installLocationMain } from "@/cli/commands/install-location/installLocation.js";
-import { listActiveMain } from "@/cli/commands/list-active/listActive.js";
-import { listSkillsetsMain } from "@/cli/commands/list-skillsets/listSkillsets.js";
-import { loginMain } from "@/cli/commands/login/login.js";
-import { logoutMain } from "@/cli/commands/logout/logout.js";
-import { newSkillsetMain } from "@/cli/commands/new-skillset/newSkillset.js";
-import { registerSkillsetMain } from "@/cli/commands/register-skillset/registerSkillset.js";
-import { registryDownloadMain } from "@/cli/commands/registry-download/registryDownload.js";
-import { registryInstallMain } from "@/cli/commands/registry-install/registryInstall.js";
-import { registrySearchMain } from "@/cli/commands/registry-search/registrySearch.js";
-import { registryUploadMain } from "@/cli/commands/registry-upload/registryUpload.js";
-import { skillDownloadMain } from "@/cli/commands/skill-download/skillDownload.js";
-import { subagentDownloadMain } from "@/cli/commands/subagent-download/subagentDownload.js";
-import { switchSkillsetAction } from "@/cli/commands/switch-skillset/switchSkillset.js";
-import { watchMain, watchStopMain } from "@/cli/commands/watch/watch.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 
 import type { Command } from "commander";
@@ -93,6 +68,8 @@ export const registerNoriSkillsetsFactoryResetCommand = (args: {
       "Remove all configuration for a given agent (e.g., claude-code)",
     )
     .action(async (agentName: string) => {
+      const { factoryResetMain } =
+        await import("@/cli/commands/factory-reset/factoryReset.js");
       const globalOpts = program.opts();
       await wrapWithFraming({
         title: `Factory Reset ${agentName}`,
@@ -117,6 +94,8 @@ export const registerNoriSkillsetsForkCommand = (args: {
   const { program } = args;
 
   const forkAction = async (baseSkillset: string, newSkillset: string) => {
+    const { forkSkillsetMain } =
+      await import("@/cli/commands/fork-skillset/forkSkillset.js");
     await wrapWithFraming({
       title: "Fork Skillset",
       exitOnFailure: true,
@@ -152,6 +131,8 @@ export const registerNoriSkillsetsNewCommand = (args: {
   const { program } = args;
 
   const newAction = async () => {
+    const { newSkillsetMain } =
+      await import("@/cli/commands/new-skillset/newSkillset.js");
     await wrapWithFraming({
       title: "Create New Skillset",
       exitOnFailure: true,
@@ -180,6 +161,8 @@ export const registerNoriSkillsetsRegisterCommand = (args: {
   const { program } = args;
 
   const registerAction = async (name: string | undefined) => {
+    const { registerSkillsetMain } =
+      await import("@/cli/commands/register-skillset/registerSkillset.js");
     await wrapWithFraming({
       title: "Register Skillset",
       exitOnFailure: true,
@@ -215,6 +198,8 @@ export const registerNoriSkillsetsEditSkillsetCommand = (args: {
     name: string | undefined,
     options: { agent?: string },
   ) => {
+    const { editSkillsetMain } =
+      await import("@/cli/commands/edit-skillset/editSkillset.js");
     const globalOpts = program.opts();
     await wrapWithFraming({
       title: "Edit Skillset",
@@ -263,6 +248,7 @@ export const registerNoriSkillsetsInitCommand = (args: {
     .command("init")
     .description("Initialize Nori configuration and directories")
     .action(async () => {
+      const { initMain } = await import("@/cli/commands/init/init.js");
       const globalOpts = program.opts();
       await wrapWithFraming({
         title: "Initialize Nori",
@@ -291,6 +277,8 @@ export const registerNoriSkillsetsSearchCommand = (args: {
       "Search for skillsets, skills, and subagents in your org's registry",
     )
     .action(async (query: string) => {
+      const { registrySearchMain } =
+        await import("@/cli/commands/registry-search/registrySearch.js");
       const globalOpts = program.opts();
       await wrapWithFraming({
         title: "Search Nori Registry",
@@ -332,6 +320,8 @@ export const registerNoriSkillsetsDownloadCommand = (args: {
         packageSpec: string,
         options: { registry?: string; listVersions?: boolean },
       ) => {
+        const { registryDownloadMain } =
+          await import("@/cli/commands/registry-download/registryDownload.js");
         const globalOpts = program.opts();
 
         await wrapWithFraming({
@@ -383,6 +373,8 @@ export const registerNoriSkillsetsUploadCommand = (args: {
           description?: string;
         },
       ) => {
+        const { registryUploadMain } =
+          await import("@/cli/commands/registry-upload/registryUpload.js");
         const globalOpts = program.opts();
 
         await wrapWithFraming({
@@ -421,6 +413,8 @@ export const registerNoriSkillsetsInstallCommand = (args: {
       "Download, install, and activate a skillset from the public registry in one step",
     )
     .action(async (packageSpec: string) => {
+      const { registryInstallMain } =
+        await import("@/cli/commands/registry-install/registryInstall.js");
       const globalOpts = program.opts();
 
       await wrapWithFraming({
@@ -453,6 +447,8 @@ export const registerNoriSkillsetsSwitchSkillsetCommand = (args: {
     name: string | undefined,
     options: { agent?: string; force?: boolean },
   ) => {
+    const { switchSkillsetAction } =
+      await import("@/cli/commands/switch-skillset/switchSkillset.js");
     await wrapWithFraming({
       title: "Switch Skillset",
       action: () =>
@@ -524,6 +520,8 @@ export const registerNoriSkillsetsDownloadSkillCommand = (args: {
           skillset?: string;
         },
       ) => {
+        const { skillDownloadMain } =
+          await import("@/cli/commands/skill-download/skillDownload.js");
         const globalOpts = program.opts();
 
         await wrapWithFraming({
@@ -581,6 +579,8 @@ export const registerNoriSkillsetsDownloadSubagentCommand = (args: {
           skillset?: string;
         },
       ) => {
+        const { subagentDownloadMain } =
+          await import("@/cli/commands/subagent-download/subagentDownload.js");
         const globalOpts = program.opts();
 
         await wrapWithFraming({
@@ -612,28 +612,26 @@ export const registerNoriSkillsetsListSkillsetsCommand = (args: {
 }): void => {
   const { program } = args;
 
+  const listAction = async () => {
+    const { listSkillsetsMain } =
+      await import("@/cli/commands/list-skillsets/listSkillsets.js");
+    await listSkillsetsMain();
+  };
+
   // Primary command: list (shorthand, canonical)
   program
     .command("list")
     .description("List locally available skillsets (one per line)")
-    .action(async () => {
-      await listSkillsetsMain();
-    });
+    .action(listAction);
 
   // Hidden alias: list-skillsets (long form, plural)
-  program.command("list-skillsets", { hidden: true }).action(async () => {
-    await listSkillsetsMain();
-  });
+  program.command("list-skillsets", { hidden: true }).action(listAction);
 
   // Hidden alias: list-skillset (long form, singular)
-  program.command("list-skillset", { hidden: true }).action(async () => {
-    await listSkillsetsMain();
-  });
+  program.command("list-skillset", { hidden: true }).action(listAction);
 
   // Hidden alias: ls (Unix convention)
-  program.command("ls", { hidden: true }).action(async () => {
-    await listSkillsetsMain();
-  });
+  program.command("ls", { hidden: true }).action(listAction);
 };
 
 /**
@@ -646,7 +644,9 @@ export const registerNoriSkillsetsListActiveCommand = (args: {
 }): void => {
   const { program } = args;
 
-  const action = async () => {
+  const listActiveAction = async () => {
+    const { listActiveMain } =
+      await import("@/cli/commands/list-active/listActive.js");
     const installDir = program.opts().installDir as string | undefined;
     await listActiveMain({ dir: installDir });
   };
@@ -656,10 +656,10 @@ export const registerNoriSkillsetsListActiveCommand = (args: {
     .description(
       "List active skillsets in current directory and parent directories (one per line)",
     )
-    .action(action);
+    .action(listActiveAction);
 
   // Hidden alias: la (shorthand)
-  program.command("la", { hidden: true }).action(action);
+  program.command("la", { hidden: true }).action(listActiveAction);
 };
 
 /**
@@ -672,28 +672,27 @@ export const registerNoriSkillsetsCurrentCommand = (args: {
 }): void => {
   const { program } = args;
 
+  const currentAction = async (options: { agent?: string }) => {
+    const { currentSkillsetMain } =
+      await import("@/cli/commands/current-skillset/currentSkillset.js");
+    const globalOpts = program.opts();
+    await currentSkillsetMain({
+      agent: options.agent || globalOpts.agent || null,
+    });
+  };
+
   // Primary command: current (shorthand, canonical)
   program
     .command("current")
     .description("Show the currently active skillset")
     .option("-a, --agent <name>", "AI agent to get skillset for")
-    .action(async (options: { agent?: string }) => {
-      const globalOpts = program.opts();
-      await currentSkillsetMain({
-        agent: options.agent || globalOpts.agent || null,
-      });
-    });
+    .action(currentAction);
 
   // Hidden alias: current-skillset (long form)
   program
     .command("current-skillset", { hidden: true })
     .option("-a, --agent <name>", "AI agent to get skillset for")
-    .action(async (options: { agent?: string }) => {
-      const globalOpts = program.opts();
-      await currentSkillsetMain({
-        agent: options.agent || globalOpts.agent || null,
-      });
-    });
+    .action(currentAction);
 };
 
 /**
@@ -723,6 +722,7 @@ export const registerNoriSkillsetsWatchCommand = (args: {
         setDestination?: boolean;
         _background?: boolean;
       }) => {
+        const { watchMain } = await import("@/cli/commands/watch/watch.js");
         await wrapWithFraming({
           title: "nori watch",
           action: () =>
@@ -741,6 +741,7 @@ export const registerNoriSkillsetsWatchCommand = (args: {
     .command("stop")
     .description("Stop the watch daemon")
     .action(async () => {
+      const { watchStopMain } = await import("@/cli/commands/watch/watch.js");
       await watchStopMain({
         quiet: false,
       });
@@ -784,6 +785,7 @@ export const registerNoriSkillsetsLoginCommand = (args: {
         token?: string;
         org?: string;
       }) => {
+        const { loginMain } = await import("@/cli/commands/login/login.js");
         const globalOpts = program.opts();
         await wrapWithFraming({
           title: "Login to Nori Skillsets",
@@ -817,6 +819,7 @@ export const registerNoriSkillsetsLogoutCommand = (args: {
     .command("logout")
     .description("Clear stored authentication credentials")
     .action(async () => {
+      const { logoutMain } = await import("@/cli/commands/logout/logout.js");
       await logoutMain();
     });
 };
@@ -856,6 +859,8 @@ export const registerNoriSkillsetsExternalCommand = (args: {
           ref?: string;
         },
       ) => {
+        const { externalMain } =
+          await import("@/cli/commands/external/external.js");
         const globalOpts = program.opts();
 
         await wrapWithFraming({
@@ -890,6 +895,7 @@ export const registerNoriSkillsetsDirCommand = (args: {
     .command("dir")
     .description("Open the Nori skillsets directory")
     .action(async () => {
+      const { dirMain } = await import("@/cli/commands/dir/dir.js");
       const globalOpts = program.opts();
       await dirMain({
         nonInteractive: globalOpts.nonInteractive || null,
@@ -908,6 +914,8 @@ export const registerNoriSkillsetsInstallLocationCommand = (args: {
   const { program } = args;
 
   const installLocationAction = async () => {
+    const { installLocationMain } =
+      await import("@/cli/commands/install-location/installLocation.js");
     const globalOpts = program.opts();
     await installLocationMain({
       nonInteractive: globalOpts.nonInteractive || null,
@@ -936,7 +944,9 @@ export const registerNoriSkillsetsCompletionCommand = (args: {
   program
     .command("completion <shell>")
     .description("Generate shell completion script (bash, zsh)")
-    .action((shell: string) => {
+    .action(async (shell: string) => {
+      const { completionMain } =
+        await import("@/cli/commands/completion/completion.js");
       completionMain({ shell });
     });
 };
@@ -957,6 +967,7 @@ export const registerNoriSkillsetsClearCommand = (args: {
       "Remove all Nori-managed configuration from the install directory",
     )
     .action(async () => {
+      const { clearMain } = await import("@/cli/commands/clear/clear.js");
       const globalOpts = program.opts();
       await clearMain({
         installDir: globalOpts.installDir || null,
@@ -992,6 +1003,7 @@ export const registerNoriSkillsetsConfigCommand = (args: {
     )
     .action(
       async (options: { agents?: string; redownloadOnSwitch?: boolean }) => {
+        const { configMain } = await import("@/cli/commands/config/config.js");
         const globalOpts = program.opts();
         await wrapWithFraming({
           title: "Configure Nori",
