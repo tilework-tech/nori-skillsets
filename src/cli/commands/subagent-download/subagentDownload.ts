@@ -415,7 +415,7 @@ export const subagentDownloadMain = async (args: {
 
         const hasUnifiedAuth =
           config?.auth != null &&
-          config.auth.refreshToken != null &&
+          (config.auth.refreshToken != null || config.auth.apiToken != null) &&
           config.auth.organizations != null;
 
         if (registryUrl != null) {

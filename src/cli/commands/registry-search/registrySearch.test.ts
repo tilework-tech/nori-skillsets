@@ -535,6 +535,100 @@ describe("registry-search", () => {
     });
   });
 
+  describe("org registry search with API token auth", () => {
+    it("should search legacy single-org registry when authenticated via API token with no organizations list", async () => {
+      // API-token session that was written without an organizations array (legacy / malformed).
+      // Should still route through the legacy single-org branch using organizationUrl.
+      const mockOrgPackages = [
+        {
+          id: "1",
+          name: "legacy-profile",
+          description: "A legacy org profile",
+          authorEmail: "legacy@example.com",
+          createdAt: "2024-01-01",
+          updatedAt: "2024-01-01",
+        },
+      ];
+      vi.mocked(registrarApi.searchPackagesOnRegistry).mockResolvedValue(
+        mockOrgPackages,
+      );
+      vi.mocked(registrarApi.searchPackages).mockResolvedValue([]);
+
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        activeSkillset: "senior-swe",
+        auth: {
+          username: null,
+          organizationUrl: "https://myorg.tilework.tech",
+          refreshToken: null,
+          apiToken:
+            "nori_myorg_0000000000000000000000000000000000000000000000000000000000000000",
+          // organizations intentionally omitted - exercises the legacy else-if gate.
+        },
+      });
+
+      vi.mocked(getRegistryAuthToken).mockResolvedValue("api-token-auth");
+
+      await registrySearchMain({ query: "profile", installDir: testDir });
+
+      expect(registrarApi.searchPackagesOnRegistry).toHaveBeenCalledWith(
+        expect.objectContaining({
+          query: "profile",
+          registryUrl: "https://myorg.nori-registry.ai",
+          authToken: "api-token-auth",
+        }),
+      );
+    });
+
+    it("should search org registry when authenticated via API token (no refreshToken)", async () => {
+      const mockOrgPackages = [
+        {
+          id: "1",
+          name: "org-profile",
+          description: "An org profile",
+          authorEmail: "org@example.com",
+          createdAt: "2024-01-01",
+          updatedAt: "2024-01-01",
+        },
+      ];
+      vi.mocked(registrarApi.searchPackagesOnRegistry).mockResolvedValue(
+        mockOrgPackages,
+      );
+      vi.mocked(registrarApi.searchPackages).mockResolvedValue([]);
+
+      // API-token login: refreshToken null, apiToken set, organizations populated.
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        activeSkillset: "senior-swe",
+        auth: {
+          username: null,
+          organizationUrl: "https://myorg.noriskillsets.dev",
+          refreshToken: null,
+          apiToken:
+            "nori_myorg_0000000000000000000000000000000000000000000000000000000000000000",
+          organizations: ["myorg"],
+        },
+      });
+
+      vi.mocked(getRegistryAuthToken).mockResolvedValue("api-token-auth");
+
+      await registrySearchMain({ query: "profile", installDir: testDir });
+
+      // Verify org registry was searched via the unified-orgs path (noriskillsets.dev domain).
+      expect(registrarApi.searchPackagesOnRegistry).toHaveBeenCalledWith(
+        expect.objectContaining({
+          query: "profile",
+          registryUrl: "https://myorg.noriskillsets.dev",
+          authToken: "api-token-auth",
+        }),
+      );
+
+      const output = getSearchOutput();
+      expect(output).toContain("myorg:");
+      expect(output).toContain("myorg/org-profile");
+    });
+  });
+
   describe("combined registry search (org + public)", () => {
     it("should search both org registry and public registry when auth configured", async () => {
       const mockOrgPackages = [

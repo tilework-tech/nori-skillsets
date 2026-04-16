@@ -1055,7 +1055,7 @@ export const registryUploadMain = async (args: {
   // Check for unified auth with organizations (new flow)
   const hasUnifiedAuthWithOrgs =
     config.auth != null &&
-    config.auth.refreshToken != null &&
+    (config.auth.refreshToken != null || config.auth.apiToken != null) &&
     config.auth.organizations != null;
 
   // Determine target registry and auth

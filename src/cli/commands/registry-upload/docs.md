@@ -67,7 +67,7 @@ In non-interactive mode, flat subagent candidates are auto-inlined silently. Pre
 
 ### Things to Know
 
-- The `hasUnifiedAuthWithOrgs` check requires all three: `config.auth`, `config.auth.refreshToken`, and `config.auth.organizations`. If organizations is null (e.g., legacy auth), the unified auth branches are skipped entirely.
+- The `hasUnifiedAuthWithOrgs` check requires `config.auth`, `config.auth.organizations`, and either `config.auth.refreshToken` (Firebase session) or `config.auth.apiToken` (non-interactive API-token login). If organizations is null (e.g., legacy auth), the unified auth branches are skipped entirely.
 - `migrateConfigToAgentsMd` renames `CLAUDE.md` to `AGENTS.md` in the local skillset directory before tarball creation, ensuring uploaded packages always use the current config filename. The migration is a no-op if `AGENTS.md` already exists or if neither file is present.
 - `UPLOAD_EXCLUDED_FILES` filters out `.nori-version` from tarballs to prevent distributing local download metadata.
 - `createProfileTarball` writes a temp `.tgz` to the parent directory (not inside the skillset dir) and cleans it up in a `finally` block.
