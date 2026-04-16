@@ -593,13 +593,14 @@ describe("login command", () => {
 
       await loginMain({ installDir: tempDir });
 
-      // Verify select was called with email and google options
+      // Verify select was called with email, google, and token options
       expect(clack.select).toHaveBeenCalledWith(
         expect.objectContaining({
           message: expect.any(String),
           options: expect.arrayContaining([
             expect.objectContaining({ value: "email" }),
             expect.objectContaining({ value: "google" }),
+            expect.objectContaining({ value: "token" }),
           ]),
         }),
       );
@@ -1898,6 +1899,46 @@ describe("login command", () => {
         expect.stringContaining("timeout"),
       );
     });
+  });
+});
+
+describe("loginMain interactive API token flow", () => {
+  let tempDir: string;
+
+  const VALID_TOKEN = `nori_acme_${"a".repeat(64)}`;
+
+  beforeEach(async () => {
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "login-token-itx-"));
+    vi.mocked(os.homedir).mockReturnValue(tempDir);
+    vi.clearAllMocks();
+    const clack = await import("@clack/prompts");
+    vi.mocked(clack.isCancel).mockReturnValue(false);
+  });
+
+  afterEach(async () => {
+    await fs.rm(tempDir, { recursive: true, force: true });
+  });
+
+  it("should prompt for token and save config when user selects 'token' with a valid token", async () => {
+    const clack = await import("@clack/prompts");
+    const { promptPassword } = await import("@/cli/prompts/index.js");
+
+    vi.mocked(clack.select).mockResolvedValue("token");
+    vi.mocked(promptPassword).mockResolvedValue(VALID_TOKEN);
+
+    const result = await loginMain({ installDir: tempDir });
+
+    expect(result.success).toBe(true);
+
+    const config = await loadConfig();
+    expect(config?.auth?.apiToken).toBe(VALID_TOKEN);
+    expect(config?.auth?.organizationUrl).toBe(
+      "https://acme.noriskillsets.dev",
+    );
+    expect(config?.auth?.organizations).toEqual(["acme"]);
+    expect(config?.auth?.refreshToken ?? null).toBeNull();
+    expect(config?.auth?.password ?? null).toBeNull();
+    expect(config?.auth?.username ?? null).toBeNull();
   });
 });
 
