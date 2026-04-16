@@ -16,6 +16,8 @@ The CLI entry point delegates to `noriSkillsetsCommands.ts`, which registers eve
 
 `noriSkillsetsCommands.ts` is the central registration hub and the **sole caller** of `@clack/prompts` `intro()` and `outro()`. It exports one `registerNoriSkillsets*Command` function per command, each taking a `{ program: Command }` argument. Many commands have hidden aliases (e.g., `switch` also registers `switch-skillset`, `switch-skillsets`, and `use`) to support both short and long forms.
 
+**Lazy handler loading:** `noriSkillsetsCommands.ts` registers commander names, descriptions, options, and aliases eagerly at startup, but each command's `*Main` handler module is loaded lazily via `await import("@/cli/commands/<dir>/<handler>.js")` **inside** the `.action()` callback (or a shared action closure for commands with multiple aliases). This keeps `--help` and `--version` unchanged while keeping heavy handler dependencies (e.g., firebase/auth pulled in by `login.ts`, registry API clients, chokidar) out of the startup import graph for `nori-skillsets --version` and `nori-skillsets list-active`. Only `intro`/`outro` from `@clack/prompts`, `AgentRegistry`, and type-only symbols remain eager at the top of the file. New commands added to this file should follow the same pattern: register eagerly, `await import` the handler inside `.action()`. The `@/` specifier is rewritten identically by `tsc-alias` for both static and dynamic imports, so the build guard in `scripts/build.sh` (which fails if any `@/` imports survive) still passes.
+
 The file defines `wrapWithFraming()`, which enforces the three-layer separation of concerns for CLI visual framing:
 
 ```
