@@ -1459,10 +1459,13 @@ describe("registrarApi", () => {
       );
     });
 
-    it("should throw SubagentCollisionError on 409 with subagent conflicts", async () => {
+    it("should throw SubagentCollisionError when 409 conflicts array contains subagentId items", async () => {
+      // The registrar server serializes both SkillCollisionError and
+      // SubagentCollisionError into a response body with a single `conflicts`
+      // key. The client must discriminate by item shape (subagentId vs skillId).
       const conflictResponse = {
         error: "Subagent conflicts detected: my-subagent. Resolution required.",
-        subagentConflicts: [
+        conflicts: [
           {
             subagentId: "my-subagent",
             exists: true,
@@ -1493,7 +1496,6 @@ describe("registrarApi", () => {
         }),
       ).rejects.toThrow("Subagent conflicts detected");
 
-      // Verify it throws SubagentCollisionError with correct properties
       try {
         await registrarApi.uploadSkillset({
           packageName: "test-profile",
@@ -1503,12 +1505,63 @@ describe("registrarApi", () => {
         });
       } catch (err) {
         expect(isSubagentCollisionError(err)).toBe(true);
+        expect(isSkillCollisionError(err)).toBe(false);
         if (isSubagentCollisionError(err)) {
           expect(err.conflicts).toHaveLength(1);
           expect(err.conflicts[0].subagentId).toBe("my-subagent");
           expect(err.conflicts[0].contentUnchanged).toBe(false);
           expect(err.requiresVersions).toBe(true);
         }
+      }
+    });
+
+    it("should throw SkillCollisionError when 409 conflicts array contains both skillId and subagentId items", async () => {
+      // Defensive behavior: if an item has a skillId, prefer SkillCollisionError
+      // even when other items have subagentId. This mirrors the web UI's
+      // "some" predicate and keeps existing skill-resolution flows working.
+      const conflictResponse = {
+        error: "Conflicts detected. Resolution required.",
+        conflicts: [
+          {
+            skillId: "skill-a",
+            exists: true,
+            canPublish: true,
+            latestVersion: "1.0.0",
+            owner: "user@example.com",
+            availableActions: ["cancel", "namespace", "link", "updateVersion"],
+            contentUnchanged: true,
+          },
+          {
+            subagentId: "subagent-b",
+            exists: true,
+            canPublish: true,
+            latestVersion: "1.0.0",
+            owner: "user@example.com",
+            availableActions: ["cancel", "namespace", "link"],
+            contentUnchanged: true,
+          },
+        ],
+      };
+
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 409,
+        json: () => Promise.resolve(conflictResponse),
+      });
+
+      const archiveData = new ArrayBuffer(100);
+
+      expect.assertions(2);
+      try {
+        await registrarApi.uploadSkillset({
+          packageName: "test-profile",
+          version: "1.0.0",
+          archiveData,
+          authToken: "test-token",
+        });
+      } catch (err) {
+        expect(isSkillCollisionError(err)).toBe(true);
+        expect(isSubagentCollisionError(err)).toBe(false);
       }
     });
   });

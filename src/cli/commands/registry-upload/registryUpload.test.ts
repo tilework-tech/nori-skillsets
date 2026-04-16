@@ -70,16 +70,22 @@ vi.mock("@/utils/fetch.js", async (importOriginal) => {
   return {
     ...actual,
     isSkillCollisionError: vi.fn((err: unknown) => {
-      return err && typeof err === "object" && "conflicts" in err;
+      return (
+        err != null &&
+        typeof err === "object" &&
+        "conflicts" in err &&
+        !(
+          "isSubagentCollisionError" in err &&
+          (err as Record<string, unknown>).isSubagentCollisionError === true
+        )
+      );
     }),
     isSubagentCollisionError: vi.fn((err: unknown) => {
       return (
         err != null &&
         typeof err === "object" &&
-        (("isSubagentCollisionError" in err &&
-          (err as Record<string, unknown>).isSubagentCollisionError === true) ||
-          ("subagentConflicts" in err &&
-            Array.isArray((err as Record<string, unknown>).subagentConflicts)))
+        "isSubagentCollisionError" in err &&
+        (err as Record<string, unknown>).isSubagentCollisionError === true
       );
     }),
   };
@@ -205,20 +211,25 @@ describe("registry-upload", () => {
     // Re-establish isSkillCollisionError mock implementation
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (vi.mocked(isSkillCollisionError) as any).mockImplementation(
-      (err: unknown) => err && typeof err === "object" && "conflicts" in err,
+      (err: unknown) =>
+        err != null &&
+        typeof err === "object" &&
+        "conflicts" in err &&
+        !(
+          "isSubagentCollisionError" in err &&
+          (err as Record<string, unknown>).isSubagentCollisionError === true
+        ),
     );
 
     // Re-establish isSubagentCollisionError mock implementation
-    // Detects both the duck-typed flag and the subagentConflicts property
+    // Detects the duck-typed flag on the thrown error
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (vi.mocked(isSubagentCollisionError) as any).mockImplementation(
       (err: unknown) =>
         err != null &&
         typeof err === "object" &&
-        (("isSubagentCollisionError" in err &&
-          (err as Record<string, unknown>).isSubagentCollisionError === true) ||
-          ("subagentConflicts" in err &&
-            Array.isArray((err as Record<string, unknown>).subagentConflicts))),
+        "isSubagentCollisionError" in err &&
+        (err as Record<string, unknown>).isSubagentCollisionError === true,
     );
 
     // Create test directory structure simulating a Nori installation
@@ -3198,7 +3209,8 @@ describe("registry-upload", () => {
         // First upload fails with subagent collision — subagent exists on remote at v1.5.0
         const subagentCollisionError = {
           message: "Subagent conflicts detected",
-          subagentConflicts: [
+          isSubagentCollisionError: true,
+          conflicts: [
             {
               subagentId: "my-subagent",
               exists: true,
@@ -3561,7 +3573,8 @@ describe("registry-upload", () => {
           "---\nname: My Subagent\ndescription: canonical\n---\n# My Subagent (registry)\n";
         const subagentCollisionError = {
           message: "Subagent conflicts detected",
-          subagentConflicts: [
+          isSubagentCollisionError: true,
+          conflicts: [
             {
               subagentId: "my-subagent",
               exists: true,
@@ -3650,7 +3663,8 @@ describe("registry-upload", () => {
           "---\nname: Flat Agent\ndescription: registry canonical\n---\n# Flat Agent (registry)\n";
         const subagentCollisionError = {
           message: "Subagent conflicts detected",
-          subagentConflicts: [
+          isSubagentCollisionError: true,
+          conflicts: [
             {
               subagentId: "flat-agent",
               exists: true,
@@ -3734,7 +3748,8 @@ describe("registry-upload", () => {
         // Upload throws SubagentCollisionError
         const subagentCollisionError = {
           message: "Subagent conflicts detected",
-          subagentConflicts: [
+          isSubagentCollisionError: true,
+          conflicts: [
             {
               subagentId: "conflicting-agent",
               exists: true,
@@ -3745,7 +3760,6 @@ describe("registry-upload", () => {
               contentUnchanged: false,
             },
           ],
-          isSubagentCollisionError: true,
         };
 
         // First call throws subagent collision, second succeeds after resolution
