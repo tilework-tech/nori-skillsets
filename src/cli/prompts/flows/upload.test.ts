@@ -251,15 +251,17 @@ describe("uploadFlow", () => {
       expect(useExistingOption?.hint).toContain("discard any local changes");
     });
 
-    it("should track skipped skills in the result", async () => {
+    it("should record canonical SKILL.md content for replacement when 'use existing' is picked on a changed skill", async () => {
+      const remoteSkillMd = "# canonical SKILL.md from registry\n";
       const conflicts: Array<SkillConflict> = [
         {
-          skillId: "skipped-skill",
+          skillId: "diverged-skill",
           exists: true,
           canPublish: true,
           latestVersion: "1.0.0",
           availableActions: ["cancel", "namespace", "updateVersion", "link"],
           contentUnchanged: false,
+          existingSkillMd: remoteSkillMd,
         },
       ];
 
@@ -270,14 +272,14 @@ describe("uploadFlow", () => {
             success: true,
             version: "1.0.0",
             extractedSkills: {
-              succeeded: [{ name: "skipped-skill", version: "1.0.0" }],
+              succeeded: [{ name: "diverged-skill", version: "1.0.0" }],
               failed: [],
             },
           },
         ],
       });
 
-      // User picks "link" (use existing)
+      // User picks "link" (use existing) — discards local changes
       vi.mocked(clack.select).mockResolvedValueOnce("link");
 
       const result = await uploadFlow({
@@ -288,18 +290,24 @@ describe("uploadFlow", () => {
       });
 
       expect(result).not.toBeNull();
-      expect(result!.skippedSkillIds.has("skipped-skill")).toBe(true);
+      // Sync layer must overwrite the local file with this exact content,
+      // so the next upload doesn't re-detect the same conflict.
+      expect(result!.linkedSkillsToReplace.get("diverged-skill")).toBe(
+        remoteSkillMd,
+      );
+      expect(result!.linkedSkillVersions.get("diverged-skill")).toBe("1.0.0");
     });
 
-    it("should show skipped skills in the summary note", async () => {
+    it("should NOT record SKILL.md replacement when content was unchanged (auto-resolved link)", async () => {
       const conflicts: Array<SkillConflict> = [
         {
-          skillId: "skipped-skill",
+          skillId: "unchanged-skill",
           exists: true,
           canPublish: true,
           latestVersion: "1.0.0",
-          availableActions: ["cancel", "namespace", "updateVersion", "link"],
-          contentUnchanged: false,
+          availableActions: ["cancel", "namespace", "link"],
+          contentUnchanged: true,
+          existingSkillMd: "this should not be applied",
         },
       ];
 
@@ -310,7 +318,46 @@ describe("uploadFlow", () => {
             success: true,
             version: "1.0.0",
             extractedSkills: {
-              succeeded: [{ name: "skipped-skill", version: "1.0.0" }],
+              succeeded: [{ name: "unchanged-skill", version: "1.0.0" }],
+              failed: [],
+            },
+          },
+        ],
+      });
+
+      const result = await uploadFlow({
+        profileDisplayName: "myorg/my-profile",
+        skillsetName: "my-profile",
+        registryUrl: "https://myorg.noriskillsets.dev",
+        callbacks,
+      });
+
+      expect(result).not.toBeNull();
+      expect(result!.linkedSkillVersions.has("unchanged-skill")).toBe(true);
+      expect(result!.linkedSkillsToReplace.has("unchanged-skill")).toBe(false);
+    });
+
+    it("should show 'Linked (existing)' for changed skills the user resolved with 'use existing'", async () => {
+      const conflicts: Array<SkillConflict> = [
+        {
+          skillId: "diverged-skill",
+          exists: true,
+          canPublish: true,
+          latestVersion: "1.0.0",
+          availableActions: ["cancel", "namespace", "updateVersion", "link"],
+          contentUnchanged: false,
+          existingSkillMd: "# canonical SKILL.md\n",
+        },
+      ];
+
+      const callbacks = createMockCallbacks({
+        uploadResults: [
+          { success: false, conflicts },
+          {
+            success: true,
+            version: "1.0.0",
+            extractedSkills: {
+              succeeded: [{ name: "diverged-skill", version: "1.0.0" }],
               failed: [],
             },
           },
@@ -327,8 +374,8 @@ describe("uploadFlow", () => {
       });
 
       const noteContent = getNoteContent().join("\n");
-      expect(noteContent).toContain("Skipped");
-      expect(noteContent).toContain("skipped-skill");
+      expect(noteContent).toContain("Linked");
+      expect(noteContent).toContain("diverged-skill");
     });
   });
 
