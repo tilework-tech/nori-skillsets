@@ -3248,6 +3248,457 @@ describe("registry-upload", () => {
         );
         expect(noriJson.dependencies?.subagents?.["my-subagent"]).toBe("1.5.0");
       });
+
+      it("should overwrite local SKILL.md with remote content when user picks 'use existing' on a changed skill", async () => {
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        const skillDir = path.join(skillsetDir, "skills", "my-skill");
+        await fs.mkdir(skillDir, { recursive: true });
+        await fs.writeFile(
+          path.join(skillsetDir, "nori.json"),
+          JSON.stringify({
+            name: "my-profile",
+            version: "1.0.0",
+            type: "skillset",
+          }),
+        );
+        const localSkillMd = "# My Skill (local edits that diverged)\n";
+        await fs.writeFile(path.join(skillDir, "SKILL.md"), localSkillMd);
+        await fs.writeFile(
+          path.join(skillDir, "nori.json"),
+          JSON.stringify({
+            name: "my-skill",
+            version: "1.0.0",
+            type: "skill",
+          }),
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+
+        const remoteSkillMd =
+          "# My Skill (canonical version on the registry)\n";
+        const collisionError = {
+          message: "Skill conflicts detected",
+          conflicts: [
+            {
+              skillId: "my-skill",
+              exists: true,
+              canPublish: true,
+              latestVersion: "3.0.0",
+              owner: "me@example.com",
+              availableActions: [
+                "link",
+                "namespace",
+                "updateVersion",
+                "cancel",
+              ],
+              contentUnchanged: false,
+              existingSkillMd: remoteSkillMd,
+            },
+          ],
+        };
+
+        vi.mocked(registrarApi.uploadSkillset)
+          .mockRejectedValueOnce(collisionError)
+          .mockResolvedValueOnce({
+            name: "my-profile",
+            version: "2.0.0",
+            tarballSha: "abc123",
+            createdAt: new Date().toISOString(),
+          });
+
+        vi.mocked(clack.select).mockResolvedValue("link");
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+        });
+
+        expect(result.success).toBe(true);
+
+        // After "use existing", a second upload of the same skillset must NOT
+        // re-detect a conflict for this skill. The user-visible promise of the
+        // "Use Existing" hint is "discard any local changes" — so the local
+        // SKILL.md must now match the remote version.
+        const skillMdAfter = await fs.readFile(
+          path.join(skillDir, "SKILL.md"),
+          "utf-8",
+        );
+        expect(skillMdAfter).toBe(remoteSkillMd);
+
+        // The skill's individual nori.json should reflect the linked version too
+        const skillNoriJson = JSON.parse(
+          await fs.readFile(path.join(skillDir, "nori.json"), "utf-8"),
+        );
+        expect(skillNoriJson.version).toBe("3.0.0");
+      });
+
+      it("should NOT overwrite local SKILL.md when conflict was auto-resolved as unchanged", async () => {
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        const skillDir = path.join(skillsetDir, "skills", "my-skill");
+        await fs.mkdir(skillDir, { recursive: true });
+        await fs.writeFile(
+          path.join(skillsetDir, "nori.json"),
+          JSON.stringify({
+            name: "my-profile",
+            version: "1.0.0",
+            type: "skillset",
+          }),
+        );
+        const localSkillMd = "# Identical content on both sides\n";
+        await fs.writeFile(path.join(skillDir, "SKILL.md"), localSkillMd);
+        await fs.writeFile(
+          path.join(skillDir, "nori.json"),
+          JSON.stringify({
+            name: "my-skill",
+            version: "1.0.0",
+            type: "skill",
+          }),
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+
+        // Server should never be asked for existingSkillMd in the unchanged
+        // case, but if it does include one, the sync layer must not blow it
+        // away into a different value: assert the bytes are unchanged.
+        const collisionError = {
+          message: "Skill conflicts detected",
+          conflicts: [
+            {
+              skillId: "my-skill",
+              exists: true,
+              canPublish: true,
+              latestVersion: "5.0.0",
+              owner: "me@example.com",
+              availableActions: [
+                "link",
+                "namespace",
+                "updateVersion",
+                "cancel",
+              ],
+              contentUnchanged: true,
+              existingSkillMd: "different content from remote",
+            },
+          ],
+        };
+
+        vi.mocked(registrarApi.uploadSkillset)
+          .mockRejectedValueOnce(collisionError)
+          .mockResolvedValueOnce({
+            name: "my-profile",
+            version: "2.0.0",
+            tarballSha: "abc123",
+            createdAt: new Date().toISOString(),
+          });
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+        });
+
+        expect(result.success).toBe(true);
+
+        const skillMdAfter = await fs.readFile(
+          path.join(skillDir, "SKILL.md"),
+          "utf-8",
+        );
+        expect(skillMdAfter).toBe(localSkillMd);
+      });
+
+      it("should preserve unrelated files in skill dir when 'use existing' replaces SKILL.md", async () => {
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        const skillDir = path.join(skillsetDir, "skills", "my-skill");
+        await fs.mkdir(path.join(skillDir, "scripts"), { recursive: true });
+        await fs.writeFile(
+          path.join(skillsetDir, "nori.json"),
+          JSON.stringify({
+            name: "my-profile",
+            version: "1.0.0",
+            type: "skillset",
+          }),
+        );
+        await fs.writeFile(
+          path.join(skillDir, "SKILL.md"),
+          "# local SKILL.md\n",
+        );
+        const localReadme = "# local readme that the registry never saw\n";
+        const localScript = "echo 'local helper script'\n";
+        await fs.writeFile(path.join(skillDir, "README.md"), localReadme);
+        await fs.writeFile(
+          path.join(skillDir, "scripts", "helper.sh"),
+          localScript,
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+
+        const collisionError = {
+          message: "Skill conflicts detected",
+          conflicts: [
+            {
+              skillId: "my-skill",
+              exists: true,
+              canPublish: true,
+              latestVersion: "3.0.0",
+              owner: "me@example.com",
+              availableActions: [
+                "link",
+                "namespace",
+                "updateVersion",
+                "cancel",
+              ],
+              contentUnchanged: false,
+              existingSkillMd: "# remote SKILL.md\n",
+            },
+          ],
+        };
+
+        vi.mocked(registrarApi.uploadSkillset)
+          .mockRejectedValueOnce(collisionError)
+          .mockResolvedValueOnce({
+            name: "my-profile",
+            version: "2.0.0",
+            tarballSha: "abc123",
+            createdAt: new Date().toISOString(),
+          });
+
+        vi.mocked(clack.select).mockResolvedValue("link");
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+        });
+
+        expect(result.success).toBe(true);
+
+        // SKILL.md was the only file the diff/conflict surface considered;
+        // siblings must remain untouched after "use existing".
+        const readmeAfter = await fs.readFile(
+          path.join(skillDir, "README.md"),
+          "utf-8",
+        );
+        expect(readmeAfter).toBe(localReadme);
+
+        const scriptAfter = await fs.readFile(
+          path.join(skillDir, "scripts", "helper.sh"),
+          "utf-8",
+        );
+        expect(scriptAfter).toBe(localScript);
+      });
+
+      it("should overwrite local SUBAGENT.md with remote content when user picks 'use existing' on a changed subagent", async () => {
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        const subagentDir = path.join(skillsetDir, "subagents", "my-subagent");
+        await fs.mkdir(subagentDir, { recursive: true });
+        await fs.writeFile(
+          path.join(skillsetDir, "nori.json"),
+          JSON.stringify({
+            name: "my-profile",
+            version: "1.0.0",
+            type: "skillset",
+          }),
+        );
+        const localSubagentMd =
+          "---\nname: My Subagent\ndescription: local edits\n---\n# My Subagent (local)\n";
+        await fs.writeFile(
+          path.join(subagentDir, "SUBAGENT.md"),
+          localSubagentMd,
+        );
+        await fs.writeFile(
+          path.join(subagentDir, "nori.json"),
+          JSON.stringify({
+            name: "my-subagent",
+            version: "1.0.0",
+            type: "subagent",
+          }),
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+
+        const remoteSubagentMd =
+          "---\nname: My Subagent\ndescription: canonical\n---\n# My Subagent (registry)\n";
+        const subagentCollisionError = {
+          message: "Subagent conflicts detected",
+          isSubagentCollisionError: true,
+          conflicts: [
+            {
+              subagentId: "my-subagent",
+              exists: true,
+              canPublish: true,
+              latestVersion: "2.5.0",
+              owner: "me@example.com",
+              availableActions: ["link", "namespace", "cancel"],
+              contentUnchanged: false,
+              existingSubagentMd: remoteSubagentMd,
+            },
+          ],
+        };
+
+        vi.mocked(registrarApi.uploadSkillset)
+          .mockRejectedValueOnce(subagentCollisionError)
+          .mockResolvedValueOnce({
+            name: "my-profile",
+            version: "2.0.0",
+            tarballSha: "abc123",
+            createdAt: new Date().toISOString(),
+          });
+
+        vi.mocked(clack.select).mockResolvedValue("link");
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+        });
+
+        expect(result.success).toBe(true);
+
+        const subagentMdAfter = await fs.readFile(
+          path.join(subagentDir, "SUBAGENT.md"),
+          "utf-8",
+        );
+        expect(subagentMdAfter).toBe(remoteSubagentMd);
+
+        const subagentNoriJson = JSON.parse(
+          await fs.readFile(path.join(subagentDir, "nori.json"), "utf-8"),
+        );
+        expect(subagentNoriJson.version).toBe("2.5.0");
+      });
+
+      it("should overwrite flat-form local subagent markdown when user picks 'use existing'", async () => {
+        // Flat layout: subagents/<id>.md (no directory, no nori.json).
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        const subagentsDir = path.join(skillsetDir, "subagents");
+        await fs.mkdir(subagentsDir, { recursive: true });
+        await fs.writeFile(
+          path.join(skillsetDir, "nori.json"),
+          JSON.stringify({
+            name: "my-profile",
+            version: "1.0.0",
+            type: "skillset",
+            subagents: [
+              {
+                id: "flat-agent",
+                name: "Flat Agent",
+                description: "existing flat subagent",
+              },
+            ],
+          }),
+        );
+        const localFlatMd =
+          "---\nname: Flat Agent\ndescription: local flat subagent edits\n---\n# Flat Agent (local)\n";
+        const flatPath = path.join(subagentsDir, "flat-agent.md");
+        await fs.writeFile(flatPath, localFlatMd);
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+
+        const remoteFlatMd =
+          "---\nname: Flat Agent\ndescription: registry canonical\n---\n# Flat Agent (registry)\n";
+        const subagentCollisionError = {
+          message: "Subagent conflicts detected",
+          isSubagentCollisionError: true,
+          conflicts: [
+            {
+              subagentId: "flat-agent",
+              exists: true,
+              canPublish: true,
+              latestVersion: "3.0.0",
+              owner: "me@example.com",
+              availableActions: ["link", "namespace", "cancel"],
+              contentUnchanged: false,
+              existingSubagentMd: remoteFlatMd,
+            },
+          ],
+        };
+
+        vi.mocked(registrarApi.uploadSkillset)
+          .mockRejectedValueOnce(subagentCollisionError)
+          .mockResolvedValueOnce({
+            name: "my-profile",
+            version: "2.0.0",
+            tarballSha: "abc123",
+            createdAt: new Date().toISOString(),
+          });
+
+        vi.mocked(clack.select).mockResolvedValue("link");
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+        });
+
+        expect(result.success).toBe(true);
+
+        const flatMdAfter = await fs.readFile(flatPath, "utf-8");
+        expect(flatMdAfter).toBe(remoteFlatMd);
+      });
     });
 
     describe("subagent collision handling", () => {
