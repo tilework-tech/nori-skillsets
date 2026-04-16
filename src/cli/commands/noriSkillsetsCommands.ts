@@ -544,6 +544,62 @@ export const registerNoriSkillsetsDownloadSkillCommand = (args: {
 };
 
 /**
+ * Register the 'upload-skill' command for nori-skillsets CLI
+ * @param args - Configuration arguments
+ * @param args.program - Commander program instance
+ */
+export const registerNoriSkillsetsUploadSkillCommand = (args: {
+  program: Command;
+}): void => {
+  const { program } = args;
+
+  program
+    .command("upload-skill <skill>")
+    .description(
+      "Upload a single skill from ~/.nori/profiles/<skillset>/skills/ to the Nori registry",
+    )
+    .option(
+      "--skillset <name>",
+      "Source skillset (defaults to active skillset)",
+    )
+    .option("--registry <url>", "Upload to a specific registry URL")
+    .option("--version <version>", "Explicit version to publish")
+    .option("--description <text>", "Description for this version")
+    .action(
+      async (
+        skillSpec: string,
+        options: {
+          skillset?: string;
+          registry?: string;
+          version?: string;
+          description?: string;
+        },
+      ) => {
+        const { skillUploadMain } =
+          await import("@/cli/commands/skill-upload/skillUpload.js");
+        const globalOpts = program.opts();
+
+        await wrapWithFraming({
+          title: "Upload Skill",
+          exitOnFailure: true,
+          silent: globalOpts.silent || null,
+          action: () =>
+            skillUploadMain({
+              skillSpec,
+              skillset: options.skillset || null,
+              registryUrl: options.registry || null,
+              version: options.version || null,
+              description: options.description || null,
+              cliName: "nori-skillsets",
+              nonInteractive: globalOpts.nonInteractive || null,
+              silent: globalOpts.silent || null,
+            }),
+        });
+      },
+    );
+};
+
+/**
  * Register the 'download-subagent' command for nori-skillsets CLI
  * @param args - Configuration arguments
  * @param args.program - Commander program instance
