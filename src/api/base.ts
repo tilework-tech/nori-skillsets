@@ -6,13 +6,42 @@ import { exchangeRefreshToken } from "@/api/refreshToken.js";
 import { getConfigPath } from "@/cli/config.js";
 import { getFirebase, configureFirebase } from "@/providers/firebase.js";
 import { formatNetworkError } from "@/utils/fetch.js";
-import { normalizeUrl } from "@/utils/url.js";
+import {
+  buildOrganizationRegistryUrl,
+  extractOrgId,
+  normalizeUrl,
+} from "@/utils/url.js";
 
 export type NoriConfig = {
   username?: string | null;
   password?: string | null;
   refreshToken?: string | null;
+  apiToken?: string | null;
+  apiTokenOrgId?: string | null;
   organizationUrl?: string | null;
+};
+
+/**
+ * Read NORI_API_TOKEN + NORI_ORG_ID from environment.
+ * Returns the pair only if BOTH are set. If exactly one is set, emits a
+ * one-time stderr warning and returns null so the caller falls through.
+ */
+let partialEnvWarningEmitted = false;
+export const readApiTokenEnv = (): { token: string; orgId: string } | null => {
+  const token = process.env.NORI_API_TOKEN;
+  const orgId = process.env.NORI_ORG_ID;
+  const hasToken = token != null && token !== "";
+  const hasOrgId = orgId != null && orgId !== "";
+  if (hasToken && hasOrgId) {
+    return { token: token!, orgId: orgId! };
+  }
+  if ((hasToken || hasOrgId) && !partialEnvWarningEmitted) {
+    partialEnvWarningEmitted = true;
+    process.stderr.write(
+      "Warning: NORI_API_TOKEN and NORI_ORG_ID must both be set — ignoring partial configuration.\n",
+    );
+  }
+  return null;
 };
 
 export class ConfigManager {
@@ -44,7 +73,7 @@ export class ConfigManager {
         const parsed = JSON.parse(trimmedContent);
 
         // Handle both nested auth format (v19+) and legacy flat format
-        // Nested format: { auth: { username, password, refreshToken, organizationUrl } }
+        // Nested format: { auth: { username, password, refreshToken, organizationUrl, apiToken, apiTokenOrgId } }
         // Flat format: { username, password, refreshToken, organizationUrl }
         if (parsed.auth != null && typeof parsed.auth === "object") {
           // Extract auth fields from nested format to root level
@@ -52,6 +81,8 @@ export class ConfigManager {
             username: parsed.auth.username ?? null,
             password: parsed.auth.password ?? null,
             refreshToken: parsed.auth.refreshToken ?? null,
+            apiToken: parsed.auth.apiToken ?? null,
+            apiTokenOrgId: parsed.auth.apiTokenOrgId ?? null,
             organizationUrl: parsed.auth.organizationUrl ?? null,
           };
         }
@@ -67,21 +98,32 @@ export class ConfigManager {
   };
 
   static isConfigured = (): boolean => {
+    // Env-var-only API token configuration works with no config file on disk.
+    if (readApiTokenEnv() != null) {
+      return true;
+    }
     const config = ConfigManager.loadConfig();
+    if (config == null) {
+      return false;
+    }
+    // API-token auth does not require a username.
+    if (config.apiToken != null && config.organizationUrl != null) {
+      return true;
+    }
     // Support both token-based auth (refreshToken) and legacy password-based auth
-    const hasAuth = !!(config?.refreshToken || config?.password);
-    return !!(config?.username && hasAuth && config?.organizationUrl);
+    const hasAuth = !!(config.refreshToken || config.password);
+    return !!(config.username && hasAuth && config.organizationUrl);
   };
 }
 
-class AuthManager {
+export class AuthManager {
   private static authToken?: string | null;
   private static tokenExpiry?: number | null;
 
   static async getAuthToken(
-    args: { forceRefresh?: boolean | null } = {},
+    args: { forceRefresh?: boolean | null; targetUrl?: string | null } = {},
   ): Promise<string> {
-    const { forceRefresh } = args;
+    const { forceRefresh, targetUrl } = args;
 
     // Check if token exists and is still valid
     if (!forceRefresh && AuthManager.authToken && AuthManager.tokenExpiry) {
@@ -91,10 +133,45 @@ class AuthManager {
     }
 
     const config = ConfigManager.loadConfig();
+    const envApi = readApiTokenEnv();
 
-    if (config == null || !config.organizationUrl || !config.username) {
+    // Derive the URL used to compute targetOrgId — prefer the caller's explicit target
+    // (so org-scoped API tokens are NEVER sent to a different org's subdomain even when
+    // apiRequest is called with an explicit baseUrl), then fall back to config, then env.
+    let organizationUrl: string | null = targetUrl ?? null;
+    if (organizationUrl == null) {
+      organizationUrl = config?.organizationUrl ?? null;
+    }
+    if (organizationUrl == null && envApi != null) {
+      organizationUrl = buildOrganizationRegistryUrl({ orgId: envApi.orgId });
+    }
+
+    if (organizationUrl == null) {
       throw new Error(
-        "Nori is not configured. Please set username and organizationUrl in .nori-config.json in your installation directory",
+        "Nori is not configured. Please set refreshToken, password, or apiToken in .nori-config.json in your installation directory",
+      );
+    }
+
+    const targetOrgId = extractOrgId({ url: organizationUrl });
+
+    // Precedence: env-var API token (scoped match) > config API token (scoped match)
+    // > refreshToken > password. API tokens are not cached.
+    if (envApi != null && targetOrgId != null && envApi.orgId === targetOrgId) {
+      return envApi.token;
+    }
+
+    if (
+      config?.apiToken != null &&
+      config.apiTokenOrgId != null &&
+      targetOrgId != null &&
+      config.apiTokenOrgId === targetOrgId
+    ) {
+      return config.apiToken;
+    }
+
+    if (config == null || !config.username) {
+      throw new Error(
+        "Nori is not configured. Please set refreshToken, password, or apiToken in .nori-config.json in your installation directory",
       );
     }
 
@@ -112,7 +189,7 @@ class AuthManager {
     // Fall back to legacy password-based auth
     if (!config.password) {
       throw new Error(
-        "Nori is not configured. Please set refreshToken or password in .nori-config.json in your installation directory",
+        "Nori is not configured. Please set refreshToken, password, or apiToken in .nori-config.json in your installation directory",
       );
     }
 
@@ -139,6 +216,13 @@ class AuthManager {
     AuthManager.authToken = null;
     AuthManager.tokenExpiry = null;
   };
+
+  /** Reset cached auth state and the one-time env-var warning flag — used in tests. */
+  static reset = (): void => {
+    AuthManager.authToken = null;
+    AuthManager.tokenExpiry = null;
+    partialEnvWarningEmitted = false;
+  };
 }
 
 export const apiRequest = async <T>(args: {
@@ -160,8 +244,15 @@ export const apiRequest = async <T>(args: {
 
   const config = ConfigManager.loadConfig();
 
-  // Use provided baseUrl, or fall back to config.organizationUrl
-  const effectiveBaseUrl = baseUrl ?? config?.organizationUrl;
+  // Use provided baseUrl, or fall back to config.organizationUrl, or derive from env vars
+  let effectiveBaseUrl: string | null | undefined =
+    baseUrl ?? config?.organizationUrl;
+  if (effectiveBaseUrl == null) {
+    const envApi = readApiTokenEnv();
+    if (envApi != null) {
+      effectiveBaseUrl = buildOrganizationRegistryUrl({ orgId: envApi.orgId });
+    }
+  }
 
   if (effectiveBaseUrl == null) {
     throw new Error("Organization URL not configured");
@@ -177,8 +268,9 @@ export const apiRequest = async <T>(args: {
     url += `?${params.toString()}`;
   }
 
-  // Get auth token
-  const token = await AuthManager.getAuthToken();
+  // Get auth token — pass the target URL so org-scoped API tokens are gated
+  // by the actual destination org, not by config.organizationUrl.
+  const token = await AuthManager.getAuthToken({ targetUrl: effectiveBaseUrl });
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -199,7 +291,10 @@ export const apiRequest = async <T>(args: {
       if (!response.ok) {
         // If unauthorized, try to refresh token and retry
         if (response.status === 401 && attempt < maxRetries) {
-          await AuthManager.getAuthToken({ forceRefresh: true });
+          await AuthManager.getAuthToken({
+            forceRefresh: true,
+            targetUrl: effectiveBaseUrl,
+          });
           continue;
         }
 

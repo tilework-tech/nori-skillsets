@@ -31,7 +31,7 @@ User runs CLI command
 
 ### Core Implementation
 
-The CLI entrypoint is `@/src/cli/nori-skillsets.ts`, which registers all commands via Commander. Configuration is persisted at `~/.nori-config.json` and managed by `@/src/cli/config.ts` with JSON Schema validation (via Ajv). Authentication flows through Firebase -- either legacy password auth or refresh-token-based auth -- with token caching at multiple levels (`@/src/api/base.ts`, `@/src/api/refreshToken.ts`, `@/src/api/registryAuth.ts`).
+The CLI entrypoint is `@/src/cli/nori-skillsets.ts`, which registers all commands via Commander. Configuration is persisted at `~/.nori-config.json` and managed by `@/src/cli/config.ts` with JSON Schema validation (via Ajv). Authentication supports three modes: Firebase refresh-token (preferred interactive), legacy Firebase password (deprecated), and raw API tokens (`nori_<64hex>`) for non-interactive / CI access to private-org registrars at `{orgId}.noriskillsets.dev`. Per-request auth resolution happens in `@/src/api/base.ts` and `@/src/api/registryAuth.ts` with precedence `NORI_API_TOKEN + NORI_ORG_ID` env pair > config `apiToken` (both scoped to a matching target org) > refresh-token exchange > password. Firebase tokens are cached at multiple levels (`@/src/api/base.ts`, `@/src/api/refreshToken.ts`, `@/src/api/registryAuth.ts`); API tokens are never cached.
 
 The build process compiles TypeScript, resolves `@/` path aliases via `tsc-alias`, and then bundles hook scripts into standalone executables using esbuild (`@/src/scripts/bundle-skills.ts`).
 

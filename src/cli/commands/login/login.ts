@@ -14,7 +14,7 @@ import {
 } from "firebase/auth";
 import open from "open";
 
-import { updateConfig } from "@/cli/config.js";
+import { loadConfig, updateConfig } from "@/cli/config.js";
 import {
   loginFlow,
   confirmAction,
@@ -23,6 +23,10 @@ import {
 } from "@/cli/prompts/index.js";
 import { configureFirebase, getFirebase } from "@/providers/firebase.js";
 import { formatNetworkError } from "@/utils/fetch.js";
+import { buildOrganizationRegistryUrl, isValidOrgId } from "@/utils/url.js";
+
+/** API token format: `nori_` + 64 hex chars (matches server PR #329). */
+const API_TOKEN_PATTERN = /^nori_[a-f0-9]{64}$/;
 
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 import type { Command } from "commander";
@@ -328,6 +332,8 @@ const authenticateWithGoogle = async (args?: {
  * @param args.password - Password (for non-interactive mode)
  * @param args.google - Whether to use Google SSO
  * @param args.noLocalhost - Whether to use hosted callback page instead of localhost
+ * @param args.token - Raw API token (nori_<64hex>) for non-interactive private-org auth
+ * @param args.org - Org id the API token is scoped to (required with --token)
  *
  * @returns Command status
  */
@@ -338,6 +344,8 @@ export const loginMain = async (args?: {
   password?: string | null;
   google?: boolean | null;
   noLocalhost?: boolean | null;
+  token?: string | null;
+  org?: string | null;
 }): Promise<CommandStatus> => {
   const {
     nonInteractive,
@@ -345,7 +353,86 @@ export const loginMain = async (args?: {
     password,
     google: useGoogle,
     noLocalhost,
+    token,
+    org,
   } = args ?? {};
+
+  // API-token login path — short-circuits all Firebase flows.
+  if (token != null) {
+    if (email != null || password != null || useGoogle) {
+      return {
+        success: false,
+        cancelled: false,
+        message:
+          "Cannot combine --token with --email, --password, or --google. API-token auth is mutually exclusive with Firebase auth.",
+      };
+    }
+    if (org == null) {
+      return {
+        success: false,
+        cancelled: false,
+        message: "--token requires --org <orgId>.",
+      };
+    }
+    if (!API_TOKEN_PATTERN.test(token)) {
+      return {
+        success: false,
+        cancelled: false,
+        message:
+          "Invalid --token value. Expected format: nori_ followed by 64 hexadecimal characters.",
+      };
+    }
+    if (org === "public") {
+      return {
+        success: false,
+        cancelled: false,
+        message:
+          "API tokens are not supported on the public registry (--org public). Use a private org id.",
+      };
+    }
+    if (!isValidOrgId({ orgId: org })) {
+      return {
+        success: false,
+        cancelled: false,
+        message: `Invalid --org value: '${org}'. Org IDs must be lowercase alphanumeric with hyphens.`,
+      };
+    }
+
+    const organizationUrl = buildOrganizationRegistryUrl({ orgId: org });
+
+    // Detect whether an existing Firebase session is about to be overwritten,
+    // so we can tell the user explicitly (per spec edge case 8).
+    const existing = await loadConfig();
+    const hadFirebaseSession =
+      existing?.auth != null &&
+      (existing.auth.refreshToken != null || existing.auth.password != null);
+
+    await updateConfig({
+      auth: {
+        username: null,
+        organizationUrl,
+        apiToken: token,
+        apiTokenOrgId: org,
+        refreshToken: null,
+        password: null,
+        organizations: [org],
+        isAdmin: null,
+      },
+    });
+
+    if (hadFirebaseSession) {
+      log.warn(
+        "Existing Firebase session (refreshToken/password/username) has been cleared. Use 'nori-skillsets login' without --token to sign back in with Firebase.",
+      );
+    }
+
+    return {
+      success: true,
+      cancelled: false,
+      message: `Logged in with API token for org '${org}'.`,
+    };
+  }
+
   // Validate flag combinations
   if (useGoogle && (email != null || password != null)) {
     return {
@@ -637,12 +724,22 @@ export const registerLoginCommand = (args: { program: Command }): void => {
       "--no-localhost",
       "Use hosted callback page instead of localhost (for headless/SSH)",
     )
+    .option(
+      "--token <token>",
+      "API token (nori_<64hex>) for non-interactive private-org auth",
+    )
+    .option(
+      "--org <orgId>",
+      "Organization ID the API token is scoped to (required with --token)",
+    )
     .action(
       async (options: {
         email?: string;
         password?: string;
         google?: boolean;
         localhost?: boolean;
+        token?: string;
+        org?: string;
       }) => {
         const globalOpts = program.opts();
 
@@ -653,6 +750,8 @@ export const registerLoginCommand = (args: { program: Command }): void => {
           password: options.password || null,
           google: options.google || null,
           noLocalhost: options.localhost === false ? true : null,
+          token: options.token || null,
+          org: options.org || null,
         });
       },
     );

@@ -1900,3 +1900,167 @@ describe("login command", () => {
     });
   });
 });
+
+describe("loginMain with --token", () => {
+  let tempDir: string;
+
+  beforeEach(async () => {
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "login-token-test-"));
+    vi.mocked(os.homedir).mockReturnValue(tempDir);
+    vi.clearAllMocks();
+    const clack = await import("@clack/prompts");
+    vi.mocked(clack.isCancel).mockReturnValue(false);
+  });
+
+  afterEach(async () => {
+    await fs.rm(tempDir, { recursive: true, force: true });
+  });
+
+  const VALID_TOKEN = `nori_${"a".repeat(64)}`;
+
+  it("should save apiToken + apiTokenOrgId + derived organizationUrl to config", async () => {
+    const result = await loginMain({
+      installDir: tempDir,
+      token: VALID_TOKEN,
+      org: "acme",
+    });
+
+    expect(result.success).toBe(true);
+
+    const config = await loadConfig();
+    expect(config?.auth?.apiToken).toBe(VALID_TOKEN);
+    expect(config?.auth?.apiTokenOrgId).toBe("acme");
+    expect(config?.auth?.organizationUrl).toBe(
+      "https://acme.noriskillsets.dev",
+    );
+    // Firebase fields should be cleared
+    expect(config?.auth?.refreshToken ?? null).toBeNull();
+    expect(config?.auth?.password ?? null).toBeNull();
+    expect(config?.auth?.username ?? null).toBeNull();
+  });
+
+  it("should reject --token without --org", async () => {
+    const result = await loginMain({
+      installDir: tempDir,
+      token: VALID_TOKEN,
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.message).toMatch(/--org/);
+
+    const config = await loadConfig();
+    expect(config?.auth).toBeUndefined();
+  });
+
+  it("should reject --token --org public", async () => {
+    const result = await loginMain({
+      installDir: tempDir,
+      token: VALID_TOKEN,
+      org: "public",
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.message).toMatch(/public/);
+
+    const config = await loadConfig();
+    expect(config?.auth).toBeUndefined();
+  });
+
+  it("should reject malformed --token", async () => {
+    const result = await loginMain({
+      installDir: tempDir,
+      token: "notatoken",
+      org: "acme",
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.message).toMatch(/nori_/);
+
+    const config = await loadConfig();
+    expect(config?.auth).toBeUndefined();
+  });
+
+  it("should reject invalid --org value", async () => {
+    const result = await loginMain({
+      installDir: tempDir,
+      token: VALID_TOKEN,
+      org: "Bad Org",
+    });
+
+    expect(result.success).toBe(false);
+
+    const config = await loadConfig();
+    expect(config?.auth).toBeUndefined();
+  });
+
+  it("should reject --token combined with --email", async () => {
+    const result = await loginMain({
+      installDir: tempDir,
+      token: VALID_TOKEN,
+      org: "acme",
+      email: "user@example.com",
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.message).toMatch(/--token/);
+  });
+
+  it("should reject --token combined with --password", async () => {
+    const result = await loginMain({
+      installDir: tempDir,
+      token: VALID_TOKEN,
+      org: "acme",
+      password: "secret",
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.message).toMatch(/--token/);
+  });
+
+  it("should reject --token combined with --google", async () => {
+    const result = await loginMain({
+      installDir: tempDir,
+      token: VALID_TOKEN,
+      org: "acme",
+      google: true,
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.message).toMatch(/--token/);
+  });
+
+  it("should not call Firebase when using --token", async () => {
+    const { signInWithEmailAndPassword } = await import("firebase/auth");
+
+    await loginMain({
+      installDir: tempDir,
+      token: VALID_TOKEN,
+      org: "acme",
+    });
+
+    expect(signInWithEmailAndPassword).not.toHaveBeenCalled();
+  });
+
+  it("should warn that Firebase session was cleared when --token overwrites an existing session", async () => {
+    const clack = await import("@clack/prompts");
+    const { saveConfig } = await import("@/cli/config.js");
+
+    // Seed a Firebase-style session
+    await saveConfig({
+      username: "user@example.com",
+      refreshToken: "existing-refresh",
+      organizationUrl: "https://noriskillsets.dev",
+      installDir: tempDir,
+    });
+
+    await loginMain({
+      installDir: tempDir,
+      token: VALID_TOKEN,
+      org: "acme",
+    });
+
+    expect(clack.log.warn).toHaveBeenCalledWith(
+      expect.stringContaining("Firebase"),
+    );
+  });
+});

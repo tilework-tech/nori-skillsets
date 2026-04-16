@@ -767,12 +767,22 @@ export const registerNoriSkillsetsLoginCommand = (args: {
       "--no-localhost",
       "Use hosted callback page instead of localhost (for headless/SSH)",
     )
+    .option(
+      "--token <token>",
+      "API token (nori_<64hex>) for non-interactive private-org auth",
+    )
+    .option(
+      "--org <orgId>",
+      "Organization ID the API token is scoped to (required with --token)",
+    )
     .action(
       async (options: {
         email?: string;
         password?: string;
         google?: boolean;
         localhost?: boolean;
+        token?: string;
+        org?: string;
       }) => {
         const globalOpts = program.opts();
         await wrapWithFraming({
@@ -785,6 +795,8 @@ export const registerNoriSkillsetsLoginCommand = (args: {
               password: options.password || null,
               google: options.google || null,
               noLocalhost: options.localhost === false ? true : null,
+              token: options.token || null,
+              org: options.org || null,
             }),
         });
       },

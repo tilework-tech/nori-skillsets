@@ -12,13 +12,26 @@ CLI commands in `@/src/cli/commands/` call into this module for registry operati
 
 ### Core Implementation
 
-**`base.ts`** provides `ConfigManager` (reads `~/.nori-config.json` synchronously), `AuthManager` (caches Firebase ID tokens with 55-minute expiry), and `apiRequest()` -- a generic authenticated fetch wrapper with exponential backoff retries and automatic 401 token refresh. This is the foundation for `transcript.ts`.
+**`base.ts`** provides `ConfigManager` (reads `~/.nori-config.json` synchronously), `AuthManager` (caches Firebase ID tokens with 55-minute expiry), and `apiRequest()` -- a generic authenticated fetch wrapper with exponential backoff retries and automatic 401 token refresh. This is the foundation for `transcript.ts`. `AuthManager` is exported so tests can call `AuthManager.reset()` to clear cached tokens and the module-level one-shot env-warning flag between cases.
+
+**Auth resolution precedence** (per request, evaluated top-down in `AuthManager.getAuthToken` and mirrored in `getRegistryAuthToken` from `registryAuth.ts`):
+
+```
+1. NORI_API_TOKEN + NORI_ORG_ID env pair   (only when NORI_ORG_ID === extractOrgId(targetUrl))
+2. config.auth.apiToken + apiTokenOrgId    (only when apiTokenOrgId === extractOrgId(targetUrl))
+3. config.auth.refreshToken                 (exchanged for Firebase ID token, cached 55 min)
+4. config.auth.password                     (legacy Firebase signInWithEmailAndPassword)
+```
+
+API tokens are sent raw as `Authorization: Bearer nori_<hex>` and are NEVER cached (they are long-lived, and caching risks staleness across env changes within one process). The wire format is identical to Firebase ID tokens — the server's routing is determined by the `nori_` prefix. Scoping is strict: a token scoped to `acme` is never forwarded to a request targeting `foo.noriskillsets.dev`; the resolver falls through to the refresh-token path instead. The server rejects API tokens on the public apex, so the CLI also refuses `--org public` at login time (see `@/src/cli/commands/login/docs.md`).
+
+**Env var pair** (`NORI_API_TOKEN`, `NORI_ORG_ID`): both must be set. A partial pair is ignored with a one-shot stderr warning guarded by a module-level `partialEnvWarningEmitted` flag. When both env vars are set AND no config file exists on disk, `apiRequest` derives `effectiveBaseUrl` via `buildOrganizationRegistryUrl({ orgId: envApi.orgId })` so CI can authenticate with zero config. `ConfigManager.isConfigured()` returns `true` for either an env-var-only setup or a config with `apiToken + organizationUrl` (no `username` required).
 
 **`registrar.ts`** is the registry API client (`registrarApi`) with methods for skillsets (`/api/skillsets/`), skills (`/api/skills/`), and subagents (`/api/subagents/`). Skillset endpoints use `fetchWithFallback` which silently retries on `/api/profiles/` if the primary path returns 404, for backward compatibility with older registries. Read operations (search, packument, download) are optionally authenticated; write operations (upload) require a bearer token. Collision detection on upload surfaces `SkillCollisionError` (when the 409 response contains `conflicts`) or `SubagentCollisionError` (when it contains `subagentConflicts`) with per-item conflict resolution options. The `UploadSkillsetRequest` type includes `inlineSkills`, `inlineSubagents`, `resolutionStrategy`, and `subagentResolutionStrategy` fields; `uploadSkillset` sends all as JSON-serialized form fields when present. The `UploadSkillsetResponse` carries `extractedSubagents` alongside `extractedSkills`. Subagent API methods (`getSubagentPackument`, `downloadSubagentTarball`) follow the same pattern as skill methods but target `/api/subagents/`.
 
 **`refreshToken.ts`** exchanges Firebase refresh tokens for ID tokens using the Firebase REST API directly (not the SDK), because the SDK requires an active user session. It maintains its own in-memory cache with a 5-minute safety buffer before expiry.
 
-**`registryAuth.ts`** provides per-registry-URL token caching for private registry authentication, using the same refresh token exchange mechanism.
+**`registryAuth.ts`** provides per-registry-URL token caching for Firebase ID tokens and precedence-checks for API tokens. `getRegistryAuthToken` evaluates env-var API tokens (scoped match), then config API tokens (scoped match), then the cached Firebase token, then performs a refresh-token exchange. API tokens short-circuit before the cache is consulted and are never written back to the cache.
 
 **`analytics.ts`** fires analytics events to the organization URL (or a default). Failures are silently swallowed to avoid interrupting user flow.
 
@@ -26,7 +39,9 @@ CLI commands in `@/src/cli/commands/` call into this module for registry operati
 
 ### Things to Know
 
-There are three layers of token caching: `refreshToken.ts` caches the raw token exchange result, `registryAuth.ts` caches per-registry tokens, and `AuthManager` in `base.ts` caches the token used by `apiRequest`. All use time-based expiry (55 minutes for Firebase tokens, with varying safety buffers).
+There are three layers of token caching, all exclusively for Firebase tokens: `refreshToken.ts` caches the raw token exchange result, `registryAuth.ts` caches per-registry tokens, and `AuthManager` in `base.ts` caches the token used by `apiRequest`. All use time-based expiry (55 minutes for Firebase tokens, with varying safety buffers). API tokens bypass every cache layer and are returned raw on each call.
+
+Target org is derived from the request URL at resolution time via `extractOrgId` from `@/src/utils/url.ts`. Cross-org API-token use is never silently promoted — if the scope does not match, the resolver falls through to the next precedence level (which mirrors the server's 403 behavior for cross-org tokens, failing faster client-side when the mismatch is knowable).
 
 `ConfigManager.loadConfig()` in `base.ts` handles an expected race condition during fresh installation where the config file may be empty because analytics fires before the file is fully written. Empty files return `{}` rather than throwing.
 

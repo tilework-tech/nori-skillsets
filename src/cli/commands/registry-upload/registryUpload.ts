@@ -976,8 +976,10 @@ export const registryUploadMain = async (args: {
         if (orgRegistryUrl === registryUrl) {
           registryAuth = {
             registryUrl,
-            username: config.auth!.username,
-            refreshToken: config.auth!.refreshToken,
+            username: config.auth!.username ?? null,
+            refreshToken: config.auth!.refreshToken ?? null,
+            apiToken: config.auth!.apiToken ?? null,
+            apiTokenOrgId: config.auth!.apiTokenOrgId ?? null,
           };
           break;
         }
@@ -1018,8 +1020,10 @@ export const registryUploadMain = async (args: {
 
     const registryAuth: RegistryAuth = {
       registryUrl: targetRegistryUrl,
-      username: config.auth!.username,
-      refreshToken: config.auth!.refreshToken,
+      username: config.auth!.username ?? null,
+      refreshToken: config.auth!.refreshToken ?? null,
+      apiToken: config.auth!.apiToken ?? null,
+      apiTokenOrgId: config.auth!.apiTokenOrgId ?? null,
     };
 
     try {
@@ -1062,8 +1066,10 @@ export const registryUploadMain = async (args: {
 
     const registryAuth: RegistryAuth = {
       registryUrl: targetRegistryUrl,
-      username: config.auth!.username,
-      refreshToken: config.auth!.refreshToken,
+      username: config.auth!.username ?? null,
+      refreshToken: config.auth!.refreshToken ?? null,
+      apiToken: config.auth!.apiToken ?? null,
+      apiTokenOrgId: config.auth!.apiTokenOrgId ?? null,
     };
 
     try {
