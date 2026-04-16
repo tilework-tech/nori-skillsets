@@ -108,7 +108,6 @@ describe("config with skillset-based system", () => {
         organizations: null,
         isAdmin: null,
         apiToken: null,
-        apiTokenOrgId: null,
       });
       expect(loaded?.activeSkillset).toBe("senior-swe");
     });
@@ -131,7 +130,6 @@ describe("config with skillset-based system", () => {
         organizations: null,
         isAdmin: null,
         apiToken: null,
-        apiTokenOrgId: null,
       });
       expect(loaded?.activeSkillset).toBeUndefined();
     });
@@ -1029,21 +1027,26 @@ describe("API token auth", () => {
     vi.clearAllMocks();
   });
 
+  const TOKEN_ACME = `nori_acme_${"a".repeat(64)}`;
+  const TOKEN_ACME_B = `nori_acme_${"b".repeat(64)}`;
+  const TOKEN_ACME_C = `nori_acme_${"c".repeat(64)}`;
+  const TOKEN_ACME_D = `nori_acme_${"d".repeat(64)}`;
+  const TOKEN_ACME_E = `nori_acme_${"e".repeat(64)}`;
+  const TOKEN_ACME_F = `nori_acme_${"f".repeat(64)}`;
+
   describe("saveConfig and loadConfig with apiToken", () => {
-    it("should round-trip apiToken and apiTokenOrgId via updateConfig/loadConfig", async () => {
+    it("should round-trip apiToken via updateConfig/loadConfig", async () => {
       await updateConfig({
         auth: {
           username: null,
           organizationUrl: "https://acme.noriskillsets.dev",
-          apiToken: `nori_${"a".repeat(64)}`,
-          apiTokenOrgId: "acme",
+          apiToken: TOKEN_ACME,
         },
       });
 
       const loaded = await loadConfig();
 
-      expect(loaded?.auth?.apiToken).toBe(`nori_${"a".repeat(64)}`);
-      expect(loaded?.auth?.apiTokenOrgId).toBe("acme");
+      expect(loaded?.auth?.apiToken).toBe(TOKEN_ACME);
       expect(loaded?.auth?.organizationUrl).toBe(
         "https://acme.noriskillsets.dev",
       );
@@ -1055,8 +1058,7 @@ describe("API token auth", () => {
         JSON.stringify({
           auth: {
             organizationUrl: "https://acme.noriskillsets.dev",
-            apiToken: `nori_${"b".repeat(64)}`,
-            apiTokenOrgId: "acme",
+            apiToken: TOKEN_ACME_B,
           },
         }),
       );
@@ -1064,8 +1066,7 @@ describe("API token auth", () => {
       const loaded = await loadConfig();
 
       expect(loaded).not.toBeNull();
-      expect(loaded?.auth?.apiToken).toBe(`nori_${"b".repeat(64)}`);
-      expect(loaded?.auth?.apiTokenOrgId).toBe("acme");
+      expect(loaded?.auth?.apiToken).toBe(TOKEN_ACME_B);
     });
 
     it("should preserve refreshToken when loading config written before api token support", async () => {
@@ -1086,30 +1087,27 @@ describe("API token auth", () => {
       expect(loaded?.auth?.username).toBe("user@example.com");
       expect(loaded?.auth?.refreshToken).toBe("refresh-xyz");
       expect(loaded?.auth?.apiToken ?? null).toBeNull();
-      expect(loaded?.auth?.apiTokenOrgId ?? null).toBeNull();
     });
 
-    it("should preserve apiToken + apiTokenOrgId across an unrelated updateConfig call", async () => {
+    it("should preserve apiToken across an unrelated updateConfig call", async () => {
       await updateConfig({
         auth: {
           username: null,
           organizationUrl: "https://acme.noriskillsets.dev",
-          apiToken: `nori_${"c".repeat(64)}`,
-          apiTokenOrgId: "acme",
+          apiToken: TOKEN_ACME_C,
         },
       });
 
       await updateConfig({ activeSkillset: "senior-swe" });
 
       const loaded = await loadConfig();
-      expect(loaded?.auth?.apiToken).toBe(`nori_${"c".repeat(64)}`);
-      expect(loaded?.auth?.apiTokenOrgId).toBe("acme");
+      expect(loaded?.auth?.apiToken).toBe(TOKEN_ACME_C);
       expect(loaded?.activeSkillset).toBe("senior-swe");
     });
   });
 
   describe("getRegistryAuth with apiToken", () => {
-    it("should return apiToken when registry URL matches apiTokenOrgId", async () => {
+    it("should return apiToken when registry URL matches org embedded in token", async () => {
       const { getRegistryAuth } = await import("./config.js");
 
       const config: Config = {
@@ -1117,8 +1115,7 @@ describe("API token auth", () => {
         auth: {
           username: null,
           organizationUrl: "https://acme.noriskillsets.dev",
-          apiToken: `nori_${"d".repeat(64)}`,
-          apiTokenOrgId: "acme",
+          apiToken: TOKEN_ACME_D,
         },
       };
 
@@ -1128,11 +1125,10 @@ describe("API token auth", () => {
       });
 
       expect(auth).not.toBeNull();
-      expect(auth?.apiToken).toBe(`nori_${"d".repeat(64)}`);
-      expect(auth?.apiTokenOrgId).toBe("acme");
+      expect(auth?.apiToken).toBe(TOKEN_ACME_D);
     });
 
-    it("should NOT return apiToken when URL org differs from apiTokenOrgId", async () => {
+    it("should NOT return apiToken when URL org differs from token's embedded org", async () => {
       const { getRegistryAuth } = await import("./config.js");
 
       const config: Config = {
@@ -1141,8 +1137,7 @@ describe("API token auth", () => {
           username: "user@example.com",
           organizationUrl: "https://acme.noriskillsets.dev",
           refreshToken: "refresh-xyz",
-          apiToken: `nori_${"e".repeat(64)}`,
-          apiTokenOrgId: "acme",
+          apiToken: TOKEN_ACME_E,
         },
       };
 
@@ -1185,8 +1180,7 @@ describe("API token auth", () => {
         JSON.stringify({
           auth: {
             organizationUrl: "https://acme.noriskillsets.dev",
-            apiToken: `nori_${"f".repeat(64)}`,
-            apiTokenOrgId: "acme",
+            apiToken: TOKEN_ACME_F,
           },
         }),
       );

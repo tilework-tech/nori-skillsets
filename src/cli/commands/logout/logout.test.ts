@@ -154,7 +154,7 @@ describe("logout command", () => {
       expect(afterLogout?.autoupdate).toBe("disabled");
     });
 
-    it("should clear apiToken and apiTokenOrgId after an API-token login", async () => {
+    it("should clear apiToken after an API-token login", async () => {
       const { updateConfig } = await import("@/cli/config.js");
 
       // Simulate an API-token-only login
@@ -162,14 +162,12 @@ describe("logout command", () => {
         auth: {
           username: null,
           organizationUrl: "https://acme.noriskillsets.dev",
-          apiToken: `nori_${"a".repeat(64)}`,
-          apiTokenOrgId: "acme",
+          apiToken: `nori_acme_${"a".repeat(64)}`,
         },
       });
 
       const beforeLogout = await loadConfig();
-      expect(beforeLogout?.auth?.apiToken).toBe(`nori_${"a".repeat(64)}`);
-      expect(beforeLogout?.auth?.apiTokenOrgId).toBe("acme");
+      expect(beforeLogout?.auth?.apiToken).toBe(`nori_acme_${"a".repeat(64)}`);
 
       await logoutMain();
 

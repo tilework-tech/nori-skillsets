@@ -5,6 +5,7 @@ import { signInWithEmailAndPassword } from "firebase/auth";
 import { exchangeRefreshToken } from "@/api/refreshToken.js";
 import { getConfigPath } from "@/cli/config.js";
 import { getFirebase, configureFirebase } from "@/providers/firebase.js";
+import { extractOrgIdFromApiToken, isValidApiToken } from "@/utils/apiToken.js";
 import { formatNetworkError } from "@/utils/fetch.js";
 import {
   buildOrganizationRegistryUrl,
@@ -17,31 +18,28 @@ export type NoriConfig = {
   password?: string | null;
   refreshToken?: string | null;
   apiToken?: string | null;
-  apiTokenOrgId?: string | null;
   organizationUrl?: string | null;
 };
 
 /**
- * Read NORI_API_TOKEN + NORI_ORG_ID from environment.
- * Returns the pair only if BOTH are set. If exactly one is set, emits a
- * one-time stderr warning and returns null so the caller falls through.
+ * Read NORI_API_TOKEN from environment. The orgId is parsed from the token itself.
+ *
+ * @returns The parsed token+orgId pair, or null if the env var is unset,
+ *   empty, or not a valid API token shape.
  */
-let partialEnvWarningEmitted = false;
 export const readApiTokenEnv = (): { token: string; orgId: string } | null => {
   const token = process.env.NORI_API_TOKEN;
-  const orgId = process.env.NORI_ORG_ID;
-  const hasToken = token != null && token !== "";
-  const hasOrgId = orgId != null && orgId !== "";
-  if (hasToken && hasOrgId) {
-    return { token: token!, orgId: orgId! };
+  if (token == null || token === "") {
+    return null;
   }
-  if ((hasToken || hasOrgId) && !partialEnvWarningEmitted) {
-    partialEnvWarningEmitted = true;
-    process.stderr.write(
-      "Warning: NORI_API_TOKEN and NORI_ORG_ID must both be set — ignoring partial configuration.\n",
-    );
+  if (!isValidApiToken({ token })) {
+    return null;
   }
-  return null;
+  const orgId = extractOrgIdFromApiToken({ token });
+  if (orgId == null) {
+    return null;
+  }
+  return { token, orgId };
 };
 
 export class ConfigManager {
@@ -73,7 +71,7 @@ export class ConfigManager {
         const parsed = JSON.parse(trimmedContent);
 
         // Handle both nested auth format (v19+) and legacy flat format
-        // Nested format: { auth: { username, password, refreshToken, organizationUrl, apiToken, apiTokenOrgId } }
+        // Nested format: { auth: { username, password, refreshToken, organizationUrl, apiToken } }
         // Flat format: { username, password, refreshToken, organizationUrl }
         if (parsed.auth != null && typeof parsed.auth === "object") {
           // Extract auth fields from nested format to root level
@@ -82,7 +80,6 @@ export class ConfigManager {
             password: parsed.auth.password ?? null,
             refreshToken: parsed.auth.refreshToken ?? null,
             apiToken: parsed.auth.apiToken ?? null,
-            apiTokenOrgId: parsed.auth.apiTokenOrgId ?? null,
             organizationUrl: parsed.auth.organizationUrl ?? null,
           };
         }
@@ -160,13 +157,13 @@ export class AuthManager {
       return envApi.token;
     }
 
-    if (
-      config?.apiToken != null &&
-      config.apiTokenOrgId != null &&
-      targetOrgId != null &&
-      config.apiTokenOrgId === targetOrgId
-    ) {
-      return config.apiToken;
+    if (config?.apiToken != null && targetOrgId != null) {
+      const configTokenOrgId = extractOrgIdFromApiToken({
+        token: config.apiToken,
+      });
+      if (configTokenOrgId != null && configTokenOrgId === targetOrgId) {
+        return config.apiToken;
+      }
     }
 
     if (config == null || !config.username) {
@@ -217,11 +214,10 @@ export class AuthManager {
     AuthManager.tokenExpiry = null;
   };
 
-  /** Reset cached auth state and the one-time env-var warning flag — used in tests. */
+  /** Reset cached auth state — used in tests. */
   static reset = (): void => {
     AuthManager.authToken = null;
     AuthManager.tokenExpiry = null;
-    partialEnvWarningEmitted = false;
   };
 }
 

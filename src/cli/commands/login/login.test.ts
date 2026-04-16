@@ -1916,20 +1916,18 @@ describe("loginMain with --token", () => {
     await fs.rm(tempDir, { recursive: true, force: true });
   });
 
-  const VALID_TOKEN = `nori_${"a".repeat(64)}`;
+  const VALID_TOKEN = `nori_acme_${"a".repeat(64)}`;
 
-  it("should save apiToken + apiTokenOrgId + derived organizationUrl to config", async () => {
+  it("should save apiToken + derived organizationUrl to config (org parsed from token)", async () => {
     const result = await loginMain({
       installDir: tempDir,
       token: VALID_TOKEN,
-      org: "acme",
     });
 
     expect(result.success).toBe(true);
 
     const config = await loadConfig();
     expect(config?.auth?.apiToken).toBe(VALID_TOKEN);
-    expect(config?.auth?.apiTokenOrgId).toBe("acme");
     expect(config?.auth?.organizationUrl).toBe(
       "https://acme.noriskillsets.dev",
     );
@@ -1939,24 +1937,10 @@ describe("loginMain with --token", () => {
     expect(config?.auth?.username ?? null).toBeNull();
   });
 
-  it("should reject --token without --org", async () => {
+  it("should reject token whose embedded org is 'public'", async () => {
     const result = await loginMain({
       installDir: tempDir,
-      token: VALID_TOKEN,
-    });
-
-    expect(result.success).toBe(false);
-    expect(result.message).toMatch(/--org/);
-
-    const config = await loadConfig();
-    expect(config?.auth).toBeUndefined();
-  });
-
-  it("should reject --token --org public", async () => {
-    const result = await loginMain({
-      installDir: tempDir,
-      token: VALID_TOKEN,
-      org: "public",
+      token: `nori_public_${"a".repeat(64)}`,
     });
 
     expect(result.success).toBe(false);
@@ -1966,11 +1950,10 @@ describe("loginMain with --token", () => {
     expect(config?.auth).toBeUndefined();
   });
 
-  it("should reject malformed --token", async () => {
+  it("should reject malformed --token (missing org segment)", async () => {
     const result = await loginMain({
       installDir: tempDir,
-      token: "notatoken",
-      org: "acme",
+      token: `nori_${"a".repeat(64)}`,
     });
 
     expect(result.success).toBe(false);
@@ -1980,14 +1963,14 @@ describe("loginMain with --token", () => {
     expect(config?.auth).toBeUndefined();
   });
 
-  it("should reject invalid --org value", async () => {
+  it("should reject completely malformed --token", async () => {
     const result = await loginMain({
       installDir: tempDir,
-      token: VALID_TOKEN,
-      org: "Bad Org",
+      token: "notatoken",
     });
 
     expect(result.success).toBe(false);
+    expect(result.message).toMatch(/nori_/);
 
     const config = await loadConfig();
     expect(config?.auth).toBeUndefined();
@@ -1997,7 +1980,6 @@ describe("loginMain with --token", () => {
     const result = await loginMain({
       installDir: tempDir,
       token: VALID_TOKEN,
-      org: "acme",
       email: "user@example.com",
     });
 
@@ -2009,7 +1991,6 @@ describe("loginMain with --token", () => {
     const result = await loginMain({
       installDir: tempDir,
       token: VALID_TOKEN,
-      org: "acme",
       password: "secret",
     });
 
@@ -2021,7 +2002,6 @@ describe("loginMain with --token", () => {
     const result = await loginMain({
       installDir: tempDir,
       token: VALID_TOKEN,
-      org: "acme",
       google: true,
     });
 
@@ -2035,7 +2015,6 @@ describe("loginMain with --token", () => {
     await loginMain({
       installDir: tempDir,
       token: VALID_TOKEN,
-      org: "acme",
     });
 
     expect(signInWithEmailAndPassword).not.toHaveBeenCalled();
@@ -2056,7 +2035,6 @@ describe("loginMain with --token", () => {
     await loginMain({
       installDir: tempDir,
       token: VALID_TOKEN,
-      org: "acme",
     });
 
     expect(clack.log.warn).toHaveBeenCalledWith(

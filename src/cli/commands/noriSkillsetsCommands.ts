@@ -770,11 +770,7 @@ export const registerNoriSkillsetsLoginCommand = (args: {
     )
     .option(
       "--token <token>",
-      "API token (nori_<64hex>) for non-interactive private-org auth",
-    )
-    .option(
-      "--org <orgId>",
-      "Organization ID the API token is scoped to (required with --token)",
+      "API token (nori_<orgId>_<64hex>) for non-interactive private-org auth",
     )
     .action(
       async (options: {
@@ -783,7 +779,6 @@ export const registerNoriSkillsetsLoginCommand = (args: {
         google?: boolean;
         localhost?: boolean;
         token?: string;
-        org?: string;
       }) => {
         const { loginMain } = await import("@/cli/commands/login/login.js");
         const globalOpts = program.opts();
@@ -798,7 +793,6 @@ export const registerNoriSkillsetsLoginCommand = (args: {
               google: options.google || null,
               noLocalhost: options.localhost === false ? true : null,
               token: options.token || null,
-              org: options.org || null,
             }),
         });
       },

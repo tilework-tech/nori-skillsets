@@ -484,7 +484,6 @@ const performSearch = async (args: {
         username: config.auth!.username ?? null,
         refreshToken: config.auth!.refreshToken ?? null,
         apiToken: config.auth!.apiToken ?? null,
-        apiTokenOrgId: config.auth!.apiTokenOrgId ?? null,
       };
 
       const orgSearchPromise = (async (): Promise<RegistrySearchResult> => {
@@ -514,7 +513,6 @@ const performSearch = async (args: {
         username: config.auth.username ?? null,
         refreshToken: config.auth.refreshToken ?? null,
         apiToken: config.auth.apiToken ?? null,
-        apiTokenOrgId: config.auth.apiTokenOrgId ?? null,
       };
 
       const [profileResult, skillResult, subagentResult] = await Promise.all([

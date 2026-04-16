@@ -171,48 +171,41 @@ describe("registryAuth", () => {
 
   describe("getRegistryAuthToken with apiToken", () => {
     const origEnvToken = process.env.NORI_API_TOKEN;
-    const origEnvOrg = process.env.NORI_ORG_ID;
 
     beforeEach(() => {
       delete process.env.NORI_API_TOKEN;
-      delete process.env.NORI_ORG_ID;
     });
 
     afterEach(() => {
       if (origEnvToken == null) delete process.env.NORI_API_TOKEN;
       else process.env.NORI_API_TOKEN = origEnvToken;
-      if (origEnvOrg == null) delete process.env.NORI_ORG_ID;
-      else process.env.NORI_ORG_ID = origEnvOrg;
     });
 
-    it("should return raw apiToken without calling exchangeRefreshToken when apiTokenOrgId matches URL org", async () => {
+    it("should return raw apiToken without calling exchangeRefreshToken when token's org matches URL org", async () => {
       const registryAuth: RegistryAuth = {
         username: "n/a",
         registryUrl: "https://acme.noriskillsets.dev",
-        apiToken: `nori_${"a".repeat(64)}`,
-        apiTokenOrgId: "acme",
+        apiToken: `nori_acme_${"a".repeat(64)}`,
       };
 
       const token = await getRegistryAuthToken({ registryAuth });
 
-      expect(token).toBe(`nori_${"a".repeat(64)}`);
+      expect(token).toBe(`nori_acme_${"a".repeat(64)}`);
       expect(exchangeRefreshToken).not.toHaveBeenCalled();
     });
 
-    it("should NOT cache apiToken responses (next call still returns same token but without caching)", async () => {
+    it("should NOT cache apiToken responses (next call with rotated token returns new value)", async () => {
       // Since we return the raw token by early-return, no cache entry is created.
       // Validate by switching the apiToken value for a second call and seeing the new value.
       const registryAuth1: RegistryAuth = {
         username: "n/a",
         registryUrl: "https://acme.noriskillsets.dev",
-        apiToken: `nori_${"a".repeat(64)}`,
-        apiTokenOrgId: "acme",
+        apiToken: `nori_acme_${"a".repeat(64)}`,
       };
       const registryAuth2: RegistryAuth = {
         username: "n/a",
         registryUrl: "https://acme.noriskillsets.dev",
-        apiToken: `nori_${"b".repeat(64)}`,
-        apiTokenOrgId: "acme",
+        apiToken: `nori_acme_${"b".repeat(64)}`,
       };
 
       const token1 = await getRegistryAuthToken({
@@ -222,12 +215,12 @@ describe("registryAuth", () => {
         registryAuth: registryAuth2,
       });
 
-      expect(token1).toBe(`nori_${"a".repeat(64)}`);
-      expect(token2).toBe(`nori_${"b".repeat(64)}`);
+      expect(token1).toBe(`nori_acme_${"a".repeat(64)}`);
+      expect(token2).toBe(`nori_acme_${"b".repeat(64)}`);
       expect(exchangeRefreshToken).not.toHaveBeenCalled();
     });
 
-    it("should fall through to refreshToken flow when apiTokenOrgId does not match URL org", async () => {
+    it("should fall through to refreshToken flow when token's org does not match URL org", async () => {
       const mockIdToken = "mock-firebase-id-token";
       vi.mocked(exchangeRefreshToken).mockResolvedValue({
         idToken: mockIdToken,
@@ -239,8 +232,7 @@ describe("registryAuth", () => {
         username: "test@example.com",
         registryUrl: "https://foo.noriskillsets.dev",
         refreshToken: "refresh-xyz",
-        apiToken: `nori_${"c".repeat(64)}`,
-        apiTokenOrgId: "acme",
+        apiToken: `nori_acme_${"c".repeat(64)}`,
       };
 
       const token = await getRegistryAuthToken({ registryAuth });
@@ -251,20 +243,18 @@ describe("registryAuth", () => {
       });
     });
 
-    it("should prefer NORI_API_TOKEN env var when NORI_ORG_ID matches URL org", async () => {
-      process.env.NORI_API_TOKEN = `nori_${"d".repeat(64)}`;
-      process.env.NORI_ORG_ID = "acme";
+    it("should prefer NORI_API_TOKEN env var when env token's org matches URL org", async () => {
+      process.env.NORI_API_TOKEN = `nori_acme_${"d".repeat(64)}`;
 
       const registryAuth: RegistryAuth = {
         username: "n/a",
         registryUrl: "https://acme.noriskillsets.dev",
-        apiToken: `nori_${"e".repeat(64)}`,
-        apiTokenOrgId: "acme",
+        apiToken: `nori_acme_${"e".repeat(64)}`,
       };
 
       const token = await getRegistryAuthToken({ registryAuth });
 
-      expect(token).toBe(`nori_${"d".repeat(64)}`);
+      expect(token).toBe(`nori_acme_${"d".repeat(64)}`);
       expect(exchangeRefreshToken).not.toHaveBeenCalled();
     });
   });

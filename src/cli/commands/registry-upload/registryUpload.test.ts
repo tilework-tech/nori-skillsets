@@ -540,7 +540,6 @@ describe("registry-upload", () => {
             username: "test@example.com",
             refreshToken: "test-token",
             apiToken: null,
-            apiTokenOrgId: null,
           },
         });
       });

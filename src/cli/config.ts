@@ -10,23 +10,25 @@ import Ajv from "ajv";
 import addFormats from "ajv-formats";
 
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
+import { extractOrgIdFromApiToken } from "@/utils/apiToken.js";
 import { getHomeDir } from "@/utils/home.js";
 import { normalizeUrl, extractOrgId, buildRegistryUrl } from "@/utils/url.js";
 
 /**
  * Registry authentication credentials
- * Supports both legacy password auth and new refresh token auth
+ * Supports both legacy password auth and new refresh token auth.
+ * If `apiToken` is set, the orgId is parsed from the token itself (see `extractOrgIdFromApiToken`).
  */
 export type RegistryAuth = {
   username: string | null;
   registryUrl: string;
   refreshToken?: string | null;
   apiToken?: string | null;
-  apiTokenOrgId?: string | null;
 };
 
 /**
- * Authentication credentials - supports legacy password, refresh token, and API token auth
+ * Authentication credentials - supports legacy password, refresh token, and API token auth.
+ * API tokens are self-describing: the orgId is embedded in the token format `nori_<orgId>_<64hex>`.
  */
 export type AuthCredentials = {
   // Username is optional (null) for API-token-only configs where no Firebase identity is tied
@@ -36,10 +38,8 @@ export type AuthCredentials = {
   refreshToken?: string | null;
   // Legacy password-based auth (deprecated, will be removed)
   password?: string | null;
-  // API token for non-interactive / programmatic access to a specific org registrar
+  // API token for non-interactive / programmatic access. Format: nori_<orgId>_<64hex>.
   apiToken?: string | null;
-  // Org the apiToken is scoped to (server rejects cross-org requests)
-  apiTokenOrgId?: string | null;
   // Organizations the user has access to
   organizations?: Array<string> | null;
   // Whether the user is an admin for their organization
@@ -89,7 +89,6 @@ type RawDiskConfig = {
     organizations?: Array<string> | null;
     isAdmin?: boolean | null;
     apiToken?: string | null;
-    apiTokenOrgId?: string | null;
   } | null;
   // Common fields
   sendSessionTranscript?: "enabled" | "disabled" | null;
@@ -154,6 +153,12 @@ export const getRegistryAuth = (args: {
   if (config.auth != null && config.auth.organizationUrl != null) {
     const orgId = extractOrgId({ url: config.auth.organizationUrl });
     const targetOrgId = extractOrgId({ url: registryUrl });
+    const tokenOrgId =
+      config.auth.apiToken != null
+        ? extractOrgIdFromApiToken({ token: config.auth.apiToken })
+        : null;
+    const apiTokenMatch =
+      tokenOrgId != null && targetOrgId != null && tokenOrgId === targetOrgId;
 
     if (orgId != null) {
       // Derive registry URL from org ID
@@ -163,40 +168,22 @@ export const getRegistryAuth = (args: {
       if (
         normalizeUrl({ baseUrl: derivedRegistryUrl }) === normalizedSearchUrl
       ) {
-        const apiTokenMatch =
-          config.auth.apiToken != null &&
-          config.auth.apiTokenOrgId != null &&
-          targetOrgId != null &&
-          config.auth.apiTokenOrgId === targetOrgId;
-
         return {
           registryUrl: derivedRegistryUrl,
           username: config.auth.username ?? null,
           refreshToken: config.auth.refreshToken ?? null,
           apiToken: apiTokenMatch ? (config.auth.apiToken ?? null) : null,
-          apiTokenOrgId: apiTokenMatch
-            ? (config.auth.apiTokenOrgId ?? null)
-            : null,
         };
       }
 
       // Also check the noriskillsets.dev subdomain pattern for org registrars
       const orgRegistrarUrl = `https://${orgId}.noriskillsets.dev`;
       if (normalizeUrl({ baseUrl: orgRegistrarUrl }) === normalizedSearchUrl) {
-        const apiTokenMatch =
-          config.auth.apiToken != null &&
-          config.auth.apiTokenOrgId != null &&
-          targetOrgId != null &&
-          config.auth.apiTokenOrgId === targetOrgId;
-
         return {
           registryUrl: orgRegistrarUrl,
           username: config.auth.username ?? null,
           refreshToken: config.auth.refreshToken ?? null,
           apiToken: apiTokenMatch ? (config.auth.apiToken ?? null) : null,
-          apiTokenOrgId: apiTokenMatch
-            ? (config.auth.apiTokenOrgId ?? null)
-            : null,
         };
       }
     }
@@ -316,7 +303,7 @@ export const loadConfig = async (): Promise<Config | null> => {
       validated.auth.organizationUrl != null &&
       (validated.auth.username != null || validated.auth.apiToken != null)
     ) {
-      // New nested format: auth: { username, organizationUrl, refreshToken, password, organizations, isAdmin, apiToken, apiTokenOrgId }
+      // New nested format: auth: { username, organizationUrl, refreshToken, password, organizations, isAdmin, apiToken }
       result.auth = {
         username: validated.auth.username ?? null,
         organizationUrl: validated.auth.organizationUrl,
@@ -325,7 +312,6 @@ export const loadConfig = async (): Promise<Config | null> => {
         organizations: validated.auth.organizations ?? null,
         isAdmin: validated.auth.isAdmin ?? null,
         apiToken: validated.auth.apiToken ?? null,
-        apiTokenOrgId: validated.auth.apiTokenOrgId ?? null,
       };
     } else if (
       validated.username != null &&
@@ -378,15 +364,13 @@ export const loadConfig = async (): Promise<Config | null> => {
  * @param args.defaultAgents - Default agent names for CLI operations (null to skip)
  * @param args.garbageCollectTranscripts - Whether to delete transcripts after upload (null to skip)
  * @param args.redownloadOnSwitch - Whether to prompt to re-download from registry on switch (null to skip)
- * @param args.apiToken - Raw API token (nori_<64hex>) for non-interactive private-org auth (null to skip)
- * @param args.apiTokenOrgId - Org id the API token is scoped to (null to skip)
+ * @param args.apiToken - Raw API token (format `nori_<orgId>_<64hex>`) for non-interactive private-org auth (null to skip)
  */
 export const saveConfig = async (args: {
   username: string | null;
   password?: string | null;
   refreshToken?: string | null;
   apiToken?: string | null;
-  apiTokenOrgId?: string | null;
   organizationUrl: string | null;
   organizations?: Array<string> | null;
   isAdmin?: boolean | null;
@@ -405,7 +389,6 @@ export const saveConfig = async (args: {
     password,
     refreshToken,
     apiToken,
-    apiTokenOrgId,
     organizationUrl,
     organizations,
     isAdmin,
@@ -439,9 +422,8 @@ export const saveConfig = async (args: {
       refreshToken: refreshToken ?? null,
       // Only save password if no refreshToken (legacy support)
       password: refreshToken != null ? null : (password ?? null),
-      // API token (separate auth mode for private-org programmatic access)
+      // API token for private-org programmatic access (orgId is embedded in the token itself)
       apiToken: apiToken ?? null,
-      apiTokenOrgId: apiTokenOrgId ?? null,
       // Organizations the user has access to
       organizations: organizations ?? null,
       // Admin status
@@ -515,7 +497,6 @@ export const updateConfig = async (updates: Partial<Config>): Promise<void> => {
     password: auth?.password ?? null,
     refreshToken: auth?.refreshToken ?? null,
     apiToken: auth?.apiToken ?? null,
-    apiTokenOrgId: auth?.apiTokenOrgId ?? null,
     organizationUrl: auth?.organizationUrl ?? null,
     organizations: auth?.organizations ?? null,
     isAdmin: auth?.isAdmin ?? null,
@@ -585,7 +566,6 @@ const configSchema = {
         },
         isAdmin: { type: ["boolean", "null"] },
         apiToken: { type: ["string", "null"] },
-        apiTokenOrgId: { type: ["string", "null"] },
       },
       required: ["organizationUrl"],
     },

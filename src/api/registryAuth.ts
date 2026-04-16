@@ -6,6 +6,7 @@
 
 import { readApiTokenEnv } from "@/api/base.js";
 import { exchangeRefreshToken } from "@/api/refreshToken.js";
+import { extractOrgIdFromApiToken } from "@/utils/apiToken.js";
 import { extractOrgId } from "@/utils/url.js";
 
 import type { RegistryAuth } from "@/cli/config.js";
@@ -37,14 +38,14 @@ export const getRegistryAuthToken = async (args: {
     return envApi.token;
   }
 
-  // Config API token (scoped match) — no caching
-  if (
-    registryAuth.apiToken != null &&
-    registryAuth.apiTokenOrgId != null &&
-    targetOrgId != null &&
-    registryAuth.apiTokenOrgId === targetOrgId
-  ) {
-    return registryAuth.apiToken;
+  // Config API token (scoped match) — no caching. OrgId is parsed from the token itself.
+  if (registryAuth.apiToken != null && targetOrgId != null) {
+    const tokenOrgId = extractOrgIdFromApiToken({
+      token: registryAuth.apiToken,
+    });
+    if (tokenOrgId != null && tokenOrgId === targetOrgId) {
+      return registryAuth.apiToken;
+    }
   }
 
   // Check token cache (Firebase ID tokens only)

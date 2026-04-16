@@ -541,7 +541,6 @@ export const skillDownloadMain = async (args: {
             username: config.auth!.username ?? null,
             refreshToken: config.auth!.refreshToken ?? null,
             apiToken: config.auth!.apiToken ?? null,
-            apiTokenOrgId: config.auth!.apiTokenOrgId ?? null,
           };
 
           try {

@@ -173,7 +173,6 @@ describe("ConfigManager", () => {
         password: null,
         refreshToken: "test-refresh-token",
         apiToken: null,
-        apiTokenOrgId: null,
         organizationUrl: "https://test.nori.ai",
       });
     });
@@ -202,7 +201,6 @@ describe("ConfigManager", () => {
         password: "test-password",
         refreshToken: null,
         apiToken: null,
-        apiTokenOrgId: null,
         organizationUrl: "https://test.nori.ai",
       });
     });
@@ -295,8 +293,7 @@ describe("ConfigManager", () => {
       const configData = {
         auth: {
           organizationUrl: "https://acme.noriskillsets.dev",
-          apiToken: `nori_${"a".repeat(64)}`,
-          apiTokenOrgId: "acme",
+          apiToken: `nori_acme_${"a".repeat(64)}`,
         },
       };
       fs.writeFileSync(configPath, JSON.stringify(configData, null, 2));
@@ -306,7 +303,7 @@ describe("ConfigManager", () => {
       expect(ConfigManager.isConfigured()).toBe(true);
     });
 
-    it("should return true when NORI_API_TOKEN + NORI_ORG_ID are set without config file", () => {
+    it("should return true when NORI_API_TOKEN is set without config file", () => {
       // Setup: no config file anywhere
       const emptyDir = path.join(tempDir, "empty");
       fs.mkdirSync(emptyDir, { recursive: true });
@@ -314,17 +311,13 @@ describe("ConfigManager", () => {
       vi.mocked(os.homedir).mockReturnValue(emptyDir);
 
       const origToken = process.env.NORI_API_TOKEN;
-      const origOrg = process.env.NORI_ORG_ID;
-      process.env.NORI_API_TOKEN = `nori_${"z".repeat(64)}`;
-      process.env.NORI_ORG_ID = "acme";
+      process.env.NORI_API_TOKEN = `nori_acme_${"a".repeat(64)}`;
 
       try {
         expect(ConfigManager.isConfigured()).toBe(true);
       } finally {
         if (origToken == null) delete process.env.NORI_API_TOKEN;
         else process.env.NORI_API_TOKEN = origToken;
-        if (origOrg == null) delete process.env.NORI_ORG_ID;
-        else process.env.NORI_ORG_ID = origOrg;
       }
     });
   });
@@ -334,16 +327,13 @@ describe("AuthManager.getAuthToken with apiToken", () => {
   let tempDir: string;
   let originalCwd: string;
   let originalEnvToken: string | undefined;
-  let originalEnvOrg: string | undefined;
 
   beforeEach(async () => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "auth-token-test-"));
     originalCwd = process.cwd();
     vi.mocked(os.homedir).mockReturnValue(tempDir);
     originalEnvToken = process.env.NORI_API_TOKEN;
-    originalEnvOrg = process.env.NORI_ORG_ID;
     delete process.env.NORI_API_TOKEN;
-    delete process.env.NORI_ORG_ID;
     vi.clearAllMocks();
 
     // Reset module-level AuthManager cache
@@ -355,19 +345,16 @@ describe("AuthManager.getAuthToken with apiToken", () => {
     fs.rmSync(tempDir, { recursive: true, force: true });
     if (originalEnvToken == null) delete process.env.NORI_API_TOKEN;
     else process.env.NORI_API_TOKEN = originalEnvToken;
-    if (originalEnvOrg == null) delete process.env.NORI_ORG_ID;
-    else process.env.NORI_ORG_ID = originalEnvOrg;
   });
 
-  it("should return config apiToken when orgId matches organizationUrl org", async () => {
+  it("should return config apiToken when token's embedded org matches organizationUrl org", async () => {
     const configPath = path.join(tempDir, ".nori-config.json");
     fs.writeFileSync(
       configPath,
       JSON.stringify({
         auth: {
           organizationUrl: "https://acme.noriskillsets.dev",
-          apiToken: `nori_${"a".repeat(64)}`,
-          apiTokenOrgId: "acme",
+          apiToken: `nori_acme_${"a".repeat(64)}`,
         },
       }),
     );
@@ -375,89 +362,68 @@ describe("AuthManager.getAuthToken with apiToken", () => {
 
     const token = await AuthManager.getAuthToken();
 
-    expect(token).toBe(`nori_${"a".repeat(64)}`);
+    expect(token).toBe(`nori_acme_${"a".repeat(64)}`);
 
     const { exchangeRefreshToken } = await import("@/api/refreshToken.js");
     expect(exchangeRefreshToken).not.toHaveBeenCalled();
   });
 
-  it("should prefer NORI_API_TOKEN env var over config when orgId matches", async () => {
+  it("should prefer NORI_API_TOKEN env var over config when token's embedded org matches target", async () => {
     const configPath = path.join(tempDir, ".nori-config.json");
     fs.writeFileSync(
       configPath,
       JSON.stringify({
         auth: {
           organizationUrl: "https://acme.noriskillsets.dev",
-          apiToken: `nori_${"c".repeat(64)}`,
-          apiTokenOrgId: "acme",
+          apiToken: `nori_acme_${"c".repeat(64)}`,
         },
       }),
     );
     process.chdir(tempDir);
 
-    process.env.NORI_API_TOKEN = `nori_${"b".repeat(64)}`;
-    process.env.NORI_ORG_ID = "acme";
+    process.env.NORI_API_TOKEN = `nori_acme_${"b".repeat(64)}`;
 
     const token = await AuthManager.getAuthToken();
 
-    expect(token).toBe(`nori_${"b".repeat(64)}`);
+    expect(token).toBe(`nori_acme_${"b".repeat(64)}`);
   });
 
-  it("should fall through to config apiToken when env-var org mismatches target org", async () => {
+  it("should fall through to config apiToken when env-var token's org mismatches target org", async () => {
     const configPath = path.join(tempDir, ".nori-config.json");
     fs.writeFileSync(
       configPath,
       JSON.stringify({
         auth: {
           organizationUrl: "https://acme.noriskillsets.dev",
-          apiToken: `nori_${"c".repeat(64)}`,
-          apiTokenOrgId: "acme",
+          apiToken: `nori_acme_${"c".repeat(64)}`,
         },
       }),
     );
     process.chdir(tempDir);
 
-    process.env.NORI_API_TOKEN = `nori_${"d".repeat(64)}`;
-    process.env.NORI_ORG_ID = "other";
+    process.env.NORI_API_TOKEN = `nori_other_${"d".repeat(64)}`;
 
     const token = await AuthManager.getAuthToken();
 
-    expect(token).toBe(`nori_${"c".repeat(64)}`);
+    expect(token).toBe(`nori_acme_${"c".repeat(64)}`);
   });
 
-  it("should work with env vars and no config file on disk", async () => {
+  it("should work with env var and no config file on disk", async () => {
     process.chdir(tempDir);
 
-    process.env.NORI_API_TOKEN = `nori_${"e".repeat(64)}`;
-    process.env.NORI_ORG_ID = "acme";
+    process.env.NORI_API_TOKEN = `nori_acme_${"e".repeat(64)}`;
 
     const token = await AuthManager.getAuthToken();
 
-    expect(token).toBe(`nori_${"e".repeat(64)}`);
+    expect(token).toBe(`nori_acme_${"e".repeat(64)}`);
   });
 
-  it("should warn to stderr and ignore env vars when only one is set", async () => {
+  it("should ignore a malformed NORI_API_TOKEN env var", async () => {
     process.chdir(tempDir);
 
-    process.env.NORI_API_TOKEN = `nori_${"f".repeat(64)}`;
-    // NORI_ORG_ID NOT set
-
-    const stderrSpy = vi
-      .spyOn(process.stderr, "write")
-      .mockImplementation(() => true);
+    process.env.NORI_API_TOKEN = "not-a-valid-token";
 
     await expect(AuthManager.getAuthToken()).rejects.toThrow(/not configured/i);
-
-    // One warning written to stderr referencing partial env vars
-    const warningWritten = stderrSpy.mock.calls.some(
-      (call) =>
-        typeof call[0] === "string" &&
-        call[0].includes("NORI_API_TOKEN") &&
-        call[0].includes("NORI_ORG_ID"),
-    );
-    expect(warningWritten).toBe(true);
-
-    stderrSpy.mockRestore();
   });
 
   it("should throw descriptive error when nothing configured", async () => {
@@ -467,11 +433,10 @@ describe("AuthManager.getAuthToken with apiToken", () => {
   });
 });
 
-describe("apiRequest with NORI_API_TOKEN + NORI_ORG_ID env vars and no config file", () => {
+describe("apiRequest with NORI_API_TOKEN env var and no config file", () => {
   let tempDir: string;
   let originalCwd: string;
   let originalEnvToken: string | undefined;
-  let originalEnvOrg: string | undefined;
   const mockFetch = vi.fn();
 
   beforeEach(async () => {
@@ -479,9 +444,7 @@ describe("apiRequest with NORI_API_TOKEN + NORI_ORG_ID env vars and no config fi
     originalCwd = process.cwd();
     vi.mocked(os.homedir).mockReturnValue(tempDir);
     originalEnvToken = process.env.NORI_API_TOKEN;
-    originalEnvOrg = process.env.NORI_ORG_ID;
     delete process.env.NORI_API_TOKEN;
-    delete process.env.NORI_ORG_ID;
     process.chdir(tempDir);
     AuthManager.reset();
     vi.stubGlobal("fetch", mockFetch);
@@ -493,14 +456,11 @@ describe("apiRequest with NORI_API_TOKEN + NORI_ORG_ID env vars and no config fi
     fs.rmSync(tempDir, { recursive: true, force: true });
     if (originalEnvToken == null) delete process.env.NORI_API_TOKEN;
     else process.env.NORI_API_TOKEN = originalEnvToken;
-    if (originalEnvOrg == null) delete process.env.NORI_ORG_ID;
-    else process.env.NORI_ORG_ID = originalEnvOrg;
     vi.unstubAllGlobals();
   });
 
   it("should issue request to {org}.noriskillsets.dev with raw API token as Bearer header", async () => {
-    process.env.NORI_API_TOKEN = `nori_${"x".repeat(64)}`;
-    process.env.NORI_ORG_ID = "acme";
+    process.env.NORI_API_TOKEN = `nori_acme_${"a".repeat(64)}`;
 
     mockFetch.mockResolvedValue({
       ok: true,
@@ -518,7 +478,7 @@ describe("apiRequest with NORI_API_TOKEN + NORI_ORG_ID env vars and no config fi
     const [calledUrl, calledOptions] = mockFetch.mock.calls[0];
     expect(calledUrl).toBe("https://acme.noriskillsets.dev/api/skillsets/foo");
     expect(calledOptions.headers.Authorization).toBe(
-      `Bearer nori_${"x".repeat(64)}`,
+      `Bearer nori_acme_${"a".repeat(64)}`,
     );
   });
 
@@ -529,8 +489,7 @@ describe("apiRequest with NORI_API_TOKEN + NORI_ORG_ID env vars and no config fi
       JSON.stringify({
         auth: {
           organizationUrl: "https://acme.noriskillsets.dev",
-          apiToken: `nori_${"a".repeat(64)}`,
-          apiTokenOrgId: "acme",
+          apiToken: `nori_acme_${"a".repeat(64)}`,
           refreshToken: "acme-refresh",
           username: "user@example.com",
         },
@@ -563,44 +522,20 @@ describe("apiRequest with NORI_API_TOKEN + NORI_ORG_ID env vars and no config fi
     expect(calledUrl).toBe("https://foo.noriskillsets.dev/api/anything");
     // The acme-scoped API token MUST NOT be sent to foo's subdomain.
     expect(calledOptions.headers.Authorization).not.toBe(
-      `Bearer nori_${"a".repeat(64)}`,
+      `Bearer nori_acme_${"a".repeat(64)}`,
     );
-  });
-
-  it("should emit the partial-env warning at most once per process across multiple getAuthToken calls", async () => {
-    process.env.NORI_API_TOKEN = `nori_${"f".repeat(64)}`;
-    // NORI_ORG_ID NOT set
-
-    const stderrSpy = vi
-      .spyOn(process.stderr, "write")
-      .mockImplementation(() => true);
-
-    await expect(AuthManager.getAuthToken()).rejects.toThrow();
-    await expect(AuthManager.getAuthToken()).rejects.toThrow();
-    await expect(AuthManager.getAuthToken()).rejects.toThrow();
-
-    const partialWarnings = stderrSpy.mock.calls.filter(
-      (call) =>
-        typeof call[0] === "string" &&
-        call[0].includes("NORI_API_TOKEN") &&
-        call[0].includes("NORI_ORG_ID"),
-    );
-    expect(partialWarnings.length).toBe(1);
-
-    stderrSpy.mockRestore();
   });
 
   it("should NOT cache the env-var API token value across calls", async () => {
-    process.env.NORI_API_TOKEN = `nori_${"1".repeat(64)}`;
-    process.env.NORI_ORG_ID = "acme";
+    process.env.NORI_API_TOKEN = `nori_acme_${"1".repeat(64)}`;
 
     const t1 = await AuthManager.getAuthToken();
-    expect(t1).toBe(`nori_${"1".repeat(64)}`);
+    expect(t1).toBe(`nori_acme_${"1".repeat(64)}`);
 
     // Rotate the env var — a fresh call must pick up the new value.
-    process.env.NORI_API_TOKEN = `nori_${"2".repeat(64)}`;
+    process.env.NORI_API_TOKEN = `nori_acme_${"2".repeat(64)}`;
 
     const t2 = await AuthManager.getAuthToken();
-    expect(t2).toBe(`nori_${"2".repeat(64)}`);
+    expect(t2).toBe(`nori_acme_${"2".repeat(64)}`);
   });
 });
