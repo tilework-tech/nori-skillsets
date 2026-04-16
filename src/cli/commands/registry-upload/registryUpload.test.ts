@@ -495,6 +495,57 @@ describe("registry-upload", () => {
         expect(result.success).toBe(true);
       });
 
+      it("should upload to org registry when authenticated via API token (no refreshToken)", async () => {
+        // Create a profile to upload
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
+        await fs.writeFile(
+          path.join(skillsetDir, "AGENTS.md"),
+          "# My Profile\n",
+        );
+
+        // API-token login: refreshToken null, apiToken set, organizations populated.
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: null,
+            refreshToken: null,
+            apiToken:
+              "nori_myorg_0000000000000000000000000000000000000000000000000000000000000000",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.noriskillsets.dev",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("api-token-auth");
+
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+
+        vi.mocked(registrarApi.uploadSkillset).mockResolvedValue({
+          name: "my-profile",
+          version: "1.0.0",
+          tarballSha: "abc123",
+          createdAt: new Date().toISOString(),
+        });
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+        });
+
+        expect(result.success).toBe(true);
+        // Verify upload hit the org registry with API-token-derived auth.
+        expect(registrarApi.uploadSkillset).toHaveBeenCalledWith(
+          expect.objectContaining({
+            packageName: "my-profile",
+            authToken: "api-token-auth",
+            registryUrl: "https://myorg.noriskillsets.dev",
+          }),
+        );
+      });
+
       it("should use unified auth when config.auth.organizations is present", async () => {
         // Create a profile to upload
         const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");

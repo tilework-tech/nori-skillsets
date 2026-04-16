@@ -2230,6 +2230,45 @@ describe("registry-download", () => {
       const versionInfo = JSON.parse(versionContent);
       expect(versionInfo.version).toBe("2.0.0");
     });
+
+    it("should download namespaced package when authenticated via API token (no refreshToken)", async () => {
+      // API-token login path: refreshToken null, apiToken set, organizations populated.
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        auth: {
+          username: null,
+          organizationUrl: "https://myorg.noriskillsets.dev",
+          refreshToken: null,
+          apiToken:
+            "nori_myorg_0000000000000000000000000000000000000000000000000000000000000000",
+          organizations: ["myorg"],
+        },
+      });
+
+      vi.mocked(getRegistryAuthToken).mockResolvedValue("api-token-auth");
+
+      vi.mocked(registrarApi.getPackument).mockResolvedValue({
+        name: "my-profile",
+        "dist-tags": { latest: "1.0.0" },
+        versions: { "1.0.0": { name: "my-profile", version: "1.0.0" } },
+      });
+
+      const mockTarball = await createMockTarball();
+      vi.mocked(registrarApi.downloadTarball).mockResolvedValue(mockTarball);
+
+      await registryDownloadMain({
+        packageSpec: "myorg/my-profile",
+        cwd: testDir,
+      });
+
+      // Verify download hit the org registry with the API-token-derived auth.
+      expect(registrarApi.downloadTarball).toHaveBeenCalledWith({
+        packageName: "my-profile",
+        version: undefined,
+        registryUrl: "https://myorg.noriskillsets.dev",
+        authToken: "api-token-auth",
+      });
+    });
   });
 
   describe("cliName in user-facing messages", () => {
