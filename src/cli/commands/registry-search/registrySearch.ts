@@ -466,7 +466,7 @@ const performSearch = async (args: {
   // Check for unified auth with organizations (new multi-org flow)
   const hasUnifiedAuthWithOrgs =
     config?.auth != null &&
-    config.auth.refreshToken != null &&
+    (config.auth.refreshToken != null || config.auth.apiToken != null) &&
     config.auth.organizations != null;
 
   if (hasUnifiedAuthWithOrgs) {
@@ -503,7 +503,7 @@ const performSearch = async (args: {
   } else if (
     config?.auth != null &&
     config.auth.organizationUrl != null &&
-    config.auth.refreshToken != null
+    (config.auth.refreshToken != null || config.auth.apiToken != null)
   ) {
     const orgId = extractOrgId({ url: config.auth.organizationUrl });
     if (orgId != null) {

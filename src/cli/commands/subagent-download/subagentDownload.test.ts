@@ -93,6 +93,7 @@ vi.spyOn(console, "log").mockImplementation(() => undefined);
 vi.spyOn(console, "error").mockImplementation(() => undefined);
 
 import { registrarApi, REGISTRAR_URL } from "@/api/registrar.js";
+import { getRegistryAuthToken } from "@/api/registryAuth.js";
 import { loadConfig } from "@/cli/config.js";
 
 import { subagentDownloadMain } from "./subagentDownload.js";
@@ -331,6 +332,51 @@ describe("subagent-download", () => {
       const allErrorOutput = getClackErrorOutput();
       expect(allErrorOutput.toLowerCase()).toContain("error");
       expect(allErrorOutput).toContain("Network error");
+    });
+
+    it("should download namespaced subagent when authenticated via API token (no refreshToken)", async () => {
+      const orgRegistryUrl = "https://myorg.noriskillsets.dev";
+
+      vi.mocked(os.homedir).mockReturnValue(testDir);
+
+      // API-token login: refreshToken null, apiToken set, organizations populated.
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        auth: {
+          username: null,
+          organizationUrl: orgRegistryUrl,
+          refreshToken: null,
+          apiToken:
+            "nori_myorg_0000000000000000000000000000000000000000000000000000000000000000",
+          organizations: ["myorg"],
+        },
+      });
+
+      vi.mocked(getRegistryAuthToken).mockResolvedValue("api-token-auth");
+
+      vi.mocked(registrarApi.getSubagentPackument).mockResolvedValue({
+        name: "my-subagent",
+        "dist-tags": { latest: "1.0.0" },
+        versions: { "1.0.0": { name: "my-subagent", version: "1.0.0" } },
+      });
+
+      const mockTarball = await createMockSubagentTarball();
+      vi.mocked(registrarApi.downloadSubagentTarball).mockResolvedValue(
+        mockTarball,
+      );
+
+      await subagentDownloadMain({
+        subagentSpec: "myorg/my-subagent",
+        cwd: testDir,
+      });
+
+      // Verify download hit the org registry with API-token-derived auth.
+      expect(registrarApi.downloadSubagentTarball).toHaveBeenCalledWith({
+        subagentName: "my-subagent",
+        version: undefined,
+        registryUrl: orgRegistryUrl,
+        authToken: "api-token-auth",
+      });
     });
 
     it("should error when subagent exists without .nori-version", async () => {

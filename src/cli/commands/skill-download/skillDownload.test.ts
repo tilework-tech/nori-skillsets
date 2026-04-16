@@ -1965,6 +1965,49 @@ describe("namespaced package support", () => {
       expect(versionInfo.registryUrl).toBe(orgRegistryUrl);
     });
 
+    it("should download namespaced skill when authenticated via API token (no refreshToken)", async () => {
+      const orgRegistryUrl = "https://myorg.noriskillsets.dev";
+
+      // API-token login: refreshToken null, apiToken set, organizations populated.
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        auth: {
+          username: null,
+          organizationUrl: orgRegistryUrl,
+          refreshToken: null,
+          apiToken:
+            "nori_myorg_0000000000000000000000000000000000000000000000000000000000000000",
+          organizations: ["myorg"],
+        },
+      });
+
+      vi.mocked(getRegistryAuthToken).mockResolvedValue("api-token-auth");
+
+      vi.mocked(registrarApi.getSkillPackument).mockResolvedValue({
+        name: "my-skill",
+        "dist-tags": { latest: "1.0.0" },
+        versions: { "1.0.0": { name: "my-skill", version: "1.0.0" } },
+      });
+
+      const mockTarball = await createMockSkillTarball();
+      vi.mocked(registrarApi.downloadSkillTarball).mockResolvedValue(
+        mockTarball,
+      );
+
+      await skillDownloadMain({
+        skillSpec: "myorg/my-skill",
+        cwd: testDir,
+      });
+
+      // Verify download hit the org registry with API-token-derived auth.
+      expect(registrarApi.downloadSkillTarball).toHaveBeenCalledWith({
+        skillName: "my-skill",
+        version: undefined,
+        registryUrl: orgRegistryUrl,
+        authToken: "api-token-auth",
+      });
+    });
+
     it("should parse org/skill-name@version format", async () => {
       const orgRegistryUrl = "https://myorg.noriskillsets.dev";
 
