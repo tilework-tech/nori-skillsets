@@ -232,7 +232,7 @@ const resolveRegistryAndAuth = async (args: {
   if (
     orgId === "public" &&
     registryUrl == null &&
-    config?.auth?.refreshToken != null
+    (config?.auth?.refreshToken != null || config?.auth?.apiToken != null)
   ) {
     registryAuth = {
       registryUrl: REGISTRAR_URL,
@@ -249,7 +249,10 @@ const resolveRegistryAndAuth = async (args: {
 
   // Fall back to unified auth from config.auth (for org-scoped and
   // explicit --registry paths when no matching entry was found)
-  if (registryAuth == null && config?.auth?.refreshToken != null) {
+  if (
+    registryAuth == null &&
+    (config?.auth?.refreshToken != null || config?.auth?.apiToken != null)
+  ) {
     registryAuth = {
       registryUrl: targetRegistryUrl,
       username: config.auth.username ?? null,

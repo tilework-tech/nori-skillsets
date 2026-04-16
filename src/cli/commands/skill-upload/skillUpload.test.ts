@@ -549,6 +549,49 @@ describe("skill-upload", () => {
       expect(uploadCall.description).toBe("A lovely skill from nori.json");
     });
 
+    it("uploads a namespaced skill when authenticated via API token (no refreshToken)", async () => {
+      await createLocalSkill({
+        skillsetName: "my-profile",
+        skillName: "my-skill",
+      });
+
+      // API-token login: refreshToken null, apiToken set, organizations populated.
+      vi.mocked(loadConfig).mockResolvedValue({
+        activeSkillset: "my-profile",
+        auth: {
+          username: null,
+          organizationUrl: "https://myorg.noriskillsets.dev",
+          refreshToken: null,
+          apiToken:
+            "nori_myorg_0000000000000000000000000000000000000000000000000000000000000000",
+          organizations: ["myorg"],
+        },
+      } as never);
+
+      vi.mocked(getRegistryAuthToken).mockResolvedValue(
+        "api-token-auth" as never,
+      );
+
+      vi.mocked(registrarApi.getSkillPackument).mockRejectedValue(
+        Object.assign(new Error("Not found"), { statusCode: 404 }),
+      );
+      vi.mocked(registrarApi.uploadSkill).mockResolvedValue({
+        name: "my-skill",
+        version: "1.0.0",
+        tarballSha: "sha",
+        createdAt: "2026-04-16T00:00:00.000Z",
+      } as never);
+
+      const result = await skillUploadMain({ skillSpec: "myorg/my-skill" });
+
+      expect(result.success).toBe(true);
+      // Upload hit the org registry with API-token-derived auth.
+      expect(registrarApi.uploadSkill).toHaveBeenCalledTimes(1);
+      const uploadCall = vi.mocked(registrarApi.uploadSkill).mock.calls[0][0];
+      expect(uploadCall.registryUrl).toBe("https://myorg.noriskillsets.dev");
+      expect(uploadCall.authToken).toBe("api-token-auth");
+    });
+
     it("syncs the local skill nori.json version after a successful upload", async () => {
       const skillDir = await createLocalSkill({
         skillsetName: "my-profile",
