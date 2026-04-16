@@ -86,8 +86,16 @@ export type UploadFlowResult = {
   extractedSubagents?: ExtractedSubagentsSummary | null;
   linkedSkillVersions: Map<string, string>;
   linkedSubagentVersions: Map<string, string>;
+  /**
+   * For linked skills whose local SKILL.md diverged from the registry's
+   * version, the canonical SKILL.md content the user agreed to "use existing"
+   * for. The sync layer overwrites the local file with this content so the
+   * next upload doesn't re-detect the same conflict.
+   */
+  linkedSkillsToReplace: Map<string, string>;
+  /** Same as linkedSkillsToReplace, for subagents (SUBAGENT.md). */
+  linkedSubagentsToReplace: Map<string, string>;
   namespacedSkillIds: Set<string>;
-  skippedSkillIds: Set<string>;
   inlineSkillIds?: Array<string> | null;
   statusMessage: string;
 } | null;
@@ -657,7 +665,6 @@ const resolveAllInlineSkillsSameWay = async (args: {
  * @param args.extractedSkills - Skills extracted during upload
  * @param args.linkedSkillVersions - Map of skill IDs to linked versions
  * @param args.namespacedSkillIds - Set of skill IDs that were namespaced
- * @param args.skippedSkillIds - Set of skill IDs that were skipped
  * @param args.inlineSkillIds - Skill IDs kept inline in the tarball
  *
  * @returns Formatted skill summary string or null if no skills
@@ -666,14 +673,12 @@ const formatSkillSummaryForNote = (args: {
   extractedSkills?: ExtractedSkillsSummary | null;
   linkedSkillVersions: Map<string, string>;
   namespacedSkillIds: Set<string>;
-  skippedSkillIds: Set<string>;
   inlineSkillIds?: Array<string> | null;
 }): string | null => {
   const {
     extractedSkills,
     linkedSkillVersions,
     namespacedSkillIds,
-    skippedSkillIds,
     inlineSkillIds,
   } = args;
 
@@ -692,18 +697,12 @@ const formatSkillSummaryForNote = (args: {
 
   const lines: Array<string> = ["Skills:"];
 
-  const skippedSkills = succeeded.filter((s) => skippedSkillIds.has(s.name));
-  const linkedSkills = succeeded.filter(
-    (s) => linkedSkillVersions.has(s.name) && !skippedSkillIds.has(s.name),
-  );
+  const linkedSkills = succeeded.filter((s) => linkedSkillVersions.has(s.name));
   const namespacedSkills = succeeded.filter((s) =>
     namespacedSkillIds.has(s.name),
   );
   const uploadedSkills = succeeded.filter(
-    (s) =>
-      !linkedSkillVersions.has(s.name) &&
-      !namespacedSkillIds.has(s.name) &&
-      !skippedSkillIds.has(s.name),
+    (s) => !linkedSkillVersions.has(s.name) && !namespacedSkillIds.has(s.name),
   );
 
   if (uploadedSkills.length > 0) {
@@ -723,13 +722,6 @@ const formatSkillSummaryForNote = (args: {
   if (namespacedSkills.length > 0) {
     lines.push("  Namespaced:");
     for (const skill of namespacedSkills) {
-      lines.push(`    - ${skill.name}@${skill.version}`);
-    }
-  }
-
-  if (skippedSkills.length > 0) {
-    lines.push("  Skipped:");
-    for (const skill of skippedSkills) {
       lines.push(`    - ${skill.name}@${skill.version}`);
     }
   }
@@ -865,8 +857,9 @@ export const uploadFlow = async (args: {
   // Track resolution actions for summary
   const linkedSkillVersions = new Map<string, string>();
   const linkedSubagentVersions = new Map<string, string>();
+  const linkedSkillsToReplace = new Map<string, string>();
+  const linkedSubagentsToReplace = new Map<string, string>();
   const namespacedSkillIds = new Set<string>();
-  const skippedSkillIds = new Set<string>();
 
   // profileDisplayName and registryUrl available for use by caller
 
@@ -1108,15 +1101,21 @@ export const uploadFlow = async (args: {
       // Track resolution actions
       for (const [skillId, resolution] of Object.entries(interactiveStrategy)) {
         if (resolution.action === "link") {
-          // Determine if this is "use existing" with discarded changes or genuine link (unchanged)
           const conflict = unresolvedConflicts.find(
             (c) => c.skillId === skillId,
           );
-          if (conflict != null && conflict.contentUnchanged !== true) {
-            skippedSkillIds.add(skillId);
-          }
           if (conflict?.latestVersion != null) {
             linkedSkillVersions.set(skillId, conflict.latestVersion);
+          }
+          // For changed-content "Use Existing", record the canonical SKILL.md
+          // so the sync layer can overwrite the local file. The UI hint
+          // promises "discard any local changes" — make it true.
+          if (
+            conflict != null &&
+            conflict.contentUnchanged !== true &&
+            conflict.existingSkillMd != null
+          ) {
+            linkedSkillsToReplace.set(skillId, conflict.existingSkillMd);
           }
         } else if (resolution.action === "namespace") {
           namespacedSkillIds.add(skillId);
@@ -1254,6 +1253,17 @@ export const uploadFlow = async (args: {
               conflict.latestVersion,
             );
           }
+          // For changed-content "Use Existing", record the canonical
+          // SUBAGENT.md so the sync layer can overwrite the local file.
+          if (
+            conflict.contentUnchanged !== true &&
+            conflict.existingSubagentMd != null
+          ) {
+            linkedSubagentsToReplace.set(
+              conflict.subagentId,
+              conflict.existingSubagentMd,
+            );
+          }
         }
 
         if (action === "updateVersion") {
@@ -1319,7 +1329,6 @@ export const uploadFlow = async (args: {
     extractedSkills: result.extractedSkills,
     linkedSkillVersions,
     namespacedSkillIds,
-    skippedSkillIds,
     inlineSkillIds,
   });
 
@@ -1365,8 +1374,9 @@ export const uploadFlow = async (args: {
     extractedSubagents: result.extractedSubagents,
     linkedSkillVersions,
     linkedSubagentVersions,
+    linkedSkillsToReplace,
+    linkedSubagentsToReplace,
     namespacedSkillIds,
-    skippedSkillIds,
     inlineSkillIds,
     statusMessage: `Uploaded ${bold({ text: `${profileDisplayName}@${result.version}` })}`,
   };

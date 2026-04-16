@@ -720,8 +720,11 @@ const createCandidateSubagentNoriJsonFiles = async (args: {
  * Sync local state after a successful upload.
  *
  * Updates the local nori.json version and registryURL, writes a .nori-version
- * file, and updates extracted skill versions in their nori.json files and in
- * the skillset's dependencies.
+ * file, updates extracted skill versions in their nori.json files and in
+ * the skillset's dependencies, and overwrites local SKILL.md/SUBAGENT.md
+ * files for any skills/subagents the user resolved with "Use Existing"
+ * against changed remote content (so the next upload doesn't re-detect the
+ * same conflict).
  *
  * @param args - The function arguments
  * @param args.skillsetDir - The local skillset directory
@@ -731,6 +734,8 @@ const createCandidateSubagentNoriJsonFiles = async (args: {
  * @param args.linkedSkillVersions - Optional map of linked skill IDs to their remote versions
  * @param args.extractedSubagents - Optional extracted subagents info from the response
  * @param args.linkedSubagentVersions - Optional map of linked subagent IDs to their remote versions
+ * @param args.linkedSkillsToReplace - Optional map of linked skill IDs to the remote SKILL.md bytes the user agreed to use; sync overwrites the local file with this content
+ * @param args.linkedSubagentsToReplace - Optional map of linked subagent IDs to the remote SUBAGENT.md bytes the user agreed to use
  */
 const syncLocalStateAfterUpload = async (args: {
   skillsetDir: string;
@@ -740,6 +745,8 @@ const syncLocalStateAfterUpload = async (args: {
   extractedSubagents?: ExtractedSubagentsSummary | null;
   linkedSkillVersions?: Map<string, string> | null;
   linkedSubagentVersions?: Map<string, string> | null;
+  linkedSkillsToReplace?: Map<string, string> | null;
+  linkedSubagentsToReplace?: Map<string, string> | null;
 }): Promise<void> => {
   const {
     skillsetDir,
@@ -749,6 +756,8 @@ const syncLocalStateAfterUpload = async (args: {
     extractedSubagents,
     linkedSkillVersions,
     linkedSubagentVersions,
+    linkedSkillsToReplace,
+    linkedSubagentsToReplace,
   } = args;
 
   // Update skillset nori.json version and registryURL
@@ -820,6 +829,38 @@ const syncLocalStateAfterUpload = async (args: {
 
     for (const [skillId, version] of linkedSkillVersions) {
       metadata.dependencies.skills[skillId] = version;
+
+      // For "Use Existing" against changed remote content, overwrite the
+      // local SKILL.md with the registry's canonical version, and bump the
+      // skill's individual nori.json so a follow-up upload sees a clean
+      // tree. Only SKILL.md is overwritten because conflict detection (and
+      // the diff UI) operate at SKILL.md granularity — sibling files in the
+      // skill dir are not part of the user's "discard local changes" choice.
+      const newSkillMd = linkedSkillsToReplace?.get(skillId);
+      if (newSkillMd != null) {
+        const skillDir = path.join(skillsetDir, "skills", skillId);
+        try {
+          await fs.writeFile(path.join(skillDir, "SKILL.md"), newSkillMd);
+        } catch (writeErr) {
+          log.warn(
+            `Could not overwrite local SKILL.md for "${skillId}": ${writeErr instanceof Error ? writeErr.message : String(writeErr)}`,
+          );
+        }
+
+        const skillNoriJsonPath = path.join(skillDir, "nori.json");
+        try {
+          const content = await fs.readFile(skillNoriJsonPath, "utf-8");
+          const skillMetadata = JSON.parse(content) as NoriJson;
+          skillMetadata.version = version;
+          await fs.writeFile(
+            skillNoriJsonPath,
+            JSON.stringify(skillMetadata, null, 2),
+          );
+        } catch {
+          // skill nori.json may not exist (e.g. inlined skill); the
+          // skillset-level dependency map above is the authoritative record.
+        }
+      }
     }
   }
 
@@ -868,6 +909,66 @@ const syncLocalStateAfterUpload = async (args: {
 
     for (const [subagentId, version] of linkedSubagentVersions) {
       metadata.dependencies.subagents[subagentId] = version;
+
+      // Mirror of the linked-skill replacement: overwrite local SUBAGENT.md
+      // and the subagent's nori.json when the user picked "Use Existing"
+      // against changed remote content. Subagents have two possible
+      // on-disk layouts: directory (subagents/<id>/SUBAGENT.md) or flat
+      // (subagents/<id>.md). Preserve whichever the user has locally.
+      const newSubagentMd = linkedSubagentsToReplace?.get(subagentId);
+      if (newSubagentMd != null) {
+        const subagentDir = path.join(skillsetDir, "subagents", subagentId);
+        const subagentMdPath = path.join(subagentDir, "SUBAGENT.md");
+        const flatSubagentMdPath = path.join(
+          skillsetDir,
+          "subagents",
+          `${subagentId}.md`,
+        );
+
+        let targetPath: string | null = null;
+        try {
+          await fs.access(subagentMdPath);
+          targetPath = subagentMdPath;
+        } catch {
+          try {
+            await fs.access(flatSubagentMdPath);
+            targetPath = flatSubagentMdPath;
+          } catch {
+            // Neither layout exists locally. The conflict surface implies
+            // the subagent was part of the upload payload, so a missing
+            // local file is surprising — surface it instead of silently
+            // swallowing. This path is most likely hit if the skillset was
+            // restructured mid-upload (e.g. flat → directory) and a stale
+            // conflict slipped through.
+            log.warn(
+              `Could not locate local SUBAGENT.md for "${subagentId}" (tried ${subagentMdPath} and ${flatSubagentMdPath}); skipping overwrite.`,
+            );
+          }
+        }
+
+        if (targetPath != null) {
+          try {
+            await fs.writeFile(targetPath, newSubagentMd);
+          } catch (writeErr) {
+            log.warn(
+              `Could not overwrite local SUBAGENT.md for "${subagentId}": ${writeErr instanceof Error ? writeErr.message : String(writeErr)}`,
+            );
+          }
+        }
+
+        const subagentNoriJsonPath = path.join(subagentDir, "nori.json");
+        try {
+          const content = await fs.readFile(subagentNoriJsonPath, "utf-8");
+          const subagentMetadata = JSON.parse(content) as NoriJson;
+          subagentMetadata.version = version;
+          await fs.writeFile(
+            subagentNoriJsonPath,
+            JSON.stringify(subagentMetadata, null, 2),
+          );
+        } catch {
+          // subagent nori.json may not exist (e.g. flat or inlined subagents)
+        }
+      }
     }
   }
 
@@ -1148,6 +1249,8 @@ export const registryUploadMain = async (args: {
     extractedSubagents?: ExtractedSubagentsSummary | null;
     linkedSkillVersions?: Map<string, string> | null;
     linkedSubagentVersions?: Map<string, string> | null;
+    linkedSkillsToReplace?: Map<string, string> | null;
+    linkedSubagentsToReplace?: Map<string, string> | null;
   }): Promise<void> => {
     try {
       await syncLocalStateAfterUpload({
@@ -1476,6 +1579,8 @@ export const registryUploadMain = async (args: {
     extractedSubagents: result.extractedSubagents,
     linkedSkillVersions: result.linkedSkillVersions,
     linkedSubagentVersions: result.linkedSubagentVersions,
+    linkedSkillsToReplace: result.linkedSkillsToReplace,
+    linkedSubagentsToReplace: result.linkedSubagentsToReplace,
   });
 
   return {
