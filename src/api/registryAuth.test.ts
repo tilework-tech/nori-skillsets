@@ -169,6 +169,96 @@ describe("registryAuth", () => {
     });
   });
 
+  describe("getRegistryAuthToken with apiToken", () => {
+    const origEnvToken = process.env.NORI_API_TOKEN;
+
+    beforeEach(() => {
+      delete process.env.NORI_API_TOKEN;
+    });
+
+    afterEach(() => {
+      if (origEnvToken == null) delete process.env.NORI_API_TOKEN;
+      else process.env.NORI_API_TOKEN = origEnvToken;
+    });
+
+    it("should return raw apiToken without calling exchangeRefreshToken when token's org matches URL org", async () => {
+      const registryAuth: RegistryAuth = {
+        username: "n/a",
+        registryUrl: "https://acme.noriskillsets.dev",
+        apiToken: `nori_acme_${"a".repeat(64)}`,
+      };
+
+      const token = await getRegistryAuthToken({ registryAuth });
+
+      expect(token).toBe(`nori_acme_${"a".repeat(64)}`);
+      expect(exchangeRefreshToken).not.toHaveBeenCalled();
+    });
+
+    it("should NOT cache apiToken responses (next call with rotated token returns new value)", async () => {
+      // Since we return the raw token by early-return, no cache entry is created.
+      // Validate by switching the apiToken value for a second call and seeing the new value.
+      const registryAuth1: RegistryAuth = {
+        username: "n/a",
+        registryUrl: "https://acme.noriskillsets.dev",
+        apiToken: `nori_acme_${"a".repeat(64)}`,
+      };
+      const registryAuth2: RegistryAuth = {
+        username: "n/a",
+        registryUrl: "https://acme.noriskillsets.dev",
+        apiToken: `nori_acme_${"b".repeat(64)}`,
+      };
+
+      const token1 = await getRegistryAuthToken({
+        registryAuth: registryAuth1,
+      });
+      const token2 = await getRegistryAuthToken({
+        registryAuth: registryAuth2,
+      });
+
+      expect(token1).toBe(`nori_acme_${"a".repeat(64)}`);
+      expect(token2).toBe(`nori_acme_${"b".repeat(64)}`);
+      expect(exchangeRefreshToken).not.toHaveBeenCalled();
+    });
+
+    it("should fall through to refreshToken flow when token's org does not match URL org", async () => {
+      const mockIdToken = "mock-firebase-id-token";
+      vi.mocked(exchangeRefreshToken).mockResolvedValue({
+        idToken: mockIdToken,
+        refreshToken: "new-refresh-token",
+        expiresIn: 3600,
+      });
+
+      const registryAuth: RegistryAuth = {
+        username: "test@example.com",
+        registryUrl: "https://foo.noriskillsets.dev",
+        refreshToken: "refresh-xyz",
+        apiToken: `nori_acme_${"c".repeat(64)}`,
+      };
+
+      const token = await getRegistryAuthToken({ registryAuth });
+
+      expect(token).toBe(mockIdToken);
+      expect(exchangeRefreshToken).toHaveBeenCalledWith({
+        refreshToken: "refresh-xyz",
+      });
+    });
+
+    it("should prefer NORI_API_TOKEN env var when env token's org matches URL org", async () => {
+      process.env.NORI_API_TOKEN = `nori_acme_${"d".repeat(64)}`;
+
+      const registryAuth: RegistryAuth = {
+        username: "n/a",
+        registryUrl: "https://acme.noriskillsets.dev",
+        apiToken: `nori_acme_${"e".repeat(64)}`,
+      };
+
+      const token = await getRegistryAuthToken({ registryAuth });
+
+      expect(token).toBe(`nori_acme_${"d".repeat(64)}`);
+      expect(exchangeRefreshToken).not.toHaveBeenCalled();
+    });
+  });
+
   describe("clearRegistryAuthCache", () => {
     it("should clear cached tokens", async () => {
       const mockIdToken = "mock-firebase-id-token";

@@ -539,6 +539,7 @@ describe("registry-upload", () => {
             registryUrl: "https://myorg.noriskillsets.dev",
             username: "test@example.com",
             refreshToken: "test-token",
+            apiToken: null,
           },
         });
       });

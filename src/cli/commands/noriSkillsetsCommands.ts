@@ -768,12 +768,17 @@ export const registerNoriSkillsetsLoginCommand = (args: {
       "--no-localhost",
       "Use hosted callback page instead of localhost (for headless/SSH)",
     )
+    .option(
+      "--token <token>",
+      "API token (nori_<orgId>_<64hex>) for non-interactive private-org auth",
+    )
     .action(
       async (options: {
         email?: string;
         password?: string;
         google?: boolean;
         localhost?: boolean;
+        token?: string;
       }) => {
         const { loginMain } = await import("@/cli/commands/login/login.js");
         const globalOpts = program.opts();
@@ -787,6 +792,7 @@ export const registerNoriSkillsetsLoginCommand = (args: {
               password: options.password || null,
               google: options.google || null,
               noLocalhost: options.localhost === false ? true : null,
+              token: options.token || null,
             }),
         });
       },

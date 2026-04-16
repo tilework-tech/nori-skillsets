@@ -107,6 +107,7 @@ describe("config with skillset-based system", () => {
         organizationUrl: "https://example.com",
         organizations: null,
         isAdmin: null,
+        apiToken: null,
       });
       expect(loaded?.activeSkillset).toBe("senior-swe");
     });
@@ -128,6 +129,7 @@ describe("config with skillset-based system", () => {
         organizationUrl: "https://example.com",
         organizations: null,
         isAdmin: null,
+        apiToken: null,
       });
       expect(loaded?.activeSkillset).toBeUndefined();
     });
@@ -1005,5 +1007,187 @@ describe("updateConfig", () => {
     expect(loaded?.auth?.organizationUrl).toBe("https://new.example.com");
     expect(loaded?.auth?.organizations).toEqual(["new-org"]);
     expect(loaded?.auth?.isAdmin).toBe(true);
+  });
+});
+
+describe("API token auth", () => {
+  let tempDir: string;
+  let mockConfigPath: string;
+
+  beforeEach(async () => {
+    tempDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), "config-api-token-test-"),
+    );
+    mockConfigPath = path.join(tempDir, ".nori-config.json");
+    vi.mocked(os.homedir).mockReturnValue(tempDir);
+  });
+
+  afterEach(async () => {
+    await fs.rm(tempDir, { recursive: true, force: true });
+    vi.clearAllMocks();
+  });
+
+  const TOKEN_ACME = `nori_acme_${"a".repeat(64)}`;
+  const TOKEN_ACME_B = `nori_acme_${"b".repeat(64)}`;
+  const TOKEN_ACME_C = `nori_acme_${"c".repeat(64)}`;
+  const TOKEN_ACME_D = `nori_acme_${"d".repeat(64)}`;
+  const TOKEN_ACME_E = `nori_acme_${"e".repeat(64)}`;
+  const TOKEN_ACME_F = `nori_acme_${"f".repeat(64)}`;
+
+  describe("saveConfig and loadConfig with apiToken", () => {
+    it("should round-trip apiToken via updateConfig/loadConfig", async () => {
+      await updateConfig({
+        auth: {
+          username: null,
+          organizationUrl: "https://acme.noriskillsets.dev",
+          apiToken: TOKEN_ACME,
+        },
+      });
+
+      const loaded = await loadConfig();
+
+      expect(loaded?.auth?.apiToken).toBe(TOKEN_ACME);
+      expect(loaded?.auth?.organizationUrl).toBe(
+        "https://acme.noriskillsets.dev",
+      );
+    });
+
+    it("should load config with apiToken + organizationUrl and no username", async () => {
+      await fs.writeFile(
+        mockConfigPath,
+        JSON.stringify({
+          auth: {
+            organizationUrl: "https://acme.noriskillsets.dev",
+            apiToken: TOKEN_ACME_B,
+          },
+        }),
+      );
+
+      const loaded = await loadConfig();
+
+      expect(loaded).not.toBeNull();
+      expect(loaded?.auth?.apiToken).toBe(TOKEN_ACME_B);
+    });
+
+    it("should preserve refreshToken when loading config written before api token support", async () => {
+      // Simulate a pre-API-token config
+      await fs.writeFile(
+        mockConfigPath,
+        JSON.stringify({
+          auth: {
+            username: "user@example.com",
+            refreshToken: "refresh-xyz",
+            organizationUrl: "https://noriskillsets.dev",
+          },
+        }),
+      );
+
+      const loaded = await loadConfig();
+
+      expect(loaded?.auth?.username).toBe("user@example.com");
+      expect(loaded?.auth?.refreshToken).toBe("refresh-xyz");
+      expect(loaded?.auth?.apiToken ?? null).toBeNull();
+    });
+
+    it("should preserve apiToken across an unrelated updateConfig call", async () => {
+      await updateConfig({
+        auth: {
+          username: null,
+          organizationUrl: "https://acme.noriskillsets.dev",
+          apiToken: TOKEN_ACME_C,
+        },
+      });
+
+      await updateConfig({ activeSkillset: "senior-swe" });
+
+      const loaded = await loadConfig();
+      expect(loaded?.auth?.apiToken).toBe(TOKEN_ACME_C);
+      expect(loaded?.activeSkillset).toBe("senior-swe");
+    });
+  });
+
+  describe("getRegistryAuth with apiToken", () => {
+    it("should return apiToken when registry URL matches org embedded in token", async () => {
+      const { getRegistryAuth } = await import("./config.js");
+
+      const config: Config = {
+        installDir: "/test",
+        auth: {
+          username: null,
+          organizationUrl: "https://acme.noriskillsets.dev",
+          apiToken: TOKEN_ACME_D,
+        },
+      };
+
+      const auth = getRegistryAuth({
+        config,
+        registryUrl: "https://acme.noriskillsets.dev",
+      });
+
+      expect(auth).not.toBeNull();
+      expect(auth?.apiToken).toBe(TOKEN_ACME_D);
+    });
+
+    it("should NOT return apiToken when URL org differs from token's embedded org", async () => {
+      const { getRegistryAuth } = await import("./config.js");
+
+      const config: Config = {
+        installDir: "/test",
+        auth: {
+          username: "user@example.com",
+          organizationUrl: "https://acme.noriskillsets.dev",
+          refreshToken: "refresh-xyz",
+          apiToken: TOKEN_ACME_E,
+        },
+      };
+
+      const auth = getRegistryAuth({
+        config,
+        registryUrl: "https://foo.noriskillsets.dev",
+      });
+
+      // No match at all — acme URL cannot auth for foo
+      expect(auth).toBeNull();
+    });
+
+    it("should return refreshToken (not apiToken) when URL matches but no apiToken configured", async () => {
+      const { getRegistryAuth } = await import("./config.js");
+
+      const config: Config = {
+        installDir: "/test",
+        auth: {
+          username: "user@example.com",
+          organizationUrl: "https://acme.noriskillsets.dev",
+          refreshToken: "refresh-xyz",
+        },
+      };
+
+      const auth = getRegistryAuth({
+        config,
+        registryUrl: "https://acme.noriskillsets.dev",
+      });
+
+      expect(auth).not.toBeNull();
+      expect(auth?.refreshToken).toBe("refresh-xyz");
+      expect(auth?.apiToken ?? null).toBeNull();
+    });
+  });
+
+  describe("validateConfig with apiToken", () => {
+    it("should accept config with apiToken + organizationUrl (no username/password)", async () => {
+      await fs.writeFile(
+        mockConfigPath,
+        JSON.stringify({
+          auth: {
+            organizationUrl: "https://acme.noriskillsets.dev",
+            apiToken: TOKEN_ACME_F,
+          },
+        }),
+      );
+
+      const result = await validateConfig();
+
+      expect(result.valid).toBe(true);
+    });
   });
 });

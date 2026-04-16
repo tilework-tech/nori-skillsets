@@ -481,8 +481,9 @@ const performSearch = async (args: {
       const registryUrl = buildOrganizationRegistryUrl({ orgId });
       const registryAuth: RegistryAuth = {
         registryUrl,
-        username: config.auth!.username,
-        refreshToken: config.auth!.refreshToken,
+        username: config.auth!.username ?? null,
+        refreshToken: config.auth!.refreshToken ?? null,
+        apiToken: config.auth!.apiToken ?? null,
       };
 
       const orgSearchPromise = (async (): Promise<RegistrySearchResult> => {
@@ -509,8 +510,9 @@ const performSearch = async (args: {
       const registryUrl = buildRegistryUrl({ orgId });
       const registryAuth: RegistryAuth = {
         registryUrl,
-        username: config.auth.username,
-        refreshToken: config.auth.refreshToken,
+        username: config.auth.username ?? null,
+        refreshToken: config.auth.refreshToken ?? null,
+        apiToken: config.auth.apiToken ?? null,
       };
 
       const [profileResult, skillResult, subagentResult] = await Promise.all([

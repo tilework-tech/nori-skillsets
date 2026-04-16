@@ -538,8 +538,9 @@ export const skillDownloadMain = async (args: {
 
           const registryAuth = {
             registryUrl: targetRegistryUrl,
-            username: config.auth!.username,
-            refreshToken: config.auth!.refreshToken,
+            username: config.auth!.username ?? null,
+            refreshToken: config.auth!.refreshToken ?? null,
+            apiToken: config.auth!.apiToken ?? null,
           };
 
           try {

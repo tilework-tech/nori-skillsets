@@ -154,6 +154,27 @@ describe("logout command", () => {
       expect(afterLogout?.autoupdate).toBe("disabled");
     });
 
+    it("should clear apiToken after an API-token login", async () => {
+      const { updateConfig } = await import("@/cli/config.js");
+
+      // Simulate an API-token-only login
+      await updateConfig({
+        auth: {
+          username: null,
+          organizationUrl: "https://acme.noriskillsets.dev",
+          apiToken: `nori_acme_${"a".repeat(64)}`,
+        },
+      });
+
+      const beforeLogout = await loadConfig();
+      expect(beforeLogout?.auth?.apiToken).toBe(`nori_acme_${"a".repeat(64)}`);
+
+      await logoutMain();
+
+      const afterLogout = await loadConfig();
+      expect(afterLogout?.auth).toBeNull();
+    });
+
     it("should clear auth when no installDir provided and config exists at homedir", async () => {
       const { log } = await import("@clack/prompts");
 

@@ -1900,3 +1900,145 @@ describe("login command", () => {
     });
   });
 });
+
+describe("loginMain with --token", () => {
+  let tempDir: string;
+
+  beforeEach(async () => {
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "login-token-test-"));
+    vi.mocked(os.homedir).mockReturnValue(tempDir);
+    vi.clearAllMocks();
+    const clack = await import("@clack/prompts");
+    vi.mocked(clack.isCancel).mockReturnValue(false);
+  });
+
+  afterEach(async () => {
+    await fs.rm(tempDir, { recursive: true, force: true });
+  });
+
+  const VALID_TOKEN = `nori_acme_${"a".repeat(64)}`;
+
+  it("should save apiToken + derived organizationUrl to config (org parsed from token)", async () => {
+    const result = await loginMain({
+      installDir: tempDir,
+      token: VALID_TOKEN,
+    });
+
+    expect(result.success).toBe(true);
+
+    const config = await loadConfig();
+    expect(config?.auth?.apiToken).toBe(VALID_TOKEN);
+    expect(config?.auth?.organizationUrl).toBe(
+      "https://acme.noriskillsets.dev",
+    );
+    // Firebase fields should be cleared
+    expect(config?.auth?.refreshToken ?? null).toBeNull();
+    expect(config?.auth?.password ?? null).toBeNull();
+    expect(config?.auth?.username ?? null).toBeNull();
+  });
+
+  it("should reject token whose embedded org is 'public'", async () => {
+    const result = await loginMain({
+      installDir: tempDir,
+      token: `nori_public_${"a".repeat(64)}`,
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.message).toMatch(/public/);
+
+    const config = await loadConfig();
+    expect(config?.auth).toBeUndefined();
+  });
+
+  it("should reject malformed --token (missing org segment)", async () => {
+    const result = await loginMain({
+      installDir: tempDir,
+      token: `nori_${"a".repeat(64)}`,
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.message).toMatch(/nori_/);
+
+    const config = await loadConfig();
+    expect(config?.auth).toBeUndefined();
+  });
+
+  it("should reject completely malformed --token", async () => {
+    const result = await loginMain({
+      installDir: tempDir,
+      token: "notatoken",
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.message).toMatch(/nori_/);
+
+    const config = await loadConfig();
+    expect(config?.auth).toBeUndefined();
+  });
+
+  it("should reject --token combined with --email", async () => {
+    const result = await loginMain({
+      installDir: tempDir,
+      token: VALID_TOKEN,
+      email: "user@example.com",
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.message).toMatch(/--token/);
+  });
+
+  it("should reject --token combined with --password", async () => {
+    const result = await loginMain({
+      installDir: tempDir,
+      token: VALID_TOKEN,
+      password: "secret",
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.message).toMatch(/--token/);
+  });
+
+  it("should reject --token combined with --google", async () => {
+    const result = await loginMain({
+      installDir: tempDir,
+      token: VALID_TOKEN,
+      google: true,
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.message).toMatch(/--token/);
+  });
+
+  it("should not call Firebase when using --token", async () => {
+    const { signInWithEmailAndPassword } = await import("firebase/auth");
+
+    await loginMain({
+      installDir: tempDir,
+      token: VALID_TOKEN,
+    });
+
+    expect(signInWithEmailAndPassword).not.toHaveBeenCalled();
+  });
+
+  it("should warn that Firebase session was cleared when --token overwrites an existing session", async () => {
+    const clack = await import("@clack/prompts");
+    const { saveConfig } = await import("@/cli/config.js");
+
+    // Seed a Firebase-style session
+    await saveConfig({
+      username: "user@example.com",
+      refreshToken: "existing-refresh",
+      organizationUrl: "https://noriskillsets.dev",
+      installDir: tempDir,
+    });
+
+    await loginMain({
+      installDir: tempDir,
+      token: VALID_TOKEN,
+    });
+
+    expect(clack.log.warn).toHaveBeenCalledWith(
+      expect.stringContaining("Firebase"),
+    );
+  });
+});

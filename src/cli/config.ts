@@ -10,29 +10,36 @@ import Ajv from "ajv";
 import addFormats from "ajv-formats";
 
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
+import { extractOrgIdFromApiToken } from "@/utils/apiToken.js";
 import { getHomeDir } from "@/utils/home.js";
 import { normalizeUrl, extractOrgId, buildRegistryUrl } from "@/utils/url.js";
 
 /**
  * Registry authentication credentials
- * Supports both legacy password auth and new refresh token auth
+ * Supports both legacy password auth and new refresh token auth.
+ * If `apiToken` is set, the orgId is parsed from the token itself (see `extractOrgIdFromApiToken`).
  */
 export type RegistryAuth = {
-  username: string;
+  username: string | null;
   registryUrl: string;
   refreshToken?: string | null;
+  apiToken?: string | null;
 };
 
 /**
- * Authentication credentials - supports both legacy password and new refresh token
+ * Authentication credentials - supports legacy password, refresh token, and API token auth.
+ * API tokens are self-describing: the orgId is embedded in the token format `nori_<orgId>_<64hex>`.
  */
 export type AuthCredentials = {
-  username: string;
+  // Username is optional (null) for API-token-only configs where no Firebase identity is tied
+  username?: string | null;
   organizationUrl: string;
-  // Token-based auth (preferred)
+  // Token-based auth (preferred for user accounts)
   refreshToken?: string | null;
   // Legacy password-based auth (deprecated, will be removed)
   password?: string | null;
+  // API token for non-interactive / programmatic access. Format: nori_<orgId>_<64hex>.
+  apiToken?: string | null;
   // Organizations the user has access to
   organizations?: Array<string> | null;
   // Whether the user is an admin for their organization
@@ -81,6 +88,7 @@ type RawDiskConfig = {
     organizationUrl?: string | null;
     organizations?: Array<string> | null;
     isAdmin?: boolean | null;
+    apiToken?: string | null;
   } | null;
   // Common fields
   sendSessionTranscript?: "enabled" | "disabled" | null;
@@ -144,6 +152,13 @@ export const getRegistryAuth = (args: {
   // Use unified Nori auth if available
   if (config.auth != null && config.auth.organizationUrl != null) {
     const orgId = extractOrgId({ url: config.auth.organizationUrl });
+    const targetOrgId = extractOrgId({ url: registryUrl });
+    const tokenOrgId =
+      config.auth.apiToken != null
+        ? extractOrgIdFromApiToken({ token: config.auth.apiToken })
+        : null;
+    const apiTokenMatch =
+      tokenOrgId != null && targetOrgId != null && tokenOrgId === targetOrgId;
 
     if (orgId != null) {
       // Derive registry URL from org ID
@@ -155,8 +170,20 @@ export const getRegistryAuth = (args: {
       ) {
         return {
           registryUrl: derivedRegistryUrl,
-          username: config.auth.username,
+          username: config.auth.username ?? null,
           refreshToken: config.auth.refreshToken ?? null,
+          apiToken: apiTokenMatch ? (config.auth.apiToken ?? null) : null,
+        };
+      }
+
+      // Also check the noriskillsets.dev subdomain pattern for org registrars
+      const orgRegistrarUrl = `https://${orgId}.noriskillsets.dev`;
+      if (normalizeUrl({ baseUrl: orgRegistrarUrl }) === normalizedSearchUrl) {
+        return {
+          registryUrl: orgRegistrarUrl,
+          username: config.auth.username ?? null,
+          refreshToken: config.auth.refreshToken ?? null,
+          apiToken: apiTokenMatch ? (config.auth.apiToken ?? null) : null,
         };
       }
     }
@@ -168,7 +195,7 @@ export const getRegistryAuth = (args: {
       // Auth URL is local dev (e.g., localhost) - use these credentials
       return {
         registryUrl: normalizedSearchUrl,
-        username: config.auth.username,
+        username: config.auth.username ?? null,
         refreshToken: config.auth.refreshToken ?? null,
       };
     }
@@ -273,17 +300,18 @@ export const loadConfig = async (): Promise<Config | null> => {
     // Build auth - handle both nested format (v19+) and flat format (legacy)
     if (
       validated.auth != null &&
-      validated.auth.username != null &&
-      validated.auth.organizationUrl != null
+      validated.auth.organizationUrl != null &&
+      (validated.auth.username != null || validated.auth.apiToken != null)
     ) {
-      // New nested format: auth: { username, organizationUrl, refreshToken, password, organizations, isAdmin }
+      // New nested format: auth: { username, organizationUrl, refreshToken, password, organizations, isAdmin, apiToken }
       result.auth = {
-        username: validated.auth.username,
+        username: validated.auth.username ?? null,
         organizationUrl: validated.auth.organizationUrl,
         refreshToken: validated.auth.refreshToken ?? null,
         password: validated.auth.password ?? null,
         organizations: validated.auth.organizations ?? null,
         isAdmin: validated.auth.isAdmin ?? null,
+        apiToken: validated.auth.apiToken ?? null,
       };
     } else if (
       validated.username != null &&
@@ -336,11 +364,13 @@ export const loadConfig = async (): Promise<Config | null> => {
  * @param args.defaultAgents - Default agent names for CLI operations (null to skip)
  * @param args.garbageCollectTranscripts - Whether to delete transcripts after upload (null to skip)
  * @param args.redownloadOnSwitch - Whether to prompt to re-download from registry on switch (null to skip)
+ * @param args.apiToken - Raw API token (format `nori_<orgId>_<64hex>`) for non-interactive private-org auth (null to skip)
  */
 export const saveConfig = async (args: {
   username: string | null;
   password?: string | null;
   refreshToken?: string | null;
+  apiToken?: string | null;
   organizationUrl: string | null;
   organizations?: Array<string> | null;
   isAdmin?: boolean | null;
@@ -358,6 +388,7 @@ export const saveConfig = async (args: {
     username,
     password,
     refreshToken,
+    apiToken,
     organizationUrl,
     organizations,
     isAdmin,
@@ -375,19 +406,24 @@ export const saveConfig = async (args: {
 
   const config: any = {};
 
-  // Add auth credentials in nested format if provided
-  // Prefer refreshToken over password (token-based auth is more secure)
-  if (username != null && organizationUrl != null) {
+  // Add auth credentials in nested format if provided.
+  // Supports three modes: username+refreshToken (preferred), username+password (legacy),
+  // and apiToken (non-interactive / CI access).
+  const hasUsernameAuth = username != null && organizationUrl != null;
+  const hasApiTokenAuth = apiToken != null && organizationUrl != null;
+  if (hasUsernameAuth || hasApiTokenAuth) {
     // Normalize organization URL to remove trailing slashes
-    const normalizedUrl = normalizeUrl({ baseUrl: organizationUrl });
+    const normalizedUrl = normalizeUrl({ baseUrl: organizationUrl! });
 
     config.auth = {
-      username,
+      username: username ?? null,
       organizationUrl: normalizedUrl,
       // If refreshToken is provided, use it and don't store password
       refreshToken: refreshToken ?? null,
       // Only save password if no refreshToken (legacy support)
       password: refreshToken != null ? null : (password ?? null),
+      // API token for private-org programmatic access (orgId is embedded in the token itself)
+      apiToken: apiToken ?? null,
       // Organizations the user has access to
       organizations: organizations ?? null,
       // Admin status
@@ -460,6 +496,7 @@ export const updateConfig = async (updates: Partial<Config>): Promise<void> => {
     username: auth?.username ?? null,
     password: auth?.password ?? null,
     refreshToken: auth?.refreshToken ?? null,
+    apiToken: auth?.apiToken ?? null,
     organizationUrl: auth?.organizationUrl ?? null,
     organizations: auth?.organizations ?? null,
     isAdmin: auth?.isAdmin ?? null,
@@ -519,7 +556,7 @@ const configSchema = {
     auth: {
       type: ["object", "null"],
       properties: {
-        username: { type: "string" },
+        username: { type: ["string", "null"] },
         password: { type: ["string", "null"] },
         refreshToken: { type: ["string", "null"] },
         organizationUrl: { type: "string", format: "uri" },
@@ -528,8 +565,9 @@ const configSchema = {
           items: { type: "string" },
         },
         isAdmin: { type: ["boolean", "null"] },
+        apiToken: { type: ["string", "null"] },
       },
-      required: ["username", "organizationUrl"],
+      required: ["organizationUrl"],
     },
     // Legacy flat auth fields (deprecated, kept for backwards compatibility)
     username: { type: "string" },
@@ -624,6 +662,37 @@ export const validateConfig = async (): Promise<ConfigValidationResult> => {
       valid: false,
       message: "Invalid JSON in nori-config.json",
       errors: [`Config file contains invalid JSON: ${err}`],
+    };
+  }
+
+  // If config uses the new nested auth format with apiToken + organizationUrl,
+  // that's a valid API-token-only config — validate via schema only.
+  const nestedAuth = config.auth;
+  const hasNestedApiToken =
+    nestedAuth != null &&
+    typeof nestedAuth === "object" &&
+    nestedAuth.apiToken != null &&
+    nestedAuth.organizationUrl != null;
+
+  if (hasNestedApiToken) {
+    const configClone = JSON.parse(JSON.stringify(config));
+    const valid = validateConfigSchema(configClone);
+    if (!valid && validateConfigSchema.errors) {
+      for (const error of validateConfigSchema.errors) {
+        const path = error.instancePath || "(root)";
+        const message = error.message || "unknown error";
+        errors.push(`Config validation error at ${path}: ${message}`);
+      }
+      return {
+        valid: false,
+        message: "Config has validation errors",
+        errors,
+      };
+    }
+    return {
+      valid: true,
+      message: "Config is valid (API-token auth)",
+      errors: null,
     };
   }
 

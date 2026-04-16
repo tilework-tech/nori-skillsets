@@ -4,11 +4,11 @@ Path: @/src/utils
 
 ### Overview
 
-Shared utility functions used across the codebase for URL manipulation, filesystem path resolution, network proxy support, and error classification. These are pure helpers with no business logic or state of their own.
+Shared utility functions used across the codebase for URL manipulation, filesystem path resolution, network proxy support, API token parsing, and error classification. These are pure helpers with no business logic or state of their own.
 
 ### How it fits into the larger codebase
 
-Every layer of the application imports from this module. The API layer uses `url.ts` for URL construction and `fetch.ts` for error types and proxy initialization. The CLI config system uses `path.ts` for resolving installation directories and `home.ts` for finding the user's home directory. The `fetch.ts` error classes (`NetworkError`, `ApiError`, `SkillCollisionError`) are the canonical error types used throughout the codebase.
+Every layer of the application imports from this module. The API layer uses `url.ts` for URL construction, `fetch.ts` for error types and proxy initialization, and `apiToken.ts` for parsing the orgId embedded in API tokens during per-request auth resolution. The CLI config system uses `path.ts` for resolving installation directories, `home.ts` for finding the user's home directory, and `apiToken.ts` when computing whether a stored API token matches a target registry org. The login command uses `apiToken.ts` to validate `--token` input. The `fetch.ts` error classes (`NetworkError`, `ApiError`, `SkillCollisionError`) are the canonical error types used throughout the codebase.
 
 ### Core Implementation
 
@@ -20,10 +20,14 @@ Every layer of the application imports from this module. The API layer uses `url
 
 **`home.ts`** returns the home directory with override support: `NORI_GLOBAL_CONFIG` env var (for test isolation) > `os.homedir()` > `process.env.HOME`.
 
+**`apiToken.ts`** parses and validates API tokens. API tokens follow the format `nori_<orgId>_<64 hex chars>`, where the orgId is embedded in the token itself so no separate orgId flag or env var is needed. Exports `API_TOKEN_PATTERN` (the canonical regex), `isValidApiToken({ token })` (shape check), and `extractOrgIdFromApiToken({ token })` (returns the orgId or `null` for malformed input). Call sites in `@/src/cli/config.ts`, `@/src/api/base.ts`, `@/src/api/registryAuth.ts`, and `@/src/cli/commands/login/login.ts` use these helpers whenever an API token needs to be matched against a target registry URL.
+
 ### Things to Know
 
 The `NORI_GLOBAL_CONFIG` environment variable overrides the home directory globally, which affects config file location, skillset storage, and all path resolution. This is the primary mechanism for test isolation.
 
 `SkillCollisionError` and `SubagentCollisionError` each carry structured conflict data (`conflicts` array with per-item resolution options) that the CLI upload flow uses to prompt users for resolution decisions. Both error classes have corresponding type guards (`isSkillCollisionError`, `isSubagentCollisionError`) that use both `instanceof` checks and discriminant property checks (`isSkillCollisionError` / `isSubagentCollisionError` booleans) for cross-boundary safety.
+
+The API token format is deliberately self-describing: the orgId is embedded between `nori_` and the hex key, separated by underscores. Because orgIds themselves may contain hyphens, the regex uses `_` as the delimiter rather than `-`. The orgId is parsed on demand at read/request time rather than being persisted separately — this means there is no stale-scope risk when a token is replaced, and callers never need to pass the orgId alongside the token.
 
 Created and maintained by Nori.
