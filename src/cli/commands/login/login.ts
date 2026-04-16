@@ -321,6 +321,83 @@ const authenticateWithGoogle = async (args?: {
 };
 
 /**
+ * Authenticate using an API token and persist credentials.
+ *
+ * Validates token shape, rejects reserved 'public' orgId, writes the nested
+ * `auth` block (clearing any Firebase fields), and warns the user when an
+ * existing Firebase session is overwritten. Used by both the `--token` CLI
+ * flag and the interactive "API Token" auth method selection.
+ *
+ * @param args - Token auth arguments
+ * @param args.token - Raw API token (format `nori_<orgId>_<64hex>`)
+ *
+ * @returns Command status
+ */
+const loginWithApiToken = async (args: {
+  token: string;
+}): Promise<CommandStatus> => {
+  const { token } = args;
+
+  if (!isValidApiToken({ token })) {
+    return {
+      success: false,
+      cancelled: false,
+      message:
+        "Invalid API token. Expected format: nori_<orgId>_<64 hex chars>.",
+    };
+  }
+  const orgId = extractOrgIdFromApiToken({ token });
+  if (orgId == null) {
+    return {
+      success: false,
+      cancelled: false,
+      message: "Invalid API token. Could not parse orgId from token.",
+    };
+  }
+  if (orgId === "public") {
+    return {
+      success: false,
+      cancelled: false,
+      message:
+        "API tokens are not supported on the public registry. The token encodes org 'public', which is not a valid private org.",
+    };
+  }
+
+  const organizationUrl = buildOrganizationRegistryUrl({ orgId });
+
+  // Detect whether an existing Firebase session is about to be overwritten,
+  // so we can tell the user explicitly (per spec edge case 8).
+  const existing = await loadConfig();
+  const hadFirebaseSession =
+    existing?.auth != null &&
+    (existing.auth.refreshToken != null || existing.auth.password != null);
+
+  await updateConfig({
+    auth: {
+      username: null,
+      organizationUrl,
+      apiToken: token,
+      refreshToken: null,
+      password: null,
+      organizations: [orgId],
+      isAdmin: null,
+    },
+  });
+
+  if (hadFirebaseSession) {
+    log.warn(
+      "Existing Firebase session (refreshToken/password/username) has been cleared. Use 'nori-skillsets login' without --token to sign back in with Firebase.",
+    );
+  }
+
+  return {
+    success: true,
+    cancelled: false,
+    message: `Logged in with API token for org '${orgId}'.`,
+  };
+};
+
+/**
  * Main login function
  *
  * @param args - Configuration arguments
@@ -362,63 +439,7 @@ export const loginMain = async (args?: {
           "Cannot combine --token with --email, --password, or --google. API-token auth is mutually exclusive with Firebase auth.",
       };
     }
-    if (!isValidApiToken({ token })) {
-      return {
-        success: false,
-        cancelled: false,
-        message:
-          "Invalid --token value. Expected format: nori_<orgId>_<64 hex chars>.",
-      };
-    }
-    const orgId = extractOrgIdFromApiToken({ token });
-    if (orgId == null) {
-      return {
-        success: false,
-        cancelled: false,
-        message: "Invalid --token value. Could not parse orgId from token.",
-      };
-    }
-    if (orgId === "public") {
-      return {
-        success: false,
-        cancelled: false,
-        message:
-          "API tokens are not supported on the public registry. The token encodes org 'public', which is not a valid private org.",
-      };
-    }
-
-    const organizationUrl = buildOrganizationRegistryUrl({ orgId });
-
-    // Detect whether an existing Firebase session is about to be overwritten,
-    // so we can tell the user explicitly (per spec edge case 8).
-    const existing = await loadConfig();
-    const hadFirebaseSession =
-      existing?.auth != null &&
-      (existing.auth.refreshToken != null || existing.auth.password != null);
-
-    await updateConfig({
-      auth: {
-        username: null,
-        organizationUrl,
-        apiToken: token,
-        refreshToken: null,
-        password: null,
-        organizations: [orgId],
-        isAdmin: null,
-      },
-    });
-
-    if (hadFirebaseSession) {
-      log.warn(
-        "Existing Firebase session (refreshToken/password/username) has been cleared. Use 'nori-skillsets login' without --token to sign back in with Firebase.",
-      );
-    }
-
-    return {
-      success: true,
-      cancelled: false,
-      message: `Logged in with API token for org '${orgId}'.`,
-    };
+    return loginWithApiToken({ token });
   }
 
   // Validate flag combinations
@@ -522,6 +543,7 @@ export const loginMain = async (args?: {
       options: [
         { value: "email", label: "Email / Password" },
         { value: "google", label: "Google SSO" },
+        { value: "token", label: "API Token" },
       ],
     });
 
@@ -619,6 +641,23 @@ export const loginMain = async (args?: {
         cancelled: false,
         message: `Logged in as ${userEmail}`,
       };
+    } else if (authMethod === "token") {
+      // API-token flow selected from interactive UI
+      const inputToken = await promptPassword({
+        message: "API Token",
+        placeholder: "nori_<orgId>_<64 hex chars>",
+      });
+
+      const tokenResult = await loginWithApiToken({ token: inputToken });
+
+      if (tokenResult.success) {
+        const orgId = extractOrgIdFromApiToken({ token: inputToken });
+        if (orgId != null) {
+          note(`Organizations: ${orgId}`, "Account Info");
+        }
+      }
+
+      return tokenResult;
     } else {
       // Google SSO flow selected from interactive UI
       try {
