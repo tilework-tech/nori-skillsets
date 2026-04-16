@@ -14,7 +14,6 @@ import {
   registrarApi,
   type SkillResolutionStrategy,
   type SubagentResolutionStrategy,
-  type SubagentConflict,
   type UploadSkillsetResponse,
   type ExtractedSkillsSummary,
   type ExtractedSubagentsSummary,
@@ -1333,16 +1332,9 @@ export const registryUploadMain = async (args: {
       }
 
       if (isSubagentCollisionError(err)) {
-        // SubagentCollisionError stores conflicts in `conflicts` property,
-        // but also check `subagentConflicts` for raw error objects from the API
-        const rawConflicts =
-          err.conflicts ??
-          (err as unknown as { subagentConflicts?: Array<SubagentConflict> })
-            .subagentConflicts ??
-          [];
         return {
           success: false,
-          subagentConflicts: rawConflicts as Array<SubagentConflict>,
+          subagentConflicts: err.conflicts,
         };
       }
 

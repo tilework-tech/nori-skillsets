@@ -1306,6 +1306,18 @@ export const uploadFlow = async (args: {
 
     if ("error" in result) {
       log.error(result.error);
+    } else if (!hasConflicts(result) && !hasSubagentConflicts(result)) {
+      // Unexpected upload result shape. Surface diagnostic detail so future
+      // client/server protocol drift is visible instead of silently swallowed.
+      let preview: string;
+      try {
+        preview = JSON.stringify(result).slice(0, 500);
+      } catch {
+        preview = String(result).slice(0, 500);
+      }
+      log.error(
+        `Unexpected upload result shape from registrar (no recognizable error or conflict variant). Raw preview: ${preview}`,
+      );
     }
 
     log.error(red({ text: "Upload failed" }));

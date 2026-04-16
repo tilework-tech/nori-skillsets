@@ -8,7 +8,7 @@ import * as clack from "@clack/prompts";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 import type { UploadFlowCallbacks, UploadResult } from "./upload.js";
-import type { SkillConflict } from "@/api/registrar.js";
+import type { SkillConflict, SubagentConflict } from "@/api/registrar.js";
 
 import { uploadFlow } from "./upload.js";
 
@@ -1434,6 +1434,98 @@ describe("uploadFlow", () => {
       expect(clack.select).not.toHaveBeenCalled();
       const uploadCall = vi.mocked(callbacks.onUpload).mock.calls[0][0];
       expect(uploadCall.inlineSkillIds).toBeUndefined();
+    });
+  });
+
+  describe("subagent conflict auto-resolution", () => {
+    it("should auto-resolve unchanged subagent conflicts and succeed", async () => {
+      // Reproduces the lantern/admin scenario: first upload returns unchanged
+      // skill conflicts (auto-resolved as link), retry returns unchanged
+      // subagent conflicts (auto-resolved as link), final retry succeeds.
+      const skillConflicts: Array<SkillConflict> = [
+        {
+          skillId: "using-skills",
+          exists: true,
+          canPublish: true,
+          latestVersion: "1.0.5",
+          availableActions: ["cancel", "namespace", "link", "updateVersion"],
+          contentUnchanged: true,
+        },
+      ];
+
+      const subagentConflicts: Array<SubagentConflict> = [
+        {
+          subagentId: "nori-task-runner",
+          exists: true,
+          canPublish: true,
+          latestVersion: "1.0.0",
+          availableActions: ["cancel", "namespace", "link"],
+          contentUnchanged: true,
+        },
+      ];
+
+      const callbacks = createMockCallbacks({
+        uploadResults: [
+          { success: false, conflicts: skillConflicts },
+          { success: false, subagentConflicts },
+          {
+            success: true,
+            version: "1.0.8",
+            extractedSkills: { succeeded: [], failed: [] },
+            extractedSubagents: { succeeded: [], failed: [] },
+          },
+        ],
+      });
+
+      const result = await uploadFlow({
+        profileDisplayName: "lantern/admin",
+        skillsetName: "admin",
+        registryUrl: "https://lantern.noriskillsets.dev",
+        callbacks,
+      });
+
+      expect(result).not.toBeNull();
+      expect(result!.version).toBe("1.0.8");
+      expect(result!.linkedSubagentVersions.get("nori-task-runner")).toBe(
+        "1.0.0",
+      );
+      // No interactive prompts should have been shown for auto-resolvable conflicts
+      expect(clack.select).not.toHaveBeenCalled();
+      // Some retry must have carried a link-action resolution for the subagent
+      const anyRetryLinkedSubagent = vi
+        .mocked(callbacks.onUpload)
+        .mock.calls.some(
+          (call) =>
+            call[0].subagentResolutionStrategy?.["nori-task-runner"]?.action ===
+            "link",
+        );
+      expect(anyRetryLinkedSubagent).toBe(true);
+    });
+  });
+
+  describe("final result diagnostics", () => {
+    it("should include the upload result shape in the error log when the result has no known error/conflicts fields", async () => {
+      // Regression guard: a future server or client protocol drift could
+      // produce an upload result with an unexpected shape. The final handler
+      // must surface diagnostic detail instead of a bare "Upload failed".
+      const callbacks = createMockCallbacks({
+        uploadResults: [{ success: false } as unknown as UploadResult],
+      });
+
+      const result = await uploadFlow({
+        profileDisplayName: "myorg/my-profile",
+        skillsetName: "my-profile",
+        registryUrl: "https://myorg.noriskillsets.dev",
+        callbacks,
+      });
+
+      expect(result).toBeNull();
+
+      const errorCalls = vi
+        .mocked(clack.log.error)
+        .mock.calls.map((call) => String(call[0] ?? ""));
+      const combined = errorCalls.join("\n");
+      expect(combined.toLowerCase()).toContain("unexpected upload result");
     });
   });
 });

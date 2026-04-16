@@ -575,35 +575,45 @@ export const registrarApi = {
         error: `HTTP ${response.status}`,
       }))) as {
         error?: string;
-        conflicts?: Array<SkillConflict>;
-        subagentConflicts?: Array<SubagentConflict>;
+        conflicts?: Array<SkillConflict | SubagentConflict>;
         requiresVersions?: boolean;
       };
 
-      // Check for skill collision response (409 with conflicts array)
+      // The registrar serializes both SkillCollisionError and
+      // SubagentCollisionError into a response body with a single `conflicts`
+      // key. Partition by item shape and dispatch: skill items with `skillId`
+      // to SkillCollisionError, subagent items with `subagentId` to
+      // SubagentCollisionError. When both item kinds appear in a single
+      // payload (not currently produced by the server, but defensive),
+      // SkillCollisionError wins on the first pass — the retry that follows
+      // will surface remaining subagent conflicts.
       if (
         response.status === 409 &&
         Array.isArray(errorData.conflicts) &&
         errorData.conflicts.length > 0
       ) {
-        throw new SkillCollisionError({
-          message: errorData.error ?? "Skill conflicts detected",
-          conflicts: errorData.conflicts,
-          requiresVersions: errorData.requiresVersions,
-        });
-      }
+        const skillItems = errorData.conflicts.filter(
+          (c): c is SkillConflict => "skillId" in c,
+        );
+        const subagentItems = errorData.conflicts.filter(
+          (c): c is SubagentConflict => "subagentId" in c,
+        );
 
-      // Check for subagent collision response (409 with subagentConflicts array)
-      if (
-        response.status === 409 &&
-        Array.isArray(errorData.subagentConflicts) &&
-        errorData.subagentConflicts.length > 0
-      ) {
-        throw new SubagentCollisionError({
-          message: errorData.error ?? "Subagent conflicts detected",
-          conflicts: errorData.subagentConflicts,
-          requiresVersions: errorData.requiresVersions,
-        });
+        if (skillItems.length > 0) {
+          throw new SkillCollisionError({
+            message: errorData.error ?? "Skill conflicts detected",
+            conflicts: skillItems,
+            requiresVersions: errorData.requiresVersions,
+          });
+        }
+
+        if (subagentItems.length > 0) {
+          throw new SubagentCollisionError({
+            message: errorData.error ?? "Subagent conflicts detected",
+            conflicts: subagentItems,
+            requiresVersions: errorData.requiresVersions,
+          });
+        }
       }
 
       throw new ApiError(
