@@ -34,6 +34,17 @@ export type SkillResolutionAction =
   | "link";
 
 /**
+ * One entry in a conflict's per-file change list. See FileChange in fetch.ts.
+ */
+export type FileChange = {
+  path: string;
+  status: "added" | "modified" | "removed";
+  isBinary: boolean;
+  existingContent?: string;
+  existingTruncated?: boolean;
+};
+
+/**
  * Conflict information for a single skill
  */
 export type SkillConflict = {
@@ -45,6 +56,11 @@ export type SkillConflict = {
   availableActions: Array<SkillResolutionAction>;
   contentUnchanged?: boolean | null;
   existingSkillMd?: string | null;
+  /**
+   * Per-file change list (added/modified/removed) between upload and existing
+   * latest version. Optional for backwards compatibility with older registrars.
+   */
+  fileChanges?: ReadonlyArray<FileChange> | null;
 };
 
 /**
@@ -81,6 +97,11 @@ export type SubagentConflict = {
   availableActions: Array<SubagentResolutionAction>;
   contentUnchanged?: boolean | null;
   existingSubagentMd?: string | null;
+  /**
+   * Per-file change list (added/modified/removed) between upload and existing
+   * latest version. Optional for backwards compatibility with older registrars.
+   */
+  fileChanges?: ReadonlyArray<FileChange> | null;
 };
 
 /**

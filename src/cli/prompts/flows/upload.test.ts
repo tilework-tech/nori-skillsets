@@ -75,6 +75,25 @@ const getNoteContent = (): Array<string> => {
     .mock.calls.map((call) => `${call[0] ?? ""} ${call[1] ?? ""}`);
 };
 
+/**
+ * Helper to get notes whose title starts with "Files changed for". Used to
+ * scope assertions to the per-conflict file-change display, so unrelated
+ * notes (summaries, diagnostics) cannot accidentally satisfy or fail a test.
+ *
+ * @returns Array of { body, title } for each matching note
+ */
+const getFileChangeNotes = (): Array<{ body: string; title: string }> => {
+  return vi
+    .mocked(clack.note)
+    .mock.calls.filter((call) =>
+      String(call[1] ?? "").startsWith("Files changed for"),
+    )
+    .map((call) => ({
+      body: String(call[0] ?? ""),
+      title: String(call[1] ?? ""),
+    }));
+};
+
 describe("uploadFlow", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -1573,6 +1592,576 @@ describe("uploadFlow", () => {
         .mock.calls.map((call) => String(call[0] ?? ""));
       const combined = errorCalls.join("\n");
       expect(combined.toLowerCase()).toContain("unexpected upload result");
+    });
+  });
+
+  describe("skill conflict fileChanges display", () => {
+    it("shows a note listing each changed file before the single-conflict prompt", async () => {
+      const conflicts: Array<SkillConflict> = [
+        {
+          skillId: "diverged-skill",
+          exists: true,
+          canPublish: true,
+          latestVersion: "1.0.0",
+          availableActions: ["cancel", "namespace", "updateVersion", "link"],
+          contentUnchanged: false,
+          fileChanges: [
+            { path: "SKILL.md", status: "modified", isBinary: false },
+            { path: "helpers/util.py", status: "added", isBinary: false },
+            { path: "assets/logo.png", status: "modified", isBinary: true },
+          ],
+        },
+      ];
+
+      const callbacks = createMockCallbacks({
+        uploadResults: [
+          { success: false, conflicts },
+          {
+            success: true,
+            version: "1.0.0",
+            extractedSkills: { succeeded: [], failed: [] },
+          },
+        ],
+      });
+
+      vi.mocked(clack.select).mockResolvedValueOnce("namespace");
+
+      await uploadFlow({
+        profileDisplayName: "myorg/my-profile",
+        skillsetName: "my-profile",
+        registryUrl: "https://myorg.noriskillsets.dev",
+        callbacks,
+      });
+
+      const fileChangeNotes = getFileChangeNotes();
+      expect(fileChangeNotes).toHaveLength(1);
+      const note = fileChangeNotes[0];
+      expect(note.title).toContain("diverged-skill");
+      expect(note.body).toContain("SKILL.md");
+      expect(note.body).toContain("helpers/util.py");
+      expect(note.body).toContain("assets/logo.png");
+      expect(note.body).toContain("modified");
+      expect(note.body).toContain("added");
+    });
+
+    it("does not emit a file-changes note when fileChanges is absent", async () => {
+      const conflicts: Array<SkillConflict> = [
+        {
+          skillId: "legacy-skill",
+          exists: true,
+          canPublish: true,
+          latestVersion: "1.0.0",
+          availableActions: ["cancel", "namespace", "updateVersion", "link"],
+          contentUnchanged: false,
+        },
+      ];
+
+      const callbacks = createMockCallbacks({
+        uploadResults: [
+          { success: false, conflicts },
+          {
+            success: true,
+            version: "1.0.0",
+            extractedSkills: { succeeded: [], failed: [] },
+          },
+        ],
+      });
+
+      vi.mocked(clack.select).mockResolvedValueOnce("namespace");
+
+      await uploadFlow({
+        profileDisplayName: "myorg/my-profile",
+        skillsetName: "my-profile",
+        registryUrl: "https://myorg.noriskillsets.dev",
+        callbacks,
+      });
+
+      // No per-conflict "Files changed for ..." note should be emitted.
+      expect(getFileChangeNotes()).toHaveLength(0);
+    });
+
+    it("does not emit a file-changes note when fileChanges is empty", async () => {
+      const conflicts: Array<SkillConflict> = [
+        {
+          skillId: "empty-changes-skill",
+          exists: true,
+          canPublish: true,
+          latestVersion: "1.0.0",
+          availableActions: ["cancel", "namespace", "updateVersion", "link"],
+          contentUnchanged: false,
+          fileChanges: [],
+        },
+      ];
+
+      const callbacks = createMockCallbacks({
+        uploadResults: [
+          { success: false, conflicts },
+          {
+            success: true,
+            version: "1.0.0",
+            extractedSkills: { succeeded: [], failed: [] },
+          },
+        ],
+      });
+
+      vi.mocked(clack.select).mockResolvedValueOnce("namespace");
+
+      await uploadFlow({
+        profileDisplayName: "myorg/my-profile",
+        skillsetName: "my-profile",
+        registryUrl: "https://myorg.noriskillsets.dev",
+        callbacks,
+      });
+
+      expect(getFileChangeNotes()).toHaveLength(0);
+    });
+
+    it("uses pluralized file-change count in the Use Existing hint when fileChanges is non-empty", async () => {
+      const conflicts: Array<SkillConflict> = [
+        {
+          skillId: "multi-change",
+          exists: true,
+          canPublish: true,
+          latestVersion: "1.0.0",
+          availableActions: ["cancel", "namespace", "updateVersion", "link"],
+          contentUnchanged: false,
+          fileChanges: [
+            { path: "SKILL.md", status: "modified", isBinary: false },
+            { path: "helpers/a.py", status: "modified", isBinary: false },
+            { path: "helpers/b.py", status: "added", isBinary: false },
+          ],
+        },
+      ];
+
+      const callbacks = createMockCallbacks({
+        uploadResults: [
+          { success: false, conflicts },
+          {
+            success: true,
+            version: "1.0.0",
+            extractedSkills: { succeeded: [], failed: [] },
+          },
+        ],
+      });
+
+      vi.mocked(clack.select).mockResolvedValueOnce("namespace");
+
+      await uploadFlow({
+        profileDisplayName: "myorg/my-profile",
+        skillsetName: "my-profile",
+        registryUrl: "https://myorg.noriskillsets.dev",
+        callbacks,
+      });
+
+      // Look at the select call whose prompt mentions the conflict skillId.
+      const conflictCall = vi
+        .mocked(clack.select)
+        .mock.calls.find((call) =>
+          String(call[0].message ?? "").includes("multi-change"),
+        );
+      expect(conflictCall).toBeDefined();
+      const options = conflictCall![0].options as Array<{
+        value: string;
+        label: string;
+        hint?: string;
+      }>;
+      const useExistingOption = options.find((o) => o.value === "link");
+      expect(useExistingOption).toBeDefined();
+      expect(useExistingOption?.hint).toContain("3 file changes");
+    });
+
+    it("uses singular form '1 file change' in Use Existing hint when exactly one file changed", async () => {
+      const conflicts: Array<SkillConflict> = [
+        {
+          skillId: "single-change",
+          exists: true,
+          canPublish: true,
+          latestVersion: "1.0.0",
+          availableActions: ["cancel", "namespace", "updateVersion", "link"],
+          contentUnchanged: false,
+          fileChanges: [
+            { path: "SKILL.md", status: "modified", isBinary: false },
+          ],
+        },
+      ];
+
+      const callbacks = createMockCallbacks({
+        uploadResults: [
+          { success: false, conflicts },
+          {
+            success: true,
+            version: "1.0.0",
+            extractedSkills: { succeeded: [], failed: [] },
+          },
+        ],
+      });
+
+      vi.mocked(clack.select).mockResolvedValueOnce("namespace");
+
+      await uploadFlow({
+        profileDisplayName: "myorg/my-profile",
+        skillsetName: "my-profile",
+        registryUrl: "https://myorg.noriskillsets.dev",
+        callbacks,
+      });
+
+      const conflictCall = vi
+        .mocked(clack.select)
+        .mock.calls.find((call) =>
+          String(call[0].message ?? "").includes("single-change"),
+        );
+      expect(conflictCall).toBeDefined();
+      const options = conflictCall![0].options as Array<{
+        value: string;
+        label: string;
+        hint?: string;
+      }>;
+      const useExistingOption = options.find((o) => o.value === "link");
+      expect(useExistingOption?.hint).toContain("1 file change");
+      expect(useExistingOption?.hint).not.toContain("1 file changes");
+    });
+
+    it("falls back to the default discard hint when fileChanges is not provided", async () => {
+      const conflicts: Array<SkillConflict> = [
+        {
+          skillId: "legacy-skill",
+          exists: true,
+          canPublish: true,
+          latestVersion: "1.0.0",
+          availableActions: ["cancel", "namespace", "updateVersion", "link"],
+          contentUnchanged: false,
+        },
+      ];
+
+      const callbacks = createMockCallbacks({
+        uploadResults: [
+          { success: false, conflicts },
+          {
+            success: true,
+            version: "1.0.0",
+            extractedSkills: { succeeded: [], failed: [] },
+          },
+        ],
+      });
+
+      vi.mocked(clack.select).mockResolvedValueOnce("namespace");
+
+      await uploadFlow({
+        profileDisplayName: "myorg/my-profile",
+        skillsetName: "my-profile",
+        registryUrl: "https://myorg.noriskillsets.dev",
+        callbacks,
+      });
+
+      const options = vi.mocked(clack.select).mock.calls[0][0]
+        .options as Array<{ value: string; hint?: string }>;
+      const useExistingOption = options.find((o) => o.value === "link");
+      expect(useExistingOption?.hint).toContain("discard any local changes");
+    });
+
+    it("falls back to the generic discard hint in batch mode when some conflicts lack fileChanges", async () => {
+      const conflicts: Array<SkillConflict> = [
+        {
+          skillId: "new-style",
+          exists: true,
+          canPublish: true,
+          latestVersion: "1.0.0",
+          availableActions: ["cancel", "namespace", "updateVersion", "link"],
+          contentUnchanged: false,
+          fileChanges: [
+            { path: "SKILL.md", status: "modified", isBinary: false },
+          ],
+        },
+        {
+          skillId: "old-style",
+          exists: true,
+          canPublish: true,
+          latestVersion: "1.0.0",
+          availableActions: ["cancel", "namespace", "updateVersion", "link"],
+          contentUnchanged: false,
+          // no fileChanges — older registrar, or skill without the data
+        },
+      ];
+
+      const callbacks = createMockCallbacks({
+        uploadResults: [
+          { success: false, conflicts },
+          {
+            success: true,
+            version: "1.0.0",
+            extractedSkills: { succeeded: [], failed: [] },
+          },
+        ],
+      });
+
+      vi.mocked(clack.select)
+        .mockResolvedValueOnce("all-same")
+        .mockResolvedValueOnce("namespace");
+
+      await uploadFlow({
+        profileDisplayName: "myorg/my-profile",
+        skillsetName: "my-profile",
+        registryUrl: "https://myorg.noriskillsets.dev",
+        callbacks,
+      });
+
+      const batchActionCall = vi
+        .mocked(clack.select)
+        .mock.calls.find((call) =>
+          String(call[0].message ?? "").includes(
+            "How should all conflicts be resolved",
+          ),
+        );
+      expect(batchActionCall).toBeDefined();
+      const options = batchActionCall![0].options as Array<{
+        value: string;
+        hint?: string;
+      }>;
+      const useExistingOption = options.find((o) => o.value === "link");
+      // Under-reporting would say "1 file change" even though old-style's
+      // impact is unknown. Fall back to the generic clause instead.
+      expect(useExistingOption?.hint).toContain("discard any local changes");
+      expect(useExistingOption?.hint).not.toContain("1 file change");
+    });
+
+    it("sums file-change counts across conflicts in the batch 'resolve all same way' Use Existing hint", async () => {
+      const conflicts: Array<SkillConflict> = [
+        {
+          skillId: "skill-a",
+          exists: true,
+          canPublish: true,
+          latestVersion: "1.0.0",
+          availableActions: ["cancel", "namespace", "updateVersion", "link"],
+          contentUnchanged: false,
+          fileChanges: [
+            { path: "SKILL.md", status: "modified", isBinary: false },
+            { path: "a.py", status: "added", isBinary: false },
+          ],
+        },
+        {
+          skillId: "skill-b",
+          exists: true,
+          canPublish: true,
+          latestVersion: "2.0.0",
+          availableActions: ["cancel", "namespace", "updateVersion", "link"],
+          contentUnchanged: false,
+          fileChanges: [
+            { path: "SKILL.md", status: "modified", isBinary: false },
+          ],
+        },
+      ];
+
+      const callbacks = createMockCallbacks({
+        uploadResults: [
+          { success: false, conflicts },
+          {
+            success: true,
+            version: "1.0.0",
+            extractedSkills: { succeeded: [], failed: [] },
+          },
+        ],
+      });
+
+      // The flow emits a "how would you like to resolve" batch select,
+      // then the batch-action select within resolveAllConflictsSameWay.
+      vi.mocked(clack.select)
+        .mockResolvedValueOnce("all-same")
+        .mockResolvedValueOnce("namespace");
+
+      await uploadFlow({
+        profileDisplayName: "myorg/my-profile",
+        skillsetName: "my-profile",
+        registryUrl: "https://myorg.noriskillsets.dev",
+        callbacks,
+      });
+
+      // Locate the batch-action select by its message to avoid depending on
+      // the exact ordering of earlier select calls.
+      const batchActionCall = vi
+        .mocked(clack.select)
+        .mock.calls.find((call) =>
+          String(call[0].message ?? "").includes(
+            "How should all conflicts be resolved",
+          ),
+        );
+      expect(batchActionCall).toBeDefined();
+      const options = batchActionCall![0].options as Array<{
+        value: string;
+        hint?: string;
+      }>;
+      const useExistingOption = options.find((o) => o.value === "link");
+      expect(useExistingOption).toBeDefined();
+      expect(useExistingOption?.hint).toContain("3 file changes");
+    });
+  });
+
+  describe("subagent conflict fileChanges display", () => {
+    it("shows a note listing each changed file for a subagent conflict", async () => {
+      const subagentConflicts: Array<SubagentConflict> = [
+        {
+          subagentId: "my-subagent",
+          exists: true,
+          canPublish: true,
+          latestVersion: "1.0.0",
+          availableActions: ["cancel", "namespace", "updateVersion", "link"],
+          contentUnchanged: false,
+          fileChanges: [
+            { path: "SUBAGENT.md", status: "modified", isBinary: false },
+            { path: "prompts/intro.md", status: "added", isBinary: false },
+          ],
+        },
+      ];
+
+      const callbacks = createMockCallbacks({
+        uploadResults: [
+          { success: false, subagentConflicts },
+          {
+            success: true,
+            version: "1.0.0",
+            extractedSkills: { succeeded: [], failed: [] },
+          },
+        ],
+      });
+
+      vi.mocked(clack.select).mockResolvedValueOnce("namespace");
+
+      await uploadFlow({
+        profileDisplayName: "myorg/my-profile",
+        skillsetName: "my-profile",
+        registryUrl: "https://myorg.noriskillsets.dev",
+        callbacks,
+      });
+
+      const fileChangeNotes = getFileChangeNotes();
+      expect(fileChangeNotes).toHaveLength(1);
+      const note = fileChangeNotes[0];
+      expect(note.title).toContain("my-subagent");
+      expect(note.body).toContain("SUBAGENT.md");
+      expect(note.body).toContain("prompts/intro.md");
+      expect(note.body).toContain("modified");
+      expect(note.body).toContain("added");
+    });
+
+    it("uses pluralized file-change count in the subagent Use Existing hint", async () => {
+      const subagentConflicts: Array<SubagentConflict> = [
+        {
+          subagentId: "multi-change-subagent",
+          exists: true,
+          canPublish: true,
+          latestVersion: "1.0.0",
+          availableActions: ["cancel", "namespace", "updateVersion", "link"],
+          contentUnchanged: false,
+          fileChanges: [
+            { path: "SUBAGENT.md", status: "modified", isBinary: false },
+            { path: "prompts/intro.md", status: "added", isBinary: false },
+          ],
+        },
+      ];
+
+      const callbacks = createMockCallbacks({
+        uploadResults: [
+          { success: false, subagentConflicts },
+          {
+            success: true,
+            version: "1.0.0",
+            extractedSkills: { succeeded: [], failed: [] },
+          },
+        ],
+      });
+
+      vi.mocked(clack.select).mockResolvedValueOnce("namespace");
+
+      await uploadFlow({
+        profileDisplayName: "myorg/my-profile",
+        skillsetName: "my-profile",
+        registryUrl: "https://myorg.noriskillsets.dev",
+        callbacks,
+      });
+
+      const conflictCall = vi
+        .mocked(clack.select)
+        .mock.calls.find((call) =>
+          String(call[0].message ?? "").includes("multi-change-subagent"),
+        );
+      expect(conflictCall).toBeDefined();
+      const options = conflictCall![0].options as Array<{
+        value: string;
+        hint?: string;
+      }>;
+      const useExistingOption = options.find((o) => o.value === "link");
+      expect(useExistingOption?.hint).toContain("2 file changes");
+    });
+  });
+
+  describe("non-interactive conflict output with fileChanges", () => {
+    it("includes a compact per-conflict file-change summary in the non-interactive error note", async () => {
+      const conflicts: Array<SkillConflict> = [
+        {
+          skillId: "diverged-skill",
+          exists: true,
+          canPublish: true,
+          latestVersion: "1.0.0",
+          availableActions: ["cancel", "namespace", "updateVersion", "link"],
+          contentUnchanged: false,
+          fileChanges: [
+            { path: "SKILL.md", status: "modified", isBinary: false },
+            { path: "a.py", status: "added", isBinary: false },
+            { path: "b.py", status: "added", isBinary: false },
+          ],
+        },
+      ];
+
+      const callbacks = createMockCallbacks({
+        uploadResults: [{ success: false, conflicts }],
+      });
+
+      await uploadFlow({
+        profileDisplayName: "myorg/my-profile",
+        skillsetName: "my-profile",
+        registryUrl: "https://myorg.noriskillsets.dev",
+        callbacks,
+        nonInteractive: true,
+      });
+
+      const noteContent = getNoteContent().join("\n");
+      expect(noteContent).toContain("diverged-skill");
+      // Summary-only: tally not full paths. Specifically does NOT list
+      // individual file paths in non-interactive mode to keep output compact.
+      expect(noteContent).toContain("2 added");
+      expect(noteContent).toContain("1 modified");
+      expect(noteContent).not.toContain("a.py");
+    });
+
+    it("omits the per-conflict file-change summary when fileChanges is absent", async () => {
+      const conflicts: Array<SkillConflict> = [
+        {
+          skillId: "legacy-skill",
+          exists: true,
+          canPublish: true,
+          latestVersion: "1.0.0",
+          availableActions: ["cancel", "namespace", "updateVersion", "link"],
+          contentUnchanged: false,
+        },
+      ];
+
+      const callbacks = createMockCallbacks({
+        uploadResults: [{ success: false, conflicts }],
+      });
+
+      await uploadFlow({
+        profileDisplayName: "myorg/my-profile",
+        skillsetName: "my-profile",
+        registryUrl: "https://myorg.noriskillsets.dev",
+        callbacks,
+        nonInteractive: true,
+      });
+
+      const noteContent = getNoteContent().join("\n");
+      expect(noteContent).toContain("legacy-skill");
+      // No "N added" / "N modified" tally should appear.
+      expect(noteContent).not.toMatch(/\d+ added/);
+      expect(noteContent).not.toMatch(/\d+ modified/);
+      expect(noteContent).not.toMatch(/\d+ removed/);
     });
   });
 });
