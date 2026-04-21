@@ -58,11 +58,13 @@ if [ -z "$BRANCH" ]; then
     BRANCH="no git"
 fi
 
-# === SESSION TRACKING FOR /clear RESET ===
-# Track session_id to detect when /clear creates a new session
-# When session changes, store baseline cost/lines so we can show deltas
-SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // empty')
+# === COST AND LINES (cumulative per process, no reset on /clear) ===
+COST=$(echo "$INPUT" | jq -r '.cost.total_cost_usd // 0')
+COST_FORMATTED=$(printf "%.2f" "$COST")
+LINES_ADDED=$(echo "$INPUT" | jq -r '.cost.total_lines_added // 0')
+LINES_REMOVED=$(echo "$INPUT" | jq -r '.cost.total_lines_removed // 0')
 
+# === TOKEN TRACKING (cumulative across user session, including cached tokens) ===
 # Deterministic session file based on cwd to avoid conflicts between projects
 if command -v md5sum >/dev/null 2>&1; then
     SESSION_HASH=$(echo "$CWD" | md5sum | cut -d' ' -f1)
@@ -73,62 +75,65 @@ else
 fi
 SESSION_FILE="/tmp/nori-statusline-session-${SESSION_HASH}"
 
-# Read previous session state
+# Extract raw non-cached cumulative totals (used as "new API call" signal)
+RAW_INPUT=$(echo "$INPUT" | jq -r '.context_window.total_input_tokens // 0')
+RAW_OUTPUT=$(echo "$INPUT" | jq -r '.context_window.total_output_tokens // 0')
+RAW_TOTAL=$((RAW_INPUT + RAW_OUTPUT))
+
+# Extract per-call usage (includes cached tokens)
+CALL_INPUT=$(echo "$INPUT" | jq -r '.context_window.current_usage.input_tokens // 0')
+CALL_CACHE_READ=$(echo "$INPUT" | jq -r '.context_window.current_usage.cache_read_input_tokens // 0')
+CALL_CACHE_CREATE=$(echo "$INPUT" | jq -r '.context_window.current_usage.cache_creation_input_tokens // 0')
+CALL_OUTPUT=$(echo "$INPUT" | jq -r '.context_window.current_usage.output_tokens // 0')
+CALL_TOTAL=$((CALL_INPUT + CALL_CACHE_READ + CALL_CACHE_CREATE + CALL_OUTPUT))
+
+# Read previous token tracking state
 PREV_SESSION_ID=""
-BASELINE_COST="0"
-BASELINE_LINES_ADDED="0"
-BASELINE_LINES_REMOVED="0"
+PREV_RAW_TOTAL="0"
+ACCUMULATED_TOKENS="0"
+PREV_RAW_COST="0"
 if [ -f "$SESSION_FILE" ]; then
-    PREV_SESSION_ID=$(head -1 "$SESSION_FILE" 2>/dev/null)
-    BASELINE_COST=$(sed -n '2p' "$SESSION_FILE" 2>/dev/null || echo "0")
-    BASELINE_LINES_ADDED=$(sed -n '3p' "$SESSION_FILE" 2>/dev/null || echo "0")
-    BASELINE_LINES_REMOVED=$(sed -n '4p' "$SESSION_FILE" 2>/dev/null || echo "0")
+    PREV_SESSION_ID=$(sed -n '1p' "$SESSION_FILE" 2>/dev/null || echo "")
+    PREV_RAW_TOTAL=$(sed -n '2p' "$SESSION_FILE" 2>/dev/null || echo "0")
+    ACCUMULATED_TOKENS=$(sed -n '3p' "$SESSION_FILE" 2>/dev/null || echo "0")
+    PREV_RAW_COST=$(sed -n '4p' "$SESSION_FILE" 2>/dev/null || echo "0")
 fi
 
-# Extract raw cumulative values from stdin
-RAW_COST=$(echo "$INPUT" | jq -r '.cost.total_cost_usd // 0')
-RAW_LINES_ADDED=$(echo "$INPUT" | jq -r '.cost.total_lines_added // 0')
-RAW_LINES_REMOVED=$(echo "$INPUT" | jq -r '.cost.total_lines_removed // 0')
+# Detect process restart: cost decreased from previous invocation
+SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // empty')
+IS_RESTART="0"
+if [ -n "$PREV_RAW_COST" ] && [ "$PREV_RAW_COST" != "0" ]; then
+    IS_RESTART=$(jq -n --argjson a "$COST" --argjson b "$PREV_RAW_COST" 'if $a < $b then 1 else 0 end' 2>/dev/null || echo "0")
+fi
+if [ "$IS_RESTART" = "1" ]; then
+    ACCUMULATED_TOKENS=0
+    PREV_RAW_TOTAL=0
+fi
 
-# Detect session change and update baseline
+# Detect /clear (session_id changed): reset raw tracking baseline
 if [ -n "$SESSION_ID" ] && [ "$SESSION_ID" != "$PREV_SESSION_ID" ]; then
-    BASELINE_COST="$RAW_COST"
-    BASELINE_LINES_ADDED="$RAW_LINES_ADDED"
-    BASELINE_LINES_REMOVED="$RAW_LINES_REMOVED"
+    PREV_RAW_TOTAL=0
 fi
 
-# Save current session state
-if [ -n "$SESSION_ID" ]; then
-    printf '%s\n%s\n%s\n%s\n' "$SESSION_ID" "$BASELINE_COST" "$BASELINE_LINES_ADDED" "$BASELINE_LINES_REMOVED" > "$SESSION_FILE" 2>/dev/null
+# Detect new API call(s) and accumulate tokens
+if [ "$RAW_TOTAL" -ne "$PREV_RAW_TOTAL" ] 2>/dev/null; then
+    RAW_DELTA=$((RAW_TOTAL - PREV_RAW_TOTAL))
+    CALL_NON_CACHED=$((CALL_INPUT + CALL_OUTPUT))
+    EXTRA=0
+    if [ "$RAW_DELTA" -gt "$CALL_NON_CACHED" ] && [ "$CALL_NON_CACHED" -gt 0 ]; then
+        EXTRA=$((RAW_DELTA - CALL_NON_CACHED))
+    fi
+    ACCUMULATED_TOKENS=$((ACCUMULATED_TOKENS + CALL_TOTAL + EXTRA))
+    PREV_RAW_TOTAL=$RAW_TOTAL
 fi
 
-# Calculate session-relative cost and lines (clamped to >= 0)
-COST=$(echo "$RAW_COST - $BASELINE_COST" | bc 2>/dev/null || echo "0")
-if echo "$COST < 0" | bc -l 2>/dev/null | grep -q '^1'; then
-    COST="0"
-fi
-COST_FORMATTED=$(printf "%.2f" "$COST")
-LINES_ADDED=$((RAW_LINES_ADDED - BASELINE_LINES_ADDED))
-LINES_REMOVED=$((RAW_LINES_REMOVED - BASELINE_LINES_REMOVED))
-if [ "$LINES_ADDED" -lt 0 ]; then LINES_ADDED=0; fi
-if [ "$LINES_REMOVED" -lt 0 ]; then LINES_REMOVED=0; fi
+TOTAL_TOKENS=$ACCUMULATED_TOKENS
 
-# === TOKEN USAGE FROM CONTEXT WINDOW ===
-# Use context_window fields from stdin JSON (resets properly on /clear)
-TOTAL_INPUT_TOKENS=$(echo "$INPUT" | jq -r '.context_window.total_input_tokens // 0')
-TOTAL_OUTPUT_TOKENS=$(echo "$INPUT" | jq -r '.context_window.total_output_tokens // 0')
-TOTAL_TOKENS=$((TOTAL_INPUT_TOKENS + TOTAL_OUTPUT_TOKENS))
+# Save token tracking state
+printf '%s\n%s\n%s\n%s\n' "$SESSION_ID" "$PREV_RAW_TOTAL" "$ACCUMULATED_TOKENS" "$COST" > "$SESSION_FILE" 2>/dev/null
 
 # Context length from current_usage (most recent message's context size)
-CONTEXT_LENGTH=$(echo "$INPUT" | jq -r '
-    ((.context_window.current_usage.input_tokens // 0) +
-     (.context_window.current_usage.cache_read_input_tokens // 0) +
-     (.context_window.current_usage.cache_creation_input_tokens // 0))' 2>/dev/null)
-
-if [ -z "$CONTEXT_LENGTH" ] || [ "$CONTEXT_LENGTH" = "null" ]; then
-    CONTEXT_LENGTH=0
-fi
-
+CONTEXT_LENGTH=$((CALL_INPUT + CALL_CACHE_READ + CALL_CACHE_CREATE))
 
 # Format tokens (k for thousands, M for millions)
 format_tokens() {
