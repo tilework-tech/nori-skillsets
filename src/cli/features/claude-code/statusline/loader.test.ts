@@ -434,7 +434,7 @@ describe("statuslineLoader", () => {
       }
     });
 
-    it("should display token count from context_window fields in stdin JSON", async () => {
+    it("should display token count including cached tokens from current_usage", async () => {
       const config: Config = { installDir: claudeDir };
 
       await statuslineLoader.run({ agent: {} as any, config });
@@ -453,8 +453,14 @@ describe("statuslineLoader", () => {
           total_lines_removed: 5,
         },
         context_window: {
-          total_input_tokens: 25000,
-          total_output_tokens: 5000,
+          total_input_tokens: 500,
+          total_output_tokens: 200,
+          current_usage: {
+            input_tokens: 500,
+            cache_read_input_tokens: 20000,
+            cache_creation_input_tokens: 5000,
+            output_tokens: 200,
+          },
         },
         transcript_path: "",
       });
@@ -464,8 +470,8 @@ describe("statuslineLoader", () => {
         encoding: "utf-8",
       });
 
-      // 25000 + 5000 = 30000 = 30k
-      expect(output).toContain("Tokens: 30.0k");
+      // Tokens should include cached: 500 + 20000 + 5000 + 200 = 25700 = 25.7k
+      expect(output).toContain("Tokens: 25.7k");
     });
 
     it("should display context length from context_window.current_usage fields", async () => {
@@ -538,7 +544,7 @@ describe("statuslineLoader", () => {
       expect(output).toContain("Context: 0");
     });
 
-    it("should reset cost and lines when session_id changes", async () => {
+    it("should NOT reset cost and lines when session_id changes", async () => {
       const config: Config = { installDir: claudeDir };
 
       await statuslineLoader.run({ agent: {} as any, config });
@@ -561,6 +567,12 @@ describe("statuslineLoader", () => {
         context_window: {
           total_input_tokens: 100000,
           total_output_tokens: 20000,
+          current_usage: {
+            input_tokens: 1000,
+            cache_read_input_tokens: 20000,
+            cache_creation_input_tokens: 0,
+            output_tokens: 500,
+          },
         },
         transcript_path: "",
       });
@@ -570,7 +582,7 @@ describe("statuslineLoader", () => {
         encoding: "utf-8",
       });
 
-      // Second session (after /clear): cost in stdin is cumulative but session_id changed
+      // Second session (after /clear): cost in stdin is cumulative, session_id changed
       const secondSessionInput = JSON.stringify({
         cwd: tempDir,
         session_id: "session-2",
@@ -591,13 +603,13 @@ describe("statuslineLoader", () => {
         encoding: "utf-8",
       });
 
-      // Cost should show $0.00 because session changed and baseline was $2.50
-      expect(output).toContain("Cost: $0.00");
-      // Lines should show +0/-0
-      expect(output).toContain("Lines: +0/-0");
+      // Cost should still show $2.50 (cumulative across user session)
+      expect(output).toContain("Cost: $2.50");
+      // Lines should still show +50/-20
+      expect(output).toContain("Lines: +50/-20");
     });
 
-    it("should accumulate cost within the same session", async () => {
+    it("should persist tokens across /clear (session_id change)", async () => {
       const config: Config = { installDir: claudeDir };
 
       await statuslineLoader.run({ agent: {} as any, config });
@@ -608,29 +620,173 @@ describe("statuslineLoader", () => {
 
       const { execSync } = await import("child_process");
 
-      // Ensure clean session state
-      const cleanSessionInput = JSON.stringify({
+      // First session: one API call with 25k total tokens (including cache)
+      const firstSessionInput = JSON.stringify({
         cwd: tempDir,
-        session_id: "session-accumulate",
+        session_id: "session-persist-1",
         cost: {
-          total_cost_usd: 0,
-          total_lines_added: 0,
-          total_lines_removed: 0,
+          total_cost_usd: 1.0,
+          total_lines_added: 10,
+          total_lines_removed: 5,
         },
         context_window: {
-          total_input_tokens: 0,
-          total_output_tokens: 0,
+          total_input_tokens: 500,
+          total_output_tokens: 200,
+          current_usage: {
+            input_tokens: 500,
+            cache_read_input_tokens: 20000,
+            cache_creation_input_tokens: 5000,
+            output_tokens: 200,
+          },
         },
         transcript_path: "",
       });
 
       execSync(statusLineCommand, {
-        input: cleanSessionInput,
+        input: firstSessionInput,
         encoding: "utf-8",
       });
 
-      // Same session, cost grows
-      const laterInput = JSON.stringify({
+      // After /clear: new session, new API call with 22k total tokens
+      const secondSessionInput = JSON.stringify({
+        cwd: tempDir,
+        session_id: "session-persist-2",
+        cost: {
+          total_cost_usd: 1.5,
+          total_lines_added: 15,
+          total_lines_removed: 8,
+        },
+        context_window: {
+          total_input_tokens: 300,
+          total_output_tokens: 100,
+          current_usage: {
+            input_tokens: 300,
+            cache_read_input_tokens: 20000,
+            cache_creation_input_tokens: 2000,
+            output_tokens: 100,
+          },
+        },
+        transcript_path: "",
+      });
+
+      const output = execSync(statusLineCommand, {
+        input: secondSessionInput,
+        encoding: "utf-8",
+      });
+
+      // Tokens should be cumulative: 25700 + 22400 = 48100 = 48.1k
+      expect(output).toContain("Tokens: 48.1k");
+    });
+
+    it("should reset tokens on process restart (cost decreases)", async () => {
+      const config: Config = { installDir: claudeDir };
+
+      await statuslineLoader.run({ agent: {} as any, config });
+
+      const content = await fs.readFile(settingsPath, "utf-8");
+      const settings = JSON.parse(content);
+      const statusLineCommand = settings.statusLine.command;
+
+      const { execSync } = await import("child_process");
+
+      // First process: accumulate tokens with cost $2.00
+      const firstProcessInput = JSON.stringify({
+        cwd: tempDir,
+        session_id: "process-1-session",
+        cost: {
+          total_cost_usd: 2.0,
+          total_lines_added: 100,
+          total_lines_removed: 50,
+        },
+        context_window: {
+          total_input_tokens: 1000,
+          total_output_tokens: 500,
+          current_usage: {
+            input_tokens: 1000,
+            cache_read_input_tokens: 20000,
+            cache_creation_input_tokens: 5000,
+            output_tokens: 500,
+          },
+        },
+        transcript_path: "",
+      });
+
+      execSync(statusLineCommand, {
+        input: firstProcessInput,
+        encoding: "utf-8",
+      });
+
+      // New process (restart): cost starts low again, new session_id
+      const newProcessInput = JSON.stringify({
+        cwd: tempDir,
+        session_id: "process-2-session",
+        cost: {
+          total_cost_usd: 0.05,
+          total_lines_added: 5,
+          total_lines_removed: 2,
+        },
+        context_window: {
+          total_input_tokens: 200,
+          total_output_tokens: 100,
+          current_usage: {
+            input_tokens: 200,
+            cache_read_input_tokens: 20000,
+            cache_creation_input_tokens: 3000,
+            output_tokens: 100,
+          },
+        },
+        transcript_path: "",
+      });
+
+      const output = execSync(statusLineCommand, {
+        input: newProcessInput,
+        encoding: "utf-8",
+      });
+
+      // Tokens should reset: only new process tokens = 200 + 20000 + 3000 + 100 = 23300 = 23.3k
+      expect(output).toContain("Tokens: 23.3k");
+    });
+
+    it("should accumulate tokens across multiple API calls within the same session", async () => {
+      const config: Config = { installDir: claudeDir };
+
+      await statuslineLoader.run({ agent: {} as any, config });
+
+      const content = await fs.readFile(settingsPath, "utf-8");
+      const settings = JSON.parse(content);
+      const statusLineCommand = settings.statusLine.command;
+
+      const { execSync } = await import("child_process");
+
+      // First API call
+      const firstCallInput = JSON.stringify({
+        cwd: tempDir,
+        session_id: "session-accumulate",
+        cost: {
+          total_cost_usd: 0.5,
+          total_lines_added: 10,
+          total_lines_removed: 5,
+        },
+        context_window: {
+          total_input_tokens: 500,
+          total_output_tokens: 200,
+          current_usage: {
+            input_tokens: 500,
+            cache_read_input_tokens: 20000,
+            cache_creation_input_tokens: 5000,
+            output_tokens: 200,
+          },
+        },
+        transcript_path: "",
+      });
+
+      execSync(statusLineCommand, {
+        input: firstCallInput,
+        encoding: "utf-8",
+      });
+
+      // Second API call (same session, raw totals grew)
+      const secondCallInput = JSON.stringify({
         cwd: tempDir,
         session_id: "session-accumulate",
         cost: {
@@ -639,20 +795,78 @@ describe("statuslineLoader", () => {
           total_lines_removed: 10,
         },
         context_window: {
-          total_input_tokens: 50000,
-          total_output_tokens: 10000,
+          total_input_tokens: 1000,
+          total_output_tokens: 600,
+          current_usage: {
+            input_tokens: 500,
+            cache_read_input_tokens: 20000,
+            cache_creation_input_tokens: 0,
+            output_tokens: 400,
+          },
         },
         transcript_path: "",
       });
 
       const output = execSync(statusLineCommand, {
-        input: laterInput,
+        input: secondCallInput,
         encoding: "utf-8",
       });
 
-      // Cost should show $1.75 (same session, no reset)
+      // First call: 500 + 20000 + 5000 + 200 = 25700
+      // Second call: 500 + 20000 + 0 + 400 = 20900
+      // Total: 46600 = 46.6k
+      expect(output).toContain("Tokens: 46.6k");
+      // Cost should show raw cumulative $1.75
       expect(output).toContain("Cost: $1.75");
       expect(output).toContain("Lines: +30/-10");
+    });
+
+    it("should not double-count tokens when invoked repeatedly with same data", async () => {
+      const config: Config = { installDir: claudeDir };
+
+      await statuslineLoader.run({ agent: {} as any, config });
+
+      const content = await fs.readFile(settingsPath, "utf-8");
+      const settings = JSON.parse(content);
+      const statusLineCommand = settings.statusLine.command;
+
+      const { execSync } = await import("child_process");
+
+      const sameInput = JSON.stringify({
+        cwd: tempDir,
+        session_id: "session-no-double",
+        cost: {
+          total_cost_usd: 0.5,
+          total_lines_added: 10,
+          total_lines_removed: 5,
+        },
+        context_window: {
+          total_input_tokens: 500,
+          total_output_tokens: 200,
+          current_usage: {
+            input_tokens: 500,
+            cache_read_input_tokens: 20000,
+            cache_creation_input_tokens: 5000,
+            output_tokens: 200,
+          },
+        },
+        transcript_path: "",
+      });
+
+      // First invocation
+      execSync(statusLineCommand, {
+        input: sameInput,
+        encoding: "utf-8",
+      });
+
+      // Second invocation with identical data (timer-driven refresh, no new API call)
+      const output = execSync(statusLineCommand, {
+        input: sameInput,
+        encoding: "utf-8",
+      });
+
+      // Should still show 25.7k (not 51.4k from double-counting)
+      expect(output).toContain("Tokens: 25.7k");
     });
 
     it("should display jq missing warning when jq is not available", async () => {

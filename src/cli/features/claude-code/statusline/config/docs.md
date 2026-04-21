@@ -17,16 +17,17 @@ Path: @/src/cli/features/claude-code/statusline/config
 ### Core Implementation
 
 - Receives a JSON object on stdin from Claude Code containing `cwd`, `session_id`, `cost`, `context_window`, and `transcript_path`
-- **Tokens:** Uses `context_window.total_input_tokens` and `context_window.total_output_tokens` from stdin JSON. These fields reset automatically when `/clear` creates a new session.
-- **Context length:** Sums `context_window.current_usage.input_tokens`, `cache_read_input_tokens`, and `cache_creation_input_tokens` from stdin JSON
-- **Cost and lines changed:** Uses session-relative tracking via `session_id`. When the session ID changes (e.g., after `/clear`), the script stores the current cumulative cost/lines as a baseline in `/tmp/nori-statusline-session-<cwd-hash>`. Display values are deltas from that baseline, resetting to zero on new sessions.
+- **Tokens:** Computed from `context_window.current_usage` fields (`input_tokens`, `cache_read_input_tokens`, `cache_creation_input_tokens`, `output_tokens`) to include cached tokens. The script accumulates its own running total in a session file because Claude's `total_input_tokens` excludes cached tokens (the system prompt alone is ~27k cached tokens).
+- **Context length:** Sums `context_window.current_usage.input_tokens`, `cache_read_input_tokens`, and `cache_creation_input_tokens` -- reflects the most recent message's context size and naturally resets on `/clear`
+- **Cost and lines changed:** Displayed directly from `cost.total_cost_usd`, `cost.total_lines_added`, `cost.total_lines_removed`. These are already cumulative per Claude Code process, so they persist across `/clear` without any script-side tracking.
 - Outputs three lines with ANSI color codes: metrics line, branding line, and a status tip (promotional, update notification, or install-failure warning)
 
 ### Things to Know
 
-- Session state files are stored at `/tmp/nori-statusline-session-<md5-of-cwd>` and persist across script invocations. The file format is four lines: session_id, baseline_cost, baseline_lines_added, baseline_lines_removed.
+- Session state files are stored at `/tmp/nori-statusline-session-<md5-of-cwd>` and persist across script invocations. The file format is four lines: `session_id`, `prev_raw_total` (non-cached token total from last invocation), `accumulated_tokens` (running total including cached), `cost` (for process restart detection).
+- Process restart is detected by a cost decrease heuristic (cost going down means a new Claude Code process started). On restart, accumulated tokens reset to zero.
+- `/clear` is detected via `session_id` change; this resets the raw token tracking baseline so new API calls are correctly detected, but does not reset the accumulated token count.
 - Requires `jq` as an external dependency; falls back to a minimal warning message if `jq` is not available
-- Version comparison for update notifications uses `node -e` for cross-platform semver comparison (macOS lacks `sort -V`)
-- The script strips `-next.*` suffixes from versions before comparing, so pre-release versions are treated as their base release
+- Version comparison for update notifications uses `node -e` for cross-platform semver comparison (macOS lacks `sort -V`); `-next.*` suffixes are stripped before comparing so pre-release versions are treated as their base release
 
 Created and maintained by Nori.
