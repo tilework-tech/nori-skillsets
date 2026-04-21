@@ -33,6 +33,7 @@ import {
   registerNoriSkillsetsSearchCommand,
   registerNoriSkillsetsSwitchSkillsetCommand,
   registerNoriSkillsetsUploadCommand,
+  registerNoriSkillsetsUploadSkillCommand,
   registerNoriSkillsetsWatchCommand,
 } from "@/cli/commands/noriSkillsetsCommands.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
@@ -117,6 +118,9 @@ Examples:
   $ nori-skillsets download-skill my-skill
   $ nori-skillsets download-skill my-skill@1.0.0
   $ nori-skillsets download-skill my-skill --list-versions
+  $ nori-skillsets upload-skill my-skill
+  $ nori-skillsets upload-skill my-skill --skillset my-profile
+  $ nori-skillsets upload-skill my-skill --version 1.2.0
   $ nori-skillsets download-subagent my-subagent
   $ nori-skillsets download-subagent my-subagent@1.0.0
   $ nori-skillsets download-subagent my-subagent --list-versions
@@ -153,6 +157,7 @@ registerNoriSkillsetsListSkillsetsCommand({ program });
 registerNoriSkillsetsListActiveCommand({ program });
 registerNoriSkillsetsCurrentCommand({ program });
 registerNoriSkillsetsDownloadSkillCommand({ program });
+registerNoriSkillsetsUploadSkillCommand({ program });
 registerNoriSkillsetsDownloadSubagentCommand({ program });
 registerNoriSkillsetsExternalCommand({ program });
 registerNoriSkillsetsWatchCommand({ program });

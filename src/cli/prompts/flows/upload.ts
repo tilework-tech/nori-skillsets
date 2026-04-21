@@ -25,6 +25,12 @@ import type {
 } from "@/api/registrar.js";
 
 import { formatDiffForNote } from "./diffFormat.js";
+import {
+  countFileChanges,
+  formatDiscardHint,
+  formatFileChangesForNote,
+  summarizeFileChangeCounts,
+} from "./fileChangesFormat.js";
 import { unwrapPrompt } from "./utils.js";
 
 /**
@@ -157,10 +163,11 @@ const buildResolutionOptions = (args: {
         hint: `Link to existing v${conflict.latestVersion ?? "?"}`,
       });
     } else {
+      const fileCount = countFileChanges({ fileChanges: conflict.fileChanges });
       options.push({
         value: "link",
         label: "Use Existing",
-        hint: "Use existing version already on registry. Note that this will discard any local changes.",
+        hint: `Use existing version already on registry. ${formatDiscardHint({ count: fileCount })}`,
       });
     }
   }
@@ -310,6 +317,14 @@ const resolveConflictsInFlow = async (args: {
       index: i + 1,
       total: conflicts.length,
     });
+
+    const fileCount = countFileChanges({ fileChanges: conflict.fileChanges });
+    if (fileCount > 0 && conflict.fileChanges != null) {
+      note(
+        formatFileChangesForNote({ fileChanges: conflict.fileChanges }),
+        `Files changed for "${conflict.skillId}" (${fileCount})`,
+      );
+    }
 
     let action: ConflictSelectAction | null = null;
 
@@ -475,10 +490,21 @@ const buildCommonResolutionOptions = (args: {
 
   // All unresolved conflicts here have changed content, so "link" = "Use Existing"
   if (commonActions.has("link")) {
+    // Only surface a precise file-change count when EVERY conflict in the
+    // batch carries fileChanges. Mixed payloads (some with, some without)
+    // would under-report the real impact and mislead the user, so fall back
+    // to the generic discard message in that case.
+    const allHaveFileChanges = conflicts.every((c) => c.fileChanges != null);
+    const totalFileChanges = allHaveFileChanges
+      ? conflicts.reduce(
+          (sum, c) => sum + countFileChanges({ fileChanges: c.fileChanges }),
+          0,
+        )
+      : 0;
     options.push({
       value: "link",
       label: "Use Existing",
-      hint: "Use existing version already on registry. Note that this will discard any local changes.",
+      hint: `Use existing version already on registry. ${formatDiscardHint({ count: totalFileChanges })}`,
     });
   }
 
@@ -770,6 +796,12 @@ const formatConflictsForNote = (args: {
     }
     if (conflict.owner != null) {
       lines.push(`    Owner: ${conflict.owner}`);
+    }
+    const tally = summarizeFileChangeCounts({
+      fileChanges: conflict.fileChanges,
+    });
+    if (tally !== "") {
+      lines.push(`    Files: ${tally}`);
     }
     lines.push(
       `    Available actions: ${conflict.availableActions.join(", ")}`,
@@ -1197,6 +1229,7 @@ export const uploadFlow = async (args: {
             conflict.availableActions as unknown as Array<SkillResolutionAction>,
           contentUnchanged: conflict.contentUnchanged,
           existingSkillMd: conflict.existingSubagentMd,
+          fileChanges: conflict.fileChanges,
         };
         const options = buildResolutionOptions({
           conflict: skillLikeConflict,
@@ -1206,6 +1239,16 @@ export const uploadFlow = async (args: {
         const defaultAction = getDefaultAction({ conflict: skillLikeConflict });
 
         const message = `Resolve subagent conflict for "${conflict.subagentId}"${conflict.latestVersion != null ? ` (current: v${conflict.latestVersion})` : ""}`;
+
+        const subagentFileCount = countFileChanges({
+          fileChanges: conflict.fileChanges,
+        });
+        if (subagentFileCount > 0 && conflict.fileChanges != null) {
+          note(
+            formatFileChangesForNote({ fileChanges: conflict.fileChanges }),
+            `Files changed for "${conflict.subagentId}" (${subagentFileCount})`,
+          );
+        }
 
         let action: ConflictSelectAction | null = null;
 

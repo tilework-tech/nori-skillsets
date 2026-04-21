@@ -49,6 +49,26 @@ export type SkillResolutionAction =
   | "link";
 
 /**
+ * One entry in a conflict's per-file change list.
+ *
+ * Emitted by the registrar on 409 responses so callers can display which files
+ * in a skill/subagent bundle would be discarded or overwritten. Paths are
+ * normalized (no leading './') and exclude metadata files (nori.json,
+ * .nori-version) to match the content-hash contract.
+ *
+ * existingContent is only present for non-binary modified/removed entries
+ * within the per-file (500KB) and aggregate (5MB) server-side caps. When the
+ * server truncates or skips the content, existingTruncated is set.
+ */
+export type FileChange = {
+  path: string;
+  status: "added" | "modified" | "removed";
+  isBinary: boolean;
+  existingContent?: string;
+  existingTruncated?: boolean;
+};
+
+/**
  * Conflict information for a single skill (used in SkillCollisionError)
  */
 export type SkillConflictInfo = {
@@ -60,6 +80,12 @@ export type SkillConflictInfo = {
   availableActions: Array<SkillResolutionAction>;
   contentUnchanged?: boolean | null;
   existingSkillMd?: string | null;
+  /**
+   * Per-file change list (added/modified/removed) between upload and existing
+   * latest version. Optional for backwards compatibility with pre-#331
+   * registrar instances.
+   */
+  fileChanges?: ReadonlyArray<FileChange> | null;
 };
 
 /**
@@ -235,6 +261,12 @@ export type SubagentConflictInfo = {
   availableActions: Array<SubagentResolutionAction>;
   contentUnchanged?: boolean | null;
   existingSubagentMd?: string | null;
+  /**
+   * Per-file change list (added/modified/removed) between upload and existing
+   * latest version. Optional for backwards compatibility with pre-#331
+   * registrar instances.
+   */
+  fileChanges?: ReadonlyArray<FileChange> | null;
 };
 
 /**
