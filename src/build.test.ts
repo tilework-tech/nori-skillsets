@@ -63,6 +63,41 @@ describe.sequential("build process", () => {
     expect(stdout).toContain("Build Complete");
   });
 
+  it("should auto-detect non-interactive mode when stdin is piped and CI is set", () => {
+    // Invokes `init` without passing --non-interactive, but with piped stdin
+    // and CI=true. If auto-detection works, init runs to completion; if it
+    // does not, init will hang waiting for prompts and the test times out.
+    const pluginDir = process.cwd();
+    const tempDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "nori-autodetect-test-"),
+    );
+
+    try {
+      execSync(
+        `node build/src/cli/nori-skillsets.js init --install-dir "${tempDir}"`,
+        {
+          cwd: pluginDir,
+          encoding: "utf-8",
+          stdio: "pipe",
+          timeout: 60000,
+          env: {
+            ...process.env,
+            FORCE_COLOR: "0",
+            HOME: tempDir,
+            CI: "true",
+          },
+        },
+      );
+
+      const noriDir = path.join(tempDir, ".nori");
+      expect(fs.existsSync(noriDir)).toBe(true);
+    } finally {
+      if (fs.existsSync(tempDir)) {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+      }
+    }
+  });
+
   it("should successfully run init after build", () => {
     // This test verifies that all config files are properly copied during build
     // by actually running the init command after build completes.

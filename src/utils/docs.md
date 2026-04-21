@@ -4,11 +4,11 @@ Path: @/src/utils
 
 ### Overview
 
-Shared utility functions used across the codebase for URL manipulation, filesystem path resolution, network proxy support, API token parsing, and error classification. These are pure helpers with no business logic or state of their own.
+Shared utility functions used across the codebase for URL manipulation, filesystem path resolution, network proxy support, API token parsing, non-interactive environment detection, and error classification. These are pure helpers with no business logic or state of their own.
 
 ### How it fits into the larger codebase
 
-Every layer of the application imports from this module. The API layer uses `url.ts` for URL construction, `fetch.ts` for error types and proxy initialization, and `apiToken.ts` for parsing the orgId embedded in API tokens during per-request auth resolution. The CLI config system uses `path.ts` for resolving installation directories, `home.ts` for finding the user's home directory, and `apiToken.ts` when computing whether a stored API token matches a target registry org. The login command uses `apiToken.ts` to validate `--token` input. The `fetch.ts` error classes (`NetworkError`, `ApiError`, `SkillCollisionError`) are the canonical error types used throughout the codebase.
+Every layer of the application imports from this module. The API layer uses `url.ts` for URL construction, `fetch.ts` for error types and proxy initialization, and `apiToken.ts` for parsing the orgId embedded in API tokens during per-request auth resolution. The CLI config system uses `path.ts` for resolving installation directories, `home.ts` for finding the user's home directory, and `apiToken.ts` when computing whether a stored API token matches a target registry org. The login command uses `apiToken.ts` to validate `--token` input. The CLI entrypoint at `@/src/cli/nori-skillsets.ts` uses `nonInteractive.ts` to set the default value of the global `--non-interactive` flag, which propagates to every subcommand via `program.opts()`. The `fetch.ts` error classes (`NetworkError`, `ApiError`, `SkillCollisionError`) are the canonical error types used throughout the codebase.
 
 ### Core Implementation
 
@@ -21,6 +21,8 @@ Every layer of the application imports from this module. The API layer uses `url
 **`home.ts`** returns the home directory with override support: `NORI_GLOBAL_CONFIG` env var (for test isolation) > `os.homedir()` > `process.env.HOME`.
 
 **`apiToken.ts`** parses and validates API tokens. API tokens follow the format `nori_<orgId>_<64 hex chars>`, where the orgId is embedded in the token itself so no separate orgId flag or env var is needed. Exports `API_TOKEN_PATTERN` (the canonical regex), `isValidApiToken({ token })` (shape check), and `extractOrgIdFromApiToken({ token })` (returns the orgId or `null` for malformed input). Call sites in `@/src/cli/config.ts`, `@/src/api/base.ts`, `@/src/api/registryAuth.ts`, and `@/src/cli/commands/login/login.ts` use these helpers whenever an API token needs to be matched against a target registry URL.
+
+**`nonInteractive.ts`** exports the pure helper `isNonInteractiveEnvironment({ stdin?, env? })`, which returns `true` when either `env.CI` is set to a truthy value (anything other than the lowercase-insensitive strings `""`, `"0"`, or `"false"`) or `stdin.isTTY` is not strictly `true` (piped stdin, cron, no controlling terminal). Both inputs default to `process.stdin` and `process.env` so the helper is trivially callable at process boot. Consumed by `@/src/cli/nori-skillsets.ts` as the default for the `-n, --non-interactive` global option and for the pre-parse argv peek that gates `checkForUpdateAndPrompt`. There is intentionally no escape hatch to force interactive mode under CI.
 
 ### Things to Know
 
