@@ -44,6 +44,7 @@ import {
 import { checkForUpdateAndPrompt } from "@/cli/updates/checkForUpdate.js";
 import { getCurrentPackageVersion } from "@/cli/version.js";
 import { initializeProxySupport } from "@/utils/fetch.js";
+import { isNonInteractiveEnvironment } from "@/utils/nonInteractive.js";
 import { normalizeInstallDir } from "@/utils/path.js";
 
 // Initialize proxy support early, before any network requests
@@ -60,8 +61,11 @@ void trackInstallLifecycle({ currentVersion: version });
 // Check for updates before parsing commands (skip for informational flags)
 const isSilent =
   process.argv.includes("--silent") || process.argv.includes("-s");
+const autoNonInteractive = isNonInteractiveEnvironment();
 const isNonInteractive =
-  process.argv.includes("--non-interactive") || process.argv.includes("-n");
+  autoNonInteractive ||
+  process.argv.includes("--non-interactive") ||
+  process.argv.includes("-n");
 const isInfoOnly =
   process.argv.includes("--help") ||
   process.argv.includes("-h") ||
@@ -89,7 +93,11 @@ program
         agentDirNames: AgentRegistry.getInstance().getAgentDirNames(),
       }),
   )
-  .option("-n, --non-interactive", "Run without interactive prompts")
+  .option(
+    "-n, --non-interactive",
+    "Run without interactive prompts (auto-detected when CI is set or stdin is not a TTY)",
+    autoNonInteractive,
+  )
   .option("-s, --silent", "Suppress all output (implies --non-interactive)")
   .option(
     "-a, --agent <name>",
