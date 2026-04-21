@@ -58,49 +58,76 @@ if [ -z "$BRANCH" ]; then
     BRANCH="no git"
 fi
 
-# Extract session cost
-COST=$(echo "$INPUT" | jq -r '.cost.total_cost_usd // 0')
-COST_FORMATTED=$(printf "%.2f" "$COST")
+# === SESSION TRACKING FOR /clear RESET ===
+# Track session_id to detect when /clear creates a new session
+# When session changes, store baseline cost/lines so we can show deltas
+SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // empty')
 
-# Extract transcript path for token parsing
-TRANSCRIPT_PATH=$(echo "$INPUT" | jq -r '.transcript_path // empty')
-
-# Parse transcript file to calculate actual token usage
-if [ -n "$TRANSCRIPT_PATH" ] && [ -f "$TRANSCRIPT_PATH" ]; then
-    # Regular input tokens (not cached)
-    INPUT_TOKENS=$(jq -r 'select(.message.usage != null) | .message.usage.input_tokens // 0' "$TRANSCRIPT_PATH" 2>/dev/null | awk '{sum+=$1} END {print sum+0}')
-
-    # Cache creation tokens (charged at full input token rate)
-    CACHE_CREATION_TOKENS=$(jq -r 'select(.message.usage != null) | .message.usage.cache_creation_input_tokens // 0' "$TRANSCRIPT_PATH" 2>/dev/null | awk '{sum+=$1} END {print sum+0}')
-
-    # Cache read tokens (charged at ~10% of input token rate)
-    CACHE_READ_TOKENS=$(jq -r 'select(.message.usage != null) | .message.usage.cache_read_input_tokens // 0' "$TRANSCRIPT_PATH" 2>/dev/null | awk '{sum+=$1} END {print sum+0}')
-
-    # Output tokens
-    OUTPUT_TOKENS=$(jq -r 'select(.message.usage != null) | .message.usage.output_tokens // 0' "$TRANSCRIPT_PATH" 2>/dev/null | awk '{sum+=$1} END {print sum+0}')
-
-    # Context length: get most recent main chain entry's input token count (matches ccstatusline)
-    # Context length = input_tokens + cache_read + cache_creation from the MOST RECENT message
-    CONTEXT_LENGTH=$(jq -r 'select(.message.usage != null and .isSidechain != true and .isApiErrorMessage != true) |
-        (.message.usage.input_tokens // 0) +
-        (.message.usage.cache_read_input_tokens // 0) +
-        (.message.usage.cache_creation_input_tokens // 0)' "$TRANSCRIPT_PATH" 2>/dev/null |
-        tail -1)
-
-    # Default to 0 if no valid context length found
-    if [ -z "$CONTEXT_LENGTH" ]; then
-        CONTEXT_LENGTH=0
-    fi
+# Deterministic session file based on cwd to avoid conflicts between projects
+if command -v md5sum >/dev/null 2>&1; then
+    SESSION_HASH=$(echo "$CWD" | md5sum | cut -d' ' -f1)
+elif command -v md5 >/dev/null 2>&1; then
+    SESSION_HASH=$(echo "$CWD" | md5 | cut -d' ' -f1)
 else
-    INPUT_TOKENS=0
-    CACHE_CREATION_TOKENS=0
-    CACHE_READ_TOKENS=0
-    OUTPUT_TOKENS=0
-    CONTEXT_LENGTH=0
+    SESSION_HASH="default"
+fi
+SESSION_FILE="/tmp/nori-statusline-session-${SESSION_HASH}"
+
+# Read previous session state
+PREV_SESSION_ID=""
+BASELINE_COST="0"
+BASELINE_LINES_ADDED="0"
+BASELINE_LINES_REMOVED="0"
+if [ -f "$SESSION_FILE" ]; then
+    PREV_SESSION_ID=$(head -1 "$SESSION_FILE" 2>/dev/null)
+    BASELINE_COST=$(sed -n '2p' "$SESSION_FILE" 2>/dev/null || echo "0")
+    BASELINE_LINES_ADDED=$(sed -n '3p' "$SESSION_FILE" 2>/dev/null || echo "0")
+    BASELINE_LINES_REMOVED=$(sed -n '4p' "$SESSION_FILE" 2>/dev/null || echo "0")
 fi
 
-# Calculate total tokens (raw count)
-TOTAL_TOKENS=$((INPUT_TOKENS + CACHE_CREATION_TOKENS + CACHE_READ_TOKENS + OUTPUT_TOKENS))
+# Extract raw cumulative values from stdin
+RAW_COST=$(echo "$INPUT" | jq -r '.cost.total_cost_usd // 0')
+RAW_LINES_ADDED=$(echo "$INPUT" | jq -r '.cost.total_lines_added // 0')
+RAW_LINES_REMOVED=$(echo "$INPUT" | jq -r '.cost.total_lines_removed // 0')
+
+# Detect session change and update baseline
+if [ -n "$SESSION_ID" ] && [ "$SESSION_ID" != "$PREV_SESSION_ID" ]; then
+    BASELINE_COST="$RAW_COST"
+    BASELINE_LINES_ADDED="$RAW_LINES_ADDED"
+    BASELINE_LINES_REMOVED="$RAW_LINES_REMOVED"
+fi
+
+# Save current session state
+if [ -n "$SESSION_ID" ]; then
+    printf '%s\n%s\n%s\n%s\n' "$SESSION_ID" "$BASELINE_COST" "$BASELINE_LINES_ADDED" "$BASELINE_LINES_REMOVED" > "$SESSION_FILE" 2>/dev/null
+fi
+
+# Calculate session-relative cost and lines (clamped to >= 0)
+COST=$(echo "$RAW_COST - $BASELINE_COST" | bc 2>/dev/null || echo "0")
+if echo "$COST < 0" | bc -l 2>/dev/null | grep -q '^1'; then
+    COST="0"
+fi
+COST_FORMATTED=$(printf "%.2f" "$COST")
+LINES_ADDED=$((RAW_LINES_ADDED - BASELINE_LINES_ADDED))
+LINES_REMOVED=$((RAW_LINES_REMOVED - BASELINE_LINES_REMOVED))
+if [ "$LINES_ADDED" -lt 0 ]; then LINES_ADDED=0; fi
+if [ "$LINES_REMOVED" -lt 0 ]; then LINES_REMOVED=0; fi
+
+# === TOKEN USAGE FROM CONTEXT WINDOW ===
+# Use context_window fields from stdin JSON (resets properly on /clear)
+TOTAL_INPUT_TOKENS=$(echo "$INPUT" | jq -r '.context_window.total_input_tokens // 0')
+TOTAL_OUTPUT_TOKENS=$(echo "$INPUT" | jq -r '.context_window.total_output_tokens // 0')
+TOTAL_TOKENS=$((TOTAL_INPUT_TOKENS + TOTAL_OUTPUT_TOKENS))
+
+# Context length from current_usage (most recent message's context size)
+CONTEXT_LENGTH=$(echo "$INPUT" | jq -r '
+    ((.context_window.current_usage.input_tokens // 0) +
+     (.context_window.current_usage.cache_read_input_tokens // 0) +
+     (.context_window.current_usage.cache_creation_input_tokens // 0))' 2>/dev/null)
+
+if [ -z "$CONTEXT_LENGTH" ] || [ "$CONTEXT_LENGTH" = "null" ]; then
+    CONTEXT_LENGTH=0
+fi
 
 
 # Format tokens (k for thousands, M for millions)
@@ -118,9 +145,6 @@ format_tokens() {
 TOKENS_FORMATTED=$(format_tokens "$TOTAL_TOKENS")
 CONTEXT_FORMATTED=$(format_tokens "$CONTEXT_LENGTH")
 
-# Extract lines added/removed
-LINES_ADDED=$(echo "$INPUT" | jq -r '.cost.total_lines_added // 0')
-LINES_REMOVED=$(echo "$INPUT" | jq -r '.cost.total_lines_removed // 0')
 LINES_FORMATTED="+${LINES_ADDED}/-${LINES_REMOVED}"
 
 # Extract skillset name (passed from enrichment)
