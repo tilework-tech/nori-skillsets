@@ -54,7 +54,16 @@ describe("statuslineLoader", () => {
       process.env.HOME = originalHome;
     }
 
-    // Clean up temp directory
+    // Clean up temp directory and session tracking files scoped to this test's tempDir
+    const { execSync } = await import("child_process");
+    try {
+      const hash = execSync(`echo "${tempDir}" | md5sum | cut -d' ' -f1`, {
+        encoding: "utf-8",
+      }).trim();
+      await fs.rm(`/tmp/nori-statusline-session-${hash}`, { force: true });
+    } catch {
+      // Ignore cleanup failures
+    }
     await fs.rm(tempDir, { recursive: true, force: true });
 
     // Clear all mocks
@@ -423,6 +432,227 @@ describe("statuslineLoader", () => {
       } finally {
         await fs.rm(noriConfigPath, { force: true });
       }
+    });
+
+    it("should display token count from context_window fields in stdin JSON", async () => {
+      const config: Config = { installDir: claudeDir };
+
+      await statuslineLoader.run({ agent: {} as any, config });
+
+      const content = await fs.readFile(settingsPath, "utf-8");
+      const settings = JSON.parse(content);
+      const statusLineCommand = settings.statusLine.command;
+
+      const { execSync } = await import("child_process");
+      const mockInput = JSON.stringify({
+        cwd: tempDir,
+        session_id: "test-session-1",
+        cost: {
+          total_cost_usd: 0.5,
+          total_lines_added: 10,
+          total_lines_removed: 5,
+        },
+        context_window: {
+          total_input_tokens: 25000,
+          total_output_tokens: 5000,
+        },
+        transcript_path: "",
+      });
+
+      const output = execSync(statusLineCommand, {
+        input: mockInput,
+        encoding: "utf-8",
+      });
+
+      // 25000 + 5000 = 30000 = 30k
+      expect(output).toContain("Tokens: 30.0k");
+    });
+
+    it("should display context length from context_window.current_usage fields", async () => {
+      const config: Config = { installDir: claudeDir };
+
+      await statuslineLoader.run({ agent: {} as any, config });
+
+      const content = await fs.readFile(settingsPath, "utf-8");
+      const settings = JSON.parse(content);
+      const statusLineCommand = settings.statusLine.command;
+
+      const { execSync } = await import("child_process");
+      const mockInput = JSON.stringify({
+        cwd: tempDir,
+        session_id: "test-session-1",
+        cost: {
+          total_cost_usd: 0.5,
+          total_lines_added: 10,
+          total_lines_removed: 5,
+        },
+        context_window: {
+          total_input_tokens: 50000,
+          total_output_tokens: 10000,
+          current_usage: {
+            input_tokens: 15000,
+            cache_read_input_tokens: 5000,
+            cache_creation_input_tokens: 2000,
+            output_tokens: 3000,
+          },
+        },
+        transcript_path: "",
+      });
+
+      const output = execSync(statusLineCommand, {
+        input: mockInput,
+        encoding: "utf-8",
+      });
+
+      // Context = input + cache_read + cache_creation = 15000 + 5000 + 2000 = 22000 = 22k
+      expect(output).toContain("Context: 22.0k");
+    });
+
+    it("should default tokens and context to 0 when context_window fields are missing", async () => {
+      const config: Config = { installDir: claudeDir };
+
+      await statuslineLoader.run({ agent: {} as any, config });
+
+      const content = await fs.readFile(settingsPath, "utf-8");
+      const settings = JSON.parse(content);
+      const statusLineCommand = settings.statusLine.command;
+
+      const { execSync } = await import("child_process");
+      const mockInput = JSON.stringify({
+        cwd: tempDir,
+        session_id: "test-session-1",
+        cost: {
+          total_cost_usd: 0.5,
+          total_lines_added: 10,
+          total_lines_removed: 5,
+        },
+        transcript_path: "",
+      });
+
+      const output = execSync(statusLineCommand, {
+        input: mockInput,
+        encoding: "utf-8",
+      });
+
+      expect(output).toContain("Tokens: 0");
+      expect(output).toContain("Context: 0");
+    });
+
+    it("should reset cost and lines when session_id changes", async () => {
+      const config: Config = { installDir: claudeDir };
+
+      await statuslineLoader.run({ agent: {} as any, config });
+
+      const content = await fs.readFile(settingsPath, "utf-8");
+      const settings = JSON.parse(content);
+      const statusLineCommand = settings.statusLine.command;
+
+      const { execSync } = await import("child_process");
+
+      // First session: accumulate some cost
+      const firstSessionInput = JSON.stringify({
+        cwd: tempDir,
+        session_id: "session-1",
+        cost: {
+          total_cost_usd: 2.5,
+          total_lines_added: 50,
+          total_lines_removed: 20,
+        },
+        context_window: {
+          total_input_tokens: 100000,
+          total_output_tokens: 20000,
+        },
+        transcript_path: "",
+      });
+
+      execSync(statusLineCommand, {
+        input: firstSessionInput,
+        encoding: "utf-8",
+      });
+
+      // Second session (after /clear): cost in stdin is cumulative but session_id changed
+      const secondSessionInput = JSON.stringify({
+        cwd: tempDir,
+        session_id: "session-2",
+        cost: {
+          total_cost_usd: 2.5,
+          total_lines_added: 50,
+          total_lines_removed: 20,
+        },
+        context_window: {
+          total_input_tokens: 0,
+          total_output_tokens: 0,
+        },
+        transcript_path: "",
+      });
+
+      const output = execSync(statusLineCommand, {
+        input: secondSessionInput,
+        encoding: "utf-8",
+      });
+
+      // Cost should show $0.00 because session changed and baseline was $2.50
+      expect(output).toContain("Cost: $0.00");
+      // Lines should show +0/-0
+      expect(output).toContain("Lines: +0/-0");
+    });
+
+    it("should accumulate cost within the same session", async () => {
+      const config: Config = { installDir: claudeDir };
+
+      await statuslineLoader.run({ agent: {} as any, config });
+
+      const content = await fs.readFile(settingsPath, "utf-8");
+      const settings = JSON.parse(content);
+      const statusLineCommand = settings.statusLine.command;
+
+      const { execSync } = await import("child_process");
+
+      // Ensure clean session state
+      const cleanSessionInput = JSON.stringify({
+        cwd: tempDir,
+        session_id: "session-accumulate",
+        cost: {
+          total_cost_usd: 0,
+          total_lines_added: 0,
+          total_lines_removed: 0,
+        },
+        context_window: {
+          total_input_tokens: 0,
+          total_output_tokens: 0,
+        },
+        transcript_path: "",
+      });
+
+      execSync(statusLineCommand, {
+        input: cleanSessionInput,
+        encoding: "utf-8",
+      });
+
+      // Same session, cost grows
+      const laterInput = JSON.stringify({
+        cwd: tempDir,
+        session_id: "session-accumulate",
+        cost: {
+          total_cost_usd: 1.75,
+          total_lines_added: 30,
+          total_lines_removed: 10,
+        },
+        context_window: {
+          total_input_tokens: 50000,
+          total_output_tokens: 10000,
+        },
+        transcript_path: "",
+      });
+
+      const output = execSync(statusLineCommand, {
+        input: laterInput,
+        encoding: "utf-8",
+      });
+
+      // Cost should show $1.75 (same session, no reset)
+      expect(output).toContain("Cost: $1.75");
+      expect(output).toContain("Lines: +30/-10");
     });
 
     it("should display jq missing warning when jq is not available", async () => {
