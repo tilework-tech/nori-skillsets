@@ -4,7 +4,7 @@ Path: @/src/utils
 
 ### Overview
 
-Shared utility functions used across the codebase for URL manipulation, filesystem path resolution, network proxy support, API token parsing, non-interactive environment detection, and error classification. These are pure helpers with no business logic or state of their own.
+Shared utility functions used across the codebase for URL manipulation, filesystem path resolution, network proxy support, API token parsing, non-interactive environment detection, error classification, and upload filename filtering. These are pure helpers with no business logic or state of their own.
 
 ### How it fits into the larger codebase
 
@@ -21,6 +21,8 @@ Every layer of the application imports from this module. The API layer uses `url
 **`home.ts`** returns the home directory with override support: `NORI_GLOBAL_CONFIG` env var (for test isolation) > `os.homedir()` > `process.env.HOME`.
 
 **`apiToken.ts`** parses and validates API tokens. API tokens follow the format `nori_<orgId>_<64 hex chars>`, where the orgId is embedded in the token itself so no separate orgId flag or env var is needed. Exports `API_TOKEN_PATTERN` (the canonical regex), `isValidApiToken({ token })` (shape check), and `extractOrgIdFromApiToken({ token })` (returns the orgId or `null` for malformed input). Call sites in `@/src/cli/config.ts`, `@/src/api/base.ts`, `@/src/api/registryAuth.ts`, and `@/src/cli/commands/login/login.ts` use these helpers whenever an API token needs to be matched against a target registry URL.
+
+**`uploadFileFilter.ts`** exports `shouldExcludeFromUpload({ fileName })`, the single source of truth for filenames that the upload tarball builders must skip. The set covers the local download-metadata file (`.nori-version`), Vim swap files, editor backup files (trailing `~`), macOS `.DS_Store` and AppleDouble resource forks (`._*`), and Windows `Thumbs.db`. Both `@/src/cli/commands/registry-upload/registryUpload.ts` (`createProfileTarball`) and `@/src/cli/commands/skill-upload/skillUpload.ts` (`createSkillTarball`) consume this predicate so editor or OS junk never enters the registry's content hash and never triggers spurious "content differs" conflicts on re-upload.
 
 **`nonInteractive.ts`** exports the pure helper `isNonInteractiveEnvironment({ stdin?, env? })`, which returns `true` when either `env.CI` is set to a truthy value (anything other than the lowercase-insensitive strings `""`, `"0"`, or `"false"`) or `stdin.isTTY` is not strictly `true` (piped stdin, cron, no controlling terminal). Both inputs default to `process.stdin` and `process.env` so the helper is trivially callable at process boot. Consumed by `@/src/cli/nori-skillsets.ts` as the default for the `-n, --non-interactive` global option and for the pre-parse argv peek that gates `checkForUpdateAndPrompt`. There is intentionally no escape hatch to force interactive mode under CI.
 
