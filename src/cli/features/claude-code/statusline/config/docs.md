@@ -11,7 +11,8 @@ Path: @/src/cli/features/claude-code/statusline/config
 ### How it fits into the larger codebase
 
 - Referenced by `@/src/cli/features/claude-code/statusline/loader.ts`, which copies it to `~/.claude/nori-statusline.sh` and configures `settings.json` to invoke it
-- Reads `~/.nori-config.json` directly (not through the Node.js config module) to get the active skillset name and version
+- Reads `~/.nori-config.json` directly (not through the Node.js config module) to get the active skillset name
+- Resolves the running CLI version by spawning `sks --version` on each render (tolerates `sks` being absent from `PATH` by falling back to the unversioned "Augmented with Nori" branding line)
 - Reads `~/.nori/profiles/nori-skillsets-version.json` to check for available updates
 
 ### Core Implementation

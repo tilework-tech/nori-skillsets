@@ -239,4 +239,61 @@ describe("createSlashCommandsLoader", () => {
       expect(loader.managedDirs).toEqual(["commands", "extra-commands"]);
     });
   });
+
+  describe("dotfile preservation", () => {
+    it("should preserve top-level dotfile entries in the commands directory across reinstall", async () => {
+      const loader = createSlashCommandsLoader({ managedDirs: ["commands"] });
+      const config = createTestConfig({
+        installDir: tempDir,
+        activeSkillset: "preserve-dotfiles-cmd",
+      });
+      const skillset = await createTestSkillset({
+        skillsetsDir: noriProfilesDir,
+        skillsetName: "preserve-dotfiles-cmd",
+        slashcommands: TEST_SLASH_COMMANDS,
+      });
+
+      await fs.mkdir(commandsDir, { recursive: true });
+      const systemDir = path.join(commandsDir, ".system");
+      await fs.mkdir(systemDir, { recursive: true });
+      const markerPath = path.join(systemDir, "marker.txt");
+      await fs.writeFile(markerPath, "external content");
+
+      await loader.run({ agent, config, skillset });
+
+      const markerContent = await fs.readFile(markerPath, "utf-8");
+      expect(markerContent).toBe("external content");
+
+      const initDocsExists = await fs
+        .access(path.join(commandsDir, "nori-init-docs.md"))
+        .then(() => true)
+        .catch(() => false);
+      expect(initDocsExists).toBe(true);
+    });
+
+    it("should still remove a stale non-dotfile command on reinstall", async () => {
+      const loader = createSlashCommandsLoader({ managedDirs: ["commands"] });
+      const config = createTestConfig({
+        installDir: tempDir,
+        activeSkillset: "stale-cmd-removal",
+      });
+      const skillset = await createTestSkillset({
+        skillsetsDir: noriProfilesDir,
+        skillsetName: "stale-cmd-removal",
+        slashcommands: TEST_SLASH_COMMANDS,
+      });
+
+      await fs.mkdir(commandsDir, { recursive: true });
+      const stalePath = path.join(commandsDir, "old-command.md");
+      await fs.writeFile(stalePath, "stale");
+
+      await loader.run({ agent, config, skillset });
+
+      const staleExists = await fs
+        .access(stalePath)
+        .then(() => true)
+        .catch(() => false);
+      expect(staleExists).toBe(false);
+    });
+  });
 });

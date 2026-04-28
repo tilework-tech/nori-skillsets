@@ -8,7 +8,6 @@ import { signInWithEmailAndPassword, AuthErrorCodes } from "firebase/auth";
 
 import { getConfigPath, loadConfig, updateConfig } from "@/cli/config.js";
 import { debug } from "@/cli/logger.js";
-import { getCurrentPackageVersion } from "@/cli/version.js";
 import { configureFirebase, getFirebase } from "@/providers/firebase.js";
 
 import type { Config } from "@/cli/config.js";
@@ -110,9 +109,6 @@ const installConfig = async (args: { config: Config }): Promise<void> => {
     }
   }
 
-  // Get current package version to save in config
-  const currentVersion = getCurrentPackageVersion();
-
   // Build auth object if we have credentials
   const auth =
     username != null && organizationUrl != null
@@ -135,7 +131,6 @@ const installConfig = async (args: { config: Config }): Promise<void> => {
     ...(auth != null ? { auth } : {}),
     activeSkillset,
     sendSessionTranscript,
-    version: currentVersion,
     transcriptDestination:
       config.transcriptDestination ??
       existingConfig?.transcriptDestination ??
@@ -144,9 +139,6 @@ const installConfig = async (args: { config: Config }): Promise<void> => {
 
   const configPath = getConfigPath();
   log.success(`Config file created: ${configPath}`);
-  if (currentVersion != null) {
-    log.success(`Version ${currentVersion} saved to config`);
-  }
 };
 
 /**

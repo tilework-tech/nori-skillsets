@@ -53,6 +53,7 @@ export const switchSkillsetAction = async (args: {
   const globalOpts = program.opts();
   const nonInteractive = globalOpts.nonInteractive ?? false;
   const force = options.force ?? false;
+  const agentOverride = options.agent ?? globalOpts.agent ?? null;
 
   // Determine installation directory: CLI flag > config > home dir
   const config = await loadConfig();
@@ -111,7 +112,7 @@ export const switchSkillsetAction = async (args: {
       callbacks: {
         onResolveAgents: async () => {
           const config = await loadConfig();
-          const agentNames = getDefaultAgents({ config });
+          const agentNames = getDefaultAgents({ config, agentOverride });
           return agentNames.map((agentName) => {
             const agent = AgentRegistry.getInstance().get({
               name: agentName,
@@ -139,6 +140,7 @@ export const switchSkillsetAction = async (args: {
           const captureConfig = await loadConfig();
           const captureAgentNames = getDefaultAgents({
             config: captureConfig,
+            agentOverride,
           });
           const config: Config = {
             installDir: dir,
@@ -208,9 +210,12 @@ export const switchSkillsetAction = async (args: {
               : null;
           if (currentProfileName == null) return null;
 
-          const diffAgentNames = getDefaultAgents({ config: currentConfig });
+          const resolvedDiffAgentNames = getDefaultAgents({
+            config: currentConfig,
+            agentOverride,
+          });
           const diffAgent = AgentRegistry.getInstance().get({
-            name: diffAgentNames[0],
+            name: resolvedDiffAgentNames[0],
           });
           const agentDir = diffAgent.getAgentDir({ installDir: dir });
           const currentPath = path.join(agentDir, relativePath);
@@ -313,7 +318,7 @@ export const switchSkillsetAction = async (args: {
   const nonInteractiveConfig = await loadConfig();
   const agentNames = getDefaultAgents({
     config: nonInteractiveConfig,
-    agentOverride: options.agent,
+    agentOverride,
   });
 
   // Check for local changes before proceeding (check first agent's manifest)

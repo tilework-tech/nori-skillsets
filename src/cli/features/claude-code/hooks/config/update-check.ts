@@ -4,8 +4,8 @@
  * Hook handler for checking update availability at session start
  *
  * This script is called by Claude Code SessionStart hook.
- * It reads the version cache and outputs a systemMessage
- * if an update is available.
+ * It compares the running CLI version against the cached latest version
+ * and outputs a systemMessage if an update is available.
  */
 
 import * as fs from "fs/promises";
@@ -17,6 +17,7 @@ import {
   refreshVersionCache,
 } from "@/cli/updates/npmRegistryCheck.js";
 import { isCacheStale, readVersionCache } from "@/cli/updates/versionCache.js";
+import { getCurrentPackageVersion } from "@/cli/version.js";
 import { getHomeDir } from "@/utils/home.js";
 
 /**
@@ -44,28 +45,22 @@ const getInstallDir = (args?: { installDir?: string | null }): string => {
 };
 
 /**
- * Read the installed version and autoupdate setting from .nori-config.json
+ * Read the autoupdate setting from .nori-config.json
  * @param args - Configuration arguments
  * @param args.installDir - Installation directory to read config from
  *
- * @returns Config object with version and autoupdate, or null if not found
+ * @returns The autoupdate setting, or null if config or field is absent
  */
-const readConfig = async (args: {
+const readAutoupdate = async (args: {
   installDir: string;
-}): Promise<{
-  version: string | null;
-  autoupdate: string | null;
-} | null> => {
+}): Promise<string | null> => {
   const { installDir } = args;
 
   const configPath = path.join(installDir, ".nori-config.json");
   try {
     const content = await fs.readFile(configPath, "utf-8");
     const config = JSON.parse(content);
-    return {
-      version: config.version ?? null,
-      autoupdate: config.autoupdate ?? null,
-    };
+    return config.autoupdate ?? null;
   } catch {
     return null;
   }
@@ -85,11 +80,13 @@ export const main = async (args?: {
       installDir: args?.installDir,
     });
 
-    // Read config to get installed version and autoupdate setting
-    const config = await readConfig({ installDir });
-    if (config == null) return;
-    if (config.version == null) return;
-    if (config.autoupdate === "disabled") return;
+    // Resolve the running CLI version (matches `sks --version`)
+    const currentVersion = getCurrentPackageVersion();
+    if (currentVersion == null) return;
+
+    // Honor user opt-out
+    const autoupdate = await readAutoupdate({ installDir });
+    if (autoupdate === "disabled") return;
 
     // Trigger background refresh if cache is stale
     const cache = await readVersionCache();
@@ -99,13 +96,13 @@ export const main = async (args?: {
 
     // Use shared update logic (checks cache, semver, dismissed, prerelease)
     const update = await getAvailableUpdate({
-      currentVersion: config.version,
+      currentVersion,
     });
     if (update == null) return;
 
     // Output system message
     let message = `🍙 **Nori Skillsets Update Available**\n\n`;
-    message += `Current: ${config.version} → Latest: ${update.latestVersion}\n\n`;
+    message += `Current: ${currentVersion} → Latest: ${update.latestVersion}\n\n`;
     message += `Run in your terminal: \`npm install -g nori-skillsets@latest\``;
 
     logToClaudeSession({ message });

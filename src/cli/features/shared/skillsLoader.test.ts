@@ -278,6 +278,65 @@ describe("skillsLoader", () => {
     });
   });
 
+  describe("dotfile preservation", () => {
+    it("should preserve top-level dotfile entries in destSkillsDir across reinstall", async () => {
+      const config = createTestConfig({
+        installDir: tempDir,
+        activeSkillset: "preserve-dotfiles-test",
+      });
+      const skillset = await createTestSkillset({
+        skillsetsDir: noriProfilesDir,
+        skillsetName: "preserve-dotfiles-test",
+        skills: TEST_SKILLS,
+      });
+
+      // Simulate an external system (e.g. codex) shipping .system/ alongside skills
+      const systemDir = path.join(skillsDir, ".system");
+      await fs.mkdir(systemDir, { recursive: true });
+      const markerPath = path.join(systemDir, "marker.txt");
+      await fs.writeFile(markerPath, "external content");
+
+      await skillsLoader.run({ agent, config, skillset });
+
+      // The dotfile entry should survive the reinstall with original content
+      const markerContent = await fs.readFile(markerPath, "utf-8");
+      expect(markerContent).toBe("external content");
+
+      // And the skillset's skills should still be installed
+      const usingSkillsExists = await fs
+        .access(path.join(skillsDir, "using-skills", "SKILL.md"))
+        .then(() => true)
+        .catch(() => false);
+      expect(usingSkillsExists).toBe(true);
+    });
+
+    it("should still remove a stale non-dotfile skill on reinstall", async () => {
+      const config = createTestConfig({
+        installDir: tempDir,
+        activeSkillset: "stale-removal-test",
+      });
+      const skillset = await createTestSkillset({
+        skillsetsDir: noriProfilesDir,
+        skillsetName: "stale-removal-test",
+        skills: TEST_SKILLS,
+      });
+
+      // Simulate a leftover from a previous skillset
+      const staleSkillDir = path.join(skillsDir, "old-skill");
+      await fs.mkdir(staleSkillDir, { recursive: true });
+      const stalePath = path.join(staleSkillDir, "SKILL.md");
+      await fs.writeFile(stalePath, "stale");
+
+      await skillsLoader.run({ agent, config, skillset });
+
+      const staleExists = await fs
+        .access(stalePath)
+        .then(() => true)
+        .catch(() => false);
+      expect(staleExists).toBe(false);
+    });
+  });
+
   describe("bundled skills", () => {
     it("should copy bundled skills during installation", async () => {
       const config = createTestConfig({

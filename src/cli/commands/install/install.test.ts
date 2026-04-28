@@ -187,7 +187,6 @@ describe("install noninteractive", () => {
       username: null,
       organizationUrl: null,
       activeSkillset: null,
-      version: "20.0.0",
       installDir: tempDir,
     });
 
@@ -207,7 +206,6 @@ describe("install noninteractive", () => {
       username: null,
       organizationUrl: null,
       activeSkillset: null,
-      version: "20.0.0",
       installDir: tempDir,
     });
 
@@ -253,7 +251,6 @@ describe("install noninteractive", () => {
       username: null,
       organizationUrl: null,
       activeSkillset: "amol",
-      version: "20.0.0",
       installDir: tempDir,
     });
 
@@ -273,7 +270,6 @@ describe("install noninteractive", () => {
       organizationUrl: "https://myorg.tilework.tech",
       refreshToken: "test-refresh-token",
       activeSkillset: "senior-swe",
-      version: "20.0.0",
       installDir: tempDir,
     });
 
@@ -298,7 +294,6 @@ describe("install noninteractive", () => {
       organizations: ["org-alpha", "org-beta"],
       isAdmin: true,
       activeSkillset: "senior-swe",
-      version: "20.0.0",
       transcriptDestination: "myorg",
       installDir: tempDir,
     });
@@ -323,7 +318,6 @@ describe("install noninteractive", () => {
       username: null,
       organizationUrl: null,
       activeSkillset: "senior-swe",
-      version: "20.0.0",
       installDir: originalInstallDir,
     });
 
@@ -347,7 +341,6 @@ describe("install noninteractive", () => {
       username: null,
       organizationUrl: null,
       activeSkillset: "senior-swe",
-      version: "20.0.0",
       installDir: tempDir,
     });
 
@@ -372,7 +365,6 @@ describe("install noninteractive", () => {
       username: null,
       organizationUrl: null,
       activeSkillset: "senior-swe",
-      version: "20.0.0",
       installDir: tempDir,
     });
 

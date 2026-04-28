@@ -1,8 +1,9 @@
 /**
  * Tests for update-check SessionStart hook
  *
- * This hook checks the version cache at session start and
- * outputs a systemMessage if an update is available.
+ * This hook compares the running CLI version (from getCurrentPackageVersion)
+ * against the latest version stored in the version cache, and outputs a
+ * systemMessage if an update is available.
  */
 
 import * as fs from "fs";
@@ -11,11 +12,9 @@ import * as path from "path";
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
-import { main } from "./update-check.js";
+import type * as versionModule from "@/cli/version.js";
 
-// Capture console output
-let consoleOutput: Array<string> = [];
-const originalConsoleLog = console.log;
+import { main } from "./update-check.js";
 
 // Mock analytics to prevent actual tracking
 vi.mock("@/cli/installTracking.js", () => ({
@@ -23,6 +22,20 @@ vi.mock("@/cli/installTracking.js", () => ({
   getUserId: vi.fn().mockResolvedValue(null),
   sendAnalyticsEvent: vi.fn(),
 }));
+
+// Mock getCurrentPackageVersion so we can drive "running CLI version"
+const getCurrentPackageVersionMock = vi.fn<() => string | null>();
+vi.mock("@/cli/version.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof versionModule>();
+  return {
+    ...actual,
+    getCurrentPackageVersion: () => getCurrentPackageVersionMock(),
+  };
+});
+
+// Capture console output
+let consoleOutput: Array<string> = [];
+const originalConsoleLog = console.log;
 
 describe("update-check hook", () => {
   let tempDir: string;
@@ -39,6 +52,10 @@ describe("update-check hook", () => {
     console.log = (...args: Array<unknown>) => {
       consoleOutput.push(args.map(String).join(" "));
     };
+
+    getCurrentPackageVersionMock.mockReset();
+    // Default: running CLI is at 1.0.0
+    getCurrentPackageVersionMock.mockReturnValue("1.0.0");
   });
 
   afterEach(() => {
@@ -52,16 +69,12 @@ describe("update-check hook", () => {
   });
 
   it("should output nothing when no version cache exists", async () => {
-    // Create config so findInstallDir succeeds
-    const configPath = path.join(tempDir, ".nori-config.json");
-    fs.writeFileSync(configPath, JSON.stringify({ version: "1.0.0" }));
-
     await main({ installDir: tempDir });
     expect(consoleOutput).toHaveLength(0);
   });
 
-  it("should output nothing when no config exists (no installed version)", async () => {
-    // Write version cache with update available
+  it("should output nothing when running CLI version is unknown", async () => {
+    getCurrentPackageVersionMock.mockReturnValue(null);
     const cachePath = path.join(
       tempDir,
       ".nori",
@@ -76,14 +89,13 @@ describe("update-check hook", () => {
       }),
     );
 
-    // No config file means readConfig returns null
     await main({ installDir: tempDir });
 
     expect(consoleOutput).toHaveLength(0);
   });
 
-  it("should output systemMessage when update is available", async () => {
-    // Write version cache
+  it("should output systemMessage when running version is older than latest", async () => {
+    getCurrentPackageVersionMock.mockReturnValue("1.0.0");
     const cachePath = path.join(
       tempDir,
       ".nori",
@@ -97,10 +109,6 @@ describe("update-check hook", () => {
         last_checked_at: new Date().toISOString(),
       }),
     );
-
-    // Write config with installed version
-    const configPath = path.join(tempDir, ".nori-config.json");
-    fs.writeFileSync(configPath, JSON.stringify({ version: "1.0.0" }));
 
     await main({ installDir: tempDir });
 
@@ -112,6 +120,7 @@ describe("update-check hook", () => {
   });
 
   it("should output nothing when versions are equal", async () => {
+    getCurrentPackageVersionMock.mockReturnValue("1.0.0");
     const cachePath = path.join(
       tempDir,
       ".nori",
@@ -126,15 +135,13 @@ describe("update-check hook", () => {
       }),
     );
 
-    const configPath = path.join(tempDir, ".nori-config.json");
-    fs.writeFileSync(configPath, JSON.stringify({ version: "1.0.0" }));
-
     await main({ installDir: tempDir });
 
     expect(consoleOutput).toHaveLength(0);
   });
 
   it("should output nothing when update is dismissed", async () => {
+    getCurrentPackageVersionMock.mockReturnValue("1.0.0");
     const cachePath = path.join(
       tempDir,
       ".nori",
@@ -150,15 +157,13 @@ describe("update-check hook", () => {
       }),
     );
 
-    const configPath = path.join(tempDir, ".nori-config.json");
-    fs.writeFileSync(configPath, JSON.stringify({ version: "1.0.0" }));
-
     await main({ installDir: tempDir });
 
     expect(consoleOutput).toHaveLength(0);
   });
 
   it("should output nothing when autoupdate is disabled", async () => {
+    getCurrentPackageVersionMock.mockReturnValue("1.0.0");
     const cachePath = path.join(
       tempDir,
       ".nori",
@@ -174,17 +179,15 @@ describe("update-check hook", () => {
     );
 
     const configPath = path.join(tempDir, ".nori-config.json");
-    fs.writeFileSync(
-      configPath,
-      JSON.stringify({ version: "1.0.0", autoupdate: "disabled" }),
-    );
+    fs.writeFileSync(configPath, JSON.stringify({ autoupdate: "disabled" }));
 
     await main({ installDir: tempDir });
 
     expect(consoleOutput).toHaveLength(0);
   });
 
-  it("should output nothing when current version is -next and latest is same base version", async () => {
+  it("should output nothing when running version is -next of latest", async () => {
+    getCurrentPackageVersionMock.mockReturnValue("0.6.3-next.1");
     const cachePath = path.join(
       tempDir,
       ".nori",
@@ -199,16 +202,13 @@ describe("update-check hook", () => {
       }),
     );
 
-    const configPath = path.join(tempDir, ".nori-config.json");
-    fs.writeFileSync(configPath, JSON.stringify({ version: "0.6.3-next.1" }));
-
     await main({ installDir: tempDir });
 
     expect(consoleOutput).toHaveLength(0);
   });
 
   it("should not throw on any error", async () => {
-    // Corrupt cache
+    getCurrentPackageVersionMock.mockReturnValue("1.0.0");
     const cachePath = path.join(
       tempDir,
       ".nori",
