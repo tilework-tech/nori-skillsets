@@ -585,7 +585,7 @@ describe("removeSkillset", () => {
     vi.clearAllMocks();
   });
 
-  it("should remove managed files tracked in manifest", async () => {
+  it("should remove managed files tracked in manifest while preserving the instructions file", async () => {
     const agent = createTestAgent({
       loaders: [
         {
@@ -634,8 +634,10 @@ describe("removeSkillset", () => {
 
     await removeSkillset({ agent, installDir: tempDir });
 
-    // Managed files should be gone
-    expect(fs.existsSync(path.join(agentDir, "INSTRUCTIONS.md"))).toBe(false);
+    // Instructions file is preserved (managed-block clearing semantics)
+    expect(fs.existsSync(path.join(agentDir, "INSTRUCTIONS.md"))).toBe(true);
+    // Other managed files and metadata are removed
+    expect(fs.existsSync(path.join(skillsDir, "SKILL.md"))).toBe(false);
     expect(fs.existsSync(path.join(agentDir, ".nori-managed"))).toBe(false);
     expect(fs.existsSync(manifestPath)).toBe(false);
   });
@@ -698,6 +700,138 @@ describe("removeSkillset", () => {
   });
 
   it("should complete without error when no manifest exists", async () => {
+    const agent = createTestAgent();
+
+    await expect(
+      removeSkillset({ agent, installDir: tempDir }),
+    ).resolves.not.toThrow();
+  });
+
+  it("should clear the managed block from instructions file inside agentDir while preserving user content", async () => {
+    const agent = createTestAgent({
+      loaders: [
+        {
+          name: "loader",
+          description: "Loader",
+          managedFiles: ["INSTRUCTIONS.md"],
+          run: async () => undefined,
+        },
+      ],
+    });
+
+    const agentDir = agent.getAgentDir({ installDir: tempDir });
+    fs.mkdirSync(agentDir, { recursive: true });
+
+    const instructionsPath = agent.getInstructionsFilePath({
+      installDir: tempDir,
+    });
+    const fileContent = `# My Custom Notes
+
+User-authored content.
+
+# BEGIN NORI-AI MANAGED BLOCK
+nori instructions here
+# END NORI-AI MANAGED BLOCK
+
+# More User Content
+After the block.
+`;
+    fs.writeFileSync(instructionsPath, fileContent);
+    fs.writeFileSync(path.join(agentDir, ".nori-managed"), "test-skillset");
+
+    const { computeFileHash, writeManifest, getManifestPath } =
+      await import("@/cli/features/manifest.js");
+    const hash = await computeFileHash({ filePath: instructionsPath });
+    const manifestPath = getManifestPath({ agentName: agent.name });
+    await writeManifest({
+      manifestPath,
+      manifest: {
+        version: 1,
+        createdAt: new Date().toISOString(),
+        skillsetName: "test-skillset",
+        files: { "INSTRUCTIONS.md": hash },
+      },
+    });
+
+    await removeSkillset({ agent, installDir: tempDir });
+
+    expect(fs.existsSync(instructionsPath)).toBe(true);
+    const remaining = fs.readFileSync(instructionsPath, "utf-8");
+    expect(remaining).not.toContain("# BEGIN NORI-AI MANAGED BLOCK");
+    expect(remaining).not.toContain("# END NORI-AI MANAGED BLOCK");
+    expect(remaining).not.toContain("nori instructions here");
+    expect(remaining).toContain("# My Custom Notes");
+    expect(remaining).toContain("User-authored content.");
+    expect(remaining).toContain("# More User Content");
+    expect(remaining).toContain("After the block.");
+  });
+
+  it("should clear the managed block from instructions file outside agentDir", async () => {
+    const projectRootInstructionsPath = path.join(tempDir, "AGENTS.md");
+
+    const agent: AgentConfig = {
+      name: "claude-code",
+      displayName: "Test Agent",
+      description: "Test agent with project-root instructions",
+      getAgentDir: (a: { installDir: string }) =>
+        path.join(a.installDir, ".test-agent"),
+      getSkillsDir: (a: { installDir: string }) =>
+        path.join(a.installDir, ".test-agent", "skills"),
+      getSubagentsDir: (a: { installDir: string }) =>
+        path.join(a.installDir, ".test-agent", "agents"),
+      getSlashcommandsDir: (a: { installDir: string }) =>
+        path.join(a.installDir, ".test-agent", "commands"),
+      getInstructionsFilePath: (a: { installDir: string }) =>
+        path.join(a.installDir, "AGENTS.md"),
+      getLoaders: () => [
+        {
+          name: "loader",
+          description: "Loader",
+          managedFiles: ["AGENTS.md"],
+          run: async () => undefined,
+        },
+      ],
+    };
+
+    const agentDir = agent.getAgentDir({ installDir: tempDir });
+    fs.mkdirSync(agentDir, { recursive: true });
+
+    const fileContent = `# Project Notes
+
+User project documentation.
+
+# BEGIN NORI-AI MANAGED BLOCK
+nori block content
+# END NORI-AI MANAGED BLOCK
+`;
+    fs.writeFileSync(projectRootInstructionsPath, fileContent);
+    fs.writeFileSync(path.join(agentDir, ".nori-managed"), "test-skillset");
+
+    const { writeManifest, getManifestPath } =
+      await import("@/cli/features/manifest.js");
+    const manifestPath = getManifestPath({ agentName: agent.name });
+    await writeManifest({
+      manifestPath,
+      manifest: {
+        version: 1,
+        createdAt: new Date().toISOString(),
+        skillsetName: "test-skillset",
+        files: {},
+      },
+    });
+
+    await removeSkillset({ agent, installDir: tempDir });
+
+    expect(fs.existsSync(projectRootInstructionsPath)).toBe(true);
+    const remaining = fs.readFileSync(projectRootInstructionsPath, "utf-8");
+    expect(remaining).not.toContain("# BEGIN NORI-AI MANAGED BLOCK");
+    expect(remaining).not.toContain("# END NORI-AI MANAGED BLOCK");
+    expect(remaining).not.toContain("nori block content");
+    expect(remaining).toContain("# Project Notes");
+    expect(remaining).toContain("User project documentation.");
+  });
+
+  it("should not error when instructions file does not exist", async () => {
     const agent = createTestAgent();
 
     await expect(

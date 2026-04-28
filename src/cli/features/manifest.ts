@@ -361,26 +361,34 @@ export const compareManifest = async (args: {
  *
  * Reads the manifest to determine which files were installed, removes them,
  * cleans up empty managed directories, and removes the .nori-managed marker.
- * Files not in the manifest are preserved.
+ * Files not in the manifest are preserved. Files listed in `excludePaths`
+ * (relative to `agentDir`) are skipped — useful for files cleared in-place
+ * via managed-block clearing rather than full deletion.
  *
  * @param args - Configuration arguments
  * @param args.agentDir - The agent's config directory to clean up
  * @param args.manifestPath - Path to the manifest file
  * @param args.managedDirs - Optional list of managed directory names (falls back to defaults)
+ * @param args.excludePaths - Optional list of relative paths to skip when deleting
  */
 export const removeManagedFiles = async (args: {
   agentDir: string;
   manifestPath: string;
   managedDirs?: ReadonlyArray<string> | null;
+  excludePaths?: ReadonlyArray<string> | null;
 }): Promise<void> => {
   const { agentDir, manifestPath } = args;
   const dirList = args.managedDirs ?? MANAGED_DIRS;
+  const excludeSet = new Set(args.excludePaths ?? []);
 
   const manifest = await readManifest({ manifestPath });
 
   if (manifest != null) {
     // Remove all files listed in the manifest
     for (const relativePath of Object.keys(manifest.files)) {
+      if (excludeSet.has(relativePath)) {
+        continue;
+      }
       const fullPath = path.join(agentDir, relativePath);
       await fs.rm(fullPath, { force: true });
     }
