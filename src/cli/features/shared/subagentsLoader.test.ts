@@ -173,6 +173,11 @@ const TEST_MARKDOWN_ONLY_SUBAGENTS: Record<string, string> = {
     "---\nname: nori-task-runner\ndescription: Run a task outside the main context\nmodel: inherit\n---\n\nComplete the delegated task without stopping.\n",
 };
 
+const TEST_MARKDOWN_WITH_CODEX_METADATA_SUBAGENTS: Record<string, string> = {
+  "nori-runtime-aware-runner.md":
+    "---\nname: nori-runtime-aware-runner\ndescription: Run a task with Codex metadata\nmodel: gpt-5.4-mini\nmodel_reasoning_effort: medium\nsandbox_mode: workspace-write\n---\n\nComplete the delegated task and edit files when needed.\n",
+};
+
 // ---- tests ------------------------------------------------------------------
 
 describe("createSubagentsLoader", () => {
@@ -345,6 +350,39 @@ describe("createSubagentsLoader", () => {
         "Complete the delegated task without stopping.",
       );
       expect(emittedContent).not.toContain('model = "inherit"');
+    });
+
+    it("should emit markdown-only subagents with Codex frontmatter metadata as Codex TOML", async () => {
+      const loader = createSubagentsLoader({
+        managedDirs: ["agents"],
+        targetFormat: "codex-toml",
+      });
+      const config = createTestConfig({
+        installDir: tempDir,
+        activeSkillset: "codex-markdown-frontmatter-test",
+      });
+      const skillset = await createTestSkillset({
+        skillsetsDir: noriProfilesDir,
+        skillsetName: "codex-markdown-frontmatter-test",
+        subagents: TEST_MARKDOWN_WITH_CODEX_METADATA_SUBAGENTS,
+      });
+
+      await loader.run({ agent, config, skillset });
+
+      const emittedContent = await fs.readFile(
+        path.join(agentsDir, "nori-runtime-aware-runner.toml"),
+        "utf-8",
+      );
+      expect(emittedContent).toContain('name = "nori-runtime-aware-runner"');
+      expect(emittedContent).toContain(
+        'description = "Run a task with Codex metadata"',
+      );
+      expect(emittedContent).toContain('model = "gpt-5.4-mini"');
+      expect(emittedContent).toContain('model_reasoning_effort = "medium"');
+      expect(emittedContent).toContain('sandbox_mode = "workspace-write"');
+      expect(emittedContent).toContain(
+        "Complete the delegated task and edit files when needed.",
+      );
     });
 
     it("should emit paired markdown and TOML sources as Codex TOML", async () => {
@@ -621,6 +659,54 @@ describe("createSubagentsLoader", () => {
         "utf-8",
       );
       expect(complexContent).toContain("I am complex.");
+    });
+
+    it("should ignore same-name flat TOML when a directory-based subagent exists", async () => {
+      const loader = createSubagentsLoader({
+        managedDirs: ["agents"],
+        targetFormat: "codex-toml",
+      });
+      const config = createTestConfig({
+        installDir: tempDir,
+        activeSkillset: "dir-flat-toml-skip-test",
+      });
+      const skillset = await createTestSkillsetWithDirs({
+        skillsetsDir: noriProfilesDir,
+        skillsetName: "dir-flat-toml-skip-test",
+        flatFiles: {
+          "task-runner.toml": `name = "task-runner"
+description = "Ignored legacy TOML"
+sandbox_mode = "workspace-write"
+model = "gpt-5.3-codex"
+model_reasoning_effort = "medium"
+`,
+        },
+        directories: {
+          "task-runner": {
+            "SUBAGENT.md": `---
+name: task-runner
+description: Directory task runner
+---
+
+Run the task from the packaged directory source.
+`,
+          },
+        },
+      });
+
+      await loader.run({ agent, config, skillset });
+
+      const emittedContent = await fs.readFile(
+        path.join(agentsDir, "task-runner.toml"),
+        "utf-8",
+      );
+      expect(emittedContent).toContain('description = "Directory task runner"');
+      expect(emittedContent).toContain('sandbox_mode = "read-only"');
+      expect(emittedContent).toContain('model_reasoning_effort = "high"');
+      expect(emittedContent).not.toContain('model = "gpt-5.3-codex"');
+      expect(emittedContent).toContain(
+        "Run the task from the packaged directory source.",
+      );
     });
 
     it("should prefer directory over flat file on name collision", async () => {

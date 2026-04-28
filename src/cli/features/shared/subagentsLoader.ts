@@ -122,7 +122,9 @@ export const createSubagentsLoader = (args: {
 
         const subagentName = path.basename(entry.name, extension);
 
-        // Directory-based subagent takes precedence on name collision
+        // Directory-based subagents are single-source only. Temporary flat
+        // foo.md + foo.toml backwards compatibility is supported for flat
+        // subagents only and will be removed in v0.1.0.
         if (dirSubagentNames.has(subagentName)) {
           log.warn(
             `Skipping flat file ${entry.name} — directory-based subagent ${subagentName}/ takes precedence`,

@@ -1963,6 +1963,75 @@ describe("onReadFileDiff subagent path mapping", () => {
     expect(result!.current).toContain("# Installed flat content");
   });
 
+  it("should map agents/foo.toml to subagents/foo.md for Codex-installed markdown-backed subagents", async () => {
+    const profileDir = path.join(
+      testInstallDir,
+      ".nori",
+      "profiles",
+      "test-profile",
+    );
+    const subagentsDir = path.join(profileDir, "subagents");
+    await fs.mkdir(subagentsDir, { recursive: true });
+    await fs.writeFile(
+      path.join(subagentsDir, "codex-agent.md"),
+      "---\nname: codex-agent\ndescription: Codex-backed agent\n---\n\n# Markdown-backed agent content",
+    );
+
+    const agentsDir = path.join(testInstallDir, ".claude", "agents");
+    await fs.writeFile(
+      path.join(agentsDir, "codex-agent.toml"),
+      'name = "codex-agent"',
+    );
+
+    let capturedCallbacks: Record<string, unknown> = {};
+    mockSwitchSkillsetFlow.mockImplementation(async (args) => {
+      capturedCallbacks = (args as Record<string, unknown>).callbacks as Record<
+        string,
+        unknown
+      >;
+      return {
+        agentName: "claude-code",
+        skillsetName: "test-profile",
+        statusMessage: "ok",
+      };
+    });
+
+    const program = new Command();
+    program.exitOverride();
+    program.configureOutput({ writeErr: () => undefined });
+    program
+      .option("-d, --install-dir <path>", "Custom installation directory")
+      .option("-n, --non-interactive", "Run without interactive prompts")
+      .option("-a, --agent <name>", "AI agent to use");
+
+    registerSwitchSkillsetCommand({ program });
+
+    try {
+      await program.parseAsync([
+        "node",
+        "nori-skillsets",
+        "switch-skillset",
+        "test-profile",
+      ]);
+    } catch {
+      // May throw due to exit
+    }
+
+    const onReadFileDiff = capturedCallbacks.onReadFileDiff as (args: {
+      relativePath: string;
+      installDir: string;
+    }) => Promise<{ original: string; current: string } | null>;
+
+    const result = await onReadFileDiff({
+      relativePath: "agents/codex-agent.toml",
+      installDir: testInstallDir,
+    });
+
+    expect(result).not.toBeNull();
+    expect(result!.original).toContain("# Markdown-backed agent content");
+    expect(result!.current).toContain('name = "codex-agent"');
+  });
+
   it("should return null when neither flat nor directory-based source exists", async () => {
     // Create the installed agent file with no matching source
     const agentsDir = path.join(testInstallDir, ".claude", "agents");
