@@ -57,6 +57,8 @@ export type Skillset = {
   slashcommandsDir: string | null;
   /** Path to subagents/ subdirectory, or null if it doesn't exist */
   subagentsDir: string | null;
+  /** Path to mcp/ subdirectory, or null if it doesn't exist */
+  mcpDir: string | null;
 };
 
 /**
@@ -136,6 +138,7 @@ export const parseSkillset = async (args: {
   const skillsDirPath = path.join(dir, "skills");
   const slashcommandsDirPath = path.join(dir, "slashcommands");
   const subagentsDirPath = path.join(dir, "subagents");
+  const mcpDirPath = path.join(dir, "mcp");
 
   // Find config file: prefer AGENTS.md, fall back to CLAUDE.md
   let resolvedConfigFilePath: string | null = null;
@@ -147,11 +150,14 @@ export const parseSkillset = async (args: {
     }
   }
 
-  const [hasSkills, hasSlashcommands, hasSubagents] = await Promise.all([
-    dirExists({ dirPath: skillsDirPath }),
-    dirExists({ dirPath: slashcommandsDirPath }),
-    dirExists({ dirPath: subagentsDirPath }),
-  ]);
+  const [hasSkills, hasSlashcommands, hasSubagents, hasMcp] = await Promise.all(
+    [
+      dirExists({ dirPath: skillsDirPath }),
+      dirExists({ dirPath: slashcommandsDirPath }),
+      dirExists({ dirPath: subagentsDirPath }),
+      dirExists({ dirPath: mcpDirPath }),
+    ],
+  );
 
   return {
     name,
@@ -161,6 +167,7 @@ export const parseSkillset = async (args: {
     configFilePath: resolvedConfigFilePath,
     slashcommandsDir: hasSlashcommands ? slashcommandsDirPath : null,
     subagentsDir: hasSubagents ? subagentsDirPath : null,
+    mcpDir: hasMcp ? mcpDirPath : null,
   };
 };
 

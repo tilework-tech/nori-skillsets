@@ -6,9 +6,11 @@ import * as path from "path";
 
 import { configLoader } from "@/cli/features/configLoader.js";
 import { createInstructionsLoader } from "@/cli/features/shared/instructionsLoader.js";
+import { createMcpLoader } from "@/cli/features/shared/mcpLoader.js";
 import { skillsLoader } from "@/cli/features/shared/skillsLoader.js";
 import { createSlashCommandsLoader } from "@/cli/features/shared/slashCommandsLoader.js";
 import { createSubagentsLoader } from "@/cli/features/shared/subagentsLoader.js";
+import { getHomeDir } from "@/utils/home.js";
 
 import type { AgentConfig } from "@/cli/features/agentRegistry.js";
 
@@ -35,5 +37,13 @@ export const cursorAgentConfig: AgentConfig = {
     createInstructionsLoader({ managedDirs: ["rules"] }),
     createSlashCommandsLoader({ managedDirs: ["commands"] }),
     createSubagentsLoader({ managedDirs: ["agents"] }),
+    createMcpLoader({
+      format: "cursor-json",
+      projectFile: ({ installDir }) =>
+        path.join(installDir, ".cursor", "mcp.json"),
+      projectMergeStrategy: "merge-mcp-servers-key",
+      userFile: () => path.join(getHomeDir(), ".cursor", "mcp.json"),
+      userMergeStrategy: "merge-mcp-servers-key",
+    }),
   ],
 };
