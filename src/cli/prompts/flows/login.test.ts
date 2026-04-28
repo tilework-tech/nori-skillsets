@@ -17,7 +17,8 @@ import { loginFlow, type LoginFlowCallbacks } from "./login.js";
 vi.mock("@clack/prompts", () => ({
   intro: vi.fn(),
   outro: vi.fn(),
-  group: vi.fn(),
+  text: vi.fn(),
+  password: vi.fn(),
   spinner: vi.fn(() => ({
     start: vi.fn(),
     stop: vi.fn(),
@@ -46,34 +47,9 @@ describe("loginFlow", () => {
   });
 
   describe("successful login", () => {
-    it("should use group to collect email and password together", async () => {
-      vi.mocked(clack.group).mockResolvedValueOnce({
-        email: "test@example.com",
-        password: "secret123",
-      });
-      vi.mocked(mockCallbacks.onAuthenticate).mockResolvedValueOnce({
-        success: true,
-        userEmail: "test@example.com",
-        organizations: [],
-        isAdmin: false,
-        refreshToken: "mock-refresh-token",
-        idToken: "mock-id-token",
-      });
-
-      await loginFlow({ callbacks: mockCallbacks });
-
-      expect(clack.group).toHaveBeenCalledTimes(1);
-      // Verify group was called with email and password prompt factories
-      const groupCall = vi.mocked(clack.group).mock.calls[0];
-      expect(groupCall[0]).toHaveProperty("email");
-      expect(groupCall[0]).toHaveProperty("password");
-    });
-
     it("should call onAuthenticate with collected credentials", async () => {
-      vi.mocked(clack.group).mockResolvedValueOnce({
-        email: "user@example.com",
-        password: "mypassword",
-      });
+      vi.mocked(clack.text).mockResolvedValueOnce("user@example.com");
+      vi.mocked(clack.password).mockResolvedValueOnce("mypassword");
       vi.mocked(mockCallbacks.onAuthenticate).mockResolvedValueOnce({
         success: true,
         userEmail: "user@example.com",
@@ -97,11 +73,9 @@ describe("loginFlow", () => {
         stop: vi.fn(),
         message: vi.fn(),
       };
-      vi.mocked(clack.spinner).mockReturnValue(spinnerMock as any);
-      vi.mocked(clack.group).mockResolvedValueOnce({
-        email: "test@example.com",
-        password: "secret",
-      });
+      vi.mocked(clack.spinner).mockReturnValue(spinnerMock as never);
+      vi.mocked(clack.text).mockResolvedValueOnce("test@example.com");
+      vi.mocked(clack.password).mockResolvedValueOnce("secret");
       vi.mocked(mockCallbacks.onAuthenticate).mockResolvedValueOnce({
         success: true,
         userEmail: "test@example.com",
@@ -118,10 +92,8 @@ describe("loginFlow", () => {
     });
 
     it("should show note with organizations when user has orgs", async () => {
-      vi.mocked(clack.group).mockResolvedValueOnce({
-        email: "test@example.com",
-        password: "secret",
-      });
+      vi.mocked(clack.text).mockResolvedValueOnce("test@example.com");
+      vi.mocked(clack.password).mockResolvedValueOnce("secret");
       vi.mocked(mockCallbacks.onAuthenticate).mockResolvedValueOnce({
         success: true,
         userEmail: "test@example.com",
@@ -140,10 +112,8 @@ describe("loginFlow", () => {
     });
 
     it("should show Admin: Yes in note when user is admin", async () => {
-      vi.mocked(clack.group).mockResolvedValueOnce({
-        email: "test@example.com",
-        password: "secret",
-      });
+      vi.mocked(clack.text).mockResolvedValueOnce("test@example.com");
+      vi.mocked(clack.password).mockResolvedValueOnce("secret");
       vi.mocked(mockCallbacks.onAuthenticate).mockResolvedValueOnce({
         success: true,
         userEmail: "test@example.com",
@@ -162,10 +132,8 @@ describe("loginFlow", () => {
     });
 
     it("should not show note when user has no organizations", async () => {
-      vi.mocked(clack.group).mockResolvedValueOnce({
-        email: "test@example.com",
-        password: "secret",
-      });
+      vi.mocked(clack.text).mockResolvedValueOnce("test@example.com");
+      vi.mocked(clack.password).mockResolvedValueOnce("secret");
       vi.mocked(mockCallbacks.onAuthenticate).mockResolvedValueOnce({
         success: true,
         userEmail: "test@example.com",
@@ -181,10 +149,8 @@ describe("loginFlow", () => {
     });
 
     it("should include statusMessage in result", async () => {
-      vi.mocked(clack.group).mockResolvedValueOnce({
-        email: "test@example.com",
-        password: "secret",
-      });
+      vi.mocked(clack.text).mockResolvedValueOnce("test@example.com");
+      vi.mocked(clack.password).mockResolvedValueOnce("secret");
       vi.mocked(mockCallbacks.onAuthenticate).mockResolvedValueOnce({
         success: true,
         userEmail: "test@example.com",
@@ -201,10 +167,8 @@ describe("loginFlow", () => {
     });
 
     it("should return credentials on successful login", async () => {
-      vi.mocked(clack.group).mockResolvedValueOnce({
-        email: "test@example.com",
-        password: "secret123",
-      });
+      vi.mocked(clack.text).mockResolvedValueOnce("test@example.com");
+      vi.mocked(clack.password).mockResolvedValueOnce("secret123");
       vi.mocked(mockCallbacks.onAuthenticate).mockResolvedValueOnce({
         success: true,
         userEmail: "test@example.com",
@@ -234,11 +198,9 @@ describe("loginFlow", () => {
         stop: vi.fn(),
         message: vi.fn(),
       };
-      vi.mocked(clack.spinner).mockReturnValue(spinnerMock as any);
-      vi.mocked(clack.group).mockResolvedValueOnce({
-        email: "test@example.com",
-        password: "wrongpassword",
-      });
+      vi.mocked(clack.spinner).mockReturnValue(spinnerMock as never);
+      vi.mocked(clack.text).mockResolvedValueOnce("test@example.com");
+      vi.mocked(clack.password).mockResolvedValueOnce("wrongpassword");
       vi.mocked(mockCallbacks.onAuthenticate).mockResolvedValueOnce({
         success: false,
         error: "Invalid credentials",
@@ -250,10 +212,8 @@ describe("loginFlow", () => {
     });
 
     it("should show error message using log.error", async () => {
-      vi.mocked(clack.group).mockResolvedValueOnce({
-        email: "test@example.com",
-        password: "wrongpassword",
-      });
+      vi.mocked(clack.text).mockResolvedValueOnce("test@example.com");
+      vi.mocked(clack.password).mockResolvedValueOnce("wrongpassword");
       vi.mocked(mockCallbacks.onAuthenticate).mockResolvedValueOnce({
         success: false,
         error: "Invalid credentials",
@@ -265,10 +225,8 @@ describe("loginFlow", () => {
     });
 
     it("should show note with hint when error hint is provided", async () => {
-      vi.mocked(clack.group).mockResolvedValueOnce({
-        email: "test@example.com",
-        password: "wrongpassword",
-      });
+      vi.mocked(clack.text).mockResolvedValueOnce("test@example.com");
+      vi.mocked(clack.password).mockResolvedValueOnce("wrongpassword");
       vi.mocked(mockCallbacks.onAuthenticate).mockResolvedValueOnce({
         success: false,
         error: "Invalid credentials",
@@ -284,10 +242,8 @@ describe("loginFlow", () => {
     });
 
     it("should return null on auth failure", async () => {
-      vi.mocked(clack.group).mockResolvedValueOnce({
-        email: "test@example.com",
-        password: "wrongpassword",
-      });
+      vi.mocked(clack.text).mockResolvedValueOnce("test@example.com");
+      vi.mocked(clack.password).mockResolvedValueOnce("wrongpassword");
       vi.mocked(mockCallbacks.onAuthenticate).mockResolvedValueOnce({
         success: false,
         error: "Invalid credentials",
@@ -300,38 +256,49 @@ describe("loginFlow", () => {
   });
 
   describe("cancellation", () => {
-    it("should return null when user cancels during prompts", async () => {
+    it("should return null when user cancels at the email prompt", async () => {
       const cancelSymbol = Symbol.for("cancel");
-      vi.mocked(clack.group).mockResolvedValueOnce(cancelSymbol as any);
-      vi.mocked(clack.isCancel).mockReturnValue(true);
+      vi.mocked(clack.text).mockResolvedValueOnce(cancelSymbol as never);
+      vi.mocked(clack.isCancel).mockImplementation(
+        (value) => value === cancelSymbol,
+      );
 
       const result = await loginFlow({ callbacks: mockCallbacks });
 
       expect(result).toBeNull();
     });
 
-    it("should call cancel with message when user cancels", async () => {
+    it("should not prompt for password when user cancels at email", async () => {
       const cancelSymbol = Symbol.for("cancel");
-      // The cancel is called via the onCancel handler in group options
-      // We need to capture and invoke the onCancel callback
-      vi.mocked(clack.group).mockImplementationOnce(
-        async (_prompts, options) => {
-          // Simulate cancellation by calling onCancel and returning cancel symbol
-          options?.onCancel?.({ results: {} });
-          return cancelSymbol as any;
-        },
+      vi.mocked(clack.text).mockResolvedValueOnce(cancelSymbol as never);
+      vi.mocked(clack.isCancel).mockImplementation(
+        (value) => value === cancelSymbol,
       );
-      vi.mocked(clack.isCancel).mockReturnValue(true);
 
       await loginFlow({ callbacks: mockCallbacks });
 
-      expect(clack.cancel).toHaveBeenCalledWith("Login cancelled.");
+      expect(clack.password).not.toHaveBeenCalled();
+    });
+
+    it("should return null when user cancels at the password prompt", async () => {
+      const cancelSymbol = Symbol.for("cancel");
+      vi.mocked(clack.text).mockResolvedValueOnce("test@example.com");
+      vi.mocked(clack.password).mockResolvedValueOnce(cancelSymbol as never);
+      vi.mocked(clack.isCancel).mockImplementation(
+        (value) => value === cancelSymbol,
+      );
+
+      const result = await loginFlow({ callbacks: mockCallbacks });
+
+      expect(result).toBeNull();
     });
 
     it("should not call onAuthenticate when user cancels", async () => {
       const cancelSymbol = Symbol.for("cancel");
-      vi.mocked(clack.group).mockResolvedValueOnce(cancelSymbol as any);
-      vi.mocked(clack.isCancel).mockReturnValue(true);
+      vi.mocked(clack.text).mockResolvedValueOnce(cancelSymbol as never);
+      vi.mocked(clack.isCancel).mockImplementation(
+        (value) => value === cancelSymbol,
+      );
 
       await loginFlow({ callbacks: mockCallbacks });
 
