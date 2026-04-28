@@ -23,6 +23,7 @@ The `cursorAgentConfig` declares its loader pipeline via `getLoaders()`:
 3. `createInstructionsLoader({ managedDirs: ["rules"] })` -- shared
 4. `createSlashCommandsLoader({ managedDirs: ["commands"] })` -- shared
 5. `createSubagentsLoader({ managedDirs: ["agents"] })` -- shared
+6. `createMcpLoader({ format: "cursor-json", ... })` -- shared, from @/src/cli/features/shared/mcpLoader.ts. Both project and user scope use the `whole-file` strategy: project scope writes `<installDir>/.cursor/mcp.json` and user scope writes `~/.cursor/mcp.json`. Cursor's interpolation matches the canonical `${env:VAR}` form, so the emitter passes placeholders through unchanged.
 
 Cursor-specific path mappings (all declared inline on the `AgentConfig` in `agent.ts`):
 
@@ -38,7 +39,7 @@ The key difference is `getInstructionsFilePath()` returns `.cursor/rules/AGENTS.
 ### Things to Know
 
 - **No optional AgentConfig properties**: The Cursor agent does not implement `getTranscriptDirectory` or `getArtifactPatterns`. This means the watch command and factory reset are not available for Cursor.
-- **No agent-specific loaders**: Unlike Claude Code, Cursor has no hooks, statusline, announcements, or permissions loaders. All loaders are shared.
+- **No agent-specific loaders**: Unlike Claude Code, Cursor has no hooks, statusline, announcements, or permissions loaders. All loaders are shared (including the MCP loader).
 - **AGENTS.md lives inside `.cursor/rules/`**: The `createInstructionsLoader` is parameterized with `managedDirs: ["rules"]`, so `AGENTS.md` at `.cursor/rules/AGENTS.md` is tracked by the manifest system via the `rules/` directory.
 - The skillset's `CLAUDE.md` is the source file (not `AGENTS.md`). The mapping to `AGENTS.md` happens at write time in the shared instructions loader, which uses `agent.getInstructionsFilePath()` to determine the destination path.
 - Installation detection uses the `.nori-managed` marker file in `.cursor/` -- there is no backwards-compatible content-sniffing fallback like Claude Code has.

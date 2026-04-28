@@ -98,6 +98,7 @@ const createTestSkillset = async (args: {
     configFilePath: null,
     slashcommandsDir,
     subagentsDir: null,
+    mcpDir: null,
   };
 };
 

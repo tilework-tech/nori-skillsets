@@ -7,7 +7,9 @@
 
 **CLI Client for installing and managing Nori Skillsets**
 
-The Nori Skillsets Client connects you to [noriskillsets.dev](https://noriskillsets.dev/), a registry of verified Claude Code Skills and packaged agent configurations. Install complete Skillsets or individual Skills that have been reviewed for effectiveness, clarity, and proper implementation.
+The Nori Skillsets Client connects you to [noriskillsets.dev](https://noriskillsets.dev/), a registry of verified agent Skills and packaged agent configurations. Install complete Skillsets or individual Skills that have been reviewed for effectiveness, clarity, and proper implementation.
+
+The client supports a wide range of coding agents (Claude Code, Cursor, Codex, Gemini CLI, GitHub Copilot, OpenCode, Goose, Kilo, Kimi CLI, Pi, OpenClaw, Droid). Each agent receives a translation of the same skillset into the format it expects on disk.
 
 For complete documentation and to browse available Skillsets, visit:
 - **Skillsets Registry**: [noriskillsets.dev](https://noriskillsets.dev/)
@@ -18,9 +20,10 @@ For complete documentation and to browse available Skillsets, visit:
 A Skillset is a complete, unified configuration that defines how your coding agent behaves. Skillsets can include:
 
 - **Skills**: Step-by-step instructions that encode specific agent behaviors (TDD, debugging, code review, git workflows)
-- **CLAUDE.md**: Custom instructions and workflow preferences that guide the agent
+- **AGENTS.md / CLAUDE.md**: Custom instructions and workflow preferences that guide the agent
 - **Subagents**: Specialized agents for specific tasks (codebase search, documentation, research)
 - **Slash Commands**: Quick actions that invoke Skills and workflows
+- **MCP servers**: Bundled Model Context Protocol server configs translated into each agent's expected format at install time (e.g., `.mcp.json` for Claude, `config.toml` for Codex, `settings.json` for Gemini, `mcp.json` for Cursor)
 
 ## Installation
 
@@ -51,32 +54,34 @@ nori-skillsets switch senior-swe
 
 ## How Skillsets Work
 
-Skillsets are stored in `~/.nori/profiles/` as your library of available configurations. When you switch to a Skillset, the client copies its contents into the relevant locations in `cwd/.claude/` where Claude Code reads them.
+Skillsets are stored in `~/.nori/profiles/` as your library of available configurations. When you switch to a Skillset, the client writes its contents into the relevant locations for each configured agent (e.g., `.claude/` for Claude Code, `.cursor/` for Cursor, `.codex/` for Codex, `.gemini/` for Gemini CLI). Configure which agents to target with `nori-skillsets config`.
 
 **Skillset Structure:**
 ```
 ~/.nori/profiles/my-skillset/
-├── CLAUDE.md              # Custom instructions
+├── AGENTS.md              # Custom instructions (CLAUDE.md also supported)
+├── nori.json              # Skillset manifest (name, version, dependencies, requiredEnv)
 ├── skills/                # Skill definitions
 │   ├── my-skill/
 │   │   └── SKILL.md
 │   └── another-skill/
 │       └── SKILL.md
 ├── subagents/             # Subagent configurations
-└── slashcommands/         # Custom slash commands
+├── slashcommands/         # Custom slash commands
+└── mcp/                   # Canonical MCP server configs (one JSON file per server)
 ```
 
 When you activate a Skillset:
-1. The client cleans any existing configuration in `cwd/.claude/`
-2. Copies the selected Skillset from `cwd/.nori/profiles/<skillset-name>/` to `cwd/.claude/`
-3. Claude Code reads the new configuration in your next session
+1. The client cleans any existing configuration in each configured agent's directory
+2. Translates the skillset into the format each agent expects and writes it to the corresponding agent directory
+3. Each agent reads the new configuration in its next session
 
-This separation lets you maintain multiple Skillsets and switch between them without losing any configuration.
+This separation lets you maintain multiple Skillsets, target multiple agents at once, and switch between them without losing any configuration.
 
 ## Requirements
 
 - Node.js 22 or higher
-- Claude Code CLI installed
+- At least one supported coding agent CLI installed (Claude Code, Cursor, Codex, Gemini CLI, etc.)
 - Mac or Linux operating system
 
 ## Creating custom skillsets or making changes to skillsets
@@ -86,7 +91,7 @@ This separation lets you maintain multiple Skillsets and switch between them wit
    mkdir -p ~/.nori/profiles/my-skillset
    ```
 
-2. Add a `CLAUDE.md` file with your custom instructions:
+2. Add an `AGENTS.md` file with your custom instructions:
    ```markdown
    # My Custom Skillset
 
@@ -102,7 +107,7 @@ This separation lets you maintain multiple Skillsets and switch between them wit
    nori-skillsets switch my-skillset
    ```
 
-Manual changes made to a `.claude/` directory will be removed when switching skillsets. Manual changes should be made in the .nori/profile/ directory instead.
+Manual changes made to an agent's installed directory (e.g., `.claude/`, `.cursor/`, `.codex/`) will be removed when switching skillsets. Manual changes should be made in the `~/.nori/profiles/<skillset-name>/` directory instead.
 
 ## Private Skillsets for Teams
 
