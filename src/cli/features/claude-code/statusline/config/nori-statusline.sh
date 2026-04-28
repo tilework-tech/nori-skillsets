@@ -22,6 +22,13 @@ fi
 INSTALL_DIR="$HOME"
 CONFIG_FILE="$HOME/.nori-config.json"
 
+# === INSTALLED PACKAGE LOCATION ===
+# Substituted at install time by the statusline loader. The version we
+# display and compare against the registry's "latest" must come from the
+# actually-installed package.json so it tracks `npm install -g` upgrades
+# even when ~/.nori-config.json hasn't been refreshed yet.
+NORI_PACKAGE_ROOT="__NORI_PACKAGE_ROOT__"
+
 # === SKILLSET ENRICHMENT ===
 # Get skillset name from ~/.nori-config.json
 SKILLSET_NAME=""  # default to empty (don't show if not set)
@@ -29,8 +36,14 @@ SKILLSET_NAME=""  # default to empty (don't show if not set)
 if [ -f "$CONFIG_FILE" ]; then
     # Read skillset from activeSkillset field
     SKILLSET_NAME=$(jq -r '.activeSkillset // ""' "$CONFIG_FILE" 2>/dev/null)
+fi
 
-    # Read version from config
+# Prefer on-disk package.json; fall back to config when unavailable.
+NORI_VERSION=""
+if [ -n "$NORI_PACKAGE_ROOT" ] && [ -f "$NORI_PACKAGE_ROOT/package.json" ]; then
+    NORI_VERSION=$(jq -r '.version // ""' "$NORI_PACKAGE_ROOT/package.json" 2>/dev/null)
+fi
+if [ -z "$NORI_VERSION" ] && [ -f "$CONFIG_FILE" ]; then
     NORI_VERSION=$(jq -r '.version // ""' "$CONFIG_FILE" 2>/dev/null)
 fi
 

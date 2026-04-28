@@ -24,6 +24,19 @@ vi.mock("@/cli/features/claude-code/paths.js", () => ({
 // Import loader after mocking env
 import { statuslineLoader } from "./loader.js";
 
+const overrideStatuslinePackageRoot = async (args: {
+  scriptPath: string;
+  packageRoot: string;
+}): Promise<void> => {
+  const { scriptPath, packageRoot } = args;
+  const content = await fs.readFile(scriptPath, "utf-8");
+  const newContent = content.replace(
+    /NORI_PACKAGE_ROOT="[^"]*"/,
+    `NORI_PACKAGE_ROOT="${packageRoot}"`,
+  );
+  await fs.writeFile(scriptPath, newContent);
+};
+
 describe("statuslineLoader", () => {
   let tempDir: string;
   let claudeDir: string;
@@ -347,26 +360,71 @@ describe("statuslineLoader", () => {
       expect(output).not.toContain("Nori Tip:");
     });
 
-    it("should display version from nori-config.json in branding line", async () => {
+    it("should display version from on-disk package.json", async () => {
       const config: Config = { installDir: claudeDir };
 
-      // Install statusline
       await statuslineLoader.run({ agent: {} as any, config });
 
-      // Create mock .nori-config.json with version
-      const noriConfigPath = path.join(tempDir, ".nori-config.json");
-      const noriConfigContent = JSON.stringify({
-        version: "1.2.3",
+      const fakePackageRoot = path.join(tempDir, "fake-pkg");
+      await fs.mkdir(fakePackageRoot, { recursive: true });
+      await fs.writeFile(
+        path.join(fakePackageRoot, "package.json"),
+        JSON.stringify({ name: "nori-skillsets", version: "9.9.9" }),
+      );
+      const copiedScriptPath = path.join(claudeDir, "nori-statusline.sh");
+      await overrideStatuslinePackageRoot({
+        scriptPath: copiedScriptPath,
+        packageRoot: fakePackageRoot,
       });
-      await fs.writeFile(noriConfigPath, noriConfigContent);
+
+      const content = await fs.readFile(settingsPath, "utf-8");
+      const settings = JSON.parse(content);
+      const statusLineCommand = settings.statusLine.command;
+
+      const { execSync } = await import("child_process");
+      const mockInput = JSON.stringify({
+        cwd: tempDir,
+        cost: {
+          total_cost_usd: 1.5,
+          total_lines_added: 10,
+          total_lines_removed: 5,
+        },
+        transcript_path: "",
+      });
+
+      const output = execSync(statusLineCommand, {
+        input: mockInput,
+        encoding: "utf-8",
+      });
+
+      expect(output).toContain("Augmented with Nori v9.9.9");
+    });
+
+    it("should prefer on-disk package.json version over stale config version", async () => {
+      const config: Config = { installDir: claudeDir };
+
+      await statuslineLoader.run({ agent: {} as any, config });
+
+      const fakePackageRoot = path.join(tempDir, "fake-pkg");
+      await fs.mkdir(fakePackageRoot, { recursive: true });
+      await fs.writeFile(
+        path.join(fakePackageRoot, "package.json"),
+        JSON.stringify({ name: "nori-skillsets", version: "2.0.0" }),
+      );
+      const copiedScriptPath = path.join(claudeDir, "nori-statusline.sh");
+      await overrideStatuslinePackageRoot({
+        scriptPath: copiedScriptPath,
+        packageRoot: fakePackageRoot,
+      });
+
+      const noriConfigPath = path.join(tempDir, ".nori-config.json");
+      await fs.writeFile(noriConfigPath, JSON.stringify({ version: "1.0.0" }));
 
       try {
-        // Read settings to get the statusLine command
         const content = await fs.readFile(settingsPath, "utf-8");
         const settings = JSON.parse(content);
         const statusLineCommand = settings.statusLine.command;
 
-        // Execute the statusline script with mock input
         const { execSync } = await import("child_process");
         const mockInput = JSON.stringify({
           cwd: tempDir,
@@ -383,33 +441,76 @@ describe("statuslineLoader", () => {
           encoding: "utf-8",
         });
 
-        // Verify branding line includes version from config
+        expect(output).toContain("Augmented with Nori v2.0.0");
+        expect(output).not.toContain("v1.0.0");
+      } finally {
+        await fs.rm(noriConfigPath, { force: true });
+      }
+    });
+
+    it("should fall back to config version when package.json path is invalid", async () => {
+      const config: Config = { installDir: claudeDir };
+
+      await statuslineLoader.run({ agent: {} as any, config });
+
+      const copiedScriptPath = path.join(claudeDir, "nori-statusline.sh");
+      await overrideStatuslinePackageRoot({
+        scriptPath: copiedScriptPath,
+        packageRoot: path.join(tempDir, "does-not-exist"),
+      });
+
+      const noriConfigPath = path.join(tempDir, ".nori-config.json");
+      await fs.writeFile(noriConfigPath, JSON.stringify({ version: "1.2.3" }));
+
+      try {
+        const content = await fs.readFile(settingsPath, "utf-8");
+        const settings = JSON.parse(content);
+        const statusLineCommand = settings.statusLine.command;
+
+        const { execSync } = await import("child_process");
+        const mockInput = JSON.stringify({
+          cwd: tempDir,
+          cost: {
+            total_cost_usd: 1.5,
+            total_lines_added: 10,
+            total_lines_removed: 5,
+          },
+          transcript_path: "",
+        });
+
+        const output = execSync(statusLineCommand, {
+          input: mockInput,
+          encoding: "utf-8",
+        });
+
         expect(output).toContain("Augmented with Nori v1.2.3");
       } finally {
         await fs.rm(noriConfigPath, { force: true });
       }
     });
 
-    it("should display branding without version when nori-config.json has no version field", async () => {
+    it("should display branding without version when neither package.json nor config has version", async () => {
       const config: Config = { installDir: claudeDir };
 
-      // Install statusline
       await statuslineLoader.run({ agent: {} as any, config });
 
-      // Create mock .nori-config.json without version field
-      const noriConfigPath = path.join(tempDir, ".nori-config.json");
-      const noriConfigContent = JSON.stringify({
-        activeSkillset: "test",
+      const copiedScriptPath = path.join(claudeDir, "nori-statusline.sh");
+      await overrideStatuslinePackageRoot({
+        scriptPath: copiedScriptPath,
+        packageRoot: path.join(tempDir, "does-not-exist"),
       });
-      await fs.writeFile(noriConfigPath, noriConfigContent);
+
+      const noriConfigPath = path.join(tempDir, ".nori-config.json");
+      await fs.writeFile(
+        noriConfigPath,
+        JSON.stringify({ activeSkillset: "test" }),
+      );
 
       try {
-        // Read settings to get the statusLine command
         const content = await fs.readFile(settingsPath, "utf-8");
         const settings = JSON.parse(content);
         const statusLineCommand = settings.statusLine.command;
 
-        // Execute the statusline script with mock input
         const { execSync } = await import("child_process");
         const mockInput = JSON.stringify({
           cwd: tempDir,
@@ -426,11 +527,66 @@ describe("statuslineLoader", () => {
           encoding: "utf-8",
         });
 
-        // Verify branding line shows without version but no __VERSION__ placeholder
         expect(output).toContain("Augmented with Nori");
         expect(output).not.toContain("__VERSION__");
+        expect(output).not.toContain("Augmented with Nori v");
       } finally {
         await fs.rm(noriConfigPath, { force: true });
+      }
+    });
+
+    it("should not show update nag when on-disk package matches latest, even if config is stale", async () => {
+      const config: Config = { installDir: claudeDir };
+
+      await statuslineLoader.run({ agent: {} as any, config });
+
+      const fakePackageRoot = path.join(tempDir, "fake-pkg");
+      await fs.mkdir(fakePackageRoot, { recursive: true });
+      await fs.writeFile(
+        path.join(fakePackageRoot, "package.json"),
+        JSON.stringify({ name: "nori-skillsets", version: "2.0.0" }),
+      );
+      const copiedScriptPath = path.join(claudeDir, "nori-statusline.sh");
+      await overrideStatuslinePackageRoot({
+        scriptPath: copiedScriptPath,
+        packageRoot: fakePackageRoot,
+      });
+
+      const noriConfigPath = path.join(tempDir, ".nori-config.json");
+      await fs.writeFile(noriConfigPath, JSON.stringify({ version: "1.0.0" }));
+
+      const versionCacheDir = path.join(tempDir, ".nori", "profiles");
+      await fs.mkdir(versionCacheDir, { recursive: true });
+      await fs.writeFile(
+        path.join(versionCacheDir, "nori-skillsets-version.json"),
+        JSON.stringify({ latest_version: "2.0.0" }),
+      );
+
+      try {
+        const content = await fs.readFile(settingsPath, "utf-8");
+        const settings = JSON.parse(content);
+        const statusLineCommand = settings.statusLine.command;
+
+        const { execSync } = await import("child_process");
+        const mockInput = JSON.stringify({
+          cwd: tempDir,
+          cost: {
+            total_cost_usd: 1.5,
+            total_lines_added: 10,
+            total_lines_removed: 5,
+          },
+          transcript_path: "",
+        });
+
+        const output = execSync(statusLineCommand, {
+          input: mockInput,
+          encoding: "utf-8",
+        });
+
+        expect(output).not.toContain("Update available");
+      } finally {
+        await fs.rm(noriConfigPath, { force: true });
+        await fs.rm(versionCacheDir, { recursive: true, force: true });
       }
     });
 

@@ -13,6 +13,7 @@ import {
   getClaudeHomeDir,
   getClaudeHomeSettingsFile,
 } from "@/cli/features/claude-code/paths.js";
+import { findPackageRoot } from "@/cli/version.js";
 
 import type { Config } from "@/cli/config.js";
 import type { AgentLoader } from "@/cli/features/agentRegistry.js";
@@ -54,8 +55,15 @@ const configureStatusLine = async (args: {
   // Create .claude directory if it doesn't exist
   await fs.mkdir(claudeDir, { recursive: true });
 
-  // Copy script to .claude directory
-  await fs.copyFile(sourceScript, destScript);
+  // Copy script to .claude directory and substitute the package-root placeholder
+  // so the script can read the on-disk version from package.json at runtime.
+  const sourceContent = await fs.readFile(sourceScript, "utf-8");
+  const packageRoot = findPackageRoot({ startDir: __dirname }) ?? "";
+  const destContent = sourceContent.replace(
+    /__NORI_PACKAGE_ROOT__/g,
+    packageRoot,
+  );
+  await fs.writeFile(destScript, destContent);
 
   // Make script executable
   await fs.chmod(destScript, 0o755);

@@ -17,6 +17,7 @@ import {
   refreshVersionCache,
 } from "@/cli/updates/npmRegistryCheck.js";
 import { isCacheStale, readVersionCache } from "@/cli/updates/versionCache.js";
+import { getCurrentPackageVersion } from "@/cli/version.js";
 import { getHomeDir } from "@/utils/home.js";
 
 /**
@@ -85,11 +86,16 @@ export const main = async (args?: {
       installDir: args?.installDir,
     });
 
-    // Read config to get installed version and autoupdate setting
+    // Read config to get autoupdate setting and config-cached version
     const config = await readConfig({ installDir });
     if (config == null) return;
-    if (config.version == null) return;
     if (config.autoupdate === "disabled") return;
+
+    // Prefer on-disk package.json so we don't nag users about an upgrade
+    // they already installed but whose version hasn't been synced into the
+    // config yet.
+    const installedVersion = getCurrentPackageVersion() ?? config.version;
+    if (installedVersion == null) return;
 
     // Trigger background refresh if cache is stale
     const cache = await readVersionCache();
@@ -99,13 +105,13 @@ export const main = async (args?: {
 
     // Use shared update logic (checks cache, semver, dismissed, prerelease)
     const update = await getAvailableUpdate({
-      currentVersion: config.version,
+      currentVersion: installedVersion,
     });
     if (update == null) return;
 
     // Output system message
     let message = `🍙 **Nori Skillsets Update Available**\n\n`;
-    message += `Current: ${config.version} → Latest: ${update.latestVersion}\n\n`;
+    message += `Current: ${installedVersion} → Latest: ${update.latestVersion}\n\n`;
     message += `Run in your terminal: \`npm install -g nori-skillsets@latest\``;
 
     logToClaudeSession({ message });
