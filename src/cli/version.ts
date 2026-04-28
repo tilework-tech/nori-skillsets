@@ -35,7 +35,7 @@ const VALID_PACKAGE_NAMES = ["nori-skillsets"];
  *
  * @returns The path to the package root directory or null if not found
  */
-const findPackageRoot = (args: { startDir: string }): string | null => {
+export const findPackageRoot = (args: { startDir: string }): string | null => {
   const { startDir } = args;
   let currentDir = resolve(startDir);
   const root = parse(currentDir).root;

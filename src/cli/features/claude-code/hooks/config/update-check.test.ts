@@ -11,6 +11,8 @@ import * as path from "path";
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
+import { getCurrentPackageVersion } from "@/cli/version.js";
+
 import { main } from "./update-check.js";
 
 // Capture console output
@@ -22,6 +24,13 @@ vi.mock("@/cli/installTracking.js", () => ({
   buildCLIEventParams: vi.fn().mockResolvedValue({}),
   getUserId: vi.fn().mockResolvedValue(null),
   sendAnalyticsEvent: vi.fn(),
+}));
+
+// Mock package-version detection so tests can control whether the on-disk
+// package.json source is "available" without depending on the worktree's
+// real version.
+vi.mock("@/cli/version.js", () => ({
+  getCurrentPackageVersion: vi.fn().mockReturnValue(null),
 }));
 
 describe("update-check hook", () => {
@@ -201,6 +210,31 @@ describe("update-check hook", () => {
 
     const configPath = path.join(tempDir, ".nori-config.json");
     fs.writeFileSync(configPath, JSON.stringify({ version: "0.6.3-next.1" }));
+
+    await main({ installDir: tempDir });
+
+    expect(consoleOutput).toHaveLength(0);
+  });
+
+  it("should prefer on-disk package version over stale config version", async () => {
+    vi.mocked(getCurrentPackageVersion).mockReturnValueOnce("2.0.0");
+
+    const cachePath = path.join(
+      tempDir,
+      ".nori",
+      "profiles",
+      "nori-skillsets-version.json",
+    );
+    fs.writeFileSync(
+      cachePath,
+      JSON.stringify({
+        latest_version: "2.0.0",
+        last_checked_at: new Date().toISOString(),
+      }),
+    );
+
+    const configPath = path.join(tempDir, ".nori-config.json");
+    fs.writeFileSync(configPath, JSON.stringify({ version: "1.0.0" }));
 
     await main({ installDir: tempDir });
 

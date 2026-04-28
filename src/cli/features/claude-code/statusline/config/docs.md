@@ -10,8 +10,9 @@ Path: @/src/cli/features/claude-code/statusline/config
 
 ### How it fits into the larger codebase
 
-- Referenced by `@/src/cli/features/claude-code/statusline/loader.ts`, which copies it to `~/.claude/nori-statusline.sh` and configures `settings.json` to invoke it
-- Reads `~/.nori-config.json` directly (not through the Node.js config module) to get the active skillset name and version
+- Referenced by `@/src/cli/features/claude-code/statusline/loader.ts`, which writes a substituted copy to `~/.claude/nori-statusline.sh` and configures `settings.json` to invoke it
+- Reads the installed `package.json` (path baked in via the `NORI_PACKAGE_ROOT` placeholder substituted at install time) to get the displayed Nori version. Falls back to `~/.nori-config.json`'s `.version` when the package.json path is unavailable
+- Reads `~/.nori-config.json` directly (not through the Node.js config module) for the active skillset name
 - Reads `~/.nori/profiles/nori-skillsets-version.json` to check for available updates
 
 ### Core Implementation
@@ -29,5 +30,6 @@ Path: @/src/cli/features/claude-code/statusline/config
 - `/clear` is detected via `session_id` change; this resets the raw token tracking baseline so new API calls are correctly detected, but does not reset the accumulated token count.
 - Requires `jq` as an external dependency; falls back to a minimal warning message if `jq` is not available
 - Version comparison for update notifications uses `node -e` for cross-platform semver comparison (macOS lacks `sort -V`); `-next.*` suffixes are stripped before comparing so pre-release versions are treated as their base release
+- The `NORI_PACKAGE_ROOT` line in the source script holds a literal `__NORI_PACKAGE_ROOT__` placeholder. The loader rewrites it before copying to `~/.claude/`, so the live script knows where the installed package lives. If the rewrite did not happen (older copy, missing build output), the script transparently falls back to the config's version so behavior degrades gracefully rather than rendering an empty version string
 
 Created and maintained by Nori.
