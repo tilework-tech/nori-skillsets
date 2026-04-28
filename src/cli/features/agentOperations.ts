@@ -10,6 +10,7 @@ import * as path from "path";
 import { log, note } from "@clack/prompts";
 
 import { getActiveSkillset, type Config } from "@/cli/config.js";
+import { checkRequiredEnv } from "@/cli/features/envCheck.js";
 import {
   readManifest,
   compareManifest,
@@ -214,6 +215,20 @@ export const installSkillset = async (args: {
       }
     } catch {
       // Non-fatal
+    }
+
+    // Surface missing required environment variables (e.g., for MCP servers)
+    const missingEnv = checkRequiredEnv({
+      skillset,
+      env: process.env,
+    });
+    if (missingEnv.length > 0) {
+      const lines = missingEnv.map((name) => `× ${name}`);
+      lines.push(
+        "",
+        `Set these in your shell profile before launching ${agent.displayName}.`,
+      );
+      note(lines.join("\n"), "Missing environment variables");
     }
   }
 };

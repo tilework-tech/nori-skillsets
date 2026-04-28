@@ -8,8 +8,9 @@
  * - Parsing keywords from comma-separated string to array
  */
 
-import { group, text, isCancel, cancel } from "@clack/prompts";
+import { text } from "@clack/prompts";
 
+import { unwrapPrompt } from "@/cli/prompts/flows/utils.js";
 import { validateSkillsetName } from "@/cli/prompts/validators.js";
 
 /**
@@ -83,6 +84,8 @@ const validateNamespacedSkillsetName = (args: {
   return undefined;
 };
 
+const CANCEL_MESSAGE = "Skillset creation cancelled.";
+
 /**
  * Execute the interactive new skillset flow
  *
@@ -90,69 +93,69 @@ const validateNamespacedSkillsetName = (args: {
  */
 export const newSkillsetFlow =
   async (): Promise<NewSkillsetFlowResult | null> => {
-    const result = await group(
-      {
-        name: () =>
-          text({
-            message: "Skillset name",
-            placeholder: "my-skillset or org/my-skillset",
-            validate: (value) =>
-              validateNamespacedSkillsetName({ value: value ?? "" }),
-          }),
-        description: () =>
-          text({
-            message: "Description (optional)",
-            placeholder: "My awesome skillset",
-          }),
-        license: () =>
-          text({
-            message: "License (optional)",
-            placeholder: "MIT",
-          }),
-        keywords: () =>
-          text({
-            message: "Keywords (optional, comma-separated)",
-            placeholder: "testing, automation, cli",
-          }),
-        version: () =>
-          text({
-            message: "Version (optional)",
-            placeholder: "1.0.0",
-          }),
-        repository: () =>
-          text({
-            message: "Repository URL (optional)",
-            placeholder: "https://github.com/user/repo",
-          }),
-      },
-      {
-        onCancel: () => {
-          // cancel() is called automatically by group
-        },
-      },
-    );
+    const name = unwrapPrompt({
+      value: await text({
+        message: "Skillset name",
+        placeholder: "my-skillset or org/my-skillset",
+        validate: (value) =>
+          validateNamespacedSkillsetName({ value: value ?? "" }),
+      }),
+      cancelMessage: CANCEL_MESSAGE,
+    });
+    if (name == null) return null;
 
-    if (isCancel(result)) {
-      cancel("Skillset creation cancelled.");
-      return null;
-    }
+    const description = unwrapPrompt({
+      value: await text({
+        message: "Description (optional)",
+        placeholder: "My awesome skillset",
+      }),
+      cancelMessage: CANCEL_MESSAGE,
+    });
+    if (description == null) return null;
 
-    // Transform the result
-    const name = (result.name as string).trim();
-    const description = (result.description as string)?.trim() || null;
-    const license = (result.license as string)?.trim() || null;
-    const keywordsStr = (result.keywords as string)?.trim() || "";
-    const keywords = parseKeywords({ value: keywordsStr });
-    const version = (result.version as string)?.trim() || null;
-    const repository = (result.repository as string)?.trim() || null;
+    const license = unwrapPrompt({
+      value: await text({
+        message: "License (optional)",
+        placeholder: "MIT",
+      }),
+      cancelMessage: CANCEL_MESSAGE,
+    });
+    if (license == null) return null;
+
+    const keywordsStr = unwrapPrompt({
+      value: await text({
+        message: "Keywords (optional, comma-separated)",
+        placeholder: "testing, automation, cli",
+      }),
+      cancelMessage: CANCEL_MESSAGE,
+    });
+    if (keywordsStr == null) return null;
+
+    const version = unwrapPrompt({
+      value: await text({
+        message: "Version (optional)",
+        placeholder: "1.0.0",
+      }),
+      cancelMessage: CANCEL_MESSAGE,
+    });
+    if (version == null) return null;
+
+    const repository = unwrapPrompt({
+      value: await text({
+        message: "Repository URL (optional)",
+        placeholder: "https://github.com/user/repo",
+      }),
+      cancelMessage: CANCEL_MESSAGE,
+    });
+    if (repository == null) return null;
 
     return {
-      name,
-      description,
-      license,
-      keywords,
-      version,
-      repository,
+      name: name.trim(),
+      description: description.trim() || null,
+      license: license.trim() || null,
+      keywords: parseKeywords({ value: keywordsStr.trim() }),
+      version: version.trim() || null,
+      repository: repository.trim() || null,
       statusMessage: "Skillset metadata collected",
     };
   };

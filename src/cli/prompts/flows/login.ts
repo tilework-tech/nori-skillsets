@@ -4,24 +4,16 @@
  * Provides the complete interactive login experience using @clack/prompts.
  * This flow handles:
  * - Intro message
- * - Grouped email/password collection
+ * - Sequential email/password collection
  * - Spinner during authentication
  * - Note display for organization info
  * - Outro message on success
  */
 
-import {
-  group,
-  text,
-  password,
-  spinner,
-  note,
-  log,
-  isCancel,
-  cancel,
-} from "@clack/prompts";
+import { text, password, spinner, note, log } from "@clack/prompts";
 
 import { bold } from "@/cli/logger.js";
+import { unwrapPrompt } from "@/cli/prompts/flows/utils.js";
 
 /**
  * Result of successful authentication callback
@@ -63,11 +55,13 @@ export type LoginFlowResult = {
   statusMessage: string;
 } | null;
 
+const CANCEL_MESSAGE = "Login cancelled.";
+
 /**
  * Execute the interactive login flow
  *
  * This function handles the complete login UX:
- * 1. Collects email and password in a grouped prompt
+ * 1. Collects email and password
  * 2. Shows spinner while authenticating
  * 3. Displays organization info in a note (if available)
  *
@@ -81,35 +75,24 @@ export const loginFlow = async (args: {
 }): Promise<LoginFlowResult> => {
   const { callbacks } = args;
 
-  const credentials = await group(
-    {
-      email: () =>
-        text({
-          message: "Email",
-        }),
-      password: () =>
-        password({
-          message: "Password",
-        }),
-    },
-    {
-      onCancel: () => {
-        cancel("Login cancelled.");
-      },
-    },
-  );
+  const email = unwrapPrompt({
+    value: await text({ message: "Email" }),
+    cancelMessage: CANCEL_MESSAGE,
+  });
+  if (email == null) return null;
 
-  if (isCancel(credentials)) {
-    // onCancel handler already displayed the cancel message
-    return null;
-  }
+  const pwd = unwrapPrompt({
+    value: await password({ message: "Password" }),
+    cancelMessage: CANCEL_MESSAGE,
+  });
+  if (pwd == null) return null;
 
   const s = spinner();
   s.start("Authenticating...");
 
   const result = await callbacks.onAuthenticate({
-    email: credentials.email,
-    password: credentials.password,
+    email,
+    password: pwd,
   });
 
   if (!result.success) {
@@ -135,7 +118,7 @@ export const loginFlow = async (args: {
   }
 
   return {
-    email: credentials.email,
+    email,
     refreshToken: result.refreshToken,
     idToken: result.idToken,
     organizations: result.organizations,

@@ -18,26 +18,19 @@ Each prompt primitive wraps a corresponding `@clack/prompts` function, adding au
 
 **Flow Modules (flows/):**
 Flows provide complete interactive experiences that compose multiple prompts with visual feedback:
-- `loginFlow` - Complete login UX with grouped email/password collection, spinner during authentication, note box for organization info, and outro message. Supports `skipIntro` to allow callers to manage the intro message externally (e.g., when loginFlow is used as a sub-flow after an auth method selection prompt)
+- `loginFlow` - Complete login UX with sequential email/password collection (two `unwrapPrompt`-wrapped clack calls; never `group()`), spinner during authentication, and note box for organization info. Returns `null` on cancellation so the caller can short-circuit. Intro/outro framing lives in the command registration layer, not in the flow itself
 - `switchSkillsetFlow` - Multi-step skillset switching UX that broadcasts to all resolved agents (no agent selection prompt), with local change detection and handling (proceed/capture/abort), switch confirmation via note box, and spinner during switch and reinstall
 - `uploadFlow` - Multi-step upload UX with version determination, upload attempt, and skill conflict resolution. Auto-resolves unchanged skills, then prompts for remaining conflicts with batch ("Resolve all the same way") or individual ("Choose one-by-one") resolution modes. The `link` action is presented as "Use Existing" for both unchanged and changed skills, with different hints (changed skills warn that local changes will be discarded — the sync layer then actually overwrites the local `SKILL.md` with the registry version). Returns `UploadFlowResult` with `linkedSkillVersions`, `linkedSubagentVersions`, `linkedSkillsToReplace`, `linkedSubagentsToReplace`, and `namespacedSkillIds`. See `flows/docs.md` for details
 - `watchFlow` - Watch daemon startup UX with transcript destination org selection (auto-select for single org, `select()` prompt for multiple orgs), spinner during preparation and daemon spawning, and outro with PID/log file info. Uses 2 callbacks: `onPrepare` and `onStartDaemon`
 - `promptSkillTypes` - Inline/extract type selection for external skills. Single skill gets a direct prompt; multiple skills use two-tier "all same" vs "one-by-one" pattern. Returns `Record<string, NoriJsonType>` or null on cancellation. Not re-exported through `flows/index.ts`
 
 **Callback Pattern:**
-Flows use a callbacks pattern to separate UI handling from business logic:
-```typescript
-loginFlow({
-  skipIntro: true,
-  callbacks: {
-    onAuthenticate: async ({ email, password }) => AuthenticateResult
-  }
-})
-```
-This allows commands to provide business logic (Firebase auth, API calls, config mutation) while the flow handles all UI details. The switchSkillsetFlow uses 4 coarse-grained callbacks (resolveAgents, prepareSwitchInfo, captureConfig, executeSwitch). The uploadFlow uses 2 callbacks (onDetermineVersion, onUpload). See `flows/clack-prompts-usage.md` for guidelines on callback design.
+Flows use a callbacks pattern to separate UI handling from business logic. The flow asks the user questions and returns a typed result; the caller supplies business logic (Firebase auth, API calls, config mutation) via a small `callbacks` object. For example, `loginFlow` accepts a single `onAuthenticate` callback. `switchSkillsetFlow` uses 4 coarse-grained callbacks (resolveAgents, prepareSwitchInfo, captureConfig, executeSwitch); `uploadFlow` uses 2 (onDetermineVersion, onUpload). See `flows/clack-prompts-usage.md` for guidelines on callback design and `flows/docs.md` for the full per-flow inventory.
 
 ### Things to Know
 
 All prompt wrappers follow the same contract: they return the user's input value on success and call `process.exit(0)` on cancel. This means callers never need to handle cancellation explicitly when using these primitives -- the process terminates. The flow modules in `@/cli/prompts/flows` use a different pattern via `unwrapPrompt`, which returns `null` on cancel instead of exiting, allowing flows to handle cancellation gracefully.
+
+Inside flows, `@clack/prompts`'s `group()` helper is forbidden. `group()` does not abort on Ctrl-C — it writes the literal string `"canceled"` into the result for the cancelled prompt and continues running subsequent prompts, so an outer `isCancel()` check on the returned object is always false. The canonical cancellation pattern is sequential `text` / `password` / `select` / `confirm` calls each wrapped in `unwrapPrompt`, with an early `return null` when the unwrapped value is null. See `flows/utils.ts` for the helper and `flows/clack-prompts-usage.md` for the rationale.
 
 Created and maintained by Nori.

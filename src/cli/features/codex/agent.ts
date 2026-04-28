@@ -11,6 +11,7 @@ import * as path from "path";
 
 import { configLoader } from "@/cli/features/configLoader.js";
 import { createInstructionsLoader } from "@/cli/features/shared/instructionsLoader.js";
+import { createMcpLoader } from "@/cli/features/shared/mcpLoader.js";
 import { skillsLoader } from "@/cli/features/shared/skillsLoader.js";
 import { createSlashCommandsLoader } from "@/cli/features/shared/slashCommandsLoader.js";
 import { createSubagentsLoader } from "@/cli/features/shared/subagentsLoader.js";
@@ -47,6 +48,14 @@ export const codexAgentConfig: AgentConfig = {
     createSubagentsLoader({
       managedDirs: ["agents"],
       targetFormat: "codex-toml",
+    }),
+    createMcpLoader({
+      format: "codex-toml",
+      projectFile: ({ installDir }) =>
+        path.join(installDir, ".codex", "config.toml"),
+      projectMergeStrategy: "merge-toml-table",
+      userFile: () => path.join(getHomeDir(), ".codex", "config.toml"),
+      userMergeStrategy: "merge-toml-table",
     }),
   ],
 };
