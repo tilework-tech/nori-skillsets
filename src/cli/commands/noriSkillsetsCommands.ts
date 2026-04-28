@@ -185,6 +185,39 @@ export const registerNoriSkillsetsRegisterCommand = (args: {
 };
 
 /**
+ * Register the 'import-mcp' command for nori-skillsets CLI
+ * @param args - Configuration arguments
+ * @param args.program - Commander program instance
+ */
+export const registerNoriSkillsetsImportMcpCommand = (args: {
+  program: Command;
+}): void => {
+  const { program } = args;
+
+  const importMcpAction = async (skillsetName: string | undefined) => {
+    const { importMcpMain } =
+      await import("@/cli/commands/import-mcp/importMcp.js");
+    const globalOpts = program.opts();
+    await wrapWithFraming({
+      title: "Import MCP Servers",
+      exitOnFailure: true,
+      action: () =>
+        importMcpMain({
+          skillsetName: skillsetName ?? null,
+          nonInteractive: globalOpts.nonInteractive || null,
+        }),
+    });
+  };
+
+  program
+    .command("import-mcp [skillset-name]")
+    .description(
+      "Import MCP server configs from local agent configs into a skillset",
+    )
+    .action(importMcpAction);
+};
+
+/**
  * Register the 'edit' command for nori-skillsets CLI
  * @param args - Configuration arguments
  * @param args.program - Commander program instance

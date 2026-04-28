@@ -9,7 +9,9 @@
  * Note: Unlike newSkillsetFlow, this does NOT collect the name field since it's derived from the folder path.
  */
 
-import { group, text, isCancel, cancel } from "@clack/prompts";
+import { text } from "@clack/prompts";
+
+import { unwrapPrompt } from "@/cli/prompts/flows/utils.js";
 
 /**
  * Result of the register skillset flow
@@ -46,6 +48,8 @@ const parseKeywords = (args: { value: string }): Array<string> | null => {
   return keywords.length > 0 ? keywords : null;
 };
 
+const CANCEL_MESSAGE = "Skillset registration cancelled.";
+
 /**
  * Execute the interactive register skillset flow
  *
@@ -53,60 +57,57 @@ const parseKeywords = (args: { value: string }): Array<string> | null => {
  */
 export const registerSkillsetFlow =
   async (): Promise<RegisterSkillsetFlowResult | null> => {
-    const result = await group(
-      {
-        description: () =>
-          text({
-            message: "Description (optional)",
-            placeholder: "My awesome skillset",
-          }),
-        license: () =>
-          text({
-            message: "License (optional)",
-            placeholder: "MIT",
-          }),
-        keywords: () =>
-          text({
-            message: "Keywords (optional, comma-separated)",
-            placeholder: "testing, automation, cli",
-          }),
-        version: () =>
-          text({
-            message: "Version (optional)",
-            placeholder: "1.0.0",
-          }),
-        repository: () =>
-          text({
-            message: "Repository URL (optional)",
-            placeholder: "https://github.com/user/repo",
-          }),
-      },
-      {
-        onCancel: () => {
-          // cancel() is called automatically by group
-        },
-      },
-    );
+    const description = unwrapPrompt({
+      value: await text({
+        message: "Description (optional)",
+        placeholder: "My awesome skillset",
+      }),
+      cancelMessage: CANCEL_MESSAGE,
+    });
+    if (description == null) return null;
 
-    if (isCancel(result)) {
-      cancel("Skillset registration cancelled.");
-      return null;
-    }
+    const license = unwrapPrompt({
+      value: await text({
+        message: "License (optional)",
+        placeholder: "MIT",
+      }),
+      cancelMessage: CANCEL_MESSAGE,
+    });
+    if (license == null) return null;
 
-    // Transform the result
-    const description = (result.description as string)?.trim() || null;
-    const license = (result.license as string)?.trim() || null;
-    const keywordsStr = (result.keywords as string)?.trim() || "";
-    const keywords = parseKeywords({ value: keywordsStr });
-    const version = (result.version as string)?.trim() || null;
-    const repository = (result.repository as string)?.trim() || null;
+    const keywordsStr = unwrapPrompt({
+      value: await text({
+        message: "Keywords (optional, comma-separated)",
+        placeholder: "testing, automation, cli",
+      }),
+      cancelMessage: CANCEL_MESSAGE,
+    });
+    if (keywordsStr == null) return null;
+
+    const version = unwrapPrompt({
+      value: await text({
+        message: "Version (optional)",
+        placeholder: "1.0.0",
+      }),
+      cancelMessage: CANCEL_MESSAGE,
+    });
+    if (version == null) return null;
+
+    const repository = unwrapPrompt({
+      value: await text({
+        message: "Repository URL (optional)",
+        placeholder: "https://github.com/user/repo",
+      }),
+      cancelMessage: CANCEL_MESSAGE,
+    });
+    if (repository == null) return null;
 
     return {
-      description,
-      license,
-      keywords,
-      version,
-      repository,
+      description: description.trim() || null,
+      license: license.trim() || null,
+      keywords: parseKeywords({ value: keywordsStr.trim() }),
+      version: version.trim() || null,
+      repository: repository.trim() || null,
       statusMessage: "Skillset metadata collected",
     };
   };

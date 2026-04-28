@@ -10,10 +10,16 @@ import { newSkillsetFlow } from "./newSkillset.js";
 vi.mock("@clack/prompts", () => ({
   intro: vi.fn(),
   outro: vi.fn(),
-  group: vi.fn(),
+  text: vi.fn(),
   isCancel: vi.fn(() => false),
   cancel: vi.fn(),
 }));
+
+const queueText = (values: Array<unknown>): void => {
+  for (const value of values) {
+    vi.mocked(clack.text).mockResolvedValueOnce(value as never);
+  }
+};
 
 describe("newSkillsetFlow", () => {
   beforeEach(() => {
@@ -23,14 +29,14 @@ describe("newSkillsetFlow", () => {
 
   describe("happy path: all fields provided", () => {
     it("should collect all metadata fields and return them", async () => {
-      vi.mocked(clack.group).mockResolvedValueOnce({
-        name: "my-skillset",
-        description: "My awesome skillset",
-        license: "MIT",
-        keywords: "testing, automation, cli",
-        version: "2.0.0",
-        repository: "https://github.com/user/repo",
-      });
+      queueText([
+        "my-skillset",
+        "My awesome skillset",
+        "MIT",
+        "testing, automation, cli",
+        "2.0.0",
+        "https://github.com/user/repo",
+      ]);
 
       const result = await newSkillsetFlow();
 
@@ -46,14 +52,14 @@ describe("newSkillsetFlow", () => {
     });
 
     it("should parse keywords from comma-separated string to array", async () => {
-      vi.mocked(clack.group).mockResolvedValueOnce({
-        name: "test-skillset",
-        description: "Test",
-        license: "MIT",
-        keywords: "  foo  ,  bar  , baz  ",
-        version: "1.0.0",
-        repository: "",
-      });
+      queueText([
+        "test-skillset",
+        "Test",
+        "MIT",
+        "  foo  ,  bar  , baz  ",
+        "1.0.0",
+        "",
+      ]);
 
       const result = await newSkillsetFlow();
 
@@ -61,14 +67,7 @@ describe("newSkillsetFlow", () => {
     });
 
     it("should handle namespaced skillset names", async () => {
-      vi.mocked(clack.group).mockResolvedValueOnce({
-        name: "myorg/my-skillset",
-        description: "Test",
-        license: "MIT",
-        keywords: "",
-        version: "1.0.0",
-        repository: "",
-      });
+      queueText(["myorg/my-skillset", "Test", "MIT", "", "1.0.0", ""]);
 
       const result = await newSkillsetFlow();
 
@@ -78,14 +77,7 @@ describe("newSkillsetFlow", () => {
 
   describe("happy path: only required fields", () => {
     it("should handle empty optional fields", async () => {
-      vi.mocked(clack.group).mockResolvedValueOnce({
-        name: "minimal-skillset",
-        description: "",
-        license: "",
-        keywords: "",
-        version: "",
-        repository: "",
-      });
+      queueText(["minimal-skillset", "", "", "", "", ""]);
 
       const result = await newSkillsetFlow();
 
@@ -101,14 +93,7 @@ describe("newSkillsetFlow", () => {
     });
 
     it("should filter empty keywords when splitting", async () => {
-      vi.mocked(clack.group).mockResolvedValueOnce({
-        name: "test-skillset",
-        description: "",
-        license: "",
-        keywords: "  , , foo,  ,bar,  ",
-        version: "",
-        repository: "",
-      });
+      queueText(["test-skillset", "", "", "  , , foo,  ,bar,  ", "", ""]);
 
       const result = await newSkillsetFlow();
 
@@ -116,14 +101,7 @@ describe("newSkillsetFlow", () => {
     });
 
     it("should return null keywords when empty string provided", async () => {
-      vi.mocked(clack.group).mockResolvedValueOnce({
-        name: "test-skillset",
-        description: "",
-        license: "",
-        keywords: "   ",
-        version: "",
-        repository: "",
-      });
+      queueText(["test-skillset", "", "", "   ", "", ""]);
 
       const result = await newSkillsetFlow();
 
@@ -132,14 +110,58 @@ describe("newSkillsetFlow", () => {
   });
 
   describe("cancellation", () => {
-    it("should return null when user cancels", async () => {
-      const cancelSymbol = Symbol("cancel");
-      vi.mocked(clack.group).mockResolvedValueOnce(cancelSymbol);
-      vi.mocked(clack.isCancel).mockReturnValue(true);
+    it("should return null when user cancels at the name prompt", async () => {
+      const cancelSymbol = Symbol.for("cancel");
+      vi.mocked(clack.text).mockResolvedValueOnce(cancelSymbol as never);
+      vi.mocked(clack.isCancel).mockImplementation(
+        (value) => value === cancelSymbol,
+      );
 
       const result = await newSkillsetFlow();
 
       expect(result).toBeNull();
+    });
+
+    it("should not invoke later prompts when user cancels at the name prompt", async () => {
+      const cancelSymbol = Symbol.for("cancel");
+      vi.mocked(clack.text).mockResolvedValueOnce(cancelSymbol as never);
+      vi.mocked(clack.isCancel).mockImplementation(
+        (value) => value === cancelSymbol,
+      );
+
+      await newSkillsetFlow();
+
+      expect(clack.text).toHaveBeenCalledTimes(1);
+    });
+
+    it("should return null when user cancels at a later prompt", async () => {
+      const cancelSymbol = Symbol.for("cancel");
+      vi.mocked(clack.text)
+        .mockResolvedValueOnce("my-skillset")
+        .mockResolvedValueOnce("A description")
+        .mockResolvedValueOnce(cancelSymbol as never);
+      vi.mocked(clack.isCancel).mockImplementation(
+        (value) => value === cancelSymbol,
+      );
+
+      const result = await newSkillsetFlow();
+
+      expect(result).toBeNull();
+    });
+
+    it("should not invoke prompts after the cancellation point", async () => {
+      const cancelSymbol = Symbol.for("cancel");
+      vi.mocked(clack.text)
+        .mockResolvedValueOnce("my-skillset")
+        .mockResolvedValueOnce("A description")
+        .mockResolvedValueOnce(cancelSymbol as never);
+      vi.mocked(clack.isCancel).mockImplementation(
+        (value) => value === cancelSymbol,
+      );
+
+      await newSkillsetFlow();
+
+      expect(clack.text).toHaveBeenCalledTimes(3);
     });
   });
 });

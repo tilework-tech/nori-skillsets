@@ -98,6 +98,7 @@ const createTestSkillset = async (args: {
     configFilePath: null,
     slashcommandsDir: null,
     subagentsDir,
+    mcpDir: null,
   };
 };
 
@@ -142,6 +143,7 @@ const createTestSkillsetWithDirs = async (args: {
     configFilePath: null,
     slashcommandsDir: null,
     subagentsDir: sDir,
+    mcpDir: null,
   };
 };
 
@@ -555,6 +557,7 @@ describe("createSubagentsLoader", () => {
         configFilePath: null,
         slashcommandsDir: null,
         subagentsDir: null,
+        mcpDir: null,
       };
 
       // Should complete without throwing

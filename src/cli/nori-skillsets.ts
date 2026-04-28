@@ -21,6 +21,7 @@ import {
   registerNoriSkillsetsExternalCommand,
   registerNoriSkillsetsFactoryResetCommand,
   registerNoriSkillsetsForkCommand,
+  registerNoriSkillsetsImportMcpCommand,
   registerNoriSkillsetsInitCommand,
   registerNoriSkillsetsInstallCommand,
   registerNoriSkillsetsInstallLocationCommand,
@@ -175,6 +176,7 @@ registerNoriSkillsetsCompletionCommand({ program });
 registerNoriSkillsetsForkCommand({ program });
 registerNoriSkillsetsNewCommand({ program });
 registerNoriSkillsetsRegisterCommand({ program });
+registerNoriSkillsetsImportMcpCommand({ program });
 registerNoriSkillsetsEditSkillsetCommand({ program });
 registerNoriSkillsetsClearCommand({ program });
 registerNoriSkillsetsFactoryResetCommand({ program });

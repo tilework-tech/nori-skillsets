@@ -10,6 +10,7 @@ import * as path from "path";
 import { log, note } from "@clack/prompts";
 
 import { getActiveSkillset, type Config } from "@/cli/config.js";
+import { checkRequiredEnv } from "@/cli/features/envCheck.js";
 import {
   readManifest,
   compareManifest,
@@ -37,6 +38,34 @@ import type { ManifestDiff } from "@/cli/features/manifest.js";
 // Managed block markers
 const BEGIN_MARKER = "# BEGIN NORI-AI MANAGED BLOCK";
 const END_MARKER = "# END NORI-AI MANAGED BLOCK";
+
+/**
+ * Remove the entire managed block (markers included) from a file in place.
+ * Preserves any user content above and below the block. If the file doesn't
+ * exist or doesn't contain the block, this is a no-op.
+ * @param args - Configuration arguments
+ * @param args.filePath - Absolute path to the file to clear
+ */
+const clearManagedBlock = async (args: { filePath: string }): Promise<void> => {
+  const { filePath } = args;
+  let content: string;
+  try {
+    content = await fs.readFile(filePath, "utf-8");
+  } catch {
+    return;
+  }
+
+  if (!content.includes(BEGIN_MARKER)) {
+    return;
+  }
+
+  const regex = new RegExp(
+    `\\n?${BEGIN_MARKER}\\n[\\s\\S]*?\\n${END_MARKER}\\n?`,
+    "g",
+  );
+  const cleared = content.replace(regex, "");
+  await fs.writeFile(filePath, cleared);
+};
 
 export const getManagedFiles = (args: {
   agent: AgentConfig;
@@ -187,6 +216,20 @@ export const installSkillset = async (args: {
     } catch {
       // Non-fatal
     }
+
+    // Surface missing required environment variables (e.g., for MCP servers)
+    const missingEnv = checkRequiredEnv({
+      skillset,
+      env: process.env,
+    });
+    if (missingEnv.length > 0) {
+      const lines = missingEnv.map((name) => `× ${name}`);
+      lines.push(
+        "",
+        `Set these in your shell profile before launching ${agent.displayName}.`,
+      );
+      note(lines.join("\n"), "Missing environment variables");
+    }
   }
 };
 
@@ -219,11 +262,25 @@ export const removeSkillset = async (args: {
   const { agent, installDir } = args;
   const agentDir = agent.getAgentDir({ installDir });
   const manifestPath = getManifestPath({ agentName: agent.name });
+  const instructionsFilePath = agent.getInstructionsFilePath({ installDir });
+
+  // Always clear the managed block in-place so user-authored content around it
+  // is preserved, regardless of whether the file is inside or outside agentDir.
+  await clearManagedBlock({ filePath: instructionsFilePath });
+
+  // If the instructions file lives inside agentDir, exclude it from the
+  // manifest-based deletion below so the cleared file is preserved.
+  const instructionsRelative = path.relative(agentDir, instructionsFilePath);
+  const isInsideAgentDir =
+    !instructionsRelative.startsWith("..") &&
+    !path.isAbsolute(instructionsRelative);
+  const excludePaths = isInsideAgentDir ? [instructionsRelative] : [];
 
   await removeManagedFiles({
     agentDir,
     manifestPath,
     managedDirs: getManagedDirs({ agent }),
+    excludePaths,
   });
 
   // Also clean up legacy manifest for claude-code
@@ -233,6 +290,7 @@ export const removeSkillset = async (args: {
       agentDir,
       manifestPath: legacyPath,
       managedDirs: getManagedDirs({ agent }),
+      excludePaths,
     });
   }
 };
