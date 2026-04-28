@@ -4,7 +4,9 @@ type ParsedMarkdownSubagent = {
   body: string;
   description: string | null;
   model: string | null;
+  modelReasoningEffort: string | null;
   name: string | null;
+  sandboxMode: string | null;
   tools: Array<string>;
 };
 
@@ -173,7 +175,12 @@ const parseMarkdownSubagent = (args: {
       key: "description",
     }),
     model: getFrontmatterString({ frontmatter, key: "model" }),
+    modelReasoningEffort: getFrontmatterString({
+      frontmatter,
+      key: "model_reasoning_effort",
+    }),
     name: getFrontmatterString({ frontmatter, key: "name" }),
+    sandboxMode: getFrontmatterString({ frontmatter, key: "sandbox_mode" }),
     tools: toList({ value: frontmatter.tools }),
   };
 };
@@ -267,8 +274,9 @@ const resolveSubagent = (args: {
     tomlDescription: toml?.description ?? null,
     tomlDeveloperInstructions: toml?.developerInstructions ?? null,
     tomlModel: toml?.model ?? null,
-    tomlModelReasoningEffort: toml?.modelReasoningEffort ?? null,
-    tomlSandboxMode: toml?.sandboxMode ?? null,
+    tomlModelReasoningEffort:
+      toml?.modelReasoningEffort ?? markdown?.modelReasoningEffort ?? null,
+    tomlSandboxMode: toml?.sandboxMode ?? markdown?.sandboxMode ?? null,
   };
 };
 

@@ -235,33 +235,41 @@ export const switchSkillsetAction = async (args: {
               relativePath.slice("commands/".length),
             );
           } else if (relativePath.startsWith("agents/")) {
-            // Check flat file first, then directory-based subagent
-            const flatPath = path.join(
-              profileDir,
-              "subagents",
-              relativePath.slice("agents/".length),
-            );
             const agentFileName = relativePath.slice("agents/".length);
             const ext = path.extname(agentFileName);
             const agentName = ext
               ? agentFileName.slice(0, -ext.length)
               : agentFileName;
-            const dirPath = path.join(
-              profileDir,
-              "subagents",
-              agentName,
-              "SUBAGENT.md",
-            );
 
-            try {
-              await fs.access(flatPath);
-              sourcePath = flatPath;
-            } catch {
+            const candidatePaths =
+              ext === ".toml"
+                ? [
+                    path.join(profileDir, "subagents", `${agentName}.md`),
+                    path.join(
+                      profileDir,
+                      "subagents",
+                      agentName,
+                      "SUBAGENT.md",
+                    ),
+                    path.join(profileDir, "subagents", `${agentName}.toml`),
+                  ]
+                : [
+                    path.join(profileDir, "subagents", agentFileName),
+                    path.join(
+                      profileDir,
+                      "subagents",
+                      agentName,
+                      "SUBAGENT.md",
+                    ),
+                  ];
+
+            for (const candidatePath of candidatePaths) {
               try {
-                await fs.access(dirPath);
-                sourcePath = dirPath;
+                await fs.access(candidatePath);
+                sourcePath = candidatePath;
+                break;
               } catch {
-                // Neither exists
+                // Keep searching for a matching source path.
               }
             }
           }
