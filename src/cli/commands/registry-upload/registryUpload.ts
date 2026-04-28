@@ -36,6 +36,7 @@ import {
   isSkillCollisionError,
   isSubagentCollisionError,
 } from "@/utils/fetch.js";
+import { shouldExcludeFromUpload } from "@/utils/uploadFileFilter.js";
 import {
   parseNamespacedPackage,
   buildOrganizationRegistryUrl,
@@ -90,12 +91,6 @@ const determineUploadVersion = async (args: {
 };
 
 /**
- * Files to exclude from upload tarballs.
- * .nori-version contains local download metadata that should not be distributed.
- */
-const UPLOAD_EXCLUDED_FILES = new Set([".nori-version"]);
-
-/**
  * Create a gzipped tarball from a skillset directory
  * @param args - The function arguments
  * @param args.skillsetDir - The skillset directory to pack
@@ -114,9 +109,8 @@ const createProfileTarball = async (args: {
     const filePath = path.join(skillsetDir, file);
     const stat = await fs.stat(filePath);
     if (stat.isFile()) {
-      // Skip excluded files (like .nori-version)
       const filename = path.basename(file);
-      if (UPLOAD_EXCLUDED_FILES.has(filename)) {
+      if (shouldExcludeFromUpload({ fileName: filename })) {
         continue;
       }
       filesToPack.push(file);

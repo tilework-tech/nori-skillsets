@@ -628,5 +628,81 @@ describe("skill-upload", () => {
       );
       expect(updatedNoriJson.version).toBe("2.0.0");
     });
+
+    it("excludes editor swap files and OS junk from the upload tarball", async () => {
+      const skillDir = await createLocalSkill({
+        skillsetName: "my-profile",
+        skillName: "my-skill",
+      });
+
+      // Files that must NOT end up in the tarball.
+      await fs.writeFile(
+        path.join(skillDir, ".SKILL.md.swp"),
+        "vim swap garbage",
+      );
+      await fs.writeFile(
+        path.join(skillDir, ".DS_Store"),
+        "macOS finder metadata",
+      );
+      await fs.writeFile(
+        path.join(skillDir, "Thumbs.db"),
+        "windows thumbnail cache",
+      );
+      await fs.writeFile(
+        path.join(skillDir, "._SKILL.md"),
+        "macOS resource fork",
+      );
+      await fs.writeFile(path.join(skillDir, "SKILL.md~"), "editor backup");
+
+      vi.mocked(loadConfig).mockResolvedValue(
+        authenticatedConfig("my-profile") as never,
+      );
+      vi.mocked(registrarApi.getSkillPackument).mockRejectedValue(
+        Object.assign(new Error("Not found"), { statusCode: 404 }),
+      );
+
+      let capturedArchiveData: ArrayBuffer | null = null;
+      vi.mocked(registrarApi.uploadSkill).mockImplementation(
+        async (args: { archiveData: ArrayBuffer }) => {
+          capturedArchiveData = args.archiveData;
+          return {
+            name: "my-skill",
+            version: "1.0.0",
+            tarballSha: "sha",
+            createdAt: "2026-04-16T00:00:00.000Z",
+          };
+        },
+      );
+
+      const result = await skillUploadMain({ skillSpec: "my-skill" });
+
+      expect(result.success).toBe(true);
+      expect(capturedArchiveData).not.toBeNull();
+
+      const extractDir = await fs.mkdtemp(
+        path.join(tmpdir(), "skill-tarball-extract-"),
+      );
+      try {
+        const tarballBuffer = Buffer.from(capturedArchiveData!);
+        const tarballPath = path.join(extractDir, "upload.tgz");
+        await fs.writeFile(tarballPath, tarballBuffer);
+        await tar.extract({ file: tarballPath, cwd: extractDir });
+
+        const extractedFiles = await fs.readdir(extractDir, {
+          recursive: true,
+        });
+
+        expect(extractedFiles).toContain("SKILL.md");
+        expect(extractedFiles).toContain("nori.json");
+
+        expect(extractedFiles).not.toContain(".SKILL.md.swp");
+        expect(extractedFiles).not.toContain(".DS_Store");
+        expect(extractedFiles).not.toContain("Thumbs.db");
+        expect(extractedFiles).not.toContain("._SKILL.md");
+        expect(extractedFiles).not.toContain("SKILL.md~");
+      } finally {
+        await fs.rm(extractDir, { recursive: true, force: true });
+      }
+    });
   });
 });
