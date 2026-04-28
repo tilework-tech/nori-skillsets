@@ -7,6 +7,7 @@ import * as fs from "fs/promises";
 import * as path from "path";
 
 import { copyBundledSkills } from "@/cli/features/bundled-skillsets/installer.js";
+import { resetManagedDir } from "@/cli/features/shared/managedDirOps.js";
 import { substituteTemplatePaths } from "@/cli/features/template.js";
 
 import type { AgentLoader } from "@/cli/features/agentRegistry.js";
@@ -79,11 +80,9 @@ export const skillsLoader: AgentLoader = {
       installDir: config.installDir,
     });
 
-    // Remove existing skills directory if it exists
-    await fs.rm(destSkillsDir, { recursive: true, force: true });
-
-    // Create skills directory
-    await fs.mkdir(destSkillsDir, { recursive: true });
+    // Reset the destination, preserving any external dotfile entries
+    // (e.g. agent-managed `.system/` caches).
+    await resetManagedDir({ dir: destSkillsDir });
 
     // Install inline skills from skillset's skills/ folder
     if (configDir != null) {
