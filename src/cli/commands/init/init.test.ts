@@ -8,8 +8,6 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 import { getConfigPath } from "@/cli/config.js";
 
-import type * as versionModule from "@/cli/version.js";
-
 import { initMain, registerInitCommand } from "./init.js";
 
 // Mock os.homedir so getConfigPath resolves to test directories
@@ -51,15 +49,6 @@ vi.mock("@/norijson/skillset.js", async (importOriginal) => {
     ...actual,
     getNoriDir: () => testNoriDir,
     getNoriSkillsetsDir: () => `${testNoriDir}/profiles`,
-  };
-});
-
-// Mock getCurrentPackageVersion to return a controlled version for tests
-vi.mock("@/cli/version.js", async (importOriginal) => {
-  const actual = await importOriginal<typeof versionModule>();
-  return {
-    ...actual,
-    getCurrentPackageVersion: vi.fn().mockReturnValue("20.0.0"),
   };
 });
 
@@ -172,9 +161,9 @@ describe("init command", () => {
       // Verify config was created
       expect(fs.existsSync(CONFIG_PATH)).toBe(true);
 
-      // Verify config has minimal structure
+      // Verify config has minimal structure and does not persist version
       const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
-      expect(config.version).toBe("20.0.0");
+      expect("version" in config).toBe(false);
       expect(config.activeSkillset).toBeUndefined();
       expect(config.installDir).toBe(tempDir);
     });
@@ -198,8 +187,8 @@ describe("init command", () => {
     it("should be idempotent - not overwrite existing config", async () => {
       const CONFIG_PATH = getConfigPath();
 
-      // Create existing config with custom data
-      // Note: loadConfig requires auth to have username + organizationUrl for it to be recognized
+      // Create existing config with custom data, including a stale `version`
+      // field from older installs. The field should be stripped on next save.
       const existingConfig = {
         version: "19.0.0",
         activeSkillset: "amol",
@@ -214,13 +203,12 @@ describe("init command", () => {
       // Run init
       await initMain({ installDir: tempDir, nonInteractive: true });
 
-      // Verify existing config was preserved
+      // Verify existing config was preserved and stale version was stripped
       const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
       expect(config.activeSkillset).toBe("amol");
       expect(config.auth.username).toBe("test@example.com");
       expect(config.auth.organizationUrl).toBe("https://example.tilework.tech");
-      // Version should be updated to current
-      expect(config.version).toBe("20.0.0");
+      expect("version" in config).toBe(false);
     });
 
     it("should preserve organizations, isAdmin, and transcriptDestination from existing config", async () => {
@@ -228,7 +216,6 @@ describe("init command", () => {
 
       // Create existing config with organizations, isAdmin, and transcriptDestination
       const existingConfig = {
-        version: "19.0.0",
         activeSkillset: "senior-swe",
         auth: {
           username: "test@example.com",
@@ -417,7 +404,6 @@ describe("init command", () => {
 
       // Create existing config (simulates switch scenario where config already exists)
       const existingConfig = {
-        version: "19.0.0",
         activeSkillset: "old-skillset",
         auth: {
           username: "test@example.com",
@@ -448,7 +434,6 @@ describe("init command", () => {
 
       // Create existing config with a specific installDir
       const existingConfig = {
-        version: "19.0.0",
         activeSkillset: "amol",
         installDir: originalInstallDir,
       };

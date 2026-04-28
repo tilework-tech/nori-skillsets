@@ -13,7 +13,7 @@
 # 4. Hook scripts bundling (esbuild)
 # 5. File permissions setup
 # 6. Configuration file copying
-# 7. (removed - version now read at runtime from .nori-config.json)
+# 7. (removed - version now read at runtime from package.json via getCurrentPackageVersion)
 
 set -e  # Exit on any error
 

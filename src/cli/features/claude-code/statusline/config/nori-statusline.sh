@@ -29,10 +29,11 @@ SKILLSET_NAME=""  # default to empty (don't show if not set)
 if [ -f "$CONFIG_FILE" ]; then
     # Read skillset from activeSkillset field
     SKILLSET_NAME=$(jq -r '.activeSkillset // ""' "$CONFIG_FILE" 2>/dev/null)
-
-    # Read version from config
-    NORI_VERSION=$(jq -r '.version // ""' "$CONFIG_FILE" 2>/dev/null)
 fi
+
+# Resolve the running CLI version from the binary itself.
+# Empty string when sks is not on PATH or fails for any reason.
+NORI_VERSION=$(sks --version 2>/dev/null || true)
 
 # Inject skillset into the JSON (can be empty string)
 INPUT=$(echo "$INPUT" | jq --arg skillset "$SKILLSET_NAME" '. + {skillset_name: $skillset}')

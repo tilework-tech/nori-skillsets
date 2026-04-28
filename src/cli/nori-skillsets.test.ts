@@ -74,6 +74,29 @@ describe("nori-skillsets CLI", () => {
     expect(output.trim()).toMatch(/^\d+\.\d+\.\d+$/);
   });
 
+  it("should not write install lifecycle state when --version is used", () => {
+    // The bash statusline calls `sks --version` on every render, so this
+    // call must be free of disk writes and analytics side effects.
+    const stateFile = path.join(
+      tempDir,
+      ".nori",
+      "profiles",
+      ".nori-install.json",
+    );
+
+    try {
+      execSync("node build/src/cli/nori-skillsets.js --version", {
+        encoding: "utf-8",
+        stdio: "pipe",
+        env: { ...process.env, FORCE_COLOR: "0", HOME: tempDir },
+      });
+    } catch {
+      // ignore; we only care about side effects
+    }
+
+    expect(fs.existsSync(stateFile)).toBe(false);
+  });
+
   it("should have search command (simplified from registry-search)", () => {
     let output = "";
 

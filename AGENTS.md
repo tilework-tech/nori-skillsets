@@ -140,7 +140,7 @@ below. Choose the option that matches the area of the codebase you changed.
    ```bash
    mkdir -p "$E2E_DIR/.nori/profiles/test-skillset"
    echo '{"name":"test-skillset","version":"1.0.0","type":"skillset"}' > "$E2E_DIR/.nori/profiles/test-skillset/nori.json"
-   echo '{"activeSkillset":"test-skillset","version":"1.0.0"}' > "$E2E_DIR/.nori-config.json"
+   echo '{"activeSkillset":"test-skillset"}' > "$E2E_DIR/.nori-config.json"
    ```
 4. Run non-interactive commands against the isolated environment:
    ```bash

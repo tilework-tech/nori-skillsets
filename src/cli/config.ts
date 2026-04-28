@@ -59,8 +59,6 @@ export type Config = {
   defaultAgents?: Array<string> | null;
   /** The currently active skillset, shared across all agents */
   activeSkillset?: string | null;
-  /** Installed version of Nori */
-  version?: string | null;
   /** Organization ID for transcript uploads (e.g., "myorg" -> https://myorg.noriskillsets.dev) */
   transcriptDestination?: string | null;
   /** Whether to delete transcript files after successful upload */
@@ -97,7 +95,6 @@ type RawDiskConfig = {
   defaultAgents?: Array<string> | null;
   // Current format
   activeSkillset?: string | null;
-  version?: string | null;
   // Transcript upload destination org ID
   transcriptDestination?: string | null;
   // Garbage collect transcripts after upload
@@ -291,7 +288,6 @@ export const loadConfig = async (): Promise<Config | null> => {
       defaultAgents: validated.defaultAgents,
       sendSessionTranscript: validated.sendSessionTranscript,
       autoupdate: validated.autoupdate,
-      version: validated.version,
       transcriptDestination: validated.transcriptDestination,
       garbageCollectTranscripts: validated.garbageCollectTranscripts,
       redownloadOnSwitch: validated.redownloadOnSwitch,
@@ -357,7 +353,6 @@ export const loadConfig = async (): Promise<Config | null> => {
  * @param args.autoupdate - Autoupdate setting (null to skip)
  * @param args.installDir - Installation directory
  * @param args.activeSkillset - The currently active skillset name (null to skip)
- * @param args.version - Installed version of Nori (null to skip)
  * @param args.organizations - List of organizations the user has access to (null to skip)
  * @param args.isAdmin - Whether the user is an admin for their organization (null to skip)
  * @param args.transcriptDestination - Organization ID for transcript uploads (null to skip)
@@ -377,7 +372,6 @@ export const saveConfig = async (args: {
   sendSessionTranscript?: "enabled" | "disabled" | null;
   autoupdate?: "enabled" | "disabled" | null;
   activeSkillset?: string | null;
-  version?: string | null;
   defaultAgents?: Array<string> | null;
   transcriptDestination?: string | null;
   garbageCollectTranscripts?: "enabled" | "disabled" | null;
@@ -395,7 +389,6 @@ export const saveConfig = async (args: {
     sendSessionTranscript,
     autoupdate,
     activeSkillset,
-    version,
     defaultAgents,
     transcriptDestination,
     garbageCollectTranscripts,
@@ -444,11 +437,6 @@ export const saveConfig = async (args: {
   // Add autoupdate if provided
   if (autoupdate != null) {
     config.autoupdate = autoupdate;
-  }
-
-  // Add version if provided
-  if (version != null) {
-    config.version = version;
   }
 
   // Add transcriptDestination if provided
@@ -512,10 +500,6 @@ export const updateConfig = async (updates: Partial<Config>): Promise<void> => {
       "activeSkillset" in updates
         ? (updates.activeSkillset ?? null)
         : (existing?.activeSkillset ?? null),
-    version:
-      "version" in updates
-        ? (updates.version ?? null)
-        : (existing?.version ?? null),
     defaultAgents:
       "defaultAgents" in updates
         ? (updates.defaultAgents ?? null)
@@ -591,7 +575,6 @@ const configSchema = {
     },
     // Current active skillset field
     activeSkillset: { type: "string" },
-    version: { type: "string" },
     transcriptDestination: { type: "string" },
     garbageCollectTranscripts: {
       type: "string",
