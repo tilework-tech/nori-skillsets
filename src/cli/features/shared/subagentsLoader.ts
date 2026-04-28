@@ -12,6 +12,7 @@ import * as path from "path";
 
 import { log, note } from "@clack/prompts";
 
+import { resetManagedDir } from "@/cli/features/shared/managedDirOps.js";
 import {
   emitSubagentContent,
   type SubagentTargetFormat,
@@ -45,9 +46,8 @@ export const createSubagentsLoader = (args: {
       });
       const agentDir = agent.getAgentDir({ installDir: config.installDir });
 
-      // Remove existing agents directory if it exists, then recreate
-      await fs.rm(destAgentsDir, { recursive: true, force: true });
-      await fs.mkdir(destAgentsDir, { recursive: true });
+      // Reset the destination, preserving any external dotfile entries.
+      await resetManagedDir({ dir: destAgentsDir });
 
       const registered: Array<string> = [];
       const skipped: Array<string> = [];

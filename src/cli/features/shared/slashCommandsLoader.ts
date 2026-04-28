@@ -8,6 +8,7 @@ import * as path from "path";
 
 import { log, note } from "@clack/prompts";
 
+import { resetManagedDir } from "@/cli/features/shared/managedDirOps.js";
 import { substituteTemplatePaths } from "@/cli/features/template.js";
 import { bold } from "@/cli/logger.js";
 
@@ -34,9 +35,8 @@ export const createSlashCommandsLoader = (args: {
       const agentDir = agent.getAgentDir({ installDir: config.installDir });
       const skillsDir = agent.getSkillsDir({ installDir: config.installDir });
 
-      // Remove existing commands directory if it exists, then recreate
-      await fs.rm(destCommandsDir, { recursive: true, force: true });
-      await fs.mkdir(destCommandsDir, { recursive: true });
+      // Reset the destination, preserving any external dotfile entries.
+      await resetManagedDir({ dir: destCommandsDir });
 
       const registered: Array<string> = [];
       const skipped: Array<string> = [];
