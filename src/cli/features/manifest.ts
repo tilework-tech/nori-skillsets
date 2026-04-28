@@ -155,6 +155,12 @@ const collectFiles = async (args: {
   }
 
   for (const entry of entries) {
+    // Skip dotfile entries — these belong to external systems (e.g. an agent's
+    // own `.system/` cache) and are not Nori-managed.
+    if (entry.name.startsWith(".")) {
+      continue;
+    }
+
     const fullPath = path.join(dir, entry.name);
     const relativePath = path.relative(baseDir, fullPath);
 
@@ -436,6 +442,11 @@ const removeExcludedFiles = async (args: { dir: string }): Promise<void> => {
   }
 
   for (const entry of entries) {
+    // Skip dotfile entries — these belong to external systems (e.g. an agent's
+    // own `.system/` cache) and are not Nori-managed.
+    if (entry.name.startsWith(".") && !excludedFileSet.has(entry.name)) {
+      continue;
+    }
     const fullPath = path.join(dir, entry.name);
     if (entry.isDirectory()) {
       await removeExcludedFiles({ dir: fullPath });
