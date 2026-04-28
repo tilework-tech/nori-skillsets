@@ -228,7 +228,6 @@ describe("registerSwitchSkillsetCommand", () => {
     }
   });
 
-
   it("should honor a local --agent override in non-interactive mode", async () => {
     const configPath = path.join(testInstallDir, ".nori-config.json");
     await fs.writeFile(
@@ -1156,7 +1155,6 @@ describe("switch-skillset onCaptureConfig broadcasts to all agents", () => {
     vi.restoreAllMocks();
   });
 
-
   it("should narrow onCaptureConfig to the overridden agent", async () => {
     const configPath = path.join(testInstallDir, ".nori-config.json");
     await fs.writeFile(
@@ -1309,7 +1307,6 @@ describe("switch-skillset interactive flow routing", () => {
     AgentRegistry.resetInstance();
     vi.restoreAllMocks();
   });
-
 
   it("should resolve only the overridden agent in interactive mode", async () => {
     const configPath = path.join(testInstallDir, ".nori-config.json");
