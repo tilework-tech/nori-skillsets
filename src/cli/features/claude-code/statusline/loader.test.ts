@@ -347,91 +347,89 @@ describe("statuslineLoader", () => {
       expect(output).not.toContain("Nori Tip:");
     });
 
-    it("should display version from nori-config.json in branding line", async () => {
+    it("should display version from sks --version in branding line", async () => {
       const config: Config = { installDir: claudeDir };
 
       // Install statusline
       await statuslineLoader.run({ agent: {} as any, config });
 
-      // Create mock .nori-config.json with version
-      const noriConfigPath = path.join(tempDir, ".nori-config.json");
-      const noriConfigContent = JSON.stringify({
-        version: "1.2.3",
+      // Create a fake `sks` binary on PATH that prints a known version
+      const fakeBinDir = path.join(tempDir, "fakebin");
+      await fs.mkdir(fakeBinDir, { recursive: true });
+      const fakeSksPath = path.join(fakeBinDir, "sks");
+      await fs.writeFile(fakeSksPath, '#!/bin/bash\necho "1.2.3"\n');
+      await fs.chmod(fakeSksPath, 0o755);
+
+      // Read settings to get the statusLine command
+      const content = await fs.readFile(settingsPath, "utf-8");
+      const settings = JSON.parse(content);
+      const statusLineCommand = settings.statusLine.command;
+
+      const { execSync } = await import("child_process");
+      const mockInput = JSON.stringify({
+        cwd: tempDir,
+        cost: {
+          total_cost_usd: 1.5,
+          total_lines_added: 10,
+          total_lines_removed: 5,
+        },
+        transcript_path: "",
       });
-      await fs.writeFile(noriConfigPath, noriConfigContent);
 
-      try {
-        // Read settings to get the statusLine command
-        const content = await fs.readFile(settingsPath, "utf-8");
-        const settings = JSON.parse(content);
-        const statusLineCommand = settings.statusLine.command;
+      const output = execSync(statusLineCommand, {
+        input: mockInput,
+        encoding: "utf-8",
+        env: { ...process.env, PATH: `${fakeBinDir}:${process.env.PATH}` },
+      });
 
-        // Execute the statusline script with mock input
-        const { execSync } = await import("child_process");
-        const mockInput = JSON.stringify({
-          cwd: tempDir,
-          cost: {
-            total_cost_usd: 1.5,
-            total_lines_added: 10,
-            total_lines_removed: 5,
-          },
-          transcript_path: "",
-        });
-
-        const output = execSync(statusLineCommand, {
-          input: mockInput,
-          encoding: "utf-8",
-        });
-
-        // Verify branding line includes version from config
-        expect(output).toContain("Augmented with Nori v1.2.3");
-      } finally {
-        await fs.rm(noriConfigPath, { force: true });
-      }
+      // Verify branding line includes version from sks --version output
+      expect(output).toContain("Augmented with Nori v1.2.3");
     });
 
-    it("should display branding without version when nori-config.json has no version field", async () => {
+    it("should display branding without version when sks is not on PATH", async () => {
       const config: Config = { installDir: claudeDir };
 
       // Install statusline
       await statuslineLoader.run({ agent: {} as any, config });
 
-      // Create mock .nori-config.json without version field
-      const noriConfigPath = path.join(tempDir, ".nori-config.json");
-      const noriConfigContent = JSON.stringify({
-        activeSkillset: "test",
+      // Read settings to get the statusLine command
+      const content = await fs.readFile(settingsPath, "utf-8");
+      const settings = JSON.parse(content);
+      const statusLineCommand = settings.statusLine.command;
+
+      const { execSync } = await import("child_process");
+      const mockInput = JSON.stringify({
+        cwd: tempDir,
+        cost: {
+          total_cost_usd: 1.5,
+          total_lines_added: 10,
+          total_lines_removed: 5,
+        },
+        transcript_path: "",
       });
-      await fs.writeFile(noriConfigPath, noriConfigContent);
 
-      try {
-        // Read settings to get the statusLine command
-        const content = await fs.readFile(settingsPath, "utf-8");
-        const settings = JSON.parse(content);
-        const statusLineCommand = settings.statusLine.command;
+      // Resolve jq's directory from the runner's PATH so the script still
+      // satisfies its jq dependency, and add a fakebin dir that does NOT
+      // contain `sks`.
+      const jqDir = path.dirname(
+        execSync("which jq", { encoding: "utf-8" }).trim(),
+      );
+      const sksFreeBin = path.join(tempDir, "sksfreebin");
+      await fs.mkdir(sksFreeBin, { recursive: true });
+      const minimalPath = `${sksFreeBin}:${jqDir}:/usr/bin:/bin`;
 
-        // Execute the statusline script with mock input
-        const { execSync } = await import("child_process");
-        const mockInput = JSON.stringify({
-          cwd: tempDir,
-          cost: {
-            total_cost_usd: 1.5,
-            total_lines_added: 10,
-            total_lines_removed: 5,
-          },
-          transcript_path: "",
-        });
+      const output = execSync(statusLineCommand, {
+        input: mockInput,
+        encoding: "utf-8",
+        env: { ...process.env, PATH: minimalPath },
+      });
 
-        const output = execSync(statusLineCommand, {
-          input: mockInput,
-          encoding: "utf-8",
-        });
-
-        // Verify branding line shows without version but no __VERSION__ placeholder
-        expect(output).toContain("Augmented with Nori");
-        expect(output).not.toContain("__VERSION__");
-      } finally {
-        await fs.rm(noriConfigPath, { force: true });
-      }
+      // Branding shows without a version segment.
+      // Strip ANSI escape codes before asserting so format isn't load-bearing.
+      // eslint-disable-next-line no-control-regex
+      const stripAnsi = (s: string) => s.replace(/\[[0-9;]*m/g, "");
+      const plain = stripAnsi(output);
+      expect(plain).toMatch(/Augmented with Nori\s*$/m);
     });
 
     it("should display token count including cached tokens from current_usage", async () => {

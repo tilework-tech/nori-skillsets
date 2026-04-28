@@ -905,7 +905,6 @@ describe("updateConfig", () => {
       activeSkillset: "old-skillset",
       sendSessionTranscript: "disabled",
       autoupdate: "enabled",
-      version: "20.0.0",
       transcriptDestination: "acme",
       defaultAgents: ["claude-code"],
       garbageCollectTranscripts: "enabled",
@@ -926,12 +925,32 @@ describe("updateConfig", () => {
     expect(loaded?.auth?.isAdmin).toBe(true);
     expect(loaded?.sendSessionTranscript).toBe("disabled");
     expect(loaded?.autoupdate).toBe("enabled");
-    expect(loaded?.version).toBe("20.0.0");
     expect(loaded?.transcriptDestination).toBe("acme");
     expect(loaded?.defaultAgents).toEqual(["claude-code"]);
     expect(loaded?.garbageCollectTranscripts).toBe("enabled");
     expect(loaded?.redownloadOnSwitch).toBe("disabled");
     expect(loaded?.installDir).toBe(tempDir);
+  });
+
+  it("should strip unknown keys from existing config on update", async () => {
+    // Old configs may contain fields that the current schema does not
+    // recognize. AJV's removeAdditional strips them on the next save so the
+    // on-disk form matches the schema.
+    const configPath = path.join(tempDir, ".nori-config.json");
+    await fs.writeFile(
+      configPath,
+      JSON.stringify({
+        activeSkillset: "amol",
+        someLegacyJunk: "ignore-me",
+        installDir: tempDir,
+      }),
+    );
+
+    await updateConfig({ activeSkillset: "amol" });
+
+    const raw = JSON.parse(await fs.readFile(configPath, "utf-8"));
+    expect("someLegacyJunk" in raw).toBe(false);
+    expect(raw.activeSkillset).toBe("amol");
   });
 
   it("should clear a field when explicitly set to null", async () => {

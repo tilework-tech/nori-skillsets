@@ -14,7 +14,7 @@ These scripts are referenced by absolute path in `@/src/cli/features/claude-code
 
 `commit-author.ts` is a `PreToolUse` hook for the `Bash` tool. It intercepts `git commit` commands and replaces Claude Code's co-author attribution with Nori attribution. It handles both heredoc-format and simple `-m` flag commit messages. The hook outputs a JSON response with `permissionDecision: "allow"` and an `updatedInput` containing the modified command.
 
-`update-check.ts` is a `SessionStart` hook that checks whether a newer version of `nori-skillsets` is available. It reads `~/.nori-config.json` for the current version and autoupdate preference, consults the version cache from `@/src/cli/updates/`, and outputs a `systemMessage` prompting the user to update if a newer version exists.
+`update-check.ts` is a `SessionStart` hook that checks whether a newer version of `nori-skillsets` is available. It resolves the running CLI version via `getCurrentPackageVersion()` from @/src/cli/version.ts, reads only the `autoupdate` preference from `~/.nori-config.json`, consults the version cache from `@/src/cli/updates/`, and outputs a `systemMessage` prompting the user to update if a newer version exists. Comparing the running binary's version (rather than a possibly-stale value persisted to disk) means the prompt always reflects what the user is actually running.
 
 `context-usage-warning.ts` is a `SessionStart` hook that checks the combined size of `settings.local.json` files (home-level and project-level). If the total exceeds 10KB, it outputs a `systemMessage` warning about excessive context token consumption from bloated permissions arrays.
 

@@ -95,7 +95,7 @@ The `--agent` global CLI option (default: "claude-code") determines which agent 
 
 **Config Loader** (configLoader.ts):
 - Shared `AgentLoader` that manages `.nori-config.json`. All agents include this loader in their `getLoaders()` pipeline.
-- Persists `activeSkillset`, version, auth credentials, and transcript settings via `updateConfig()`.
+- Persists `activeSkillset`, auth credentials, and transcript settings via `updateConfig()`. The CLI version is not persisted — the running binary is the source of truth via `getCurrentPackageVersion()` in @/src/cli/version.ts.
 
 **Other shared modules**: `template.ts` (placeholder substitution), `manifest.ts` (file-level change tracking with SHA-256 hashes), `bundled-skillsets/` (bundled skills installer), `shared/managedDirOps.ts` (`resetManagedDir` helper used by the skills/slashcommands/subagents loaders to clear their destination directory before repopulating it while preserving any top-level dotfile entries).
 

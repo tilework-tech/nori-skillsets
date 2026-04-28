@@ -36,7 +36,7 @@ API tokens are self-describing: the format is `nori_<orgId>_<64 hex chars>` and 
 
 `installTracking.ts` manages install lifecycle analytics. It maintains a `.nori-install.json` state file in `~/.nori/profiles/`, tracks first-install vs upgrade vs resurrection events, and sends fire-and-forget analytics via the Nori analytics proxy. It generates a deterministic client ID from hostname + username.
 
-`version.ts` resolves the package version by walking up the directory tree to find `package.json`. It also reads the installed version from config (with fallback to a deprecated `.nori-installed-version` file) and checks `--agent` flag support via semver comparison.
+`version.ts` resolves the running CLI's package version by walking up the directory tree from its own `__dirname` to find a `package.json` whose `name` is `"nori-skillsets"` (`getCurrentPackageVersion`). This is the single source of truth for "what version am I" and powers `sks --version`. The same module also exposes `supportsAgentFlag` for semver-based capability checks. The version is intentionally not persisted to `.nori-config.json` — old configs that still contain a `version` field continue to load (AJV's `removeAdditional: true` strips it on next save).
 
 ### Things to Know
 

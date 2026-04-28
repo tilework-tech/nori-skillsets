@@ -29,7 +29,6 @@ import {
 } from "@/cli/features/agentOperations.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { initFlow } from "@/cli/prompts/flows/init.js";
-import { getCurrentPackageVersion } from "@/cli/version.js";
 import { getNoriSkillsetsDir } from "@/norijson/skillset.js";
 import { normalizeInstallDir } from "@/utils/path.js";
 
@@ -130,14 +129,12 @@ export const initMain = async (args?: {
           }
 
           const existingConfig = await loadConfig();
-          const currentVersion = getCurrentPackageVersion();
 
           const activeSkillset =
             capturedSkillsetName ?? existingConfig?.activeSkillset ?? null;
 
           await updateConfig({
             activeSkillset,
-            version: currentVersion ?? null,
           });
 
           // Mark this directory as having all default agents installed
@@ -172,7 +169,6 @@ export const initMain = async (args?: {
 
   // Load existing config (if any)
   const existingConfig = await loadConfig();
-  const currentVersion = getCurrentPackageVersion();
 
   // Track captured skillset name for setting in config
   let capturedSkillsetName: string | null = null;
@@ -198,7 +194,6 @@ export const initMain = async (args?: {
   // Save config — do not persist installDir; only `sks config` should change it.
   await updateConfig({
     activeSkillset,
-    version: currentVersion ?? null,
   });
 
   // If a skillset was captured, capture config and install managed block for all agents
