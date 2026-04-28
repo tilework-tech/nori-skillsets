@@ -559,6 +559,43 @@ describe("manifest", () => {
       expect(diff.modified).toHaveLength(0);
       expect(diff.added).toHaveLength(0);
     });
+
+    it("should not flag dotfile entries inside managed dirs as added", async () => {
+      // Skillset legitimately tracks one skill
+      const skillDir = path.join(tempDir, "skills", "real-skill");
+      await fs.mkdir(skillDir, { recursive: true });
+      await fs.writeFile(path.join(skillDir, "SKILL.md"), "real");
+
+      // Agent (e.g. codex) ships a system-managed dotfile dir alongside it
+      const systemDir = path.join(tempDir, "skills", ".system");
+      await fs.mkdir(systemDir, { recursive: true });
+      await fs.writeFile(path.join(systemDir, "config.json"), "{}");
+      await fs.writeFile(path.join(systemDir, "cache.bin"), "binary");
+
+      const manifest: FileManifest = {
+        version: 1,
+        createdAt: "2024-01-01T00:00:00.000Z",
+        skillsetName: "test-profile",
+        files: {
+          "skills/real-skill/SKILL.md": await computeFileHash({
+            filePath: path.join(skillDir, "SKILL.md"),
+          }),
+        },
+      };
+
+      const diff = await compareManifest({
+        manifest,
+        currentDir: tempDir,
+        managedFiles: CLAUDE_MANAGED_FILES,
+        managedDirs: CLAUDE_MANAGED_DIRS,
+      });
+
+      const allPaths = [...diff.added, ...diff.modified, ...diff.deleted];
+      const dotfilePaths = allPaths.filter((p) =>
+        p.split(path.sep).some((seg) => seg.startsWith(".")),
+      );
+      expect(dotfilePaths).toEqual([]);
+    });
   });
 
   describe("getManifestPath", () => {
@@ -878,6 +915,44 @@ describe("removeManagedFiles", () => {
 
     // The entire skills directory should be cleaned up since all files removed
     await expect(fs.access(path.join(claudeDir, "skills"))).rejects.toThrow();
+  });
+
+  it("should not delete files inside a dotfile directory under a managed dir", async () => {
+    const claudeDir = path.join(tempDir, ".claude");
+    const skillDir = path.join(claudeDir, "skills", "real-skill");
+    const systemDir = path.join(claudeDir, "skills", ".system");
+    await fs.mkdir(skillDir, { recursive: true });
+    await fs.mkdir(systemDir, { recursive: true });
+
+    await fs.writeFile(path.join(skillDir, "SKILL.md"), "real skill");
+
+    // Simulate an external system putting files inside its dotfile dir, including
+    // names that would collide with EXCLUDED_FILES if recursion ignored the boundary.
+    const externalNoriJson = path.join(systemDir, "nori.json");
+    const externalNoriVersion = path.join(systemDir, ".nori-version");
+    await fs.writeFile(externalNoriJson, '{"external": true}');
+    await fs.writeFile(externalNoriVersion, "external");
+
+    const manifest = await computeDirectoryManifest({
+      dir: claudeDir,
+      skillsetName: "test-skillset",
+      managedFiles: CLAUDE_MANAGED_FILES,
+      managedDirs: CLAUDE_MANAGED_DIRS,
+    });
+    const manifestPath = path.join(tempDir, "manifest.json");
+    await writeManifest({ manifestPath, manifest });
+
+    await removeManagedFiles({
+      agentDir: claudeDir,
+      manifestPath,
+      managedDirs: CLAUDE_MANAGED_DIRS,
+    });
+
+    // The external dotfile dir and its contents must survive.
+    const noriJsonContent = await fs.readFile(externalNoriJson, "utf-8");
+    expect(noriJsonContent).toBe('{"external": true}');
+    const noriVersionContent = await fs.readFile(externalNoriVersion, "utf-8");
+    expect(noriVersionContent).toBe("external");
   });
 });
 

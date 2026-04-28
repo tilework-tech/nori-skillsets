@@ -316,6 +316,63 @@ describe("createSubagentsLoader", () => {
     });
   });
 
+  describe("dotfile preservation", () => {
+    it("should preserve top-level dotfile entries in the agents directory across reinstall", async () => {
+      const loader = createSubagentsLoader({ managedDirs: ["agents"] });
+      const config = createTestConfig({
+        installDir: tempDir,
+        activeSkillset: "preserve-dotfiles-subagent",
+      });
+      const skillset = await createTestSkillset({
+        skillsetsDir: noriProfilesDir,
+        skillsetName: "preserve-dotfiles-subagent",
+        subagents: TEST_SUBAGENTS,
+      });
+
+      await fs.mkdir(agentsDir, { recursive: true });
+      const systemDir = path.join(agentsDir, ".system");
+      await fs.mkdir(systemDir, { recursive: true });
+      const markerPath = path.join(systemDir, "marker.txt");
+      await fs.writeFile(markerPath, "external content");
+
+      await loader.run({ agent, config, skillset });
+
+      const markerContent = await fs.readFile(markerPath, "utf-8");
+      expect(markerContent).toBe("external content");
+
+      const analyzerExists = await fs
+        .access(path.join(agentsDir, "nori-codebase-analyzer.md"))
+        .then(() => true)
+        .catch(() => false);
+      expect(analyzerExists).toBe(true);
+    });
+
+    it("should still remove a stale non-dotfile subagent on reinstall", async () => {
+      const loader = createSubagentsLoader({ managedDirs: ["agents"] });
+      const config = createTestConfig({
+        installDir: tempDir,
+        activeSkillset: "stale-subagent-removal",
+      });
+      const skillset = await createTestSkillset({
+        skillsetsDir: noriProfilesDir,
+        skillsetName: "stale-subagent-removal",
+        subagents: TEST_SUBAGENTS,
+      });
+
+      await fs.mkdir(agentsDir, { recursive: true });
+      const stalePath = path.join(agentsDir, "old-subagent.md");
+      await fs.writeFile(stalePath, "stale");
+
+      await loader.run({ agent, config, skillset });
+
+      const staleExists = await fs
+        .access(stalePath)
+        .then(() => true)
+        .catch(() => false);
+      expect(staleExists).toBe(false);
+    });
+  });
+
   describe("target-specific emission", () => {
     it("should emit markdown-only subagents as Codex TOML", async () => {
       const loader = createSubagentsLoader({
