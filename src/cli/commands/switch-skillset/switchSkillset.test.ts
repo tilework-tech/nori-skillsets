@@ -228,6 +228,117 @@ describe("registerSwitchSkillsetCommand", () => {
     }
   });
 
+
+  it("should honor a local --agent override in non-interactive mode", async () => {
+    const configPath = path.join(testInstallDir, ".nori-config.json");
+    await fs.writeFile(
+      configPath,
+      JSON.stringify({
+        activeSkillset: "senior-swe",
+        defaultAgents: ["claude-code"],
+        installDir: testInstallDir,
+      }),
+    );
+
+    const program = new Command();
+    program.exitOverride();
+    program.configureOutput({ writeErr: () => undefined });
+    program
+      .option("-d, --install-dir <path>", "Custom installation directory")
+      .option("-n, --non-interactive", "Run without interactive prompts")
+      .option("-a, --agent <name>", "AI agent to use");
+
+    registerSwitchSkillsetCommand({ program });
+
+    mockInstallMain.mockClear();
+    vi.mocked(switchSkillsetOp).mockClear();
+
+    try {
+      await program.parseAsync([
+        "node",
+        "nori-skillsets",
+        "switch-skillset",
+        "product-manager",
+        "--agent",
+        "codex",
+        "--install-dir",
+        testInstallDir,
+        "--non-interactive",
+      ]);
+    } catch {
+      // May throw due to exit
+    }
+
+    expect(vi.mocked(switchSkillsetOp)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agent: expect.objectContaining({ name: "codex" }),
+        installDir: testInstallDir,
+        skillsetName: "product-manager",
+      }),
+    );
+    expect(mockInstallMain).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agent: "codex",
+        silent: true,
+      }),
+    );
+  });
+
+  it("should honor a global --agent override in non-interactive mode", async () => {
+    const configPath = path.join(testInstallDir, ".nori-config.json");
+    await fs.writeFile(
+      configPath,
+      JSON.stringify({
+        activeSkillset: "senior-swe",
+        defaultAgents: ["claude-code"],
+        installDir: testInstallDir,
+      }),
+    );
+
+    const program = new Command();
+    program.exitOverride();
+    program.configureOutput({ writeErr: () => undefined });
+    program
+      .option("-d, --install-dir <path>", "Custom installation directory")
+      .option("-n, --non-interactive", "Run without interactive prompts")
+      .option("-a, --agent <name>", "AI agent to use");
+
+    registerSwitchSkillsetCommand({ program });
+
+    mockInstallMain.mockClear();
+    vi.mocked(switchSkillsetOp).mockClear();
+
+    try {
+      await program.parseAsync([
+        "node",
+        "nori-skillsets",
+        "--agent",
+        "codex",
+        "--non-interactive",
+        "switch-skillset",
+        "product-manager",
+        "--install-dir",
+        testInstallDir,
+      ]);
+    } catch {
+      // May throw due to exit
+    }
+
+    expect(vi.mocked(switchSkillsetOp)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agent: expect.objectContaining({ name: "codex" }),
+        installDir: testInstallDir,
+        skillsetName: "product-manager",
+      }),
+    );
+    expect(mockInstallMain).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agent: "codex",
+        silent: true,
+      }),
+    );
+  });
+
   it("should call installMain with silent: true in non-interactive mode", async () => {
     // Create config with claude-code installed
     const configPath = path.join(testInstallDir, ".nori-config.json");
@@ -1045,6 +1156,67 @@ describe("switch-skillset onCaptureConfig broadcasts to all agents", () => {
     vi.restoreAllMocks();
   });
 
+
+  it("should narrow onCaptureConfig to the overridden agent", async () => {
+    const configPath = path.join(testInstallDir, ".nori-config.json");
+    await fs.writeFile(
+      configPath,
+      JSON.stringify({
+        activeSkillset: "senior-swe",
+        defaultAgents: ["claude-code", "gemini-cli"],
+        installDir: testInstallDir,
+      }),
+    );
+
+    let capturedCallbacks: any = null;
+    mockSwitchSkillsetFlow.mockImplementationOnce(async (args: any) => {
+      capturedCallbacks = args.callbacks;
+      return { agentName: "codex", skillsetName: "product-manager" };
+    });
+
+    const program = new Command();
+    program.exitOverride();
+    program.configureOutput({ writeErr: () => undefined });
+    program
+      .option("-d, --install-dir <path>", "Custom installation directory")
+      .option("-n, --non-interactive", "Run without interactive prompts")
+      .option("-a, --agent <name>", "AI agent to use");
+
+    registerSwitchSkillsetCommand({ program });
+
+    vi.mocked(captureExistingConfig).mockClear();
+
+    try {
+      await program.parseAsync([
+        "node",
+        "nori-skillsets",
+        "switch-skillset",
+        "product-manager",
+        "--agent",
+        "codex",
+        "--install-dir",
+        testInstallDir,
+      ]);
+    } catch {
+      // May throw due to exit
+    }
+
+    expect(capturedCallbacks).not.toBeNull();
+    await capturedCallbacks.onCaptureConfig({
+      installDir: testInstallDir,
+      skillsetName: "codex-only-capture",
+    });
+
+    expect(vi.mocked(captureExistingConfig)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(captureExistingConfig)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agent: expect.objectContaining({ name: "codex" }),
+        installDir: testInstallDir,
+        skillsetName: "codex-only-capture",
+      }),
+    );
+  });
+
   it("should pass onCaptureConfig callback that captures for all default agents", async () => {
     // Capture the callbacks passed to switchSkillsetFlow
     let capturedCallbacks: any = null;
@@ -1136,6 +1308,59 @@ describe("switch-skillset interactive flow routing", () => {
     }
     AgentRegistry.resetInstance();
     vi.restoreAllMocks();
+  });
+
+
+  it("should resolve only the overridden agent in interactive mode", async () => {
+    const configPath = path.join(testInstallDir, ".nori-config.json");
+    await fs.writeFile(
+      configPath,
+      JSON.stringify({
+        activeSkillset: "senior-swe",
+        defaultAgents: ["claude-code", "gemini-cli"],
+        installDir: testInstallDir,
+      }),
+    );
+
+    let capturedCallbacks: any = null;
+    mockSwitchSkillsetFlow.mockImplementationOnce(async (args: any) => {
+      capturedCallbacks = args.callbacks;
+      return { statusMessage: "Switched to Codex" };
+    });
+
+    const program = new Command();
+    program.exitOverride();
+    program.configureOutput({ writeErr: () => undefined });
+    program
+      .option("-d, --install-dir <path>", "Custom installation directory")
+      .option("-n, --non-interactive", "Run without interactive prompts")
+      .option("-a, --agent <name>", "AI agent to use");
+
+    registerSwitchSkillsetCommand({ program });
+
+    try {
+      await program.parseAsync([
+        "node",
+        "nori-skillsets",
+        "--agent",
+        "codex",
+        "switch-skillset",
+        "product-manager",
+        "--install-dir",
+        testInstallDir,
+      ]);
+    } catch {
+      // May throw due to exit
+    }
+
+    expect(capturedCallbacks).not.toBeNull();
+    const resolvedAgents = await capturedCallbacks.onResolveAgents();
+    expect(resolvedAgents).toEqual([
+      {
+        name: "codex",
+        displayName: "Codex",
+      },
+    ]);
   });
 
   it("should pass onExecuteSwitch callback that calls switchSkillset and installMain for the given agent", async () => {
