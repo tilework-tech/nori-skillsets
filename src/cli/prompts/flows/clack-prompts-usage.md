@@ -61,43 +61,38 @@ export const exampleFlow = async (args: {
 
 ## Cancel Handling
 
-### Use `group()` for related prompts
+### Use `unwrapPrompt` for every prompt
 
-When collecting multiple related inputs (e.g. email + password), use `group()`.
-It handles cancel in one place via its `onCancel` option:
-
-```ts
-const credentials = await group(
-  {
-    email: () => text({ message: "Email" }),
-    password: () => password({ message: "Password" }),
-  },
-  {
-    onCancel: () => {
-      cancel("Login cancelled.");
-    },
-  },
-);
-
-if (isCancel(credentials)) {
-  return null;
-}
-```
-
-### Use `unwrapPrompt` for sequential prompts
-
-When prompts are sequential and conditional (cannot use `group`), use the
-shared helper instead of repeating `isCancel` + `cancel` + `return null`:
+Wrap every individual prompt result with `unwrapPrompt` and early-return when
+the result is `null`:
 
 ```ts
 import { unwrapPrompt } from "./utils.js";
 
-const selected = unwrapPrompt({
-  value: await select({ message: "Pick one", options }),
-  cancelMessage: "Switch cancelled.",
+const email = unwrapPrompt({
+  value: await text({ message: "Email" }),
+  cancelMessage: "Login cancelled.",
 });
-if (selected == null) return null;
+if (email == null) return null;
+
+const pwd = unwrapPrompt({
+  value: await password({ message: "Password" }),
+  cancelMessage: "Login cancelled.",
+});
+if (pwd == null) return null;
 ```
+
+### Do not use `group()`
+
+`@clack/prompts`'s `group()` does not abort on Ctrl-C the way it appears to.
+On cancel, `group()` writes the literal string `"canceled"` into the result
+for the cancelled prompt, runs `onCancel`, and **continues** to the next
+prompt. The final return is always a plain object, so `isCancel(result)` on
+the return value is always `false`. This produces silent bugs (e.g. a flow
+creating a record literally named `"canceled"`).
+
+Use sequential `text`/`password`/`select`/`confirm` calls with `unwrapPrompt`
+instead.
 
 ### Never do this
 
@@ -379,7 +374,6 @@ Mock `@clack/prompts` at module level:
 vi.mock("@clack/prompts", () => ({
   intro: vi.fn(),
   outro: vi.fn(),
-  group: vi.fn(),
   select: vi.fn(),
   confirm: vi.fn(),
   text: vi.fn(),
