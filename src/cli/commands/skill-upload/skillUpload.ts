@@ -29,6 +29,7 @@ import {
 } from "@/cli/config.js";
 import { skillUploadFlow } from "@/cli/prompts/flows/index.js";
 import { getNoriSkillsetsDir } from "@/norijson/skillset.js";
+import { shouldExcludeFromUpload } from "@/utils/uploadFileFilter.js";
 import {
   parseNamespacedPackage,
   buildOrganizationRegistryUrl,
@@ -37,11 +38,6 @@ import {
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 import type { CheckExistingResult } from "@/cli/prompts/flows/skillUpload.js";
 import type { NoriJson } from "@/norijson/nori.js";
-
-/**
- * Files excluded from upload tarballs (local metadata that should not be distributed).
- */
-const UPLOAD_EXCLUDED_FILES = new Set([".nori-version"]);
 
 /**
  * Create a gzipped tarball from a single skill directory.
@@ -63,7 +59,7 @@ const createSkillTarball = async (args: {
   const filesToPack: Array<string> = [];
   for (const entry of entries) {
     if (!entry.isFile()) continue;
-    if (UPLOAD_EXCLUDED_FILES.has(entry.name)) continue;
+    if (shouldExcludeFromUpload({ fileName: entry.name })) continue;
     const full = path.join(entry.parentPath ?? entry.path, entry.name);
     const rel = path.relative(skillDir, full);
     filesToPack.push(rel);

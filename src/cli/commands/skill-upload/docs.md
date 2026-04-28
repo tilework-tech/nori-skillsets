@@ -25,6 +25,6 @@ The single-skill endpoint does not return server-side `SkillCollisionError` payl
 
 ### Things to Know
 
-The `--skillset` flag overrides the active skillset as the source location. The `--registry` flag is mutually exclusive with a namespace prefix (`org/skill-name`). Non-interactive mode with a content-differs collision fails unless `--version` is also passed, to avoid accidental overwrite of another publisher's content. The `UPLOAD_EXCLUDED_FILES` set currently includes only `.nori-version`, matching the exclusion list used by `registryUpload.createProfileTarball`.
+The `--skillset` flag overrides the active skillset as the source location. The `--registry` flag is mutually exclusive with a namespace prefix (`org/skill-name`). Non-interactive mode with a content-differs collision fails unless `--version` is also passed, to avoid accidental overwrite of another publisher's content. `createSkillTarball` filters tarball entries through `shouldExcludeFromUpload` from `@/src/utils/uploadFileFilter.ts` -- the shared predicate used by `registryUpload.createProfileTarball` -- so editor swap files, OS junk, and `.nori-version` never enter the upload and never contaminate the server's content hash.
 
 Created and maintained by Nori.

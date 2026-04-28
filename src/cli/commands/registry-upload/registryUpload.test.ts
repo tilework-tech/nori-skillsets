@@ -2300,6 +2300,125 @@ describe("registry-upload", () => {
           await fs.rm(extractDir, { recursive: true, force: true });
         }
       });
+
+      it("should exclude editor swap files and OS junk from upload tarball", async () => {
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        const skillDir = path.join(skillsetDir, "skills", "my-skill");
+        await fs.mkdir(skillDir, { recursive: true });
+        await fs.writeFile(
+          path.join(skillsetDir, "AGENTS.md"),
+          "# My Profile\n",
+        );
+        await fs.writeFile(
+          path.join(skillsetDir, "nori.json"),
+          JSON.stringify({ name: "my-profile", version: "1.0.0" }),
+        );
+        await fs.writeFile(
+          path.join(skillDir, "SKILL.md"),
+          "---\nname: my-skill\ndescription: test\n---\n",
+        );
+        await fs.writeFile(
+          path.join(skillDir, "nori.json"),
+          JSON.stringify({ name: "my-skill", version: "1.0.0", type: "skill" }),
+        );
+
+        // Files that must NOT end up in the tarball.
+        await fs.writeFile(
+          path.join(skillDir, ".SKILL.md.swp"),
+          "vim swap garbage",
+        );
+        await fs.writeFile(
+          path.join(skillsetDir, ".DS_Store"),
+          "macOS finder metadata",
+        );
+        await fs.writeFile(
+          path.join(skillsetDir, "Thumbs.db"),
+          "windows thumbnail cache",
+        );
+        await fs.writeFile(
+          path.join(skillDir, "._SKILL.md"),
+          "macOS resource fork",
+        );
+        await fs.writeFile(path.join(skillDir, "SKILL.md~"), "editor backup");
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+
+        let capturedArchiveData: ArrayBuffer | null = null;
+        vi.mocked(registrarApi.uploadSkillset).mockImplementation(
+          async (args) => {
+            capturedArchiveData = args.archiveData;
+            return {
+              name: "my-profile",
+              version: "1.0.0",
+              tarballSha: "abc123",
+              createdAt: new Date().toISOString(),
+            };
+          },
+        );
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+        });
+
+        expect(result.success).toBe(true);
+        expect(capturedArchiveData).not.toBeNull();
+
+        const tar = await import("tar");
+        const extractDir = await fs.mkdtemp(
+          path.join(tmpdir(), "tarball-extract-"),
+        );
+
+        try {
+          const tarballBuffer = Buffer.from(capturedArchiveData!);
+          const tarballPath = path.join(extractDir, "upload.tgz");
+          await fs.writeFile(tarballPath, tarballBuffer);
+
+          await tar.extract({
+            file: tarballPath,
+            cwd: extractDir,
+          });
+
+          const extractedFiles = await fs.readdir(extractDir, {
+            recursive: true,
+          });
+
+          // Real content survives the filter.
+          expect(extractedFiles).toContain("AGENTS.md");
+          expect(extractedFiles).toContain(
+            path.join("skills", "my-skill", "SKILL.md"),
+          );
+
+          // Junk is filtered out.
+          expect(extractedFiles).not.toContain(
+            path.join("skills", "my-skill", ".SKILL.md.swp"),
+          );
+          expect(extractedFiles).not.toContain(".DS_Store");
+          expect(extractedFiles).not.toContain("Thumbs.db");
+          expect(extractedFiles).not.toContain(
+            path.join("skills", "my-skill", "._SKILL.md"),
+          );
+          expect(extractedFiles).not.toContain(
+            path.join("skills", "my-skill", "SKILL.md~"),
+          );
+        } finally {
+          await fs.rm(extractDir, { recursive: true, force: true });
+        }
+      });
     });
 
     describe("nori.json type field handling", () => {
