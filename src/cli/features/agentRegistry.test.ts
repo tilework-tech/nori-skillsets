@@ -542,22 +542,30 @@ describe("AgentRegistry", () => {
       }
     });
 
-    test("removes managed files and manifest", async () => {
+    test("clears managed block from instructions file and removes manifest", async () => {
       const registry = AgentRegistry.getInstance();
       const agent = registry.get({ name: "claude-code" });
 
-      // Set up agent dir with managed files
+      // Set up agent dir with an instructions file containing a nori block
       const agentDir = agent.getAgentDir({ installDir: testInstallDir });
       await fs.mkdir(agentDir, { recursive: true });
-      await fs.writeFile(path.join(agentDir, "CLAUDE.md"), "# Config");
+      const claudeMdPath = path.join(agentDir, "CLAUDE.md");
+      await fs.writeFile(
+        claudeMdPath,
+        `# User Notes
+My personal config.
+
+# BEGIN NORI-AI MANAGED BLOCK
+nori-managed content
+# END NORI-AI MANAGED BLOCK
+`,
+      );
       await fs.writeFile(path.join(agentDir, ".nori-managed"), "test-skillset");
 
       // Write a manifest that tracks CLAUDE.md
       const { computeFileHash, writeManifest, getManifestPath } =
         await import("@/cli/features/manifest.js");
-      const hash = await computeFileHash({
-        filePath: path.join(agentDir, "CLAUDE.md"),
-      });
+      const hash = await computeFileHash({ filePath: claudeMdPath });
       const manifestPath = getManifestPath({ agentName: agent.name });
       await writeManifest({
         manifestPath,
@@ -572,10 +580,14 @@ describe("AgentRegistry", () => {
       // Remove the skillset
       await removeSkillset({ agent, installDir: testInstallDir });
 
-      // Managed file should be gone
-      await expect(
-        fs.access(path.join(agentDir, "CLAUDE.md")),
-      ).rejects.toThrow();
+      // CLAUDE.md is preserved (user content stays)
+      const remaining = await fs.readFile(claudeMdPath, "utf-8");
+      expect(remaining).toContain("# User Notes");
+      expect(remaining).toContain("My personal config.");
+      // Managed block markers and content are cleared
+      expect(remaining).not.toContain("# BEGIN NORI-AI MANAGED BLOCK");
+      expect(remaining).not.toContain("# END NORI-AI MANAGED BLOCK");
+      expect(remaining).not.toContain("nori-managed content");
 
       // .nori-managed marker should be gone
       await expect(

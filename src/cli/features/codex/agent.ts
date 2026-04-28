@@ -1,5 +1,10 @@
 /**
  * Codex agent configuration
+ *
+ * Codex CLI reads custom prompts from ~/.codex/prompts/ (global only — project
+ * scope is "not planned" per github.com/openai/codex#9848). For project
+ * installs, the prompts directory below still uses `prompts/` for cosmetic
+ * accuracy, but codex won't read them.
  */
 
 import * as path from "path";
@@ -14,6 +19,11 @@ import { getHomeDir } from "@/utils/home.js";
 
 import type { AgentConfig } from "@/cli/features/agentRegistry.js";
 
+const isGlobalInstall = (args: { installDir: string }): boolean => {
+  const { installDir } = args;
+  return path.resolve(installDir) === path.resolve(getHomeDir());
+};
+
 export const codexAgentConfig: AgentConfig = {
   name: "codex",
   displayName: "Codex",
@@ -24,15 +34,17 @@ export const codexAgentConfig: AgentConfig = {
   getSubagentsDir: ({ installDir }) =>
     path.join(installDir, ".codex", "agents"),
   getSlashcommandsDir: ({ installDir }) =>
-    path.join(installDir, ".codex", "commands"),
+    path.join(installDir, ".codex", "prompts"),
   getInstructionsFilePath: ({ installDir }) =>
-    path.join(installDir, ".codex", "AGENTS.md"),
+    isGlobalInstall({ installDir })
+      ? path.join(installDir, ".codex", "AGENTS.md")
+      : path.join(installDir, "AGENTS.md"),
 
   getLoaders: () => [
     configLoader,
     skillsLoader,
     createInstructionsLoader({ managedFiles: ["AGENTS.md"] }),
-    createSlashCommandsLoader({ managedDirs: ["commands"] }),
+    createSlashCommandsLoader({ managedDirs: ["prompts"] }),
     createSubagentsLoader({
       managedDirs: ["agents"],
       targetFormat: "codex-toml",
