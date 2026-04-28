@@ -215,6 +215,35 @@ describe("parseSkillset", () => {
     expect(skillset.name).toBe("direct-path");
     expect(skillset.dir).toBe(skillsetDir);
   });
+
+  it("should populate mcpDir when skillset has an mcp directory", async () => {
+    const skillsetName = "with-mcp";
+    const skillsetDir = path.join(profilesDir, skillsetName);
+    await fs.mkdir(skillsetDir, { recursive: true });
+    await fs.writeFile(
+      path.join(skillsetDir, "nori.json"),
+      JSON.stringify({ name: "with-mcp", version: "1.0.0" }),
+    );
+    await fs.mkdir(path.join(skillsetDir, "mcp"), { recursive: true });
+
+    const skillset = await parseSkillset({ skillsetName });
+
+    expect(skillset.mcpDir).toBe(path.join(skillsetDir, "mcp"));
+  });
+
+  it("should set mcpDir to null when no mcp directory exists", async () => {
+    const skillsetName = "no-mcp";
+    const skillsetDir = path.join(profilesDir, skillsetName);
+    await fs.mkdir(skillsetDir, { recursive: true });
+    await fs.writeFile(
+      path.join(skillsetDir, "nori.json"),
+      JSON.stringify({ name: "no-mcp", version: "1.0.0" }),
+    );
+
+    const skillset = await parseSkillset({ skillsetName });
+
+    expect(skillset.mcpDir).toBeNull();
+  });
 });
 
 describe("listSkillsets", () => {

@@ -17,9 +17,10 @@ The `claudeCodeAgentConfig` declares its ordered loader pipeline via `getLoaders
 3. `createInstructionsLoader({ managedFiles: ["CLAUDE.md"] })` -- shared, from @/src/cli/features/shared/instructionsLoader.ts
 4. `createSlashCommandsLoader({ managedDirs: ["commands"] })` -- shared
 5. `createSubagentsLoader({ managedDirs: ["agents"] })` -- shared
-6. `hooksLoader` (`managedFiles: ["settings.json"]`) -- Claude-specific
-7. `statuslineLoader` (`managedFiles: ["nori-statusline.sh", "settings.json"]`) -- Claude-specific
-8. `announcementsLoader` (`managedFiles: ["settings.json"]`) -- Claude-specific
+6. `createMcpLoader({ format: "claude-mcp-json", ... })` -- shared, from @/src/cli/features/shared/mcpLoader.ts. Project scope writes the entire `.mcp.json` at the install directory root (`whole-file`); user scope grafts the canonical entries into `~/.claude.json` under the `mcpServers` key (`merge-mcp-servers-key`) so the rest of Claude's user-level state stays intact.
+7. `hooksLoader` (`managedFiles: ["settings.json"]`) -- Claude-specific
+8. `statuslineLoader` (`managedFiles: ["nori-statusline.sh", "settings.json"]`) -- Claude-specific
+9. `announcementsLoader` (`managedFiles: ["settings.json"]`) -- Claude-specific
 
 All loaders implement the `AgentLoader` interface directly.
 

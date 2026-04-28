@@ -9,6 +9,7 @@ import { hooksLoader } from "@/cli/features/claude-code/hooks/loader.js";
 import { statuslineLoader } from "@/cli/features/claude-code/statusline/loader.js";
 import { configLoader } from "@/cli/features/configLoader.js";
 import { createInstructionsLoader } from "@/cli/features/shared/instructionsLoader.js";
+import { createMcpLoader } from "@/cli/features/shared/mcpLoader.js";
 import { skillsLoader } from "@/cli/features/shared/skillsLoader.js";
 import { createSlashCommandsLoader } from "@/cli/features/shared/slashCommandsLoader.js";
 import { createSubagentsLoader } from "@/cli/features/shared/subagentsLoader.js";
@@ -40,6 +41,13 @@ export const claudeCodeAgentConfig: AgentConfig = {
     createInstructionsLoader({ managedFiles: ["CLAUDE.md"] }),
     createSlashCommandsLoader({ managedDirs: ["commands"] }),
     createSubagentsLoader({ managedDirs: ["agents"] }),
+    createMcpLoader({
+      format: "claude-mcp-json",
+      projectFile: ({ installDir }) => path.join(installDir, ".mcp.json"),
+      projectMergeStrategy: "whole-file",
+      userFile: () => path.join(getHomeDir(), ".claude.json"),
+      userMergeStrategy: "merge-mcp-servers-key",
+    }),
     hooksLoader,
     statuslineLoader,
     announcementsLoader,
