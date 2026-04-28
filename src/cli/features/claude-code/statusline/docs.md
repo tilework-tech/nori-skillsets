@@ -25,6 +25,6 @@ Path: @/src/cli/features/claude-code/statusline
 - The loader gracefully skips configuration if the source script is not found in the build output
 - The shell script depends on `jq`; if missing, it displays a warning instead of the full status line
 - Session tracking files in `/tmp/` store token accumulation state so that token counts include cached tokens (which are invisible in `total_input_tokens`) and persist across `/clear` boundaries
-- The `package.json` placeholder substitution is the read-side of the version-sync invariant; the write-side is `syncInstalledVersion` (see `@/src/cli/features/claude-code/hooks/docs.md`), which keeps `~/.nori-config.json`'s `.version` aligned with the installed package on every `npm install`. The two together ensure the statusline never nags about an upgrade the user has already performed
+- The `package.json` placeholder substitution is the read-side of the version-sync invariant; the write-side is `syncInstalledVersion` at `@/src/cli/syncInstalledVersion.ts`, which keeps `~/.nori-config.json`'s `.version` aligned with the installed package on every `npm install`. The two together ensure the statusline never nags about an upgrade the user has already performed
 
 Created and maintained by Nori.

@@ -38,6 +38,8 @@ API tokens are self-describing: the format is `nori_<orgId>_<64 hex chars>` and 
 
 `version.ts` resolves the package version by walking up the directory tree to find `package.json`. It also reads the installed version from config (with fallback to a deprecated `.nori-installed-version` file) and checks `--agent` flag support via semver comparison.
 
+`syncInstalledVersion.ts` is an npm `postinstall` script that copies the on-disk `package.json` version into `~/.nori-config.json`'s `.version` field. Without it the cached config version only changes on `nori init` / `nori install`, leaving consumers like the statusline update nag (see `@/src/cli/features/claude-code/statusline/docs.md`) reading a stale value after `npm install -g nori-skillsets@latest`. It no-ops silently if the config is missing, malformed, or the package version cannot be resolved.
+
 ### Things to Know
 
 The config module supports both legacy flat auth fields and nested `auth` objects for backward compatibility. `loadConfig` normalizes both formats into the same `Config` type. The schema validation uses `removeAdditional: true`, so unknown fields are silently stripped.
