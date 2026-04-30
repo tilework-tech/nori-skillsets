@@ -3,7 +3,7 @@ import { getAuth, type Auth } from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: "AIzaSyC54HqlGrkyANVFKGDQi3LobO5moDOuafk",
-  authDomain: "tilework-e18c5.firebaseapp.com",
+  authDomain: "login.noriskillsets.dev",
   projectId: "tilework-e18c5",
   storageBucket: "tilework-e18c5.firebasestorage.app",
   messagingSenderId: "199991289749",
