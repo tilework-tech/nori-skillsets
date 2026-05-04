@@ -13,6 +13,7 @@ import { log } from "@clack/prompts";
 import * as semver from "semver";
 import * as tar from "tar";
 
+import { readApiTokenEnv } from "@/api/base.js";
 import {
   registrarApi,
   REGISTRAR_URL,
@@ -33,6 +34,7 @@ import { shouldExcludeFromUpload } from "@/utils/uploadFileFilter.js";
 import {
   parseNamespacedPackage,
   buildOrganizationRegistryUrl,
+  extractOrgId,
 } from "@/utils/url.js";
 
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
@@ -209,11 +211,15 @@ const resolveRegistryAndAuth = async (args: {
       : orgId === "public"
         ? REGISTRAR_URL
         : buildOrganizationRegistryUrl({ orgId });
+  const envApi = readApiTokenEnv();
+  const targetOrgId = extractOrgId({ url: targetRegistryUrl });
+  const hasMatchingEnvToken =
+    envApi != null && targetOrgId != null && envApi.orgId === targetOrgId;
 
   // Org-scoped upload: verify membership when we have a known org list
   if (orgId !== "public") {
     const userOrgs = config?.auth?.organizations ?? null;
-    if (userOrgs != null && !userOrgs.includes(orgId)) {
+    if (userOrgs != null && !hasMatchingEnvToken && !userOrgs.includes(orgId)) {
       return {
         ok: false,
         error: `You do not have access to organization "${orgId}".`,
@@ -228,13 +234,15 @@ const resolveRegistryAndAuth = async (args: {
   if (
     orgId === "public" &&
     registryUrl == null &&
-    (config?.auth?.refreshToken != null || config?.auth?.apiToken != null)
+    (hasMatchingEnvToken ||
+      config?.auth?.refreshToken != null ||
+      config?.auth?.apiToken != null)
   ) {
     registryAuth = {
       registryUrl: REGISTRAR_URL,
-      username: config.auth.username ?? null,
-      refreshToken: config.auth.refreshToken,
-      apiToken: config.auth.apiToken ?? null,
+      username: config?.auth?.username ?? null,
+      refreshToken: config?.auth?.refreshToken ?? null,
+      apiToken: config?.auth?.apiToken ?? null,
     };
   }
 
@@ -247,13 +255,15 @@ const resolveRegistryAndAuth = async (args: {
   // explicit --registry paths when no matching entry was found)
   if (
     registryAuth == null &&
-    (config?.auth?.refreshToken != null || config?.auth?.apiToken != null)
+    (hasMatchingEnvToken ||
+      config?.auth?.refreshToken != null ||
+      config?.auth?.apiToken != null)
   ) {
     registryAuth = {
       registryUrl: targetRegistryUrl,
-      username: config.auth.username ?? null,
-      refreshToken: config.auth.refreshToken,
-      apiToken: config.auth.apiToken ?? null,
+      username: config?.auth?.username ?? null,
+      refreshToken: config?.auth?.refreshToken ?? null,
+      apiToken: config?.auth?.apiToken ?? null,
     };
   }
 

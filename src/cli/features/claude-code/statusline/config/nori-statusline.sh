@@ -140,9 +140,9 @@ CONTEXT_LENGTH=$((CALL_INPUT + CALL_CACHE_READ + CALL_CACHE_CREATE))
 format_tokens() {
     local count=$1
     if [ "$count" -ge 1000000 ]; then
-        echo "scale=1; $count / 1000000" | bc | sed 's/$/M/'
+        awk "BEGIN { printf \"%.1fM\\n\", $count / 1000000 }"
     elif [ "$count" -ge 1000 ]; then
-        echo "scale=1; $count / 1000" | bc | sed 's/$/k/'
+        awk "BEGIN { printf \"%.1fk\\n\", $count / 1000 }"
     else
         echo "$count"
     fi

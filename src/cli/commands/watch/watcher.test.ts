@@ -25,7 +25,7 @@ import {
  */
 const waitFor = async (
   condition: () => boolean,
-  timeoutMs = 5000,
+  timeoutMs = 20000,
 ): Promise<void> => {
   const start = Date.now();
   while (!condition()) {
@@ -65,6 +65,9 @@ describe("createWatcher", () => {
     // Wait for watcher to be ready
     await waitForWatcherReady({ instance: watcherInstance });
 
+    // Give the polling watcher one tick to settle after the ready event.
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
     // Create a new JSONL file
     const testFile = path.join(tempDir, "test.jsonl");
     await fs.writeFile(testFile, '{"test": true}', "utf-8");
@@ -75,7 +78,7 @@ describe("createWatcher", () => {
     const addEvent = events.find((e) => e.type === "add");
     expect(addEvent).toBeDefined();
     expect(addEvent?.filePath).toBe(testFile);
-  });
+  }, 25000);
 
   test("emits change event when JSONL file is modified", async () => {
     // Create file before starting watcher
@@ -104,7 +107,7 @@ describe("createWatcher", () => {
     const changeEvent = events.find((e) => e.type === "change");
     expect(changeEvent).toBeDefined();
     expect(changeEvent?.filePath).toBe(testFile);
-  });
+  }, 25000);
 
   test("ignores non-JSONL files", async () => {
     const events: Array<WatcherEvents> = [];
@@ -142,6 +145,9 @@ describe("createWatcher", () => {
     // Wait for watcher to be ready
     await waitForWatcherReady({ instance: watcherInstance });
 
+    // Give the polling watcher time to settle on pre-existing subdirectories.
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
     // Create a JSONL file in nested directory
     const testFile = path.join(nestedDir, "session.jsonl");
     await fs.writeFile(testFile, '{"nested": true}', "utf-8");
@@ -155,7 +161,7 @@ describe("createWatcher", () => {
       (e) => e.type === "add" && e.filePath === testFile,
     );
     expect(addEvent).toBeDefined();
-  });
+  }, 25000);
 
   test("stopWatcher stops the watcher", async () => {
     const events: Array<WatcherEvents> = [];

@@ -200,9 +200,12 @@ describe("registry-upload", () => {
   let testDir: string;
   let configPath: string;
   let skillsetsDir: string;
+  let originalEnvApiToken: string | undefined;
 
   beforeEach(async () => {
     vi.resetAllMocks();
+    originalEnvApiToken = process.env.NORI_API_TOKEN;
+    delete process.env.NORI_API_TOKEN;
 
     // Reset the shared spinner mock and re-establish the mock implementation
     sharedSpinnerMock = createSpinnerMock();
@@ -264,6 +267,11 @@ describe("registry-upload", () => {
 
   afterEach(async () => {
     vi.clearAllMocks();
+    if (originalEnvApiToken == null) {
+      delete process.env.NORI_API_TOKEN;
+    } else {
+      process.env.NORI_API_TOKEN = originalEnvApiToken;
+    }
     if (testDir) {
       await fs.rm(testDir, { recursive: true, force: true });
     }
@@ -504,6 +512,110 @@ describe("registry-upload", () => {
         });
 
         expect(result.success).toBe(true);
+      });
+
+      it("should upload to public registry when authenticated via public API token config", async () => {
+        const skillsetDir = path.join(skillsetsDir, "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
+        await fs.writeFile(
+          path.join(skillsetDir, "AGENTS.md"),
+          "# My Profile\n",
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: null,
+            refreshToken: null,
+            apiToken:
+              "nori_public_1111111111111111111111111111111111111111111111111111111111111111",
+            organizations: ["public"],
+            organizationUrl: "https://noriskillsets.dev",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("public-api-auth");
+
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+
+        vi.mocked(registrarApi.uploadSkillset).mockResolvedValue({
+          name: "my-profile",
+          version: "1.0.0",
+          tarballSha: "abc123",
+          createdAt: new Date().toISOString(),
+        });
+
+        const result = await registryUploadMain({
+          profileSpec: "my-profile",
+          cwd: testDir,
+          silent: true,
+          nonInteractive: true,
+        });
+
+        expect(result.success).toBe(true);
+        expect(getRegistryAuthToken).toHaveBeenCalledWith({
+          registryAuth: expect.objectContaining({
+            registryUrl: "https://noriskillsets.dev",
+            apiToken:
+              "nori_public_1111111111111111111111111111111111111111111111111111111111111111",
+          }),
+        });
+        expect(registrarApi.uploadSkillset).toHaveBeenCalledWith(
+          expect.objectContaining({
+            packageName: "my-profile",
+            authToken: "public-api-auth",
+            registryUrl: "https://noriskillsets.dev",
+          }),
+        );
+      });
+
+      it("should upload to public registry with NORI_API_TOKEN and no saved config", async () => {
+        process.env.NORI_API_TOKEN =
+          "nori_public_2222222222222222222222222222222222222222222222222222222222222222";
+
+        const skillsetDir = path.join(skillsetsDir, "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
+        await fs.writeFile(
+          path.join(skillsetDir, "AGENTS.md"),
+          "# My Profile\n",
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue(null);
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("public-env-auth");
+
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+
+        vi.mocked(registrarApi.uploadSkillset).mockResolvedValue({
+          name: "my-profile",
+          version: "1.0.0",
+          tarballSha: "abc123",
+          createdAt: new Date().toISOString(),
+        });
+
+        const result = await registryUploadMain({
+          profileSpec: "my-profile",
+          cwd: testDir,
+          silent: true,
+          nonInteractive: true,
+        });
+
+        expect(result.success).toBe(true);
+        expect(getRegistryAuthToken).toHaveBeenCalledWith({
+          registryAuth: expect.objectContaining({
+            registryUrl: "https://noriskillsets.dev",
+          }),
+        });
+        expect(registrarApi.uploadSkillset).toHaveBeenCalledWith(
+          expect.objectContaining({
+            packageName: "my-profile",
+            authToken: "public-env-auth",
+            registryUrl: "https://noriskillsets.dev",
+          }),
+        );
       });
 
       it("should upload to org registry when authenticated via API token (no refreshToken)", async () => {
