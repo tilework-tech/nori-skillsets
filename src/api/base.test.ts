@@ -482,6 +482,29 @@ describe("apiRequest with NORI_API_TOKEN env var and no config file", () => {
     );
   });
 
+  it("should issue request to public registry apex with raw public API token as Bearer header", async () => {
+    process.env.NORI_API_TOKEN = `nori_public_${"b".repeat(64)}`;
+
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ result: "ok" }),
+    });
+
+    const { apiRequest } = await import("./base.js");
+
+    const result = await apiRequest<{ result: string }>({
+      path: "/skillsets/foo",
+    });
+
+    expect(result).toEqual({ result: "ok" });
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    const [calledUrl, calledOptions] = mockFetch.mock.calls[0];
+    expect(calledUrl).toBe("https://noriskillsets.dev/api/skillsets/foo");
+    expect(calledOptions.headers.Authorization).toBe(
+      `Bearer nori_public_${"b".repeat(64)}`,
+    );
+  });
+
   it("should NOT send config.apiToken for acme to a baseUrl targeting foo (cross-org scoping)", async () => {
     const configPath = path.join(tempDir, ".nori-config.json");
     fs.writeFileSync(

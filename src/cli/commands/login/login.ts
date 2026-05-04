@@ -323,10 +323,10 @@ const authenticateWithGoogle = async (args?: {
 /**
  * Authenticate using an API token and persist credentials.
  *
- * Validates token shape, rejects reserved 'public' orgId, writes the nested
- * `auth` block (clearing any Firebase fields), and warns the user when an
- * existing Firebase session is overwritten. Used by both the `--token` CLI
- * flag and the interactive "API Token" auth method selection.
+ * Validates token shape, writes the nested `auth` block (clearing any Firebase
+ * fields), and warns the user when an existing Firebase session is overwritten.
+ * Used by both the `--token` CLI flag and the interactive "API Token" auth
+ * method selection.
  *
  * @param args - Token auth arguments
  * @param args.token - Raw API token (format `nori_<orgId>_<64hex>`)
@@ -354,15 +354,6 @@ const loginWithApiToken = async (args: {
       message: "Invalid API token. Could not parse orgId from token.",
     };
   }
-  if (orgId === "public") {
-    return {
-      success: false,
-      cancelled: false,
-      message:
-        "API tokens are not supported on the public registry. The token encodes org 'public', which is not a valid private org.",
-    };
-  }
-
   const organizationUrl = buildOrganizationRegistryUrl({ orgId });
 
   // Detect whether an existing Firebase session is about to be overwritten,

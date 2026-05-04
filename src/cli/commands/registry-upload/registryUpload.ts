@@ -10,6 +10,7 @@ import { log } from "@clack/prompts";
 import * as semver from "semver";
 import * as tar from "tar";
 
+import { readApiTokenEnv } from "@/api/base.js";
 import {
   registrarApi,
   type SkillResolutionStrategy,
@@ -40,6 +41,7 @@ import { shouldExcludeFromUpload } from "@/utils/uploadFileFilter.js";
 import {
   parseNamespacedPackage,
   buildOrganizationRegistryUrl,
+  extractOrgId,
 } from "@/utils/url.js";
 
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
@@ -1036,7 +1038,8 @@ export const registryUploadMain = async (args: {
 
   // Load config for auth and install dir resolution
   const config = await loadConfig();
-  if (config == null) {
+  const envApi = readApiTokenEnv();
+  if (config == null && envApi == null) {
     log.error(`Could not load Nori configuration.`);
     return {
       success: false,
@@ -1045,9 +1048,26 @@ export const registryUploadMain = async (args: {
     };
   }
 
+  const hasMatchingEnvToken = (url: string): boolean => {
+    const targetOrgId = extractOrgId({ url });
+    return (
+      envApi != null && targetOrgId != null && envApi.orgId === targetOrgId
+    );
+  };
+
+  const envRegistryAuth = (url: string): RegistryAuth | null => {
+    if (!hasMatchingEnvToken(url)) {
+      return null;
+    }
+    return {
+      registryUrl: url,
+      username: null,
+    };
+  };
+
   // Check for unified auth with organizations (new flow)
   const hasUnifiedAuthWithOrgs =
-    config.auth != null &&
+    config?.auth != null &&
     (config.auth.refreshToken != null || config.auth.apiToken != null) &&
     config.auth.organizations != null;
 
@@ -1062,7 +1082,7 @@ export const registryUploadMain = async (args: {
     // Check unified auth first
     let registryAuth: RegistryAuth | null = null;
     if (hasUnifiedAuthWithOrgs) {
-      const userOrgs = config.auth!.organizations!;
+      const userOrgs = config!.auth!.organizations!;
       for (const userOrgId of userOrgs) {
         const orgRegistryUrl = buildOrganizationRegistryUrl({
           orgId: userOrgId,
@@ -1070,9 +1090,9 @@ export const registryUploadMain = async (args: {
         if (orgRegistryUrl === registryUrl) {
           registryAuth = {
             registryUrl,
-            username: config.auth!.username ?? null,
-            refreshToken: config.auth!.refreshToken ?? null,
-            apiToken: config.auth!.apiToken ?? null,
+            username: config!.auth!.username ?? null,
+            refreshToken: config!.auth!.refreshToken ?? null,
+            apiToken: config!.auth!.apiToken ?? null,
           };
           break;
         }
@@ -1080,9 +1100,10 @@ export const registryUploadMain = async (args: {
     }
 
     // Fall back to config-level registry auth
-    if (registryAuth == null) {
+    if (registryAuth == null && config != null) {
       registryAuth = getRegistryAuth({ config, registryUrl });
     }
+    registryAuth ??= envRegistryAuth(registryUrl);
 
     if (registryAuth == null) {
       log.error(
@@ -1107,15 +1128,19 @@ export const registryUploadMain = async (args: {
         message: `Authentication failed: ${err instanceof Error ? err.message : String(err)}`,
       };
     }
-  } else if (orgId === "public" && hasUnifiedAuthWithOrgs) {
+  } else if (
+    orgId === "public" &&
+    (hasUnifiedAuthWithOrgs ||
+      hasMatchingEnvToken(buildOrganizationRegistryUrl({ orgId })))
+  ) {
     // Public registry is open to any authenticated user
     targetRegistryUrl = buildOrganizationRegistryUrl({ orgId });
 
     const registryAuth: RegistryAuth = {
       registryUrl: targetRegistryUrl,
-      username: config.auth!.username ?? null,
-      refreshToken: config.auth!.refreshToken ?? null,
-      apiToken: config.auth!.apiToken ?? null,
+      username: config?.auth?.username ?? null,
+      refreshToken: config?.auth?.refreshToken ?? null,
+      apiToken: config?.auth?.apiToken ?? null,
     };
 
     try {
@@ -1140,12 +1165,15 @@ export const registryUploadMain = async (args: {
       cancelled: false,
       message: "Authentication required to upload to public registry",
     };
-  } else if (hasUnifiedAuthWithOrgs) {
+  } else if (
+    hasUnifiedAuthWithOrgs ||
+    hasMatchingEnvToken(buildOrganizationRegistryUrl({ orgId }))
+  ) {
     // Org-scoped upload requires org membership
     targetRegistryUrl = buildOrganizationRegistryUrl({ orgId });
-    const userOrgs = config.auth!.organizations!;
+    const userOrgs = config?.auth?.organizations ?? [];
 
-    if (!userOrgs.includes(orgId)) {
+    if (!hasMatchingEnvToken(targetRegistryUrl) && !userOrgs.includes(orgId)) {
       log.error(
         `You do not have access to organization "${orgId}".\n\nCannot upload "${profileDisplayName}" to ${targetRegistryUrl}.\n\nYour available organizations: ${userOrgs.length > 0 ? userOrgs.join(", ") : "(none)"}`,
       );
@@ -1158,9 +1186,9 @@ export const registryUploadMain = async (args: {
 
     const registryAuth: RegistryAuth = {
       registryUrl: targetRegistryUrl,
-      username: config.auth!.username ?? null,
-      refreshToken: config.auth!.refreshToken ?? null,
-      apiToken: config.auth!.apiToken ?? null,
+      username: config?.auth?.username ?? null,
+      refreshToken: config?.auth?.refreshToken ?? null,
+      apiToken: config?.auth?.apiToken ?? null,
     };
 
     try {
