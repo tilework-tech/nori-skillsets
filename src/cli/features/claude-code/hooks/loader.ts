@@ -46,6 +46,83 @@ type HookInterface = {
   install: () => Promise<Array<HookConfig>>;
 };
 
+type CommitAttributionMode = "agent" | "none" | "nori";
+
+const COMMIT_ATTRIBUTION_ENV = "NORI_SKILLSETS_COMMIT_ATTRIBUTION";
+
+const getCommitAttributionMode = (args: {
+  env?: NodeJS.ProcessEnv | null;
+}): CommitAttributionMode => {
+  const { env = process.env } = args;
+
+  switch (env?.[COMMIT_ATTRIBUTION_ENV]) {
+    case "agent":
+      return "agent";
+    case "none":
+      return "none";
+    case "nori":
+      return "nori";
+    default:
+      return "nori";
+  }
+};
+
+const removeEmptyAttribution = (args: { settings: any }) => {
+  const { settings } = args;
+
+  if (
+    settings.attribution == null ||
+    typeof settings.attribution !== "object" ||
+    Array.isArray(settings.attribution)
+  ) {
+    return;
+  }
+
+  if (settings.attribution.commit === "") {
+    delete settings.attribution.commit;
+  }
+
+  if (settings.attribution.pr === "") {
+    delete settings.attribution.pr;
+  }
+
+  if (Object.keys(settings.attribution).length === 0) {
+    delete settings.attribution;
+  }
+};
+
+const applyCommitAttributionSettings = (args: {
+  mode: CommitAttributionMode;
+  settings: any;
+}) => {
+  const { mode, settings } = args;
+
+  if (mode === "none") {
+    settings.includeCoAuthoredBy = false;
+    settings.attribution = {
+      ...(typeof settings.attribution === "object" &&
+      settings.attribution != null &&
+      !Array.isArray(settings.attribution)
+        ? settings.attribution
+        : {}),
+      commit: "",
+      pr: "",
+    };
+    return;
+  }
+
+  removeEmptyAttribution({ settings });
+
+  if (mode === "agent") {
+    if (settings.includeCoAuthoredBy === false) {
+      delete settings.includeCoAuthoredBy;
+    }
+    return;
+  }
+
+  settings.includeCoAuthoredBy = false;
+};
+
 /**
  * Context usage warning hook - warns about excessive permissions context usage
  */
@@ -177,14 +254,19 @@ const configureHooks = async (args: {
     };
   }
 
-  // Disable Claude Code's built-in co-author byline
-  settings.includeCoAuthoredBy = false;
+  const commitAttributionMode = getCommitAttributionMode({
+    env: process.env,
+  });
+  applyCommitAttributionSettings({
+    mode: commitAttributionMode,
+    settings,
+  });
 
   const hooks = [
     contextUsageWarningHook,
     updateCheckHook,
     notifyHook,
-    commitAuthorHook,
+    ...(commitAttributionMode === "nori" ? [commitAuthorHook] : []),
   ];
   const hooksConfig: any = {};
 

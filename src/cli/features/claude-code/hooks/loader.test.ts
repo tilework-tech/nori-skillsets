@@ -11,6 +11,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 import type { Config } from "@/cli/config.js";
 
+const COMMIT_ATTRIBUTION_ENV = "NORI_SKILLSETS_COMMIT_ATTRIBUTION";
+
 // Mock the env module to use temp directories
 let mockClaudeDir: string;
 let mockClaudeSettingsFile: string;
@@ -33,8 +35,12 @@ describe("hooksLoader", () => {
   let tempDir: string;
   let claudeDir: string;
   let settingsPath: string;
+  let originalCommitAttributionEnv: string | undefined;
 
   beforeEach(async () => {
+    originalCommitAttributionEnv = process.env[COMMIT_ATTRIBUTION_ENV];
+    delete process.env[COMMIT_ATTRIBUTION_ENV];
+
     // Create temp directory for testing
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "hooks-test-"));
     claudeDir = path.join(tempDir, ".claude");
@@ -52,11 +58,43 @@ describe("hooksLoader", () => {
     // Clean up temp directory
     await fs.rm(tempDir, { recursive: true, force: true });
 
+    if (originalCommitAttributionEnv == null) {
+      delete process.env[COMMIT_ATTRIBUTION_ENV];
+    } else {
+      process.env[COMMIT_ATTRIBUTION_ENV] = originalCommitAttributionEnv;
+    }
+
     // Clear all mocks
     vi.clearAllMocks();
   });
 
   describe("run", () => {
+    const runHooksLoader = async () => {
+      const config: Config = { installDir: tempDir };
+
+      await hooksLoader.run({ agent: {} as any, config });
+
+      const content = await fs.readFile(settingsPath, "utf-8");
+      return JSON.parse(content);
+    };
+
+    const hasHookCommand = (args: {
+      settings: any;
+      event: string;
+      commandPart: string;
+    }) => {
+      const { settings, event, commandPart } = args;
+      const eventHooks = settings.hooks[event] ?? [];
+
+      return eventHooks.some((hookConfig: any) =>
+        (hookConfig.hooks ?? []).some(
+          (hook: any) =>
+            typeof hook.command === "string" &&
+            hook.command.includes(commandPart),
+        ),
+      );
+    };
+
     it("should configure hooks", async () => {
       const config: Config = { installDir: tempDir };
 
@@ -239,6 +277,146 @@ describe("hooksLoader", () => {
         }
       }
       expect(hasContextUsageWarningHook).toBe(true);
+    });
+
+    it("should use Nori commit attribution when the env var is unset", async () => {
+      const settings = await runHooksLoader();
+
+      expect(
+        hasHookCommand({
+          settings,
+          event: "PreToolUse",
+          commandPart: "commit-author",
+        }),
+      ).toBe(true);
+      expect(settings.includeCoAuthoredBy).toBe(false);
+      expect(settings.attribution).toBeUndefined();
+    });
+
+    it("should use Nori commit attribution when the env var is nori", async () => {
+      process.env[COMMIT_ATTRIBUTION_ENV] = "nori";
+
+      const settings = await runHooksLoader();
+
+      expect(
+        hasHookCommand({
+          settings,
+          event: "PreToolUse",
+          commandPart: "commit-author",
+        }),
+      ).toBe(true);
+      expect(settings.includeCoAuthoredBy).toBe(false);
+    });
+
+    it("should fall back to Nori commit attribution for an invalid env var value", async () => {
+      process.env[COMMIT_ATTRIBUTION_ENV] = "invalid";
+
+      const settings = await runHooksLoader();
+
+      expect(
+        hasHookCommand({
+          settings,
+          event: "PreToolUse",
+          commandPart: "commit-author",
+        }),
+      ).toBe(true);
+      expect(settings.includeCoAuthoredBy).toBe(false);
+    });
+
+    it("should disable Nori and Claude commit attribution when the env var is none", async () => {
+      process.env[COMMIT_ATTRIBUTION_ENV] = "none";
+
+      const settings = await runHooksLoader();
+
+      expect(
+        hasHookCommand({
+          settings,
+          event: "PreToolUse",
+          commandPart: "commit-author",
+        }),
+      ).toBe(false);
+      expect(
+        hasHookCommand({
+          settings,
+          event: "SessionStart",
+          commandPart: "context-usage-warning",
+        }),
+      ).toBe(true);
+      expect(
+        hasHookCommand({
+          settings,
+          event: "Notification",
+          commandPart: "notify-hook",
+        }),
+      ).toBe(true);
+      expect(settings.includeCoAuthoredBy).toBe(false);
+      expect(settings.attribution).toEqual({
+        commit: "",
+        pr: "",
+      });
+    });
+
+    it("should let the agent provider own commit attribution when the env var is agent", async () => {
+      process.env[COMMIT_ATTRIBUTION_ENV] = "agent";
+      await fs.writeFile(
+        settingsPath,
+        JSON.stringify(
+          {
+            includeCoAuthoredBy: false,
+            attribution: {
+              commit: "",
+              pr: "",
+            },
+            someOtherSetting: "value",
+          },
+          null,
+          2,
+        ),
+      );
+
+      const settings = await runHooksLoader();
+
+      expect(
+        hasHookCommand({
+          settings,
+          event: "PreToolUse",
+          commandPart: "commit-author",
+        }),
+      ).toBe(false);
+      expect(settings.includeCoAuthoredBy).toBeUndefined();
+      expect(settings.attribution).toBeUndefined();
+      expect(settings.someOtherSetting).toBe("value");
+    });
+
+    it("should preserve custom agent attribution settings when the env var is agent", async () => {
+      process.env[COMMIT_ATTRIBUTION_ENV] = "agent";
+      await fs.writeFile(
+        settingsPath,
+        JSON.stringify(
+          {
+            attribution: {
+              commit: "Custom commit attribution",
+              pr: "Custom PR attribution",
+            },
+          },
+          null,
+          2,
+        ),
+      );
+
+      const settings = await runHooksLoader();
+
+      expect(
+        hasHookCommand({
+          settings,
+          event: "PreToolUse",
+          commandPart: "commit-author",
+        }),
+      ).toBe(false);
+      expect(settings.attribution).toEqual({
+        commit: "Custom commit attribution",
+        pr: "Custom PR attribution",
+      });
     });
   });
 });
