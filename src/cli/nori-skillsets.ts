@@ -10,6 +10,7 @@ import { Command } from "commander";
 
 import {
   registerNoriSkillsetsClearCommand,
+  registerNoriSkillsetsClearCurrentCommand,
   registerNoriSkillsetsConfigCommand,
   registerNoriSkillsetsCompletionCommand,
   registerNoriSkillsetsCurrentCommand,
@@ -179,6 +180,7 @@ registerNoriSkillsetsRegisterCommand({ program });
 registerNoriSkillsetsImportMcpCommand({ program });
 registerNoriSkillsetsEditSkillsetCommand({ program });
 registerNoriSkillsetsClearCommand({ program });
+registerNoriSkillsetsClearCurrentCommand({ program });
 registerNoriSkillsetsFactoryResetCommand({ program });
 registerNoriSkillsetsConfigCommand({ program });
 
