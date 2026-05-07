@@ -34,6 +34,7 @@ _nori_skillsets() {
     'edit:Open a skillset folder in VS Code'
     'install-location:Display Nori installation directories'
     'clear:Remove all Nori-managed configuration from the install directory'
+    'clear-current:Remove all Nori-managed configuration from current directory and ancestors'
     'factory-reset:Remove all configuration for a given agent'
     'completion:Generate shell completion script'
     'help:Display help for a command'

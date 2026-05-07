@@ -11,7 +11,7 @@ The features directory contains the agent abstraction layer, shared loaders, and
 The `AgentRegistry` singleton is the central entry point used by CLI commands (e.g., `@/src/cli/commands/init`) to discover and interact with agent implementations. Each agent declares an ordered list of `AgentLoader` instances via `getLoaders()`, which `agentOperations.installSkillset()` executes sequentially to install configuration. CLI commands do not call agent methods directly for lifecycle operations (install, switch, remove, detect changes); instead they call shared functions from `agentOperations.ts` that accept an `AgentConfig` as a parameter.
 
 ```
-CLI Commands (install, switch-skillset, init, config, factory-reset, clear)
+CLI Commands (install, switch-skillset, init, config, factory-reset, clear, clear-current)
     |
     +-- AgentRegistry.getInstance().get({ name }) --> AgentConfig
     +-- AgentRegistry.getInstance().getAll()      --> iterate all agents

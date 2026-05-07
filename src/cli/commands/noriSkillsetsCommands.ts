@@ -1060,6 +1060,36 @@ export const registerNoriSkillsetsClearCommand = (args: {
 };
 
 /**
+ * Register the 'clear-current' command for nori-skillsets CLI
+ * @param args - Configuration arguments
+ * @param args.program - Commander program instance
+ */
+export const registerNoriSkillsetsClearCurrentCommand = (args: {
+  program: Command;
+}): void => {
+  const { program } = args;
+
+  const clearCurrentAction = async () => {
+    const { clearCurrentMain } =
+      await import("@/cli/commands/clear-current/clearCurrent.js");
+    const globalOpts = program.opts();
+    await clearCurrentMain({
+      agent: globalOpts.agent || null,
+    });
+  };
+
+  program
+    .command("clear-current")
+    .description(
+      "Remove all Nori-managed configuration detected in the current directory and all ancestors",
+    )
+    .action(clearCurrentAction);
+
+  // Hidden alias: cc (shorthand)
+  program.command("cc", { hidden: true }).action(clearCurrentAction);
+};
+
+/**
  * Register the 'config' command for nori-skillsets CLI
  * @param args - Configuration arguments
  * @param args.program - Commander program instance
