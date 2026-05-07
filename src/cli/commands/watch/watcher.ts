@@ -63,10 +63,6 @@ export const createWatcher = (args: {
     usePolling: true, // More reliable across platforms
     interval: 2000, // Poll every 2 seconds (files need to be 30s stale anyway)
     binaryInterval: 2000,
-    awaitWriteFinish: {
-      stabilityThreshold: 2000, // 2s stability is sufficient for stale detection
-      pollInterval: 500,
-    },
   });
 
   // Create ready promise

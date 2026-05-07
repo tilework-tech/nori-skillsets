@@ -8,7 +8,7 @@ The skill-upload command uploads a single skill from `~/.nori/profiles/<skillset
 
 ### How it fits into the larger codebase
 
-Registered as `upload-skill` via `@/src/cli/commands/noriSkillsetsCommands.ts`. It uses the `registrarApi.uploadSkill` endpoint from `@/api/registrar.js` (`PUT /api/skills/:skillName/skill`) for the upload itself, and `registrarApi.getSkillPackument` + `registrarApi.downloadSkillTarball` for collision detection against the remote. Authentication mirrors the skill-download flow — `getRegistryAuth` + `getRegistryAuthToken` per target registry URL with a fallback to the unified `config.auth` refresh token.
+Registered as `upload-skill` via `@/src/cli/commands/noriSkillsetsCommands.ts`. It uses the `registrarApi.uploadSkill` endpoint from `@/api/registrar.js` (`PUT /api/skills/:skillName/skill`) for the upload itself, and `registrarApi.getSkillPackument` + `registrarApi.downloadSkillTarball` for collision detection against the remote. Authentication mirrors the skill-download flow — `getRegistryAuth` + `getRegistryAuthToken` per target registry URL with fallbacks to unified `config.auth` and matching `NORI_API_TOKEN` values.
 
 ### Core Implementation
 
@@ -18,6 +18,8 @@ Registered as `upload-skill` via `@/src/cli/commands/noriSkillsetsCommands.ts`. 
 - `onUpload` creates a gzipped tarball of the skill directory (excluding `.nori-version`), then calls `registrarApi.uploadSkill`. The description defaults to the skill's local `nori.json.description` when `--description` is not passed explicitly.
 
 After a successful upload, `writeSkillVersion` updates the local `nori.json.version` so subsequent `skillUploadMain` calls will detect the bumped version cleanly.
+
+`resolveRegistryAndAuth` derives the target registry from `--registry`, the namespace prefix, or the public apex. Saved API tokens and env-var API tokens share the same scoping rule: the org embedded in the token must match the org derived from the target registry URL. This lets CI publish public skills with `NORI_API_TOKEN=nori_public_<hex> sks upload-skill <skill> --skillset <skillset> --silent --non-interactive` without a saved login config, while still preventing public tokens from being sent to private org registries.
 
 ### Conflict Resolution
 

@@ -257,6 +257,21 @@ describe("registryAuth", () => {
       expect(token).toBe(`nori_acme_${"d".repeat(64)}`);
       expect(exchangeRefreshToken).not.toHaveBeenCalled();
     });
+
+    it("should prefer NORI_API_TOKEN public token when registry URL is the public apex", async () => {
+      process.env.NORI_API_TOKEN = `nori_public_${"f".repeat(64)}`;
+
+      const registryAuth: RegistryAuth = {
+        username: "n/a",
+        registryUrl: "https://noriskillsets.dev",
+        apiToken: `nori_acme_${"e".repeat(64)}`,
+      };
+
+      const token = await getRegistryAuthToken({ registryAuth });
+
+      expect(token).toBe(`nori_public_${"f".repeat(64)}`);
+      expect(exchangeRefreshToken).not.toHaveBeenCalled();
+    });
   });
 
   describe("clearRegistryAuthCache", () => {

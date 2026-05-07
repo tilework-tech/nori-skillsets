@@ -12,7 +12,7 @@ Path: @/src/cli/commands/registry-upload
 
 - Registered as `upload` via `@/src/cli/commands/noriSkillsetsCommands.ts` with `wrapWithFraming`
 - Uses `@/api/registrar.js` (`registrarApi.uploadSkillset`, `registrarApi.getPackument`) for registry communication
-- Auth tokens are obtained via `@/api/registryAuth.js` (`getRegistryAuthToken`) using refresh tokens from config
+- Auth tokens are obtained via `@/api/registryAuth.js` (`getRegistryAuthToken`) using refresh tokens, saved API tokens, or a matching `NORI_API_TOKEN`
 - Skillset metadata is read/written through `@/norijson/nori.js` (`readSkillsetMetadata`, `writeSkillsetMetadata`)
 - Skillset directory paths are resolved via `@/norijson/skillset.js` (`getNoriSkillsetsDir`)
 - The interactive upload flow is driven by `uploadFlow` and `listVersionsFlow` from `@/cli/prompts/flows/`
@@ -26,15 +26,15 @@ Path: @/src/cli/commands/registry-upload
 1. Explicit registry URL (--registry flag)
    --> Matches auth by comparing URL against org registry URLs, falls back to config-level registry auth
 
-2. Public org + authenticated user (orgId === "public" && hasUnifiedAuthWithOrgs)
+2. Public org + authenticated user or matching env API token
    --> Any authenticated user can upload; no org membership check
    --> Server-side moderation (vouchStatus: 'pending') gates non-admin uploads
 
 3. Public org + no auth (orgId === "public")
    --> Error: authentication required
 
-4. Org-scoped + authenticated (hasUnifiedAuthWithOrgs)
-   --> Requires userOrgs.includes(orgId) -- org membership enforced
+4. Org-scoped + authenticated user or matching env API token
+   --> Requires userOrgs.includes(orgId) unless NORI_API_TOKEN embeds the target org
 
 5. No auth configured
    --> Error: login required
@@ -67,7 +67,7 @@ In non-interactive mode, flat subagent candidates are auto-inlined silently. Pre
 
 ### Things to Know
 
-- The `hasUnifiedAuthWithOrgs` check requires `config.auth`, `config.auth.organizations`, and either `config.auth.refreshToken` (Firebase session) or `config.auth.apiToken` (non-interactive API-token login). If organizations is null (e.g., legacy auth), the unified auth branches are skipped entirely.
+- The `hasUnifiedAuthWithOrgs` check requires `config.auth`, `config.auth.organizations`, and either `config.auth.refreshToken` (Firebase session) or `config.auth.apiToken` (non-interactive API-token login). If organizations is null (e.g., legacy auth), the unified auth branches are skipped entirely. A matching `NORI_API_TOKEN` can still authorize upload with no saved config; the command builds a registry auth request for the target URL and lets `getRegistryAuthToken` enforce token-to-registry scoping.
 - `migrateConfigToAgentsMd` renames `CLAUDE.md` to `AGENTS.md` in the local skillset directory before tarball creation, ensuring uploaded packages always use the current config filename. The migration is a no-op if `AGENTS.md` already exists or if neither file is present.
 - `createProfileTarball` filters tarball entries through the shared `shouldExcludeFromUpload` predicate from `@/src/utils/uploadFileFilter.ts`, which skips local download metadata (`.nori-version`), editor swap/backup files, and OS junk so they cannot pollute the registry's content hash. The same helper is reused by `@/src/cli/commands/skill-upload/skillUpload.ts` so both upload paths share one exclusion list.
 - `createProfileTarball` writes a temp `.tgz` to the parent directory (not inside the skillset dir) and cleans it up in a `finally` block.

@@ -5,7 +5,7 @@ Path: @/src/cli/commands/login
 ### Overview
 
 - Authenticates users against the Nori registrar and persists credentials into the nested `auth` block of `~/.nori-config.json`.
-- Supports three authentication modes: email/password (Firebase), Google SSO (Firebase OAuth), and API token (programmatic / CI access to a private-org registrar).
+- Supports three authentication modes: email/password (Firebase), Google SSO (Firebase OAuth), and API token (programmatic / CI access to private-org registrars and the public registrar).
 - All three modes are reachable from both the flag-driven path (`--token`, `--google`, `--email`/`--password`) and the interactive clack `select` menu. The interactive "API Token" entry was added so users who run `sks login` without flags can still pick token auth without rerunning the command.
 - `loginMain` branches on flag presence: `--token` short-circuits all Firebase logic; otherwise it falls through to the interactive auth-method select or the flag-specified Firebase flow.
 
@@ -19,7 +19,7 @@ Path: @/src/cli/commands/login
 
 ### Core Implementation
 
-API-token persistence logic (shape validation, orgId extraction, `public` rejection, config write, Firebase-session-overwrite warning) lives in the module-private `loginWithApiToken({ token })` helper. Both the `--token` CLI flag branch and the interactive "API Token" selection call this helper, so error messages and side effects are identical across entry points. The mutual-exclusion check against `--email`/`--password`/`--google` remains outside the helper on the flag-parsing path — interactive selection is mutually exclusive by construction.
+API-token persistence logic (shape validation, orgId extraction, config write, Firebase-session-overwrite warning) lives in the module-private `loginWithApiToken({ token })` helper. Both the `--token` CLI flag branch and the interactive "API Token" selection call this helper, so error messages and side effects are identical across entry points. The mutual-exclusion check against `--email`/`--password`/`--google` remains outside the helper on the flag-parsing path — interactive selection is mutually exclusive by construction.
 
 `loginMain` checks flag combinations in this order:
 
@@ -39,8 +39,8 @@ For all Firebase paths, `fetchUserAccess` calls `/api/auth/check-access` with th
 **`loginWithApiToken` contract:**
 
 - Validates token shape via `isValidApiToken` (`nori_<orgId>_<64 hex chars>`, where `orgId` follows `isValidOrgId` rules).
-- Parses the orgId via `extractOrgIdFromApiToken` and rejects `public` explicitly (the server only accepts API tokens on private-instance deployments with `PRIVATE_INSTANCE_MODE && DEPLOYMENT_ID` set).
-- On success, derives `organizationUrl = https://{orgId}.noriskillsets.dev` via `buildOrganizationRegistryUrl` and writes:
+- Parses the orgId via `extractOrgIdFromApiToken`. Both private org ids and `public` are valid scopes.
+- On success, derives `organizationUrl` via `buildOrganizationRegistryUrl`: private org tokens map to `https://{orgId}.noriskillsets.dev`, and `nori_public_<hex>` maps to `https://noriskillsets.dev`. It writes:
 
   ```
   auth: {
@@ -59,7 +59,7 @@ For all Firebase paths, `fetchUserAccess` calls `/api/auth/check-access` with th
 ### Things to Know
 
 - `loginWithApiToken` is the single source of truth for API-token credential writes. Any future caller that wants to persist an API token must go through it to preserve the Firebase-session-overwrite warning and the `organizations: [orgId]` seeding.
-- Token validation order (shape via `isValidApiToken` → parse orgId via `extractOrgIdFromApiToken` → reject `public`) matters because error messages differ for each failure mode. The public-org check is separate from shape validation because `"public"` is a syntactically valid orgId but semantically forbidden for API tokens.
+- Token validation order is shape via `isValidApiToken`, then parse orgId via `extractOrgIdFromApiToken`. `public` is intentionally accepted because public registrar API tokens are user-bound on the server and are general user API tokens for that registry.
 - API-token login skips all network activity. Token validity is only verified on the next real registry call (which will 401 if invalid). No `--verify` flag exists — the server's 401 is the authoritative signal.
 - The `auth.organizations` field is set to `[orgId]` on API-token login (where `orgId` is parsed from the token) even though the server's `req.user` for API-key requests synthesizes `organizations: [{ id: apiKey.orgId, roles: ["user"] }]`. This makes the client-side `hasUnifiedAuthWithOrgs` check (used by `search`, `upload`, `download`, `skill-download`, and `subagent-download`) behave consistently with Firebase sessions. The check accepts either `auth.refreshToken` OR `auth.apiToken` alongside `auth.organizations`.
 - `--token` requires the nested `auth` format. If a user's existing config is in legacy flat format, `updateConfig` writes the new nested format on save — matching the existing migration behavior for Firebase refresh tokens.

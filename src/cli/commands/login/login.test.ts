@@ -1906,6 +1906,7 @@ describe("loginMain interactive API token flow", () => {
   let tempDir: string;
 
   const VALID_TOKEN = `nori_acme_${"a".repeat(64)}`;
+  const PUBLIC_TOKEN = `nori_public_${"b".repeat(64)}`;
 
   beforeEach(async () => {
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "login-token-itx-"));
@@ -1940,6 +1941,26 @@ describe("loginMain interactive API token flow", () => {
     expect(config?.auth?.password ?? null).toBeNull();
     expect(config?.auth?.username ?? null).toBeNull();
   });
+
+  it("should prompt for token and save public registry config when token embeds public org", async () => {
+    const clack = await import("@clack/prompts");
+    const { promptPassword } = await import("@/cli/prompts/index.js");
+
+    vi.mocked(clack.select).mockResolvedValue("token");
+    vi.mocked(promptPassword).mockResolvedValue(PUBLIC_TOKEN);
+
+    const result = await loginMain({ installDir: tempDir });
+
+    expect(result.success).toBe(true);
+
+    const config = await loadConfig();
+    expect(config?.auth?.apiToken).toBe(PUBLIC_TOKEN);
+    expect(config?.auth?.organizationUrl).toBe("https://noriskillsets.dev");
+    expect(config?.auth?.organizations).toEqual(["public"]);
+    expect(config?.auth?.refreshToken ?? null).toBeNull();
+    expect(config?.auth?.password ?? null).toBeNull();
+    expect(config?.auth?.username ?? null).toBeNull();
+  });
 });
 
 describe("loginMain with --token", () => {
@@ -1958,6 +1979,7 @@ describe("loginMain with --token", () => {
   });
 
   const VALID_TOKEN = `nori_acme_${"a".repeat(64)}`;
+  const PUBLIC_TOKEN = `nori_public_${"b".repeat(64)}`;
 
   it("should save apiToken + derived organizationUrl to config (org parsed from token)", async () => {
     const result = await loginMain({
@@ -1978,17 +2000,21 @@ describe("loginMain with --token", () => {
     expect(config?.auth?.username ?? null).toBeNull();
   });
 
-  it("should reject token whose embedded org is 'public'", async () => {
+  it("should save public apiToken + apex organizationUrl to config", async () => {
     const result = await loginMain({
       installDir: tempDir,
-      token: `nori_public_${"a".repeat(64)}`,
+      token: PUBLIC_TOKEN,
     });
 
-    expect(result.success).toBe(false);
-    expect(result.message).toMatch(/public/);
+    expect(result.success).toBe(true);
 
     const config = await loadConfig();
-    expect(config?.auth).toBeUndefined();
+    expect(config?.auth?.apiToken).toBe(PUBLIC_TOKEN);
+    expect(config?.auth?.organizationUrl).toBe("https://noriskillsets.dev");
+    expect(config?.auth?.organizations).toEqual(["public"]);
+    expect(config?.auth?.refreshToken ?? null).toBeNull();
+    expect(config?.auth?.password ?? null).toBeNull();
+    expect(config?.auth?.username ?? null).toBeNull();
   });
 
   it("should reject malformed --token (missing org segment)", async () => {
