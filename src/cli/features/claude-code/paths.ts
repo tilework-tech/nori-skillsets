@@ -9,6 +9,7 @@
  * inline in the AgentConfig in agent.ts.
  */
 
+import * as fs from "fs/promises";
 import * as path from "path";
 
 import { getHomeDir } from "@/utils/home.js";
@@ -44,4 +45,39 @@ export const getClaudeHomeSettingsFile = (): string => {
  */
 export const getClaudeHomeCommandsDir = (): string => {
   return path.join(getClaudeHomeDir(), "commands");
+};
+
+/**
+ * Remove specific keys from a Claude settings JSON file.
+ * If the file becomes empty (only $schema remains), delete it entirely.
+ *
+ * @param args - Arguments object
+ * @param args.settingsFile - Absolute path to the settings.json file
+ * @param args.keys - Array of key names to remove
+ */
+export const removeSettingsKeys = async (args: {
+  settingsFile: string;
+  keys: ReadonlyArray<string>;
+}): Promise<void> => {
+  const { settingsFile, keys } = args;
+
+  let settings: Record<string, unknown>;
+  try {
+    const content = await fs.readFile(settingsFile, "utf-8");
+    settings = JSON.parse(content) as Record<string, unknown>;
+  } catch {
+    return;
+  }
+
+  for (const key of keys) {
+    delete settings[key];
+  }
+
+  const remainingKeys = Object.keys(settings).filter((k) => k !== "$schema");
+  if (remainingKeys.length === 0) {
+    await fs.rm(settingsFile, { force: true });
+    return;
+  }
+
+  await fs.writeFile(settingsFile, JSON.stringify(settings, null, 2));
 };
