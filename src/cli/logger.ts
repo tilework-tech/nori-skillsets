@@ -24,7 +24,7 @@ const levels = {
   debug: 4,
 };
 
-// ANSI color codes for console output
+// ANSI color codes for terminal output
 const colors = {
   RED: "\x1b[0;31m",
   GREEN: "\x1b[0;32m",
