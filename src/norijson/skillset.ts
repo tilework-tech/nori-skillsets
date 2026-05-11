@@ -13,6 +13,7 @@ import {
   readSkillsetMetadata,
   type NoriJson,
 } from "@/norijson/nori.js";
+import { isDirentDirectory } from "@/utils/dirent.js";
 import { getHomeDir } from "@/utils/home.js";
 
 /**
@@ -180,52 +181,69 @@ export const parseSkillset = async (args: {
  *
  * @returns Sorted array of skillset names
  */
-export const listSkillsets = async (): Promise<Array<string>> => {
+export type SkillsetEntry = {
+  name: string;
+  isLinked: boolean;
+};
+
+/**
+ * List installed skillsets with metadata (linked status).
+ *
+ * Discovers both flat skillsets and namespaced skillsets.
+ * Reports whether each entry is a symlink (linked) or a real directory.
+ *
+ * @returns Sorted array of skillset entries with metadata
+ */
+export const listSkillsetsWithMetadata = async (): Promise<
+  Array<SkillsetEntry>
+> => {
   const skillsetsDir = getNoriSkillsetsDir();
-  const skillsets: Array<string> = [];
+  const skillsets: Array<SkillsetEntry> = [];
 
   try {
     await fs.access(skillsetsDir);
     const entries = await fs.readdir(skillsetsDir, { withFileTypes: true });
 
     for (const entry of entries) {
-      if (entry.isDirectory()) {
-        const entryDir = path.join(skillsetsDir, entry.name);
-        await ensureNoriJson({ skillsetDir: entryDir });
-        const instructionsPath = path.join(entryDir, MANIFEST_FILE);
-        try {
-          // Check if this is a flat skillset (has nori.json directly)
-          await fs.access(instructionsPath);
-          skillsets.push(entry.name);
-        } catch {
-          // Not a flat skillset - check if it's an org directory with nested skillsets
-          // Org directories contain subdirectories with nori.json files
-          try {
-            const orgDir = path.join(skillsetsDir, entry.name);
-            const subEntries = await fs.readdir(orgDir, {
-              withFileTypes: true,
-            });
+      if (!(await isDirentDirectory({ parentDir: skillsetsDir, entry })))
+        continue;
 
-            for (const subEntry of subEntries) {
-              if (subEntry.isDirectory()) {
-                const nestedDir = path.join(orgDir, subEntry.name);
-                await ensureNoriJson({ skillsetDir: nestedDir });
-                const nestedInstructionsPath = path.join(
-                  nestedDir,
-                  MANIFEST_FILE,
-                );
-                try {
-                  await fs.access(nestedInstructionsPath);
-                  // Found a nested skillset - use org/skillset format
-                  skillsets.push(`${entry.name}/${subEntry.name}`);
-                } catch {
-                  // Skip subdirectories without instructions file
-                }
-              }
+      const isLinked = entry.isSymbolicLink();
+      const entryDir = path.join(skillsetsDir, entry.name);
+      await ensureNoriJson({ skillsetDir: entryDir });
+      const instructionsPath = path.join(entryDir, MANIFEST_FILE);
+      try {
+        await fs.access(instructionsPath);
+        skillsets.push({ name: entry.name, isLinked });
+      } catch {
+        try {
+          const orgDir = path.join(skillsetsDir, entry.name);
+          const subEntries = await fs.readdir(orgDir, {
+            withFileTypes: true,
+          });
+
+          for (const subEntry of subEntries) {
+            if (
+              !(await isDirentDirectory({ parentDir: orgDir, entry: subEntry }))
+            )
+              continue;
+
+            const isSubLinked = subEntry.isSymbolicLink();
+            const nestedDir = path.join(orgDir, subEntry.name);
+            await ensureNoriJson({ skillsetDir: nestedDir });
+            const nestedInstructionsPath = path.join(nestedDir, MANIFEST_FILE);
+            try {
+              await fs.access(nestedInstructionsPath);
+              skillsets.push({
+                name: `${entry.name}/${subEntry.name}`,
+                isLinked: isLinked || isSubLinked,
+              });
+            } catch {
+              // Skip subdirectories without instructions file
             }
-          } catch {
-            // Skip directories that can't be read
           }
+        } catch {
+          // Skip directories that can't be read
         }
       }
     }
@@ -233,5 +251,19 @@ export const listSkillsets = async (): Promise<Array<string>> => {
     // Skillsets directory doesn't exist
   }
 
-  return skillsets.sort();
+  return skillsets.sort((a, b) => a.name.localeCompare(b.name));
+};
+
+/**
+ * List installed skillsets from the .nori/profiles/ directory
+ *
+ * Discovers both flat skillsets (e.g., "senior-swe") and namespaced skillsets
+ * (e.g., "myorg/my-skillset"). A directory is considered a valid skillset if it
+ * contains a nori.json file.
+ *
+ * @returns Sorted array of skillset names
+ */
+export const listSkillsets = async (): Promise<Array<string>> => {
+  const entries = await listSkillsetsWithMetadata();
+  return entries.map((e) => e.name);
 };

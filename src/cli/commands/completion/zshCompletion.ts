@@ -26,6 +26,8 @@ _nori_skillsets() {
     'install:Download, install, and activate a skillset'
     'switch:Switch to a different skillset and reinstall'
     'list:List locally available skillsets'
+    'link:Link a local directory as a skillset'
+    'unlink:Unlink a symlinked skillset'
     'download-skill:Download and install a skill package'
     'external:Install skills from an external GitHub repository'
     'watch:Watch Claude Code sessions and save transcripts'
@@ -99,7 +101,23 @@ _nori_skillsets() {
             \$global_opts
           if [[ \$state == skillset_name ]]; then
             local -a skillsets
-            skillsets=(\${(f)"$(nori-skillsets list 2>/dev/null)"})
+            skillsets=(\${(f)"$(nori-skillsets list 2>/dev/null | sed 's/ (linked)$//')"})
+            compadd -a skillsets
+          fi
+          ;;
+        link)
+          _arguments \\
+            '1:path:_files -/' \\
+            '--name[Override skillset name]:name:' \\
+            \$global_opts
+          ;;
+        unlink)
+          _arguments \\
+            '1:name:->linked_name' \\
+            \$global_opts
+          if [[ \$state == linked_name ]]; then
+            local -a skillsets
+            skillsets=(\${(f)"$(nori-skillsets list 2>/dev/null | sed -n 's/ (linked)$//p')"})
             compadd -a skillsets
           fi
           ;;

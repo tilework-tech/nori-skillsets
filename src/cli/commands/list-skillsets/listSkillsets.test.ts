@@ -155,6 +155,55 @@ describe("listSkillsetsMain output format", () => {
   });
 });
 
+describe("listSkillsetsMain linked indicator", () => {
+  let testInstallDir: string;
+
+  beforeEach(async () => {
+    testInstallDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), "list-skillsets-linked-test-"),
+    );
+    vi.mocked(os.homedir).mockReturnValue(testInstallDir);
+    const testNoriDir = path.join(testInstallDir, ".nori");
+    await fs.mkdir(testNoriDir, { recursive: true });
+    mockStdoutWrite.mockClear();
+    mockLogError.mockClear();
+    mockExit.mockClear();
+  });
+
+  afterEach(async () => {
+    if (testInstallDir) {
+      await fs.rm(testInstallDir, { recursive: true, force: true });
+    }
+  });
+
+  it("should show (linked) indicator for symlinked skillsets", async () => {
+    const skillsetsDir = path.join(testInstallDir, ".nori", "profiles");
+    await fs.mkdir(skillsetsDir, { recursive: true });
+
+    // Create a regular skillset
+    const regularDir = path.join(skillsetsDir, "regular-profile");
+    await fs.mkdir(regularDir, { recursive: true });
+    await fs.writeFile(
+      path.join(regularDir, "nori.json"),
+      JSON.stringify({ name: "regular-profile", version: "1.0.0" }),
+    );
+
+    // Create an external directory and symlink it
+    const externalDir = path.join(testInstallDir, "external-repo");
+    await fs.mkdir(externalDir, { recursive: true });
+    await fs.writeFile(
+      path.join(externalDir, "nori.json"),
+      JSON.stringify({ name: "linked-profile", version: "1.0.0" }),
+    );
+    await fs.symlink(externalDir, path.join(skillsetsDir, "linked-profile"));
+
+    await listSkillsetsMain();
+
+    expect(mockStdoutWrite).toHaveBeenCalledWith("linked-profile (linked)\n");
+    expect(mockStdoutWrite).toHaveBeenCalledWith("regular-profile\n");
+  });
+});
+
 describe("listSkillsetsMain error messages", () => {
   let testInstallDir: string;
 
