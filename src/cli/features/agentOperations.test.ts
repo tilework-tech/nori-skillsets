@@ -838,6 +838,34 @@ nori block content
       removeSkillset({ agent, installDir: tempDir }),
     ).resolves.not.toThrow();
   });
+
+  it("should call uninstall on loaders that provide it", async () => {
+    const uninstallSpy = vi.fn().mockResolvedValue(undefined);
+
+    const agent = createTestAgent({
+      loaders: [
+        {
+          name: "loader-with-uninstall",
+          description: "Has uninstall",
+          run: async () => undefined,
+          uninstall: uninstallSpy,
+        },
+        {
+          name: "loader-without-uninstall",
+          description: "No uninstall",
+          run: async () => undefined,
+        },
+      ],
+    });
+
+    await removeSkillset({ agent, installDir: tempDir });
+
+    expect(uninstallSpy).toHaveBeenCalledOnce();
+    expect(uninstallSpy).toHaveBeenCalledWith({
+      agent,
+      installDir: tempDir,
+    });
+  });
 });
 
 describe("detectLocalChanges", () => {

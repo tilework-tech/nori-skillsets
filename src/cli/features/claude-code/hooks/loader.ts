@@ -11,6 +11,7 @@ import { cleanupLegacyHooks } from "@/cli/features/claude-code/hooks/cleanupLega
 import {
   getClaudeHomeDir,
   getClaudeHomeSettingsFile,
+  removeSettingsKeys,
 } from "@/cli/features/claude-code/paths.js";
 
 import type { Config } from "@/cli/config.js";
@@ -299,5 +300,11 @@ export const hooksLoader: AgentLoader = {
   managedFiles: ["settings.json"],
   run: async ({ config }) => {
     return configureHooks({ config });
+  },
+  uninstall: async () => {
+    await removeSettingsKeys({
+      settingsFile: getClaudeHomeSettingsFile(),
+      keys: ["hooks", "includeCoAuthoredBy", "attribution"],
+    });
   },
 };

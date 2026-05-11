@@ -293,6 +293,12 @@ export const removeSkillset = async (args: {
       excludePaths,
     });
   }
+
+  for (const loader of agent.getLoaders()) {
+    if (loader.uninstall != null) {
+      await loader.uninstall({ agent, installDir });
+    }
+  }
 };
 
 export const detectLocalChanges = async (args: {

@@ -15,11 +15,15 @@ import type { Config } from "@/cli/config.js";
 let mockClaudeDir: string;
 let mockClaudeSettingsFile: string;
 
-vi.mock("@/cli/features/claude-code/paths.js", () => ({
-  getClaudeHomeDir: () => mockClaudeDir,
-  getClaudeHomeSettingsFile: () => mockClaudeSettingsFile,
-  getClaudeHomeCommandsDir: () => path.join(mockClaudeDir, "commands"),
-}));
+vi.mock("@/cli/features/claude-code/paths.js", async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
+  return {
+    ...actual,
+    getClaudeHomeDir: () => mockClaudeDir,
+    getClaudeHomeSettingsFile: () => mockClaudeSettingsFile,
+    getClaudeHomeCommandsDir: () => path.join(mockClaudeDir, "commands"),
+  };
+});
 
 // Import loader after mocking env
 import { announcementsLoader } from "./loader.js";
@@ -134,6 +138,55 @@ describe("announcementsLoader", () => {
       expect(settings.companyAnnouncements).toContain(
         "🍙🍙🍙 Powered by Nori AI 🍙🍙🍙",
       );
+    });
+  });
+
+  describe("uninstall", () => {
+    it("should remove companyAnnouncements from settings.json while preserving other keys", async () => {
+      const settings = {
+        $schema: "https://json.schemastore.org/claude-code-settings.json",
+        companyAnnouncements: ["🍙🍙🍙 Powered by Nori AI 🍙🍙🍙"],
+        someOtherSetting: "value",
+      };
+      await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2));
+
+      await announcementsLoader.uninstall!({
+        agent: {} as any,
+        installDir: tempDir,
+      });
+
+      const content = await fs.readFile(settingsPath, "utf-8");
+      const result = JSON.parse(content);
+      expect(result.companyAnnouncements).toBeUndefined();
+      expect(result.someOtherSetting).toBe("value");
+    });
+
+    it("should delete settings.json if only $schema remains after removing announcements", async () => {
+      const settings = {
+        $schema: "https://json.schemastore.org/claude-code-settings.json",
+        companyAnnouncements: ["🍙🍙🍙 Powered by Nori AI 🍙🍙🍙"],
+      };
+      await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2));
+
+      await announcementsLoader.uninstall!({
+        agent: {} as any,
+        installDir: tempDir,
+      });
+
+      const exists = await fs
+        .access(settingsPath)
+        .then(() => true)
+        .catch(() => false);
+      expect(exists).toBe(false);
+    });
+
+    it("should not error when settings.json does not exist", async () => {
+      await expect(
+        announcementsLoader.uninstall!({
+          agent: {} as any,
+          installDir: tempDir,
+        }),
+      ).resolves.not.toThrow();
     });
   });
 });
