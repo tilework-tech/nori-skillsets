@@ -33,6 +33,7 @@ import {
   writeSkillsetMetadata,
 } from "@/norijson/nori.js";
 import { getNoriSkillsetsDir } from "@/norijson/skillset.js";
+import { isDirentDirectory } from "@/utils/dirent.js";
 import {
   isSkillCollisionError,
   isSubagentCollisionError,
@@ -131,6 +132,7 @@ const createProfileTarball = async (args: {
         gzip: true,
         file: tempTarPath,
         cwd: skillsetDir,
+        follow: true,
       },
       filesToPack,
     );
@@ -169,7 +171,7 @@ const detectInlineSkillCandidates = async (args: {
   const candidates: Array<string> = [];
 
   for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
+    if (!(await isDirentDirectory({ parentDir: skillsDir, entry }))) continue;
 
     const noriJsonPath = path.join(skillsDir, entry.name, "nori.json");
     try {
@@ -208,7 +210,7 @@ const detectExistingInlineSkills = async (args: {
   const inlineSkills: Array<string> = [];
 
   for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
+    if (!(await isDirentDirectory({ parentDir: skillsDir, entry }))) continue;
 
     const noriJsonPath = path.join(skillsDir, entry.name, "nori.json");
     try {
@@ -265,7 +267,7 @@ const backfillNoriJsonTypes = async (args: {
   try {
     const entries = await fs.readdir(skillsDir, { withFileTypes: true });
     for (const entry of entries) {
-      if (!entry.isDirectory()) continue;
+      if (!(await isDirentDirectory({ parentDir: skillsDir, entry }))) continue;
       const skillNoriJsonPath = path.join(skillsDir, entry.name, "nori.json");
       try {
         const content = await fs.readFile(skillNoriJsonPath, "utf-8");
@@ -295,7 +297,8 @@ const backfillNoriJsonTypes = async (args: {
   try {
     const entries = await fs.readdir(subagentsDir, { withFileTypes: true });
     for (const entry of entries) {
-      if (!entry.isDirectory()) continue;
+      if (!(await isDirentDirectory({ parentDir: subagentsDir, entry })))
+        continue;
       const subagentNoriJsonPath = path.join(
         subagentsDir,
         entry.name,
@@ -410,7 +413,8 @@ const detectInlineSubagentCandidates = async (args: {
   const candidates: Array<string> = [];
 
   for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
+    if (!(await isDirentDirectory({ parentDir: subagentsDir, entry })))
+      continue;
 
     // Only directories with SUBAGENT.md are subagent directories
     const subagentMdPath = path.join(subagentsDir, entry.name, "SUBAGENT.md");
@@ -458,7 +462,8 @@ const detectExistingInlineSubagents = async (args: {
   const inlineSubagents: Array<string> = [];
 
   for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
+    if (!(await isDirentDirectory({ parentDir: subagentsDir, entry })))
+      continue;
 
     const noriJsonPath = path.join(subagentsDir, entry.name, "nori.json");
     try {
@@ -501,13 +506,15 @@ const detectExistingFlatInlineSubagents = async (args: {
   const subagentsDir = path.join(skillsetDir, "subagents");
   try {
     const entries = await fs.readdir(subagentsDir, { withFileTypes: true });
-    return entries
-      .filter(
-        (e) =>
-          !e.isDirectory() && e.name.endsWith(".md") && e.name !== "docs.md",
-      )
-      .map((e) => e.name.slice(0, -".md".length))
-      .filter((id) => declaredIds.has(id));
+    const results: Array<string> = [];
+    for (const e of entries) {
+      if (await isDirentDirectory({ parentDir: subagentsDir, entry: e }))
+        continue;
+      if (!e.name.endsWith(".md") || e.name === "docs.md") continue;
+      const id = e.name.slice(0, -".md".length);
+      if (declaredIds.has(id)) results.push(id);
+    }
+    return results;
   } catch {
     return [];
   }
@@ -551,7 +558,8 @@ const detectFlatSubagentCandidates = async (args: {
   // Collect directory-based subagent names to skip flat files that collide
   const dirSubagentNames = new Set<string>();
   for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
+    if (!(await isDirentDirectory({ parentDir: subagentsDir, entry })))
+      continue;
     const subagentMdPath = path.join(subagentsDir, entry.name, "SUBAGENT.md");
     try {
       await fs.access(subagentMdPath);
@@ -564,7 +572,7 @@ const detectFlatSubagentCandidates = async (args: {
   const candidates: Array<string> = [];
 
   for (const entry of entries) {
-    if (entry.isDirectory()) continue;
+    if (await isDirentDirectory({ parentDir: subagentsDir, entry })) continue;
     if (!entry.name.endsWith(".md")) continue;
     if (entry.name === "docs.md") continue;
 

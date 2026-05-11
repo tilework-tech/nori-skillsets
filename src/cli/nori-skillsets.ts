@@ -26,6 +26,7 @@ import {
   registerNoriSkillsetsInitCommand,
   registerNoriSkillsetsInstallCommand,
   registerNoriSkillsetsInstallLocationCommand,
+  registerNoriSkillsetsLinkCommand,
   registerNoriSkillsetsListActiveCommand,
   registerNoriSkillsetsListSkillsetsCommand,
   registerNoriSkillsetsLoginCommand,
@@ -34,6 +35,7 @@ import {
   registerNoriSkillsetsLogoutCommand,
   registerNoriSkillsetsSearchCommand,
   registerNoriSkillsetsSwitchSkillsetCommand,
+  registerNoriSkillsetsUnlinkCommand,
   registerNoriSkillsetsUploadCommand,
   registerNoriSkillsetsUploadSkillCommand,
   registerNoriSkillsetsWatchCommand,
@@ -163,6 +165,8 @@ registerNoriSkillsetsDownloadCommand({ program });
 registerNoriSkillsetsUploadCommand({ program });
 registerNoriSkillsetsInstallCommand({ program });
 registerNoriSkillsetsSwitchSkillsetCommand({ program });
+registerNoriSkillsetsLinkCommand({ program });
+registerNoriSkillsetsUnlinkCommand({ program });
 registerNoriSkillsetsListSkillsetsCommand({ program });
 registerNoriSkillsetsListActiveCommand({ program });
 registerNoriSkillsetsCurrentCommand({ program });

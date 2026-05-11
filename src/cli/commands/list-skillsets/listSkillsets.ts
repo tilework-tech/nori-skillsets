@@ -5,7 +5,7 @@
 
 import { log } from "@clack/prompts";
 
-import { listSkillsets } from "@/norijson/skillset.js";
+import { listSkillsetsWithMetadata } from "@/norijson/skillset.js";
 
 import type { Command } from "commander";
 
@@ -15,7 +15,7 @@ import type { Command } from "commander";
 export const listSkillsetsMain = async (): Promise<void> => {
   // Get and output skillsets - one per line for easy parsing
   // Skillsets are always loaded from ~/.nori/profiles/
-  const skillsets = await listSkillsets();
+  const skillsets = await listSkillsetsWithMetadata();
 
   if (skillsets.length === 0) {
     log.error("No skillsets installed.");
@@ -23,8 +23,9 @@ export const listSkillsetsMain = async (): Promise<void> => {
   }
 
   // Output raw lines for scripting
-  for (const skillset of skillsets) {
-    process.stdout.write(skillset + "\n");
+  for (const entry of skillsets) {
+    const suffix = entry.isLinked ? " (linked)" : "";
+    process.stdout.write(entry.name + suffix + "\n");
   }
 };
 

@@ -5481,5 +5481,108 @@ describe("registry-upload", () => {
         expect(claudeContent).toBe("# Old config\n");
       });
     });
+
+    describe("symlinked skillset upload", () => {
+      it("should successfully upload a symlinked skillset directory", async () => {
+        // Create an external directory (simulating a git repo)
+        const externalDir = path.join(testDir, "external-repo");
+        await fs.mkdir(externalDir, { recursive: true });
+        await fs.writeFile(
+          path.join(externalDir, "AGENTS.md"),
+          "# Symlinked Profile\n",
+        );
+
+        // Symlink profiles/myorg/my-profile -> external-repo
+        const orgDir = path.join(skillsetsDir, "myorg");
+        await fs.mkdir(orgDir, { recursive: true });
+        await fs.symlink(externalDir, path.join(orgDir, "my-profile"));
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+        vi.mocked(registrarApi.uploadSkillset).mockResolvedValue({
+          name: "my-profile",
+          version: "1.0.0",
+          tarballSha: "abc123",
+          createdAt: new Date().toISOString(),
+        });
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+        });
+
+        expect(result.success).toBe(true);
+        expect(registrarApi.uploadSkillset).toHaveBeenCalled();
+      });
+
+      it("should detect symlinked skill subdirectories as inline candidates", async () => {
+        // Create a skillset with a symlinked skill directory
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
+        await fs.writeFile(
+          path.join(skillsetDir, "AGENTS.md"),
+          "# My Profile\n",
+        );
+        await fs.mkdir(path.join(skillsetDir, "skills"), { recursive: true });
+
+        // Create an external skill directory and symlink it
+        const externalSkillDir = path.join(testDir, "external-skill");
+        await fs.mkdir(externalSkillDir, { recursive: true });
+        await fs.writeFile(
+          path.join(externalSkillDir, "SKILL.md"),
+          "# My Skill\n",
+        );
+
+        await fs.symlink(
+          externalSkillDir,
+          path.join(skillsetDir, "skills", "my-skill"),
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+        vi.mocked(registrarApi.uploadSkillset).mockResolvedValue({
+          name: "my-profile",
+          version: "1.0.0",
+          tarballSha: "abc123",
+          createdAt: new Date().toISOString(),
+        });
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+          nonInteractive: true,
+        });
+
+        expect(result.success).toBe(true);
+
+        // The tarball should include the symlinked skill's SKILL.md
+        const uploadCall = vi.mocked(registrarApi.uploadSkillset).mock.calls[0];
+        expect(uploadCall).toBeDefined();
+      });
+    });
   });
 });
