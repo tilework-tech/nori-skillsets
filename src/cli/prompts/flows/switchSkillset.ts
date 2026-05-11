@@ -48,6 +48,7 @@ export type SwitchSkillsetCallbacks = {
         installDir: string;
       }) => Promise<{ original: string; current: string } | null>)
     | null;
+  onUpstreamChanges?: ((args: { installDir: string }) => Promise<void>) | null;
 };
 
 /**
@@ -165,8 +166,14 @@ export const switchSkillsetFlow = async (args: {
 
     const hasModified = localChanges.modified.length > 0;
     const hasViewDiff = hasModified && callbacks.onReadFileDiff != null;
+    const hasUpstream = callbacks.onUpstreamChanges != null;
 
-    type ChangeAction = "proceed" | "capture" | "abort" | "viewDiff";
+    type ChangeAction =
+      | "proceed"
+      | "capture"
+      | "abort"
+      | "viewDiff"
+      | "upstream";
     let changeAction: ChangeAction | null = null;
 
     while (changeAction == null || changeAction === "viewDiff") {
@@ -184,6 +191,15 @@ export const switchSkillsetFlow = async (args: {
           value: "capture",
           label: "Save current config as new skillset first",
         },
+        ...(hasUpstream
+          ? [
+              {
+                value: "upstream" as const,
+                label: "Update source skillset with changes",
+                hint: "sync back to profile",
+              },
+            ]
+          : []),
         ...(hasViewDiff
           ? [
               {
@@ -205,6 +221,21 @@ export const switchSkillsetFlow = async (args: {
       });
 
       if (changeAction == null) return null;
+
+      if (changeAction === "upstream") {
+        const upstreamSpinner = spinner();
+        upstreamSpinner.start("Updating source skillset...");
+        try {
+          await callbacks.onUpstreamChanges!({ installDir });
+          upstreamSpinner.stop("Source skillset updated");
+          break;
+        } catch (err) {
+          upstreamSpinner.stop("Failed to update source skillset");
+          const message = err instanceof Error ? err.message : String(err);
+          note(message, "Upstream Error");
+          changeAction = null;
+        }
+      }
 
       if (changeAction === "viewDiff") {
         let selectedFile: string | null = null;

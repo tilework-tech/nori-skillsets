@@ -27,7 +27,18 @@ Path: @/src/cli/commands/switch-skillset
 | `onCaptureConfig` | Captures unmanaged config as a named skillset before overwriting |
 | `onExecuteSwitch` | Validates the target skillset, then runs `installMain` in silent mode |
 | `onRedownload` | Re-downloads the skillset from the registry (omitted when `redownloadOnSwitch` is disabled) |
+| `onUpstreamChanges` | Syncs local changes back to the source profile directory, then refreshes the manifest (only provided when there is a current active skillset) |
 | `onReadFileDiff` | Reads the original source and current installed content for a managed file, used by the flow to display diffs of local changes |
+
+**`mapInstalledPathToProfile` helper**: A module-private function that centralizes the installed-path-to-profile-path mapping used by both `onUpstreamChanges` (copy and delete loops) and `onReadFileDiff`. The mapping rules are:
+
+| Installed path prefix | Profile path prefix |
+|-----------------------|---------------------|
+| `commands/` | `slashcommands/` |
+| `agents/` | `subagents/` |
+| Everything else (e.g., `skills/`, `mcp/`) | Direct (no remapping) |
+
+**`onUpstreamChanges` callback**: When the user selects "Update source skillset with changes" in the local-changes prompt, this callback syncs modified/added files from the installed agent directory back to `~/.nori/profiles/<currentSkillset>/` using `mapInstalledPathToProfile` for path translation. Deleted files are removed from the profile directory via the same mapping. After syncing, the callback recomputes and writes the manifest so the installation is no longer considered "changed" for subsequent switch operations. Only provided when `currentProfileName` is non-null.
 
 **`onReadFileDiff` path mapping**: The installed agent directory uses different path conventions than the skillset source. This callback maps between them:
 

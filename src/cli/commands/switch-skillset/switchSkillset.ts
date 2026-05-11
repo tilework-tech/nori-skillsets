@@ -19,8 +19,15 @@ import {
   switchSkillset as switchSkillsetOp,
   detectLocalChanges,
   captureExistingConfig,
+  getManagedDirs,
+  getManagedFiles,
 } from "@/cli/features/agentOperations.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
+import {
+  computeDirectoryManifest,
+  writeManifest,
+  getManifestPath,
+} from "@/cli/features/manifest.js";
 import { substituteTemplatePaths } from "@/cli/features/template.js";
 import { setSilentMode, isSilentMode } from "@/cli/logger.js";
 import { switchSkillsetFlow } from "@/cli/prompts/flows/switchSkillset.js";
@@ -29,6 +36,28 @@ import { resolveInstallDir } from "@/utils/path.js";
 
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 import type { Command } from "commander";
+
+const mapInstalledPathToProfile = (args: {
+  relativePath: string;
+  profileDir: string;
+}): string => {
+  const { relativePath, profileDir } = args;
+  if (relativePath.startsWith("commands/")) {
+    return path.join(
+      profileDir,
+      "slashcommands",
+      relativePath.slice("commands/".length),
+    );
+  }
+  if (relativePath.startsWith("agents/")) {
+    return path.join(
+      profileDir,
+      "subagents",
+      relativePath.slice("agents/".length),
+    );
+  }
+  return path.join(profileDir, relativePath);
+};
 
 /**
  * Shared action handler for switch-skillset commands
@@ -105,6 +134,8 @@ export const switchSkillsetAction = async (args: {
   // Interactive flow
   if (!nonInteractive) {
     const redownloadEnabled = config?.redownloadOnSwitch !== "disabled";
+    const currentProfileName =
+      config != null ? getActiveSkillset({ config }) : null;
 
     const flowResult = await switchSkillsetFlow({
       skillsetName: name,
@@ -202,6 +233,73 @@ export const switchSkillsetAction = async (args: {
               });
             }
           : undefined,
+        onUpstreamChanges:
+          currentProfileName != null
+            ? async ({ installDir: dir }) => {
+                const upstreamAgentNames = getDefaultAgents({
+                  config: await loadConfig(),
+                  agentOverride,
+                });
+                const upstreamAgent = AgentRegistry.getInstance().get({
+                  name: upstreamAgentNames[0],
+                });
+                const agentDir = upstreamAgent.getAgentDir({
+                  installDir: dir,
+                });
+                const profileDir = path.join(
+                  getNoriSkillsetsDir(),
+                  currentProfileName,
+                );
+
+                const localChanges = skipManifest
+                  ? null
+                  : await detectLocalChanges({
+                      agent: upstreamAgent,
+                      installDir: dir,
+                    });
+
+                if (localChanges != null) {
+                  const allChanged = [
+                    ...localChanges.modified,
+                    ...localChanges.added,
+                  ];
+                  for (const relativePath of allChanged) {
+                    const sourcePath = path.join(agentDir, relativePath);
+                    const destPath = mapInstalledPathToProfile({
+                      relativePath,
+                      profileDir,
+                    });
+                    await fs.mkdir(path.dirname(destPath), {
+                      recursive: true,
+                    });
+                    await fs.copyFile(sourcePath, destPath);
+                  }
+
+                  for (const relativePath of localChanges.deleted) {
+                    const destPath = mapInstalledPathToProfile({
+                      relativePath,
+                      profileDir,
+                    });
+                    try {
+                      await fs.unlink(destPath);
+                    } catch {
+                      // File may already be gone
+                    }
+                  }
+                }
+
+                const manifest = await computeDirectoryManifest({
+                  dir: agentDir,
+                  skillsetName: currentProfileName,
+                  managedDirs: getManagedDirs({ agent: upstreamAgent }),
+                  managedFiles: getManagedFiles({ agent: upstreamAgent }),
+                });
+                const manifestPath = getManifestPath({
+                  agentName: upstreamAgentNames[0],
+                });
+                await writeManifest({ manifestPath, manifest });
+              }
+            : undefined,
         onReadFileDiff: async ({ relativePath, installDir: dir }) => {
           const currentConfig = await loadConfig();
           const currentProfileName =

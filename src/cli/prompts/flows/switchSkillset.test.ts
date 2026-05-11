@@ -874,4 +874,141 @@ describe("switchSkillsetFlow", () => {
       expect(callOrder).toEqual(["redownload", "switch"]);
     });
   });
+
+  describe("local changes detected - upstream", () => {
+    it("should include upstream option when onUpstreamChanges callback is provided", async () => {
+      mockCallbacks.onUpstreamChanges = vi.fn().mockResolvedValue(undefined);
+      vi.mocked(mockCallbacks.onPrepareSwitchInfo).mockResolvedValueOnce({
+        currentProfile: "senior-swe",
+        localChanges: {
+          modified: ["skills/my-skill/SKILL.md"],
+          added: [],
+          deleted: [],
+        },
+      });
+      vi.mocked(clack.select).mockResolvedValueOnce("proceed");
+      vi.mocked(clack.confirm).mockResolvedValueOnce(true);
+
+      await switchSkillsetFlow({
+        skillsetName: "product-manager",
+        installDir: "/test/dir",
+        callbacks: mockCallbacks,
+      });
+
+      const selectCall = vi.mocked(clack.select).mock.calls[0][0];
+      expect(selectCall.options).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ value: "upstream" }),
+        ]),
+      );
+    });
+
+    it("should not include upstream option when onUpstreamChanges callback is not provided", async () => {
+      vi.mocked(mockCallbacks.onPrepareSwitchInfo).mockResolvedValueOnce({
+        currentProfile: "senior-swe",
+        localChanges: {
+          modified: ["skills/my-skill/SKILL.md"],
+          added: [],
+          deleted: [],
+        },
+      });
+      vi.mocked(clack.select).mockResolvedValueOnce("proceed");
+      vi.mocked(clack.confirm).mockResolvedValueOnce(true);
+
+      await switchSkillsetFlow({
+        skillsetName: "product-manager",
+        installDir: "/test/dir",
+        callbacks: mockCallbacks,
+      });
+
+      const selectCall = vi.mocked(clack.select).mock.calls[0][0];
+      expect(selectCall.options).not.toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ value: "upstream" }),
+        ]),
+      );
+    });
+
+    it("should call onUpstreamChanges when upstream is selected", async () => {
+      mockCallbacks.onUpstreamChanges = vi.fn().mockResolvedValue(undefined);
+      vi.mocked(mockCallbacks.onPrepareSwitchInfo).mockResolvedValueOnce({
+        currentProfile: "senior-swe",
+        localChanges: {
+          modified: ["skills/my-skill/SKILL.md"],
+          added: [],
+          deleted: [],
+        },
+      });
+      vi.mocked(clack.select).mockResolvedValueOnce("upstream");
+      vi.mocked(clack.confirm).mockResolvedValueOnce(true);
+
+      await switchSkillsetFlow({
+        skillsetName: "product-manager",
+        installDir: "/test/dir",
+        callbacks: mockCallbacks,
+      });
+
+      expect(mockCallbacks.onUpstreamChanges).toHaveBeenCalledWith({
+        installDir: "/test/dir",
+      });
+    });
+
+    it("should continue to switch confirmation after successful upstream", async () => {
+      mockCallbacks.onUpstreamChanges = vi.fn().mockResolvedValue(undefined);
+      vi.mocked(mockCallbacks.onPrepareSwitchInfo).mockResolvedValueOnce({
+        currentProfile: "senior-swe",
+        localChanges: {
+          modified: ["skills/my-skill/SKILL.md"],
+          added: [],
+          deleted: [],
+        },
+      });
+      vi.mocked(clack.select).mockResolvedValueOnce("upstream");
+      vi.mocked(clack.confirm).mockResolvedValueOnce(true);
+
+      const result = await switchSkillsetFlow({
+        skillsetName: "product-manager",
+        installDir: "/test/dir",
+        callbacks: mockCallbacks,
+      });
+
+      expect(clack.confirm).toHaveBeenCalledTimes(1);
+      expect(mockCallbacks.onExecuteSwitch).toHaveBeenCalled();
+      expect(result).not.toBeNull();
+    });
+
+    it("should loop back to options when upstream fails", async () => {
+      mockCallbacks.onUpstreamChanges = vi
+        .fn()
+        .mockRejectedValueOnce(new Error("Permission denied"));
+      vi.mocked(mockCallbacks.onPrepareSwitchInfo).mockResolvedValueOnce({
+        currentProfile: "senior-swe",
+        localChanges: {
+          modified: ["skills/my-skill/SKILL.md"],
+          added: [],
+          deleted: [],
+        },
+      });
+      // First select: upstream (fails), second select: proceed
+      vi.mocked(clack.select)
+        .mockResolvedValueOnce("upstream")
+        .mockResolvedValueOnce("proceed");
+      vi.mocked(clack.confirm).mockResolvedValueOnce(true);
+
+      await switchSkillsetFlow({
+        skillsetName: "product-manager",
+        installDir: "/test/dir",
+        callbacks: mockCallbacks,
+      });
+
+      // Should have shown an error note
+      expect(clack.note).toHaveBeenCalledWith(
+        expect.stringContaining("Permission denied"),
+        expect.any(String),
+      );
+      // Should have re-prompted and completed successfully
+      expect(clack.select).toHaveBeenCalledTimes(2);
+      expect(mockCallbacks.onExecuteSwitch).toHaveBeenCalled();
+    });
+  });
 });

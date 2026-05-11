@@ -2318,3 +2318,606 @@ describe("onReadFileDiff subagent path mapping", () => {
     expect(result).toBeNull();
   });
 });
+
+describe("switch-skillset onUpstreamChanges callback", () => {
+  let testInstallDir: string;
+
+  beforeEach(async () => {
+    testInstallDir = await fs.realpath(
+      await fs.mkdtemp(path.join(tmpdir(), "switch-skillset-upstream-test-")),
+    );
+    vi.mocked(os.homedir).mockReturnValue(testInstallDir);
+
+    const claudeDir = path.join(testInstallDir, ".claude");
+    const noriDir = path.join(testInstallDir, ".nori");
+    const skillsetsDir = path.join(noriDir, "profiles");
+    await fs.mkdir(claudeDir, { recursive: true });
+    await fs.mkdir(skillsetsDir, { recursive: true });
+
+    for (const name of ["senior-swe", "product-manager"]) {
+      const dir = path.join(skillsetsDir, name);
+      await fs.mkdir(dir, { recursive: true });
+      await fs.writeFile(
+        path.join(dir, "nori.json"),
+        JSON.stringify({ name, version: "1.0.0" }),
+      );
+    }
+
+    const configPath = path.join(testInstallDir, ".nori-config.json");
+    await fs.writeFile(
+      configPath,
+      JSON.stringify({
+        activeSkillset: "senior-swe",
+        installDir: testInstallDir,
+      }),
+    );
+
+    AgentRegistry.resetInstance();
+    mockSwitchSkillsetFlow.mockReset();
+  });
+
+  afterEach(async () => {
+    if (testInstallDir) {
+      await fs.rm(testInstallDir, { recursive: true, force: true });
+    }
+    AgentRegistry.resetInstance();
+    vi.restoreAllMocks();
+  });
+
+  it("should provide onUpstreamChanges callback when there is an active skillset", async () => {
+    let capturedCallbacks: any = null;
+    mockSwitchSkillsetFlow.mockImplementationOnce(async (args: any) => {
+      capturedCallbacks = args.callbacks;
+      return {
+        agentName: "claude-code",
+        skillsetName: "product-manager",
+        statusMessage: "ok",
+      };
+    });
+
+    const program = new Command();
+    program.exitOverride();
+    program.configureOutput({ writeErr: () => undefined });
+    program
+      .option("-d, --install-dir <path>", "Custom installation directory")
+      .option("-n, --non-interactive", "Run without interactive prompts")
+      .option("-a, --agent <name>", "AI agent to use");
+
+    registerSwitchSkillsetCommand({ program });
+
+    try {
+      await program.parseAsync([
+        "node",
+        "nori-skillsets",
+        "switch-skillset",
+        "product-manager",
+      ]);
+    } catch {
+      // May throw due to exit
+    }
+
+    expect(capturedCallbacks).not.toBeNull();
+    expect(capturedCallbacks.onUpstreamChanges).toBeDefined();
+    expect(typeof capturedCallbacks.onUpstreamChanges).toBe("function");
+  });
+
+  it("should not provide onUpstreamChanges callback when there is no active skillset", async () => {
+    const configPath = path.join(testInstallDir, ".nori-config.json");
+    await fs.writeFile(configPath, JSON.stringify({}));
+
+    let capturedCallbacks: any = null;
+    mockSwitchSkillsetFlow.mockImplementationOnce(async (args: any) => {
+      capturedCallbacks = args.callbacks;
+      return {
+        agentName: "claude-code",
+        skillsetName: "product-manager",
+        statusMessage: "ok",
+      };
+    });
+
+    const program = new Command();
+    program.exitOverride();
+    program.configureOutput({ writeErr: () => undefined });
+    program
+      .option("-d, --install-dir <path>", "Custom installation directory")
+      .option("-n, --non-interactive", "Run without interactive prompts")
+      .option("-a, --agent <name>", "AI agent to use");
+
+    registerSwitchSkillsetCommand({ program });
+
+    try {
+      await program.parseAsync([
+        "node",
+        "nori-skillsets",
+        "switch-skillset",
+        "product-manager",
+      ]);
+    } catch {
+      // May throw due to exit
+    }
+
+    expect(capturedCallbacks).not.toBeNull();
+    expect(capturedCallbacks.onUpstreamChanges).toBeUndefined();
+  });
+
+  it("should copy modified files from install dir back to profile source when upstream is invoked", async () => {
+    const profileDir = path.join(
+      testInstallDir,
+      ".nori",
+      "profiles",
+      "senior-swe",
+    );
+    const skillDir = path.join(profileDir, "skills", "my-skill");
+    await fs.mkdir(skillDir, { recursive: true });
+    await fs.writeFile(path.join(skillDir, "SKILL.md"), "original content");
+
+    const installedSkillDir = path.join(
+      testInstallDir,
+      ".claude",
+      "skills",
+      "my-skill",
+    );
+    await fs.mkdir(installedSkillDir, { recursive: true });
+    await fs.writeFile(
+      path.join(installedSkillDir, "SKILL.md"),
+      "modified content",
+    );
+
+    // Mock detectLocalChanges to return the diff
+    const { detectLocalChanges } =
+      await import("@/cli/features/agentOperations.js");
+    vi.mocked(detectLocalChanges).mockResolvedValue({
+      modified: ["skills/my-skill/SKILL.md"],
+      added: [],
+      deleted: [],
+    });
+
+    let capturedCallbacks: any = null;
+    mockSwitchSkillsetFlow.mockImplementationOnce(async (args: any) => {
+      capturedCallbacks = args.callbacks;
+      return {
+        agentName: "claude-code",
+        skillsetName: "product-manager",
+        statusMessage: "ok",
+      };
+    });
+
+    const program = new Command();
+    program.exitOverride();
+    program.configureOutput({ writeErr: () => undefined });
+    program
+      .option("-d, --install-dir <path>", "Custom installation directory")
+      .option("-n, --non-interactive", "Run without interactive prompts")
+      .option("-a, --agent <name>", "AI agent to use");
+
+    registerSwitchSkillsetCommand({ program });
+
+    try {
+      await program.parseAsync([
+        "node",
+        "nori-skillsets",
+        "switch-skillset",
+        "product-manager",
+      ]);
+    } catch {
+      // May throw due to exit
+    }
+
+    expect(capturedCallbacks).not.toBeNull();
+    await capturedCallbacks.onUpstreamChanges({ installDir: testInstallDir });
+
+    const updatedContent = await fs.readFile(
+      path.join(skillDir, "SKILL.md"),
+      "utf-8",
+    );
+    expect(updatedContent).toBe("modified content");
+  });
+
+  it("should copy added files from install dir to profile source when upstream is invoked", async () => {
+    const profileDir = path.join(
+      testInstallDir,
+      ".nori",
+      "profiles",
+      "senior-swe",
+    );
+    await fs.mkdir(path.join(profileDir, "skills"), { recursive: true });
+
+    const installedSkillDir = path.join(
+      testInstallDir,
+      ".claude",
+      "skills",
+      "new-skill",
+    );
+    await fs.mkdir(installedSkillDir, { recursive: true });
+    await fs.writeFile(
+      path.join(installedSkillDir, "SKILL.md"),
+      "new skill content",
+    );
+
+    const { detectLocalChanges } =
+      await import("@/cli/features/agentOperations.js");
+    vi.mocked(detectLocalChanges).mockResolvedValue({
+      modified: [],
+      added: ["skills/new-skill/SKILL.md"],
+      deleted: [],
+    });
+
+    let capturedCallbacks: any = null;
+    mockSwitchSkillsetFlow.mockImplementationOnce(async (args: any) => {
+      capturedCallbacks = args.callbacks;
+      return {
+        agentName: "claude-code",
+        skillsetName: "product-manager",
+        statusMessage: "ok",
+      };
+    });
+
+    const program = new Command();
+    program.exitOverride();
+    program.configureOutput({ writeErr: () => undefined });
+    program
+      .option("-d, --install-dir <path>", "Custom installation directory")
+      .option("-n, --non-interactive", "Run without interactive prompts")
+      .option("-a, --agent <name>", "AI agent to use");
+
+    registerSwitchSkillsetCommand({ program });
+
+    try {
+      await program.parseAsync([
+        "node",
+        "nori-skillsets",
+        "switch-skillset",
+        "product-manager",
+      ]);
+    } catch {
+      // May throw due to exit
+    }
+
+    expect(capturedCallbacks).not.toBeNull();
+    await capturedCallbacks.onUpstreamChanges({ installDir: testInstallDir });
+
+    const newContent = await fs.readFile(
+      path.join(profileDir, "skills", "new-skill", "SKILL.md"),
+      "utf-8",
+    );
+    expect(newContent).toBe("new skill content");
+  });
+
+  it("should delete files from profile source that were deleted locally when upstream is invoked", async () => {
+    const profileDir = path.join(
+      testInstallDir,
+      ".nori",
+      "profiles",
+      "senior-swe",
+    );
+    const skillDir = path.join(profileDir, "skills", "old-skill");
+    await fs.mkdir(skillDir, { recursive: true });
+    await fs.writeFile(path.join(skillDir, "SKILL.md"), "to be deleted");
+
+    const { detectLocalChanges } =
+      await import("@/cli/features/agentOperations.js");
+    vi.mocked(detectLocalChanges).mockResolvedValue({
+      modified: [],
+      added: [],
+      deleted: ["skills/old-skill/SKILL.md"],
+    });
+
+    let capturedCallbacks: any = null;
+    mockSwitchSkillsetFlow.mockImplementationOnce(async (args: any) => {
+      capturedCallbacks = args.callbacks;
+      return {
+        agentName: "claude-code",
+        skillsetName: "product-manager",
+        statusMessage: "ok",
+      };
+    });
+
+    const program = new Command();
+    program.exitOverride();
+    program.configureOutput({ writeErr: () => undefined });
+    program
+      .option("-d, --install-dir <path>", "Custom installation directory")
+      .option("-n, --non-interactive", "Run without interactive prompts")
+      .option("-a, --agent <name>", "AI agent to use");
+
+    registerSwitchSkillsetCommand({ program });
+
+    try {
+      await program.parseAsync([
+        "node",
+        "nori-skillsets",
+        "switch-skillset",
+        "product-manager",
+      ]);
+    } catch {
+      // May throw due to exit
+    }
+
+    expect(capturedCallbacks).not.toBeNull();
+    await capturedCallbacks.onUpstreamChanges({ installDir: testInstallDir });
+
+    let fileExists = true;
+    try {
+      await fs.access(path.join(skillDir, "SKILL.md"));
+    } catch {
+      fileExists = false;
+    }
+    expect(fileExists).toBe(false);
+  });
+
+  it("should map commands/ paths to slashcommands/ in profile when upstream is invoked", async () => {
+    const profileDir = path.join(
+      testInstallDir,
+      ".nori",
+      "profiles",
+      "senior-swe",
+    );
+    await fs.mkdir(path.join(profileDir, "slashcommands"), { recursive: true });
+    await fs.writeFile(
+      path.join(profileDir, "slashcommands", "my-cmd.md"),
+      "original cmd",
+    );
+
+    const installedCmdDir = path.join(testInstallDir, ".claude", "commands");
+    await fs.mkdir(installedCmdDir, { recursive: true });
+    await fs.writeFile(path.join(installedCmdDir, "my-cmd.md"), "modified cmd");
+
+    const { detectLocalChanges } =
+      await import("@/cli/features/agentOperations.js");
+    vi.mocked(detectLocalChanges).mockResolvedValue({
+      modified: ["commands/my-cmd.md"],
+      added: [],
+      deleted: [],
+    });
+
+    let capturedCallbacks: any = null;
+    mockSwitchSkillsetFlow.mockImplementationOnce(async (args: any) => {
+      capturedCallbacks = args.callbacks;
+      return {
+        agentName: "claude-code",
+        skillsetName: "product-manager",
+        statusMessage: "ok",
+      };
+    });
+
+    const program = new Command();
+    program.exitOverride();
+    program.configureOutput({ writeErr: () => undefined });
+    program
+      .option("-d, --install-dir <path>", "Custom installation directory")
+      .option("-n, --non-interactive", "Run without interactive prompts")
+      .option("-a, --agent <name>", "AI agent to use");
+
+    registerSwitchSkillsetCommand({ program });
+
+    try {
+      await program.parseAsync([
+        "node",
+        "nori-skillsets",
+        "switch-skillset",
+        "product-manager",
+      ]);
+    } catch {
+      // May throw due to exit
+    }
+
+    expect(capturedCallbacks).not.toBeNull();
+    await capturedCallbacks.onUpstreamChanges({ installDir: testInstallDir });
+
+    const updatedContent = await fs.readFile(
+      path.join(profileDir, "slashcommands", "my-cmd.md"),
+      "utf-8",
+    );
+    expect(updatedContent).toBe("modified cmd");
+  });
+
+  it("should map agents/ paths to subagents/ in profile when upstream is invoked", async () => {
+    const profileDir = path.join(
+      testInstallDir,
+      ".nori",
+      "profiles",
+      "senior-swe",
+    );
+    await fs.mkdir(path.join(profileDir, "subagents"), { recursive: true });
+    await fs.writeFile(
+      path.join(profileDir, "subagents", "my-agent.md"),
+      "original agent",
+    );
+
+    const installedAgentsDir = path.join(testInstallDir, ".claude", "agents");
+    await fs.mkdir(installedAgentsDir, { recursive: true });
+    await fs.writeFile(
+      path.join(installedAgentsDir, "my-agent.md"),
+      "modified agent",
+    );
+
+    const { detectLocalChanges } =
+      await import("@/cli/features/agentOperations.js");
+    vi.mocked(detectLocalChanges).mockResolvedValue({
+      modified: ["agents/my-agent.md"],
+      added: [],
+      deleted: [],
+    });
+
+    let capturedCallbacks: any = null;
+    mockSwitchSkillsetFlow.mockImplementationOnce(async (args: any) => {
+      capturedCallbacks = args.callbacks;
+      return {
+        agentName: "claude-code",
+        skillsetName: "product-manager",
+        statusMessage: "ok",
+      };
+    });
+
+    const program = new Command();
+    program.exitOverride();
+    program.configureOutput({ writeErr: () => undefined });
+    program
+      .option("-d, --install-dir <path>", "Custom installation directory")
+      .option("-n, --non-interactive", "Run without interactive prompts")
+      .option("-a, --agent <name>", "AI agent to use");
+
+    registerSwitchSkillsetCommand({ program });
+
+    try {
+      await program.parseAsync([
+        "node",
+        "nori-skillsets",
+        "switch-skillset",
+        "product-manager",
+      ]);
+    } catch {
+      // May throw due to exit
+    }
+
+    expect(capturedCallbacks).not.toBeNull();
+    await capturedCallbacks.onUpstreamChanges({ installDir: testInstallDir });
+
+    const updatedContent = await fs.readFile(
+      path.join(profileDir, "subagents", "my-agent.md"),
+      "utf-8",
+    );
+    expect(updatedContent).toBe("modified agent");
+  });
+
+  it("should map agents/ paths to subagents/ for deletes when upstream is invoked", async () => {
+    const profileDir = path.join(
+      testInstallDir,
+      ".nori",
+      "profiles",
+      "senior-swe",
+    );
+    const subagentFile = path.join(profileDir, "subagents", "old-agent.md");
+    await fs.mkdir(path.join(profileDir, "subagents"), { recursive: true });
+    await fs.writeFile(subagentFile, "to be deleted");
+
+    const { detectLocalChanges } =
+      await import("@/cli/features/agentOperations.js");
+    vi.mocked(detectLocalChanges).mockResolvedValue({
+      modified: [],
+      added: [],
+      deleted: ["agents/old-agent.md"],
+    });
+
+    let capturedCallbacks: any = null;
+    mockSwitchSkillsetFlow.mockImplementationOnce(async (args: any) => {
+      capturedCallbacks = args.callbacks;
+      return {
+        agentName: "claude-code",
+        skillsetName: "product-manager",
+        statusMessage: "ok",
+      };
+    });
+
+    const program = new Command();
+    program.exitOverride();
+    program.configureOutput({ writeErr: () => undefined });
+    program
+      .option("-d, --install-dir <path>", "Custom installation directory")
+      .option("-n, --non-interactive", "Run without interactive prompts")
+      .option("-a, --agent <name>", "AI agent to use");
+
+    registerSwitchSkillsetCommand({ program });
+
+    try {
+      await program.parseAsync([
+        "node",
+        "nori-skillsets",
+        "switch-skillset",
+        "product-manager",
+      ]);
+    } catch {
+      // May throw due to exit
+    }
+
+    expect(capturedCallbacks).not.toBeNull();
+    await capturedCallbacks.onUpstreamChanges({ installDir: testInstallDir });
+
+    let fileExists = true;
+    try {
+      await fs.access(subagentFile);
+    } catch {
+      fileExists = false;
+    }
+    expect(fileExists).toBe(false);
+  });
+
+  it("should rewrite the manifest after upstream so files appear clean", async () => {
+    const profileDir = path.join(
+      testInstallDir,
+      ".nori",
+      "profiles",
+      "senior-swe",
+    );
+    const skillDir = path.join(profileDir, "skills", "my-skill");
+    await fs.mkdir(skillDir, { recursive: true });
+    await fs.writeFile(path.join(skillDir, "SKILL.md"), "original content");
+
+    const installedSkillDir = path.join(
+      testInstallDir,
+      ".claude",
+      "skills",
+      "my-skill",
+    );
+    await fs.mkdir(installedSkillDir, { recursive: true });
+    await fs.writeFile(
+      path.join(installedSkillDir, "SKILL.md"),
+      "modified content",
+    );
+
+    const { detectLocalChanges } =
+      await import("@/cli/features/agentOperations.js");
+    vi.mocked(detectLocalChanges).mockResolvedValue({
+      modified: ["skills/my-skill/SKILL.md"],
+      added: [],
+      deleted: [],
+    });
+
+    let capturedCallbacks: any = null;
+    mockSwitchSkillsetFlow.mockImplementationOnce(async (args: any) => {
+      capturedCallbacks = args.callbacks;
+      return {
+        agentName: "claude-code",
+        skillsetName: "product-manager",
+        statusMessage: "ok",
+      };
+    });
+
+    const program = new Command();
+    program.exitOverride();
+    program.configureOutput({ writeErr: () => undefined });
+    program
+      .option("-d, --install-dir <path>", "Custom installation directory")
+      .option("-n, --non-interactive", "Run without interactive prompts")
+      .option("-a, --agent <name>", "AI agent to use");
+
+    registerSwitchSkillsetCommand({ program });
+
+    try {
+      await program.parseAsync([
+        "node",
+        "nori-skillsets",
+        "switch-skillset",
+        "product-manager",
+      ]);
+    } catch {
+      // May throw due to exit
+    }
+
+    expect(capturedCallbacks).not.toBeNull();
+    await capturedCallbacks.onUpstreamChanges({ installDir: testInstallDir });
+
+    // After upstream, the manifest should have been rewritten
+    const manifestPath = path.join(
+      testInstallDir,
+      ".nori",
+      "manifests",
+      "claude-code.json",
+    );
+    const manifestContent = await fs.readFile(manifestPath, "utf-8");
+    const manifest = JSON.parse(manifestContent);
+    expect(manifest.skillsetName).toBe("senior-swe");
+    expect(manifest.files).toBeDefined();
+    expect(manifest.files["skills/my-skill/SKILL.md"]).toBeDefined();
+  });
+});
