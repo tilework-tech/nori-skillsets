@@ -10,23 +10,27 @@ Nori Skillsets is a CLI client and plugin package for installing and managing "s
 
 This is the repository root. The project is a TypeScript Node.js application built with esbuild, using Commander for CLI parsing, Firebase for authentication, and the noriskillsets.dev registry as its backend. The CLI installs configuration into each agent's directory structure (e.g., `.claude/`, `.cursor/`, `.codex/`, etc.), where the respective agent reads it. Skillsets are stored in `~/.nori/profiles/` and activated by copying into each configured agent's target directory. The multi-agent architecture uses a single `AgentConfig` type (defined in @/src/cli/features/agentRegistry.ts) with shared lifecycle operations in @/src/cli/features/agentOperations.ts, so all agents share the same install/switch/remove logic.
 
+The repo also contains a skillset templating system for scaffolding new agent skillsets. Base templates in `@/templates/` are processed by `@/src/templates/generate.ts` to produce checked-in skillset source directories (e.g., `@/goose/`) that are uploaded to the registry. This is a development-time workflow, separate from the runtime CLI.
+
 This repo participates in the Nori shared local runner layer -- a cross-repo convention providing standardized `just` targets (`help`, `dev`, `test`, `doctor`) for orientation and discovery. The same target contract exists in `sessions`, `registrar`, `admin`, and `cli`.
 
 ```
-User runs CLI command
-        |
-        v
-  @/src/cli/nori-skillsets.ts  (entrypoint)
-        |
-        v
-  @/src/cli/commands/*         (individual commands)
-        |
-        v
-  @/src/api/*                  (registry + auth API clients)
-  @/src/cli/features/*         (agent integration, skillset management)
-  @/src/norijson/*             (manifest parsing)
-  @/src/providers/*            (Firebase singleton)
-  @/src/utils/*                (URL, path, fetch helpers)
+User runs CLI command                   Developer scaffolds new agent
+        |                                       |
+        v                                       v
+  @/src/cli/nori-skillsets.ts            @/scripts/generate-from-template.ts
+        |                                       |
+        v                                       v
+  @/src/cli/commands/*                   @/src/templates/generate.ts
+        |                                       |
+        v                                       v
+  @/src/api/*                            @/templates/base-acp-agent/
+  @/src/cli/features/*                          |
+  @/src/norijson/*                              v
+  @/src/providers/*                      @/goose/ (or other agent dirs)
+  @/src/utils/*                                 |
+                                                v
+                                         sks upload --> registry
 ```
 
 ### Core Implementation
