@@ -28,7 +28,6 @@ Path: @/templates
 
 ### Things to Know
 
-- The `AGENTS.md` template has a hardcoded reference to `.goosehints` in its session rules section. This is an artifact from the first generated agent (Goose) and may need parameterization if future agents have different hint file conventions.
 - The integration skill template uses a generic single-value API key handoff (`--type api-key --api-key`). Agents requiring additional credential fields (like Goose's `--goose-provider` and `--goose-model`) must have their generated skill file manually extended after generation.
 - Adding a new template means creating a new subdirectory here and pointing `TEMPLATE_DIR` in `@/src/templates/generate.ts` at it, or parameterizing the template selection.
 
