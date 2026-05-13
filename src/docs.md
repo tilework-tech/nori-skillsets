@@ -19,6 +19,7 @@ This is the sole source directory. Everything under `@/src` is compiled to `@/bu
 | `norijson/` | Types and runtime operations for the `nori.json` manifest format, including metadata CRUD (`readSkillsetMetadata`, `writeSkillsetMetadata`, `addSkillToNoriJson`, `ensureNoriJson`), plus skillset path utilities, parsing, and discovery |
 | `providers/` | External service singletons (Firebase) |
 | `scripts/` | Build-time scripts for bundling hook scripts with esbuild |
+| `templates/` | Build-time skillset generation from base templates (distinct from runtime template substitution in `cli/features/template.ts`) |
 | `utils/` | Shared helpers for URL normalization, path resolution, proxy/fetch error handling, and home directory detection |
 
 The data flow is top-down: CLI commands orchestrate calls to API clients and features, which in turn use providers and utils. There are no upward dependencies from lower layers.
