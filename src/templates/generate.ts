@@ -82,6 +82,14 @@ export const generateFromTemplate = async (args: {
     if (err instanceof Error && err.message.includes("already exists")) {
       throw err;
     }
+    if (
+      err != null &&
+      typeof err === "object" &&
+      "code" in err &&
+      (err as NodeJS.ErrnoException).code !== "ENOENT"
+    ) {
+      throw err;
+    }
   }
 
   await copyTemplateDir({ srcDir: TEMPLATE_DIR, destDir: outputDir, vars });
