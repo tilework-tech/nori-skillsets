@@ -15,7 +15,7 @@ Path: @/src/cli/features/claude-code/statusline
 
 ### Core Implementation
 
-- `loader.ts` copies `config/nori-statusline.sh` to `~/.claude/nori-statusline.sh`, makes it executable, and sets `settings.statusLine` in `~/.claude/settings.json` to `type: "command"` pointing at the copied script
+- `loader.ts` copies `config/nori-statusline.sh` to `~/.claude/nori-statusline.sh`, makes it executable, and sets `settings.statusLine` in `~/.claude/settings.json` to `type: "command"` pointing at the copied script. The loader implements `uninstall()` to remove the `statusLine` key from `~/.claude/settings.json` and delete `~/.claude/nori-statusline.sh`
 - Token and context data come from `context_window` fields in the stdin JSON that Claude Code passes to the script; tokens are accumulated by the script itself in a session file to include cached tokens and persist across `/clear`
 - Cost and lines come directly from `cost.total_cost_usd`, `cost.total_lines_added`, `cost.total_lines_removed` in stdin JSON -- these are already cumulative per process, so no baseline subtraction is needed
 

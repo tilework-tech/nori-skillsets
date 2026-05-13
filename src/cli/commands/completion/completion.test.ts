@@ -36,6 +36,8 @@ const VISIBLE_SUBCOMMANDS = [
   "install",
   "switch",
   "list",
+  "link",
+  "unlink",
   "download-skill",
   "external",
   "watch",

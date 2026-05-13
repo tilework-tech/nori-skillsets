@@ -8,6 +8,7 @@ import * as fs from "fs/promises";
 import {
   getClaudeHomeDir,
   getClaudeHomeSettingsFile,
+  removeSettingsKeys,
 } from "@/cli/features/claude-code/paths.js";
 
 import type { Config } from "@/cli/config.js";
@@ -59,5 +60,11 @@ export const announcementsLoader: AgentLoader = {
   managedFiles: ["settings.json"],
   run: async ({ config }) => {
     return configureAnnouncements({ config });
+  },
+  uninstall: async () => {
+    await removeSettingsKeys({
+      settingsFile: getClaudeHomeSettingsFile(),
+      keys: ["companyAnnouncements"],
+    });
   },
 };

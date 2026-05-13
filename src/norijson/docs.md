@@ -12,7 +12,7 @@ Path: @/src/norijson
 - `NoriJson` is consumed by CLI commands for skillset packaging (@/src/cli/commands/registry-upload/), downloading, and installation.
 - The metadata CRUD functions (`readSkillsetMetadata`, `writeSkillsetMetadata`, `addSkillToNoriJson`, `addSubagentToNoriJson`, `ensureNoriJson`) in `nori.ts` are called by CLI commands (fork, new, register, external, skill-download) and by `parseSkillset()` in `skillset.ts`.
 - `parseSkillset()` in `skillset.ts` is called by `agentOperations.installSkillset()` in @/src/cli/features/agentOperations.ts to resolve the active skillset before running loaders.
-- `listSkillsets()` in `skillset.ts` is called directly by CLI commands (switch-skillset, list-skillsets) to discover installed skillsets.
+- `listSkillsets()` and `listSkillsetsWithMetadata()` in `skillset.ts` are called by CLI commands (switch-skillset, list-skillsets, link-skillset, import-mcp) to discover installed skillsets. `listSkillsetsWithMetadata()` returns richer `SkillsetEntry` objects that include `isLinked` status, while `listSkillsets()` delegates to it and returns just names.
 - `getNoriDir()` and `getNoriSkillsetsDir()` in `skillset.ts` provide the canonical paths (`~/.nori/` and `~/.nori/profiles/`) used throughout the CLI for skillset directory resolution.
 
 ```
@@ -43,9 +43,11 @@ CLI Commands (fork, new, register, switch, list, external, skill-download)
 
 - `getNoriDir()` / `getNoriSkillsetsDir()`: Canonical path getters for `~/.nori/` and `~/.nori/profiles/`.
 - `MANIFEST_FILE`: The constant `"nori.json"`, used to identify valid skillsets.
+- `SkillsetEntry` type: Carries `name` and `isLinked` (whether the entry is a symlink) for each discovered skillset.
 - `Skillset` type: Represents a parsed skillset directory with `name`, `dir`, `metadata` (the parsed `NoriJson`), and nullable paths for `skillsDir`, `configFilePath`, `slashcommandsDir`, `subagentsDir`, `mcpDir` (the optional `mcp/` subdirectory of canonical MCP server JSON files consumed by `createMcpLoader` in @/src/cli/features/shared/mcpLoader.ts).
 - `parseSkillset({ skillsetName?, skillsetDir? })`: Resolves a skillset directory, calls `ensureNoriJson()`, reads metadata, probes for optional subdirectories/files. Checks for `AGENTS.md` first, then falls back to `CLAUDE.md` for backward compatibility.
-- `listSkillsets()`: Scans `~/.nori/profiles/` for directories containing `nori.json`, supporting flat and namespaced (org/name) layouts. Calls `ensureNoriJson()` for backwards compatibility.
+- `listSkillsetsWithMetadata()`: Scans `~/.nori/profiles/` for directories containing `nori.json`, supporting flat and namespaced (org/name) layouts. Uses `isDirentDirectory()` from `@/src/utils/dirent.ts` to follow symlinks when checking directory entries, and reports `isLinked` status via `entry.isSymbolicLink()`. For namespaced entries, a symlink at either the org level or the nested level counts as linked. Calls `ensureNoriJson()` for backwards compatibility.
+- `listSkillsets()`: Thin wrapper over `listSkillsetsWithMetadata()` that returns just the sorted name strings.
 
 ### Things to Know
 

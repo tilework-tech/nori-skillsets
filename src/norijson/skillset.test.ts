@@ -448,4 +448,51 @@ describe("listSkillsets", () => {
     // Org directory should NOT have nori.json created
     await expect(fs.access(path.join(orgDir, "nori.json"))).rejects.toThrow();
   });
+
+  test("discovers symlinked skillset directories", async () => {
+    const skillsetsDir = path.join(testHomeDir, ".nori", "profiles");
+    await fs.mkdir(skillsetsDir, { recursive: true });
+
+    // Create a real skillset directory somewhere else
+    const externalDir = path.join(testHomeDir, "external-repo");
+    await fs.mkdir(externalDir, { recursive: true });
+    await fs.writeFile(
+      path.join(externalDir, "nori.json"),
+      JSON.stringify({ name: "symlinked-skillset", version: "1.0.0" }),
+    );
+
+    // Symlink profiles/symlinked-skillset -> external-repo
+    await fs.symlink(
+      externalDir,
+      path.join(skillsetsDir, "symlinked-skillset"),
+    );
+
+    const profiles = await listSkillsets();
+
+    expect(profiles).toContain("symlinked-skillset");
+  });
+
+  test("discovers symlinked org-scoped skillset directories", async () => {
+    const skillsetsDir = path.join(testHomeDir, ".nori", "profiles");
+    await fs.mkdir(skillsetsDir, { recursive: true });
+
+    // Create org directory
+    const orgDir = path.join(skillsetsDir, "myorg");
+    await fs.mkdir(orgDir, { recursive: true });
+
+    // Create external repo for the skillset
+    const externalDir = path.join(testHomeDir, "external-org-repo");
+    await fs.mkdir(externalDir, { recursive: true });
+    await fs.writeFile(
+      path.join(externalDir, "nori.json"),
+      JSON.stringify({ name: "myorg/linked-profile", version: "1.0.0" }),
+    );
+
+    // Symlink profiles/myorg/linked-profile -> external-org-repo
+    await fs.symlink(externalDir, path.join(orgDir, "linked-profile"));
+
+    const profiles = await listSkillsets();
+
+    expect(profiles).toContain("myorg/linked-profile");
+  });
 });

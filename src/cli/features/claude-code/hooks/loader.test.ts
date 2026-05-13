@@ -17,11 +17,15 @@ const COMMIT_ATTRIBUTION_ENV = "NORI_SKILLSETS_COMMIT_ATTRIBUTION";
 let mockClaudeDir: string;
 let mockClaudeSettingsFile: string;
 
-vi.mock("@/cli/features/claude-code/paths.js", () => ({
-  getClaudeHomeDir: () => mockClaudeDir,
-  getClaudeHomeSettingsFile: () => mockClaudeSettingsFile,
-  getClaudeHomeCommandsDir: () => path.join(mockClaudeDir, "commands"),
-}));
+vi.mock("@/cli/features/claude-code/paths.js", async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
+  return {
+    ...actual,
+    getClaudeHomeDir: () => mockClaudeDir,
+    getClaudeHomeSettingsFile: () => mockClaudeSettingsFile,
+    getClaudeHomeCommandsDir: () => path.join(mockClaudeDir, "commands"),
+  };
+});
 
 // Mock cleanupLegacyHooks to prevent it from touching real ~/.claude/settings.json
 vi.mock("@/cli/features/claude-code/hooks/cleanupLegacyHooks.js", () => ({
@@ -417,6 +421,55 @@ describe("hooksLoader", () => {
         commit: "Custom commit attribution",
         pr: "Custom PR attribution",
       });
+    });
+  });
+
+  describe("uninstall", () => {
+    it("should remove hooks key from settings.json while preserving other keys", async () => {
+      const settings = {
+        $schema: "https://json.schemastore.org/claude-code-settings.json",
+        hooks: { SessionStart: [{ matcher: "", hooks: [] }] },
+        someOtherSetting: "value",
+        includeCoAuthoredBy: false,
+        attribution: { commit: "", pr: "" },
+      };
+      await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2));
+
+      await hooksLoader.uninstall!({ agent: {} as any, installDir: tempDir });
+
+      const content = await fs.readFile(settingsPath, "utf-8");
+      const result = JSON.parse(content);
+      expect(result.hooks).toBeUndefined();
+      expect(result.includeCoAuthoredBy).toBeUndefined();
+      expect(result.attribution).toBeUndefined();
+      expect(result.someOtherSetting).toBe("value");
+      expect(result.$schema).toBe(
+        "https://json.schemastore.org/claude-code-settings.json",
+      );
+    });
+
+    it("should delete settings.json if only $schema remains after removing hooks keys", async () => {
+      const settings = {
+        $schema: "https://json.schemastore.org/claude-code-settings.json",
+        hooks: { SessionStart: [{ matcher: "", hooks: [] }] },
+        includeCoAuthoredBy: false,
+        attribution: { commit: "", pr: "" },
+      };
+      await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2));
+
+      await hooksLoader.uninstall!({ agent: {} as any, installDir: tempDir });
+
+      const exists = await fs
+        .access(settingsPath)
+        .then(() => true)
+        .catch(() => false);
+      expect(exists).toBe(false);
+    });
+
+    it("should not error when settings.json does not exist", async () => {
+      await expect(
+        hooksLoader.uninstall!({ agent: {} as any, installDir: tempDir }),
+      ).resolves.not.toThrow();
     });
   });
 });
