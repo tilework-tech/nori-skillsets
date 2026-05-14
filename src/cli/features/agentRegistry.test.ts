@@ -75,6 +75,7 @@ describe("AgentRegistry", () => {
       const agents = registry.list();
 
       expect(agents).toContain("claude-code");
+      expect(agents).toContain("cline");
       expect(agents).toContain("codex");
       expect(agents).toContain("cursor-agent");
       expect(agents).toContain("droid");
@@ -86,7 +87,7 @@ describe("AgentRegistry", () => {
       expect(agents).toContain("opencode");
       expect(agents).toContain("openclaw");
       expect(agents).toContain("pi");
-      expect(agents).toHaveLength(12);
+      expect(agents).toHaveLength(13);
     });
   });
 
