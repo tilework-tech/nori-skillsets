@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 
 import { clineAgentConfig } from "./agent.js";
 
@@ -15,20 +15,6 @@ vi.mock("@clack/prompts", () => ({
 }));
 
 describe("clineAgentConfig", () => {
-  const ORIGINAL_ENV = process.env.NORI_GLOBAL_CONFIG;
-
-  beforeEach(() => {
-    process.env.NORI_GLOBAL_CONFIG = "/home/user";
-  });
-
-  afterEach(() => {
-    if (ORIGINAL_ENV == null) {
-      delete process.env.NORI_GLOBAL_CONFIG;
-    } else {
-      process.env.NORI_GLOBAL_CONFIG = ORIGINAL_ENV;
-    }
-  });
-
   it("should have correct name, displayName, and description", () => {
     expect(clineAgentConfig.name).toBe("cline");
     expect(clineAgentConfig.displayName).toBe("Cline");
@@ -38,16 +24,9 @@ describe("clineAgentConfig", () => {
   });
 
   describe("getAgentDir", () => {
-    it("should return <installDir>/.cline for any install", () => {
+    it("should return <installDir>/.cline", () => {
       const result = clineAgentConfig.getAgentDir({ installDir: "/project" });
       expect(result).toBe("/project/.cline");
-    });
-
-    it("should return ~/.cline for home directory installs", () => {
-      const result = clineAgentConfig.getAgentDir({
-        installDir: "/home/user",
-      });
-      expect(result).toBe("/home/user/.cline");
     });
   });
 
@@ -77,18 +56,11 @@ describe("clineAgentConfig", () => {
   });
 
   describe("getInstructionsFilePath", () => {
-    it("should return .cline/rules/AGENTS.md for project installs", () => {
+    it("should return <installDir>/.cline/rules/AGENTS.md", () => {
       const result = clineAgentConfig.getInstructionsFilePath({
         installDir: "/project",
       });
       expect(result).toBe("/project/.cline/rules/AGENTS.md");
-    });
-
-    it("should return ~/.cline/rules/AGENTS.md for home directory installs", () => {
-      const result = clineAgentConfig.getInstructionsFilePath({
-        installDir: "/home/user",
-      });
-      expect(result).toBe("/home/user/.cline/rules/AGENTS.md");
     });
   });
 
