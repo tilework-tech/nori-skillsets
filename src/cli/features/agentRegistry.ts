@@ -57,6 +57,10 @@ export type AgentLoader = {
     config: Config;
     skillset?: Skillset | null;
   }) => Promise<string | void>;
+  uninstall?: (args: {
+    agent: AgentConfig;
+    installDir: string;
+  }) => Promise<void>;
 };
 
 /**

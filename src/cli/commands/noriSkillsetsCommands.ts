@@ -724,6 +724,62 @@ export const registerNoriSkillsetsListSkillsetsCommand = (args: {
 };
 
 /**
+ * Register the 'link' command for nori-skillsets CLI
+ * @param args - Configuration arguments
+ * @param args.program - Commander program instance
+ */
+export const registerNoriSkillsetsLinkCommand = (args: {
+  program: Command;
+}): void => {
+  const { program } = args;
+
+  program
+    .command("link <path>")
+    .description("Link a local directory as a skillset (symlink)")
+    .option("--name <name>", "Override the skillset name (supports org/name)")
+    .action(async (targetDir: string, options: { name?: string }) => {
+      const { linkSkillsetMain } =
+        await import("@/cli/commands/link-skillset/linkSkillset.js");
+
+      await wrapWithFraming({
+        title: "Link Skillset",
+        exitOnFailure: true,
+        action: () =>
+          linkSkillsetMain({
+            targetDir,
+            name: options.name ?? null,
+            cwd: process.cwd(),
+          }),
+      });
+    });
+};
+
+/**
+ * Register the 'unlink' command for nori-skillsets CLI
+ * @param args - Configuration arguments
+ * @param args.program - Commander program instance
+ */
+export const registerNoriSkillsetsUnlinkCommand = (args: {
+  program: Command;
+}): void => {
+  const { program } = args;
+
+  program
+    .command("unlink <name>")
+    .description("Remove a linked skillset (only removes symlinks)")
+    .action(async (name: string) => {
+      const { unlinkSkillsetMain } =
+        await import("@/cli/commands/unlink-skillset/unlinkSkillset.js");
+
+      await wrapWithFraming({
+        title: "Unlink Skillset",
+        exitOnFailure: true,
+        action: () => unlinkSkillsetMain({ name }),
+      });
+    });
+};
+
+/**
  * Register the 'list-active' command for nori-skillsets CLI
  * @param args - Configuration arguments
  * @param args.program - Commander program instance

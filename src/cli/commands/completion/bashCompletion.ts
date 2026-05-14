@@ -10,7 +10,7 @@ _nori_skillsets_completions() {
   cur="\${COMP_WORDS[COMP_CWORD]}"
   prev="\${COMP_WORDS[COMP_CWORD-1]}"
 
-  commands="login logout init search download install switch list download-skill external watch dir fork edit install-location clear clear-current factory-reset completion help"
+  commands="login logout init search download install switch list link unlink download-skill external watch dir fork edit install-location clear clear-current factory-reset completion help"
   global_opts="--install-dir --non-interactive --silent --agent --help --version"
 
   # Complete subcommand at position 1
@@ -46,10 +46,26 @@ _nori_skillsets_completions() {
     switch)
       if [[ \${COMP_CWORD} -eq 2 ]] && [[ "\${cur}" != -* ]]; then
         local skillsets
-        skillsets="$(nori-skillsets list 2>/dev/null)"
+        skillsets="$(nori-skillsets list 2>/dev/null | sed 's/ (linked)$//')"
         COMPREPLY=( $(compgen -W "\${skillsets}" -- "\${cur}") )
       else
         COMPREPLY=( $(compgen -W "--agent \${global_opts}" -- "\${cur}") )
+      fi
+      ;;
+    link)
+      if [[ \${COMP_CWORD} -eq 2 ]] && [[ "\${cur}" != -* ]]; then
+        COMPREPLY=( $(compgen -d -- "\${cur}") )
+      else
+        COMPREPLY=( $(compgen -W "--name \${global_opts}" -- "\${cur}") )
+      fi
+      ;;
+    unlink)
+      if [[ \${COMP_CWORD} -eq 2 ]] && [[ "\${cur}" != -* ]]; then
+        local skillsets
+        skillsets="$(nori-skillsets list 2>/dev/null | sed -n 's/ (linked)$//p')"
+        COMPREPLY=( $(compgen -W "\${skillsets}" -- "\${cur}") )
+      else
+        COMPREPLY=( $(compgen -W "\${global_opts}" -- "\${cur}") )
       fi
       ;;
     download-skill)

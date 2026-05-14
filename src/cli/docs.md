@@ -12,7 +12,7 @@ The CLI module is the outermost shell of the application. `nori-skillsets.ts` is
 
 ### Core Implementation
 
-`nori-skillsets.ts` creates a Commander `program`, attaches global options (`--install-dir`, `--non-interactive`, `--silent`, `--agent`), and registers all subcommands. Before parsing, it fires a background analytics lifecycle event and runs the update check (skipped for `--help`/`--version`).
+`nori-skillsets.ts` creates a Commander `program`, attaches global options (`--install-dir`, `--non-interactive`, `--silent`, `--agent`), and registers all subcommands (including `link` and `unlink` for symlink-based skillset management). Before parsing, it fires a background analytics lifecycle event and runs the update check (skipped for `--help`/`--version`).
 
 The `--non-interactive` flag's default value is computed at startup via `isNonInteractiveEnvironment()` from `@/src/utils/nonInteractive.ts`, which returns `true` when `CI` is set to a truthy value or when `process.stdin.isTTY` is falsy. Commander's precedence (explicit CLI flag wins over default) means `--non-interactive` on the command line still forces it on, and auto-detection flips the default from `false` to `true` in CI pipelines, piped-stdin invocations, and cronjobs. Every subcommand reads `globalOpts.nonInteractive` via `program.opts()`, so configuring the default in this one chokepoint propagates the auto-detected value to all subcommand call sites without touching any command module. The same helper is used in the pre-parse argv peek that decides whether `checkForUpdateAndPrompt` runs in interactive mode.
 

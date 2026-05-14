@@ -30,6 +30,7 @@ import {
 } from "@/cli/config.js";
 import { skillUploadFlow } from "@/cli/prompts/flows/index.js";
 import { getNoriSkillsetsDir } from "@/norijson/skillset.js";
+import { isDirentFile } from "@/utils/dirent.js";
 import { shouldExcludeFromUpload } from "@/utils/uploadFileFilter.js";
 import {
   parseNamespacedPackage,
@@ -60,9 +61,10 @@ const createSkillTarball = async (args: {
   });
   const filesToPack: Array<string> = [];
   for (const entry of entries) {
-    if (!entry.isFile()) continue;
+    const parentDir = entry.parentPath ?? entry.path;
+    if (!(await isDirentFile({ parentDir, entry }))) continue;
     if (shouldExcludeFromUpload({ fileName: entry.name })) continue;
-    const full = path.join(entry.parentPath ?? entry.path, entry.name);
+    const full = path.join(parentDir, entry.name);
     const rel = path.relative(skillDir, full);
     filesToPack.push(rel);
   }
@@ -75,7 +77,7 @@ const createSkillTarball = async (args: {
 
   try {
     await tar.create(
-      { gzip: true, file: tempTarPath, cwd: skillDir },
+      { gzip: true, file: tempTarPath, cwd: skillDir, follow: true },
       filesToPack,
     );
     return await fs.readFile(tempTarPath);

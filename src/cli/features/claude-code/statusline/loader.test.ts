@@ -15,11 +15,15 @@ import type { Config } from "@/cli/config.js";
 let mockClaudeDir: string;
 let mockClaudeSettingsFile: string;
 
-vi.mock("@/cli/features/claude-code/paths.js", () => ({
-  getClaudeHomeDir: () => mockClaudeDir,
-  getClaudeHomeSettingsFile: () => mockClaudeSettingsFile,
-  getClaudeHomeCommandsDir: () => path.join(mockClaudeDir, "commands"),
-}));
+vi.mock("@/cli/features/claude-code/paths.js", async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
+  return {
+    ...actual,
+    getClaudeHomeDir: () => mockClaudeDir,
+    getClaudeHomeSettingsFile: () => mockClaudeSettingsFile,
+    getClaudeHomeCommandsDir: () => path.join(mockClaudeDir, "commands"),
+  };
+});
 
 // Import loader after mocking env
 import { statuslineLoader } from "./loader.js";
@@ -917,6 +921,80 @@ ${scriptContent}
       expect(output).toContain("apt install jq");
       // Should still show Nori branding
       expect(output).toContain("Augmented with Nori");
+    });
+  });
+
+  describe("uninstall", () => {
+    it("should remove statusLine key from settings.json while preserving other keys", async () => {
+      const settings = {
+        $schema: "https://json.schemastore.org/claude-code-settings.json",
+        statusLine: {
+          type: "command",
+          command: "/some/path/nori-statusline.sh",
+          padding: 0,
+        },
+        someOtherSetting: "value",
+      };
+      await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2));
+
+      // Create nori-statusline.sh
+      const statuslineScript = path.join(claudeDir, "nori-statusline.sh");
+      await fs.writeFile(statuslineScript, "#!/bin/bash\necho test");
+
+      await statuslineLoader.uninstall!({
+        agent: {} as any,
+        installDir: tempDir,
+      });
+
+      const content = await fs.readFile(settingsPath, "utf-8");
+      const result = JSON.parse(content);
+      expect(result.statusLine).toBeUndefined();
+      expect(result.someOtherSetting).toBe("value");
+    });
+
+    it("should delete nori-statusline.sh", async () => {
+      const statuslineScript = path.join(claudeDir, "nori-statusline.sh");
+      await fs.writeFile(statuslineScript, "#!/bin/bash\necho test");
+
+      await statuslineLoader.uninstall!({
+        agent: {} as any,
+        installDir: tempDir,
+      });
+
+      const exists = await fs
+        .access(statuslineScript)
+        .then(() => true)
+        .catch(() => false);
+      expect(exists).toBe(false);
+    });
+
+    it("should delete settings.json if only $schema remains after removing statusLine", async () => {
+      const settings = {
+        $schema: "https://json.schemastore.org/claude-code-settings.json",
+        statusLine: {
+          type: "command",
+          command: "/some/path/nori-statusline.sh",
+          padding: 0,
+        },
+      };
+      await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2));
+
+      await statuslineLoader.uninstall!({
+        agent: {} as any,
+        installDir: tempDir,
+      });
+
+      const exists = await fs
+        .access(settingsPath)
+        .then(() => true)
+        .catch(() => false);
+      expect(exists).toBe(false);
+    });
+
+    it("should not error when settings.json and nori-statusline.sh do not exist", async () => {
+      await expect(
+        statuslineLoader.uninstall!({ agent: {} as any, installDir: tempDir }),
+      ).resolves.not.toThrow();
     });
   });
 });
