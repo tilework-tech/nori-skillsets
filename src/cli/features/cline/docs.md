@@ -20,7 +20,7 @@ The `clineAgentConfig` declares its loader pipeline via `getLoaders()`:
 
 1. `configLoader` -- shared config persistence, from @/src/cli/features/configLoader.ts
 2. `skillsLoader` -- shared, from @/src/cli/features/shared/skillsLoader.ts
-3. `createInstructionsLoader({ managedFiles: ["AGENTS.md"] })` -- shared
+3. `createInstructionsLoader({ managedDirs: ["rules"] })` -- shared
 4. `createSlashCommandsLoader({ managedDirs: ["commands"] })` -- shared
 5. `createSubagentsLoader({ managedDirs: ["agents"] })` -- shared
 
@@ -36,7 +36,7 @@ Cline uses a single `.cline/` directory for both global (`~/.cline/`) and projec
 ### Things to Know
 
 - **No MCP loader**: Cline does not currently include a `createMcpLoader` in its loader pipeline. MCP server configuration for Cline is not managed by skillsets.
-- **`managedFiles` not `managedDirs` for instructions**: Although Cline's instructions file lives in a `rules/` subdirectory (like Cursor), the instructions loader is parameterized with `managedFiles: ["AGENTS.md"]` rather than `managedDirs: ["rules"]`. This means the manifest tracks the individual file, not the entire `rules/` directory.
+- **`managedDirs: ["rules"]` for instructions**: Cline's instructions file lives in a `rules/` subdirectory, matching the Cursor and Kilo pattern. The instructions loader tracks the entire `rules/` directory for manifest change detection.
 - **No optional AgentConfig properties**: Cline does not implement `getTranscriptDirectory` or `getArtifactPatterns`, so the watch command and factory reset artifact scanning are not available for Cline.
 - Installation detection uses the `.nori-managed` marker file in `.cline/` -- no backwards-compatible content-sniffing fallback.
 

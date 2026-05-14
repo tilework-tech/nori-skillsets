@@ -75,6 +75,12 @@ describe("clineAgentConfig", () => {
     expect(loaderNames).toContain("subagents");
   });
 
+  it("should track the rules directory for manifest change detection", () => {
+    const loaders = clineAgentConfig.getLoaders();
+    const instructionsLoader = loaders.find((l) => l.name === "instructions");
+    expect(instructionsLoader?.managedDirs).toContain("rules");
+  });
+
   it("should not have transcript directory", () => {
     expect(clineAgentConfig.getTranscriptDirectory).toBeUndefined();
   });

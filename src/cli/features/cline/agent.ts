@@ -25,7 +25,7 @@ export const clineAgentConfig: AgentConfig = {
   getLoaders: () => [
     configLoader,
     skillsLoader,
-    createInstructionsLoader({ managedFiles: ["AGENTS.md"] }),
+    createInstructionsLoader({ managedDirs: ["rules"] }),
     createSlashCommandsLoader({ managedDirs: ["commands"] }),
     createSubagentsLoader({ managedDirs: ["agents"] }),
   ],
