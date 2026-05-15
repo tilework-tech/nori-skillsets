@@ -14,6 +14,7 @@ import {
   getClaudeHomeSettingsFile,
   removeSettingsKeys,
 } from "@/cli/features/claude-code/paths.js";
+import { confirmAction } from "@/cli/prompts/confirm.js";
 
 import type { Config } from "@/cli/config.js";
 import type { AgentLoader } from "@/cli/features/agentRegistry.js";
@@ -52,16 +53,7 @@ const configureStatusLine = async (args: {
     return;
   }
 
-  // Create .claude directory if it doesn't exist
-  await fs.mkdir(claudeDir, { recursive: true });
-
-  // Copy script to .claude directory
-  await fs.copyFile(sourceScript, destScript);
-
-  // Make script executable
-  await fs.chmod(destScript, 0o755);
-
-  // Initialize settings file if it doesn't exist
+  // Read existing settings before making any filesystem changes
   let settings: any = {};
   try {
     const content = await fs.readFile(claudeSettingsFile, "utf-8");
@@ -71,6 +63,39 @@ const configureStatusLine = async (args: {
       $schema: "https://json.schemastore.org/claude-code-settings.json",
     };
   }
+
+  // Check for existing statusLine configuration
+  const existing = settings.statusLine;
+  if (existing && existing.command !== destScript) {
+    const backupPath = path.join(claudeDir, ".nori-statusline-backup.json");
+    await fs.mkdir(claudeDir, { recursive: true });
+    await fs.writeFile(
+      backupPath,
+      JSON.stringify(settings.statusLine, null, 2),
+    );
+
+    if (process.stdin.isTTY) {
+      const displayCmd = existing.command ?? JSON.stringify(existing);
+      const shouldReplace = await confirmAction({
+        message: `Your Claude Code status line is currently set to: ${displayCmd}\nReplace with Nori status line? (backed up to ${backupPath})`,
+      });
+      if (!shouldReplace) {
+        log.info(`Keeping existing status line configuration`);
+        return;
+      }
+    } else {
+      log.info(`Backed up existing status line to ${backupPath}`);
+    }
+  }
+
+  // Create .claude directory if it doesn't exist
+  await fs.mkdir(claudeDir, { recursive: true });
+
+  // Copy script to .claude directory
+  await fs.copyFile(sourceScript, destScript);
+
+  // Make script executable
+  await fs.chmod(destScript, 0o755);
 
   // Add status line configuration pointing to copied script
   settings.statusLine = {
@@ -83,25 +108,66 @@ const configureStatusLine = async (args: {
   return "Status line";
 };
 
+const restoreStatusLine = async (args: {
+  settingsFile: string;
+  backupPath: string;
+}): Promise<boolean> => {
+  const { settingsFile, backupPath } = args;
+
+  let backup: unknown;
+  try {
+    const content = await fs.readFile(backupPath, "utf-8");
+    backup = JSON.parse(content);
+  } catch {
+    return false;
+  }
+
+  let settings: Record<string, unknown>;
+  try {
+    const content = await fs.readFile(settingsFile, "utf-8");
+    settings = JSON.parse(content) as Record<string, unknown>;
+  } catch {
+    settings = {
+      $schema: "https://json.schemastore.org/claude-code-settings.json",
+    };
+  }
+
+  settings.statusLine = backup;
+  await fs.writeFile(settingsFile, JSON.stringify(settings, null, 2));
+  await fs.rm(backupPath, { force: true });
+
+  log.info("Restored previous status line configuration from backup");
+  return true;
+};
+
 /**
  * Statusline feature loader
  */
 export const statuslineLoader: AgentLoader = {
   name: "statusline",
   description: "Claude Code status line configuration",
-  managedFiles: ["nori-statusline.sh", "settings.json"],
+  managedFiles: ["nori-statusline.sh"],
   run: async ({ config }) => {
     return configureStatusLine({ config });
   },
   uninstall: async () => {
-    await removeSettingsKeys({
-      settingsFile: getClaudeHomeSettingsFile(),
-      keys: ["statusLine"],
+    const claudeDir = getClaudeHomeDir();
+    const claudeSettingsFile = getClaudeHomeSettingsFile();
+    const backupPath = path.join(claudeDir, ".nori-statusline-backup.json");
+
+    const restored = await restoreStatusLine({
+      settingsFile: claudeSettingsFile,
+      backupPath,
     });
-    const statuslineScript = path.join(
-      getClaudeHomeDir(),
-      "nori-statusline.sh",
-    );
+
+    if (!restored) {
+      await removeSettingsKeys({
+        settingsFile: claudeSettingsFile,
+        keys: ["statusLine"],
+      });
+    }
+
+    const statuslineScript = path.join(claudeDir, "nori-statusline.sh");
     await fs.rm(statuslineScript, { force: true });
   },
 };

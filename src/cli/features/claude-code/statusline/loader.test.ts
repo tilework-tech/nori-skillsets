@@ -9,7 +9,23 @@ import * as path from "path";
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
+import { confirmAction } from "@/cli/prompts/confirm.js";
+
 import type { Config } from "@/cli/config.js";
+
+vi.mock("@clack/prompts", () => ({
+  log: {
+    info: vi.fn(),
+    success: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    message: vi.fn(),
+  },
+}));
+
+vi.mock("@/cli/prompts/confirm.js", () => ({
+  confirmAction: vi.fn(),
+}));
 
 // Mock the env module to use temp directories
 let mockClaudeDir: string;
@@ -144,6 +160,133 @@ describe("statuslineLoader", () => {
       // Verify statusLine still exists
       expect(settings.statusLine).toBeDefined();
       expect(settings.statusLine.type).toBe("command");
+    });
+  });
+
+  describe("existing statusLine backup and confirmation", () => {
+    it("should prompt and replace when user confirms in TTY mode", async () => {
+      const config: Config = { installDir: tempDir };
+      const foreignCommand = "/usr/local/bin/other-statusline.sh";
+
+      await fs.writeFile(
+        settingsPath,
+        JSON.stringify({
+          statusLine: { type: "command", command: foreignCommand, padding: 0 },
+        }),
+      );
+
+      const originalIsTTY = process.stdin.isTTY;
+      process.stdin.isTTY = true;
+      vi.mocked(confirmAction).mockResolvedValueOnce(true);
+
+      try {
+        await statuslineLoader.run({ agent: {} as any, config });
+      } finally {
+        process.stdin.isTTY = originalIsTTY;
+      }
+
+      // Backup should exist with original config
+      const backupPath = path.join(claudeDir, ".nori-statusline-backup.json");
+      const backup = JSON.parse(await fs.readFile(backupPath, "utf-8"));
+      expect(backup.command).toBe(foreignCommand);
+
+      // Settings should now point to nori script
+      const settings = JSON.parse(await fs.readFile(settingsPath, "utf-8"));
+      expect(settings.statusLine.command).toContain("nori-statusline.sh");
+    });
+
+    it("should prompt and abort when user declines in TTY mode", async () => {
+      const config: Config = { installDir: tempDir };
+      const foreignCommand = "/usr/local/bin/other-statusline.sh";
+
+      await fs.writeFile(
+        settingsPath,
+        JSON.stringify({
+          statusLine: { type: "command", command: foreignCommand, padding: 0 },
+        }),
+      );
+
+      const originalIsTTY = process.stdin.isTTY;
+      process.stdin.isTTY = true;
+      vi.mocked(confirmAction).mockResolvedValueOnce(false);
+
+      try {
+        const result = await statuslineLoader.run({
+          agent: {} as any,
+          config,
+        });
+        expect(result).toBeUndefined();
+      } finally {
+        process.stdin.isTTY = originalIsTTY;
+      }
+
+      // Settings should be unchanged
+      const settings = JSON.parse(await fs.readFile(settingsPath, "utf-8"));
+      expect(settings.statusLine.command).toBe(foreignCommand);
+
+      // Script should NOT have been copied
+      const scriptExists = await fs
+        .access(path.join(claudeDir, "nori-statusline.sh"))
+        .then(() => true)
+        .catch(() => false);
+      expect(scriptExists).toBe(false);
+    });
+
+    it("should replace without prompting in non-TTY mode", async () => {
+      const config: Config = { installDir: tempDir };
+      const foreignCommand = "/usr/local/bin/other-statusline.sh";
+
+      await fs.writeFile(
+        settingsPath,
+        JSON.stringify({
+          statusLine: { type: "command", command: foreignCommand, padding: 0 },
+        }),
+      );
+
+      const originalIsTTY = process.stdin.isTTY;
+      process.stdin.isTTY = false;
+
+      try {
+        await statuslineLoader.run({ agent: {} as any, config });
+      } finally {
+        process.stdin.isTTY = originalIsTTY;
+      }
+
+      // Backup should exist
+      const backupPath = path.join(claudeDir, ".nori-statusline-backup.json");
+      const backup = JSON.parse(await fs.readFile(backupPath, "utf-8"));
+      expect(backup.command).toBe(foreignCommand);
+
+      // Settings should now point to nori script
+      const settings = JSON.parse(await fs.readFile(settingsPath, "utf-8"));
+      expect(settings.statusLine.command).toContain("nori-statusline.sh");
+
+      // confirm should NOT have been called
+      expect(confirmAction).not.toHaveBeenCalled();
+    });
+
+    it("should not prompt or backup when existing command matches nori script", async () => {
+      const config: Config = { installDir: tempDir };
+      const noriCommand = path.join(claudeDir, "nori-statusline.sh");
+
+      await fs.writeFile(
+        settingsPath,
+        JSON.stringify({
+          statusLine: { type: "command", command: noriCommand, padding: 0 },
+        }),
+      );
+
+      await statuslineLoader.run({ agent: {} as any, config });
+
+      // No backup should be created
+      const backupExists = await fs
+        .access(path.join(claudeDir, ".nori-statusline-backup.json"))
+        .then(() => true)
+        .catch(() => false);
+      expect(backupExists).toBe(false);
+
+      // confirm should NOT have been called
+      expect(confirmAction).not.toHaveBeenCalled();
     });
   });
 
@@ -995,6 +1138,85 @@ ${scriptContent}
       await expect(
         statuslineLoader.uninstall!({ agent: {} as any, installDir: tempDir }),
       ).resolves.not.toThrow();
+    });
+
+    it("should restore previous statusLine from backup when backup exists", async () => {
+      const originalStatusLine = {
+        type: "command",
+        command: "/usr/local/bin/my-custom-statusline.sh",
+        padding: 1,
+      };
+
+      // Write backup file
+      const backupPath = path.join(claudeDir, ".nori-statusline-backup.json");
+      await fs.writeFile(
+        backupPath,
+        JSON.stringify(originalStatusLine, null, 2),
+      );
+
+      // Write current settings with nori statusLine
+      const settings = {
+        $schema: "https://json.schemastore.org/claude-code-settings.json",
+        statusLine: {
+          type: "command",
+          command: path.join(claudeDir, "nori-statusline.sh"),
+          padding: 0,
+        },
+        someOtherSetting: "value",
+      };
+      await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2));
+
+      // Create nori-statusline.sh so it can be cleaned up
+      const statuslineScript = path.join(claudeDir, "nori-statusline.sh");
+      await fs.writeFile(statuslineScript, "#!/bin/bash\necho test");
+
+      await statuslineLoader.uninstall!({
+        agent: {} as any,
+        installDir: tempDir,
+      });
+
+      // Settings should have the original statusLine restored
+      const content = await fs.readFile(settingsPath, "utf-8");
+      const result = JSON.parse(content);
+      expect(result.statusLine).toEqual(originalStatusLine);
+      expect(result.someOtherSetting).toBe("value");
+
+      // Backup file should be cleaned up
+      const backupExists = await fs
+        .access(backupPath)
+        .then(() => true)
+        .catch(() => false);
+      expect(backupExists).toBe(false);
+
+      // nori script should still be deleted
+      const scriptExists = await fs
+        .access(statuslineScript)
+        .then(() => true)
+        .catch(() => false);
+      expect(scriptExists).toBe(false);
+    });
+
+    it("should remove statusLine when no backup exists", async () => {
+      const settings = {
+        $schema: "https://json.schemastore.org/claude-code-settings.json",
+        statusLine: {
+          type: "command",
+          command: path.join(claudeDir, "nori-statusline.sh"),
+          padding: 0,
+        },
+        someOtherSetting: "value",
+      };
+      await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2));
+
+      await statuslineLoader.uninstall!({
+        agent: {} as any,
+        installDir: tempDir,
+      });
+
+      const content = await fs.readFile(settingsPath, "utf-8");
+      const result = JSON.parse(content);
+      expect(result.statusLine).toBeUndefined();
+      expect(result.someOtherSetting).toBe("value");
     });
   });
 });
