@@ -25,15 +25,14 @@ const __dirname = path.dirname(__filename);
 
 /**
  * Configure status line to display git branch, session cost, token usage, and Nori branding
- * @param args - Configuration arguments
- * @param args.config - Runtime configuration
+ * @param _args - Configuration arguments
+ * @param _args.config - Runtime configuration
  *
  * @returns Label for the settings note, or void on failure
  */
-const configureStatusLine = async (args: {
+const configureStatusLine = async (_args: {
   config: Config;
 }): Promise<string | void> => {
-  const { config: _config } = args;
   const claudeDir = getClaudeHomeDir();
   const claudeSettingsFile = getClaudeHomeSettingsFile();
 
@@ -68,22 +67,25 @@ const configureStatusLine = async (args: {
   const existing = settings.statusLine;
   if (existing && existing.command !== destScript) {
     const backupPath = path.join(claudeDir, ".nori-statusline-backup.json");
+
+    if (process.stdin.isTTY) {
+      const displayCmd = existing.command ?? JSON.stringify(existing);
+      const shouldReplace = await confirmAction({
+        message: `Your Claude Code status line is currently set to: ${displayCmd}\nReplace with Nori status line? (original will be backed up to ${backupPath})`,
+      });
+      if (!shouldReplace) {
+        log.info(`Keeping existing status line configuration`);
+        return;
+      }
+    }
+
     await fs.mkdir(claudeDir, { recursive: true });
     await fs.writeFile(
       backupPath,
       JSON.stringify(settings.statusLine, null, 2),
     );
 
-    if (process.stdin.isTTY) {
-      const displayCmd = existing.command ?? JSON.stringify(existing);
-      const shouldReplace = await confirmAction({
-        message: `Your Claude Code status line is currently set to: ${displayCmd}\nReplace with Nori status line? (backed up to ${backupPath})`,
-      });
-      if (!shouldReplace) {
-        log.info(`Keeping existing status line configuration`);
-        return;
-      }
-    } else {
+    if (!process.stdin.isTTY) {
       log.info(`Backed up existing status line to ${backupPath}`);
     }
   }
@@ -146,7 +148,7 @@ const restoreStatusLine = async (args: {
 export const statuslineLoader: AgentLoader = {
   name: "statusline",
   description: "Claude Code status line configuration",
-  managedFiles: ["nori-statusline.sh"],
+  managedFiles: ["nori-statusline.sh", "settings.json"],
   run: async ({ config }) => {
     return configureStatusLine({ config });
   },

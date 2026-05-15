@@ -230,6 +230,13 @@ describe("statuslineLoader", () => {
         .then(() => true)
         .catch(() => false);
       expect(scriptExists).toBe(false);
+
+      // Backup should NOT have been created
+      const backupExists = await fs
+        .access(path.join(claudeDir, ".nori-statusline-backup.json"))
+        .then(() => true)
+        .catch(() => false);
+      expect(backupExists).toBe(false);
     });
 
     it("should replace without prompting in non-TTY mode", async () => {
