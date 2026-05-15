@@ -120,7 +120,16 @@ const restoreStatusLine = async (args: {
   try {
     const content = await fs.readFile(backupPath, "utf-8");
     backup = JSON.parse(content);
-  } catch {
+  } catch (err) {
+    const isNotFound =
+      err instanceof Error &&
+      "code" in err &&
+      (err as NodeJS.ErrnoException).code === "ENOENT";
+    if (!isNotFound) {
+      log.warn(
+        `Failed to read status line backup at ${backupPath}, removing status line instead`,
+      );
+    }
     return false;
   }
 
@@ -148,7 +157,11 @@ const restoreStatusLine = async (args: {
 export const statuslineLoader: AgentLoader = {
   name: "statusline",
   description: "Claude Code status line configuration",
-  managedFiles: ["nori-statusline.sh", "settings.json"],
+  managedFiles: [
+    "nori-statusline.sh",
+    "settings.json",
+    ".nori-statusline-backup.json",
+  ],
   run: async ({ config }) => {
     return configureStatusLine({ config });
   },
@@ -167,6 +180,7 @@ export const statuslineLoader: AgentLoader = {
         settingsFile: claudeSettingsFile,
         keys: ["statusLine"],
       });
+      await fs.rm(backupPath, { force: true });
     }
 
     const statuslineScript = path.join(claudeDir, "nori-statusline.sh");

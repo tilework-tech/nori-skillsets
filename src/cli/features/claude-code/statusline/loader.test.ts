@@ -1203,6 +1203,47 @@ ${scriptContent}
       expect(scriptExists).toBe(false);
     });
 
+    it("should warn and fall back to removal when backup file is corrupt", async () => {
+      const { log } = await import("@clack/prompts");
+
+      const backupPath = path.join(claudeDir, ".nori-statusline-backup.json");
+      await fs.writeFile(backupPath, "not valid json {{{");
+
+      const settings = {
+        $schema: "https://json.schemastore.org/claude-code-settings.json",
+        statusLine: {
+          type: "command",
+          command: path.join(claudeDir, "nori-statusline.sh"),
+          padding: 0,
+        },
+        someOtherSetting: "value",
+      };
+      await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2));
+
+      const statuslineScript = path.join(claudeDir, "nori-statusline.sh");
+      await fs.writeFile(statuslineScript, "#!/bin/bash\necho test");
+
+      await statuslineLoader.uninstall!({
+        agent: {} as any,
+        installDir: tempDir,
+      });
+
+      expect(log.warn).toHaveBeenCalledWith(
+        expect.stringContaining("Failed to read status line backup"),
+      );
+
+      const content = await fs.readFile(settingsPath, "utf-8");
+      const result = JSON.parse(content);
+      expect(result.statusLine).toBeUndefined();
+      expect(result.someOtherSetting).toBe("value");
+
+      const backupExists = await fs
+        .access(backupPath)
+        .then(() => true)
+        .catch(() => false);
+      expect(backupExists).toBe(false);
+    });
+
     it("should remove statusLine when no backup exists", async () => {
       const settings = {
         $schema: "https://json.schemastore.org/claude-code-settings.json",
