@@ -12,7 +12,6 @@ import { log } from "@clack/prompts";
 import {
   getClaudeHomeDir,
   getClaudeHomeSettingsFile,
-  removeSettingsKeys,
 } from "@/cli/features/claude-code/paths.js";
 
 import type { Config } from "@/cli/config.js";
@@ -94,10 +93,6 @@ export const statuslineLoader: AgentLoader = {
     return configureStatusLine({ config });
   },
   uninstall: async () => {
-    await removeSettingsKeys({
-      settingsFile: getClaudeHomeSettingsFile(),
-      keys: ["statusLine"],
-    });
     const statuslineScript = path.join(
       getClaudeHomeDir(),
       "nori-statusline.sh",

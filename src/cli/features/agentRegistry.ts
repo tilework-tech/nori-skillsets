@@ -106,6 +106,7 @@ export type AgentConfig = {
 
   getLoaders: () => Array<AgentLoader>;
 
+  getExternalSettingsFiles?: (() => ReadonlyArray<string>) | null;
   getTranscriptDirectory?: (() => string) | null;
   getArtifactPatterns?:
     | (() => {
