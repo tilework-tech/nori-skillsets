@@ -21,6 +21,10 @@ import {
   getLegacyManifestPath,
   removeManagedFiles,
 } from "@/cli/features/manifest.js";
+import {
+  backupSettingsFile,
+  restoreSettingsFile,
+} from "@/cli/features/settingsBackup.js";
 import { bold } from "@/cli/logger.js";
 import { ensureNoriJson } from "@/norijson/nori.js";
 import {
@@ -156,6 +160,12 @@ export const installSkillset = async (args: {
     } catch {
       // Non-fatal
     }
+  }
+
+  // Backup external settings files before loaders modify them
+  const externalFiles = agent.getExternalSettingsFiles?.() ?? [];
+  for (const file of externalFiles) {
+    await backupSettingsFile({ file });
   }
 
   // Run all feature loaders, collecting settings labels
@@ -298,6 +308,12 @@ export const removeSkillset = async (args: {
     if (loader.uninstall != null) {
       await loader.uninstall({ agent, installDir });
     }
+  }
+
+  // Restore external settings files from backup
+  const externalFiles = agent.getExternalSettingsFiles?.() ?? [];
+  for (const file of externalFiles) {
+    await restoreSettingsFile({ file });
   }
 };
 

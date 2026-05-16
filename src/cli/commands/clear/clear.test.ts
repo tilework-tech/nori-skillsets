@@ -129,7 +129,7 @@ describe("clearMain", () => {
     );
   });
 
-  it("should clean up home-level settings.json when installDir differs from home", async () => {
+  it("should restore home-level settings.json from backup when installDir differs from home", async () => {
     // Create a separate installDir that is different from home (tempDir)
     const installDir = await fs.mkdtemp(
       path.join(os.tmpdir(), "clear-install-"),
@@ -169,7 +169,7 @@ describe("clearMain", () => {
         }),
       );
 
-      // Simulate home-level settings.json written by hooks/statusline/announcements loaders
+      // Simulate home-level settings.json with nori keys added
       const homeClaudeDir = path.join(tempDir, ".claude");
       await fs.mkdir(homeClaudeDir, { recursive: true });
       const homeSettings = {
@@ -185,6 +185,16 @@ describe("clearMain", () => {
         JSON.stringify(homeSettings, null, 2),
       );
 
+      // Simulate the backup that would have been created during install
+      const originalSettings = {
+        $schema: "https://json.schemastore.org/claude-code-settings.json",
+        userSetting: "preserved",
+      };
+      await fs.writeFile(
+        path.join(homeClaudeDir, "settings.json.pre-nori"),
+        JSON.stringify(originalSettings, null, 2),
+      );
+
       // Create nori-statusline.sh at home level
       await fs.writeFile(
         path.join(homeClaudeDir, "nori-statusline.sh"),
@@ -193,7 +203,7 @@ describe("clearMain", () => {
 
       await clearMain({ installDir });
 
-      // Verify home-level settings.json was cleaned up
+      // Verify home-level settings.json was restored from backup
       const content = await fs.readFile(
         path.join(homeClaudeDir, "settings.json"),
         "utf-8",
@@ -204,6 +214,13 @@ describe("clearMain", () => {
       expect(settings.companyAnnouncements).toBeUndefined();
       expect(settings.includeCoAuthoredBy).toBeUndefined();
       expect(settings.userSetting).toBe("preserved");
+
+      // Verify backup was cleaned up
+      const backupExists = await fs
+        .access(path.join(homeClaudeDir, "settings.json.pre-nori"))
+        .then(() => true)
+        .catch(() => false);
+      expect(backupExists).toBe(false);
 
       // Verify nori-statusline.sh was deleted
       const statuslineExists = await fs

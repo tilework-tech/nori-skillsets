@@ -925,33 +925,6 @@ ${scriptContent}
   });
 
   describe("uninstall", () => {
-    it("should remove statusLine key from settings.json while preserving other keys", async () => {
-      const settings = {
-        $schema: "https://json.schemastore.org/claude-code-settings.json",
-        statusLine: {
-          type: "command",
-          command: "/some/path/nori-statusline.sh",
-          padding: 0,
-        },
-        someOtherSetting: "value",
-      };
-      await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2));
-
-      // Create nori-statusline.sh
-      const statuslineScript = path.join(claudeDir, "nori-statusline.sh");
-      await fs.writeFile(statuslineScript, "#!/bin/bash\necho test");
-
-      await statuslineLoader.uninstall!({
-        agent: {} as any,
-        installDir: tempDir,
-      });
-
-      const content = await fs.readFile(settingsPath, "utf-8");
-      const result = JSON.parse(content);
-      expect(result.statusLine).toBeUndefined();
-      expect(result.someOtherSetting).toBe("value");
-    });
-
     it("should delete nori-statusline.sh", async () => {
       const statuslineScript = path.join(claudeDir, "nori-statusline.sh");
       await fs.writeFile(statuslineScript, "#!/bin/bash\necho test");
@@ -968,30 +941,7 @@ ${scriptContent}
       expect(exists).toBe(false);
     });
 
-    it("should delete settings.json if only $schema remains after removing statusLine", async () => {
-      const settings = {
-        $schema: "https://json.schemastore.org/claude-code-settings.json",
-        statusLine: {
-          type: "command",
-          command: "/some/path/nori-statusline.sh",
-          padding: 0,
-        },
-      };
-      await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2));
-
-      await statuslineLoader.uninstall!({
-        agent: {} as any,
-        installDir: tempDir,
-      });
-
-      const exists = await fs
-        .access(settingsPath)
-        .then(() => true)
-        .catch(() => false);
-      expect(exists).toBe(false);
-    });
-
-    it("should not error when settings.json and nori-statusline.sh do not exist", async () => {
+    it("should not error when nori-statusline.sh does not exist", async () => {
       await expect(
         statuslineLoader.uninstall!({ agent: {} as any, installDir: tempDir }),
       ).resolves.not.toThrow();
