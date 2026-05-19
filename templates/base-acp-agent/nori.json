@@ -1,6 +1,0 @@
-{
-  "name": "{{skillsetId}}",
-  "version": "1.0.0",
-  "type": "skillset",
-  "description": "{{agentName}} sessions skillset for Nori"
-}
