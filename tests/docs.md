@@ -24,6 +24,5 @@ Path: @/tests
 - The pollution detection distinguishes between Nori-managed `.claude/CLAUDE.md` (contains `BEGIN NORI-AI MANAGED BLOCK`) and legitimate Claude Code artifacts. Only Nori-managed files are flagged.
 - The `agents-md.test.ts` tests read from the filesystem directly (not from build output), so they validate the source files as committed to the repo.
 - The close-the-loop tests enforce that the section does not duplicate `npm test`, `npm run lint`, or `npm run format` commands, since those belong in the existing style guide section above.
-- `@/tests/templates/generate.test.ts` tests the skillset template generation system (`@/src/templates/generate.ts`), covering file production, variable substitution, input validation, directory-exists rejection, idempotency, and multi-agent generality.
 
 Created and maintained by Nori.
