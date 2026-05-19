@@ -1013,6 +1013,7 @@ export const registerNoriSkillsetsExternalCommand = (args: {
               skill: options.skill || null,
               all: options.all || null,
               ref: options.ref || null,
+              agent: globalOpts.agent || null,
               cliName: "nori-skillsets",
             }),
         });

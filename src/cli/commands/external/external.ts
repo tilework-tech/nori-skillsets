@@ -42,6 +42,20 @@ import { parseGitHubSource } from "./sourceParser.js";
 
 const COPY_SKIP_DIRS = new Set([".git", "node_modules", "__pycache__"]);
 
+const formatAgentProfiles = (agents: Array<AgentConfig>): string => {
+  const profileNames = agents.map((agent) => `${agent.displayName} profile`);
+
+  if (profileNames.length === 1) {
+    return profileNames[0];
+  }
+
+  if (profileNames.length === 2) {
+    return `${profileNames[0]} and ${profileNames[1]}`;
+  }
+
+  return `${profileNames.slice(0, -1).join(", ")}, and ${profileNames[profileNames.length - 1]}`;
+};
+
 /**
  * Copy a directory recursively, skipping .git, node_modules, and __pycache__
  * @param args - The function arguments
@@ -210,6 +224,7 @@ const installSkill = async (args: {
 
   // Apply template substitution to .md files in the live copy for primary agent
   const agents = args.agents;
+  const installedTargets = [targetDir];
   const primaryAgentDir = agents[0].getAgentDir({ installDir });
   await applyTemplateSubstitutionToDir({
     dir: targetDir,
@@ -228,6 +243,7 @@ const installSkill = async (args: {
         dir: agentTargetDir,
         installDir: agentDir,
       });
+      installedTargets.push(agentTargetDir);
     } catch (copyErr) {
       const msg = copyErr instanceof Error ? copyErr.message : String(copyErr);
       log.warn(`Could not copy skill to ${agent.name}: ${msg}`);
@@ -235,7 +251,7 @@ const installSkill = async (args: {
   }
 
   log.success(`Installed skill "${skill.name}" from GitHub`);
-  log.info(`Installed to: ${targetDir}`);
+  log.info(`Installed to: ${installedTargets.join(", ")}`);
 
   // Update skillset manifests
   if (targetSkillset != null) {
@@ -268,6 +284,7 @@ const installSkill = async (args: {
  * @param args.skill - Optional specific skill name to install
  * @param args.all - Install all discovered skills without prompting
  * @param args.ref - Optional branch/tag to checkout
+ * @param args.agent - Optional explicit agent override
  * @param args.inline - If true, set all skills to inlined-skill without prompting
  * @param args.extract - If true, set all skills to skill without prompting
  * @param args.cliName - CLI name for user-facing messages
@@ -283,6 +300,7 @@ export const externalMain = async (args: {
   skill?: string | null;
   all?: boolean | null;
   ref?: string | null;
+  agent?: string | null;
   inline?: boolean | null;
   extract?: boolean | null;
   cliName?: CliName | null;
@@ -295,6 +313,7 @@ export const externalMain = async (args: {
     skill,
     all,
     ref,
+    agent,
     cliName,
   } = args;
   const inlineFlag = args.inline ?? false;
@@ -413,7 +432,10 @@ export const externalMain = async (args: {
   }
 
   // Resolve all default agents for broadcasting
-  const defaultAgentNames = getDefaultAgents({ config });
+  const defaultAgentNames = getDefaultAgents({
+    config,
+    agentOverride: agent ?? null,
+  });
   const defaultAgents = defaultAgentNames.map((name) =>
     AgentRegistry.getInstance().get({ name }),
   );
@@ -562,11 +584,11 @@ export const externalMain = async (args: {
 
     if (skillsToInstall.length === 1) {
       log.info(
-        `Skill "${skillsToInstall[0].name}" is now available in your Claude Code profile.`,
+        `Skill "${skillsToInstall[0].name}" is now available in your ${formatAgentProfiles(defaultAgents)}.`,
       );
     } else {
       log.info(
-        `${skillsToInstall.length} skills are now available in your Claude Code profile.`,
+        `${skillsToInstall.length} skills are now available in your ${formatAgentProfiles(defaultAgents)}.`,
       );
     }
 
@@ -645,6 +667,7 @@ export const registerExternalSkillCommand = (args: {
           skill: options.skill || null,
           all: options.all || null,
           ref: options.ref || null,
+          agent: globalOpts.agent || null,
           inline: options.inline || null,
           extract: options.extract || null,
         });

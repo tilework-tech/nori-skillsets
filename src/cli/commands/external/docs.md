@@ -10,7 +10,7 @@ The external command installs skills from GitHub repositories into the local Nor
 
 This command is registered via `@/src/cli/commands/noriSkillsetsCommands.ts`. It writes skills to each configured default agent's skills directory and persists copies into the skillset's `skills/` subfolder under `~/.nori/profiles/`. It updates the skillset's `nori.json` manifest through `@/norijson/nori.js`. Template path substitution is applied to `.md` files via `@/cli/features/template.js`. When multiple skills are found and the user has not specified `--skill` or `--all`, it prompts for skill type selection through `@/cli/prompts/flows/externalSkillType.js`.
 
-The command resolves default agents via `getDefaultAgents({ config })` from `@/src/cli/config.ts`, then iterates over all returned agents. This is the same multi-agent broadcasting pattern used by `switchSkillset` (@/src/cli/commands/switch-skillset/) and the skill-download command (@/src/cli/commands/skill-download/).
+The command resolves default agents via `getDefaultAgents({ config, agentOverride })` from `@/src/cli/config.ts`, then iterates over all returned agents. With no explicit `--agent`, configured `defaultAgents` broadcast installs to every selected agent profile; with `--agent`, the explicit agent is used as a single-agent override. This is the same multi-agent broadcasting pattern used by `switchSkillset` (@/src/cli/commands/switch-skillset/) and the skill-download command (@/src/cli/commands/skill-download/).
 
 ### Core Implementation
 
@@ -24,7 +24,7 @@ The pipeline in `externalMain` is: parse source -> resolve install/skillset targ
 
 `gitClone.ts` performs a shallow `git clone --depth 1` to a temp directory with a 60-second timeout. `cleanupClone` validates the path is within the system temp directory before deletion to prevent accidental removal of non-temp paths.
 
-**Multi-agent broadcasting**: The `installSkill` function accepts an `agents` array parameter. It installs to the primary agent's skills directory first, applies template substitution, then copies the skill directory to each additional agent's skills directory with agent-specific template substitution. Copy failures for secondary agents emit warnings via `log.warn` but do not fail the install. The `externalMain` function resolves the agents list and ensures all agents' skills directories exist before cloning begins.
+**Multi-agent broadcasting**: The `installSkill` function accepts an `agents` array parameter. It installs to the primary agent's skills directory first, applies template substitution, then copies the skill directory to each additional agent's skills directory with agent-specific template substitution. Copy failures for secondary agents emit warnings via `log.warn` but do not fail the install. The `externalMain` function resolves the agents list, honors the global `--agent` override when provided, and ensures all target agents' skills directories exist before cloning begins. Install messages list the concrete target directories and agent profile names so single-agent overrides are not confused with multi-agent broadcasts.
 
 ### Things to Know
 

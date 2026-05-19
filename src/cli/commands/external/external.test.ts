@@ -3,6 +3,7 @@
  */
 
 import { execFileSync } from "child_process";
+import * as fsSync from "fs";
 import * as fs from "fs/promises";
 import { tmpdir } from "os";
 import * as path from "path";
@@ -225,6 +226,75 @@ describe("externalMain", () => {
     // Will assert nori.json contents once implementation exists
     const allOutput = getAllClackOutput();
     expect(allOutput.length).toBeGreaterThan(0);
+  });
+
+  it("should respect an explicit agent override instead of broadcasting to configured default agents", async () => {
+    vi.mocked(loadConfig).mockResolvedValue({
+      installDir: testDir,
+      defaultAgents: ["claude-code", "codex"],
+    });
+
+    vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
+      const gitArgs = args as Array<string>;
+      const destDir = gitArgs[gitArgs.length - 1];
+
+      fsSync.writeFileSync(
+        path.join(destDir, "SKILL.md"),
+        "---\nname: My Skill\ndescription: A skill\n---\n\n# My Skill\n",
+      );
+
+      return Buffer.from("");
+    });
+
+    await externalMain({
+      source: "owner/repo",
+      installDir: testDir,
+      inline: true,
+      agent: "codex",
+    });
+
+    await expect(
+      fs.access(path.join(testDir, ".codex", "skills", "my-skill", "SKILL.md")),
+    ).resolves.toBeUndefined();
+    await expect(
+      fs.access(
+        path.join(testDir, ".claude", "skills", "my-skill", "SKILL.md"),
+      ),
+    ).rejects.toThrow();
+  });
+
+  it("should install into every configured default agent profile", async () => {
+    vi.mocked(loadConfig).mockResolvedValue({
+      installDir: testDir,
+      defaultAgents: ["claude-code", "codex"],
+    });
+
+    vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
+      const gitArgs = args as Array<string>;
+      const destDir = gitArgs[gitArgs.length - 1];
+
+      fsSync.writeFileSync(
+        path.join(destDir, "SKILL.md"),
+        "---\nname: My Skill\ndescription: A skill\n---\n\n# My Skill\n",
+      );
+
+      return Buffer.from("");
+    });
+
+    await externalMain({
+      source: "owner/repo",
+      installDir: testDir,
+      inline: true,
+    });
+
+    await expect(
+      fs.access(
+        path.join(testDir, ".claude", "skills", "my-skill", "SKILL.md"),
+      ),
+    ).resolves.toBeUndefined();
+    await expect(
+      fs.access(path.join(testDir, ".codex", "skills", "my-skill", "SKILL.md")),
+    ).resolves.toBeUndefined();
   });
 });
 
