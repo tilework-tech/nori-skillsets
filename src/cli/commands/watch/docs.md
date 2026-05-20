@@ -8,7 +8,7 @@ The watch command monitors Claude Code session files and copies transcripts to `
 
 ### How it fits into the larger codebase
 
-Registered via `@/src/cli/commands/noriSkillsetsCommands.ts` with a `stop` subcommand. The interactive flow is handled by `@/cli/prompts/flows/watch.js`. Transcript uploads go through `@/api/transcript.js`. Configuration for transcript destination org is persisted to `.nori-config.json` via `@/cli/config.js`.
+Registered via `@/src/cli/commands/noriSkillsetsCommands.ts` with a `stop` subcommand. The watch command accepts a local `--agent` option that is passed directly to `watchMain`, so it uses the command-level value rather than the global `--agent` override. The interactive flow is handled by `@/cli/prompts/flows/watch.js`. Transcript uploads go through `@/api/transcript.js`. Configuration for transcript destination org is persisted to `.nori-config.json` via `@/cli/config.js`.
 
 ### Core Implementation
 

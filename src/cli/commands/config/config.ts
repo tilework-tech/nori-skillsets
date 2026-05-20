@@ -235,6 +235,7 @@ export const configMain = async (
           installDir: normalizedInstallDir,
           defaultAgents: result.defaultAgents,
         },
+        agentOverride: null,
       });
       for (const agentName of agentNames) {
         await installMain({

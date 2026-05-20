@@ -53,7 +53,7 @@ export const switchSkillsetAction = async (args: {
   const globalOpts = program.opts();
   const nonInteractive = globalOpts.nonInteractive ?? false;
   const force = options.force ?? false;
-  const agentOverride = options.agent ?? globalOpts.agent ?? null;
+  const agentOverride = options.agent;
 
   // Determine installation directory: CLI flag > config > home dir
   const config = await loadConfig();

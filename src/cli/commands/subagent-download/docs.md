@@ -13,7 +13,7 @@ The subagent-download command downloads and installs individual subagent package
 - Subagent dependencies are tracked in `nori.json` via `addSubagentToNoriJson()` from `@/norijson/nori.js`. There is no `skills.json` equivalent for subagents.
 - Full subagent directory structures are persisted under the skillset profile at `~/.nori/profiles/<skillset>/subagents/<name>/`.
 - The UX flow is delegated to `subagentDownloadFlow` from `@/cli/prompts/flows/subagentDownload.js`, following the same callback-injection pattern as all other flows.
-- Multi-agent broadcasting uses the same pattern as `skill-download`: after installing to the primary agent, the flattened `.md` file is copied to each additional default agent's agents directory.
+- Multi-agent broadcasting uses the same pattern as `skill-download`: after installing to the primary agent, the flattened `.md` file is copied to each additional default agent's agents directory. Default agents are resolved via `getDefaultAgents({ config })`, which automatically incorporates the global `--agent` flag override set by the CLI `preAction` hook (see @/src/cli/docs.md).
 
 ### Core Implementation
 

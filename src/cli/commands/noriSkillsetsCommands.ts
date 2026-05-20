@@ -9,8 +9,6 @@
 
 import { intro, outro } from "@clack/prompts";
 
-import { AgentRegistry } from "@/cli/features/agentRegistry.js";
-
 import type { Command } from "commander";
 
 /**
@@ -233,14 +231,13 @@ export const registerNoriSkillsetsEditSkillsetCommand = (args: {
   ) => {
     const { editSkillsetMain } =
       await import("@/cli/commands/edit-skillset/editSkillset.js");
-    const globalOpts = program.opts();
     await wrapWithFraming({
       title: "Edit Skillset",
       exitOnFailure: true,
       action: () =>
         editSkillsetMain({
           name: name || null,
-          agent: options.agent || globalOpts.agent || null,
+          agent: options.agent || null,
         }),
     });
   };
@@ -460,7 +457,6 @@ export const registerNoriSkillsetsInstallCommand = (args: {
             installDir: globalOpts.installDir || null,
             nonInteractive: globalOpts.nonInteractive || null,
             silent: globalOpts.silent || null,
-            agent: globalOpts.agent || null,
           }),
       });
     });
@@ -820,9 +816,8 @@ export const registerNoriSkillsetsCurrentCommand = (args: {
   const currentAction = async (options: { agent?: string }) => {
     const { currentSkillsetMain } =
       await import("@/cli/commands/current-skillset/currentSkillset.js");
-    const globalOpts = program.opts();
     await currentSkillsetMain({
-      agent: options.agent || globalOpts.agent || null,
+      agent: options.agent || null,
     });
   };
 
@@ -872,9 +867,7 @@ export const registerNoriSkillsetsWatchCommand = (args: {
           title: "nori watch",
           action: () =>
             watchMain({
-              agent:
-                options.agent ??
-                AgentRegistry.getInstance().getDefaultAgentName(),
+              agent: options.agent ?? null,
               setDestination: options.setDestination ?? false,
               _background: options._background ?? false,
             }),
@@ -1110,7 +1103,6 @@ export const registerNoriSkillsetsClearCommand = (args: {
       const globalOpts = program.opts();
       await clearMain({
         installDir: globalOpts.installDir || null,
-        agent: globalOpts.agent || null,
       });
     });
 };
@@ -1128,10 +1120,7 @@ export const registerNoriSkillsetsClearCurrentCommand = (args: {
   const clearCurrentAction = async () => {
     const { clearCurrentMain } =
       await import("@/cli/commands/clear-current/clearCurrent.js");
-    const globalOpts = program.opts();
-    await clearCurrentMain({
-      agent: globalOpts.agent || null,
-    });
+    await clearCurrentMain({});
   };
 
   program

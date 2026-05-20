@@ -19,13 +19,11 @@ import { resolveInstallDir } from "@/utils/path.js";
  *
  * @param args - Configuration arguments
  * @param args.installDir - Custom installation directory override
- * @param args.agent - Specific agent to clear (defaults to all configured agents)
  */
 export const clearMain = async (args?: {
   installDir?: string | null;
-  agent?: string | null;
 }): Promise<void> => {
-  const { installDir: cliInstallDir, agent } = args ?? {};
+  const { installDir: cliInstallDir } = args ?? {};
 
   const config = await loadConfig();
 
@@ -40,7 +38,7 @@ export const clearMain = async (args?: {
     agentDirNames: AgentRegistry.getInstance().getAgentDirNames(),
   }).path;
 
-  const agentNames = getDefaultAgents({ config, agentOverride: agent });
+  const agentNames = getDefaultAgents({ config });
 
   for (const agentName of agentNames) {
     const agentImpl = AgentRegistry.getInstance().get({ name: agentName });

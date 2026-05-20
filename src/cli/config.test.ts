@@ -15,6 +15,8 @@ import {
   getConfigPath,
   validateConfig,
   getDefaultAgents,
+  setGlobalAgentOverride,
+  resetGlobalAgentOverride,
   type Config,
 } from "./config.js";
 
@@ -696,6 +698,100 @@ describe("getDefaultAgents", () => {
     const result = getDefaultAgents({ config });
 
     expect(result).toEqual(["claude-code"]);
+  });
+
+  describe("global agent override", () => {
+    afterEach(() => {
+      resetGlobalAgentOverride();
+    });
+
+    it("should use global override when no explicit agentOverride is passed", () => {
+      const config: Config = {
+        installDir: "/test",
+        defaultAgents: ["claude-code", "codex"],
+      };
+
+      setGlobalAgentOverride("codex");
+      const result = getDefaultAgents({ config });
+
+      expect(result).toEqual(["codex"]);
+    });
+
+    it("should prefer explicit agentOverride over global override", () => {
+      const config: Config = {
+        installDir: "/test",
+        defaultAgents: ["claude-code"],
+      };
+
+      setGlobalAgentOverride("codex");
+      const result = getDefaultAgents({
+        config,
+        agentOverride: "cursor-agent",
+      });
+
+      expect(result).toEqual(["cursor-agent"]);
+    });
+
+    it("should fall back to config.defaultAgents when global override is null", () => {
+      const config: Config = {
+        installDir: "/test",
+        defaultAgents: ["claude-code", "codex"],
+      };
+
+      setGlobalAgentOverride(null);
+      const result = getDefaultAgents({ config });
+
+      expect(result).toEqual(["claude-code", "codex"]);
+    });
+
+    it("should reset to baseline behavior after resetGlobalAgentOverride", () => {
+      const config: Config = {
+        installDir: "/test",
+        defaultAgents: ["claude-code", "codex"],
+      };
+
+      setGlobalAgentOverride("cursor-agent");
+      resetGlobalAgentOverride();
+      const result = getDefaultAgents({ config });
+
+      expect(result).toEqual(["claude-code", "codex"]);
+    });
+
+    it("should suppress global override when agentOverride is explicitly null", () => {
+      const config: Config = {
+        installDir: "/test",
+        defaultAgents: ["claude-code", "cursor-agent"],
+      };
+
+      setGlobalAgentOverride("codex");
+      const result = getDefaultAgents({ config, agentOverride: null });
+
+      expect(result).toEqual(["claude-code", "cursor-agent"]);
+    });
+
+    it("should suppress global override when agentOverride is empty string", () => {
+      const config: Config = {
+        installDir: "/test",
+        defaultAgents: ["claude-code", "codex"],
+      };
+
+      setGlobalAgentOverride("cursor-agent");
+      const result = getDefaultAgents({ config, agentOverride: "" });
+
+      expect(result).toEqual(["claude-code", "codex"]);
+    });
+
+    it("should fall back to config when global override is empty string", () => {
+      const config: Config = {
+        installDir: "/test",
+        defaultAgents: ["claude-code", "codex"],
+      };
+
+      setGlobalAgentOverride("");
+      const result = getDefaultAgents({ config });
+
+      expect(result).toEqual(["claude-code", "codex"]);
+    });
   });
 });
 
