@@ -213,13 +213,27 @@ export const getActiveSkillset = (args: { config: Config }): string | null => {
   return config.activeSkillset ?? null;
 };
 
+let _globalAgentOverride: string | null = null;
+
+export const setGlobalAgentOverride = (agent: string | null): void => {
+  _globalAgentOverride = agent;
+};
+
+export const resetGlobalAgentOverride = (): void => {
+  _globalAgentOverride = null;
+};
+
 /**
  * Get all default agent names for CLI operations
- * Resolution order: agentOverride as single-element array > config.defaultAgents > ["claude-code"]
+ * Resolution order: explicit agentOverride > global agent override > config.defaultAgents > ["claude-code"]
+ *
+ * The global agent override is set once by the CLI preAction hook from the --agent flag,
+ * so individual commands do not need to thread it through manually.
  *
  * @param args - Configuration arguments
  * @param args.config - The config to read defaultAgents from
- * @param args.agentOverride - Explicit agent name override (e.g., from --agent CLI flag)
+ * @param args.agentOverride - Explicit agent name override: a string takes precedence over global,
+ *   null suppresses the global override entirely, undefined falls through to global
  *
  * @returns Array of resolved agent names
  */
@@ -228,9 +242,11 @@ export const getDefaultAgents = (args: {
   agentOverride?: string | null;
 }): Array<string> => {
   const { config, agentOverride } = args;
+  const effectiveOverride =
+    agentOverride !== undefined ? agentOverride : _globalAgentOverride;
 
-  if (agentOverride != null && agentOverride !== "") {
-    return [agentOverride];
+  if (effectiveOverride != null && effectiveOverride !== "") {
+    return [effectiveOverride];
   }
 
   if (config?.defaultAgents != null && config.defaultAgents.length > 0) {

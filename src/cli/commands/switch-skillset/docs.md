@@ -10,6 +10,7 @@ Path: @/src/cli/commands/switch-skillset
 ### How it fits into the larger codebase
 
 - Registered as `switch-skillset` via `@/src/cli/commands/noriSkillsetsCommands.ts` with `wrapWithFraming`
+- Resolves agents via `getDefaultAgents({ config, agentOverride: options.agent ?? null })`, where `options.agent` is the command-level `--agent` flag. This explicit `agentOverride` takes precedence over the global `--agent` override set by the CLI `preAction` hook (see @/src/cli/docs.md)
 - Delegates lifecycle operations to `@/cli/features/agentOperations.js` (`switchSkillset`, `detectLocalChanges`, `captureExistingConfig`) -- it does not manipulate agent files directly
 - Triggers a silent `installMain` from `@/cli/commands/install/install.js` after switching to regenerate all managed files under the new skillset
 - Optionally triggers `registryDownloadMain` from `@/cli/commands/registry-download/registryDownload.js` to re-download the target skillset before switching (controlled by `config.redownloadOnSwitch`)
