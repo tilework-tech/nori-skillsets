@@ -6,6 +6,7 @@
 import * as path from "path";
 
 import { claudeCodeAgentConfig } from "@/cli/features/claude-code/agent.js";
+import { clineAgentConfig } from "@/cli/features/cline/agent.js";
 import { codexAgentConfig } from "@/cli/features/codex/agent.js";
 import { cursorAgentConfig } from "@/cli/features/cursor-agent/agent.js";
 import { droidAgentConfig } from "@/cli/features/droid/agent.js";
@@ -27,6 +28,7 @@ import type { Skillset } from "@/norijson/skillset.js";
  */
 export type AgentName =
   | "claude-code"
+  | "cline"
   | "codex"
   | "cursor-agent"
   | "droid"
@@ -55,6 +57,10 @@ export type AgentLoader = {
     config: Config;
     skillset?: Skillset | null;
   }) => Promise<string | void>;
+  uninstall?: (args: {
+    agent: AgentConfig;
+    installDir: string;
+  }) => Promise<void>;
 };
 
 /**
@@ -100,6 +106,7 @@ export type AgentConfig = {
 
   getLoaders: () => Array<AgentLoader>;
 
+  getExternalSettingsFiles?: (() => ReadonlyArray<string>) | null;
   getTranscriptDirectory?: (() => string) | null;
   getArtifactPatterns?:
     | (() => {
@@ -119,6 +126,7 @@ export class AgentRegistry {
   private constructor() {
     this.agents = new Map();
     this.agents.set(claudeCodeAgentConfig.name, claudeCodeAgentConfig);
+    this.agents.set(clineAgentConfig.name, clineAgentConfig);
     this.agents.set(codexAgentConfig.name, codexAgentConfig);
     this.agents.set(cursorAgentConfig.name, cursorAgentConfig);
     this.agents.set(droidAgentConfig.name, droidAgentConfig);

@@ -838,6 +838,34 @@ nori block content
       removeSkillset({ agent, installDir: tempDir }),
     ).resolves.not.toThrow();
   });
+
+  it("should call uninstall on loaders that provide it", async () => {
+    const uninstallSpy = vi.fn().mockResolvedValue(undefined);
+
+    const agent = createTestAgent({
+      loaders: [
+        {
+          name: "loader-with-uninstall",
+          description: "Has uninstall",
+          run: async () => undefined,
+          uninstall: uninstallSpy,
+        },
+        {
+          name: "loader-without-uninstall",
+          description: "No uninstall",
+          run: async () => undefined,
+        },
+      ],
+    });
+
+    await removeSkillset({ agent, installDir: tempDir });
+
+    expect(uninstallSpy).toHaveBeenCalledOnce();
+    expect(uninstallSpy).toHaveBeenCalledWith({
+      agent,
+      installDir: tempDir,
+    });
+  });
 });
 
 describe("detectLocalChanges", () => {
@@ -1333,5 +1361,152 @@ describe("findArtifacts", () => {
     // Should NOT find above stopDir
     expect(artifactPaths).not.toContain(path.join(tempDir, ".test-agent"));
     expect(artifactPaths).not.toContain(path.join(tempDir, "a", ".test-agent"));
+  });
+});
+
+describe("external settings backup/restore", () => {
+  let tempDir: string;
+  let settingsFile: string;
+
+  beforeEach(async () => {
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "agent-ops-backup-test-"));
+    settingsFile = path.join(tempDir, "settings.json");
+    vi.mocked(os.homedir).mockReturnValue(tempDir);
+  });
+
+  afterEach(async () => {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+    vi.clearAllMocks();
+  });
+
+  it("should backup external settings file before loaders run during install", async () => {
+    const originalSettings = JSON.stringify(
+      { userHooks: { event: "test" }, customSetting: true },
+      null,
+      2,
+    );
+    fs.writeFileSync(settingsFile, originalSettings);
+
+    let settingsContentWhenLoaderRan = "";
+    const agent = createTestAgent({
+      loaders: [
+        {
+          name: "settings-writer",
+          description: "Writes to settings",
+          managedFiles: ["INSTRUCTIONS.md"],
+          run: async () => {
+            // By the time this loader runs, backup should already exist
+            const backupPath = settingsFile + ".pre-nori";
+            settingsContentWhenLoaderRan = fs.existsSync(backupPath)
+              ? fs.readFileSync(backupPath, "utf-8")
+              : "";
+            // Simulate modifying settings
+            fs.writeFileSync(
+              settingsFile,
+              JSON.stringify({ noriHooks: {} }, null, 2),
+            );
+            return "Settings";
+          },
+        },
+      ],
+    });
+
+    // Add getExternalSettingsFiles to the agent
+    (agent as any).getExternalSettingsFiles = () => [settingsFile];
+
+    const config: Config = { installDir: tempDir };
+    await installSkillset({ agent, config, skipManifest: true });
+
+    // Backup should have been created before loader ran
+    expect(settingsContentWhenLoaderRan).toBe(originalSettings);
+  });
+
+  it("should restore external settings file during removeSkillset", async () => {
+    const originalSettings = JSON.stringify(
+      { userHooks: { event: "test" }, customSetting: true },
+      null,
+      2,
+    );
+    const backupPath = settingsFile + ".pre-nori";
+    fs.writeFileSync(backupPath, originalSettings);
+    fs.writeFileSync(
+      settingsFile,
+      JSON.stringify({ noriHooks: {}, statusLine: {} }, null, 2),
+    );
+
+    const agent = createTestAgent({
+      loaders: [
+        {
+          name: "loader",
+          description: "Loader",
+          managedFiles: ["INSTRUCTIONS.md"],
+          run: async () => undefined,
+        },
+      ],
+    });
+
+    (agent as any).getExternalSettingsFiles = () => [settingsFile];
+
+    const agentDir = agent.getAgentDir({ installDir: tempDir });
+    fs.mkdirSync(agentDir, { recursive: true });
+    fs.writeFileSync(path.join(agentDir, "INSTRUCTIONS.md"), "# Config");
+
+    await removeSkillset({ agent, installDir: tempDir });
+
+    // Settings should be restored to original
+    const restored = fs.readFileSync(settingsFile, "utf-8");
+    expect(restored).toBe(originalSettings);
+
+    // Backup should be cleaned up
+    expect(fs.existsSync(backupPath)).toBe(false);
+  });
+
+  it("should leave settings file untouched when no backup exists (safe for repeated calls)", async () => {
+    const content = JSON.stringify({ noriHooks: {} }, null, 2);
+    fs.writeFileSync(settingsFile, content);
+
+    const agent = createTestAgent({
+      loaders: [
+        {
+          name: "loader",
+          description: "Loader",
+          managedFiles: ["INSTRUCTIONS.md"],
+          run: async () => undefined,
+        },
+      ],
+    });
+
+    (agent as any).getExternalSettingsFiles = () => [settingsFile];
+
+    const agentDir = agent.getAgentDir({ installDir: tempDir });
+    fs.mkdirSync(agentDir, { recursive: true });
+    fs.writeFileSync(path.join(agentDir, "INSTRUCTIONS.md"), "# Config");
+
+    await removeSkillset({ agent, installDir: tempDir });
+
+    // Settings file should remain (no backup means restore is a no-op)
+    expect(fs.existsSync(settingsFile)).toBe(true);
+    expect(fs.readFileSync(settingsFile, "utf-8")).toBe(content);
+  });
+
+  it("should not create backup when settings file does not exist", async () => {
+    const agent = createTestAgent({
+      loaders: [
+        {
+          name: "loader",
+          description: "Loader",
+          managedFiles: ["INSTRUCTIONS.md"],
+          run: async () => undefined,
+        },
+      ],
+    });
+
+    (agent as any).getExternalSettingsFiles = () => [settingsFile];
+
+    const config: Config = { installDir: tempDir };
+    await installSkillset({ agent, config, skipManifest: true });
+
+    const backupPath = settingsFile + ".pre-nori";
+    expect(fs.existsSync(backupPath)).toBe(false);
   });
 });

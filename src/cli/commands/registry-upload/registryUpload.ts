@@ -13,6 +13,7 @@ import * as tar from "tar";
 import { readApiTokenEnv } from "@/api/base.js";
 import {
   registrarApi,
+  type SkillResolutionAction,
   type SkillResolutionStrategy,
   type SubagentResolutionStrategy,
   type UploadSkillsetResponse,
@@ -48,7 +49,6 @@ import {
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 import type { RegistryAuth } from "@/cli/config.js";
 import type { NoriJson } from "@/norijson/nori.js";
-import type { Command } from "commander";
 
 /**
  * Determine the version to upload (auto-bump if not specified)
@@ -1003,6 +1003,7 @@ const syncLocalStateAfterUpload = async (args: {
  * @param args.silent - Suppress output
  * @param args.dryRun - Show what would happen without uploading
  * @param args.description - Description for the skillset version
+ * @param args.resolve - Resolution strategy to apply to unresolved skill conflicts in non-interactive mode
  *
  * @returns Upload result
  */
@@ -1016,6 +1017,7 @@ export const registryUploadMain = async (args: {
   silent?: boolean | null;
   dryRun?: boolean | null;
   description?: string | null;
+  resolve?: string | null;
 }): Promise<CommandStatus> => {
   const {
     profileSpec,
@@ -1025,6 +1027,7 @@ export const registryUploadMain = async (args: {
     silent,
     dryRun,
     description,
+    resolve,
   } = args;
 
   // Parse skillset spec using shared utility
@@ -1043,6 +1046,27 @@ export const registryUploadMain = async (args: {
   const { orgId, packageName, version } = parsed;
   const profileDisplayName =
     orgId === "public" ? packageName : `${orgId}/${packageName}`;
+
+  const VALID_RESOLVE_ACTIONS: ReadonlyArray<string> = [
+    "updateVersion",
+    "link",
+    "namespace",
+    "cancel",
+  ];
+
+  if (resolve != null && !VALID_RESOLVE_ACTIONS.includes(resolve)) {
+    log.error(
+      `Invalid --resolve value: "${resolve}".\nValid options: ${VALID_RESOLVE_ACTIONS.join(", ")}`,
+    );
+    return {
+      success: false,
+      cancelled: false,
+      message: `Invalid --resolve value: "${resolve}"`,
+    };
+  }
+
+  const resolveAction =
+    resolve != null ? (resolve as SkillResolutionAction) : null;
 
   // Load config for auth and install dir resolution
   const config = await loadConfig();
@@ -1522,6 +1546,7 @@ export const registryUploadMain = async (args: {
     skillsetName: packageName,
     registryUrl: targetRegistryUrl,
     nonInteractive: nonInteractive ?? false,
+    resolve: resolveAction,
     inlineCandidates:
       inlineCandidates.length > 0 ? inlineCandidates : undefined,
     inlineSubagentCandidates:
@@ -1610,55 +1635,4 @@ export const registryUploadMain = async (args: {
     cancelled: false,
     message: result.statusMessage,
   };
-};
-
-/**
- * Register the 'upload' command with commander
- * @param args - Configuration arguments
- * @param args.program - Commander program instance
- */
-export const registerRegistryUploadCommand = (args: {
-  program: Command;
-}): void => {
-  const { program } = args;
-
-  program
-    .command("upload <profile>")
-    .description("Upload a skillset to the Nori registry")
-    .option("--registry <url>", "Upload to a specific registry URL")
-    .option(
-      "--list-versions",
-      "List available versions for the skillset instead of uploading",
-    )
-    .option("--dry-run", "Show what would be uploaded without uploading")
-    .option("--description <text>", "Description for this version")
-    .action(
-      async (
-        profileSpec: string,
-        options: {
-          registry?: string;
-          listVersions?: boolean;
-          dryRun?: boolean;
-          description?: string;
-        },
-      ) => {
-        const globalOpts = program.opts();
-
-        const result = await registryUploadMain({
-          profileSpec,
-          cwd: process.cwd(),
-          installDir: globalOpts.installDir || null,
-          registryUrl: options.registry || null,
-          listVersions: options.listVersions || null,
-          nonInteractive: globalOpts.nonInteractive || null,
-          silent: globalOpts.silent || null,
-          dryRun: options.dryRun || null,
-          description: options.description || null,
-        });
-
-        if (!result.success) {
-          process.exit(1);
-        }
-      },
-    );
 };

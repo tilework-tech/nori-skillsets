@@ -92,4 +92,11 @@ export const statuslineLoader: AgentLoader = {
   run: async ({ config }) => {
     return configureStatusLine({ config });
   },
+  uninstall: async () => {
+    const statuslineScript = path.join(
+      getClaudeHomeDir(),
+      "nori-statusline.sh",
+    );
+    await fs.rm(statuslineScript, { force: true });
+  },
 };

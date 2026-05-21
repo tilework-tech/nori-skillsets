@@ -20,13 +20,12 @@ import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 
 export const clearCurrentMain = async (args?: {
   dir?: string | null;
-  agent?: string | null;
 }): Promise<void> => {
-  const { dir, agent } = args ?? {};
+  const { dir } = args ?? {};
   const startDir = path.resolve(dir ?? process.cwd());
 
   const config = await loadConfig();
-  const agentNames = getDefaultAgents({ config, agentOverride: agent });
+  const agentNames = getDefaultAgents({ config });
   const agents = agentNames.map((name) =>
     AgentRegistry.getInstance().get({ name }),
   );

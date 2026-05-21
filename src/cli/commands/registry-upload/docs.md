@@ -10,7 +10,7 @@ Path: @/src/cli/commands/registry-upload
 
 ### How it fits into the larger codebase
 
-- Registered as `upload` via `@/src/cli/commands/noriSkillsetsCommands.ts` with `wrapWithFraming`
+- Exposed as `sks upload` / `nori-skillsets upload` via `@/src/cli/commands/noriSkillsetsCommands.ts`, which owns Commander registration and wraps this module's `registryUploadMain` with `wrapWithFraming`
 - Uses `@/api/registrar.js` (`registrarApi.uploadSkillset`, `registrarApi.getPackument`) for registry communication
 - Auth tokens are obtained via `@/api/registryAuth.js` (`getRegistryAuthToken`) using refresh tokens, saved API tokens, or a matching `NORI_API_TOKEN`
 - Skillset metadata is read/written through `@/norijson/nori.js` (`readSkillsetMetadata`, `writeSkillsetMetadata`)
@@ -44,7 +44,7 @@ This branch order mirrors the download commands (`@/src/cli/commands/registry-do
 
 **Version resolution**: `determineUploadVersion` queries the registry's packument for the latest version and auto-bumps the patch version. Falls back to `1.0.0` for new packages. Explicit versions (from the `@version` suffix in the spec) bypass this logic.
 
-**Upload pipeline**: `registryUploadMain` runs pre-upload migrations (`backfillNoriJsonTypes` for `nori.json` type fields including subagent subdirectory nori.json files, `migrateConfigToAgentsMd` to rename legacy `CLAUDE.md` to `AGENTS.md`), then runs inline detection for both skills and subagents before creating a tarball via `createProfileTarball` and uploading via `registrarApi.uploadSkillset`. Both `SkillCollisionError` and `SubagentCollisionError` are caught and surfaced to the interactive flow for resolution. The `performUpload` helper passes `subagentResolutionStrategy` alongside `resolutionStrategy` to the API, and returns `subagentConflicts` in the `UploadResult` union type.
+**Upload pipeline**: `registryUploadMain` runs pre-upload migrations (`backfillNoriJsonTypes` for `nori.json` type fields including subagent subdirectory nori.json files, `migrateConfigToAgentsMd` to rename legacy `CLAUDE.md` to `AGENTS.md`), then runs inline detection for both skills and subagents before creating a tarball via `createProfileTarball` and uploading via `registrarApi.uploadSkillset`. Both `SkillCollisionError` and `SubagentCollisionError` are caught and surfaced to the interactive flow for resolution. The public `upload` command exposes `--resolve <strategy>` for non-interactive skill conflict handling; the Commander option is registered in `noriSkillsetsCommands.ts` and passed through to `registryUploadMain`, where it is validated before reaching `uploadFlow`. The `performUpload` helper passes `subagentResolutionStrategy` alongside `resolutionStrategy` to the API, and returns `subagentConflicts` in the `UploadResult` union type.
 
 **Two-phase inline detection** (applied to both skills and subagents): The upload flow distinguishes between new inline candidates and previously-inlined items:
 
@@ -77,6 +77,7 @@ In non-interactive mode, flat subagent candidates are auto-inlined silently. Pre
 - `restructureFlatSubagentsToDirectories` modifies the user's source tree at upload time -- it creates directories, moves file content, and deletes the original flat file. This is a destructive filesystem operation that happens before tarball creation.
 - `backfillNoriJsonTypes` now also iterates `subagents/` subdirectories to backfill `type: "subagent"` on existing `nori.json` files that lack a type field.
 - The `onReadLocalSubagentMd` callback reads `SUBAGENT.md` from the local subagent directory, enabling diff display during interactive subagent conflict resolution.
+- Commander registration for upload options intentionally lives in `noriSkillsetsCommands.ts`; this module owns upload behavior, not a separate public `registry-upload` subcommand.
 - Silent mode bypasses the interactive flow entirely and performs a direct upload without UI.
 
 Created and maintained by Nori.

@@ -12,12 +12,23 @@ import { Command } from "commander";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 import {
+  setGlobalAgentOverride,
+  resetGlobalAgentOverride,
+} from "@/cli/config.js";
+import {
   switchSkillset as switchSkillsetOp,
   captureExistingConfig,
 } from "@/cli/features/agentOperations.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 
 import { registerSwitchSkillsetCommand } from "./switchSkillset.js";
+
+const addAgentOverrideHook = (program: Command): void => {
+  program.hook("preAction", (thisCommand) => {
+    const opts = thisCommand.opts();
+    setGlobalAgentOverride(opts.agent ?? null);
+  });
+};
 
 // Mock os.homedir so getNoriDir/getNoriSkillsetsDir resolve to the test directory
 vi.mock("os", async (importOriginal) => {
@@ -91,6 +102,7 @@ describe("switchSkillset shared operation", () => {
   });
 
   afterEach(async () => {
+    resetGlobalAgentOverride();
     if (testInstallDir) {
       await fs.rm(testInstallDir, { recursive: true, force: true });
     }
@@ -179,6 +191,7 @@ describe("registerSwitchSkillsetCommand", () => {
   });
 
   afterEach(async () => {
+    resetGlobalAgentOverride();
     if (testInstallDir) {
       await fs.rm(testInstallDir, { recursive: true, force: true });
     }
@@ -246,6 +259,7 @@ describe("registerSwitchSkillsetCommand", () => {
       .option("-d, --install-dir <path>", "Custom installation directory")
       .option("-n, --non-interactive", "Run without interactive prompts")
       .option("-a, --agent <name>", "AI agent to use");
+    addAgentOverrideHook(program);
 
     registerSwitchSkillsetCommand({ program });
 
@@ -301,6 +315,7 @@ describe("registerSwitchSkillsetCommand", () => {
       .option("-d, --install-dir <path>", "Custom installation directory")
       .option("-n, --non-interactive", "Run without interactive prompts")
       .option("-a, --agent <name>", "AI agent to use");
+    addAgentOverrideHook(program);
 
     registerSwitchSkillsetCommand({ program });
 
@@ -427,6 +442,7 @@ describe("switch-skillset installDir resolution from config", () => {
       await fs.rm(customInstallDir, { recursive: true, force: true });
     }
     AgentRegistry.resetInstance();
+    resetGlobalAgentOverride();
     vi.restoreAllMocks();
   });
 
@@ -554,6 +570,7 @@ describe("switch-skillset local change detection", () => {
   });
 
   afterEach(async () => {
+    resetGlobalAgentOverride();
     if (testInstallDir) {
       await fs.rm(testInstallDir, { recursive: true, force: true });
     }
@@ -694,6 +711,7 @@ describe("switch-skillset broadcasts to all default agents", () => {
   });
 
   afterEach(async () => {
+    resetGlobalAgentOverride();
     if (testInstallDir) {
       await fs.rm(testInstallDir, { recursive: true, force: true });
     }
@@ -777,6 +795,7 @@ describe("switch-skillset passes skillset name to installMain", () => {
   });
 
   afterEach(async () => {
+    resetGlobalAgentOverride();
     if (testInstallDir) {
       await fs.rm(testInstallDir, { recursive: true, force: true });
     }
@@ -932,6 +951,7 @@ describe("switch-skillset activeSkillset persistence with --install-dir override
       await fs.rm(overrideInstallDir, { recursive: true, force: true });
     }
     AgentRegistry.resetInstance();
+    resetGlobalAgentOverride();
     vi.restoreAllMocks();
   });
 
@@ -1060,6 +1080,7 @@ describe("switch-skillset does not persist --install-dir override to config", ()
       await fs.rm(overrideInstallDir, { recursive: true, force: true });
     }
     AgentRegistry.resetInstance();
+    resetGlobalAgentOverride();
     vi.restoreAllMocks();
   });
 
@@ -1148,6 +1169,7 @@ describe("switch-skillset onCaptureConfig broadcasts to all agents", () => {
   });
 
   afterEach(async () => {
+    resetGlobalAgentOverride();
     if (testInstallDir) {
       await fs.rm(testInstallDir, { recursive: true, force: true });
     }
@@ -1179,6 +1201,7 @@ describe("switch-skillset onCaptureConfig broadcasts to all agents", () => {
       .option("-d, --install-dir <path>", "Custom installation directory")
       .option("-n, --non-interactive", "Run without interactive prompts")
       .option("-a, --agent <name>", "AI agent to use");
+    addAgentOverrideHook(program);
 
     registerSwitchSkillsetCommand({ program });
 
@@ -1301,6 +1324,7 @@ describe("switch-skillset interactive flow routing", () => {
   });
 
   afterEach(async () => {
+    resetGlobalAgentOverride();
     if (testInstallDir) {
       await fs.rm(testInstallDir, { recursive: true, force: true });
     }
@@ -1332,6 +1356,7 @@ describe("switch-skillset interactive flow routing", () => {
       .option("-d, --install-dir <path>", "Custom installation directory")
       .option("-n, --non-interactive", "Run without interactive prompts")
       .option("-a, --agent <name>", "AI agent to use");
+    addAgentOverrideHook(program);
 
     registerSwitchSkillsetCommand({ program });
 
@@ -1519,6 +1544,7 @@ describe("switch-skillset interactive selection when no name provided", () => {
   });
 
   afterEach(async () => {
+    resetGlobalAgentOverride();
     if (testInstallDir) {
       await fs.rm(testInstallDir, { recursive: true, force: true });
     }
@@ -1723,6 +1749,7 @@ describe("switch-skillset skips manifest operations when --install-dir is used",
       await fs.rm(overrideInstallDir, { recursive: true, force: true });
     }
     AgentRegistry.resetInstance();
+    resetGlobalAgentOverride();
     vi.restoreAllMocks();
   });
 
@@ -2035,6 +2062,7 @@ describe("onReadFileDiff subagent path mapping", () => {
   });
 
   afterEach(async () => {
+    resetGlobalAgentOverride();
     if (testInstallDir) {
       await fs.rm(testInstallDir, { recursive: true, force: true });
     }
