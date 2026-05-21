@@ -19,8 +19,9 @@ CLI commands in `@/src/cli/commands/` call into this module for registry operati
 ```
 1. NORI_API_TOKEN env var      (only when embedded orgId === extractOrgId(targetUrl))
 2. config.auth.apiToken        (only when embedded orgId === extractOrgId(targetUrl))
-3. config.auth.refreshToken    (exchanged for Firebase ID token, cached 55 min)
-4. config.auth.password        (legacy Firebase signInWithEmailAndPassword)
+3. config.auth.idToken         (used directly only when idTokenExpiresAt is still in the future)
+4. config.auth.refreshToken    (exchanged for Firebase ID token, cached 55 min)
+5. config.auth.password        (legacy Firebase signInWithEmailAndPassword)
 ```
 
 API tokens have format `nori_<orgId>_<64 hex chars>`. The orgId is extracted from the token itself via `extractOrgIdFromApiToken` on every resolution (no separate orgId field is stored or passed alongside). Tokens are sent raw as `Authorization: Bearer nori_<orgId>_<hex>` and are NEVER cached (they are long-lived, and caching risks staleness across env changes within one process). The wire format is distinguishable from Firebase ID tokens by the `nori_` prefix. Scoping is strict: a token scoped to `acme` is never forwarded to a request targeting `foo.noriskillsets.dev`; the resolver falls through to the refresh-token path instead. Public registrar tokens use the same mechanism with orgId `public`, which maps to the apex URL `https://noriskillsets.dev`.
@@ -35,7 +36,7 @@ Each `SkillConflict` / `SubagentConflict` item in the 409 body may carry an opti
 
 **`refreshToken.ts`** exchanges Firebase refresh tokens for ID tokens using the Firebase REST API directly (not the SDK), because the SDK requires an active user session. It maintains its own in-memory cache with a 5-minute safety buffer before expiry.
 
-**`registryAuth.ts`** provides per-registry-URL token caching for Firebase ID tokens and precedence-checks for API tokens. `getRegistryAuthToken` evaluates env-var API tokens (scoped match against the orgId parsed from the token), then config API tokens (scoped match against the orgId parsed from the token), then the cached Firebase token, then performs a refresh-token exchange. API tokens short-circuit before the cache is consulted and are never written back to the cache.
+**`registryAuth.ts`** provides per-registry-URL token caching for Firebase ID tokens and precedence-checks for API tokens. `getRegistryAuthToken` evaluates env-var API tokens (scoped match against the orgId parsed from the token), then config API tokens (scoped match against the orgId parsed from the token), then an unexpired direct `idToken` from config, then the cached Firebase token, then performs a refresh-token exchange. API tokens short-circuit before the cache is consulted and are never written back to the cache. Direct `idToken` config is the broker-managed session-machine path; it is not refreshable by `nori-skillsets`, so expired direct tokens fall through to refresh-token auth only when a refresh token is also present.
 
 **`analytics.ts`** fires analytics events to the organization URL (or a default). Failures are silently swallowed to avoid interrupting user flow.
 
@@ -43,7 +44,7 @@ Each `SkillConflict` / `SubagentConflict` item in the 409 body may carry an opti
 
 ### Things to Know
 
-There are three layers of token caching, all exclusively for Firebase tokens: `refreshToken.ts` caches the raw token exchange result, `registryAuth.ts` caches per-registry tokens, and `AuthManager` in `base.ts` caches the token used by `apiRequest`. All use time-based expiry (55 minutes for Firebase tokens, with varying safety buffers). API tokens bypass every cache layer and are returned raw on each call.
+There are three layers of token caching, all exclusively for refresh-token-derived Firebase tokens: `refreshToken.ts` caches the raw token exchange result, `registryAuth.ts` caches per-registry tokens, and `AuthManager` in `base.ts` caches the token used by `apiRequest`. All use time-based expiry (55 minutes for Firebase tokens, with varying safety buffers). API tokens bypass every cache layer and are returned raw on each call. Broker-distributed direct ID tokens carry their own `idTokenExpiresAt` timestamp and are used directly only while unexpired.
 
 Target org is derived from the request URL at resolution time via `extractOrgId` from `@/src/utils/url.ts`, and the token's own org is derived via `extractOrgIdFromApiToken` from `@/src/utils/apiToken.ts`. Cross-org API-token use is never silently promoted — if the two orgIds do not match, the resolver falls through to the next precedence level (which mirrors the server's 403 behavior for cross-org tokens, failing faster client-side when the mismatch is knowable).
 

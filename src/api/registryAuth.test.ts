@@ -53,6 +53,42 @@ describe("registryAuth", () => {
       });
     });
 
+    it("should return an unexpired direct ID token without exchanging a refresh token", async () => {
+      const registryAuth: RegistryAuth = {
+        username: "sprite-service:acme",
+        registryUrl: "https://acme.noriskillsets.dev",
+        idToken: "short-lived-id-token",
+        idTokenExpiresAt: Date.now() + 60_000,
+      };
+
+      const token = await getRegistryAuthToken({ registryAuth });
+
+      expect(token).toBe("short-lived-id-token");
+      expect(exchangeRefreshToken).not.toHaveBeenCalled();
+    });
+
+    it("should fall through to refresh token auth when a direct ID token is expired", async () => {
+      vi.mocked(exchangeRefreshToken).mockResolvedValue({
+        idToken: "fresh-id-token",
+        refreshToken: "new-refresh-token",
+        expiresIn: 3600,
+      });
+      const registryAuth: RegistryAuth = {
+        username: "sprite-service:acme",
+        registryUrl: "https://acme.noriskillsets.dev",
+        idToken: "expired-id-token",
+        idTokenExpiresAt: Date.now() - 1,
+        refreshToken: "legacy-refresh-token",
+      };
+
+      const token = await getRegistryAuthToken({ registryAuth });
+
+      expect(token).toBe("fresh-id-token");
+      expect(exchangeRefreshToken).toHaveBeenCalledWith({
+        refreshToken: "legacy-refresh-token",
+      });
+    });
+
     it("should cache token and return cached value on subsequent calls", async () => {
       const mockIdToken = "mock-firebase-id-token";
 

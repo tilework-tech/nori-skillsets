@@ -23,6 +23,8 @@ export type RegistryAuth = {
   username: string | null;
   registryUrl: string;
   refreshToken?: string | null;
+  idToken?: string | null;
+  idTokenExpiresAt?: number | null;
   apiToken?: string | null;
 };
 
@@ -36,6 +38,9 @@ export type AuthCredentials = {
   organizationUrl: string;
   // Token-based auth (preferred for user accounts)
   refreshToken?: string | null;
+  // Short-lived Firebase ID token for broker-managed session machines.
+  idToken?: string | null;
+  idTokenExpiresAt?: number | null;
   // Legacy password-based auth (deprecated, will be removed)
   password?: string | null;
   // API token for non-interactive / programmatic access. Format: nori_<orgId>_<64hex>.
