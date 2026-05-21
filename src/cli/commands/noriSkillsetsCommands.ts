@@ -393,6 +393,10 @@ export const registerNoriSkillsetsUploadCommand = (args: {
     )
     .option("--dry-run", "Show what would be uploaded without uploading")
     .option("--description <text>", "Description for this version")
+    .option(
+      "--resolve <strategy>",
+      "Auto-resolve skill conflicts in non-interactive mode (updateVersion, link, namespace, cancel)",
+    )
     .action(
       async (
         skillsetSpec: string,
@@ -401,6 +405,7 @@ export const registerNoriSkillsetsUploadCommand = (args: {
           listVersions?: boolean;
           dryRun?: boolean;
           description?: string;
+          resolve?: string;
         },
       ) => {
         const { registryUploadMain } =
@@ -421,6 +426,7 @@ export const registerNoriSkillsetsUploadCommand = (args: {
               silent: globalOpts.silent || null,
               dryRun: options.dryRun || null,
               description: options.description || null,
+              resolve: options.resolve || null,
             }),
         });
       },

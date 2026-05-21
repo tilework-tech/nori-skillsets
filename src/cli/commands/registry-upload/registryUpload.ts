@@ -49,7 +49,6 @@ import {
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 import type { RegistryAuth } from "@/cli/config.js";
 import type { NoriJson } from "@/norijson/nori.js";
-import type { Command } from "commander";
 
 /**
  * Determine the version to upload (auto-bump if not specified)
@@ -1636,61 +1635,4 @@ export const registryUploadMain = async (args: {
     cancelled: false,
     message: result.statusMessage,
   };
-};
-
-/**
- * Register the 'upload' command with commander
- * @param args - Configuration arguments
- * @param args.program - Commander program instance
- */
-export const registerRegistryUploadCommand = (args: {
-  program: Command;
-}): void => {
-  const { program } = args;
-
-  program
-    .command("upload <profile>")
-    .description("Upload a skillset to the Nori registry")
-    .option("--registry <url>", "Upload to a specific registry URL")
-    .option(
-      "--list-versions",
-      "List available versions for the skillset instead of uploading",
-    )
-    .option("--dry-run", "Show what would be uploaded without uploading")
-    .option("--description <text>", "Description for this version")
-    .option(
-      "--resolve <strategy>",
-      "Auto-resolve skill conflicts in non-interactive mode (updateVersion, link, namespace, cancel)",
-    )
-    .action(
-      async (
-        profileSpec: string,
-        options: {
-          registry?: string;
-          listVersions?: boolean;
-          dryRun?: boolean;
-          description?: string;
-          resolve?: string;
-        },
-      ) => {
-        const globalOpts = program.opts();
-
-        const result = await registryUploadMain({
-          profileSpec,
-          cwd: process.cwd(),
-          installDir: globalOpts.installDir || null,
-          registryUrl: options.registry || null,
-          listVersions: options.listVersions || null,
-          nonInteractive: globalOpts.nonInteractive || null,
-          silent: globalOpts.silent || null,
-          dryRun: options.dryRun || null,
-          description: options.description || null,
-          resolve: options.resolve || null,
-        });
-
-        if (!result.success) {
-          process.exit(1);
-        }
-      },
-    );
 };

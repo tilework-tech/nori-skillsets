@@ -304,6 +304,26 @@ describe("nori-skillsets CLI", () => {
     expect(output).not.toContain("$ nori-skillsets edit-skillset");
   });
 
+  it("should expose non-interactive conflict resolution on upload", () => {
+    let output = "";
+
+    try {
+      output = execSync("node build/src/cli/nori-skillsets.js upload --help", {
+        encoding: "utf-8",
+        stdio: "pipe",
+        env: { ...process.env, FORCE_COLOR: "0", HOME: tempDir },
+      });
+    } catch (error: unknown) {
+      if (error && typeof error === "object") {
+        const execError = error as { stdout?: string; stderr?: string };
+        output = execError.stdout || execError.stderr || "";
+      }
+    }
+
+    expect(output).toContain("--resolve <strategy>");
+    expect(output).toContain("Auto-resolve skill conflicts");
+  });
+
   it("should accept 'switch-skillset' as a hidden alias for switch", () => {
     let helpOutput = "";
 
