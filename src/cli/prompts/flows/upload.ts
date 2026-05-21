@@ -1054,7 +1054,16 @@ export const uploadFlow = async (args: {
     if (resolve != null && unresolvedConflicts.length > 0) {
       for (const conflict of unresolvedConflicts) {
         if (conflict.availableActions.includes(resolve)) {
-          autoStrategy[conflict.skillId] = { action: resolve };
+          if (resolve === "updateVersion") {
+            autoStrategy[conflict.skillId] = {
+              action: "updateVersion",
+              version: getSuggestedVersion({
+                currentVersion: conflict.latestVersion,
+              }),
+            };
+          } else {
+            autoStrategy[conflict.skillId] = { action: resolve };
+          }
         }
       }
       stillUnresolved = unresolvedConflicts.filter(
@@ -1218,7 +1227,16 @@ export const uploadFlow = async (args: {
     if (resolve != null && unresolvedSubagentConflicts.length > 0) {
       for (const conflict of unresolvedSubagentConflicts) {
         if (conflict.availableActions.includes(resolve)) {
-          autoResolved[conflict.subagentId] = { action: resolve };
+          if (resolve === "updateVersion") {
+            autoResolved[conflict.subagentId] = {
+              action: "updateVersion",
+              version: getSuggestedVersion({
+                currentVersion: conflict.latestVersion,
+              }),
+            };
+          } else {
+            autoResolved[conflict.subagentId] = { action: resolve };
+          }
         }
       }
       stillUnresolvedSubagents = unresolvedSubagentConflicts.filter(

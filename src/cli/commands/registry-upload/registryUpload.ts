@@ -1617,7 +1617,11 @@ export const registryUploadMain = async (args: {
   });
 
   if (result == null) {
-    return { success: false, cancelled: true, message: "" };
+    return {
+      success: false,
+      cancelled: !(nonInteractive ?? false),
+      message: nonInteractive ? "Upload failed" : "",
+    };
   }
 
   await trySyncLocalState({
