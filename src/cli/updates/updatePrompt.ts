@@ -5,7 +5,7 @@
  * update command based on the package manager.
  */
 
-import { log, select, isCancel } from "@clack/prompts";
+import { select, isCancel } from "@clack/prompts";
 
 export type UpdateChoice = "update" | "skip" | "dismiss";
 
@@ -65,7 +65,6 @@ export const getUpdateCommand = (args: {
  * @param args.currentVersion - The current version
  * @param args.latestVersion - The latest available version
  * @param args.isInteractive - Whether we're in interactive mode
- * @param args.updateCommand - The update command to show in non-interactive mode
  *
  * @returns The user's update choice
  */
@@ -73,16 +72,10 @@ export const showUpdatePrompt = async (args: {
   currentVersion: string;
   latestVersion: string;
   isInteractive: boolean;
-  updateCommand: UpdateCommand | null;
 }): Promise<UpdateChoice> => {
-  const { currentVersion, latestVersion, isInteractive, updateCommand } = args;
+  const { currentVersion, latestVersion, isInteractive } = args;
 
   if (!isInteractive) {
-    const cmdStr =
-      updateCommand?.displayCommand ?? "npm install -g nori-skillsets@latest";
-    log.warn(
-      `Update available: ${currentVersion} \u2192 ${latestVersion}. Run: ${cmdStr}`,
-    );
     return "skip";
   }
 
