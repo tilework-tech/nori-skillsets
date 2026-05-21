@@ -66,42 +66,18 @@ describe("updatePrompt", () => {
       vi.restoreAllMocks();
     });
 
-    it("should use log.warn and return skip in non-interactive mode", async () => {
+    it("should silently return skip in non-interactive mode without writing to stdout", async () => {
       const clack = await import("@clack/prompts");
 
       const result = await showUpdatePrompt({
         currentVersion: "1.0.0",
         latestVersion: "2.0.0",
         isInteractive: false,
-        updateCommand: getUpdateCommand({ installSource: "npm" }),
       });
 
       expect(result).toBe("skip");
-      expect(clack.log.warn).toHaveBeenCalledWith(
-        expect.stringContaining("1.0.0"),
-      );
-      expect(clack.log.warn).toHaveBeenCalledWith(
-        expect.stringContaining("2.0.0"),
-      );
-      expect(clack.log.warn).toHaveBeenCalledWith(
-        expect.stringContaining("npm install"),
-      );
-    });
-
-    it("should use fallback command in non-interactive mode when updateCommand is null", async () => {
-      const clack = await import("@clack/prompts");
-
-      const result = await showUpdatePrompt({
-        currentVersion: "1.0.0",
-        latestVersion: "2.0.0",
-        isInteractive: false,
-        updateCommand: null,
-      });
-
-      expect(result).toBe("skip");
-      expect(clack.log.warn).toHaveBeenCalledWith(
-        expect.stringContaining("npm install -g nori-skillsets@latest"),
-      );
+      expect(clack.log.warn).not.toHaveBeenCalled();
+      expect(clack.select).not.toHaveBeenCalled();
     });
 
     it("should use clack select in interactive mode", async () => {
@@ -113,7 +89,6 @@ describe("updatePrompt", () => {
         currentVersion: "1.0.0",
         latestVersion: "2.0.0",
         isInteractive: true,
-        updateCommand: getUpdateCommand({ installSource: "npm" }),
       });
 
       expect(result).toBe("update");
@@ -139,7 +114,6 @@ describe("updatePrompt", () => {
         currentVersion: "1.0.0",
         latestVersion: "2.0.0",
         isInteractive: true,
-        updateCommand: getUpdateCommand({ installSource: "npm" }),
       });
 
       expect(result).toBe("skip");
@@ -154,7 +128,6 @@ describe("updatePrompt", () => {
         currentVersion: "1.0.0",
         latestVersion: "2.0.0",
         isInteractive: true,
-        updateCommand: getUpdateCommand({ installSource: "npm" }),
       });
 
       expect(result).toBe("dismiss");
