@@ -861,6 +861,7 @@ const hasSubagentConflicts = (
  * @param args.registryUrl - The target registry URL
  * @param args.callbacks - Callback functions for version determination and upload
  * @param args.nonInteractive - If true, don't prompt for conflict resolution
+ * @param args.resolve - Resolution strategy to apply to unresolved conflicts in non-interactive mode
  * @param args.inlineCandidates - Skill IDs without nori.json that need inline/extract decision
  * @param args.inlineSubagentCandidates - Subagent IDs without nori.json that need inline/extract decision
  *
@@ -872,6 +873,7 @@ export const uploadFlow = async (args: {
   registryUrl: string;
   callbacks: UploadFlowCallbacks;
   nonInteractive?: boolean | null;
+  resolve?: SkillResolutionAction | null;
   inlineCandidates?: Array<string> | null;
   inlineSubagentCandidates?: Array<string> | null;
 }): Promise<UploadFlowResult> => {
@@ -881,6 +883,7 @@ export const uploadFlow = async (args: {
     registryUrl: _registryUrl,
     callbacks,
     nonInteractive,
+    resolve,
     inlineCandidates,
     inlineSubagentCandidates,
   } = args;
@@ -1046,10 +1049,23 @@ export const uploadFlow = async (args: {
       }
     }
 
+    // Apply --resolve strategy to remaining unresolved conflicts
+    let stillUnresolved = unresolvedConflicts;
+    if (resolve != null && unresolvedConflicts.length > 0) {
+      for (const conflict of unresolvedConflicts) {
+        if (conflict.availableActions.includes(resolve)) {
+          autoStrategy[conflict.skillId] = { action: resolve };
+        }
+      }
+      stillUnresolved = unresolvedConflicts.filter(
+        (c) => autoStrategy[c.skillId] == null,
+      );
+    }
+
     // If all can be auto-resolved, retry immediately
-    if (unresolvedConflicts.length === 0) {
+    if (stillUnresolved.length === 0) {
       uploadSpinner.message(
-        `Auto-resolving ${Object.keys(autoStrategy).length} unchanged skill(s)...`,
+        `Auto-resolving ${Object.keys(autoStrategy).length} skill(s)...`,
       );
 
       lastSkillResolutionStrategy = autoStrategy;
@@ -1197,9 +1213,22 @@ export const uploadFlow = async (args: {
       }
     }
 
-    if (unresolvedSubagentConflicts.length === 0) {
+    // Apply --resolve strategy to remaining unresolved subagent conflicts
+    let stillUnresolvedSubagents = unresolvedSubagentConflicts;
+    if (resolve != null && unresolvedSubagentConflicts.length > 0) {
+      for (const conflict of unresolvedSubagentConflicts) {
+        if (conflict.availableActions.includes(resolve)) {
+          autoResolved[conflict.subagentId] = { action: resolve };
+        }
+      }
+      stillUnresolvedSubagents = unresolvedSubagentConflicts.filter(
+        (c) => autoResolved[c.subagentId] == null,
+      );
+    }
+
+    if (stillUnresolvedSubagents.length === 0) {
       uploadSpinner.message(
-        `Auto-resolving ${Object.keys(autoResolved).length} unchanged subagent(s)...`,
+        `Auto-resolving ${Object.keys(autoResolved).length} subagent(s)...`,
       );
       result = await callbacks.onUpload({
         resolutionStrategy: lastSkillResolutionStrategy,
