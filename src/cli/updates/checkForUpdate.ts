@@ -103,17 +103,16 @@ export const checkForUpdateAndPrompt = async (args: {
     const update = await getAvailableUpdate({ currentVersion });
     if (update == null) return;
 
-    const installSource = await detectInstallSource();
-    const updateCommand = getUpdateCommand({ installSource });
-
     const choice = await showUpdatePrompt({
       currentVersion,
       latestVersion: update.latestVersion,
       isInteractive,
-      updateCommand,
     });
 
     if (choice === "update") {
+      const installSource = await detectInstallSource();
+      const updateCommand = getUpdateCommand({ installSource });
+
       if (updateCommand == null) {
         log.warn("Could not detect package manager. Please update manually:");
         note("npm install -g nori-skillsets@latest", "Update Manually");
@@ -136,7 +135,8 @@ export const checkForUpdateAndPrompt = async (args: {
       await dismissVersion({ version: update.latestVersion });
     }
   } catch (err) {
-    // Silent failure - never disrupt CLI operation
-    log.error(`Update check failed (non-fatal): ${err}`);
+    if (isInteractive) {
+      log.error(`Update check failed (non-fatal): ${err}`);
+    }
   }
 };
