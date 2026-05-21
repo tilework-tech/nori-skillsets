@@ -172,8 +172,38 @@ describe("ConfigManager", () => {
         username: "test@example.com",
         password: null,
         refreshToken: "test-refresh-token",
+        idToken: null,
+        idTokenExpiresAt: null,
         apiToken: null,
         organizationUrl: "https://test.nori.ai",
+      });
+    });
+
+    it("should extract auth from nested format with short-lived idToken", () => {
+      const configPath = path.join(tempDir, ".nori-config.json");
+      const expiresAt = Date.now() + 60_000;
+      fs.writeFileSync(
+        configPath,
+        JSON.stringify({
+          auth: {
+            username: "sprite-service:acme",
+            idToken: "short-lived-id-token",
+            idTokenExpiresAt: expiresAt,
+            organizationUrl: "https://acme.noriskillsets.dev",
+          },
+        }),
+      );
+
+      process.chdir(tempDir);
+
+      expect(ConfigManager.loadConfig()).toEqual({
+        username: "sprite-service:acme",
+        password: null,
+        refreshToken: null,
+        idToken: "short-lived-id-token",
+        idTokenExpiresAt: expiresAt,
+        apiToken: null,
+        organizationUrl: "https://acme.noriskillsets.dev",
       });
     });
 
@@ -200,6 +230,8 @@ describe("ConfigManager", () => {
         username: "test@example.com",
         password: "test-password",
         refreshToken: null,
+        idToken: null,
+        idTokenExpiresAt: null,
         apiToken: null,
         organizationUrl: "https://test.nori.ai",
       });
@@ -222,6 +254,25 @@ describe("ConfigManager", () => {
       process.chdir(tempDir);
 
       // Execute & Verify
+      expect(ConfigManager.isConfigured()).toBe(true);
+    });
+
+    it("should return true for nested auth format with unexpired idToken", () => {
+      const configPath = path.join(tempDir, ".nori-config.json");
+      fs.writeFileSync(
+        configPath,
+        JSON.stringify({
+          auth: {
+            username: "sprite-service:acme",
+            idToken: "short-lived-id-token",
+            idTokenExpiresAt: Date.now() + 60_000,
+            organizationUrl: "https://acme.noriskillsets.dev",
+          },
+        }),
+      );
+
+      process.chdir(tempDir);
+
       expect(ConfigManager.isConfigured()).toBe(true);
     });
 
@@ -430,6 +481,59 @@ describe("AuthManager.getAuthToken with apiToken", () => {
     process.chdir(tempDir);
 
     await expect(AuthManager.getAuthToken()).rejects.toThrow(/not configured/i);
+  });
+
+  it("should return an unexpired config idToken without exchanging a refresh token", async () => {
+    const configPath = path.join(tempDir, ".nori-config.json");
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify({
+        auth: {
+          username: "sprite-service:acme",
+          organizationUrl: "https://acme.noriskillsets.dev",
+          idToken: "short-lived-id-token",
+          idTokenExpiresAt: Date.now() + 60_000,
+        },
+      }),
+    );
+    process.chdir(tempDir);
+
+    const token = await AuthManager.getAuthToken();
+
+    expect(token).toBe("short-lived-id-token");
+    const { exchangeRefreshToken } = await import("@/api/refreshToken.js");
+    expect(exchangeRefreshToken).not.toHaveBeenCalled();
+  });
+
+  it("should fall through to refresh token auth when config idToken is expired", async () => {
+    const configPath = path.join(tempDir, ".nori-config.json");
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify({
+        auth: {
+          username: "sprite-service:acme",
+          organizationUrl: "https://acme.noriskillsets.dev",
+          idToken: "expired-id-token",
+          idTokenExpiresAt: Date.now() - 1,
+          refreshToken: "legacy-refresh-token",
+        },
+      }),
+    );
+    process.chdir(tempDir);
+
+    const { exchangeRefreshToken } = await import("@/api/refreshToken.js");
+    vi.mocked(exchangeRefreshToken).mockResolvedValue({
+      idToken: "fresh-id-token",
+      refreshToken: "new-refresh-token",
+      expiresIn: 3600,
+    });
+
+    const token = await AuthManager.getAuthToken();
+
+    expect(token).toBe("fresh-id-token");
+    expect(exchangeRefreshToken).toHaveBeenCalledWith({
+      refreshToken: "legacy-refresh-token",
+    });
   });
 });
 
