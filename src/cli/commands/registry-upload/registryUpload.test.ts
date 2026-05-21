@@ -1095,6 +1095,230 @@ describe("registry-upload", () => {
       });
     });
 
+    describe("--resolve flag", () => {
+      it("should auto-resolve modified conflicts with resolve=updateVersion", async () => {
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
+        await fs.writeFile(
+          path.join(skillsetDir, "AGENTS.md"),
+          "# My Profile\n",
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+
+        const collisionError = {
+          message: "Skill conflicts detected",
+          conflicts: [
+            {
+              skillId: "nori-slack",
+              exists: true,
+              canPublish: true,
+              latestVersion: "1.0.0",
+              owner: "test@example.com",
+              availableActions: ["updateVersion", "namespace", "cancel"],
+              contentUnchanged: false,
+            },
+          ],
+        };
+
+        vi.mocked(registrarApi.uploadSkillset)
+          .mockRejectedValueOnce(collisionError)
+          .mockResolvedValueOnce({
+            name: "my-profile",
+            version: "1.0.0",
+            tarballSha: "abc123",
+            createdAt: new Date().toISOString(),
+          });
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+          nonInteractive: true,
+          resolve: "updateVersion",
+        });
+
+        expect(result.success).toBe(true);
+        expect(registrarApi.uploadSkillset).toHaveBeenCalledTimes(2);
+        expect(registrarApi.uploadSkillset).toHaveBeenLastCalledWith(
+          expect.objectContaining({
+            resolutionStrategy: {
+              "nori-slack": { action: "updateVersion" },
+            },
+          }),
+        );
+      });
+
+      it("should fail for conflicts that don't support the chosen resolve strategy", async () => {
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
+        await fs.writeFile(
+          path.join(skillsetDir, "AGENTS.md"),
+          "# My Profile\n",
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+
+        const collisionError = {
+          message: "Skill conflicts detected",
+          conflicts: [
+            {
+              skillId: "writing-plans",
+              exists: true,
+              canPublish: false,
+              latestVersion: "1.0.0",
+              owner: "someone@example.com",
+              availableActions: ["namespace", "cancel"],
+              contentUnchanged: false,
+            },
+          ],
+        };
+
+        vi.mocked(registrarApi.uploadSkillset).mockRejectedValue(
+          collisionError,
+        );
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+          nonInteractive: true,
+          resolve: "updateVersion",
+        });
+
+        expect(result.success).toBe(false);
+      });
+
+      it("should reject invalid resolve strategy value", async () => {
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
+        await fs.writeFile(
+          path.join(skillsetDir, "AGENTS.md"),
+          "# My Profile\n",
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+          nonInteractive: true,
+          resolve: "invalidStrategy",
+        });
+
+        expect(result.success).toBe(false);
+        expect(result.message).toContain("Invalid --resolve");
+      });
+
+      it("should apply resolve strategy alongside auto-resolved unchanged conflicts", async () => {
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
+        await fs.writeFile(
+          path.join(skillsetDir, "AGENTS.md"),
+          "# My Profile\n",
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+
+        const collisionError = {
+          message: "Skill conflicts detected",
+          conflicts: [
+            {
+              skillId: "unchanged-skill",
+              exists: true,
+              canPublish: false,
+              latestVersion: "1.0.0",
+              owner: "someone@example.com",
+              availableActions: ["link", "cancel"],
+              contentUnchanged: true,
+            },
+            {
+              skillId: "modified-skill",
+              exists: true,
+              canPublish: true,
+              latestVersion: "1.0.0",
+              owner: "test@example.com",
+              availableActions: ["updateVersion", "namespace", "cancel"],
+              contentUnchanged: false,
+            },
+          ],
+        };
+
+        vi.mocked(registrarApi.uploadSkillset)
+          .mockRejectedValueOnce(collisionError)
+          .mockResolvedValueOnce({
+            name: "my-profile",
+            version: "1.0.0",
+            tarballSha: "abc123",
+            createdAt: new Date().toISOString(),
+          });
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+          nonInteractive: true,
+          resolve: "updateVersion",
+        });
+
+        expect(result.success).toBe(true);
+        expect(registrarApi.uploadSkillset).toHaveBeenLastCalledWith(
+          expect.objectContaining({
+            resolutionStrategy: {
+              "unchanged-skill": { action: "link" },
+              "modified-skill": { action: "updateVersion" },
+            },
+          }),
+        );
+      });
+    });
+
     describe("profile existence check", () => {
       it("should fail when profile does not exist", async () => {
         vi.mocked(loadConfig).mockResolvedValue({

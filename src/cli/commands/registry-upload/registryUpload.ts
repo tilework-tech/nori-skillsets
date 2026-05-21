@@ -13,6 +13,7 @@ import * as tar from "tar";
 import { readApiTokenEnv } from "@/api/base.js";
 import {
   registrarApi,
+  type SkillResolutionAction,
   type SkillResolutionStrategy,
   type SubagentResolutionStrategy,
   type UploadSkillsetResponse,
@@ -1003,6 +1004,7 @@ const syncLocalStateAfterUpload = async (args: {
  * @param args.silent - Suppress output
  * @param args.dryRun - Show what would happen without uploading
  * @param args.description - Description for the skillset version
+ * @param args.resolve - Resolution strategy to apply to unresolved skill conflicts in non-interactive mode
  *
  * @returns Upload result
  */
@@ -1016,6 +1018,7 @@ export const registryUploadMain = async (args: {
   silent?: boolean | null;
   dryRun?: boolean | null;
   description?: string | null;
+  resolve?: string | null;
 }): Promise<CommandStatus> => {
   const {
     profileSpec,
@@ -1025,6 +1028,7 @@ export const registryUploadMain = async (args: {
     silent,
     dryRun,
     description,
+    resolve,
   } = args;
 
   // Parse skillset spec using shared utility
@@ -1043,6 +1047,27 @@ export const registryUploadMain = async (args: {
   const { orgId, packageName, version } = parsed;
   const profileDisplayName =
     orgId === "public" ? packageName : `${orgId}/${packageName}`;
+
+  const VALID_RESOLVE_ACTIONS: ReadonlyArray<string> = [
+    "updateVersion",
+    "link",
+    "namespace",
+    "cancel",
+  ];
+
+  if (resolve != null && !VALID_RESOLVE_ACTIONS.includes(resolve)) {
+    log.error(
+      `Invalid --resolve value: "${resolve}".\nValid options: ${VALID_RESOLVE_ACTIONS.join(", ")}`,
+    );
+    return {
+      success: false,
+      cancelled: false,
+      message: `Invalid --resolve value: "${resolve}"`,
+    };
+  }
+
+  const resolveAction =
+    resolve != null ? (resolve as SkillResolutionAction) : null;
 
   // Load config for auth and install dir resolution
   const config = await loadConfig();
@@ -1522,6 +1547,7 @@ export const registryUploadMain = async (args: {
     skillsetName: packageName,
     registryUrl: targetRegistryUrl,
     nonInteractive: nonInteractive ?? false,
+    resolve: resolveAction,
     inlineCandidates:
       inlineCandidates.length > 0 ? inlineCandidates : undefined,
     inlineSubagentCandidates:
@@ -1632,6 +1658,10 @@ export const registerRegistryUploadCommand = (args: {
     )
     .option("--dry-run", "Show what would be uploaded without uploading")
     .option("--description <text>", "Description for this version")
+    .option(
+      "--resolve <strategy>",
+      "Auto-resolve skill conflicts in non-interactive mode (updateVersion, link, namespace, cancel)",
+    )
     .action(
       async (
         profileSpec: string,
@@ -1640,6 +1670,7 @@ export const registerRegistryUploadCommand = (args: {
           listVersions?: boolean;
           dryRun?: boolean;
           description?: string;
+          resolve?: string;
         },
       ) => {
         const globalOpts = program.opts();
@@ -1654,6 +1685,7 @@ export const registerRegistryUploadCommand = (args: {
           silent: globalOpts.silent || null,
           dryRun: options.dryRun || null,
           description: options.description || null,
+          resolve: options.resolve || null,
         });
 
         if (!result.success) {
