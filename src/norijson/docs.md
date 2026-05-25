@@ -34,7 +34,7 @@ CLI Commands (fork, new, register, switch, list, external, skill-download)
 | Function | Purpose |
 |----------|---------|
 | `readSkillsetMetadata` | Reads and parses `nori.json` from a skillset directory |
-| `writeSkillsetMetadata` | Writes `NoriJson` to `nori.json` in a skillset directory |
+| `writeSkillsetMetadata` | Normalizes and writes `NoriJson` to `nori.json` in a skillset directory |
 | `addSkillToNoriJson` | Adds/updates a skill dependency in `nori.json`, creating the file if missing |
 | `addSubagentToNoriJson` | Adds/updates a subagent dependency in `nori.json`, creating the file if missing (mirrors `addSkillToNoriJson`) |
 | `ensureNoriJson` | Backwards-compat shim: creates `nori.json` for legacy skillset dirs that have a config file or both `skills/` and `subagents/` subdirectories but no manifest |
@@ -51,6 +51,7 @@ CLI Commands (fork, new, register, switch, list, external, skill-download)
 
 ### Things to Know
 
+- **System invariant**: `writeSkillsetMetadata` calls `normalizeMetadataForWrite` before serialization, which sorts list fields alphabetically (`skills` by name, `subagents` by name, `slashcommands` by command, `keywords` alphabetically, and `dependencies` object keys alphabetically). The `scripts` array is intentionally NOT sorted since script execution order may be meaningful. This is the single normalization point for all nori.json output — any future sortable fields should be added here.
 - The `type` field distinguishes between full skillsets, standalone skills/subagents, and skills/subagents that were inlined from a skillset upload. `"inlined-skill"` and `"inlined-subagent"` types are set during the upload flow when the user chooses to keep a skill or subagent bundled in the skillset tarball rather than extracting it as an independent package. The `"subagent"` and `"inlined-subagent"` types mirror the skill types, giving subagents the same lifecycle as skills for upload, versioning, and registry distribution.
 - `NoriJsonDependencies.subagents` maps subagent names to version ranges, mirroring the `skills` dependency map.
 - `ensureNoriJson` uses a `looksLikeSkillset` heuristic: it checks for the presence of a known config file name (defaults to `["AGENTS.md", "CLAUDE.md"]`) or both `skills/` and `subagents/` subdirectories. This allows it to auto-generate manifests for user-created skillsets that predate the `nori.json` convention.
