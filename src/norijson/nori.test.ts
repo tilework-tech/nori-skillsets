@@ -82,6 +82,159 @@ describe("writeSkillsetMetadata", () => {
     const result = await readSkillsetMetadata({ skillsetDir });
     expect(result.type).toBe("skillset");
   });
+
+  it("should sort skills array alphabetically by name", async () => {
+    const metadata = {
+      name: "test-profile",
+      version: "1.0.0",
+      skills: [
+        { id: "z-skill", name: "Zebra Skill", description: "Last" },
+        { id: "a-skill", name: "Alpha Skill", description: "First" },
+        { id: "m-skill", name: "Middle Skill", description: "Middle" },
+      ],
+    };
+
+    await writeSkillsetMetadata({ skillsetDir, metadata });
+
+    const result = await readSkillsetMetadata({ skillsetDir });
+    expect(result.skills!.map((s) => s.name)).toEqual([
+      "Alpha Skill",
+      "Middle Skill",
+      "Zebra Skill",
+    ]);
+  });
+
+  it("should sort subagents array alphabetically by name", async () => {
+    const metadata = {
+      name: "test-profile",
+      version: "1.0.0",
+      subagents: [
+        { id: "z-agent", name: "Zeta Agent", description: "Last" },
+        { id: "a-agent", name: "Alpha Agent", description: "First" },
+      ],
+    };
+
+    await writeSkillsetMetadata({ skillsetDir, metadata });
+
+    const result = await readSkillsetMetadata({ skillsetDir });
+    expect(result.subagents!.map((s) => s.name)).toEqual([
+      "Alpha Agent",
+      "Zeta Agent",
+    ]);
+  });
+
+  it("should sort slashcommands array alphabetically by command", async () => {
+    const metadata = {
+      name: "test-profile",
+      version: "1.0.0",
+      slashcommands: [
+        { command: "review", description: "Review code" },
+        { command: "debug", description: "Debug code" },
+        { command: "lint", description: "Lint code" },
+      ],
+    };
+
+    await writeSkillsetMetadata({ skillsetDir, metadata });
+
+    const result = await readSkillsetMetadata({ skillsetDir });
+    expect(result.slashcommands!.map((s) => s.command)).toEqual([
+      "debug",
+      "lint",
+      "review",
+    ]);
+  });
+
+  it("should sort keywords array alphabetically", async () => {
+    const metadata = {
+      name: "test-profile",
+      version: "1.0.0",
+      keywords: ["testing", "automation", "debugging"],
+    };
+
+    await writeSkillsetMetadata({ skillsetDir, metadata });
+
+    const result = await readSkillsetMetadata({ skillsetDir });
+    expect(result.keywords).toEqual(["automation", "debugging", "testing"]);
+  });
+
+  it("should sort dependency object keys alphabetically", async () => {
+    const metadata = {
+      name: "test-profile",
+      version: "1.0.0",
+      dependencies: {
+        skills: {
+          "z-skill": "^1.0.0",
+          "a-skill": "*",
+          "m-skill": "^2.0.0",
+        },
+        subagents: {
+          "z-agent": "*",
+          "a-agent": "^1.0.0",
+        },
+      },
+    };
+
+    await writeSkillsetMetadata({ skillsetDir, metadata });
+
+    const result = await readSkillsetMetadata({ skillsetDir });
+    expect(Object.keys(result.dependencies!.skills!)).toEqual([
+      "a-skill",
+      "m-skill",
+      "z-skill",
+    ]);
+    expect(Object.keys(result.dependencies!.subagents!)).toEqual([
+      "a-agent",
+      "z-agent",
+    ]);
+  });
+
+  it("should NOT sort scripts array (order may be meaningful)", async () => {
+    const metadata = {
+      name: "test-profile",
+      version: "1.0.0",
+      scripts: ["setup.sh", "build.sh", "cleanup.sh"],
+    };
+
+    await writeSkillsetMetadata({ skillsetDir, metadata });
+
+    const result = await readSkillsetMetadata({ skillsetDir });
+    expect(result.scripts).toEqual(["setup.sh", "build.sh", "cleanup.sh"]);
+  });
+
+  it("should handle null and empty arrays without error", async () => {
+    const metadata = {
+      name: "test-profile",
+      version: "1.0.0",
+      skills: null,
+      subagents: [],
+      keywords: null,
+      dependencies: null,
+    };
+
+    await writeSkillsetMetadata({ skillsetDir, metadata });
+
+    const result = await readSkillsetMetadata({ skillsetDir });
+    expect(result.skills).toBeNull();
+    expect(result.subagents).toEqual([]);
+    expect(result.keywords).toBeNull();
+    expect(result.dependencies).toBeNull();
+  });
+
+  it("should not mutate the original metadata object", async () => {
+    const metadata = {
+      name: "test-profile",
+      version: "1.0.0",
+      skills: [
+        { id: "z-skill", name: "Zebra", description: "Z" },
+        { id: "a-skill", name: "Alpha", description: "A" },
+      ],
+    };
+
+    const originalOrder = metadata.skills.map((s) => s.name);
+    await writeSkillsetMetadata({ skillsetDir, metadata });
+
+    expect(metadata.skills.map((s) => s.name)).toEqual(originalOrder);
+  });
 });
 
 describe("addSkillToNoriJson", () => {
