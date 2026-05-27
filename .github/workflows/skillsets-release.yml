@@ -58,7 +58,7 @@ jobs:
   # ============================================================================
   validate:
     name: Validate Release
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.validate.outputs.version }}
       tag_name: ${{ steps.validate.outputs.tag_name }}
@@ -163,7 +163,7 @@ jobs:
   build:
     name: Build and Test
     needs: validate
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -213,7 +213,7 @@ jobs:
     needs: [validate, build]
     # Only run when publish_next=true and dry_run=false (not for tag pushes)
     if: ${{ !failure() && !cancelled() && needs.validate.outputs.publish_next == 'true' && (github.event_name != 'workflow_dispatch' || inputs.dry_run == false) }}
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
@@ -250,7 +250,7 @@ jobs:
     # Publish for tag pushes OR when publish_next=true with dry_run=false
     # Note: create-next-tag runs in parallel for publish_next flows
     if: ${{ !failure() && !cancelled() && (needs.validate.outputs.is_tag_push == 'true' || (needs.validate.outputs.publish_next == 'true' && (github.event_name != 'workflow_dispatch' || inputs.dry_run == false))) }}
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     environment: npm-publish
     permissions:
       contents: read
@@ -334,7 +334,7 @@ jobs:
     name: Create GitHub Release
     needs: [validate, publish-npm, create-next-tag]
     if: ${{ !failure() && !cancelled() && needs.validate.outputs.is_tag_push == 'true' }}
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
@@ -408,7 +408,7 @@ jobs:
     name: Dry Run Summary
     needs: [validate, build]
     if: ${{ !failure() && !cancelled() && github.event_name == 'workflow_dispatch' && inputs.dry_run == true }}
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     steps:
       - name: Download package artifact
         uses: actions/download-artifact@v4
