@@ -115,7 +115,60 @@ export const writeSkillsetMetadata = async (args: {
 }): Promise<void> => {
   const { skillsetDir, metadata } = args;
   const noriJsonPath = path.join(skillsetDir, "nori.json");
-  await fs.writeFile(noriJsonPath, JSON.stringify(metadata, null, 2));
+  const normalized = normalizeMetadataForWrite({ metadata });
+  await fs.writeFile(noriJsonPath, JSON.stringify(normalized, null, 2));
+};
+
+const sortRecord = (args: {
+  record: Record<string, string>;
+}): Record<string, string> => {
+  const { record } = args;
+  return Object.fromEntries(
+    Object.entries(record).sort(([a], [b]) => a.localeCompare(b)),
+  );
+};
+
+const normalizeMetadataForWrite = (args: { metadata: NoriJson }): NoriJson => {
+  const { metadata } = args;
+  const result = { ...metadata };
+
+  if (result.skills != null && result.skills.length > 0) {
+    result.skills = [...result.skills].sort((a, b) =>
+      a.name.localeCompare(b.name),
+    );
+  }
+
+  if (result.subagents != null && result.subagents.length > 0) {
+    result.subagents = [...result.subagents].sort((a, b) =>
+      a.name.localeCompare(b.name),
+    );
+  }
+
+  if (result.slashcommands != null && result.slashcommands.length > 0) {
+    result.slashcommands = [...result.slashcommands].sort((a, b) =>
+      a.command.localeCompare(b.command),
+    );
+  }
+
+  if (result.keywords != null && result.keywords.length > 0) {
+    result.keywords = [...result.keywords].sort((a, b) => a.localeCompare(b));
+  }
+
+  if (result.dependencies != null) {
+    const deps = { ...result.dependencies };
+    if (deps.skills != null) {
+      deps.skills = sortRecord({ record: deps.skills });
+    }
+    if (deps.subagents != null) {
+      deps.subagents = sortRecord({ record: deps.subagents });
+    }
+    if (deps.slashCommands != null) {
+      deps.slashCommands = sortRecord({ record: deps.slashCommands });
+    }
+    result.dependencies = deps;
+  }
+
+  return result;
 };
 
 /**

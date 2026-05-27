@@ -196,7 +196,7 @@ describe("newSkillsetMain", () => {
       type: "skillset",
       description: "A skillset with full metadata",
       license: "Apache-2.0",
-      keywords: ["testing", "automation"],
+      keywords: ["automation", "testing"],
       repository: "https://github.com/user/repo",
     });
   });
