@@ -1086,6 +1086,7 @@ describe("registry-upload", () => {
         });
 
         expect(result.success).toBe(false);
+        expect(result.cancelled).toBe(false);
 
         // Verify error message shows conflict details (now via clack note)
         const clackOutput = getClackOutput();
@@ -1096,7 +1097,7 @@ describe("registry-upload", () => {
     });
 
     describe("--resolve flag", () => {
-      it("should auto-resolve modified conflicts with resolve=updateVersion", async () => {
+      it("should auto-resolve modified conflicts with incremented versions for resolve=updateVersion", async () => {
         const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
         await fs.mkdir(skillsetDir, { recursive: true });
         await fs.writeFile(
@@ -1155,7 +1156,7 @@ describe("registry-upload", () => {
         expect(registrarApi.uploadSkillset).toHaveBeenLastCalledWith(
           expect.objectContaining({
             resolutionStrategy: {
-              "nori-slack": { action: "updateVersion" },
+              "nori-slack": { action: "updateVersion", version: "1.0.1" },
             },
           }),
         );
@@ -1312,7 +1313,10 @@ describe("registry-upload", () => {
           expect.objectContaining({
             resolutionStrategy: {
               "unchanged-skill": { action: "link" },
-              "modified-skill": { action: "updateVersion" },
+              "modified-skill": {
+                action: "updateVersion",
+                version: "1.0.1",
+              },
             },
           }),
         );
