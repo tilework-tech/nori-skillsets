@@ -156,5 +156,44 @@ EOF
       expect(result).toContain("Add new feature");
       expect(result).toContain("Co-Authored-By: Nori <contact@tilework.tech>");
     });
+
+    it("should use real newlines (not literal \\n) between message and attribution in -m form", () => {
+      const result = replaceAttribution({
+        command: 'git commit -m "fix: bug"',
+      });
+
+      // Bash sees the command as-is; for newlines to land in the commit message,
+      // the appended attribution must use real \n characters, not the two-char
+      // sequence backslash-n.
+      expect(result).toContain("fix: bug\n\n🤖 Generated with [Nori]");
+      expect(result).toContain(
+        "\n\nCo-Authored-By: Nori <contact@tilework.tech>",
+      );
+    });
+
+    it("should not double-append attribution in EOF heredoc when Nori attribution already present", () => {
+      const command = `git commit -m "$(cat <<'EOF'
+feat: Add new feature
+
+🤖 Generated with [Nori](https://noriagentic.com)
+
+Co-Authored-By: Nori <contact@tilework.tech>
+EOF
+)"`;
+
+      const result = replaceAttribution({ command });
+
+      const noriCoAuthorCount = (
+        result.match(/Co-Authored-By: Nori <contact@tilework\.tech>/g) ?? []
+      ).length;
+      const noriUrlCount = (
+        result.match(
+          /🤖 Generated with \[Nori\]\(https:\/\/noriagentic\.com\)/g,
+        ) ?? []
+      ).length;
+
+      expect(noriCoAuthorCount).toBe(1);
+      expect(noriUrlCount).toBe(1);
+    });
   });
 });
