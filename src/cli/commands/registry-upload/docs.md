@@ -12,7 +12,7 @@ Path: @/src/cli/commands/registry-upload
 
 - Exposed as `sks upload` / `nori-skillsets upload` via `@/src/cli/commands/noriSkillsetsCommands.ts`, which owns Commander registration and wraps this module's `registryUploadMain` with `wrapWithFraming`
 - Uses `@/api/registrar.js` (`registrarApi.uploadSkillset`, `registrarApi.getPackument`) for registry communication
-- Auth tokens are obtained via `@/api/registryAuth.js` (`getRegistryAuthToken`) using refresh tokens, saved API tokens, or a matching `NORI_API_TOKEN`
+- Auth tokens are obtained via `@/api/registryAuth.js` (`getRegistryAuthToken`) using refresh tokens, broker-managed direct ID tokens, saved API tokens, or a matching `NORI_API_TOKEN`
 - Skillset metadata is read/written through `@/norijson/nori.js` (`readSkillsetMetadata`, `writeSkillsetMetadata`)
 - Skillset directory paths are resolved via `@/norijson/skillset.js` (`getNoriSkillsetsDir`)
 - The interactive upload flow is driven by `uploadFlow` and `listVersionsFlow` from `@/cli/prompts/flows/`
@@ -67,7 +67,7 @@ In non-interactive mode, flat subagent candidates are auto-inlined silently. Pre
 
 ### Things to Know
 
-- The `hasUnifiedAuthWithOrgs` check requires `config.auth`, `config.auth.organizations`, and either `config.auth.refreshToken` (Firebase session) or `config.auth.apiToken` (non-interactive API-token login). If organizations is null (e.g., legacy auth), the unified auth branches are skipped entirely. A matching `NORI_API_TOKEN` can still authorize upload with no saved config; the command builds a registry auth request for the target URL and lets `getRegistryAuthToken` enforce token-to-registry scoping.
+- The `hasUnifiedAuthWithOrgs` check requires `config.auth`, `config.auth.organizations`, and one usable token source: `config.auth.refreshToken` (Firebase session), an unexpired `config.auth.idToken` (broker-managed session machine), or `config.auth.apiToken` (non-interactive API-token login). If organizations is null (e.g., legacy auth), the unified auth branches are skipped entirely. A matching `NORI_API_TOKEN` can still authorize upload with no saved config; the command builds a registry auth request for the target URL and lets `getRegistryAuthToken` enforce token-to-registry scoping.
 - `migrateConfigToAgentsMd` renames `CLAUDE.md` to `AGENTS.md` in the local skillset directory before tarball creation, ensuring uploaded packages always use the current config filename. The migration is a no-op if `AGENTS.md` already exists or if neither file is present.
 - `createProfileTarball` filters tarball entries through the shared `shouldExcludeFromUpload` predicate from `@/src/utils/uploadFileFilter.ts`, which skips local download metadata (`.nori-version`), editor swap/backup files, and OS junk so they cannot pollute the registry's content hash. The same helper is reused by `@/src/cli/commands/skill-upload/skillUpload.ts` so both upload paths share one exclusion list. The `tar.create()` call uses `follow: true` so symlinked files inside the skillset directory are packed as real file content rather than as symlinks.
 - `createProfileTarball` writes a temp `.tgz` to the parent directory (not inside the skillset dir) and cleans it up in a `finally` block.

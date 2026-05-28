@@ -1097,10 +1097,17 @@ export const registryUploadMain = async (args: {
     };
   };
 
+  const hasUnexpiredIdToken =
+    config?.auth?.idToken != null &&
+    config.auth.idTokenExpiresAt != null &&
+    config.auth.idTokenExpiresAt > Date.now();
+
   // Check for unified auth with organizations (new flow)
   const hasUnifiedAuthWithOrgs =
     config?.auth != null &&
-    (config.auth.refreshToken != null || config.auth.apiToken != null) &&
+    (config.auth.refreshToken != null ||
+      config.auth.apiToken != null ||
+      hasUnexpiredIdToken) &&
     config.auth.organizations != null;
 
   // Determine target registry and auth
@@ -1124,6 +1131,12 @@ export const registryUploadMain = async (args: {
             registryUrl,
             username: config!.auth!.username ?? null,
             refreshToken: config!.auth!.refreshToken ?? null,
+            ...(config!.auth!.idToken != null
+              ? { idToken: config!.auth!.idToken }
+              : {}),
+            ...(config!.auth!.idTokenExpiresAt != null
+              ? { idTokenExpiresAt: config!.auth!.idTokenExpiresAt }
+              : {}),
             apiToken: config!.auth!.apiToken ?? null,
           };
           break;
@@ -1172,6 +1185,12 @@ export const registryUploadMain = async (args: {
       registryUrl: targetRegistryUrl,
       username: config?.auth?.username ?? null,
       refreshToken: config?.auth?.refreshToken ?? null,
+      ...(config?.auth?.idToken != null
+        ? { idToken: config.auth.idToken }
+        : {}),
+      ...(config?.auth?.idTokenExpiresAt != null
+        ? { idTokenExpiresAt: config.auth.idTokenExpiresAt }
+        : {}),
       apiToken: config?.auth?.apiToken ?? null,
     };
 
@@ -1220,6 +1239,12 @@ export const registryUploadMain = async (args: {
       registryUrl: targetRegistryUrl,
       username: config?.auth?.username ?? null,
       refreshToken: config?.auth?.refreshToken ?? null,
+      ...(config?.auth?.idToken != null
+        ? { idToken: config.auth.idToken }
+        : {}),
+      ...(config?.auth?.idTokenExpiresAt != null
+        ? { idTokenExpiresAt: config.auth.idTokenExpiresAt }
+        : {}),
       apiToken: config?.auth?.apiToken ?? null,
     };
 

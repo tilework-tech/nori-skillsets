@@ -88,6 +88,8 @@ type RawDiskConfig = {
     username?: string | null;
     password?: string | null;
     refreshToken?: string | null;
+    idToken?: string | null;
+    idTokenExpiresAt?: number | null;
     organizationUrl?: string | null;
     organizations?: Array<string> | null;
     isAdmin?: boolean | null;
@@ -174,6 +176,8 @@ export const getRegistryAuth = (args: {
           registryUrl: derivedRegistryUrl,
           username: config.auth.username ?? null,
           refreshToken: config.auth.refreshToken ?? null,
+          idToken: config.auth.idToken ?? null,
+          idTokenExpiresAt: config.auth.idTokenExpiresAt ?? null,
           apiToken: apiTokenMatch ? (config.auth.apiToken ?? null) : null,
         };
       }
@@ -185,6 +189,8 @@ export const getRegistryAuth = (args: {
           registryUrl: orgRegistrarUrl,
           username: config.auth.username ?? null,
           refreshToken: config.auth.refreshToken ?? null,
+          idToken: config.auth.idToken ?? null,
+          idTokenExpiresAt: config.auth.idTokenExpiresAt ?? null,
           apiToken: apiTokenMatch ? (config.auth.apiToken ?? null) : null,
         };
       }
@@ -199,6 +205,8 @@ export const getRegistryAuth = (args: {
         registryUrl: normalizedSearchUrl,
         username: config.auth.username ?? null,
         refreshToken: config.auth.refreshToken ?? null,
+        idToken: config.auth.idToken ?? null,
+        idTokenExpiresAt: config.auth.idTokenExpiresAt ?? null,
       };
     }
   }
@@ -318,13 +326,21 @@ export const loadConfig = async (): Promise<Config | null> => {
     if (
       validated.auth != null &&
       validated.auth.organizationUrl != null &&
-      (validated.auth.username != null || validated.auth.apiToken != null)
+      (validated.auth.username != null ||
+        validated.auth.idToken != null ||
+        validated.auth.apiToken != null)
     ) {
-      // New nested format: auth: { username, organizationUrl, refreshToken, password, organizations, isAdmin, apiToken }
+      // New nested format: auth: { username, organizationUrl, refreshToken, idToken, password, organizations, isAdmin, apiToken }
       result.auth = {
         username: validated.auth.username ?? null,
         organizationUrl: validated.auth.organizationUrl,
         refreshToken: validated.auth.refreshToken ?? null,
+        ...(validated.auth.idToken != null
+          ? { idToken: validated.auth.idToken }
+          : {}),
+        ...(validated.auth.idTokenExpiresAt != null
+          ? { idTokenExpiresAt: validated.auth.idTokenExpiresAt }
+          : {}),
         password: validated.auth.password ?? null,
         organizations: validated.auth.organizations ?? null,
         isAdmin: validated.auth.isAdmin ?? null,
@@ -369,6 +385,8 @@ export const loadConfig = async (): Promise<Config | null> => {
  * @param args.username - User's username (null to skip auth)
  * @param args.password - User's password (deprecated, use refreshToken instead)
  * @param args.refreshToken - Firebase refresh token (preferred over password)
+ * @param args.idToken - Short-lived Firebase ID token for broker-managed sessions
+ * @param args.idTokenExpiresAt - Expiration timestamp for idToken in milliseconds
  * @param args.organizationUrl - Organization URL (null to skip auth)
  * @param args.sendSessionTranscript - Session transcript setting (null to skip)
  * @param args.autoupdate - Autoupdate setting (null to skip)
@@ -386,6 +404,8 @@ export const saveConfig = async (args: {
   username: string | null;
   password?: string | null;
   refreshToken?: string | null;
+  idToken?: string | null;
+  idTokenExpiresAt?: number | null;
   apiToken?: string | null;
   organizationUrl: string | null;
   organizations?: Array<string> | null;
@@ -403,6 +423,8 @@ export const saveConfig = async (args: {
     username,
     password,
     refreshToken,
+    idToken,
+    idTokenExpiresAt,
     apiToken,
     organizationUrl,
     organizations,
@@ -421,11 +443,12 @@ export const saveConfig = async (args: {
   const config: any = {};
 
   // Add auth credentials in nested format if provided.
-  // Supports three modes: username+refreshToken (preferred), username+password (legacy),
-  // and apiToken (non-interactive / CI access).
+  // Supports four modes: username+refreshToken (preferred), username+password (legacy),
+  // broker-managed idToken, and apiToken (non-interactive / CI access).
   const hasUsernameAuth = username != null && organizationUrl != null;
+  const hasIdTokenAuth = idToken != null && organizationUrl != null;
   const hasApiTokenAuth = apiToken != null && organizationUrl != null;
-  if (hasUsernameAuth || hasApiTokenAuth) {
+  if (hasUsernameAuth || hasIdTokenAuth || hasApiTokenAuth) {
     // Normalize organization URL to remove trailing slashes
     const normalizedUrl = normalizeUrl({ baseUrl: organizationUrl! });
 
@@ -434,6 +457,9 @@ export const saveConfig = async (args: {
       organizationUrl: normalizedUrl,
       // If refreshToken is provided, use it and don't store password
       refreshToken: refreshToken ?? null,
+      // Broker-managed sessions may receive a short-lived Firebase ID token.
+      idToken: idToken ?? null,
+      idTokenExpiresAt: idTokenExpiresAt ?? null,
       // Only save password if no refreshToken (legacy support)
       password: refreshToken != null ? null : (password ?? null),
       // API token for private-org programmatic access (orgId is embedded in the token itself)
@@ -505,6 +531,8 @@ export const updateConfig = async (updates: Partial<Config>): Promise<void> => {
     username: auth?.username ?? null,
     password: auth?.password ?? null,
     refreshToken: auth?.refreshToken ?? null,
+    idToken: auth?.idToken ?? null,
+    idTokenExpiresAt: auth?.idTokenExpiresAt ?? null,
     apiToken: auth?.apiToken ?? null,
     organizationUrl: auth?.organizationUrl ?? null,
     organizations: auth?.organizations ?? null,
@@ -564,6 +592,8 @@ const configSchema = {
         username: { type: ["string", "null"] },
         password: { type: ["string", "null"] },
         refreshToken: { type: ["string", "null"] },
+        idToken: { type: ["string", "null"] },
+        idTokenExpiresAt: { type: ["number", "null"] },
         organizationUrl: { type: "string", format: "uri" },
         organizations: {
           type: ["array", "null"],
@@ -669,16 +699,20 @@ export const validateConfig = async (): Promise<ConfigValidationResult> => {
     };
   }
 
-  // If config uses the new nested auth format with apiToken + organizationUrl,
-  // that's a valid API-token-only config — validate via schema only.
+  // If config uses a token-only nested auth format, validate via schema only.
   const nestedAuth = config.auth;
   const hasNestedApiToken =
     nestedAuth != null &&
     typeof nestedAuth === "object" &&
     nestedAuth.apiToken != null &&
     nestedAuth.organizationUrl != null;
+  const hasNestedIdToken =
+    nestedAuth != null &&
+    typeof nestedAuth === "object" &&
+    nestedAuth.idToken != null &&
+    nestedAuth.organizationUrl != null;
 
-  if (hasNestedApiToken) {
+  if (hasNestedApiToken || hasNestedIdToken) {
     const configClone = JSON.parse(JSON.stringify(config));
     const valid = validateConfigSchema(configClone);
     if (!valid && validateConfigSchema.errors) {
@@ -695,7 +729,9 @@ export const validateConfig = async (): Promise<ConfigValidationResult> => {
     }
     return {
       valid: true,
-      message: "Config is valid (API-token auth)",
+      message: hasNestedApiToken
+        ? "Config is valid (API-token auth)"
+        : "Config is valid (ID-token auth)",
       errors: null,
     };
   }
