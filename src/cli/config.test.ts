@@ -1221,6 +1221,80 @@ describe("API token auth", () => {
     });
   });
 
+  describe("loadConfig with idToken", () => {
+    it("should preserve broker-managed idToken credentials from disk", async () => {
+      const expiresAt = Date.now() + 60_000;
+
+      await fs.writeFile(
+        mockConfigPath,
+        JSON.stringify({
+          auth: {
+            username: "sprite-service:dev",
+            organizationUrl: "https://dev.noriskillsets.dev",
+            idToken: "session-id-token",
+            idTokenExpiresAt: expiresAt,
+            organizations: ["dev"],
+          },
+        }),
+      );
+
+      const loaded = await loadConfig();
+
+      expect(loaded).not.toBeNull();
+      expect(loaded?.auth).toEqual({
+        username: "sprite-service:dev",
+        organizationUrl: "https://dev.noriskillsets.dev",
+        refreshToken: null,
+        idToken: "session-id-token",
+        idTokenExpiresAt: expiresAt,
+        password: null,
+        organizations: ["dev"],
+        isAdmin: null,
+        apiToken: null,
+      });
+    });
+
+    it("should return idToken auth for matching registry URLs", async () => {
+      const { getRegistryAuth } = await import("./config.js");
+      const expiresAt = Date.now() + 60_000;
+      const config: Config = {
+        installDir: "/test",
+        auth: {
+          username: "sprite-service:dev",
+          organizationUrl: "https://dev.noriskillsets.dev",
+          idToken: "session-id-token",
+          idTokenExpiresAt: expiresAt,
+        },
+      };
+
+      const auth = getRegistryAuth({
+        config,
+        registryUrl: "https://dev.noriskillsets.dev",
+      });
+
+      expect(auth).not.toBeNull();
+      expect(auth?.idToken).toBe("session-id-token");
+      expect(auth?.idTokenExpiresAt).toBe(expiresAt);
+    });
+
+    it("should accept config with idToken + organizationUrl", async () => {
+      await fs.writeFile(
+        mockConfigPath,
+        JSON.stringify({
+          auth: {
+            organizationUrl: "https://dev.noriskillsets.dev",
+            idToken: "session-id-token",
+            idTokenExpiresAt: Date.now() + 60_000,
+          },
+        }),
+      );
+
+      const result = await validateConfig();
+
+      expect(result.valid).toBe(true);
+    });
+  });
+
   describe("getRegistryAuth with apiToken", () => {
     it("should return apiToken when registry URL matches org embedded in token", async () => {
       const { getRegistryAuth } = await import("./config.js");

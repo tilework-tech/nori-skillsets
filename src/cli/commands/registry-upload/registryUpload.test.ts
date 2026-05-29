@@ -717,6 +717,64 @@ describe("registry-upload", () => {
           },
         });
       });
+
+      it("should upload to org registry when authenticated via broker-managed idToken", async () => {
+        const idTokenExpiresAt = Date.now() + 60_000;
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
+        await fs.writeFile(
+          path.join(skillsetDir, "AGENTS.md"),
+          "# My Profile\n",
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "sprite-service:dev",
+            refreshToken: null,
+            idToken: "session-id-token",
+            idTokenExpiresAt,
+            apiToken: null,
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.noriskillsets.dev",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("id-token-auth");
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+        vi.mocked(registrarApi.uploadSkillset).mockResolvedValue({
+          name: "my-profile",
+          version: "1.0.0",
+          tarballSha: "abc123",
+          createdAt: new Date().toISOString(),
+        });
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+        });
+
+        expect(result.success).toBe(true);
+        expect(getRegistryAuthToken).toHaveBeenCalledWith({
+          registryAuth: {
+            registryUrl: "https://myorg.noriskillsets.dev",
+            username: "sprite-service:dev",
+            refreshToken: null,
+            idToken: "session-id-token",
+            idTokenExpiresAt,
+            apiToken: null,
+          },
+        });
+        expect(registrarApi.uploadSkillset).toHaveBeenCalledWith(
+          expect.objectContaining({
+            packageName: "my-profile",
+            authToken: "id-token-auth",
+            registryUrl: "https://myorg.noriskillsets.dev",
+          }),
+        );
+      });
     });
 
     describe("successful upload", () => {
