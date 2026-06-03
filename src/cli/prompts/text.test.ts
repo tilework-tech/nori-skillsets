@@ -60,7 +60,11 @@ describe("text", () => {
       expect(callArgs.validate).toBeDefined();
 
       // Call the validate function to ensure it delegates to our custom one
-      callArgs.validate?.("test-value");
+      const validateFn = callArgs.validate;
+      expect(typeof validateFn).toBe("function");
+      if (typeof validateFn === "function") {
+        validateFn("test-value");
+      }
       expect(customValidate).toHaveBeenCalledWith({ value: "test-value" });
     });
 
