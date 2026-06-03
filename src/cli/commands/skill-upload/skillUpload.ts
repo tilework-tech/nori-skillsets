@@ -31,7 +31,10 @@ import {
 import { skillUploadFlow } from "@/cli/prompts/flows/index.js";
 import { getNoriSkillsetsDir } from "@/norijson/skillset.js";
 import { isDirentFile } from "@/utils/dirent.js";
-import { shouldExcludeFromUpload } from "@/utils/uploadFileFilter.js";
+import {
+  collectCargoManifestDirs,
+  shouldExcludeFromUpload,
+} from "@/utils/uploadFileFilter.js";
 import {
   parseNamespacedPackage,
   buildOrganizationRegistryUrl,
@@ -59,13 +62,22 @@ const createSkillTarball = async (args: {
     recursive: true,
     withFileTypes: true,
   });
+  const relPaths = entries.map((entry) => {
+    const parentDir = entry.parentPath ?? entry.path;
+    return path.relative(skillDir, path.join(parentDir, entry.name));
+  });
+  const cargoManifestDirs = collectCargoManifestDirs({
+    relativePaths: relPaths,
+  });
+
   const filesToPack: Array<string> = [];
   for (const entry of entries) {
     const parentDir = entry.parentPath ?? entry.path;
     if (!(await isDirentFile({ parentDir, entry }))) continue;
-    if (shouldExcludeFromUpload({ fileName: entry.name })) continue;
-    const full = path.join(parentDir, entry.name);
-    const rel = path.relative(skillDir, full);
+    const rel = path.relative(skillDir, path.join(parentDir, entry.name));
+    if (shouldExcludeFromUpload({ relativePath: rel, cargoManifestDirs })) {
+      continue;
+    }
     filesToPack.push(rel);
   }
 
