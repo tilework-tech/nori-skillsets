@@ -7,6 +7,7 @@ import { tmpdir } from "os";
 import * as path from "path";
 
 import * as clack from "@clack/prompts";
+import * as tar from "tar";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 // Track the mock homedir value - will be set in beforeEach
@@ -473,6 +474,147 @@ describe("registry-upload", () => {
             registryUrl: "https://noriskillsets.dev",
           }),
         );
+      });
+
+      it("excludes dependency/build bloat directories from the skillset tarball", async () => {
+        const skillsetDir = path.join(skillsetsDir, "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
+        await fs.writeFile(
+          path.join(skillsetDir, "AGENTS.md"),
+          "# My Profile\n",
+        );
+
+        // node_modules at any depth -> excluded
+        await fs.mkdir(path.join(skillsetDir, "node_modules", "lodash"), {
+          recursive: true,
+        });
+        await fs.writeFile(
+          path.join(skillsetDir, "node_modules", "lodash", "index.js"),
+          "module.exports = {};",
+        );
+
+        // .venv at any depth -> excluded
+        await fs.mkdir(path.join(skillsetDir, ".venv", "bin"), {
+          recursive: true,
+        });
+        await fs.writeFile(
+          path.join(skillsetDir, ".venv", "bin", "python"),
+          "#!/usr/bin/env python",
+        );
+
+        // Rust crate: target adjacent to Cargo.toml -> excluded; sources kept
+        await fs.mkdir(path.join(skillsetDir, "rustcrate", "src"), {
+          recursive: true,
+        });
+        await fs.writeFile(
+          path.join(skillsetDir, "rustcrate", "Cargo.toml"),
+          '[package]\nname = "x"',
+        );
+        await fs.writeFile(
+          path.join(skillsetDir, "rustcrate", "src", "main.rs"),
+          "fn main() {}",
+        );
+        await fs.mkdir(path.join(skillsetDir, "rustcrate", "target", "debug"), {
+          recursive: true,
+        });
+        await fs.writeFile(
+          path.join(skillsetDir, "rustcrate", "target", "debug", "app"),
+          "binary",
+        );
+
+        // A "target" dir with no adjacent Cargo.toml -> kept
+        await fs.mkdir(path.join(skillsetDir, "data", "target"), {
+          recursive: true,
+        });
+        await fs.writeFile(
+          path.join(skillsetDir, "data", "target", "results.json"),
+          "{}",
+        );
+
+        // A leaf file literally named "target" -> kept
+        await fs.mkdir(path.join(skillsetDir, "keep"), { recursive: true });
+        await fs.writeFile(
+          path.join(skillsetDir, "keep", "target"),
+          "not a dir",
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: [],
+            organizationUrl: "https://noriskillsets.dev",
+          },
+        });
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+
+        let capturedArchiveData: ArrayBuffer | null = null;
+        vi.mocked(registrarApi.uploadSkillset).mockImplementation(
+          async (args: { archiveData: ArrayBuffer }) => {
+            capturedArchiveData = args.archiveData;
+            return {
+              name: "my-profile",
+              version: "1.0.0",
+              tarballSha: "abc123",
+              createdAt: new Date().toISOString(),
+            };
+          },
+        );
+
+        const result = await registryUploadMain({
+          profileSpec: "my-profile",
+          cwd: testDir,
+        });
+
+        expect(result.success).toBe(true);
+        expect(capturedArchiveData).not.toBeNull();
+
+        const extractDir = await fs.mkdtemp(
+          path.join(tmpdir(), "skillset-bloat-extract-"),
+        );
+        try {
+          const tarballPath = path.join(extractDir, "upload.tgz");
+          await fs.writeFile(tarballPath, Buffer.from(capturedArchiveData!));
+          await tar.extract({ file: tarballPath, cwd: extractDir });
+
+          const extractedFiles = await fs.readdir(extractDir, {
+            recursive: true,
+          });
+
+          // Legit content is kept
+          expect(extractedFiles).toContain("AGENTS.md");
+          expect(extractedFiles).toContain(
+            path.join("rustcrate", "Cargo.toml"),
+          );
+          expect(extractedFiles).toContain(
+            path.join("rustcrate", "src", "main.rs"),
+          );
+          expect(extractedFiles).toContain(
+            path.join("data", "target", "results.json"),
+          );
+          expect(extractedFiles).toContain(path.join("keep", "target"));
+
+          // Bloat is excluded
+          expect(
+            extractedFiles.some((f) =>
+              f.split(path.sep).includes("node_modules"),
+            ),
+          ).toBe(false);
+          expect(
+            extractedFiles.some((f) => f.split(path.sep).includes(".venv")),
+          ).toBe(false);
+          expect(
+            extractedFiles.some((f) =>
+              f.startsWith(path.join("rustcrate", "target")),
+            ),
+          ).toBe(false);
+        } finally {
+          await fs.rm(extractDir, { recursive: true, force: true });
+        }
       });
 
       it("should allow authenticated user with empty orgs to upload to public registry", async () => {

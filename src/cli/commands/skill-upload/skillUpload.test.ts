@@ -801,5 +801,127 @@ describe("skill-upload", () => {
         await fs.rm(extractDir, { recursive: true, force: true });
       }
     });
+
+    it("excludes dependency/build bloat directories from the upload tarball", async () => {
+      const skillDir = await createLocalSkill({
+        skillsetName: "my-profile",
+        skillName: "my-skill",
+      });
+
+      // node_modules at any depth -> excluded
+      await fs.mkdir(path.join(skillDir, "node_modules", "lodash"), {
+        recursive: true,
+      });
+      await fs.writeFile(
+        path.join(skillDir, "node_modules", "lodash", "index.js"),
+        "module.exports = {};",
+      );
+
+      // .venv at any depth -> excluded
+      await fs.mkdir(path.join(skillDir, ".venv", "bin"), { recursive: true });
+      await fs.writeFile(
+        path.join(skillDir, ".venv", "bin", "python"),
+        "#!/usr/bin/env python",
+      );
+
+      // Rust crate: target adjacent to Cargo.toml -> excluded; crate sources kept
+      await fs.mkdir(path.join(skillDir, "rustcrate", "src"), {
+        recursive: true,
+      });
+      await fs.writeFile(
+        path.join(skillDir, "rustcrate", "Cargo.toml"),
+        '[package]\nname = "x"',
+      );
+      await fs.writeFile(
+        path.join(skillDir, "rustcrate", "src", "main.rs"),
+        "fn main() {}",
+      );
+      await fs.mkdir(path.join(skillDir, "rustcrate", "target", "debug"), {
+        recursive: true,
+      });
+      await fs.writeFile(
+        path.join(skillDir, "rustcrate", "target", "debug", "app"),
+        "binary",
+      );
+
+      // A "target" dir with no adjacent Cargo.toml -> kept
+      await fs.mkdir(path.join(skillDir, "data", "target"), {
+        recursive: true,
+      });
+      await fs.writeFile(
+        path.join(skillDir, "data", "target", "results.json"),
+        "{}",
+      );
+
+      // A leaf file literally named "target" -> kept
+      await fs.mkdir(path.join(skillDir, "keep"), { recursive: true });
+      await fs.writeFile(path.join(skillDir, "keep", "target"), "not a dir");
+
+      vi.mocked(loadConfig).mockResolvedValue(
+        authenticatedConfig("my-profile") as never,
+      );
+      vi.mocked(registrarApi.getSkillPackument).mockRejectedValue(
+        Object.assign(new Error("Not found"), { statusCode: 404 }),
+      );
+
+      let capturedArchiveData: ArrayBuffer | null = null;
+      vi.mocked(registrarApi.uploadSkill).mockImplementation(
+        async (args: { archiveData: ArrayBuffer }) => {
+          capturedArchiveData = args.archiveData;
+          return {
+            name: "my-skill",
+            version: "1.0.0",
+            tarballSha: "sha",
+            createdAt: "2026-04-16T00:00:00.000Z",
+          };
+        },
+      );
+
+      const result = await skillUploadMain({ skillSpec: "my-skill" });
+
+      expect(result.success).toBe(true);
+      expect(capturedArchiveData).not.toBeNull();
+
+      const extractDir = await fs.mkdtemp(
+        path.join(tmpdir(), "skill-bloat-extract-"),
+      );
+      try {
+        const tarballPath = path.join(extractDir, "upload.tgz");
+        await fs.writeFile(tarballPath, Buffer.from(capturedArchiveData!));
+        await tar.extract({ file: tarballPath, cwd: extractDir });
+
+        const extractedFiles = await fs.readdir(extractDir, {
+          recursive: true,
+        });
+
+        // Legit content is kept
+        expect(extractedFiles).toContain("SKILL.md");
+        expect(extractedFiles).toContain(path.join("rustcrate", "Cargo.toml"));
+        expect(extractedFiles).toContain(
+          path.join("rustcrate", "src", "main.rs"),
+        );
+        expect(extractedFiles).toContain(
+          path.join("data", "target", "results.json"),
+        );
+        expect(extractedFiles).toContain(path.join("keep", "target"));
+
+        // Bloat is excluded
+        expect(
+          extractedFiles.some((f) =>
+            f.split(path.sep).includes("node_modules"),
+          ),
+        ).toBe(false);
+        expect(
+          extractedFiles.some((f) => f.split(path.sep).includes(".venv")),
+        ).toBe(false);
+        expect(
+          extractedFiles.some((f) =>
+            f.startsWith(path.join("rustcrate", "target")),
+          ),
+        ).toBe(false);
+      } finally {
+        await fs.rm(extractDir, { recursive: true, force: true });
+      }
+    });
   });
 });

@@ -39,7 +39,10 @@ import {
   isSkillCollisionError,
   isSubagentCollisionError,
 } from "@/utils/fetch.js";
-import { shouldExcludeFromUpload } from "@/utils/uploadFileFilter.js";
+import {
+  collectCargoManifestDirs,
+  shouldExcludeFromUpload,
+} from "@/utils/uploadFileFilter.js";
 import {
   parseNamespacedPackage,
   buildOrganizationRegistryUrl,
@@ -106,14 +109,14 @@ const createProfileTarball = async (args: {
   const { skillsetDir } = args;
 
   const files = await fs.readdir(skillsetDir, { recursive: true });
+  const cargoManifestDirs = collectCargoManifestDirs({ relativePaths: files });
   const filesToPack: Array<string> = [];
 
   for (const file of files) {
     const filePath = path.join(skillsetDir, file);
     const stat = await fs.stat(filePath);
     if (stat.isFile()) {
-      const filename = path.basename(file);
-      if (shouldExcludeFromUpload({ fileName: filename })) {
+      if (shouldExcludeFromUpload({ relativePath: file, cargoManifestDirs })) {
         continue;
       }
       filesToPack.push(file);
