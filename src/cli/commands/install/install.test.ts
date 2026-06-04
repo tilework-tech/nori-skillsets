@@ -6,7 +6,8 @@ import * as path from "path";
 import * as clack from "@clack/prompts";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
-import { getConfigPath, saveConfig } from "@/cli/config.js";
+import { getConfigPath } from "@/cli/config.js";
+import { saveTestingConfig } from "@/cli/test-utils/config.js";
 
 import type * as versionModule from "@/cli/version.js";
 
@@ -183,7 +184,7 @@ describe("install noninteractive", () => {
 
   it("should save skillset from --skillset flag to config", async () => {
     // Create minimal config (as if init was run)
-    await saveConfig({
+    await saveTestingConfig({
       username: null,
       organizationUrl: null,
       activeSkillset: null,
@@ -202,7 +203,7 @@ describe("install noninteractive", () => {
 
   it("should exit with error when no skillset provided and no existing skillset", async () => {
     // Create minimal config without a skillset
-    await saveConfig({
+    await saveTestingConfig({
       username: null,
       organizationUrl: null,
       activeSkillset: null,
@@ -247,7 +248,7 @@ describe("install noninteractive", () => {
 
   it("should preserve existing skillset when no --skillset flag is provided", async () => {
     // Create config with an existing skillset
-    await saveConfig({
+    await saveTestingConfig({
       username: null,
       organizationUrl: null,
       activeSkillset: "amol",
@@ -265,7 +266,7 @@ describe("install noninteractive", () => {
 
   it("should preserve existing auth credentials through install", async () => {
     // Create config with auth credentials
-    await saveConfig({
+    await saveTestingConfig({
       username: "test@example.com",
       organizationUrl: "https://myorg.tilework.tech",
       refreshToken: "test-refresh-token",
@@ -287,7 +288,7 @@ describe("install noninteractive", () => {
 
   it("should preserve organizations, isAdmin, and transcriptDestination through install", async () => {
     // Create config with organizations, isAdmin, and transcriptDestination
-    await saveConfig({
+    await saveTestingConfig({
       username: "test@example.com",
       organizationUrl: "https://myorg.tilework.tech",
       refreshToken: "test-refresh-token",
@@ -314,7 +315,7 @@ describe("install noninteractive", () => {
     const originalInstallDir = "/original/install/path";
 
     // Create config with a specific installDir
-    await saveConfig({
+    await saveTestingConfig({
       username: null,
       organizationUrl: null,
       activeSkillset: "senior-swe",
@@ -337,7 +338,7 @@ describe("install noninteractive", () => {
     const { installSkillset } =
       await import("@/cli/features/agentOperations.js");
 
-    await saveConfig({
+    await saveTestingConfig({
       username: null,
       organizationUrl: null,
       activeSkillset: "senior-swe",
@@ -361,7 +362,7 @@ describe("install noninteractive", () => {
     const { installSkillset } =
       await import("@/cli/features/agentOperations.js");
 
-    await saveConfig({
+    await saveTestingConfig({
       username: null,
       organizationUrl: null,
       activeSkillset: "senior-swe",

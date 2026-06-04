@@ -99,6 +99,27 @@ describe("statuslineLoader", () => {
       expect(settings.statusLine.padding).toBeDefined();
     });
 
+    it("should not add statusLine configuration when disabled in config", async () => {
+      const config: Config = {
+        installDir: tempDir,
+        claudeCodeStatusLine: "disabled",
+      };
+
+      await statuslineLoader.run({ agent: {} as any, config });
+
+      const settingsExists = await fs
+        .access(settingsPath)
+        .then(() => true)
+        .catch(() => false);
+      const scriptExists = await fs
+        .access(path.join(claudeDir, "nori-statusline.sh"))
+        .then(() => true)
+        .catch(() => false);
+
+      expect(settingsExists).toBe(false);
+      expect(scriptExists).toBe(false);
+    });
+
     it("should preserve existing settings when adding statusLine", async () => {
       const config: Config = { installDir: tempDir };
 

@@ -291,6 +291,41 @@ describe("configLoader", () => {
       expect(fileContents.transcriptDestination).toBe("myorg");
     });
 
+    it("should preserve existing broker-managed idToken credentials", async () => {
+      const expiresAt = Date.now() + 60_000;
+      const configFile = getConfigPath();
+      fs.writeFileSync(
+        configFile,
+        JSON.stringify({
+          installDir: tempDir,
+          activeSkillset: "senior-swe",
+          auth: {
+            username: "sprite-service:dev",
+            organizationUrl: "https://dev.noriskillsets.dev",
+            idToken: "session-id-token",
+            idTokenExpiresAt: expiresAt,
+          },
+        }),
+        "utf-8",
+      );
+
+      const config: Config = {
+        installDir: tempDir,
+        activeSkillset: "high-autonomy",
+        auth: {
+          username: "sprite-service:dev",
+          organizationUrl: "https://dev.noriskillsets.dev",
+        },
+      };
+
+      await configLoader.run({ agent: {} as any, config });
+
+      const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
+      expect(fileContents.auth.idToken).toBe("session-id-token");
+      expect(fileContents.auth.idTokenExpiresAt).toBe(expiresAt);
+      expect(fileContents.activeSkillset).toBe("high-autonomy");
+    });
+
     it("should display auth failure details as a boxed note with email and error code", async () => {
       // Make signInWithEmailAndPassword reject with an auth error
       const { signInWithEmailAndPassword } = await import("firebase/auth");

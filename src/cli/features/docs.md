@@ -95,7 +95,7 @@ The `--agent` global CLI option (default: "claude-code") determines which agent 
 
 **Config Loader** (configLoader.ts):
 - Shared `AgentLoader` that manages `.nori-config.json`. All agents include this loader in their `getLoaders()` pipeline.
-- Persists `activeSkillset`, auth credentials, and transcript settings via `updateConfig()`. The CLI version is not persisted — the running binary is the source of truth via `getCurrentPackageVersion()` in @/src/cli/version.ts.
+- Persists `activeSkillset`, auth credentials, and transcript settings via `updateConfig()`. It only sends auth fields that are actually present in the runtime config; absent credential fields are omitted rather than sent as nulls so the shared config merge can preserve existing broker-managed `idToken` credentials. The CLI version is not persisted — the running binary is the source of truth via `getCurrentPackageVersion()` in @/src/cli/version.ts.
 
 **Settings Backup** (settingsBackup.ts): Provides `backupSettingsFile({ file })` and `restoreSettingsFile({ file })` for full-file backup/restore of external settings files (e.g., `~/.claude/settings.json`). Backup creates `<file>.pre-nori` alongside the original and is idempotent (will not overwrite an existing backup). Restore copies the backup over the current file and deletes the backup; if no backup exists, it deletes the settings file (meaning the file did not exist before Nori was installed). This is an agent-level concern: agents opt in by implementing `getExternalSettingsFiles()` on their `AgentConfig`, and `installSkillset`/`removeSkillset` in `agentOperations.ts` call backup/restore respectively.
 
