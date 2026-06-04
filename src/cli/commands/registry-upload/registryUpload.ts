@@ -22,7 +22,12 @@ import {
 } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
 import { parseSubagentFrontmatter } from "@/cli/commands/external/subagentDiscovery.js";
-import { loadConfig, getRegistryAuth } from "@/cli/config.js";
+import {
+  getRegistryAuth,
+  hasRegistryAuthCredentials,
+  loadConfig,
+  toRegistryAuth,
+} from "@/cli/config.js";
 import { bold } from "@/cli/logger.js";
 import {
   uploadFlow,
@@ -1100,17 +1105,10 @@ export const registryUploadMain = async (args: {
     };
   };
 
-  const hasUnexpiredIdToken =
-    config?.auth?.idToken != null &&
-    config.auth.idTokenExpiresAt != null &&
-    config.auth.idTokenExpiresAt > Date.now();
-
   // Check for unified auth with organizations (new flow)
   const hasUnifiedAuthWithOrgs =
     config?.auth != null &&
-    (config.auth.refreshToken != null ||
-      config.auth.apiToken != null ||
-      hasUnexpiredIdToken) &&
+    hasRegistryAuthCredentials({ auth: config.auth }) &&
     config.auth.organizations != null;
 
   // Determine target registry and auth
@@ -1130,18 +1128,10 @@ export const registryUploadMain = async (args: {
           orgId: userOrgId,
         });
         if (orgRegistryUrl === registryUrl) {
-          registryAuth = {
+          registryAuth = toRegistryAuth({
+            auth: config!.auth!,
             registryUrl,
-            username: config!.auth!.username ?? null,
-            refreshToken: config!.auth!.refreshToken ?? null,
-            ...(config!.auth!.idToken != null
-              ? { idToken: config!.auth!.idToken }
-              : {}),
-            ...(config!.auth!.idTokenExpiresAt != null
-              ? { idTokenExpiresAt: config!.auth!.idTokenExpiresAt }
-              : {}),
-            apiToken: config!.auth!.apiToken ?? null,
-          };
+          });
           break;
         }
       }
@@ -1184,18 +1174,16 @@ export const registryUploadMain = async (args: {
     // Public registry is open to any authenticated user
     targetRegistryUrl = buildOrganizationRegistryUrl({ orgId });
 
-    const registryAuth: RegistryAuth = {
-      registryUrl: targetRegistryUrl,
-      username: config?.auth?.username ?? null,
-      refreshToken: config?.auth?.refreshToken ?? null,
-      ...(config?.auth?.idToken != null
-        ? { idToken: config.auth.idToken }
-        : {}),
-      ...(config?.auth?.idTokenExpiresAt != null
-        ? { idTokenExpiresAt: config.auth.idTokenExpiresAt }
-        : {}),
-      apiToken: config?.auth?.apiToken ?? null,
-    };
+    const registryAuth: RegistryAuth =
+      config?.auth != null
+        ? toRegistryAuth({
+            auth: config.auth,
+            registryUrl: targetRegistryUrl,
+          })
+        : {
+            registryUrl: targetRegistryUrl,
+            username: null,
+          };
 
     try {
       authToken = await getRegistryAuthToken({ registryAuth });
@@ -1238,18 +1226,16 @@ export const registryUploadMain = async (args: {
       };
     }
 
-    const registryAuth: RegistryAuth = {
-      registryUrl: targetRegistryUrl,
-      username: config?.auth?.username ?? null,
-      refreshToken: config?.auth?.refreshToken ?? null,
-      ...(config?.auth?.idToken != null
-        ? { idToken: config.auth.idToken }
-        : {}),
-      ...(config?.auth?.idTokenExpiresAt != null
-        ? { idTokenExpiresAt: config.auth.idTokenExpiresAt }
-        : {}),
-      apiToken: config?.auth?.apiToken ?? null,
-    };
+    const registryAuth: RegistryAuth =
+      config?.auth != null
+        ? toRegistryAuth({
+            auth: config.auth,
+            registryUrl: targetRegistryUrl,
+          })
+        : {
+            registryUrl: targetRegistryUrl,
+            username: null,
+          };
 
     try {
       authToken = await getRegistryAuthToken({ registryAuth });

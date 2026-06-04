@@ -53,8 +53,10 @@ vi.mock("@/api/registrar.js", () => ({
 }));
 
 // Mock the config module
-vi.mock("@/cli/config.js", async () => {
+vi.mock("@/cli/config.js", async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
   return {
+    ...actual,
     loadConfig: vi.fn(),
     getRegistryAuth: vi.fn(),
   };

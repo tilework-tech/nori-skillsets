@@ -63,11 +63,11 @@ vi.mock("@/api/registrar.js", () => ({
 vi.mock("@/cli/config.js", async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
   return {
+    ...actual,
     loadConfig: vi.fn(),
     getRegistryAuth: vi.fn(),
     getActiveSkillset: (args: { config: { activeSkillset?: string | null } }) =>
       args.config?.activeSkillset ?? null,
-    getDefaultAgents: actual.getDefaultAgents,
   };
 });
 
@@ -598,6 +598,48 @@ describe("skill-upload", () => {
       const uploadCall = vi.mocked(registrarApi.uploadSkill).mock.calls[0][0];
       expect(uploadCall.registryUrl).toBe("https://myorg.noriskillsets.dev");
       expect(uploadCall.authToken).toBe("api-token-auth");
+    });
+
+    it("uploads a namespaced skill when authenticated via broker-managed idToken only", async () => {
+      await createLocalSkill({
+        skillsetName: "my-profile",
+        skillName: "my-skill",
+      });
+
+      vi.mocked(loadConfig).mockResolvedValue({
+        activeSkillset: "my-profile",
+        auth: {
+          username: "sprite-service:dev",
+          organizationUrl: "https://myorg.noriskillsets.dev",
+          refreshToken: null,
+          idToken: "session-id-token",
+          idTokenExpiresAt: Date.now() + 60_000,
+          apiToken: null,
+          organizations: ["myorg"],
+        },
+      } as never);
+
+      vi.mocked(getRegistryAuthToken).mockResolvedValue(
+        "id-token-auth" as never,
+      );
+
+      vi.mocked(registrarApi.getSkillPackument).mockRejectedValue(
+        Object.assign(new Error("Not found"), { statusCode: 404 }),
+      );
+      vi.mocked(registrarApi.uploadSkill).mockResolvedValue({
+        name: "my-skill",
+        version: "1.0.0",
+        tarballSha: "sha",
+        createdAt: "2026-04-16T00:00:00.000Z",
+      } as never);
+
+      const result = await skillUploadMain({ skillSpec: "myorg/my-skill" });
+
+      expect(result.success).toBe(true);
+      expect(registrarApi.uploadSkill).toHaveBeenCalledTimes(1);
+      const uploadCall = vi.mocked(registrarApi.uploadSkill).mock.calls[0][0];
+      expect(uploadCall.registryUrl).toBe("https://myorg.noriskillsets.dev");
+      expect(uploadCall.authToken).toBe("id-token-auth");
     });
 
     it("uploads a public skill when authenticated via public API token config", async () => {

@@ -74,6 +74,53 @@ export type Config = {
   claudeCodeStatusLine?: "enabled" | "disabled" | null;
 };
 
+export const hasUnexpiredRegistryIdToken = (args: {
+  auth?: AuthCredentials | null;
+  now?: number | null;
+}): boolean => {
+  const { auth, now = Date.now() } = args;
+  const effectiveNow = now ?? Date.now();
+
+  return (
+    auth?.idToken != null &&
+    auth.idToken !== "" &&
+    typeof auth.idTokenExpiresAt === "number" &&
+    effectiveNow < auth.idTokenExpiresAt
+  );
+};
+
+export const hasRegistryAuthCredentials = (args: {
+  auth?: AuthCredentials | null;
+  now?: number | null;
+}): boolean => {
+  const { auth, now } = args;
+
+  return (
+    auth != null &&
+    (auth.refreshToken != null ||
+      auth.apiToken != null ||
+      hasUnexpiredRegistryIdToken({ auth, now }))
+  );
+};
+
+export const toRegistryAuth = (args: {
+  auth: AuthCredentials;
+  registryUrl: string;
+}): RegistryAuth => {
+  const { auth, registryUrl } = args;
+
+  return {
+    registryUrl,
+    username: auth.username ?? null,
+    refreshToken: auth.refreshToken ?? null,
+    ...(auth.idToken != null ? { idToken: auth.idToken } : {}),
+    ...(auth.idTokenExpiresAt != null
+      ? { idTokenExpiresAt: auth.idTokenExpiresAt }
+      : {}),
+    apiToken: auth.apiToken ?? null,
+  };
+};
+
 /**
  * Raw disk config type - represents the JSON structure on disk before transformation
  * This is what JSON schema validates against
@@ -176,27 +223,25 @@ export const getRegistryAuth = (args: {
       if (
         normalizeUrl({ baseUrl: derivedRegistryUrl }) === normalizedSearchUrl
       ) {
-        return {
+        return toRegistryAuth({
+          auth: {
+            ...config.auth,
+            apiToken: apiTokenMatch ? (config.auth.apiToken ?? null) : null,
+          },
           registryUrl: derivedRegistryUrl,
-          username: config.auth.username ?? null,
-          refreshToken: config.auth.refreshToken ?? null,
-          idToken: config.auth.idToken ?? null,
-          idTokenExpiresAt: config.auth.idTokenExpiresAt ?? null,
-          apiToken: apiTokenMatch ? (config.auth.apiToken ?? null) : null,
-        };
+        });
       }
 
       // Also check the noriskillsets.dev subdomain pattern for org registrars
       const orgRegistrarUrl = `https://${orgId}.noriskillsets.dev`;
       if (normalizeUrl({ baseUrl: orgRegistrarUrl }) === normalizedSearchUrl) {
-        return {
+        return toRegistryAuth({
+          auth: {
+            ...config.auth,
+            apiToken: apiTokenMatch ? (config.auth.apiToken ?? null) : null,
+          },
           registryUrl: orgRegistrarUrl,
-          username: config.auth.username ?? null,
-          refreshToken: config.auth.refreshToken ?? null,
-          idToken: config.auth.idToken ?? null,
-          idTokenExpiresAt: config.auth.idTokenExpiresAt ?? null,
-          apiToken: apiTokenMatch ? (config.auth.apiToken ?? null) : null,
-        };
+        });
       }
     }
 
@@ -205,13 +250,10 @@ export const getRegistryAuth = (args: {
     const authOrgId = extractOrgId({ url: config.auth.organizationUrl });
     if (authOrgId == null) {
       // Auth URL is local dev (e.g., localhost) - use these credentials
-      return {
+      return toRegistryAuth({
+        auth: config.auth,
         registryUrl: normalizedSearchUrl,
-        username: config.auth.username ?? null,
-        refreshToken: config.auth.refreshToken ?? null,
-        idToken: config.auth.idToken ?? null,
-        idTokenExpiresAt: config.auth.idTokenExpiresAt ?? null,
-      };
+      });
     }
   }
 

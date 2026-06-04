@@ -80,7 +80,10 @@ vi.mock("@/api/registrar.js", () => ({
 
 // Mock the config module
 vi.mock("@/cli/config.js", async () => {
+  const actual =
+    await vi.importActual<Record<string, unknown>>("@/cli/config.js");
   return {
+    ...actual,
     loadConfig: vi.fn(),
     getRegistryAuth: vi.fn(),
   };
@@ -2267,6 +2270,44 @@ describe("registry-download", () => {
         version: undefined,
         registryUrl: "https://myorg.noriskillsets.dev",
         authToken: "api-token-auth",
+      });
+    });
+
+    it("should download namespaced package when authenticated via broker-managed idToken only", async () => {
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        auth: {
+          username: "sprite-service:dev",
+          organizationUrl: "https://myorg.noriskillsets.dev",
+          refreshToken: null,
+          idToken: "session-id-token",
+          idTokenExpiresAt: Date.now() + 60_000,
+          apiToken: null,
+          organizations: ["myorg"],
+        },
+      });
+
+      vi.mocked(getRegistryAuthToken).mockResolvedValue("id-token-auth");
+
+      vi.mocked(registrarApi.getPackument).mockResolvedValue({
+        name: "my-profile",
+        "dist-tags": { latest: "1.0.0" },
+        versions: { "1.0.0": { name: "my-profile", version: "1.0.0" } },
+      });
+
+      const mockTarball = await createMockTarball();
+      vi.mocked(registrarApi.downloadTarball).mockResolvedValue(mockTarball);
+
+      await registryDownloadMain({
+        packageSpec: "myorg/my-profile",
+        cwd: testDir,
+      });
+
+      expect(registrarApi.downloadTarball).toHaveBeenCalledWith({
+        packageName: "my-profile",
+        version: undefined,
+        registryUrl: "https://myorg.noriskillsets.dev",
+        authToken: "id-token-auth",
       });
     });
   });
