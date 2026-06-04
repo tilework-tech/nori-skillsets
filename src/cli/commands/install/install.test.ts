@@ -6,7 +6,8 @@ import * as path from "path";
 import * as clack from "@clack/prompts";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
-import { getConfigPath, saveConfig } from "@/cli/config.js";
+import { getConfigPath } from "@/cli/config.js";
+import { saveConfig } from "@/cli/test-utils/config.js";
 
 import type * as versionModule from "@/cli/version.js";
 

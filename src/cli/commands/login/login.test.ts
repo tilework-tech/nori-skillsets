@@ -2089,7 +2089,7 @@ describe("loginMain with --token", () => {
 
   it("should warn that Firebase session was cleared when --token overwrites an existing session", async () => {
     const clack = await import("@clack/prompts");
-    const { saveConfig } = await import("@/cli/config.js");
+    const { saveConfig } = await import("@/cli/test-utils/config.js");
 
     // Seed a Firebase-style session
     await saveConfig({

@@ -8,7 +8,8 @@ import * as path from "path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { loadConfig, saveConfig } from "@/cli/config.js";
+import { loadConfig } from "@/cli/config.js";
+import { saveConfig } from "@/cli/test-utils/config.js";
 
 // Mock os.homedir so getConfigPath resolves to test directories
 vi.mock("os", async (importOriginal) => {

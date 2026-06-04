@@ -400,7 +400,7 @@ export const loadConfig = async (): Promise<Config | null> => {
  * @param args.redownloadOnSwitch - Whether to prompt to re-download from registry on switch (null to skip)
  * @param args.apiToken - Raw API token (format `nori_<orgId>_<64hex>`) for non-interactive private-org auth (null to skip)
  */
-export const saveConfig = async (args: {
+const saveConfig = async (args: {
   username: string | null;
   password?: string | null;
   refreshToken?: string | null;

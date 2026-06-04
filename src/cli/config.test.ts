@@ -10,7 +10,6 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 import {
   loadConfig,
-  saveConfig,
   updateConfig,
   getConfigPath,
   validateConfig,
@@ -19,6 +18,7 @@ import {
   resetGlobalAgentOverride,
   type Config,
 } from "./config.js";
+import { saveConfig } from "./test-utils/config.js";
 
 // Mock os.homedir so getConfigPath resolves to test directories
 vi.mock("os", async (importOriginal) => {
@@ -33,6 +33,12 @@ describe("getConfigPath", () => {
   it("should always return ~/.nori-config.json", () => {
     const result = getConfigPath();
     expect(result).toBe(path.join(os.homedir(), ".nori-config.json"));
+  });
+
+  it("should not expose the full-file writer from the production config module", async () => {
+    const configModule = await import("./config.js");
+
+    expect(configModule).not.toHaveProperty("saveConfig");
   });
 });
 
