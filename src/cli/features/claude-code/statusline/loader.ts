@@ -31,7 +31,11 @@ const __dirname = path.dirname(__filename);
 const configureStatusLine = async (args: {
   config: Config;
 }): Promise<string | void> => {
-  const { config: _config } = args;
+  const { config } = args;
+  if (config.claudeCodeStatusLine === "disabled") {
+    return;
+  }
+
   const claudeDir = getClaudeHomeDir();
   const claudeSettingsFile = getClaudeHomeSettingsFile();
 

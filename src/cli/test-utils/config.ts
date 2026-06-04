@@ -24,6 +24,7 @@ type SaveConfigForTestArgs = {
   transcriptDestination?: string | null;
   garbageCollectTranscripts?: "enabled" | "disabled" | null;
   redownloadOnSwitch?: "enabled" | "disabled" | null;
+  claudeCodeStatusLine?: "enabled" | "disabled" | null;
   installDir: string;
 };
 
@@ -54,6 +55,9 @@ export const saveTestingConfig = async (
       : {}),
     ...(args.redownloadOnSwitch != null
       ? { redownloadOnSwitch: args.redownloadOnSwitch }
+      : {}),
+    ...(args.claudeCodeStatusLine != null
+      ? { claudeCodeStatusLine: args.claudeCodeStatusLine }
       : {}),
     installDir: args.installDir,
   });

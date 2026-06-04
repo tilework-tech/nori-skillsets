@@ -2,7 +2,8 @@
  * Config Command
  *
  * Configuration of Nori settings, either interactively or via CLI options.
- * Sets defaultAgents, installDir, and redownloadOnSwitch in .nori-config.json.
+ * Sets defaultAgents, installDir, redownloadOnSwitch, and
+ * claudeCodeStatusLine in .nori-config.json.
  * When installDir or defaultAgents change in interactive mode, prompts user
  * about installing the active skillset and cleaning up the old directory.
  */
@@ -77,7 +78,8 @@ const parseAgents = (args: { agents: string }): Array<string> => {
 /**
  * Main config function
  *
- * When CLI options are provided (agents, installDir, redownloadOnSwitch),
+ * When CLI options are provided (agents, installDir, redownloadOnSwitch,
+ * claudeCodeStatusLine),
  * applies them directly without interactive prompts.
  * Otherwise, runs the interactive config flow and saves results to
  * .nori-config.json. After saving in interactive mode, detects changes
@@ -88,6 +90,7 @@ const parseAgents = (args: { agents: string }): Array<string> => {
  * @param args.agents - Comma-separated agent names
  * @param args.installDir - Install directory path
  * @param args.redownloadOnSwitch - Whether to prompt for re-download on switch
+ * @param args.claudeCodeStatusLine - Whether Claude Code apply configures status line
  * @param args.nonInteractive - Force non-interactive mode
  *
  * @returns Command status indicating success or cancellation
@@ -97,18 +100,28 @@ export const configMain = async (
     agents?: string | null;
     installDir?: string | null;
     redownloadOnSwitch?: boolean | null;
+    claudeCodeStatusLine?: boolean | null;
     nonInteractive?: boolean | null;
   } | null,
 ): Promise<CommandStatus> => {
-  const { agents, installDir, redownloadOnSwitch, nonInteractive } = args ?? {};
+  const {
+    agents,
+    installDir,
+    redownloadOnSwitch,
+    claudeCodeStatusLine,
+    nonInteractive,
+  } = args ?? {};
 
   const hasOptions =
-    agents != null || installDir != null || redownloadOnSwitch != null;
+    agents != null ||
+    installDir != null ||
+    redownloadOnSwitch != null ||
+    claudeCodeStatusLine != null;
 
   if (hasOptions || nonInteractive) {
     if (!hasOptions) {
       throw new Error(
-        "No configuration options provided. Use --agents, --install-dir, or --redownload-on-switch.",
+        "No configuration options provided. Use --agents, --install-dir, --redownload-on-switch, or --claude-code-status-line.",
       );
     }
 
@@ -116,6 +129,7 @@ export const configMain = async (
       defaultAgents?: Array<string>;
       installDir?: string;
       redownloadOnSwitch?: "enabled" | "disabled";
+      claudeCodeStatusLine?: "enabled" | "disabled";
     } = {};
 
     if (agents != null) {
@@ -133,6 +147,12 @@ export const configMain = async (
       update.redownloadOnSwitch = redownloadOnSwitch ? "enabled" : "disabled";
     }
 
+    if (claudeCodeStatusLine != null) {
+      update.claudeCodeStatusLine = claudeCodeStatusLine
+        ? "enabled"
+        : "disabled";
+    }
+
     await updateConfig(update);
 
     return { success: true, cancelled: false, message: "Configuration saved" };
@@ -146,6 +166,7 @@ export const configMain = async (
           currentAgents: config?.defaultAgents ?? null,
           currentInstallDir: config?.installDir ?? null,
           currentRedownloadOnSwitch: config?.redownloadOnSwitch ?? null,
+          currentClaudeCodeStatusLine: config?.claudeCodeStatusLine ?? null,
         };
       },
       onResolveAgents: async () => {
@@ -193,11 +214,22 @@ export const configMain = async (
     !arraysEqual({ a: oldAgents, b: result.defaultAgents });
 
   // Save config first (regardless of prompt answers)
-  await updateConfig({
+  const configUpdate: {
+    defaultAgents: Array<string>;
+    redownloadOnSwitch: "enabled" | "disabled";
+    claudeCodeStatusLine?: "enabled" | "disabled";
+    installDir: string;
+  } = {
     defaultAgents: result.defaultAgents,
     redownloadOnSwitch: result.redownloadOnSwitch,
     installDir: normalizedInstallDir,
-  });
+  };
+
+  if (result.claudeCodeStatusLine != null) {
+    configUpdate.claudeCodeStatusLine = result.claudeCodeStatusLine;
+  }
+
+  await updateConfig(configUpdate);
 
   // Handle installDir change prompts
   if (installDirChanged && activeSkillset != null) {

@@ -18,6 +18,7 @@ export type ConfigFlowCallbacks = {
     currentAgents: Array<string> | null;
     currentInstallDir: string | null;
     currentRedownloadOnSwitch?: "enabled" | "disabled" | null;
+    currentClaudeCodeStatusLine?: "enabled" | "disabled" | null;
   }>;
   onResolveAgents: () => Promise<
     Array<{ name: string; displayName: string; description: string }>
@@ -28,6 +29,7 @@ export type ConfigFlowResult = {
   defaultAgents: Array<string>;
   installDir: string;
   redownloadOnSwitch: "enabled" | "disabled";
+  claudeCodeStatusLine?: "enabled" | "disabled";
 };
 
 /**
@@ -44,8 +46,12 @@ export const configFlow = async (args: {
   const { callbacks } = args;
 
   // Load current config values for defaults
-  const { currentAgents, currentInstallDir, currentRedownloadOnSwitch } =
-    await callbacks.onLoadConfig();
+  const {
+    currentAgents,
+    currentInstallDir,
+    currentRedownloadOnSwitch,
+    currentClaudeCodeStatusLine,
+  } = await callbacks.onLoadConfig();
 
   // Resolve available agents from registry
   const agents = await callbacks.onResolveAgents();
@@ -94,9 +100,22 @@ export const configFlow = async (args: {
 
   if (redownloadOnSwitchEnabled == null) return null;
 
+  // Step 4: Prompt to configure Claude Code status line during apply
+  const claudeCodeStatusLineEnabled = unwrapPrompt({
+    value: await confirm({
+      message:
+        "Add the Nori status line to Claude Code when applying skillsets?",
+      initialValue: currentClaudeCodeStatusLine !== "disabled",
+    }),
+    cancelMessage: "Configuration cancelled.",
+  });
+
+  if (claudeCodeStatusLineEnabled == null) return null;
+
   return {
     defaultAgents: selectedAgents as Array<string>,
     installDir: installDir as string,
     redownloadOnSwitch: redownloadOnSwitchEnabled ? "enabled" : "disabled",
+    claudeCodeStatusLine: claudeCodeStatusLineEnabled ? "enabled" : "disabled",
   };
 };

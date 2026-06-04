@@ -139,6 +139,7 @@ describe("configMain", () => {
       defaultAgents: ["claude-code"],
       installDir: tempDir,
       redownloadOnSwitch: "enabled",
+      claudeCodeStatusLine: "enabled",
     });
 
     // Create a minimal existing config so loadConfig returns something
@@ -184,6 +185,7 @@ describe("configMain", () => {
       defaultAgents: ["claude-code"],
       installDir: "/new/path",
       redownloadOnSwitch: "enabled",
+      claudeCodeStatusLine: "enabled",
     });
 
     // Create config with auth and agents
@@ -227,6 +229,7 @@ describe("configMain return value and framing", () => {
       defaultAgents: ["claude-code"],
       installDir: tempDir,
       redownloadOnSwitch: "enabled",
+      claudeCodeStatusLine: "enabled",
     });
 
     await saveTestingConfig({
@@ -864,6 +867,21 @@ describe("configMain non-interactive mode", () => {
     expect(loaded?.redownloadOnSwitch).toBe("disabled");
   });
 
+  it("should save claudeCodeStatusLine as disabled when --no-claude-code-status-line", async () => {
+    await saveTestingConfig({
+      username: null,
+      organizationUrl: null,
+      installDir: tempDir,
+      claudeCodeStatusLine: "enabled",
+    });
+
+    const { configMain } = await import("./config.js");
+    await configMain({ claudeCodeStatusLine: false });
+
+    const loaded = await loadConfig();
+    expect(loaded?.claudeCodeStatusLine).toBe("disabled");
+  });
+
   it("should save multiple options at once", async () => {
     await saveTestingConfig({
       username: null,
@@ -876,12 +894,14 @@ describe("configMain non-interactive mode", () => {
       agents: "claude-code",
       installDir: "/new/dir",
       redownloadOnSwitch: false,
+      claudeCodeStatusLine: true,
     });
 
     const loaded = await loadConfig();
     expect(loaded?.defaultAgents).toEqual(["claude-code"]);
     expect(loaded?.installDir).toBe("/new/dir");
     expect(loaded?.redownloadOnSwitch).toBe("disabled");
+    expect(loaded?.claudeCodeStatusLine).toBe("enabled");
   });
 
   it("should error when --non-interactive is set but no options provided", async () => {

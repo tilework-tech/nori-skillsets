@@ -70,6 +70,8 @@ export type Config = {
   garbageCollectTranscripts?: "enabled" | "disabled" | null;
   /** Whether to prompt to re-download skillsets from registry on switch */
   redownloadOnSwitch?: "enabled" | "disabled" | null;
+  /** Whether Claude Code skillset apply configures the Nori status line */
+  claudeCodeStatusLine?: "enabled" | "disabled" | null;
 };
 
 /**
@@ -108,6 +110,8 @@ type RawDiskConfig = {
   garbageCollectTranscripts?: "enabled" | "disabled" | null;
   // Prompt to re-download from registry on switch
   redownloadOnSwitch?: "enabled" | "disabled" | null;
+  // Configure Claude Code status line during apply
+  claudeCodeStatusLine?: "enabled" | "disabled" | null;
 };
 
 /**
@@ -320,6 +324,7 @@ export const loadConfig = async (): Promise<Config | null> => {
       transcriptDestination: validated.transcriptDestination,
       garbageCollectTranscripts: validated.garbageCollectTranscripts,
       redownloadOnSwitch: validated.redownloadOnSwitch,
+      claudeCodeStatusLine: validated.claudeCodeStatusLine,
     };
 
     // Build auth - handle both nested format (v19+) and flat format (legacy)
@@ -398,6 +403,7 @@ export const loadConfig = async (): Promise<Config | null> => {
  * @param args.defaultAgents - Default agent names for CLI operations (null to skip)
  * @param args.garbageCollectTranscripts - Whether to delete transcripts after upload (null to skip)
  * @param args.redownloadOnSwitch - Whether to prompt to re-download from registry on switch (null to skip)
+ * @param args.claudeCodeStatusLine - Whether to configure Claude Code status line during apply (null to skip)
  * @param args.apiToken - Raw API token (format `nori_<orgId>_<64hex>`) for non-interactive private-org auth (null to skip)
  */
 const writeConfigFile = async (args: {
@@ -417,6 +423,7 @@ const writeConfigFile = async (args: {
   transcriptDestination?: string | null;
   garbageCollectTranscripts?: "enabled" | "disabled" | null;
   redownloadOnSwitch?: "enabled" | "disabled" | null;
+  claudeCodeStatusLine?: "enabled" | "disabled" | null;
   installDir: string;
 }): Promise<void> => {
   const {
@@ -436,6 +443,7 @@ const writeConfigFile = async (args: {
     transcriptDestination,
     garbageCollectTranscripts,
     redownloadOnSwitch,
+    claudeCodeStatusLine,
     installDir,
   } = args;
   const configPath = getConfigPath();
@@ -506,6 +514,11 @@ const writeConfigFile = async (args: {
     config.redownloadOnSwitch = redownloadOnSwitch;
   }
 
+  // Add claudeCodeStatusLine if provided
+  if (claudeCodeStatusLine != null) {
+    config.claudeCodeStatusLine = claudeCodeStatusLine;
+  }
+
   // Always save installDir
   config.installDir = installDir;
 
@@ -571,6 +584,10 @@ export const updateConfig = async (updates: Partial<Config>): Promise<void> => {
       "redownloadOnSwitch" in updates
         ? (updates.redownloadOnSwitch ?? null)
         : (existing?.redownloadOnSwitch ?? null),
+    claudeCodeStatusLine:
+      "claudeCodeStatusLine" in updates
+        ? (updates.claudeCodeStatusLine ?? null)
+        : (existing?.claudeCodeStatusLine ?? null),
     installDir:
       "installDir" in updates
         ? updates.installDir!
@@ -668,6 +685,11 @@ const configSchema = {
       enum: ["enabled", "disabled"],
     },
     redownloadOnSwitch: {
+      type: "string",
+      enum: ["enabled", "disabled"],
+      default: "enabled",
+    },
+    claudeCodeStatusLine: {
       type: "string",
       enum: ["enabled", "disabled"],
       default: "enabled",
