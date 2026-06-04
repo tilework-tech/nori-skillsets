@@ -523,9 +523,15 @@ export const saveConfig = async (args: {
 export const updateConfig = async (updates: Partial<Config>): Promise<void> => {
   const existing = await loadConfig();
 
-  // Determine auth: if 'auth' key is present in updates, use the provided value;
-  // otherwise preserve existing auth.
-  const auth = "auth" in updates ? updates.auth : existing?.auth;
+  // Determine auth: if omitted, preserve existing auth; if null, clear auth;
+  // otherwise merge updates into existing auth for the same organization.
+  const auth =
+    "auth" in updates
+      ? mergeAuthCredentials({
+          existingAuth: existing?.auth ?? null,
+          authUpdates: updates.auth,
+        })
+      : existing?.auth;
 
   await saveConfig({
     username: auth?.username ?? null,
@@ -570,6 +576,36 @@ export const updateConfig = async (updates: Partial<Config>): Promise<void> => {
         ? updates.installDir!
         : (existing?.installDir ?? getHomeDir()),
   });
+};
+
+const mergeAuthCredentials = (args: {
+  existingAuth: AuthCredentials | null;
+  authUpdates: Config["auth"] | undefined;
+}): AuthCredentials | null | undefined => {
+  const { existingAuth, authUpdates } = args;
+
+  if (authUpdates == null) {
+    return authUpdates;
+  }
+
+  if (existingAuth == null) {
+    return authUpdates;
+  }
+
+  const existingUrl = normalizeUrl({ baseUrl: existingAuth.organizationUrl });
+  const updateUrl =
+    authUpdates.organizationUrl != null
+      ? normalizeUrl({ baseUrl: authUpdates.organizationUrl })
+      : null;
+
+  if (updateUrl != null && updateUrl !== existingUrl) {
+    return authUpdates;
+  }
+
+  return {
+    ...existingAuth,
+    ...authUpdates,
+  };
 };
 
 /**

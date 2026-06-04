@@ -1123,6 +1123,34 @@ describe("updateConfig", () => {
     expect(loaded?.auth?.organizations).toEqual(["new-org"]);
     expect(loaded?.auth?.isAdmin).toBe(true);
   });
+
+  it("should preserve broker-managed idToken when updating other auth fields", async () => {
+    const expiresAt = Date.now() + 60_000;
+
+    await updateConfig({
+      auth: {
+        username: "sprite-service:dev",
+        organizationUrl: "https://dev.noriskillsets.dev",
+        idToken: "session-id-token",
+        idTokenExpiresAt: expiresAt,
+      },
+      activeSkillset: "senior-swe",
+      installDir: tempDir,
+    });
+
+    await updateConfig({
+      auth: {
+        username: "sprite-service:dev",
+        organizationUrl: "https://dev.noriskillsets.dev",
+      },
+      activeSkillset: "high-autonomy",
+    });
+
+    const loaded = await loadConfig();
+    expect(loaded?.auth?.idToken).toBe("session-id-token");
+    expect(loaded?.auth?.idTokenExpiresAt).toBe(expiresAt);
+    expect(loaded?.activeSkillset).toBe("high-autonomy");
+  });
 });
 
 describe("API token auth", () => {

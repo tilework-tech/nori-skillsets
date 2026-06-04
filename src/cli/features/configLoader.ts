@@ -115,13 +115,13 @@ const installConfig = async (args: { config: Config }): Promise<void> => {
       ? {
           username,
           organizationUrl,
-          refreshToken: tokenToSave,
-          organizations:
-            config.auth?.organizations ??
-            existingConfig?.auth?.organizations ??
-            null,
-          isAdmin:
-            config.auth?.isAdmin ?? existingConfig?.auth?.isAdmin ?? null,
+          ...(tokenToSave != null ? { refreshToken: tokenToSave } : {}),
+          ...(config.auth?.organizations != null
+            ? { organizations: config.auth.organizations }
+            : {}),
+          ...(config.auth?.isAdmin != null
+            ? { isAdmin: config.auth.isAdmin }
+            : {}),
         }
       : undefined;
 
