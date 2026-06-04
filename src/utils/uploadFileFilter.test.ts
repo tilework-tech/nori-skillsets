@@ -212,6 +212,52 @@ describe("shouldExcludeFromUpload", () => {
       ).toBe(false);
     });
   });
+
+  // Documents an accepted trade-off: the bloat-directory exclusion wins even
+  // when a skill directory is itself named like a bloat dir. Such a skill is
+  // dropped silently (skill discovery is best-effort, so it just vanishes from
+  // the published package). The trigger is pathological enough that we accept
+  // it rather than carve out a reserved-name exception. These tests pin the
+  // behavior so any future change to it is a deliberate decision.
+  describe("a skill directory named like a bloat dir is dropped", () => {
+    it("drops a skill directory literally named node_modules", () => {
+      expect(
+        shouldExcludeFromUpload({
+          relativePath: "skills/node_modules/SKILL.md",
+        }),
+      ).toBe(true);
+    });
+
+    it("drops a skill directory literally named .venv", () => {
+      expect(
+        shouldExcludeFromUpload({
+          relativePath: "skills/.venv/SKILL.md",
+        }),
+      ).toBe(true);
+    });
+
+    it("drops a skill directory named target when a sibling Cargo.toml exists", () => {
+      const relativePaths = ["skills/Cargo.toml", "skills/target/SKILL.md"];
+      const cargoManifestDirs = collectCargoManifestDirs({ relativePaths });
+      expect(
+        shouldExcludeFromUpload({
+          relativePath: "skills/target/SKILL.md",
+          cargoManifestDirs,
+        }),
+      ).toBe(true);
+    });
+
+    it("keeps a skill directory named target when no sibling Cargo.toml exists", () => {
+      const relativePaths = ["skills/target/SKILL.md"];
+      const cargoManifestDirs = collectCargoManifestDirs({ relativePaths });
+      expect(
+        shouldExcludeFromUpload({
+          relativePath: "skills/target/SKILL.md",
+          cargoManifestDirs,
+        }),
+      ).toBe(false);
+    });
+  });
 });
 
 describe("collectCargoManifestDirs", () => {
