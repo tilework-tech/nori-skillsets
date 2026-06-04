@@ -400,7 +400,7 @@ export const loadConfig = async (): Promise<Config | null> => {
  * @param args.redownloadOnSwitch - Whether to prompt to re-download from registry on switch (null to skip)
  * @param args.apiToken - Raw API token (format `nori_<orgId>_<64hex>`) for non-interactive private-org auth (null to skip)
  */
-export const saveConfig = async (args: {
+const writeConfigFile = async (args: {
   username: string | null;
   password?: string | null;
   refreshToken?: string | null;
@@ -523,11 +523,17 @@ export const saveConfig = async (args: {
 export const updateConfig = async (updates: Partial<Config>): Promise<void> => {
   const existing = await loadConfig();
 
-  // Determine auth: if 'auth' key is present in updates, use the provided value;
-  // otherwise preserve existing auth.
-  const auth = "auth" in updates ? updates.auth : existing?.auth;
+  // Determine auth: if omitted, preserve existing auth; if null, clear auth;
+  // otherwise merge updates into existing auth for the same organization.
+  const auth =
+    "auth" in updates
+      ? mergeAuthCredentials({
+          existingAuth: existing?.auth ?? null,
+          authUpdates: updates.auth,
+        })
+      : existing?.auth;
 
-  await saveConfig({
+  await writeConfigFile({
     username: auth?.username ?? null,
     password: auth?.password ?? null,
     refreshToken: auth?.refreshToken ?? null,
@@ -570,6 +576,36 @@ export const updateConfig = async (updates: Partial<Config>): Promise<void> => {
         ? updates.installDir!
         : (existing?.installDir ?? getHomeDir()),
   });
+};
+
+const mergeAuthCredentials = (args: {
+  existingAuth: AuthCredentials | null;
+  authUpdates: Config["auth"] | undefined;
+}): AuthCredentials | null | undefined => {
+  const { existingAuth, authUpdates } = args;
+
+  if (authUpdates == null) {
+    return authUpdates;
+  }
+
+  if (existingAuth == null) {
+    return authUpdates;
+  }
+
+  const existingUrl = normalizeUrl({ baseUrl: existingAuth.organizationUrl });
+  const updateUrl =
+    authUpdates.organizationUrl != null
+      ? normalizeUrl({ baseUrl: authUpdates.organizationUrl })
+      : null;
+
+  if (updateUrl != null && updateUrl !== existingUrl) {
+    return authUpdates;
+  }
+
+  return {
+    ...existingAuth,
+    ...authUpdates,
+  };
 };
 
 /**

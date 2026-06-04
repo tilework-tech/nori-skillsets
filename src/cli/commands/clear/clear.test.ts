@@ -11,8 +11,9 @@ import * as path from "path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { loadConfig, saveConfig } from "@/cli/config.js";
+import { loadConfig } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
+import { saveTestingConfig } from "@/cli/test-utils/config.js";
 
 // Mock os.homedir so config paths resolve to temp directory
 vi.mock("os", async (importOriginal) => {
@@ -75,7 +76,7 @@ describe("clearMain", () => {
 
   it("should remove managed files and clear activeSkillset from config", async () => {
     // Set up config with an active skillset
-    await saveConfig({
+    await saveTestingConfig({
       username: "user@example.com",
       refreshToken: "mock-token",
       organizationUrl: "https://noriskillsets.dev",
@@ -137,7 +138,7 @@ describe("clearMain", () => {
 
     try {
       // Set up config with a custom installDir
-      await saveConfig({
+      await saveTestingConfig({
         username: null,
         organizationUrl: null,
         activeSkillset: "test-skillset",

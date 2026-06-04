@@ -8,7 +8,8 @@ import * as path from "path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { loadConfig, saveConfig } from "@/cli/config.js";
+import { loadConfig } from "@/cli/config.js";
+import { saveTestingConfig } from "@/cli/test-utils/config.js";
 
 // Mock os.homedir so getConfigPath resolves to test directories
 vi.mock("os", async (importOriginal) => {
@@ -48,7 +49,7 @@ describe("logout command", () => {
   describe("logoutMain", () => {
     it("should clear auth fields but preserve other config", async () => {
       // Create config with auth and other settings
-      await saveConfig({
+      await saveTestingConfig({
         username: "user@example.com",
         refreshToken: "mock-refresh-token",
         organizationUrl: "https://noriskillsets.dev",
@@ -79,7 +80,7 @@ describe("logout command", () => {
       const { log } = await import("@clack/prompts");
 
       // Create config without auth
-      await saveConfig({
+      await saveTestingConfig({
         username: null,
         organizationUrl: null,
         activeSkillset: "senior-swe",
@@ -107,7 +108,7 @@ describe("logout command", () => {
       const { log } = await import("@clack/prompts");
 
       // Create config with auth
-      await saveConfig({
+      await saveTestingConfig({
         username: "user@example.com",
         refreshToken: "mock-refresh-token",
         organizationUrl: "https://noriskillsets.dev",
@@ -124,7 +125,7 @@ describe("logout command", () => {
     it("should clear auth from a Google SSO-authenticated session", async () => {
       // Create config that looks like it came from Google SSO login
       // (same fields as email/password, just different origin)
-      await saveConfig({
+      await saveTestingConfig({
         username: "googleuser@gmail.com",
         refreshToken: "firebase-refresh-token-from-google-sso",
         organizationUrl: "https://noriskillsets.dev",
@@ -179,7 +180,7 @@ describe("logout command", () => {
       const { log } = await import("@clack/prompts");
 
       // Create config with auth at home directory (centralized config)
-      await saveConfig({
+      await saveTestingConfig({
         username: "user@example.com",
         refreshToken: "mock-refresh-token",
         organizationUrl: "https://noriskillsets.dev",
