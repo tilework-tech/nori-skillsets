@@ -27,7 +27,7 @@ type SaveConfigForTestArgs = {
   installDir: string;
 };
 
-export const saveConfig = async (
+export const saveTestingConfig = async (
   args: SaveConfigForTestArgs,
 ): Promise<void> => {
   await fs.rm(getConfigPath(), { force: true });

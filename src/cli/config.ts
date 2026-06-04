@@ -400,7 +400,7 @@ export const loadConfig = async (): Promise<Config | null> => {
  * @param args.redownloadOnSwitch - Whether to prompt to re-download from registry on switch (null to skip)
  * @param args.apiToken - Raw API token (format `nori_<orgId>_<64hex>`) for non-interactive private-org auth (null to skip)
  */
-const saveConfig = async (args: {
+const writeConfigFile = async (args: {
   username: string | null;
   password?: string | null;
   refreshToken?: string | null;
@@ -533,7 +533,7 @@ export const updateConfig = async (updates: Partial<Config>): Promise<void> => {
         })
       : existing?.auth;
 
-  await saveConfig({
+  await writeConfigFile({
     username: auth?.username ?? null,
     password: auth?.password ?? null,
     refreshToken: auth?.refreshToken ?? null,

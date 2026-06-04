@@ -18,7 +18,7 @@ import {
   resetGlobalAgentOverride,
   type Config,
 } from "./config.js";
-import { saveConfig } from "./test-utils/config.js";
+import { saveTestingConfig } from "./test-utils/config.js";
 
 // Mock os.homedir so getConfigPath resolves to test directories
 vi.mock("os", async (importOriginal) => {
@@ -38,7 +38,7 @@ describe("getConfigPath", () => {
   it("should not expose the full-file writer from the production config module", async () => {
     const configModule = await import("./config.js");
 
-    expect(configModule).not.toHaveProperty("saveConfig");
+    expect(configModule).not.toHaveProperty("saveTestingConfig");
   });
 });
 
@@ -96,9 +96,9 @@ describe("config with skillset-based system", () => {
     vi.clearAllMocks();
   });
 
-  describe("saveConfig and loadConfig", () => {
+  describe("saveTestingConfig and loadConfig", () => {
     it("should save and load activeSkillset with auth", async () => {
-      await saveConfig({
+      await saveTestingConfig({
         username: "test@example.com",
         password: "password123",
         organizationUrl: "https://example.com",
@@ -121,7 +121,7 @@ describe("config with skillset-based system", () => {
     });
 
     it("should save and load auth without activeSkillset", async () => {
-      await saveConfig({
+      await saveTestingConfig({
         username: "test@example.com",
         password: "password123",
         organizationUrl: "https://example.com",
@@ -143,7 +143,7 @@ describe("config with skillset-based system", () => {
     });
 
     it("should save and load activeSkillset without auth", async () => {
-      await saveConfig({
+      await saveTestingConfig({
         username: null,
         password: null,
         organizationUrl: null,
@@ -200,7 +200,7 @@ describe("config with skillset-based system", () => {
     });
 
     it("should save and load sendSessionTranscript", async () => {
-      await saveConfig({
+      await saveTestingConfig({
         username: null,
         password: null,
         organizationUrl: null,
@@ -244,7 +244,7 @@ describe("config with skillset-based system", () => {
     });
 
     it("should save and load autoupdate", async () => {
-      await saveConfig({
+      await saveTestingConfig({
         username: null,
         password: null,
         organizationUrl: null,
@@ -260,7 +260,7 @@ describe("config with skillset-based system", () => {
 
   describe("installDir configuration", () => {
     it("should always save config to ~/.nori-config.json", async () => {
-      await saveConfig({
+      await saveTestingConfig({
         username: "test@example.com",
         password: "password123",
         organizationUrl: "https://example.com",
@@ -278,7 +278,7 @@ describe("config with skillset-based system", () => {
     it("should save installDir in config as a data field", async () => {
       const customDir = "/some/custom/path";
 
-      await saveConfig({
+      await saveTestingConfig({
         username: null,
         password: null,
         organizationUrl: null,
@@ -412,9 +412,9 @@ describe("token-based auth", () => {
     vi.clearAllMocks();
   });
 
-  describe("saveConfig with refreshToken", () => {
+  describe("saveTestingConfig with refreshToken", () => {
     it("should save refreshToken in nested auth structure", async () => {
-      await saveConfig({
+      await saveTestingConfig({
         username: "test@example.com",
         password: null,
         organizationUrl: "https://example.com",
@@ -432,7 +432,7 @@ describe("token-based auth", () => {
     });
 
     it("should not save password when refreshToken is provided", async () => {
-      await saveConfig({
+      await saveTestingConfig({
         username: "test@example.com",
         password: "should-be-ignored",
         organizationUrl: "https://example.com",
@@ -522,7 +522,7 @@ describe("transcriptDestination config", () => {
   });
 
   it("should save and load transcriptDestination", async () => {
-    await saveConfig({
+    await saveTestingConfig({
       username: "test@example.com",
       password: null,
       refreshToken: "token-123",
@@ -566,7 +566,7 @@ describe("transcriptDestination config", () => {
 
   it("should preserve transcriptDestination when saving other fields", async () => {
     // First save with transcriptDestination
-    await saveConfig({
+    await saveTestingConfig({
       username: "test@example.com",
       password: null,
       refreshToken: "token-123",
@@ -599,7 +599,7 @@ describe("defaultAgents config", () => {
   });
 
   it("should save and load defaultAgents array", async () => {
-    await saveConfig({
+    await saveTestingConfig({
       username: null,
       organizationUrl: null,
       installDir: tempDir,
@@ -626,7 +626,7 @@ describe("defaultAgents config", () => {
   });
 
   it("should persist defaultAgents array to disk", async () => {
-    await saveConfig({
+    await saveTestingConfig({
       username: null,
       organizationUrl: null,
       installDir: tempDir,
@@ -641,7 +641,7 @@ describe("defaultAgents config", () => {
   });
 
   it("should not write defaultAgent (singular) to disk", async () => {
-    await saveConfig({
+    await saveTestingConfig({
       username: null,
       organizationUrl: null,
       installDir: tempDir,
@@ -906,9 +906,9 @@ describe("activeSkillset config", () => {
     vi.clearAllMocks();
   });
 
-  describe("saveConfig and loadConfig with activeSkillset", () => {
+  describe("saveTestingConfig and loadConfig with activeSkillset", () => {
     it("should save and load activeSkillset", async () => {
-      await saveConfig({
+      await saveTestingConfig({
         username: null,
         organizationUrl: null,
         activeSkillset: "senior-swe",
@@ -921,7 +921,7 @@ describe("activeSkillset config", () => {
     });
 
     it("should save activeSkillset with auth", async () => {
-      await saveConfig({
+      await saveTestingConfig({
         username: "test@example.com",
         refreshToken: "token-123",
         organizationUrl: "https://example.com",
@@ -936,7 +936,7 @@ describe("activeSkillset config", () => {
     });
 
     it("should return null activeSkillset when not set", async () => {
-      await saveConfig({
+      await saveTestingConfig({
         username: null,
         organizationUrl: null,
         installDir: tempDir,
@@ -998,7 +998,7 @@ describe("updateConfig", () => {
 
   it("should preserve all existing fields when updating only activeSkillset", async () => {
     // Set up a fully-populated config
-    await saveConfig({
+    await saveTestingConfig({
       username: "test@example.com",
       refreshToken: "token-123",
       organizationUrl: "https://example.com",
@@ -1056,7 +1056,7 @@ describe("updateConfig", () => {
   });
 
   it("should clear a field when explicitly set to null", async () => {
-    await saveConfig({
+    await saveTestingConfig({
       username: null,
       organizationUrl: null,
       activeSkillset: "senior-swe",
@@ -1083,7 +1083,7 @@ describe("updateConfig", () => {
 
   it("should clear auth when auth is explicitly set to null", async () => {
     // Set up config with auth
-    await saveConfig({
+    await saveTestingConfig({
       username: "test@example.com",
       refreshToken: "token-123",
       organizationUrl: "https://example.com",
@@ -1103,7 +1103,7 @@ describe("updateConfig", () => {
   });
 
   it("should replace auth entirely when new auth is provided", async () => {
-    await saveConfig({
+    await saveTestingConfig({
       username: "old@example.com",
       refreshToken: "old-token",
       organizationUrl: "https://old.example.com",
@@ -1183,7 +1183,7 @@ describe("API token auth", () => {
   const TOKEN_ACME_E = `nori_acme_${"e".repeat(64)}`;
   const TOKEN_ACME_F = `nori_acme_${"f".repeat(64)}`;
 
-  describe("saveConfig and loadConfig with apiToken", () => {
+  describe("saveTestingConfig and loadConfig with apiToken", () => {
     it("should round-trip apiToken via updateConfig/loadConfig", async () => {
       await updateConfig({
         auth: {

@@ -14,7 +14,7 @@ import * as path from "path";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 
 import { loadConfig } from "@/cli/config.js";
-import { saveConfig } from "@/cli/test-utils/config.js";
+import { saveTestingConfig } from "@/cli/test-utils/config.js";
 
 // Mock os.homedir so getConfigPath resolves to test directories
 vi.mock("os", async (importOriginal) => {
@@ -142,7 +142,7 @@ describe("configMain", () => {
     });
 
     // Create a minimal existing config so loadConfig returns something
-    await saveConfig({
+    await saveTestingConfig({
       username: null,
       organizationUrl: null,
       installDir: tempDir,
@@ -162,7 +162,7 @@ describe("configMain", () => {
     vi.mocked(configFlow).mockResolvedValueOnce(null);
 
     // Create an existing config
-    await saveConfig({
+    await saveTestingConfig({
       username: null,
       organizationUrl: null,
       installDir: tempDir,
@@ -187,7 +187,7 @@ describe("configMain", () => {
     });
 
     // Create config with auth and agents
-    await saveConfig({
+    await saveTestingConfig({
       username: "test@example.com",
       refreshToken: "token-123",
       organizationUrl: "https://example.com",
@@ -229,7 +229,7 @@ describe("configMain return value and framing", () => {
       redownloadOnSwitch: "enabled",
     });
 
-    await saveConfig({
+    await saveTestingConfig({
       username: null,
       organizationUrl: null,
       installDir: tempDir,
@@ -252,7 +252,7 @@ describe("configMain return value and framing", () => {
     const { configFlow } = await import("@/cli/prompts/flows/config.js");
     vi.mocked(configFlow).mockResolvedValueOnce(null);
 
-    await saveConfig({
+    await saveTestingConfig({
       username: null,
       organizationUrl: null,
       installDir: tempDir,
@@ -306,7 +306,7 @@ describe("configMain installDir change prompts", () => {
       .mockResolvedValueOnce(true)
       .mockResolvedValueOnce(false);
 
-    await saveConfig({
+    await saveTestingConfig({
       username: null,
       organizationUrl: null,
       installDir: oldInstallDir,
@@ -340,7 +340,7 @@ describe("configMain installDir change prompts", () => {
       .mockResolvedValueOnce(false)
       .mockResolvedValueOnce(true);
 
-    await saveConfig({
+    await saveTestingConfig({
       username: null,
       organizationUrl: null,
       installDir: oldInstallDir,
@@ -419,7 +419,7 @@ describe("configMain installDir change prompts", () => {
       .mockResolvedValueOnce(true);
 
     // Old config only has claude-code as defaultAgent
-    await saveConfig({
+    await saveTestingConfig({
       username: null,
       organizationUrl: null,
       installDir: oldInstallDir,
@@ -465,7 +465,7 @@ describe("configMain installDir change prompts", () => {
       .mockResolvedValueOnce(false)
       .mockResolvedValueOnce(false);
 
-    await saveConfig({
+    await saveTestingConfig({
       username: null,
       organizationUrl: null,
       installDir: oldInstallDir,
@@ -489,7 +489,7 @@ describe("configMain installDir change prompts", () => {
       redownloadOnSwitch: "enabled",
     });
 
-    await saveConfig({
+    await saveTestingConfig({
       username: null,
       organizationUrl: null,
       installDir: oldInstallDir,
@@ -511,7 +511,7 @@ describe("configMain installDir change prompts", () => {
       redownloadOnSwitch: "enabled",
     });
 
-    await saveConfig({
+    await saveTestingConfig({
       username: null,
       organizationUrl: null,
       installDir: oldInstallDir,
@@ -541,7 +541,7 @@ describe("configMain installDir change prompts", () => {
       .mockResolvedValueOnce(true)
       .mockResolvedValueOnce(false);
 
-    await saveConfig({
+    await saveTestingConfig({
       username: null,
       organizationUrl: null,
       installDir: oldInstallDir,
@@ -588,7 +588,7 @@ describe("configMain installDir change prompts", () => {
       .mockResolvedValueOnce(true)
       .mockResolvedValueOnce(true);
 
-    await saveConfig({
+    await saveTestingConfig({
       username: null,
       organizationUrl: null,
       installDir: oldInstallDir,
@@ -638,7 +638,7 @@ describe("configMain defaultAgents change prompts", () => {
     });
     vi.mocked(confirmAction).mockResolvedValueOnce(true);
 
-    await saveConfig({
+    await saveTestingConfig({
       username: null,
       organizationUrl: null,
       installDir: tempDir,
@@ -670,7 +670,7 @@ describe("configMain defaultAgents change prompts", () => {
     });
     vi.mocked(confirmAction).mockResolvedValueOnce(true);
 
-    await saveConfig({
+    await saveTestingConfig({
       username: null,
       organizationUrl: null,
       installDir: tempDir,
@@ -712,7 +712,7 @@ describe("configMain defaultAgents change prompts", () => {
     });
     vi.mocked(confirmAction).mockResolvedValueOnce(false);
 
-    await saveConfig({
+    await saveTestingConfig({
       username: null,
       organizationUrl: null,
       installDir: tempDir,
@@ -740,7 +740,7 @@ describe("configMain defaultAgents change prompts", () => {
     // First confirm: clean up removed agents? Yes.
     vi.mocked(confirmAction).mockResolvedValueOnce(true);
 
-    await saveConfig({
+    await saveTestingConfig({
       username: null,
       organizationUrl: null,
       installDir: tempDir,
@@ -772,7 +772,7 @@ describe("configMain defaultAgents change prompts", () => {
     // Decline all prompts
     vi.mocked(confirmAction).mockResolvedValue(false);
 
-    await saveConfig({
+    await saveTestingConfig({
       username: null,
       organizationUrl: null,
       installDir: tempDir,
@@ -807,7 +807,7 @@ describe("configMain non-interactive mode", () => {
   });
 
   it("should save agents when --agents is provided", async () => {
-    await saveConfig({
+    await saveTestingConfig({
       username: null,
       organizationUrl: null,
       installDir: tempDir,
@@ -822,7 +822,7 @@ describe("configMain non-interactive mode", () => {
   });
 
   it("should save install dir when --install-dir is provided", async () => {
-    await saveConfig({
+    await saveTestingConfig({
       username: null,
       organizationUrl: null,
       installDir: tempDir,
@@ -836,7 +836,7 @@ describe("configMain non-interactive mode", () => {
   });
 
   it("should save redownloadOnSwitch when --redownload-on-switch is provided", async () => {
-    await saveConfig({
+    await saveTestingConfig({
       username: null,
       organizationUrl: null,
       installDir: tempDir,
@@ -850,7 +850,7 @@ describe("configMain non-interactive mode", () => {
   });
 
   it("should save redownloadOnSwitch as disabled when --no-redownload-on-switch", async () => {
-    await saveConfig({
+    await saveTestingConfig({
       username: null,
       organizationUrl: null,
       installDir: tempDir,
@@ -865,7 +865,7 @@ describe("configMain non-interactive mode", () => {
   });
 
   it("should save multiple options at once", async () => {
-    await saveConfig({
+    await saveTestingConfig({
       username: null,
       organizationUrl: null,
       installDir: tempDir,
@@ -885,7 +885,7 @@ describe("configMain non-interactive mode", () => {
   });
 
   it("should error when --non-interactive is set but no options provided", async () => {
-    await saveConfig({
+    await saveTestingConfig({
       username: null,
       organizationUrl: null,
       installDir: tempDir,
@@ -898,7 +898,7 @@ describe("configMain non-interactive mode", () => {
   });
 
   it("should error when --agents contains an invalid agent name", async () => {
-    await saveConfig({
+    await saveTestingConfig({
       username: null,
       organizationUrl: null,
       installDir: tempDir,
@@ -911,7 +911,7 @@ describe("configMain non-interactive mode", () => {
   });
 
   it("should error when --agents is empty string", async () => {
-    await saveConfig({
+    await saveTestingConfig({
       username: null,
       organizationUrl: null,
       installDir: tempDir,
@@ -924,7 +924,7 @@ describe("configMain non-interactive mode", () => {
   });
 
   it("should preserve existing config fields when applying partial update", async () => {
-    await saveConfig({
+    await saveTestingConfig({
       username: "test@example.com",
       refreshToken: "token-123",
       organizationUrl: "https://example.com",
