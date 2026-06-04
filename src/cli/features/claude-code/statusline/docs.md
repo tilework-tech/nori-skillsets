@@ -11,6 +11,7 @@ Path: @/src/cli/features/claude-code/statusline
 
 - `statuslineLoader` is an `AgentLoader` included in the `claudeCodeAgentConfig.getLoaders()` pipeline in `@/src/cli/features/claude-code/agent.ts`
 - Writes configuration to `~/.claude/settings.json` (home-level, via `getClaudeHomeSettingsFile()` from `@/src/cli/features/claude-code/paths.ts`)
+- Honors `config.claudeCodeStatusLine`; when the user disables that setting via `nori-skillsets config`, the loader exits without copying the script or writing `settings.statusLine`
 - The shell script reads `~/.nori-config.json` (for the active skillset) and `~/.nori/profiles/nori-skillsets-version.json` (for the cached latest-known version) at runtime, outside the Node.js config system. The running CLI version is resolved by spawning `sks --version` rather than being read from the config.
 
 ### Core Implementation
@@ -22,6 +23,7 @@ Path: @/src/cli/features/claude-code/statusline
 ### Things to Know
 
 - The loader gracefully skips configuration if the source script is not found in the build output
+- Existing configs default `claudeCodeStatusLine` to enabled, so future applies keep configuring the status line unless the user explicitly opts out
 - The shell script depends on `jq`; if missing, it displays a warning instead of the full status line
 - Session tracking files in `/tmp/` store token accumulation state so that token counts include cached tokens (which are invisible in `total_input_tokens`) and persist across `/clear` boundaries
 

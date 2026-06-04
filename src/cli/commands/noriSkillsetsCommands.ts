@@ -1165,8 +1165,20 @@ export const registerNoriSkillsetsConfigCommand = (args: {
       "--no-redownload-on-switch",
       "Disable re-download prompt on skillset switch",
     )
+    .option(
+      "--claude-code-status-line",
+      "Enable adding the Nori status line to Claude Code on skillset apply",
+    )
+    .option(
+      "--no-claude-code-status-line",
+      "Disable adding the Nori status line to Claude Code on skillset apply",
+    )
     .action(
-      async (options: { agents?: string; redownloadOnSwitch?: boolean }) => {
+      async (options: {
+        agents?: string;
+        redownloadOnSwitch?: boolean;
+        claudeCodeStatusLine?: boolean;
+      }) => {
         const { configMain } = await import("@/cli/commands/config/config.js");
         const globalOpts = program.opts();
         await wrapWithFraming({
@@ -1177,6 +1189,7 @@ export const registerNoriSkillsetsConfigCommand = (args: {
               agents: options.agents ?? null,
               installDir: globalOpts.installDir || null,
               redownloadOnSwitch: options.redownloadOnSwitch ?? null,
+              claudeCodeStatusLine: options.claudeCodeStatusLine ?? null,
               nonInteractive: globalOpts.nonInteractive || null,
             }),
         });
