@@ -57,10 +57,12 @@ describe("text", () => {
 
       // Verify that clack.text was called with a validate function
       const callArgs = vi.mocked(clack.text).mock.calls[0][0];
-      expect(callArgs.validate).toBeDefined();
+      expect(typeof callArgs.validate).toBe("function");
 
       // Call the validate function to ensure it delegates to our custom one
-      callArgs.validate?.("test-value");
+      if (typeof callArgs.validate === "function") {
+        callArgs.validate("test-value");
+      }
       expect(customValidate).toHaveBeenCalledWith({ value: "test-value" });
     });
 
