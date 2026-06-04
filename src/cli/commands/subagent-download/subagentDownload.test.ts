@@ -53,11 +53,11 @@ vi.mock("@/api/registrar.js", () => ({
 vi.mock("@/cli/config.js", async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
   return {
+    ...actual,
     loadConfig: vi.fn(),
     getRegistryAuth: vi.fn(),
     getActiveSkillset: (args: { config: { activeSkillset?: string | null } }) =>
       args.config.activeSkillset ?? null,
-    getDefaultAgents: actual.getDefaultAgents,
   };
 });
 
@@ -376,6 +376,50 @@ describe("subagent-download", () => {
         version: undefined,
         registryUrl: orgRegistryUrl,
         authToken: "api-token-auth",
+      });
+    });
+
+    it("should download namespaced subagent when authenticated via broker-managed idToken only", async () => {
+      const orgRegistryUrl = "https://myorg.noriskillsets.dev";
+
+      vi.mocked(os.homedir).mockReturnValue(testDir);
+
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        auth: {
+          username: "sprite-service:dev",
+          organizationUrl: orgRegistryUrl,
+          refreshToken: null,
+          idToken: "session-id-token",
+          idTokenExpiresAt: Date.now() + 60_000,
+          apiToken: null,
+          organizations: ["myorg"],
+        },
+      });
+
+      vi.mocked(getRegistryAuthToken).mockResolvedValue("id-token-auth");
+
+      vi.mocked(registrarApi.getSubagentPackument).mockResolvedValue({
+        name: "my-subagent",
+        "dist-tags": { latest: "1.0.0" },
+        versions: { "1.0.0": { name: "my-subagent", version: "1.0.0" } },
+      });
+
+      const mockTarball = await createMockSubagentTarball();
+      vi.mocked(registrarApi.downloadSubagentTarball).mockResolvedValue(
+        mockTarball,
+      );
+
+      await subagentDownloadMain({
+        subagentSpec: "myorg/my-subagent",
+        cwd: testDir,
+      });
+
+      expect(registrarApi.downloadSubagentTarball).toHaveBeenCalledWith({
+        subagentName: "my-subagent",
+        version: undefined,
+        registryUrl: orgRegistryUrl,
+        authToken: "id-token-auth",
       });
     });
 

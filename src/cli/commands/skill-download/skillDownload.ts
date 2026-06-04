@@ -22,8 +22,10 @@ import {
 import {
   getRegistryAuth,
   getDefaultAgents,
+  hasRegistryAuthCredentials,
   loadConfig,
   getActiveSkillset,
+  toRegistryAuth,
 } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { addSkillDependency } from "@/cli/features/skillResolver.js";
@@ -492,7 +494,7 @@ export const skillDownloadMain = async (args: {
 
         const hasUnifiedAuth =
           config?.auth != null &&
-          (config.auth.refreshToken != null || config.auth.apiToken != null) &&
+          hasRegistryAuthCredentials({ auth: config.auth }) &&
           config.auth.organizations != null;
 
         if (registryUrl != null) {
@@ -536,12 +538,10 @@ export const skillDownloadMain = async (args: {
             };
           }
 
-          const registryAuth = {
+          const registryAuth = toRegistryAuth({
+            auth: config.auth!,
             registryUrl: targetRegistryUrl,
-            username: config.auth!.username ?? null,
-            refreshToken: config.auth!.refreshToken ?? null,
-            apiToken: config.auth!.apiToken ?? null,
-          };
+          });
 
           try {
             const authToken = await getRegistryAuthToken({ registryAuth });

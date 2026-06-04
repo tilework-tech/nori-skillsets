@@ -25,7 +25,12 @@ import {
   type CliName,
 } from "@/cli/commands/cliCommandNames.js";
 import { initMain } from "@/cli/commands/init/init.js";
-import { getRegistryAuth, loadConfig } from "@/cli/config.js";
+import {
+  getRegistryAuth,
+  hasRegistryAuthCredentials,
+  loadConfig,
+  toRegistryAuth,
+} from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { registryDownloadFlow } from "@/cli/prompts/flows/index.js";
 import { getNoriSkillsetsDir } from "@/norijson/skillset.js";
@@ -811,7 +816,7 @@ export const registryDownloadMain = async (args: {
 
         const hasUnifiedAuth =
           config?.auth != null &&
-          (config.auth.refreshToken != null || config.auth.apiToken != null) &&
+          hasRegistryAuthCredentials({ auth: config.auth }) &&
           config.auth.organizations != null;
 
         if (registryUrl != null) {
@@ -891,12 +896,10 @@ export const registryDownloadMain = async (args: {
             };
           }
 
-          const registryAuth = {
+          const registryAuth = toRegistryAuth({
+            auth: config.auth!,
             registryUrl: targetRegistryUrl,
-            username: config.auth!.username ?? null,
-            refreshToken: config.auth!.refreshToken ?? null,
-            apiToken: config.auth!.apiToken ?? null,
-          };
+          });
 
           try {
             const authToken = await getRegistryAuthToken({ registryAuth });

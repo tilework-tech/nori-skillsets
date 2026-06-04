@@ -25,6 +25,8 @@ import {
   loadConfig,
   getActiveSkillset,
   getRegistryAuth,
+  hasRegistryAuthCredentials,
+  toRegistryAuth,
   type Config,
   type RegistryAuth,
 } from "@/cli/config.js";
@@ -249,15 +251,18 @@ const resolveRegistryAndAuth = async (args: {
     orgId === "public" &&
     registryUrl == null &&
     (hasMatchingEnvToken ||
-      config?.auth?.refreshToken != null ||
-      config?.auth?.apiToken != null)
+      hasRegistryAuthCredentials({ auth: config?.auth ?? null }))
   ) {
-    registryAuth = {
-      registryUrl: REGISTRAR_URL,
-      username: config?.auth?.username ?? null,
-      refreshToken: config?.auth?.refreshToken ?? null,
-      apiToken: config?.auth?.apiToken ?? null,
-    };
+    registryAuth =
+      config?.auth != null
+        ? toRegistryAuth({
+            auth: config.auth,
+            registryUrl: REGISTRAR_URL,
+          })
+        : {
+            registryUrl: REGISTRAR_URL,
+            username: null,
+          };
   }
 
   // Otherwise prefer per-registry auth
@@ -270,15 +275,18 @@ const resolveRegistryAndAuth = async (args: {
   if (
     registryAuth == null &&
     (hasMatchingEnvToken ||
-      config?.auth?.refreshToken != null ||
-      config?.auth?.apiToken != null)
+      hasRegistryAuthCredentials({ auth: config?.auth ?? null }))
   ) {
-    registryAuth = {
-      registryUrl: targetRegistryUrl,
-      username: config?.auth?.username ?? null,
-      refreshToken: config?.auth?.refreshToken ?? null,
-      apiToken: config?.auth?.apiToken ?? null,
-    };
+    registryAuth =
+      config?.auth != null
+        ? toRegistryAuth({
+            auth: config.auth,
+            registryUrl: targetRegistryUrl,
+          })
+        : {
+            registryUrl: targetRegistryUrl,
+            username: null,
+          };
   }
 
   if (registryAuth == null) {
