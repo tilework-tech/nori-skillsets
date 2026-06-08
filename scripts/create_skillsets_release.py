@@ -287,35 +287,28 @@ def determine_version(args: argparse.Namespace) -> str:
 def list_tags() -> list[str]:
     """List all tags matching TAG_PREFIX, returning version strings.
 
-    The git/refs/tags endpoint returns up to 1000 matching refs in a single
-    response and ignores per_page/page query parameters. A single request is
-    both correct and necessary: page-based pagination here never terminates
-    (every page returns the full set) and fanning out repeated requests gets
-    us rate limited by GitHub.
+    Uses `git ls-remote` rather than the REST API: it returns every matching
+    tag in a single git-protocol round trip with no pagination, no ref-count
+    cap, and no REST rate-limiting exposure. (The git/refs/tags REST endpoint
+    ignores per_page/page and silently truncates at 1000 refs, so it cannot be
+    paginated correctly.)
     """
-    try:
-        response = run_gh_api(f"/repos/{REPO}/git/refs/tags")
-    except ReleaseError:
+    result = run_git(
+        ["ls-remote", "--tags", "origin", f"refs/tags/{TAG_PREFIX}*"], check=False
+    )
+    if result.returncode != 0:
         return []
-
-    if not isinstance(response, list):
-        return []
-
-    # The endpoint caps at 1000 refs with no Link header, so a full response
-    # means results may be silently truncated and version math would be wrong.
-    if len(response) >= 1000:
-        print(
-            f"WARNING: git/refs/tags returned {len(response)} refs; results may "
-            "be truncated at the API's 1000-ref limit.",
-            file=sys.stderr,
-        )
 
     prefix = f"refs/tags/{TAG_PREFIX}"
-    return [
-        ref["ref"][len(prefix) :]
-        for ref in response
-        if ref.get("ref", "").startswith(prefix)
-    ]
+    tags: list[str] = []
+    for line in result.stdout.splitlines():
+        # Each line is "<sha>\t<ref>". Annotated tags also emit a peeled
+        # "<ref>^{}" line, which we skip to avoid duplicates.
+        _, _, ref = line.partition("\t")
+        if not ref.startswith(prefix) or ref.endswith("^{}"):
+            continue
+        tags.append(ref[len(prefix) :])
+    return tags
 
 
 def get_latest_release_version() -> Optional[str]:
