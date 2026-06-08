@@ -147,8 +147,8 @@ def main(argv: list[str]) -> int:
         if args.dry_run:
             print("\n[DRY RUN] Would perform the following:")
             print(f"  1. Create annotated tag {tag_name}")
-            print(f"  2. Push tag to origin")
-            print(f"  3. Trigger skillsets-release workflow")
+            print("  2. Push tag to origin")
+            print("  3. Trigger skillsets-release workflow")
             return 0
 
         print("\nCreating and pushing tag...")
@@ -167,7 +167,7 @@ def main(argv: list[str]) -> int:
             print("  3. Publish to npm with @latest tag")
             print("  4. Create GitHub Release")
         print("")
-        print(f"Monitor progress at:")
+        print("Monitor progress at:")
         print(f"  https://github.com/{REPO}/actions")
         print("=" * 60)
 
@@ -285,27 +285,37 @@ def determine_version(args: argparse.Namespace) -> str:
 
 
 def list_tags() -> list[str]:
-    """List all tags matching TAG_PREFIX, returning version strings."""
-    tags: list[str] = []
-    page = 1
-    while True:
-        try:
-            response = run_gh_api(
-                f"/repos/{REPO}/git/refs/tags?per_page=100&page={page}"
-            )
-            if not isinstance(response, list) or not response:
-                break
-            for ref in response:
-                ref_name = ref.get("ref", "")
-                if ref_name.startswith(f"refs/tags/{TAG_PREFIX}"):
-                    version = ref_name[len(f"refs/tags/{TAG_PREFIX}") :]
-                    tags.append(version)
-            if len(response) < 100:
-                break
-            page += 1
-        except ReleaseError:
-            break
-    return tags
+    """List all tags matching TAG_PREFIX, returning version strings.
+
+    The git/refs/tags endpoint returns up to 1000 matching refs in a single
+    response and ignores per_page/page query parameters. A single request is
+    both correct and necessary: page-based pagination here never terminates
+    (every page returns the full set) and fanning out repeated requests gets
+    us rate limited by GitHub.
+    """
+    try:
+        response = run_gh_api(f"/repos/{REPO}/git/refs/tags")
+    except ReleaseError:
+        return []
+
+    if not isinstance(response, list):
+        return []
+
+    # The endpoint caps at 1000 refs with no Link header, so a full response
+    # means results may be silently truncated and version math would be wrong.
+    if len(response) >= 1000:
+        print(
+            f"WARNING: git/refs/tags returned {len(response)} refs; results may "
+            "be truncated at the API's 1000-ref limit.",
+            file=sys.stderr,
+        )
+
+    prefix = f"refs/tags/{TAG_PREFIX}"
+    return [
+        ref["ref"][len(prefix) :]
+        for ref in response
+        if ref.get("ref", "").startswith(prefix)
+    ]
 
 
 def get_latest_release_version() -> Optional[str]:
