@@ -35,7 +35,6 @@ export {
   uploadFlow,
   type UploadFlowCallbacks,
   type UploadFlowResult,
-  type UploadResult,
   type DetermineVersionResult,
 } from "./upload.js";
 

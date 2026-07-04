@@ -7,12 +7,10 @@ import * as fs from "fs/promises";
 import * as path from "path";
 
 import { log } from "@clack/prompts";
-import * as semver from "semver";
 
 import { readApiTokenEnv } from "@/api/base.js";
 import {
   registrarApi,
-  type SkillResolutionAction,
   type SkillResolutionStrategy,
   type SubagentResolutionStrategy,
   type UploadSkillsetResponse,
@@ -28,11 +26,12 @@ import {
   toRegistryAuth,
 } from "@/cli/config.js";
 import { bold } from "@/cli/logger.js";
+import { uploadFlow, listVersionsFlow } from "@/cli/prompts/flows/index.js";
 import {
-  uploadFlow,
-  listVersionsFlow,
+  determineUploadVersion,
+  parseResolveStrategy,
   type UploadResult,
-} from "@/cli/prompts/flows/index.js";
+} from "@/core/uploadPolicy.js";
 import {
   readSkillsetMetadata,
   writeSkillsetMetadata,
@@ -54,49 +53,6 @@ import {
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 import type { RegistryAuth } from "@/cli/config.js";
 import type { NoriJson } from "@/norijson/nori.js";
-
-/**
- * Determine the version to upload (auto-bump if not specified)
- * @param args - The function arguments
- * @param args.skillsetName - The skillset name
- * @param args.explicitVersion - Explicit version if provided
- * @param args.registryUrl - The registry URL
- * @param args.authToken - Auth token for the registry
- *
- * @returns The version to upload and whether this is a new package
- */
-const determineUploadVersion = async (args: {
-  skillsetName: string;
-  explicitVersion?: string | null;
-  registryUrl: string;
-  authToken?: string | null;
-}): Promise<{ version: string; isNewPackage: boolean }> => {
-  const { skillsetName, explicitVersion, registryUrl, authToken } = args;
-
-  if (explicitVersion != null) {
-    return { version: explicitVersion, isNewPackage: false };
-  }
-
-  try {
-    const packument = await registrarApi.getPackument({
-      packageName: skillsetName,
-      registryUrl,
-      authToken,
-    });
-
-    const latestVersion = packument["dist-tags"].latest;
-    if (latestVersion != null && semver.valid(latestVersion) != null) {
-      const nextVersion = semver.inc(latestVersion, "patch");
-      if (nextVersion != null) {
-        return { version: nextVersion, isNewPackage: false };
-      }
-    }
-  } catch {
-    // Package doesn't exist - default to 1.0.0
-  }
-
-  return { version: "1.0.0", isNewPackage: true };
-};
 
 /**
  * Detect skills in a skillset that don't have a nori.json file.
@@ -992,17 +948,10 @@ export const registryUploadMain = async (args: {
   const profileDisplayName =
     orgId === "public" ? packageName : `${orgId}/${packageName}`;
 
-  const VALID_RESOLVE_ACTIONS: ReadonlyArray<string> = [
-    "updateVersion",
-    "link",
-    "namespace",
-    "cancel",
-  ];
+  const parsedResolve = parseResolveStrategy({ resolve });
 
-  if (resolve != null && !VALID_RESOLVE_ACTIONS.includes(resolve)) {
-    log.error(
-      `Invalid --resolve value: "${resolve}".\nValid options: ${VALID_RESOLVE_ACTIONS.join(", ")}`,
-    );
+  if ("error" in parsedResolve) {
+    log.error(parsedResolve.error);
     return {
       success: false,
       cancelled: false,
@@ -1010,8 +959,7 @@ export const registryUploadMain = async (args: {
     };
   }
 
-  const resolveAction =
-    resolve != null ? (resolve as SkillResolutionAction) : null;
+  const resolveAction = parsedResolve.action;
 
   // Load config for auth and install dir resolution
   const config = await loadConfig();

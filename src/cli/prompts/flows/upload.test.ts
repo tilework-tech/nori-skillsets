@@ -7,8 +7,9 @@
 import * as clack from "@clack/prompts";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-import type { UploadFlowCallbacks, UploadResult } from "./upload.js";
+import type { UploadFlowCallbacks } from "./upload.js";
 import type { SkillConflict, SubagentConflict } from "@/api/registrar.js";
+import type { UploadResult } from "@/core/uploadPolicy.js";
 
 import { uploadFlow } from "./upload.js";
 

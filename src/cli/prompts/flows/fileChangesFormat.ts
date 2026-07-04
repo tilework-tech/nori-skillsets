@@ -2,8 +2,7 @@
  * Per-file change list formatting helpers.
  *
  * Used by the upload flow to display skill/subagent collision `fileChanges`
- * (path-level added/modified/removed entries) in clack notes and in the
- * "Use Existing" discard-count hint.
+ * (path-level added/modified/removed entries) in clack notes.
  */
 
 import type { FileChange } from "@/api/registrar.js";
@@ -33,44 +32,6 @@ export const formatFileChangesForNote = (args: {
     lines.push(`  ${change.path} - ${change.status}${binaryMarker}`);
   }
   return lines.join("\n");
-};
-
-/**
- * Build the "Use Existing" discard-clause hint. When `count` is > 0 the clause
- * is pluralized against the count; otherwise falls back to generic messaging
- * used for older registrars that did not return `fileChanges`.
- *
- * @param args - The function arguments
- * @param args.count - Number of file changes that would be discarded
- *
- * @returns Discard hint string
- */
-export const formatDiscardHint = (args: { count: number }): string => {
-  const { count } = args;
-  if (count <= 0) {
-    return "Note that this will discard any local changes.";
-  }
-  const noun = count === 1 ? "file change" : "file changes";
-  return `Note that this will discard ${count} ${noun}.`;
-};
-
-/**
- * Count the number of entries in an optional fileChanges list.
- *
- * Returns 0 when the list is null, undefined, or empty. Used to pluralize the
- * "Use Existing" discard-count hint and to decide whether to render a note.
- *
- * @param args - The function arguments
- * @param args.fileChanges - Optional per-file change entries
- *
- * @returns The number of changed files (0 when absent or empty)
- */
-export const countFileChanges = (args: {
-  fileChanges?: ReadonlyArray<FileChange> | null;
-}): number => {
-  const { fileChanges } = args;
-  if (fileChanges == null) return 0;
-  return fileChanges.length;
 };
 
 /**
