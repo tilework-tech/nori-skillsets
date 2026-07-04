@@ -32,6 +32,7 @@ import {
   getNoriSkillsetsDir,
   parseSkillset,
 } from "@/norijson/skillset.js";
+import { readVersionInfo } from "@/packaging/provenance.js";
 
 import type {
   AgentConfig,
@@ -517,10 +518,14 @@ export const captureExistingConfig = async (args: {
     // Skills dir doesn't exist
   }
 
-  // Create nori.json with skills map
+  // Create nori.json with skills map. Registry-installed skills carry their
+  // version in .nori-version; "*" remains only for local-only skills.
   const skillsMap: Record<string, string> = {};
   for (const skillName of skillNames) {
-    skillsMap[skillName] = "*";
+    const versionInfo = await readVersionInfo({
+      dir: path.join(skillsDir, skillName),
+    });
+    skillsMap[skillName] = versionInfo?.version ?? "*";
   }
 
   const noriJson = {

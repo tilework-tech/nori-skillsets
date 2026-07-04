@@ -1359,6 +1359,56 @@ describe("captureExistingConfig", () => {
     expect(noriJson.dependencies.skills["skill-beta"]).toBe("*");
   });
 
+  it("should record the .nori-version version for registry-installed skills", async () => {
+    const agent = createTestAgent();
+    const agentDir = agent.getAgentDir({ installDir: tempDir });
+    fs.mkdirSync(agentDir, { recursive: true });
+
+    // Create instructions file
+    const instructionsPath = agent.getInstructionsFilePath({
+      installDir: tempDir,
+    });
+    fs.writeFileSync(instructionsPath, "# Config");
+
+    // One skill installed from a registry (has .nori-version), one local-only
+    const skillsDir = agent.getSkillsDir({ installDir: tempDir });
+    const registrySkillDir = path.join(skillsDir, "registry-skill");
+    const localSkillDir = path.join(skillsDir, "local-skill");
+    fs.mkdirSync(registrySkillDir, { recursive: true });
+    fs.mkdirSync(localSkillDir, { recursive: true });
+    fs.writeFileSync(path.join(registrySkillDir, "SKILL.md"), "# Registry");
+    fs.writeFileSync(path.join(localSkillDir, "SKILL.md"), "# Local");
+    fs.writeFileSync(
+      path.join(registrySkillDir, ".nori-version"),
+      JSON.stringify({
+        version: "1.2.3",
+        registryUrl: "https://noriskillsets.dev",
+      }),
+    );
+
+    // Create profiles directory
+    const profilesDir = path.join(TEST_NORI_DIR, "profiles");
+    fs.mkdirSync(profilesDir, { recursive: true });
+
+    const config: Config = {
+      installDir: tempDir,
+      activeSkillset: "captured",
+    };
+
+    await captureExistingConfig({
+      agent,
+      installDir: tempDir,
+      skillsetName: "captured",
+      config,
+    });
+
+    const noriJson = JSON.parse(
+      fs.readFileSync(path.join(profilesDir, "captured", "nori.json"), "utf-8"),
+    );
+    expect(noriJson.dependencies.skills["registry-skill"]).toBe("1.2.3");
+    expect(noriJson.dependencies.skills["local-skill"]).toBe("*");
+  });
+
   it("should update SUBAGENT.md when directory-based subagent already exists in skillset", async () => {
     const agent = createTestAgent();
     const agentDir = agent.getAgentDir({ installDir: tempDir });

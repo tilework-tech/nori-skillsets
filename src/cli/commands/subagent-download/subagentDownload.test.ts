@@ -95,6 +95,7 @@ vi.spyOn(console, "error").mockImplementation(() => undefined);
 import { registrarApi, REGISTRAR_URL } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
 import { loadConfig } from "@/cli/config.js";
+import { computeArchiveShasum } from "@/packaging/archive.js";
 
 import { subagentDownloadMain } from "./subagentDownload.js";
 
@@ -334,6 +335,107 @@ describe("subagent-download", () => {
       expect(allErrorOutput).toContain("Network error");
     });
 
+    it("should fail loudly when the tarball does not match the registry checksum", async () => {
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+      });
+
+      vi.mocked(registrarApi.getSubagentPackument).mockResolvedValue({
+        name: "tampered-sub",
+        "dist-tags": { latest: "1.0.0" },
+        versions: {
+          "1.0.0": {
+            name: "tampered-sub",
+            version: "1.0.0",
+            dist: { shasum: "sha512-bm90LXRoZS1yZWFsLWNoZWNrc3Vt" },
+          },
+        },
+      });
+
+      const mockTarball = await createMockSubagentTarball();
+      vi.mocked(registrarApi.downloadSubagentTarball).mockResolvedValue(
+        mockTarball,
+      );
+
+      const result = await subagentDownloadMain({
+        subagentSpec: "tampered-sub",
+        cwd: testDir,
+      });
+
+      expect(result.success).toBe(false);
+      expect(getClackErrorOutput().toLowerCase()).toContain("checksum");
+
+      // Nothing should have been installed
+      await expect(
+        fs.access(path.join(agentsDir, "tampered-sub.md")),
+      ).rejects.toThrow();
+    });
+
+    it("should install the subagent when the tarball matches the registry checksum", async () => {
+      const mockTarball = await createMockSubagentTarball();
+
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+      });
+
+      vi.mocked(registrarApi.getSubagentPackument).mockResolvedValue({
+        name: "verified-sub",
+        "dist-tags": { latest: "1.0.0" },
+        versions: {
+          "1.0.0": {
+            name: "verified-sub",
+            version: "1.0.0",
+            dist: {
+              shasum: computeArchiveShasum({ tarballData: mockTarball }),
+            },
+          },
+        },
+      });
+
+      vi.mocked(registrarApi.downloadSubagentTarball).mockResolvedValue(
+        mockTarball,
+      );
+
+      const result = await subagentDownloadMain({
+        subagentSpec: "verified-sub",
+        cwd: testDir,
+      });
+
+      expect(result.success).toBe(true);
+      const content = await fs.readFile(
+        path.join(agentsDir, "verified-sub.md"),
+        "utf-8",
+      );
+      expect(content).toContain("A test subagent");
+    });
+
+    it("should report failure, not cancellation, when the download fails", async () => {
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+      });
+
+      vi.mocked(registrarApi.getSubagentPackument).mockResolvedValue({
+        name: "test-subagent",
+        "dist-tags": { latest: "1.0.0" },
+        versions: {
+          "1.0.0": { name: "test-subagent", version: "1.0.0" },
+        },
+      });
+
+      vi.mocked(registrarApi.downloadSubagentTarball).mockRejectedValue(
+        new Error("Tarball not found"),
+      );
+
+      const result = await subagentDownloadMain({
+        subagentSpec: "test-subagent",
+        cwd: testDir,
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.cancelled).toBe(false);
+      expect(result.message).toContain("Tarball not found");
+    });
+
     it("should download namespaced subagent when authenticated via API token (no refreshToken)", async () => {
       const orgRegistryUrl = "https://myorg.noriskillsets.dev";
 
@@ -508,7 +610,9 @@ describe("subagent-download", () => {
       const noriJsonPath = path.join(skillsetDir, "nori.json");
       const noriJsonContent = await fs.readFile(noriJsonPath, "utf-8");
       const noriJson = JSON.parse(noriJsonContent);
-      expect(noriJson.dependencies?.subagents?.["downloaded-sub"]).toBe("*");
+      expect(noriJson.dependencies?.subagents?.["downloaded-sub"]).toBe(
+        "1.0.0",
+      );
     });
 
     it("should preserve existing dependencies when adding new subagent", async () => {
@@ -555,7 +659,7 @@ describe("subagent-download", () => {
       });
       expect(noriJson.dependencies.subagents).toEqual({
         "existing-sub": "*",
-        "new-sub": "*",
+        "new-sub": "1.0.0",
       });
     });
   });

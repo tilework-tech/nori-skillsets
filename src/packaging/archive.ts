@@ -7,6 +7,7 @@
  */
 
 import * as fs from "fs/promises";
+import { createHash } from "node:crypto";
 import * as path from "path";
 import { Readable } from "stream";
 import { pipeline } from "stream/promises";
@@ -114,6 +115,53 @@ export const createArchive = async (args: {
     return await fs.readFile(tempTarPath);
   } finally {
     await fs.unlink(tempTarPath).catch(() => undefined);
+  }
+};
+
+/**
+ * Compute a tarball checksum in the registry's format
+ * (`sha512-<base64 digest>`, matching what the registrar records as
+ * `dist.shasum` in packuments).
+ *
+ * @param args - Arguments
+ * @param args.tarballData - The tarball data
+ *
+ * @returns The prefixed base64 sha512 digest
+ */
+export const computeArchiveShasum = (args: {
+  tarballData: ArrayBuffer;
+}): string => {
+  const { tarballData } = args;
+  const digest = createHash("sha512")
+    .update(Buffer.from(tarballData))
+    .digest("base64");
+  return `sha512-${digest}`;
+};
+
+/**
+ * Verify a downloaded tarball against the checksum the registry recorded.
+ * Fails loudly on mismatch; skips silently when the registry recorded none.
+ *
+ * @param args - Arguments
+ * @param args.tarballData - The downloaded tarball data
+ * @param args.expectedShasum - The packument's dist.shasum, when present
+ *
+ * @throws Error when the tarball does not hash to the expected checksum
+ */
+export const verifyArchiveChecksum = (args: {
+  tarballData: ArrayBuffer;
+  expectedShasum?: string | null;
+}): void => {
+  const { tarballData, expectedShasum } = args;
+  if (expectedShasum == null || expectedShasum === "") {
+    return;
+  }
+  const actual = computeArchiveShasum({ tarballData });
+  if (actual !== expectedShasum) {
+    throw new Error(
+      `Checksum mismatch: registry recorded ${expectedShasum} but the downloaded archive hashes to ${actual}. ` +
+        `The download may be corrupt — retry, and if it persists report it to the registry operator.`,
+    );
   }
 };
 

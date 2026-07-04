@@ -5,10 +5,12 @@ import * as path from "path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
+  computeArchiveShasum,
   createArchive,
   extractArchive,
   extractFileFromArchive,
   isGzipped,
+  verifyArchiveChecksum,
 } from "./archive.js";
 
 let tempDir: string;
@@ -124,5 +126,42 @@ describe("extractFileFromArchive", () => {
         fileName: "missing.md",
       }),
     ).toBeNull();
+  });
+});
+
+describe("computeArchiveShasum / verifyArchiveChecksum", () => {
+  it("computes the registry's sha512-base64 format", () => {
+    const data = new TextEncoder().encode("hello tarball")
+      .buffer as ArrayBuffer;
+    const shasum = computeArchiveShasum({ tarballData: data });
+    expect(shasum).toMatch(/^sha512-[A-Za-z0-9+/]+=*$/);
+    // Deterministic
+    expect(computeArchiveShasum({ tarballData: data })).toBe(shasum);
+  });
+
+  it("passes verification when the checksum matches", () => {
+    const data = new TextEncoder().encode("content").buffer as ArrayBuffer;
+    const shasum = computeArchiveShasum({ tarballData: data });
+    expect(() =>
+      verifyArchiveChecksum({ tarballData: data, expectedShasum: shasum }),
+    ).not.toThrow();
+  });
+
+  it("fails loudly when the checksum does not match", () => {
+    const data = new TextEncoder().encode("content").buffer as ArrayBuffer;
+    expect(() =>
+      verifyArchiveChecksum({
+        tarballData: data,
+        expectedShasum: "sha512-bogus",
+      }),
+    ).toThrow(/checksum mismatch/i);
+  });
+
+  it("skips verification when the registry recorded no checksum", () => {
+    const data = new TextEncoder().encode("content").buffer as ArrayBuffer;
+    expect(() =>
+      verifyArchiveChecksum({ tarballData: data, expectedShasum: null }),
+    ).not.toThrow();
+    expect(() => verifyArchiveChecksum({ tarballData: data })).not.toThrow();
   });
 });

@@ -31,8 +31,10 @@ import {
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { substituteTemplatePaths } from "@/cli/features/template.js";
 import { subagentDownloadFlow } from "@/cli/prompts/flows/subagentDownload.js";
+import { recordFlowFailure } from "@/cli/prompts/flows/utils.js";
 import { addSubagentToNoriJson, ensureNoriJson } from "@/norijson/nori.js";
 import { getNoriSkillsetsDir } from "@/norijson/skillset.js";
+import { verifyArchiveChecksum } from "@/packaging/archive.js";
 import {
   atomicReplaceDirWithArchive,
   extractArchiveToNewDir,
@@ -237,328 +239,353 @@ export const subagentDownloadMain = async (args: {
 
   let foundRegistry: RegistrySearchResult | null = null;
   let resolvedTargetVersion = "";
+  // The flow resolves to null for BOTH a user cancel and a callback-reported
+  // failure; record failures so real errors are not mistaken for a cancel.
+  let flowError: string | null = null;
 
   const result = await subagentDownloadFlow({
     subagentDisplayName,
     nonInteractive: nonInteractive ?? silent ?? null,
     callbacks: {
-      onSearch: async (): Promise<SubagentSearchResult> => {
-        let flowSearchResults: Array<RegistrySearchResult>;
+      onSearch: recordFlowFailure({
+        onFailure: (error) => {
+          flowError = error;
+        },
+        fn: async (): Promise<SubagentSearchResult> => {
+          let flowSearchResults: Array<RegistrySearchResult>;
 
-        const hasUnifiedAuth =
-          config?.auth != null &&
-          hasRegistryAuthCredentials({ auth: config.auth }) &&
-          config.auth.organizations != null;
+          const hasUnifiedAuth =
+            config?.auth != null &&
+            hasRegistryAuthCredentials({ auth: config.auth }) &&
+            config.auth.organizations != null;
 
-        if (registryUrl != null) {
-          const registryAuth =
-            config != null ? getRegistryAuth({ config, registryUrl }) : null;
-          if (registryUrl !== REGISTRAR_URL && registryAuth == null) {
-            return {
-              status: "error",
-              error: `No authentication configured for registry: ${registryUrl}`,
-              hint: "Add registry credentials to your .nori-config.json file.",
-            };
-          }
+          if (registryUrl != null) {
+            const registryAuth =
+              config != null ? getRegistryAuth({ config, registryUrl }) : null;
+            if (registryUrl !== REGISTRAR_URL && registryAuth == null) {
+              return {
+                status: "error",
+                error: `No authentication configured for registry: ${registryUrl}`,
+                hint: "Add registry credentials to your .nori-config.json file.",
+              };
+            }
 
-          const searchResult =
-            (
-              await searchSpecificRegistry({
-                registryUrl,
-                fetchPackument: (fetchArgs) =>
-                  registrarApi.getSubagentPackument({
-                    subagentName,
-                    ...fetchArgs,
-                  }),
-                getAuthToken:
-                  registryAuth != null
-                    ? () => getRegistryAuthToken({ registryAuth })
-                    : null,
-              })
-            ).result ?? null;
-          flowSearchResults = searchResult != null ? [searchResult] : [];
-        } else if (orgId === "public") {
-          try {
-            const packument = await registrarApi.getSubagentPackument({
-              subagentName,
-              registryUrl: REGISTRAR_URL,
-            });
-            flowSearchResults = [{ registryUrl: REGISTRAR_URL, packument }];
-          } catch {
-            flowSearchResults = [];
-          }
-        } else if (hasUnifiedAuth) {
-          const targetRegistryUrl = buildOrganizationRegistryUrl({ orgId });
-          const userOrgs = config.auth!.organizations!;
+            const searchResult =
+              (
+                await searchSpecificRegistry({
+                  registryUrl,
+                  fetchPackument: (fetchArgs) =>
+                    registrarApi.getSubagentPackument({
+                      subagentName,
+                      ...fetchArgs,
+                    }),
+                  getAuthToken:
+                    registryAuth != null
+                      ? () => getRegistryAuthToken({ registryAuth })
+                      : null,
+                })
+              ).result ?? null;
+            flowSearchResults = searchResult != null ? [searchResult] : [];
+          } else if (orgId === "public") {
+            try {
+              const packument = await registrarApi.getSubagentPackument({
+                subagentName,
+                registryUrl: REGISTRAR_URL,
+              });
+              flowSearchResults = [{ registryUrl: REGISTRAR_URL, packument }];
+            } catch {
+              flowSearchResults = [];
+            }
+          } else if (hasUnifiedAuth) {
+            const targetRegistryUrl = buildOrganizationRegistryUrl({ orgId });
+            const userOrgs = config.auth!.organizations!;
 
-          if (!userOrgs.includes(orgId)) {
-            return {
-              status: "error",
-              error: `You do not have access to organization "${orgId}".`,
-              hint: `Your available organizations: ${userOrgs.length > 0 ? userOrgs.join(", ") : "(none)"}`,
-            };
-          }
+            if (!userOrgs.includes(orgId)) {
+              return {
+                status: "error",
+                error: `You do not have access to organization "${orgId}".`,
+                hint: `Your available organizations: ${userOrgs.length > 0 ? userOrgs.join(", ") : "(none)"}`,
+              };
+            }
 
-          const registryAuth = toRegistryAuth({
-            auth: config.auth!,
-            registryUrl: targetRegistryUrl,
-          });
-
-          try {
-            const authToken = await getRegistryAuthToken({ registryAuth });
-            const packument = await registrarApi.getSubagentPackument({
-              subagentName,
+            const registryAuth = toRegistryAuth({
+              auth: config.auth!,
               registryUrl: targetRegistryUrl,
-              authToken,
             });
-            flowSearchResults = [
-              { registryUrl: targetRegistryUrl, packument, authToken },
-            ];
-          } catch {
-            flowSearchResults = [];
+
+            try {
+              const authToken = await getRegistryAuthToken({ registryAuth });
+              const packument = await registrarApi.getSubagentPackument({
+                subagentName,
+                registryUrl: targetRegistryUrl,
+                authToken,
+              });
+              flowSearchResults = [
+                { registryUrl: targetRegistryUrl, packument, authToken },
+              ];
+            } catch {
+              flowSearchResults = [];
+            }
+          } else {
+            return {
+              status: "error",
+              error: `Subagent "${orgId}/${subagentName}" not found.`,
+              hint: `To download from organization "${orgId}", log in with:\n  nori-skillsets login`,
+            };
           }
-        } else {
-          return {
-            status: "error",
-            error: `Subagent "${orgId}/${subagentName}" not found.`,
-            hint: `To download from organization "${orgId}", log in with:\n  nori-skillsets login`,
-          };
-        }
 
-        if (flowSearchResults.length === 0) {
-          return {
-            status: "error",
-            error: `Subagent "${subagentDisplayName}" not found in any registry.`,
-          };
-        }
+          if (flowSearchResults.length === 0) {
+            return {
+              status: "error",
+              error: `Subagent "${subagentDisplayName}" not found in any registry.`,
+            };
+          }
 
-        if (flowSearchResults.length > 1) {
-          return {
-            status: "error",
-            error: formatMultipleMatchesError({
-              packageName: subagentName,
-              results: flowSearchResults,
-              entityLabel: "subagents",
-              downloadCommand: `${cliPrefix} ${commandNames.downloadSubagent}`,
-            }),
-          };
-        }
+          if (flowSearchResults.length > 1) {
+            return {
+              status: "error",
+              error: formatMultipleMatchesError({
+                packageName: subagentName,
+                results: flowSearchResults,
+                entityLabel: "subagents",
+                downloadCommand: `${cliPrefix} ${commandNames.downloadSubagent}`,
+              }),
+            };
+          }
 
-        foundRegistry = flowSearchResults[0];
+          foundRegistry = flowSearchResults[0];
 
-        if (listVersions) {
-          return {
-            status: "list-versions",
-            formattedVersionList: formatVersionList({
-              packageName: subagentName,
-              packument: foundRegistry.packument,
-              registryUrl: foundRegistry.registryUrl,
-              downloadCommand: `${cliPrefix} ${commandNames.downloadSubagent}`,
-            }),
-            versionCount: Object.keys(foundRegistry.packument.versions).length,
-          };
-        }
+          if (listVersions) {
+            return {
+              status: "list-versions",
+              formattedVersionList: formatVersionList({
+                packageName: subagentName,
+                packument: foundRegistry.packument,
+                registryUrl: foundRegistry.registryUrl,
+                downloadCommand: `${cliPrefix} ${commandNames.downloadSubagent}`,
+              }),
+              versionCount: Object.keys(foundRegistry.packument.versions)
+                .length,
+            };
+          }
 
-        resolvedTargetVersion =
-          version ?? foundRegistry.packument["dist-tags"].latest;
+          resolvedTargetVersion =
+            version ?? foundRegistry.packument["dist-tags"].latest;
 
-        if (subagentExists && existingVersionInfo != null) {
-          const installedVersion = existingVersionInfo.version;
-          const installedValid = semver.valid(installedVersion) != null;
-          const targetValid = semver.valid(resolvedTargetVersion) != null;
+          if (subagentExists && existingVersionInfo != null) {
+            const installedVersion = existingVersionInfo.version;
+            const installedValid = semver.valid(installedVersion) != null;
+            const targetValid = semver.valid(resolvedTargetVersion) != null;
 
-          if (installedValid && targetValid) {
-            if (semver.gte(installedVersion, resolvedTargetVersion)) {
+            if (installedValid && targetValid) {
+              if (semver.gte(installedVersion, resolvedTargetVersion)) {
+                return {
+                  status: "already-current",
+                  version: installedVersion,
+                };
+              }
+              return {
+                status: "ready",
+                targetVersion: resolvedTargetVersion,
+                isUpdate: true,
+                currentVersion: installedVersion,
+              };
+            } else if (installedVersion === resolvedTargetVersion) {
               return {
                 status: "already-current",
                 version: installedVersion,
               };
             }
+          }
+
+          if (subagentExists && existingVersionInfo == null) {
             return {
-              status: "ready",
-              targetVersion: resolvedTargetVersion,
-              isUpdate: true,
-              currentVersion: installedVersion,
-            };
-          } else if (installedVersion === resolvedTargetVersion) {
-            return {
-              status: "already-current",
-              version: installedVersion,
+              status: "error",
+              error: `Subagent "${subagentDisplayName}" already exists at:\n${profileSubagentDir}\n\nThis subagent has no version information (.nori-version file).`,
+              hint: `To reinstall:\n  rm -rf "${profileSubagentDir}"\n  ${cliPrefix} ${commandNames.downloadSubagent} ${subagentDisplayName}`,
             };
           }
-        }
 
-        if (subagentExists && existingVersionInfo == null) {
           return {
-            status: "error",
-            error: `Subagent "${subagentDisplayName}" already exists at:\n${profileSubagentDir}\n\nThis subagent has no version information (.nori-version file).`,
-            hint: `To reinstall:\n  rm -rf "${profileSubagentDir}"\n  ${cliPrefix} ${commandNames.downloadSubagent} ${subagentDisplayName}`,
+            status: "ready",
+            targetVersion: resolvedTargetVersion,
+            isUpdate: false,
           };
-        }
+        },
+      }),
+      onDownload: recordFlowFailure({
+        onFailure: (error) => {
+          flowError = error;
+        },
+        fn: async (): Promise<SubagentDownloadActionResult> => {
+          const selectedRegistry = foundRegistry!;
+          const warnings: Array<string> = [];
 
-        return {
-          status: "ready",
-          targetVersion: resolvedTargetVersion,
-          isUpdate: false,
-        };
-      },
-      onDownload: async (): Promise<SubagentDownloadActionResult> => {
-        const selectedRegistry = foundRegistry!;
-        const warnings: Array<string> = [];
-
-        try {
-          const tarballData = await registrarApi.downloadSubagentTarball({
-            subagentName,
-            version: version ?? undefined,
-            registryUrl: selectedRegistry.registryUrl,
-            authToken: selectedRegistry.authToken ?? undefined,
-          });
-
-          // Determine where to extract the full subagent directory
-          // Priority: profile subagents dir > temp dir (for flattening only)
-          const extractTarget =
-            profileSubagentDir ??
-            path.join(primaryAgentsDir, `.${subagentName}-download-temp`);
-
-          if (subagentExists && profileSubagentDir != null) {
-            await atomicReplaceDirWithArchive({
-              tarballData,
-              targetDir: profileSubagentDir,
-              preserveVersionFile: true,
-            });
-          } else {
-            await extractArchiveToNewDir({
-              tarballData,
-              targetDir: extractTarget,
-            });
-          }
-
-          // Write .nori-version file in the subagent directory
-          const activeExtractDir = profileSubagentDir ?? extractTarget;
-          await writeVersionInfo({
-            dir: activeExtractDir,
-            versionInfo: {
-              version: resolvedTargetVersion,
+          try {
+            const tarballData = await registrarApi.downloadSubagentTarball({
+              subagentName,
+              version: version ?? undefined,
               registryUrl: selectedRegistry.registryUrl,
-              orgId,
-            },
-          });
+              authToken: selectedRegistry.authToken ?? undefined,
+            });
+            verifyArchiveChecksum({
+              tarballData,
+              expectedShasum:
+                selectedRegistry.packument.versions[resolvedTargetVersion]?.dist
+                  ?.shasum,
+            });
 
-          // Persist to profile if we haven't already (i.e., extractTarget was a temp dir)
-          if (
-            profileSubagentDir != null &&
-            extractTarget !== profileSubagentDir
-          ) {
-            try {
-              await fs.rm(profileSubagentDir, {
-                recursive: true,
-                force: true,
+            // Determine where to extract the full subagent directory
+            // Priority: profile subagents dir > temp dir (for flattening only)
+            const extractTarget =
+              profileSubagentDir ??
+              path.join(primaryAgentsDir, `.${subagentName}-download-temp`);
+
+            if (subagentExists && profileSubagentDir != null) {
+              await atomicReplaceDirWithArchive({
+                tarballData,
+                targetDir: profileSubagentDir,
+                preserveVersionFile: true,
               });
-              await copyDirRecursive({
-                src: extractTarget,
-                dest: profileSubagentDir,
+            } else {
+              await extractArchiveToNewDir({
+                tarballData,
+                targetDir: extractTarget,
               });
-            } catch (profileCopyErr) {
-              const msg =
-                profileCopyErr instanceof Error
-                  ? profileCopyErr.message
-                  : String(profileCopyErr);
-              warnings.push(
-                `Warning: Could not persist subagent to skillset: ${msg}`,
-              );
             }
-          }
 
-          // Flatten SUBAGENT.md to primary agent's agents directory
-          const primaryAgentDir = primaryAgent.getAgentDir({
-            installDir: targetInstallDir,
-          });
-          await flattenSubagentToAgentDir({
-            subagentDir: activeExtractDir,
-            subagentName,
-            agentsDir: primaryAgentsDir,
-            installDir: primaryAgentDir,
-          });
+            // Write .nori-version file in the subagent directory
+            const activeExtractDir = profileSubagentDir ?? extractTarget;
+            await writeVersionInfo({
+              dir: activeExtractDir,
+              versionInfo: {
+                version: resolvedTargetVersion,
+                registryUrl: selectedRegistry.registryUrl,
+                orgId,
+              },
+            });
 
-          const installedFile = path.join(
-            primaryAgentsDir,
-            `${subagentName}.md`,
-          );
+            // Persist to profile if we haven't already (i.e., extractTarget was a temp dir)
+            if (
+              profileSubagentDir != null &&
+              extractTarget !== profileSubagentDir
+            ) {
+              try {
+                await fs.rm(profileSubagentDir, {
+                  recursive: true,
+                  force: true,
+                });
+                await copyDirRecursive({
+                  src: extractTarget,
+                  dest: profileSubagentDir,
+                });
+              } catch (profileCopyErr) {
+                const msg =
+                  profileCopyErr instanceof Error
+                    ? profileCopyErr.message
+                    : String(profileCopyErr);
+                warnings.push(
+                  `Warning: Could not persist subagent to skillset: ${msg}`,
+                );
+              }
+            }
 
-          // Broadcast: flatten to all other agents' agents directories
-          for (const agent of defaultAgents.slice(1)) {
-            const agentSubagentsDir = agent.getSubagentsDir({
+            // Flatten SUBAGENT.md to primary agent's agents directory
+            const primaryAgentDir = primaryAgent.getAgentDir({
               installDir: targetInstallDir,
             });
-            try {
-              const agentDir = agent.getAgentDir({
+            await flattenSubagentToAgentDir({
+              subagentDir: activeExtractDir,
+              subagentName,
+              agentsDir: primaryAgentsDir,
+              installDir: primaryAgentDir,
+            });
+
+            const installedFile = path.join(
+              primaryAgentsDir,
+              `${subagentName}.md`,
+            );
+
+            // Broadcast: flatten to all other agents' agents directories
+            for (const agent of defaultAgents.slice(1)) {
+              const agentSubagentsDir = agent.getSubagentsDir({
                 installDir: targetInstallDir,
               });
-              await flattenSubagentToAgentDir({
-                subagentDir: activeExtractDir,
-                subagentName,
-                agentsDir: agentSubagentsDir,
-                installDir: agentDir,
-              });
-            } catch (copyErr) {
-              const msg =
-                copyErr instanceof Error ? copyErr.message : String(copyErr);
-              warnings.push(
-                `Warning: Could not copy subagent to ${agent.name}: ${msg}`,
-              );
+              try {
+                const agentDir = agent.getAgentDir({
+                  installDir: targetInstallDir,
+                });
+                await flattenSubagentToAgentDir({
+                  subagentDir: activeExtractDir,
+                  subagentName,
+                  agentsDir: agentSubagentsDir,
+                  installDir: agentDir,
+                });
+              } catch (copyErr) {
+                const msg =
+                  copyErr instanceof Error ? copyErr.message : String(copyErr);
+                warnings.push(
+                  `Warning: Could not copy subagent to ${agent.name}: ${msg}`,
+                );
+              }
             }
-          }
 
-          // Clean up temp dir if we used one
-          if (extractTarget !== profileSubagentDir) {
-            await fs
-              .rm(extractTarget, { recursive: true, force: true })
-              .catch(() => {
-                // Temp may not exist
-              });
-          }
-
-          // Update nori.json
-          let profileUpdateMessage: string | null = null;
-          if (targetSkillset != null) {
-            try {
-              await addSubagentToNoriJson({
-                skillsetDir: path.join(skillsetsDir, targetSkillset),
-                subagentName,
-                version: "*",
-              });
-              profileUpdateMessage = `Added "${subagentDisplayName}" to ${targetSkillset} skillset nori.json`;
-            } catch (noriJsonErr) {
-              const msg =
-                noriJsonErr instanceof Error
-                  ? noriJsonErr.message
-                  : String(noriJsonErr);
-              warnings.push(`Warning: Could not update nori.json: ${msg}`);
+            // Clean up temp dir if we used one
+            if (extractTarget !== profileSubagentDir) {
+              await fs
+                .rm(extractTarget, { recursive: true, force: true })
+                .catch(() => {
+                  // Temp may not exist
+                });
             }
-          }
 
-          return {
-            success: true,
-            version: resolvedTargetVersion,
-            isUpdate: subagentExists,
-            installedTo: installedFile,
-            subagentDisplayName,
-            profileUpdateMessage,
-            warnings,
-          };
-        } catch (err) {
-          const errorMessage = err instanceof Error ? err.message : String(err);
-          return {
-            success: false,
-            error: `Failed to download subagent "${subagentDisplayName}": ${errorMessage}`,
-          };
-        }
-      },
+            // Update nori.json
+            let profileUpdateMessage: string | null = null;
+            if (targetSkillset != null) {
+              try {
+                await addSubagentToNoriJson({
+                  skillsetDir: path.join(skillsetsDir, targetSkillset),
+                  subagentName,
+                  version: resolvedTargetVersion,
+                });
+                profileUpdateMessage = `Added "${subagentDisplayName}" to ${targetSkillset} skillset nori.json`;
+              } catch (noriJsonErr) {
+                const msg =
+                  noriJsonErr instanceof Error
+                    ? noriJsonErr.message
+                    : String(noriJsonErr);
+                warnings.push(`Warning: Could not update nori.json: ${msg}`);
+              }
+            }
+
+            return {
+              success: true,
+              version: resolvedTargetVersion,
+              isUpdate: subagentExists,
+              installedTo: installedFile,
+              subagentDisplayName,
+              profileUpdateMessage,
+              warnings,
+            };
+          } catch (err) {
+            const errorMessage =
+              err instanceof Error ? err.message : String(err);
+            return {
+              success: false,
+              error: `Failed to download subagent "${subagentDisplayName}": ${errorMessage}`,
+            };
+          }
+        },
+      }),
     },
   });
 
   if (result == null) {
-    return { success: false, cancelled: true, message: "" };
+    return {
+      success: false,
+      cancelled: flowError == null,
+      message: flowError ?? "",
+    };
   }
 
   return { success: true, cancelled: false, message: result.statusMessage };
