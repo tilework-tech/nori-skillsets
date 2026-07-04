@@ -17,11 +17,12 @@ This is the sole source directory. Everything under `@/src` is compiled to `@/bu
 | `cli/` | CLI entrypoint, commands, features (agent integrations), prompts, and update checking |
 | `api/` | HTTP clients for the registry, analytics, transcripts, and authentication token management |
 | `norijson/` | Types and runtime operations for the `nori.json` manifest format, including metadata CRUD (`readSkillsetMetadata`, `writeSkillsetMetadata`, `addSkillToNoriJson`, `ensureNoriJson`), plus skillset path utilities, parsing, and discovery |
+| `packaging/` | Cli-free package mechanics: tarball create/extract, atomic directory replacement, `.nori-version` provenance, and shared registry lookup helpers. Sole owner of these primitives -- commands must not hand-roll them (see @/src/packaging/docs.md) |
 | `providers/` | External service singletons (Firebase) |
 | `scripts/` | Build-time scripts for bundling hook scripts with esbuild |
 | `utils/` | Shared helpers for URL normalization, path resolution, proxy/fetch error handling, and home directory detection |
 
-The data flow is top-down: CLI commands orchestrate calls to API clients and features, which in turn use providers and utils. There are no upward dependencies from lower layers.
+The data flow is top-down: CLI commands orchestrate calls to API clients, features, and packaging primitives, which in turn use providers and utils. There are no upward dependencies from lower layers -- in particular, `packaging/` never imports from `cli/`.
 
 ### Things to Know
 
