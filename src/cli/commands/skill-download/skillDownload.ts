@@ -9,6 +9,7 @@ import * as path from "path";
 import { log } from "@clack/prompts";
 import * as semver from "semver";
 
+import { hasRegistryAuthCredentials } from "@/api/authCredentials.js";
 import { registrarApi, REGISTRAR_URL } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
 import {
@@ -18,16 +19,15 @@ import {
 import {
   getRegistryAuth,
   getDefaultAgents,
-  hasRegistryAuthCredentials,
   loadConfig,
   getActiveSkillset,
-  toRegistryAuth,
 } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { addSkillDependency } from "@/cli/features/skillResolver.js";
 import { substituteTemplatePaths } from "@/cli/features/template.js";
 import { skillDownloadFlow } from "@/cli/prompts/flows/index.js";
 import { recordFlowFailure } from "@/cli/prompts/flows/utils.js";
+import { resolveOrgRegistryAuth } from "@/core/registryAuthResolution.js";
 import { addSkillToNoriJson, ensureNoriJson } from "@/norijson/nori.js";
 import { getNoriSkillsetsDir } from "@/norijson/skillset.js";
 import { verifyArchiveChecksum } from "@/packaging/archive.js";
@@ -42,10 +42,7 @@ import {
   searchSpecificRegistry,
 } from "@/packaging/registryLookup.js";
 import { resolveInstallDir } from "@/utils/path.js";
-import {
-  parseNamespacedPackage,
-  buildOrganizationRegistryUrl,
-} from "@/utils/url.js";
+import { parseNamespacedPackage } from "@/utils/url.js";
 
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 import type {
@@ -312,24 +309,26 @@ export const skillDownloadMain = async (args: {
               flowSearchResults = [];
             }
           } else if (hasUnifiedAuth) {
-            const targetRegistryUrl = buildOrganizationRegistryUrl({ orgId });
-            const userOrgs = config.auth!.organizations!;
+            const resolution = resolveOrgRegistryAuth({
+              auth: config?.auth ?? null,
+              orgId,
+            });
 
-            if (!userOrgs.includes(orgId)) {
+            if (resolution.ok === false) {
+              const userOrgs =
+                resolution.reason === "not-a-member"
+                  ? resolution.organizations
+                  : [];
               return {
                 status: "error",
                 error: `You do not have access to organization "${orgId}".`,
                 hint: `Your available organizations: ${userOrgs.length > 0 ? userOrgs.join(", ") : "(none)"}`,
               };
             }
-
-            const registryAuth = toRegistryAuth({
-              auth: config.auth!,
-              registryUrl: targetRegistryUrl,
-            });
+            const targetRegistryUrl = resolution.registryUrl;
 
             try {
-              const authToken = await getRegistryAuthToken({ registryAuth });
+              const authToken = await resolution.getToken();
               const packument = await registrarApi.getSkillPackument({
                 skillName,
                 registryUrl: targetRegistryUrl,

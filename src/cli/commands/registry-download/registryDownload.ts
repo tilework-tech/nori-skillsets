@@ -9,6 +9,7 @@ import * as path from "path";
 import { log } from "@clack/prompts";
 import * as semver from "semver";
 
+import { hasRegistryAuthCredentials } from "@/api/authCredentials.js";
 import { registrarApi, REGISTRAR_URL, NetworkError } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
 import {
@@ -16,15 +17,11 @@ import {
   type CliName,
 } from "@/cli/commands/cliCommandNames.js";
 import { initMain } from "@/cli/commands/init/init.js";
-import {
-  getRegistryAuth,
-  hasRegistryAuthCredentials,
-  loadConfig,
-  toRegistryAuth,
-} from "@/cli/config.js";
+import { getRegistryAuth, loadConfig } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { registryDownloadFlow } from "@/cli/prompts/flows/index.js";
 import { recordFlowFailure } from "@/cli/prompts/flows/utils.js";
+import { resolveOrgRegistryAuth } from "@/core/registryAuthResolution.js";
 import { getNoriSkillsetsDir } from "@/norijson/skillset.js";
 import { verifyArchiveChecksum } from "@/packaging/archive.js";
 import {
@@ -567,24 +564,26 @@ export const registryDownloadMain = async (args: {
               flowSearchResults = [];
             }
           } else if (hasUnifiedAuth) {
-            const targetRegistryUrl = buildOrganizationRegistryUrl({ orgId });
-            const userOrgs = config.auth!.organizations!;
+            const resolution = resolveOrgRegistryAuth({
+              auth: config?.auth ?? null,
+              orgId,
+            });
 
-            if (!userOrgs.includes(orgId)) {
+            if (resolution.ok === false) {
+              const userOrgs =
+                resolution.reason === "not-a-member"
+                  ? resolution.organizations
+                  : [];
               return {
                 status: "error",
                 error: `You do not have access to organization "${orgId}".`,
                 hint: `Your available organizations: ${userOrgs.length > 0 ? userOrgs.join(", ") : "(none)"}`,
               };
             }
-
-            const registryAuth = toRegistryAuth({
-              auth: config.auth!,
-              registryUrl: targetRegistryUrl,
-            });
+            const targetRegistryUrl = resolution.registryUrl;
 
             try {
-              const authToken = await getRegistryAuthToken({ registryAuth });
+              const authToken = await resolution.getToken();
               const packument = await registrarApi.getPackument({
                 packageName,
                 registryUrl: targetRegistryUrl,

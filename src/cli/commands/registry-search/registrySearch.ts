@@ -6,6 +6,10 @@
  */
 
 import {
+  hasRegistryAuthCredentials,
+  toRegistryAuth,
+} from "@/api/authCredentials.js";
+import {
   registrarApi,
   REGISTRAR_URL,
   NetworkError,
@@ -16,11 +20,7 @@ import {
   getCommandNames,
   type CliName,
 } from "@/cli/commands/cliCommandNames.js";
-import {
-  hasRegistryAuthCredentials,
-  loadConfig,
-  toRegistryAuth,
-} from "@/cli/config.js";
+import { loadConfig } from "@/cli/config.js";
 import { registrySearchFlow } from "@/cli/prompts/flows/index.js";
 import {
   extractOrgId,
@@ -28,8 +28,8 @@ import {
   buildOrganizationRegistryUrl,
 } from "@/utils/url.js";
 
+import type { RegistryAuth } from "@/api/authCredentials.js";
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
-import type { RegistryAuth } from "@/cli/config.js";
 import type { SearchFlowResult } from "@/cli/prompts/flows/index.js";
 import type { Command } from "commander";
 

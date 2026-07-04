@@ -9,6 +9,11 @@ import * as path from "path";
 import { log } from "@clack/prompts";
 import * as semver from "semver";
 
+import {
+  hasRegistryAuthCredentials,
+  toRegistryAuth,
+  type RegistryAuth,
+} from "@/api/authCredentials.js";
 import { readApiTokenEnv } from "@/api/base.js";
 import {
   registrarApi,
@@ -21,19 +26,13 @@ import {
   loadConfig,
   getActiveSkillset,
   getRegistryAuth,
-  hasRegistryAuthCredentials,
-  toRegistryAuth,
   type Config,
-  type RegistryAuth,
 } from "@/cli/config.js";
 import { skillUploadFlow } from "@/cli/prompts/flows/index.js";
+import { resolveOrgRegistryAuth } from "@/core/registryAuthResolution.js";
 import { getNoriSkillsetsDir } from "@/norijson/skillset.js";
 import { createArchive, extractFileFromArchive } from "@/packaging/archive.js";
-import {
-  parseNamespacedPackage,
-  buildOrganizationRegistryUrl,
-  extractOrgId,
-} from "@/utils/url.js";
+import { parseNamespacedPackage, extractOrgId } from "@/utils/url.js";
 
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 import type { CheckExistingResult } from "@/cli/prompts/flows/skillUpload.js";
@@ -114,28 +113,35 @@ const resolveRegistryAndAuth = async (args: {
     };
   }
 
+  const orgResolution =
+    orgId !== "public"
+      ? resolveOrgRegistryAuth({ auth: config?.auth ?? null, orgId })
+      : null;
+
   // Determine target URL from CLI flag, org namespace, or default
   const targetRegistryUrl =
     registryUrl != null
       ? registryUrl
-      : orgId === "public"
-        ? REGISTRAR_URL
-        : buildOrganizationRegistryUrl({ orgId });
+      : orgResolution != null
+        ? orgResolution.registryUrl
+        : REGISTRAR_URL;
   const envApi = readApiTokenEnv();
   const targetOrgId = extractOrgId({ url: targetRegistryUrl });
   const hasMatchingEnvToken =
     envApi != null && targetOrgId != null && envApi.orgId === targetOrgId;
 
   // Org-scoped upload: verify membership when we have a known org list
-  if (orgId !== "public") {
-    const userOrgs = config?.auth?.organizations ?? null;
-    if (userOrgs != null && !hasMatchingEnvToken && !userOrgs.includes(orgId)) {
-      return {
-        ok: false,
-        error: `You do not have access to organization "${orgId}".`,
-        hint: `Your available organizations: ${userOrgs.length > 0 ? userOrgs.join(", ") : "(none)"}`,
-      };
-    }
+  // (a matching env token bypasses the check)
+  if (
+    orgResolution?.ok === false &&
+    orgResolution.reason === "not-a-member" &&
+    !hasMatchingEnvToken
+  ) {
+    return {
+      ok: false,
+      error: `You do not have access to organization "${orgId}".`,
+      hint: `Your available organizations: ${orgResolution.organizations.length > 0 ? orgResolution.organizations.join(", ") : "(none)"}`,
+    };
   }
 
   // Public registry with unified auth — use the unified token directly,

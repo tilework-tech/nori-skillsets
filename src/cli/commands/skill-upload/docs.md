@@ -19,7 +19,7 @@ Registered as `upload-skill` via `@/src/cli/commands/noriSkillsetsCommands.ts`. 
 
 After a successful upload, `writeSkillVersion` updates the local `nori.json.version` so subsequent `skillUploadMain` calls will detect the bumped version cleanly.
 
-`resolveRegistryAndAuth` derives the target registry from `--registry`, the namespace prefix, or the public apex. Saved API tokens and env-var API tokens share the same scoping rule: the org embedded in the token must match the org derived from the target registry URL. This lets CI publish public skills with `NORI_API_TOKEN=nori_public_<hex> sks upload-skill <skill> --skillset <skillset> --silent --non-interactive` without a saved login config, while still preventing public tokens from being sent to private org registries.
+`resolveRegistryAndAuth` derives the target registry from `--registry`, the namespace prefix, or the public apex. For org namespaces, the registry URL derivation and org-membership check are delegated to `resolveOrgRegistryAuth` from @/src/core/registryAuthResolution.ts; a matching env API token bypasses the membership check. Saved API tokens and env-var API tokens share the same scoping rule: the org embedded in the token must match the org derived from the target registry URL. This lets CI publish public skills with `NORI_API_TOKEN=nori_public_<hex> sks upload-skill <skill> --skillset <skillset> --silent --non-interactive` without a saved login config, while still preventing public tokens from being sent to private org registries.
 
 ### Conflict Resolution
 

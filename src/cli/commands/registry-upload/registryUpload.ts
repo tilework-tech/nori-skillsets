@@ -8,6 +8,10 @@ import * as path from "path";
 
 import { log } from "@clack/prompts";
 
+import {
+  hasRegistryAuthCredentials,
+  toRegistryAuth,
+} from "@/api/authCredentials.js";
 import { readApiTokenEnv } from "@/api/base.js";
 import {
   registrarApi,
@@ -17,14 +21,10 @@ import {
   type ExtractedSubagentsSummary,
 } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
-import {
-  getRegistryAuth,
-  hasRegistryAuthCredentials,
-  loadConfig,
-  toRegistryAuth,
-} from "@/cli/config.js";
+import { getRegistryAuth, loadConfig } from "@/cli/config.js";
 import { bold } from "@/cli/logger.js";
 import { uploadFlow, listVersionsFlow } from "@/cli/prompts/flows/index.js";
+import { resolveOrgRegistryAuth } from "@/core/registryAuthResolution.js";
 import {
   performSkillsetUpload,
   persistFlatSubagentInlineChoices,
@@ -44,8 +44,8 @@ import {
   extractOrgId,
 } from "@/utils/url.js";
 
+import type { RegistryAuth } from "@/api/authCredentials.js";
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
-import type { RegistryAuth } from "@/cli/config.js";
 import type { NoriJson } from "@/norijson/nori.js";
 
 /**
@@ -668,11 +668,16 @@ export const registryUploadMain = async (args: {
     hasUnifiedAuthWithOrgs ||
     hasMatchingEnvToken(buildOrganizationRegistryUrl({ orgId }))
   ) {
-    // Org-scoped upload requires org membership
-    targetRegistryUrl = buildOrganizationRegistryUrl({ orgId });
-    const userOrgs = config?.auth?.organizations ?? [];
+    // Org-scoped upload requires org membership (a matching env token bypasses)
+    const resolution = resolveOrgRegistryAuth({
+      auth: config?.auth ?? null,
+      orgId,
+    });
+    targetRegistryUrl = resolution.registryUrl;
 
-    if (!hasMatchingEnvToken(targetRegistryUrl) && !userOrgs.includes(orgId)) {
+    if (resolution.ok === false && !hasMatchingEnvToken(targetRegistryUrl)) {
+      const userOrgs =
+        resolution.reason === "not-a-member" ? resolution.organizations : [];
       log.error(
         `You do not have access to organization "${orgId}".\n\nCannot upload "${profileDisplayName}" to ${targetRegistryUrl}.\n\nYour available organizations: ${userOrgs.length > 0 ? userOrgs.join(", ") : "(none)"}`,
       );
@@ -683,8 +688,9 @@ export const registryUploadMain = async (args: {
       };
     }
 
-    const registryAuth: RegistryAuth =
-      config?.auth != null
+    const registryAuth: RegistryAuth = resolution.ok
+      ? resolution.registryAuth
+      : config?.auth != null
         ? toRegistryAuth({
             auth: config.auth,
             registryUrl: targetRegistryUrl,

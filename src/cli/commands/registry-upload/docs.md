@@ -12,7 +12,7 @@ Path: @/src/cli/commands/registry-upload
 
 - Exposed as `sks upload` / `nori-skillsets upload` via `@/src/cli/commands/noriSkillsetsCommands.ts`, which owns Commander registration and wraps this module's `registryUploadMain` with `wrapWithFraming`
 - Uses `@/api/registrar.js` (`registrarApi.uploadSkillset`, `registrarApi.getPackument`) for registry communication
-- Auth tokens are obtained via `@/api/registryAuth.js` (`getRegistryAuthToken`) using refresh tokens, broker-managed direct ID tokens, saved API tokens, or a matching `NORI_API_TOKEN`
+- Auth tokens are obtained via `@/api/registryAuth.js` (`getRegistryAuthToken`) using refresh tokens, broker-managed direct ID tokens, saved API tokens, or a matching `NORI_API_TOKEN`; credential predicates (`hasRegistryAuthCredentials`, `toRegistryAuth`) come from @/src/api/authCredentials.ts, and the org-scoped membership/URL/auth resolution is shared with the download commands via `resolveOrgRegistryAuth` from @/src/core/registryAuthResolution.ts
 - Skillset metadata is read/written through `@/norijson/nori.js` (`readSkillsetMetadata`, `writeSkillsetMetadata`)
 - Skillset directory paths are resolved via `@/norijson/skillset.js` (`getNoriSkillsetsDir`)
 - The interactive upload flow is driven by `uploadFlow` and `listVersionsFlow` from `@/cli/prompts/flows/`
@@ -34,7 +34,9 @@ Path: @/src/cli/commands/registry-upload
    --> Error: authentication required
 
 4. Org-scoped + authenticated user or matching env API token
-   --> Requires userOrgs.includes(orgId) unless NORI_API_TOKEN embeds the target org
+   --> Membership check, registry URL, and RegistryAuth come from
+       resolveOrgRegistryAuth (@/src/core/registryAuthResolution.ts);
+       a NORI_API_TOKEN embedding the target org bypasses the membership check
 
 5. No auth configured
    --> Error: login required
