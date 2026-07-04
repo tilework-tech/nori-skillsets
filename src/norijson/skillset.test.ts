@@ -278,6 +278,22 @@ describe("listSkillsets", () => {
     expect(profiles).toEqual([]);
   });
 
+  test("lists legacy skillsets without writing nori.json to them", async () => {
+    // A legacy skillset has a config file but predates nori.json. Listing is
+    // a read: it must surface the skillset without mutating it.
+    const skillsetsDir = path.join(testHomeDir, ".nori", "profiles");
+    const legacyDir = path.join(skillsetsDir, "legacy-profile");
+    await fs.mkdir(legacyDir, { recursive: true });
+    await fs.writeFile(path.join(legacyDir, "AGENTS.md"), "# instructions");
+
+    const profiles = await listSkillsets();
+
+    expect(profiles).toContain("legacy-profile");
+    await expect(
+      fs.access(path.join(legacyDir, "nori.json")),
+    ).rejects.toThrow();
+  });
+
   test("returns profile names for directories containing nori.json", async () => {
     const skillsetsDir = path.join(testHomeDir, ".nori", "profiles");
 
@@ -361,7 +377,7 @@ describe("listSkillsets", () => {
     expect(profiles.length).toBe(1);
   });
 
-  test("auto-creates nori.json for flat profile with AGENTS.md but no nori.json", async () => {
+  test("lists flat profile with AGENTS.md but no nori.json without writing one", async () => {
     const skillsetsDir = path.join(testHomeDir, ".nori", "profiles");
 
     // Create a user-made profile with AGENTS.md but no nori.json
@@ -373,12 +389,10 @@ describe("listSkillsets", () => {
 
     expect(profiles).toContain("my-custom-profile");
 
-    // Verify nori.json was auto-created with correct defaults
-    const noriJson = JSON.parse(
-      await fs.readFile(path.join(skillsetDir, "nori.json"), "utf-8"),
-    );
-    expect(noriJson.name).toBe("my-custom-profile");
-    expect(noriJson.version).toBe("0.0.1");
+    // Listing is a read: nori.json must not be created as a side effect
+    await expect(
+      fs.access(path.join(skillsetDir, "nori.json")),
+    ).rejects.toThrow();
   });
 
   test("auto-creates nori.json for flat profile with CLAUDE.md but no nori.json (backward compat)", async () => {
@@ -394,7 +408,7 @@ describe("listSkillsets", () => {
     expect(profiles).toContain("legacy-profile");
   });
 
-  test("auto-creates nori.json for flat profile with skills and subagents dirs but no nori.json", async () => {
+  test("lists flat profile with skills and subagents dirs but no nori.json without writing one", async () => {
     const skillsetsDir = path.join(testHomeDir, ".nori", "profiles");
 
     // Create a profile with skills/ and subagents/ but no nori.json
@@ -406,12 +420,10 @@ describe("listSkillsets", () => {
 
     expect(profiles).toContain("dev-profile");
 
-    // Verify nori.json was auto-created
-    const noriJson = JSON.parse(
-      await fs.readFile(path.join(skillsetDir, "nori.json"), "utf-8"),
-    );
-    expect(noriJson.name).toBe("dev-profile");
-    expect(noriJson.version).toBe("0.0.1");
+    // Listing is a read: nori.json must not be created as a side effect
+    await expect(
+      fs.access(path.join(skillsetDir, "nori.json")),
+    ).rejects.toThrow();
   });
 
   test("does not auto-create nori.json for directories without profile markers", async () => {
@@ -430,7 +442,7 @@ describe("listSkillsets", () => {
     ).rejects.toThrow();
   });
 
-  test("does not auto-create nori.json in org directory, preserving nested profile discovery", async () => {
+  test("discovers nested legacy profiles without writing nori.json anywhere", async () => {
     const skillsetsDir = path.join(testHomeDir, ".nori", "profiles");
 
     // Create org directory without nori.json, with a nested profile that has AGENTS.md
@@ -441,12 +453,15 @@ describe("listSkillsets", () => {
 
     const profiles = await listSkillsets();
 
-    // Nested profile should be discovered via auto-created nori.json
+    // Nested legacy profile should be discovered without any write
     expect(profiles).toContain("myorg/team-profile");
     // Org directory should NOT become a flat profile
     expect(profiles).not.toContain("myorg");
-    // Org directory should NOT have nori.json created
+    // Neither the org dir nor the nested profile gets a nori.json written
     await expect(fs.access(path.join(orgDir, "nori.json"))).rejects.toThrow();
+    await expect(
+      fs.access(path.join(nestedProfile, "nori.json")),
+    ).rejects.toThrow();
   });
 
   test("discovers symlinked skillset directories", async () => {

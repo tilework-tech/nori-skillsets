@@ -101,16 +101,38 @@ export const getManagedDirs = (args: {
   return Array.from(dirs);
 };
 
+/**
+ * Read the skillset name recorded in a directory's .nori-managed marker.
+ * The single read path for "what is installed for agent A at directory D".
+ *
+ * @param args - Configuration arguments
+ * @param args.agent - Agent to check
+ * @param args.path - Install directory to check
+ *
+ * @returns The recorded skillset name ("" for pre-name markers), or null when
+ *   the directory has no marker
+ */
+export const getInstalledSkillsetName = (args: {
+  agent: AgentConfig;
+  path: string;
+}): string | null => {
+  const { agent } = args;
+  const agentDir = agent.getAgentDir({ installDir: args.path });
+  const markerPath = path.join(agentDir, ".nori-managed");
+  try {
+    return fsSync.readFileSync(markerPath, "utf-8").trim();
+  } catch {
+    return null;
+  }
+};
+
 export const isInstalledAtDir = (args: {
   agent: AgentConfig;
   path: string;
 }): boolean => {
   const { agent } = args;
-  const agentDir = agent.getAgentDir({ installDir: args.path });
 
-  // Check for .nori-managed marker file
-  const markerPath = path.join(agentDir, ".nori-managed");
-  if (fsSync.existsSync(markerPath)) {
+  if (getInstalledSkillsetName({ agent, path: args.path }) != null) {
     return true;
   }
 

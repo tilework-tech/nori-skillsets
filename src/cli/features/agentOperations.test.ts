@@ -15,6 +15,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   getManagedFiles,
   getManagedDirs,
+  getInstalledSkillsetName,
   isInstalledAtDir,
   markInstall,
   installSkillset,
@@ -318,6 +319,44 @@ describe("isInstalledAtDir", () => {
     fs.writeFileSync(instructionsPath, "# Just some regular content");
 
     expect(isInstalledAtDir({ agent, path: tempDir })).toBe(false);
+  });
+});
+
+describe("getInstalledSkillsetName", () => {
+  let tempDir: string;
+
+  beforeEach(() => {
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "agent-ops-name-test-"));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  it("should return the skillset name recorded in the marker", () => {
+    const agent = createTestAgent();
+    const agentDir = agent.getAgentDir({ installDir: tempDir });
+    fs.mkdirSync(agentDir, { recursive: true });
+    fs.writeFileSync(path.join(agentDir, ".nori-managed"), "senior-swe\n");
+
+    expect(getInstalledSkillsetName({ agent, path: tempDir })).toBe(
+      "senior-swe",
+    );
+  });
+
+  it("should return an empty string for a marker without a recorded name", () => {
+    const agent = createTestAgent();
+    const agentDir = agent.getAgentDir({ installDir: tempDir });
+    fs.mkdirSync(agentDir, { recursive: true });
+    fs.writeFileSync(path.join(agentDir, ".nori-managed"), "");
+
+    expect(getInstalledSkillsetName({ agent, path: tempDir })).toBe("");
+  });
+
+  it("should return null when no marker exists", () => {
+    const agent = createTestAgent();
+
+    expect(getInstalledSkillsetName({ agent, path: tempDir })).toBeNull();
   });
 });
 
