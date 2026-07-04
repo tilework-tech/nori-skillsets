@@ -25,7 +25,7 @@ The install orchestration: the end-to-end pipeline that initializes the Nori env
 
 - `noninteractive` calls `process.exit(1)` when no skillset can be resolved (no `skillset` argument and no `activeSkillset` in config), so callers on fresh installs must pass `skillset` explicitly.
 - The runtime `installDir` is overlaid on the loaded config (`{ ...config, installDir }`) for operational use but never persisted -- only `sks config` writes `installDir` to `.nori-config.json`.
-- `skipManifest` is threaded through `main` -> `noninteractive` -> `completeInstallation` -> `installSkillset`; commands set it when the install dir came from a transient `--install-dir` override (see @/src/cli/commands/docs.md).
+- Manifest writing always happens inside `installSkillset`; there is no skip flag. Manifests are keyed per (agent, install dir) in @/src/cli/features/manifest.ts, so transient `--install-dir` overrides get their own manifests instead of being skipped.
 - The agent defaults to `AgentRegistry.getInstance().getDefaultAgentName()` (i.e., `DEFAULT_AGENT_NAME` from @/src/cli/features/agentTable.ts) when no agent is specified.
 
 Created and maintained by Nori.

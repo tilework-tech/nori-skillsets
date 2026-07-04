@@ -15,7 +15,7 @@ Path: @/src/cli/commands/switch-skillset
 - Triggers a silent `installMain` from `@/src/cli/features/install/install.ts` after switching to regenerate all managed files under the new skillset (a static import; the old dynamic `import()` that dodged a command-module cycle is gone)
 - Optionally triggers `registryDownloadMain` from `@/cli/commands/registry-download/registryDownload.js` to re-download the target skillset before switching (controlled by `config.redownloadOnSwitch`)
 - The interactive flow is driven by `switchSkillsetFlow` from `@/cli/prompts/flows/switchSkillset.js`, which receives a `callbacks` object for all side-effectful operations
-- Resolves install directory via `resolveInstallDir` from `@/utils/path.ts`, and when the directory comes from a CLI override (`--install-dir`), manifest operations are skipped to avoid false positives
+- Resolves install directory via `resolveInstallDir` from `@/utils/path.ts`; the resolved directory's provenance only gates config persistence, not manifest operations
 
 ### Core Implementation
 
@@ -48,7 +48,7 @@ For subagents, the flat file path is checked first via `fs.access`. If it does n
 
 ### Things to Know
 
-- The `skipManifest` flag is derived from `resolved.source === "cli"`. When a user passes `--install-dir`, the manifest is stored globally per-agent and would produce false positives against a transient override directory, so manifest operations (local change detection, manifest writing during install) are skipped entirely.
+- Local change detection always runs, including with `--install-dir`. Manifests are keyed per (agent, install dir) in @/src/cli/features/manifest.ts, so an override directory compares against its own manifest instead of another directory's; `detectLocalChanges` returns null for directories Nori never installed to. The former `skipManifest` flag is gone.
 - The non-interactive flow checks local changes on only the first default agent. The interactive flow checks per-agent via `onPrepareSwitchInfo`.
 - `onExecuteSwitch` temporarily enables silent mode during the switch+install to suppress loader output, restoring the previous mode afterward.
 
