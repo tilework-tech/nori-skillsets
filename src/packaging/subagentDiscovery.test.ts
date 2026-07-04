@@ -6,7 +6,7 @@
 
 import { describe, it, expect } from "vitest";
 
-import { parseSubagentFrontmatter } from "@/cli/commands/external/subagentDiscovery.js";
+import { parseSubagentFrontmatter } from "@/packaging/subagentDiscovery.js";
 
 describe("parseSubagentFrontmatter", () => {
   it("should parse name and description from valid frontmatter", () => {
