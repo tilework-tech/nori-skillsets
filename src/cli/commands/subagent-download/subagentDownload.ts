@@ -10,13 +10,9 @@
 
 import * as fs from "fs/promises";
 import * as path from "path";
-import { Readable } from "stream";
-import { pipeline } from "stream/promises";
-import zlib from "zlib";
 
 import { log } from "@clack/prompts";
 import * as semver from "semver";
-import * as tar from "tar";
 
 import { registrarApi, REGISTRAR_URL } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
@@ -37,6 +33,11 @@ import { substituteTemplatePaths } from "@/cli/features/template.js";
 import { subagentDownloadFlow } from "@/cli/prompts/flows/subagentDownload.js";
 import { addSubagentToNoriJson, ensureNoriJson } from "@/norijson/nori.js";
 import { getNoriSkillsetsDir } from "@/norijson/skillset.js";
+import {
+  atomicReplaceDirWithArchive,
+  extractArchiveToNewDir,
+} from "@/packaging/atomicReplace.js";
+import { readVersionInfo, writeVersionInfo } from "@/packaging/provenance.js";
 import { resolveInstallDir } from "@/utils/path.js";
 import {
   parseNamespacedPackage,
@@ -50,52 +51,8 @@ import type {
   SubagentSearchResult,
   SubagentDownloadActionResult,
 } from "@/cli/prompts/flows/subagentDownload.js";
+import type { VersionInfo } from "@/packaging/provenance.js";
 import type { Command } from "commander";
-
-type VersionInfo = {
-  version: string;
-  registryUrl: string;
-  orgId?: string | null;
-};
-
-const readVersionInfo = async (args: {
-  dir: string;
-}): Promise<VersionInfo | null> => {
-  const { dir } = args;
-  const versionFilePath = path.join(dir, ".nori-version");
-
-  try {
-    const content = await fs.readFile(versionFilePath, "utf-8");
-    return JSON.parse(content) as VersionInfo;
-  } catch {
-    return null;
-  }
-};
-
-const isGzipped = (args: { buffer: Buffer }): boolean => {
-  const { buffer } = args;
-  return buffer.length >= 2 && buffer[0] === 0x1f && buffer[1] === 0x8b;
-};
-
-const extractTarball = async (args: {
-  tarballData: ArrayBuffer;
-  targetDir: string;
-}): Promise<void> => {
-  const { tarballData, targetDir } = args;
-
-  const buffer = Buffer.from(tarballData);
-  const readable = Readable.from(buffer);
-
-  if (isGzipped({ buffer })) {
-    await pipeline(
-      readable,
-      zlib.createGunzip(),
-      tar.extract({ cwd: targetDir }),
-    );
-  } else {
-    await pipeline(readable, tar.extract({ cwd: targetDir }));
-  }
-};
 
 const copyDirRecursive = async (args: {
   src: string;
@@ -582,86 +539,28 @@ export const subagentDownloadMain = async (args: {
             path.join(primaryAgentsDir, `.${subagentName}-download-temp`);
 
           if (subagentExists && profileSubagentDir != null) {
-            // Update existing subagent directory with atomic swap
-            const tempDir = path.join(
-              path.dirname(profileSubagentDir),
-              `.${subagentName}-download-temp`,
-            );
-            const backupDir = path.join(
-              path.dirname(profileSubagentDir),
-              `.${subagentName}-backup`,
-            );
-            await fs.mkdir(tempDir, { recursive: true });
-
-            try {
-              await extractTarball({ tarballData, targetDir: tempDir });
-            } catch (extractErr) {
-              await fs.rm(tempDir, { recursive: true, force: true });
-              throw extractErr;
-            }
-
-            try {
-              await fs.rename(profileSubagentDir, backupDir);
-              await fs.rename(tempDir, profileSubagentDir);
-
-              const backupVersionFile = path.join(backupDir, ".nori-version");
-              try {
-                await fs.access(backupVersionFile);
-                await fs.copyFile(
-                  backupVersionFile,
-                  path.join(profileSubagentDir, ".nori-version"),
-                );
-              } catch {
-                // No .nori-version in backup
-              }
-
-              await fs.rm(backupDir, { recursive: true, force: true });
-            } catch (swapErr) {
-              try {
-                await fs.access(backupDir);
-                await fs
-                  .rm(profileSubagentDir, { recursive: true, force: true })
-                  .catch(() => {
-                    // Target may not exist
-                  });
-                await fs.rename(backupDir, profileSubagentDir);
-              } catch {
-                // Restore failed
-              }
-              await fs
-                .rm(tempDir, { recursive: true, force: true })
-                .catch(() => {
-                  // Temp may not exist
-                });
-              throw swapErr;
-            }
+            await atomicReplaceDirWithArchive({
+              tarballData,
+              targetDir: profileSubagentDir,
+              preserveVersionFile: true,
+            });
           } else {
-            // New install
-            await fs.mkdir(extractTarget, { recursive: true });
-
-            try {
-              await extractTarball({ tarballData, targetDir: extractTarget });
-            } catch (extractErr) {
-              await fs.rm(extractTarget, { recursive: true, force: true });
-              throw extractErr;
-            }
+            await extractArchiveToNewDir({
+              tarballData,
+              targetDir: extractTarget,
+            });
           }
 
           // Write .nori-version file in the subagent directory
           const activeExtractDir = profileSubagentDir ?? extractTarget;
-          const versionData = JSON.stringify(
-            {
+          await writeVersionInfo({
+            dir: activeExtractDir,
+            versionInfo: {
               version: resolvedTargetVersion,
               registryUrl: selectedRegistry.registryUrl,
               orgId,
             },
-            null,
-            2,
-          );
-          await fs.writeFile(
-            path.join(activeExtractDir, ".nori-version"),
-            versionData,
-          );
+          });
 
           // Persist to profile if we haven't already (i.e., extractTarget was a temp dir)
           if (

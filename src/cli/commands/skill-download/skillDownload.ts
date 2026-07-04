@@ -5,13 +5,9 @@
 
 import * as fs from "fs/promises";
 import * as path from "path";
-import { Readable } from "stream";
-import { pipeline } from "stream/promises";
-import zlib from "zlib";
 
 import { log } from "@clack/prompts";
 import * as semver from "semver";
-import * as tar from "tar";
 
 import { registrarApi, REGISTRAR_URL } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
@@ -33,6 +29,11 @@ import { substituteTemplatePaths } from "@/cli/features/template.js";
 import { skillDownloadFlow } from "@/cli/prompts/flows/index.js";
 import { addSkillToNoriJson, ensureNoriJson } from "@/norijson/nori.js";
 import { getNoriSkillsetsDir } from "@/norijson/skillset.js";
+import {
+  atomicReplaceDirWithArchive,
+  extractArchiveToNewDir,
+} from "@/packaging/atomicReplace.js";
+import { readVersionInfo, writeVersionInfo } from "@/packaging/provenance.js";
 import { resolveInstallDir } from "@/utils/path.js";
 import {
   parseNamespacedPackage,
@@ -46,75 +47,8 @@ import type {
   SkillSearchResult,
   SkillDownloadActionResult,
 } from "@/cli/prompts/flows/index.js";
+import type { VersionInfo } from "@/packaging/provenance.js";
 import type { Command } from "commander";
-
-/**
- * Version info stored in .nori-version file
- */
-type VersionInfo = {
-  version: string;
-  registryUrl: string;
-  orgId?: string | null;
-};
-
-/**
- * Read the .nori-version file from a skill directory
- * @param args - The function arguments
- * @param args.skillDir - The skill directory path
- *
- * @returns The version info or null if not found
- */
-const readVersionInfo = async (args: {
-  skillDir: string;
-}): Promise<VersionInfo | null> => {
-  const { skillDir } = args;
-  const versionFilePath = path.join(skillDir, ".nori-version");
-
-  try {
-    const content = await fs.readFile(versionFilePath, "utf-8");
-    return JSON.parse(content) as VersionInfo;
-  } catch {
-    return null;
-  }
-};
-
-/**
- * Check if buffer starts with gzip magic bytes (0x1f 0x8b)
- * @param args - The check parameters
- * @param args.buffer - The buffer to check
- *
- * @returns True if the buffer is gzip compressed
- */
-const isGzipped = (args: { buffer: Buffer }): boolean => {
-  const { buffer } = args;
-  return buffer.length >= 2 && buffer[0] === 0x1f && buffer[1] === 0x8b;
-};
-
-/**
- * Extract a tarball to a directory
- * @param args - The extraction parameters
- * @param args.tarballData - The tarball data as ArrayBuffer
- * @param args.targetDir - The directory to extract to
- */
-const extractTarball = async (args: {
-  tarballData: ArrayBuffer;
-  targetDir: string;
-}): Promise<void> => {
-  const { tarballData, targetDir } = args;
-
-  const buffer = Buffer.from(tarballData);
-  const readable = Readable.from(buffer);
-
-  if (isGzipped({ buffer })) {
-    await pipeline(
-      readable,
-      zlib.createGunzip(),
-      tar.extract({ cwd: targetDir }),
-    );
-  } else {
-    await pipeline(readable, tar.extract({ cwd: targetDir }));
-  }
-};
 
 /**
  * Copy a directory recursively
@@ -475,7 +409,7 @@ export const skillDownloadMain = async (args: {
   try {
     await fs.access(targetDir);
     skillExists = true;
-    existingVersionInfo = await readVersionInfo({ skillDir: targetDir });
+    existingVersionInfo = await readVersionInfo({ dir: targetDir });
   } catch {
     // Directory doesn't exist - continue
   }
@@ -653,77 +587,23 @@ export const skillDownloadMain = async (args: {
           });
 
           if (skillExists) {
-            const tempDir = path.join(skillsDir, `.${skillName}-download-temp`);
-            const backupDir = path.join(skillsDir, `.${skillName}-backup`);
-            await fs.mkdir(tempDir, { recursive: true });
-
-            try {
-              await extractTarball({ tarballData, targetDir: tempDir });
-            } catch (extractErr) {
-              await fs.rm(tempDir, { recursive: true, force: true });
-              throw extractErr;
-            }
-
-            try {
-              await fs.rename(targetDir, backupDir);
-              await fs.rename(tempDir, targetDir);
-
-              const backupVersionFile = path.join(backupDir, ".nori-version");
-              try {
-                await fs.access(backupVersionFile);
-                await fs.copyFile(
-                  backupVersionFile,
-                  path.join(targetDir, ".nori-version"),
-                );
-              } catch {
-                // No .nori-version in backup
-              }
-
-              await fs.rm(backupDir, { recursive: true, force: true });
-            } catch (swapErr) {
-              try {
-                await fs.access(backupDir);
-                await fs
-                  .rm(targetDir, { recursive: true, force: true })
-                  .catch(() => {
-                    // Target may not exist
-                  });
-                await fs.rename(backupDir, targetDir);
-              } catch {
-                // Restore failed
-              }
-              await fs
-                .rm(tempDir, { recursive: true, force: true })
-                .catch(() => {
-                  // Temp may not exist
-                });
-              throw swapErr;
-            }
+            await atomicReplaceDirWithArchive({
+              tarballData,
+              targetDir,
+              preserveVersionFile: true,
+            });
           } else {
-            await fs.mkdir(targetDir, { recursive: true });
-
-            try {
-              await extractTarball({ tarballData, targetDir });
-            } catch (extractErr) {
-              await fs.rm(targetDir, { recursive: true, force: true });
-              throw extractErr;
-            }
+            await extractArchiveToNewDir({ tarballData, targetDir });
           }
 
-          // Write .nori-version file
-          const versionData = JSON.stringify(
-            {
+          await writeVersionInfo({
+            dir: targetDir,
+            versionInfo: {
               version: resolvedTargetVersion,
               registryUrl: selectedRegistry.registryUrl,
               orgId,
             },
-            null,
-            2,
-          );
-          await fs.writeFile(
-            path.join(targetDir, ".nori-version"),
-            versionData,
-          );
+          });
 
           // Persist skill to skillset's skills directory
           if (targetSkillset != null) {

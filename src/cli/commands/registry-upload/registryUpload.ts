@@ -8,7 +8,6 @@ import * as path from "path";
 
 import { log } from "@clack/prompts";
 import * as semver from "semver";
-import * as tar from "tar";
 
 import { readApiTokenEnv } from "@/api/base.js";
 import {
@@ -39,15 +38,13 @@ import {
   writeSkillsetMetadata,
 } from "@/norijson/nori.js";
 import { getNoriSkillsetsDir } from "@/norijson/skillset.js";
+import { createArchive } from "@/packaging/archive.js";
+import { writeVersionInfo } from "@/packaging/provenance.js";
 import { isDirentDirectory } from "@/utils/dirent.js";
 import {
   isSkillCollisionError,
   isSubagentCollisionError,
 } from "@/utils/fetch.js";
-import {
-  collectCargoManifestDirs,
-  shouldExcludeFromUpload,
-} from "@/utils/uploadFileFilter.js";
 import {
   parseNamespacedPackage,
   buildOrganizationRegistryUrl,
@@ -99,58 +96,6 @@ const determineUploadVersion = async (args: {
   }
 
   return { version: "1.0.0", isNewPackage: true };
-};
-
-/**
- * Create a gzipped tarball from a skillset directory
- * @param args - The function arguments
- * @param args.skillsetDir - The skillset directory to pack
- *
- * @returns The tarball as a Buffer
- */
-const createProfileTarball = async (args: {
-  skillsetDir: string;
-}): Promise<Buffer> => {
-  const { skillsetDir } = args;
-
-  const files = await fs.readdir(skillsetDir, { recursive: true });
-  const cargoManifestDirs = collectCargoManifestDirs({ relativePaths: files });
-  const filesToPack: Array<string> = [];
-
-  for (const file of files) {
-    const filePath = path.join(skillsetDir, file);
-    const stat = await fs.stat(filePath);
-    if (stat.isFile()) {
-      if (shouldExcludeFromUpload({ relativePath: file, cargoManifestDirs })) {
-        continue;
-      }
-      filesToPack.push(file);
-    }
-  }
-
-  const tempTarPath = path.join(
-    skillsetDir,
-    "..",
-    `.${path.basename(skillsetDir)}-upload.tgz`,
-  );
-
-  try {
-    await tar.create(
-      {
-        gzip: true,
-        file: tempTarPath,
-        cwd: skillsetDir,
-        follow: true,
-      },
-      filesToPack,
-    );
-
-    return await fs.readFile(tempTarPath);
-  } finally {
-    await fs.unlink(tempTarPath).catch(() => {
-      /* ignore cleanup errors */
-    });
-  }
 };
 
 /**
@@ -985,18 +930,10 @@ const syncLocalStateAfterUpload = async (args: {
 
   await writeSkillsetMetadata({ skillsetDir, metadata });
 
-  // Write .nori-version file
-  await fs.writeFile(
-    path.join(skillsetDir, ".nori-version"),
-    JSON.stringify(
-      {
-        version: uploadedVersion,
-        registryUrl,
-      },
-      null,
-      2,
-    ),
-  );
+  await writeVersionInfo({
+    dir: skillsetDir,
+    versionInfo: { version: uploadedVersion, registryUrl },
+  });
 };
 
 /**
@@ -1455,7 +1392,7 @@ export const registryUploadMain = async (args: {
         });
       }
 
-      const tarballBuffer = await createProfileTarball({ skillsetDir });
+      const tarballBuffer = await createArchive({ sourceDir: skillsetDir });
       const archiveData = new ArrayBuffer(tarballBuffer.byteLength);
       new Uint8Array(archiveData).set(tarballBuffer);
 

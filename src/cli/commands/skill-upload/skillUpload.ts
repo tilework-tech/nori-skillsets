@@ -5,13 +5,9 @@
 
 import * as fs from "fs/promises";
 import * as path from "path";
-import { Readable } from "stream";
-import { pipeline } from "stream/promises";
-import zlib from "zlib";
 
 import { log } from "@clack/prompts";
 import * as semver from "semver";
-import * as tar from "tar";
 
 import { readApiTokenEnv } from "@/api/base.js";
 import {
@@ -32,11 +28,7 @@ import {
 } from "@/cli/config.js";
 import { skillUploadFlow } from "@/cli/prompts/flows/index.js";
 import { getNoriSkillsetsDir } from "@/norijson/skillset.js";
-import { isDirentFile } from "@/utils/dirent.js";
-import {
-  collectCargoManifestDirs,
-  shouldExcludeFromUpload,
-} from "@/utils/uploadFileFilter.js";
+import { createArchive, extractFileFromArchive } from "@/packaging/archive.js";
 import {
   parseNamespacedPackage,
   buildOrganizationRegistryUrl,
@@ -46,104 +38,6 @@ import {
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 import type { CheckExistingResult } from "@/cli/prompts/flows/skillUpload.js";
 import type { NoriJson } from "@/norijson/nori.js";
-
-/**
- * Create a gzipped tarball from a single skill directory.
- *
- * @param args - Arguments
- * @param args.skillDir - Absolute path to the skill directory
- *
- * @returns Gzipped tarball as a Buffer
- */
-const createSkillTarball = async (args: {
-  skillDir: string;
-}): Promise<Buffer> => {
-  const { skillDir } = args;
-
-  const entries = await fs.readdir(skillDir, {
-    recursive: true,
-    withFileTypes: true,
-  });
-  const relPaths = entries.map((entry) => {
-    const parentDir = entry.parentPath ?? entry.path;
-    return path.relative(skillDir, path.join(parentDir, entry.name));
-  });
-  const cargoManifestDirs = collectCargoManifestDirs({
-    relativePaths: relPaths,
-  });
-
-  const filesToPack: Array<string> = [];
-  for (const entry of entries) {
-    const parentDir = entry.parentPath ?? entry.path;
-    if (!(await isDirentFile({ parentDir, entry }))) continue;
-    const rel = path.relative(skillDir, path.join(parentDir, entry.name));
-    if (shouldExcludeFromUpload({ relativePath: rel, cargoManifestDirs })) {
-      continue;
-    }
-    filesToPack.push(rel);
-  }
-
-  const tempTarPath = path.join(
-    skillDir,
-    "..",
-    `.${path.basename(skillDir)}-upload.tgz`,
-  );
-
-  try {
-    await tar.create(
-      { gzip: true, file: tempTarPath, cwd: skillDir, follow: true },
-      filesToPack,
-    );
-    return await fs.readFile(tempTarPath);
-  } finally {
-    await fs.unlink(tempTarPath).catch(() => undefined);
-  }
-};
-
-/**
- * Extract a named file from an in-memory tarball (optionally gzipped).
- *
- * @param args - Arguments
- * @param args.tarballData - Raw tarball data (gzipped or plain tar)
- * @param args.fileName - File name to extract (matches both `SKILL.md` and `./SKILL.md`)
- *
- * @returns File contents as string, or null if the file is not in the tarball
- */
-const extractFileFromTarball = async (args: {
-  tarballData: ArrayBuffer;
-  fileName: string;
-}): Promise<string | null> => {
-  const { tarballData, fileName } = args;
-  const buffer = Buffer.from(tarballData);
-  const readable = Readable.from(buffer);
-  const isGzipped =
-    buffer.length >= 2 && buffer[0] === 0x1f && buffer[1] === 0x8b;
-
-  let foundContent: string | null = null;
-
-  const parser = new tar.Parser();
-  parser.on("entry", (entry) => {
-    // Match both "SKILL.md" at root and "./SKILL.md"
-    const normalized = entry.path.replace(/^\.\//, "");
-    if (normalized === fileName && foundContent == null) {
-      const chunks: Array<Buffer> = [];
-      entry.on("data", (chunk: Buffer) => chunks.push(chunk));
-      entry.on("end", () => {
-        foundContent = Buffer.concat(chunks).toString("utf-8");
-      });
-    } else {
-      entry.resume();
-    }
-  });
-
-  if (isGzipped) {
-    await pipeline(readable, zlib.createGunzip(), parser);
-  } else {
-    await pipeline(readable, parser);
-  }
-
-  return foundContent;
-};
 
 /**
  * Read the skill's local nori.json, or null if missing/invalid.
@@ -470,7 +364,7 @@ export const skillUploadMain = async (args: {
         });
 
         const remoteSkillMd =
-          (await extractFileFromTarball({
+          (await extractFileFromArchive({
             tarballData,
             fileName: "SKILL.md",
           })) ?? "";
@@ -490,7 +384,7 @@ export const skillUploadMain = async (args: {
             error: `Invalid version: "${version}"`,
           };
         }
-        const tarballBuffer = await createSkillTarball({ skillDir });
+        const tarballBuffer = await createArchive({ sourceDir: skillDir });
         const archiveData = new ArrayBuffer(tarballBuffer.byteLength);
         new Uint8Array(archiveData).set(tarballBuffer);
 
