@@ -41,9 +41,7 @@ vi.mock("os", async (importOriginal) => {
 
 // Mock install to avoid side effects - track calls for verification
 // (vi.hoisted because switchSkillset.ts imports install statically)
-const mockInstallMain = vi.hoisted(() =>
-  vi.fn().mockResolvedValue(undefined),
-);
+const mockInstallMain = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 vi.mock("@/cli/features/install/install.js", () => ({
   main: mockInstallMain,
 }));
