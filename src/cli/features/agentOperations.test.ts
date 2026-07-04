@@ -88,6 +88,13 @@ const createTestAgent = (args?: {
   return {
     name: "claude-code",
     displayName: "Test Agent",
+    supportTier: "experimental",
+    capabilities: {
+      mcp: false,
+      hooks: false,
+      statusline: false,
+      transcripts: false,
+    },
     description: "A test agent for agentOperations tests",
 
     getAgentDir: (a: { installDir: string }) =>
@@ -772,6 +779,13 @@ After the block.
     const agent: AgentConfig = {
       name: "claude-code",
       displayName: "Test Agent",
+      supportTier: "experimental",
+      capabilities: {
+        mcp: false,
+        hooks: false,
+        statusline: false,
+        transcripts: false,
+      },
       description: "Test agent with project-root instructions",
       getAgentDir: (a: { installDir: string }) =>
         path.join(a.installDir, ".test-agent"),

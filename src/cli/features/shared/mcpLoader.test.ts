@@ -42,6 +42,13 @@ const createTestAgent = (args: {
   return {
     name,
     displayName: name,
+    supportTier: "experimental",
+    capabilities: {
+      mcp: false,
+      hooks: false,
+      statusline: false,
+      transcripts: false,
+    },
     description: "test agent",
     getAgentDir: ({ installDir }) => path.join(installDir, agentDirName),
     getSkillsDir: ({ installDir }) =>

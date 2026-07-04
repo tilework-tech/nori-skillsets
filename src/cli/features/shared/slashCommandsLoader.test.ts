@@ -44,6 +44,13 @@ const createTestAgent = (args: { agentDir: string }): AgentConfig => {
   return {
     name: "claude-code",
     displayName: "Test Agent",
+    supportTier: "experimental",
+    capabilities: {
+      mcp: false,
+      hooks: false,
+      statusline: false,
+      transcripts: false,
+    },
     description: "Test agent for shared loader tests",
     getAgentDir: (a: { installDir: string }) =>
       path.join(a.installDir, dirName),

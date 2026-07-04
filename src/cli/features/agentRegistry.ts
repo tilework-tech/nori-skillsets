@@ -5,19 +5,11 @@
 
 import * as path from "path";
 
-import { claudeCodeAgentConfig } from "@/cli/features/claude-code/agent.js";
-import { clineAgentConfig } from "@/cli/features/cline/agent.js";
-import { codexAgentConfig } from "@/cli/features/codex/agent.js";
-import { cursorAgentConfig } from "@/cli/features/cursor-agent/agent.js";
-import { droidAgentConfig } from "@/cli/features/droid/agent.js";
-import { geminiCliAgentConfig } from "@/cli/features/gemini-cli/agent.js";
-import { githubCopilotAgentConfig } from "@/cli/features/github-copilot/agent.js";
-import { gooseAgentConfig } from "@/cli/features/goose/agent.js";
-import { kiloAgentConfig } from "@/cli/features/kilo/agent.js";
-import { kimiCliAgentConfig } from "@/cli/features/kimi-cli/agent.js";
-import { openclawAgentConfig } from "@/cli/features/openclaw/agent.js";
-import { opencodeAgentConfig } from "@/cli/features/opencode/agent.js";
-import { piAgentConfig } from "@/cli/features/pi/agent.js";
+import {
+  AGENT_DEFINITIONS,
+  DEFAULT_AGENT_NAME,
+  buildAgentConfig,
+} from "@/cli/features/agentTable.js";
 
 import type { Config } from "@/cli/config.js";
 import type { Skillset } from "@/norijson/skillset.js";
@@ -89,14 +81,32 @@ export type ExistingConfig = {
 };
 
 /**
+ * Support tier for an agent: "supported" agents are well-tested end to end;
+ * "experimental" agents are best-effort.
+ */
+export type AgentSupportTier = "supported" | "experimental";
+
+/**
+ * Feature capabilities derived from an agent's definition.
+ */
+export type AgentCapabilities = {
+  mcp: boolean;
+  hooks: boolean;
+  statusline: boolean;
+  transcripts: boolean;
+};
+
+/**
  * Data-oriented agent configuration
- * Replaces the monolithic Agent type with a minimal config object.
- * All operations are shared functions in agentOperations.ts.
+ * Built exclusively from AgentDefinition rows in agentTable.ts via
+ * buildAgentConfig. All operations are shared functions in agentOperations.ts.
  */
 export type AgentConfig = {
   name: AgentName;
   displayName: string;
   description: string;
+  supportTier: AgentSupportTier;
+  capabilities: AgentCapabilities;
 
   getAgentDir: (args: { installDir: string }) => string;
   getSkillsDir: (args: { installDir: string }) => string;
@@ -125,19 +135,9 @@ export class AgentRegistry {
 
   private constructor() {
     this.agents = new Map();
-    this.agents.set(claudeCodeAgentConfig.name, claudeCodeAgentConfig);
-    this.agents.set(clineAgentConfig.name, clineAgentConfig);
-    this.agents.set(codexAgentConfig.name, codexAgentConfig);
-    this.agents.set(cursorAgentConfig.name, cursorAgentConfig);
-    this.agents.set(droidAgentConfig.name, droidAgentConfig);
-    this.agents.set(geminiCliAgentConfig.name, geminiCliAgentConfig);
-    this.agents.set(githubCopilotAgentConfig.name, githubCopilotAgentConfig);
-    this.agents.set(gooseAgentConfig.name, gooseAgentConfig);
-    this.agents.set(kiloAgentConfig.name, kiloAgentConfig);
-    this.agents.set(kimiCliAgentConfig.name, kimiCliAgentConfig);
-    this.agents.set(opencodeAgentConfig.name, opencodeAgentConfig);
-    this.agents.set(openclawAgentConfig.name, openclawAgentConfig);
-    this.agents.set(piAgentConfig.name, piAgentConfig);
+    for (const definition of AGENT_DEFINITIONS) {
+      this.agents.set(definition.name, buildAgentConfig({ definition }));
+    }
   }
 
   /**
@@ -198,12 +198,12 @@ export class AgentRegistry {
   }
 
   /**
-   * Get the default agent name (first registered agent)
+   * Get the default agent name
    * Used as a fallback when no agent is explicitly specified.
    * @returns The default agent name
    */
   public getDefaultAgentName(): AgentName {
-    return this.list()[0];
+    return DEFAULT_AGENT_NAME;
   }
 
   /**
