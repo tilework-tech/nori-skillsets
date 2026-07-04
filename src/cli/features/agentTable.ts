@@ -15,6 +15,7 @@ import { hooksLoader } from "@/cli/features/claude-code/hooks/loader.js";
 import { getClaudeHomeSettingsFile } from "@/cli/features/claude-code/paths.js";
 import { statuslineLoader } from "@/cli/features/claude-code/statusline/loader.js";
 import { configLoader } from "@/cli/features/configLoader.js";
+import { getLegacyManifestPath } from "@/cli/features/manifest.js";
 import { createInstructionsLoader } from "@/cli/features/shared/instructionsLoader.js";
 import { createMcpLoader } from "@/cli/features/shared/mcpLoader.js";
 import { skillsLoader } from "@/cli/features/shared/skillsLoader.js";
@@ -62,6 +63,8 @@ export type AgentDefinition = {
   /** Agent-specific loaders appended after the shared set */
   extraLoaders?: ReadonlyArray<AgentLoader> | null;
   externalSettingsFiles?: (() => ReadonlyArray<string>) | null;
+  /** Pre-per-agent-manifest location this agent's installs may have used */
+  legacyManifestPath?: (() => string) | null;
   transcriptDirectory?: (() => string) | null;
   artifactPatterns?: {
     dirs: ReadonlyArray<string>;
@@ -89,6 +92,7 @@ export const AGENT_DEFINITIONS: ReadonlyArray<AgentDefinition> = [
     },
     extraLoaders: [hooksLoader, statuslineLoader, announcementsLoader],
     externalSettingsFiles: () => [getClaudeHomeSettingsFile()],
+    legacyManifestPath: getLegacyManifestPath,
     transcriptDirectory: () => path.join(getHomeDir(), ".claude", "projects"),
     artifactPatterns: { dirs: [".claude"], files: ["CLAUDE.md"] },
   },
@@ -362,6 +366,9 @@ export const buildAgentConfig = (args: {
 
     ...(definition.externalSettingsFiles != null
       ? { getExternalSettingsFiles: definition.externalSettingsFiles }
+      : {}),
+    ...(definition.legacyManifestPath != null
+      ? { getLegacyManifestPath: definition.legacyManifestPath }
       : {}),
     ...(definition.transcriptDirectory != null
       ? { getTranscriptDirectory: definition.transcriptDirectory }

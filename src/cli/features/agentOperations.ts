@@ -18,7 +18,6 @@ import {
   computeDirectoryManifest,
   writeManifest,
   getManifestPath,
-  getLegacyManifestPath,
   removeManagedFiles,
 } from "@/cli/features/manifest.js";
 import {
@@ -293,9 +292,9 @@ export const removeSkillset = async (args: {
     excludePaths,
   });
 
-  // Also clean up legacy manifest for claude-code
-  if (agent.name === "claude-code") {
-    const legacyPath = getLegacyManifestPath();
+  // Also clean up the agent's legacy manifest location, if it has one
+  const legacyPath = agent.getLegacyManifestPath?.() ?? null;
+  if (legacyPath != null) {
     await removeManagedFiles({
       agentDir,
       manifestPath: legacyPath,
@@ -324,8 +323,7 @@ export const detectLocalChanges = async (args: {
   const { agent, installDir } = args;
 
   const manifestPath = getManifestPath({ agentName: agent.name });
-  const legacyManifestPath =
-    agent.name === "claude-code" ? getLegacyManifestPath() : null;
+  const legacyManifestPath = agent.getLegacyManifestPath?.() ?? null;
   const manifest = await readManifest({
     manifestPath,
     legacyManifestPath,

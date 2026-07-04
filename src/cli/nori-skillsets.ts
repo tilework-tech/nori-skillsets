@@ -106,7 +106,7 @@ program
   .option("-s, --silent", "Suppress all output (implies --non-interactive)")
   .option(
     "-a, --agent <name>",
-    "AI agent to use (auto-detected from config, or claude-code)",
+    `AI agent to use (auto-detected from config, or ${AgentRegistry.getInstance().getDefaultAgentName()})`,
   )
   .addHelpText(
     "after",

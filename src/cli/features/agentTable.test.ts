@@ -9,7 +9,6 @@ import {
   buildAgentConfig,
 } from "./agentTable.js";
 
-
 // Mock @clack/prompts to suppress output during tests
 vi.mock("@clack/prompts", () => ({
   log: {
@@ -356,6 +355,17 @@ describe("buildAgentConfig capabilities and description", () => {
     expect(buildByName({ name: "claude-code" }).description).toBe(
       "Instructions, skills, subagents, commands, MCP, hooks, statusline, watch",
     );
+  });
+
+  it("only claude-code carries a legacy manifest path", () => {
+    const claude = buildByName({ name: "claude-code" });
+    expect(claude.getLegacyManifestPath).toBeDefined();
+    expect(claude.getLegacyManifestPath!()).toMatch(
+      /installed-manifest\.json$/,
+    );
+    for (const name of ALL_AGENT_NAMES.filter((n) => n !== "claude-code")) {
+      expect(buildByName({ name }).getLegacyManifestPath).toBeUndefined();
+    }
   });
 
   it("only claude-code declares optional integration hooks", () => {

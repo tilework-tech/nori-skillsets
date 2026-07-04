@@ -70,6 +70,7 @@ vi.mock("@clack/prompts", () => ({
  * @param args - Optional configuration for the test agent
  * @param args.loaders - Array of loaders to register on the agent
  * @param args.getArtifactPatterns - Function returning artifact dir/file patterns
+ * @param args.getLegacyManifestPath - Function returning the agent's legacy manifest path
  *
  * @returns An AgentConfig suitable for testing
  */
@@ -81,9 +82,11 @@ const createTestAgent = (args?: {
         files: ReadonlyArray<string>;
       })
     | null;
+  getLegacyManifestPath?: (() => string) | null;
 }): AgentConfig => {
   const loaders = args?.loaders ?? [];
   const getArtifactPatterns = args?.getArtifactPatterns ?? null;
+  const getLegacyManifestPath = args?.getLegacyManifestPath ?? null;
 
   return {
     name: "claude-code",
@@ -111,6 +114,7 @@ const createTestAgent = (args?: {
     getLoaders: () => loaders,
 
     getArtifactPatterns: getArtifactPatterns,
+    getLegacyManifestPath: getLegacyManifestPath,
   };
 };
 
@@ -649,7 +653,9 @@ describe("removeSkillset", () => {
     expect(fs.existsSync(manifestPath)).toBe(false);
   });
 
-  it("should also remove legacy manifest for claude-code agent", async () => {
+  it("should also remove the legacy manifest when the agent declares one", async () => {
+    const { getLegacyManifestPath: legacyManifestPathFn } =
+      await import("@/cli/features/manifest.js");
     const agent = createTestAgent({
       loaders: [
         {
@@ -659,6 +665,7 @@ describe("removeSkillset", () => {
           run: async () => undefined,
         },
       ],
+      getLegacyManifestPath: legacyManifestPathFn,
     });
 
     const agentDir = agent.getAgentDir({ installDir: tempDir });

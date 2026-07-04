@@ -177,6 +177,7 @@ export const configMain = async (
             name: agent.name,
             displayName: agent.displayName,
             description: agent.description,
+            supportTier: agent.supportTier,
           };
         });
       },
