@@ -9,12 +9,7 @@ import * as path from "path";
 import { log } from "@clack/prompts";
 import * as semver from "semver";
 
-import {
-  registrarApi,
-  REGISTRAR_URL,
-  NetworkError,
-  type Packument,
-} from "@/api/registrar.js";
+import { registrarApi, REGISTRAR_URL, NetworkError } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
 import {
   getCommandNames,
@@ -36,6 +31,11 @@ import {
   replaceDirContentsWithArchive,
 } from "@/packaging/atomicReplace.js";
 import { readVersionInfo, writeVersionInfo } from "@/packaging/provenance.js";
+import {
+  formatMultipleMatchesError,
+  formatVersionList,
+  searchSpecificRegistry,
+} from "@/packaging/registryLookup.js";
 import { resolveInstallDir } from "@/utils/path.js";
 import {
   parseNamespacedPackage,
@@ -43,13 +43,13 @@ import {
 } from "@/utils/url.js";
 
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
-import type { Config } from "@/cli/config.js";
 import type {
   DownloadSearchResult,
   DownloadActionResult,
 } from "@/cli/prompts/flows/index.js";
 import type { NoriJson } from "@/norijson/nori.js";
 import type { VersionInfo } from "@/packaging/provenance.js";
+import type { RegistrySearchResult } from "@/packaging/registryLookup.js";
 import type { Command } from "commander";
 
 /**
@@ -359,213 +359,6 @@ const downloadSubagentDependencies = async (args: {
 };
 
 /**
- * Result of searching for a package in a registry
- */
-type RegistrySearchResult = {
-  registryUrl: string;
-  packument: Packument;
-  authToken?: string | null;
-};
-
-/**
- * Error information from a failed search
- */
-type SearchError = {
-  registryUrl: string;
-  isNetworkError: boolean;
-  message: string;
-};
-
-/**
- * Search a specific registry for a package
- * @param args - The search parameters
- * @param args.packageName - The package name to search for
- * @param args.registryUrl - The registry URL to search
- * @param args.config - The Nori configuration containing registry auth
- *
- * @returns Object with result (if found) and/or error (if failed)
- */
-const searchSpecificRegistry = async (args: {
-  packageName: string;
-  registryUrl: string;
-  config: Config | null;
-}): Promise<{
-  result: RegistrySearchResult | null;
-  error: SearchError | null;
-}> => {
-  const { packageName, registryUrl, config } = args;
-
-  // Check if this is the public registry
-  if (registryUrl === REGISTRAR_URL) {
-    try {
-      const packument = await registrarApi.getPackument({
-        packageName,
-        registryUrl: REGISTRAR_URL,
-      });
-      return {
-        result: {
-          registryUrl: REGISTRAR_URL,
-          packument,
-        },
-        error: null,
-      };
-    } catch (err) {
-      if (err instanceof NetworkError) {
-        return {
-          result: null,
-          error: {
-            registryUrl: REGISTRAR_URL,
-            isNetworkError: true,
-            message: err.message,
-          },
-        };
-      }
-      // API error (like 404) - package not found
-      return { result: null, error: null };
-    }
-  }
-
-  // Private registry - require auth from config
-  if (config == null) {
-    return { result: null, error: null };
-  }
-
-  const registryAuth = getRegistryAuth({ config, registryUrl });
-  if (registryAuth == null) {
-    return { result: null, error: null };
-  }
-
-  try {
-    const authToken = await getRegistryAuthToken({ registryAuth });
-    const packument = await registrarApi.getPackument({
-      packageName,
-      registryUrl,
-      authToken,
-    });
-    return {
-      result: {
-        registryUrl,
-        packument,
-        authToken,
-      },
-      error: null,
-    };
-  } catch (err) {
-    if (err instanceof NetworkError) {
-      return {
-        result: null,
-        error: {
-          registryUrl,
-          isNetworkError: true,
-          message: err.message,
-        },
-      };
-    }
-    // API error (like 404) - package not found
-    return { result: null, error: null };
-  }
-};
-
-/**
- * Format the list of available versions for a package
- * @param args - The format parameters
- * @param args.packageName - The package name
- * @param args.packument - The packument containing version information
- * @param args.registryUrl - The registry URL
- * @param args.cliName - The CLI name for command hints
- *
- * @returns Formatted version list message
- */
-const formatVersionList = (args: {
-  packageName: string;
-  packument: Packument;
-  registryUrl: string;
-  cliName?: CliName | null;
-}): string => {
-  const { packageName, packument, registryUrl, cliName } = args;
-  const commandNames = getCommandNames({ cliName });
-  const distTags = packument["dist-tags"];
-  const versions = Object.keys(packument.versions);
-  const timeInfo = packument.time ?? {};
-
-  // Sort versions in descending order (newest first)
-  const sortedVersions = versions.sort((a, b) => {
-    const timeA = timeInfo[a] ? new Date(timeInfo[a]).getTime() : 0;
-    const timeB = timeInfo[b] ? new Date(timeInfo[b]).getTime() : 0;
-    return timeB - timeA;
-  });
-
-  const lines = [
-    `Available versions of "${packageName}" from ${registryUrl}:\n`,
-    "Dist-tags:",
-  ];
-
-  // Show dist-tags first
-  for (const [tag, version] of Object.entries(distTags)) {
-    lines.push(`  ${tag}: ${version}`);
-  }
-
-  lines.push("\nVersions:");
-
-  // Show all versions with timestamps
-  for (const version of sortedVersions) {
-    const timestamp = timeInfo[version]
-      ? new Date(timeInfo[version]).toLocaleDateString()
-      : "";
-    const tags = Object.entries(distTags)
-      .filter(([, v]) => v === version)
-      .map(([t]) => t);
-    const tagStr = tags.length > 0 ? ` (${tags.join(", ")})` : "";
-    const timeStr = timestamp ? ` - ${timestamp}` : "";
-    lines.push(`  ${version}${tagStr}${timeStr}`);
-  }
-
-  const cliPrefix = cliName ?? "nori-skillsets";
-  lines.push(
-    `\nTo download a specific version:\n  ${cliPrefix} ${commandNames.download} ${packageName}@<version>`,
-  );
-
-  return lines.join("\n");
-};
-
-/**
- * Format the multiple packages found error message
- * @param args - The format parameters
- * @param args.packageName - The package name that was searched
- * @param args.results - The search results from multiple registries
- * @param args.cliName - The CLI name for command hints
- *
- * @returns Formatted error message
- */
-const formatMultiplePackagesError = (args: {
-  packageName: string;
-  results: Array<RegistrySearchResult>;
-  cliName?: CliName | null;
-}): string => {
-  const { packageName, results, cliName } = args;
-  const commandNames = getCommandNames({ cliName });
-  const cliPrefix = cliName ?? "nori-skillsets";
-
-  const lines = ["Multiple packages with the same name found.\n"];
-
-  for (const result of results) {
-    const version = result.packument["dist-tags"].latest ?? "unknown";
-    const description = result.packument.description ?? "";
-    lines.push(result.registryUrl);
-    lines.push(`  -> ${packageName}@${version}: ${description}\n`);
-  }
-
-  lines.push("To download, please specify the registry with --registry:");
-  for (const result of results) {
-    lines.push(
-      `${cliPrefix} ${commandNames.download} ${packageName} --registry ${result.registryUrl}`,
-    );
-  }
-
-  return lines.join("\n");
-};
-
-/**
  * Download and install a skillset from the registrar
  * @param args - The download parameters
  * @param args.packageSpec - Package name with optional version (e.g., "my-profile" or "my-profile@1.0.0")
@@ -718,11 +511,18 @@ export const registryDownloadMain = async (args: {
             }
           }
 
+          const searchRegistryAuth =
+            config != null ? getRegistryAuth({ config, registryUrl }) : null;
           const { result: searchResult, error: searchError } =
             await searchSpecificRegistry({
-              packageName,
               registryUrl,
-              config,
+              fetchPackument: (fetchArgs) =>
+                registrarApi.getPackument({ packageName, ...fetchArgs }),
+              getAuthToken:
+                searchRegistryAuth != null
+                  ? () =>
+                      getRegistryAuthToken({ registryAuth: searchRegistryAuth })
+                  : null,
             });
           if (searchError?.isNetworkError) {
             return {
@@ -801,10 +601,11 @@ export const registryDownloadMain = async (args: {
         if (flowSearchResults.length > 1) {
           return {
             status: "error",
-            error: formatMultiplePackagesError({
+            error: formatMultipleMatchesError({
               packageName,
               results: flowSearchResults,
-              cliName,
+              entityLabel: "packages",
+              downloadCommand: `${cliPrefix} ${commandNames.download}`,
             }),
           };
         }
@@ -818,7 +619,7 @@ export const registryDownloadMain = async (args: {
               packageName,
               packument: foundRegistry.packument,
               registryUrl: foundRegistry.registryUrl,
-              cliName,
+              downloadCommand: `${cliPrefix} ${commandNames.download}`,
             }),
             versionCount: Object.keys(foundRegistry.packument.versions).length,
           };

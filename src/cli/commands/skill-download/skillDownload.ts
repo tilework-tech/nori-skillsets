@@ -34,20 +34,24 @@ import {
   extractArchiveToNewDir,
 } from "@/packaging/atomicReplace.js";
 import { readVersionInfo, writeVersionInfo } from "@/packaging/provenance.js";
+import {
+  formatMultipleMatchesError,
+  formatVersionList,
+  searchSpecificRegistry,
+} from "@/packaging/registryLookup.js";
 import { resolveInstallDir } from "@/utils/path.js";
 import {
   parseNamespacedPackage,
   buildOrganizationRegistryUrl,
 } from "@/utils/url.js";
 
-import type { Packument } from "@/api/registrar.js";
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
-import type { Config } from "@/cli/config.js";
 import type {
   SkillSearchResult,
   SkillDownloadActionResult,
 } from "@/cli/prompts/flows/index.js";
 import type { VersionInfo } from "@/packaging/provenance.js";
+import type { RegistrySearchResult } from "@/packaging/registryLookup.js";
 import type { Command } from "commander";
 
 /**
@@ -100,173 +104,6 @@ const applyTemplateSubstitutionToDir = async (args: {
       await fs.writeFile(entryPath, substituted);
     }
   }
-};
-
-/**
- * Result of searching for a skill in a registry
- */
-type RegistrySearchResult = {
-  registryUrl: string;
-  packument: Packument;
-  authToken?: string | null;
-};
-
-/**
- * Search a specific registry for a skill
- * @param args - The search parameters
- * @param args.skillName - The skill name to search for
- * @param args.registryUrl - The registry URL to search
- * @param args.config - The Nori configuration containing registry auth
- *
- * @returns The search result or null if not found or no auth configured
- */
-const searchSpecificRegistry = async (args: {
-  skillName: string;
-  registryUrl: string;
-  config: Config | null;
-}): Promise<RegistrySearchResult | null> => {
-  const { skillName, registryUrl, config } = args;
-
-  // Check if this is the public registry
-  if (registryUrl === REGISTRAR_URL) {
-    try {
-      const packument = await registrarApi.getSkillPackument({
-        skillName,
-        registryUrl: REGISTRAR_URL,
-      });
-      return {
-        registryUrl: REGISTRAR_URL,
-        packument,
-      };
-    } catch {
-      return null;
-    }
-  }
-
-  // Private registry - require auth from config
-  if (config == null) {
-    return null;
-  }
-
-  const registryAuth = getRegistryAuth({ config, registryUrl });
-  if (registryAuth == null) {
-    return null;
-  }
-
-  try {
-    const authToken = await getRegistryAuthToken({ registryAuth });
-    const packument = await registrarApi.getSkillPackument({
-      skillName,
-      registryUrl,
-      authToken,
-    });
-    return {
-      registryUrl,
-      packument,
-      authToken,
-    };
-  } catch {
-    return null;
-  }
-};
-
-/**
- * Format the list of available versions for a skill
- * @param args - The format parameters
- * @param args.skillName - The skill name
- * @param args.packument - The packument containing version information
- * @param args.registryUrl - The registry URL
- * @param args.cliName - The CLI name for command hints
- *
- * @returns Formatted version list message
- */
-const formatVersionList = (args: {
-  skillName: string;
-  packument: Packument;
-  registryUrl: string;
-  cliName?: CliName | null;
-}): string => {
-  const { skillName, packument, registryUrl, cliName } = args;
-  const commandNames = getCommandNames({ cliName });
-  const cliPrefix = cliName ?? "nori-skillsets";
-  const distTags = packument["dist-tags"];
-  const versions = Object.keys(packument.versions);
-  const timeInfo = packument.time ?? {};
-
-  // Sort versions in descending order (newest first)
-  const sortedVersions = versions.sort((a, b) => {
-    const timeA = timeInfo[a] ? new Date(timeInfo[a]).getTime() : 0;
-    const timeB = timeInfo[b] ? new Date(timeInfo[b]).getTime() : 0;
-    return timeB - timeA;
-  });
-
-  const lines = [
-    `Available versions of "${skillName}" from ${registryUrl}:\n`,
-    "Dist-tags:",
-  ];
-
-  // Show dist-tags first
-  for (const [tag, version] of Object.entries(distTags)) {
-    lines.push(`  ${tag}: ${version}`);
-  }
-
-  lines.push("\nVersions:");
-
-  // Show all versions with timestamps
-  for (const version of sortedVersions) {
-    const timestamp = timeInfo[version]
-      ? new Date(timeInfo[version]).toLocaleDateString()
-      : "";
-    const tags = Object.entries(distTags)
-      .filter(([, v]) => v === version)
-      .map(([t]) => t);
-    const tagStr = tags.length > 0 ? ` (${tags.join(", ")})` : "";
-    const timeStr = timestamp ? ` - ${timestamp}` : "";
-    lines.push(`  ${version}${tagStr}${timeStr}`);
-  }
-
-  lines.push(
-    `\nTo download a specific version:\n  ${cliPrefix} ${commandNames.downloadSkill} ${skillName}@<version>`,
-  );
-
-  return lines.join("\n");
-};
-
-/**
- * Format the multiple skills found error message
- * @param args - The format parameters
- * @param args.skillName - The skill name that was searched
- * @param args.results - The search results from multiple registries
- * @param args.cliName - The CLI name for command hints
- *
- * @returns Formatted error message
- */
-const formatMultipleSkillsError = (args: {
-  skillName: string;
-  results: Array<RegistrySearchResult>;
-  cliName?: CliName | null;
-}): string => {
-  const { skillName, results, cliName } = args;
-  const commandNames = getCommandNames({ cliName });
-  const cliPrefix = cliName ?? "nori-skillsets";
-
-  const lines = ["Multiple skills with the same name found.\n"];
-
-  for (const result of results) {
-    const version = result.packument["dist-tags"].latest ?? "unknown";
-    const description = result.packument.description ?? "";
-    lines.push(result.registryUrl);
-    lines.push(`  -> ${skillName}@${version}: ${description}\n`);
-  }
-
-  lines.push("To download, please specify the registry with --registry:");
-  for (const result of results) {
-    lines.push(
-      `${cliPrefix} ${commandNames.downloadSkill} ${skillName} --registry ${result.registryUrl}`,
-    );
-  }
-
-  return lines.join("\n");
 };
 
 /**
@@ -432,23 +269,28 @@ export const skillDownloadMain = async (args: {
           config.auth.organizations != null;
 
         if (registryUrl != null) {
-          if (registryUrl !== REGISTRAR_URL) {
-            const registryAuth =
-              config != null ? getRegistryAuth({ config, registryUrl }) : null;
-            if (registryAuth == null) {
-              return {
-                status: "error",
-                error: `No authentication configured for registry: ${registryUrl}`,
-                hint: "Add registry credentials to your .nori-config.json file.",
-              };
-            }
+          const registryAuth =
+            config != null ? getRegistryAuth({ config, registryUrl }) : null;
+          if (registryUrl !== REGISTRAR_URL && registryAuth == null) {
+            return {
+              status: "error",
+              error: `No authentication configured for registry: ${registryUrl}`,
+              hint: "Add registry credentials to your .nori-config.json file.",
+            };
           }
 
-          const searchResult = await searchSpecificRegistry({
-            skillName,
-            registryUrl,
-            config,
-          });
+          const searchResult =
+            (
+              await searchSpecificRegistry({
+                registryUrl,
+                fetchPackument: (fetchArgs) =>
+                  registrarApi.getSkillPackument({ skillName, ...fetchArgs }),
+                getAuthToken:
+                  registryAuth != null
+                    ? () => getRegistryAuthToken({ registryAuth })
+                    : null,
+              })
+            ).result ?? null;
           flowSearchResults = searchResult != null ? [searchResult] : [];
         } else if (orgId === "public") {
           try {
@@ -508,10 +350,11 @@ export const skillDownloadMain = async (args: {
         if (flowSearchResults.length > 1) {
           return {
             status: "error",
-            error: formatMultipleSkillsError({
-              skillName,
+            error: formatMultipleMatchesError({
+              packageName: skillName,
               results: flowSearchResults,
-              cliName,
+              entityLabel: "skills",
+              downloadCommand: `${cliPrefix} ${commandNames.downloadSkill}`,
             }),
           };
         }
@@ -522,10 +365,10 @@ export const skillDownloadMain = async (args: {
           return {
             status: "list-versions",
             formattedVersionList: formatVersionList({
-              skillName,
+              packageName: skillName,
               packument: foundRegistry.packument,
               registryUrl: foundRegistry.registryUrl,
-              cliName,
+              downloadCommand: `${cliPrefix} ${commandNames.downloadSkill}`,
             }),
             versionCount: Object.keys(foundRegistry.packument.versions).length,
           };

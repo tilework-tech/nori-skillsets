@@ -38,20 +38,24 @@ import {
   extractArchiveToNewDir,
 } from "@/packaging/atomicReplace.js";
 import { readVersionInfo, writeVersionInfo } from "@/packaging/provenance.js";
+import {
+  formatMultipleMatchesError,
+  formatVersionList,
+  searchSpecificRegistry,
+} from "@/packaging/registryLookup.js";
 import { resolveInstallDir } from "@/utils/path.js";
 import {
   parseNamespacedPackage,
   buildOrganizationRegistryUrl,
 } from "@/utils/url.js";
 
-import type { Packument } from "@/api/registrar.js";
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
-import type { Config } from "@/cli/config.js";
 import type {
   SubagentSearchResult,
   SubagentDownloadActionResult,
 } from "@/cli/prompts/flows/subagentDownload.js";
 import type { VersionInfo } from "@/packaging/provenance.js";
+import type { RegistrySearchResult } from "@/packaging/registryLookup.js";
 import type { Command } from "commander";
 
 const copyDirRecursive = async (args: {
@@ -97,137 +101,6 @@ const flattenSubagentToAgentDir = async (args: {
 
   await fs.mkdir(agentsDir, { recursive: true });
   await fs.writeFile(path.join(agentsDir, `${subagentName}.md`), substituted);
-};
-
-type RegistrySearchResult = {
-  registryUrl: string;
-  packument: Packument;
-  authToken?: string | null;
-};
-
-const searchSpecificRegistry = async (args: {
-  subagentName: string;
-  registryUrl: string;
-  config: Config | null;
-}): Promise<RegistrySearchResult | null> => {
-  const { subagentName, registryUrl, config } = args;
-
-  if (registryUrl === REGISTRAR_URL) {
-    try {
-      const packument = await registrarApi.getSubagentPackument({
-        subagentName,
-        registryUrl: REGISTRAR_URL,
-      });
-      return {
-        registryUrl: REGISTRAR_URL,
-        packument,
-      };
-    } catch {
-      return null;
-    }
-  }
-
-  if (config == null) {
-    return null;
-  }
-
-  const registryAuth = getRegistryAuth({ config, registryUrl });
-  if (registryAuth == null) {
-    return null;
-  }
-
-  try {
-    const authToken = await getRegistryAuthToken({ registryAuth });
-    const packument = await registrarApi.getSubagentPackument({
-      subagentName,
-      registryUrl,
-      authToken,
-    });
-    return {
-      registryUrl,
-      packument,
-      authToken,
-    };
-  } catch {
-    return null;
-  }
-};
-
-const formatVersionList = (args: {
-  subagentName: string;
-  packument: Packument;
-  registryUrl: string;
-  cliName?: CliName | null;
-}): string => {
-  const { subagentName, packument, registryUrl, cliName } = args;
-  const commandNames = getCommandNames({ cliName });
-  const cliPrefix = cliName ?? "nori-skillsets";
-  const distTags = packument["dist-tags"];
-  const versions = Object.keys(packument.versions);
-  const timeInfo = packument.time ?? {};
-
-  const sortedVersions = versions.sort((a, b) => {
-    const timeA = timeInfo[a] ? new Date(timeInfo[a]).getTime() : 0;
-    const timeB = timeInfo[b] ? new Date(timeInfo[b]).getTime() : 0;
-    return timeB - timeA;
-  });
-
-  const lines = [
-    `Available versions of "${subagentName}" from ${registryUrl}:\n`,
-    "Dist-tags:",
-  ];
-
-  for (const [tag, version] of Object.entries(distTags)) {
-    lines.push(`  ${tag}: ${version}`);
-  }
-
-  lines.push("\nVersions:");
-
-  for (const version of sortedVersions) {
-    const timestamp = timeInfo[version]
-      ? new Date(timeInfo[version]).toLocaleDateString()
-      : "";
-    const tags = Object.entries(distTags)
-      .filter(([, v]) => v === version)
-      .map(([t]) => t);
-    const tagStr = tags.length > 0 ? ` (${tags.join(", ")})` : "";
-    const timeStr = timestamp ? ` - ${timestamp}` : "";
-    lines.push(`  ${version}${tagStr}${timeStr}`);
-  }
-
-  lines.push(
-    `\nTo download a specific version:\n  ${cliPrefix} ${commandNames.downloadSubagent} ${subagentName}@<version>`,
-  );
-
-  return lines.join("\n");
-};
-
-const formatMultipleSubagentsError = (args: {
-  subagentName: string;
-  results: Array<RegistrySearchResult>;
-  cliName?: CliName | null;
-}): string => {
-  const { subagentName, results, cliName } = args;
-  const commandNames = getCommandNames({ cliName });
-  const cliPrefix = cliName ?? "nori-skillsets";
-
-  const lines = ["Multiple subagents with the same name found.\n"];
-
-  for (const result of results) {
-    const version = result.packument["dist-tags"].latest ?? "unknown";
-    const description = result.packument.description ?? "";
-    lines.push(result.registryUrl);
-    lines.push(`  -> ${subagentName}@${version}: ${description}\n`);
-  }
-
-  lines.push("To download, please specify the registry with --registry:");
-  for (const result of results) {
-    lines.push(
-      `${cliPrefix} ${commandNames.downloadSubagent} ${subagentName} --registry ${result.registryUrl}`,
-    );
-  }
-
-  return lines.join("\n");
 };
 
 export const subagentDownloadMain = async (args: {
@@ -378,23 +251,31 @@ export const subagentDownloadMain = async (args: {
           config.auth.organizations != null;
 
         if (registryUrl != null) {
-          if (registryUrl !== REGISTRAR_URL) {
-            const registryAuth =
-              config != null ? getRegistryAuth({ config, registryUrl }) : null;
-            if (registryAuth == null) {
-              return {
-                status: "error",
-                error: `No authentication configured for registry: ${registryUrl}`,
-                hint: "Add registry credentials to your .nori-config.json file.",
-              };
-            }
+          const registryAuth =
+            config != null ? getRegistryAuth({ config, registryUrl }) : null;
+          if (registryUrl !== REGISTRAR_URL && registryAuth == null) {
+            return {
+              status: "error",
+              error: `No authentication configured for registry: ${registryUrl}`,
+              hint: "Add registry credentials to your .nori-config.json file.",
+            };
           }
 
-          const searchResult = await searchSpecificRegistry({
-            subagentName,
-            registryUrl,
-            config,
-          });
+          const searchResult =
+            (
+              await searchSpecificRegistry({
+                registryUrl,
+                fetchPackument: (fetchArgs) =>
+                  registrarApi.getSubagentPackument({
+                    subagentName,
+                    ...fetchArgs,
+                  }),
+                getAuthToken:
+                  registryAuth != null
+                    ? () => getRegistryAuthToken({ registryAuth })
+                    : null,
+              })
+            ).result ?? null;
           flowSearchResults = searchResult != null ? [searchResult] : [];
         } else if (orgId === "public") {
           try {
@@ -454,10 +335,11 @@ export const subagentDownloadMain = async (args: {
         if (flowSearchResults.length > 1) {
           return {
             status: "error",
-            error: formatMultipleSubagentsError({
-              subagentName,
+            error: formatMultipleMatchesError({
+              packageName: subagentName,
               results: flowSearchResults,
-              cliName,
+              entityLabel: "subagents",
+              downloadCommand: `${cliPrefix} ${commandNames.downloadSubagent}`,
             }),
           };
         }
@@ -468,10 +350,10 @@ export const subagentDownloadMain = async (args: {
           return {
             status: "list-versions",
             formattedVersionList: formatVersionList({
-              subagentName,
+              packageName: subagentName,
               packument: foundRegistry.packument,
               registryUrl: foundRegistry.registryUrl,
-              cliName,
+              downloadCommand: `${cliPrefix} ${commandNames.downloadSubagent}`,
             }),
             versionCount: Object.keys(foundRegistry.packument.versions).length,
           };
