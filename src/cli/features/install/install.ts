@@ -14,11 +14,6 @@ import * as path from "path";
 
 import { log, note } from "@clack/prompts";
 
-import { initMain } from "@/cli/commands/init/init.js";
-import {
-  displayWelcomeBanner,
-  displaySeaweedBed,
-} from "@/cli/commands/install/asciiArt.js";
 import {
   loadConfig,
   updateConfig,
@@ -27,6 +22,11 @@ import {
 } from "@/cli/config.js";
 import { installSkillset } from "@/cli/features/agentOperations.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
+import {
+  displayWelcomeBanner,
+  displaySeaweedBed,
+} from "@/cli/features/install/asciiArt.js";
+import { ensureNoriInitialized } from "@/cli/features/install/initialize.js";
 import {
   buildCLIEventParams,
   getUserId,
@@ -170,9 +170,8 @@ export const noninteractive = async (args?: {
   });
 
   // Step 1: Init - Set up folders (non-interactive skips existing config capture)
-  await initMain({
+  await ensureNoriInitialized({
     installDir: normalizedInstallDir,
-    nonInteractive: true,
     skillset,
   });
 

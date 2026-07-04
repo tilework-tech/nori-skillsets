@@ -21,6 +21,7 @@ import {
   captureExistingConfig,
 } from "@/cli/features/agentOperations.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
+import { main as installMain } from "@/cli/features/install/install.js";
 import { substituteTemplatePaths } from "@/cli/features/template.js";
 import { setSilentMode, isSilentMode } from "@/cli/logger.js";
 import { switchSkillsetFlow } from "@/cli/prompts/flows/switchSkillset.js";
@@ -182,8 +183,6 @@ export const switchSkillsetAction = async (args: {
             throw err;
           }
           setSilentMode({ silent: wasSilent });
-          const { main: installMain } =
-            await import("@/cli/commands/install/install.js");
           await installMain({
             nonInteractive: true,
             installDir: dir,
@@ -358,8 +357,6 @@ export const switchSkillsetAction = async (args: {
     }
 
     // Run install in silent mode to regenerate files with new skillset
-    const { main: installMain } =
-      await import("@/cli/commands/install/install.js");
     await installMain({
       nonInteractive: true,
       installDir,

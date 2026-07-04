@@ -64,7 +64,7 @@ vi.mock("@/cli/commands/init/init.js", () => ({
 }));
 
 // Mock ASCII art banners
-vi.mock("@/cli/commands/install/asciiArt.js", () => ({
+vi.mock("@/cli/features/install/asciiArt.js", () => ({
   displayWelcomeBanner: vi.fn(),
   displaySeaweedBed: vi.fn(),
 }));
@@ -74,6 +74,7 @@ vi.mock("@/cli/features/manifest.js", () => ({
   computeDirectoryManifest: vi.fn().mockResolvedValue({}),
   writeManifest: vi.fn().mockResolvedValue(undefined),
   getManifestPath: vi.fn().mockReturnValue("/mock/manifest.json"),
+  getLegacyManifestPath: vi.fn().mockReturnValue("/mock/legacy-manifest.json"),
 }));
 
 // Mock agentOperations - shared functions that replaced agent methods

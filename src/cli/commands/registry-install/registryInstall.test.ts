@@ -49,11 +49,11 @@ vi.mock("@/cli/commands/registry-download/registryDownload.js", () => ({
     .mockResolvedValue({ success: true, cancelled: false, message: "" }),
 }));
 
-vi.mock("@/cli/commands/install/install.js", () => ({
+vi.mock("@/cli/features/install/install.js", () => ({
   main: vi.fn(),
 }));
 
-vi.mock("@/cli/commands/install/installState.js", () => ({
+vi.mock("@/cli/features/install/installState.js", () => ({
   hasExistingInstallation: vi.fn(() => false),
 }));
 
@@ -113,9 +113,9 @@ vi.mock("@/cli/logger.js", () => ({
   green: vi.fn(({ text }: { text: string }) => text),
 }));
 
-import { main as installMain } from "@/cli/commands/install/install.js";
-import { hasExistingInstallation } from "@/cli/commands/install/installState.js";
 import { registryDownloadMain } from "@/cli/commands/registry-download/registryDownload.js";
+import { main as installMain } from "@/cli/features/install/install.js";
+import { hasExistingInstallation } from "@/cli/features/install/installState.js";
 import { bold } from "@/cli/logger.js";
 
 import { registryInstallMain } from "./registryInstall.js";

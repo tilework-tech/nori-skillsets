@@ -8,8 +8,6 @@ import * as path from "path";
 
 import { log, note } from "@clack/prompts";
 
-import { main as installMain } from "@/cli/commands/install/install.js";
-import { hasExistingInstallation } from "@/cli/commands/install/installState.js";
 import { registryDownloadMain } from "@/cli/commands/registry-download/registryDownload.js";
 import {
   loadConfig,
@@ -19,6 +17,8 @@ import {
 } from "@/cli/config.js";
 import { switchSkillset } from "@/cli/features/agentOperations.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
+import { main as installMain } from "@/cli/features/install/install.js";
+import { hasExistingInstallation } from "@/cli/features/install/installState.js";
 import { bold, brightCyan, green } from "@/cli/logger.js";
 import { getNoriSkillsetsDir } from "@/norijson/skillset.js";
 import { resolveInstallDir } from "@/utils/path.js";
