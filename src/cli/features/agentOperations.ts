@@ -18,6 +18,7 @@ import {
   computeDirectoryManifest,
   writeManifest,
   getManifestPath,
+  getLegacyAgentManifestPath,
   removeManagedFiles,
 } from "@/cli/features/manifest.js";
 import {
@@ -146,9 +147,8 @@ export const markInstall = (args: {
 export const installSkillset = async (args: {
   agent: AgentConfig;
   config: Config;
-  skipManifest?: boolean | null;
 }): Promise<void> => {
-  const { agent, config, skipManifest } = args;
+  const { agent, config } = args;
 
   // Parse active skillset
   const skillsetName = getActiveSkillset({ config });
@@ -187,20 +187,22 @@ export const installSkillset = async (args: {
   if (skillsetName != null && skillset != null) {
     const agentDir = agent.getAgentDir({ installDir: config.installDir });
 
-    if (!skipManifest) {
-      const manifestPath = getManifestPath({ agentName: agent.name });
+    const manifestPath = getManifestPath({
+      agentName: agent.name,
+      installDir: config.installDir,
+    });
 
-      try {
-        const manifest = await computeDirectoryManifest({
-          dir: agentDir,
-          skillsetName,
-          managedFiles: getManagedFiles({ agent }),
-          managedDirs: getManagedDirs({ agent }),
-        });
-        await writeManifest({ manifestPath, manifest });
-      } catch {
-        // Non-fatal
-      }
+    try {
+      const manifest = await computeDirectoryManifest({
+        dir: agentDir,
+        skillsetName,
+        installDir: config.installDir,
+        managedFiles: getManagedFiles({ agent }),
+        managedDirs: getManagedDirs({ agent }),
+      });
+      await writeManifest({ manifestPath, manifest });
+    } catch {
+      // Non-fatal
     }
 
     // Emit Skills note from the skillset's skills directory
@@ -270,7 +272,7 @@ export const removeSkillset = async (args: {
 }): Promise<void> => {
   const { agent, installDir } = args;
   const agentDir = agent.getAgentDir({ installDir });
-  const manifestPath = getManifestPath({ agentName: agent.name });
+  const manifestPath = getManifestPath({ agentName: agent.name, installDir });
   const instructionsFilePath = agent.getInstructionsFilePath({ installDir });
 
   // Always clear the managed block in-place so user-authored content around it
@@ -285,19 +287,19 @@ export const removeSkillset = async (args: {
     !path.isAbsolute(instructionsRelative);
   const excludePaths = isInsideAgentDir ? [instructionsRelative] : [];
 
-  await removeManagedFiles({
-    agentDir,
+  // Clean up the keyed manifest plus any legacy manifest locations that
+  // predate per-directory keying.
+  const manifestPaths = [
     manifestPath,
-    managedDirs: getManagedDirs({ agent }),
-    excludePaths,
-  });
-
-  // Also clean up the agent's legacy manifest location, if it has one
-  const legacyPath = agent.getLegacyManifestPath?.() ?? null;
-  if (legacyPath != null) {
+    getLegacyAgentManifestPath({ agentName: agent.name }),
+    ...(agent.getLegacyManifestPath != null
+      ? [agent.getLegacyManifestPath()]
+      : []),
+  ];
+  for (const candidatePath of manifestPaths) {
     await removeManagedFiles({
       agentDir,
-      manifestPath: legacyPath,
+      manifestPath: candidatePath,
       managedDirs: getManagedDirs({ agent }),
       excludePaths,
     });
@@ -322,11 +324,23 @@ export const detectLocalChanges = async (args: {
 }): Promise<ManifestDiff | null> => {
   const { agent, installDir } = args;
 
-  const manifestPath = getManifestPath({ agentName: agent.name });
-  const legacyManifestPath = agent.getLegacyManifestPath?.() ?? null;
+  // A directory Nori never installed to has no local changes by definition.
+  // This also keeps legacy pre-keying manifests (which describe whichever
+  // directory was installed last) from producing phantom changes elsewhere.
+  if (!isInstalledAtDir({ agent, path: installDir })) {
+    return null;
+  }
+
+  const manifestPath = getManifestPath({ agentName: agent.name, installDir });
+  const fallbackPaths = [
+    getLegacyAgentManifestPath({ agentName: agent.name }),
+    ...(agent.getLegacyManifestPath != null
+      ? [agent.getLegacyManifestPath()]
+      : []),
+  ];
   const manifest = await readManifest({
     manifestPath,
-    legacyManifestPath,
+    fallbackPaths,
   });
 
   if (manifest == null) {

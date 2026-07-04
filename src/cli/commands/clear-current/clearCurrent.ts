@@ -6,7 +6,6 @@
  * is detected.
  */
 
-import * as fs from "fs/promises";
 import * as path from "path";
 
 import { log } from "@clack/prompts";
@@ -37,14 +36,6 @@ export const clearCurrentMain = async (args?: {
     for (const agentImpl of agents) {
       if (isInstalledAtDir({ agent: agentImpl, path: currentDir })) {
         await removeSkillset({ agent: agentImpl, installDir: currentDir });
-        // removeSkillset relies on a global per-agent manifest to remove the
-        // marker. When clearing multiple directories, the manifest is consumed
-        // by the first call, so explicitly clean up the marker for subsequent ones.
-        const markerPath = path.join(
-          agentImpl.getAgentDir({ installDir: currentDir }),
-          ".nori-managed",
-        );
-        await fs.rm(markerPath, { force: true });
         clearedDirs.add(currentDir);
       }
     }

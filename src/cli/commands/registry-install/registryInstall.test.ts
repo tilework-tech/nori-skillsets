@@ -345,49 +345,6 @@ describe("registry-install", () => {
     expect(result.success).toBe(false);
   });
 
-  it("should pass skipManifest to installMain when explicit installDir is provided", async () => {
-    await registryInstallMain({
-      packageSpec: "senior-swe",
-      installDir: "/tmp/explicit-dir",
-    });
-
-    // installMain should be called with skipManifest: true
-    expect(installMain).toHaveBeenCalledWith(
-      expect.objectContaining({
-        skipManifest: true,
-      }),
-    );
-  });
-
-  it("should NOT pass skipManifest to installMain when no explicit installDir is provided", async () => {
-    await registryInstallMain({
-      packageSpec: "senior-swe",
-    });
-
-    // installMain should NOT have skipManifest: true
-    expect(installMain).toHaveBeenCalledWith(
-      expect.not.objectContaining({
-        skipManifest: true,
-      }),
-    );
-  });
-
-  it("should pass skipManifest on existing installation switch path when explicit installDir is provided", async () => {
-    vi.mocked(hasExistingInstallation).mockReturnValueOnce(true);
-
-    await registryInstallMain({
-      packageSpec: "senior-swe",
-      installDir: "/tmp/explicit-dir",
-    });
-
-    // installMain should be called with skipManifest: true on the switch path
-    expect(installMain).toHaveBeenCalledWith(
-      expect.objectContaining({
-        skipManifest: true,
-      }),
-    );
-  });
-
   it("should check hasExistingInstallation before calling registryDownloadMain", async () => {
     // Simulate download side-effect: hasExistingInstallation returns false initially,
     // but would return true after download (as auto-init creates config).

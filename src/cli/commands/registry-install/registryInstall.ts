@@ -88,8 +88,6 @@ export const registryInstallMain = async (
   });
   const targetInstallDir = resolved.path;
 
-  // Skip manifest operations when the install dir comes from a CLI override
-  const skipManifest = resolved.source === "cli";
   const agentNames = getDefaultAgents({ config });
 
   // Snapshot before download — registryDownloadMain may auto-init and create config,
@@ -138,7 +136,6 @@ export const registryInstallMain = async (
           skillset: skillsetName,
           agent: agentName,
           silent: silent ?? null,
-          ...(skipManifest ? { skipManifest: true } : {}),
         });
       }
       // Initial install already sets the skillset and displays its own completion banners
@@ -179,7 +176,6 @@ export const registryInstallMain = async (
         agent: agentName,
         silent: true,
         skillset: skillsetName,
-        ...(skipManifest ? { skipManifest: true } : {}),
       });
     }
 
