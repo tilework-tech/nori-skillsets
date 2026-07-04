@@ -624,9 +624,17 @@ export const captureExistingConfig = async (args: {
     // Slashcommands dir doesn't exist
   }
 
-  // Delete original instructions file
+  // Wrap the original instructions in the managed block in place (the same
+  // content was just captured into the skillset). Never delete the file: the
+  // user's instructions must exist on disk at every point of the capture.
   try {
-    await fs.unlink(instructionsPath);
+    const original = await fs.readFile(instructionsPath, "utf-8");
+    if (!original.includes(BEGIN_MARKER)) {
+      await fs.writeFile(
+        instructionsPath,
+        `${BEGIN_MARKER}\n${original}\n${END_MARKER}\n`,
+      );
+    }
   } catch {
     // File may not exist
   }

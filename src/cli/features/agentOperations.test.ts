@@ -1279,6 +1279,39 @@ describe("captureExistingConfig", () => {
     expect(fs.existsSync(path.join(capturedDir, "CLAUDE.md"))).toBe(false);
   });
 
+  it("should never delete the original instructions file", async () => {
+    // Capture is non-destructive: the user's instructions survive on disk at
+    // every point (wrapped in the managed block pending the loader rewrite).
+    const agent = createTestAgent();
+    const agentDir = agent.getAgentDir({ installDir: tempDir });
+    fs.mkdirSync(agentDir, { recursive: true });
+
+    const instructionsPath = agent.getInstructionsFilePath({
+      installDir: tempDir,
+    });
+    fs.writeFileSync(instructionsPath, "# My custom config");
+
+    const profilesDir = path.join(TEST_NORI_DIR, "profiles");
+    fs.mkdirSync(profilesDir, { recursive: true });
+
+    const config: Config = {
+      installDir: tempDir,
+      activeSkillset: "captured",
+    };
+
+    await captureExistingConfig({
+      agent,
+      installDir: tempDir,
+      skillsetName: "captured",
+      config,
+    });
+
+    expect(fs.existsSync(instructionsPath)).toBe(true);
+    const content = fs.readFileSync(instructionsPath, "utf-8");
+    expect(content).toContain("# My custom config");
+    expect(content).toContain("# BEGIN NORI-AI MANAGED BLOCK");
+  });
+
   it("should create nori.json with skill names", async () => {
     const agent = createTestAgent();
     const agentDir = agent.getAgentDir({ installDir: tempDir });

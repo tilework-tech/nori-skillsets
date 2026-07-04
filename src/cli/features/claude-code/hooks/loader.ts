@@ -283,11 +283,89 @@ const configureHooks = async (args: {
     }
   }
 
-  // Merge hooks into settings
-  settings.hooks = hooksConfig;
+  settings.hooks = mergeNoriHooks({
+    existingHooks: settings.hooks,
+    noriHooks: hooksConfig,
+  });
 
   await fs.writeFile(claudeSettingsFile, JSON.stringify(settings, null, 2));
   return "Hooks";
+};
+
+/**
+ * Check whether a hook command belongs to Nori: it points at this package's
+ * bundled hook scripts (current install location or any nori-skillsets path).
+ *
+ * @param args - Configuration arguments
+ * @param args.command - The hook command line
+ *
+ * @returns True when the command is Nori-managed
+ */
+const isNoriHookCommand = (args: { command: string }): boolean => {
+  const { command } = args;
+  return (
+    command.includes("nori-skillsets") || command.includes(HOOKS_CONFIG_DIR)
+  );
+};
+
+/**
+ * Merge Nori's hooks into the user's existing hooks map. User-authored hook
+ * entries survive untouched; previously-installed Nori entries are replaced
+ * by the fresh set so repeated installs stay idempotent.
+ *
+ * @param args - Configuration arguments
+ * @param args.existingHooks - The current settings.hooks value (any shape)
+ * @param args.noriHooks - Freshly built Nori hook groups keyed by event
+ *
+ * @returns The merged hooks map
+ */
+const mergeNoriHooks = (args: {
+  existingHooks: unknown;
+  noriHooks: Record<string, Array<{ matcher: string; hooks: Array<unknown> }>>;
+}): Record<string, Array<unknown>> => {
+  const { existingHooks, noriHooks } = args;
+
+  const merged: Record<string, Array<any>> = {};
+  if (
+    existingHooks != null &&
+    typeof existingHooks === "object" &&
+    !Array.isArray(existingHooks)
+  ) {
+    for (const [event, groups] of Object.entries(existingHooks)) {
+      if (!Array.isArray(groups)) {
+        merged[event] = groups;
+        continue;
+      }
+      // Strip Nori-managed entries; keep user entries and group structure
+      const userGroups = groups
+        .map((group: any) => {
+          if (!Array.isArray(group?.hooks)) {
+            return group;
+          }
+          return {
+            ...group,
+            hooks: group.hooks.filter(
+              (hook: any) =>
+                typeof hook?.command !== "string" ||
+                !isNoriHookCommand({ command: hook.command }),
+            ),
+          };
+        })
+        .filter(
+          (group: any) =>
+            !Array.isArray(group?.hooks) || group.hooks.length > 0,
+        );
+      if (userGroups.length > 0) {
+        merged[event] = userGroups;
+      }
+    }
+  }
+
+  for (const [event, groups] of Object.entries(noriHooks)) {
+    merged[event] = [...(merged[event] ?? []), ...groups];
+  }
+
+  return merged;
 };
 
 /**

@@ -15,6 +15,13 @@ import type { AgentLoader } from "@/cli/features/agentRegistry.js";
 
 const NORI_ANNOUNCEMENT = "🍙🍙🍙 Powered by Nori AI 🍙🍙🍙";
 
+const ANNOUNCEMENTS_ENV = "NORI_SKILLSETS_ANNOUNCEMENTS";
+
+const announcementsDisabled = (): boolean => {
+  const value = process.env[ANNOUNCEMENTS_ENV];
+  return value === "none" || value === "off" || value === "false";
+};
+
 /**
  * Configure companyAnnouncements to display Nori branding at startup
  * @param args - Configuration arguments
@@ -43,8 +50,24 @@ const configureAnnouncements = async (args: {
     };
   }
 
-  // Add companyAnnouncements configuration
-  settings.companyAnnouncements = [NORI_ANNOUNCEMENT];
+  // Merge the Nori announcement with the user's own announcements: user
+  // entries always survive, and the Nori entry appears exactly once (or not
+  // at all when disabled via env).
+  const existing = Array.isArray(settings.companyAnnouncements)
+    ? (settings.companyAnnouncements as Array<unknown>)
+    : [];
+  const userAnnouncements = existing.filter(
+    (entry) => entry !== NORI_ANNOUNCEMENT,
+  );
+  const announcements = announcementsDisabled()
+    ? userAnnouncements
+    : [...userAnnouncements, NORI_ANNOUNCEMENT];
+
+  if (announcements.length > 0) {
+    settings.companyAnnouncements = announcements;
+  } else {
+    delete settings.companyAnnouncements;
+  }
 
   await fs.writeFile(claudeSettingsFile, JSON.stringify(settings, null, 2));
   return "Announcements";
