@@ -22,6 +22,7 @@ import {
 } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
 import { type CliName } from "@/cli/commands/cliCommandNames.js";
+import { guardPublicUpload } from "@/cli/commands/publicUploadGuard.js";
 import {
   loadConfig,
   getActiveSkillset,
@@ -209,6 +210,7 @@ const resolveRegistryAndAuth = async (args: {
  * @param args.skillSpec - Skill name, optionally namespaced (e.g., "my-skill" or "org/my-skill") and/or versioned (e.g., "my-skill@1.0.0")
  * @param args.skillset - Source skillset name (defaults to the active skillset)
  * @param args.registryUrl - Explicit registry URL (mutually exclusive with namespace)
+ * @param args.publicRegistry - Explicit opt-in to publish to the public registry
  * @param args.version - Explicit version to publish (bypasses collision prompts)
  * @param args.description - Description for this version (defaults to the local nori.json.description)
  * @param args.cliName - CLI name used in user-facing messages
@@ -221,6 +223,7 @@ export const skillUploadMain = async (args: {
   skillSpec: string;
   skillset?: string | null;
   registryUrl?: string | null;
+  publicRegistry?: boolean | null;
   version?: string | null;
   description?: string | null;
   cliName?: CliName | null;
@@ -231,9 +234,11 @@ export const skillUploadMain = async (args: {
     skillSpec,
     skillset,
     registryUrl,
+    publicRegistry,
     version: explicitVersion,
     description: cliDescription,
     nonInteractive,
+    silent,
   } = args;
 
   // Parse the skill spec (supports "name", "org/name", "name@version")
@@ -298,6 +303,28 @@ export const skillUploadMain = async (args: {
       success: false,
       cancelled: false,
       message: `"${skillName}" is an inlined skill and cannot be uploaded independently`,
+    };
+  }
+
+  // Require an explicit target before publishing to the public registry
+  const publicGuard = await guardPublicUpload({
+    kind: "skill",
+    packageSpec: skillSpec,
+    orgId,
+    displayName: skillName,
+    registryUrl,
+    publicRegistry,
+    nonInteractive,
+    silent,
+  });
+  if (!publicGuard.ok) {
+    if (publicGuard.message !== "") {
+      log.error(publicGuard.message);
+    }
+    return {
+      success: false,
+      cancelled: publicGuard.cancelled,
+      message: publicGuard.message,
     };
   }
 

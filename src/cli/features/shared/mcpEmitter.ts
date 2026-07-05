@@ -13,7 +13,9 @@
  */
 
 export type CanonicalAuth =
-  "oauth" | { type: "bearer"; tokenEnv: string } | null;
+  | "oauth"
+  | { type: "bearer"; tokenEnv: string }
+  | null;
 
 export type CanonicalMcpServer = {
   name: string;
