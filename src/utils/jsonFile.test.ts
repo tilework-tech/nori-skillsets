@@ -35,6 +35,16 @@ describe("readJsonObjectFile", () => {
     expect(result).toEqual(fallback);
   });
 
+  it("treats an empty or whitespace-only file as absent", async () => {
+    const filePath = path.join(tempDir, "empty.json");
+    await fs.writeFile(filePath, "   \n");
+    const fallback = { seeded: true };
+
+    const result = await readJsonObjectFile({ filePath, ifAbsent: fallback });
+
+    expect(result).toEqual(fallback);
+  });
+
   it("throws instead of clobbering when the file exists but is not valid JSON", async () => {
     const filePath = path.join(tempDir, "corrupt.json");
     const original = '{ "a": 1, } trailing garbage';
@@ -103,5 +113,16 @@ describe("writeJsonFileAtomic", () => {
     expect(JSON.parse(await fs.readFile(filePath, "utf-8"))).toEqual({
       fresh: true,
     });
+  });
+
+  it("preserves the existing file's permission mode when overwriting", async () => {
+    const filePath = path.join(tempDir, "secret.json");
+    await fs.writeFile(filePath, JSON.stringify({ a: 1 }));
+    await fs.chmod(filePath, 0o600);
+
+    await writeJsonFileAtomic({ filePath, value: { b: 2 } });
+
+    const mode = (await fs.stat(filePath)).mode & 0o777;
+    expect(mode).toBe(0o600);
   });
 });

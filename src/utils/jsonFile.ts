@@ -49,6 +49,12 @@ export const readJsonObjectFile = async (args: {
     throw err;
   }
 
+  // An empty or whitespace-only file has no content to preserve — the classic
+  // crash-mid-write artifact. Seed the default rather than aborting.
+  if (content.trim() === "") {
+    return ifAbsent;
+  }
+
   let parsed: unknown;
   try {
     parsed = JSON.parse(content);
@@ -87,12 +93,25 @@ export const writeJsonFileAtomic = async (args: {
 
   await fs.mkdir(path.dirname(filePath), { recursive: true });
 
+  // Preserve the existing file's mode: rename installs a fresh inode at the
+  // default umask, which would widen permissions on secret-bearing files
+  // (~/.nori-config.json, ~/.claude.json) that a user tightened to 0600.
+  let existingMode: number | null = null;
+  try {
+    existingMode = (await fs.stat(filePath)).mode & 0o777;
+  } catch {
+    existingMode = null;
+  }
+
   // Unique sibling temp file: same directory guarantees the rename stays on one
   // filesystem (so it is atomic), and the pid + random suffix keeps concurrent
   // writers from clobbering each other's temp file.
   const tempPath = `${filePath}.tmp-${process.pid}-${randomBytes(6).toString("hex")}`;
   try {
     await fs.writeFile(tempPath, `${JSON.stringify(value, null, 2)}\n`);
+    if (existingMode != null) {
+      await fs.chmod(tempPath, existingMode);
+    }
     await fs.rename(tempPath, filePath);
   } catch (err) {
     await fs.rm(tempPath, { force: true }).catch(() => undefined);
