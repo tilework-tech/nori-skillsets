@@ -79,13 +79,16 @@ vi.mock("@/api/registryAuth.js", () => ({
 // Track select/text return values per call
 let selectReturnValues: Array<unknown> = [];
 let textReturnValues: Array<string> = [];
+// Value returned by the mocked clack confirm() prompt. Defaults to true so
+// tests that publish to public interactively proceed; the guard tests flip it.
+let confirmReturnValue = true;
 
 // Mock @clack/prompts
 vi.mock("@clack/prompts", () => ({
   intro: vi.fn(),
   outro: vi.fn(),
   note: vi.fn(),
-  confirm: vi.fn(() => Promise.resolve(false)),
+  confirm: vi.fn(() => Promise.resolve(confirmReturnValue)),
   spinner: vi.fn(() => ({
     start: vi.fn(),
     stop: vi.fn(),
@@ -239,6 +242,7 @@ describe("skill-upload", () => {
     vi.clearAllMocks();
     selectReturnValues = [];
     textReturnValues = [];
+    confirmReturnValue = true;
     originalEnvApiToken = process.env.NORI_API_TOKEN;
     delete process.env.NORI_API_TOKEN;
 
@@ -674,7 +678,10 @@ describe("skill-upload", () => {
         createdAt: "2026-04-16T00:00:00.000Z",
       } as never);
 
-      const result = await skillUploadMain({ skillSpec: "my-skill" });
+      const result = await skillUploadMain({
+        skillSpec: "my-skill",
+        publicRegistry: true,
+      });
 
       expect(result.success).toBe(true);
       expect(getRegistryAuthToken).toHaveBeenCalledWith({
@@ -716,6 +723,7 @@ describe("skill-upload", () => {
       const result = await skillUploadMain({
         skillSpec: "my-skill",
         skillset: "my-profile",
+        publicRegistry: true,
         silent: true,
         nonInteractive: true,
       });
@@ -964,6 +972,105 @@ describe("skill-upload", () => {
       } finally {
         await fs.rm(extractDir, { recursive: true, force: true });
       }
+    });
+  });
+
+  describe("public upload guard", () => {
+    const seedPublishableSkill = async (skillName: string): Promise<void> => {
+      await createLocalSkill({ skillsetName: "my-profile", skillName });
+      vi.mocked(loadConfig).mockResolvedValue(
+        authenticatedConfig("my-profile") as never,
+      );
+      vi.mocked(registrarApi.getSkillPackument).mockRejectedValue(
+        Object.assign(new Error("Not found"), { statusCode: 404 }),
+      );
+      vi.mocked(registrarApi.uploadSkill).mockResolvedValue({
+        name: skillName,
+        version: "1.0.0",
+        tarballSha: "sha",
+        createdAt: "2026-04-16T00:00:00.000Z",
+      } as never);
+    };
+
+    it("fails in non-interactive mode when publishing to public without an explicit target", async () => {
+      await seedPublishableSkill("my-skill");
+
+      const result = await skillUploadMain({
+        skillSpec: "my-skill",
+        nonInteractive: true,
+      });
+
+      expect(result.success).toBe(false);
+      expect(registrarApi.uploadSkill).not.toHaveBeenCalled();
+      expect(result.message).toContain("--public");
+    });
+
+    it("aborts an interactive public upload when the user declines the confirmation", async () => {
+      await seedPublishableSkill("my-skill");
+      confirmReturnValue = false;
+
+      const result = await skillUploadMain({ skillSpec: "my-skill" });
+
+      expect(result.success).toBe(false);
+      expect(result.cancelled).toBe(true);
+      expect(registrarApi.uploadSkill).not.toHaveBeenCalled();
+    });
+
+    it("publishes to public non-interactively when --public is given", async () => {
+      await seedPublishableSkill("my-skill");
+
+      const result = await skillUploadMain({
+        skillSpec: "my-skill",
+        publicRegistry: true,
+        nonInteractive: true,
+      });
+
+      expect(result.success).toBe(true);
+      expect(registrarApi.uploadSkill).toHaveBeenCalledTimes(1);
+      const uploadCall = vi.mocked(registrarApi.uploadSkill).mock.calls[0][0];
+      expect(uploadCall.registryUrl).toBe("https://noriskillsets.dev");
+    });
+
+    it("rejects --public combined with --registry as contradictory", async () => {
+      await seedPublishableSkill("my-skill");
+
+      const result = await skillUploadMain({
+        skillSpec: "my-skill",
+        publicRegistry: true,
+        registryUrl: "https://myorg.noriskillsets.dev",
+        nonInteractive: true,
+      });
+
+      expect(result.success).toBe(false);
+      expect(registrarApi.uploadSkill).not.toHaveBeenCalled();
+    });
+
+    it("rejects --public combined with an org namespace as contradictory", async () => {
+      await seedPublishableSkill("my-skill");
+
+      const result = await skillUploadMain({
+        skillSpec: "myorg/my-skill",
+        publicRegistry: true,
+        nonInteractive: true,
+      });
+
+      expect(result.success).toBe(false);
+      expect(registrarApi.uploadSkill).not.toHaveBeenCalled();
+    });
+
+    it("publishes to public non-interactively when the skill is namespaced public/", async () => {
+      await seedPublishableSkill("my-skill");
+
+      const result = await skillUploadMain({
+        skillSpec: "public/my-skill",
+        nonInteractive: true,
+      });
+
+      expect(result.success).toBe(true);
+      expect(registrarApi.uploadSkill).toHaveBeenCalledTimes(1);
+      const uploadCall = vi.mocked(registrarApi.uploadSkill).mock.calls[0][0];
+      expect(uploadCall.skillName).toBe("my-skill");
+      expect(uploadCall.registryUrl).toBe("https://noriskillsets.dev");
     });
   });
 });

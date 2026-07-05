@@ -108,6 +108,10 @@ const createSpinnerMock = () => ({
 // Shared spinner mock instance
 let sharedSpinnerMock = createSpinnerMock();
 
+// Value returned by the mocked clack confirm() prompt. Defaults to true so
+// tests that publish to public interactively proceed; the guard tests flip it.
+let confirmReturnValue = true;
+
 // Mock @clack/prompts for spinner and interactive prompts
 vi.mock("@clack/prompts", () => ({
   intro: vi.fn(),
@@ -123,6 +127,7 @@ vi.mock("@clack/prompts", () => ({
   },
   select: vi.fn(),
   text: vi.fn(),
+  confirm: vi.fn(),
   spinner: vi.fn(() => sharedSpinnerMock),
   isCancel: vi.fn(() => false),
 }));
@@ -213,6 +218,13 @@ describe("registry-upload", () => {
     // Reset the shared spinner mock and re-establish the mock implementation
     sharedSpinnerMock = createSpinnerMock();
     vi.mocked(clack.spinner).mockReturnValue(sharedSpinnerMock);
+
+    // Re-establish confirm() implementation (reset by resetAllMocks); reads the
+    // live confirmReturnValue so individual tests can flip it.
+    confirmReturnValue = true;
+    vi.mocked(clack.confirm).mockImplementation(
+      () => Promise.resolve(confirmReturnValue) as never,
+    );
 
     // Re-establish isSkillCollisionError mock implementation
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -694,6 +706,7 @@ describe("registry-upload", () => {
         const result = await registryUploadMain({
           profileSpec: "my-profile",
           cwd: testDir,
+          publicRegistry: true,
           silent: true,
           nonInteractive: true,
         });
@@ -743,6 +756,7 @@ describe("registry-upload", () => {
         const result = await registryUploadMain({
           profileSpec: "my-profile",
           cwd: testDir,
+          publicRegistry: true,
           silent: true,
           nonInteractive: true,
         });
@@ -916,6 +930,116 @@ describe("registry-upload", () => {
             packageName: "my-profile",
             authToken: "id-token-auth",
             registryUrl: "https://myorg.noriskillsets.dev",
+          }),
+        );
+      });
+    });
+
+    describe("public upload guard", () => {
+      const seedPublishableSkillset = async (
+        profileName: string,
+      ): Promise<void> => {
+        const skillsetDir = path.join(skillsetsDir, profileName);
+        await fs.mkdir(skillsetDir, { recursive: true });
+        await fs.writeFile(path.join(skillsetDir, "AGENTS.md"), "# Profile\n");
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: [],
+            organizationUrl: "https://noriskillsets.dev",
+          },
+        });
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+        vi.mocked(registrarApi.uploadSkillset).mockResolvedValue({
+          name: profileName,
+          version: "1.0.0",
+          tarballSha: "abc123",
+          createdAt: new Date().toISOString(),
+        });
+      };
+
+      it("fails in non-interactive mode when publishing to public without an explicit target", async () => {
+        await seedPublishableSkillset("my-profile");
+
+        const result = await registryUploadMain({
+          profileSpec: "my-profile",
+          cwd: testDir,
+          nonInteractive: true,
+        });
+
+        expect(result.success).toBe(false);
+        expect(registrarApi.uploadSkillset).not.toHaveBeenCalled();
+        expect(result.message).toContain("--public");
+      });
+
+      it("aborts an interactive public upload when the user declines the confirmation", async () => {
+        await seedPublishableSkillset("my-profile");
+        confirmReturnValue = false;
+
+        const result = await registryUploadMain({
+          profileSpec: "my-profile",
+          cwd: testDir,
+        });
+
+        expect(result.success).toBe(false);
+        expect(result.cancelled).toBe(true);
+        expect(registrarApi.uploadSkillset).not.toHaveBeenCalled();
+      });
+
+      it("rejects --public combined with --registry as contradictory", async () => {
+        await seedPublishableSkillset("my-profile");
+
+        const result = await registryUploadMain({
+          profileSpec: "my-profile",
+          cwd: testDir,
+          publicRegistry: true,
+          registryUrl: "https://myorg.noriskillsets.dev",
+          nonInteractive: true,
+        });
+
+        expect(result.success).toBe(false);
+        expect(registrarApi.uploadSkillset).not.toHaveBeenCalled();
+      });
+
+      it("publishes to public non-interactively when --public is given", async () => {
+        await seedPublishableSkillset("my-profile");
+
+        const result = await registryUploadMain({
+          profileSpec: "my-profile",
+          cwd: testDir,
+          publicRegistry: true,
+          nonInteractive: true,
+        });
+
+        expect(result.success).toBe(true);
+        expect(registrarApi.uploadSkillset).toHaveBeenCalledWith(
+          expect.objectContaining({
+            packageName: "my-profile",
+            registryUrl: "https://noriskillsets.dev",
+          }),
+        );
+      });
+
+      it("publishes to public non-interactively when the skillset is namespaced public/", async () => {
+        await seedPublishableSkillset("my-profile");
+
+        const result = await registryUploadMain({
+          profileSpec: "public/my-profile",
+          cwd: testDir,
+          nonInteractive: true,
+        });
+
+        expect(result.success).toBe(true);
+        expect(registrarApi.uploadSkillset).toHaveBeenCalledWith(
+          expect.objectContaining({
+            packageName: "my-profile",
+            registryUrl: "https://noriskillsets.dev",
           }),
         );
       });

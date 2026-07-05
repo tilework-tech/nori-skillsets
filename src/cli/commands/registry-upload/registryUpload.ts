@@ -22,6 +22,7 @@ import {
 } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
 import { parseSubagentFrontmatter } from "@/cli/commands/external/subagentDiscovery.js";
+import { guardPublicUpload } from "@/cli/commands/publicUploadGuard.js";
 import {
   getRegistryAuth,
   hasRegistryAuthCredentials,
@@ -1006,6 +1007,7 @@ const syncLocalStateAfterUpload = async (args: {
  * @param args.cwd - Current working directory
  * @param args.installDir - Custom installation directory
  * @param args.registryUrl - Target registry URL
+ * @param args.publicRegistry - Explicit opt-in to publish to the public registry
  * @param args.listVersions - If true, list versions instead of uploading
  * @param args.nonInteractive - Run without prompts
  * @param args.silent - Suppress output
@@ -1020,6 +1022,7 @@ export const registryUploadMain = async (args: {
   cwd?: string | null;
   installDir?: string | null;
   registryUrl?: string | null;
+  publicRegistry?: boolean | null;
   listVersions?: boolean | null;
   nonInteractive?: boolean | null;
   silent?: boolean | null;
@@ -1030,6 +1033,7 @@ export const registryUploadMain = async (args: {
   const {
     profileSpec,
     registryUrl,
+    publicRegistry,
     listVersions,
     nonInteractive,
     silent,
@@ -1075,6 +1079,32 @@ export const registryUploadMain = async (args: {
 
   const resolveAction =
     resolve != null ? (resolve as SkillResolutionAction) : null;
+
+  // Require an explicit target before publishing to the public registry.
+  // Read-only operations (--list-versions, --dry-run) never publish, so they
+  // are exempt.
+  if (!listVersions && !dryRun) {
+    const publicGuard = await guardPublicUpload({
+      kind: "skillset",
+      packageSpec: profileSpec,
+      orgId,
+      displayName: packageName,
+      registryUrl,
+      publicRegistry,
+      nonInteractive,
+      silent,
+    });
+    if (!publicGuard.ok) {
+      if (publicGuard.message !== "") {
+        log.error(publicGuard.message);
+      }
+      return {
+        success: false,
+        cancelled: publicGuard.cancelled,
+        message: publicGuard.message,
+      };
+    }
+  }
 
   // Load config for auth and install dir resolution
   const config = await loadConfig();
