@@ -387,6 +387,7 @@ export const registerNoriSkillsetsUploadCommand = (args: {
     .command("upload <skillset>")
     .description("Upload a skillset to the Nori registry")
     .option("--registry <url>", "Upload to a specific registry URL")
+    .option("--public", "Publish to the public registry (noriskillsets.dev)")
     .option(
       "--list-versions",
       "List available versions for the skillset instead of uploading",
@@ -402,6 +403,7 @@ export const registerNoriSkillsetsUploadCommand = (args: {
         skillsetSpec: string,
         options: {
           registry?: string;
+          public?: boolean;
           listVersions?: boolean;
           dryRun?: boolean;
           description?: string;
@@ -421,6 +423,7 @@ export const registerNoriSkillsetsUploadCommand = (args: {
               cwd: process.cwd(),
               installDir: globalOpts.installDir || null,
               registryUrl: options.registry || null,
+              publicRegistry: options.public || null,
               listVersions: options.listVersions || null,
               nonInteractive: globalOpts.nonInteractive || null,
               silent: globalOpts.silent || null,
@@ -598,6 +601,7 @@ export const registerNoriSkillsetsUploadSkillCommand = (args: {
       "Source skillset (defaults to active skillset)",
     )
     .option("--registry <url>", "Upload to a specific registry URL")
+    .option("--public", "Publish to the public registry (noriskillsets.dev)")
     .option("--version <version>", "Explicit version to publish")
     .option("--description <text>", "Description for this version")
     .action(
@@ -606,6 +610,7 @@ export const registerNoriSkillsetsUploadSkillCommand = (args: {
         options: {
           skillset?: string;
           registry?: string;
+          public?: boolean;
           version?: string;
           description?: string;
         },
@@ -623,6 +628,7 @@ export const registerNoriSkillsetsUploadSkillCommand = (args: {
               skillSpec,
               skillset: options.skillset || null,
               registryUrl: options.registry || null,
+              publicRegistry: options.public || null,
               version: options.version || null,
               description: options.description || null,
               cliName: "nori-skillsets",
