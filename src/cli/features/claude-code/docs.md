@@ -41,5 +41,6 @@ The `description` and `capabilities` (mcp/hooks/statusline/transcripts) are deri
 - Shared operations never branch on `agent.name`; claude-code quirks like the legacy manifest are reached through optional `AgentConfig` accessors (e.g., `getLegacyManifestPath`).
 - Profile discovery (`listSkillsets()`) is not part of the agent -- it lives in @/src/norijson/skillset.ts.
 - All lifecycle operations (install, switch, remove, detect changes, detect/capture existing config, find artifacts) are in @/src/cli/features/agentOperations.ts, not on the agent object.
+- The hooks, statusline, and announcements loaders all read-modify-write `~/.claude/settings.json`, a file Nori does not exclusively own. They do so via the safe primitives in @/src/utils/jsonFile.ts: a missing file seeds a fresh object (with the JSON-schema default), a corrupt file makes the loader abort loudly rather than overwrite the user's settings, and the write is atomic (temp-file + `rename`).
 
 Created and maintained by Nori.
