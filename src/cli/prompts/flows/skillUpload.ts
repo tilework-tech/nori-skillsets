@@ -34,8 +34,7 @@ export type CheckExistingResult =
  * Result from the "upload" callback
  */
 export type SkillUploadActionResult =
-  | { success: true; version: string }
-  | { success: false; error: string };
+  { success: true; version: string } | { success: false; error: string };
 
 /**
  * Callbacks for the skill upload flow

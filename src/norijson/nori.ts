@@ -36,11 +36,7 @@ export type SkillsetSubagent = {
  * The type of package this nori.json represents
  */
 export type NoriJsonType =
-  | "skillset"
-  | "skill"
-  | "inlined-skill"
-  | "subagent"
-  | "inlined-subagent";
+  "skillset" | "skill" | "inlined-skill" | "subagent" | "inlined-subagent";
 
 /**
  * Dependencies section of nori.json

@@ -40,9 +40,7 @@ import type { SubagentTargetFormat } from "@/cli/features/shared/subagentEmitter
  *   inside the agent config dir for global (home) installs
  */
 type InstructionsPlacement =
-  | "agent-dir"
-  | "rules-subdir"
-  | "install-root-for-project";
+  "agent-dir" | "rules-subdir" | "install-root-for-project";
 
 type McpBinding = Parameters<typeof createMcpLoader>[0];
 
