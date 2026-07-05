@@ -195,5 +195,17 @@ describe("announcementsLoader", () => {
         "🍙🍙🍙 Powered by Nori AI 🍙🍙🍙",
       );
     });
+
+    it("does not clobber a settings.json that exists but is corrupt", async () => {
+      const config: Config = { installDir: tempDir };
+      const corrupt = '{ "companyAnnouncements": [ not valid json';
+      await fs.writeFile(settingsPath, corrupt);
+
+      await expect(
+        announcementsLoader.run({ agent: {} as any, config }),
+      ).rejects.toThrow();
+
+      expect(await fs.readFile(settingsPath, "utf-8")).toBe(corrupt);
+    });
   });
 });

@@ -670,3 +670,82 @@ describe("createMcpLoader — missing mcp directory", () => {
     expect(exists).toBe(false);
   });
 });
+
+describe("createMcpLoader — user scope merges into .claude.json", () => {
+  let tempDir: string;
+  let installDir: string;
+  let profilesDir: string;
+
+  beforeEach(async () => {
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-userscope-test-"));
+    mockHomeDir = tempDir;
+    installDir = path.join(tempDir, "project");
+    profilesDir = path.join(tempDir, ".nori", "profiles");
+    await fs.mkdir(installDir, { recursive: true });
+    await fs.mkdir(profilesDir, { recursive: true });
+  });
+
+  afterEach(async () => {
+    await fs.rm(tempDir, { recursive: true, force: true });
+    vi.clearAllMocks();
+  });
+
+  const runUserScopeLoader = async (): Promise<void> => {
+    const skillset = await createTestSkillset({
+      skillsetsDir: profilesDir,
+      name: "test-skillset",
+    });
+    await writeMcpServerFile({
+      mcpDir: skillset.mcpDir!,
+      fileName: "github.json",
+      body: {
+        name: "github",
+        transport: "stdio",
+        command: "npx",
+        args: ["-y", "@modelcontextprotocol/server-github"],
+        scope: "user",
+      },
+    });
+    const agent = createTestAgent({
+      name: "claude-code",
+      agentDirName: ".claude",
+    });
+    const loader = createMcpLoader({
+      format: "claude-mcp-json",
+      projectFile: ({ installDir: i }) => path.join(i, ".mcp.json"),
+      projectMergeStrategy: "whole-file",
+      userFile: () => path.join(mockHomeDir, ".claude.json"),
+      userMergeStrategy: "merge-mcp-servers-key",
+    });
+    await loader.run({
+      agent,
+      config: createTestConfig({ installDir }),
+      skillset,
+    });
+  };
+
+  it("merges servers into an existing .claude.json without dropping unrelated keys", async () => {
+    const claudeJson = path.join(mockHomeDir, ".claude.json");
+    await fs.writeFile(
+      claudeJson,
+      JSON.stringify({ projects: { "/x": { y: 1 } }, numStartups: 7 }),
+    );
+
+    await runUserScopeLoader();
+
+    const parsed = JSON.parse(await fs.readFile(claudeJson, "utf-8"));
+    expect(parsed.projects).toEqual({ "/x": { y: 1 } });
+    expect(parsed.numStartups).toBe(7);
+    expect(parsed.mcpServers.github.command).toBe("npx");
+  });
+
+  it("does not clobber a .claude.json that exists but is corrupt", async () => {
+    const claudeJson = path.join(mockHomeDir, ".claude.json");
+    const corrupt = '{ "projects": { "/x": broken';
+    await fs.writeFile(claudeJson, corrupt);
+
+    await expect(runUserScopeLoader()).rejects.toThrow();
+
+    expect(await fs.readFile(claudeJson, "utf-8")).toBe(corrupt);
+  });
+});

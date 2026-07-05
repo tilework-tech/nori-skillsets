@@ -13,6 +13,7 @@ import { toRegistryAuth } from "@/api/authCredentials.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { extractOrgIdFromApiToken } from "@/utils/apiToken.js";
 import { getHomeDir } from "@/utils/home.js";
+import { readJsonObjectFile, writeJsonFileAtomic } from "@/utils/jsonFile.js";
 import { normalizeUrl, extractOrgId, buildRegistryUrl } from "@/utils/url.js";
 
 import type { AuthCredentials, RegistryAuth } from "@/api/authCredentials.js";
@@ -483,7 +484,7 @@ const writeConfigFile = async (args: {
   // Always save installDir
   config.installDir = installDir;
 
-  await fs.writeFile(configPath, JSON.stringify(config, null, 2));
+  await writeJsonFileAtomic({ filePath: configPath, value: config });
 };
 
 /**
@@ -495,6 +496,11 @@ const writeConfigFile = async (args: {
  * @param updates - Partial config fields to merge on top of existing config
  */
 export const updateConfig = async (updates: Partial<Config>): Promise<void> => {
+  // Refuse to proceed when the config file exists but is corrupt: loadConfig
+  // reports both "absent" and "unparseable" as null, so writing a fresh config
+  // here would silently drop stored credentials. A missing file is fine.
+  await readJsonObjectFile({ filePath: getConfigPath(), ifAbsent: {} });
+
   const existing = await loadConfig();
 
   // Determine auth: if omitted, preserve existing auth; if null, clear auth;

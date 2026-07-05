@@ -13,6 +13,7 @@ import {
   getClaudeHomeDir,
   getClaudeHomeSettingsFile,
 } from "@/cli/features/claude-code/paths.js";
+import { readJsonObjectFile, writeJsonFileAtomic } from "@/utils/jsonFile.js";
 
 import type { Config } from "@/cli/config.js";
 import type { AgentLoader } from "@/cli/features/agentRegistry.js";
@@ -64,16 +65,14 @@ const configureStatusLine = async (args: {
   // Make script executable
   await fs.chmod(destScript, 0o755);
 
-  // Initialize settings file if it doesn't exist
-  let settings: any = {};
-  try {
-    const content = await fs.readFile(claudeSettingsFile, "utf-8");
-    settings = JSON.parse(content);
-  } catch {
-    settings = {
+  // Read the user's settings, preserving them. A file that exists but does not
+  // parse aborts loudly instead of being overwritten with a fresh object.
+  const settings: any = await readJsonObjectFile({
+    filePath: claudeSettingsFile,
+    ifAbsent: {
       $schema: "https://json.schemastore.org/claude-code-settings.json",
-    };
-  }
+    },
+  });
 
   // Add status line configuration pointing to copied script
   settings.statusLine = {
@@ -82,7 +81,7 @@ const configureStatusLine = async (args: {
     padding: 0,
   };
 
-  await fs.writeFile(claudeSettingsFile, JSON.stringify(settings, null, 2));
+  await writeJsonFileAtomic({ filePath: claudeSettingsFile, value: settings });
   return "Status line";
 };
 
