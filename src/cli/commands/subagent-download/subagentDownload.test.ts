@@ -276,6 +276,64 @@ describe("subagent-download", () => {
       expect(versionInfo.registryUrl).toBe(REGISTRAR_URL);
     });
 
+    it("should download public/ prefixed subagent from the public registry and flatten to the bare name", async () => {
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+      });
+
+      vi.mocked(registrarApi.getSubagentPackument).mockResolvedValue({
+        name: "test-subagent",
+        "dist-tags": { latest: "1.0.0" },
+        versions: {
+          "1.0.0": { name: "test-subagent", version: "1.0.0" },
+        },
+      });
+
+      const mockTarball = await createMockSubagentTarball();
+      vi.mocked(registrarApi.downloadSubagentTarball).mockResolvedValue(
+        mockTarball,
+      );
+
+      await subagentDownloadMain({
+        subagentSpec: "public/test-subagent",
+        cwd: testDir,
+      });
+
+      // Public namespace hits the public REGISTRAR_URL with no auth token.
+      expect(registrarApi.downloadSubagentTarball).toHaveBeenCalledWith({
+        subagentName: "test-subagent",
+        version: undefined,
+        registryUrl: REGISTRAR_URL,
+        authToken: undefined,
+      });
+
+      // The install flattens to the bare name, not agents/public/test-subagent.md.
+      const agentFile = path.join(agentsDir, "test-subagent.md");
+      await expect(fs.access(agentFile)).resolves.toBeUndefined();
+      await expect(fs.access(path.join(agentsDir, "public"))).rejects.toThrow();
+    });
+
+    it("should error when a namespaced subagent is combined with an explicit --registry", async () => {
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+      });
+
+      const result = await subagentDownloadMain({
+        subagentSpec: "myorg/my-subagent",
+        cwd: testDir,
+        registryUrl: "https://example.noriskillsets.dev",
+      });
+
+      expect(result.success).toBe(false);
+      const allErrorOutput = getClackErrorOutput();
+      expect(allErrorOutput).toMatch(
+        /namespace.*registry|registry.*namespace|cannot.*both/i,
+      );
+
+      // No download should have been attempted.
+      expect(registrarApi.downloadSubagentTarball).not.toHaveBeenCalled();
+    });
+
     it("should handle version specification", async () => {
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
@@ -557,6 +615,55 @@ describe("subagent-download", () => {
         "existing-sub": "*",
         "new-sub": "*",
       });
+    });
+
+    it("should resolve a redundant public/ prefixed --skillset to the flat skillset", async () => {
+      const skillsetDir = path.join(skillsetsDir, "flat-profile");
+      await fs.mkdir(skillsetDir, { recursive: true });
+      await fs.writeFile(
+        path.join(skillsetDir, "nori.json"),
+        JSON.stringify({ name: "flat-profile", version: "1.0.0" }),
+      );
+
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        activeSkillset: "other-profile",
+      });
+
+      vi.mocked(registrarApi.getSubagentPackument).mockResolvedValue({
+        name: "downloaded-sub",
+        "dist-tags": { latest: "1.0.0" },
+        versions: { "1.0.0": { name: "downloaded-sub", version: "1.0.0" } },
+      });
+
+      const mockTarball = await createMockSubagentTarball();
+      vi.mocked(registrarApi.downloadSubagentTarball).mockResolvedValue(
+        mockTarball,
+      );
+
+      const result = await subagentDownloadMain({
+        subagentSpec: "downloaded-sub",
+        cwd: testDir,
+        skillset: "public/flat-profile",
+      });
+
+      expect(result.success).toBe(true);
+
+      // Dependency landed in the flat profile's nori.json, proving resolution.
+      const noriJson = JSON.parse(
+        await fs.readFile(path.join(skillsetDir, "nori.json"), "utf-8"),
+      );
+      expect(noriJson.dependencies?.subagents?.["downloaded-sub"]).toBe("*");
+
+      // The subagent extracted into the flat profile, not profiles/public/...
+      await expect(
+        fs.access(
+          path.join(skillsetDir, "subagents", "downloaded-sub", "SUBAGENT.md"),
+        ),
+      ).resolves.toBeUndefined();
+      await expect(
+        fs.access(path.join(skillsetsDir, "public", "flat-profile")),
+      ).rejects.toThrow();
     });
   });
 
