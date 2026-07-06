@@ -100,7 +100,7 @@ program
   )
   .option(
     "-n, --non-interactive",
-    "Run without interactive prompts (auto-detected when CI is set or stdin is not a TTY)",
+    "Run without interactive prompts (auto-detected when CI is set or stdin/stdout is not a TTY)",
     autoNonInteractive,
   )
   .option("-s, --silent", "Suppress all output (implies --non-interactive)")
