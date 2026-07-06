@@ -32,7 +32,6 @@ type RegistryInstallArgs = {
   installDir?: string | null;
   nonInteractive?: boolean | null;
   silent?: boolean | null;
-  agent?: string | null;
 };
 
 /**
@@ -65,14 +64,13 @@ const checkLocalSkillsetExists = async (args: {
  * @param args.packageSpec - Package specification (name or name@version)
  * @param args.installDir - Optional explicit install directory
  * @param args.silent - If true, suppress output
- * @param args.agent - AI agent to use (defaults to claude-code)
  *
  * @returns Result indicating success or failure
  */
 export const registryInstallMain = async (
   args: RegistryInstallArgs,
 ): Promise<CommandStatus> => {
-  const { packageSpec, installDir, nonInteractive, silent, agent } = args;
+  const { packageSpec, installDir, nonInteractive, silent } = args;
 
   const parsed = parseNamespacedPackage({ packageSpec });
   if (parsed == null) {
@@ -101,7 +99,7 @@ export const registryInstallMain = async (
 
   // Skip manifest operations when the install dir comes from a CLI override
   const skipManifest = resolved.source === "cli";
-  const agentNames = getDefaultAgents({ config, agentOverride: agent });
+  const agentNames = getDefaultAgents({ config });
 
   // Snapshot before download — registryDownloadMain may auto-init and create config,
   // which would make hasExistingInstallation() return true after download completes.
@@ -238,7 +236,6 @@ export const registerRegistryInstallCommand = (args: {
         installDir: globalOpts.installDir || null,
         nonInteractive: globalOpts.nonInteractive || null,
         silent: globalOpts.silent || null,
-        agent: globalOpts.agent || null,
       });
 
       if (!result.success) {

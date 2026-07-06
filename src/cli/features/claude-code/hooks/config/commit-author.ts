@@ -77,6 +77,18 @@ export const replaceAttribution = (args: { command: string }): string => {
     return modifiedCommand;
   }
 
+  // If Nori attribution is already present, leave the command alone.
+  // Otherwise re-runs and amends would duplicate the attribution block.
+  // Use tolerant patterns (case-insensitive, whitespace-flexible) so partial
+  // reformatting doesn't bypass the guard. Either marker is enough.
+  const noriCoAuthorPattern =
+    /Co-Authored-By:\s*Nori\s*<contact@tilework\.tech>/i;
+  const noriUrlPattern =
+    /🤖\s*Generated\s*with\s*\[Nori\]\(https:\/\/noriagentic\.com\)/i;
+  if (noriCoAuthorPattern.test(command) || noriUrlPattern.test(command)) {
+    return command;
+  }
+
   // If no Claude attribution found, we need to add Nori attribution
   // Check if this is a heredoc format (contains EOF)
   if (command.includes("EOF")) {
@@ -89,14 +101,16 @@ export const replaceAttribution = (args: { command: string }): string => {
     return modifiedCommand;
   }
 
-  // For simple -m "message" format, we need to append attribution
-  // Match the message content within quotes
+  // For simple -m "message" format, we need to append attribution.
+  // Use real newlines so bash passes them through as message line breaks;
+  // escaped \\n would land in the commit message as the literal two-char
+  // backslash-n sequence.
   const messagePattern = /(-m|--message)\s+(['"])((?:\\.|(?!\2).)*)\2/;
   const match = command.match(messagePattern);
 
   if (match) {
     const [fullMatch, flag, quote, originalMessage] = match;
-    const newMessage = `${originalMessage}\\n\\n🤖 Generated with [Nori](https://noriagentic.com)\\n\\nCo-Authored-By: Nori <contact@tilework.tech>`;
+    const newMessage = `${originalMessage}\n\n🤖 Generated with [Nori](https://noriagentic.com)\n\nCo-Authored-By: Nori <contact@tilework.tech>`;
     modifiedCommand = command.replace(
       fullMatch,
       `${flag} ${quote}${newMessage}${quote}`,

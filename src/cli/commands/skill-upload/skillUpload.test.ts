@@ -63,11 +63,11 @@ vi.mock("@/api/registrar.js", () => ({
 vi.mock("@/cli/config.js", async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
   return {
+    ...actual,
     loadConfig: vi.fn(),
     getRegistryAuth: vi.fn(),
     getActiveSkillset: (args: { config: { activeSkillset?: string | null } }) =>
       args.config?.activeSkillset ?? null,
-    getDefaultAgents: actual.getDefaultAgents,
   };
 });
 
@@ -79,13 +79,16 @@ vi.mock("@/api/registryAuth.js", () => ({
 // Track select/text return values per call
 let selectReturnValues: Array<unknown> = [];
 let textReturnValues: Array<string> = [];
+// Value returned by the mocked clack confirm() prompt. Defaults to true so
+// tests that publish to public interactively proceed; the guard tests flip it.
+let confirmReturnValue = true;
 
 // Mock @clack/prompts
 vi.mock("@clack/prompts", () => ({
   intro: vi.fn(),
   outro: vi.fn(),
   note: vi.fn(),
-  confirm: vi.fn(() => Promise.resolve(false)),
+  confirm: vi.fn(() => Promise.resolve(confirmReturnValue)),
   spinner: vi.fn(() => ({
     start: vi.fn(),
     stop: vi.fn(),
@@ -239,6 +242,7 @@ describe("skill-upload", () => {
     vi.clearAllMocks();
     selectReturnValues = [];
     textReturnValues = [];
+    confirmReturnValue = true;
     originalEnvApiToken = process.env.NORI_API_TOKEN;
     delete process.env.NORI_API_TOKEN;
 
@@ -600,6 +604,48 @@ describe("skill-upload", () => {
       expect(uploadCall.authToken).toBe("api-token-auth");
     });
 
+    it("uploads a namespaced skill when authenticated via broker-managed idToken only", async () => {
+      await createLocalSkill({
+        skillsetName: "my-profile",
+        skillName: "my-skill",
+      });
+
+      vi.mocked(loadConfig).mockResolvedValue({
+        activeSkillset: "my-profile",
+        auth: {
+          username: "sprite-service:dev",
+          organizationUrl: "https://myorg.noriskillsets.dev",
+          refreshToken: null,
+          idToken: "session-id-token",
+          idTokenExpiresAt: Date.now() + 60_000,
+          apiToken: null,
+          organizations: ["myorg"],
+        },
+      } as never);
+
+      vi.mocked(getRegistryAuthToken).mockResolvedValue(
+        "id-token-auth" as never,
+      );
+
+      vi.mocked(registrarApi.getSkillPackument).mockRejectedValue(
+        Object.assign(new Error("Not found"), { statusCode: 404 }),
+      );
+      vi.mocked(registrarApi.uploadSkill).mockResolvedValue({
+        name: "my-skill",
+        version: "1.0.0",
+        tarballSha: "sha",
+        createdAt: "2026-04-16T00:00:00.000Z",
+      } as never);
+
+      const result = await skillUploadMain({ skillSpec: "myorg/my-skill" });
+
+      expect(result.success).toBe(true);
+      expect(registrarApi.uploadSkill).toHaveBeenCalledTimes(1);
+      const uploadCall = vi.mocked(registrarApi.uploadSkill).mock.calls[0][0];
+      expect(uploadCall.registryUrl).toBe("https://myorg.noriskillsets.dev");
+      expect(uploadCall.authToken).toBe("id-token-auth");
+    });
+
     it("uploads a public skill when authenticated via public API token config", async () => {
       await createLocalSkill({
         skillsetName: "my-profile",
@@ -632,7 +678,10 @@ describe("skill-upload", () => {
         createdAt: "2026-04-16T00:00:00.000Z",
       } as never);
 
-      const result = await skillUploadMain({ skillSpec: "my-skill" });
+      const result = await skillUploadMain({
+        skillSpec: "my-skill",
+        publicRegistry: true,
+      });
 
       expect(result.success).toBe(true);
       expect(getRegistryAuthToken).toHaveBeenCalledWith({
@@ -674,6 +723,7 @@ describe("skill-upload", () => {
       const result = await skillUploadMain({
         skillSpec: "my-skill",
         skillset: "my-profile",
+        publicRegistry: true,
         silent: true,
         nonInteractive: true,
       });
@@ -800,6 +850,227 @@ describe("skill-upload", () => {
       } finally {
         await fs.rm(extractDir, { recursive: true, force: true });
       }
+    });
+
+    it("excludes dependency/build bloat directories from the upload tarball", async () => {
+      const skillDir = await createLocalSkill({
+        skillsetName: "my-profile",
+        skillName: "my-skill",
+      });
+
+      // node_modules at any depth -> excluded
+      await fs.mkdir(path.join(skillDir, "node_modules", "lodash"), {
+        recursive: true,
+      });
+      await fs.writeFile(
+        path.join(skillDir, "node_modules", "lodash", "index.js"),
+        "module.exports = {};",
+      );
+
+      // .venv at any depth -> excluded
+      await fs.mkdir(path.join(skillDir, ".venv", "bin"), { recursive: true });
+      await fs.writeFile(
+        path.join(skillDir, ".venv", "bin", "python"),
+        "#!/usr/bin/env python",
+      );
+
+      // Rust crate: target adjacent to Cargo.toml -> excluded; crate sources kept
+      await fs.mkdir(path.join(skillDir, "rustcrate", "src"), {
+        recursive: true,
+      });
+      await fs.writeFile(
+        path.join(skillDir, "rustcrate", "Cargo.toml"),
+        '[package]\nname = "x"',
+      );
+      await fs.writeFile(
+        path.join(skillDir, "rustcrate", "src", "main.rs"),
+        "fn main() {}",
+      );
+      await fs.mkdir(path.join(skillDir, "rustcrate", "target", "debug"), {
+        recursive: true,
+      });
+      await fs.writeFile(
+        path.join(skillDir, "rustcrate", "target", "debug", "app"),
+        "binary",
+      );
+
+      // A "target" dir with no adjacent Cargo.toml -> kept
+      await fs.mkdir(path.join(skillDir, "data", "target"), {
+        recursive: true,
+      });
+      await fs.writeFile(
+        path.join(skillDir, "data", "target", "results.json"),
+        "{}",
+      );
+
+      // A leaf file literally named "target" -> kept
+      await fs.mkdir(path.join(skillDir, "keep"), { recursive: true });
+      await fs.writeFile(path.join(skillDir, "keep", "target"), "not a dir");
+
+      vi.mocked(loadConfig).mockResolvedValue(
+        authenticatedConfig("my-profile") as never,
+      );
+      vi.mocked(registrarApi.getSkillPackument).mockRejectedValue(
+        Object.assign(new Error("Not found"), { statusCode: 404 }),
+      );
+
+      let capturedArchiveData: ArrayBuffer | null = null;
+      vi.mocked(registrarApi.uploadSkill).mockImplementation(
+        async (args: { archiveData: ArrayBuffer }) => {
+          capturedArchiveData = args.archiveData;
+          return {
+            name: "my-skill",
+            version: "1.0.0",
+            tarballSha: "sha",
+            createdAt: "2026-04-16T00:00:00.000Z",
+          };
+        },
+      );
+
+      const result = await skillUploadMain({ skillSpec: "my-skill" });
+
+      expect(result.success).toBe(true);
+      expect(capturedArchiveData).not.toBeNull();
+
+      const extractDir = await fs.mkdtemp(
+        path.join(tmpdir(), "skill-bloat-extract-"),
+      );
+      try {
+        const tarballPath = path.join(extractDir, "upload.tgz");
+        await fs.writeFile(tarballPath, Buffer.from(capturedArchiveData!));
+        await tar.extract({ file: tarballPath, cwd: extractDir });
+
+        const extractedFiles = await fs.readdir(extractDir, {
+          recursive: true,
+        });
+
+        // Legit content is kept
+        expect(extractedFiles).toContain("SKILL.md");
+        expect(extractedFiles).toContain(path.join("rustcrate", "Cargo.toml"));
+        expect(extractedFiles).toContain(
+          path.join("rustcrate", "src", "main.rs"),
+        );
+        expect(extractedFiles).toContain(
+          path.join("data", "target", "results.json"),
+        );
+        expect(extractedFiles).toContain(path.join("keep", "target"));
+
+        // Bloat is excluded
+        expect(
+          extractedFiles.some((f) =>
+            f.split(path.sep).includes("node_modules"),
+          ),
+        ).toBe(false);
+        expect(
+          extractedFiles.some((f) => f.split(path.sep).includes(".venv")),
+        ).toBe(false);
+        expect(
+          extractedFiles.some((f) =>
+            f.startsWith(path.join("rustcrate", "target")),
+          ),
+        ).toBe(false);
+      } finally {
+        await fs.rm(extractDir, { recursive: true, force: true });
+      }
+    });
+  });
+
+  describe("public upload guard", () => {
+    const seedPublishableSkill = async (skillName: string): Promise<void> => {
+      await createLocalSkill({ skillsetName: "my-profile", skillName });
+      vi.mocked(loadConfig).mockResolvedValue(
+        authenticatedConfig("my-profile") as never,
+      );
+      vi.mocked(registrarApi.getSkillPackument).mockRejectedValue(
+        Object.assign(new Error("Not found"), { statusCode: 404 }),
+      );
+      vi.mocked(registrarApi.uploadSkill).mockResolvedValue({
+        name: skillName,
+        version: "1.0.0",
+        tarballSha: "sha",
+        createdAt: "2026-04-16T00:00:00.000Z",
+      } as never);
+    };
+
+    it("fails in non-interactive mode when publishing to public without an explicit target", async () => {
+      await seedPublishableSkill("my-skill");
+
+      const result = await skillUploadMain({
+        skillSpec: "my-skill",
+        nonInteractive: true,
+      });
+
+      expect(result.success).toBe(false);
+      expect(registrarApi.uploadSkill).not.toHaveBeenCalled();
+      expect(result.message).toContain("--public");
+    });
+
+    it("aborts an interactive public upload when the user declines the confirmation", async () => {
+      await seedPublishableSkill("my-skill");
+      confirmReturnValue = false;
+
+      const result = await skillUploadMain({ skillSpec: "my-skill" });
+
+      expect(result.success).toBe(false);
+      expect(result.cancelled).toBe(true);
+      expect(registrarApi.uploadSkill).not.toHaveBeenCalled();
+    });
+
+    it("publishes to public non-interactively when --public is given", async () => {
+      await seedPublishableSkill("my-skill");
+
+      const result = await skillUploadMain({
+        skillSpec: "my-skill",
+        publicRegistry: true,
+        nonInteractive: true,
+      });
+
+      expect(result.success).toBe(true);
+      expect(registrarApi.uploadSkill).toHaveBeenCalledTimes(1);
+      const uploadCall = vi.mocked(registrarApi.uploadSkill).mock.calls[0][0];
+      expect(uploadCall.registryUrl).toBe("https://noriskillsets.dev");
+    });
+
+    it("rejects --public combined with --registry as contradictory", async () => {
+      await seedPublishableSkill("my-skill");
+
+      const result = await skillUploadMain({
+        skillSpec: "my-skill",
+        publicRegistry: true,
+        registryUrl: "https://myorg.noriskillsets.dev",
+        nonInteractive: true,
+      });
+
+      expect(result.success).toBe(false);
+      expect(registrarApi.uploadSkill).not.toHaveBeenCalled();
+    });
+
+    it("rejects --public combined with an org namespace as contradictory", async () => {
+      await seedPublishableSkill("my-skill");
+
+      const result = await skillUploadMain({
+        skillSpec: "myorg/my-skill",
+        publicRegistry: true,
+        nonInteractive: true,
+      });
+
+      expect(result.success).toBe(false);
+      expect(registrarApi.uploadSkill).not.toHaveBeenCalled();
+    });
+
+    it("publishes to public non-interactively when the skill is namespaced public/", async () => {
+      await seedPublishableSkill("my-skill");
+
+      const result = await skillUploadMain({
+        skillSpec: "public/my-skill",
+        nonInteractive: true,
+      });
+
+      expect(result.success).toBe(true);
+      expect(registrarApi.uploadSkill).toHaveBeenCalledTimes(1);
+      const uploadCall = vi.mocked(registrarApi.uploadSkill).mock.calls[0][0];
+      expect(uploadCall.skillName).toBe("my-skill");
+      expect(uploadCall.registryUrl).toBe("https://noriskillsets.dev");
     });
   });
 });

@@ -7,6 +7,7 @@ import { tmpdir } from "os";
 import * as path from "path";
 
 import * as clack from "@clack/prompts";
+import * as tar from "tar";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 // Track the mock homedir value - will be set in beforeEach
@@ -52,8 +53,10 @@ vi.mock("@/api/registrar.js", () => ({
 }));
 
 // Mock the config module
-vi.mock("@/cli/config.js", async () => {
+vi.mock("@/cli/config.js", async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
   return {
+    ...actual,
     loadConfig: vi.fn(),
     getRegistryAuth: vi.fn(),
   };
@@ -105,6 +108,10 @@ const createSpinnerMock = () => ({
 // Shared spinner mock instance
 let sharedSpinnerMock = createSpinnerMock();
 
+// Value returned by the mocked clack confirm() prompt. Defaults to true so
+// tests that publish to public interactively proceed; the guard tests flip it.
+let confirmReturnValue = true;
+
 // Mock @clack/prompts for spinner and interactive prompts
 vi.mock("@clack/prompts", () => ({
   intro: vi.fn(),
@@ -120,6 +127,7 @@ vi.mock("@clack/prompts", () => ({
   },
   select: vi.fn(),
   text: vi.fn(),
+  confirm: vi.fn(),
   spinner: vi.fn(() => sharedSpinnerMock),
   isCancel: vi.fn(() => false),
 }));
@@ -210,6 +218,13 @@ describe("registry-upload", () => {
     // Reset the shared spinner mock and re-establish the mock implementation
     sharedSpinnerMock = createSpinnerMock();
     vi.mocked(clack.spinner).mockReturnValue(sharedSpinnerMock);
+
+    // Re-establish confirm() implementation (reset by resetAllMocks); reads the
+    // live confirmReturnValue so individual tests can flip it.
+    confirmReturnValue = true;
+    vi.mocked(clack.confirm).mockImplementation(
+      () => Promise.resolve(confirmReturnValue) as never,
+    );
 
     // Re-establish isSkillCollisionError mock implementation
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -475,6 +490,147 @@ describe("registry-upload", () => {
         );
       });
 
+      it("excludes dependency/build bloat directories from the skillset tarball", async () => {
+        const skillsetDir = path.join(skillsetsDir, "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
+        await fs.writeFile(
+          path.join(skillsetDir, "AGENTS.md"),
+          "# My Profile\n",
+        );
+
+        // node_modules at any depth -> excluded
+        await fs.mkdir(path.join(skillsetDir, "node_modules", "lodash"), {
+          recursive: true,
+        });
+        await fs.writeFile(
+          path.join(skillsetDir, "node_modules", "lodash", "index.js"),
+          "module.exports = {};",
+        );
+
+        // .venv at any depth -> excluded
+        await fs.mkdir(path.join(skillsetDir, ".venv", "bin"), {
+          recursive: true,
+        });
+        await fs.writeFile(
+          path.join(skillsetDir, ".venv", "bin", "python"),
+          "#!/usr/bin/env python",
+        );
+
+        // Rust crate: target adjacent to Cargo.toml -> excluded; sources kept
+        await fs.mkdir(path.join(skillsetDir, "rustcrate", "src"), {
+          recursive: true,
+        });
+        await fs.writeFile(
+          path.join(skillsetDir, "rustcrate", "Cargo.toml"),
+          '[package]\nname = "x"',
+        );
+        await fs.writeFile(
+          path.join(skillsetDir, "rustcrate", "src", "main.rs"),
+          "fn main() {}",
+        );
+        await fs.mkdir(path.join(skillsetDir, "rustcrate", "target", "debug"), {
+          recursive: true,
+        });
+        await fs.writeFile(
+          path.join(skillsetDir, "rustcrate", "target", "debug", "app"),
+          "binary",
+        );
+
+        // A "target" dir with no adjacent Cargo.toml -> kept
+        await fs.mkdir(path.join(skillsetDir, "data", "target"), {
+          recursive: true,
+        });
+        await fs.writeFile(
+          path.join(skillsetDir, "data", "target", "results.json"),
+          "{}",
+        );
+
+        // A leaf file literally named "target" -> kept
+        await fs.mkdir(path.join(skillsetDir, "keep"), { recursive: true });
+        await fs.writeFile(
+          path.join(skillsetDir, "keep", "target"),
+          "not a dir",
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: [],
+            organizationUrl: "https://noriskillsets.dev",
+          },
+        });
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+
+        let capturedArchiveData: ArrayBuffer | null = null;
+        vi.mocked(registrarApi.uploadSkillset).mockImplementation(
+          async (args: { archiveData: ArrayBuffer }) => {
+            capturedArchiveData = args.archiveData;
+            return {
+              name: "my-profile",
+              version: "1.0.0",
+              tarballSha: "abc123",
+              createdAt: new Date().toISOString(),
+            };
+          },
+        );
+
+        const result = await registryUploadMain({
+          profileSpec: "my-profile",
+          cwd: testDir,
+        });
+
+        expect(result.success).toBe(true);
+        expect(capturedArchiveData).not.toBeNull();
+
+        const extractDir = await fs.mkdtemp(
+          path.join(tmpdir(), "skillset-bloat-extract-"),
+        );
+        try {
+          const tarballPath = path.join(extractDir, "upload.tgz");
+          await fs.writeFile(tarballPath, Buffer.from(capturedArchiveData!));
+          await tar.extract({ file: tarballPath, cwd: extractDir });
+
+          const extractedFiles = await fs.readdir(extractDir, {
+            recursive: true,
+          });
+
+          // Legit content is kept
+          expect(extractedFiles).toContain("AGENTS.md");
+          expect(extractedFiles).toContain(
+            path.join("rustcrate", "Cargo.toml"),
+          );
+          expect(extractedFiles).toContain(
+            path.join("rustcrate", "src", "main.rs"),
+          );
+          expect(extractedFiles).toContain(
+            path.join("data", "target", "results.json"),
+          );
+          expect(extractedFiles).toContain(path.join("keep", "target"));
+
+          // Bloat is excluded
+          expect(
+            extractedFiles.some((f) =>
+              f.split(path.sep).includes("node_modules"),
+            ),
+          ).toBe(false);
+          expect(
+            extractedFiles.some((f) => f.split(path.sep).includes(".venv")),
+          ).toBe(false);
+          expect(
+            extractedFiles.some((f) =>
+              f.startsWith(path.join("rustcrate", "target")),
+            ),
+          ).toBe(false);
+        } finally {
+          await fs.rm(extractDir, { recursive: true, force: true });
+        }
+      });
+
       it("should allow authenticated user with empty orgs to upload to public registry", async () => {
         const skillsetDir = path.join(skillsetsDir, "my-profile");
         await fs.mkdir(skillsetDir, { recursive: true });
@@ -550,6 +706,7 @@ describe("registry-upload", () => {
         const result = await registryUploadMain({
           profileSpec: "my-profile",
           cwd: testDir,
+          publicRegistry: true,
           silent: true,
           nonInteractive: true,
         });
@@ -599,6 +756,7 @@ describe("registry-upload", () => {
         const result = await registryUploadMain({
           profileSpec: "my-profile",
           cwd: testDir,
+          publicRegistry: true,
           silent: true,
           nonInteractive: true,
         });
@@ -716,6 +874,174 @@ describe("registry-upload", () => {
             apiToken: null,
           },
         });
+      });
+
+      it("should upload to org registry when authenticated via broker-managed idToken", async () => {
+        const idTokenExpiresAt = Date.now() + 60_000;
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
+        await fs.writeFile(
+          path.join(skillsetDir, "AGENTS.md"),
+          "# My Profile\n",
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "sprite-service:dev",
+            refreshToken: null,
+            idToken: "session-id-token",
+            idTokenExpiresAt,
+            apiToken: null,
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.noriskillsets.dev",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("id-token-auth");
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+        vi.mocked(registrarApi.uploadSkillset).mockResolvedValue({
+          name: "my-profile",
+          version: "1.0.0",
+          tarballSha: "abc123",
+          createdAt: new Date().toISOString(),
+        });
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+        });
+
+        expect(result.success).toBe(true);
+        expect(getRegistryAuthToken).toHaveBeenCalledWith({
+          registryAuth: {
+            registryUrl: "https://myorg.noriskillsets.dev",
+            username: "sprite-service:dev",
+            refreshToken: null,
+            idToken: "session-id-token",
+            idTokenExpiresAt,
+            apiToken: null,
+          },
+        });
+        expect(registrarApi.uploadSkillset).toHaveBeenCalledWith(
+          expect.objectContaining({
+            packageName: "my-profile",
+            authToken: "id-token-auth",
+            registryUrl: "https://myorg.noriskillsets.dev",
+          }),
+        );
+      });
+    });
+
+    describe("public upload guard", () => {
+      const seedPublishableSkillset = async (
+        profileName: string,
+      ): Promise<void> => {
+        const skillsetDir = path.join(skillsetsDir, profileName);
+        await fs.mkdir(skillsetDir, { recursive: true });
+        await fs.writeFile(path.join(skillsetDir, "AGENTS.md"), "# Profile\n");
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: [],
+            organizationUrl: "https://noriskillsets.dev",
+          },
+        });
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+        vi.mocked(registrarApi.uploadSkillset).mockResolvedValue({
+          name: profileName,
+          version: "1.0.0",
+          tarballSha: "abc123",
+          createdAt: new Date().toISOString(),
+        });
+      };
+
+      it("fails in non-interactive mode when publishing to public without an explicit target", async () => {
+        await seedPublishableSkillset("my-profile");
+
+        const result = await registryUploadMain({
+          profileSpec: "my-profile",
+          cwd: testDir,
+          nonInteractive: true,
+        });
+
+        expect(result.success).toBe(false);
+        expect(registrarApi.uploadSkillset).not.toHaveBeenCalled();
+        expect(result.message).toContain("--public");
+      });
+
+      it("aborts an interactive public upload when the user declines the confirmation", async () => {
+        await seedPublishableSkillset("my-profile");
+        confirmReturnValue = false;
+
+        const result = await registryUploadMain({
+          profileSpec: "my-profile",
+          cwd: testDir,
+        });
+
+        expect(result.success).toBe(false);
+        expect(result.cancelled).toBe(true);
+        expect(registrarApi.uploadSkillset).not.toHaveBeenCalled();
+      });
+
+      it("rejects --public combined with --registry as contradictory", async () => {
+        await seedPublishableSkillset("my-profile");
+
+        const result = await registryUploadMain({
+          profileSpec: "my-profile",
+          cwd: testDir,
+          publicRegistry: true,
+          registryUrl: "https://myorg.noriskillsets.dev",
+          nonInteractive: true,
+        });
+
+        expect(result.success).toBe(false);
+        expect(registrarApi.uploadSkillset).not.toHaveBeenCalled();
+      });
+
+      it("publishes to public non-interactively when --public is given", async () => {
+        await seedPublishableSkillset("my-profile");
+
+        const result = await registryUploadMain({
+          profileSpec: "my-profile",
+          cwd: testDir,
+          publicRegistry: true,
+          nonInteractive: true,
+        });
+
+        expect(result.success).toBe(true);
+        expect(registrarApi.uploadSkillset).toHaveBeenCalledWith(
+          expect.objectContaining({
+            packageName: "my-profile",
+            registryUrl: "https://noriskillsets.dev",
+          }),
+        );
+      });
+
+      it("publishes to public non-interactively when the skillset is namespaced public/", async () => {
+        await seedPublishableSkillset("my-profile");
+
+        const result = await registryUploadMain({
+          profileSpec: "public/my-profile",
+          cwd: testDir,
+          nonInteractive: true,
+        });
+
+        expect(result.success).toBe(true);
+        expect(registrarApi.uploadSkillset).toHaveBeenCalledWith(
+          expect.objectContaining({
+            packageName: "my-profile",
+            registryUrl: "https://noriskillsets.dev",
+          }),
+        );
       });
     });
 
@@ -1086,12 +1412,240 @@ describe("registry-upload", () => {
         });
 
         expect(result.success).toBe(false);
+        expect(result.cancelled).toBe(false);
 
         // Verify error message shows conflict details (now via clack note)
         const clackOutput = getClackOutput();
         expect(clackOutput).toContain("writing-plans");
         expect(clackOutput.toLowerCase()).toContain("modified");
         expect(clackOutput.toLowerCase()).toContain("manual resolution");
+      });
+    });
+
+    describe("--resolve flag", () => {
+      it("should auto-resolve modified conflicts with incremented versions for resolve=updateVersion", async () => {
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
+        await fs.writeFile(
+          path.join(skillsetDir, "AGENTS.md"),
+          "# My Profile\n",
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+
+        const collisionError = {
+          message: "Skill conflicts detected",
+          conflicts: [
+            {
+              skillId: "nori-slack",
+              exists: true,
+              canPublish: true,
+              latestVersion: "1.0.0",
+              owner: "test@example.com",
+              availableActions: ["updateVersion", "namespace", "cancel"],
+              contentUnchanged: false,
+            },
+          ],
+        };
+
+        vi.mocked(registrarApi.uploadSkillset)
+          .mockRejectedValueOnce(collisionError)
+          .mockResolvedValueOnce({
+            name: "my-profile",
+            version: "1.0.0",
+            tarballSha: "abc123",
+            createdAt: new Date().toISOString(),
+          });
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+          nonInteractive: true,
+          resolve: "updateVersion",
+        });
+
+        expect(result.success).toBe(true);
+        expect(registrarApi.uploadSkillset).toHaveBeenCalledTimes(2);
+        expect(registrarApi.uploadSkillset).toHaveBeenLastCalledWith(
+          expect.objectContaining({
+            resolutionStrategy: {
+              "nori-slack": { action: "updateVersion", version: "1.0.1" },
+            },
+          }),
+        );
+      });
+
+      it("should fail for conflicts that don't support the chosen resolve strategy", async () => {
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
+        await fs.writeFile(
+          path.join(skillsetDir, "AGENTS.md"),
+          "# My Profile\n",
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+
+        const collisionError = {
+          message: "Skill conflicts detected",
+          conflicts: [
+            {
+              skillId: "writing-plans",
+              exists: true,
+              canPublish: false,
+              latestVersion: "1.0.0",
+              owner: "someone@example.com",
+              availableActions: ["namespace", "cancel"],
+              contentUnchanged: false,
+            },
+          ],
+        };
+
+        vi.mocked(registrarApi.uploadSkillset).mockRejectedValue(
+          collisionError,
+        );
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+          nonInteractive: true,
+          resolve: "updateVersion",
+        });
+
+        expect(result.success).toBe(false);
+      });
+
+      it("should reject invalid resolve strategy value", async () => {
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
+        await fs.writeFile(
+          path.join(skillsetDir, "AGENTS.md"),
+          "# My Profile\n",
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+          nonInteractive: true,
+          resolve: "invalidStrategy",
+        });
+
+        expect(result.success).toBe(false);
+        expect(result.message).toContain("Invalid --resolve");
+      });
+
+      it("should apply resolve strategy alongside auto-resolved unchanged conflicts", async () => {
+        const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
+        await fs.writeFile(
+          path.join(skillsetDir, "AGENTS.md"),
+          "# My Profile\n",
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+
+        const collisionError = {
+          message: "Skill conflicts detected",
+          conflicts: [
+            {
+              skillId: "unchanged-skill",
+              exists: true,
+              canPublish: false,
+              latestVersion: "1.0.0",
+              owner: "someone@example.com",
+              availableActions: ["link", "cancel"],
+              contentUnchanged: true,
+            },
+            {
+              skillId: "modified-skill",
+              exists: true,
+              canPublish: true,
+              latestVersion: "1.0.0",
+              owner: "test@example.com",
+              availableActions: ["updateVersion", "namespace", "cancel"],
+              contentUnchanged: false,
+            },
+          ],
+        };
+
+        vi.mocked(registrarApi.uploadSkillset)
+          .mockRejectedValueOnce(collisionError)
+          .mockResolvedValueOnce({
+            name: "my-profile",
+            version: "1.0.0",
+            tarballSha: "abc123",
+            createdAt: new Date().toISOString(),
+          });
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+          nonInteractive: true,
+          resolve: "updateVersion",
+        });
+
+        expect(result.success).toBe(true);
+        expect(registrarApi.uploadSkillset).toHaveBeenLastCalledWith(
+          expect.objectContaining({
+            resolutionStrategy: {
+              "unchanged-skill": { action: "link" },
+              "modified-skill": {
+                action: "updateVersion",
+                version: "1.0.1",
+              },
+            },
+          }),
+        );
       });
     });
 

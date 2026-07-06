@@ -9,8 +9,6 @@
 
 import { intro, outro } from "@clack/prompts";
 
-import { AgentRegistry } from "@/cli/features/agentRegistry.js";
-
 import type { Command } from "commander";
 
 /**
@@ -233,14 +231,13 @@ export const registerNoriSkillsetsEditSkillsetCommand = (args: {
   ) => {
     const { editSkillsetMain } =
       await import("@/cli/commands/edit-skillset/editSkillset.js");
-    const globalOpts = program.opts();
     await wrapWithFraming({
       title: "Edit Skillset",
       exitOnFailure: true,
       action: () =>
         editSkillsetMain({
           name: name || null,
-          agent: options.agent || globalOpts.agent || null,
+          agent: options.agent || null,
         }),
     });
   };
@@ -390,20 +387,27 @@ export const registerNoriSkillsetsUploadCommand = (args: {
     .command("upload <skillset>")
     .description("Upload a skillset to the Nori registry")
     .option("--registry <url>", "Upload to a specific registry URL")
+    .option("--public", "Publish to the public registry (noriskillsets.dev)")
     .option(
       "--list-versions",
       "List available versions for the skillset instead of uploading",
     )
     .option("--dry-run", "Show what would be uploaded without uploading")
     .option("--description <text>", "Description for this version")
+    .option(
+      "--resolve <strategy>",
+      "Auto-resolve skill conflicts in non-interactive mode (updateVersion, link, namespace, cancel)",
+    )
     .action(
       async (
         skillsetSpec: string,
         options: {
           registry?: string;
+          public?: boolean;
           listVersions?: boolean;
           dryRun?: boolean;
           description?: string;
+          resolve?: string;
         },
       ) => {
         const { registryUploadMain } =
@@ -419,11 +423,13 @@ export const registerNoriSkillsetsUploadCommand = (args: {
               cwd: process.cwd(),
               installDir: globalOpts.installDir || null,
               registryUrl: options.registry || null,
+              publicRegistry: options.public || null,
               listVersions: options.listVersions || null,
               nonInteractive: globalOpts.nonInteractive || null,
               silent: globalOpts.silent || null,
               dryRun: options.dryRun || null,
               description: options.description || null,
+              resolve: options.resolve || null,
             }),
         });
       },
@@ -460,7 +466,6 @@ export const registerNoriSkillsetsInstallCommand = (args: {
             installDir: globalOpts.installDir || null,
             nonInteractive: globalOpts.nonInteractive || null,
             silent: globalOpts.silent || null,
-            agent: globalOpts.agent || null,
           }),
       });
     });
@@ -596,6 +601,7 @@ export const registerNoriSkillsetsUploadSkillCommand = (args: {
       "Source skillset (defaults to active skillset)",
     )
     .option("--registry <url>", "Upload to a specific registry URL")
+    .option("--public", "Publish to the public registry (noriskillsets.dev)")
     .option("--version <version>", "Explicit version to publish")
     .option("--description <text>", "Description for this version")
     .action(
@@ -604,6 +610,7 @@ export const registerNoriSkillsetsUploadSkillCommand = (args: {
         options: {
           skillset?: string;
           registry?: string;
+          public?: boolean;
           version?: string;
           description?: string;
         },
@@ -621,6 +628,7 @@ export const registerNoriSkillsetsUploadSkillCommand = (args: {
               skillSpec,
               skillset: options.skillset || null,
               registryUrl: options.registry || null,
+              publicRegistry: options.public || null,
               version: options.version || null,
               description: options.description || null,
               cliName: "nori-skillsets",
@@ -820,9 +828,8 @@ export const registerNoriSkillsetsCurrentCommand = (args: {
   const currentAction = async (options: { agent?: string }) => {
     const { currentSkillsetMain } =
       await import("@/cli/commands/current-skillset/currentSkillset.js");
-    const globalOpts = program.opts();
     await currentSkillsetMain({
-      agent: options.agent || globalOpts.agent || null,
+      agent: options.agent || null,
     });
   };
 
@@ -872,9 +879,7 @@ export const registerNoriSkillsetsWatchCommand = (args: {
           title: "nori watch",
           action: () =>
             watchMain({
-              agent:
-                options.agent ??
-                AgentRegistry.getInstance().getDefaultAgentName(),
+              agent: options.agent ?? null,
               setDestination: options.setDestination ?? false,
               _background: options._background ?? false,
             }),
@@ -1110,7 +1115,6 @@ export const registerNoriSkillsetsClearCommand = (args: {
       const globalOpts = program.opts();
       await clearMain({
         installDir: globalOpts.installDir || null,
-        agent: globalOpts.agent || null,
       });
     });
 };
@@ -1128,10 +1132,7 @@ export const registerNoriSkillsetsClearCurrentCommand = (args: {
   const clearCurrentAction = async () => {
     const { clearCurrentMain } =
       await import("@/cli/commands/clear-current/clearCurrent.js");
-    const globalOpts = program.opts();
-    await clearCurrentMain({
-      agent: globalOpts.agent || null,
-    });
+    await clearCurrentMain({});
   };
 
   program
@@ -1170,8 +1171,20 @@ export const registerNoriSkillsetsConfigCommand = (args: {
       "--no-redownload-on-switch",
       "Disable re-download prompt on skillset switch",
     )
+    .option(
+      "--claude-code-status-line",
+      "Enable adding the Nori status line to Claude Code on skillset apply",
+    )
+    .option(
+      "--no-claude-code-status-line",
+      "Disable adding the Nori status line to Claude Code on skillset apply",
+    )
     .action(
-      async (options: { agents?: string; redownloadOnSwitch?: boolean }) => {
+      async (options: {
+        agents?: string;
+        redownloadOnSwitch?: boolean;
+        claudeCodeStatusLine?: boolean;
+      }) => {
         const { configMain } = await import("@/cli/commands/config/config.js");
         const globalOpts = program.opts();
         await wrapWithFraming({
@@ -1182,6 +1195,7 @@ export const registerNoriSkillsetsConfigCommand = (args: {
               agents: options.agents ?? null,
               installDir: globalOpts.installDir || null,
               redownloadOnSwitch: options.redownloadOnSwitch ?? null,
+              claudeCodeStatusLine: options.claudeCodeStatusLine ?? null,
               nonInteractive: globalOpts.nonInteractive || null,
             }),
         });

@@ -21,17 +21,23 @@ import {
 } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
 import { type CliName } from "@/cli/commands/cliCommandNames.js";
+import { guardPublicUpload } from "@/cli/commands/publicUploadGuard.js";
 import {
   loadConfig,
   getActiveSkillset,
   getRegistryAuth,
+  hasRegistryAuthCredentials,
+  toRegistryAuth,
   type Config,
   type RegistryAuth,
 } from "@/cli/config.js";
 import { skillUploadFlow } from "@/cli/prompts/flows/index.js";
 import { getNoriSkillsetsDir } from "@/norijson/skillset.js";
 import { isDirentFile } from "@/utils/dirent.js";
-import { shouldExcludeFromUpload } from "@/utils/uploadFileFilter.js";
+import {
+  collectCargoManifestDirs,
+  shouldExcludeFromUpload,
+} from "@/utils/uploadFileFilter.js";
 import {
   parseNamespacedPackage,
   buildOrganizationRegistryUrl,
@@ -59,13 +65,22 @@ const createSkillTarball = async (args: {
     recursive: true,
     withFileTypes: true,
   });
+  const relPaths = entries.map((entry) => {
+    const parentDir = entry.parentPath ?? entry.path;
+    return path.relative(skillDir, path.join(parentDir, entry.name));
+  });
+  const cargoManifestDirs = collectCargoManifestDirs({
+    relativePaths: relPaths,
+  });
+
   const filesToPack: Array<string> = [];
   for (const entry of entries) {
     const parentDir = entry.parentPath ?? entry.path;
     if (!(await isDirentFile({ parentDir, entry }))) continue;
-    if (shouldExcludeFromUpload({ fileName: entry.name })) continue;
-    const full = path.join(parentDir, entry.name);
-    const rel = path.relative(skillDir, full);
+    const rel = path.relative(skillDir, path.join(parentDir, entry.name));
+    if (shouldExcludeFromUpload({ relativePath: rel, cargoManifestDirs })) {
+      continue;
+    }
     filesToPack.push(rel);
   }
 
@@ -237,15 +252,18 @@ const resolveRegistryAndAuth = async (args: {
     orgId === "public" &&
     registryUrl == null &&
     (hasMatchingEnvToken ||
-      config?.auth?.refreshToken != null ||
-      config?.auth?.apiToken != null)
+      hasRegistryAuthCredentials({ auth: config?.auth ?? null }))
   ) {
-    registryAuth = {
-      registryUrl: REGISTRAR_URL,
-      username: config?.auth?.username ?? null,
-      refreshToken: config?.auth?.refreshToken ?? null,
-      apiToken: config?.auth?.apiToken ?? null,
-    };
+    registryAuth =
+      config?.auth != null
+        ? toRegistryAuth({
+            auth: config.auth,
+            registryUrl: REGISTRAR_URL,
+          })
+        : {
+            registryUrl: REGISTRAR_URL,
+            username: null,
+          };
   }
 
   // Otherwise prefer per-registry auth
@@ -258,15 +276,18 @@ const resolveRegistryAndAuth = async (args: {
   if (
     registryAuth == null &&
     (hasMatchingEnvToken ||
-      config?.auth?.refreshToken != null ||
-      config?.auth?.apiToken != null)
+      hasRegistryAuthCredentials({ auth: config?.auth ?? null }))
   ) {
-    registryAuth = {
-      registryUrl: targetRegistryUrl,
-      username: config?.auth?.username ?? null,
-      refreshToken: config?.auth?.refreshToken ?? null,
-      apiToken: config?.auth?.apiToken ?? null,
-    };
+    registryAuth =
+      config?.auth != null
+        ? toRegistryAuth({
+            auth: config.auth,
+            registryUrl: targetRegistryUrl,
+          })
+        : {
+            registryUrl: targetRegistryUrl,
+            username: null,
+          };
   }
 
   if (registryAuth == null) {
@@ -289,6 +310,7 @@ const resolveRegistryAndAuth = async (args: {
  * @param args.skillSpec - Skill name, optionally namespaced (e.g., "my-skill" or "org/my-skill") and/or versioned (e.g., "my-skill@1.0.0")
  * @param args.skillset - Source skillset name (defaults to the active skillset)
  * @param args.registryUrl - Explicit registry URL (mutually exclusive with namespace)
+ * @param args.publicRegistry - Explicit opt-in to publish to the public registry
  * @param args.version - Explicit version to publish (bypasses collision prompts)
  * @param args.description - Description for this version (defaults to the local nori.json.description)
  * @param args.cliName - CLI name used in user-facing messages
@@ -301,6 +323,7 @@ export const skillUploadMain = async (args: {
   skillSpec: string;
   skillset?: string | null;
   registryUrl?: string | null;
+  publicRegistry?: boolean | null;
   version?: string | null;
   description?: string | null;
   cliName?: CliName | null;
@@ -311,9 +334,11 @@ export const skillUploadMain = async (args: {
     skillSpec,
     skillset,
     registryUrl,
+    publicRegistry,
     version: explicitVersion,
     description: cliDescription,
     nonInteractive,
+    silent,
   } = args;
 
   // Parse the skill spec (supports "name", "org/name", "name@version")
@@ -378,6 +403,28 @@ export const skillUploadMain = async (args: {
       success: false,
       cancelled: false,
       message: `"${skillName}" is an inlined skill and cannot be uploaded independently`,
+    };
+  }
+
+  // Require an explicit target before publishing to the public registry
+  const publicGuard = await guardPublicUpload({
+    kind: "skill",
+    packageSpec: skillSpec,
+    orgId,
+    displayName: skillName,
+    registryUrl,
+    publicRegistry,
+    nonInteractive,
+    silent,
+  });
+  if (!publicGuard.ok) {
+    if (publicGuard.message !== "") {
+      log.error(publicGuard.message);
+    }
+    return {
+      success: false,
+      cancelled: publicGuard.cancelled,
+      message: publicGuard.message,
     };
   }
 

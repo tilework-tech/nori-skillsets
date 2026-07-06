@@ -40,6 +40,7 @@ import {
   registerNoriSkillsetsUploadSkillCommand,
   registerNoriSkillsetsWatchCommand,
 } from "@/cli/commands/noriSkillsetsCommands.js";
+import { setGlobalAgentOverride } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import {
   setTileworkSource,
@@ -155,6 +156,11 @@ Examples:
   $ nori-skillsets config                                   # configure default agent and install directory
 `,
   );
+
+program.hook("preAction", (thisCommand) => {
+  const opts = thisCommand.opts();
+  setGlobalAgentOverride(opts.agent ?? null);
+});
 
 // Register simplified commands for nori-skillsets CLI
 registerNoriSkillsetsLoginCommand({ program });

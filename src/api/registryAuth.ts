@@ -17,7 +17,7 @@ const tokenCache = new Map<string, { token: string; expiry: number }>();
 /**
  * Get auth token for a registry.
  * Precedence: NORI_API_TOKEN env var (scoped match) > config apiToken (scoped match)
- * > refreshToken exchange. API tokens are returned raw and NOT cached.
+ * > unexpired idToken > refreshToken exchange. API tokens are returned raw and NOT cached.
  *
  * @param args - The authentication parameters
  * @param args.registryAuth - Registry authentication credentials
@@ -46,6 +46,15 @@ export const getRegistryAuthToken = async (args: {
     if (tokenOrgId != null && tokenOrgId === targetOrgId) {
       return registryAuth.apiToken;
     }
+  }
+
+  if (
+    registryAuth.idToken != null &&
+    registryAuth.idToken !== "" &&
+    typeof registryAuth.idTokenExpiresAt === "number" &&
+    Date.now() < registryAuth.idTokenExpiresAt
+  ) {
+    return registryAuth.idToken;
   }
 
   // Check token cache (Firebase ID tokens only)

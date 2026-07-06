@@ -15,11 +15,15 @@ import type { Config } from "@/cli/config.js";
 let mockClaudeDir: string;
 let mockClaudeSettingsFile: string;
 
-vi.mock("@/cli/features/claude-code/paths.js", () => ({
-  getClaudeHomeDir: () => mockClaudeDir,
-  getClaudeHomeSettingsFile: () => mockClaudeSettingsFile,
-  getClaudeHomeCommandsDir: () => path.join(mockClaudeDir, "commands"),
-}));
+vi.mock("@/cli/features/claude-code/paths.js", async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
+  return {
+    ...actual,
+    getClaudeHomeDir: () => mockClaudeDir,
+    getClaudeHomeSettingsFile: () => mockClaudeSettingsFile,
+    getClaudeHomeCommandsDir: () => path.join(mockClaudeDir, "commands"),
+  };
+});
 
 // Import loader after mocking env
 import { announcementsLoader } from "./loader.js";

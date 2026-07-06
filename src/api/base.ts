@@ -17,9 +17,20 @@ export type NoriConfig = {
   username?: string | null;
   password?: string | null;
   refreshToken?: string | null;
+  idToken?: string | null;
+  idTokenExpiresAt?: number | null;
   apiToken?: string | null;
   organizationUrl?: string | null;
 };
+
+const isUnexpiredIdToken = (args: {
+  idToken?: string | null;
+  idTokenExpiresAt?: number | null;
+}): boolean =>
+  args.idToken != null &&
+  args.idToken !== "" &&
+  typeof args.idTokenExpiresAt === "number" &&
+  Date.now() < args.idTokenExpiresAt;
 
 /**
  * Read NORI_API_TOKEN from environment. The orgId is parsed from the token itself.
@@ -79,6 +90,8 @@ export class ConfigManager {
             username: parsed.auth.username ?? null,
             password: parsed.auth.password ?? null,
             refreshToken: parsed.auth.refreshToken ?? null,
+            idToken: parsed.auth.idToken ?? null,
+            idTokenExpiresAt: parsed.auth.idTokenExpiresAt ?? null,
             apiToken: parsed.auth.apiToken ?? null,
             organizationUrl: parsed.auth.organizationUrl ?? null,
           };
@@ -108,7 +121,14 @@ export class ConfigManager {
       return true;
     }
     // Support both token-based auth (refreshToken) and legacy password-based auth
-    const hasAuth = !!(config.refreshToken || config.password);
+    const hasAuth = !!(
+      config.refreshToken ||
+      config.password ||
+      isUnexpiredIdToken({
+        idToken: config.idToken,
+        idTokenExpiresAt: config.idTokenExpiresAt,
+      })
+    );
     return !!(config.username && hasAuth && config.organizationUrl);
   };
 }
@@ -152,7 +172,7 @@ export class AuthManager {
     const targetOrgId = extractOrgId({ url: organizationUrl });
 
     // Precedence: env-var API token (scoped match) > config API token (scoped match)
-    // > refreshToken > password. API tokens are not cached.
+    // > unexpired idToken > refreshToken > password. API tokens are not cached.
     if (envApi != null && targetOrgId != null && envApi.orgId === targetOrgId) {
       return envApi.token;
     }
@@ -170,6 +190,24 @@ export class AuthManager {
       throw new Error(
         "Nori is not configured. Please set refreshToken, password, or apiToken in .nori-config.json in your installation directory",
       );
+    }
+
+    const configIdToken = config.idToken ?? null;
+    const configIdTokenExpiresAt = config.idTokenExpiresAt ?? null;
+    if (
+      isUnexpiredIdToken({
+        idToken: configIdToken,
+        idTokenExpiresAt: configIdTokenExpiresAt,
+      })
+    ) {
+      if (configIdToken == null || configIdTokenExpiresAt == null) {
+        throw new Error(
+          "Nori is not configured. Please set refreshToken, password, or apiToken in .nori-config.json in your installation directory",
+        );
+      }
+      AuthManager.authToken = configIdToken;
+      AuthManager.tokenExpiry = configIdTokenExpiresAt;
+      return AuthManager.authToken;
     }
 
     // Prefer refresh token-based auth (more secure, no password stored)

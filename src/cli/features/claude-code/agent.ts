@@ -6,6 +6,7 @@ import * as path from "path";
 
 import { announcementsLoader } from "@/cli/features/claude-code/announcements/loader.js";
 import { hooksLoader } from "@/cli/features/claude-code/hooks/loader.js";
+import { getClaudeHomeSettingsFile } from "@/cli/features/claude-code/paths.js";
 import { statuslineLoader } from "@/cli/features/claude-code/statusline/loader.js";
 import { configLoader } from "@/cli/features/configLoader.js";
 import { createInstructionsLoader } from "@/cli/features/shared/instructionsLoader.js";
@@ -53,6 +54,7 @@ export const claudeCodeAgentConfig: AgentConfig = {
     announcementsLoader,
   ],
 
+  getExternalSettingsFiles: () => [getClaudeHomeSettingsFile()],
   getTranscriptDirectory: () => path.join(getHomeDir(), ".claude", "projects"),
   getArtifactPatterns: () => ({
     dirs: [".claude"],

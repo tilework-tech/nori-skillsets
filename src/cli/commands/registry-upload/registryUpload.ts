@@ -13,6 +13,7 @@ import * as tar from "tar";
 import { readApiTokenEnv } from "@/api/base.js";
 import {
   registrarApi,
+  type SkillResolutionAction,
   type SkillResolutionStrategy,
   type SubagentResolutionStrategy,
   type UploadSkillsetResponse,
@@ -21,7 +22,13 @@ import {
 } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
 import { parseSubagentFrontmatter } from "@/cli/commands/external/subagentDiscovery.js";
-import { loadConfig, getRegistryAuth } from "@/cli/config.js";
+import { guardPublicUpload } from "@/cli/commands/publicUploadGuard.js";
+import {
+  getRegistryAuth,
+  hasRegistryAuthCredentials,
+  loadConfig,
+  toRegistryAuth,
+} from "@/cli/config.js";
 import { bold } from "@/cli/logger.js";
 import {
   uploadFlow,
@@ -38,7 +45,10 @@ import {
   isSkillCollisionError,
   isSubagentCollisionError,
 } from "@/utils/fetch.js";
-import { shouldExcludeFromUpload } from "@/utils/uploadFileFilter.js";
+import {
+  collectCargoManifestDirs,
+  shouldExcludeFromUpload,
+} from "@/utils/uploadFileFilter.js";
 import {
   parseNamespacedPackage,
   buildOrganizationRegistryUrl,
@@ -48,7 +58,6 @@ import {
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 import type { RegistryAuth } from "@/cli/config.js";
 import type { NoriJson } from "@/norijson/nori.js";
-import type { Command } from "commander";
 
 /**
  * Determine the version to upload (auto-bump if not specified)
@@ -106,14 +115,14 @@ const createProfileTarball = async (args: {
   const { skillsetDir } = args;
 
   const files = await fs.readdir(skillsetDir, { recursive: true });
+  const cargoManifestDirs = collectCargoManifestDirs({ relativePaths: files });
   const filesToPack: Array<string> = [];
 
   for (const file of files) {
     const filePath = path.join(skillsetDir, file);
     const stat = await fs.stat(filePath);
     if (stat.isFile()) {
-      const filename = path.basename(file);
-      if (shouldExcludeFromUpload({ fileName: filename })) {
+      if (shouldExcludeFromUpload({ relativePath: file, cargoManifestDirs })) {
         continue;
       }
       filesToPack.push(file);
@@ -998,11 +1007,13 @@ const syncLocalStateAfterUpload = async (args: {
  * @param args.cwd - Current working directory
  * @param args.installDir - Custom installation directory
  * @param args.registryUrl - Target registry URL
+ * @param args.publicRegistry - Explicit opt-in to publish to the public registry
  * @param args.listVersions - If true, list versions instead of uploading
  * @param args.nonInteractive - Run without prompts
  * @param args.silent - Suppress output
  * @param args.dryRun - Show what would happen without uploading
  * @param args.description - Description for the skillset version
+ * @param args.resolve - Resolution strategy to apply to unresolved skill conflicts in non-interactive mode
  *
  * @returns Upload result
  */
@@ -1011,20 +1022,24 @@ export const registryUploadMain = async (args: {
   cwd?: string | null;
   installDir?: string | null;
   registryUrl?: string | null;
+  publicRegistry?: boolean | null;
   listVersions?: boolean | null;
   nonInteractive?: boolean | null;
   silent?: boolean | null;
   dryRun?: boolean | null;
   description?: string | null;
+  resolve?: string | null;
 }): Promise<CommandStatus> => {
   const {
     profileSpec,
     registryUrl,
+    publicRegistry,
     listVersions,
     nonInteractive,
     silent,
     dryRun,
     description,
+    resolve,
   } = args;
 
   // Parse skillset spec using shared utility
@@ -1043,6 +1058,53 @@ export const registryUploadMain = async (args: {
   const { orgId, packageName, version } = parsed;
   const profileDisplayName =
     orgId === "public" ? packageName : `${orgId}/${packageName}`;
+
+  const VALID_RESOLVE_ACTIONS: ReadonlyArray<string> = [
+    "updateVersion",
+    "link",
+    "namespace",
+    "cancel",
+  ];
+
+  if (resolve != null && !VALID_RESOLVE_ACTIONS.includes(resolve)) {
+    log.error(
+      `Invalid --resolve value: "${resolve}".\nValid options: ${VALID_RESOLVE_ACTIONS.join(", ")}`,
+    );
+    return {
+      success: false,
+      cancelled: false,
+      message: `Invalid --resolve value: "${resolve}"`,
+    };
+  }
+
+  const resolveAction =
+    resolve != null ? (resolve as SkillResolutionAction) : null;
+
+  // Require an explicit target before publishing to the public registry.
+  // Read-only operations (--list-versions, --dry-run) never publish, so they
+  // are exempt.
+  if (!listVersions && !dryRun) {
+    const publicGuard = await guardPublicUpload({
+      kind: "skillset",
+      packageSpec: profileSpec,
+      orgId,
+      displayName: packageName,
+      registryUrl,
+      publicRegistry,
+      nonInteractive,
+      silent,
+    });
+    if (!publicGuard.ok) {
+      if (publicGuard.message !== "") {
+        log.error(publicGuard.message);
+      }
+      return {
+        success: false,
+        cancelled: publicGuard.cancelled,
+        message: publicGuard.message,
+      };
+    }
+  }
 
   // Load config for auth and install dir resolution
   const config = await loadConfig();
@@ -1076,7 +1138,7 @@ export const registryUploadMain = async (args: {
   // Check for unified auth with organizations (new flow)
   const hasUnifiedAuthWithOrgs =
     config?.auth != null &&
-    (config.auth.refreshToken != null || config.auth.apiToken != null) &&
+    hasRegistryAuthCredentials({ auth: config.auth }) &&
     config.auth.organizations != null;
 
   // Determine target registry and auth
@@ -1096,12 +1158,10 @@ export const registryUploadMain = async (args: {
           orgId: userOrgId,
         });
         if (orgRegistryUrl === registryUrl) {
-          registryAuth = {
+          registryAuth = toRegistryAuth({
+            auth: config!.auth!,
             registryUrl,
-            username: config!.auth!.username ?? null,
-            refreshToken: config!.auth!.refreshToken ?? null,
-            apiToken: config!.auth!.apiToken ?? null,
-          };
+          });
           break;
         }
       }
@@ -1144,12 +1204,16 @@ export const registryUploadMain = async (args: {
     // Public registry is open to any authenticated user
     targetRegistryUrl = buildOrganizationRegistryUrl({ orgId });
 
-    const registryAuth: RegistryAuth = {
-      registryUrl: targetRegistryUrl,
-      username: config?.auth?.username ?? null,
-      refreshToken: config?.auth?.refreshToken ?? null,
-      apiToken: config?.auth?.apiToken ?? null,
-    };
+    const registryAuth: RegistryAuth =
+      config?.auth != null
+        ? toRegistryAuth({
+            auth: config.auth,
+            registryUrl: targetRegistryUrl,
+          })
+        : {
+            registryUrl: targetRegistryUrl,
+            username: null,
+          };
 
     try {
       authToken = await getRegistryAuthToken({ registryAuth });
@@ -1192,12 +1256,16 @@ export const registryUploadMain = async (args: {
       };
     }
 
-    const registryAuth: RegistryAuth = {
-      registryUrl: targetRegistryUrl,
-      username: config?.auth?.username ?? null,
-      refreshToken: config?.auth?.refreshToken ?? null,
-      apiToken: config?.auth?.apiToken ?? null,
-    };
+    const registryAuth: RegistryAuth =
+      config?.auth != null
+        ? toRegistryAuth({
+            auth: config.auth,
+            registryUrl: targetRegistryUrl,
+          })
+        : {
+            registryUrl: targetRegistryUrl,
+            username: null,
+          };
 
     try {
       authToken = await getRegistryAuthToken({ registryAuth });
@@ -1522,6 +1590,7 @@ export const registryUploadMain = async (args: {
     skillsetName: packageName,
     registryUrl: targetRegistryUrl,
     nonInteractive: nonInteractive ?? false,
+    resolve: resolveAction,
     inlineCandidates:
       inlineCandidates.length > 0 ? inlineCandidates : undefined,
     inlineSubagentCandidates:
@@ -1592,7 +1661,11 @@ export const registryUploadMain = async (args: {
   });
 
   if (result == null) {
-    return { success: false, cancelled: true, message: "" };
+    return {
+      success: false,
+      cancelled: !(nonInteractive ?? false),
+      message: nonInteractive ? "Upload failed" : "",
+    };
   }
 
   await trySyncLocalState({
@@ -1610,55 +1683,4 @@ export const registryUploadMain = async (args: {
     cancelled: false,
     message: result.statusMessage,
   };
-};
-
-/**
- * Register the 'upload' command with commander
- * @param args - Configuration arguments
- * @param args.program - Commander program instance
- */
-export const registerRegistryUploadCommand = (args: {
-  program: Command;
-}): void => {
-  const { program } = args;
-
-  program
-    .command("upload <profile>")
-    .description("Upload a skillset to the Nori registry")
-    .option("--registry <url>", "Upload to a specific registry URL")
-    .option(
-      "--list-versions",
-      "List available versions for the skillset instead of uploading",
-    )
-    .option("--dry-run", "Show what would be uploaded without uploading")
-    .option("--description <text>", "Description for this version")
-    .action(
-      async (
-        profileSpec: string,
-        options: {
-          registry?: string;
-          listVersions?: boolean;
-          dryRun?: boolean;
-          description?: string;
-        },
-      ) => {
-        const globalOpts = program.opts();
-
-        const result = await registryUploadMain({
-          profileSpec,
-          cwd: process.cwd(),
-          installDir: globalOpts.installDir || null,
-          registryUrl: options.registry || null,
-          listVersions: options.listVersions || null,
-          nonInteractive: globalOpts.nonInteractive || null,
-          silent: globalOpts.silent || null,
-          dryRun: options.dryRun || null,
-          description: options.description || null,
-        });
-
-        if (!result.success) {
-          process.exit(1);
-        }
-      },
-    );
 };

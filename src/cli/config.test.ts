@@ -10,13 +10,15 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 import {
   loadConfig,
-  saveConfig,
   updateConfig,
   getConfigPath,
   validateConfig,
   getDefaultAgents,
+  setGlobalAgentOverride,
+  resetGlobalAgentOverride,
   type Config,
 } from "./config.js";
+import { saveTestingConfig } from "./test-utils/config.js";
 
 // Mock os.homedir so getConfigPath resolves to test directories
 vi.mock("os", async (importOriginal) => {
@@ -31,6 +33,12 @@ describe("getConfigPath", () => {
   it("should always return ~/.nori-config.json", () => {
     const result = getConfigPath();
     expect(result).toBe(path.join(os.homedir(), ".nori-config.json"));
+  });
+
+  it("should not expose the full-file writer from the production config module", async () => {
+    const configModule = await import("./config.js");
+
+    expect(configModule).not.toHaveProperty("saveTestingConfig");
   });
 });
 
@@ -88,9 +96,9 @@ describe("config with skillset-based system", () => {
     vi.clearAllMocks();
   });
 
-  describe("saveConfig and loadConfig", () => {
+  describe("saveTestingConfig and loadConfig", () => {
     it("should save and load activeSkillset with auth", async () => {
-      await saveConfig({
+      await saveTestingConfig({
         username: "test@example.com",
         password: "password123",
         organizationUrl: "https://example.com",
@@ -113,7 +121,7 @@ describe("config with skillset-based system", () => {
     });
 
     it("should save and load auth without activeSkillset", async () => {
-      await saveConfig({
+      await saveTestingConfig({
         username: "test@example.com",
         password: "password123",
         organizationUrl: "https://example.com",
@@ -135,7 +143,7 @@ describe("config with skillset-based system", () => {
     });
 
     it("should save and load activeSkillset without auth", async () => {
-      await saveConfig({
+      await saveTestingConfig({
         username: null,
         password: null,
         organizationUrl: null,
@@ -192,7 +200,7 @@ describe("config with skillset-based system", () => {
     });
 
     it("should save and load sendSessionTranscript", async () => {
-      await saveConfig({
+      await saveTestingConfig({
         username: null,
         password: null,
         organizationUrl: null,
@@ -236,7 +244,7 @@ describe("config with skillset-based system", () => {
     });
 
     it("should save and load autoupdate", async () => {
-      await saveConfig({
+      await saveTestingConfig({
         username: null,
         password: null,
         organizationUrl: null,
@@ -252,7 +260,7 @@ describe("config with skillset-based system", () => {
 
   describe("installDir configuration", () => {
     it("should always save config to ~/.nori-config.json", async () => {
-      await saveConfig({
+      await saveTestingConfig({
         username: "test@example.com",
         password: "password123",
         organizationUrl: "https://example.com",
@@ -270,7 +278,7 @@ describe("config with skillset-based system", () => {
     it("should save installDir in config as a data field", async () => {
       const customDir = "/some/custom/path";
 
-      await saveConfig({
+      await saveTestingConfig({
         username: null,
         password: null,
         organizationUrl: null,
@@ -404,9 +412,9 @@ describe("token-based auth", () => {
     vi.clearAllMocks();
   });
 
-  describe("saveConfig with refreshToken", () => {
+  describe("saveTestingConfig with refreshToken", () => {
     it("should save refreshToken in nested auth structure", async () => {
-      await saveConfig({
+      await saveTestingConfig({
         username: "test@example.com",
         password: null,
         organizationUrl: "https://example.com",
@@ -424,7 +432,7 @@ describe("token-based auth", () => {
     });
 
     it("should not save password when refreshToken is provided", async () => {
-      await saveConfig({
+      await saveTestingConfig({
         username: "test@example.com",
         password: "should-be-ignored",
         organizationUrl: "https://example.com",
@@ -514,7 +522,7 @@ describe("transcriptDestination config", () => {
   });
 
   it("should save and load transcriptDestination", async () => {
-    await saveConfig({
+    await saveTestingConfig({
       username: "test@example.com",
       password: null,
       refreshToken: "token-123",
@@ -558,7 +566,7 @@ describe("transcriptDestination config", () => {
 
   it("should preserve transcriptDestination when saving other fields", async () => {
     // First save with transcriptDestination
-    await saveConfig({
+    await saveTestingConfig({
       username: "test@example.com",
       password: null,
       refreshToken: "token-123",
@@ -591,7 +599,7 @@ describe("defaultAgents config", () => {
   });
 
   it("should save and load defaultAgents array", async () => {
-    await saveConfig({
+    await saveTestingConfig({
       username: null,
       organizationUrl: null,
       installDir: tempDir,
@@ -618,7 +626,7 @@ describe("defaultAgents config", () => {
   });
 
   it("should persist defaultAgents array to disk", async () => {
-    await saveConfig({
+    await saveTestingConfig({
       username: null,
       organizationUrl: null,
       installDir: tempDir,
@@ -633,7 +641,7 @@ describe("defaultAgents config", () => {
   });
 
   it("should not write defaultAgent (singular) to disk", async () => {
-    await saveConfig({
+    await saveTestingConfig({
       username: null,
       organizationUrl: null,
       installDir: tempDir,
@@ -696,6 +704,100 @@ describe("getDefaultAgents", () => {
     const result = getDefaultAgents({ config });
 
     expect(result).toEqual(["claude-code"]);
+  });
+
+  describe("global agent override", () => {
+    afterEach(() => {
+      resetGlobalAgentOverride();
+    });
+
+    it("should use global override when no explicit agentOverride is passed", () => {
+      const config: Config = {
+        installDir: "/test",
+        defaultAgents: ["claude-code", "codex"],
+      };
+
+      setGlobalAgentOverride("codex");
+      const result = getDefaultAgents({ config });
+
+      expect(result).toEqual(["codex"]);
+    });
+
+    it("should prefer explicit agentOverride over global override", () => {
+      const config: Config = {
+        installDir: "/test",
+        defaultAgents: ["claude-code"],
+      };
+
+      setGlobalAgentOverride("codex");
+      const result = getDefaultAgents({
+        config,
+        agentOverride: "cursor-agent",
+      });
+
+      expect(result).toEqual(["cursor-agent"]);
+    });
+
+    it("should fall back to config.defaultAgents when global override is null", () => {
+      const config: Config = {
+        installDir: "/test",
+        defaultAgents: ["claude-code", "codex"],
+      };
+
+      setGlobalAgentOverride(null);
+      const result = getDefaultAgents({ config });
+
+      expect(result).toEqual(["claude-code", "codex"]);
+    });
+
+    it("should reset to baseline behavior after resetGlobalAgentOverride", () => {
+      const config: Config = {
+        installDir: "/test",
+        defaultAgents: ["claude-code", "codex"],
+      };
+
+      setGlobalAgentOverride("cursor-agent");
+      resetGlobalAgentOverride();
+      const result = getDefaultAgents({ config });
+
+      expect(result).toEqual(["claude-code", "codex"]);
+    });
+
+    it("should suppress global override when agentOverride is explicitly null", () => {
+      const config: Config = {
+        installDir: "/test",
+        defaultAgents: ["claude-code", "cursor-agent"],
+      };
+
+      setGlobalAgentOverride("codex");
+      const result = getDefaultAgents({ config, agentOverride: null });
+
+      expect(result).toEqual(["claude-code", "cursor-agent"]);
+    });
+
+    it("should suppress global override when agentOverride is empty string", () => {
+      const config: Config = {
+        installDir: "/test",
+        defaultAgents: ["claude-code", "codex"],
+      };
+
+      setGlobalAgentOverride("cursor-agent");
+      const result = getDefaultAgents({ config, agentOverride: "" });
+
+      expect(result).toEqual(["claude-code", "codex"]);
+    });
+
+    it("should fall back to config when global override is empty string", () => {
+      const config: Config = {
+        installDir: "/test",
+        defaultAgents: ["claude-code", "codex"],
+      };
+
+      setGlobalAgentOverride("");
+      const result = getDefaultAgents({ config });
+
+      expect(result).toEqual(["claude-code", "codex"]);
+    });
   });
 });
 
@@ -804,9 +906,9 @@ describe("activeSkillset config", () => {
     vi.clearAllMocks();
   });
 
-  describe("saveConfig and loadConfig with activeSkillset", () => {
+  describe("saveTestingConfig and loadConfig with activeSkillset", () => {
     it("should save and load activeSkillset", async () => {
-      await saveConfig({
+      await saveTestingConfig({
         username: null,
         organizationUrl: null,
         activeSkillset: "senior-swe",
@@ -819,7 +921,7 @@ describe("activeSkillset config", () => {
     });
 
     it("should save activeSkillset with auth", async () => {
-      await saveConfig({
+      await saveTestingConfig({
         username: "test@example.com",
         refreshToken: "token-123",
         organizationUrl: "https://example.com",
@@ -834,7 +936,7 @@ describe("activeSkillset config", () => {
     });
 
     it("should return null activeSkillset when not set", async () => {
-      await saveConfig({
+      await saveTestingConfig({
         username: null,
         organizationUrl: null,
         installDir: tempDir,
@@ -896,7 +998,7 @@ describe("updateConfig", () => {
 
   it("should preserve all existing fields when updating only activeSkillset", async () => {
     // Set up a fully-populated config
-    await saveConfig({
+    await saveTestingConfig({
       username: "test@example.com",
       refreshToken: "token-123",
       organizationUrl: "https://example.com",
@@ -954,7 +1056,7 @@ describe("updateConfig", () => {
   });
 
   it("should clear a field when explicitly set to null", async () => {
-    await saveConfig({
+    await saveTestingConfig({
       username: null,
       organizationUrl: null,
       activeSkillset: "senior-swe",
@@ -981,7 +1083,7 @@ describe("updateConfig", () => {
 
   it("should clear auth when auth is explicitly set to null", async () => {
     // Set up config with auth
-    await saveConfig({
+    await saveTestingConfig({
       username: "test@example.com",
       refreshToken: "token-123",
       organizationUrl: "https://example.com",
@@ -1001,7 +1103,7 @@ describe("updateConfig", () => {
   });
 
   it("should replace auth entirely when new auth is provided", async () => {
-    await saveConfig({
+    await saveTestingConfig({
       username: "old@example.com",
       refreshToken: "old-token",
       organizationUrl: "https://old.example.com",
@@ -1026,6 +1128,34 @@ describe("updateConfig", () => {
     expect(loaded?.auth?.organizationUrl).toBe("https://new.example.com");
     expect(loaded?.auth?.organizations).toEqual(["new-org"]);
     expect(loaded?.auth?.isAdmin).toBe(true);
+  });
+
+  it("should preserve broker-managed idToken when updating other auth fields", async () => {
+    const expiresAt = Date.now() + 60_000;
+
+    await updateConfig({
+      auth: {
+        username: "sprite-service:dev",
+        organizationUrl: "https://dev.noriskillsets.dev",
+        idToken: "session-id-token",
+        idTokenExpiresAt: expiresAt,
+      },
+      activeSkillset: "senior-swe",
+      installDir: tempDir,
+    });
+
+    await updateConfig({
+      auth: {
+        username: "sprite-service:dev",
+        organizationUrl: "https://dev.noriskillsets.dev",
+      },
+      activeSkillset: "high-autonomy",
+    });
+
+    const loaded = await loadConfig();
+    expect(loaded?.auth?.idToken).toBe("session-id-token");
+    expect(loaded?.auth?.idTokenExpiresAt).toBe(expiresAt);
+    expect(loaded?.activeSkillset).toBe("high-autonomy");
   });
 });
 
@@ -1053,7 +1183,7 @@ describe("API token auth", () => {
   const TOKEN_ACME_E = `nori_acme_${"e".repeat(64)}`;
   const TOKEN_ACME_F = `nori_acme_${"f".repeat(64)}`;
 
-  describe("saveConfig and loadConfig with apiToken", () => {
+  describe("saveTestingConfig and loadConfig with apiToken", () => {
     it("should round-trip apiToken via updateConfig/loadConfig", async () => {
       await updateConfig({
         auth: {
@@ -1122,6 +1252,80 @@ describe("API token auth", () => {
       const loaded = await loadConfig();
       expect(loaded?.auth?.apiToken).toBe(TOKEN_ACME_C);
       expect(loaded?.activeSkillset).toBe("senior-swe");
+    });
+  });
+
+  describe("loadConfig with idToken", () => {
+    it("should preserve broker-managed idToken credentials from disk", async () => {
+      const expiresAt = Date.now() + 60_000;
+
+      await fs.writeFile(
+        mockConfigPath,
+        JSON.stringify({
+          auth: {
+            username: "sprite-service:dev",
+            organizationUrl: "https://dev.noriskillsets.dev",
+            idToken: "session-id-token",
+            idTokenExpiresAt: expiresAt,
+            organizations: ["dev"],
+          },
+        }),
+      );
+
+      const loaded = await loadConfig();
+
+      expect(loaded).not.toBeNull();
+      expect(loaded?.auth).toEqual({
+        username: "sprite-service:dev",
+        organizationUrl: "https://dev.noriskillsets.dev",
+        refreshToken: null,
+        idToken: "session-id-token",
+        idTokenExpiresAt: expiresAt,
+        password: null,
+        organizations: ["dev"],
+        isAdmin: null,
+        apiToken: null,
+      });
+    });
+
+    it("should return idToken auth for matching registry URLs", async () => {
+      const { getRegistryAuth } = await import("./config.js");
+      const expiresAt = Date.now() + 60_000;
+      const config: Config = {
+        installDir: "/test",
+        auth: {
+          username: "sprite-service:dev",
+          organizationUrl: "https://dev.noriskillsets.dev",
+          idToken: "session-id-token",
+          idTokenExpiresAt: expiresAt,
+        },
+      };
+
+      const auth = getRegistryAuth({
+        config,
+        registryUrl: "https://dev.noriskillsets.dev",
+      });
+
+      expect(auth).not.toBeNull();
+      expect(auth?.idToken).toBe("session-id-token");
+      expect(auth?.idTokenExpiresAt).toBe(expiresAt);
+    });
+
+    it("should accept config with idToken + organizationUrl", async () => {
+      await fs.writeFile(
+        mockConfigPath,
+        JSON.stringify({
+          auth: {
+            organizationUrl: "https://dev.noriskillsets.dev",
+            idToken: "session-id-token",
+            idTokenExpiresAt: Date.now() + 60_000,
+          },
+        }),
+      );
+
+      const result = await validateConfig();
+
+      expect(result.valid).toBe(true);
     });
   });
 

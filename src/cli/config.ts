@@ -23,6 +23,8 @@ export type RegistryAuth = {
   username: string | null;
   registryUrl: string;
   refreshToken?: string | null;
+  idToken?: string | null;
+  idTokenExpiresAt?: number | null;
   apiToken?: string | null;
 };
 
@@ -36,6 +38,9 @@ export type AuthCredentials = {
   organizationUrl: string;
   // Token-based auth (preferred for user accounts)
   refreshToken?: string | null;
+  // Short-lived Firebase ID token for broker-managed session machines.
+  idToken?: string | null;
+  idTokenExpiresAt?: number | null;
   // Legacy password-based auth (deprecated, will be removed)
   password?: string | null;
   // API token for non-interactive / programmatic access. Format: nori_<orgId>_<64hex>.
@@ -65,6 +70,55 @@ export type Config = {
   garbageCollectTranscripts?: "enabled" | "disabled" | null;
   /** Whether to prompt to re-download skillsets from registry on switch */
   redownloadOnSwitch?: "enabled" | "disabled" | null;
+  /** Whether Claude Code skillset apply configures the Nori status line */
+  claudeCodeStatusLine?: "enabled" | "disabled" | null;
+};
+
+export const hasUnexpiredRegistryIdToken = (args: {
+  auth?: AuthCredentials | null;
+  now?: number | null;
+}): boolean => {
+  const { auth, now = Date.now() } = args;
+  const effectiveNow = now ?? Date.now();
+
+  return (
+    auth?.idToken != null &&
+    auth.idToken !== "" &&
+    typeof auth.idTokenExpiresAt === "number" &&
+    effectiveNow < auth.idTokenExpiresAt
+  );
+};
+
+export const hasRegistryAuthCredentials = (args: {
+  auth?: AuthCredentials | null;
+  now?: number | null;
+}): boolean => {
+  const { auth, now } = args;
+
+  return (
+    auth != null &&
+    (auth.refreshToken != null ||
+      auth.apiToken != null ||
+      hasUnexpiredRegistryIdToken({ auth, now }))
+  );
+};
+
+export const toRegistryAuth = (args: {
+  auth: AuthCredentials;
+  registryUrl: string;
+}): RegistryAuth => {
+  const { auth, registryUrl } = args;
+
+  return {
+    registryUrl,
+    username: auth.username ?? null,
+    refreshToken: auth.refreshToken ?? null,
+    ...(auth.idToken != null ? { idToken: auth.idToken } : {}),
+    ...(auth.idTokenExpiresAt != null
+      ? { idTokenExpiresAt: auth.idTokenExpiresAt }
+      : {}),
+    apiToken: auth.apiToken ?? null,
+  };
 };
 
 /**
@@ -83,6 +137,8 @@ type RawDiskConfig = {
     username?: string | null;
     password?: string | null;
     refreshToken?: string | null;
+    idToken?: string | null;
+    idTokenExpiresAt?: number | null;
     organizationUrl?: string | null;
     organizations?: Array<string> | null;
     isAdmin?: boolean | null;
@@ -101,6 +157,8 @@ type RawDiskConfig = {
   garbageCollectTranscripts?: "enabled" | "disabled" | null;
   // Prompt to re-download from registry on switch
   redownloadOnSwitch?: "enabled" | "disabled" | null;
+  // Configure Claude Code status line during apply
+  claudeCodeStatusLine?: "enabled" | "disabled" | null;
 };
 
 /**
@@ -165,23 +223,25 @@ export const getRegistryAuth = (args: {
       if (
         normalizeUrl({ baseUrl: derivedRegistryUrl }) === normalizedSearchUrl
       ) {
-        return {
+        return toRegistryAuth({
+          auth: {
+            ...config.auth,
+            apiToken: apiTokenMatch ? (config.auth.apiToken ?? null) : null,
+          },
           registryUrl: derivedRegistryUrl,
-          username: config.auth.username ?? null,
-          refreshToken: config.auth.refreshToken ?? null,
-          apiToken: apiTokenMatch ? (config.auth.apiToken ?? null) : null,
-        };
+        });
       }
 
       // Also check the noriskillsets.dev subdomain pattern for org registrars
       const orgRegistrarUrl = `https://${orgId}.noriskillsets.dev`;
       if (normalizeUrl({ baseUrl: orgRegistrarUrl }) === normalizedSearchUrl) {
-        return {
+        return toRegistryAuth({
+          auth: {
+            ...config.auth,
+            apiToken: apiTokenMatch ? (config.auth.apiToken ?? null) : null,
+          },
           registryUrl: orgRegistrarUrl,
-          username: config.auth.username ?? null,
-          refreshToken: config.auth.refreshToken ?? null,
-          apiToken: apiTokenMatch ? (config.auth.apiToken ?? null) : null,
-        };
+        });
       }
     }
 
@@ -190,11 +250,10 @@ export const getRegistryAuth = (args: {
     const authOrgId = extractOrgId({ url: config.auth.organizationUrl });
     if (authOrgId == null) {
       // Auth URL is local dev (e.g., localhost) - use these credentials
-      return {
+      return toRegistryAuth({
+        auth: config.auth,
         registryUrl: normalizedSearchUrl,
-        username: config.auth.username ?? null,
-        refreshToken: config.auth.refreshToken ?? null,
-      };
+      });
     }
   }
 
@@ -213,13 +272,27 @@ export const getActiveSkillset = (args: { config: Config }): string | null => {
   return config.activeSkillset ?? null;
 };
 
+let _globalAgentOverride: string | null = null;
+
+export const setGlobalAgentOverride = (agent: string | null): void => {
+  _globalAgentOverride = agent;
+};
+
+export const resetGlobalAgentOverride = (): void => {
+  _globalAgentOverride = null;
+};
+
 /**
  * Get all default agent names for CLI operations
- * Resolution order: agentOverride as single-element array > config.defaultAgents > ["claude-code"]
+ * Resolution order: explicit agentOverride > global agent override > config.defaultAgents > ["claude-code"]
+ *
+ * The global agent override is set once by the CLI preAction hook from the --agent flag,
+ * so individual commands do not need to thread it through manually.
  *
  * @param args - Configuration arguments
  * @param args.config - The config to read defaultAgents from
- * @param args.agentOverride - Explicit agent name override (e.g., from --agent CLI flag)
+ * @param args.agentOverride - Explicit agent name override: a string takes precedence over global,
+ *   null suppresses the global override entirely, undefined falls through to global
  *
  * @returns Array of resolved agent names
  */
@@ -228,9 +301,11 @@ export const getDefaultAgents = (args: {
   agentOverride?: string | null;
 }): Array<string> => {
   const { config, agentOverride } = args;
+  const effectiveOverride =
+    agentOverride !== undefined ? agentOverride : _globalAgentOverride;
 
-  if (agentOverride != null && agentOverride !== "") {
-    return [agentOverride];
+  if (effectiveOverride != null && effectiveOverride !== "") {
+    return [effectiveOverride];
   }
 
   if (config?.defaultAgents != null && config.defaultAgents.length > 0) {
@@ -291,19 +366,28 @@ export const loadConfig = async (): Promise<Config | null> => {
       transcriptDestination: validated.transcriptDestination,
       garbageCollectTranscripts: validated.garbageCollectTranscripts,
       redownloadOnSwitch: validated.redownloadOnSwitch,
+      claudeCodeStatusLine: validated.claudeCodeStatusLine,
     };
 
     // Build auth - handle both nested format (v19+) and flat format (legacy)
     if (
       validated.auth != null &&
       validated.auth.organizationUrl != null &&
-      (validated.auth.username != null || validated.auth.apiToken != null)
+      (validated.auth.username != null ||
+        validated.auth.idToken != null ||
+        validated.auth.apiToken != null)
     ) {
-      // New nested format: auth: { username, organizationUrl, refreshToken, password, organizations, isAdmin, apiToken }
+      // New nested format: auth: { username, organizationUrl, refreshToken, idToken, password, organizations, isAdmin, apiToken }
       result.auth = {
         username: validated.auth.username ?? null,
         organizationUrl: validated.auth.organizationUrl,
         refreshToken: validated.auth.refreshToken ?? null,
+        ...(validated.auth.idToken != null
+          ? { idToken: validated.auth.idToken }
+          : {}),
+        ...(validated.auth.idTokenExpiresAt != null
+          ? { idTokenExpiresAt: validated.auth.idTokenExpiresAt }
+          : {}),
         password: validated.auth.password ?? null,
         organizations: validated.auth.organizations ?? null,
         isAdmin: validated.auth.isAdmin ?? null,
@@ -348,6 +432,8 @@ export const loadConfig = async (): Promise<Config | null> => {
  * @param args.username - User's username (null to skip auth)
  * @param args.password - User's password (deprecated, use refreshToken instead)
  * @param args.refreshToken - Firebase refresh token (preferred over password)
+ * @param args.idToken - Short-lived Firebase ID token for broker-managed sessions
+ * @param args.idTokenExpiresAt - Expiration timestamp for idToken in milliseconds
  * @param args.organizationUrl - Organization URL (null to skip auth)
  * @param args.sendSessionTranscript - Session transcript setting (null to skip)
  * @param args.autoupdate - Autoupdate setting (null to skip)
@@ -359,12 +445,15 @@ export const loadConfig = async (): Promise<Config | null> => {
  * @param args.defaultAgents - Default agent names for CLI operations (null to skip)
  * @param args.garbageCollectTranscripts - Whether to delete transcripts after upload (null to skip)
  * @param args.redownloadOnSwitch - Whether to prompt to re-download from registry on switch (null to skip)
+ * @param args.claudeCodeStatusLine - Whether to configure Claude Code status line during apply (null to skip)
  * @param args.apiToken - Raw API token (format `nori_<orgId>_<64hex>`) for non-interactive private-org auth (null to skip)
  */
-export const saveConfig = async (args: {
+const writeConfigFile = async (args: {
   username: string | null;
   password?: string | null;
   refreshToken?: string | null;
+  idToken?: string | null;
+  idTokenExpiresAt?: number | null;
   apiToken?: string | null;
   organizationUrl: string | null;
   organizations?: Array<string> | null;
@@ -376,12 +465,15 @@ export const saveConfig = async (args: {
   transcriptDestination?: string | null;
   garbageCollectTranscripts?: "enabled" | "disabled" | null;
   redownloadOnSwitch?: "enabled" | "disabled" | null;
+  claudeCodeStatusLine?: "enabled" | "disabled" | null;
   installDir: string;
 }): Promise<void> => {
   const {
     username,
     password,
     refreshToken,
+    idToken,
+    idTokenExpiresAt,
     apiToken,
     organizationUrl,
     organizations,
@@ -393,6 +485,7 @@ export const saveConfig = async (args: {
     transcriptDestination,
     garbageCollectTranscripts,
     redownloadOnSwitch,
+    claudeCodeStatusLine,
     installDir,
   } = args;
   const configPath = getConfigPath();
@@ -400,11 +493,12 @@ export const saveConfig = async (args: {
   const config: any = {};
 
   // Add auth credentials in nested format if provided.
-  // Supports three modes: username+refreshToken (preferred), username+password (legacy),
-  // and apiToken (non-interactive / CI access).
+  // Supports four modes: username+refreshToken (preferred), username+password (legacy),
+  // broker-managed idToken, and apiToken (non-interactive / CI access).
   const hasUsernameAuth = username != null && organizationUrl != null;
+  const hasIdTokenAuth = idToken != null && organizationUrl != null;
   const hasApiTokenAuth = apiToken != null && organizationUrl != null;
-  if (hasUsernameAuth || hasApiTokenAuth) {
+  if (hasUsernameAuth || hasIdTokenAuth || hasApiTokenAuth) {
     // Normalize organization URL to remove trailing slashes
     const normalizedUrl = normalizeUrl({ baseUrl: organizationUrl! });
 
@@ -413,6 +507,9 @@ export const saveConfig = async (args: {
       organizationUrl: normalizedUrl,
       // If refreshToken is provided, use it and don't store password
       refreshToken: refreshToken ?? null,
+      // Broker-managed sessions may receive a short-lived Firebase ID token.
+      idToken: idToken ?? null,
+      idTokenExpiresAt: idTokenExpiresAt ?? null,
       // Only save password if no refreshToken (legacy support)
       password: refreshToken != null ? null : (password ?? null),
       // API token for private-org programmatic access (orgId is embedded in the token itself)
@@ -459,6 +556,11 @@ export const saveConfig = async (args: {
     config.redownloadOnSwitch = redownloadOnSwitch;
   }
 
+  // Add claudeCodeStatusLine if provided
+  if (claudeCodeStatusLine != null) {
+    config.claudeCodeStatusLine = claudeCodeStatusLine;
+  }
+
   // Always save installDir
   config.installDir = installDir;
 
@@ -476,14 +578,22 @@ export const saveConfig = async (args: {
 export const updateConfig = async (updates: Partial<Config>): Promise<void> => {
   const existing = await loadConfig();
 
-  // Determine auth: if 'auth' key is present in updates, use the provided value;
-  // otherwise preserve existing auth.
-  const auth = "auth" in updates ? updates.auth : existing?.auth;
+  // Determine auth: if omitted, preserve existing auth; if null, clear auth;
+  // otherwise merge updates into existing auth for the same organization.
+  const auth =
+    "auth" in updates
+      ? mergeAuthCredentials({
+          existingAuth: existing?.auth ?? null,
+          authUpdates: updates.auth,
+        })
+      : existing?.auth;
 
-  await saveConfig({
+  await writeConfigFile({
     username: auth?.username ?? null,
     password: auth?.password ?? null,
     refreshToken: auth?.refreshToken ?? null,
+    idToken: auth?.idToken ?? null,
+    idTokenExpiresAt: auth?.idTokenExpiresAt ?? null,
     apiToken: auth?.apiToken ?? null,
     organizationUrl: auth?.organizationUrl ?? null,
     organizations: auth?.organizations ?? null,
@@ -516,11 +626,45 @@ export const updateConfig = async (updates: Partial<Config>): Promise<void> => {
       "redownloadOnSwitch" in updates
         ? (updates.redownloadOnSwitch ?? null)
         : (existing?.redownloadOnSwitch ?? null),
+    claudeCodeStatusLine:
+      "claudeCodeStatusLine" in updates
+        ? (updates.claudeCodeStatusLine ?? null)
+        : (existing?.claudeCodeStatusLine ?? null),
     installDir:
       "installDir" in updates
         ? updates.installDir!
         : (existing?.installDir ?? getHomeDir()),
   });
+};
+
+const mergeAuthCredentials = (args: {
+  existingAuth: AuthCredentials | null;
+  authUpdates: Config["auth"] | undefined;
+}): AuthCredentials | null | undefined => {
+  const { existingAuth, authUpdates } = args;
+
+  if (authUpdates == null) {
+    return authUpdates;
+  }
+
+  if (existingAuth == null) {
+    return authUpdates;
+  }
+
+  const existingUrl = normalizeUrl({ baseUrl: existingAuth.organizationUrl });
+  const updateUrl =
+    authUpdates.organizationUrl != null
+      ? normalizeUrl({ baseUrl: authUpdates.organizationUrl })
+      : null;
+
+  if (updateUrl != null && updateUrl !== existingUrl) {
+    return authUpdates;
+  }
+
+  return {
+    ...existingAuth,
+    ...authUpdates,
+  };
 };
 
 /**
@@ -543,6 +687,8 @@ const configSchema = {
         username: { type: ["string", "null"] },
         password: { type: ["string", "null"] },
         refreshToken: { type: ["string", "null"] },
+        idToken: { type: ["string", "null"] },
+        idTokenExpiresAt: { type: ["number", "null"] },
         organizationUrl: { type: "string", format: "uri" },
         organizations: {
           type: ["array", "null"],
@@ -581,6 +727,11 @@ const configSchema = {
       enum: ["enabled", "disabled"],
     },
     redownloadOnSwitch: {
+      type: "string",
+      enum: ["enabled", "disabled"],
+      default: "enabled",
+    },
+    claudeCodeStatusLine: {
       type: "string",
       enum: ["enabled", "disabled"],
       default: "enabled",
@@ -648,16 +799,20 @@ export const validateConfig = async (): Promise<ConfigValidationResult> => {
     };
   }
 
-  // If config uses the new nested auth format with apiToken + organizationUrl,
-  // that's a valid API-token-only config — validate via schema only.
+  // If config uses a token-only nested auth format, validate via schema only.
   const nestedAuth = config.auth;
   const hasNestedApiToken =
     nestedAuth != null &&
     typeof nestedAuth === "object" &&
     nestedAuth.apiToken != null &&
     nestedAuth.organizationUrl != null;
+  const hasNestedIdToken =
+    nestedAuth != null &&
+    typeof nestedAuth === "object" &&
+    nestedAuth.idToken != null &&
+    nestedAuth.organizationUrl != null;
 
-  if (hasNestedApiToken) {
+  if (hasNestedApiToken || hasNestedIdToken) {
     const configClone = JSON.parse(JSON.stringify(config));
     const valid = validateConfigSchema(configClone);
     if (!valid && validateConfigSchema.errors) {
@@ -674,7 +829,9 @@ export const validateConfig = async (): Promise<ConfigValidationResult> => {
     }
     return {
       valid: true,
-      message: "Config is valid (API-token auth)",
+      message: hasNestedApiToken
+        ? "Config is valid (API-token auth)"
+        : "Config is valid (ID-token auth)",
       errors: null,
     };
   }

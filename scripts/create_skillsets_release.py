@@ -147,8 +147,8 @@ def main(argv: list[str]) -> int:
         if args.dry_run:
             print("\n[DRY RUN] Would perform the following:")
             print(f"  1. Create annotated tag {tag_name}")
-            print(f"  2. Push tag to origin")
-            print(f"  3. Trigger skillsets-release workflow")
+            print("  2. Push tag to origin")
+            print("  3. Trigger skillsets-release workflow")
             return 0
 
         print("\nCreating and pushing tag...")
@@ -167,7 +167,7 @@ def main(argv: list[str]) -> int:
             print("  3. Publish to npm with @latest tag")
             print("  4. Create GitHub Release")
         print("")
-        print(f"Monitor progress at:")
+        print("Monitor progress at:")
         print(f"  https://github.com/{REPO}/actions")
         print("=" * 60)
 
@@ -285,26 +285,29 @@ def determine_version(args: argparse.Namespace) -> str:
 
 
 def list_tags() -> list[str]:
-    """List all tags matching TAG_PREFIX, returning version strings."""
+    """List all tags matching TAG_PREFIX, returning version strings.
+
+    Uses `git ls-remote` rather than the REST API: it returns every matching
+    tag in a single git-protocol round trip with no pagination, no ref-count
+    cap, and no REST rate-limiting exposure. (The git/refs/tags REST endpoint
+    ignores per_page/page and silently truncates at 1000 refs, so it cannot be
+    paginated correctly.)
+    """
+    result = run_git(
+        ["ls-remote", "--tags", "origin", f"refs/tags/{TAG_PREFIX}*"], check=False
+    )
+    if result.returncode != 0:
+        return []
+
+    prefix = f"refs/tags/{TAG_PREFIX}"
     tags: list[str] = []
-    page = 1
-    while True:
-        try:
-            response = run_gh_api(
-                f"/repos/{REPO}/git/refs/tags?per_page=100&page={page}"
-            )
-            if not isinstance(response, list) or not response:
-                break
-            for ref in response:
-                ref_name = ref.get("ref", "")
-                if ref_name.startswith(f"refs/tags/{TAG_PREFIX}"):
-                    version = ref_name[len(f"refs/tags/{TAG_PREFIX}") :]
-                    tags.append(version)
-            if len(response) < 100:
-                break
-            page += 1
-        except ReleaseError:
-            break
+    for line in result.stdout.splitlines():
+        # Each line is "<sha>\t<ref>". Annotated tags also emit a peeled
+        # "<ref>^{}" line, which we skip to avoid duplicates.
+        _, _, ref = line.partition("\t")
+        if not ref.startswith(prefix) or ref.endswith("^{}"):
+            continue
+        tags.append(ref[len(prefix) :])
     return tags
 
 

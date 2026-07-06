@@ -53,11 +53,11 @@ vi.mock("@/api/registrar.js", () => ({
 vi.mock("@/cli/config.js", async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
   return {
+    ...actual,
     loadConfig: vi.fn(),
     getRegistryAuth: vi.fn(),
     getActiveSkillset: (args: { config: { activeSkillset?: string | null } }) =>
       args.config.activeSkillset ?? null,
-    getDefaultAgents: actual.getDefaultAgents,
   };
 });
 
@@ -2005,6 +2005,48 @@ describe("namespaced package support", () => {
         version: undefined,
         registryUrl: orgRegistryUrl,
         authToken: "api-token-auth",
+      });
+    });
+
+    it("should download namespaced skill when authenticated via broker-managed idToken only", async () => {
+      const orgRegistryUrl = "https://myorg.noriskillsets.dev";
+
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        auth: {
+          username: "sprite-service:dev",
+          organizationUrl: orgRegistryUrl,
+          refreshToken: null,
+          idToken: "session-id-token",
+          idTokenExpiresAt: Date.now() + 60_000,
+          apiToken: null,
+          organizations: ["myorg"],
+        },
+      });
+
+      vi.mocked(getRegistryAuthToken).mockResolvedValue("id-token-auth");
+
+      vi.mocked(registrarApi.getSkillPackument).mockResolvedValue({
+        name: "my-skill",
+        "dist-tags": { latest: "1.0.0" },
+        versions: { "1.0.0": { name: "my-skill", version: "1.0.0" } },
+      });
+
+      const mockTarball = await createMockSkillTarball();
+      vi.mocked(registrarApi.downloadSkillTarball).mockResolvedValue(
+        mockTarball,
+      );
+
+      await skillDownloadMain({
+        skillSpec: "myorg/my-skill",
+        cwd: testDir,
+      });
+
+      expect(registrarApi.downloadSkillTarball).toHaveBeenCalledWith({
+        skillName: "my-skill",
+        version: undefined,
+        registryUrl: orgRegistryUrl,
+        authToken: "id-token-auth",
       });
     });
 

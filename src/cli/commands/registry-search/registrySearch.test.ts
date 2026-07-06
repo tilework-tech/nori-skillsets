@@ -51,8 +51,10 @@ vi.mock("@/api/registryAuth.js", () => ({
 }));
 
 // Mock the config module
-vi.mock("@/cli/config.js", async () => {
+vi.mock("@/cli/config.js", async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
   return {
+    ...actual,
     loadConfig: vi.fn(),
   };
 });
@@ -620,6 +622,53 @@ describe("registry-search", () => {
           query: "profile",
           registryUrl: "https://myorg.noriskillsets.dev",
           authToken: "api-token-auth",
+        }),
+      );
+
+      const output = getSearchOutput();
+      expect(output).toContain("myorg:");
+      expect(output).toContain("myorg/org-profile");
+    });
+
+    it("should search org registry when authenticated via broker-managed idToken only", async () => {
+      const mockOrgPackages = [
+        {
+          id: "1",
+          name: "org-profile",
+          description: "An org profile",
+          authorEmail: "org@example.com",
+          createdAt: "2024-01-01",
+          updatedAt: "2024-01-01",
+        },
+      ];
+      vi.mocked(registrarApi.searchPackagesOnRegistry).mockResolvedValue(
+        mockOrgPackages,
+      );
+      vi.mocked(registrarApi.searchPackages).mockResolvedValue([]);
+
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        activeSkillset: "senior-swe",
+        auth: {
+          username: "sprite-service:dev",
+          organizationUrl: "https://myorg.noriskillsets.dev",
+          refreshToken: null,
+          idToken: "session-id-token",
+          idTokenExpiresAt: Date.now() + 60_000,
+          apiToken: null,
+          organizations: ["myorg"],
+        },
+      });
+
+      vi.mocked(getRegistryAuthToken).mockResolvedValue("id-token-auth");
+
+      await registrySearchMain({ query: "profile", installDir: testDir });
+
+      expect(registrarApi.searchPackagesOnRegistry).toHaveBeenCalledWith(
+        expect.objectContaining({
+          query: "profile",
+          registryUrl: "https://myorg.noriskillsets.dev",
+          authToken: "id-token-auth",
         }),
       );
 

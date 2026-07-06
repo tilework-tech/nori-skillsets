@@ -16,7 +16,11 @@ import {
   getCommandNames,
   type CliName,
 } from "@/cli/commands/cliCommandNames.js";
-import { loadConfig } from "@/cli/config.js";
+import {
+  hasRegistryAuthCredentials,
+  loadConfig,
+  toRegistryAuth,
+} from "@/cli/config.js";
 import { registrySearchFlow } from "@/cli/prompts/flows/index.js";
 import {
   extractOrgId,
@@ -466,7 +470,7 @@ const performSearch = async (args: {
   // Check for unified auth with organizations (new multi-org flow)
   const hasUnifiedAuthWithOrgs =
     config?.auth != null &&
-    (config.auth.refreshToken != null || config.auth.apiToken != null) &&
+    hasRegistryAuthCredentials({ auth: config.auth }) &&
     config.auth.organizations != null;
 
   if (hasUnifiedAuthWithOrgs) {
@@ -479,12 +483,10 @@ const performSearch = async (args: {
       }
 
       const registryUrl = buildOrganizationRegistryUrl({ orgId });
-      const registryAuth: RegistryAuth = {
+      const registryAuth = toRegistryAuth({
+        auth: config.auth!,
         registryUrl,
-        username: config.auth!.username ?? null,
-        refreshToken: config.auth!.refreshToken ?? null,
-        apiToken: config.auth!.apiToken ?? null,
-      };
+      });
 
       const orgSearchPromise = (async (): Promise<RegistrySearchResult> => {
         const [profileResult, skillResult, subagentResult] = await Promise.all([
@@ -503,17 +505,15 @@ const performSearch = async (args: {
   } else if (
     config?.auth != null &&
     config.auth.organizationUrl != null &&
-    (config.auth.refreshToken != null || config.auth.apiToken != null)
+    hasRegistryAuthCredentials({ auth: config.auth })
   ) {
     const orgId = extractOrgId({ url: config.auth.organizationUrl });
     if (orgId != null) {
       const registryUrl = buildRegistryUrl({ orgId });
-      const registryAuth: RegistryAuth = {
+      const registryAuth = toRegistryAuth({
+        auth: config.auth,
         registryUrl,
-        username: config.auth.username ?? null,
-        refreshToken: config.auth.refreshToken ?? null,
-        apiToken: config.auth.apiToken ?? null,
-      };
+      });
 
       const [profileResult, skillResult, subagentResult] = await Promise.all([
         searchOrgRegistryProfiles({ query, registryUrl, registryAuth }),
