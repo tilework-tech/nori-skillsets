@@ -125,7 +125,7 @@ export const skillUploadFlow = async (args: {
 
   if (nonInteractive) {
     log.error(
-      `"${skillDisplayName}" has uncommitted local changes vs. registry version ${existing.latestVersion}. Pass --version to upload non-interactively.`,
+      `"${skillDisplayName}" has uncommitted local changes vs. registry version ${existing.latestVersion}. Re-run with an explicit version (e.g. ${skillDisplayName}@<version>) to upload non-interactively.`,
     );
     return null;
   }

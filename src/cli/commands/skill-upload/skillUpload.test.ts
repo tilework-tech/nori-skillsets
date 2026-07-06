@@ -300,6 +300,37 @@ describe("skill-upload", () => {
       expect(result.message).toContain("1.0.0");
     });
 
+    it("publishes the version supplied via the skill@version spec", async () => {
+      await createLocalSkill({
+        skillsetName: "my-profile",
+        skillName: "my-skill",
+      });
+
+      vi.mocked(loadConfig).mockResolvedValue(
+        authenticatedConfig("my-profile") as never,
+      );
+
+      // Remote skill does not exist (404)
+      vi.mocked(registrarApi.getSkillPackument).mockRejectedValue(
+        Object.assign(new Error("Not found"), { statusCode: 404 }),
+      );
+
+      vi.mocked(registrarApi.uploadSkill).mockResolvedValue({
+        name: "my-skill",
+        version: "2.0.0",
+        tarballSha: "sha512-xyz",
+        createdAt: "2026-04-16T00:00:00.000Z",
+      } as never);
+
+      const result = await skillUploadMain({ skillSpec: "my-skill@2.0.0" });
+
+      expect(result.success).toBe(true);
+      expect(registrarApi.uploadSkill).toHaveBeenCalledTimes(1);
+      const uploadCall = vi.mocked(registrarApi.uploadSkill).mock.calls[0][0];
+      expect(uploadCall.skillName).toBe("my-skill");
+      expect(uploadCall.version).toBe("2.0.0");
+    });
+
     it("resolves skill from --skillset flag instead of active skillset", async () => {
       await createLocalSkill({
         skillsetName: "other-profile",

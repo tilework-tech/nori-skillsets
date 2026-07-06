@@ -602,7 +602,6 @@ export const registerNoriSkillsetsUploadSkillCommand = (args: {
     )
     .option("--registry <url>", "Upload to a specific registry URL")
     .option("--public", "Publish to the public registry (noriskillsets.dev)")
-    .option("--version <version>", "Explicit version to publish")
     .option("--description <text>", "Description for this version")
     .action(
       async (
@@ -611,7 +610,6 @@ export const registerNoriSkillsetsUploadSkillCommand = (args: {
           skillset?: string;
           registry?: string;
           public?: boolean;
-          version?: string;
           description?: string;
         },
       ) => {
@@ -629,7 +627,6 @@ export const registerNoriSkillsetsUploadSkillCommand = (args: {
               skillset: options.skillset || null,
               registryUrl: options.registry || null,
               publicRegistry: options.public || null,
-              version: options.version || null,
               description: options.description || null,
               cliName: "nori-skillsets",
               nonInteractive: globalOpts.nonInteractive || null,

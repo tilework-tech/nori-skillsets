@@ -1,6 +1,6 @@
 /**
  * CLI command for uploading a single skill package to the Nori registrar.
- * Handles: nori-skillsets upload-skill <skill> [--skillset <name>] [--registry <url>] [--version <ver>] [--description <text>]
+ * Handles: nori-skillsets upload-skill <skill>[@<version>] [--skillset <name>] [--registry <url>] [--description <text>]
  */
 
 import * as fs from "fs/promises";
