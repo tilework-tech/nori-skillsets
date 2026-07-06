@@ -533,6 +533,47 @@ describe("skill-download", () => {
       expect(stats.isDirectory()).toBe(true);
     });
 
+    it("should treat an explicit public/ prefix identically to a bare public skill", async () => {
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+      });
+
+      vi.mocked(registrarApi.getSkillPackument).mockResolvedValue({
+        name: "test-skill",
+        "dist-tags": { latest: "1.0.0" },
+        versions: { "1.0.0": { name: "test-skill", version: "1.0.0" } },
+      });
+
+      const mockTarball = await createMockSkillTarball();
+      vi.mocked(registrarApi.downloadSkillTarball).mockResolvedValue(
+        mockTarball,
+      );
+
+      await skillDownloadMain({
+        skillSpec: "public/test-skill",
+        cwd: testDir,
+      });
+
+      // Only the public REGISTRAR_URL is searched, with no auth token.
+      expect(registrarApi.getSkillPackument).toHaveBeenCalledTimes(1);
+      expect(registrarApi.getSkillPackument).toHaveBeenCalledWith({
+        skillName: "test-skill",
+        registryUrl: REGISTRAR_URL,
+      });
+
+      expect(registrarApi.downloadSkillTarball).toHaveBeenCalledWith({
+        skillName: "test-skill",
+        version: undefined,
+        registryUrl: REGISTRAR_URL,
+        authToken: undefined,
+      });
+
+      // Installed under the bare skill name, not skills/public/test-skill.
+      const skillDir = path.join(skillsDir, "test-skill");
+      expect((await fs.stat(skillDir)).isDirectory()).toBe(true);
+      await expect(fs.access(path.join(skillsDir, "public"))).rejects.toThrow();
+    });
+
     it("should error when namespaced skill downloaded without auth", async () => {
       // Mock config without unified auth (no auth.organizations)
       vi.mocked(loadConfig).mockResolvedValue({
@@ -1108,6 +1149,47 @@ describe("--skillset option and manifest updates", () => {
     const skillsJsonContent = await fs.readFile(skillsJsonPath, "utf-8");
     const skillsJson = JSON.parse(skillsJsonContent);
     expect(skillsJson["test-skill"]).toBe("*");
+  });
+
+  it("should resolve a redundant public/ prefixed --skillset to the flat skillset", async () => {
+    vi.mocked(loadConfig).mockResolvedValue({
+      installDir: testDir,
+
+      activeSkillset: "other-profile",
+    });
+
+    vi.mocked(registrarApi.getSkillPackument).mockResolvedValue({
+      name: "test-skill",
+      "dist-tags": { latest: "1.0.0" },
+      versions: { "1.0.0": { name: "test-skill", version: "1.0.0" } },
+    });
+
+    const mockTarball = await createMockSkillTarball();
+    vi.mocked(registrarApi.downloadSkillTarball).mockResolvedValue(mockTarball);
+
+    const result = await skillDownloadMain({
+      skillSpec: "test-skill",
+      cwd: testDir,
+      skillset: "public/test-profile",
+    });
+
+    expect(result.success).toBe(true);
+
+    // Verify skill was added to the flat (public) profile's skills.json,
+    // not a nonexistent profiles/public/test-profile directory.
+    const skillsJsonPath = path.join(
+      skillsetsDir,
+      "test-profile",
+      "skills.json",
+    );
+    const skillsJsonContent = await fs.readFile(skillsJsonPath, "utf-8");
+    const skillsJson = JSON.parse(skillsJsonContent);
+    expect(skillsJson["test-skill"]).toBe("*");
+
+    // The redundant public/ directory must not have been created.
+    await expect(
+      fs.access(path.join(skillsetsDir, "public", "test-profile")),
+    ).rejects.toThrow();
   });
 
   it("should add skill to active profile's skills.json when --skillset not specified", async () => {

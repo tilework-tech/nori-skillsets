@@ -288,3 +288,25 @@ export const namespacedName = (args: {
   const { orgId, packageName } = args;
   return orgId === "public" ? packageName : `${orgId}/${packageName}`;
 };
+
+/**
+ * Normalize a local skillset name to its on-disk form, tolerating a redundant
+ * `public/` prefix. Public skillsets are stored flat, so `public/foo` and `foo`
+ * both resolve to `foo`; org names (`myorg/foo`) are returned unchanged. A name
+ * that is not a valid package reference is returned as-is.
+ * @param args - Naming arguments
+ * @param args.name - The skillset name as provided (bare, `public/<name>`, or `<org>/<name>`)
+ *
+ * @returns The on-disk skillset name
+ */
+export const localSkillsetName = (args: { name: string }): string => {
+  const { name } = args;
+  const parsed = parseNamespacedPackage({ packageSpec: name });
+  if (parsed == null) {
+    return name;
+  }
+  return namespacedName({
+    orgId: parsed.orgId,
+    packageName: parsed.packageName,
+  });
+};

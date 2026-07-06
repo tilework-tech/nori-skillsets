@@ -38,6 +38,7 @@ import { resolveInstallDir } from "@/utils/path.js";
 import {
   parseNamespacedPackage,
   buildOrganizationRegistryUrl,
+  namespacedName,
 } from "@/utils/url.js";
 
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
@@ -606,7 +607,7 @@ const searchSpecificRegistry = async (args: {
 /**
  * Format the list of available versions for a package
  * @param args - The format parameters
- * @param args.packageName - The package name
+ * @param args.displayName - The namespaced display name (e.g. "myorg/my-profile")
  * @param args.packument - The packument containing version information
  * @param args.registryUrl - The registry URL
  * @param args.cliName - The CLI name for command hints
@@ -614,12 +615,12 @@ const searchSpecificRegistry = async (args: {
  * @returns Formatted version list message
  */
 const formatVersionList = (args: {
-  packageName: string;
+  displayName: string;
   packument: Packument;
   registryUrl: string;
   cliName?: CliName | null;
 }): string => {
-  const { packageName, packument, registryUrl, cliName } = args;
+  const { displayName, packument, registryUrl, cliName } = args;
   const commandNames = getCommandNames({ cliName });
   const distTags = packument["dist-tags"];
   const versions = Object.keys(packument.versions);
@@ -633,7 +634,7 @@ const formatVersionList = (args: {
   });
 
   const lines = [
-    `Available versions of "${packageName}" from ${registryUrl}:\n`,
+    `Available versions of "${displayName}" from ${registryUrl}:\n`,
     "Dist-tags:",
   ];
 
@@ -659,7 +660,7 @@ const formatVersionList = (args: {
 
   const cliPrefix = cliName ?? "nori-skillsets";
   lines.push(
-    `\nTo download a specific version:\n  ${cliPrefix} ${commandNames.download} ${packageName}@<version>`,
+    `\nTo download a specific version:\n  ${cliPrefix} ${commandNames.download} ${displayName}@<version>`,
   );
 
   return lines.join("\n");
@@ -752,8 +753,7 @@ export const registryDownloadMain = async (args: {
   }
   const { orgId, packageName, version } = parsed;
   // Display name includes org prefix for namespaced packages (e.g., "myorg/my-profile")
-  const profileDisplayName =
-    orgId === "public" ? packageName : `${orgId}/${packageName}`;
+  const profileDisplayName = namespacedName({ orgId, packageName });
 
   // Resolve install directory from config and auto-init if needed
   const config = await loadConfig();
@@ -786,10 +786,10 @@ export const registryDownloadMain = async (args: {
 
   const skillsetsDir = getNoriSkillsetsDir();
   // For namespaced packages, the skillset is in a nested directory (e.g., profiles/myorg/my-profile)
-  const targetDir =
-    orgId === "public"
-      ? path.join(skillsetsDir, packageName)
-      : path.join(skillsetsDir, orgId, packageName);
+  const targetDir = path.join(
+    skillsetsDir,
+    ...namespacedName({ orgId, packageName }).split("/"),
+  );
 
   // Check if skillset already exists and get its version info
   let existingVersionInfo: VersionInfo | null = null;
@@ -952,7 +952,7 @@ export const registryDownloadMain = async (args: {
           return {
             status: "list-versions",
             formattedVersionList: formatVersionList({
-              packageName,
+              displayName: profileDisplayName,
               packument: foundRegistry.packument,
               registryUrl: foundRegistry.registryUrl,
               cliName,
@@ -1037,8 +1037,8 @@ export const registryDownloadMain = async (args: {
         if (profileExists && existingVersionInfo == null) {
           return {
             status: "error",
-            error: `Skillset "${packageName}" already exists at:\n${targetDir}\n\nThis skillset has no version information (.nori-version file).`,
-            hint: `To reinstall:\n  rm -rf "${targetDir}"\n  ${cliPrefix} ${commandNames.download} ${packageName}`,
+            error: `Skillset "${profileDisplayName}" already exists at:\n${targetDir}\n\nThis skillset has no version information (.nori-version file).`,
+            hint: `To reinstall:\n  rm -rf "${targetDir}"\n  ${cliPrefix} ${commandNames.download} ${profileDisplayName}`,
           };
         }
 
