@@ -37,6 +37,7 @@ import { resolveInstallDir } from "@/utils/path.js";
 import {
   parseNamespacedPackage,
   buildOrganizationRegistryUrl,
+  localSkillsetName,
 } from "@/utils/url.js";
 
 import type { Packument } from "@/api/registrar.js";
@@ -420,12 +421,13 @@ export const skillDownloadMain = async (args: {
 
   if (skillset != null) {
     // User specified a skillset - verify it exists
-    const skillsetDir = path.join(skillsetsDir, skillset);
+    const resolvedName = localSkillsetName({ name: skillset });
+    const skillsetDir = path.join(skillsetsDir, resolvedName);
     await ensureNoriJson({ skillsetDir: skillsetDir });
     const skillsetMarker = path.join(skillsetDir, "nori.json");
     try {
       await fs.access(skillsetMarker);
-      targetSkillset = skillset;
+      targetSkillset = resolvedName;
     } catch {
       log.error(
         `Skillset "${skillset}" not found at: ${skillsetDir}\n\nMake sure the skillset exists and contains a nori.json file.`,
@@ -441,10 +443,11 @@ export const skillDownloadMain = async (args: {
     const activeSkillset = getActiveSkillset({ config });
     if (activeSkillset != null) {
       // Verify skillset directory exists
-      const skillsetDir = path.join(skillsetsDir, activeSkillset);
+      const resolvedName = localSkillsetName({ name: activeSkillset });
+      const skillsetDir = path.join(skillsetsDir, resolvedName);
       try {
         await fs.access(skillsetDir);
-        targetSkillset = activeSkillset;
+        targetSkillset = resolvedName;
       } catch {
         // Skillset directory doesn't exist - skip manifest update
       }

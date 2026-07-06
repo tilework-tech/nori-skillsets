@@ -53,6 +53,7 @@ import {
   parseNamespacedPackage,
   buildOrganizationRegistryUrl,
   extractOrgId,
+  namespacedName,
 } from "@/utils/url.js";
 
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
@@ -1056,8 +1057,7 @@ export const registryUploadMain = async (args: {
   }
 
   const { orgId, packageName, version } = parsed;
-  const profileDisplayName =
-    orgId === "public" ? packageName : `${orgId}/${packageName}`;
+  const profileDisplayName = namespacedName({ orgId, packageName });
 
   const VALID_RESOLVE_ACTIONS: ReadonlyArray<string> = [
     "updateVersion",
@@ -1323,10 +1323,10 @@ export const registryUploadMain = async (args: {
 
   // Check skillset exists locally
   const skillsetsDir = getNoriSkillsetsDir();
-  const skillsetDir =
-    orgId === "public"
-      ? path.join(skillsetsDir, packageName)
-      : path.join(skillsetsDir, orgId, packageName);
+  const skillsetDir = path.join(
+    skillsetsDir,
+    ...namespacedName({ orgId, packageName }).split("/"),
+  );
 
   try {
     await fs.access(skillsetDir);

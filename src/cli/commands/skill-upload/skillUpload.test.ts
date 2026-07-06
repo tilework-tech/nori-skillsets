@@ -360,6 +360,37 @@ describe("skill-upload", () => {
       expect(registrarApi.uploadSkill).toHaveBeenCalledTimes(1);
     });
 
+    it("resolves the source skill from a redundant public/ prefixed --skillset", async () => {
+      await createLocalSkill({
+        skillsetName: "flat-profile",
+        skillName: "flat-skill",
+      });
+
+      vi.mocked(loadConfig).mockResolvedValue(
+        authenticatedConfig("my-profile") as never,
+      );
+
+      vi.mocked(registrarApi.getSkillPackument).mockRejectedValue(
+        Object.assign(new Error("Not found"), { statusCode: 404 }),
+      );
+      vi.mocked(registrarApi.uploadSkill).mockResolvedValue({
+        name: "flat-skill",
+        version: "1.0.0",
+        tarballSha: "sha",
+        createdAt: "2026-04-16T00:00:00.000Z",
+      } as never);
+
+      const result = await skillUploadMain({
+        skillSpec: "flat-skill",
+        skillset: "public/flat-profile",
+      });
+
+      // Upload only fires if `public/flat-profile` resolved to the flat
+      // `flat-profile` and the source skill was found there.
+      expect(result.success).toBe(true);
+      expect(registrarApi.uploadSkill).toHaveBeenCalledTimes(1);
+    });
+
     it("treats identical remote content as already up to date (no upload)", async () => {
       const skillMd = `---\nname: stable-skill\ndescription: d\n---\n\n# stable-skill\nSame content.\n`;
       await createLocalSkill({
