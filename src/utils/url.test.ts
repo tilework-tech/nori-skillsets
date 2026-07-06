@@ -9,6 +9,7 @@ import {
   isValidUrl,
   extractOrgId,
   parseNamespacedPackage,
+  namespacedName,
 } from "./url";
 
 describe("normalizeUrl", () => {
@@ -303,6 +304,20 @@ describe("parseNamespacedPackage", () => {
       });
       expect(result).toBe(null);
     });
+  });
+});
+
+describe("namespacedName", () => {
+  it("returns the bare name for the public registry", () => {
+    expect(namespacedName({ orgId: "public", packageName: "my-profile" })).toBe(
+      "my-profile",
+    );
+  });
+
+  it("returns the org-scoped name for an organization", () => {
+    expect(namespacedName({ orgId: "myorg", packageName: "my-profile" })).toBe(
+      "myorg/my-profile",
+    );
   });
 });
 

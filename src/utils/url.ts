@@ -261,3 +261,30 @@ export const parseNamespacedPackage = (args: {
     version: version ?? null,
   };
 };
+
+/**
+ * Build the local, namespaced skillset name from a parsed package reference.
+ * Public skillsets are stored flat under `profiles/<name>`; org skillsets are
+ * stored nested under `profiles/<orgId>/<name>`. It maps a registrar-qualified
+ * reference to its on-disk name.
+ *
+ * @param args - Naming arguments
+ * @param args.orgId - The organization ID ("public" for the public registry)
+ * @param args.packageName - The package name
+ *
+ * @returns The namespaced name ("my-profile" for public, "myorg/my-profile" for an org)
+ *
+ * @example
+ * namespacedName({ orgId: "public", packageName: "my-profile" })
+ * // Returns: "my-profile"
+ * @example
+ * namespacedName({ orgId: "myorg", packageName: "my-profile" })
+ * // Returns: "myorg/my-profile"
+ */
+export const namespacedName = (args: {
+  orgId: string;
+  packageName: string;
+}): string => {
+  const { orgId, packageName } = args;
+  return orgId === "public" ? packageName : `${orgId}/${packageName}`;
+};
