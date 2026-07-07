@@ -12,7 +12,8 @@
 import type { Skillset } from "@/norijson/skillset.js";
 
 export type RequiredEnvEntry =
-  string | { name: string; description?: string | null; url?: string | null };
+  | string
+  | { name: string; description?: string | null; url?: string | null };
 
 const entryName = (entry: RequiredEnvEntry): string => {
   return typeof entry === "string" ? entry : entry.name;

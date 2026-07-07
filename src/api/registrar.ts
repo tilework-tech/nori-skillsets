@@ -28,7 +28,10 @@ export {
  * Resolution actions for skill collisions
  */
 export type SkillResolutionAction =
-  "cancel" | "namespace" | "updateVersion" | "link";
+  | "cancel"
+  | "namespace"
+  | "updateVersion"
+  | "link";
 
 /**
  * One entry in a conflict's per-file change list. See FileChange in fetch.ts.
@@ -77,7 +80,10 @@ export type SkillResolutionStrategy = Record<string, SkillResolution>;
  * Resolution actions for subagent collisions
  */
 export type SubagentResolutionAction =
-  "cancel" | "namespace" | "updateVersion" | "link";
+  | "cancel"
+  | "namespace"
+  | "updateVersion"
+  | "link";
 
 /**
  * Conflict information for a single subagent

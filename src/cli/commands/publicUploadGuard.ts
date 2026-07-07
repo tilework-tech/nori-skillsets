@@ -18,7 +18,8 @@ import { confirmAction } from "@/cli/prompts/index.js";
  *   refused automated publish (false). `message` is the user-facing reason.
  */
 export type PublicUploadGuardResult =
-  { ok: true } | { ok: false; cancelled: boolean; message: string };
+  | { ok: true }
+  | { ok: false; cancelled: boolean; message: string };
 
 /**
  * Decide whether an upload that would land on the public registry is allowed.
