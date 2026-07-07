@@ -46,7 +46,11 @@ import {
   searchSpecificRegistry,
 } from "@/packaging/registryLookup.js";
 import { resolveInstallDir } from "@/utils/path.js";
-import { localSkillsetName, parseNamespacedPackage } from "@/utils/url.js";
+import {
+  formatDefaultOrgNotice,
+  localSkillsetName,
+  parseNamespacedPackage,
+} from "@/utils/url.js";
 
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 import type {
@@ -126,7 +130,14 @@ export const subagentDownloadMain = async (args: {
   const commandNames = getCommandNames({ cliName });
   const cliPrefix = cliName ?? "nori-skillsets";
 
-  const parsed = parseNamespacedPackage({ packageSpec: subagentSpec });
+  // Load config first so a bare name can resolve against the configured default
+  // org; an explicit --registry overrides that resolution.
+  const config = await loadConfig();
+
+  const parsed = parseNamespacedPackage({
+    packageSpec: subagentSpec,
+    defaultOrg: registryUrl == null ? config?.defaultOrg : null,
+  });
   if (parsed == null) {
     log.error(
       `Invalid subagent specification: "${subagentSpec}".\nExpected format: subagent-name or org/subagent-name[@version]`,
@@ -141,6 +152,15 @@ export const subagentDownloadMain = async (args: {
   const subagentDisplayName =
     orgId === "public" ? subagentName : `${orgId}/${subagentName}`;
 
+  const defaultOrgNotice = formatDefaultOrgNotice({
+    packageSpec: subagentSpec,
+    orgId,
+    packageName: subagentName,
+  });
+  if (defaultOrgNotice != null && silent !== true) {
+    log.info(defaultOrgNotice);
+  }
+
   if (orgId !== "public" && registryUrl != null) {
     log.error(
       `Cannot specify both namespace and --registry flag.\n\nThe namespace "${orgId}/" determines the registry automatically.\nUse either "${subagentDisplayName}" (derived registry) or "${subagentName} --registry ${registryUrl}" (explicit registry).`,
@@ -151,8 +171,6 @@ export const subagentDownloadMain = async (args: {
       message: "Invalid flag combination",
     };
   }
-
-  const config = await loadConfig();
 
   const targetInstallDir = resolveInstallDir({
     cliInstallDir: installDir,

@@ -25,6 +25,7 @@ import { main as installMain } from "@/cli/features/install/install.js";
 import { confirmAction } from "@/cli/prompts/confirm.js";
 import { configFlow } from "@/cli/prompts/flows/config.js";
 import { normalizeInstallDir } from "@/utils/path.js";
+import { isValidOrgId } from "@/utils/url.js";
 
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 
@@ -77,6 +78,31 @@ const parseAgents = (args: { agents: string }): Array<string> => {
 };
 
 /**
+ * Interpret a `--default-org` value. An empty value clears the setting; any
+ * other value must be a valid org ID.
+ *
+ * @param args - Arguments
+ * @param args.defaultOrg - The raw `--default-org` value
+ *
+ * @throws {Error} If the value is a non-empty invalid org ID
+ *
+ * @returns The org ID to persist, or null to clear the setting
+ */
+const parseDefaultOrgOption = (args: { defaultOrg: string }): string | null => {
+  const { defaultOrg } = args;
+  const trimmed = defaultOrg.trim();
+  if (trimmed === "") {
+    return null;
+  }
+  if (!isValidOrgId({ orgId: trimmed })) {
+    throw new Error(
+      `Invalid organization "${defaultOrg}". Org IDs are lowercase alphanumeric with single hyphens (e.g., my-org).`,
+    );
+  }
+  return trimmed;
+};
+
+/**
  * Main config function
  *
  * When CLI options are provided (agents, installDir, redownloadOnSwitch,
@@ -92,6 +118,7 @@ const parseAgents = (args: { agents: string }): Array<string> => {
  * @param args.installDir - Install directory path
  * @param args.redownloadOnSwitch - Whether to prompt for re-download on switch
  * @param args.claudeCodeStatusLine - Whether Claude Code apply configures status line
+ * @param args.defaultOrg - Default org for bare package names ("" to clear)
  * @param args.nonInteractive - Force non-interactive mode
  *
  * @returns Command status indicating success or cancellation
@@ -102,6 +129,7 @@ export const configMain = async (
     installDir?: string | null;
     redownloadOnSwitch?: boolean | null;
     claudeCodeStatusLine?: boolean | null;
+    defaultOrg?: string | null;
     nonInteractive?: boolean | null;
   } | null,
 ): Promise<CommandStatus> => {
@@ -110,6 +138,7 @@ export const configMain = async (
     installDir,
     redownloadOnSwitch,
     claudeCodeStatusLine,
+    defaultOrg,
     nonInteractive,
   } = args ?? {};
 
@@ -117,12 +146,13 @@ export const configMain = async (
     agents != null ||
     installDir != null ||
     redownloadOnSwitch != null ||
-    claudeCodeStatusLine != null;
+    claudeCodeStatusLine != null ||
+    defaultOrg != null;
 
   if (hasOptions || nonInteractive) {
     if (!hasOptions) {
       throw new Error(
-        "No configuration options provided. Use --agents, --install-dir, --redownload-on-switch, or --claude-code-status-line.",
+        "No configuration options provided. Use --agents, --install-dir, --redownload-on-switch, --claude-code-status-line, or --default-org.",
       );
     }
 
@@ -131,6 +161,7 @@ export const configMain = async (
       installDir?: string;
       redownloadOnSwitch?: "enabled" | "disabled";
       claudeCodeStatusLine?: "enabled" | "disabled";
+      defaultOrg?: string | null;
     } = {};
 
     if (agents != null) {
@@ -154,6 +185,11 @@ export const configMain = async (
         : "disabled";
     }
 
+    if (defaultOrg != null) {
+      // An empty value clears the setting; otherwise validate the org ID.
+      update.defaultOrg = parseDefaultOrgOption({ defaultOrg });
+    }
+
     await updateConfig(update);
 
     return { success: true, cancelled: false, message: "Configuration saved" };
@@ -168,6 +204,7 @@ export const configMain = async (
           currentInstallDir: config?.installDir ?? null,
           currentRedownloadOnSwitch: config?.redownloadOnSwitch ?? null,
           currentClaudeCodeStatusLine: config?.claudeCodeStatusLine ?? null,
+          currentDefaultOrg: config?.defaultOrg ?? null,
         };
       },
       onResolveAgents: async () => {
@@ -220,10 +257,12 @@ export const configMain = async (
     defaultAgents: Array<string>;
     redownloadOnSwitch: "enabled" | "disabled";
     claudeCodeStatusLine?: "enabled" | "disabled";
+    defaultOrg: string | null;
     installDir: string;
   } = {
     defaultAgents: result.defaultAgents,
     redownloadOnSwitch: result.redownloadOnSwitch,
+    defaultOrg: result.defaultOrg ?? null,
     installDir: normalizedInstallDir,
   };
 

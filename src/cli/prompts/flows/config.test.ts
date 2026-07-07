@@ -62,7 +62,9 @@ describe("configFlow", () => {
   describe("happy path", () => {
     it("should return selected agents array and install dir", async () => {
       vi.mocked(clack.multiselect).mockResolvedValueOnce(["claude-code"]);
-      vi.mocked(clack.text).mockResolvedValueOnce("/home/testuser");
+      vi.mocked(clack.text)
+        .mockResolvedValueOnce("/home/testuser")
+        .mockResolvedValueOnce("");
       vi.mocked(clack.confirm).mockResolvedValueOnce(true);
 
       const result = await configFlow({ callbacks: mockCallbacks });
@@ -72,6 +74,7 @@ describe("configFlow", () => {
         installDir: "/home/testuser",
         redownloadOnSwitch: "enabled",
         claudeCodeStatusLine: "enabled",
+        defaultOrg: null,
       });
     });
 
@@ -126,12 +129,15 @@ describe("configFlow", () => {
 
     it("should show text prompt for install dir", async () => {
       vi.mocked(clack.multiselect).mockResolvedValueOnce(["claude-code"]);
-      vi.mocked(clack.text).mockResolvedValueOnce("/home/testuser");
+      vi.mocked(clack.text)
+        .mockResolvedValueOnce("/home/testuser")
+        .mockResolvedValueOnce("");
       vi.mocked(clack.confirm).mockResolvedValueOnce(true);
 
       await configFlow({ callbacks: mockCallbacks });
 
-      expect(clack.text).toHaveBeenCalledTimes(1);
+      const installDirCall = vi.mocked(clack.text).mock.calls[0][0];
+      expect(installDirCall.message).toContain("install");
     });
   });
 
@@ -196,7 +202,9 @@ describe("configFlow", () => {
   describe("redownload on switch toggle", () => {
     it("should include redownloadOnSwitch disabled in result when user says no", async () => {
       vi.mocked(clack.multiselect).mockResolvedValueOnce(["claude-code"]);
-      vi.mocked(clack.text).mockResolvedValueOnce("/home/testuser");
+      vi.mocked(clack.text)
+        .mockResolvedValueOnce("/home/testuser")
+        .mockResolvedValueOnce("");
       vi.mocked(clack.confirm)
         .mockResolvedValueOnce(false)
         .mockResolvedValueOnce(true);
@@ -208,6 +216,7 @@ describe("configFlow", () => {
         installDir: "/home/testuser",
         redownloadOnSwitch: "disabled",
         claudeCodeStatusLine: "enabled",
+        defaultOrg: null,
       });
     });
 
@@ -256,7 +265,9 @@ describe("configFlow", () => {
   describe("Claude Code status line toggle", () => {
     it("should include disabled in result when user says no", async () => {
       vi.mocked(clack.multiselect).mockResolvedValueOnce(["claude-code"]);
-      vi.mocked(clack.text).mockResolvedValueOnce("/home/testuser");
+      vi.mocked(clack.text)
+        .mockResolvedValueOnce("/home/testuser")
+        .mockResolvedValueOnce("");
       vi.mocked(clack.confirm)
         .mockResolvedValueOnce(true)
         .mockResolvedValueOnce(false);
@@ -268,6 +279,7 @@ describe("configFlow", () => {
         installDir: "/home/testuser",
         redownloadOnSwitch: "enabled",
         claudeCodeStatusLine: "disabled",
+        defaultOrg: null,
       });
     });
 
@@ -310,6 +322,50 @@ describe("configFlow", () => {
       const result = await configFlow({ callbacks: mockCallbacks });
 
       expect(result).toBeNull();
+    });
+  });
+
+  describe("default org prompt", () => {
+    it("should return the entered org as defaultOrg", async () => {
+      vi.mocked(clack.multiselect).mockResolvedValueOnce(["claude-code"]);
+      vi.mocked(clack.text)
+        .mockResolvedValueOnce("/home/testuser")
+        .mockResolvedValueOnce("myorg");
+      vi.mocked(clack.confirm).mockResolvedValueOnce(true);
+
+      const result = await configFlow({ callbacks: mockCallbacks });
+
+      expect(result?.defaultOrg).toBe("myorg");
+    });
+
+    it("should return null defaultOrg when left blank", async () => {
+      vi.mocked(clack.multiselect).mockResolvedValueOnce(["claude-code"]);
+      vi.mocked(clack.text)
+        .mockResolvedValueOnce("/home/testuser")
+        .mockResolvedValueOnce("");
+      vi.mocked(clack.confirm).mockResolvedValueOnce(true);
+
+      const result = await configFlow({ callbacks: mockCallbacks });
+
+      expect(result?.defaultOrg).toBeNull();
+    });
+
+    it("should use existing defaultOrg as the initial value", async () => {
+      vi.mocked(mockCallbacks.onLoadConfig).mockResolvedValueOnce({
+        currentAgents: ["claude-code"],
+        currentInstallDir: "/home/testuser",
+        currentDefaultOrg: "acme-corp",
+      });
+      vi.mocked(clack.multiselect).mockResolvedValueOnce(["claude-code"]);
+      vi.mocked(clack.text)
+        .mockResolvedValueOnce("/home/testuser")
+        .mockResolvedValueOnce("acme-corp");
+      vi.mocked(clack.confirm).mockResolvedValueOnce(true);
+
+      await configFlow({ callbacks: mockCallbacks });
+
+      const defaultOrgCall = vi.mocked(clack.text).mock.calls[1][0];
+      expect(defaultOrgCall.initialValue).toBe("acme-corp");
     });
   });
 });

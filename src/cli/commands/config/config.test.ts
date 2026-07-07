@@ -210,6 +210,74 @@ describe("configMain", () => {
   });
 });
 
+describe("configMain defaultOrg", () => {
+  let tempDir: string;
+
+  beforeEach(async () => {
+    tempDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), "config-default-org-cmd-"),
+    );
+    vi.mocked(os.homedir).mockReturnValue(tempDir);
+  });
+
+  afterEach(async () => {
+    await fs.rm(tempDir, { recursive: true, force: true });
+    vi.clearAllMocks();
+  });
+
+  it("should save defaultOrg when passed non-interactively", async () => {
+    const { configMain } = await import("./config.js");
+    await configMain({ defaultOrg: "myorg" });
+
+    const loaded = await loadConfig();
+    expect(loaded?.defaultOrg).toBe("myorg");
+  });
+
+  it("should reject an invalid defaultOrg value", async () => {
+    const { configMain } = await import("./config.js");
+
+    await expect(configMain({ defaultOrg: "Not Valid!" })).rejects.toThrow();
+
+    // Nothing should have been written to disk.
+    const loaded = await loadConfig();
+    expect(loaded?.defaultOrg).toBeUndefined();
+  });
+
+  it("should clear defaultOrg when passed an empty value", async () => {
+    const { configMain } = await import("./config.js");
+    await configMain({ defaultOrg: "myorg" });
+    expect((await loadConfig())?.defaultOrg).toBe("myorg");
+
+    await configMain({ defaultOrg: "" });
+
+    expect((await loadConfig())?.defaultOrg).toBeUndefined();
+  });
+
+  it("should persist defaultOrg chosen in the interactive flow", async () => {
+    const { configFlow } = await import("@/cli/prompts/flows/config.js");
+    vi.mocked(configFlow).mockResolvedValueOnce({
+      defaultAgents: ["claude-code"],
+      installDir: tempDir,
+      redownloadOnSwitch: "enabled",
+      claudeCodeStatusLine: "enabled",
+      defaultOrg: "myorg",
+    });
+
+    await saveTestingConfig({
+      username: null,
+      organizationUrl: null,
+      installDir: tempDir,
+      activeSkillset: "senior-swe",
+    });
+
+    const { configMain } = await import("./config.js");
+    await configMain();
+
+    const loaded = await loadConfig();
+    expect(loaded?.defaultOrg).toBe("myorg");
+  });
+});
+
 describe("configMain return value and framing", () => {
   let tempDir: string;
 

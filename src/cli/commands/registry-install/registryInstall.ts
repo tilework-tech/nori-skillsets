@@ -72,7 +72,15 @@ export const registryInstallMain = async (
 ): Promise<CommandStatus> => {
   const { packageSpec, installDir, nonInteractive, silent } = args;
 
-  const parsed = parseNamespacedPackage({ packageSpec });
+  // Load config for auth and install dir resolution. Loading first also lets a
+  // bare name resolve against the configured default org, matching the name the
+  // delegated download resolves to.
+  const config = await loadConfig();
+
+  const parsed = parseNamespacedPackage({
+    packageSpec,
+    defaultOrg: config?.defaultOrg,
+  });
   if (parsed == null) {
     log.error(
       `Invalid skillset specification: "${packageSpec}".\nExpected format: skillset-name or org/skillset-name[@version]`,
@@ -87,9 +95,6 @@ export const registryInstallMain = async (
     orgId: parsed.orgId,
     packageName: parsed.packageName,
   });
-
-  // Load config for auth and install dir resolution
-  const config = await loadConfig();
   const resolved = resolveInstallDir({
     cliInstallDir: installDir,
     configInstallDir: config?.installDir,

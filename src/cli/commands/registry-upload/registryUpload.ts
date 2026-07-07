@@ -44,6 +44,7 @@ import {
   buildOrganizationRegistryUrl,
   extractOrgId,
   namespacedName,
+  formatDefaultOrgNotice,
 } from "@/utils/url.js";
 
 import type { RegistryAuth } from "@/api/authCredentials.js";
@@ -508,8 +509,18 @@ export const registryUploadMain = async (args: {
     resolve,
   } = args;
 
+  // Load config first so a bare name can resolve against the configured default
+  // org. An explicit --public or --registry target overrides that resolution.
+  const config = await loadConfig();
+
   // Parse skillset spec using shared utility
-  const parsed = parseNamespacedPackage({ packageSpec: profileSpec });
+  const parsed = parseNamespacedPackage({
+    packageSpec: profileSpec,
+    defaultOrg:
+      publicRegistry === true || registryUrl != null
+        ? null
+        : config?.defaultOrg,
+  });
   if (parsed == null) {
     log.error(
       `Invalid skillset specification: "${profileSpec}".\nExpected format: skillset-name or org/skillset-name[@version]`,
@@ -523,6 +534,15 @@ export const registryUploadMain = async (args: {
 
   const { orgId, packageName, version } = parsed;
   const profileDisplayName = namespacedName({ orgId, packageName });
+
+  const defaultOrgNotice = formatDefaultOrgNotice({
+    packageSpec: profileSpec,
+    orgId,
+    packageName,
+  });
+  if (defaultOrgNotice != null && silent !== true) {
+    log.info(defaultOrgNotice);
+  }
 
   const parsedResolve = parseResolveStrategy({ resolve });
 
@@ -563,8 +583,7 @@ export const registryUploadMain = async (args: {
     }
   }
 
-  // Load config for auth and install dir resolution
-  const config = await loadConfig();
+  // Auth and install dir are resolved from the config loaded above.
   const envApi = readApiTokenEnv();
   if (config == null && envApi == null) {
     log.error(`Could not load Nori configuration.`);

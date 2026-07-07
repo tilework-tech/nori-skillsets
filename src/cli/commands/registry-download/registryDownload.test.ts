@@ -778,6 +778,34 @@ describe("registry-download", () => {
       expect(registrarApi.downloadTarball).not.toHaveBeenCalled();
     });
 
+    it("should route a bare name to the configured defaultOrg registry", async () => {
+      // defaultOrg is set; the user is authenticated but has no access to it.
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        defaultOrg: "myorg",
+        auth: {
+          username: "testuser",
+          organizationUrl: "https://noriskillsets.dev",
+          refreshToken: "mock-refresh-token",
+          organizations: [],
+        },
+      });
+
+      const result = await registryDownloadMain({
+        packageSpec: "senior-swe",
+        cwd: testDir,
+      });
+
+      expect(result.success).toBe(false);
+
+      // The bare name resolved to "myorg" (not the public registry), so we hit
+      // the org access check rather than a public-registry lookup.
+      const output = getAllClackOutput();
+      expect(output).toContain("myorg");
+      expect(output.toLowerCase()).toContain("do not have access");
+      expect(registrarApi.getPackument).not.toHaveBeenCalled();
+    });
+
     it("should use centralized auth for namespaced packages with explicit installDir", async () => {
       // Create explicit install dir (simulates cwd from registry-install)
       const explicitInstallDir = await fs.mkdtemp(

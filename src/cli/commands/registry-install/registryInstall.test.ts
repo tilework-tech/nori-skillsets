@@ -114,7 +114,7 @@ vi.mock("@/cli/logger.js", () => ({
 }));
 
 import { registryDownloadMain } from "@/cli/commands/registry-download/registryDownload.js";
-import { updateConfig } from "@/cli/config.js";
+import { loadConfig, updateConfig } from "@/cli/config.js";
 import { main as installMain } from "@/cli/features/install/install.js";
 import { hasExistingInstallation } from "@/cli/features/install/installState.js";
 import { bold } from "@/cli/logger.js";
@@ -194,6 +194,25 @@ describe("registry-install", () => {
     });
 
     expect(registryDownloadMain).toHaveBeenCalledTimes(1);
+  });
+
+  it("resolves a bare name against the configured defaultOrg for switch and install", async () => {
+    vi.mocked(hasExistingInstallation).mockReturnValueOnce(true);
+    vi.mocked(loadConfig).mockResolvedValueOnce({
+      installDir: "/mock-home",
+      defaultOrg: "myorg",
+    } as never);
+
+    await registryInstallMain({ packageSpec: "senior-swe" });
+
+    // The bare name resolves to "myorg/senior-swe" for the local switch/install,
+    // matching what the delegated download resolves to.
+    expect(mockSwitchSkillset).toHaveBeenCalledWith(
+      expect.objectContaining({ skillsetName: "myorg/senior-swe" }),
+    );
+    expect(installMain).toHaveBeenCalledWith(
+      expect.objectContaining({ skillset: "myorg/senior-swe" }),
+    );
   });
 
   it("should install to the user home directory by default", async () => {

@@ -39,6 +39,8 @@ export type Config = {
   redownloadOnSwitch?: "enabled" | "disabled" | null;
   /** Whether Claude Code skillset apply configures the Nori status line */
   claudeCodeStatusLine?: "enabled" | "disabled" | null;
+  /** Default org that a bare (non-namespaced) package name downloads from / uploads to */
+  defaultOrg?: string | null;
 };
 
 /**
@@ -79,6 +81,8 @@ type RawDiskConfig = {
   redownloadOnSwitch?: "enabled" | "disabled" | null;
   // Configure Claude Code status line during apply
   claudeCodeStatusLine?: "enabled" | "disabled" | null;
+  // Default org for bare (non-namespaced) package names
+  defaultOrg?: string | null;
 };
 
 /**
@@ -287,6 +291,7 @@ export const loadConfig = async (): Promise<Config | null> => {
       garbageCollectTranscripts: validated.garbageCollectTranscripts,
       redownloadOnSwitch: validated.redownloadOnSwitch,
       claudeCodeStatusLine: validated.claudeCodeStatusLine,
+      defaultOrg: validated.defaultOrg,
     };
 
     // Build auth - handle both nested format (v19+) and flat format (legacy)
@@ -367,6 +372,7 @@ export const loadConfig = async (): Promise<Config | null> => {
  * @param args.redownloadOnSwitch - Whether to prompt to re-download from registry on switch (null to skip)
  * @param args.claudeCodeStatusLine - Whether to configure Claude Code status line during apply (null to skip)
  * @param args.apiToken - Raw API token (format `nori_<orgId>_<64hex>`) for non-interactive private-org auth (null to skip)
+ * @param args.defaultOrg - Default org for bare package names (null to skip)
  */
 const writeConfigFile = async (args: {
   username: string | null;
@@ -386,6 +392,7 @@ const writeConfigFile = async (args: {
   garbageCollectTranscripts?: "enabled" | "disabled" | null;
   redownloadOnSwitch?: "enabled" | "disabled" | null;
   claudeCodeStatusLine?: "enabled" | "disabled" | null;
+  defaultOrg?: string | null;
   installDir: string;
 }): Promise<void> => {
   const {
@@ -406,6 +413,7 @@ const writeConfigFile = async (args: {
     garbageCollectTranscripts,
     redownloadOnSwitch,
     claudeCodeStatusLine,
+    defaultOrg,
     installDir,
   } = args;
   const configPath = getConfigPath();
@@ -479,6 +487,11 @@ const writeConfigFile = async (args: {
   // Add claudeCodeStatusLine if provided
   if (claudeCodeStatusLine != null) {
     config.claudeCodeStatusLine = claudeCodeStatusLine;
+  }
+
+  // Add defaultOrg if provided
+  if (defaultOrg != null) {
+    config.defaultOrg = defaultOrg;
   }
 
   // Always save installDir
@@ -597,6 +610,10 @@ export const updateConfig = async (updates: Partial<Config>): Promise<void> => {
       "claudeCodeStatusLine" in updates
         ? (updates.claudeCodeStatusLine ?? null)
         : (existing?.claudeCodeStatusLine ?? null),
+    defaultOrg:
+      "defaultOrg" in updates
+        ? (updates.defaultOrg ?? null)
+        : (existing?.defaultOrg ?? null),
     installDir:
       "installDir" in updates
         ? updates.installDir!
@@ -703,6 +720,7 @@ const configSchema = {
       enum: ["enabled", "disabled"],
       default: "enabled",
     },
+    defaultOrg: { type: "string" },
   },
   additionalProperties: false,
 };

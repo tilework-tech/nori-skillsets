@@ -445,6 +445,78 @@ describe("registry-upload", () => {
         expect(clackOutput).toContain("myorg");
       });
 
+      it("should route a bare name to the configured defaultOrg", async () => {
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          defaultOrg: "myorg",
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["otherorg"],
+            organizationUrl: "https://otherorg.tilework.tech",
+          },
+        });
+
+        const result = await registryUploadMain({
+          profileSpec: "my-profile",
+          cwd: testDir,
+        });
+
+        expect(result.success).toBe(false);
+
+        // A bare name published with defaultOrg=myorg targets myorg (not public),
+        // so it hits the org access check rather than the public-upload guard.
+        const clackOutput = getClackOutput();
+        expect(clackOutput).toContain("do not have access");
+        expect(clackOutput).toContain("myorg");
+      });
+
+      it("should still target public for --public even when defaultOrg is set", async () => {
+        // --public must not be turned into a "myorg/" namespace by defaultOrg,
+        // which would falsely trip the contradictory-target guard.
+        const skillsetDir = path.join(skillsetsDir, "my-profile");
+        await fs.mkdir(skillsetDir, { recursive: true });
+        await fs.writeFile(
+          path.join(skillsetDir, "AGENTS.md"),
+          "# My Profile\n",
+        );
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          defaultOrg: "myorg",
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["otherorg"],
+            organizationUrl: "https://otherorg.tilework.tech",
+          },
+        });
+
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+        vi.mocked(registrarApi.uploadSkillset).mockResolvedValue({
+          name: "my-profile",
+          version: "1.0.0",
+          tarballSha: "abc123",
+          createdAt: new Date().toISOString(),
+        });
+
+        const result = await registryUploadMain({
+          profileSpec: "my-profile",
+          publicRegistry: true,
+          cwd: testDir,
+        });
+
+        expect(result.success).toBe(true);
+        expect(registrarApi.uploadSkillset).toHaveBeenCalledWith(
+          expect.objectContaining({
+            registryUrl: "https://noriskillsets.dev",
+          }),
+        );
+      });
+
       it("should allow any authenticated user to upload to public registry", async () => {
         // User is authenticated but does NOT have "public" in their orgs list
         const skillsetDir = path.join(skillsetsDir, "my-profile");
