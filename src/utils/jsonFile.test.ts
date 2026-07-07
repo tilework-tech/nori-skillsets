@@ -125,4 +125,62 @@ describe("writeJsonFileAtomic", () => {
     const mode = (await fs.stat(filePath)).mode & 0o777;
     expect(mode).toBe(0o600);
   });
+
+  it("updates a symlink target without replacing the symlink", async () => {
+    const targetDir = path.join(tempDir, "target");
+    await fs.mkdir(targetDir);
+    const targetPath = path.join(targetDir, "settings.json");
+    const symlinkPath = path.join(tempDir, "settings.json");
+    await fs.writeFile(targetPath, JSON.stringify({ old: true }));
+    await fs.symlink(targetPath, symlinkPath);
+
+    await writeJsonFileAtomic({
+      filePath: symlinkPath,
+      value: { fresh: true },
+    });
+
+    expect((await fs.lstat(symlinkPath)).isSymbolicLink()).toBe(true);
+    expect(JSON.parse(await fs.readFile(targetPath, "utf-8"))).toEqual({
+      fresh: true,
+    });
+  });
+
+  it("creates the temporary file with the existing restricted mode before writing", async () => {
+    const filePath = path.join(tempDir, "secret.json");
+    await fs.writeFile(filePath, JSON.stringify({ a: 1 }));
+    await fs.chmod(filePath, 0o600);
+    const originalUmask = process.umask(0o000);
+    const observedModes = new Set<number>();
+    let writeFinished = false;
+
+    try {
+      const writePromise = writeJsonFileAtomic({
+        filePath,
+        // Large enough to observe the temp file while the write is in flight,
+        // before a post-write chmod could mask the creation mode.
+        value: { secret: "x".repeat(128 * 1024 * 1024) },
+      }).finally(() => {
+        writeFinished = true;
+      });
+
+      while (!writeFinished) {
+        const entries = await fs.readdir(tempDir);
+        for (const entry of entries) {
+          if (entry.startsWith("secret.json.tmp-")) {
+            const mode =
+              (await fs.stat(path.join(tempDir, entry))).mode & 0o777;
+            observedModes.add(mode);
+          }
+        }
+        await new Promise((resolve) => setImmediate(resolve));
+      }
+
+      await writePromise;
+    } finally {
+      process.umask(originalUmask);
+    }
+
+    expect(observedModes.size).toBeGreaterThan(0);
+    expect([...observedModes]).toEqual([0o600]);
+  });
 });

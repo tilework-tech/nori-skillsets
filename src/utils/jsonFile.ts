@@ -11,9 +11,11 @@
  *   object for a file that exists — that is how a stray comment or a partial
  *   write turns into total data loss when the caller writes the result back.
  * - `writeJsonFileAtomic` writes to a unique sibling temp file and renames it
- *   into place. rename(2) is atomic within a filesystem, so a crash or a
- *   concurrent read sees either the old file or the new one, never a truncated
- *   mix, and concurrent writers do not collide on a shared temp name.
+ *   into place. If the destination is a symlink, the temp/rename sequence
+ *   happens beside the resolved target so the link itself survives. rename(2)
+ *   is atomic within a filesystem, so a crash or a concurrent read sees either
+ *   the old file or the new one, never a truncated mix, and concurrent writers
+ *   do not collide on a shared temp name.
  */
 
 import * as fs from "fs/promises";
@@ -78,6 +80,49 @@ export const readJsonObjectFile = async (args: {
   return parsed as Record<string, unknown>;
 };
 
+const resolveWriteTargetPath = async (args: {
+  filePath: string;
+}): Promise<string> => {
+  const { filePath } = args;
+
+  try {
+    const fileStat = await fs.lstat(filePath);
+    if (!fileStat.isSymbolicLink()) {
+      return filePath;
+    }
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+      return filePath;
+    }
+    throw err;
+  }
+
+  const linkTarget = await fs.readlink(filePath);
+  const fallbackTarget = path.resolve(path.dirname(filePath), linkTarget);
+  try {
+    return await fs.realpath(filePath);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+      return fallbackTarget;
+    }
+    throw err;
+  }
+};
+
+const writeFileWithInitialMode = async (args: {
+  filePath: string;
+  content: string;
+  mode: number;
+}): Promise<void> => {
+  const { filePath, content, mode } = args;
+  const file = await fs.open(filePath, "wx", mode);
+  try {
+    await file.writeFile(content);
+  } finally {
+    await file.close();
+  }
+};
+
 /**
  * Write a value as pretty-printed JSON, atomically.
  *
@@ -92,13 +137,15 @@ export const writeJsonFileAtomic = async (args: {
   const { filePath, value } = args;
 
   await fs.mkdir(path.dirname(filePath), { recursive: true });
+  const writeTargetPath = await resolveWriteTargetPath({ filePath });
+  await fs.mkdir(path.dirname(writeTargetPath), { recursive: true });
 
   // Preserve the existing file's mode: rename installs a fresh inode at the
   // default umask, which would widen permissions on secret-bearing files
   // (~/.nori-config.json, ~/.claude.json) that a user tightened to 0600.
   let existingMode: number | null = null;
   try {
-    existingMode = (await fs.stat(filePath)).mode & 0o777;
+    existingMode = (await fs.stat(writeTargetPath)).mode & 0o777;
   } catch {
     existingMode = null;
   }
@@ -106,13 +153,18 @@ export const writeJsonFileAtomic = async (args: {
   // Unique sibling temp file: same directory guarantees the rename stays on one
   // filesystem (so it is atomic), and the pid + random suffix keeps concurrent
   // writers from clobbering each other's temp file.
-  const tempPath = `${filePath}.tmp-${process.pid}-${randomBytes(6).toString("hex")}`;
+  const tempPath = `${writeTargetPath}.tmp-${process.pid}-${randomBytes(6).toString("hex")}`;
+  const tempMode = existingMode ?? 0o666;
   try {
-    await fs.writeFile(tempPath, `${JSON.stringify(value, null, 2)}\n`);
+    await writeFileWithInitialMode({
+      filePath: tempPath,
+      content: `${JSON.stringify(value, null, 2)}\n`,
+      mode: tempMode,
+    });
     if (existingMode != null) {
       await fs.chmod(tempPath, existingMode);
     }
-    await fs.rename(tempPath, filePath);
+    await fs.rename(tempPath, writeTargetPath);
   } catch (err) {
     await fs.rm(tempPath, { force: true }).catch(() => undefined);
     throw err;
