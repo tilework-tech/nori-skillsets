@@ -50,7 +50,7 @@ The flows cover the full lifecycle of skillset management:
 | `registerSkillsetFlow` | Collect metadata for an existing skillset (no name prompt) |
 | `factoryResetFlow` | Discover and delete agent configuration artifacts |
 | `watchFlow` | Start the transcript watch daemon with org selection |
-| `configFlow` | Configure default agents, install directory, redownload-on-switch toggle, and Claude Code status line toggle |
+| `configFlow` | Configure default agents, install directory, redownload-on-switch toggle, Claude Code status line toggle, and default org for bare package names (blank = public, validated via `isValidOrgId`) |
 | `promptSkillTypes` | Choose inline vs extract for discovered skills from external repos |
 
 ### Things to Know

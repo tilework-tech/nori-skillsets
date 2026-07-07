@@ -43,6 +43,7 @@ import {
   buildOrganizationRegistryUrl,
   extractOrgId,
   localSkillsetName,
+  formatDefaultOrgNotice,
 } from "@/utils/url.js";
 
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
@@ -342,8 +343,18 @@ export const skillUploadMain = async (args: {
     silent,
   } = args;
 
+  // Load config first so a bare name can resolve against the configured default
+  // org. An explicit --public or --registry target overrides that resolution.
+  const config = await loadConfig();
+
   // Parse the skill spec (supports "name", "org/name", "name@version")
-  const parsed = parseNamespacedPackage({ packageSpec: skillSpec });
+  const parsed = parseNamespacedPackage({
+    packageSpec: skillSpec,
+    defaultOrg:
+      publicRegistry === true || registryUrl != null
+        ? null
+        : config?.defaultOrg,
+  });
   if (parsed == null) {
     log.error(
       `Invalid skill specification: "${skillSpec}".\nExpected format: skill-name or org/skill-name`,
@@ -358,10 +369,16 @@ export const skillUploadMain = async (args: {
   const skillDisplayName =
     orgId === "public" ? skillName : `${orgId}/${skillName}`;
 
-  const effectiveVersion = explicitVersion ?? specVersion ?? null;
+  const defaultOrgNotice = formatDefaultOrgNotice({
+    packageSpec: skillSpec,
+    orgId,
+    packageName: skillName,
+  });
+  if (defaultOrgNotice != null && silent !== true) {
+    log.info(defaultOrgNotice);
+  }
 
-  // Load config to resolve active skillset + auth
-  const config = await loadConfig();
+  const effectiveVersion = explicitVersion ?? specVersion ?? null;
 
   // Resolve source skillset
   const sourceSkillset =

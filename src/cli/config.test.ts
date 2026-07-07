@@ -581,6 +581,75 @@ describe("transcriptDestination config", () => {
   });
 });
 
+describe("defaultOrg config", () => {
+  let tempDir: string;
+  let mockConfigPath: string;
+
+  beforeEach(async () => {
+    tempDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), "config-default-org-test-"),
+    );
+    mockConfigPath = path.join(tempDir, ".nori-config.json");
+    vi.mocked(os.homedir).mockReturnValue(tempDir);
+  });
+
+  afterEach(async () => {
+    await fs.rm(tempDir, { recursive: true, force: true });
+    vi.clearAllMocks();
+  });
+
+  it("should save and load defaultOrg", async () => {
+    await saveTestingConfig({
+      username: "test@example.com",
+      password: null,
+      refreshToken: "token-123",
+      organizationUrl: "https://noriskillsets.dev",
+      defaultOrg: "myorg",
+      installDir: tempDir,
+    });
+
+    const loaded = await loadConfig();
+
+    expect(loaded?.defaultOrg).toBe("myorg");
+  });
+
+  it("should load defaultOrg from a config file that sets nothing else", async () => {
+    await fs.writeFile(
+      mockConfigPath,
+      JSON.stringify({
+        defaultOrg: "acme-corp",
+        installDir: tempDir,
+      }),
+    );
+
+    const loaded = await loadConfig();
+
+    expect(loaded?.defaultOrg).toBe("acme-corp");
+  });
+
+  it("should clear defaultOrg when updated to null", async () => {
+    await updateConfig({ defaultOrg: "myorg", installDir: tempDir });
+    expect((await loadConfig())?.defaultOrg).toBe("myorg");
+
+    await updateConfig({ defaultOrg: null });
+
+    expect((await loadConfig())?.defaultOrg).toBeUndefined();
+  });
+
+  it("should return undefined for defaultOrg when not set", async () => {
+    await fs.writeFile(
+      mockConfigPath,
+      JSON.stringify({
+        installDir: tempDir,
+      }),
+    );
+
+    const loaded = await loadConfig();
+
+    expect(loaded?.defaultOrg).toBeUndefined();
+  });
+});
+
 describe("defaultAgents config", () => {
   let tempDir: string;
   let mockConfigPath: string;

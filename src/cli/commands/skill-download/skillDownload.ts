@@ -38,6 +38,7 @@ import {
   parseNamespacedPackage,
   buildOrganizationRegistryUrl,
   localSkillsetName,
+  formatDefaultOrgNotice,
 } from "@/utils/url.js";
 
 import type { Packument } from "@/api/registrar.js";
@@ -375,8 +376,16 @@ export const skillDownloadMain = async (args: {
   const commandNames = getCommandNames({ cliName });
   const cliPrefix = cliName ?? "nori-skillsets";
 
+  // Load config for auth and install dir resolution. Loading first lets a bare
+  // name resolve against the configured default org; an explicit --registry
+  // overrides that resolution.
+  const config = await loadConfig();
+
   // Parse the namespaced skill spec (e.g., "myorg/my-skill@1.0.0")
-  const parsed = parseNamespacedPackage({ packageSpec: skillSpec });
+  const parsed = parseNamespacedPackage({
+    packageSpec: skillSpec,
+    defaultOrg: registryUrl == null ? config?.defaultOrg : null,
+  });
   if (parsed == null) {
     log.error(
       `Invalid skill specification: "${skillSpec}".\nExpected format: skill-name or org/skill-name[@version]`,
@@ -392,6 +401,15 @@ export const skillDownloadMain = async (args: {
   const skillDisplayName =
     orgId === "public" ? skillName : `${orgId}/${skillName}`;
 
+  const defaultOrgNotice = formatDefaultOrgNotice({
+    packageSpec: skillSpec,
+    orgId,
+    packageName: skillName,
+  });
+  if (defaultOrgNotice != null && silent !== true) {
+    log.info(defaultOrgNotice);
+  }
+
   // Check for namespace/registry conflict
   if (orgId !== "public" && registryUrl != null) {
     log.error(
@@ -403,9 +421,6 @@ export const skillDownloadMain = async (args: {
       message: "Invalid flag combination",
     };
   }
-
-  // Load config for auth and install dir resolution
-  const config = await loadConfig();
 
   // Resolve installation directory from CLI flag, config, or home dir fallback
   const targetInstallDir = resolveInstallDir({

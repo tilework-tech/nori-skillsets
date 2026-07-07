@@ -449,7 +449,7 @@ export const registerNoriSkillsetsInstallCommand = (args: {
   program
     .command("install <package>")
     .description(
-      "Download, install, and activate a skillset from the public registry in one step",
+      "Download, install, and activate a skillset in one step (bare names use the configured default org, else the public registry)",
     )
     .action(async (packageSpec: string) => {
       const { registryInstallMain } =
@@ -1176,11 +1176,16 @@ export const registerNoriSkillsetsConfigCommand = (args: {
       "--no-claude-code-status-line",
       "Disable adding the Nori status line to Claude Code on skillset apply",
     )
+    .option(
+      "--default-org <org>",
+      'Default org for bare package names (empty string "" to clear)',
+    )
     .action(
       async (options: {
         agents?: string;
         redownloadOnSwitch?: boolean;
         claudeCodeStatusLine?: boolean;
+        defaultOrg?: string;
       }) => {
         const { configMain } = await import("@/cli/commands/config/config.js");
         const globalOpts = program.opts();
@@ -1193,6 +1198,7 @@ export const registerNoriSkillsetsConfigCommand = (args: {
               installDir: globalOpts.installDir || null,
               redownloadOnSwitch: options.redownloadOnSwitch ?? null,
               claudeCodeStatusLine: options.claudeCodeStatusLine ?? null,
+              defaultOrg: options.defaultOrg ?? null,
               nonInteractive: globalOpts.nonInteractive || null,
             }),
         });

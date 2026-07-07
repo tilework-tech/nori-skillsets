@@ -10,6 +10,7 @@
 import { multiselect, text, confirm } from "@clack/prompts";
 
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
+import { isValidOrgId } from "@/utils/url.js";
 
 import { unwrapPrompt } from "./utils.js";
 
@@ -19,6 +20,7 @@ export type ConfigFlowCallbacks = {
     currentInstallDir: string | null;
     currentRedownloadOnSwitch?: "enabled" | "disabled" | null;
     currentClaudeCodeStatusLine?: "enabled" | "disabled" | null;
+    currentDefaultOrg?: string | null;
   }>;
   onResolveAgents: () => Promise<
     Array<{ name: string; displayName: string; description: string }>
@@ -30,6 +32,7 @@ export type ConfigFlowResult = {
   installDir: string;
   redownloadOnSwitch: "enabled" | "disabled";
   claudeCodeStatusLine?: "enabled" | "disabled";
+  defaultOrg?: string | null;
 };
 
 /**
@@ -51,6 +54,7 @@ export const configFlow = async (args: {
     currentInstallDir,
     currentRedownloadOnSwitch,
     currentClaudeCodeStatusLine,
+    currentDefaultOrg,
   } = await callbacks.onLoadConfig();
 
   // Resolve available agents from registry
@@ -112,10 +116,30 @@ export const configFlow = async (args: {
 
   if (claudeCodeStatusLineEnabled == null) return null;
 
+  // Step 5: Default org for bare package names (blank = public)
+  const defaultOrg = unwrapPrompt({
+    value: await text({
+      message:
+        "Default organization for bare package names (blank for public registry)",
+      initialValue: currentDefaultOrg ?? "",
+      validate: (value) => {
+        const trimmed = (value ?? "").trim();
+        if (trimmed === "" || isValidOrgId({ orgId: trimmed })) {
+          return undefined;
+        }
+        return "Org IDs are lowercase alphanumeric with single hyphens (e.g., my-org).";
+      },
+    }),
+    cancelMessage: "Configuration cancelled.",
+  });
+
+  if (defaultOrg == null) return null;
+
   return {
     defaultAgents: selectedAgents as Array<string>,
     installDir: installDir as string,
     redownloadOnSwitch: redownloadOnSwitchEnabled ? "enabled" : "disabled",
     claudeCodeStatusLine: claudeCodeStatusLineEnabled ? "enabled" : "disabled",
+    defaultOrg: (defaultOrg as string).trim() || null,
   };
 };

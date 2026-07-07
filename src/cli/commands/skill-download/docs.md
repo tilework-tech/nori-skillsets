@@ -14,7 +14,7 @@ The command resolves default agents via `getDefaultAgents({ config })` from `@/s
 
 ### Core Implementation
 
-`skillDownloadMain` follows the same callback-driven flow pattern as registry-download. The `onSearch` callback supports namespaced packages (`org/skill-name`), explicit `--registry` URLs, and public registry fallback. It checks for existing installations via `.nori-version` files and uses semver comparison to determine if an update is available.
+`skillDownloadMain` loads config **before** parsing the spec so a bare (non-namespaced) name can resolve against the configured `defaultOrg` via `parseNamespacedPackage` (from @/src/utils/url.ts) -- passed only when no explicit `--registry` was given, with `formatDefaultOrgNotice` logged when a bare name is routed to a non-public org. It then follows the same callback-driven flow pattern as registry-download. The `onSearch` callback supports namespaced packages (`org/skill-name`), explicit `--registry` URLs, and public registry fallback. It checks for existing installations via `.nori-version` files and uses semver comparison to determine if an update is available.
 
 The `onDownload` callback extracts the tarball, writes `.nori-version` provenance, copies the skill to the skillset's `skills/` directory for persistence, applies template substitution on `.md` files, and updates both the skill dependency manifest and `nori.json`.
 
