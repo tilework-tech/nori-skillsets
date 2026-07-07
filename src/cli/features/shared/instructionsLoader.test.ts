@@ -55,6 +55,13 @@ const createTestAgent = (args: { agentDir: string }): AgentConfig => {
   return {
     name: "claude-code",
     displayName: "Test Agent",
+    supportTier: "experimental",
+    capabilities: {
+      mcp: false,
+      hooks: false,
+      statusline: false,
+      transcripts: false,
+    },
     description: "Test agent for shared loader tests",
     getAgentDir: (a: { installDir: string }) =>
       path.join(a.installDir, path.basename(agentDir)),
@@ -80,6 +87,13 @@ const createSplitPathAgent = (args: {
   return {
     name: "pi",
     displayName: "Pi",
+    supportTier: "experimental",
+    capabilities: {
+      mcp: false,
+      hooks: false,
+      statusline: false,
+      transcripts: false,
+    },
     description: "Pi test agent for shared loader tests",
     getAgentDir: () => agentDir,
     getSkillsDir: () => skillsDir,

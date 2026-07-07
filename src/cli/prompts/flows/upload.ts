@@ -13,6 +13,17 @@ import { select, text, spinner, note, log } from "@clack/prompts";
 import * as semver from "semver";
 
 import { bold, red } from "@/cli/logger.js";
+import {
+  applyResolveStrategy,
+  buildAutoResolutionStrategy,
+  buildCommonResolutionOptions,
+  buildResolutionOptions,
+  countFileChanges,
+  getDefaultAction,
+  getSuggestedVersion,
+  hasConflicts,
+  hasSubagentConflicts,
+} from "@/core/uploadPolicy.js";
 
 import type {
   SkillConflict,
@@ -23,11 +34,13 @@ import type {
   SubagentResolutionStrategy,
   ExtractedSubagentsSummary,
 } from "@/api/registrar.js";
+import type {
+  ConflictSelectAction,
+  UploadResult,
+} from "@/core/uploadPolicy.js";
 
 import { formatDiffForNote } from "./diffFormat.js";
 import {
-  countFileChanges,
-  formatDiscardHint,
   formatFileChangesForNote,
   summarizeFileChangeCounts,
 } from "./fileChangesFormat.js";
@@ -40,29 +53,6 @@ export type DetermineVersionResult = {
   version: string;
   isNewPackage: boolean;
 };
-
-/**
- * Result of the upload callback
- */
-export type UploadResult =
-  | {
-      success: true;
-      version: string;
-      extractedSkills?: ExtractedSkillsSummary | null;
-      extractedSubagents?: ExtractedSubagentsSummary | null;
-    }
-  | {
-      success: false;
-      error: string;
-    }
-  | {
-      success: false;
-      conflicts: Array<SkillConflict>;
-    }
-  | {
-      success: false;
-      subagentConflicts: Array<SubagentConflict>;
-    };
 
 /**
  * Callbacks for the upload flow
@@ -105,145 +95,6 @@ export type UploadFlowResult = {
   inlineSkillIds?: Array<string> | null;
   statusMessage: string;
 } | null;
-
-/**
- * Build resolution options based on available actions for a conflict
- *
- * When content is unchanged, all three options are available (if the API allows them).
- * When content has changed, only "updateVersion" (if canPublish) and "namespace" are allowed.
- *
- * @param args - The function arguments
- * @param args.conflict - The skill conflict to build options for
- * @param args.skillsetName - The skillset name for namespace preview
- *
- * @returns Array of resolution options for the select prompt
- */
-
-/**
- * Union type for resolution actions and the local-only "viewDiff" pseudo-action
- */
-type ConflictSelectAction = SkillResolutionAction | "viewDiff";
-
-const buildResolutionOptions = (args: {
-  conflict: SkillConflict;
-  skillsetName: string;
-  hasDiffCallback?: boolean | null;
-}): Array<{ value: ConflictSelectAction; label: string; hint?: string }> => {
-  const { conflict, skillsetName, hasDiffCallback } = args;
-  const options: Array<{
-    value: ConflictSelectAction;
-    label: string;
-    hint?: string;
-  }> = [];
-
-  const contentUnchanged = conflict.contentUnchanged === true;
-
-  if (conflict.availableActions.includes("updateVersion")) {
-    options.push({
-      value: "updateVersion",
-      label: "Update Version",
-      hint: "Publish as new version of existing skill",
-    });
-  }
-
-  if (conflict.availableActions.includes("namespace")) {
-    options.push({
-      value: "namespace",
-      label: "Namespace",
-      hint: `Rename to ${skillsetName}-${conflict.skillId}`,
-    });
-  }
-
-  // "link" action has two presentations depending on content status
-  if (conflict.availableActions.includes("link")) {
-    if (contentUnchanged) {
-      options.push({
-        value: "link",
-        label: "Use Existing",
-        hint: `Link to existing v${conflict.latestVersion ?? "?"}`,
-      });
-    } else {
-      const fileCount = countFileChanges({ fileChanges: conflict.fileChanges });
-      options.push({
-        value: "link",
-        label: "Use Existing",
-        hint: `Use existing version already on registry. ${formatDiscardHint({ count: fileCount })}`,
-      });
-    }
-  }
-
-  // Add "View Diff" when server provided existingSkillMd and content has changed
-  if (
-    hasDiffCallback &&
-    !contentUnchanged &&
-    conflict.existingSkillMd != null
-  ) {
-    options.push({
-      value: "viewDiff",
-      label: "View Diff",
-      hint: "Show differences between local and registry SKILL.md",
-    });
-  }
-
-  return options;
-};
-
-/**
- * Determine the default selection for a conflict
- *
- * When content is unchanged and link is available, default to "link".
- * When content has changed:
- *   - Default to "updateVersion" if user can publish (canPublish === true)
- *   - Otherwise default to "namespace"
- *
- * @param args - The function arguments
- * @param args.conflict - The skill conflict
- *
- * @returns The default action to select
- */
-const getDefaultAction = (args: {
-  conflict: SkillConflict;
-}): SkillResolutionAction => {
-  const { conflict } = args;
-
-  // Content unchanged - default to link if available
-  if (
-    conflict.contentUnchanged === true &&
-    conflict.availableActions.includes("link")
-  ) {
-    return "link";
-  }
-
-  // Content changed - default to updateVersion if user can publish
-  if (
-    conflict.canPublish === true &&
-    conflict.availableActions.includes("updateVersion")
-  ) {
-    return "updateVersion";
-  }
-
-  return "namespace";
-};
-
-/**
- * Get the suggested next version for a skill
- * @param args - The function arguments
- * @param args.currentVersion - The current version string
- *
- * @returns The suggested next patch version
- */
-const getSuggestedVersion = (args: {
-  currentVersion?: string | null;
-}): string => {
-  const { currentVersion } = args;
-
-  if (currentVersion == null) {
-    return "1.0.0";
-  }
-
-  const nextVersion = semver.inc(currentVersion, "patch");
-  return nextVersion ?? "1.0.0";
-};
 
 /**
  * Format the conflict message for the select prompt
@@ -394,121 +245,6 @@ const resolveConflictsInFlow = async (args: {
   }
 
   return strategy;
-};
-
-/**
- * Check if a conflict can be auto-resolved (unchanged content + link available)
- * @param args - The function arguments
- * @param args.conflict - The skill conflict to check
- *
- * @returns True if the conflict can be auto-resolved
- */
-const canAutoResolveConflict = (args: { conflict: SkillConflict }): boolean => {
-  const { conflict } = args;
-  return (
-    conflict.contentUnchanged === true &&
-    conflict.availableActions.includes("link")
-  );
-};
-
-/**
- * Build auto-resolution strategy for conflicts that can be auto-resolved
- * @param args - The function arguments
- * @param args.conflicts - Array of skill conflicts
- *
- * @returns Strategy and unresolved conflicts
- */
-const buildAutoResolutionStrategy = (args: {
-  conflicts: Array<SkillConflict>;
-}): {
-  strategy: SkillResolutionStrategy;
-  unresolvedConflicts: Array<SkillConflict>;
-} => {
-  const { conflicts } = args;
-  const strategy: SkillResolutionStrategy = {};
-  const unresolvedConflicts: Array<SkillConflict> = [];
-
-  for (const conflict of conflicts) {
-    if (canAutoResolveConflict({ conflict })) {
-      strategy[conflict.skillId] = { action: "link" };
-    } else {
-      unresolvedConflicts.push(conflict);
-    }
-  }
-
-  return { strategy, unresolvedConflicts };
-};
-
-/**
- * Build resolution options common to all unresolved conflicts for batch mode.
- * Only includes actions available across ALL conflicts.
- *
- * @param args - The function arguments
- * @param args.conflicts - Array of unresolved skill conflicts
- * @param args.skillsetName - The skillset name for namespace preview
- *
- * @returns Array of resolution options available for all conflicts
- */
-const buildCommonResolutionOptions = (args: {
-  conflicts: Array<SkillConflict>;
-  skillsetName: string;
-}): Array<{ value: SkillResolutionAction; label: string; hint?: string }> => {
-  const { conflicts, skillsetName } = args;
-
-  if (conflicts.length === 0) {
-    return [];
-  }
-
-  // Find actions common to ALL conflicts
-  const firstActions = new Set(conflicts[0].availableActions);
-  const commonActions = conflicts.reduce((common, conflict) => {
-    const actionSet = new Set(conflict.availableActions);
-    return new Set([...common].filter((a) => actionSet.has(a)));
-  }, firstActions);
-
-  const options: Array<{
-    value: SkillResolutionAction;
-    label: string;
-    hint?: string;
-  }> = [];
-
-  if (commonActions.has("updateVersion")) {
-    options.push({
-      value: "updateVersion",
-      label: "Update Version",
-      hint: "Publish each as new version of existing skill",
-    });
-  }
-
-  if (commonActions.has("namespace")) {
-    options.push({
-      value: "namespace",
-      label: "Namespace",
-      hint: `Rename each to ${skillsetName}-<skillId>`,
-    });
-  }
-
-  // All unresolved conflicts here have changed content, so "link" = "Use Existing"
-  if (commonActions.has("link")) {
-    // Only surface a precise file-change count when EVERY conflict in the
-    // batch carries fileChanges. Mixed payloads (some with, some without)
-    // would under-report the real impact and mislead the user, so fall back
-    // to the generic discard message in that case.
-    const allHaveFileChanges = conflicts.every((c) => c.fileChanges != null);
-    const totalFileChanges = allHaveFileChanges
-      ? conflicts.reduce(
-          (sum, c) => sum + countFileChanges({ fileChanges: c.fileChanges }),
-          0,
-        )
-      : 0;
-    options.push({
-      value: "link",
-      label: "Use Existing",
-      hint: `Use existing version already on registry. ${formatDiscardHint({ count: totalFileChanges })}`,
-    });
-  }
-
-  return options;
 };
 
 /**
@@ -817,36 +553,6 @@ const formatConflictsForNote = (args: {
 };
 
 /**
- * Check if an upload result has conflicts
- * @param result - The upload result to check
- *
- * @returns True if the result contains conflicts
- */
-const hasConflicts = (
-  result: UploadResult,
-): result is { success: false; conflicts: Array<SkillConflict> } => {
-  return (
-    !result.success && "conflicts" in result && Array.isArray(result.conflicts)
-  );
-};
-
-/**
- * Check if an upload result has subagent conflicts
- * @param result - The upload result to check
- *
- * @returns True if the result contains subagent conflicts
- */
-const hasSubagentConflicts = (
-  result: UploadResult,
-): result is { success: false; subagentConflicts: Array<SubagentConflict> } => {
-  return (
-    !result.success &&
-    "subagentConflicts" in result &&
-    Array.isArray(result.subagentConflicts)
-  );
-};
-
-/**
  * Execute the interactive upload flow
  *
  * This function handles the complete upload UX:
@@ -1052,23 +758,13 @@ export const uploadFlow = async (args: {
     // Apply --resolve strategy to remaining unresolved conflicts
     let stillUnresolved = unresolvedConflicts;
     if (resolve != null && unresolvedConflicts.length > 0) {
-      for (const conflict of unresolvedConflicts) {
-        if (conflict.availableActions.includes(resolve)) {
-          if (resolve === "updateVersion") {
-            autoStrategy[conflict.skillId] = {
-              action: "updateVersion",
-              version: getSuggestedVersion({
-                currentVersion: conflict.latestVersion,
-              }),
-            };
-          } else {
-            autoStrategy[conflict.skillId] = { action: resolve };
-          }
-        }
-      }
-      stillUnresolved = unresolvedConflicts.filter(
-        (c) => autoStrategy[c.skillId] == null,
-      );
+      const applied = applyResolveStrategy({
+        conflicts: unresolvedConflicts,
+        resolve,
+        getConflictId: ({ conflict }) => conflict.skillId,
+      });
+      Object.assign(autoStrategy, applied.resolutions);
+      stillUnresolved = applied.stillUnresolved;
     }
 
     // If all can be auto-resolved, retry immediately
@@ -1225,23 +921,13 @@ export const uploadFlow = async (args: {
     // Apply --resolve strategy to remaining unresolved subagent conflicts
     let stillUnresolvedSubagents = unresolvedSubagentConflicts;
     if (resolve != null && unresolvedSubagentConflicts.length > 0) {
-      for (const conflict of unresolvedSubagentConflicts) {
-        if (conflict.availableActions.includes(resolve)) {
-          if (resolve === "updateVersion") {
-            autoResolved[conflict.subagentId] = {
-              action: "updateVersion",
-              version: getSuggestedVersion({
-                currentVersion: conflict.latestVersion,
-              }),
-            };
-          } else {
-            autoResolved[conflict.subagentId] = { action: resolve };
-          }
-        }
-      }
-      stillUnresolvedSubagents = unresolvedSubagentConflicts.filter(
-        (c) => autoResolved[c.subagentId] == null,
-      );
+      const applied = applyResolveStrategy({
+        conflicts: unresolvedSubagentConflicts,
+        resolve,
+        getConflictId: ({ conflict }) => conflict.subagentId,
+      });
+      Object.assign(autoResolved, applied.resolutions);
+      stillUnresolvedSubagents = applied.stillUnresolved;
     }
 
     if (stillUnresolvedSubagents.length === 0) {

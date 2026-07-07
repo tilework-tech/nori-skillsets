@@ -9,7 +9,7 @@ import { exchangeRefreshToken } from "@/api/refreshToken.js";
 import { extractOrgIdFromApiToken } from "@/utils/apiToken.js";
 import { extractOrgId } from "@/utils/url.js";
 
-import type { RegistryAuth } from "@/cli/config.js";
+import type { RegistryAuth } from "@/api/authCredentials.js";
 
 // Cache for auth tokens per registry URL (Firebase ID tokens only)
 const tokenCache = new Map<string, { token: string; expiry: number }>();

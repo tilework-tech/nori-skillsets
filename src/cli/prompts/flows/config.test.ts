@@ -97,6 +97,36 @@ describe("configFlow", () => {
       );
     });
 
+    it("should sort supported agents first and mark experimental ones", async () => {
+      vi.mocked(mockCallbacks.onResolveAgents).mockResolvedValueOnce([
+        {
+          name: "kimi-cli",
+          displayName: "Kimi CLI",
+          description: "Instructions, skills",
+          supportTier: "experimental",
+        },
+        {
+          name: "claude-code",
+          displayName: "Claude Code",
+          description: "Instructions, skills",
+          supportTier: "supported",
+        },
+      ]);
+      vi.mocked(clack.multiselect).mockResolvedValueOnce(["claude-code"]);
+      vi.mocked(clack.text).mockResolvedValueOnce("/home/testuser");
+      vi.mocked(clack.confirm).mockResolvedValueOnce(true);
+
+      await configFlow({ callbacks: mockCallbacks });
+
+      const msCall = vi.mocked(clack.multiselect).mock.calls[0][0];
+      expect(msCall.options.map((o) => o.value)).toEqual([
+        "claude-code",
+        "kimi-cli",
+      ]);
+      expect(msCall.options[0].hint).not.toContain("experimental");
+      expect(msCall.options[1].hint).toContain("experimental");
+    });
+
     it("should show text prompt for install dir", async () => {
       vi.mocked(clack.multiselect).mockResolvedValueOnce(["claude-code"]);
       vi.mocked(clack.text)

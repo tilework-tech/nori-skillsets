@@ -42,7 +42,7 @@ vi.mock("@/cli/prompts/confirm.js", () => ({
 }));
 
 // Mock install main
-vi.mock("@/cli/commands/install/install.js", () => ({
+vi.mock("@/cli/features/install/install.js", () => ({
   main: vi.fn(),
 }));
 
@@ -365,7 +365,7 @@ describe("configMain installDir change prompts", () => {
     const { configFlow } = await import("@/cli/prompts/flows/config.js");
     const { confirmAction } = await import("@/cli/prompts/confirm.js");
     const { main: installMain } =
-      await import("@/cli/commands/install/install.js");
+      await import("@/cli/features/install/install.js");
 
     vi.mocked(configFlow).mockResolvedValueOnce({
       defaultAgents: ["claude-code"],
@@ -523,7 +523,7 @@ describe("configMain installDir change prompts", () => {
     const { configFlow } = await import("@/cli/prompts/flows/config.js");
     const { confirmAction } = await import("@/cli/prompts/confirm.js");
     const { main: installMain } =
-      await import("@/cli/commands/install/install.js");
+      await import("@/cli/features/install/install.js");
     const { removeSkillset } =
       await import("@/cli/features/agentOperations.js");
 
@@ -600,7 +600,7 @@ describe("configMain installDir change prompts", () => {
     const { configFlow } = await import("@/cli/prompts/flows/config.js");
     const { confirmAction } = await import("@/cli/prompts/confirm.js");
     const { main: installMain } =
-      await import("@/cli/commands/install/install.js");
+      await import("@/cli/features/install/install.js");
 
     vi.mocked(configFlow).mockResolvedValueOnce({
       defaultAgents: ["claude-code", "agent-b"],
@@ -645,7 +645,7 @@ describe("configMain installDir change prompts", () => {
     const { configFlow } = await import("@/cli/prompts/flows/config.js");
     const { confirmAction } = await import("@/cli/prompts/confirm.js");
     const { main: installMain } =
-      await import("@/cli/commands/install/install.js");
+      await import("@/cli/features/install/install.js");
     const { removeSkillset } =
       await import("@/cli/features/agentOperations.js");
 
@@ -700,7 +700,7 @@ describe("configMain defaultAgents change prompts", () => {
     const { configFlow } = await import("@/cli/prompts/flows/config.js");
     const { confirmAction } = await import("@/cli/prompts/confirm.js");
     const { main: installMain } =
-      await import("@/cli/commands/install/install.js");
+      await import("@/cli/features/install/install.js");
 
     vi.mocked(configFlow).mockResolvedValueOnce({
       defaultAgents: ["claude-code", "new-agent"],
@@ -732,7 +732,7 @@ describe("configMain defaultAgents change prompts", () => {
     const { configFlow } = await import("@/cli/prompts/flows/config.js");
     const { confirmAction } = await import("@/cli/prompts/confirm.js");
     const { main: installMain } =
-      await import("@/cli/commands/install/install.js");
+      await import("@/cli/features/install/install.js");
 
     vi.mocked(configFlow).mockResolvedValueOnce({
       defaultAgents: ["claude-code", "agent-b", "agent-c"],
@@ -774,7 +774,7 @@ describe("configMain defaultAgents change prompts", () => {
     const { configFlow } = await import("@/cli/prompts/flows/config.js");
     const { confirmAction } = await import("@/cli/prompts/confirm.js");
     const { main: installMain } =
-      await import("@/cli/commands/install/install.js");
+      await import("@/cli/features/install/install.js");
 
     vi.mocked(configFlow).mockResolvedValueOnce({
       defaultAgents: ["new-agent"],

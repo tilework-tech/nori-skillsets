@@ -18,7 +18,7 @@ import {
   computeDirectoryManifest,
   writeManifest,
   getManifestPath,
-  getLegacyManifestPath,
+  getLegacyAgentManifestPath,
   removeManagedFiles,
 } from "@/cli/features/manifest.js";
 import {
@@ -32,6 +32,7 @@ import {
   getNoriSkillsetsDir,
   parseSkillset,
 } from "@/norijson/skillset.js";
+import { readVersionInfo } from "@/packaging/provenance.js";
 
 import type {
   AgentConfig,
@@ -101,16 +102,38 @@ export const getManagedDirs = (args: {
   return Array.from(dirs);
 };
 
+/**
+ * Read the skillset name recorded in a directory's .nori-managed marker.
+ * The single read path for "what is installed for agent A at directory D".
+ *
+ * @param args - Configuration arguments
+ * @param args.agent - Agent to check
+ * @param args.path - Install directory to check
+ *
+ * @returns The recorded skillset name ("" for pre-name markers), or null when
+ *   the directory has no marker
+ */
+export const getInstalledSkillsetName = (args: {
+  agent: AgentConfig;
+  path: string;
+}): string | null => {
+  const { agent } = args;
+  const agentDir = agent.getAgentDir({ installDir: args.path });
+  const markerPath = path.join(agentDir, ".nori-managed");
+  try {
+    return fsSync.readFileSync(markerPath, "utf-8").trim();
+  } catch {
+    return null;
+  }
+};
+
 export const isInstalledAtDir = (args: {
   agent: AgentConfig;
   path: string;
 }): boolean => {
   const { agent } = args;
-  const agentDir = agent.getAgentDir({ installDir: args.path });
 
-  // Check for .nori-managed marker file
-  const markerPath = path.join(agentDir, ".nori-managed");
-  if (fsSync.existsSync(markerPath)) {
+  if (getInstalledSkillsetName({ agent, path: args.path }) != null) {
     return true;
   }
 
@@ -147,9 +170,8 @@ export const markInstall = (args: {
 export const installSkillset = async (args: {
   agent: AgentConfig;
   config: Config;
-  skipManifest?: boolean | null;
 }): Promise<void> => {
-  const { agent, config, skipManifest } = args;
+  const { agent, config } = args;
 
   // Parse active skillset
   const skillsetName = getActiveSkillset({ config });
@@ -188,20 +210,22 @@ export const installSkillset = async (args: {
   if (skillsetName != null && skillset != null) {
     const agentDir = agent.getAgentDir({ installDir: config.installDir });
 
-    if (!skipManifest) {
-      const manifestPath = getManifestPath({ agentName: agent.name });
+    const manifestPath = getManifestPath({
+      agentName: agent.name,
+      installDir: config.installDir,
+    });
 
-      try {
-        const manifest = await computeDirectoryManifest({
-          dir: agentDir,
-          skillsetName,
-          managedFiles: getManagedFiles({ agent }),
-          managedDirs: getManagedDirs({ agent }),
-        });
-        await writeManifest({ manifestPath, manifest });
-      } catch {
-        // Non-fatal
-      }
+    try {
+      const manifest = await computeDirectoryManifest({
+        dir: agentDir,
+        skillsetName,
+        installDir: config.installDir,
+        managedFiles: getManagedFiles({ agent }),
+        managedDirs: getManagedDirs({ agent }),
+      });
+      await writeManifest({ manifestPath, manifest });
+    } catch {
+      // Non-fatal
     }
 
     // Emit Skills note from the skillset's skills directory
@@ -271,7 +295,7 @@ export const removeSkillset = async (args: {
 }): Promise<void> => {
   const { agent, installDir } = args;
   const agentDir = agent.getAgentDir({ installDir });
-  const manifestPath = getManifestPath({ agentName: agent.name });
+  const manifestPath = getManifestPath({ agentName: agent.name, installDir });
   const instructionsFilePath = agent.getInstructionsFilePath({ installDir });
 
   // Always clear the managed block in-place so user-authored content around it
@@ -286,19 +310,19 @@ export const removeSkillset = async (args: {
     !path.isAbsolute(instructionsRelative);
   const excludePaths = isInsideAgentDir ? [instructionsRelative] : [];
 
-  await removeManagedFiles({
-    agentDir,
+  // Clean up the keyed manifest plus any legacy manifest locations that
+  // predate per-directory keying.
+  const manifestPaths = [
     manifestPath,
-    managedDirs: getManagedDirs({ agent }),
-    excludePaths,
-  });
-
-  // Also clean up legacy manifest for claude-code
-  if (agent.name === "claude-code") {
-    const legacyPath = getLegacyManifestPath();
+    getLegacyAgentManifestPath({ agentName: agent.name }),
+    ...(agent.getLegacyManifestPath != null
+      ? [agent.getLegacyManifestPath()]
+      : []),
+  ];
+  for (const candidatePath of manifestPaths) {
     await removeManagedFiles({
       agentDir,
-      manifestPath: legacyPath,
+      manifestPath: candidatePath,
       managedDirs: getManagedDirs({ agent }),
       excludePaths,
     });
@@ -323,12 +347,23 @@ export const detectLocalChanges = async (args: {
 }): Promise<ManifestDiff | null> => {
   const { agent, installDir } = args;
 
-  const manifestPath = getManifestPath({ agentName: agent.name });
-  const legacyManifestPath =
-    agent.name === "claude-code" ? getLegacyManifestPath() : null;
+  // A directory Nori never installed to has no local changes by definition.
+  // This also keeps legacy pre-keying manifests (which describe whichever
+  // directory was installed last) from producing phantom changes elsewhere.
+  if (!isInstalledAtDir({ agent, path: installDir })) {
+    return null;
+  }
+
+  const manifestPath = getManifestPath({ agentName: agent.name, installDir });
+  const fallbackPaths = [
+    getLegacyAgentManifestPath({ agentName: agent.name }),
+    ...(agent.getLegacyManifestPath != null
+      ? [agent.getLegacyManifestPath()]
+      : []),
+  ];
   const manifest = await readManifest({
     manifestPath,
-    legacyManifestPath,
+    fallbackPaths,
   });
 
   if (manifest == null) {
@@ -483,10 +518,14 @@ export const captureExistingConfig = async (args: {
     // Skills dir doesn't exist
   }
 
-  // Create nori.json with skills map
+  // Create nori.json with skills map. Registry-installed skills carry their
+  // version in .nori-version; "*" remains only for local-only skills.
   const skillsMap: Record<string, string> = {};
   for (const skillName of skillNames) {
-    skillsMap[skillName] = "*";
+    const versionInfo = await readVersionInfo({
+      dir: path.join(skillsDir, skillName),
+    });
+    skillsMap[skillName] = versionInfo?.version ?? "*";
   }
 
   const noriJson = {
@@ -590,9 +629,17 @@ export const captureExistingConfig = async (args: {
     // Slashcommands dir doesn't exist
   }
 
-  // Delete original instructions file
+  // Wrap the original instructions in the managed block in place (the same
+  // content was just captured into the skillset). Never delete the file: the
+  // user's instructions must exist on disk at every point of the capture.
   try {
-    await fs.unlink(instructionsPath);
+    const original = await fs.readFile(instructionsPath, "utf-8");
+    if (!original.includes(BEGIN_MARKER)) {
+      await fs.writeFile(
+        instructionsPath,
+        `${BEGIN_MARKER}\n${original}\n${END_MARKER}\n`,
+      );
+    }
   } catch {
     // File may not exist
   }

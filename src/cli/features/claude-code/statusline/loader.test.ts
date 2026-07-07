@@ -166,6 +166,18 @@ describe("statuslineLoader", () => {
       expect(settings.statusLine).toBeDefined();
       expect(settings.statusLine.type).toBe("command");
     });
+
+    it("does not clobber a settings.json that exists but is corrupt", async () => {
+      const config: Config = { installDir: tempDir };
+      const corrupt = '{ "statusLine": { "type": broken';
+      await fs.writeFile(settingsPath, corrupt);
+
+      await expect(
+        statuslineLoader.run({ agent: {} as any, config }),
+      ).rejects.toThrow();
+
+      expect(await fs.readFile(settingsPath, "utf-8")).toBe(corrupt);
+    });
   });
 
   describe("script copying", () => {

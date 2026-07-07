@@ -272,7 +272,7 @@ export const buildCLIEventParams = async (args?: {
         )
       : 0;
 
-  // Get skillset from config (only claude-code is supported)
+  // Get the active skillset from config (agent-agnostic)
   const skillset = config?.activeSkillset ?? null;
 
   // Determine install type

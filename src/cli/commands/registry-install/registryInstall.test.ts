@@ -49,11 +49,11 @@ vi.mock("@/cli/commands/registry-download/registryDownload.js", () => ({
     .mockResolvedValue({ success: true, cancelled: false, message: "" }),
 }));
 
-vi.mock("@/cli/commands/install/install.js", () => ({
+vi.mock("@/cli/features/install/install.js", () => ({
   main: vi.fn(),
 }));
 
-vi.mock("@/cli/commands/install/installState.js", () => ({
+vi.mock("@/cli/features/install/installState.js", () => ({
   hasExistingInstallation: vi.fn(() => false),
 }));
 
@@ -113,10 +113,10 @@ vi.mock("@/cli/logger.js", () => ({
   green: vi.fn(({ text }: { text: string }) => text),
 }));
 
-import { main as installMain } from "@/cli/commands/install/install.js";
-import { hasExistingInstallation } from "@/cli/commands/install/installState.js";
 import { registryDownloadMain } from "@/cli/commands/registry-download/registryDownload.js";
 import { loadConfig, updateConfig } from "@/cli/config.js";
+import { main as installMain } from "@/cli/features/install/install.js";
+import { hasExistingInstallation } from "@/cli/features/install/installState.js";
 import { bold } from "@/cli/logger.js";
 
 import { registryInstallMain } from "./registryInstall.js";
@@ -365,49 +365,6 @@ describe("registry-install", () => {
     expect(result.success).toBe(false);
   });
 
-  it("should pass skipManifest to installMain when explicit installDir is provided", async () => {
-    await registryInstallMain({
-      packageSpec: "senior-swe",
-      installDir: "/tmp/explicit-dir",
-    });
-
-    // installMain should be called with skipManifest: true
-    expect(installMain).toHaveBeenCalledWith(
-      expect.objectContaining({
-        skipManifest: true,
-      }),
-    );
-  });
-
-  it("should NOT pass skipManifest to installMain when no explicit installDir is provided", async () => {
-    await registryInstallMain({
-      packageSpec: "senior-swe",
-    });
-
-    // installMain should NOT have skipManifest: true
-    expect(installMain).toHaveBeenCalledWith(
-      expect.not.objectContaining({
-        skipManifest: true,
-      }),
-    );
-  });
-
-  it("should pass skipManifest on existing installation switch path when explicit installDir is provided", async () => {
-    vi.mocked(hasExistingInstallation).mockReturnValueOnce(true);
-
-    await registryInstallMain({
-      packageSpec: "senior-swe",
-      installDir: "/tmp/explicit-dir",
-    });
-
-    // installMain should be called with skipManifest: true on the switch path
-    expect(installMain).toHaveBeenCalledWith(
-      expect.objectContaining({
-        skipManifest: true,
-      }),
-    );
-  });
-
   it("should check hasExistingInstallation before calling registryDownloadMain", async () => {
     // Simulate download side-effect: hasExistingInstallation returns false initially,
     // but would return true after download (as auto-init creates config).
@@ -491,12 +448,9 @@ describe("registry-install", () => {
       packageSpec: "public/senior-swe",
     });
 
-    // The registrar-qualified spec flows through to download, which resolves the registry.
     expect(registryDownloadMain).toHaveBeenCalledWith(
       expect.objectContaining({ packageSpec: "public/senior-swe" }),
     );
-
-    // Public skillsets are stored flat, so install/activation uses the bare name.
     expect(installMain).toHaveBeenCalledWith(
       expect.objectContaining({ skillset: "senior-swe" }),
     );
@@ -523,8 +477,6 @@ describe("registry-install", () => {
     expect(registryDownloadMain).toHaveBeenCalledWith(
       expect.objectContaining({ packageSpec: "myorg/senior-swe" }),
     );
-
-    // Org skillsets are stored nested, so the org-scoped name is retained.
     expect(installMain).toHaveBeenCalledWith(
       expect.objectContaining({ skillset: "myorg/senior-swe" }),
     );

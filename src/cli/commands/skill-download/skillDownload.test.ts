@@ -95,6 +95,7 @@ vi.spyOn(console, "error").mockImplementation(() => undefined);
 import { registrarApi, REGISTRAR_URL } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
 import { loadConfig, getRegistryAuth } from "@/cli/config.js";
+import { computeArchiveShasum } from "@/packaging/archive.js";
 
 import { skillDownloadMain } from "./skillDownload.js";
 
@@ -450,6 +451,102 @@ describe("skill-download", () => {
       const allErrorOutput = getClackErrorOutput();
       expect(allErrorOutput.toLowerCase()).toContain("error");
       expect(allErrorOutput).toContain("Network error");
+    });
+
+    it("should fail loudly when the tarball does not match the registry checksum", async () => {
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+      });
+
+      vi.mocked(registrarApi.getSkillPackument).mockResolvedValue({
+        name: "tampered-skill",
+        "dist-tags": { latest: "1.0.0" },
+        versions: {
+          "1.0.0": {
+            name: "tampered-skill",
+            version: "1.0.0",
+            dist: { shasum: "sha512-bm90LXRoZS1yZWFsLWNoZWNrc3Vt" },
+          },
+        },
+      });
+
+      const mockTarball = await createMockSkillTarball();
+      vi.mocked(registrarApi.downloadSkillTarball).mockResolvedValue(
+        mockTarball,
+      );
+
+      const result = await skillDownloadMain({
+        skillSpec: "tampered-skill",
+        cwd: testDir,
+      });
+
+      expect(result.success).toBe(false);
+      expect(getClackErrorOutput().toLowerCase()).toContain("checksum");
+
+      // Nothing should have been installed
+      await expect(
+        fs.access(path.join(skillsDir, "tampered-skill")),
+      ).rejects.toThrow();
+    });
+
+    it("should install the skill when the tarball matches the registry checksum", async () => {
+      const mockTarball = await createMockSkillTarball();
+
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+      });
+
+      vi.mocked(registrarApi.getSkillPackument).mockResolvedValue({
+        name: "verified-skill",
+        "dist-tags": { latest: "1.0.0" },
+        versions: {
+          "1.0.0": {
+            name: "verified-skill",
+            version: "1.0.0",
+            dist: {
+              shasum: computeArchiveShasum({ tarballData: mockTarball }),
+            },
+          },
+        },
+      });
+
+      vi.mocked(registrarApi.downloadSkillTarball).mockResolvedValue(
+        mockTarball,
+      );
+
+      const result = await skillDownloadMain({
+        skillSpec: "verified-skill",
+        cwd: testDir,
+      });
+
+      expect(result.success).toBe(true);
+      const stats = await fs.stat(path.join(skillsDir, "verified-skill"));
+      expect(stats.isDirectory()).toBe(true);
+    });
+
+    it("should report failure, not cancellation, when the download fails", async () => {
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+      });
+
+      vi.mocked(registrarApi.getSkillPackument).mockResolvedValue({
+        name: "test-skill",
+        "dist-tags": { latest: "1.0.0" },
+        versions: { "1.0.0": { name: "test-skill", version: "1.0.0" } },
+      });
+
+      vi.mocked(registrarApi.downloadSkillTarball).mockRejectedValue(
+        new Error("Tarball not found"),
+      );
+
+      const result = await skillDownloadMain({
+        skillSpec: "test-skill",
+        cwd: testDir,
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.cancelled).toBe(false);
+      expect(result.message).toContain("Tarball not found");
     });
 
     it("should support gzipped tarballs", async () => {
@@ -1174,7 +1271,7 @@ describe("--skillset option and manifest updates", () => {
     );
     const skillsJsonContent = await fs.readFile(skillsJsonPath, "utf-8");
     const skillsJson = JSON.parse(skillsJsonContent);
-    expect(skillsJson["test-skill"]).toBe("*");
+    expect(skillsJson["test-skill"]).toBe("1.0.0");
   });
 
   it("should resolve a redundant public/ prefixed --skillset to the flat skillset", async () => {
@@ -1210,7 +1307,7 @@ describe("--skillset option and manifest updates", () => {
     );
     const skillsJsonContent = await fs.readFile(skillsJsonPath, "utf-8");
     const skillsJson = JSON.parse(skillsJsonContent);
-    expect(skillsJson["test-skill"]).toBe("*");
+    expect(skillsJson["test-skill"]).toBe("1.0.0");
 
     // The redundant public/ directory must not have been created.
     await expect(
@@ -1255,7 +1352,7 @@ describe("--skillset option and manifest updates", () => {
     );
     const skillsJsonContent = await fs.readFile(skillsJsonPath, "utf-8");
     const skillsJson = JSON.parse(skillsJsonContent);
-    expect(skillsJson["new-skill"]).toBe("*");
+    expect(skillsJson["new-skill"]).toBe("2.0.0");
   });
 
   it("should error when specified skillset does not exist", async () => {
@@ -1392,7 +1489,7 @@ describe("--skillset option and manifest updates", () => {
     expect(skillsJson).toEqual({
       "existing-skill": "^1.0.0",
       "another-skill": "*",
-      "new-skill": "*",
+      "new-skill": "1.0.0",
     });
   });
 });
@@ -1844,7 +1941,7 @@ describe("nori.json updates on skill download", () => {
     expect(noriJson.name).toBe("my-profile");
     expect(noriJson.version).toBe("1.0.0");
     expect(noriJson.description).toBe("Test profile");
-    expect(noriJson.dependencies?.skills?.["downloaded-skill"]).toBe("*");
+    expect(noriJson.dependencies?.skills?.["downloaded-skill"]).toBe("1.0.0");
   });
 
   it("should auto-create nori.json when it does not exist", async () => {
@@ -1882,7 +1979,7 @@ describe("nori.json updates on skill download", () => {
     const noriJson = JSON.parse(noriJsonContent);
     expect(noriJson.name).toBe("no-nori-json-profile");
     expect(noriJson.version).toBe("1.0.0");
-    expect(noriJson.dependencies?.skills?.["new-skill"]).toBe("*");
+    expect(noriJson.dependencies?.skills?.["new-skill"]).toBe("1.0.0");
   });
 
   it("should preserve existing nori.json dependencies when adding new skill", async () => {
@@ -1930,7 +2027,7 @@ describe("nori.json updates on skill download", () => {
     expect(noriJson.dependencies.skills).toEqual({
       "existing-skill": "^1.0.0",
       "another-skill": "*",
-      "third-skill": "*",
+      "third-skill": "1.0.0",
     });
   });
 

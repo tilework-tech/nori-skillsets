@@ -21,6 +21,7 @@ import {
   captureExistingConfig,
 } from "@/cli/features/agentOperations.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
+import { main as installMain } from "@/cli/features/install/install.js";
 import { substituteTemplatePaths } from "@/cli/features/template.js";
 import { setSilentMode, isSilentMode } from "@/cli/logger.js";
 import { switchSkillsetFlow } from "@/cli/prompts/flows/switchSkillset.js";
@@ -63,11 +64,6 @@ export const switchSkillsetAction = async (args: {
     agentDirNames: AgentRegistry.getInstance().getAgentDirNames(),
   });
   const installDir = resolved.path;
-
-  // Skip manifest operations when the install dir comes from a CLI override.
-  // The manifest is stored globally per-agent and would produce false positives
-  // when compared against a transient override directory.
-  const skipManifest = resolved.source === "cli";
 
   // If no name provided, prompt for selection or error in non-interactive mode
   if (name == null) {
@@ -125,12 +121,10 @@ export const switchSkillsetAction = async (args: {
           agentName: agentName,
         }) => {
           const agent = AgentRegistry.getInstance().get({ name: agentName });
-          const localChanges = skipManifest
-            ? null
-            : await detectLocalChanges({
-                agent,
-                installDir: dir,
-              });
+          const localChanges = await detectLocalChanges({
+            agent,
+            installDir: dir,
+          });
           const config = await loadConfig();
           const currentProfile =
             config != null ? getActiveSkillset({ config }) : null;
@@ -182,15 +176,12 @@ export const switchSkillsetAction = async (args: {
             throw err;
           }
           setSilentMode({ silent: wasSilent });
-          const { main: installMain } =
-            await import("@/cli/commands/install/install.js");
           await installMain({
             nonInteractive: true,
             installDir: dir,
             agent: agentName,
             silent: true,
             skillset: pName,
-            ...(skipManifest ? { skipManifest: true } : {}),
           });
         },
         onRedownload: redownloadEnabled
@@ -322,15 +313,12 @@ export const switchSkillsetAction = async (args: {
   });
 
   // Check for local changes before proceeding (check first agent's manifest)
-  // Skip when --install-dir is explicitly provided to avoid false positives
   const firstAgentName = agentNames[0];
   const firstAgent = AgentRegistry.getInstance().get({ name: firstAgentName });
-  const localChanges = skipManifest
-    ? null
-    : await detectLocalChanges({
-        agent: firstAgent,
-        installDir,
-      });
+  const localChanges = await detectLocalChanges({
+    agent: firstAgent,
+    installDir,
+  });
 
   if (localChanges != null && !force) {
     throw new Error(
@@ -358,15 +346,12 @@ export const switchSkillsetAction = async (args: {
     }
 
     // Run install in silent mode to regenerate files with new skillset
-    const { main: installMain } =
-      await import("@/cli/commands/install/install.js");
     await installMain({
       nonInteractive: true,
       installDir,
       agent: agentName,
       silent: true,
       skillset: name,
-      ...(skipManifest ? { skipManifest: true } : {}),
     });
   }
 

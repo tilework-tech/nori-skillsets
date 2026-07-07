@@ -1,11 +1,8 @@
 import * as fs from "fs/promises";
 
-import {
-  getConfigPath,
-  updateConfig,
-  type AuthCredentials,
-  type Config,
-} from "@/cli/config.js";
+import { getConfigPath, updateConfig, type Config } from "@/cli/config.js";
+
+import type { AuthCredentials } from "@/api/authCredentials.js";
 
 type SaveConfigForTestArgs = {
   username: string | null;

@@ -209,6 +209,104 @@ describe("hooksLoader", () => {
       expect(settings.hooks).toBeDefined();
     });
 
+    it("should preserve user-authored hooks when installing", async () => {
+      const config: Config = { installDir: tempDir };
+
+      // User has their own hooks configured before Nori installs
+      const userSettings = {
+        hooks: {
+          SessionStart: [
+            {
+              matcher: "startup",
+              hooks: [
+                {
+                  type: "command",
+                  command: "/home/user/bin/my-own-hook.sh",
+                  description: "User hook that must survive",
+                },
+              ],
+            },
+          ],
+          PostToolUse: [
+            {
+              matcher: "*",
+              hooks: [
+                {
+                  type: "command",
+                  command: "/home/user/bin/audit.sh",
+                  description: "User audit hook",
+                },
+              ],
+            },
+          ],
+        },
+      };
+      await fs.writeFile(settingsPath, JSON.stringify(userSettings, null, 2));
+
+      await hooksLoader.run({ agent: {} as any, config });
+
+      const settings = JSON.parse(await fs.readFile(settingsPath, "utf-8"));
+
+      // User hooks survive, in their original groups
+      const allSessionStartCommands = settings.hooks.SessionStart.flatMap(
+        (group: any) => group.hooks.map((h: any) => h.command),
+      );
+      expect(allSessionStartCommands).toContain(
+        "/home/user/bin/my-own-hook.sh",
+      );
+      expect(settings.hooks.PostToolUse).toEqual(
+        userSettings.hooks.PostToolUse,
+      );
+
+      // Nori hooks are added alongside
+      expect(
+        allSessionStartCommands.some((c: string) =>
+          c.includes("context-usage-warning"),
+        ),
+      ).toBe(true);
+    });
+
+    it("should not duplicate Nori hooks across repeated installs alongside user hooks", async () => {
+      const config: Config = { installDir: tempDir };
+
+      const userSettings = {
+        hooks: {
+          Notification: [
+            {
+              matcher: "",
+              hooks: [
+                {
+                  type: "command",
+                  command: "/home/user/bin/my-notify.sh",
+                  description: "User notification hook",
+                },
+              ],
+            },
+          ],
+        },
+      };
+      await fs.writeFile(settingsPath, JSON.stringify(userSettings, null, 2));
+
+      await hooksLoader.run({ agent: {} as any, config });
+      await hooksLoader.run({ agent: {} as any, config });
+
+      const settings = JSON.parse(await fs.readFile(settingsPath, "utf-8"));
+      const notificationCommands = settings.hooks.Notification.flatMap(
+        (group: any) => group.hooks.map((h: any) => h.command),
+      );
+
+      // User hook still present exactly once
+      expect(
+        notificationCommands.filter(
+          (c: string) => c === "/home/user/bin/my-notify.sh",
+        ),
+      ).toHaveLength(1);
+      // Nori notify hook present exactly once despite two installs
+      expect(
+        notificationCommands.filter((c: string) => c.includes("notify-hook")),
+      ).toHaveLength(1);
+    });
+
     it("should update hooks if already configured", async () => {
       const config: Config = { installDir: tempDir };
 
@@ -421,6 +519,18 @@ describe("hooksLoader", () => {
         commit: "Custom commit attribution",
         pr: "Custom PR attribution",
       });
+    });
+
+    it("does not clobber a settings.json that exists but is corrupt", async () => {
+      const config: Config = { installDir: tempDir };
+      const corrupt = '{ "permissions": { "allow": [ broken';
+      await fs.writeFile(settingsPath, corrupt);
+
+      await expect(
+        hooksLoader.run({ agent: {} as any, config }),
+      ).rejects.toThrow();
+
+      expect(await fs.readFile(settingsPath, "utf-8")).toBe(corrupt);
     });
   });
 });
