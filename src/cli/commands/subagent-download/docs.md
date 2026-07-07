@@ -18,7 +18,7 @@ The subagent-download command downloads and installs individual subagent package
 
 ### Core Implementation
 
-`subagentDownloadMain` follows the two-phase callback-driven flow pattern (search then download). The `onSearch` callback supports namespaced packages (`org/subagent-name`), explicit `--registry` URLs, and public registry fallback. It checks for existing installations via `.nori-version` files and uses semver comparison to determine if an update is available.
+`subagentDownloadMain` loads config **before** parsing the spec so a bare (non-namespaced) name can resolve against the configured `defaultOrg` via `parseNamespacedPackage` (from @/src/utils/url.ts) -- passed only when no explicit `--registry` was given, with `formatDefaultOrgNotice` logged when a bare name is routed to a non-public org. It then follows the two-phase callback-driven flow pattern (search then download). The `onSearch` callback supports namespaced packages (`org/subagent-name`), explicit `--registry` URLs, and public registry fallback. It checks for existing installations via `.nori-version` files and uses semver comparison to determine if an update is available.
 
 **Flattening** is the key difference from skill-download. Subagent tarballs contain a full directory structure (including `SUBAGENT.md`), but agent installation flattens this: only the `SUBAGENT.md` content is written to `agents/<name>.md` after template substitution via `substituteTemplatePaths()`. The full directory is preserved in the skillset profile for round-tripping.
 

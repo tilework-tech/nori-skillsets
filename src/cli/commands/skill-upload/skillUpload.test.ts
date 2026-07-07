@@ -758,6 +758,76 @@ describe("skill-upload", () => {
       expect(uploadCall.authToken).toBe("public-api-auth");
     });
 
+    it("routes a bare skill name to the configured defaultOrg", async () => {
+      await createLocalSkill({
+        skillsetName: "my-profile",
+        skillName: "my-skill",
+      });
+
+      vi.mocked(loadConfig).mockResolvedValue({
+        activeSkillset: "my-profile",
+        defaultOrg: "myorg",
+        auth: {
+          username: "tester",
+          organizationUrl: "https://otherorg.noriskillsets.dev",
+          refreshToken: "rt-test",
+          apiToken: null,
+          organizations: ["otherorg"],
+        },
+      } as never);
+
+      const result = await skillUploadMain({ skillSpec: "my-skill" });
+
+      // A bare name with defaultOrg=myorg targets myorg, not public: it must not
+      // publish to the public registry.
+      expect(result.success).toBe(false);
+      expect(registrarApi.uploadSkill).not.toHaveBeenCalledWith(
+        expect.objectContaining({ registryUrl: "https://noriskillsets.dev" }),
+      );
+    });
+
+    it("still targets public for --public even when defaultOrg is set", async () => {
+      await createLocalSkill({
+        skillsetName: "my-profile",
+        skillName: "my-skill",
+      });
+
+      vi.mocked(loadConfig).mockResolvedValue({
+        activeSkillset: "my-profile",
+        defaultOrg: "myorg",
+        auth: {
+          username: null,
+          organizationUrl: "https://noriskillsets.dev",
+          refreshToken: null,
+          apiToken:
+            "nori_public_1111111111111111111111111111111111111111111111111111111111111111",
+          organizations: ["public"],
+        },
+      } as never);
+
+      vi.mocked(getRegistryAuthToken).mockResolvedValue(
+        "public-api-auth" as never,
+      );
+      vi.mocked(registrarApi.getSkillPackument).mockRejectedValue(
+        Object.assign(new Error("Not found"), { statusCode: 404 }),
+      );
+      vi.mocked(registrarApi.uploadSkill).mockResolvedValue({
+        name: "my-skill",
+        version: "1.0.0",
+        tarballSha: "sha",
+        createdAt: "2026-04-16T00:00:00.000Z",
+      } as never);
+
+      const result = await skillUploadMain({
+        skillSpec: "my-skill",
+        publicRegistry: true,
+      });
+
+      expect(result.success).toBe(true);
+      const uploadCall = vi.mocked(registrarApi.uploadSkill).mock.calls[0][0];
+      expect(uploadCall.registryUrl).toBe("https://noriskillsets.dev");
+    });
+
     it("uploads a public skill with NORI_API_TOKEN and no saved config", async () => {
       process.env.NORI_API_TOKEN =
         "nori_public_2222222222222222222222222222222222222222222222222222222222222222";

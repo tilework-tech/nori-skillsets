@@ -41,6 +41,7 @@ import {
   buildOrganizationRegistryUrl,
   namespacedName,
   namespacedOnDiskName,
+  formatDefaultOrgNotice,
 } from "@/utils/url.js";
 
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
@@ -403,8 +404,15 @@ export const registryDownloadMain = async (args: {
   const commandNames = getCommandNames({ cliName });
   const cliPrefix = cliName ?? "nori-skillsets";
 
+  // Load config first so a bare name can resolve against the configured
+  // default org. An explicit --registry overrides that resolution.
+  const config = await loadConfig();
+
   // Parse the namespaced package spec (e.g., "myorg/my-profile@1.0.0")
-  const parsed = parseNamespacedPackage({ packageSpec });
+  const parsed = parseNamespacedPackage({
+    packageSpec,
+    defaultOrg: registryUrl == null ? config?.defaultOrg : null,
+  });
   if (parsed == null) {
     log.error(
       `Invalid package specification: "${packageSpec}".\nExpected format: skillset-name or org/skillset-name[@version]`,
@@ -418,8 +426,16 @@ export const registryDownloadMain = async (args: {
   const { orgId, packageName, version } = parsed;
   const profileDisplayName = namespacedName({ orgId, packageName });
 
+  const defaultOrgNotice = formatDefaultOrgNotice({
+    packageSpec,
+    orgId,
+    packageName,
+  });
+  if (defaultOrgNotice != null && silent !== true) {
+    log.info(defaultOrgNotice);
+  }
+
   // Resolve install directory from config and auto-init if needed
-  const config = await loadConfig();
   const resolvedInstallDir = resolveInstallDir({
     cliInstallDir: installDir,
     configInstallDir: config?.installDir,

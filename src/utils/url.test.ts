@@ -307,6 +307,68 @@ describe("parseNamespacedPackage", () => {
       expect(result).toBe(null);
     });
   });
+
+  describe("defaultOrg resolution", () => {
+    it("resolves a bare name to defaultOrg", () => {
+      const result = parseNamespacedPackage({
+        packageSpec: "my-profile",
+        defaultOrg: "myorg",
+      });
+      expect(result).toEqual({
+        orgId: "myorg",
+        packageName: "my-profile",
+        version: null,
+      });
+    });
+
+    it("resolves a bare name with a version to defaultOrg, preserving the version", () => {
+      const result = parseNamespacedPackage({
+        packageSpec: "my-profile@1.2.3",
+        defaultOrg: "myorg",
+      });
+      expect(result).toEqual({
+        orgId: "myorg",
+        packageName: "my-profile",
+        version: "1.2.3",
+      });
+    });
+
+    it("falls back to public when defaultOrg is null", () => {
+      const result = parseNamespacedPackage({
+        packageSpec: "my-profile",
+        defaultOrg: null,
+      });
+      expect(result).toEqual({
+        orgId: "public",
+        packageName: "my-profile",
+        version: null,
+      });
+    });
+
+    it("does not override an explicit public/ namespace", () => {
+      const result = parseNamespacedPackage({
+        packageSpec: "public/my-profile",
+        defaultOrg: "myorg",
+      });
+      expect(result).toEqual({
+        orgId: "public",
+        packageName: "my-profile",
+        version: null,
+      });
+    });
+
+    it("does not override an explicit org namespace", () => {
+      const result = parseNamespacedPackage({
+        packageSpec: "otherorg/my-profile",
+        defaultOrg: "myorg",
+      });
+      expect(result).toEqual({
+        orgId: "otherorg",
+        packageName: "my-profile",
+        version: null,
+      });
+    });
+  });
 });
 
 describe("namespacedName", () => {

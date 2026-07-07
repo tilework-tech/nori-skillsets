@@ -259,6 +259,32 @@ describe("skill-download", () => {
       expect(versionInfo.registryUrl).toBe(REGISTRAR_URL);
     });
 
+    it("should route a bare skill name to the configured defaultOrg registry", async () => {
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        defaultOrg: "myorg",
+        auth: {
+          username: "testuser",
+          organizationUrl: "https://noriskillsets.dev",
+          refreshToken: "mock-refresh-token",
+          organizations: [],
+        },
+      });
+
+      const result = await skillDownloadMain({
+        skillSpec: "some-skill",
+        cwd: testDir,
+      });
+
+      expect(result.success).toBe(false);
+      // The bare name resolved to "myorg" (not public): we hit the org access
+      // check rather than a public-registry lookup.
+      const output = getClackErrorOutput();
+      expect(output).toContain("myorg");
+      expect(output.toLowerCase()).toContain("do not have access");
+      expect(registrarApi.getSkillPackument).not.toHaveBeenCalled();
+    });
+
     it("should handle version specification", async () => {
       // Mock config (no private registries)
       vi.mocked(loadConfig).mockResolvedValue({

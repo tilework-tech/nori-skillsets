@@ -207,10 +207,13 @@ export type ParsedNamespacedPackage = {
 /**
  * Parse a namespaced package specification into org, name, and version
  * Supports formats: "package-name", "package-name@1.0.0", "org/package-name", "org/package-name@1.0.0"
- * Non-namespaced packages are treated as belonging to "public" org
+ * A bare (non-namespaced) name resolves to `defaultOrg` when provided, otherwise
+ * to the "public" org. An explicit `org/` (or `public/`) prefix is never
+ * overridden by `defaultOrg`.
  *
  * @param args - Parsing arguments
  * @param args.packageSpec - The package specification string
+ * @param args.defaultOrg - Org to resolve a bare name to instead of "public"
  *
  * @returns Parsed package info, or null if invalid format
  *
@@ -218,13 +221,17 @@ export type ParsedNamespacedPackage = {
  * parseNamespacedPackage({ packageSpec: "my-profile" })
  * // Returns: { orgId: "public", packageName: "my-profile", version: null }
  * @example
+ * parseNamespacedPackage({ packageSpec: "my-profile", defaultOrg: "myorg" })
+ * // Returns: { orgId: "myorg", packageName: "my-profile", version: null }
+ * @example
  * parseNamespacedPackage({ packageSpec: "myorg/my-profile@1.0.0" })
  * // Returns: { orgId: "myorg", packageName: "my-profile", version: "1.0.0" }
  */
 export const parseNamespacedPackage = (args: {
   packageSpec: string;
+  defaultOrg?: string | null;
 }): ParsedNamespacedPackage | null => {
-  const { packageSpec } = args;
+  const { packageSpec, defaultOrg } = args;
 
   if (packageSpec.length === 0) {
     return null;
@@ -256,10 +263,34 @@ export const parseNamespacedPackage = (args: {
   }
 
   return {
-    orgId: orgId ?? "public",
+    orgId: orgId ?? defaultOrg ?? "public",
     packageName,
     version: version ?? null,
   };
+};
+
+/**
+ * Build a one-line notice when a bare package name was routed to a non-public
+ * organization via a configured default org. Returns null when no notice is
+ * warranted — an explicit namespace was given, or the name resolved to public.
+ *
+ * @param args - Notice arguments
+ * @param args.packageSpec - The raw package spec as typed by the caller
+ * @param args.orgId - The resolved org ID
+ * @param args.packageName - The resolved package name
+ *
+ * @returns The notice string, or null when none is warranted
+ */
+export const formatDefaultOrgNotice = (args: {
+  packageSpec: string;
+  orgId: string;
+  packageName: string;
+}): string | null => {
+  const { packageSpec, orgId, packageName } = args;
+  if (orgId === "public" || packageSpec.includes("/")) {
+    return null;
+  }
+  return `Resolving bare name "${packageName}" to "${orgId}/${packageName}"`;
 };
 
 /**

@@ -277,6 +277,32 @@ describe("subagent-download", () => {
       expect(versionInfo.registryUrl).toBe(REGISTRAR_URL);
     });
 
+    it("should route a bare subagent name to the configured defaultOrg registry", async () => {
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        defaultOrg: "myorg",
+        auth: {
+          username: "testuser",
+          organizationUrl: "https://noriskillsets.dev",
+          refreshToken: "mock-refresh-token",
+          organizations: [],
+        },
+      });
+
+      const result = await subagentDownloadMain({
+        subagentSpec: "some-subagent",
+        cwd: testDir,
+      });
+
+      expect(result.success).toBe(false);
+      // The bare name resolved to "myorg" (not public): we hit the org access
+      // check rather than a public-registry lookup.
+      const output = getClackErrorOutput();
+      expect(output).toContain("myorg");
+      expect(output.toLowerCase()).toContain("do not have access");
+      expect(registrarApi.getSubagentPackument).not.toHaveBeenCalled();
+    });
+
     it("should download public/ prefixed subagent from the public registry and flatten to the bare name", async () => {
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
