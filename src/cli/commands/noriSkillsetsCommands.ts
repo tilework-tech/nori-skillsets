@@ -729,6 +729,26 @@ export const registerNoriSkillsetsListSkillsetsCommand = (args: {
 };
 
 /**
+ * Register the 'list-agents' command for nori-skillsets CLI
+ * @param args - Configuration arguments
+ * @param args.program - Commander program instance
+ */
+export const registerNoriSkillsetsListAgentsCommand = (args: {
+  program: Command;
+}): void => {
+  const { program } = args;
+
+  program
+    .command("list-agents")
+    .description("List valid agent identifiers (comma-separated)")
+    .action(async () => {
+      const { listAgentsMain } =
+        await import("@/cli/commands/list-agents/listAgents.js");
+      listAgentsMain();
+    });
+};
+
+/**
  * Register the 'link' command for nori-skillsets CLI
  * @param args - Configuration arguments
  * @param args.program - Commander program instance
