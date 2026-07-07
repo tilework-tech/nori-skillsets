@@ -232,7 +232,7 @@ describe("registry-download", () => {
       });
 
       // Verify profile was extracted to correct location
-      const skillsetDir = path.join(skillsetsDir, "test-profile");
+      const skillsetDir = path.join(skillsetsDir, "public", "test-profile");
       const stats = await fs.stat(skillsetDir);
       expect(stats.isDirectory()).toBe(true);
 
@@ -288,7 +288,11 @@ describe("registry-download", () => {
 
     it("should error when profile already exists", async () => {
       // Create existing profile directory
-      const existingProfileDir = path.join(skillsetsDir, "existing-profile");
+      const existingProfileDir = path.join(
+        skillsetsDir,
+        "public",
+        "existing-profile",
+      );
       await fs.mkdir(existingProfileDir, { recursive: true });
 
       await registryDownloadMain({
@@ -494,12 +498,20 @@ describe("registry-download", () => {
         });
 
         // Verify profile was installed to ~/.nori/profiles (correct, undoubled path)
-        const homeProfileDir = path.join(homeProfilesDir, "test-profile");
+        const homeProfileDir = path.join(
+          homeProfilesDir,
+          "public",
+          "test-profile",
+        );
         const homeStats = await fs.stat(homeProfileDir);
         expect(homeStats.isDirectory()).toBe(true);
 
         // Verify profile was NOT installed to cwd
-        const cwdProfileDir = path.join(cwdProfilesDir, "test-profile");
+        const cwdProfileDir = path.join(
+          cwdProfilesDir,
+          "public",
+          "test-profile",
+        );
         await expect(fs.stat(cwdProfileDir)).rejects.toThrow();
 
         // Regression: verify profile was NOT installed to doubled path ~/.nori/.nori/profiles
@@ -508,6 +520,7 @@ describe("registry-download", () => {
           ".nori",
           ".nori",
           "profiles",
+          "public",
           "test-profile",
         );
         await expect(fs.stat(doubledPathDir)).rejects.toThrow();
@@ -585,7 +598,7 @@ describe("registry-download", () => {
       });
 
       // Verify profile was extracted
-      const skillsetDir = path.join(skillsetsDir, "gzipped-profile");
+      const skillsetDir = path.join(skillsetsDir, "public", "gzipped-profile");
       const stats = await fs.stat(skillsetDir);
       expect(stats.isDirectory()).toBe(true);
     });
@@ -619,7 +632,7 @@ describe("registry-download", () => {
 
         // Profiles are always installed to the centralized ~/.nori/profiles
         // regardless of --install-dir, since getNoriSkillsetsDir() uses os.homedir()
-        const skillsetDir = path.join(skillsetsDir, "custom-profile");
+        const skillsetDir = path.join(skillsetsDir, "public", "custom-profile");
         const stats = await fs.stat(skillsetDir);
         expect(stats.isDirectory()).toBe(true);
       } finally {
@@ -658,7 +671,7 @@ describe("registry-download", () => {
       });
 
       // Verify download succeeded from public registry
-      const skillsetDir = path.join(skillsetsDir, "test-profile");
+      const skillsetDir = path.join(skillsetsDir, "public", "test-profile");
       const stats = await fs.stat(skillsetDir);
       expect(stats.isDirectory()).toBe(true);
     });
@@ -913,7 +926,7 @@ describe("registry-download", () => {
       });
 
       // Verify download succeeded
-      const skillsetDir = path.join(skillsetsDir, "test-profile");
+      const skillsetDir = path.join(skillsetsDir, "public", "test-profile");
       const stats = await fs.stat(skillsetDir);
       expect(stats.isDirectory()).toBe(true);
     });
@@ -990,7 +1003,7 @@ describe("registry-download", () => {
       expect(getRegistryAuthToken).not.toHaveBeenCalled();
 
       // Verify profile was installed
-      const skillsetDir = path.join(skillsetsDir, "test-profile");
+      const skillsetDir = path.join(skillsetsDir, "public", "test-profile");
       const stats = await fs.stat(skillsetDir);
       expect(stats.isDirectory()).toBe(true);
     });
@@ -1143,7 +1156,11 @@ describe("registry-download", () => {
 
     it("should report when already at latest version", async () => {
       // Create existing profile with same version as latest
-      const existingProfileDir = path.join(skillsetsDir, "test-profile");
+      const existingProfileDir = path.join(
+        skillsetsDir,
+        "public",
+        "test-profile",
+      );
       await fs.mkdir(existingProfileDir, { recursive: true });
       await fs.writeFile(
         path.join(existingProfileDir, "nori.json"),
@@ -1182,7 +1199,11 @@ describe("registry-download", () => {
 
     it("should error when existing profile has no .nori-version", async () => {
       // Create existing profile without .nori-version (manual install)
-      const existingProfileDir = path.join(skillsetsDir, "test-profile");
+      const existingProfileDir = path.join(
+        skillsetsDir,
+        "public",
+        "test-profile",
+      );
       await fs.mkdir(existingProfileDir, { recursive: true });
       await fs.writeFile(
         path.join(existingProfileDir, "nori.json"),
@@ -1217,7 +1238,11 @@ describe("registry-download", () => {
 
     it("should report when installed version is newer than requested", async () => {
       // Create existing profile with newer version
-      const existingProfileDir = path.join(skillsetsDir, "test-profile");
+      const existingProfileDir = path.join(
+        skillsetsDir,
+        "public",
+        "test-profile",
+      );
       await fs.mkdir(existingProfileDir, { recursive: true });
       await fs.writeFile(
         path.join(existingProfileDir, "nori.json"),
@@ -1324,6 +1349,7 @@ describe("registry-download", () => {
       // Verify skill was installed to PROFILE directory, not global .nori/skills/
       const profileSkillDir = path.join(
         skillsetsDir,
+        "public",
         "test-profile",
         "skills",
         "test-skill",
@@ -1408,6 +1434,7 @@ describe("registry-download", () => {
       // Verify both skills were installed to PROFILE directory
       const profileSkillsDir = path.join(
         skillsetsDir,
+        "public",
         "test-profile",
         "skills",
       );
@@ -1442,7 +1469,7 @@ describe("registry-download", () => {
       expect(registrarApi.downloadSkillTarball).not.toHaveBeenCalled();
 
       // Verify profile was still installed successfully
-      const skillsetDir = path.join(skillsetsDir, "legacy-profile");
+      const skillsetDir = path.join(skillsetsDir, "public", "legacy-profile");
       expect((await fs.stat(skillsetDir)).isDirectory()).toBe(true);
     });
 
@@ -1511,7 +1538,7 @@ describe("registry-download", () => {
       });
 
       // Verify profile was still installed successfully
-      const skillsetDir = path.join(skillsetsDir, "test-profile");
+      const skillsetDir = path.join(skillsetsDir, "public", "test-profile");
       expect((await fs.stat(skillsetDir)).isDirectory()).toBe(true);
 
       // Verify warning was shown (via clack prompts note for skill dependency warnings)
@@ -1521,7 +1548,11 @@ describe("registry-download", () => {
 
     it("should skip skill if already installed in profile with latest version", async () => {
       // Create profile directory with pre-installed skill at latest version
-      const existingProfileDir = path.join(skillsetsDir, "test-profile");
+      const existingProfileDir = path.join(
+        skillsetsDir,
+        "public",
+        "test-profile",
+      );
       const existingSkillDir = path.join(
         existingProfileDir,
         "skills",
@@ -1587,7 +1618,11 @@ describe("registry-download", () => {
 
     it("should update skill in profile if installed version is not latest", async () => {
       // Create profile directory with pre-installed skill at older version
-      const existingProfileDir = path.join(skillsetsDir, "test-profile");
+      const existingProfileDir = path.join(
+        skillsetsDir,
+        "public",
+        "test-profile",
+      );
       const existingSkillDir = path.join(
         existingProfileDir,
         "skills",
@@ -1805,7 +1840,7 @@ describe("registry-download", () => {
       });
 
       // Verify profile was installed successfully
-      const skillsetDir = path.join(skillsetsDir, "test-profile");
+      const skillsetDir = path.join(skillsetsDir, "public", "test-profile");
       expect((await fs.stat(skillsetDir)).isDirectory()).toBe(true);
     });
   });
@@ -1873,7 +1908,7 @@ describe("registry-download", () => {
       });
 
       // Verify subagent was extracted to profile's subagents directory
-      const profileDir = path.join(skillsetsDir, "test-profile");
+      const profileDir = path.join(skillsetsDir, "public", "test-profile");
       const subagentDir = path.join(profileDir, "subagents", "my-subagent");
       const stats = await fs.stat(subagentDir);
       expect(stats.isDirectory()).toBe(true);
@@ -1891,7 +1926,11 @@ describe("registry-download", () => {
       });
 
       // Create existing profile with a subagent already at latest version
-      const existingProfileDir = path.join(skillsetsDir, "test-profile");
+      const existingProfileDir = path.join(
+        skillsetsDir,
+        "public",
+        "test-profile",
+      );
       await fs.mkdir(existingProfileDir, { recursive: true });
       await fs.writeFile(
         path.join(existingProfileDir, ".nori-version"),
@@ -2053,7 +2092,7 @@ describe("registry-download", () => {
       expect(allOutput).not.toContain('Skillset "test-profile"');
     });
 
-    it("should download bare (default public) package to flat directory", async () => {
+    it("should download bare (default public) package into the public bucket", async () => {
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
         auth: {
@@ -2092,13 +2131,17 @@ describe("registry-download", () => {
       // Verify no auth token was requested for public package
       expect(getRegistryAuthToken).not.toHaveBeenCalled();
 
-      // Verify profile was installed to flat directory (profiles/my-profile)
-      const skillsetDir = path.join(skillsetsDir, "my-profile");
+      // Verify profile was installed into the public bucket (profiles/public/my-profile)
+      const skillsetDir = path.join(skillsetsDir, "public", "my-profile");
       const stats = await fs.stat(skillsetDir);
       expect(stats.isDirectory()).toBe(true);
+      // And not at the legacy flat location.
+      await expect(
+        fs.access(path.join(skillsetsDir, "my-profile")),
+      ).rejects.toThrow();
     });
 
-    it("should treat an explicit public/ prefix identically to a bare public package", async () => {
+    it("should treat an explicit public/ prefix identically to a bare public package (public bucket)", async () => {
       // No auth configured — the public registry never requires it.
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
@@ -2134,11 +2177,12 @@ describe("registry-download", () => {
         authToken: undefined,
       });
 
-      // The skillset lands flat at profiles/my-profile, not profiles/public/my-profile.
-      const flatDir = path.join(skillsetsDir, "my-profile");
-      expect((await fs.stat(flatDir)).isDirectory()).toBe(true);
+      // The skillset lands in the public bucket at profiles/public/my-profile,
+      // not at the legacy flat profiles/my-profile.
+      const bucketDir = path.join(skillsetsDir, "public", "my-profile");
+      expect((await fs.stat(bucketDir)).isDirectory()).toBe(true);
       await expect(
-        fs.access(path.join(skillsetsDir, "public", "my-profile")),
+        fs.access(path.join(skillsetsDir, "my-profile")),
       ).rejects.toThrow();
     });
 

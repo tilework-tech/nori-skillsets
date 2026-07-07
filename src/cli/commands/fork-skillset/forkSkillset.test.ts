@@ -77,8 +77,8 @@ describe("forkSkillsetMain", () => {
       newSkillset: "my-custom",
     });
 
-    // Verify destination exists with all contents
-    const destDir = path.join(skillsetsDir, "my-custom");
+    // Verify destination exists with all contents (bare fork lands in personal/)
+    const destDir = path.join(skillsetsDir, "personal", "my-custom");
 
     const skillMd = await fs.readFile(
       path.join(destDir, "skills", "my-skill", "SKILL.md"),
@@ -227,7 +227,7 @@ describe("forkSkillsetMain", () => {
       "Next Steps",
     );
     expect(mockNote).toHaveBeenCalledWith(
-      expect.stringContaining("~/.nori/profiles/my-fork"),
+      expect.stringContaining("~/.nori/profiles/personal/my-fork"),
       "Next Steps",
     );
   });

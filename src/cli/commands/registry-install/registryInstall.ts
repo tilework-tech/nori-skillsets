@@ -3,9 +3,6 @@
  * Handles: nori-skillsets install <package>[@version] [--user]
  */
 
-import * as fs from "fs/promises";
-import * as path from "path";
-
 import { log, note } from "@clack/prompts";
 
 import { main as installMain } from "@/cli/commands/install/install.js";
@@ -20,7 +17,7 @@ import {
 import { switchSkillset } from "@/cli/features/agentOperations.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { bold, brightCyan, green } from "@/cli/logger.js";
-import { getNoriSkillsetsDir } from "@/norijson/skillset.js";
+import { resolveSkillsetDir } from "@/norijson/skillset.js";
 import { resolveInstallDir } from "@/utils/path.js";
 import { namespacedName, parseNamespacedPackage } from "@/utils/url.js";
 
@@ -45,15 +42,7 @@ const checkLocalSkillsetExists = async (args: {
   skillsetName: string;
 }): Promise<boolean> => {
   const { skillsetName } = args;
-  const skillsetsDir = getNoriSkillsetsDir();
-  const skillsetPath = path.join(skillsetsDir, skillsetName);
-
-  try {
-    await fs.access(skillsetPath);
-    return true;
-  } catch {
-    return false;
-  }
+  return (await resolveSkillsetDir({ name: skillsetName })) != null;
 };
 
 /**

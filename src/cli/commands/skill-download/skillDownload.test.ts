@@ -1151,7 +1151,15 @@ describe("--skillset option and manifest updates", () => {
     expect(skillsJson["test-skill"]).toBe("*");
   });
 
-  it("should resolve a redundant public/ prefixed --skillset to the flat skillset", async () => {
+  it("should resolve an explicit public/ prefixed --skillset to the public bucket skillset", async () => {
+    // Seed the public-bucket skillset that public/test-profile resolves to.
+    const publicProfileDir = path.join(skillsetsDir, "public", "test-profile");
+    await fs.mkdir(publicProfileDir, { recursive: true });
+    await fs.writeFile(
+      path.join(publicProfileDir, "nori.json"),
+      JSON.stringify({ name: "test-profile", version: "1.0.0" }),
+    );
+
     vi.mocked(loadConfig).mockResolvedValue({
       installDir: testDir,
 
@@ -1175,21 +1183,17 @@ describe("--skillset option and manifest updates", () => {
 
     expect(result.success).toBe(true);
 
-    // Verify skill was added to the flat (public) profile's skills.json,
-    // not a nonexistent profiles/public/test-profile directory.
+    // Verify skill was added to the public-bucket profile's skills.json at
+    // profiles/public/test-profile, proving public/test-profile resolved there.
     const skillsJsonPath = path.join(
       skillsetsDir,
+      "public",
       "test-profile",
       "skills.json",
     );
     const skillsJsonContent = await fs.readFile(skillsJsonPath, "utf-8");
     const skillsJson = JSON.parse(skillsJsonContent);
     expect(skillsJson["test-skill"]).toBe("*");
-
-    // The redundant public/ directory must not have been created.
-    await expect(
-      fs.access(path.join(skillsetsDir, "public", "test-profile")),
-    ).rejects.toThrow();
   });
 
   it("should add skill to active profile's skills.json when --skillset not specified", async () => {

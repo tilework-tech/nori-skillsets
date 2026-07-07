@@ -14,7 +14,7 @@ Path: @/src/cli/commands/registry-upload
 - Uses `@/api/registrar.js` (`registrarApi.uploadSkillset`, `registrarApi.getPackument`) for registry communication
 - Auth tokens are obtained via `@/api/registryAuth.js` (`getRegistryAuthToken`) using refresh tokens, broker-managed direct ID tokens, saved API tokens, or a matching `NORI_API_TOKEN`
 - Skillset metadata is read/written through `@/norijson/nori.js` (`readSkillsetMetadata`, `writeSkillsetMetadata`)
-- Skillset directory paths are resolved via `@/norijson/skillset.js` (`getNoriSkillsetsDir`)
+- The local skillset directory is located via `resolveSkillsetDir` from `@/norijson/skillset.js`, so a bare name resolves across the `personal/`/`public/` storage buckets and the legacy flat location (see the storage-bucket model in @/src/norijson/docs.md); a name that resolves nowhere fails with "Skillset not found"
 - The interactive upload flow is driven by `uploadFlow` and `listVersionsFlow` from `@/cli/prompts/flows/`
 - Namespace parsing uses `parseNamespacedPackage` from `@/utils/url.js`, shared with `registryDownload` and `skillDownload`
 

@@ -617,8 +617,8 @@ describe("subagent-download", () => {
       });
     });
 
-    it("should resolve a redundant public/ prefixed --skillset to the flat skillset", async () => {
-      const skillsetDir = path.join(skillsetsDir, "flat-profile");
+    it("should resolve an explicit public/ prefixed --skillset to the public bucket skillset", async () => {
+      const skillsetDir = path.join(skillsetsDir, "public", "flat-profile");
       await fs.mkdir(skillsetDir, { recursive: true });
       await fs.writeFile(
         path.join(skillsetDir, "nori.json"),
@@ -649,13 +649,14 @@ describe("subagent-download", () => {
 
       expect(result.success).toBe(true);
 
-      // Dependency landed in the flat profile's nori.json, proving resolution.
+      // Dependency landed in the public-bucket profile's nori.json, proving resolution.
       const noriJson = JSON.parse(
         await fs.readFile(path.join(skillsetDir, "nori.json"), "utf-8"),
       );
       expect(noriJson.dependencies?.subagents?.["downloaded-sub"]).toBe("*");
 
-      // The subagent extracted into the flat profile, not profiles/public/...
+      // The subagent extracted into the public-bucket profile at
+      // profiles/public/flat-profile, proving public/flat-profile resolved there.
       await expect(
         fs.access(
           path.join(skillsetDir, "subagents", "downloaded-sub", "SUBAGENT.md"),
@@ -663,7 +664,7 @@ describe("subagent-download", () => {
       ).resolves.toBeUndefined();
       await expect(
         fs.access(path.join(skillsetsDir, "public", "flat-profile")),
-      ).rejects.toThrow();
+      ).resolves.toBeUndefined();
     });
   });
 

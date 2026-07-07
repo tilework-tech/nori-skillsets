@@ -32,7 +32,7 @@ import {
   type RegistryAuth,
 } from "@/cli/config.js";
 import { skillUploadFlow } from "@/cli/prompts/flows/index.js";
-import { getNoriSkillsetsDir } from "@/norijson/skillset.js";
+import { resolveSkillsetDir } from "@/norijson/skillset.js";
 import { isDirentFile } from "@/utils/dirent.js";
 import {
   collectCargoManifestDirs,
@@ -42,7 +42,6 @@ import {
   parseNamespacedPackage,
   buildOrganizationRegistryUrl,
   extractOrgId,
-  localSkillsetName,
 } from "@/utils/url.js";
 
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
@@ -378,11 +377,17 @@ export const skillUploadMain = async (args: {
     };
   }
 
-  // Normalize a redundant `public/` prefix to the flat on-disk name.
-  const resolvedSource = localSkillsetName({ name: sourceSkillset });
-
-  const skillsetsDir = getNoriSkillsetsDir();
-  const skillDir = path.join(skillsetsDir, resolvedSource, "skills", skillName);
+  // Resolve the source skillset across storage buckets (bare, public, org).
+  const sourceSkillsetDir = await resolveSkillsetDir({ name: sourceSkillset });
+  if (sourceSkillsetDir == null) {
+    log.error(`Skillset "${sourceSkillset}" not found.`);
+    return {
+      success: false,
+      cancelled: false,
+      message: `Skillset "${sourceSkillset}" not found`,
+    };
+  }
+  const skillDir = path.join(sourceSkillsetDir, "skills", skillName);
 
   try {
     await fs.access(skillDir);

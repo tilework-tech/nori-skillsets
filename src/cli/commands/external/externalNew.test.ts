@@ -226,8 +226,8 @@ describe("externalMain with --new", () => {
       extract: true,
     });
 
-    // Verify skillset directory was created with nori.json
-    const skillsetDir = path.join(skillsetsDir, "fresh-skillset");
+    // Verify skillset directory was created with nori.json in the personal bucket
+    const skillsetDir = path.join(skillsetsDir, "personal", "fresh-skillset");
 
     // Verify nori.json was created with correct structure
     const noriJsonContent = JSON.parse(
@@ -277,7 +277,7 @@ describe("externalMain with --new", () => {
       extract: true,
     });
 
-    const skillsetDir = path.join(skillsetsDir, "deps-test");
+    const skillsetDir = path.join(skillsetsDir, "personal", "deps-test");
     const noriJsonContent = JSON.parse(
       await fs.readFile(path.join(skillsetDir, "nori.json"), "utf-8"),
     );

@@ -31,6 +31,8 @@ import {
   MANIFEST_FILE,
   getNoriSkillsetsDir,
   parseSkillset,
+  resolveSkillsetDir,
+  skillsetCreateDir,
 } from "@/norijson/skillset.js";
 
 import type {
@@ -251,8 +253,10 @@ export const switchSkillset = async (args: {
   const { agent, skillsetName } = args;
   const skillsetsDir = getNoriSkillsetsDir();
 
-  // Verify profile exists
-  const skillsetDir = path.join(skillsetsDir, skillsetName);
+  // Verify profile exists (resolving bare names across storage buckets)
+  const skillsetDir =
+    (await resolveSkillsetDir({ name: skillsetName })) ??
+    path.join(skillsetsDir, skillsetName);
   await ensureNoriJson({ skillsetDir });
   const instructionsPath = path.join(skillsetDir, MANIFEST_FILE);
 
@@ -457,8 +461,11 @@ export const captureExistingConfig = async (args: {
 }): Promise<void> => {
   const { agent, installDir, skillsetName, config } = args;
 
-  const skillsetsDir = getNoriSkillsetsDir();
-  const skillsetDir = path.join(skillsetsDir, skillsetName);
+  // Capture into the existing skillset if the name already resolves; otherwise
+  // create it in the personal bucket.
+  const skillsetDir =
+    (await resolveSkillsetDir({ name: skillsetName })) ??
+    skillsetCreateDir({ name: skillsetName });
 
   // Create skillset directory
   await fs.mkdir(skillsetDir, { recursive: true });

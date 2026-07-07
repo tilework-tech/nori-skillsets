@@ -26,7 +26,11 @@ import {
   writeSkillsetMetadata,
   type NoriJson,
 } from "@/norijson/nori.js";
-import { getNoriSkillsetsDir, listSkillsets } from "@/norijson/skillset.js";
+import {
+  getNoriSkillsetsDir,
+  listSkillsets,
+  resolveSkillsetDir,
+} from "@/norijson/skillset.js";
 import { getHomeDir } from "@/utils/home.js";
 
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
@@ -336,7 +340,9 @@ export const importMcpMain = async (args: {
     skillsetName = picked;
   }
 
-  const skillsetDir = path.join(getNoriSkillsetsDir(), skillsetName);
+  const skillsetDir =
+    (await resolveSkillsetDir({ name: skillsetName })) ??
+    path.join(getNoriSkillsetsDir(), skillsetName);
   if (!(await fileExists(skillsetDir))) {
     return {
       success: false,

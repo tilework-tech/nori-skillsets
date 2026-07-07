@@ -290,6 +290,42 @@ export const namespacedName = (args: {
 };
 
 /**
+ * Build the on-disk directory name (relative to profiles/) for a downloaded or
+ * installed package. Public packages are stored in the `public/` bucket and org
+ * packages under their `<orgId>/` namespace, so the on-disk name is always
+ * `<orgId>/<packageName>` (for the public registry, `<orgId>` is `"public"`).
+ *
+ * This differs from {@link namespacedName}, which returns the user-facing
+ * identity (bare for public packages).
+ *
+ * @param args - Naming arguments
+ * @param args.orgId - The organization ID ("public" for the public registry)
+ * @param args.packageName - The package name
+ *
+ * @returns The on-disk name ("public/my-profile" for public, "myorg/my-profile" for an org)
+ */
+export const namespacedOnDiskName = (args: {
+  orgId: string;
+  packageName: string;
+}): string => {
+  const { orgId, packageName } = args;
+  return `${orgId}/${packageName}`;
+};
+
+/**
+ * Determine whether a registry URL refers to the public registrar.
+ *
+ * @param args - Arguments
+ * @param args.url - The registry URL to classify
+ *
+ * @returns True if the URL is the public registry (noriskillsets.dev apex)
+ */
+export const isPublicRegistryUrl = (args: { url: string }): boolean => {
+  const { url } = args;
+  return extractOrgId({ url }) === "public";
+};
+
+/**
  * Normalize a local skillset name to its on-disk form, tolerating a redundant
  * `public/` prefix. Public skillsets are stored flat, so `public/foo` and `foo`
  * both resolve to `foo`; org names (`myorg/foo`) are returned unchanged. A name

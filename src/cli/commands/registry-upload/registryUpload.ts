@@ -39,7 +39,7 @@ import {
   readSkillsetMetadata,
   writeSkillsetMetadata,
 } from "@/norijson/nori.js";
-import { getNoriSkillsetsDir } from "@/norijson/skillset.js";
+import { resolveSkillsetDir } from "@/norijson/skillset.js";
 import { isDirentDirectory } from "@/utils/dirent.js";
 import {
   isSkillCollisionError,
@@ -1321,21 +1321,17 @@ export const registryUploadMain = async (args: {
     };
   }
 
-  // Check skillset exists locally
-  const skillsetsDir = getNoriSkillsetsDir();
-  const skillsetDir = path.join(
-    skillsetsDir,
-    ...namespacedName({ orgId, packageName }).split("/"),
-  );
+  // Check skillset exists locally (in any bucket or the legacy flat location)
+  const skillsetDir = await resolveSkillsetDir({
+    name: namespacedName({ orgId, packageName }),
+  });
 
-  try {
-    await fs.access(skillsetDir);
-  } catch {
-    log.error(`Skillset "${profileDisplayName}" not found at:\n${skillsetDir}`);
+  if (skillsetDir == null) {
+    log.error(`Skillset "${profileDisplayName}" not found`);
     return {
       success: false,
       cancelled: false,
-      message: `Skillset "${profileDisplayName}" not found at: ${skillsetDir}`,
+      message: `Skillset "${profileDisplayName}" not found`,
     };
   }
 

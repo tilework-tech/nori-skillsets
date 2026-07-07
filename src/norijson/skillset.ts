@@ -40,6 +40,16 @@ export const getNoriSkillsetsDir = (): string => {
 export const MANIFEST_FILE = "nori.json";
 
 /**
+ * Storage bucket directories under profiles/. Bare skillset names are stored in
+ * one of these buckets on disk while remaining bare in the user-facing identity:
+ * locally created skillsets live in `personal/`, public-registrar skillsets live
+ * in `public/`. Organization skillsets keep their visible `<orgId>/<name>`
+ * namespace and are not bucketed. These names are reserved.
+ */
+export const PERSONAL_BUCKET = "personal";
+export const PUBLIC_BUCKET = "public";
+
+/**
  * Represents a parsed skillset directory structure.
  * Content-agnostic: maps to filesystem paths, not file contents.
  */
@@ -97,6 +107,68 @@ const fileExists = async (args: { filePath: string }): Promise<boolean> => {
 };
 
 /**
+ * Resolve a user-facing skillset name to its on-disk directory, or null if it
+ * does not exist anywhere.
+ *
+ * A name containing a slash (e.g. `myorg/foo`, `public/foo`, `personal/foo`) is
+ * treated as an explicit namespace and resolved directly. A bare name is
+ * searched across storage buckets with precedence `personal/` -> `public/` ->
+ * legacy flat `<name>`, so bare references keep working after the bucket
+ * migration.
+ *
+ * @param args - Function arguments
+ * @param args.name - The user-facing skillset name (bare or namespaced)
+ *
+ * @returns Absolute path to the resolved skillset directory, or null
+ */
+export const resolveSkillsetDir = async (args: {
+  name: string;
+}): Promise<string | null> => {
+  const { name } = args;
+  const root = getNoriSkillsetsDir();
+
+  if (name.includes("/")) {
+    const dir = path.join(root, ...name.split("/"));
+    return (await dirExists({ dirPath: dir })) ? dir : null;
+  }
+
+  for (const bucket of [PERSONAL_BUCKET, PUBLIC_BUCKET]) {
+    const candidate = path.join(root, bucket, name);
+    if (await dirExists({ dirPath: candidate })) {
+      return candidate;
+    }
+  }
+
+  // The bucket directories themselves are not skillsets: a bare name equal to a
+  // reserved bucket name must never resolve to the bucket root.
+  if (name === PERSONAL_BUCKET || name === PUBLIC_BUCKET) {
+    return null;
+  }
+
+  const legacy = path.join(root, name);
+  return (await dirExists({ dirPath: legacy })) ? legacy : null;
+};
+
+/**
+ * Compute the on-disk directory where a newly created local skillset should be
+ * written. Bare names are placed in the `personal/` bucket; explicitly
+ * namespaced names (containing a slash) are written at that namespace unchanged.
+ *
+ * @param args - Function arguments
+ * @param args.name - The user-facing skillset name (bare or namespaced)
+ *
+ * @returns Absolute path to the directory to create
+ */
+export const skillsetCreateDir = (args: { name: string }): string => {
+  const { name } = args;
+  const root = getNoriSkillsetsDir();
+  if (name.includes("/")) {
+    return path.join(root, ...name.split("/"));
+  }
+  return path.join(root, PERSONAL_BUCKET, name);
+};
+
+/**
  * Parse a skillset directory into a Skillset object.
  *
  * Accepts either a skillsetName (resolved relative to ~/.nori/profiles/)
@@ -117,10 +189,20 @@ export const parseSkillset = async (args: {
   const { skillsetName, skillsetDir: explicitDir } = args;
   const configFileNames = ["AGENTS.md", "CLAUDE.md"];
 
-  const dir =
-    explicitDir != null
-      ? explicitDir
-      : path.join(getNoriSkillsetsDir(), skillsetName!);
+  let dir: string;
+  if (explicitDir != null) {
+    dir = explicitDir;
+  } else {
+    // Resolve across buckets. A null resolution is "not found" — never fall
+    // back to a raw path.join, which could land on a bucket root directory.
+    const resolved = await resolveSkillsetDir({ name: skillsetName! });
+    if (resolved == null) {
+      throw new Error(
+        `Skillset directory not found: ${path.join(getNoriSkillsetsDir(), skillsetName!)}`,
+      );
+    }
+    dir = resolved;
+  }
 
   // Verify the directory exists
   if (!(await dirExists({ dirPath: dir }))) {
@@ -198,7 +280,47 @@ export const listSkillsetsWithMetadata = async (): Promise<
   Array<SkillsetEntry>
 > => {
   const skillsetsDir = getNoriSkillsetsDir();
-  const skillsets: Array<SkillsetEntry> = [];
+  // Dedup by name (first entry wins) so a bare name present in both a bucket and
+  // the legacy flat location is only listed once.
+  const byName = new Map<string, SkillsetEntry>();
+  const addEntry = (entry: SkillsetEntry): void => {
+    if (!byName.has(entry.name)) {
+      byName.set(entry.name, entry);
+    }
+  };
+
+  // Collect skillsets nested one level under a namespace directory. Bucket
+  // namespaces (personal/public) surface their children under bare names; org
+  // namespaces surface them as "<namespace>/<child>".
+  const collectNested = async (args: {
+    namespace: string;
+    bare: boolean;
+    parentLinked: boolean;
+  }): Promise<void> => {
+    const { namespace, bare, parentLinked } = args;
+    const nsDir = path.join(skillsetsDir, namespace);
+    let subEntries;
+    try {
+      subEntries = await fs.readdir(nsDir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const subEntry of subEntries) {
+      if (!(await isDirentDirectory({ parentDir: nsDir, entry: subEntry })))
+        continue;
+      const nestedDir = path.join(nsDir, subEntry.name);
+      await ensureNoriJson({ skillsetDir: nestedDir });
+      try {
+        await fs.access(path.join(nestedDir, MANIFEST_FILE));
+      } catch {
+        continue;
+      }
+      addEntry({
+        name: bare ? subEntry.name : `${namespace}/${subEntry.name}`,
+        isLinked: parentLinked || subEntry.isSymbolicLink(),
+      });
+    }
+  };
 
   try {
     await fs.access(skillsetsDir);
@@ -209,49 +331,38 @@ export const listSkillsetsWithMetadata = async (): Promise<
         continue;
 
       const isLinked = entry.isSymbolicLink();
+
+      // Storage buckets: list their children under bare names.
+      if (entry.name === PERSONAL_BUCKET || entry.name === PUBLIC_BUCKET) {
+        await collectNested({
+          namespace: entry.name,
+          bare: true,
+          parentLinked: isLinked,
+        });
+        continue;
+      }
+
       const entryDir = path.join(skillsetsDir, entry.name);
       await ensureNoriJson({ skillsetDir: entryDir });
-      const instructionsPath = path.join(entryDir, MANIFEST_FILE);
       try {
-        await fs.access(instructionsPath);
-        skillsets.push({ name: entry.name, isLinked });
+        await fs.access(path.join(entryDir, MANIFEST_FILE));
+        addEntry({ name: entry.name, isLinked });
       } catch {
-        try {
-          const orgDir = path.join(skillsetsDir, entry.name);
-          const subEntries = await fs.readdir(orgDir, {
-            withFileTypes: true,
-          });
-
-          for (const subEntry of subEntries) {
-            if (
-              !(await isDirentDirectory({ parentDir: orgDir, entry: subEntry }))
-            )
-              continue;
-
-            const isSubLinked = subEntry.isSymbolicLink();
-            const nestedDir = path.join(orgDir, subEntry.name);
-            await ensureNoriJson({ skillsetDir: nestedDir });
-            const nestedInstructionsPath = path.join(nestedDir, MANIFEST_FILE);
-            try {
-              await fs.access(nestedInstructionsPath);
-              skillsets.push({
-                name: `${entry.name}/${subEntry.name}`,
-                isLinked: isLinked || isSubLinked,
-              });
-            } catch {
-              // Skip subdirectories without instructions file
-            }
-          }
-        } catch {
-          // Skip directories that can't be read
-        }
+        // No manifest at this level: treat as an org namespace and recurse.
+        await collectNested({
+          namespace: entry.name,
+          bare: false,
+          parentLinked: isLinked,
+        });
       }
     }
   } catch {
     // Skillsets directory doesn't exist
   }
 
-  return skillsets.sort((a, b) => a.name.localeCompare(b.name));
+  return Array.from(byName.values()).sort((a, b) =>
+    a.name.localeCompare(b.name),
+  );
 };
 
 /**

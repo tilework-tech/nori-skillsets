@@ -46,6 +46,7 @@ import {
   setTileworkSource,
   trackInstallLifecycle,
 } from "@/cli/installTracking.js";
+import { runProfilesMigration } from "@/cli/profilesMigration.js";
 import { checkForUpdateAndPrompt } from "@/cli/updates/checkForUpdate.js";
 import { getCurrentPackageVersion } from "@/cli/version.js";
 import { initializeProxySupport } from "@/utils/fetch.js";
@@ -78,6 +79,19 @@ const isInfoOnly =
   process.argv.includes("-V");
 
 if (!isInfoOnly) {
+  // Relocate legacy bare profiles into personal/ and public/ buckets before any
+  // command reads them. Best-effort — never block the CLI on a migration error.
+  try {
+    const migration = await runProfilesMigration();
+    if (migration.moved > 0) {
+      process.stderr.write(
+        `nori: migrated ${migration.moved} profile${migration.moved === 1 ? "" : "s"} into personal/ and public/ buckets.\n`,
+      );
+    }
+  } catch {
+    // Ignore — migration retries on the next invocation.
+  }
+
   await checkForUpdateAndPrompt({
     currentVersion: version,
     isInteractive: !isNonInteractive && !isSilent,

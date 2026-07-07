@@ -41,6 +41,7 @@ vi.mock("@/api/registrar.js", () => ({
 
 vi.mock("fs/promises", () => ({
   access: vi.fn().mockRejectedValue(new Error("ENOENT")),
+  stat: vi.fn().mockRejectedValue(new Error("ENOENT")),
 }));
 
 vi.mock("@/cli/commands/registry-download/registryDownload.js", () => ({
@@ -295,8 +296,10 @@ describe("registry-install", () => {
       cancelled: false,
       message: "",
     });
-    // Local profile exists
-    vi.mocked(fs.access).mockResolvedValueOnce(undefined);
+    // Local profile exists in a storage bucket (resolveSkillsetDir probes via fs.stat)
+    vi.mocked(fs.stat).mockResolvedValueOnce({
+      isDirectory: () => true,
+    } as never);
     // Has existing installation
     vi.mocked(hasExistingInstallation).mockReturnValueOnce(true);
 

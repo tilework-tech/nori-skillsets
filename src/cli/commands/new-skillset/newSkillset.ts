@@ -12,7 +12,11 @@ import { log, note } from "@clack/prompts";
 import { bold } from "@/cli/logger.js";
 import { newSkillsetFlow } from "@/cli/prompts/flows/newSkillset.js";
 import { writeSkillsetMetadata, type NoriJson } from "@/norijson/nori.js";
-import { getNoriSkillsetsDir } from "@/norijson/skillset.js";
+import {
+  getNoriSkillsetsDir,
+  resolveSkillsetDir,
+  skillsetCreateDir,
+} from "@/norijson/skillset.js";
 
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 
@@ -63,20 +67,17 @@ export const newSkillsetMain = async (): Promise<CommandStatus> => {
 
   const { name, description, license, keywords, version, repository } =
     flowResult;
-  const skillsetsDir = getNoriSkillsetsDir();
-  const destPath = path.join(skillsetsDir, name);
+  const destPath = skillsetCreateDir({ name });
 
-  // Validate destination does not already exist
-  try {
-    await fs.access(destPath);
+  // Validate the name does not already resolve to an existing skillset
+  // (in any bucket or the legacy flat location).
+  if ((await resolveSkillsetDir({ name })) != null) {
     log.error(`Skillset '${name}' already exists. Choose a different name.`);
     return {
       success: false,
       cancelled: false,
       message: `Skillset "${name}" already exists`,
     };
-  } catch {
-    // Expected — destination should not exist
   }
 
   // Build metadata object
@@ -115,9 +116,10 @@ export const newSkillsetMain = async (): Promise<CommandStatus> => {
     metadata,
   });
 
+  const relLocation = path.relative(getNoriSkillsetsDir(), destPath);
   const nextSteps = [
     `To switch:  nori-skillsets switch ${name}`,
-    `To edit:    ~/.nori/profiles/${name}/`,
+    `To edit:    ~/.nori/profiles/${relLocation}/`,
   ].join("\n");
   note(nextSteps, "Next Steps");
 

@@ -24,7 +24,11 @@ import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { substituteTemplatePaths } from "@/cli/features/template.js";
 import { setSilentMode, isSilentMode } from "@/cli/logger.js";
 import { switchSkillsetFlow } from "@/cli/prompts/flows/switchSkillset.js";
-import { listSkillsets, getNoriSkillsetsDir } from "@/norijson/skillset.js";
+import {
+  listSkillsets,
+  getNoriSkillsetsDir,
+  resolveSkillsetDir,
+} from "@/norijson/skillset.js";
 import { resolveInstallDir } from "@/utils/path.js";
 
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
@@ -219,10 +223,9 @@ export const switchSkillsetAction = async (args: {
           });
           const agentDir = diffAgent.getAgentDir({ installDir: dir });
           const currentPath = path.join(agentDir, relativePath);
-          const profileDir = path.join(
-            getNoriSkillsetsDir(),
-            currentProfileName,
-          );
+          const profileDir =
+            (await resolveSkillsetDir({ name: currentProfileName })) ??
+            path.join(getNoriSkillsetsDir(), currentProfileName);
 
           // Map installed path back to profile source path
           let sourcePath: string | null = null;

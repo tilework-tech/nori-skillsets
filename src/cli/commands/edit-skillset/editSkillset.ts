@@ -5,13 +5,12 @@
 
 import { execFile } from "child_process";
 import * as fs from "fs/promises";
-import * as path from "path";
 
 import { log, note } from "@clack/prompts";
 
 import { loadConfig, getActiveSkillset } from "@/cli/config.js";
 import { bold } from "@/cli/logger.js";
-import { getNoriSkillsetsDir } from "@/norijson/skillset.js";
+import { resolveSkillsetDir } from "@/norijson/skillset.js";
 
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 
@@ -54,19 +53,16 @@ export const editSkillsetMain = async (args: {
     skillsetName = activeSkillset;
   }
 
-  // Resolve the skillset directory path
-  const skillsetsDir = getNoriSkillsetsDir();
-  const skillsetDir = path.join(skillsetsDir, skillsetName);
+  // Resolve the skillset directory across storage buckets (bare, public, org)
+  const skillsetDir = await resolveSkillsetDir({ name: skillsetName });
 
   // Verify the skillset directory exists
-  try {
-    await fs.access(skillsetDir);
-  } catch {
-    log.error(`Skillset '${skillsetName}' not found at ${skillsetDir}`);
+  if (skillsetDir == null) {
+    log.error(`Skillset '${skillsetName}' not found`);
     return {
       success: false,
       cancelled: false,
-      message: `Skillset "${skillsetName}" not found at ${skillsetDir}`,
+      message: `Skillset "${skillsetName}" not found`,
     };
   }
 
