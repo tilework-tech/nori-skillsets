@@ -10,7 +10,7 @@ import { log, note } from "@clack/prompts";
 
 import { loadConfig, getActiveSkillset } from "@/cli/config.js";
 import { bold } from "@/cli/logger.js";
-import { resolveSkillsetDir } from "@/norijson/skillset.js";
+import { resolveUserSkillsetRef } from "@/norijson/skillset.js";
 
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 
@@ -53,8 +53,10 @@ export const editSkillsetMain = async (args: {
     skillsetName = activeSkillset;
   }
 
-  // Resolve the skillset directory across storage buckets (bare, public, org)
-  const skillsetDir = await resolveSkillsetDir({ name: skillsetName });
+  // Resolve the skillset directory across storage buckets (bare, public, org),
+  // warning once if a deprecated bare name was used.
+  const skillsetDir = (await resolveUserSkillsetRef({ name: skillsetName }))
+    ?.dir;
 
   // Verify the skillset directory exists
   if (skillsetDir == null) {

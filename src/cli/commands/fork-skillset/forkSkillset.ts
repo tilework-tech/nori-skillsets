@@ -93,7 +93,7 @@ export const forkSkillsetMain = async (args: {
 
   const relLocation = path.relative(getNoriSkillsetsDir(), destPath);
   const nextSteps = [
-    `To switch:  nori-skillsets switch ${newSkillset}`,
+    `To switch:  nori-skillsets switch ${relLocation}`,
     `To edit:    ~/.nori/profiles/${relLocation}/`,
   ].join("\n");
   note(nextSteps, "Next Steps");

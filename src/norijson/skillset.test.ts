@@ -23,6 +23,7 @@ import {
   parseSkillset,
   listSkillsets,
   resolveSkillsetDir,
+  resolveUserSkillsetRef,
 } from "@/norijson/skillset.js";
 
 describe("Shared Nori paths", () => {
@@ -216,6 +217,20 @@ describe("parseSkillset", () => {
       const resolved = await resolveSkillsetDir({ name: "acme/sessions" });
 
       expect(resolved).toBe(orgDir);
+    });
+
+    it("returns the namespaced identity for a bare name that lives in a bucket", async () => {
+      const publicDir = path.join(profilesDir, "public", "senior-swe");
+      await fs.mkdir(publicDir, { recursive: true });
+      await fs.writeFile(
+        path.join(publicDir, "nori.json"),
+        JSON.stringify({ name: "senior-swe", version: "1.0.0" }),
+      );
+
+      const resolved = await resolveUserSkillsetRef({ name: "senior-swe" });
+
+      expect(resolved?.dir).toBe(publicDir);
+      expect(resolved?.identity).toBe("public/senior-swe");
     });
 
     it("does not resolve a bare bucket name to the bucket directory", async () => {
@@ -604,7 +619,7 @@ describe("listSkillsets", () => {
     expect(profiles).toContain("myorg/linked-profile");
   });
 
-  test("lists personal and public bucket profiles under their bare names", async () => {
+  test("lists personal and public bucket profiles under their namespaced identity", async () => {
     const skillsetsDir = path.join(testHomeDir, ".nori", "profiles");
 
     const personalProfile = path.join(skillsetsDir, "personal", "my-local");
@@ -624,14 +639,14 @@ describe("listSkillsets", () => {
 
     const profiles = await listSkillsets();
 
-    expect(profiles).toContain("my-local");
-    expect(profiles).toContain("senior-swe");
+    expect(profiles).toContain("personal/my-local");
+    expect(profiles).toContain("public/senior-swe");
     expect(profiles).toContain("acme/sessions");
-    expect(profiles).not.toContain("personal/my-local");
-    expect(profiles).not.toContain("public/senior-swe");
+    expect(profiles).not.toContain("my-local");
+    expect(profiles).not.toContain("senior-swe");
   });
 
-  test("does not list a bare name twice when it exists in a bucket and legacy location", async () => {
+  test("lists a bucketed and a legacy-flat profile of the same name as distinct entries", async () => {
     const skillsetsDir = path.join(testHomeDir, ".nori", "profiles");
 
     const bucketDir = path.join(skillsetsDir, "personal", "shared");
@@ -646,6 +661,7 @@ describe("listSkillsets", () => {
 
     const profiles = await listSkillsets();
 
-    expect(profiles.filter((name) => name === "shared").length).toBe(1);
+    expect(profiles).toContain("personal/shared");
+    expect(profiles).toContain("shared");
   });
 });

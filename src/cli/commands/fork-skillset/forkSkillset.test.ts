@@ -223,7 +223,7 @@ describe("forkSkillsetMain", () => {
 
     // Should show note with next steps containing switch and edit instructions
     expect(mockNote).toHaveBeenCalledWith(
-      expect.stringContaining("switch my-fork"),
+      expect.stringContaining("switch personal/my-fork"),
       "Next Steps",
     );
     expect(mockNote).toHaveBeenCalledWith(

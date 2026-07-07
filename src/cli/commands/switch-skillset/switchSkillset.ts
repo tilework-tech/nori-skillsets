@@ -29,6 +29,7 @@ import {
   listSkillsets,
   getNoriSkillsetsDir,
   resolveSkillsetDir,
+  resolveUserSkillsetRef,
 } from "@/norijson/skillset.js";
 import { resolveInstallDir } from "@/utils/path.js";
 
@@ -100,6 +101,12 @@ export const switchSkillsetAction = async (args: {
     }
 
     name = selected as string;
+  }
+
+  // Emit a one-time deprecation warning if the user referenced a bucketed
+  // skillset by a bare (non-namespaced) name.
+  if (name != null) {
+    await resolveUserSkillsetRef({ name });
   }
 
   // Interactive flow

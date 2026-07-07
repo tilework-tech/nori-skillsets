@@ -2,7 +2,7 @@ import * as fs from "fs/promises";
 import * as path from "path";
 
 import { readSkillsetMetadata } from "@/norijson/nori.js";
-import { getNoriSkillsetsDir } from "@/norijson/skillset.js";
+import { skillsetCreateDir } from "@/norijson/skillset.js";
 
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 
@@ -64,9 +64,9 @@ export const linkSkillsetMain = async (args: {
     skillsetName = path.basename(resolvedTarget);
   }
 
-  // Compute link path, supporting org-scoped names
-  const skillsetsDir = getNoriSkillsetsDir();
-  const linkPath = path.join(skillsetsDir, ...skillsetName.split("/"));
+  // Compute link path: a bare name lands in the personal/ bucket, while an
+  // explicitly namespaced name (e.g. an org) is written at that namespace.
+  const linkPath = skillsetCreateDir({ name: skillsetName });
 
   // Ensure parent directory exists (for org-scoped names)
   await fs.mkdir(path.dirname(linkPath), { recursive: true });

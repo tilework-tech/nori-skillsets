@@ -167,6 +167,34 @@ describe("currentSkillsetMain", () => {
     expect(mockExit).not.toHaveBeenCalled();
   });
 
+  it("displays the namespaced identity when the active skillset lives in a bucket", async () => {
+    const configPath = path.join(testHomeDir, ".nori-config.json");
+    await fs.writeFile(
+      configPath,
+      JSON.stringify({
+        activeSkillset: "senior-swe",
+        installDir: testHomeDir,
+      }),
+    );
+    // The stored bare name resolves to the public bucket on disk.
+    const publicProfile = path.join(
+      testHomeDir,
+      ".nori",
+      "profiles",
+      "public",
+      "senior-swe",
+    );
+    await fs.mkdir(publicProfile, { recursive: true });
+    await fs.writeFile(
+      path.join(publicProfile, "nori.json"),
+      JSON.stringify({ name: "senior-swe", version: "1.0.0" }),
+    );
+
+    await currentSkillsetMain({ agent: null });
+
+    expect(mockStdoutWrite).toHaveBeenCalledWith("public/senior-swe\n");
+  });
+
   it("should error when specified agent has no profile configured", async () => {
     // Config with agent but no profile
     const configPath = path.join(testHomeDir, ".nori-config.json");

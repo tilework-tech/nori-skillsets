@@ -6,6 +6,7 @@
 import { log } from "@clack/prompts";
 
 import { loadConfig, getActiveSkillset } from "@/cli/config.js";
+import { resolveSkillsetDir, skillsetIdentity } from "@/norijson/skillset.js";
 
 /**
  * Main function for current-skillset command
@@ -36,6 +37,12 @@ export const currentSkillsetMain = async (_args: {
     return;
   }
 
+  // Display the namespaced identity (e.g. personal/foo) even if the stored
+  // active skillset is a legacy bare name that resolves into a bucket.
+  const resolvedDir = await resolveSkillsetDir({ name: skillset });
+  const display =
+    resolvedDir != null ? skillsetIdentity({ dir: resolvedDir }) : skillset;
+
   // Output the skillset name (plain stdout for scripting use)
-  process.stdout.write(skillset + "\n");
+  process.stdout.write(display + "\n");
 };

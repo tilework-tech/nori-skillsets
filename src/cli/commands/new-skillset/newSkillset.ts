@@ -118,7 +118,7 @@ export const newSkillsetMain = async (): Promise<CommandStatus> => {
 
   const relLocation = path.relative(getNoriSkillsetsDir(), destPath);
   const nextSteps = [
-    `To switch:  nori-skillsets switch ${name}`,
+    `To switch:  nori-skillsets switch ${relLocation}`,
     `To edit:    ~/.nori/profiles/${relLocation}/`,
   ].join("\n");
   note(nextSteps, "Next Steps");

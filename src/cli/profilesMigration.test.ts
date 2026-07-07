@@ -195,7 +195,7 @@ describe("runProfilesMigration", () => {
     expect(await dirExists(path.join(profilesDir, "clash"))).toBe(true);
   });
 
-  it("leaves a symlinked bare profile in place so link/unlink keep working", async () => {
+  it("relocates a symlinked bare profile into a bucket as a symlink", async () => {
     const externalDir = path.join(testHomeDir, "external-repo");
     await fs.mkdir(externalDir, { recursive: true });
     await fs.writeFile(
@@ -206,15 +206,14 @@ describe("runProfilesMigration", () => {
 
     await runProfilesMigration();
 
-    // The symlink stays at its flat location, still pointing at the target.
-    const link = path.join(profilesDir, "linked");
-    const linkStat = await fs.lstat(link);
+    // The link is relocated (no .nori-version => personal) and still points at
+    // the same target.
+    const movedLink = path.join(profilesDir, "personal", "linked");
+    const linkStat = await fs.lstat(movedLink);
     expect(linkStat.isSymbolicLink()).toBe(true);
-    expect(await fs.readlink(link)).toBe(externalDir);
-    // It is not relocated into a bucket.
-    expect(await dirExists(path.join(profilesDir, "personal", "linked"))).toBe(
-      false,
-    );
+    expect(await fs.readlink(movedLink)).toBe(externalDir);
+    // The original flat location is gone.
+    await expect(fs.lstat(path.join(profilesDir, "linked"))).rejects.toThrow();
   });
 
   it("does not move a pre-existing skillset whose name collides with a bucket", async () => {

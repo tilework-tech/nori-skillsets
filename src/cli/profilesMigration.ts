@@ -188,13 +188,6 @@ export const runProfilesMigration = async (): Promise<{ moved: number }> => {
       continue;
     }
 
-    // Leave symlinked (linked) skillsets flat so `sks link`/`unlink` keep
-    // working against the flat path; the resolver still finds them via the
-    // legacy fallback.
-    if (entry.isSymbolicLink()) {
-      continue;
-    }
-
     // Only bare skillsets (a nori.json directly inside) are bucketed. Org
     // namespace directories (no nori.json at this level) and stray files are
     // left untouched.

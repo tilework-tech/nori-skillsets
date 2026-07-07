@@ -14,7 +14,7 @@ import { registerSkillsetFlow } from "@/cli/prompts/flows/registerSkillset.js";
 import { writeSkillsetMetadata, type NoriJson } from "@/norijson/nori.js";
 import {
   getNoriSkillsetsDir,
-  resolveSkillsetDir,
+  resolveUserSkillsetRef,
 } from "@/norijson/skillset.js";
 
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
@@ -67,8 +67,9 @@ export const registerSkillsetMain = async (args: {
     skillsetName = activeSkillset;
   }
 
-  // Resolve the existing skillset directory across storage buckets
-  const destPath = await resolveSkillsetDir({ name: skillsetName });
+  // Resolve the existing skillset directory across storage buckets, warning
+  // once if a deprecated bare name was used.
+  const destPath = (await resolveUserSkillsetRef({ name: skillsetName }))?.dir;
 
   // Validate that the directory exists
   if (destPath == null) {

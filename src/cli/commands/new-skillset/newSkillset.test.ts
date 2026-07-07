@@ -168,7 +168,7 @@ describe("newSkillsetMain", () => {
 
     // Should show note with next steps containing switch and edit instructions
     expect(mockNote).toHaveBeenCalledWith(
-      expect.stringContaining("switch my-skillset"),
+      expect.stringContaining("switch personal/my-skillset"),
       "Next Steps",
     );
     expect(mockNote).toHaveBeenCalledWith(

@@ -2,7 +2,10 @@ import * as fs from "fs/promises";
 import * as path from "path";
 
 import { loadConfig, getActiveSkillset, updateConfig } from "@/cli/config.js";
-import { getNoriSkillsetsDir } from "@/norijson/skillset.js";
+import {
+  getNoriSkillsetsDir,
+  resolveSkillsetDir,
+} from "@/norijson/skillset.js";
 
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 
@@ -19,8 +22,11 @@ export const unlinkSkillsetMain = async (args: {
 }): Promise<CommandStatus> => {
   const { name } = args;
 
+  // Resolve the link across storage buckets (a bare name reaches personal/foo)
   const skillsetsDir = getNoriSkillsetsDir();
-  const linkPath = path.join(skillsetsDir, ...name.split("/"));
+  const linkPath =
+    (await resolveSkillsetDir({ name })) ??
+    path.join(skillsetsDir, ...name.split("/"));
 
   // Verify the path exists
   let stat;
