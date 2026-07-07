@@ -520,5 +520,17 @@ describe("hooksLoader", () => {
         pr: "Custom PR attribution",
       });
     });
+
+    it("does not clobber a settings.json that exists but is corrupt", async () => {
+      const config: Config = { installDir: tempDir };
+      const corrupt = '{ "permissions": { "allow": [ broken';
+      await fs.writeFile(settingsPath, corrupt);
+
+      await expect(
+        hooksLoader.run({ agent: {} as any, config }),
+      ).rejects.toThrow();
+
+      expect(await fs.readFile(settingsPath, "utf-8")).toBe(corrupt);
+    });
   });
 });
