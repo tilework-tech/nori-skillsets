@@ -22,6 +22,7 @@ import { hasExistingInstallation } from "@/cli/features/install/installState.js"
 import { bold, brightCyan, green } from "@/cli/logger.js";
 import { getNoriSkillsetsDir } from "@/norijson/skillset.js";
 import { resolveInstallDir } from "@/utils/path.js";
+import { namespacedName, parseNamespacedPackage } from "@/utils/url.js";
 
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 import type { Command } from "commander";
@@ -31,12 +32,6 @@ type RegistryInstallArgs = {
   installDir?: string | null;
   nonInteractive?: boolean | null;
   silent?: boolean | null;
-};
-
-const parsePackageName = (args: { packageSpec: string }): string => {
-  const { packageSpec } = args;
-  const [packageName] = packageSpec.split("@");
-  return packageName || packageSpec;
 };
 
 /**
@@ -77,7 +72,21 @@ export const registryInstallMain = async (
 ): Promise<CommandStatus> => {
   const { packageSpec, installDir, nonInteractive, silent } = args;
 
-  const skillsetName = parsePackageName({ packageSpec });
+  const parsed = parseNamespacedPackage({ packageSpec });
+  if (parsed == null) {
+    log.error(
+      `Invalid skillset specification: "${packageSpec}".\nExpected format: skillset-name or org/skillset-name[@version]`,
+    );
+    return {
+      success: false,
+      cancelled: false,
+      message: `Invalid skillset specification: "${packageSpec}"`,
+    };
+  }
+  const skillsetName = namespacedName({
+    orgId: parsed.orgId,
+    packageName: parsed.packageName,
+  });
 
   // Load config for auth and install dir resolution
   const config = await loadConfig();

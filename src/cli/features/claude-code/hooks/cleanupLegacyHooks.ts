@@ -72,9 +72,7 @@ export const cleanupLegacyHooks = async (): Promise<void> => {
   }
 
   const hooks = settings.hooks as
-    | Record<string, Array<MatcherGroup>>
-    | null
-    | undefined;
+    Record<string, Array<MatcherGroup>> | null | undefined;
   if (hooks == null) {
     return;
   }

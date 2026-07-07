@@ -11,7 +11,7 @@ Path: @/src/packaging
 ### How it fits into the larger codebase
 
 - Consumed by the five registry-facing commands: @/src/cli/commands/registry-download/registryDownload.ts, @/src/cli/commands/skill-download/skillDownload.ts, @/src/cli/commands/subagent-download/subagentDownload.ts, @/src/cli/commands/registry-upload/registryUpload.ts, and @/src/cli/commands/skill-upload/skillUpload.ts — plus the core upload seams @/src/core/uploadPipeline.ts (`createArchive`, `parseSubagentFrontmatter`) and @/src/core/uploadSync.ts (`writeVersionInfo`).
-- `archive.ts` depends on @/src/utils/uploadFileFilter.ts (`shouldExcludeFromUpload`, `collectCargoManifestDirs`) for upload exclusions and @/src/utils/dirent.ts for symlink-following file checks.
+- `archive.ts` depends on @/src/utils/uploadFileFilter.ts (`shouldExcludeFromUpload`, `collectCargoManifestDirs`) for upload exclusions, and walks the package tree with `fs.stat` so symlinked directories contribute their real file contents under the linked path.
 - `registryLookup.ts` depends only on types and errors from @/src/api/registrar.js (`Packument`, `NetworkError`, `REGISTRAR_URL`); actual HTTP calls are injected by callers as callbacks.
 - Ownership rule: commands must not hand-roll tar pipelines, swap dances, or `.nori-version` reads/writes. New install/update paths go through this module.
 
@@ -28,7 +28,7 @@ Path: @/src/packaging
 - The atomic swap sequence: extract to a hidden temp sibling, rename target to backup, rename temp into place, delete backup. On any failure the original directory is restored from backup and temp state is removed, so a mid-operation crash never leaves the package half-destroyed.
 - `replaceDirContentsWithArchive` exists for skillset updates: the archive's copies of preserved entries are discarded and the existing directory's versions (locally-managed `skills/`, `subagents/`, `.nori-version`) are carried into the new contents before the swap.
 - `searchSpecificRegistry` treats the public registry (no auth) and private registries (auth token via callback) differently: a 404-style API error means "not found" (no error surfaced), while `NetworkError` is reported as a `RegistrySearchError` so callers can distinguish outage from absence. When `getAuthToken` is null, private-registry search silently reports "not found".
-- `createArchive` writes a temp `.tgz` next to (not inside) the source directory, always deletes it in a `finally`, packs with `follow: true` so symlinked skillsets upload real content, and filters entries through the shared upload exclusion predicate.
+- `createArchive` writes a temp `.tgz` next to (not inside) the source directory, always deletes it in a `finally`, follows symlinked files/directories while building the pack list so linked skillsets upload real content, and filters entries through the shared upload exclusion predicate.
 
 ### Things to Know
 

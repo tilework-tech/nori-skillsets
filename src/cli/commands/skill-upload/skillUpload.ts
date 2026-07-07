@@ -1,6 +1,6 @@
 /**
  * CLI command for uploading a single skill package to the Nori registrar.
- * Handles: nori-skillsets upload-skill <skill> [--skillset <name>] [--registry <url>] [--version <ver>] [--description <text>]
+ * Handles: nori-skillsets upload-skill <skill>[@<version>] [--skillset <name>] [--registry <url>] [--description <text>]
  */
 
 import * as fs from "fs/promises";
@@ -33,7 +33,11 @@ import { skillUploadFlow } from "@/cli/prompts/flows/index.js";
 import { resolveOrgRegistryAuth } from "@/core/registryAuthResolution.js";
 import { getNoriSkillsetsDir } from "@/norijson/skillset.js";
 import { createArchive, extractFileFromArchive } from "@/packaging/archive.js";
-import { parseNamespacedPackage, extractOrgId } from "@/utils/url.js";
+import {
+  parseNamespacedPackage,
+  extractOrgId,
+  localSkillsetName,
+} from "@/utils/url.js";
 
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 import type { CheckExistingResult } from "@/cli/prompts/flows/skillUpload.js";
@@ -277,8 +281,10 @@ export const skillUploadMain = async (args: {
     };
   }
 
+  const resolvedSource = localSkillsetName({ name: sourceSkillset });
+
   const skillsetsDir = getNoriSkillsetsDir();
-  const skillDir = path.join(skillsetsDir, sourceSkillset, "skills", skillName);
+  const skillDir = path.join(skillsetsDir, resolvedSource, "skills", skillName);
 
   try {
     await fs.access(skillDir);

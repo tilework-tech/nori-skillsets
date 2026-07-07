@@ -9,6 +9,8 @@ import {
   isValidUrl,
   extractOrgId,
   parseNamespacedPackage,
+  namespacedName,
+  localSkillsetName,
 } from "./url";
 
 describe("normalizeUrl", () => {
@@ -303,6 +305,40 @@ describe("parseNamespacedPackage", () => {
       });
       expect(result).toBe(null);
     });
+  });
+});
+
+describe("namespacedName", () => {
+  it("returns the bare name for the public registry", () => {
+    expect(namespacedName({ orgId: "public", packageName: "my-profile" })).toBe(
+      "my-profile",
+    );
+  });
+
+  it("returns the org-scoped name for an organization", () => {
+    expect(namespacedName({ orgId: "myorg", packageName: "my-profile" })).toBe(
+      "myorg/my-profile",
+    );
+  });
+});
+
+describe("localSkillsetName", () => {
+  it("strips a redundant public/ prefix to the flat on-disk name", () => {
+    expect(localSkillsetName({ name: "public/my-profile" })).toBe("my-profile");
+  });
+
+  it("returns a bare name unchanged", () => {
+    expect(localSkillsetName({ name: "my-profile" })).toBe("my-profile");
+  });
+
+  it("preserves the org prefix for org-scoped names", () => {
+    expect(localSkillsetName({ name: "myorg/my-profile" })).toBe(
+      "myorg/my-profile",
+    );
+  });
+
+  it("returns an invalid multi-slash name unchanged", () => {
+    expect(localSkillsetName({ name: "a/b/c" })).toBe("a/b/c");
   });
 });
 

@@ -114,6 +114,7 @@ vi.mock("@/cli/logger.js", () => ({
 }));
 
 import { registryDownloadMain } from "@/cli/commands/registry-download/registryDownload.js";
+import { updateConfig } from "@/cli/config.js";
 import { main as installMain } from "@/cli/features/install/install.js";
 import { hasExistingInstallation } from "@/cli/features/install/installState.js";
 import { bold } from "@/cli/logger.js";
@@ -421,5 +422,54 @@ describe("registry-install", () => {
         silent: true,
       }),
     );
+  });
+
+  it("should install a public/ skillset under its bare name while passing the namespaced spec to download", async () => {
+    await registryInstallMain({
+      packageSpec: "public/senior-swe",
+    });
+
+    expect(registryDownloadMain).toHaveBeenCalledWith(
+      expect.objectContaining({ packageSpec: "public/senior-swe" }),
+    );
+    expect(installMain).toHaveBeenCalledWith(
+      expect.objectContaining({ skillset: "senior-swe" }),
+    );
+  });
+
+  it("should record the bare public name as the active skillset on the switch path", async () => {
+    vi.mocked(hasExistingInstallation).mockReturnValueOnce(true);
+
+    await registryInstallMain({
+      packageSpec: "public/senior-swe",
+    });
+
+    expect(mockSwitchSkillset).toHaveBeenCalledWith(
+      expect.objectContaining({ skillsetName: "senior-swe" }),
+    );
+    expect(updateConfig).toHaveBeenCalledWith({ activeSkillset: "senior-swe" });
+  });
+
+  it("should keep the org prefix so an org skillset installs under its nested name", async () => {
+    await registryInstallMain({
+      packageSpec: "myorg/senior-swe",
+    });
+
+    expect(registryDownloadMain).toHaveBeenCalledWith(
+      expect.objectContaining({ packageSpec: "myorg/senior-swe" }),
+    );
+    expect(installMain).toHaveBeenCalledWith(
+      expect.objectContaining({ skillset: "myorg/senior-swe" }),
+    );
+  });
+
+  it("should fail without downloading when the skillset specification is malformed", async () => {
+    const result = await registryInstallMain({
+      packageSpec: "org/sub/package",
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.message).toContain("Invalid skillset specification");
+    expect(registryDownloadMain).not.toHaveBeenCalled();
   });
 });

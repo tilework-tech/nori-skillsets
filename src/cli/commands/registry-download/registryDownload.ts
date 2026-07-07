@@ -39,6 +39,7 @@ import { resolveInstallDir } from "@/utils/path.js";
 import {
   parseNamespacedPackage,
   buildOrganizationRegistryUrl,
+  namespacedName,
 } from "@/utils/url.js";
 
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
@@ -414,9 +415,7 @@ export const registryDownloadMain = async (args: {
     };
   }
   const { orgId, packageName, version } = parsed;
-  // Display name includes org prefix for namespaced packages (e.g., "myorg/my-profile")
-  const profileDisplayName =
-    orgId === "public" ? packageName : `${orgId}/${packageName}`;
+  const profileDisplayName = namespacedName({ orgId, packageName });
 
   // Resolve install directory from config and auto-init if needed
   const config = await loadConfig();
@@ -448,11 +447,7 @@ export const registryDownloadMain = async (args: {
   }
 
   const skillsetsDir = getNoriSkillsetsDir();
-  // For namespaced packages, the skillset is in a nested directory (e.g., profiles/myorg/my-profile)
-  const targetDir =
-    orgId === "public"
-      ? path.join(skillsetsDir, packageName)
-      : path.join(skillsetsDir, orgId, packageName);
+  const targetDir = path.join(skillsetsDir, ...profileDisplayName.split("/"));
 
   // Check if skillset already exists and get its version info
   let existingVersionInfo: VersionInfo | null = null;
@@ -634,7 +629,7 @@ export const registryDownloadMain = async (args: {
             return {
               status: "list-versions",
               formattedVersionList: formatVersionList({
-                packageName,
+                packageName: profileDisplayName,
                 packument: foundRegistry.packument,
                 registryUrl: foundRegistry.registryUrl,
                 downloadCommand: `${cliPrefix} ${commandNames.download}`,
@@ -720,8 +715,8 @@ export const registryDownloadMain = async (args: {
           if (profileExists && existingVersionInfo == null) {
             return {
               status: "error",
-              error: `Skillset "${packageName}" already exists at:\n${targetDir}\n\nThis skillset has no version information (.nori-version file).`,
-              hint: `To reinstall:\n  rm -rf "${targetDir}"\n  ${cliPrefix} ${commandNames.download} ${packageName}`,
+              error: `Skillset "${profileDisplayName}" already exists at:\n${targetDir}\n\nThis skillset has no version information (.nori-version file).`,
+              hint: `To reinstall:\n  rm -rf "${targetDir}"\n  ${cliPrefix} ${commandNames.download} ${profileDisplayName}`,
             };
           }
 

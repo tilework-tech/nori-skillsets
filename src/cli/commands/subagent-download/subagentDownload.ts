@@ -46,7 +46,7 @@ import {
   searchSpecificRegistry,
 } from "@/packaging/registryLookup.js";
 import { resolveInstallDir } from "@/utils/path.js";
-import { parseNamespacedPackage } from "@/utils/url.js";
+import { localSkillsetName, parseNamespacedPackage } from "@/utils/url.js";
 
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 import type {
@@ -164,12 +164,13 @@ export const subagentDownloadMain = async (args: {
   const skillsetsDir = getNoriSkillsetsDir();
 
   if (skillset != null) {
-    const skillsetDir = path.join(skillsetsDir, skillset);
+    const resolvedName = localSkillsetName({ name: skillset });
+    const skillsetDir = path.join(skillsetsDir, resolvedName);
     await ensureNoriJson({ skillsetDir });
     const skillsetMarker = path.join(skillsetDir, "nori.json");
     try {
       await fs.access(skillsetMarker);
-      targetSkillset = skillset;
+      targetSkillset = resolvedName;
     } catch {
       log.error(
         `Skillset "${skillset}" not found at: ${skillsetDir}\n\nMake sure the skillset exists and contains a nori.json file.`,
@@ -183,10 +184,11 @@ export const subagentDownloadMain = async (args: {
   } else if (config != null) {
     const activeSkillset = getActiveSkillset({ config });
     if (activeSkillset != null) {
-      const skillsetDir = path.join(skillsetsDir, activeSkillset);
+      const resolvedName = localSkillsetName({ name: activeSkillset });
+      const skillsetDir = path.join(skillsetsDir, resolvedName);
       try {
         await fs.access(skillsetDir);
-        targetSkillset = activeSkillset;
+        targetSkillset = resolvedName;
       } catch {
         // Skillset directory doesn't exist - skip
       }

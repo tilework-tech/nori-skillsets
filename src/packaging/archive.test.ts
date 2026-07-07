@@ -88,6 +88,33 @@ describe("createArchive + extractArchive roundtrip", () => {
     ).rejects.toThrow();
   });
 
+  it("packs files from symlinked directories", async () => {
+    const sourceDir = await seedSourceDir();
+    const linkedSkillDir = path.join(tempDir, "linked-skill");
+    await fs.mkdir(linkedSkillDir, { recursive: true });
+    await fs.writeFile(path.join(linkedSkillDir, "SKILL.md"), "# linked");
+    await fs.symlink(
+      linkedSkillDir,
+      path.join(sourceDir, "skills", "linked"),
+      "dir",
+    );
+
+    const archive = await createArchive({ sourceDir });
+    const destDir = path.join(tempDir, "dest-linked");
+    await fs.mkdir(destDir, { recursive: true });
+    await extractArchive({
+      tarballData: toArrayBuffer({ buf: archive }),
+      targetDir: destDir,
+    });
+
+    expect(
+      await fs.readFile(
+        path.join(destDir, "skills", "linked", "SKILL.md"),
+        "utf-8",
+      ),
+    ).toBe("# linked");
+  });
+
   it("extracts plain (non-gzipped) tarballs too", async () => {
     const tar = await import("tar");
     const sourceDir = await seedSourceDir();

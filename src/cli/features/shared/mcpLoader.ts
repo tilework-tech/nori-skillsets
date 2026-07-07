@@ -23,9 +23,7 @@ import {
 import type { AgentLoader } from "@/cli/features/agentRegistry.js";
 
 export type McpMergeStrategy =
-  | "whole-file"
-  | "merge-mcp-servers-key"
-  | "merge-toml-table";
+  "whole-file" | "merge-mcp-servers-key" | "merge-toml-table";
 
 const fileExists = async (filePath: string): Promise<boolean> => {
   try {

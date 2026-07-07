@@ -2149,7 +2149,57 @@ describe("registry-download", () => {
       expect(stats.isDirectory()).toBe(true);
     });
 
-    it("should download public namespace package to flat directory", async () => {
+    it("should keep the org namespace in the reinstall hint when an org package exists without .nori-version", async () => {
+      // Existing org profile installed manually (no .nori-version) at the
+      // nested path profiles/myorg/test-profile.
+      const existingProfileDir = path.join(
+        skillsetsDir,
+        "myorg",
+        "test-profile",
+      );
+      await fs.mkdir(existingProfileDir, { recursive: true });
+      await fs.writeFile(
+        path.join(existingProfileDir, "nori.json"),
+        JSON.stringify({ name: "test-profile", version: "1.0.0" }),
+      );
+
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        auth: {
+          username: "test@example.com",
+          organizationUrl: "https://tilework.tilework.tech",
+          refreshToken: "test-refresh-token",
+          organizations: ["myorg"],
+        },
+      });
+
+      vi.mocked(getRegistryAuthToken).mockResolvedValue("mock-auth-token");
+
+      vi.mocked(registrarApi.getPackument).mockResolvedValue({
+        name: "test-profile",
+        "dist-tags": { latest: "1.0.0" },
+        versions: { "1.0.0": { name: "test-profile", version: "1.0.0" } },
+      });
+
+      const result = await registryDownloadMain({
+        packageSpec: "myorg/test-profile",
+        cwd: testDir,
+      });
+
+      expect(result.success).toBe(false);
+      expect(registrarApi.downloadTarball).not.toHaveBeenCalled();
+
+      // The error headline and reinstall command hint must preserve the org
+      // namespace, not collapse to the bare package name. (The install path
+      // trivially contains "myorg/test-profile", so assert on the quoted name
+      // and the download command specifically.)
+      const allOutput = getAllClackOutput();
+      expect(allOutput).toContain('Skillset "myorg/test-profile"');
+      expect(allOutput).toContain("download myorg/test-profile");
+      expect(allOutput).not.toContain('Skillset "test-profile"');
+    });
+
+    it("should download bare (default public) package to flat directory", async () => {
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
         auth: {
@@ -2192,6 +2242,50 @@ describe("registry-download", () => {
       const skillsetDir = path.join(skillsetsDir, "my-profile");
       const stats = await fs.stat(skillsetDir);
       expect(stats.isDirectory()).toBe(true);
+    });
+
+    it("should treat an explicit public/ prefix identically to a bare public package", async () => {
+      // No auth configured — the public registry never requires it.
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+      });
+
+      vi.mocked(registrarApi.getPackument).mockResolvedValue({
+        name: "my-profile",
+        "dist-tags": { latest: "1.0.0" },
+        versions: { "1.0.0": { name: "my-profile", version: "1.0.0" } },
+      });
+
+      const mockTarball = await createMockTarball();
+      vi.mocked(registrarApi.downloadTarball).mockResolvedValue(mockTarball);
+
+      await registryDownloadMain({
+        packageSpec: "public/my-profile",
+        cwd: testDir,
+      });
+
+      // Only the public REGISTRAR_URL is searched, with no auth token.
+      expect(registrarApi.getPackument).toHaveBeenCalledTimes(1);
+      expect(registrarApi.getPackument).toHaveBeenCalledWith({
+        packageName: "my-profile",
+        registryUrl: REGISTRAR_URL,
+      });
+      expect(getRegistryAuthToken).not.toHaveBeenCalled();
+
+      // The tarball is fetched from the public registry with no auth token.
+      expect(registrarApi.downloadTarball).toHaveBeenCalledWith({
+        packageName: "my-profile",
+        version: undefined,
+        registryUrl: REGISTRAR_URL,
+        authToken: undefined,
+      });
+
+      // The skillset lands flat at profiles/my-profile, not profiles/public/my-profile.
+      const flatDir = path.join(skillsetsDir, "my-profile");
+      expect((await fs.stat(flatDir)).isDirectory()).toBe(true);
+      await expect(
+        fs.access(path.join(skillsetsDir, "public", "my-profile")),
+      ).rejects.toThrow();
     });
 
     it("should handle namespaced package with version", async () => {

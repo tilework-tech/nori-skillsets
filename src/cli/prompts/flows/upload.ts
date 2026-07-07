@@ -66,11 +66,9 @@ export type UploadFlowCallbacks = {
     inlineSubagentIds?: Array<string> | null;
   }) => Promise<UploadResult>;
   onReadLocalSkillMd?:
-    | ((args: { skillId: string }) => Promise<string | null>)
-    | null;
+    ((args: { skillId: string }) => Promise<string | null>) | null;
   onReadLocalSubagentMd?:
-    | ((args: { subagentId: string }) => Promise<string | null>)
-    | null;
+    ((args: { subagentId: string }) => Promise<string | null>) | null;
 };
 
 /**
@@ -143,8 +141,7 @@ const resolveConflictsInFlow = async (args: {
   skillsetName: string;
   cancelMessage: string;
   onReadLocalSkillMd?:
-    | ((args: { skillId: string }) => Promise<string | null>)
-    | null;
+    ((args: { skillId: string }) => Promise<string | null>) | null;
 }): Promise<SkillResolutionStrategy | null> => {
   const { conflicts, skillsetName, cancelMessage, onReadLocalSkillMd } = args;
 

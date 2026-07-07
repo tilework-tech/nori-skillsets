@@ -15,7 +15,6 @@ import * as zlib from "zlib";
 
 import * as tar from "tar";
 
-import { isDirentFile } from "@/utils/dirent.js";
 import {
   collectCargoManifestDirs,
   shouldExcludeFromUpload,
@@ -61,6 +60,48 @@ export const extractArchive = async (args: {
   }
 };
 
+const collectArchiveFilePaths = async (args: {
+  ancestorRealDirs: ReadonlySet<string>;
+  dir: string;
+  relativeDir: string;
+}): Promise<Array<string>> => {
+  const { ancestorRealDirs, dir, relativeDir } = args;
+  const realDir = await fs.realpath(dir);
+  if (ancestorRealDirs.has(realDir)) {
+    return [];
+  }
+
+  const nextAncestorRealDirs = new Set(ancestorRealDirs);
+  nextAncestorRealDirs.add(realDir);
+
+  const entries = await fs.readdir(dir, { withFileTypes: true });
+  const files: Array<string> = [];
+
+  for (const entry of entries) {
+    const absolutePath = path.join(dir, entry.name);
+    const relativePath = path.join(relativeDir, entry.name);
+    const stat = await fs.stat(absolutePath).catch(() => null);
+    if (stat == null) {
+      continue;
+    }
+    if (stat.isDirectory()) {
+      files.push(
+        ...(await collectArchiveFilePaths({
+          ancestorRealDirs: nextAncestorRealDirs,
+          dir: absolutePath,
+          relativeDir: relativePath,
+        })),
+      );
+      continue;
+    }
+    if (stat.isFile()) {
+      files.push(relativePath);
+    }
+  }
+
+  return files;
+};
+
 /**
  * Create a gzipped tarball of a package source directory.
  *
@@ -78,28 +119,19 @@ export const createArchive = async (args: {
 }): Promise<Buffer> => {
   const { sourceDir } = args;
 
-  const entries = await fs.readdir(sourceDir, {
-    recursive: true,
-    withFileTypes: true,
-  });
-  const relPaths = entries.map((entry) => {
-    const parentDir = entry.parentPath ?? entry.path;
-    return path.relative(sourceDir, path.join(parentDir, entry.name));
+  const relPaths = await collectArchiveFilePaths({
+    ancestorRealDirs: new Set(),
+    dir: sourceDir,
+    relativeDir: "",
   });
   const cargoManifestDirs = collectCargoManifestDirs({
     relativePaths: relPaths,
   });
 
-  const filesToPack: Array<string> = [];
-  for (const entry of entries) {
-    const parentDir = entry.parentPath ?? entry.path;
-    if (!(await isDirentFile({ parentDir, entry }))) continue;
-    const rel = path.relative(sourceDir, path.join(parentDir, entry.name));
-    if (shouldExcludeFromUpload({ relativePath: rel, cargoManifestDirs })) {
-      continue;
-    }
-    filesToPack.push(rel);
-  }
+  const filesToPack = relPaths.filter(
+    (relativePath) =>
+      !shouldExcludeFromUpload({ relativePath, cargoManifestDirs }),
+  );
 
   const tempTarPath = path.join(
     sourceDir,
