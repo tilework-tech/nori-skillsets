@@ -10,29 +10,53 @@ import * as path from "path";
 import { log, note } from "@clack/prompts";
 
 import { bold } from "@/cli/logger.js";
+import { isReservedSkillsetName } from "@/cli/prompts/validators.js";
 import {
   ensureNoriJson,
   readSkillsetMetadata,
   writeSkillsetMetadata,
 } from "@/norijson/nori.js";
-import { MANIFEST_FILE, getNoriSkillsetsDir } from "@/norijson/skillset.js";
+import {
+  MANIFEST_FILE,
+  getNoriSkillsetsDir,
+  resolveSkillsetDir,
+  skillsetCreateDir,
+} from "@/norijson/skillset.js";
 
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
+
+const hasManifest = async (args: { skillsetDir: string }): Promise<boolean> => {
+  try {
+    await fs.access(path.join(args.skillsetDir, MANIFEST_FILE));
+    return true;
+  } catch {
+    return false;
+  }
+};
 
 export const forkSkillsetMain = async (args: {
   baseSkillset: string;
   newSkillset: string;
 }): Promise<CommandStatus> => {
   const { baseSkillset, newSkillset } = args;
-  const skillsetsDir = getNoriSkillsetsDir();
-  const sourcePath = path.join(skillsetsDir, baseSkillset);
-  const destPath = path.join(skillsetsDir, newSkillset);
+
+  if (isReservedSkillsetName({ value: newSkillset })) {
+    log.error(`'${newSkillset}' is a reserved name. Choose a different name.`);
+    return {
+      success: false,
+      cancelled: false,
+      message: `Skillset "${newSkillset}" uses a reserved name`,
+    };
+  }
+
+  const sourcePath = await resolveSkillsetDir({ name: baseSkillset });
+  const destPath = skillsetCreateDir({ name: newSkillset });
 
   // Validate source exists and is a valid skillset (has nori.json)
-  await ensureNoriJson({ skillsetDir: sourcePath });
-  try {
-    await fs.access(path.join(sourcePath, MANIFEST_FILE));
-  } catch {
+  if (sourcePath != null) {
+    await ensureNoriJson({ skillsetDir: sourcePath });
+  }
+  if (sourcePath == null || !(await hasManifest({ skillsetDir: sourcePath }))) {
     log.error(
       `Skillset '${baseSkillset}' not found. Run 'nori-skillsets list' to see available skillsets.`,
     );
@@ -43,9 +67,8 @@ export const forkSkillsetMain = async (args: {
     };
   }
 
-  // Validate destination does not already exist
-  try {
-    await fs.access(destPath);
+  // Validate destination does not already resolve to an existing skillset
+  if ((await resolveSkillsetDir({ name: newSkillset })) != null) {
     log.error(
       `Skillset '${newSkillset}' already exists. Choose a different name.`,
     );
@@ -54,8 +77,6 @@ export const forkSkillsetMain = async (args: {
       cancelled: false,
       message: `Skillset "${newSkillset}" already exists`,
     };
-  } catch {
-    // Expected — destination should not exist
   }
 
   // Create parent directory if needed (for namespaced profiles like org/name)
@@ -70,9 +91,10 @@ export const forkSkillsetMain = async (args: {
   metadata.name = newSkillset;
   await writeSkillsetMetadata({ skillsetDir: destPath, metadata });
 
+  const relLocation = path.relative(getNoriSkillsetsDir(), destPath);
   const nextSteps = [
-    `To switch:  nori-skillsets switch ${newSkillset}`,
-    `To edit:    ~/.nori/profiles/${newSkillset}/`,
+    `To switch:  nori-skillsets switch ${relLocation}`,
+    `To edit:    ~/.nori/profiles/${relLocation}/`,
   ].join("\n");
   note(nextSteps, "Next Steps");
 

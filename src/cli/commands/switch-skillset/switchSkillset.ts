@@ -25,7 +25,13 @@ import { main as installMain } from "@/cli/features/install/install.js";
 import { substituteTemplatePaths } from "@/cli/features/template.js";
 import { setSilentMode, isSilentMode } from "@/cli/logger.js";
 import { switchSkillsetFlow } from "@/cli/prompts/flows/switchSkillset.js";
-import { listSkillsets, getNoriSkillsetsDir } from "@/norijson/skillset.js";
+import {
+  listSkillsets,
+  getNoriSkillsetsDir,
+  resolveSkillsetDir,
+  resolveUserSkillsetRef,
+} from "@/norijson/skillset.js";
+import { skillsetHasRegistrySource } from "@/packaging/provenance.js";
 import { resolveInstallDir } from "@/utils/path.js";
 
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
@@ -42,6 +48,25 @@ import type { Command } from "commander";
  *
  * @returns Command status
  */
+/**
+ * Whether switching to a skillset should trigger a registry re-download. Only
+ * registry-backed skillsets (those whose `.nori-version` records a registry)
+ * qualify; locally-created skillsets in the personal bucket have no registry
+ * source, and feeding `personal/<name>` to the registry parser would misroute
+ * it to a nonexistent `personal` org registry.
+ *
+ * @param args - Function arguments
+ * @param args.name - The skillset name being switched to (bare or namespaced)
+ *
+ * @returns True if the skillset can be re-downloaded from a registry
+ */
+export const isRedownloadableSkillset = async (args: {
+  name: string;
+}): Promise<boolean> => {
+  const dir = await resolveSkillsetDir({ name: args.name });
+  return dir != null && (await skillsetHasRegistrySource({ dir }));
+};
+
 export const switchSkillsetAction = async (args: {
   name?: string | null;
   options: { agent?: string; force?: boolean };
@@ -96,6 +121,13 @@ export const switchSkillsetAction = async (args: {
     }
 
     name = selected as string;
+  }
+
+  // Emit a one-time deprecation warning if the user referenced a bucketed
+  // skillset by a bare (non-namespaced) name. Suppressed for non-interactive
+  // callers (e.g. automated fleet provisioning) where it is noise, not a nudge.
+  if (name != null) {
+    await resolveUserSkillsetRef({ name, warn: !nonInteractive });
   }
 
   // Interactive flow
@@ -186,6 +218,9 @@ export const switchSkillsetAction = async (args: {
         },
         onRedownload: redownloadEnabled
           ? async ({ skillsetName: pName }) => {
+              if (!(await isRedownloadableSkillset({ name: pName }))) {
+                return;
+              }
               const { registryDownloadMain } =
                 await import("@/cli/commands/registry-download/registryDownload.js");
               await registryDownloadMain({
@@ -210,10 +245,9 @@ export const switchSkillsetAction = async (args: {
           });
           const agentDir = diffAgent.getAgentDir({ installDir: dir });
           const currentPath = path.join(agentDir, relativePath);
-          const profileDir = path.join(
-            getNoriSkillsetsDir(),
-            currentProfileName,
-          );
+          const profileDir =
+            (await resolveSkillsetDir({ name: currentProfileName })) ??
+            path.join(getNoriSkillsetsDir(), currentProfileName);
 
           // Map installed path back to profile source path
           let sourcePath: string | null = null;

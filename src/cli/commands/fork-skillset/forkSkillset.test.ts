@@ -77,8 +77,8 @@ describe("forkSkillsetMain", () => {
       newSkillset: "my-custom",
     });
 
-    // Verify destination exists with all contents
-    const destDir = path.join(skillsetsDir, "my-custom");
+    // Verify destination exists with all contents (bare fork lands in personal/)
+    const destDir = path.join(skillsetsDir, "personal", "my-custom");
 
     const skillMd = await fs.readFile(
       path.join(destDir, "skills", "my-skill", "SKILL.md"),
@@ -223,11 +223,11 @@ describe("forkSkillsetMain", () => {
 
     // Should show note with next steps containing switch and edit instructions
     expect(mockNote).toHaveBeenCalledWith(
-      expect.stringContaining("switch my-fork"),
+      expect.stringContaining("switch personal/my-fork"),
       "Next Steps",
     );
     expect(mockNote).toHaveBeenCalledWith(
-      expect.stringContaining("~/.nori/profiles/my-fork"),
+      expect.stringContaining("~/.nori/profiles/personal/my-fork"),
       "Next Steps",
     );
   });

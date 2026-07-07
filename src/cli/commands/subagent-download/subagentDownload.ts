@@ -33,7 +33,10 @@ import { subagentDownloadFlow } from "@/cli/prompts/flows/subagentDownload.js";
 import { recordFlowFailure } from "@/cli/prompts/flows/utils.js";
 import { resolveOrgRegistryAuth } from "@/core/registryAuthResolution.js";
 import { addSubagentToNoriJson, ensureNoriJson } from "@/norijson/nori.js";
-import { getNoriSkillsetsDir } from "@/norijson/skillset.js";
+import {
+  resolveSkillsetDir,
+  resolveUserSkillsetRef,
+} from "@/norijson/skillset.js";
 import { verifyArchiveChecksum } from "@/packaging/archive.js";
 import {
   atomicReplaceDirWithArchive,
@@ -46,11 +49,7 @@ import {
   searchSpecificRegistry,
 } from "@/packaging/registryLookup.js";
 import { resolveInstallDir } from "@/utils/path.js";
-import {
-  formatDefaultOrgNotice,
-  localSkillsetName,
-  parseNamespacedPackage,
-} from "@/utils/url.js";
+import { formatDefaultOrgNotice, parseNamespacedPackage } from "@/utils/url.js";
 
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 import type {
@@ -178,20 +177,31 @@ export const subagentDownloadMain = async (args: {
     agentDirNames: AgentRegistry.getInstance().getAgentDirNames(),
   }).path;
 
+  // targetSkillset is the user-facing (bare) skillset name for display;
+  // targetSkillsetDir is its resolved on-disk directory for file writes.
   let targetSkillset: string | null = null;
-  const skillsetsDir = getNoriSkillsetsDir();
+  let targetSkillsetDir: string | null = null;
 
   if (skillset != null) {
-    const resolvedName = localSkillsetName({ name: skillset });
-    const skillsetDir = path.join(skillsetsDir, resolvedName);
-    await ensureNoriJson({ skillsetDir });
-    const skillsetMarker = path.join(skillsetDir, "nori.json");
-    try {
-      await fs.access(skillsetMarker);
-      targetSkillset = resolvedName;
-    } catch {
+    // Warn once if a deprecated bare name reaches a bucketed skillset.
+    const resolvedDir =
+      (await resolveUserSkillsetRef({ name: skillset, warn: !nonInteractive }))
+        ?.dir ?? null;
+    if (resolvedDir != null) {
+      await ensureNoriJson({ skillsetDir: resolvedDir });
+    }
+    let hasManifest = false;
+    if (resolvedDir != null) {
+      try {
+        await fs.access(path.join(resolvedDir, "nori.json"));
+        hasManifest = true;
+      } catch {
+        // Missing manifest — treated as "not found" below.
+      }
+    }
+    if (!hasManifest) {
       log.error(
-        `Skillset "${skillset}" not found at: ${skillsetDir}\n\nMake sure the skillset exists and contains a nori.json file.`,
+        `Skillset "${skillset}" not found.\n\nMake sure the skillset exists and contains a nori.json file.`,
       );
       return {
         success: false,
@@ -199,16 +209,15 @@ export const subagentDownloadMain = async (args: {
         message: "Skillset not found",
       };
     }
+    targetSkillset = skillset;
+    targetSkillsetDir = resolvedDir;
   } else if (config != null) {
     const activeSkillset = getActiveSkillset({ config });
     if (activeSkillset != null) {
-      const resolvedName = localSkillsetName({ name: activeSkillset });
-      const skillsetDir = path.join(skillsetsDir, resolvedName);
-      try {
-        await fs.access(skillsetDir);
-        targetSkillset = resolvedName;
-      } catch {
-        // Skillset directory doesn't exist - skip
+      const resolvedDir = await resolveSkillsetDir({ name: activeSkillset });
+      if (resolvedDir != null) {
+        targetSkillset = activeSkillset;
+        targetSkillsetDir = resolvedDir;
       }
     }
   }
@@ -232,10 +241,9 @@ export const subagentDownloadMain = async (args: {
 
   // The subagent directory in the skillset profile (full directory structure)
   let profileSubagentDir: string | null = null;
-  if (targetSkillset != null) {
+  if (targetSkillsetDir != null) {
     profileSubagentDir = path.join(
-      skillsetsDir,
-      targetSkillset,
+      targetSkillsetDir,
       "subagents",
       subagentName,
     );
@@ -560,10 +568,10 @@ export const subagentDownloadMain = async (args: {
 
             // Update nori.json
             let profileUpdateMessage: string | null = null;
-            if (targetSkillset != null) {
+            if (targetSkillsetDir != null) {
               try {
                 await addSubagentToNoriJson({
-                  skillsetDir: path.join(skillsetsDir, targetSkillset),
+                  skillsetDir: targetSkillsetDir,
                   subagentName,
                   version: resolvedTargetVersion,
                 });

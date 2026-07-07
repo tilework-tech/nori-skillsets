@@ -40,6 +40,7 @@ import {
   parseNamespacedPackage,
   buildOrganizationRegistryUrl,
   namespacedName,
+  namespacedOnDiskName,
   formatDefaultOrgNotice,
 } from "@/utils/url.js";
 
@@ -463,7 +464,12 @@ export const registryDownloadMain = async (args: {
   }
 
   const skillsetsDir = getNoriSkillsetsDir();
-  const targetDir = path.join(skillsetsDir, ...profileDisplayName.split("/"));
+  // Downloaded packages are stored under their bucket/namespace on disk:
+  // public packages in profiles/public/<name>, org packages in profiles/<org>/<name>.
+  const targetDir = path.join(
+    skillsetsDir,
+    ...namespacedOnDiskName({ orgId, packageName }).split("/"),
+  );
 
   // Check if skillset already exists and get its version info
   let existingVersionInfo: VersionInfo | null = null;

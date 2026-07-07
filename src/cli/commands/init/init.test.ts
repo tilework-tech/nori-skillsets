@@ -257,8 +257,10 @@ describe("init command", () => {
 
       // Verify profile was captured as "my-profile"
       const capturedProfileDir = path.join(
-        TEST_NORI_DIR,
+        tempDir,
+        ".nori",
         "profiles",
+        "personal",
         "my-profile",
       );
       expect(fs.existsSync(capturedProfileDir)).toBe(true);
@@ -521,8 +523,10 @@ describe("init command", () => {
 
       // Verify profile was captured
       const capturedProfileDir = path.join(
-        TEST_NORI_DIR,
+        tempDir,
+        ".nori",
         "profiles",
+        "personal",
         "my-profile",
       );
       expect(fs.existsSync(capturedProfileDir)).toBe(true);

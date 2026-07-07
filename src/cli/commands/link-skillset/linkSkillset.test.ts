@@ -52,8 +52,14 @@ describe("linkSkillsetMain", () => {
 
     expect(result.success).toBe(true);
 
-    // Verify symlink was created
-    const linkPath = path.join(testHomeDir, ".nori", "profiles", "my-skillset");
+    // Verify symlink was created in the personal bucket
+    const linkPath = path.join(
+      testHomeDir,
+      ".nori",
+      "profiles",
+      "personal",
+      "my-skillset",
+    );
     const stat = await fs.lstat(linkPath);
     expect(stat.isSymbolicLink()).toBe(true);
 
@@ -75,7 +81,13 @@ describe("linkSkillsetMain", () => {
 
     expect(result.success).toBe(true);
 
-    const linkPath = path.join(testHomeDir, ".nori", "profiles", "custom-name");
+    const linkPath = path.join(
+      testHomeDir,
+      ".nori",
+      "profiles",
+      "personal",
+      "custom-name",
+    );
     const stat = await fs.lstat(linkPath);
     expect(stat.isSymbolicLink()).toBe(true);
   });
@@ -97,6 +109,7 @@ describe("linkSkillsetMain", () => {
         testHomeDir,
         ".nori",
         "profiles",
+        "personal",
         path.basename(namedTarget),
       );
       const stat = await fs.lstat(linkPath);
@@ -113,6 +126,43 @@ describe("linkSkillsetMain", () => {
 
     expect(result.success).toBe(false);
     expect(result.message).toMatch(/not found|does not exist/i);
+  });
+
+  it("should reject a reserved bucket name and create nothing", async () => {
+    await fs.writeFile(
+      path.join(targetDir, "nori.json"),
+      JSON.stringify({ name: "whatever", version: "1.0.0" }),
+    );
+
+    const result = await linkSkillsetMain({
+      targetDir,
+      name: "public",
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.message).toMatch(/reserved/i);
+    const linkPath = path.join(
+      testHomeDir,
+      ".nori",
+      "profiles",
+      "personal",
+      "public",
+    );
+    await expect(fs.lstat(linkPath)).rejects.toThrow();
+  });
+
+  it("should reject when the derived name from nori.json is reserved", async () => {
+    await fs.writeFile(
+      path.join(targetDir, "nori.json"),
+      JSON.stringify({ name: "personal", version: "1.0.0" }),
+    );
+
+    const result = await linkSkillsetMain({
+      targetDir,
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.message).toMatch(/reserved/i);
   });
 
   it("should fail when target is not a directory", async () => {
@@ -133,11 +183,12 @@ describe("linkSkillsetMain", () => {
       JSON.stringify({ name: "existing-skillset", version: "1.0.0" }),
     );
 
-    // Create existing real directory at the same name
+    // Create existing real directory where the bare link would be created
     const existingDir = path.join(
       testHomeDir,
       ".nori",
       "profiles",
+      "personal",
       "existing-skillset",
     );
     await fs.mkdir(existingDir, { recursive: true });
@@ -195,6 +246,7 @@ describe("linkSkillsetMain", () => {
       testHomeDir,
       ".nori",
       "profiles",
+      "personal",
       "relative-test",
     );
     const resolvedTarget = await fs.readlink(linkPath);

@@ -25,14 +25,19 @@ import {
 } from "@/cli/features/agentRegistry.js";
 import { substituteTemplatePaths } from "@/cli/features/template.js";
 import { promptSkillTypes } from "@/cli/prompts/flows/externalSkillType.js";
+import { isReservedSkillsetName } from "@/cli/prompts/validators.js";
 import {
   addSkillToNoriJson,
   ensureNoriJson,
   type NoriJsonType,
 } from "@/norijson/nori.js";
-import { getNoriSkillsetsDir } from "@/norijson/skillset.js";
+import {
+  getNoriSkillsetsDir,
+  resolveSkillsetDir,
+  resolveUserSkillsetRef,
+  skillsetCreateDir,
+} from "@/norijson/skillset.js";
 import { resolveInstallDir } from "@/utils/path.js";
-import { localSkillsetName } from "@/utils/url.js";
 
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 import type { Command } from "commander";
@@ -363,37 +368,55 @@ export const externalMain = async (args: {
   let targetSkillset: string | null = null;
   const skillsetsDir = getNoriSkillsetsDir();
 
+  // targetSkillset holds the on-disk name relative to the profiles directory
+  // (e.g. "personal/foo", "public/foo", "myorg/foo") so downstream path joins
+  // resolve to the correct bucket.
   // 3a. Handle --new: create a new skillset
   if (newSkillset != null) {
-    const newSkillsetDir = path.join(skillsetsDir, newSkillset);
-    try {
-      await fs.access(newSkillsetDir);
+    if (isReservedSkillsetName({ value: newSkillset })) {
       log.error(
-        `Skillset "${newSkillset}" already exists at: ${newSkillsetDir}\n\nChoose a different name or use --skillset to target the existing one.`,
+        `'${newSkillset}' is a reserved name. Choose a different name.`,
+      );
+      return {
+        success: false,
+        cancelled: false,
+        message: `Skillset "${newSkillset}" uses a reserved name`,
+      };
+    }
+    const newSkillsetDir = skillsetCreateDir({ name: newSkillset });
+    if ((await resolveSkillsetDir({ name: newSkillset })) != null) {
+      log.error(
+        `Skillset "${newSkillset}" already exists.\n\nChoose a different name or use --skillset to target the existing one.`,
       );
       return {
         success: false,
         cancelled: false,
         message: `Skillset "${newSkillset}" already exists`,
       };
-    } catch {
-      // Expected — directory should not exist
     }
 
     await createEmptySkillset({ destPath: newSkillsetDir, name: newSkillset });
-    targetSkillset = newSkillset;
+    targetSkillset = path.relative(skillsetsDir, newSkillsetDir);
     log.success(`Created new skillset "${newSkillset}"`);
   } else if (skillset != null) {
-    const resolvedName = localSkillsetName({ name: skillset });
-    const skillsetDir = path.join(skillsetsDir, resolvedName);
-    await ensureNoriJson({ skillsetDir: skillsetDir });
-    const skillsetMarker = path.join(skillsetDir, "nori.json");
-    try {
-      await fs.access(skillsetMarker);
-      targetSkillset = resolvedName;
-    } catch {
+    // Warn once if a deprecated bare name reaches a bucketed skillset.
+    const resolvedDir =
+      (await resolveUserSkillsetRef({ name: skillset }))?.dir ?? null;
+    if (resolvedDir != null) {
+      await ensureNoriJson({ skillsetDir: resolvedDir });
+    }
+    let hasManifest = false;
+    if (resolvedDir != null) {
+      try {
+        await fs.access(path.join(resolvedDir, "nori.json"));
+        hasManifest = true;
+      } catch {
+        // Missing manifest — treated as "not found" below.
+      }
+    }
+    if (!hasManifest || resolvedDir == null) {
       log.error(
-        `Skillset "${skillset}" not found at: ${skillsetDir}\n\nMake sure the skillset exists and contains a nori.json file.`,
+        `Skillset "${skillset}" not found.\n\nMake sure the skillset exists and contains a nori.json file.`,
       );
       return {
         success: false,
@@ -401,16 +424,13 @@ export const externalMain = async (args: {
         message: `Skillset "${skillset}" not found`,
       };
     }
+    targetSkillset = path.relative(skillsetsDir, resolvedDir);
   } else if (config != null) {
     const activeSkillset = getActiveSkillset({ config });
     if (activeSkillset != null) {
-      const resolvedName = localSkillsetName({ name: activeSkillset });
-      const skillsetDir = path.join(skillsetsDir, resolvedName);
-      try {
-        await fs.access(skillsetDir);
-        targetSkillset = resolvedName;
-      } catch {
-        // Profile directory doesn't exist - skip manifest update
+      const resolvedDir = await resolveSkillsetDir({ name: activeSkillset });
+      if (resolvedDir != null) {
+        targetSkillset = path.relative(skillsetsDir, resolvedDir);
       }
     }
   }

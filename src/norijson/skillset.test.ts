@@ -22,6 +22,8 @@ import {
   getNoriSkillsetsDir,
   parseSkillset,
   listSkillsets,
+  resolveSkillsetDir,
+  resolveUserSkillsetRef,
 } from "@/norijson/skillset.js";
 
 describe("Shared Nori paths", () => {
@@ -137,6 +139,112 @@ describe("parseSkillset", () => {
     await expect(
       parseSkillset({ skillsetName: "nonexistent" }),
     ).rejects.toThrow();
+  });
+
+  it("resolves a bare name to a profile stored in the personal bucket", async () => {
+    const skillsetDir = path.join(profilesDir, "personal", "bucketed");
+    await fs.mkdir(skillsetDir, { recursive: true });
+    await fs.writeFile(
+      path.join(skillsetDir, "nori.json"),
+      JSON.stringify({ name: "bucketed", version: "1.0.0" }),
+    );
+
+    const skillset = await parseSkillset({ skillsetName: "bucketed" });
+
+    expect(skillset.dir).toBe(skillsetDir);
+    expect(skillset.name).toBe("bucketed");
+  });
+
+  it("prefers the personal bucket over the public bucket for a bare name", async () => {
+    const personalDir = path.join(profilesDir, "personal", "dup");
+    const publicDir = path.join(profilesDir, "public", "dup");
+    await fs.mkdir(personalDir, { recursive: true });
+    await fs.mkdir(publicDir, { recursive: true });
+    await fs.writeFile(
+      path.join(personalDir, "nori.json"),
+      JSON.stringify({ name: "dup", version: "1.0.0" }),
+    );
+    await fs.writeFile(
+      path.join(publicDir, "nori.json"),
+      JSON.stringify({ name: "dup", version: "2.0.0" }),
+    );
+
+    const skillset = await parseSkillset({ skillsetName: "dup" });
+
+    expect(skillset.dir).toBe(personalDir);
+  });
+
+  it("resolves an explicit public/<name> reference to the public bucket", async () => {
+    const publicDir = path.join(profilesDir, "public", "explicit");
+    await fs.mkdir(publicDir, { recursive: true });
+    await fs.writeFile(
+      path.join(publicDir, "nori.json"),
+      JSON.stringify({ name: "explicit", version: "1.0.0" }),
+    );
+
+    const skillset = await parseSkillset({ skillsetName: "public/explicit" });
+
+    expect(skillset.dir).toBe(publicDir);
+  });
+
+  it("still resolves a legacy bare profile that has not been migrated", async () => {
+    const legacyDir = path.join(profilesDir, "legacy-bare");
+    await fs.mkdir(legacyDir, { recursive: true });
+    await fs.writeFile(
+      path.join(legacyDir, "nori.json"),
+      JSON.stringify({ name: "legacy-bare", version: "1.0.0" }),
+    );
+
+    const skillset = await parseSkillset({ skillsetName: "legacy-bare" });
+
+    expect(skillset.dir).toBe(legacyDir);
+  });
+
+  describe("resolveSkillsetDir", () => {
+    it("returns null for a name that exists nowhere", async () => {
+      const resolved = await resolveSkillsetDir({ name: "ghost" });
+      expect(resolved).toBeNull();
+    });
+
+    it("resolves an org-namespaced name directly", async () => {
+      const orgDir = path.join(profilesDir, "acme", "sessions");
+      await fs.mkdir(orgDir, { recursive: true });
+      await fs.writeFile(
+        path.join(orgDir, "nori.json"),
+        JSON.stringify({ name: "acme/sessions", version: "1.0.0" }),
+      );
+
+      const resolved = await resolveSkillsetDir({ name: "acme/sessions" });
+
+      expect(resolved).toBe(orgDir);
+    });
+
+    it("returns the namespaced identity for a bare name that lives in a bucket", async () => {
+      const publicDir = path.join(profilesDir, "public", "senior-swe");
+      await fs.mkdir(publicDir, { recursive: true });
+      await fs.writeFile(
+        path.join(publicDir, "nori.json"),
+        JSON.stringify({ name: "senior-swe", version: "1.0.0" }),
+      );
+
+      const resolved = await resolveUserSkillsetRef({ name: "senior-swe" });
+
+      expect(resolved?.dir).toBe(publicDir);
+      expect(resolved?.identity).toBe("public/senior-swe");
+    });
+
+    it("does not resolve a bare bucket name to the bucket directory", async () => {
+      // The personal/ bucket directory exists (it holds a skillset)...
+      const inside = path.join(profilesDir, "personal", "foo");
+      await fs.mkdir(inside, { recursive: true });
+      await fs.writeFile(
+        path.join(inside, "nori.json"),
+        JSON.stringify({ name: "foo", version: "1.0.0" }),
+      );
+
+      // ...but "personal" itself is not a skillset.
+      expect(await resolveSkillsetDir({ name: "personal" })).toBeNull();
+    });
   });
 
   it("should throw when nori.json is missing and directory doesn't look like a skillset", async () => {
@@ -509,5 +617,112 @@ describe("listSkillsets", () => {
     const profiles = await listSkillsets();
 
     expect(profiles).toContain("myorg/linked-profile");
+  });
+
+  test("lists personal and public bucket profiles under their namespaced identity", async () => {
+    const skillsetsDir = path.join(testHomeDir, ".nori", "profiles");
+
+    const personalProfile = path.join(skillsetsDir, "personal", "my-local");
+    const publicProfile = path.join(skillsetsDir, "public", "senior-swe");
+    const orgProfile = path.join(skillsetsDir, "acme", "sessions");
+    for (const [dir, name] of [
+      [personalProfile, "my-local"],
+      [publicProfile, "senior-swe"],
+      [orgProfile, "acme/sessions"],
+    ] as const) {
+      await fs.mkdir(dir, { recursive: true });
+      await fs.writeFile(
+        path.join(dir, "nori.json"),
+        JSON.stringify({ name, version: "1.0.0" }),
+      );
+    }
+
+    const profiles = await listSkillsets();
+
+    expect(profiles).toContain("personal/my-local");
+    expect(profiles).toContain("public/senior-swe");
+    expect(profiles).toContain("acme/sessions");
+    expect(profiles).not.toContain("my-local");
+    expect(profiles).not.toContain("senior-swe");
+  });
+
+  test("lists a bucketed and a legacy-flat profile of the same name as distinct entries", async () => {
+    const skillsetsDir = path.join(testHomeDir, ".nori", "profiles");
+
+    const bucketDir = path.join(skillsetsDir, "personal", "shared");
+    const legacyDir = path.join(skillsetsDir, "shared");
+    for (const dir of [bucketDir, legacyDir]) {
+      await fs.mkdir(dir, { recursive: true });
+      await fs.writeFile(
+        path.join(dir, "nori.json"),
+        JSON.stringify({ name: "shared", version: "1.0.0" }),
+      );
+    }
+
+    const profiles = await listSkillsets();
+
+    expect(profiles).toContain("personal/shared");
+    expect(profiles).toContain("shared");
+  });
+});
+
+describe("resolveUserSkillsetRef deprecation warning", () => {
+  let testHomeDir: string;
+  let profilesDir: string;
+  let stderrOutput: Array<string>;
+
+  const seedBucket = async (bucket: string, name: string): Promise<void> => {
+    const dir = path.join(profilesDir, bucket, name);
+    await fs.mkdir(dir, { recursive: true });
+    await fs.writeFile(
+      path.join(dir, "nori.json"),
+      JSON.stringify({ name, version: "1.0.0" }),
+    );
+  };
+
+  beforeEach(async () => {
+    testHomeDir = await fs.mkdtemp(path.join(os.tmpdir(), "resolve-warn-"));
+    vi.mocked(os.homedir).mockReturnValue(testHomeDir);
+    profilesDir = path.join(testHomeDir, ".nori", "profiles");
+    await fs.mkdir(profilesDir, { recursive: true });
+    stderrOutput = [];
+    vi.spyOn(process.stderr, "write").mockImplementation(((
+      chunk: string | Uint8Array,
+    ): boolean => {
+      stderrOutput.push(String(chunk));
+      return true;
+    }) as typeof process.stderr.write);
+  });
+
+  afterEach(async () => {
+    vi.restoreAllMocks();
+    await fs.rm(testHomeDir, { recursive: true, force: true });
+    vi.clearAllMocks();
+  });
+
+  it("warns that a bare name is deprecated when it resolves to a bucket", async () => {
+    await seedBucket("public", "warn-alpha");
+
+    await resolveUserSkillsetRef({ name: "warn-alpha" });
+
+    const output = stderrOutput.join("");
+    expect(output).toContain("public/warn-alpha");
+    expect(output.toLowerCase()).toContain("deprecated");
+  });
+
+  it("does not warn when the namespaced identity is used", async () => {
+    await seedBucket("public", "warn-beta");
+
+    await resolveUserSkillsetRef({ name: "public/warn-beta" });
+
+    expect(stderrOutput).toHaveLength(0);
+  });
+
+  it("does not warn when the warning is suppressed", async () => {
+    await seedBucket("public", "warn-gamma");
+
+    await resolveUserSkillsetRef({ name: "warn-gamma", warn: false });
+
+    expect(stderrOutput).toHaveLength(0);
   });
 });

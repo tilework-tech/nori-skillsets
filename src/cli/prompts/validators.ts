@@ -38,9 +38,35 @@ const validateSlugFormat = (args: {
 };
 
 /**
+ * Reserved skillset names. `personal/` and `public/` are storage bucket
+ * directories under profiles/, so a skillset (or org) may not use these names.
+ */
+export const RESERVED_SKILLSET_NAMES: ReadonlyArray<string> = [
+  "personal",
+  "public",
+];
+
+/**
+ * Check whether a name collides with a reserved storage-bucket directory name.
+ * Any path segment matching a reserved name counts (so `personal`, `public/x`,
+ * and `org/personal` are all reserved), while `org/foo` is fine.
+ *
+ * @param args - Arguments
+ * @param args.value - The name to check (bare or namespaced)
+ *
+ * @returns True if the name is reserved
+ */
+export const isReservedSkillsetName = (args: { value: string }): boolean => {
+  return args.value
+    .split("/")
+    .some((segment) => RESERVED_SKILLSET_NAMES.includes(segment));
+};
+
+/**
  * Validate a skillset name
  *
- * Must be lowercase alphanumeric with hyphens, not starting or ending with hyphen
+ * Must be lowercase alphanumeric with hyphens, not starting or ending with
+ * hyphen, and not a reserved storage-bucket name.
  *
  * @param args - Validation arguments
  * @param args.value - The value to validate
@@ -50,5 +76,15 @@ const validateSlugFormat = (args: {
 export const validateSkillsetName = (args: {
   value: string;
 }): string | undefined => {
-  return validateSlugFormat({ value: args.value, fieldName: "Skillset name" });
+  const slugError = validateSlugFormat({
+    value: args.value,
+    fieldName: "Skillset name",
+  });
+  if (slugError != null) {
+    return slugError;
+  }
+  if (isReservedSkillsetName({ value: args.value })) {
+    return `"${args.value}" is a reserved name and cannot be used for a skillset`;
+  }
+  return undefined;
 };
