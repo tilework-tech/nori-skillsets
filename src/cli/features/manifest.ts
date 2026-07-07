@@ -20,6 +20,7 @@ export type FileManifest = {
   version: 1;
   createdAt: string;
   skillsetName: string;
+  installDir?: string | null; // absent in manifests written before per-dir keying
   files: Record<string, string>; // relative path -> SHA-256 hash
 };
 
@@ -85,14 +86,40 @@ const isManagedPath = (args: {
 };
 
 /**
- * Get the path to the per-agent manifest file
+ * Get the path to the manifest file for one (agent, install directory) pair.
+ * The install directory is folded into the file name so activity in one
+ * directory never touches the manifest of another.
+ *
+ * @param args - Configuration arguments
+ * @param args.agentName - Name of the agent
+ * @param args.installDir - Install directory the manifest describes
+ *
+ * @returns Absolute path to the manifest file
+ */
+export const getManifestPath = (args: {
+  agentName: string;
+  installDir: string;
+}): string => {
+  const { agentName, installDir } = args;
+  const dirKey = createHash("sha256")
+    .update(path.resolve(installDir))
+    .digest("hex")
+    .slice(0, 16);
+  return path.join(getNoriDir(), "manifests", agentName, `${dirKey}.json`);
+};
+
+/**
+ * Get the old per-agent manifest path (for backwards-compatible read fallback
+ * and uninstall cleanup of manifests written before per-directory keying)
  *
  * @param args - Configuration arguments
  * @param args.agentName - Name of the agent
  *
- * @returns Absolute path to the manifest file
+ * @returns Absolute path to the old per-agent manifest file
  */
-export const getManifestPath = (args: { agentName: string }): string => {
+export const getLegacyAgentManifestPath = (args: {
+  agentName: string;
+}): string => {
   const { agentName } = args;
   return path.join(getNoriDir(), "manifests", `${agentName}.json`);
 };
@@ -198,6 +225,7 @@ const collectFiles = async (args: {
  * @param args - Configuration arguments
  * @param args.dir - Directory to create manifest for
  * @param args.skillsetName - Name of the profile being installed
+ * @param args.installDir - Install directory the manifest describes
  * @param args.managedFiles - Optional list of managed root-level filenames (falls back to defaults)
  * @param args.managedDirs - Optional list of managed directory names (falls back to defaults)
  *
@@ -206,10 +234,11 @@ const collectFiles = async (args: {
 export const computeDirectoryManifest = async (args: {
   dir: string;
   skillsetName: string;
+  installDir?: string | null;
   managedFiles?: ReadonlyArray<string> | null;
   managedDirs?: ReadonlyArray<string> | null;
 }): Promise<FileManifest> => {
-  const { dir, skillsetName } = args;
+  const { dir, skillsetName, installDir } = args;
   const fileSet = new Set(args.managedFiles ?? MANAGED_FILES);
   const dirSet = new Set(args.managedDirs ?? MANAGED_DIRS);
 
@@ -231,6 +260,7 @@ export const computeDirectoryManifest = async (args: {
     version: 1,
     createdAt: new Date().toISOString(),
     skillsetName,
+    ...(installDir != null ? { installDir } : {}),
     files: fileHashes,
   };
 };
@@ -259,29 +289,22 @@ export const writeManifest = async (args: {
  *
  * @param args - Configuration arguments
  * @param args.manifestPath - Absolute path to read the manifest from
- * @param args.legacyManifestPath - Optional path to legacy manifest for fallback
+ * @param args.fallbackPaths - Legacy manifest locations to try in order when the primary is missing
  *
- * @returns Manifest object, or null if file doesn't exist
+ * @returns Manifest object, or null if no candidate file exists
  */
 export const readManifest = async (args: {
   manifestPath: string;
-  legacyManifestPath?: string | null;
+  fallbackPaths?: ReadonlyArray<string> | null;
 }): Promise<FileManifest | null> => {
-  const { manifestPath, legacyManifestPath } = args;
+  const { manifestPath, fallbackPaths } = args;
 
-  try {
-    const content = await fs.readFile(manifestPath, "utf-8");
-    return JSON.parse(content) as FileManifest;
-  } catch {
-    // Primary manifest not found, try legacy fallback
-  }
-
-  if (legacyManifestPath != null) {
+  for (const candidate of [manifestPath, ...(fallbackPaths ?? [])]) {
     try {
-      const content = await fs.readFile(legacyManifestPath, "utf-8");
+      const content = await fs.readFile(candidate, "utf-8");
       return JSON.parse(content) as FileManifest;
     } catch {
-      // Legacy manifest not found either
+      // Candidate not found, try the next fallback
     }
   }
 
@@ -399,12 +422,13 @@ export const removeManagedFiles = async (args: {
       await fs.rm(fullPath, { force: true });
     }
 
-    // Remove the .nori-managed marker
-    await fs.rm(path.join(agentDir, ".nori-managed"), { force: true });
-
     // Delete the manifest itself since it no longer reflects reality
     await fs.rm(manifestPath, { force: true });
   }
+
+  // Remove the .nori-managed marker even without a manifest, so clearing
+  // multiple install dirs succeeds in any order.
+  await fs.rm(path.join(agentDir, ".nori-managed"), { force: true });
 
   // Remove excluded files (e.g. nori.json, .nori-version) from managed directories.
   // These files are not tracked in the manifest but should be cleaned up during removal.

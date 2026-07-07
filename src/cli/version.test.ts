@@ -5,7 +5,7 @@ import * as path from "path";
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
-import { hasExistingInstallation } from "@/cli/commands/install/installState.js";
+import { hasExistingInstallation } from "@/cli/features/install/installState.js";
 
 import { getConfigPath } from "./config.js";
 import { getCurrentPackageVersion, supportsAgentFlag } from "./version.js";

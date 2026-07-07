@@ -13,8 +13,6 @@
 
 import * as fs from "fs/promises";
 
-import { log } from "@clack/prompts";
-
 import {
   loadConfig,
   updateConfig,
@@ -28,6 +26,7 @@ import {
   markInstall,
 } from "@/cli/features/agentOperations.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
+import { ensureNoriInitialized } from "@/cli/features/install/initialize.js";
 import { initFlow } from "@/cli/prompts/flows/init.js";
 import { getNoriSkillsetsDir } from "@/norijson/skillset.js";
 import { normalizeInstallDir } from "@/utils/path.js";
@@ -159,74 +158,11 @@ export const initMain = async (args?: {
     return { success: true, cancelled: false, message: result.statusMessage };
   }
 
-  // Non-interactive path
-
-  // Create ~/.nori/profiles/ directory
-  const skillsetsDir = getNoriSkillsetsDir();
-  if (!(await directoryExists(skillsetsDir))) {
-    await fs.mkdir(skillsetsDir, { recursive: true });
-  }
-
-  // Load existing config (if any)
-  const existingConfig = await loadConfig();
-
-  // Track captured skillset name for setting in config
-  let capturedSkillsetName: string | null = null;
-
-  // If no existing config and default agent not already installed, check for existing configuration to capture
-  if (
-    existingConfig == null &&
-    !isInstalledAtDir({ agent: defaultAgent, path: normalizedInstallDir })
-  ) {
-    const detectedConfig = await detectExistingConfig({
-      agent: defaultAgent,
-      installDir: normalizedInstallDir,
-    });
-    if (detectedConfig != null) {
-      capturedSkillsetName = "my-profile";
-    }
-  }
-
-  // Set activeSkillset - if a skillset was captured, set it as the active skillset
-  const activeSkillset =
-    capturedSkillsetName ?? existingConfig?.activeSkillset ?? null;
-
-  // Save config — do not persist installDir; only `sks config` should change it.
-  await updateConfig({
-    activeSkillset,
+  // Non-interactive path: delegate to the shared initialization core
+  await ensureNoriInitialized({
+    installDir: normalizedInstallDir,
+    skillset,
   });
-
-  // If a skillset was captured, capture config and install managed block for all agents
-  if (capturedSkillsetName != null) {
-    const config: Config = {
-      installDir: normalizedInstallDir,
-      activeSkillset,
-    };
-    for (const agentName of defaultAgentNames) {
-      const agent = AgentRegistry.getInstance().get({ name: agentName });
-      await captureExistingConfig({
-        agent,
-        installDir: normalizedInstallDir,
-        skillsetName: capturedSkillsetName,
-        config,
-      });
-    }
-    log.success(`Configuration saved as skillset "${capturedSkillsetName}"`);
-  }
-
-  // Mark this directory as having all default agents installed
-  for (const agentName of defaultAgentNames) {
-    const agent = AgentRegistry.getInstance().get({ name: agentName });
-    markInstall({
-      agent,
-      path: normalizedInstallDir,
-      skillsetName:
-        capturedSkillsetName ??
-        skillset ??
-        existingConfig?.activeSkillset ??
-        null,
-    });
-  }
 
   return {
     success: true,

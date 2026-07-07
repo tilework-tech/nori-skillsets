@@ -10,6 +10,7 @@ import * as path from "path";
 
 import {
   ensureNoriJson,
+  looksLikeSkillset,
   readSkillsetMetadata,
   type NoriJson,
 } from "@/norijson/nori.js";
@@ -187,6 +188,28 @@ export type SkillsetEntry = {
 };
 
 /**
+ * Check whether a directory is a skillset without writing to it: it either
+ * carries a nori.json or looks like a legacy skillset (config file or
+ * skills/+subagents/). Listing is a read and must never mutate profiles.
+ *
+ * @param args - Function arguments
+ * @param args.skillsetDir - Directory to check
+ *
+ * @returns True when the directory is a skillset
+ */
+const isSkillsetDir = async (args: {
+  skillsetDir: string;
+}): Promise<boolean> => {
+  const { skillsetDir } = args;
+  try {
+    await fs.access(path.join(skillsetDir, MANIFEST_FILE));
+    return true;
+  } catch {
+    return looksLikeSkillset({ skillsetDir });
+  }
+};
+
+/**
  * List installed skillsets with metadata (linked status).
  *
  * Discovers both flat skillsets and namespaced skillsets.
@@ -210,41 +233,34 @@ export const listSkillsetsWithMetadata = async (): Promise<
 
       const isLinked = entry.isSymbolicLink();
       const entryDir = path.join(skillsetsDir, entry.name);
-      await ensureNoriJson({ skillsetDir: entryDir });
-      const instructionsPath = path.join(entryDir, MANIFEST_FILE);
-      try {
-        await fs.access(instructionsPath);
+      if (await isSkillsetDir({ skillsetDir: entryDir })) {
         skillsets.push({ name: entry.name, isLinked });
-      } catch {
-        try {
-          const orgDir = path.join(skillsetsDir, entry.name);
-          const subEntries = await fs.readdir(orgDir, {
-            withFileTypes: true,
-          });
+        continue;
+      }
 
-          for (const subEntry of subEntries) {
-            if (
-              !(await isDirentDirectory({ parentDir: orgDir, entry: subEntry }))
-            )
-              continue;
+      // Not a skillset itself — treat as an org directory of nested skillsets
+      try {
+        const subEntries = await fs.readdir(entryDir, {
+          withFileTypes: true,
+        });
 
-            const isSubLinked = subEntry.isSymbolicLink();
-            const nestedDir = path.join(orgDir, subEntry.name);
-            await ensureNoriJson({ skillsetDir: nestedDir });
-            const nestedInstructionsPath = path.join(nestedDir, MANIFEST_FILE);
-            try {
-              await fs.access(nestedInstructionsPath);
-              skillsets.push({
-                name: `${entry.name}/${subEntry.name}`,
-                isLinked: isLinked || isSubLinked,
-              });
-            } catch {
-              // Skip subdirectories without instructions file
-            }
+        for (const subEntry of subEntries) {
+          if (
+            !(await isDirentDirectory({ parentDir: entryDir, entry: subEntry }))
+          )
+            continue;
+
+          const isSubLinked = subEntry.isSymbolicLink();
+          const nestedDir = path.join(entryDir, subEntry.name);
+          if (await isSkillsetDir({ skillsetDir: nestedDir })) {
+            skillsets.push({
+              name: `${entry.name}/${subEntry.name}`,
+              isLinked: isLinked || isSubLinked,
+            });
           }
-        } catch {
-          // Skip directories that can't be read
         }
+      } catch {
+        // Skip directories that can't be read
       }
     }
   } catch {

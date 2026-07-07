@@ -11,7 +11,7 @@ vi.mock("@/api/refreshToken.js", () => ({
 
 import { exchangeRefreshToken } from "@/api/refreshToken.js";
 
-import type { RegistryAuth } from "@/cli/config.js";
+import type { RegistryAuth } from "@/api/authCredentials.js";
 
 import {
   getRegistryAuthToken,
