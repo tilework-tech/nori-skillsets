@@ -21,6 +21,7 @@ import {
   removeSkillset,
 } from "@/cli/features/agentOperations.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
+import { main as installMain } from "@/cli/features/install/install.js";
 import { confirmAction } from "@/cli/prompts/confirm.js";
 import { configFlow } from "@/cli/prompts/flows/config.js";
 import { normalizeInstallDir } from "@/utils/path.js";
@@ -177,6 +178,7 @@ export const configMain = async (
             name: agent.name,
             displayName: agent.displayName,
             description: agent.description,
+            supportTier: agent.supportTier,
           };
         });
       },
@@ -259,8 +261,6 @@ export const configMain = async (
 
     // Then install to new directory (overwrites manifest with new dir hashes)
     if (shouldInstall) {
-      const { main: installMain } =
-        await import("@/cli/commands/install/install.js");
       const agentNames = getDefaultAgents({
         config: {
           ...existingConfig,
@@ -319,8 +319,6 @@ export const configMain = async (
       });
 
       if (shouldInstall) {
-        const { main: installMain } =
-          await import("@/cli/commands/install/install.js");
         for (const agentName of addedAgents) {
           await installMain({
             installDir: normalizedInstallDir,

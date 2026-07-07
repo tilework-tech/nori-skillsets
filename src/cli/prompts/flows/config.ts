@@ -21,7 +21,12 @@ export type ConfigFlowCallbacks = {
     currentClaudeCodeStatusLine?: "enabled" | "disabled" | null;
   }>;
   onResolveAgents: () => Promise<
-    Array<{ name: string; displayName: string; description: string }>
+    Array<{
+      name: string;
+      displayName: string;
+      description: string;
+      supportTier: "supported" | "experimental";
+    }>
   >;
 };
 
@@ -56,11 +61,17 @@ export const configFlow = async (args: {
   // Resolve available agents from registry
   const agents = await callbacks.onResolveAgents();
 
-  // Step 1: Select default agents
-  const agentOptions = agents.map((agent) => ({
+  // Step 1: Select default agents — supported tier first, experimental marked
+  const agentOptions = [
+    ...agents.filter((agent) => agent.supportTier === "supported"),
+    ...agents.filter((agent) => agent.supportTier !== "supported"),
+  ].map((agent) => ({
     value: agent.name,
     label: agent.displayName,
-    hint: agent.description,
+    hint:
+      agent.supportTier === "supported"
+        ? agent.description
+        : `${agent.description} (experimental)`,
   }));
 
   const selectedAgents = unwrapPrompt({

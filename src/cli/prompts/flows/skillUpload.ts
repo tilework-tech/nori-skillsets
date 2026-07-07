@@ -12,6 +12,8 @@
 import { spinner, select, text, note, log } from "@clack/prompts";
 import * as semver from "semver";
 
+import { getSuggestedVersion } from "@/core/uploadPolicy.js";
+
 import { formatDiffForNote } from "./diffFormat.js";
 import { unwrapPrompt } from "./utils.js";
 
@@ -111,8 +113,10 @@ export const skillUploadFlow = async (args: {
   }
 
   // Remote exists, content differs (or version override forces re-upload)
-  const suggestedNext =
-    semver.inc(existing.latestVersion, "patch") ?? defaultVersion;
+  const suggestedNext = getSuggestedVersion({
+    currentVersion: existing.latestVersion,
+    fallback: defaultVersion,
+  });
 
   if (explicitVersion != null) {
     return runUpload({

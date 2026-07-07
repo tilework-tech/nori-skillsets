@@ -450,6 +450,7 @@ describe("AgentRegistry", () => {
       // Set up agent dir with a managed file
       const agentDir = agent.getAgentDir({ installDir: testInstallDir });
       await fs.mkdir(agentDir, { recursive: true });
+      await fs.writeFile(path.join(agentDir, ".nori-managed"), "test-skillset");
       const claudeMdPath = path.join(agentDir, "CLAUDE.md");
       await fs.writeFile(claudeMdPath, "# Original content");
 
@@ -457,7 +458,10 @@ describe("AgentRegistry", () => {
       const { computeFileHash, writeManifest, getManifestPath } =
         await import("@/cli/features/manifest.js");
       const originalHash = await computeFileHash({ filePath: claudeMdPath });
-      const manifestPath = getManifestPath({ agentName: agent.name });
+      const manifestPath = getManifestPath({
+        agentName: agent.name,
+        installDir: testInstallDir,
+      });
       await writeManifest({
         manifestPath,
         manifest: {
@@ -499,6 +503,7 @@ describe("AgentRegistry", () => {
       // Set up agent dir with a managed file
       const agentDir = agent.getAgentDir({ installDir: testInstallDir });
       await fs.mkdir(agentDir, { recursive: true });
+      await fs.writeFile(path.join(agentDir, ".nori-managed"), "test-skillset");
       const claudeMdPath = path.join(agentDir, "CLAUDE.md");
       await fs.writeFile(claudeMdPath, "# Original content");
 
@@ -506,7 +511,10 @@ describe("AgentRegistry", () => {
       const { computeFileHash, writeManifest, getManifestPath } =
         await import("@/cli/features/manifest.js");
       const hash = await computeFileHash({ filePath: claudeMdPath });
-      const manifestPath = getManifestPath({ agentName: agent.name });
+      const manifestPath = getManifestPath({
+        agentName: agent.name,
+        installDir: testInstallDir,
+      });
       await writeManifest({
         manifestPath,
         manifest: {
@@ -567,7 +575,10 @@ nori-managed content
       const { computeFileHash, writeManifest, getManifestPath } =
         await import("@/cli/features/manifest.js");
       const hash = await computeFileHash({ filePath: claudeMdPath });
-      const manifestPath = getManifestPath({ agentName: agent.name });
+      const manifestPath = getManifestPath({
+        agentName: agent.name,
+        installDir: testInstallDir,
+      });
       await writeManifest({
         manifestPath,
         manifest: {
@@ -768,7 +779,10 @@ nori-managed content
 
       // Manifest should exist
       const { getManifestPath } = await import("@/cli/features/manifest.js");
-      const manifestPath = getManifestPath({ agentName: agent.name });
+      const manifestPath = getManifestPath({
+        agentName: agent.name,
+        installDir: testInstallDir,
+      });
       await expect(fs.access(manifestPath)).resolves.not.toThrow();
     });
 

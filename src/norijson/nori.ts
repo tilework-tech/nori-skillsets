@@ -278,7 +278,7 @@ export const addSubagentToNoriJson = async (args: {
  *
  * @returns True if the directory has skillset markers
  */
-const looksLikeSkillset = async (args: {
+export const looksLikeSkillset = async (args: {
   skillsetDir: string;
   configFileNames?: Array<string> | null;
 }): Promise<boolean> => {

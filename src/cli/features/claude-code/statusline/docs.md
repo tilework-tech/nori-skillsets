@@ -9,7 +9,7 @@ Path: @/src/cli/features/claude-code/statusline
 
 ### How it fits into the larger codebase
 
-- `statuslineLoader` is an `AgentLoader` included in the `claudeCodeAgentConfig.getLoaders()` pipeline in `@/src/cli/features/claude-code/agent.ts`
+- `statuslineLoader` is an `AgentLoader` declared in the claude-code row's `extraLoaders` in the agent table at `@/src/cli/features/agentTable.ts`, so it runs at the end of Claude Code's loader pipeline
 - Writes configuration to `~/.claude/settings.json` (home-level, via `getClaudeHomeSettingsFile()` from `@/src/cli/features/claude-code/paths.ts`)
 - Honors `config.claudeCodeStatusLine`; when the user disables that setting via `nori-skillsets config`, the loader exits without copying the script or writing `settings.statusLine`
 - The shell script reads `~/.nori-config.json` (for the active skillset) and `~/.nori/profiles/nori-skillsets-version.json` (for the cached latest-known version) at runtime, outside the Node.js config system. The running CLI version is resolved by spawning `sks --version` rather than being read from the config.

@@ -5,14 +5,11 @@
 
 import * as fs from "fs/promises";
 import * as path from "path";
-import { Readable } from "stream";
-import { pipeline } from "stream/promises";
-import zlib from "zlib";
 
 import { log } from "@clack/prompts";
 import * as semver from "semver";
-import * as tar from "tar";
 
+import { hasRegistryAuthCredentials } from "@/api/authCredentials.js";
 import { registrarApi, REGISTRAR_URL } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
 import {
@@ -22,99 +19,39 @@ import {
 import {
   getRegistryAuth,
   getDefaultAgents,
-  hasRegistryAuthCredentials,
   loadConfig,
   getActiveSkillset,
-  toRegistryAuth,
 } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { addSkillDependency } from "@/cli/features/skillResolver.js";
 import { substituteTemplatePaths } from "@/cli/features/template.js";
 import { skillDownloadFlow } from "@/cli/prompts/flows/index.js";
+import { recordFlowFailure } from "@/cli/prompts/flows/utils.js";
+import { resolveOrgRegistryAuth } from "@/core/registryAuthResolution.js";
 import { addSkillToNoriJson, ensureNoriJson } from "@/norijson/nori.js";
 import { resolveSkillsetDir } from "@/norijson/skillset.js";
-import { resolveInstallDir } from "@/utils/path.js";
+import { verifyArchiveChecksum } from "@/packaging/archive.js";
 import {
-  parseNamespacedPackage,
-  buildOrganizationRegistryUrl,
-} from "@/utils/url.js";
+  atomicReplaceDirWithArchive,
+  extractArchiveToNewDir,
+} from "@/packaging/atomicReplace.js";
+import { readVersionInfo, writeVersionInfo } from "@/packaging/provenance.js";
+import {
+  formatMultipleMatchesError,
+  formatVersionList,
+  searchSpecificRegistry,
+} from "@/packaging/registryLookup.js";
+import { resolveInstallDir } from "@/utils/path.js";
+import { parseNamespacedPackage } from "@/utils/url.js";
 
-import type { Packument } from "@/api/registrar.js";
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
-import type { Config } from "@/cli/config.js";
 import type {
   SkillSearchResult,
   SkillDownloadActionResult,
 } from "@/cli/prompts/flows/index.js";
+import type { VersionInfo } from "@/packaging/provenance.js";
+import type { RegistrySearchResult } from "@/packaging/registryLookup.js";
 import type { Command } from "commander";
-
-/**
- * Version info stored in .nori-version file
- */
-type VersionInfo = {
-  version: string;
-  registryUrl: string;
-  orgId?: string | null;
-};
-
-/**
- * Read the .nori-version file from a skill directory
- * @param args - The function arguments
- * @param args.skillDir - The skill directory path
- *
- * @returns The version info or null if not found
- */
-const readVersionInfo = async (args: {
-  skillDir: string;
-}): Promise<VersionInfo | null> => {
-  const { skillDir } = args;
-  const versionFilePath = path.join(skillDir, ".nori-version");
-
-  try {
-    const content = await fs.readFile(versionFilePath, "utf-8");
-    return JSON.parse(content) as VersionInfo;
-  } catch {
-    return null;
-  }
-};
-
-/**
- * Check if buffer starts with gzip magic bytes (0x1f 0x8b)
- * @param args - The check parameters
- * @param args.buffer - The buffer to check
- *
- * @returns True if the buffer is gzip compressed
- */
-const isGzipped = (args: { buffer: Buffer }): boolean => {
-  const { buffer } = args;
-  return buffer.length >= 2 && buffer[0] === 0x1f && buffer[1] === 0x8b;
-};
-
-/**
- * Extract a tarball to a directory
- * @param args - The extraction parameters
- * @param args.tarballData - The tarball data as ArrayBuffer
- * @param args.targetDir - The directory to extract to
- */
-const extractTarball = async (args: {
-  tarballData: ArrayBuffer;
-  targetDir: string;
-}): Promise<void> => {
-  const { tarballData, targetDir } = args;
-
-  const buffer = Buffer.from(tarballData);
-  const readable = Readable.from(buffer);
-
-  if (isGzipped({ buffer })) {
-    await pipeline(
-      readable,
-      zlib.createGunzip(),
-      tar.extract({ cwd: targetDir }),
-    );
-  } else {
-    await pipeline(readable, tar.extract({ cwd: targetDir }));
-  }
-};
 
 /**
  * Copy a directory recursively
@@ -166,173 +103,6 @@ const applyTemplateSubstitutionToDir = async (args: {
       await fs.writeFile(entryPath, substituted);
     }
   }
-};
-
-/**
- * Result of searching for a skill in a registry
- */
-type RegistrySearchResult = {
-  registryUrl: string;
-  packument: Packument;
-  authToken?: string | null;
-};
-
-/**
- * Search a specific registry for a skill
- * @param args - The search parameters
- * @param args.skillName - The skill name to search for
- * @param args.registryUrl - The registry URL to search
- * @param args.config - The Nori configuration containing registry auth
- *
- * @returns The search result or null if not found or no auth configured
- */
-const searchSpecificRegistry = async (args: {
-  skillName: string;
-  registryUrl: string;
-  config: Config | null;
-}): Promise<RegistrySearchResult | null> => {
-  const { skillName, registryUrl, config } = args;
-
-  // Check if this is the public registry
-  if (registryUrl === REGISTRAR_URL) {
-    try {
-      const packument = await registrarApi.getSkillPackument({
-        skillName,
-        registryUrl: REGISTRAR_URL,
-      });
-      return {
-        registryUrl: REGISTRAR_URL,
-        packument,
-      };
-    } catch {
-      return null;
-    }
-  }
-
-  // Private registry - require auth from config
-  if (config == null) {
-    return null;
-  }
-
-  const registryAuth = getRegistryAuth({ config, registryUrl });
-  if (registryAuth == null) {
-    return null;
-  }
-
-  try {
-    const authToken = await getRegistryAuthToken({ registryAuth });
-    const packument = await registrarApi.getSkillPackument({
-      skillName,
-      registryUrl,
-      authToken,
-    });
-    return {
-      registryUrl,
-      packument,
-      authToken,
-    };
-  } catch {
-    return null;
-  }
-};
-
-/**
- * Format the list of available versions for a skill
- * @param args - The format parameters
- * @param args.skillName - The skill name
- * @param args.packument - The packument containing version information
- * @param args.registryUrl - The registry URL
- * @param args.cliName - The CLI name for command hints
- *
- * @returns Formatted version list message
- */
-const formatVersionList = (args: {
-  skillName: string;
-  packument: Packument;
-  registryUrl: string;
-  cliName?: CliName | null;
-}): string => {
-  const { skillName, packument, registryUrl, cliName } = args;
-  const commandNames = getCommandNames({ cliName });
-  const cliPrefix = cliName ?? "nori-skillsets";
-  const distTags = packument["dist-tags"];
-  const versions = Object.keys(packument.versions);
-  const timeInfo = packument.time ?? {};
-
-  // Sort versions in descending order (newest first)
-  const sortedVersions = versions.sort((a, b) => {
-    const timeA = timeInfo[a] ? new Date(timeInfo[a]).getTime() : 0;
-    const timeB = timeInfo[b] ? new Date(timeInfo[b]).getTime() : 0;
-    return timeB - timeA;
-  });
-
-  const lines = [
-    `Available versions of "${skillName}" from ${registryUrl}:\n`,
-    "Dist-tags:",
-  ];
-
-  // Show dist-tags first
-  for (const [tag, version] of Object.entries(distTags)) {
-    lines.push(`  ${tag}: ${version}`);
-  }
-
-  lines.push("\nVersions:");
-
-  // Show all versions with timestamps
-  for (const version of sortedVersions) {
-    const timestamp = timeInfo[version]
-      ? new Date(timeInfo[version]).toLocaleDateString()
-      : "";
-    const tags = Object.entries(distTags)
-      .filter(([, v]) => v === version)
-      .map(([t]) => t);
-    const tagStr = tags.length > 0 ? ` (${tags.join(", ")})` : "";
-    const timeStr = timestamp ? ` - ${timestamp}` : "";
-    lines.push(`  ${version}${tagStr}${timeStr}`);
-  }
-
-  lines.push(
-    `\nTo download a specific version:\n  ${cliPrefix} ${commandNames.downloadSkill} ${skillName}@<version>`,
-  );
-
-  return lines.join("\n");
-};
-
-/**
- * Format the multiple skills found error message
- * @param args - The format parameters
- * @param args.skillName - The skill name that was searched
- * @param args.results - The search results from multiple registries
- * @param args.cliName - The CLI name for command hints
- *
- * @returns Formatted error message
- */
-const formatMultipleSkillsError = (args: {
-  skillName: string;
-  results: Array<RegistrySearchResult>;
-  cliName?: CliName | null;
-}): string => {
-  const { skillName, results, cliName } = args;
-  const commandNames = getCommandNames({ cliName });
-  const cliPrefix = cliName ?? "nori-skillsets";
-
-  const lines = ["Multiple skills with the same name found.\n"];
-
-  for (const result of results) {
-    const version = result.packument["dist-tags"].latest ?? "unknown";
-    const description = result.packument.description ?? "";
-    lines.push(result.registryUrl);
-    lines.push(`  -> ${skillName}@${version}: ${description}\n`);
-  }
-
-  lines.push("To download, please specify the registry with --registry:");
-  for (const result of results) {
-    lines.push(
-      `${cliPrefix} ${commandNames.downloadSkill} ${skillName} --registry ${result.registryUrl}`,
-    );
-  }
-
-  return lines.join("\n");
 };
 
 /**
@@ -484,7 +254,7 @@ export const skillDownloadMain = async (args: {
   try {
     await fs.access(targetDir);
     skillExists = true;
-    existingVersionInfo = await readVersionInfo({ skillDir: targetDir });
+    existingVersionInfo = await readVersionInfo({ dir: targetDir });
   } catch {
     // Directory doesn't exist - continue
   }
@@ -492,370 +262,352 @@ export const skillDownloadMain = async (args: {
   // Closure variables shared between onSearch and onDownload callbacks
   let foundRegistry: RegistrySearchResult | null = null;
   let resolvedTargetVersion = "";
+  // The flow resolves to null for BOTH a user cancel and a callback-reported
+  // failure; record failures so real errors are not mistaken for a cancel.
+  let flowError: string | null = null;
 
   const result = await skillDownloadFlow({
     skillDisplayName,
     nonInteractive: nonInteractive ?? silent ?? null,
     callbacks: {
-      onSearch: async (): Promise<SkillSearchResult> => {
-        // Inline search logic
-        let flowSearchResults: Array<RegistrySearchResult>;
+      onSearch: recordFlowFailure({
+        onFailure: (error) => {
+          flowError = error;
+        },
+        fn: async (): Promise<SkillSearchResult> => {
+          // Inline search logic
+          let flowSearchResults: Array<RegistrySearchResult>;
 
-        const hasUnifiedAuth =
-          config?.auth != null &&
-          hasRegistryAuthCredentials({ auth: config.auth }) &&
-          config.auth.organizations != null;
+          const hasUnifiedAuth =
+            config?.auth != null &&
+            hasRegistryAuthCredentials({ auth: config.auth }) &&
+            config.auth.organizations != null;
 
-        if (registryUrl != null) {
-          if (registryUrl !== REGISTRAR_URL) {
+          if (registryUrl != null) {
             const registryAuth =
               config != null ? getRegistryAuth({ config, registryUrl }) : null;
-            if (registryAuth == null) {
+            if (registryUrl !== REGISTRAR_URL && registryAuth == null) {
               return {
                 status: "error",
                 error: `No authentication configured for registry: ${registryUrl}`,
                 hint: "Add registry credentials to your .nori-config.json file.",
               };
             }
-          }
 
-          const searchResult = await searchSpecificRegistry({
-            skillName,
-            registryUrl,
-            config,
-          });
-          flowSearchResults = searchResult != null ? [searchResult] : [];
-        } else if (orgId === "public") {
-          try {
-            const packument = await registrarApi.getSkillPackument({
-              skillName,
-              registryUrl: REGISTRAR_URL,
+            const searchResult =
+              (
+                await searchSpecificRegistry({
+                  registryUrl,
+                  fetchPackument: (fetchArgs) =>
+                    registrarApi.getSkillPackument({ skillName, ...fetchArgs }),
+                  getAuthToken:
+                    registryAuth != null
+                      ? () => getRegistryAuthToken({ registryAuth })
+                      : null,
+                })
+              ).result ?? null;
+            flowSearchResults = searchResult != null ? [searchResult] : [];
+          } else if (orgId === "public") {
+            try {
+              const packument = await registrarApi.getSkillPackument({
+                skillName,
+                registryUrl: REGISTRAR_URL,
+              });
+              flowSearchResults = [{ registryUrl: REGISTRAR_URL, packument }];
+            } catch {
+              flowSearchResults = [];
+            }
+          } else if (hasUnifiedAuth) {
+            const resolution = resolveOrgRegistryAuth({
+              auth: config?.auth ?? null,
+              orgId,
             });
-            flowSearchResults = [{ registryUrl: REGISTRAR_URL, packument }];
-          } catch {
-            flowSearchResults = [];
-          }
-        } else if (hasUnifiedAuth) {
-          const targetRegistryUrl = buildOrganizationRegistryUrl({ orgId });
-          const userOrgs = config.auth!.organizations!;
 
-          if (!userOrgs.includes(orgId)) {
+            if (resolution.ok === false) {
+              const userOrgs =
+                resolution.reason === "not-a-member"
+                  ? resolution.organizations
+                  : [];
+              return {
+                status: "error",
+                error: `You do not have access to organization "${orgId}".`,
+                hint: `Your available organizations: ${userOrgs.length > 0 ? userOrgs.join(", ") : "(none)"}`,
+              };
+            }
+            const targetRegistryUrl = resolution.registryUrl;
+
+            try {
+              const authToken = await resolution.getToken();
+              const packument = await registrarApi.getSkillPackument({
+                skillName,
+                registryUrl: targetRegistryUrl,
+                authToken,
+              });
+              flowSearchResults = [
+                { registryUrl: targetRegistryUrl, packument, authToken },
+              ];
+            } catch {
+              flowSearchResults = [];
+            }
+          } else {
             return {
               status: "error",
-              error: `You do not have access to organization "${orgId}".`,
-              hint: `Your available organizations: ${userOrgs.length > 0 ? userOrgs.join(", ") : "(none)"}`,
+              error: `Skill "${orgId}/${skillName}" not found.`,
+              hint: `To download from organization "${orgId}", log in with:\n  nori-skillsets login`,
             };
           }
 
-          const registryAuth = toRegistryAuth({
-            auth: config.auth!,
-            registryUrl: targetRegistryUrl,
-          });
-
-          try {
-            const authToken = await getRegistryAuthToken({ registryAuth });
-            const packument = await registrarApi.getSkillPackument({
-              skillName,
-              registryUrl: targetRegistryUrl,
-              authToken,
-            });
-            flowSearchResults = [
-              { registryUrl: targetRegistryUrl, packument, authToken },
-            ];
-          } catch {
-            flowSearchResults = [];
+          if (flowSearchResults.length === 0) {
+            return {
+              status: "error",
+              error: `Skill "${skillDisplayName}" not found in any registry.`,
+            };
           }
-        } else {
-          return {
-            status: "error",
-            error: `Skill "${orgId}/${skillName}" not found.`,
-            hint: `To download from organization "${orgId}", log in with:\n  nori-skillsets login`,
-          };
-        }
 
-        if (flowSearchResults.length === 0) {
-          return {
-            status: "error",
-            error: `Skill "${skillDisplayName}" not found in any registry.`,
-          };
-        }
+          if (flowSearchResults.length > 1) {
+            return {
+              status: "error",
+              error: formatMultipleMatchesError({
+                packageName: skillName,
+                results: flowSearchResults,
+                entityLabel: "skills",
+                downloadCommand: `${cliPrefix} ${commandNames.downloadSkill}`,
+              }),
+            };
+          }
 
-        if (flowSearchResults.length > 1) {
-          return {
-            status: "error",
-            error: formatMultipleSkillsError({
-              skillName,
-              results: flowSearchResults,
-              cliName,
-            }),
-          };
-        }
+          foundRegistry = flowSearchResults[0];
 
-        foundRegistry = flowSearchResults[0];
+          if (listVersions) {
+            return {
+              status: "list-versions",
+              formattedVersionList: formatVersionList({
+                packageName: skillName,
+                packument: foundRegistry.packument,
+                registryUrl: foundRegistry.registryUrl,
+                downloadCommand: `${cliPrefix} ${commandNames.downloadSkill}`,
+              }),
+              versionCount: Object.keys(foundRegistry.packument.versions)
+                .length,
+            };
+          }
 
-        if (listVersions) {
-          return {
-            status: "list-versions",
-            formattedVersionList: formatVersionList({
-              skillName,
-              packument: foundRegistry.packument,
-              registryUrl: foundRegistry.registryUrl,
-              cliName,
-            }),
-            versionCount: Object.keys(foundRegistry.packument.versions).length,
-          };
-        }
+          resolvedTargetVersion =
+            version ?? foundRegistry.packument["dist-tags"].latest;
 
-        resolvedTargetVersion =
-          version ?? foundRegistry.packument["dist-tags"].latest;
+          if (skillExists && existingVersionInfo != null) {
+            const installedVersion = existingVersionInfo.version;
+            const installedValid = semver.valid(installedVersion) != null;
+            const targetValid = semver.valid(resolvedTargetVersion) != null;
 
-        if (skillExists && existingVersionInfo != null) {
-          const installedVersion = existingVersionInfo.version;
-          const installedValid = semver.valid(installedVersion) != null;
-          const targetValid = semver.valid(resolvedTargetVersion) != null;
-
-          if (installedValid && targetValid) {
-            if (semver.gte(installedVersion, resolvedTargetVersion)) {
+            if (installedValid && targetValid) {
+              if (semver.gte(installedVersion, resolvedTargetVersion)) {
+                return {
+                  status: "already-current",
+                  version: installedVersion,
+                };
+              }
+              return {
+                status: "ready",
+                targetVersion: resolvedTargetVersion,
+                isUpdate: true,
+                currentVersion: installedVersion,
+              };
+            } else if (installedVersion === resolvedTargetVersion) {
               return {
                 status: "already-current",
                 version: installedVersion,
               };
             }
+          }
+
+          if (skillExists && existingVersionInfo == null) {
             return {
-              status: "ready",
-              targetVersion: resolvedTargetVersion,
-              isUpdate: true,
-              currentVersion: installedVersion,
-            };
-          } else if (installedVersion === resolvedTargetVersion) {
-            return {
-              status: "already-current",
-              version: installedVersion,
+              status: "error",
+              error: `Skill "${skillDisplayName}" already exists at:\n${targetDir}\n\nThis skill has no version information (.nori-version file).`,
+              hint: `To reinstall:\n  rm -rf "${targetDir}"\n  ${cliPrefix} ${commandNames.downloadSkill} ${skillDisplayName}`,
             };
           }
-        }
 
-        if (skillExists && existingVersionInfo == null) {
           return {
-            status: "error",
-            error: `Skill "${skillDisplayName}" already exists at:\n${targetDir}\n\nThis skill has no version information (.nori-version file).`,
-            hint: `To reinstall:\n  rm -rf "${targetDir}"\n  ${cliPrefix} ${commandNames.downloadSkill} ${skillDisplayName}`,
+            status: "ready",
+            targetVersion: resolvedTargetVersion,
+            isUpdate: false,
           };
-        }
+        },
+      }),
+      onDownload: recordFlowFailure({
+        onFailure: (error) => {
+          flowError = error;
+        },
+        fn: async (): Promise<SkillDownloadActionResult> => {
+          const selectedRegistry = foundRegistry!;
+          const warnings: Array<string> = [];
 
-        return {
-          status: "ready",
-          targetVersion: resolvedTargetVersion,
-          isUpdate: false,
-        };
-      },
-      onDownload: async (): Promise<SkillDownloadActionResult> => {
-        const selectedRegistry = foundRegistry!;
-        const warnings: Array<string> = [];
-
-        try {
-          const tarballData = await registrarApi.downloadSkillTarball({
-            skillName,
-            version: version ?? undefined,
-            registryUrl: selectedRegistry.registryUrl,
-            authToken: selectedRegistry.authToken ?? undefined,
-          });
-
-          if (skillExists) {
-            const tempDir = path.join(skillsDir, `.${skillName}-download-temp`);
-            const backupDir = path.join(skillsDir, `.${skillName}-backup`);
-            await fs.mkdir(tempDir, { recursive: true });
-
-            try {
-              await extractTarball({ tarballData, targetDir: tempDir });
-            } catch (extractErr) {
-              await fs.rm(tempDir, { recursive: true, force: true });
-              throw extractErr;
-            }
-
-            try {
-              await fs.rename(targetDir, backupDir);
-              await fs.rename(tempDir, targetDir);
-
-              const backupVersionFile = path.join(backupDir, ".nori-version");
-              try {
-                await fs.access(backupVersionFile);
-                await fs.copyFile(
-                  backupVersionFile,
-                  path.join(targetDir, ".nori-version"),
-                );
-              } catch {
-                // No .nori-version in backup
-              }
-
-              await fs.rm(backupDir, { recursive: true, force: true });
-            } catch (swapErr) {
-              try {
-                await fs.access(backupDir);
-                await fs
-                  .rm(targetDir, { recursive: true, force: true })
-                  .catch(() => {
-                    // Target may not exist
-                  });
-                await fs.rename(backupDir, targetDir);
-              } catch {
-                // Restore failed
-              }
-              await fs
-                .rm(tempDir, { recursive: true, force: true })
-                .catch(() => {
-                  // Temp may not exist
-                });
-              throw swapErr;
-            }
-          } else {
-            await fs.mkdir(targetDir, { recursive: true });
-
-            try {
-              await extractTarball({ tarballData, targetDir });
-            } catch (extractErr) {
-              await fs.rm(targetDir, { recursive: true, force: true });
-              throw extractErr;
-            }
-          }
-
-          // Write .nori-version file
-          const versionData = JSON.stringify(
-            {
-              version: resolvedTargetVersion,
-              registryUrl: selectedRegistry.registryUrl,
-              orgId,
-            },
-            null,
-            2,
-          );
-          await fs.writeFile(
-            path.join(targetDir, ".nori-version"),
-            versionData,
-          );
-
-          // Persist skill to skillset's skills directory
-          if (targetSkillsetDir != null) {
-            const profileSkillDir = path.join(
-              targetSkillsetDir,
-              "skills",
+          try {
+            const tarballData = await registrarApi.downloadSkillTarball({
               skillName,
-            );
-            try {
-              await fs.rm(profileSkillDir, {
-                recursive: true,
-                force: true,
+              version: version ?? undefined,
+              registryUrl: selectedRegistry.registryUrl,
+              authToken: selectedRegistry.authToken ?? undefined,
+            });
+            verifyArchiveChecksum({
+              tarballData,
+              expectedShasum:
+                selectedRegistry.packument.versions[resolvedTargetVersion]?.dist
+                  ?.shasum,
+            });
+
+            if (skillExists) {
+              await atomicReplaceDirWithArchive({
+                tarballData,
+                targetDir,
+                preserveVersionFile: true,
               });
-              await copyDirRecursive({
-                src: targetDir,
-                dest: profileSkillDir,
-              });
-            } catch (profileCopyErr) {
-              const msg =
-                profileCopyErr instanceof Error
-                  ? profileCopyErr.message
-                  : String(profileCopyErr);
-              warnings.push(
-                `Warning: Could not persist skill to skillset: ${msg}`,
-              );
+            } else {
+              await extractArchiveToNewDir({ tarballData, targetDir });
             }
-          }
 
-          // Apply template substitution for primary agent
-          const primaryAgentDir = primaryAgent.getAgentDir({
-            installDir: targetInstallDir,
-          });
-          await applyTemplateSubstitutionToDir({
-            dir: targetDir,
-            installDir: primaryAgentDir,
-          });
+            await writeVersionInfo({
+              dir: targetDir,
+              versionInfo: {
+                version: resolvedTargetVersion,
+                registryUrl: selectedRegistry.registryUrl,
+                orgId,
+              },
+            });
 
-          // Broadcast: copy skill to all other agents' skills directories
-          for (const agent of defaultAgents.slice(1)) {
-            const agentSkillsDir = agent.getSkillsDir({
+            // Persist skill to skillset's skills directory
+            if (targetSkillsetDir != null) {
+              const profileSkillDir = path.join(
+                targetSkillsetDir,
+                "skills",
+                skillName,
+              );
+              try {
+                await fs.rm(profileSkillDir, {
+                  recursive: true,
+                  force: true,
+                });
+                await copyDirRecursive({
+                  src: targetDir,
+                  dest: profileSkillDir,
+                });
+              } catch (profileCopyErr) {
+                const msg =
+                  profileCopyErr instanceof Error
+                    ? profileCopyErr.message
+                    : String(profileCopyErr);
+                warnings.push(
+                  `Warning: Could not persist skill to skillset: ${msg}`,
+                );
+              }
+            }
+
+            // Apply template substitution for primary agent
+            const primaryAgentDir = primaryAgent.getAgentDir({
               installDir: targetInstallDir,
             });
-            const agentTargetDir = path.join(agentSkillsDir, skillName);
-            try {
-              await fs.rm(agentTargetDir, { recursive: true, force: true });
-              await copyDirRecursive({ src: targetDir, dest: agentTargetDir });
-              // Re-apply template substitution with this agent's dir
-              const agentDir = agent.getAgentDir({
+            await applyTemplateSubstitutionToDir({
+              dir: targetDir,
+              installDir: primaryAgentDir,
+            });
+
+            // Broadcast: copy skill to all other agents' skills directories
+            for (const agent of defaultAgents.slice(1)) {
+              const agentSkillsDir = agent.getSkillsDir({
                 installDir: targetInstallDir,
               });
-              await applyTemplateSubstitutionToDir({
-                dir: agentTargetDir,
-                installDir: agentDir,
-              });
-            } catch (copyErr) {
-              const msg =
-                copyErr instanceof Error ? copyErr.message : String(copyErr);
-              warnings.push(
-                `Warning: Could not copy skill to ${agent.name}: ${msg}`,
-              );
+              const agentTargetDir = path.join(agentSkillsDir, skillName);
+              try {
+                await fs.rm(agentTargetDir, { recursive: true, force: true });
+                await copyDirRecursive({
+                  src: targetDir,
+                  dest: agentTargetDir,
+                });
+                // Re-apply template substitution with this agent's dir
+                const agentDir = agent.getAgentDir({
+                  installDir: targetInstallDir,
+                });
+                await applyTemplateSubstitutionToDir({
+                  dir: agentTargetDir,
+                  installDir: agentDir,
+                });
+              } catch (copyErr) {
+                const msg =
+                  copyErr instanceof Error ? copyErr.message : String(copyErr);
+                warnings.push(
+                  `Warning: Could not copy skill to ${agent.name}: ${msg}`,
+                );
+              }
             }
-          }
 
-          // Update skillset manifest
-          let profileUpdateMessage: string | null = null;
-          if (targetSkillsetDir != null) {
-            try {
-              await addSkillDependency({
-                skillsetDir: targetSkillsetDir,
-                skillName,
-                version: "*",
-              });
-              profileUpdateMessage = `Added "${skillDisplayName}" to ${targetSkillset} skillset manifest`;
-            } catch (manifestErr) {
-              const msg =
-                manifestErr instanceof Error
-                  ? manifestErr.message
-                  : String(manifestErr);
-              warnings.push(
-                `Warning: Could not update skillset manifest: ${msg}`,
-              );
+            // Update skillset manifest
+            let profileUpdateMessage: string | null = null;
+            if (targetSkillsetDir != null) {
+              try {
+                await addSkillDependency({
+                  skillsetDir: targetSkillsetDir,
+                  skillName,
+                  version: resolvedTargetVersion,
+                });
+                profileUpdateMessage = `Added "${skillDisplayName}" to ${targetSkillset} skillset manifest`;
+              } catch (manifestErr) {
+                const msg =
+                  manifestErr instanceof Error
+                    ? manifestErr.message
+                    : String(manifestErr);
+                warnings.push(
+                  `Warning: Could not update skillset manifest: ${msg}`,
+                );
+              }
             }
-          }
 
-          // Update nori.json
-          if (targetSkillsetDir != null) {
-            try {
-              await addSkillToNoriJson({
-                skillsetDir: targetSkillsetDir,
-                skillName,
-                version: "*",
-              });
-            } catch (noriJsonErr) {
-              const msg =
-                noriJsonErr instanceof Error
-                  ? noriJsonErr.message
-                  : String(noriJsonErr);
-              warnings.push(`Warning: Could not update nori.json: ${msg}`);
+            // Update nori.json
+            if (targetSkillsetDir != null) {
+              try {
+                await addSkillToNoriJson({
+                  skillsetDir: targetSkillsetDir,
+                  skillName,
+                  version: resolvedTargetVersion,
+                });
+              } catch (noriJsonErr) {
+                const msg =
+                  noriJsonErr instanceof Error
+                    ? noriJsonErr.message
+                    : String(noriJsonErr);
+                warnings.push(`Warning: Could not update nori.json: ${msg}`);
+              }
             }
-          }
 
-          return {
-            success: true,
-            version: resolvedTargetVersion,
-            isUpdate: skillExists,
-            installedTo: targetDir,
-            skillDisplayName,
-            profileUpdateMessage,
-            warnings,
-          };
-        } catch (err) {
-          const errorMessage = err instanceof Error ? err.message : String(err);
-          return {
-            success: false,
-            error: `Failed to download skill "${skillDisplayName}": ${errorMessage}`,
-          };
-        }
-      },
+            return {
+              success: true,
+              version: resolvedTargetVersion,
+              isUpdate: skillExists,
+              installedTo: targetDir,
+              skillDisplayName,
+              profileUpdateMessage,
+              warnings,
+            };
+          } catch (err) {
+            const errorMessage =
+              err instanceof Error ? err.message : String(err);
+            return {
+              success: false,
+              error: `Failed to download skill "${skillDisplayName}": ${errorMessage}`,
+            };
+          }
+        },
+      }),
     },
   });
 
   if (result == null) {
-    return { success: false, cancelled: true, message: "" };
+    return {
+      success: false,
+      cancelled: flowError == null,
+      message: flowError ?? "",
+    };
   }
 
   return { success: true, cancelled: false, message: result.statusMessage };

@@ -12,6 +12,7 @@ import {
   getClaudeHomeDir,
   getClaudeHomeSettingsFile,
 } from "@/cli/features/claude-code/paths.js";
+import { readJsonObjectFile, writeJsonFileAtomic } from "@/utils/jsonFile.js";
 
 import type { Config } from "@/cli/config.js";
 import type { AgentLoader } from "@/cli/features/agentRegistry.js";
@@ -243,16 +244,14 @@ const configureHooks = async (args: {
   // Create .claude directory if it doesn't exist
   await fs.mkdir(claudeDir, { recursive: true });
 
-  // Initialize settings file if it doesn't exist
-  let settings: any = {};
-  try {
-    const content = await fs.readFile(claudeSettingsFile, "utf-8");
-    settings = JSON.parse(content);
-  } catch {
-    settings = {
+  // Read the user's settings, preserving them. A file that exists but does not
+  // parse aborts loudly instead of being overwritten with a fresh object.
+  const settings: any = await readJsonObjectFile({
+    filePath: claudeSettingsFile,
+    ifAbsent: {
       $schema: "https://json.schemastore.org/claude-code-settings.json",
-    };
-  }
+    },
+  });
 
   const commitAttributionMode = getCommitAttributionMode({
     env: process.env,
@@ -283,11 +282,89 @@ const configureHooks = async (args: {
     }
   }
 
-  // Merge hooks into settings
-  settings.hooks = hooksConfig;
+  settings.hooks = mergeNoriHooks({
+    existingHooks: settings.hooks,
+    noriHooks: hooksConfig,
+  });
 
-  await fs.writeFile(claudeSettingsFile, JSON.stringify(settings, null, 2));
+  await writeJsonFileAtomic({ filePath: claudeSettingsFile, value: settings });
   return "Hooks";
+};
+
+/**
+ * Check whether a hook command belongs to Nori: it points at this package's
+ * bundled hook scripts (current install location or any nori-skillsets path).
+ *
+ * @param args - Configuration arguments
+ * @param args.command - The hook command line
+ *
+ * @returns True when the command is Nori-managed
+ */
+const isNoriHookCommand = (args: { command: string }): boolean => {
+  const { command } = args;
+  return (
+    command.includes("nori-skillsets") || command.includes(HOOKS_CONFIG_DIR)
+  );
+};
+
+/**
+ * Merge Nori's hooks into the user's existing hooks map. User-authored hook
+ * entries survive untouched; previously-installed Nori entries are replaced
+ * by the fresh set so repeated installs stay idempotent.
+ *
+ * @param args - Configuration arguments
+ * @param args.existingHooks - The current settings.hooks value (any shape)
+ * @param args.noriHooks - Freshly built Nori hook groups keyed by event
+ *
+ * @returns The merged hooks map
+ */
+const mergeNoriHooks = (args: {
+  existingHooks: unknown;
+  noriHooks: Record<string, Array<{ matcher: string; hooks: Array<unknown> }>>;
+}): Record<string, Array<unknown>> => {
+  const { existingHooks, noriHooks } = args;
+
+  const merged: Record<string, Array<any>> = {};
+  if (
+    existingHooks != null &&
+    typeof existingHooks === "object" &&
+    !Array.isArray(existingHooks)
+  ) {
+    for (const [event, groups] of Object.entries(existingHooks)) {
+      if (!Array.isArray(groups)) {
+        merged[event] = groups;
+        continue;
+      }
+      // Strip Nori-managed entries; keep user entries and group structure
+      const userGroups = groups
+        .map((group: any) => {
+          if (!Array.isArray(group?.hooks)) {
+            return group;
+          }
+          return {
+            ...group,
+            hooks: group.hooks.filter(
+              (hook: any) =>
+                typeof hook?.command !== "string" ||
+                !isNoriHookCommand({ command: hook.command }),
+            ),
+          };
+        })
+        .filter(
+          (group: any) =>
+            !Array.isArray(group?.hooks) || group.hooks.length > 0,
+        );
+      if (userGroups.length > 0) {
+        merged[event] = userGroups;
+      }
+    }
+  }
+
+  for (const [event, groups] of Object.entries(noriHooks)) {
+    merged[event] = [...(merged[event] ?? []), ...groups];
+  }
+
+  return merged;
 };
 
 /**

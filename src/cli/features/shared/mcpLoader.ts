@@ -19,6 +19,7 @@ import {
   type CanonicalMcpServer,
   type McpTargetFormat,
 } from "@/cli/features/shared/mcpEmitter.js";
+import { readJsonObjectFile, writeJsonFileAtomic } from "@/utils/jsonFile.js";
 
 import type { AgentLoader } from "@/cli/features/agentRegistry.js";
 
@@ -105,20 +106,15 @@ const mergeMcpServersIntoJson = async (args: {
   newServers: Record<string, unknown>;
 }): Promise<void> => {
   const { filePath, rootKey, newServers } = args;
-  let parsed: Record<string, unknown> = {};
-  if (await fileExists(filePath)) {
-    const existing = await fs.readFile(filePath, "utf-8");
-    try {
-      parsed = JSON.parse(existing) as Record<string, unknown>;
-    } catch {
-      parsed = {};
-    }
-  }
+  // Read the target (e.g. Claude Code's ~/.claude.json, which holds far more
+  // than MCP servers). A file that exists but does not parse aborts loudly
+  // instead of being replaced with just our servers.
+  const parsed = await readJsonObjectFile({ filePath, ifAbsent: {} });
+
   const existingServers = (parsed[rootKey] as Record<string, unknown>) ?? {};
   parsed[rootKey] = { ...existingServers, ...newServers };
 
-  await fs.mkdir(path.dirname(filePath), { recursive: true });
-  await fs.writeFile(filePath, `${JSON.stringify(parsed, null, 2)}\n`);
+  await writeJsonFileAtomic({ filePath, value: parsed });
 };
 
 const stripExistingMcpTables = (args: {

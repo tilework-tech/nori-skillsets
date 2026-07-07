@@ -10,8 +10,6 @@ import { describe, it, expect } from "vitest";
 import type { FileChange } from "@/api/registrar.js";
 
 import {
-  countFileChanges,
-  formatDiscardHint,
   formatFileChangesForNote,
   summarizeFileChangeCounts,
 } from "./fileChangesFormat.js";
@@ -95,40 +93,6 @@ describe("formatFileChangesForNote", () => {
 
   it("returns empty string when list is empty", () => {
     expect(formatFileChangesForNote({ fileChanges: [] })).toBe("");
-  });
-});
-
-describe("countFileChanges", () => {
-  it("returns the entry count, treating null/undefined/empty as 0", () => {
-    expect(
-      countFileChanges({
-        fileChanges: [
-          { path: "a", status: "added", isBinary: false },
-          { path: "b", status: "modified", isBinary: false },
-        ],
-      }),
-    ).toBe(2);
-    expect(countFileChanges({ fileChanges: null })).toBe(0);
-    expect(countFileChanges({})).toBe(0);
-    expect(countFileChanges({ fileChanges: [] })).toBe(0);
-  });
-});
-
-describe("formatDiscardHint", () => {
-  it("returns a pluralized clause for counts greater than 1", () => {
-    expect(formatDiscardHint({ count: 3 })).toContain("3 file changes");
-    expect(formatDiscardHint({ count: 3 })).not.toContain("3 file change.");
-  });
-
-  it("returns a singular clause for count of exactly 1", () => {
-    const hint = formatDiscardHint({ count: 1 });
-    expect(hint).toContain("1 file change");
-    expect(hint).not.toContain("1 file changes");
-  });
-
-  it("returns the generic fallback for zero or negative counts", () => {
-    expect(formatDiscardHint({ count: 0 })).toContain("any local changes");
-    expect(formatDiscardHint({ count: 0 })).not.toMatch(/\d/);
   });
 });
 

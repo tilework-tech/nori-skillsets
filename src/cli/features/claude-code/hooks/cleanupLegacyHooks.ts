@@ -13,6 +13,7 @@ import * as fs from "fs/promises";
 import * as path from "path";
 
 import { getHomeDir } from "@/utils/home.js";
+import { writeJsonFileAtomic } from "@/utils/jsonFile.js";
 
 /**
  * Hook script filenames that have been removed from the package.
@@ -124,7 +125,7 @@ export const cleanupLegacyHooks = async (): Promise<void> => {
   }
 
   if (modified) {
-    await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2));
+    await writeJsonFileAtomic({ filePath: settingsPath, value: settings });
   }
 };
 

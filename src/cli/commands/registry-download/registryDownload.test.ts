@@ -103,6 +103,7 @@ import { registrarApi, REGISTRAR_URL } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
 import { initMain } from "@/cli/commands/init/init.js";
 import { loadConfig, getRegistryAuth } from "@/cli/config.js";
+import { computeArchiveShasum } from "@/packaging/archive.js";
 
 import { registryDownloadMain } from "./registryDownload.js";
 
@@ -586,6 +587,100 @@ describe("registry-download", () => {
       const allErrorOutput = getClackErrorOutput();
       expect(allErrorOutput.toLowerCase()).toContain("error");
       expect(allErrorOutput).toContain("Network error");
+    });
+
+    it("should fail loudly when the tarball does not match the registry checksum", async () => {
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+      });
+
+      vi.mocked(registrarApi.getPackument).mockResolvedValue({
+        name: "tampered-profile",
+        "dist-tags": { latest: "1.0.0" },
+        versions: {
+          "1.0.0": {
+            name: "tampered-profile",
+            version: "1.0.0",
+            dist: { shasum: "sha512-bm90LXRoZS1yZWFsLWNoZWNrc3Vt" },
+          },
+        },
+      });
+
+      const mockTarball = await createMockTarball();
+      vi.mocked(registrarApi.downloadTarball).mockResolvedValue(mockTarball);
+
+      const result = await registryDownloadMain({
+        packageSpec: "tampered-profile",
+        cwd: testDir,
+      });
+
+      expect(result.success).toBe(false);
+      expect(getClackErrorOutput().toLowerCase()).toContain("checksum");
+
+      // Nothing should have been installed
+      await expect(
+        fs.access(path.join(skillsetsDir, "tampered-profile")),
+      ).rejects.toThrow();
+    });
+
+    it("should install the skillset when the tarball matches the registry checksum", async () => {
+      const mockTarball = await createMockTarball();
+
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+      });
+
+      vi.mocked(registrarApi.getPackument).mockResolvedValue({
+        name: "verified-profile",
+        "dist-tags": { latest: "1.0.0" },
+        versions: {
+          "1.0.0": {
+            name: "verified-profile",
+            version: "1.0.0",
+            dist: {
+              shasum: computeArchiveShasum({ tarballData: mockTarball }),
+            },
+          },
+        },
+      });
+
+      vi.mocked(registrarApi.downloadTarball).mockResolvedValue(mockTarball);
+
+      const result = await registryDownloadMain({
+        packageSpec: "verified-profile",
+        cwd: testDir,
+      });
+
+      expect(result.success).toBe(true);
+      const stats = await fs.stat(
+        path.join(skillsetsDir, "public", "verified-profile"),
+      );
+      expect(stats.isDirectory()).toBe(true);
+    });
+
+    it("should report failure, not cancellation, when the download fails", async () => {
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+      });
+
+      vi.mocked(registrarApi.getPackument).mockResolvedValue({
+        name: "test-profile",
+        "dist-tags": { latest: "1.0.0" },
+        versions: { "1.0.0": { name: "test-profile", version: "1.0.0" } },
+      });
+
+      vi.mocked(registrarApi.downloadTarball).mockRejectedValue(
+        new Error("Tarball not found"),
+      );
+
+      const result = await registryDownloadMain({
+        packageSpec: "test-profile",
+        cwd: testDir,
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.cancelled).toBe(false);
+      expect(result.message).toContain("Tarball not found");
     });
 
     it("should support gzipped tarballs", async () => {
@@ -1544,6 +1639,59 @@ describe("registry-download", () => {
       // Verify warning was shown (via clack prompts note for skill dependency warnings)
       const allOutput = getAllClackOutput();
       expect(allOutput.toLowerCase()).toContain("missing-skill");
+    });
+
+    it("should warn when a skill dependency tarball fails checksum verification", async () => {
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+      });
+
+      vi.mocked(registrarApi.getPackument).mockResolvedValue({
+        name: "test-profile",
+        "dist-tags": { latest: "1.0.0" },
+        versions: { "1.0.0": { name: "test-profile", version: "1.0.0" } },
+      });
+
+      const profileTarball = await createMockTarballWithNoriJson({
+        noriJson: {
+          name: "test-profile",
+          version: "1.0.0",
+          dependencies: { skills: { "dep-skill": "*" } },
+        },
+      });
+      vi.mocked(registrarApi.downloadTarball).mockResolvedValue(profileTarball);
+
+      // Skill packument records a checksum the tarball won't hash to
+      vi.mocked(registrarApi.getSkillPackument).mockResolvedValue({
+        name: "dep-skill",
+        "dist-tags": { latest: "1.0.0" },
+        versions: {
+          "1.0.0": {
+            name: "dep-skill",
+            version: "1.0.0",
+            dist: { shasum: "sha512-bm90LXRoZS1yZWFsLWNoZWNrc3Vt" },
+          },
+        },
+      });
+      const skillTarball = await createMockSkillTarball({
+        skillName: "dep-skill",
+      });
+      vi.mocked(registrarApi.downloadSkillTarball).mockResolvedValue(
+        skillTarball,
+      );
+
+      await registryDownloadMain({
+        packageSpec: "test-profile",
+        cwd: testDir,
+      });
+
+      // Profile itself installs, but the tampered dependency is rejected
+      const skillsetDir = path.join(skillsetsDir, "public", "test-profile");
+      expect((await fs.stat(skillsetDir)).isDirectory()).toBe(true);
+      expect(getAllClackOutput().toLowerCase()).toContain("checksum");
+      await expect(
+        fs.access(path.join(skillsetDir, "skills", "dep-skill", "SKILL.md")),
+      ).rejects.toThrow();
     });
 
     it("should skip skill if already installed in profile with latest version", async () => {

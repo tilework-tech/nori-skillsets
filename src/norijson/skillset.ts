@@ -10,6 +10,7 @@ import * as path from "path";
 
 import {
   ensureNoriJson,
+  looksLikeSkillset,
   readSkillsetMetadata,
   type NoriJson,
 } from "@/norijson/nori.js";
@@ -269,6 +270,28 @@ export type SkillsetEntry = {
 };
 
 /**
+ * Check whether a directory is a skillset without writing to it: it either
+ * carries a nori.json or looks like a legacy skillset (config file or
+ * skills/+subagents/). Listing is a read and must never mutate profiles.
+ *
+ * @param args - Function arguments
+ * @param args.skillsetDir - Directory to check
+ *
+ * @returns True when the directory is a skillset
+ */
+const isSkillsetDir = async (args: {
+  skillsetDir: string;
+}): Promise<boolean> => {
+  const { skillsetDir } = args;
+  try {
+    await fs.access(path.join(skillsetDir, MANIFEST_FILE));
+    return true;
+  } catch {
+    return looksLikeSkillset({ skillsetDir });
+  }
+};
+
+/**
  * List installed skillsets with metadata (linked status).
  *
  * Discovers both flat skillsets and namespaced skillsets.
@@ -309,10 +332,7 @@ export const listSkillsetsWithMetadata = async (): Promise<
       if (!(await isDirentDirectory({ parentDir: nsDir, entry: subEntry })))
         continue;
       const nestedDir = path.join(nsDir, subEntry.name);
-      await ensureNoriJson({ skillsetDir: nestedDir });
-      try {
-        await fs.access(path.join(nestedDir, MANIFEST_FILE));
-      } catch {
+      if (!(await isSkillsetDir({ skillsetDir: nestedDir }))) {
         continue;
       }
       addEntry({
@@ -343,11 +363,9 @@ export const listSkillsetsWithMetadata = async (): Promise<
       }
 
       const entryDir = path.join(skillsetsDir, entry.name);
-      await ensureNoriJson({ skillsetDir: entryDir });
-      try {
-        await fs.access(path.join(entryDir, MANIFEST_FILE));
+      if (await isSkillsetDir({ skillsetDir: entryDir })) {
         addEntry({ name: entry.name, isLinked });
-      } catch {
+      } else {
         // No manifest at this level: treat as an org namespace and recurse.
         await collectNested({
           namespace: entry.name,

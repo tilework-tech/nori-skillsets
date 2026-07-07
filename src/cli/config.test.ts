@@ -1034,6 +1034,40 @@ describe("updateConfig", () => {
     expect(loaded?.installDir).toBe(tempDir);
   });
 
+  it("refuses to overwrite a corrupt config, preserving stored credentials", async () => {
+    const configPath = path.join(tempDir, ".nori-config.json");
+    // A real config truncated mid-write: the credentials are still on disk but
+    // the JSON no longer parses.
+    const corrupt = '{ "auth": { "username": "me@example.com", "refreshTok';
+    await fs.writeFile(configPath, corrupt);
+
+    await expect(updateConfig({ activeSkillset: "new" })).rejects.toThrow();
+
+    expect(await fs.readFile(configPath, "utf-8")).toBe(corrupt);
+  });
+
+  it("refuses to overwrite a schema-invalid config that still carries credentials", async () => {
+    const configPath = path.join(tempDir, ".nori-config.json");
+    // Valid JSON with real credentials, but a bad enum makes schema validation
+    // fail so loadConfig returns null — writing fresh would drop the auth.
+    await fs.writeFile(
+      configPath,
+      JSON.stringify({
+        auth: {
+          username: "me@example.com",
+          organizationUrl: "https://acme.example.com",
+          refreshToken: "tok-abc",
+        },
+        sendSessionTranscript: "not-a-valid-enum-value",
+      }),
+    );
+
+    await expect(updateConfig({ activeSkillset: "new" })).rejects.toThrow();
+
+    const raw = JSON.parse(await fs.readFile(configPath, "utf-8"));
+    expect(raw.auth.refreshToken).toBe("tok-abc");
+  });
+
   it("should strip unknown keys from existing config on update", async () => {
     // Old configs may contain fields that the current schema does not
     // recognize. AJV's removeAdditional strips them on the next save so the

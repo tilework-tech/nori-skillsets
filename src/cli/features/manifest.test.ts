@@ -16,6 +16,7 @@ import {
   readManifest,
   compareManifest,
   getManifestPath,
+  getLegacyAgentManifestPath,
   hasChanges,
   removeManagedFiles,
   EXCLUDED_FILES,
@@ -109,6 +110,20 @@ describe("manifest", () => {
       expect(manifest.files["CLAUDE.md"]).toBeDefined();
       expect(manifest.files["skills/my-skill/SKILL.md"]).toBeDefined();
       expect(Object.keys(manifest.files)).toHaveLength(2);
+    });
+
+    it("should record the install directory when provided", async () => {
+      await fs.writeFile(path.join(tempDir, "CLAUDE.md"), "content");
+
+      const manifest = await computeDirectoryManifest({
+        dir: tempDir,
+        skillsetName: "test-profile",
+        installDir: "/some/project",
+        managedFiles: CLAUDE_MANAGED_FILES,
+        managedDirs: CLAUDE_MANAGED_DIRS,
+      });
+
+      expect(manifest.installDir).toBe("/some/project");
     });
 
     it("should use relative paths from base directory", async () => {
@@ -599,27 +614,77 @@ describe("manifest", () => {
   });
 
   describe("getManifestPath", () => {
-    it("should return per-agent path in ~/.nori/manifests directory", () => {
-      const manifestPath = getManifestPath({ agentName: "claude-code" });
+    it("should key the path by agent name and install directory", () => {
+      const manifestPath = getManifestPath({
+        agentName: "claude-code",
+        installDir: "/some/project",
+      });
+
+      const manifestsDir = path.join(
+        os.homedir(),
+        ".nori",
+        "manifests",
+        "claude-code",
+      );
+      expect(path.dirname(manifestPath)).toBe(manifestsDir);
+      expect(path.basename(manifestPath)).toMatch(/^[0-9a-f]{16}\.json$/);
+    });
+
+    it("should return different paths for different install directories", () => {
+      const pathA = getManifestPath({
+        agentName: "claude-code",
+        installDir: "/project-a",
+      });
+      const pathB = getManifestPath({
+        agentName: "claude-code",
+        installDir: "/project-b",
+      });
+
+      expect(pathA).not.toBe(pathB);
+    });
+
+    it("should return the same path for equivalent install directories", () => {
+      const pathA = getManifestPath({
+        agentName: "claude-code",
+        installDir: "/some/project",
+      });
+      const pathB = getManifestPath({
+        agentName: "claude-code",
+        installDir: "/some/./project/",
+      });
+
+      expect(pathA).toBe(pathB);
+    });
+
+    it("should return different paths for different agent names", () => {
+      const claudePath = getManifestPath({
+        agentName: "claude-code",
+        installDir: "/some/project",
+      });
+      const otherPath = getManifestPath({
+        agentName: "other-agent",
+        installDir: "/some/project",
+      });
+
+      expect(claudePath).not.toBe(otherPath);
+    });
+  });
+
+  describe("getLegacyAgentManifestPath", () => {
+    it("should return the old per-agent path in ~/.nori/manifests", () => {
+      const manifestPath = getLegacyAgentManifestPath({
+        agentName: "claude-code",
+      });
 
       expect(manifestPath).toBe(
         path.join(os.homedir(), ".nori", "manifests", "claude-code.json"),
       );
     });
-
-    it("should return different paths for different agent names", () => {
-      const claudePath = getManifestPath({ agentName: "claude-code" });
-      const otherPath = getManifestPath({ agentName: "other-agent" });
-
-      expect(claudePath).not.toBe(otherPath);
-      expect(claudePath).toContain("claude-code.json");
-      expect(otherPath).toContain("other-agent.json");
-    });
   });
 
   describe("legacy manifest fallback", () => {
-    it("should read legacy manifest when per-agent manifest does not exist", async () => {
-      // Write a legacy manifest at the old location
+    it("should walk the fallback chain when the primary manifest does not exist", async () => {
+      // Only the oldest fallback exists
       const legacyPath = path.join(tempDir, "installed-manifest.json");
       const manifest: FileManifest = {
         version: 1,
@@ -629,59 +694,113 @@ describe("manifest", () => {
       };
       await writeManifest({ manifestPath: legacyPath, manifest });
 
-      // Per-agent path doesn't exist yet
+      const keyedPath = path.join(
+        tempDir,
+        "manifests",
+        "claude-code",
+        "aa.json",
+      );
       const perAgentPath = path.join(tempDir, "manifests", "claude-code.json");
 
-      // readManifest with fallback should find the legacy file
       const result = await readManifest({
-        manifestPath: perAgentPath,
-        legacyManifestPath: legacyPath,
+        manifestPath: keyedPath,
+        fallbackPaths: [perAgentPath, legacyPath],
       });
 
       expect(result).toEqual(manifest);
     });
 
-    it("should prefer per-agent manifest over legacy when both exist", async () => {
+    it("should prefer earlier fallbacks over later ones", async () => {
+      const perAgentManifest: FileManifest = {
+        version: 1,
+        createdAt: "2024-01-02T00:00:00.000Z",
+        skillsetName: "per-agent-profile",
+        files: { "CLAUDE.md": "per-agent-hash" },
+      };
       const legacyManifest: FileManifest = {
         version: 1,
         createdAt: "2024-01-01T00:00:00.000Z",
         skillsetName: "legacy-profile",
         files: { "CLAUDE.md": "legacy-hash" },
       };
-      const perAgentManifest: FileManifest = {
-        version: 1,
-        createdAt: "2024-01-02T00:00:00.000Z",
-        skillsetName: "current-profile",
-        files: { "CLAUDE.md": "current-hash" },
-      };
 
-      const legacyPath = path.join(tempDir, "installed-manifest.json");
+      const keyedPath = path.join(
+        tempDir,
+        "manifests",
+        "claude-code",
+        "aa.json",
+      );
       const perAgentPath = path.join(tempDir, "manifests", "claude-code.json");
+      const legacyPath = path.join(tempDir, "installed-manifest.json");
 
-      await writeManifest({
-        manifestPath: legacyPath,
-        manifest: legacyManifest,
-      });
       await writeManifest({
         manifestPath: perAgentPath,
         manifest: perAgentManifest,
       });
+      await writeManifest({
+        manifestPath: legacyPath,
+        manifest: legacyManifest,
+      });
 
       const result = await readManifest({
-        manifestPath: perAgentPath,
-        legacyManifestPath: legacyPath,
+        manifestPath: keyedPath,
+        fallbackPaths: [perAgentPath, legacyPath],
       });
 
       expect(result).toEqual(perAgentManifest);
     });
 
-    it("should return null when neither per-agent nor legacy manifest exists", async () => {
-      const perAgentPath = path.join(tempDir, "manifests", "claude-code.json");
+    it("should prefer the primary manifest over any fallback", async () => {
+      const primaryManifest: FileManifest = {
+        version: 1,
+        createdAt: "2024-01-02T00:00:00.000Z",
+        skillsetName: "current-profile",
+        files: { "CLAUDE.md": "current-hash" },
+      };
+      const legacyManifest: FileManifest = {
+        version: 1,
+        createdAt: "2024-01-01T00:00:00.000Z",
+        skillsetName: "legacy-profile",
+        files: { "CLAUDE.md": "legacy-hash" },
+      };
+
+      const keyedPath = path.join(
+        tempDir,
+        "manifests",
+        "claude-code",
+        "aa.json",
+      );
+      const legacyPath = path.join(tempDir, "installed-manifest.json");
+
+      await writeManifest({
+        manifestPath: keyedPath,
+        manifest: primaryManifest,
+      });
+      await writeManifest({
+        manifestPath: legacyPath,
+        manifest: legacyManifest,
+      });
+
+      const result = await readManifest({
+        manifestPath: keyedPath,
+        fallbackPaths: [legacyPath],
+      });
+
+      expect(result).toEqual(primaryManifest);
+    });
+
+    it("should return null when neither primary nor any fallback exists", async () => {
+      const keyedPath = path.join(
+        tempDir,
+        "manifests",
+        "claude-code",
+        "aa.json",
+      );
       const legacyPath = path.join(tempDir, "installed-manifest.json");
 
       const result = await readManifest({
-        manifestPath: perAgentPath,
-        legacyManifestPath: legacyPath,
+        manifestPath: keyedPath,
+        fallbackPaths: [legacyPath],
       });
 
       expect(result).toBeNull();
@@ -783,6 +902,30 @@ describe("removeManagedFiles", () => {
     await expect(
       fs.access(path.join(claudeDir, ".nori-managed")),
     ).rejects.toThrow();
+  });
+
+  it("should remove the .nori-managed marker even when no manifest exists", async () => {
+    // Clearing several install dirs must succeed in any order: a dir whose
+    // manifest was already consumed (or never written) still gets its marker
+    // removed.
+    const claudeDir = path.join(tempDir, ".claude");
+    await fs.mkdir(claudeDir, { recursive: true });
+    await fs.writeFile(path.join(claudeDir, "CLAUDE.md"), "user content");
+    await fs.writeFile(path.join(claudeDir, ".nori-managed"), "test-skillset");
+
+    await removeManagedFiles({
+      agentDir: claudeDir,
+      manifestPath: path.join(tempDir, "does-not-exist.json"),
+      managedDirs: CLAUDE_MANAGED_DIRS,
+    });
+
+    await expect(
+      fs.access(path.join(claudeDir, ".nori-managed")),
+    ).rejects.toThrow();
+    // Files not listed in any manifest are preserved
+    await expect(
+      fs.access(path.join(claudeDir, "CLAUDE.md")),
+    ).resolves.toBeUndefined();
   });
 
   it("should preserve non-managed files in the .claude directory", async () => {

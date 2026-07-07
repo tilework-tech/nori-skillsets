@@ -88,7 +88,7 @@ echo -e "${BLUE}[5/7] Setting file permissions...${NC}"
 
 # Core executables
 chmod +x build/src/cli/nori-skillsets.js
-chmod +x build/src/cli/commands/install/install.js
+chmod +x build/src/cli/features/install/install.js
 
 # Hook scripts
 chmod +x build/src/cli/features/claude-code/hooks/config/context-usage-warning.js 2>/dev/null || true

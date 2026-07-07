@@ -9,47 +9,14 @@ import * as path from "path";
 import Ajv from "ajv";
 import addFormats from "ajv-formats";
 
+import { toRegistryAuth } from "@/api/authCredentials.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { extractOrgIdFromApiToken } from "@/utils/apiToken.js";
 import { getHomeDir } from "@/utils/home.js";
+import { readJsonObjectFile, writeJsonFileAtomic } from "@/utils/jsonFile.js";
 import { normalizeUrl, extractOrgId, buildRegistryUrl } from "@/utils/url.js";
 
-/**
- * Registry authentication credentials
- * Supports both legacy password auth and new refresh token auth.
- * If `apiToken` is set, the orgId is parsed from the token itself (see `extractOrgIdFromApiToken`).
- */
-export type RegistryAuth = {
-  username: string | null;
-  registryUrl: string;
-  refreshToken?: string | null;
-  idToken?: string | null;
-  idTokenExpiresAt?: number | null;
-  apiToken?: string | null;
-};
-
-/**
- * Authentication credentials - supports legacy password, refresh token, and API token auth.
- * API tokens are self-describing: the orgId is embedded in the token format `nori_<orgId>_<64hex>`.
- */
-export type AuthCredentials = {
-  // Username is optional (null) for API-token-only configs where no Firebase identity is tied
-  username?: string | null;
-  organizationUrl: string;
-  // Token-based auth (preferred for user accounts)
-  refreshToken?: string | null;
-  // Short-lived Firebase ID token for broker-managed session machines.
-  idToken?: string | null;
-  idTokenExpiresAt?: number | null;
-  // Legacy password-based auth (deprecated, will be removed)
-  password?: string | null;
-  // API token for non-interactive / programmatic access. Format: nori_<orgId>_<64hex>.
-  apiToken?: string | null;
-  // Organizations the user has access to
-  organizations?: Array<string> | null;
-  // Whether the user is an admin for their organization
-  isAdmin?: boolean | null;
-};
+import type { AuthCredentials, RegistryAuth } from "@/api/authCredentials.js";
 
 /**
  * Unified configuration type for Nori Skillsets
@@ -72,53 +39,6 @@ export type Config = {
   redownloadOnSwitch?: "enabled" | "disabled" | null;
   /** Whether Claude Code skillset apply configures the Nori status line */
   claudeCodeStatusLine?: "enabled" | "disabled" | null;
-};
-
-export const hasUnexpiredRegistryIdToken = (args: {
-  auth?: AuthCredentials | null;
-  now?: number | null;
-}): boolean => {
-  const { auth, now = Date.now() } = args;
-  const effectiveNow = now ?? Date.now();
-
-  return (
-    auth?.idToken != null &&
-    auth.idToken !== "" &&
-    typeof auth.idTokenExpiresAt === "number" &&
-    effectiveNow < auth.idTokenExpiresAt
-  );
-};
-
-export const hasRegistryAuthCredentials = (args: {
-  auth?: AuthCredentials | null;
-  now?: number | null;
-}): boolean => {
-  const { auth, now } = args;
-
-  return (
-    auth != null &&
-    (auth.refreshToken != null ||
-      auth.apiToken != null ||
-      hasUnexpiredRegistryIdToken({ auth, now }))
-  );
-};
-
-export const toRegistryAuth = (args: {
-  auth: AuthCredentials;
-  registryUrl: string;
-}): RegistryAuth => {
-  const { auth, registryUrl } = args;
-
-  return {
-    registryUrl,
-    username: auth.username ?? null,
-    refreshToken: auth.refreshToken ?? null,
-    ...(auth.idToken != null ? { idToken: auth.idToken } : {}),
-    ...(auth.idTokenExpiresAt != null
-      ? { idTokenExpiresAt: auth.idTokenExpiresAt }
-      : {}),
-    apiToken: auth.apiToken ?? null,
-  };
 };
 
 /**
@@ -564,7 +484,7 @@ const writeConfigFile = async (args: {
   // Always save installDir
   config.installDir = installDir;
 
-  await fs.writeFile(configPath, JSON.stringify(config, null, 2));
+  await writeJsonFileAtomic({ filePath: configPath, value: config });
 };
 
 /**
@@ -575,8 +495,55 @@ const writeConfigFile = async (args: {
  *
  * @param updates - Partial config fields to merge on top of existing config
  */
+/**
+ * Whether a raw on-disk config object carries auth credentials, in either the
+ * nested (`auth: {...}`) or legacy flat (top-level `refreshToken`, etc.) form.
+ * Used to detect when loadConfig dropped credentials it could not parse.
+ *
+ * @param args - Arguments
+ * @param args.raw - The raw parsed config object
+ *
+ * @returns True when the object holds any non-null credential field
+ */
+const rawConfigCarriesAuth = (args: {
+  raw: Record<string, unknown>;
+}): boolean => {
+  const { raw } = args;
+  const nested = raw.auth;
+  const nestedHasAuth =
+    nested != null &&
+    typeof nested === "object" &&
+    !Array.isArray(nested) &&
+    Object.values(nested as Record<string, unknown>).some((v) => v != null);
+  const flatHasAuth =
+    raw.username != null ||
+    raw.refreshToken != null ||
+    raw.password != null ||
+    raw.idToken != null ||
+    raw.apiToken != null;
+  return nestedHasAuth || flatHasAuth;
+};
+
 export const updateConfig = async (updates: Partial<Config>): Promise<void> => {
+  // Refuse to proceed when the config file exists but cannot be fully loaded:
+  // loadConfig reports "absent", "unparseable", and "schema-invalid" all as null,
+  // so writing a fresh config would silently drop stored credentials. A missing
+  // file is fine (seed a new one). readJsonObjectFile throws on unparseable; the
+  // auth-aware check catches a parseable-but-schema-invalid file whose stored
+  // credentials loadConfig could not surface.
+  const raw = await readJsonObjectFile({
+    filePath: getConfigPath(),
+    ifAbsent: {},
+  });
+
   const existing = await loadConfig();
+
+  if (existing?.auth == null && rawConfigCarriesAuth({ raw })) {
+    throw new Error(
+      `Refusing to modify ${getConfigPath()}: it contains credentials that could not be loaded ` +
+        `(the file may be schema-invalid). Fix or remove the file, then re-run.`,
+    );
+  }
 
   // Determine auth: if omitted, preserve existing auth; if null, clear auth;
   // otherwise merge updates into existing auth for the same organization.

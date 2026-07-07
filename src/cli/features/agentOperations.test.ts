@@ -15,6 +15,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   getManagedFiles,
   getManagedDirs,
+  getInstalledSkillsetName,
   isInstalledAtDir,
   markInstall,
   installSkillset,
@@ -70,6 +71,7 @@ vi.mock("@clack/prompts", () => ({
  * @param args - Optional configuration for the test agent
  * @param args.loaders - Array of loaders to register on the agent
  * @param args.getArtifactPatterns - Function returning artifact dir/file patterns
+ * @param args.getLegacyManifestPath - Function returning the agent's legacy manifest path
  *
  * @returns An AgentConfig suitable for testing
  */
@@ -81,13 +83,22 @@ const createTestAgent = (args?: {
         files: ReadonlyArray<string>;
       })
     | null;
+  getLegacyManifestPath?: (() => string) | null;
 }): AgentConfig => {
   const loaders = args?.loaders ?? [];
   const getArtifactPatterns = args?.getArtifactPatterns ?? null;
+  const getLegacyManifestPath = args?.getLegacyManifestPath ?? null;
 
   return {
     name: "claude-code",
     displayName: "Test Agent",
+    supportTier: "experimental",
+    capabilities: {
+      mcp: false,
+      hooks: false,
+      statusline: false,
+      transcripts: false,
+    },
     description: "A test agent for agentOperations tests",
 
     getAgentDir: (a: { installDir: string }) =>
@@ -104,6 +115,7 @@ const createTestAgent = (args?: {
     getLoaders: () => loaders,
 
     getArtifactPatterns: getArtifactPatterns,
+    getLegacyManifestPath: getLegacyManifestPath,
   };
 };
 
@@ -310,6 +322,44 @@ describe("isInstalledAtDir", () => {
   });
 });
 
+describe("getInstalledSkillsetName", () => {
+  let tempDir: string;
+
+  beforeEach(() => {
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "agent-ops-name-test-"));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  it("should return the skillset name recorded in the marker", () => {
+    const agent = createTestAgent();
+    const agentDir = agent.getAgentDir({ installDir: tempDir });
+    fs.mkdirSync(agentDir, { recursive: true });
+    fs.writeFileSync(path.join(agentDir, ".nori-managed"), "senior-swe\n");
+
+    expect(getInstalledSkillsetName({ agent, path: tempDir })).toBe(
+      "senior-swe",
+    );
+  });
+
+  it("should return an empty string for a marker without a recorded name", () => {
+    const agent = createTestAgent();
+    const agentDir = agent.getAgentDir({ installDir: tempDir });
+    fs.mkdirSync(agentDir, { recursive: true });
+    fs.writeFileSync(path.join(agentDir, ".nori-managed"), "");
+
+    expect(getInstalledSkillsetName({ agent, path: tempDir })).toBe("");
+  });
+
+  it("should return null when no marker exists", () => {
+    const agent = createTestAgent();
+
+    expect(getInstalledSkillsetName({ agent, path: tempDir })).toBeNull();
+  });
+});
+
 describe("markInstall", () => {
   let tempDir: string;
 
@@ -433,7 +483,7 @@ describe("installSkillset", () => {
     expect(runOrder).toEqual(["first", "second", "third"]);
   });
 
-  it("should write manifest when skipManifest is false", async () => {
+  it("should write a manifest keyed by agent and install dir", async () => {
     const agent = createTestAgent({
       loaders: [
         {
@@ -474,15 +524,21 @@ describe("installSkillset", () => {
       activeSkillset: "test-skillset",
     };
 
-    await installSkillset({ agent, config, skipManifest: false });
+    await installSkillset({ agent, config });
 
-    // Manifest should exist
+    // Manifest should exist at the (agent, installDir)-keyed path and record
+    // the install dir it describes
     const { getManifestPath } = await import("@/cli/features/manifest.js");
-    const manifestPath = getManifestPath({ agentName: agent.name });
+    const manifestPath = getManifestPath({
+      agentName: agent.name,
+      installDir: tempDir,
+    });
     expect(fs.existsSync(manifestPath)).toBe(true);
+    const written = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
+    expect(written.installDir).toBe(tempDir);
   });
 
-  it("should skip manifest when skipManifest is true", async () => {
+  it("should not touch manifests of other install directories", async () => {
     const agent = createTestAgent({
       loaders: [
         {
@@ -498,24 +554,41 @@ describe("installSkillset", () => {
       ],
     });
 
+    const noriJsonContent = JSON.stringify({
+      name: "test-skillset",
+      version: "1.0.0",
+    });
     const skillsetDir = path.join(TEST_NORI_DIR, "profiles", "test-skillset");
     fs.mkdirSync(skillsetDir, { recursive: true });
-    fs.writeFileSync(
-      path.join(skillsetDir, "nori.json"),
-      JSON.stringify({ name: "test-skillset", version: "1.0.0" }),
+    fs.writeFileSync(path.join(skillsetDir, "nori.json"), noriJsonContent);
+    const homeSkillsetDir = path.join(
+      tempDir,
+      ".nori",
+      "profiles",
+      "test-skillset",
     );
+    fs.mkdirSync(homeSkillsetDir, { recursive: true });
+    fs.writeFileSync(path.join(homeSkillsetDir, "nori.json"), noriJsonContent);
 
+    const otherInstallDir = path.join(tempDir, "other-project");
     const config: Config = {
       installDir: tempDir,
       activeSkillset: "test-skillset",
     };
 
-    await installSkillset({ agent, config, skipManifest: true });
+    await installSkillset({ agent, config });
 
-    // Manifest should NOT exist
-    const { getManifestPath } = await import("@/cli/features/manifest.js");
-    const manifestPath = getManifestPath({ agentName: agent.name });
-    expect(fs.existsSync(manifestPath)).toBe(false);
+    const { getManifestPath, getLegacyAgentManifestPath } =
+      await import("@/cli/features/manifest.js");
+    expect(
+      fs.existsSync(
+        getManifestPath({ agentName: agent.name, installDir: otherInstallDir }),
+      ),
+    ).toBe(false);
+    // The old global per-agent location is no longer written
+    expect(
+      fs.existsSync(getLegacyAgentManifestPath({ agentName: agent.name })),
+    ).toBe(false);
   });
 });
 
@@ -618,7 +691,10 @@ describe("removeSkillset", () => {
     const skillHash = await computeFileHash({
       filePath: path.join(skillsDir, "SKILL.md"),
     });
-    const manifestPath = getManifestPath({ agentName: agent.name });
+    const manifestPath = getManifestPath({
+      agentName: agent.name,
+      installDir: tempDir,
+    });
     await writeManifest({
       manifestPath,
       manifest: {
@@ -642,7 +718,9 @@ describe("removeSkillset", () => {
     expect(fs.existsSync(manifestPath)).toBe(false);
   });
 
-  it("should also remove legacy manifest for claude-code agent", async () => {
+  it("should also remove the legacy manifest when the agent declares one", async () => {
+    const { getLegacyManifestPath: legacyManifestPathFn } =
+      await import("@/cli/features/manifest.js");
     const agent = createTestAgent({
       loaders: [
         {
@@ -652,6 +730,7 @@ describe("removeSkillset", () => {
           run: async () => undefined,
         },
       ],
+      getLegacyManifestPath: legacyManifestPathFn,
     });
 
     const agentDir = agent.getAgentDir({ installDir: tempDir });
@@ -667,7 +746,10 @@ describe("removeSkillset", () => {
     });
 
     // Write primary manifest
-    const manifestPath = getManifestPath({ agentName: agent.name });
+    const manifestPath = getManifestPath({
+      agentName: agent.name,
+      installDir: tempDir,
+    });
     await writeManifest({
       manifestPath,
       manifest: {
@@ -742,7 +824,10 @@ After the block.
     const { computeFileHash, writeManifest, getManifestPath } =
       await import("@/cli/features/manifest.js");
     const hash = await computeFileHash({ filePath: instructionsPath });
-    const manifestPath = getManifestPath({ agentName: agent.name });
+    const manifestPath = getManifestPath({
+      agentName: agent.name,
+      installDir: tempDir,
+    });
     await writeManifest({
       manifestPath,
       manifest: {
@@ -772,6 +857,13 @@ After the block.
     const agent: AgentConfig = {
       name: "claude-code",
       displayName: "Test Agent",
+      supportTier: "experimental",
+      capabilities: {
+        mcp: false,
+        hooks: false,
+        statusline: false,
+        transcripts: false,
+      },
       description: "Test agent with project-root instructions",
       getAgentDir: (a: { installDir: string }) =>
         path.join(a.installDir, ".test-agent"),
@@ -809,7 +901,10 @@ nori block content
 
     const { writeManifest, getManifestPath } =
       await import("@/cli/features/manifest.js");
-    const manifestPath = getManifestPath({ agentName: agent.name });
+    const manifestPath = getManifestPath({
+      agentName: agent.name,
+      installDir: tempDir,
+    });
     await writeManifest({
       manifestPath,
       manifest: {
@@ -895,6 +990,7 @@ describe("detectLocalChanges", () => {
 
     const agentDir = agent.getAgentDir({ installDir: tempDir });
     fs.mkdirSync(agentDir, { recursive: true });
+    fs.writeFileSync(path.join(agentDir, ".nori-managed"), "test-skillset");
     const filePath = path.join(agentDir, "INSTRUCTIONS.md");
     fs.writeFileSync(filePath, "# Original content");
 
@@ -902,7 +998,10 @@ describe("detectLocalChanges", () => {
     const { computeFileHash, writeManifest, getManifestPath } =
       await import("@/cli/features/manifest.js");
     const originalHash = await computeFileHash({ filePath });
-    const manifestPath = getManifestPath({ agentName: agent.name });
+    const manifestPath = getManifestPath({
+      agentName: agent.name,
+      installDir: tempDir,
+    });
     await writeManifest({
       manifestPath,
       manifest: {
@@ -928,6 +1027,36 @@ describe("detectLocalChanges", () => {
     expect(diff).toBeNull();
   });
 
+  it("should return null for a never-installed dir even when a legacy manifest exists", async () => {
+    // A pre-keying global manifest describing some other directory must not
+    // produce phantom local changes in a directory Nori never installed to.
+    const agent = createTestAgent({
+      loaders: [
+        {
+          name: "loader",
+          description: "Loader",
+          managedFiles: ["INSTRUCTIONS.md"],
+          run: async () => undefined,
+        },
+      ],
+    });
+
+    const { writeManifest, getLegacyAgentManifestPath } =
+      await import("@/cli/features/manifest.js");
+    await writeManifest({
+      manifestPath: getLegacyAgentManifestPath({ agentName: agent.name }),
+      manifest: {
+        version: 1,
+        createdAt: new Date().toISOString(),
+        skillsetName: "test-skillset",
+        files: { "INSTRUCTIONS.md": "some-other-dirs-hash" },
+      },
+    });
+
+    const diff = await detectLocalChanges({ agent, installDir: tempDir });
+    expect(diff).toBeNull();
+  });
+
   it("should return null when files match the manifest", async () => {
     const agent = createTestAgent({
       loaders: [
@@ -942,13 +1071,17 @@ describe("detectLocalChanges", () => {
 
     const agentDir = agent.getAgentDir({ installDir: tempDir });
     fs.mkdirSync(agentDir, { recursive: true });
+    fs.writeFileSync(path.join(agentDir, ".nori-managed"), "test-skillset");
     const filePath = path.join(agentDir, "INSTRUCTIONS.md");
     fs.writeFileSync(filePath, "# Unchanged content");
 
     const { computeFileHash, writeManifest, getManifestPath } =
       await import("@/cli/features/manifest.js");
     const hash = await computeFileHash({ filePath });
-    const manifestPath = getManifestPath({ agentName: agent.name });
+    const manifestPath = getManifestPath({
+      agentName: agent.name,
+      installDir: tempDir,
+    });
     await writeManifest({
       manifestPath,
       manifest: {
@@ -1146,6 +1279,39 @@ describe("captureExistingConfig", () => {
     expect(fs.existsSync(path.join(capturedDir, "CLAUDE.md"))).toBe(false);
   });
 
+  it("should never delete the original instructions file", async () => {
+    // Capture is non-destructive: the user's instructions survive on disk at
+    // every point (wrapped in the managed block pending the loader rewrite).
+    const agent = createTestAgent();
+    const agentDir = agent.getAgentDir({ installDir: tempDir });
+    fs.mkdirSync(agentDir, { recursive: true });
+
+    const instructionsPath = agent.getInstructionsFilePath({
+      installDir: tempDir,
+    });
+    fs.writeFileSync(instructionsPath, "# My custom config");
+
+    const profilesDir = path.join(TEST_NORI_DIR, "profiles");
+    fs.mkdirSync(profilesDir, { recursive: true });
+
+    const config: Config = {
+      installDir: tempDir,
+      activeSkillset: "captured",
+    };
+
+    await captureExistingConfig({
+      agent,
+      installDir: tempDir,
+      skillsetName: "captured",
+      config,
+    });
+
+    expect(fs.existsSync(instructionsPath)).toBe(true);
+    const content = fs.readFileSync(instructionsPath, "utf-8");
+    expect(content).toContain("# My custom config");
+    expect(content).toContain("# BEGIN NORI-AI MANAGED BLOCK");
+  });
+
   it("should create nori.json with skill names", async () => {
     const agent = createTestAgent();
     const agentDir = agent.getAgentDir({ installDir: tempDir });
@@ -1191,6 +1357,59 @@ describe("captureExistingConfig", () => {
     expect(noriJson.dependencies?.skills).toBeDefined();
     expect(noriJson.dependencies.skills["skill-alpha"]).toBe("*");
     expect(noriJson.dependencies.skills["skill-beta"]).toBe("*");
+  });
+
+  it("should record the .nori-version version for registry-installed skills", async () => {
+    const agent = createTestAgent();
+    const agentDir = agent.getAgentDir({ installDir: tempDir });
+    fs.mkdirSync(agentDir, { recursive: true });
+
+    // Create instructions file
+    const instructionsPath = agent.getInstructionsFilePath({
+      installDir: tempDir,
+    });
+    fs.writeFileSync(instructionsPath, "# Config");
+
+    // One skill installed from a registry (has .nori-version), one local-only
+    const skillsDir = agent.getSkillsDir({ installDir: tempDir });
+    const registrySkillDir = path.join(skillsDir, "registry-skill");
+    const localSkillDir = path.join(skillsDir, "local-skill");
+    fs.mkdirSync(registrySkillDir, { recursive: true });
+    fs.mkdirSync(localSkillDir, { recursive: true });
+    fs.writeFileSync(path.join(registrySkillDir, "SKILL.md"), "# Registry");
+    fs.writeFileSync(path.join(localSkillDir, "SKILL.md"), "# Local");
+    fs.writeFileSync(
+      path.join(registrySkillDir, ".nori-version"),
+      JSON.stringify({
+        version: "1.2.3",
+        registryUrl: "https://noriskillsets.dev",
+      }),
+    );
+
+    // Create profiles directory
+    const profilesDir = path.join(tempDir, ".nori", "profiles");
+    fs.mkdirSync(profilesDir, { recursive: true });
+
+    const config: Config = {
+      installDir: tempDir,
+      activeSkillset: "captured",
+    };
+
+    await captureExistingConfig({
+      agent,
+      installDir: tempDir,
+      skillsetName: "captured",
+      config,
+    });
+
+    const noriJson = JSON.parse(
+      fs.readFileSync(
+        path.join(profilesDir, "personal", "captured", "nori.json"),
+        "utf-8",
+      ),
+    );
+    expect(noriJson.dependencies.skills["registry-skill"]).toBe("1.2.3");
+    expect(noriJson.dependencies.skills["local-skill"]).toBe("*");
   });
 
   it("should update SUBAGENT.md when directory-based subagent already exists in skillset", async () => {
@@ -1416,7 +1635,7 @@ describe("external settings backup/restore", () => {
     (agent as any).getExternalSettingsFiles = () => [settingsFile];
 
     const config: Config = { installDir: tempDir };
-    await installSkillset({ agent, config, skipManifest: true });
+    await installSkillset({ agent, config });
 
     // Backup should have been created before loader ran
     expect(settingsContentWhenLoaderRan).toBe(originalSettings);
@@ -1505,7 +1724,7 @@ describe("external settings backup/restore", () => {
     (agent as any).getExternalSettingsFiles = () => [settingsFile];
 
     const config: Config = { installDir: tempDir };
-    await installSkillset({ agent, config, skipManifest: true });
+    await installSkillset({ agent, config });
 
     const backupPath = settingsFile + ".pre-nori";
     expect(fs.existsSync(backupPath)).toBe(false);

@@ -13,6 +13,7 @@ The subagent-download command downloads and installs individual subagent package
 - Subagent dependencies are tracked in `nori.json` via `addSubagentToNoriJson()` from `@/norijson/nori.js`. There is no `skills.json` equivalent for subagents.
 - Full subagent directory structures are persisted under the skillset profile at `~/.nori/profiles/<skillset>/subagents/<name>/`.
 - The UX flow is delegated to `subagentDownloadFlow` from `@/cli/prompts/flows/subagentDownload.js`, following the same callback-injection pattern as all other flows.
+- Package mechanics come from the shared primitives in @/src/packaging/: per-registry search and message formatting from `registryLookup.ts`, atomic install/update from `atomicReplace.ts`, and `.nori-version` provenance from `provenance.ts`. Search errors from `searchSpecificRegistry` are swallowed at the call site, preserving pre-refactor behavior.
 - Multi-agent broadcasting uses the same pattern as `skill-download`: after installing to the primary agent, the flattened `.md` file is copied to each additional default agent's agents directory. Default agents are resolved via `getDefaultAgents({ config })`, which automatically incorporates the global `--agent` flag override set by the CLI `preAction` hook (see @/src/cli/docs.md).
 
 ### Core Implementation
@@ -33,12 +34,12 @@ Registry tarball
             +-- writes agents/<name>.md to each agent's agents/ dir
 ```
 
-The `onDownload` callback handles both new installs and updates. Updates use an atomic swap pattern: extract to temp dir, rename existing to backup, rename temp to target, then clean up backup. If the swap fails, the backup is restored.
+The `onDownload` callback handles both new installs and updates. Updates use `atomicReplaceDirWithArchive` and fresh installs use `extractArchiveToNewDir`, both from @/src/packaging/atomicReplace.ts — a failed swap restores the backup, and a failed fresh install removes the partial directory.
 
 ### Things to Know
 
 - The `--skillset` flag targets a specific skillset for `nori.json` updates; otherwise it defaults to the active skillset from config. When no skillset is available, the subagent is still installed to the agents directory but without profile persistence. The target skillset's on-disk directory is located via `resolveSkillsetDir` from @/src/norijson/skillset.ts (so a bare name resolves across the `personal/`/`public/` storage buckets); the command tracks the resolved directory (`targetSkillsetDir`) for file writes separately from the bare display name (`targetSkillset`).
-- The `--registry` flag and namespace prefix (`org/`) are mutually exclusive since the namespace implicitly determines the registry URL via `buildOrganizationRegistryUrl()`.
+- The `--registry` flag and namespace prefix (`org/`) are mutually exclusive since the namespace implicitly determines the registry URL. Under unified auth, that URL plus the org-membership check and token acquisition come from `resolveOrgRegistryAuth` in @/src/core/registryAuthResolution.ts (shared with the other registry commands).
 - The `nonInteractive` and `silent` params are threaded from the CLI registration layer to `subagentDownloadFlow`, where they control whether the "Re-download from registry?" confirm prompt is skipped when the subagent is already at the current version.
 - The `.nori-version` file written to the subagent directory tracks `version`, `registryUrl`, and `orgId` for provenance.
 - Copy failures for secondary agents emit warnings but do not fail the command.

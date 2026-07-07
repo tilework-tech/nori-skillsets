@@ -4,11 +4,11 @@
  * by reading .nori-managed marker files for all registered agents.
  */
 
-import * as fsSync from "fs";
 import * as path from "path";
 
 import { log } from "@clack/prompts";
 
+import { getInstalledSkillsetName } from "@/cli/features/agentOperations.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 
 export const findActiveSkillsets = async (args: {
@@ -22,14 +22,9 @@ export const findActiveSkillsets = async (args: {
 
   while (true) {
     for (const agent of agents) {
-      const agentDir = agent.getAgentDir({ installDir: currentDir });
-      const markerPath = path.join(agentDir, ".nori-managed");
-
-      if (fsSync.existsSync(markerPath)) {
-        const content = fsSync.readFileSync(markerPath, "utf-8").trim();
-        if (content.length > 0) {
-          skillsets.add(content);
-        }
+      const name = getInstalledSkillsetName({ agent, path: currentDir });
+      if (name != null && name.length > 0) {
+        skillsets.add(name);
       }
     }
 

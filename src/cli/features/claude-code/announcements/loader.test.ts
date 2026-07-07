@@ -120,6 +120,62 @@ describe("announcementsLoader", () => {
       expect(settings.companyAnnouncements).toBeDefined();
     });
 
+    it("should preserve user announcements and append Nori's", async () => {
+      const config: Config = { installDir: tempDir };
+
+      await fs.writeFile(
+        settingsPath,
+        JSON.stringify(
+          { companyAnnouncements: ["Team announcement: standup at 10"] },
+          null,
+          2,
+        ),
+      );
+
+      await announcementsLoader.run({ agent: {} as any, config });
+
+      const settings = JSON.parse(await fs.readFile(settingsPath, "utf-8"));
+      expect(settings.companyAnnouncements).toContain(
+        "Team announcement: standup at 10",
+      );
+      expect(
+        settings.companyAnnouncements.filter((a: string) => a.includes("Nori")),
+      ).toHaveLength(1);
+    });
+
+    it("should not duplicate the Nori announcement on repeated installs", async () => {
+      const config: Config = { installDir: tempDir };
+
+      await announcementsLoader.run({ agent: {} as any, config });
+      await announcementsLoader.run({ agent: {} as any, config });
+
+      const settings = JSON.parse(await fs.readFile(settingsPath, "utf-8"));
+      expect(
+        settings.companyAnnouncements.filter((a: string) => a.includes("Nori")),
+      ).toHaveLength(1);
+    });
+
+    it("should skip and remove the Nori announcement when disabled via env", async () => {
+      const config: Config = { installDir: tempDir };
+
+      // Install once to plant the Nori announcement next to a user one
+      await fs.writeFile(
+        settingsPath,
+        JSON.stringify({ companyAnnouncements: ["User note"] }, null, 2),
+      );
+      await announcementsLoader.run({ agent: {} as any, config });
+
+      vi.stubEnv("NORI_SKILLSETS_ANNOUNCEMENTS", "none");
+      try {
+        await announcementsLoader.run({ agent: {} as any, config });
+      } finally {
+        vi.unstubAllEnvs();
+      }
+
+      const settings = JSON.parse(await fs.readFile(settingsPath, "utf-8"));
+      expect(settings.companyAnnouncements).toEqual(["User note"]);
+    });
+
     it("should update companyAnnouncements if already configured", async () => {
       const config: Config = { installDir: tempDir };
 
@@ -138,6 +194,18 @@ describe("announcementsLoader", () => {
       expect(settings.companyAnnouncements).toContain(
         "🍙🍙🍙 Powered by Nori AI 🍙🍙🍙",
       );
+    });
+
+    it("does not clobber a settings.json that exists but is corrupt", async () => {
+      const config: Config = { installDir: tempDir };
+      const corrupt = '{ "companyAnnouncements": [ not valid json';
+      await fs.writeFile(settingsPath, corrupt);
+
+      await expect(
+        announcementsLoader.run({ agent: {} as any, config }),
+      ).rejects.toThrow();
+
+      expect(await fs.readFile(settingsPath, "utf-8")).toBe(corrupt);
     });
   });
 });
