@@ -28,6 +28,7 @@ import {
   registerNoriSkillsetsInstallLocationCommand,
   registerNoriSkillsetsLinkCommand,
   registerNoriSkillsetsListActiveCommand,
+  registerNoriSkillsetsListAgentsCommand,
   registerNoriSkillsetsListSkillsetsCommand,
   registerNoriSkillsetsLoginCommand,
   registerNoriSkillsetsNewCommand,
@@ -175,6 +176,7 @@ registerNoriSkillsetsLinkCommand({ program });
 registerNoriSkillsetsUnlinkCommand({ program });
 registerNoriSkillsetsListSkillsetsCommand({ program });
 registerNoriSkillsetsListActiveCommand({ program });
+registerNoriSkillsetsListAgentsCommand({ program });
 registerNoriSkillsetsCurrentCommand({ program });
 registerNoriSkillsetsDownloadSkillCommand({ program });
 registerNoriSkillsetsUploadSkillCommand({ program });
