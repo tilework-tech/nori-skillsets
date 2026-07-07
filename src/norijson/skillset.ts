@@ -183,6 +183,24 @@ export const skillsetIdentity = (args: { dir: string }): string => {
   return path.relative(getNoriSkillsetsDir(), args.dir);
 };
 
+/**
+ * Resolve a user-facing skillset name to its canonical namespaced identity
+ * (e.g. `foo` -> `public/foo` or `personal/foo`). A name that resolves nowhere
+ * is returned unchanged, so callers can safely canonicalize a value that may not
+ * (yet) correspond to an installed skillset.
+ *
+ * @param args - Function arguments
+ * @param args.name - The user-facing skillset name (bare or namespaced)
+ *
+ * @returns The namespaced identity if the skillset exists, else the name as-is
+ */
+export const canonicalSkillsetName = async (args: {
+  name: string;
+}): Promise<string> => {
+  const dir = await resolveSkillsetDir({ name: args.name });
+  return dir != null ? skillsetIdentity({ dir }) : args.name;
+};
+
 // Bare skillset names that have already emitted a deprecation warning this
 // process, so the warning fires at most once per name.
 const warnedBareNames = new Set<string>();
@@ -195,20 +213,25 @@ const warnedBareNames = new Set<string>();
  *
  * @param args - Function arguments
  * @param args.name - The user-supplied skillset name (bare or namespaced)
+ * @param args.warn - Whether to emit the deprecation warning (default true).
+ *   Pass false for non-interactive/automated callers where the warning would be
+ *   noise rather than a useful nudge.
  *
  * @returns The resolved directory and its namespaced identity, or null if the
  *   skillset does not exist
  */
 export const resolveUserSkillsetRef = async (args: {
   name: string;
+  warn?: boolean | null;
 }): Promise<{ dir: string; identity: string } | null> => {
-  const { name } = args;
+  const { name, warn } = args;
   const dir = await resolveSkillsetDir({ name });
   if (dir == null) {
     return null;
   }
   const identity = skillsetIdentity({ dir });
   if (
+    warn !== false &&
     !name.includes("/") &&
     identity.includes("/") &&
     !warnedBareNames.has(name)

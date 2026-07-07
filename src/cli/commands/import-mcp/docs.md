@@ -12,7 +12,7 @@ Path: @/src/cli/commands/import-mcp
 
 - `importMcpMain` is the single entry point. It is registered as a Commander command via `registerNoriSkillsetsImportMcpCommand` in @/src/cli/commands/noriSkillsetsCommands.ts and wired into the CLI in @/src/cli/nori-skillsets.ts.
 - Parsing is delegated to `parseAgentConfig` from @/src/cli/features/shared/mcpEmitter.ts. The same parser is used to normalize across all supported on-disk formats (`claude-mcp-json`, `codex-toml`, `gemini-json`, `cursor-json`, `vscode-json`).
-- Skillset discovery uses `listSkillsets()` from @/src/norijson/skillset.ts; the chosen skillset's on-disk directory is then located via `resolveSkillsetDir` (so a bare name resolves across the `personal/`/`public/` storage buckets — see @/src/norijson/docs.md), falling back to the legacy flat path under `getNoriSkillsetsDir()`. Metadata I/O uses `readSkillsetMetadata` / `writeSkillsetMetadata` from @/src/norijson/nori.ts.
+- Skillset discovery uses `listSkillsets()` from @/src/norijson/skillset.ts; the chosen (or `--skillset`-supplied) skillset's on-disk directory is then located via `resolveUserSkillsetRef` (which resolves a bare name across the `personal/`/`public/` storage buckets and the legacy flat location, and warns once on a deprecated bare name — suppressed under `--non-interactive`; see @/src/norijson/docs.md). Metadata I/O uses `readSkillsetMetadata` / `writeSkillsetMetadata` from @/src/norijson/nori.ts.
 - The auto-derived `requiredEnv` array written into `nori.json` is the same field consumed by `checkRequiredEnv` in @/src/cli/features/envCheck.ts at install time, closing the loop: imported servers get their env names surfaced to the user the next time the skillset is installed.
 
 ### Core Implementation

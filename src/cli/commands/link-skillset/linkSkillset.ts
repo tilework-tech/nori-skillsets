@@ -1,6 +1,7 @@
 import * as fs from "fs/promises";
 import * as path from "path";
 
+import { isReservedSkillsetName } from "@/cli/prompts/validators.js";
 import { readSkillsetMetadata } from "@/norijson/nori.js";
 import { skillsetCreateDir } from "@/norijson/skillset.js";
 
@@ -62,6 +63,17 @@ export const linkSkillsetMain = async (args: {
   }
   if (skillsetName == null) {
     skillsetName = path.basename(resolvedTarget);
+  }
+
+  // A skillset may not take a reserved storage-bucket name (personal/public),
+  // matching new/fork/external — otherwise `link --name public` would land at
+  // profiles/personal/public.
+  if (isReservedSkillsetName({ value: skillsetName })) {
+    return {
+      success: false,
+      cancelled: false,
+      message: `"${skillsetName}" is a reserved name and cannot be used for a skillset`,
+    };
   }
 
   // Compute link path: a bare name lands in the personal/ bucket, while an

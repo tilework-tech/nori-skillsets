@@ -116,6 +116,31 @@ describe("unlinkSkillsetMain", () => {
     expect(updateConfig).toHaveBeenCalledWith({ activeSkillset: null });
   });
 
+  it("should clear active skillset when unlinking a bucketed skillset by its bare name", async () => {
+    // The link lives in the personal bucket and the config stores the
+    // canonical namespaced identity; unlink is invoked with the bare name.
+    const linkPath = path.join(
+      testHomeDir,
+      ".nori",
+      "profiles",
+      "personal",
+      "active-skillset",
+    );
+    await fs.mkdir(path.dirname(linkPath), { recursive: true });
+    await fs.symlink(targetDir, linkPath);
+
+    vi.mocked(loadConfig).mockResolvedValue({
+      installDir: testHomeDir,
+      activeSkillset: "personal/active-skillset",
+    });
+    vi.mocked(getActiveSkillset).mockReturnValue("personal/active-skillset");
+
+    const result = await unlinkSkillsetMain({ name: "active-skillset" });
+
+    expect(result.success).toBe(true);
+    expect(updateConfig).toHaveBeenCalledWith({ activeSkillset: null });
+  });
+
   it("should not clear active skillset when unlinking a non-active skillset", async () => {
     const linkPath = path.join(
       testHomeDir,

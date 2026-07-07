@@ -33,7 +33,10 @@ import { subagentDownloadFlow } from "@/cli/prompts/flows/subagentDownload.js";
 import { recordFlowFailure } from "@/cli/prompts/flows/utils.js";
 import { resolveOrgRegistryAuth } from "@/core/registryAuthResolution.js";
 import { addSubagentToNoriJson, ensureNoriJson } from "@/norijson/nori.js";
-import { resolveSkillsetDir } from "@/norijson/skillset.js";
+import {
+  resolveSkillsetDir,
+  resolveUserSkillsetRef,
+} from "@/norijson/skillset.js";
 import { verifyArchiveChecksum } from "@/packaging/archive.js";
 import {
   atomicReplaceDirWithArchive,
@@ -166,7 +169,10 @@ export const subagentDownloadMain = async (args: {
   let targetSkillsetDir: string | null = null;
 
   if (skillset != null) {
-    const resolvedDir = await resolveSkillsetDir({ name: skillset });
+    // Warn once if a deprecated bare name reaches a bucketed skillset.
+    const resolvedDir =
+      (await resolveUserSkillsetRef({ name: skillset, warn: !nonInteractive }))
+        ?.dir ?? null;
     if (resolvedDir != null) {
       await ensureNoriJson({ skillsetDir: resolvedDir });
     }

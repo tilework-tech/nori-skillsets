@@ -665,3 +665,64 @@ describe("listSkillsets", () => {
     expect(profiles).toContain("shared");
   });
 });
+
+describe("resolveUserSkillsetRef deprecation warning", () => {
+  let testHomeDir: string;
+  let profilesDir: string;
+  let stderrOutput: Array<string>;
+
+  const seedBucket = async (bucket: string, name: string): Promise<void> => {
+    const dir = path.join(profilesDir, bucket, name);
+    await fs.mkdir(dir, { recursive: true });
+    await fs.writeFile(
+      path.join(dir, "nori.json"),
+      JSON.stringify({ name, version: "1.0.0" }),
+    );
+  };
+
+  beforeEach(async () => {
+    testHomeDir = await fs.mkdtemp(path.join(os.tmpdir(), "resolve-warn-"));
+    vi.mocked(os.homedir).mockReturnValue(testHomeDir);
+    profilesDir = path.join(testHomeDir, ".nori", "profiles");
+    await fs.mkdir(profilesDir, { recursive: true });
+    stderrOutput = [];
+    vi.spyOn(process.stderr, "write").mockImplementation(((
+      chunk: string | Uint8Array,
+    ): boolean => {
+      stderrOutput.push(String(chunk));
+      return true;
+    }) as typeof process.stderr.write);
+  });
+
+  afterEach(async () => {
+    vi.restoreAllMocks();
+    await fs.rm(testHomeDir, { recursive: true, force: true });
+    vi.clearAllMocks();
+  });
+
+  it("warns that a bare name is deprecated when it resolves to a bucket", async () => {
+    await seedBucket("public", "warn-alpha");
+
+    await resolveUserSkillsetRef({ name: "warn-alpha" });
+
+    const output = stderrOutput.join("");
+    expect(output).toContain("public/warn-alpha");
+    expect(output.toLowerCase()).toContain("deprecated");
+  });
+
+  it("does not warn when the namespaced identity is used", async () => {
+    await seedBucket("public", "warn-beta");
+
+    await resolveUserSkillsetRef({ name: "public/warn-beta" });
+
+    expect(stderrOutput).toHaveLength(0);
+  });
+
+  it("does not warn when the warning is suppressed", async () => {
+    await seedBucket("public", "warn-gamma");
+
+    await resolveUserSkillsetRef({ name: "warn-gamma", warn: false });
+
+    expect(stderrOutput).toHaveLength(0);
+  });
+});

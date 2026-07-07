@@ -238,4 +238,45 @@ describe("runProfilesMigration", () => {
 
     expect(result.moved).toBe(0);
   });
+
+  it("rewrites a stored bare activeSkillset to its public/ identity", async () => {
+    await seedProfile({ name: "senior-swe", registryUrl: PUBLIC_REGISTRY_URL });
+    const configPath = path.join(testHomeDir, ".nori-config.json");
+    await fs.writeFile(
+      configPath,
+      JSON.stringify({ activeSkillset: "senior-swe" }),
+    );
+
+    await runProfilesMigration();
+
+    const config = JSON.parse(await fs.readFile(configPath, "utf-8"));
+    expect(config.activeSkillset).toBe("public/senior-swe");
+  });
+
+  it("rewrites a stored bare local activeSkillset to its personal/ identity", async () => {
+    await seedProfile({ name: "my-local" });
+    const configPath = path.join(testHomeDir, ".nori-config.json");
+    await fs.writeFile(
+      configPath,
+      JSON.stringify({ activeSkillset: "my-local" }),
+    );
+
+    await runProfilesMigration();
+
+    const config = JSON.parse(await fs.readFile(configPath, "utf-8"));
+    expect(config.activeSkillset).toBe("personal/my-local");
+  });
+
+  it("leaves a stored activeSkillset that resolves nowhere untouched", async () => {
+    const configPath = path.join(testHomeDir, ".nori-config.json");
+    await fs.writeFile(
+      configPath,
+      JSON.stringify({ activeSkillset: "not-installed" }),
+    );
+
+    await runProfilesMigration();
+
+    const config = JSON.parse(await fs.readFile(configPath, "utf-8"));
+    expect(config.activeSkillset).toBe("not-installed");
+  });
 });

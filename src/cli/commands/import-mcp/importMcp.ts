@@ -26,11 +26,7 @@ import {
   writeSkillsetMetadata,
   type NoriJson,
 } from "@/norijson/nori.js";
-import {
-  getNoriSkillsetsDir,
-  listSkillsets,
-  resolveSkillsetDir,
-} from "@/norijson/skillset.js";
+import { listSkillsets, resolveUserSkillsetRef } from "@/norijson/skillset.js";
 import { getHomeDir } from "@/utils/home.js";
 
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
@@ -340,10 +336,11 @@ export const importMcpMain = async (args: {
     skillsetName = picked;
   }
 
-  const skillsetDir =
-    (await resolveSkillsetDir({ name: skillsetName })) ??
-    path.join(getNoriSkillsetsDir(), skillsetName);
-  if (!(await fileExists(skillsetDir))) {
+  // Warn once if a deprecated bare name reaches a bucketed skillset.
+  const skillsetDir = (
+    await resolveUserSkillsetRef({ name: skillsetName, warn: !nonInteractive })
+  )?.dir;
+  if (skillsetDir == null || !(await fileExists(skillsetDir))) {
     return {
       success: false,
       cancelled: false,

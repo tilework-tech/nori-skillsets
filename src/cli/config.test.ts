@@ -1193,6 +1193,67 @@ describe("updateConfig", () => {
   });
 });
 
+describe("updateConfig canonicalizes activeSkillset to its namespaced identity", () => {
+  let tempDir: string;
+
+  const seedProfile = async (relParts: Array<string>): Promise<void> => {
+    const dir = path.join(tempDir, ".nori", "profiles", ...relParts);
+    await fs.mkdir(dir, { recursive: true });
+    await fs.writeFile(
+      path.join(dir, "nori.json"),
+      JSON.stringify({
+        name: relParts[relParts.length - 1],
+        version: "1.0.0",
+        type: "skillset",
+      }),
+    );
+  };
+
+  beforeEach(async () => {
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "config-canon-test-"));
+    vi.mocked(os.homedir).mockReturnValue(tempDir);
+  });
+
+  afterEach(async () => {
+    await fs.rm(tempDir, { recursive: true, force: true });
+    vi.clearAllMocks();
+  });
+
+  it("stores a bare public-registry name under its public/ identity", async () => {
+    await seedProfile(["public", "senior-swe"]);
+
+    await updateConfig({ activeSkillset: "senior-swe" });
+
+    const loaded = await loadConfig();
+    expect(loaded?.activeSkillset).toBe("public/senior-swe");
+  });
+
+  it("stores a bare locally-created name under its personal/ identity", async () => {
+    await seedProfile(["personal", "my-local"]);
+
+    await updateConfig({ activeSkillset: "my-local" });
+
+    const loaded = await loadConfig();
+    expect(loaded?.activeSkillset).toBe("personal/my-local");
+  });
+
+  it("leaves an already-namespaced name unchanged", async () => {
+    await seedProfile(["personal", "my-local"]);
+
+    await updateConfig({ activeSkillset: "personal/my-local" });
+
+    const loaded = await loadConfig();
+    expect(loaded?.activeSkillset).toBe("personal/my-local");
+  });
+
+  it("leaves a name that resolves nowhere untouched", async () => {
+    await updateConfig({ activeSkillset: "ghost" });
+
+    const loaded = await loadConfig();
+    expect(loaded?.activeSkillset).toBe("ghost");
+  });
+});
+
 describe("API token auth", () => {
   let tempDir: string;
   let mockConfigPath: string;

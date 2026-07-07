@@ -5,6 +5,7 @@ import { loadConfig, getActiveSkillset, updateConfig } from "@/cli/config.js";
 import {
   getNoriSkillsetsDir,
   resolveSkillsetDir,
+  skillsetIdentity,
 } from "@/norijson/skillset.js";
 
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
@@ -52,12 +53,16 @@ export const unlinkSkillsetMain = async (args: {
   // Remove the symlink
   await fs.unlink(linkPath);
 
-  // Clear active skillset if this was the active one
+  // Clear active skillset if this was the active one. The stored value is the
+  // canonical namespaced identity (e.g. personal/foo), so compare against the
+  // unlinked skillset's identity — matching on the raw bare name too for any
+  // legacy config that still stores it bare.
   try {
     const config = await loadConfig();
     if (config != null) {
       const activeSkillset = getActiveSkillset({ config });
-      if (activeSkillset === name) {
+      const unlinkedIdentity = skillsetIdentity({ dir: linkPath });
+      if (activeSkillset === unlinkedIdentity || activeSkillset === name) {
         await updateConfig({ activeSkillset: null });
       }
     }

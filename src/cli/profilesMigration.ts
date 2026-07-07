@@ -15,7 +15,9 @@
 import * as fs from "fs/promises";
 import * as path from "path";
 
+import { loadConfig, updateConfig } from "@/cli/config.js";
 import {
+  canonicalSkillsetName,
   getNoriSkillsetsDir,
   MANIFEST_FILE,
   PERSONAL_BUCKET,
@@ -152,6 +154,28 @@ const safeMoveDir = async (args: {
 };
 
 /**
+ * Rewrite a stored bare `activeSkillset` to its namespaced identity now that its
+ * directory has been relocated into a bucket (e.g. `senior-swe` ->
+ * `public/senior-swe`). Best-effort: a broken or unreadable config must not
+ * block the one-time migration, so failures here are swallowed.
+ */
+const canonicalizeStoredActiveSkillset = async (): Promise<void> => {
+  try {
+    const config = await loadConfig();
+    const active = config?.activeSkillset;
+    if (active == null || active.includes("/")) {
+      return;
+    }
+    const canonical = await canonicalSkillsetName({ name: active });
+    if (canonical !== active) {
+      await updateConfig({ activeSkillset: canonical });
+    }
+  } catch {
+    // Leave the stored value as-is; the resolver still handles bare names.
+  }
+};
+
+/**
  * Run the one-time profiles bucket migration. Best-effort and idempotent.
  *
  * @returns The number of profiles relocated during this run.
@@ -204,6 +228,8 @@ export const runProfilesMigration = async (): Promise<{ moved: number }> => {
       moved += 1;
     }
   }
+
+  await canonicalizeStoredActiveSkillset();
 
   await writeMigrationState({
     state: {

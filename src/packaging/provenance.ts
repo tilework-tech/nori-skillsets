@@ -60,3 +60,22 @@ export const readVersionInfo = async (args: {
     return null;
   }
 };
+
+/**
+ * Whether a skillset directory was installed from a registry, as opposed to
+ * being created locally. Registry-backed skillsets record the registry they
+ * came from in their .nori-version sidecar; locally-created skillsets (the
+ * personal bucket) do not. This is the signal for whether a re-download makes
+ * sense for a skillset.
+ *
+ * @param args - Arguments
+ * @param args.dir - Absolute path to the skillset directory
+ *
+ * @returns True if the skillset records a registry source
+ */
+export const skillsetHasRegistrySource = async (args: {
+  dir: string;
+}): Promise<boolean> => {
+  const info = await readVersionInfo({ dir: args.dir });
+  return info?.registryUrl != null && info.registryUrl.length > 0;
+};

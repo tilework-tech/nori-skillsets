@@ -34,6 +34,7 @@ import {
 import {
   getNoriSkillsetsDir,
   resolveSkillsetDir,
+  resolveUserSkillsetRef,
   skillsetCreateDir,
 } from "@/norijson/skillset.js";
 import { resolveInstallDir } from "@/utils/path.js";
@@ -398,7 +399,9 @@ export const externalMain = async (args: {
     targetSkillset = path.relative(skillsetsDir, newSkillsetDir);
     log.success(`Created new skillset "${newSkillset}"`);
   } else if (skillset != null) {
-    const resolvedDir = await resolveSkillsetDir({ name: skillset });
+    // Warn once if a deprecated bare name reaches a bucketed skillset.
+    const resolvedDir =
+      (await resolveUserSkillsetRef({ name: skillset }))?.dir ?? null;
     if (resolvedDir != null) {
       await ensureNoriJson({ skillsetDir: resolvedDir });
     }

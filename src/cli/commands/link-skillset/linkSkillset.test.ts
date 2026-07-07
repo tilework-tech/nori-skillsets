@@ -128,6 +128,43 @@ describe("linkSkillsetMain", () => {
     expect(result.message).toMatch(/not found|does not exist/i);
   });
 
+  it("should reject a reserved bucket name and create nothing", async () => {
+    await fs.writeFile(
+      path.join(targetDir, "nori.json"),
+      JSON.stringify({ name: "whatever", version: "1.0.0" }),
+    );
+
+    const result = await linkSkillsetMain({
+      targetDir,
+      name: "public",
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.message).toMatch(/reserved/i);
+    const linkPath = path.join(
+      testHomeDir,
+      ".nori",
+      "profiles",
+      "personal",
+      "public",
+    );
+    await expect(fs.lstat(linkPath)).rejects.toThrow();
+  });
+
+  it("should reject when the derived name from nori.json is reserved", async () => {
+    await fs.writeFile(
+      path.join(targetDir, "nori.json"),
+      JSON.stringify({ name: "personal", version: "1.0.0" }),
+    );
+
+    const result = await linkSkillsetMain({
+      targetDir,
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.message).toMatch(/reserved/i);
+  });
+
   it("should fail when target is not a directory", async () => {
     const filePath = path.join(targetDir, "not-a-dir.txt");
     await fs.writeFile(filePath, "hello");
