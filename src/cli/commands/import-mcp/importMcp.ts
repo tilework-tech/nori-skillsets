@@ -16,6 +16,7 @@ import * as path from "path";
 
 import { isCancel, log, note, select } from "@clack/prompts";
 
+import { loadConfig } from "@/cli/config.js";
 import {
   parseAgentConfig,
   type CanonicalMcpServer,
@@ -320,6 +321,7 @@ export const importMcpMain = async (args: {
 }): Promise<CommandStatus> => {
   const { nonInteractive } = args;
   let skillsetName = args.skillsetName;
+  const config = await loadConfig();
 
   if (skillsetName == null) {
     if (nonInteractive) {
@@ -338,7 +340,12 @@ export const importMcpMain = async (args: {
 
   // Warn once if a deprecated bare name reaches a bucketed skillset.
   const skillsetDir = (
-    await resolveUserSkillsetRef({ name: skillsetName, warn: !nonInteractive })
+    await resolveUserSkillsetRef({
+      name: skillsetName,
+      defaultOrg: config?.defaultOrg,
+      nameWasProvided: args.skillsetName != null,
+      warn: !nonInteractive,
+    })
   )?.dir;
   if (skillsetDir == null || !(await fileExists(skillsetDir))) {
     return {

@@ -27,36 +27,33 @@ export const editSkillsetMain = async (args: {
   agent?: string | null;
 }): Promise<CommandStatus> => {
   const { name } = args;
+  const config = await loadConfig();
+  const nameWasProvided = name != null && name !== "";
+  const activeSkillset = config != null ? getActiveSkillset({ config }) : null;
 
   // Determine which skillset to open
-  let skillsetName: string;
-
-  if (name != null && name !== "") {
-    skillsetName = name;
-  } else {
-    // Load config to find the active skillset
-    const config = await loadConfig();
-
-    const activeSkillset = config ? getActiveSkillset({ config }) : null;
-
-    if (activeSkillset == null) {
-      log.error(
-        "No active skillset configured. Use 'nori-skillsets switch <name>' to set one.",
-      );
-      return {
-        success: false,
-        cancelled: false,
-        message: "No active skillset configured",
-      };
-    }
-
-    skillsetName = activeSkillset;
+  if (!nameWasProvided && activeSkillset == null) {
+    log.error(
+      "No active skillset configured. Use 'nori-skillsets switch <name>' to set one.",
+    );
+    return {
+      success: false,
+      cancelled: false,
+      message: "No active skillset configured",
+    };
   }
+  const skillsetName = nameWasProvided ? name! : activeSkillset!;
 
   // Resolve the skillset directory across storage buckets (bare, public, org),
   // warning once if a deprecated bare name was used.
-  const skillsetDir = (await resolveUserSkillsetRef({ name: skillsetName }))
-    ?.dir;
+  const skillsetDir = (
+    await resolveUserSkillsetRef({
+      name,
+      activeSkillset,
+      defaultOrg: config?.defaultOrg,
+      nameWasProvided,
+    })
+  )?.dir;
 
   // Verify the skillset directory exists
   if (skillsetDir == null) {

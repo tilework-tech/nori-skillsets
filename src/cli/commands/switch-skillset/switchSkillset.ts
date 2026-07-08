@@ -17,6 +17,7 @@ import {
 } from "@/cli/config.js";
 import {
   switchSkillset as switchSkillsetOp,
+  resolveSwitchSkillsetName,
   detectLocalChanges,
   captureExistingConfig,
 } from "@/cli/features/agentOperations.js";
@@ -93,6 +94,7 @@ export const switchSkillsetAction = async (args: {
   const nonInteractive = globalOpts.nonInteractive ?? false;
   const force = options.force ?? false;
   const agentOverride = options.agent;
+  const nameWasProvided = name != null;
 
   // Determine installation directory: CLI flag > config > home dir
   const config = await loadConfig();
@@ -135,13 +137,15 @@ export const switchSkillsetAction = async (args: {
 
     name = selected as string;
   }
-
-  // Emit a one-time deprecation warning if the user referenced a bucketed
-  // skillset by a bare (non-namespaced) name. Suppressed for non-interactive
-  // callers (e.g. automated fleet provisioning) where it is noise, not a nudge.
-  if (name != null) {
-    await resolveUserSkillsetRef({ name, warn: !nonInteractive });
-  }
+  const resolvedRef = await resolveUserSkillsetRef({
+    name,
+    defaultOrg: config?.defaultOrg,
+    nameWasProvided,
+    warn: !nonInteractive,
+  });
+  name =
+    resolvedRef?.identity ??
+    (await resolveSwitchSkillsetName({ skillsetName: name }));
 
   // Interactive flow
   if (!nonInteractive) {

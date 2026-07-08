@@ -9,7 +9,7 @@ import * as path from "path";
 
 import { log, note } from "@clack/prompts";
 
-import { getActiveSkillset, type Config } from "@/cli/config.js";
+import { getActiveSkillset, loadConfig, type Config } from "@/cli/config.js";
 import { checkRequiredEnv } from "@/cli/features/envCheck.js";
 import {
   readManifest,
@@ -32,6 +32,7 @@ import {
   getNoriSkillsetsDir,
   parseSkillset,
   resolveSkillsetDir,
+  resolveUserSkillsetRef,
   skillsetCreateDir,
 } from "@/norijson/skillset.js";
 import { readVersionInfo } from "@/packaging/provenance.js";
@@ -72,6 +73,30 @@ const clearManagedBlock = async (args: { filePath: string }): Promise<void> => {
   );
   const cleared = content.replace(regex, "");
   await fs.writeFile(filePath, cleared);
+};
+
+export const resolveSwitchSkillsetName = async (args: {
+  skillsetName: string;
+}): Promise<string> => {
+  const { skillsetName } = args;
+  const config = await loadConfig();
+  const resolved = await resolveUserSkillsetRef({
+    name: skillsetName,
+    defaultOrg: config?.defaultOrg,
+    warn: false,
+  });
+  if (resolved != null) {
+    return resolved.identity;
+  }
+
+  if (
+    !skillsetName.includes("/") &&
+    config?.defaultOrg != null &&
+    config.defaultOrg !== ""
+  ) {
+    return `${config.defaultOrg}/${skillsetName}`;
+  }
+  return skillsetName;
 };
 
 export const getManagedFiles = (args: {
@@ -276,11 +301,14 @@ export const switchSkillset = async (args: {
 }): Promise<void> => {
   const { agent, skillsetName } = args;
   const skillsetsDir = getNoriSkillsetsDir();
+  const resolvedSkillsetName = await resolveSwitchSkillsetName({
+    skillsetName,
+  });
 
   // Verify profile exists (resolving bare names across storage buckets)
   const skillsetDir =
-    (await resolveSkillsetDir({ name: skillsetName })) ??
-    path.join(skillsetsDir, skillsetName);
+    (await resolveSkillsetDir({ name: resolvedSkillsetName })) ??
+    path.join(skillsetsDir, ...resolvedSkillsetName.split("/"));
   await ensureNoriJson({ skillsetDir });
   const instructionsPath = path.join(skillsetDir, MANIFEST_FILE);
 
@@ -290,7 +318,9 @@ export const switchSkillset = async (args: {
     throw new Error(`Profile "${skillsetName}" not found in ${skillsetsDir}`);
   }
 
-  log.success(`Switched to "${skillsetName}" profile for ${agent.displayName}`);
+  log.success(
+    `Switched to "${resolvedSkillsetName}" profile for ${agent.displayName}`,
+  );
 };
 
 export const removeSkillset = async (args: {

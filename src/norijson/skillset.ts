@@ -212,7 +212,11 @@ const warnedBareNames = new Set<string>();
  * references are deprecated in favour of the namespaced identity.
  *
  * @param args - Function arguments
- * @param args.name - The user-supplied skillset name (bare or namespaced)
+ * @param args.name - The requested skillset name (bare, namespaced, or null)
+ * @param args.activeSkillset - Fallback skillset name from config
+ * @param args.defaultOrg - Org namespace to prefer for bare names
+ * @param args.nameWasProvided - Whether `name` came from an explicit user
+ *   argument; only explicit names are resolved through `defaultOrg` and warned.
  * @param args.warn - Whether to emit the deprecation warning (default true).
  *   Pass false for non-interactive/automated callers where the warning would be
  *   noise rather than a useful nudge.
@@ -221,27 +225,49 @@ const warnedBareNames = new Set<string>();
  *   skillset does not exist
  */
 export const resolveUserSkillsetRef = async (args: {
-  name: string;
+  name?: string | null;
+  activeSkillset?: string | null;
+  defaultOrg?: string | null;
+  nameWasProvided?: boolean | null;
   warn?: boolean | null;
 }): Promise<{ dir: string; identity: string } | null> => {
-  const { name, warn } = args;
-  const dir = await resolveSkillsetDir({ name });
-  if (dir == null) {
+  const { defaultOrg, warn } = args;
+  const name = args.name ?? args.activeSkillset ?? null;
+  if (name == null) {
     return null;
   }
-  const identity = skillsetIdentity({ dir });
-  if (
-    warn !== false &&
+  const nameArgWasPassed = args.name != null;
+  const nameWasProvided = args.nameWasProvided ?? nameArgWasPassed;
+  const candidates =
+    nameWasProvided &&
     !name.includes("/") &&
-    identity.includes("/") &&
-    !warnedBareNames.has(name)
-  ) {
-    warnedBareNames.add(name);
-    process.stderr.write(
-      `nori: bare skillset name "${name}" is deprecated; use "${identity}".\n`,
-    );
+    defaultOrg != null &&
+    defaultOrg !== ""
+      ? [`${defaultOrg}/${name}`, name]
+      : [name];
+
+  for (const candidate of [...new Set(candidates)]) {
+    const dir = await resolveSkillsetDir({ name: candidate });
+    if (dir == null) {
+      continue;
+    }
+    const identity = skillsetIdentity({ dir });
+    if (
+      nameWasProvided &&
+      warn !== false &&
+      !name.includes("/") &&
+      identity.includes("/") &&
+      !warnedBareNames.has(name)
+    ) {
+      warnedBareNames.add(name);
+      process.stderr.write(
+        `nori: bare skillset name "${name}" is deprecated; use "${identity}".\n`,
+      );
+    }
+    return { dir, identity };
   }
-  return { dir, identity };
+
+  return null;
 };
 
 /**

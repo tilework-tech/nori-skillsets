@@ -9,6 +9,7 @@ import * as path from "path";
 
 import { log, note } from "@clack/prompts";
 
+import { getActiveSkillset, loadConfig } from "@/cli/config.js";
 import { bold } from "@/cli/logger.js";
 import { registerSkillsetFlow } from "@/cli/prompts/flows/registerSkillset.js";
 import { writeSkillsetMetadata, type NoriJson } from "@/norijson/nori.js";
@@ -30,16 +31,11 @@ import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 export const registerSkillsetMain = async (args: {
   skillsetName: string | null;
 }): Promise<CommandStatus> => {
-  let { skillsetName } = args;
+  const config = await loadConfig();
+  const activeSkillset = config != null ? getActiveSkillset({ config }) : null;
 
   // If no skillset name provided, use current active skillset
-  if (skillsetName == null) {
-    // Get the current skillset by reading the config directly
-    // (we can't easily capture stdout from currentSkillsetMain)
-    const { loadConfig, getActiveSkillset } = await import("@/cli/config.js");
-
-    const config = await loadConfig();
-
+  if (args.skillsetName == null) {
     if (config == null) {
       log.error(
         "No active skillset configured. Use 'nori-skillsets switch <name>' to set one, or specify a skillset name.",
@@ -51,8 +47,6 @@ export const registerSkillsetMain = async (args: {
       };
     }
 
-    const activeSkillset = getActiveSkillset({ config });
-
     if (activeSkillset == null) {
       log.error(
         "No active skillset configured. Use 'nori-skillsets switch <name>' to set one, or specify a skillset name.",
@@ -63,13 +57,19 @@ export const registerSkillsetMain = async (args: {
         message: "No active skillset configured",
       };
     }
-
-    skillsetName = activeSkillset;
   }
+  const skillsetName = args.skillsetName ?? activeSkillset!;
 
   // Resolve the existing skillset directory across storage buckets, warning
   // once if a deprecated bare name was used.
-  const destPath = (await resolveUserSkillsetRef({ name: skillsetName }))?.dir;
+  const destPath = (
+    await resolveUserSkillsetRef({
+      name: args.skillsetName,
+      activeSkillset,
+      defaultOrg: config?.defaultOrg,
+      nameWasProvided: args.skillsetName != null,
+    })
+  )?.dir;
 
   // Validate that the directory exists
   if (destPath == null) {

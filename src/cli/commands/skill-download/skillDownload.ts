@@ -29,10 +29,7 @@ import { skillDownloadFlow } from "@/cli/prompts/flows/index.js";
 import { recordFlowFailure } from "@/cli/prompts/flows/utils.js";
 import { resolveOrgRegistryAuth } from "@/core/registryAuthResolution.js";
 import { addSkillToNoriJson, ensureNoriJson } from "@/norijson/nori.js";
-import {
-  resolveSkillsetDir,
-  resolveUserSkillsetRef,
-} from "@/norijson/skillset.js";
+import { resolveUserSkillsetRef } from "@/norijson/skillset.js";
 import { verifyArchiveChecksum } from "@/packaging/archive.js";
 import {
   atomicReplaceDirWithArchive,
@@ -204,50 +201,35 @@ export const skillDownloadMain = async (args: {
   // Priority: --skillset option > active skillset from config > no manifest update
   // targetSkillset is the user-facing (bare) skillset name for display;
   // targetSkillsetDir is its resolved on-disk directory for file writes.
-  let targetSkillset: string | null = null;
-  let targetSkillsetDir: string | null = null;
+  const targetRef = await resolveUserSkillsetRef({
+    name: skillset,
+    activeSkillset: config != null ? getActiveSkillset({ config }) : null,
+    defaultOrg: config?.defaultOrg,
+    nameWasProvided: skillset != null,
+    warn: !nonInteractive,
+  });
+  let targetSkillset = targetRef?.identity ?? null;
+  let targetSkillsetDir = targetRef?.dir ?? null;
 
-  if (skillset != null) {
-    // User specified a skillset - verify it exists (warning once if a
-    // deprecated bare name reaches a bucketed skillset).
-    const resolvedDir =
-      (await resolveUserSkillsetRef({ name: skillset, warn: !nonInteractive }))
-        ?.dir ?? null;
-    if (resolvedDir != null) {
-      await ensureNoriJson({ skillsetDir: resolvedDir });
+  if (targetSkillsetDir != null) {
+    await ensureNoriJson({ skillsetDir: targetSkillsetDir });
+    try {
+      await fs.access(path.join(targetSkillsetDir, "nori.json"));
+    } catch {
+      targetSkillset = null;
+      targetSkillsetDir = null;
     }
-    let hasManifest = false;
-    if (resolvedDir != null) {
-      try {
-        await fs.access(path.join(resolvedDir, "nori.json"));
-        hasManifest = true;
-      } catch {
-        // Missing manifest — treated as "not found" below.
-      }
-    }
-    if (!hasManifest) {
-      log.error(
-        `Skillset "${skillset}" not found.\n\nMake sure the skillset exists and contains a nori.json file.`,
-      );
-      return {
-        success: false,
-        cancelled: false,
-        message: "Skillset not found",
-      };
-    }
-    targetSkillset = skillset;
-    targetSkillsetDir = resolvedDir;
-  } else if (config != null) {
-    // No skillset specified - try to use active skillset
-    const activeSkillset = getActiveSkillset({ config });
-    if (activeSkillset != null) {
-      // Verify skillset directory exists
-      const resolvedDir = await resolveSkillsetDir({ name: activeSkillset });
-      if (resolvedDir != null) {
-        targetSkillset = activeSkillset;
-        targetSkillsetDir = resolvedDir;
-      }
-    }
+  }
+
+  if (skillset != null && targetSkillsetDir == null) {
+    log.error(
+      `Skillset "${skillset}" not found.\n\nMake sure the skillset exists and contains a nori.json file.`,
+    );
+    return {
+      success: false,
+      cancelled: false,
+      message: "Skillset not found",
+    };
   }
 
   // Resolve all default agents for broadcasting

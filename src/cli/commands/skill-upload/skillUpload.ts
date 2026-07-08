@@ -283,10 +283,14 @@ export const skillUploadMain = async (args: {
   const effectiveVersion = explicitVersion ?? specVersion ?? null;
 
   // Resolve source skillset
-  const sourceSkillset =
-    skillset ?? (config != null ? getActiveSkillset({ config }) : null);
-
-  if (sourceSkillset == null) {
+  const sourceSkillsetRef = await resolveUserSkillsetRef({
+    name: skillset,
+    activeSkillset: config != null ? getActiveSkillset({ config }) : null,
+    defaultOrg: config?.defaultOrg,
+    nameWasProvided: skillset != null,
+    warn: !nonInteractive,
+  });
+  if (sourceSkillsetRef == null) {
     log.error(
       "No active skillset set. Pass --skillset <name> or activate a skillset with `nori-skillsets switch <name>`.",
     );
@@ -296,25 +300,9 @@ export const skillUploadMain = async (args: {
       message: "No active skillset",
     };
   }
+  const sourceSkillset = sourceSkillsetRef.identity;
 
-  // Resolve the source skillset across storage buckets (bare, public, org).
-  // Warn once only when the user explicitly passed a deprecated bare --skillset;
-  // the silent active-skillset fallback must not nag.
-  const sourceSkillsetDir =
-    (
-      await resolveUserSkillsetRef({
-        name: sourceSkillset,
-        warn: skillset != null && !nonInteractive,
-      })
-    )?.dir ?? null;
-  if (sourceSkillsetDir == null) {
-    log.error(`Skillset "${sourceSkillset}" not found.`);
-    return {
-      success: false,
-      cancelled: false,
-      message: `Skillset "${sourceSkillset}" not found`,
-    };
-  }
+  const sourceSkillsetDir = sourceSkillsetRef.dir;
   const skillDir = path.join(sourceSkillsetDir, "skills", skillName);
 
   try {
