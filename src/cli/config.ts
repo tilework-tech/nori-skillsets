@@ -11,7 +11,7 @@ import addFormats from "ajv-formats";
 
 import { toRegistryAuth } from "@/api/authCredentials.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
-import { canonicalSkillsetName } from "@/norijson/skillset.js";
+import { canonicalSkillsetName } from "@/cli/skillsetResolution.js";
 import { extractOrgIdFromApiToken } from "@/utils/apiToken.js";
 import { getHomeDir } from "@/utils/home.js";
 import { readJsonObjectFile, writeJsonFileAtomic } from "@/utils/jsonFile.js";

@@ -1,5 +1,4 @@
 import * as fs from "fs/promises";
-import * as path from "path";
 
 import {
   loadConfig,
@@ -8,10 +7,10 @@ import {
   type Config,
 } from "@/cli/config.js";
 import {
-  getNoriSkillsetsDir,
   namespaceCreateSkillsetName,
   resolveUserSkillsetRef,
-} from "@/norijson/skillset.js";
+} from "@/cli/skillsetResolution.js";
+import { skillsetPath } from "@/norijson/skillset.js";
 
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 
@@ -49,9 +48,7 @@ export const unlinkSkillsetMain = async (args: {
     name,
     defaultOrg: config?.defaultOrg,
   });
-  const skillsetsDir = getNoriSkillsetsDir();
-  const linkPath =
-    ref?.dir ?? path.join(skillsetsDir, ...fallbackName.split("/"));
+  const linkPath = ref?.dir ?? skillsetPath({ name: fallbackName });
   const identity = ref?.identity ?? fallbackName;
 
   // Verify the path exists

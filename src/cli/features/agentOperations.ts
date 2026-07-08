@@ -9,7 +9,7 @@ import * as path from "path";
 
 import { log, note } from "@clack/prompts";
 
-import { getActiveSkillset, loadConfig, type Config } from "@/cli/config.js";
+import { getActiveSkillset, type Config } from "@/cli/config.js";
 import { checkRequiredEnv } from "@/cli/features/envCheck.js";
 import {
   readManifest,
@@ -32,8 +32,9 @@ import {
   getNoriSkillsetsDir,
   parseSkillset,
   resolveSkillsetDir,
-  resolveUserSkillsetRef,
   skillsetCreateDir,
+  skillsetIdentity,
+  skillsetPath,
 } from "@/norijson/skillset.js";
 import { readVersionInfo } from "@/packaging/provenance.js";
 
@@ -73,30 +74,6 @@ const clearManagedBlock = async (args: { filePath: string }): Promise<void> => {
   );
   const cleared = content.replace(regex, "");
   await fs.writeFile(filePath, cleared);
-};
-
-export const resolveSwitchSkillsetName = async (args: {
-  skillsetName: string;
-}): Promise<string> => {
-  const { skillsetName } = args;
-  const config = await loadConfig();
-  const resolved = await resolveUserSkillsetRef({
-    name: skillsetName,
-    defaultOrg: config?.defaultOrg,
-    warn: false,
-  });
-  if (resolved != null) {
-    return resolved.identity;
-  }
-
-  if (
-    !skillsetName.includes("/") &&
-    config?.defaultOrg != null &&
-    config.defaultOrg !== ""
-  ) {
-    return `${config.defaultOrg}/${skillsetName}`;
-  }
-  return skillsetName;
 };
 
 export const getManagedFiles = (args: {
@@ -301,14 +278,14 @@ export const switchSkillset = async (args: {
 }): Promise<void> => {
   const { agent, skillsetName } = args;
   const skillsetsDir = getNoriSkillsetsDir();
-  const resolvedSkillsetName = await resolveSwitchSkillsetName({
-    skillsetName,
-  });
 
-  // Verify profile exists (resolving bare names across storage buckets)
-  const skillsetDir =
-    (await resolveSkillsetDir({ name: resolvedSkillsetName })) ??
-    path.join(skillsetsDir, ...resolvedSkillsetName.split("/"));
+  // The name arrives already resolved at the edge, so the op only locates it on
+  // disk — bucket precedence for a bare legacy name, direct for a namespaced
+  // one. It never applies defaultOrg; that happens once, at the edge.
+  const resolvedDir = await resolveSkillsetDir({ name: skillsetName });
+  const skillsetDir = resolvedDir ?? skillsetPath({ name: skillsetName });
+  const identity =
+    resolvedDir != null ? skillsetIdentity({ dir: resolvedDir }) : skillsetName;
   await ensureNoriJson({ skillsetDir });
   const instructionsPath = path.join(skillsetDir, MANIFEST_FILE);
 
@@ -318,9 +295,7 @@ export const switchSkillset = async (args: {
     throw new Error(`Profile "${skillsetName}" not found in ${skillsetsDir}`);
   }
 
-  log.success(
-    `Switched to "${resolvedSkillsetName}" profile for ${agent.displayName}`,
-  );
+  log.success(`Switched to "${identity}" profile for ${agent.displayName}`);
 };
 
 export const removeSkillset = async (args: {

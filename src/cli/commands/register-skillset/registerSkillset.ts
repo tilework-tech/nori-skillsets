@@ -12,11 +12,9 @@ import { log, note } from "@clack/prompts";
 import { getActiveSkillset, loadConfig } from "@/cli/config.js";
 import { bold } from "@/cli/logger.js";
 import { registerSkillsetFlow } from "@/cli/prompts/flows/registerSkillset.js";
+import { resolveUserSkillsetRef } from "@/cli/skillsetResolution.js";
 import { writeSkillsetMetadata, type NoriJson } from "@/norijson/nori.js";
-import {
-  getNoriSkillsetsDir,
-  resolveUserSkillsetRef,
-} from "@/norijson/skillset.js";
+import { skillsetIdentity } from "@/norijson/skillset.js";
 
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 
@@ -138,7 +136,7 @@ export const registerSkillsetMain = async (args: {
     metadata,
   });
 
-  const relLocation = path.relative(getNoriSkillsetsDir(), destPath);
+  const relLocation = skillsetIdentity({ dir: destPath });
   const nextSteps = [
     `To edit:    nori-skillsets edit ${skillsetName}`,
     `Location:   ~/.nori/profiles/${relLocation}/nori.json`,

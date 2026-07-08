@@ -9,8 +9,6 @@ import {
   extractOrgId,
   parseNamespacedPackage,
   namespacedName,
-  namespacedOnDiskName,
-  localSkillsetName,
 } from "./url";
 
 describe("normalizeUrl", () => {
@@ -359,9 +357,9 @@ describe("parseNamespacedPackage", () => {
 });
 
 describe("namespacedName", () => {
-  it("returns the bare name for the public registry", () => {
+  it("qualifies a public package with the public/ namespace", () => {
     expect(namespacedName({ orgId: "public", packageName: "my-profile" })).toBe(
-      "my-profile",
+      "public/my-profile",
     );
   });
 
@@ -369,40 +367,6 @@ describe("namespacedName", () => {
     expect(namespacedName({ orgId: "myorg", packageName: "my-profile" })).toBe(
       "myorg/my-profile",
     );
-  });
-});
-
-describe("namespacedOnDiskName", () => {
-  it("places public packages in the public bucket", () => {
-    expect(
-      namespacedOnDiskName({ orgId: "public", packageName: "my-profile" }),
-    ).toBe("public/my-profile");
-  });
-
-  it("places org packages under their org namespace", () => {
-    expect(
-      namespacedOnDiskName({ orgId: "myorg", packageName: "my-profile" }),
-    ).toBe("myorg/my-profile");
-  });
-});
-
-describe("localSkillsetName", () => {
-  it("strips a redundant public/ prefix to the flat on-disk name", () => {
-    expect(localSkillsetName({ name: "public/my-profile" })).toBe("my-profile");
-  });
-
-  it("returns a bare name unchanged", () => {
-    expect(localSkillsetName({ name: "my-profile" })).toBe("my-profile");
-  });
-
-  it("preserves the org prefix for org-scoped names", () => {
-    expect(localSkillsetName({ name: "myorg/my-profile" })).toBe(
-      "myorg/my-profile",
-    );
-  });
-
-  it("returns an invalid multi-slash name unchanged", () => {
-    expect(localSkillsetName({ name: "a/b/c" })).toBe("a/b/c");
   });
 });
 

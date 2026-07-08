@@ -16,8 +16,8 @@ import * as fs from "fs/promises";
 import * as path from "path";
 
 import { loadConfig, updateConfig } from "@/cli/config.js";
+import { canonicalSkillsetName } from "@/cli/skillsetResolution.js";
 import {
-  canonicalSkillsetName,
   getNoriSkillsetsDir,
   MANIFEST_FILE,
   PERSONAL_BUCKET,

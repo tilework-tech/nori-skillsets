@@ -3,11 +3,9 @@ import * as path from "path";
 
 import { loadConfig } from "@/cli/config.js";
 import { isReservedSkillsetName } from "@/cli/prompts/validators.js";
+import { namespaceCreateSkillsetName } from "@/cli/skillsetResolution.js";
 import { readSkillsetMetadata } from "@/norijson/nori.js";
-import {
-  namespaceCreateSkillsetName,
-  skillsetCreateDir,
-} from "@/norijson/skillset.js";
+import { skillsetCreateDir } from "@/norijson/skillset.js";
 
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 

@@ -27,16 +27,19 @@ import { substituteTemplatePaths } from "@/cli/features/template.js";
 import { promptSkillTypes } from "@/cli/prompts/flows/externalSkillType.js";
 import { isReservedSkillsetName } from "@/cli/prompts/validators.js";
 import {
+  namespaceCreateSkillsetName,
+  resolveUserSkillsetRef,
+} from "@/cli/skillsetResolution.js";
+import {
   addSkillToNoriJson,
   ensureNoriJson,
   type NoriJsonType,
 } from "@/norijson/nori.js";
 import {
   getNoriSkillsetsDir,
-  namespaceCreateSkillsetName,
   resolveSkillsetDir,
-  resolveUserSkillsetRef,
   skillsetCreateDir,
+  skillsetIdentity,
 } from "@/norijson/skillset.js";
 import { resolveInstallDir } from "@/utils/path.js";
 
@@ -400,7 +403,7 @@ export const externalMain = async (args: {
     }
 
     await createEmptySkillset({ destPath: newSkillsetDir, name: localNew });
-    targetSkillset = path.relative(skillsetsDir, newSkillsetDir);
+    targetSkillset = skillsetIdentity({ dir: newSkillsetDir });
     log.success(`Created new skillset "${localNew}"`);
   } else {
     const targetRef = await resolveUserSkillsetRef({
@@ -413,7 +416,7 @@ export const externalMain = async (args: {
       await ensureNoriJson({ skillsetDir: targetRef.dir });
       try {
         await fs.access(path.join(targetRef.dir, "nori.json"));
-        targetSkillset = path.relative(skillsetsDir, targetRef.dir);
+        targetSkillset = targetRef.identity;
       } catch {
         // Missing manifest -- explicit targets are treated as not found below.
       }

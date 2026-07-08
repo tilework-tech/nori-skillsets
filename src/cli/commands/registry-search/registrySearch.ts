@@ -22,7 +22,11 @@ import {
 } from "@/cli/commands/cliCommandNames.js";
 import { loadConfig } from "@/cli/config.js";
 import { registrySearchFlow } from "@/cli/prompts/flows/index.js";
-import { extractOrgId, buildOrganizationRegistryUrl } from "@/utils/url.js";
+import {
+  extractOrgId,
+  buildOrganizationRegistryUrl,
+  namespacedName,
+} from "@/utils/url.js";
 
 import type { RegistryAuth } from "@/api/authCredentials.js";
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
@@ -274,12 +278,14 @@ const getNamespacedPackageName = (args: {
   const { packageName, registryUrl } = args;
   const orgId = extractOrgId({ url: registryUrl });
 
-  // Public registry packages don't need namespace prefix
-  if (orgId == null || orgId === "public") {
+  // Local-dev registries have no derivable org, so there is no namespace to
+  // apply. Every Nori registry package is shown fully qualified, including the
+  // public registrar as `public/<name>`.
+  if (orgId == null) {
     return packageName;
   }
 
-  return `${orgId}/${packageName}`;
+  return namespacedName({ orgId, packageName });
 };
 
 /**
