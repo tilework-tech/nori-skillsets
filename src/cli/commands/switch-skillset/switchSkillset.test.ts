@@ -89,6 +89,16 @@ vi.mock("@/cli/features/agentOperations.js", async (importOriginal) => {
   };
 });
 
+// Mock registryDownloadMain (dynamically imported inside onRedownload) so the
+// redownload-on-switch path can be observed without hitting the network.
+const mockRegistryDownloadMain = vi
+  .fn()
+  .mockResolvedValue({ success: true, cancelled: false, message: "" });
+vi.mock("@/cli/commands/registry-download/registryDownload.js", () => ({
+  registryDownloadMain: (...args: Array<unknown>) =>
+    mockRegistryDownloadMain(...args),
+}));
+
 describe("switchSkillset shared operation", () => {
   let testInstallDir: string;
 
@@ -903,6 +913,118 @@ describe("switch-skillset passes skillset name to installMain", () => {
         skillset: "product-manager",
       }),
     );
+  });
+});
+
+describe("switch-skillset interactive redownload provenance", () => {
+  let testInstallDir: string;
+  let profilesDir: string;
+
+  const runSwitch = async (skillsetName: string): Promise<void> => {
+    const program = new Command();
+    program.exitOverride();
+    program.configureOutput({ writeErr: () => undefined });
+    program
+      .option("-d, --install-dir <path>", "Custom installation directory")
+      .option("-n, --non-interactive", "Run without interactive prompts")
+      .option("-a, --agent <name>", "AI agent to use");
+    registerSwitchSkillsetCommand({ program });
+
+    try {
+      await program.parseAsync([
+        "node",
+        "nori-skillsets",
+        "switch-skillset",
+        skillsetName,
+        "--install-dir",
+        testInstallDir,
+      ]);
+    } catch {
+      // May throw due to exitOverride.
+    }
+  };
+
+  beforeEach(async () => {
+    testInstallDir = await fs.realpath(
+      await fs.mkdtemp(path.join(tmpdir(), "switch-redownload-test-")),
+    );
+    vi.mocked(os.homedir).mockReturnValue(testInstallDir);
+    await fs.mkdir(path.join(testInstallDir, ".claude"), { recursive: true });
+    profilesDir = path.join(testInstallDir, ".nori", "profiles");
+    await fs.mkdir(profilesDir, { recursive: true });
+    await fs.writeFile(
+      path.join(testInstallDir, ".nori-config.json"),
+      JSON.stringify({
+        defaultAgents: ["claude-code"],
+        installDir: testInstallDir,
+      }),
+    );
+
+    AgentRegistry.resetInstance();
+    mockSwitchSkillsetFlow.mockReset();
+    mockRegistryDownloadMain.mockClear();
+  });
+
+  afterEach(async () => {
+    if (testInstallDir) {
+      await fs.rm(testInstallDir, { recursive: true, force: true });
+    }
+    AgentRegistry.resetInstance();
+    resetGlobalAgentOverride();
+    vi.restoreAllMocks();
+  });
+
+  const seedSkillset = async (args: {
+    relParts: Array<string>;
+    registryUrl?: string | null;
+  }): Promise<void> => {
+    const { relParts, registryUrl } = args;
+    const dir = path.join(profilesDir, ...relParts);
+    await fs.mkdir(dir, { recursive: true });
+    await fs.writeFile(
+      path.join(dir, "nori.json"),
+      JSON.stringify({ name: relParts[relParts.length - 1], version: "1.0.0" }),
+    );
+    if (registryUrl != null) {
+      await fs.writeFile(
+        path.join(dir, ".nori-version"),
+        JSON.stringify({ version: "1.0.0", registryUrl }),
+      );
+    }
+  };
+
+  it("pins the redownload to the registry recorded in .nori-version", async () => {
+    await seedSkillset({
+      relParts: ["myorg", "foo"],
+      registryUrl: "https://myorg.nori-registry.ai",
+    });
+
+    mockSwitchSkillsetFlow.mockImplementationOnce(async (args: any) => {
+      await args.callbacks.onRedownload({ skillsetName: args.skillsetName });
+      return { statusMessage: "switched", skillsetName: args.skillsetName };
+    });
+
+    await runSwitch("myorg/foo");
+
+    expect(mockRegistryDownloadMain).toHaveBeenCalledWith(
+      expect.objectContaining({
+        packageSpec: "myorg/foo",
+        registryUrl: "https://myorg.nori-registry.ai",
+      }),
+    );
+  });
+
+  it("does not redownload a personal-bucket skillset with no recorded registry", async () => {
+    await seedSkillset({ relParts: ["personal", "my-local"] });
+
+    mockSwitchSkillsetFlow.mockImplementationOnce(async (args: any) => {
+      await args.callbacks.onRedownload({ skillsetName: args.skillsetName });
+      return { statusMessage: "switched", skillsetName: args.skillsetName };
+    });
+
+    await runSwitch("personal/my-local");
+
+    expect(mockRegistryDownloadMain).not.toHaveBeenCalled();
   });
 });
 
