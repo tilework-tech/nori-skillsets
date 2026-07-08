@@ -996,7 +996,7 @@ describe("switch-skillset interactive redownload provenance", () => {
   it("pins the redownload to the registry recorded in .nori-version", async () => {
     await seedSkillset({
       relParts: ["myorg", "foo"],
-      registryUrl: "https://myorg.nori-registry.ai",
+      registryUrl: "http://localhost:4321",
     });
 
     mockSwitchSkillsetFlow.mockImplementationOnce(async (args: any) => {
@@ -1009,7 +1009,7 @@ describe("switch-skillset interactive redownload provenance", () => {
     expect(mockRegistryDownloadMain).toHaveBeenCalledWith(
       expect.objectContaining({
         packageSpec: "myorg/foo",
-        registryUrl: "https://myorg.nori-registry.ai",
+        registryUrl: "http://localhost:4321",
       }),
     );
   });

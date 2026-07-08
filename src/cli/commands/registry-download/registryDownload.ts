@@ -547,8 +547,8 @@ export const registryDownloadMain = async (args: {
             // auth (membership in config.auth.organizations) when the URL is an
             // org registry the user belongs to; this mirrors the derived-registry
             // path and authenticates org members whose home org differs from the
-            // target org. Fall back to getRegistryAuth for the home org, the
-            // nori-registry.ai family, and local dev.
+            // target org. Fall back to getRegistryAuth for the home org and
+            // local dev.
             let getAuthToken: (() => Promise<string>) | null = null;
             const registryOrgId = extractOrgId({ url: registryUrl });
             if (

@@ -22,11 +22,7 @@ import {
 } from "@/cli/commands/cliCommandNames.js";
 import { loadConfig } from "@/cli/config.js";
 import { registrySearchFlow } from "@/cli/prompts/flows/index.js";
-import {
-  extractOrgId,
-  buildRegistryUrl,
-  buildOrganizationRegistryUrl,
-} from "@/utils/url.js";
+import { extractOrgId, buildOrganizationRegistryUrl } from "@/utils/url.js";
 
 import type { RegistryAuth } from "@/api/authCredentials.js";
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
@@ -509,7 +505,7 @@ const performSearch = async (args: {
   ) {
     const orgId = extractOrgId({ url: config.auth.organizationUrl });
     if (orgId != null) {
-      const registryUrl = buildRegistryUrl({ orgId });
+      const registryUrl = buildOrganizationRegistryUrl({ orgId });
       const registryAuth = toRegistryAuth({
         auth: config.auth,
         registryUrl,

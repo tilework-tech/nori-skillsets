@@ -15,7 +15,7 @@ vi.mock("@/api/registryAuth.js", () => ({
 
 const memberAuth = (): AuthCredentials => ({
   username: "tester",
-  organizationUrl: "https://myorg.nori-registry.ai",
+  organizationUrl: "https://myorg.noriskillsets.dev",
   refreshToken: "rt-test",
   apiToken: null,
   organizations: ["myorg", "otherorg"],

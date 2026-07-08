@@ -81,22 +81,6 @@ export const buildWatchtowerUrl = (args: { orgId: string }): string => {
 };
 
 /**
- * Build Registry URL from organization ID
- * @param args - Build arguments
- * @param args.orgId - The organization ID
- *
- * @returns The full Registry URL
- *
- * @example
- * buildRegistryUrl({ orgId: "myorg" })
- * // Returns: "https://myorg.nori-registry.ai"
- */
-export const buildRegistryUrl = (args: { orgId: string }): string => {
-  const { orgId } = args;
-  return `https://${orgId}.nori-registry.ai`;
-};
-
-/**
  * Build Organization Registry URL from organization ID
  * Uses noriskillsets.dev domain. "public" org maps to apex domain.
  * @param args - Build arguments
@@ -144,7 +128,7 @@ export const isValidUrl = (args: { input: string }): boolean => {
 
 /**
  * Extract organization ID from a Nori service URL
- * Supports both Watchtower (*.tilework.tech) and Registry (*.nori-registry.ai) URLs
+ * Supports both Watchtower (*.tilework.tech) and Registry (*.noriskillsets.dev) URLs
  * @param args - Extraction arguments
  * @param args.url - The service URL to extract org ID from
  *
@@ -154,7 +138,7 @@ export const isValidUrl = (args: { input: string }): boolean => {
  * extractOrgId({ url: "https://tilework.tilework.tech" })
  * // Returns: "tilework"
  * @example
- * extractOrgId({ url: "https://myorg.nori-registry.ai" })
+ * extractOrgId({ url: "https://myorg.noriskillsets.dev" })
  * // Returns: "myorg"
  * @example
  * extractOrgId({ url: "http://localhost:3000" })
@@ -170,12 +154,6 @@ export const extractOrgId = (args: { url: string }): string | null => {
     // Check for Watchtower URL pattern: {orgId}.tilework.tech
     if (hostname.endsWith(".tilework.tech")) {
       const orgId = hostname.replace(".tilework.tech", "");
-      return isValidOrgId({ orgId }) ? orgId : null;
-    }
-
-    // Check for Registry URL pattern: {orgId}.nori-registry.ai
-    if (hostname.endsWith(".nori-registry.ai")) {
-      const orgId = hostname.replace(".nori-registry.ai", "");
       return isValidOrgId({ orgId }) ? orgId : null;
     }
 

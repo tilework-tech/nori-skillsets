@@ -15,7 +15,7 @@ import { canonicalSkillsetName } from "@/norijson/skillset.js";
 import { extractOrgIdFromApiToken } from "@/utils/apiToken.js";
 import { getHomeDir } from "@/utils/home.js";
 import { readJsonObjectFile, writeJsonFileAtomic } from "@/utils/jsonFile.js";
-import { normalizeUrl, extractOrgId, buildRegistryUrl } from "@/utils/url.js";
+import { normalizeUrl, extractOrgId } from "@/utils/url.js";
 
 import type { AuthCredentials, RegistryAuth } from "@/api/authCredentials.js";
 
@@ -141,23 +141,7 @@ export const getRegistryAuth = (args: {
       tokenOrgId != null && targetOrgId != null && tokenOrgId === targetOrgId;
 
     if (orgId != null) {
-      // Derive registry URL from org ID
-      const derivedRegistryUrl = buildRegistryUrl({ orgId });
-
-      // Check if requested URL matches derived registry URL
-      if (
-        normalizeUrl({ baseUrl: derivedRegistryUrl }) === normalizedSearchUrl
-      ) {
-        return toRegistryAuth({
-          auth: {
-            ...config.auth,
-            apiToken: apiTokenMatch ? (config.auth.apiToken ?? null) : null,
-          },
-          registryUrl: derivedRegistryUrl,
-        });
-      }
-
-      // Also check the noriskillsets.dev subdomain pattern for org registrars
+      // Derive the org registry URL (noriskillsets.dev subdomain) from the org ID
       const orgRegistrarUrl = `https://${orgId}.noriskillsets.dev`;
       if (normalizeUrl({ baseUrl: orgRegistrarUrl }) === normalizedSearchUrl) {
         return toRegistryAuth({

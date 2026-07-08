@@ -74,16 +74,16 @@ describe("resolveRedownloadSource", () => {
 
   it("returns the exact recorded host, not a host re-derived from the name", async () => {
     // The name "myorg/foo" would derive to myorg.noriskillsets.dev, but the
-    // skillset was installed from a different registry family. The recorded
-    // provenance must win.
+    // skillset was installed from a different registry (here, a local dev
+    // registry). The recorded provenance must win.
     await seed({
       relParts: ["myorg", "foo"],
-      registryUrl: "https://myorg.nori-registry.ai",
+      registryUrl: "http://localhost:4321",
     });
 
     expect(await resolveRedownloadSource({ name: "myorg/foo" })).toEqual({
       packageSpec: "myorg/foo",
-      registryUrl: "https://myorg.nori-registry.ai",
+      registryUrl: "http://localhost:4321",
     });
   });
 

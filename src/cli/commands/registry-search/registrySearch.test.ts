@@ -196,14 +196,14 @@ describe("registry-search", () => {
       expect(registrarApi.searchPackagesOnRegistry).toHaveBeenCalledWith(
         expect.objectContaining({
           query: "typescript",
-          registryUrl: "https://myorg.nori-registry.ai",
+          registryUrl: "https://myorg.noriskillsets.dev",
           authToken: "mock-auth-token",
         }),
       );
       expect(registrarApi.searchSkills).toHaveBeenCalledWith(
         expect.objectContaining({
           query: "typescript",
-          registryUrl: "https://myorg.nori-registry.ai",
+          registryUrl: "https://myorg.noriskillsets.dev",
           authToken: "mock-auth-token",
         }),
       );
@@ -576,7 +576,7 @@ describe("registry-search", () => {
       expect(registrarApi.searchPackagesOnRegistry).toHaveBeenCalledWith(
         expect.objectContaining({
           query: "profile",
-          registryUrl: "https://myorg.nori-registry.ai",
+          registryUrl: "https://myorg.noriskillsets.dev",
           authToken: "api-token-auth",
         }),
       );
@@ -713,7 +713,7 @@ describe("registry-search", () => {
       expect(registrarApi.searchPackagesOnRegistry).toHaveBeenCalledWith(
         expect.objectContaining({
           query: "profile",
-          registryUrl: "https://myorg.nori-registry.ai",
+          registryUrl: "https://myorg.noriskillsets.dev",
           authToken: "mock-auth-token",
         }),
       );
@@ -928,7 +928,7 @@ describe("registry-search", () => {
       expect(registrarApi.searchSubagents).toHaveBeenCalledWith(
         expect.objectContaining({
           query: "code",
-          registryUrl: "https://myorg.nori-registry.ai",
+          registryUrl: "https://myorg.noriskillsets.dev",
           authToken: "mock-auth-token",
         }),
       );
