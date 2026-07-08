@@ -4,11 +4,7 @@ import * as path from "path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import {
-  readVersionInfo,
-  skillsetHasRegistrySource,
-  writeVersionInfo,
-} from "./provenance.js";
+import { readVersionInfo, writeVersionInfo } from "./provenance.js";
 
 let tempDir: string;
 
@@ -61,41 +57,5 @@ describe("writeVersionInfo / readVersionInfo", () => {
     expect(await readVersionInfo({ dir: tempDir })).toBeNull();
     await fs.writeFile(path.join(tempDir, ".nori-version"), "not json");
     expect(await readVersionInfo({ dir: tempDir })).toBeNull();
-  });
-});
-
-describe("skillsetHasRegistrySource", () => {
-  it("is true when the package records a registry it was fetched from", async () => {
-    await writeVersionInfo({
-      dir: tempDir,
-      versionInfo: {
-        version: "1.0.0",
-        registryUrl: "https://noriskillsets.dev",
-      },
-    });
-
-    expect(await skillsetHasRegistrySource({ dir: tempDir })).toBe(true);
-  });
-
-  it("is false for a locally-created package with no .nori-version", async () => {
-    expect(await skillsetHasRegistrySource({ dir: tempDir })).toBe(false);
-  });
-
-  it("is false when the .nori-version records no registryUrl", async () => {
-    await fs.writeFile(
-      path.join(tempDir, ".nori-version"),
-      JSON.stringify({ version: "1.0.0" }),
-    );
-
-    expect(await skillsetHasRegistrySource({ dir: tempDir })).toBe(false);
-  });
-
-  it("is false when the .nori-version records an empty registryUrl", async () => {
-    await fs.writeFile(
-      path.join(tempDir, ".nori-version"),
-      JSON.stringify({ version: "1.0.0", registryUrl: "" }),
-    );
-
-    expect(await skillsetHasRegistrySource({ dir: tempDir })).toBe(false);
   });
 });

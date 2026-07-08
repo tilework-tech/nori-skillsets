@@ -1130,6 +1130,57 @@ describe("registry-download", () => {
       const stats = await fs.stat(skillsetDir);
       expect(stats.isDirectory()).toBe(true);
     });
+
+    it("authenticates a pinned org registry for a multi-org member whose home org differs", async () => {
+      const pinnedRegistryUrl = "https://myorg.noriskillsets.dev";
+
+      // Multi-org member: their home org is "home", but they also belong to
+      // "myorg". A redownload pins the recorded "myorg" registry URL.
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        auth: {
+          username: "user@example.com",
+          organizationUrl: "https://home.noriskillsets.dev",
+          refreshToken: "refresh-token",
+          organizations: ["home", "myorg"],
+        },
+      });
+
+      // getRegistryAuth only matches the user's HOME org, so it returns null for
+      // "myorg" — the pinned path must fall through to unified org auth to get a
+      // token, rather than silently sending none.
+      vi.mocked(getRegistryAuth).mockReturnValue(null);
+      vi.mocked(getRegistryAuthToken).mockResolvedValue("org-auth-token");
+
+      vi.mocked(registrarApi.getPackument).mockResolvedValue({
+        name: "foo",
+        "dist-tags": { latest: "1.0.0" },
+        versions: { "1.0.0": { name: "foo", version: "1.0.0" } },
+      });
+      const mockTarball = await createMockTarball();
+      vi.mocked(registrarApi.downloadTarball).mockResolvedValue(mockTarball);
+
+      await registryDownloadMain({
+        packageSpec: "myorg/foo",
+        cwd: testDir,
+        registryUrl: pinnedRegistryUrl,
+      });
+
+      // Both the search and the download must be authenticated even though
+      // getRegistryAuth returned null (a fix that only threads the token into
+      // the download would 401 on the search against a real private registry).
+      expect(registrarApi.getPackument).toHaveBeenCalledWith({
+        packageName: "foo",
+        registryUrl: pinnedRegistryUrl,
+        authToken: "org-auth-token",
+      });
+      expect(registrarApi.downloadTarball).toHaveBeenCalledWith({
+        packageName: "foo",
+        version: undefined,
+        registryUrl: pinnedRegistryUrl,
+        authToken: "org-auth-token",
+      });
+    });
   });
 
   describe("--list-versions flag", () => {

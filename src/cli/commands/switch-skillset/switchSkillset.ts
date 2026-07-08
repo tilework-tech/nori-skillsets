@@ -30,12 +30,43 @@ import {
   getNoriSkillsetsDir,
   resolveSkillsetDir,
   resolveUserSkillsetRef,
+  skillsetIdentity,
 } from "@/norijson/skillset.js";
-import { skillsetHasRegistrySource } from "@/packaging/provenance.js";
+import { readVersionInfo } from "@/packaging/provenance.js";
 import { resolveInstallDir } from "@/utils/path.js";
 
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 import type { Command } from "commander";
+
+/**
+ * Resolve what a switch redownload should refetch, pinned to the skillset's
+ * recorded `.nori-version` provenance rather than a registry re-derived from
+ * its name. Returns the skillset's canonical namespaced identity (so the
+ * refetch lands in the correct on-disk bucket even when switched to by a bare
+ * name) together with the recorded `registryUrl`, or null when the skillset has
+ * no registry source (locally-created personal-bucket skillsets), in which case
+ * switching does not trigger a redownload.
+ *
+ * @param args - Function arguments
+ * @param args.name - The skillset name being switched to (bare or namespaced)
+ *
+ * @returns The canonical package spec and recorded registry to refetch from, or
+ *   null when not registry-backed
+ */
+export const resolveRedownloadSource = async (args: {
+  name: string;
+}): Promise<{ packageSpec: string; registryUrl: string } | null> => {
+  const dir = await resolveSkillsetDir({ name: args.name });
+  if (dir == null) return null;
+  const info = await readVersionInfo({ dir });
+  if (info?.registryUrl == null || info.registryUrl.length === 0) {
+    return null;
+  }
+  return {
+    packageSpec: skillsetIdentity({ dir }),
+    registryUrl: info.registryUrl,
+  };
+};
 
 /**
  * Shared action handler for switch-skillset commands
@@ -48,24 +79,6 @@ import type { Command } from "commander";
  *
  * @returns Command status
  */
-/**
- * Whether switching to a skillset should trigger a registry re-download. Only
- * registry-backed skillsets (those whose `.nori-version` records a registry)
- * qualify; locally-created skillsets in the personal bucket have no registry
- * source, and feeding `personal/<name>` to the registry parser would misroute
- * it to a nonexistent `personal` org registry.
- *
- * @param args - Function arguments
- * @param args.name - The skillset name being switched to (bare or namespaced)
- *
- * @returns True if the skillset can be re-downloaded from a registry
- */
-export const isRedownloadableSkillset = async (args: {
-  name: string;
-}): Promise<boolean> => {
-  const dir = await resolveSkillsetDir({ name: args.name });
-  return dir != null && (await skillsetHasRegistrySource({ dir }));
-};
 
 export const switchSkillsetAction = async (args: {
   name?: string | null;
@@ -218,13 +231,15 @@ export const switchSkillsetAction = async (args: {
         },
         onRedownload: redownloadEnabled
           ? async ({ skillsetName: pName }) => {
-              if (!(await isRedownloadableSkillset({ name: pName }))) {
+              const source = await resolveRedownloadSource({ name: pName });
+              if (source == null) {
                 return;
               }
               const { registryDownloadMain } =
                 await import("@/cli/commands/registry-download/registryDownload.js");
               await registryDownloadMain({
-                packageSpec: pName,
+                packageSpec: source.packageSpec,
+                registryUrl: source.registryUrl,
               });
             }
           : undefined,

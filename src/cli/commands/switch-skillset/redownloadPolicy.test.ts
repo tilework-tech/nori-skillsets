@@ -1,7 +1,8 @@
 /**
  * Tests for the switch redownload policy: switching to a skillset only triggers
- * a registry re-download when that skillset actually came from a registry.
- * Locally-created (personal-bucket) skillsets are never re-downloaded.
+ * a registry re-download when that skillset actually came from a registry, and
+ * the refetch is pinned to the registry recorded in the skillset's
+ * `.nori-version` provenance — not a registry re-derived from the name.
  */
 
 import * as fs from "fs/promises";
@@ -19,9 +20,9 @@ vi.mock("os", async (importOriginal) => {
   };
 });
 
-import { isRedownloadableSkillset } from "./switchSkillset.js";
+import { resolveRedownloadSource } from "./switchSkillset.js";
 
-describe("isRedownloadableSkillset", () => {
+describe("resolveRedownloadSource", () => {
   let testHomeDir: string;
   let profilesDir: string;
 
@@ -59,30 +60,69 @@ describe("isRedownloadableSkillset", () => {
     vi.clearAllMocks();
   });
 
-  it("is true for a public-bucket skillset switched by its bare name", async () => {
+  it("returns the recorded registry for a public-bucket skillset switched by its bare name", async () => {
     await seed({
       relParts: ["public", "senior-swe"],
       registryUrl: "https://noriskillsets.dev",
     });
 
-    expect(await isRedownloadableSkillset({ name: "senior-swe" })).toBe(true);
+    expect(await resolveRedownloadSource({ name: "senior-swe" })).toEqual({
+      packageSpec: "public/senior-swe",
+      registryUrl: "https://noriskillsets.dev",
+    });
   });
 
-  it("is false for a personal-bucket skillset switched by its namespaced name", async () => {
+  it("returns the exact recorded host, not a host re-derived from the name", async () => {
+    // The name "myorg/foo" would derive to myorg.noriskillsets.dev, but the
+    // skillset was installed from a different registry family. The recorded
+    // provenance must win.
+    await seed({
+      relParts: ["myorg", "foo"],
+      registryUrl: "https://myorg.nori-registry.ai",
+    });
+
+    expect(await resolveRedownloadSource({ name: "myorg/foo" })).toEqual({
+      packageSpec: "myorg/foo",
+      registryUrl: "https://myorg.nori-registry.ai",
+    });
+  });
+
+  it("pins the refetch to the canonical namespaced identity, not the bare name it was switched by", async () => {
+    // A registry-backed skillset in a non-public bucket, switched to by its
+    // bare name. The refetch must target its actual on-disk bucket
+    // (personal/adopted), not the bucket a bare name would derive (public/).
+    await seed({
+      relParts: ["personal", "adopted"],
+      registryUrl: "https://myorg.noriskillsets.dev",
+    });
+
+    expect(await resolveRedownloadSource({ name: "adopted" })).toEqual({
+      packageSpec: "personal/adopted",
+      registryUrl: "https://myorg.noriskillsets.dev",
+    });
+  });
+
+  it("keys off recorded provenance, not the bucket: returns null for a public-bucket skillset with no .nori-version", async () => {
+    await seed({ relParts: ["public", "hand-made"] });
+
+    expect(await resolveRedownloadSource({ name: "hand-made" })).toBe(null);
+  });
+
+  it("returns null for a personal-bucket skillset switched by its namespaced name", async () => {
     await seed({ relParts: ["personal", "my-local"] });
 
-    expect(await isRedownloadableSkillset({ name: "personal/my-local" })).toBe(
-      false,
+    expect(await resolveRedownloadSource({ name: "personal/my-local" })).toBe(
+      null,
     );
   });
 
-  it("is false for a personal-bucket skillset switched by its bare name", async () => {
+  it("returns null for a personal-bucket skillset switched by its bare name", async () => {
     await seed({ relParts: ["personal", "my-local"] });
 
-    expect(await isRedownloadableSkillset({ name: "my-local" })).toBe(false);
+    expect(await resolveRedownloadSource({ name: "my-local" })).toBe(null);
   });
 
-  it("is false for a name that resolves to no installed skillset", async () => {
-    expect(await isRedownloadableSkillset({ name: "ghost" })).toBe(false);
+  it("returns null for a name that resolves to no installed skillset", async () => {
+    expect(await resolveRedownloadSource({ name: "ghost" })).toBe(null);
   });
 });
