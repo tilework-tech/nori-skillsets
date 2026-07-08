@@ -4,7 +4,6 @@ import {
   normalizeUrl,
   isValidOrgId,
   buildWatchtowerUrl,
-  buildRegistryUrl,
   buildOrganizationRegistryUrl,
   isValidUrl,
   extractOrgId,
@@ -156,18 +155,6 @@ describe("buildWatchtowerUrl", () => {
   it("should handle org ID with hyphens", () => {
     const result = buildWatchtowerUrl({ orgId: "my-company" });
     expect(result).toBe("https://my-company.tilework.tech");
-  });
-});
-
-describe("buildRegistryUrl", () => {
-  it("should construct registry URL from org ID", () => {
-    const result = buildRegistryUrl({ orgId: "myorg" });
-    expect(result).toBe("https://myorg.nori-registry.ai");
-  });
-
-  it("should handle org ID with hyphens", () => {
-    const result = buildRegistryUrl({ orgId: "my-company" });
-    expect(result).toBe("https://my-company.nori-registry.ai");
   });
 });
 
@@ -422,20 +409,6 @@ describe("extractOrgId", () => {
       expect(
         extractOrgId({ url: "https://myorg.tilework.tech/api/test" }),
       ).toBe("myorg");
-    });
-  });
-
-  describe("registry URLs (nori-registry.ai)", () => {
-    it("should extract org ID from registry URL", () => {
-      expect(extractOrgId({ url: "https://myorg.nori-registry.ai" })).toBe(
-        "myorg",
-      );
-    });
-
-    it("should extract org ID with hyphens from registry URL", () => {
-      expect(extractOrgId({ url: "https://my-org.nori-registry.ai" })).toBe(
-        "my-org",
-      );
     });
   });
 

@@ -326,13 +326,13 @@ describe("getRegistryAuth", () => {
 
     const auth = getRegistryAuth({
       config,
-      registryUrl: "https://myorg.nori-registry.ai",
+      registryUrl: "https://myorg.noriskillsets.dev",
     });
 
     expect(auth).not.toBeNull();
     expect(auth?.username).toBe("test@example.com");
     expect(auth?.refreshToken).toBe("token-123");
-    expect(auth?.registryUrl).toBe("https://myorg.nori-registry.ai");
+    expect(auth?.registryUrl).toBe("https://myorg.noriskillsets.dev");
     // Should NOT have password field
     expect((auth as any)?.password).toBeUndefined();
   });
@@ -375,7 +375,7 @@ describe("getRegistryAuth", () => {
 
     const auth = getRegistryAuth({
       config,
-      registryUrl: "https://otherorg.nori-registry.ai",
+      registryUrl: "https://otherorg.noriskillsets.dev",
     });
 
     expect(auth).toBeNull();
