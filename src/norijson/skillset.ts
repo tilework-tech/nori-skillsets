@@ -211,10 +211,17 @@ const warnedBareNames = new Set<string>();
  * bare name was used to reach a bucketed (namespaced) skillset, since bare
  * references are deprecated in favour of the namespaced identity.
  *
+ * Default-org resolution is **strict**: when `nameWasProvided` and a
+ * `defaultOrg` is configured, a bare name resolves to `<defaultOrg>/<name>` and
+ * nothing else — it does NOT fall back to a public/personal skillset of the same
+ * bare name, so a bare name is an unambiguous alias for the org (reach a
+ * public/personal skillset explicitly with `public/<name>` / `personal/<name>`).
+ * A bare name with no configured default org still resolves across buckets.
+ *
  * @param args - Function arguments
  * @param args.name - The requested skillset name (bare, namespaced, or null)
  * @param args.activeSkillset - Fallback skillset name from config
- * @param args.defaultOrg - Org namespace to prefer for bare names
+ * @param args.defaultOrg - Org namespace a bare provided name resolves to
  * @param args.nameWasProvided - Whether `name` came from an explicit user
  *   argument; only explicit names are resolved through `defaultOrg` and warned.
  * @param args.warn - Whether to emit the deprecation warning (default true).
@@ -238,36 +245,34 @@ export const resolveUserSkillsetRef = async (args: {
   }
   const nameArgWasPassed = args.name != null;
   const nameWasProvided = args.nameWasProvided ?? nameArgWasPassed;
-  const candidates =
+  // Strict: a bare provided name resolves to `<defaultOrg>/<name>` only, with no
+  // fall-through to a same-named public/personal skillset.
+  const target =
     nameWasProvided &&
     !name.includes("/") &&
     defaultOrg != null &&
     defaultOrg !== ""
-      ? [`${defaultOrg}/${name}`, name]
-      : [name];
+      ? `${defaultOrg}/${name}`
+      : name;
 
-  for (const candidate of [...new Set(candidates)]) {
-    const dir = await resolveSkillsetDir({ name: candidate });
-    if (dir == null) {
-      continue;
-    }
-    const identity = skillsetIdentity({ dir });
-    if (
-      nameWasProvided &&
-      warn !== false &&
-      !name.includes("/") &&
-      identity.includes("/") &&
-      !warnedBareNames.has(name)
-    ) {
-      warnedBareNames.add(name);
-      process.stderr.write(
-        `nori: bare skillset name "${name}" is deprecated; use "${identity}".\n`,
-      );
-    }
-    return { dir, identity };
+  const dir = await resolveSkillsetDir({ name: target });
+  if (dir == null) {
+    return null;
   }
-
-  return null;
+  const identity = skillsetIdentity({ dir });
+  if (
+    nameWasProvided &&
+    warn !== false &&
+    !name.includes("/") &&
+    identity.includes("/") &&
+    !warnedBareNames.has(name)
+  ) {
+    warnedBareNames.add(name);
+    process.stderr.write(
+      `nori: bare skillset name "${name}" is deprecated; use "${identity}".\n`,
+    );
+  }
+  return { dir, identity };
 };
 
 /**

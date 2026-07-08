@@ -10,6 +10,7 @@
 import { multiselect, text, confirm } from "@clack/prompts";
 
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
+import { isReservedSkillsetName } from "@/cli/prompts/validators.js";
 import { isValidOrgId } from "@/utils/url.js";
 
 import { unwrapPrompt } from "./utils.js";
@@ -135,10 +136,16 @@ export const configFlow = async (args: {
       initialValue: currentDefaultOrg ?? "",
       validate: (value) => {
         const trimmed = (value ?? "").trim();
-        if (trimmed === "" || isValidOrgId({ orgId: trimmed })) {
+        if (trimmed === "") {
           return undefined;
         }
-        return "Org IDs are lowercase alphanumeric with single hyphens (e.g., my-org).";
+        if (!isValidOrgId({ orgId: trimmed })) {
+          return "Org IDs are lowercase alphanumeric with single hyphens (e.g., my-org).";
+        }
+        if (isReservedSkillsetName({ value: trimmed })) {
+          return `"${trimmed}" is a reserved storage-bucket name and cannot be a default org.`;
+        }
+        return undefined;
       },
     }),
     cancelMessage: "Configuration cancelled.",

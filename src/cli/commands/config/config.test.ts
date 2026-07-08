@@ -243,6 +243,20 @@ describe("configMain defaultOrg", () => {
     expect(loaded?.defaultOrg).toBeUndefined();
   });
 
+  it("should reject a reserved storage-bucket name as defaultOrg", async () => {
+    const { configMain } = await import("./config.js");
+
+    await expect(configMain({ defaultOrg: "public" })).rejects.toThrow(
+      /reserved/i,
+    );
+    await expect(configMain({ defaultOrg: "personal" })).rejects.toThrow(
+      /reserved/i,
+    );
+
+    const loaded = await loadConfig();
+    expect(loaded?.defaultOrg).toBeUndefined();
+  });
+
   it("should clear defaultOrg when passed an empty value", async () => {
     const { configMain } = await import("./config.js");
     await configMain({ defaultOrg: "myorg" });

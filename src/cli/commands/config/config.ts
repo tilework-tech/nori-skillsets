@@ -24,6 +24,7 @@ import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { main as installMain } from "@/cli/features/install/install.js";
 import { confirmAction } from "@/cli/prompts/confirm.js";
 import { configFlow } from "@/cli/prompts/flows/config.js";
+import { isReservedSkillsetName } from "@/cli/prompts/validators.js";
 import { normalizeInstallDir } from "@/utils/path.js";
 import { isValidOrgId } from "@/utils/url.js";
 
@@ -97,6 +98,11 @@ const parseDefaultOrgOption = (args: { defaultOrg: string }): string | null => {
   if (!isValidOrgId({ orgId: trimmed })) {
     throw new Error(
       `Invalid organization "${defaultOrg}". Org IDs are lowercase alphanumeric with single hyphens (e.g., my-org).`,
+    );
+  }
+  if (isReservedSkillsetName({ value: trimmed })) {
+    throw new Error(
+      `"${trimmed}" is a reserved storage-bucket name and cannot be used as a default org.`,
     );
   }
   return trimmed;
