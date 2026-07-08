@@ -9,6 +9,7 @@ import * as path from "path";
 
 import { log, note } from "@clack/prompts";
 
+import { loadConfig } from "@/cli/config.js";
 import { bold } from "@/cli/logger.js";
 import { isReservedSkillsetName } from "@/cli/prompts/validators.js";
 import {
@@ -19,7 +20,9 @@ import {
 import {
   MANIFEST_FILE,
   getNoriSkillsetsDir,
+  namespaceCreateSkillsetName,
   resolveSkillsetDir,
+  resolveUserSkillsetRef,
   skillsetCreateDir,
 } from "@/norijson/skillset.js";
 
@@ -38,7 +41,14 @@ export const forkSkillsetMain = async (args: {
   baseSkillset: string;
   newSkillset: string;
 }): Promise<CommandStatus> => {
-  const { baseSkillset, newSkillset } = args;
+  const { baseSkillset } = args;
+  const config = await loadConfig();
+
+  // The destination is a new skillset: a bare name lands under the default org.
+  const newSkillset = namespaceCreateSkillsetName({
+    name: args.newSkillset,
+    defaultOrg: config?.defaultOrg,
+  });
 
   if (isReservedSkillsetName({ value: newSkillset })) {
     log.error(`'${newSkillset}' is a reserved name. Choose a different name.`);
@@ -49,7 +59,15 @@ export const forkSkillsetMain = async (args: {
     };
   }
 
-  const sourcePath = await resolveSkillsetDir({ name: baseSkillset });
+  // The base is an existing skillset: resolve it across buckets, preferring the
+  // default org for a bare name (and warning once on a deprecated bare name).
+  const sourcePath = (
+    await resolveUserSkillsetRef({
+      name: baseSkillset,
+      defaultOrg: config?.defaultOrg,
+      nameWasProvided: true,
+    })
+  )?.dir;
   const destPath = skillsetCreateDir({ name: newSkillset });
 
   // Validate source exists and is a valid skillset (has nori.json)
@@ -86,9 +104,10 @@ export const forkSkillsetMain = async (args: {
   // Copy the skillset
   await fs.cp(sourcePath, destPath, { recursive: true });
 
-  // Update the name in nori.json to match the new skillset name
+  // Update the name in nori.json to the new skillset's bare name (matching
+  // `new`/`register`, which store the basename rather than the namespaced path).
   const metadata = await readSkillsetMetadata({ skillsetDir: destPath });
-  metadata.name = newSkillset;
+  metadata.name = path.basename(newSkillset);
   await writeSkillsetMetadata({ skillsetDir: destPath, metadata });
 
   const relLocation = path.relative(getNoriSkillsetsDir(), destPath);

@@ -1,11 +1,16 @@
 import * as fs from "fs/promises";
 import * as path from "path";
 
-import { loadConfig, getActiveSkillset, updateConfig } from "@/cli/config.js";
+import {
+  loadConfig,
+  getActiveSkillset,
+  updateConfig,
+  type Config,
+} from "@/cli/config.js";
 import {
   getNoriSkillsetsDir,
-  resolveSkillsetDir,
-  skillsetIdentity,
+  namespaceCreateSkillsetName,
+  resolveUserSkillsetRef,
 } from "@/norijson/skillset.js";
 
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
@@ -23,11 +28,31 @@ export const unlinkSkillsetMain = async (args: {
 }): Promise<CommandStatus> => {
   const { name } = args;
 
-  // Resolve the link across storage buckets (a bare name reaches personal/foo)
+  // Load config for the default org (errors shouldn't block the unlink).
+  let config: Config | null = null;
+  try {
+    config = await loadConfig();
+  } catch {
+    // Config errors shouldn't block the unlink.
+  }
+
+  // Resolve the link across storage buckets, preferring the default org for a
+  // bare name (warning once on a deprecated bare name). Fall back to the
+  // default-org path so a broken symlink that cannot be followed is still
+  // removable.
+  const ref = await resolveUserSkillsetRef({
+    name,
+    defaultOrg: config?.defaultOrg,
+    nameWasProvided: true,
+  });
+  const fallbackName = namespaceCreateSkillsetName({
+    name,
+    defaultOrg: config?.defaultOrg,
+  });
   const skillsetsDir = getNoriSkillsetsDir();
   const linkPath =
-    (await resolveSkillsetDir({ name })) ??
-    path.join(skillsetsDir, ...name.split("/"));
+    ref?.dir ?? path.join(skillsetsDir, ...fallbackName.split("/"));
+  const identity = ref?.identity ?? fallbackName;
 
   // Verify the path exists
   let stat;
@@ -37,7 +62,7 @@ export const unlinkSkillsetMain = async (args: {
     return {
       success: false,
       cancelled: false,
-      message: `Skillset "${name}" not found at: ${linkPath}`,
+      message: `Skillset "${identity}" not found at: ${linkPath}`,
     };
   }
 
@@ -46,7 +71,7 @@ export const unlinkSkillsetMain = async (args: {
     return {
       success: false,
       cancelled: false,
-      message: `"${name}" is not a linked skillset. Use a different command to remove installed skillsets.`,
+      message: `"${identity}" is not a linked skillset. Use a different command to remove installed skillsets.`,
     };
   }
 
@@ -55,24 +80,18 @@ export const unlinkSkillsetMain = async (args: {
 
   // Clear active skillset if this was the active one. The stored value is the
   // canonical namespaced identity (e.g. personal/foo), so compare against the
-  // unlinked skillset's identity — matching on the raw bare name too for any
-  // legacy config that still stores it bare.
-  try {
-    const config = await loadConfig();
-    if (config != null) {
-      const activeSkillset = getActiveSkillset({ config });
-      const unlinkedIdentity = skillsetIdentity({ dir: linkPath });
-      if (activeSkillset === unlinkedIdentity || activeSkillset === name) {
-        await updateConfig({ activeSkillset: null });
-      }
+  // unlinked skillset's identity — matching the raw name too for any legacy
+  // config that still stores it bare.
+  if (config != null) {
+    const activeSkillset = getActiveSkillset({ config });
+    if (activeSkillset === identity || activeSkillset === name) {
+      await updateConfig({ activeSkillset: null });
     }
-  } catch {
-    // Config errors shouldn't block the unlink
   }
 
   return {
     success: true,
     cancelled: false,
-    message: `Unlinked "${name}"`,
+    message: `Unlinked "${identity}"`,
   };
 };

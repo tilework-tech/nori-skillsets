@@ -33,6 +33,7 @@ import {
 } from "@/norijson/nori.js";
 import {
   getNoriSkillsetsDir,
+  namespaceCreateSkillsetName,
   resolveSkillsetDir,
   resolveUserSkillsetRef,
   skillsetCreateDir,
@@ -373,31 +374,34 @@ export const externalMain = async (args: {
   // resolve to the correct bucket.
   // 3a. Handle --new: create a new skillset
   if (newSkillset != null) {
-    if (isReservedSkillsetName({ value: newSkillset })) {
-      log.error(
-        `'${newSkillset}' is a reserved name. Choose a different name.`,
-      );
+    // A bare --new name lands under the configured default org.
+    const localNew = namespaceCreateSkillsetName({
+      name: newSkillset,
+      defaultOrg: config?.defaultOrg,
+    });
+    if (isReservedSkillsetName({ value: localNew })) {
+      log.error(`'${localNew}' is a reserved name. Choose a different name.`);
       return {
         success: false,
         cancelled: false,
-        message: `Skillset "${newSkillset}" uses a reserved name`,
+        message: `Skillset "${localNew}" uses a reserved name`,
       };
     }
-    const newSkillsetDir = skillsetCreateDir({ name: newSkillset });
-    if ((await resolveSkillsetDir({ name: newSkillset })) != null) {
+    const newSkillsetDir = skillsetCreateDir({ name: localNew });
+    if ((await resolveSkillsetDir({ name: localNew })) != null) {
       log.error(
-        `Skillset "${newSkillset}" already exists.\n\nChoose a different name or use --skillset to target the existing one.`,
+        `Skillset "${localNew}" already exists.\n\nChoose a different name or use --skillset to target the existing one.`,
       );
       return {
         success: false,
         cancelled: false,
-        message: `Skillset "${newSkillset}" already exists`,
+        message: `Skillset "${localNew}" already exists`,
       };
     }
 
-    await createEmptySkillset({ destPath: newSkillsetDir, name: newSkillset });
+    await createEmptySkillset({ destPath: newSkillsetDir, name: localNew });
     targetSkillset = path.relative(skillsetsDir, newSkillsetDir);
-    log.success(`Created new skillset "${newSkillset}"`);
+    log.success(`Created new skillset "${localNew}"`);
   } else {
     const targetRef = await resolveUserSkillsetRef({
       name: skillset,

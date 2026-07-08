@@ -9,11 +9,13 @@ import * as path from "path";
 
 import { log, note } from "@clack/prompts";
 
+import { loadConfig } from "@/cli/config.js";
 import { bold } from "@/cli/logger.js";
 import { newSkillsetFlow } from "@/cli/prompts/flows/newSkillset.js";
 import { writeSkillsetMetadata, type NoriJson } from "@/norijson/nori.js";
 import {
   getNoriSkillsetsDir,
+  namespaceCreateSkillsetName,
   resolveSkillsetDir,
   skillsetCreateDir,
 } from "@/norijson/skillset.js";
@@ -67,22 +69,31 @@ export const newSkillsetMain = async (): Promise<CommandStatus> => {
 
   const { name, description, license, keywords, version, repository } =
     flowResult;
-  const destPath = skillsetCreateDir({ name });
+
+  // A bare name lands under the configured default org.
+  const config = await loadConfig();
+  const localName = namespaceCreateSkillsetName({
+    name,
+    defaultOrg: config?.defaultOrg,
+  });
+  const destPath = skillsetCreateDir({ name: localName });
 
   // Validate the name does not already resolve to an existing skillset
   // (in any bucket or the legacy flat location).
-  if ((await resolveSkillsetDir({ name })) != null) {
-    log.error(`Skillset '${name}' already exists. Choose a different name.`);
+  if ((await resolveSkillsetDir({ name: localName })) != null) {
+    log.error(
+      `Skillset '${localName}' already exists. Choose a different name.`,
+    );
     return {
       success: false,
       cancelled: false,
-      message: `Skillset "${name}" already exists`,
+      message: `Skillset "${localName}" already exists`,
     };
   }
 
   // Build metadata object
   const metadata: NoriJson = {
-    name: path.basename(name),
+    name: path.basename(localName),
     version: version ?? "1.0.0",
     type: "skillset",
   };
@@ -126,6 +137,6 @@ export const newSkillsetMain = async (): Promise<CommandStatus> => {
   return {
     success: true,
     cancelled: false,
-    message: `Created new skillset "${bold({ text: name })}"`,
+    message: `Created new skillset "${bold({ text: localName })}"`,
   };
 };

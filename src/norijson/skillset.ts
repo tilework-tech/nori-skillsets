@@ -271,6 +271,31 @@ export const resolveUserSkillsetRef = async (args: {
 };
 
 /**
+ * Namespace a user-typed name for a NEWLY created skillset against a configured
+ * default org: a bare name becomes `<defaultOrg>/name` so creation lands under
+ * the org, while an already-namespaced name (an org, or the reserved
+ * `public/`/`personal/` buckets) is returned unchanged. Unlike
+ * {@link resolveUserSkillsetRef}, this does no on-disk lookup and never falls
+ * back to a bare name — a creation target is chosen, not discovered, so it must
+ * not resolve to an existing public/personal skillset of the same bare name.
+ *
+ * @param args - Function arguments
+ * @param args.name - The user-typed skillset name
+ * @param args.defaultOrg - Org namespace to prefer for bare names
+ *
+ * @returns The namespaced create name
+ */
+export const namespaceCreateSkillsetName = (args: {
+  name: string;
+  defaultOrg?: string | null;
+}): string => {
+  const { name, defaultOrg } = args;
+  return !name.includes("/") && defaultOrg != null && defaultOrg !== ""
+    ? `${defaultOrg}/${name}`
+    : name;
+};
+
+/**
  * Parse a skillset directory into a Skillset object.
  *
  * Accepts either a skillsetName (resolved relative to ~/.nori/profiles/)

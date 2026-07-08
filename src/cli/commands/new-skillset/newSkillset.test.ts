@@ -125,6 +125,32 @@ describe("newSkillsetMain", () => {
     expect(mockExit).not.toHaveBeenCalled();
   });
 
+  it("creates a bare name under the configured default org", async () => {
+    await fs.writeFile(
+      path.join(testHomeDir, ".nori-config.json"),
+      JSON.stringify({ defaultOrg: "myorg" }),
+    );
+
+    mockNewSkillsetFlow.mockResolvedValueOnce({
+      name: "amol",
+      description: null,
+      license: null,
+      keywords: null,
+      version: null,
+      repository: null,
+    });
+
+    const result = await newSkillsetMain();
+
+    const destDir = path.join(skillsetsDir, "myorg", "amol");
+    const noriJson = JSON.parse(
+      await fs.readFile(path.join(destDir, "nori.json"), "utf-8"),
+    );
+    expect(noriJson.name).toBe("amol");
+    expect(result.success).toBe(true);
+    expect(mockExit).not.toHaveBeenCalled();
+  });
+
   it("should error when skillset already exists", async () => {
     // Create a directory that already exists in the personal bucket
     const existingDir = path.join(

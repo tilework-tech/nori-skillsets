@@ -22,6 +22,7 @@ import {
   getNoriSkillsetsDir,
   parseSkillset,
   listSkillsets,
+  namespaceCreateSkillsetName,
   resolveSkillsetDir,
   resolveUserSkillsetRef,
 } from "@/norijson/skillset.js";
@@ -663,6 +664,42 @@ describe("listSkillsets", () => {
 
     expect(profiles).toContain("personal/shared");
     expect(profiles).toContain("shared");
+  });
+});
+
+describe("namespaceCreateSkillsetName", () => {
+  it("prefixes a bare name with the default org", () => {
+    expect(
+      namespaceCreateSkillsetName({ name: "amol", defaultOrg: "myorg" }),
+    ).toBe("myorg/amol");
+  });
+
+  it("returns a bare name unchanged when there is no default org", () => {
+    expect(namespaceCreateSkillsetName({ name: "amol" })).toBe("amol");
+    expect(namespaceCreateSkillsetName({ name: "amol", defaultOrg: "" })).toBe(
+      "amol",
+    );
+  });
+
+  it("leaves an already-namespaced name unchanged", () => {
+    expect(
+      namespaceCreateSkillsetName({
+        name: "otherorg/amol",
+        defaultOrg: "myorg",
+      }),
+    ).toBe("otherorg/amol");
+  });
+
+  it("leaves an explicit bucket name unchanged", () => {
+    expect(
+      namespaceCreateSkillsetName({ name: "public/amol", defaultOrg: "myorg" }),
+    ).toBe("public/amol");
+    expect(
+      namespaceCreateSkillsetName({
+        name: "personal/amol",
+        defaultOrg: "myorg",
+      }),
+    ).toBe("personal/amol");
   });
 });
 
