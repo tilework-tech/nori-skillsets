@@ -179,7 +179,7 @@ describe("forkSkillsetMain", () => {
     const noriJson = JSON.parse(
       await fs.readFile(path.join(destDir, "nori.json"), "utf-8"),
     );
-    expect(noriJson.name).toBe("myorg/forked-profile");
+    expect(noriJson.name).toBe("forked-profile");
     expect(noriJson.version).toBe("1.0.0");
     expect(mockExit).not.toHaveBeenCalled();
   });
@@ -203,8 +203,37 @@ describe("forkSkillsetMain", () => {
     const noriJson = JSON.parse(
       await fs.readFile(path.join(destDir, "nori.json"), "utf-8"),
     );
-    expect(noriJson.name).toBe("neworg/my-fork");
+    expect(noriJson.name).toBe("my-fork");
     expect(noriJson.version).toBe("1.0.0");
+    expect(mockExit).not.toHaveBeenCalled();
+  });
+
+  it("resolves bare base and destination names against the default org", async () => {
+    await fs.writeFile(
+      path.join(testHomeDir, ".nori-config.json"),
+      JSON.stringify({ defaultOrg: "myorg" }),
+    );
+
+    // Seed a nested org base skillset
+    const sourceDir = path.join(skillsetsDir, "myorg", "base");
+    await fs.mkdir(sourceDir, { recursive: true });
+    await fs.writeFile(
+      path.join(sourceDir, "nori.json"),
+      JSON.stringify({ name: "base", version: "1.0.0" }),
+    );
+
+    const result = await forkSkillsetMain({
+      baseSkillset: "base",
+      newSkillset: "newfork",
+    });
+
+    // Destination is created under the default org; nori.json stores the basename.
+    const destDir = path.join(skillsetsDir, "myorg", "newfork");
+    const noriJson = JSON.parse(
+      await fs.readFile(path.join(destDir, "nori.json"), "utf-8"),
+    );
+    expect(noriJson.name).toBe("newfork");
+    expect(result.success).toBe(true);
     expect(mockExit).not.toHaveBeenCalled();
   });
 

@@ -695,16 +695,18 @@ describe("switchSkillset", () => {
     ).resolves.toBe("public/high-autonomy");
   });
 
-  it("should fall back to a local profile when the defaultOrg profile is absent", async () => {
+  it("resolves a bare name to the defaultOrg even when only a same-named local profile exists", async () => {
     fs.writeFileSync(
       path.join(tempDir, ".nori-config.json"),
       JSON.stringify({ defaultOrg: "dev" }),
     );
     seedProfile(["personal", "high-autonomy"]);
 
+    // Strict: a bare name is an unambiguous alias for the default org and never
+    // falls through to a same-named public/personal skillset.
     await expect(
       resolveSwitchSkillsetName({ skillsetName: "high-autonomy" }),
-    ).resolves.toBe("personal/high-autonomy");
+    ).resolves.toBe("dev/high-autonomy");
   });
 
   it("should throw for nonexistent skillset", async () => {

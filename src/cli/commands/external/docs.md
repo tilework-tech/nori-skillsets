@@ -26,6 +26,6 @@ The pipeline in `externalMain` is: parse source -> resolve install/skillset targ
 
 ### Things to Know
 
-Each installed skill gets a `nori.json` provenance file recording source URL, ref, subpath, and installation timestamp. The skill type (`"skill"` or `"inlined-skill"`) is determined by user prompt or the `--inline`/`--extract` flags, and these are mutually exclusive. The `--new` and `--skillset` flags are also mutually exclusive; `--new` creates a fresh skillset first via `createEmptySkillset`.
+Each installed skill gets a `nori.json` provenance file recording source URL, ref, subpath, and installation timestamp. The skill type (`"skill"` or `"inlined-skill"`) is determined by user prompt or the `--inline`/`--extract` flags, and these are mutually exclusive. The `--new` and `--skillset` flags are also mutually exclusive; `--new` creates a fresh skillset first via `createEmptySkillset`. A bare `--new` name is namespaced under the configured `defaultOrg` via `namespaceCreateSkillsetName` (part of the codebase-wide default-org contract — see @/src/cli/commands/docs.md), and a bare `--skillset` target resolves through `resolveUserSkillsetRef` the same way.
 
 Created and maintained by Nori.

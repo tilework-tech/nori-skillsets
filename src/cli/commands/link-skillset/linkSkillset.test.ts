@@ -68,6 +68,31 @@ describe("linkSkillsetMain", () => {
     expect(target).toBe(targetDir);
   });
 
+  it("links a bare --name under the configured default org", async () => {
+    await fs.writeFile(
+      path.join(testHomeDir, ".nori-config.json"),
+      JSON.stringify({ defaultOrg: "myorg" }),
+    );
+    await fs.writeFile(
+      path.join(targetDir, "nori.json"),
+      JSON.stringify({ name: "original-name", version: "1.0.0" }),
+    );
+
+    const result = await linkSkillsetMain({ targetDir, name: "amol" });
+
+    expect(result.success).toBe(true);
+    const linkPath = path.join(
+      testHomeDir,
+      ".nori",
+      "profiles",
+      "myorg",
+      "amol",
+    );
+    const stat = await fs.lstat(linkPath);
+    expect(stat.isSymbolicLink()).toBe(true);
+    expect(await fs.readlink(linkPath)).toBe(targetDir);
+  });
+
   it("should use --name option to override the skillset name", async () => {
     await fs.writeFile(
       path.join(targetDir, "nori.json"),

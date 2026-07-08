@@ -141,6 +141,25 @@ describe("unlinkSkillsetMain", () => {
     expect(updateConfig).toHaveBeenCalledWith({ activeSkillset: null });
   });
 
+  it("resolves a bare name against the default org", async () => {
+    const orgDir = path.join(testHomeDir, ".nori", "profiles", "myorg");
+    await fs.mkdir(orgDir, { recursive: true });
+    await fs.symlink(targetDir, path.join(orgDir, "amol"));
+
+    vi.mocked(loadConfig).mockResolvedValue({
+      installDir: testHomeDir,
+      activeSkillset: "myorg/amol",
+      defaultOrg: "myorg",
+    });
+    vi.mocked(getActiveSkillset).mockReturnValue("myorg/amol");
+
+    const result = await unlinkSkillsetMain({ name: "amol" });
+
+    expect(result.success).toBe(true);
+    await expect(fs.lstat(path.join(orgDir, "amol"))).rejects.toThrow();
+    expect(updateConfig).toHaveBeenCalledWith({ activeSkillset: null });
+  });
+
   it("should not clear active skillset when unlinking a non-active skillset", async () => {
     const linkPath = path.join(
       testHomeDir,

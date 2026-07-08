@@ -1,9 +1,13 @@
 import * as fs from "fs/promises";
 import * as path from "path";
 
+import { loadConfig } from "@/cli/config.js";
 import { isReservedSkillsetName } from "@/cli/prompts/validators.js";
 import { readSkillsetMetadata } from "@/norijson/nori.js";
-import { skillsetCreateDir } from "@/norijson/skillset.js";
+import {
+  namespaceCreateSkillsetName,
+  skillsetCreateDir,
+} from "@/norijson/skillset.js";
 
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 
@@ -64,6 +68,14 @@ export const linkSkillsetMain = async (args: {
   if (skillsetName == null) {
     skillsetName = path.basename(resolvedTarget);
   }
+
+  // A bare name lands under the configured default org, so links share the same
+  // namespace every other command uses.
+  const config = await loadConfig();
+  skillsetName = namespaceCreateSkillsetName({
+    name: skillsetName,
+    defaultOrg: config?.defaultOrg,
+  });
 
   // A skillset may not take a reserved storage-bucket name (personal/public),
   // matching new/fork/external — otherwise `link --name public` would land at

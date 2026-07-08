@@ -22,6 +22,7 @@ import {
   getNoriSkillsetsDir,
   parseSkillset,
   listSkillsets,
+  namespaceCreateSkillsetName,
   resolveSkillsetDir,
   resolveUserSkillsetRef,
 } from "@/norijson/skillset.js";
@@ -666,6 +667,42 @@ describe("listSkillsets", () => {
   });
 });
 
+describe("namespaceCreateSkillsetName", () => {
+  it("prefixes a bare name with the default org", () => {
+    expect(
+      namespaceCreateSkillsetName({ name: "amol", defaultOrg: "myorg" }),
+    ).toBe("myorg/amol");
+  });
+
+  it("returns a bare name unchanged when there is no default org", () => {
+    expect(namespaceCreateSkillsetName({ name: "amol" })).toBe("amol");
+    expect(namespaceCreateSkillsetName({ name: "amol", defaultOrg: "" })).toBe(
+      "amol",
+    );
+  });
+
+  it("leaves an already-namespaced name unchanged", () => {
+    expect(
+      namespaceCreateSkillsetName({
+        name: "otherorg/amol",
+        defaultOrg: "myorg",
+      }),
+    ).toBe("otherorg/amol");
+  });
+
+  it("leaves an explicit bucket name unchanged", () => {
+    expect(
+      namespaceCreateSkillsetName({ name: "public/amol", defaultOrg: "myorg" }),
+    ).toBe("public/amol");
+    expect(
+      namespaceCreateSkillsetName({
+        name: "personal/amol",
+        defaultOrg: "myorg",
+      }),
+    ).toBe("personal/amol");
+  });
+});
+
 describe("resolveUserSkillsetRef deprecation warning", () => {
   let testHomeDir: string;
   let profilesDir: string;
@@ -748,7 +785,7 @@ describe("resolveUserSkillsetRef deprecation warning", () => {
     expect(resolved?.identity).toBe("public/high-autonomy");
   });
 
-  it("falls back to bucketed local skillsets when defaultOrg target is absent", async () => {
+  it("does not fall back to a bucketed local skillset when the defaultOrg target is absent", async () => {
     await seedBucket("personal", "high-autonomy");
 
     const resolved = await resolveUserSkillsetRef({
@@ -756,7 +793,9 @@ describe("resolveUserSkillsetRef deprecation warning", () => {
       defaultOrg: "dev",
     });
 
-    expect(resolved?.identity).toBe("personal/high-autonomy");
+    // Strict: a bare name with a default org resolves to <defaultOrg>/name only,
+    // never a same-named public/personal skillset.
+    expect(resolved).toBeNull();
   });
 
   it("does not warn when the namespaced identity is used", async () => {

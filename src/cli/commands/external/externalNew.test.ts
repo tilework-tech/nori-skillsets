@@ -250,6 +250,40 @@ describe("externalMain with --new", () => {
     expect(allOutput).toContain("fresh-skillset");
   });
 
+  it("creates a bare --new skillset under the configured default org", async () => {
+    vi.mocked(loadConfig).mockResolvedValue({
+      installDir: testDir,
+      defaultOrg: "myorg",
+    });
+
+    vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
+      const gitArgs = args as Array<string>;
+      const destDir = gitArgs[gitArgs.length - 1];
+      const skillDir = path.join(destDir, "skills", "test-skill");
+      fsSync.mkdirSync(skillDir, { recursive: true });
+      fsSync.writeFileSync(
+        path.join(skillDir, "SKILL.md"),
+        "---\nname: Test Skill\ndescription: A test skill\n---\n\n# Test Skill\n",
+      );
+      return Buffer.from("");
+    });
+
+    await externalMain({
+      source: "owner/repo",
+      installDir: testDir,
+      newSkillset: "org-skillset",
+      all: true,
+      extract: true,
+    });
+
+    // A bare --new lands under the default org, not the personal bucket.
+    const skillsetDir = path.join(skillsetsDir, "myorg", "org-skillset");
+    const noriJsonContent = JSON.parse(
+      await fs.readFile(path.join(skillsetDir, "nori.json"), "utf-8"),
+    );
+    expect(noriJsonContent.name).toBe("org-skillset");
+  });
+
   it("should add skill dependencies to the new skillset's nori.json", async () => {
     vi.mocked(loadConfig).mockResolvedValue({
       installDir: testDir,
