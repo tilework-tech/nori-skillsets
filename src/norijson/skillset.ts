@@ -41,6 +41,16 @@ export const getNoriSkillsetsDir = (): string => {
 export const MANIFEST_FILE = "nori.json";
 
 /**
+ * Storage bucket directories under profiles/. Bare skillset names are stored in
+ * one of these buckets on disk while remaining bare in the user-facing identity:
+ * locally created skillsets live in `personal/`, public-registrar skillsets live
+ * in `public/`. Organization skillsets keep their visible `<orgId>/<name>`
+ * namespace and are not bucketed. These names are reserved.
+ */
+export const PERSONAL_BUCKET = "personal";
+export const PUBLIC_BUCKET = "public";
+
+/**
  * Represents a parsed skillset directory structure.
  * Content-agnostic: maps to filesystem paths, not file contents.
  */
@@ -98,6 +108,143 @@ const fileExists = async (args: { filePath: string }): Promise<boolean> => {
 };
 
 /**
+ * Resolve a user-facing skillset name to its on-disk directory, or null if it
+ * does not exist anywhere.
+ *
+ * A name containing a slash (e.g. `myorg/foo`, `public/foo`, `personal/foo`) is
+ * treated as an explicit namespace and resolved directly. A bare name is
+ * searched across storage buckets with precedence `personal/` -> `public/` ->
+ * legacy flat `<name>`, so bare references keep working after the bucket
+ * migration.
+ *
+ * @param args - Function arguments
+ * @param args.name - The user-facing skillset name (bare or namespaced)
+ *
+ * @returns Absolute path to the resolved skillset directory, or null
+ */
+export const resolveSkillsetDir = async (args: {
+  name: string;
+}): Promise<string | null> => {
+  const { name } = args;
+  const root = getNoriSkillsetsDir();
+
+  if (name.includes("/")) {
+    const dir = path.join(root, ...name.split("/"));
+    return (await dirExists({ dirPath: dir })) ? dir : null;
+  }
+
+  for (const bucket of [PERSONAL_BUCKET, PUBLIC_BUCKET]) {
+    const candidate = path.join(root, bucket, name);
+    if (await dirExists({ dirPath: candidate })) {
+      return candidate;
+    }
+  }
+
+  // The bucket directories themselves are not skillsets: a bare name equal to a
+  // reserved bucket name must never resolve to the bucket root.
+  if (name === PERSONAL_BUCKET || name === PUBLIC_BUCKET) {
+    return null;
+  }
+
+  const legacy = path.join(root, name);
+  return (await dirExists({ dirPath: legacy })) ? legacy : null;
+};
+
+/**
+ * Compute the on-disk directory where a newly created local skillset should be
+ * written. Bare names are placed in the `personal/` bucket; explicitly
+ * namespaced names (containing a slash) are written at that namespace unchanged.
+ *
+ * @param args - Function arguments
+ * @param args.name - The user-facing skillset name (bare or namespaced)
+ *
+ * @returns Absolute path to the directory to create
+ */
+export const skillsetCreateDir = (args: { name: string }): string => {
+  const { name } = args;
+  const root = getNoriSkillsetsDir();
+  if (name.includes("/")) {
+    return path.join(root, ...name.split("/"));
+  }
+  return path.join(root, PERSONAL_BUCKET, name);
+};
+
+/**
+ * The user-facing identity of a skillset directory: its path relative to the
+ * profiles root (e.g. `personal/foo`, `public/foo`, `myorg/foo`, or a bare
+ * `foo` for a legacy flat profile).
+ *
+ * @param args - Function arguments
+ * @param args.dir - Absolute path to the skillset directory
+ *
+ * @returns The namespaced identity
+ */
+export const skillsetIdentity = (args: { dir: string }): string => {
+  return path.relative(getNoriSkillsetsDir(), args.dir);
+};
+
+/**
+ * Resolve a user-facing skillset name to its canonical namespaced identity
+ * (e.g. `foo` -> `public/foo` or `personal/foo`). A name that resolves nowhere
+ * is returned unchanged, so callers can safely canonicalize a value that may not
+ * (yet) correspond to an installed skillset.
+ *
+ * @param args - Function arguments
+ * @param args.name - The user-facing skillset name (bare or namespaced)
+ *
+ * @returns The namespaced identity if the skillset exists, else the name as-is
+ */
+export const canonicalSkillsetName = async (args: {
+  name: string;
+}): Promise<string> => {
+  const dir = await resolveSkillsetDir({ name: args.name });
+  return dir != null ? skillsetIdentity({ dir }) : args.name;
+};
+
+// Bare skillset names that have already emitted a deprecation warning this
+// process, so the warning fires at most once per name.
+const warnedBareNames = new Set<string>();
+
+/**
+ * Resolve a user-supplied skillset reference to its on-disk directory and its
+ * canonical namespaced identity. Emits a one-time deprecation warning when a
+ * bare name was used to reach a bucketed (namespaced) skillset, since bare
+ * references are deprecated in favour of the namespaced identity.
+ *
+ * @param args - Function arguments
+ * @param args.name - The user-supplied skillset name (bare or namespaced)
+ * @param args.warn - Whether to emit the deprecation warning (default true).
+ *   Pass false for non-interactive/automated callers where the warning would be
+ *   noise rather than a useful nudge.
+ *
+ * @returns The resolved directory and its namespaced identity, or null if the
+ *   skillset does not exist
+ */
+export const resolveUserSkillsetRef = async (args: {
+  name: string;
+  warn?: boolean | null;
+}): Promise<{ dir: string; identity: string } | null> => {
+  const { name, warn } = args;
+  const dir = await resolveSkillsetDir({ name });
+  if (dir == null) {
+    return null;
+  }
+  const identity = skillsetIdentity({ dir });
+  if (
+    warn !== false &&
+    !name.includes("/") &&
+    identity.includes("/") &&
+    !warnedBareNames.has(name)
+  ) {
+    warnedBareNames.add(name);
+    process.stderr.write(
+      `nori: bare skillset name "${name}" is deprecated; use "${identity}".\n`,
+    );
+  }
+  return { dir, identity };
+};
+
+/**
  * Parse a skillset directory into a Skillset object.
  *
  * Accepts either a skillsetName (resolved relative to ~/.nori/profiles/)
@@ -118,10 +265,20 @@ export const parseSkillset = async (args: {
   const { skillsetName, skillsetDir: explicitDir } = args;
   const configFileNames = ["AGENTS.md", "CLAUDE.md"];
 
-  const dir =
-    explicitDir != null
-      ? explicitDir
-      : path.join(getNoriSkillsetsDir(), skillsetName!);
+  let dir: string;
+  if (explicitDir != null) {
+    dir = explicitDir;
+  } else {
+    // Resolve across buckets. A null resolution is "not found" — never fall
+    // back to a raw path.join, which could land on a bucket root directory.
+    const resolved = await resolveSkillsetDir({ name: skillsetName! });
+    if (resolved == null) {
+      throw new Error(
+        `Skillset directory not found: ${path.join(getNoriSkillsetsDir(), skillsetName!)}`,
+      );
+    }
+    dir = resolved;
+  }
 
   // Verify the directory exists
   if (!(await dirExists({ dirPath: dir }))) {
@@ -223,6 +380,36 @@ export const listSkillsetsWithMetadata = async (): Promise<
   const skillsetsDir = getNoriSkillsetsDir();
   const skillsets: Array<SkillsetEntry> = [];
 
+  // Collect skillsets nested one level under a namespace directory. Namespace
+  // directories are the storage buckets (`personal/`, `public/`) and org
+  // namespaces (`<orgId>/`); their children surface under the namespaced
+  // identity "<namespace>/<child>".
+  const collectNested = async (args: {
+    namespace: string;
+    parentLinked: boolean;
+  }): Promise<void> => {
+    const { namespace, parentLinked } = args;
+    const nsDir = path.join(skillsetsDir, namespace);
+    let subEntries;
+    try {
+      subEntries = await fs.readdir(nsDir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const subEntry of subEntries) {
+      if (!(await isDirentDirectory({ parentDir: nsDir, entry: subEntry })))
+        continue;
+      const nestedDir = path.join(nsDir, subEntry.name);
+      if (!(await isSkillsetDir({ skillsetDir: nestedDir }))) {
+        continue;
+      }
+      skillsets.push({
+        name: `${namespace}/${subEntry.name}`,
+        isLinked: parentLinked || subEntry.isSymbolicLink(),
+      });
+    }
+  };
+
   try {
     await fs.access(skillsetsDir);
     const entries = await fs.readdir(skillsetsDir, { withFileTypes: true });
@@ -234,33 +421,12 @@ export const listSkillsetsWithMetadata = async (): Promise<
       const isLinked = entry.isSymbolicLink();
       const entryDir = path.join(skillsetsDir, entry.name);
       if (await isSkillsetDir({ skillsetDir: entryDir })) {
+        // A skillset at the top level is a legacy flat (bare) profile.
         skillsets.push({ name: entry.name, isLinked });
-        continue;
-      }
-
-      // Not a skillset itself — treat as an org directory of nested skillsets
-      try {
-        const subEntries = await fs.readdir(entryDir, {
-          withFileTypes: true,
-        });
-
-        for (const subEntry of subEntries) {
-          if (
-            !(await isDirentDirectory({ parentDir: entryDir, entry: subEntry }))
-          )
-            continue;
-
-          const isSubLinked = subEntry.isSymbolicLink();
-          const nestedDir = path.join(entryDir, subEntry.name);
-          if (await isSkillsetDir({ skillsetDir: nestedDir })) {
-            skillsets.push({
-              name: `${entry.name}/${subEntry.name}`,
-              isLinked: isLinked || isSubLinked,
-            });
-          }
-        }
-      } catch {
-        // Skip directories that can't be read
+      } else {
+        // A namespace directory (personal/, public/, or an org): list its
+        // children under their namespaced identity.
+        await collectNested({ namespace: entry.name, parentLinked: isLinked });
       }
     }
   } catch {

@@ -39,7 +39,9 @@ import { resolveInstallDir } from "@/utils/path.js";
 import {
   parseNamespacedPackage,
   buildOrganizationRegistryUrl,
+  extractOrgId,
   namespacedName,
+  namespacedOnDiskName,
   formatDefaultOrgNotice,
 } from "@/utils/url.js";
 
@@ -463,7 +465,12 @@ export const registryDownloadMain = async (args: {
   }
 
   const skillsetsDir = getNoriSkillsetsDir();
-  const targetDir = path.join(skillsetsDir, ...profileDisplayName.split("/"));
+  // Downloaded packages are stored under their bucket/namespace on disk:
+  // public packages in profiles/public/<name>, org packages in profiles/<org>/<name>.
+  const targetDir = path.join(
+    skillsetsDir,
+    ...namespacedOnDiskName({ orgId, packageName }).split("/"),
+  );
 
   // Check if skillset already exists and get its version info
   let existingVersionInfo: VersionInfo | null = null;
@@ -536,20 +543,47 @@ export const registryDownloadMain = async (args: {
               }
             }
 
-            const searchRegistryAuth =
-              config != null ? getRegistryAuth({ config, registryUrl }) : null;
+            // Resolve the token for this explicit registry. Prefer unified org
+            // auth (membership in config.auth.organizations) when the URL is an
+            // org registry the user belongs to; this mirrors the derived-registry
+            // path and authenticates org members whose home org differs from the
+            // target org. Fall back to getRegistryAuth for the home org and
+            // local dev.
+            let getAuthToken: (() => Promise<string>) | null = null;
+            const registryOrgId = extractOrgId({ url: registryUrl });
+            if (
+              hasUnifiedAuth &&
+              registryOrgId != null &&
+              registryOrgId !== "public"
+            ) {
+              const orgResolution = resolveOrgRegistryAuth({
+                auth: config?.auth ?? null,
+                orgId: registryOrgId,
+              });
+              if (
+                orgResolution.ok &&
+                orgResolution.registryUrl === registryUrl
+              ) {
+                getAuthToken = orgResolution.getToken;
+              }
+            }
+            if (getAuthToken == null) {
+              const searchRegistryAuth =
+                config != null
+                  ? getRegistryAuth({ config, registryUrl })
+                  : null;
+              getAuthToken =
+                searchRegistryAuth != null
+                  ? () =>
+                      getRegistryAuthToken({ registryAuth: searchRegistryAuth })
+                  : null;
+            }
             const { result: searchResult, error: searchError } =
               await searchSpecificRegistry({
                 registryUrl,
                 fetchPackument: (fetchArgs) =>
                   registrarApi.getPackument({ packageName, ...fetchArgs }),
-                getAuthToken:
-                  searchRegistryAuth != null
-                    ? () =>
-                        getRegistryAuthToken({
-                          registryAuth: searchRegistryAuth,
-                        })
-                    : null,
+                getAuthToken,
               });
             if (searchError?.isNetworkError) {
               return {

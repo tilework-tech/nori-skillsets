@@ -11,6 +11,7 @@ import addFormats from "ajv-formats";
 
 import { toRegistryAuth } from "@/api/authCredentials.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
+import { canonicalSkillsetName } from "@/norijson/skillset.js";
 import { extractOrgIdFromApiToken } from "@/utils/apiToken.js";
 import { getHomeDir } from "@/utils/home.js";
 import { readJsonObjectFile, writeJsonFileAtomic } from "@/utils/jsonFile.js";
@@ -552,6 +553,17 @@ export const updateConfig = async (updates: Partial<Config>): Promise<void> => {
         })
       : existing?.auth;
 
+  // Persist activeSkillset as its canonical namespaced identity (e.g. public/foo,
+  // personal/foo) so the stored value is unambiguous. A value that resolves
+  // nowhere is kept as-is. Only a value supplied in this update is canonicalized;
+  // an untouched stored value is left for the one-time migration to normalize.
+  const activeSkillset =
+    "activeSkillset" in updates
+      ? updates.activeSkillset != null
+        ? await canonicalSkillsetName({ name: updates.activeSkillset })
+        : null
+      : (existing?.activeSkillset ?? null);
+
   await writeConfigFile({
     username: auth?.username ?? null,
     password: auth?.password ?? null,
@@ -570,10 +582,7 @@ export const updateConfig = async (updates: Partial<Config>): Promise<void> => {
       "autoupdate" in updates
         ? (updates.autoupdate ?? null)
         : (existing?.autoupdate ?? null),
-    activeSkillset:
-      "activeSkillset" in updates
-        ? (updates.activeSkillset ?? null)
-        : (existing?.activeSkillset ?? null),
+    activeSkillset,
     defaultAgents:
       "defaultAgents" in updates
         ? (updates.defaultAgents ?? null)

@@ -65,5 +65,15 @@ describe("validators", () => {
       const result = validateSkillsetName({ value: "my-profile-123" });
       expect(result).toBeUndefined();
     });
+
+    it("rejects the reserved bucket name 'personal'", () => {
+      const result = validateSkillsetName({ value: "personal" });
+      expect(result).toContain("reserved");
+    });
+
+    it("rejects the reserved bucket name 'public'", () => {
+      const result = validateSkillsetName({ value: "public" });
+      expect(result).toContain("reserved");
+    });
   });
 });

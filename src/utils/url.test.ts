@@ -9,6 +9,7 @@ import {
   extractOrgId,
   parseNamespacedPackage,
   namespacedName,
+  namespacedOnDiskName,
   localSkillsetName,
 } from "./url";
 
@@ -368,6 +369,20 @@ describe("namespacedName", () => {
     expect(namespacedName({ orgId: "myorg", packageName: "my-profile" })).toBe(
       "myorg/my-profile",
     );
+  });
+});
+
+describe("namespacedOnDiskName", () => {
+  it("places public packages in the public bucket", () => {
+    expect(
+      namespacedOnDiskName({ orgId: "public", packageName: "my-profile" }),
+    ).toBe("public/my-profile");
+  });
+
+  it("places org packages under their org namespace", () => {
+    expect(
+      namespacedOnDiskName({ orgId: "myorg", packageName: "my-profile" }),
+    ).toBe("myorg/my-profile");
   });
 });
 

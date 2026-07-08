@@ -21,7 +21,7 @@ Path: @/src/packaging
 |------|------|
 | `archive.ts` | `isGzipped` (magic-byte sniff), `extractArchive` (gzipped or plain tar), `createArchive` (gzipped upload tarball with filtering + symlink following), `extractFileFromArchive` (single file from an in-memory tarball) |
 | `atomicReplace.ts` | `extractArchiveToNewDir` (fresh install, cleans up on failure), `atomicReplaceDirWithArchive` (whole-directory swap, optional `.nori-version` preservation), `replaceDirContentsWithArchive` (swap that keeps selected top-level entries) |
-| `provenance.ts` | `VERSION_FILE` (".nori-version"), `VersionInfo` type, `writeVersionInfo` / `readVersionInfo` |
+| `provenance.ts` | `VERSION_FILE` (".nori-version"), `VersionInfo` type (records the resolved `registryUrl` a skillset's bytes came from), `writeVersionInfo` / `readVersionInfo` |
 | `registryLookup.ts` | `searchSpecificRegistry` (per-registry packument lookup with injected callbacks), `formatVersionList`, `formatMultipleMatchesError`, `RegistrySearchResult` / `RegistrySearchError` types |
 | `subagentDiscovery.ts` | `parseSubagentFrontmatter` (extracts `name`/`description` from `SUBAGENT.md` YAML frontmatter via regex, avoiding a `gray-matter` dependency; mirrors the SKILL.md pattern in @/src/cli/commands/external/skillDiscovery.ts) |
 
@@ -34,6 +34,7 @@ Path: @/src/packaging
 
 - Two deliberate behavior changes landed with the unification: skillset updates became atomic with restore-on-failure (previously a mid-update crash left the skillset partially destroyed), and failed fresh installs now remove their partial directory instead of leaving debris.
 - `readVersionInfo` returns null for missing or malformed files (including a non-string `version`), so callers treat "no provenance" and "corrupt provenance" identically.
+- The `.nori-version` sidecar is the authoritative record of where a skillset's bytes came from: its `registryUrl` pins the resolved registry per skillset, the same way a lockfile pins a resolved registry per dependency. Registry downloads write it via `writeVersionInfo` (see @/src/cli/commands/registry-download/docs.md); locally-created skillsets (the `personal/` bucket) have no sidecar. This module no longer owns a "registry-backed vs locally-created" predicate — that decision (and the pinned registry used for re-download-on-switch) now lives in @/src/cli/commands/switch-skillset/switchSkillset.ts's `resolveRedownloadSource`, which reads this sidecar via `readVersionInfo`.
 - `extractFileFromArchive` matches entry paths with or without a leading `./` and returns null when the file is absent; @/src/cli/commands/skill-upload/skillUpload.ts uses it to byte-compare the remote `SKILL.md` for client-side conflict detection.
 - Tests in this directory exercise real tar/fs round-trips, including failure-restore cases for the swap primitives — they are not mocked.
 

@@ -1212,7 +1212,7 @@ describe("captureExistingConfig", () => {
     fs.writeFileSync(path.join(commandsDir, "deploy.md"), "# Deploy command");
 
     // Create profiles directory
-    const profilesDir = path.join(TEST_NORI_DIR, "profiles");
+    const profilesDir = path.join(tempDir, ".nori", "profiles");
     fs.mkdirSync(profilesDir, { recursive: true });
 
     const config: Config = {
@@ -1227,7 +1227,7 @@ describe("captureExistingConfig", () => {
       config,
     });
 
-    const capturedDir = path.join(profilesDir, "captured");
+    const capturedDir = path.join(profilesDir, "personal", "captured");
 
     // Skills should be copied
     expect(
@@ -1257,7 +1257,7 @@ describe("captureExistingConfig", () => {
     fs.writeFileSync(instructionsPath, "# My custom config");
 
     // Create profiles directory
-    const profilesDir = path.join(TEST_NORI_DIR, "profiles");
+    const profilesDir = path.join(tempDir, ".nori", "profiles");
     fs.mkdirSync(profilesDir, { recursive: true });
 
     const config: Config = {
@@ -1272,7 +1272,7 @@ describe("captureExistingConfig", () => {
       config,
     });
 
-    const capturedDir = path.join(profilesDir, "captured");
+    const capturedDir = path.join(profilesDir, "personal", "captured");
 
     // Should write AGENTS.md, not CLAUDE.md
     expect(fs.existsSync(path.join(capturedDir, "AGENTS.md"))).toBe(true);
@@ -1333,7 +1333,7 @@ describe("captureExistingConfig", () => {
     fs.writeFileSync(path.join(skill2Dir, "SKILL.md"), "# Beta");
 
     // Create profiles directory
-    const profilesDir = path.join(TEST_NORI_DIR, "profiles");
+    const profilesDir = path.join(tempDir, ".nori", "profiles");
     fs.mkdirSync(profilesDir, { recursive: true });
 
     const config: Config = {
@@ -1348,7 +1348,7 @@ describe("captureExistingConfig", () => {
       config,
     });
 
-    const capturedDir = path.join(profilesDir, "captured");
+    const capturedDir = path.join(profilesDir, "personal", "captured");
     const noriJsonPath = path.join(capturedDir, "nori.json");
     expect(fs.existsSync(noriJsonPath)).toBe(true);
 
@@ -1387,7 +1387,7 @@ describe("captureExistingConfig", () => {
     );
 
     // Create profiles directory
-    const profilesDir = path.join(TEST_NORI_DIR, "profiles");
+    const profilesDir = path.join(tempDir, ".nori", "profiles");
     fs.mkdirSync(profilesDir, { recursive: true });
 
     const config: Config = {
@@ -1403,7 +1403,10 @@ describe("captureExistingConfig", () => {
     });
 
     const noriJson = JSON.parse(
-      fs.readFileSync(path.join(profilesDir, "captured", "nori.json"), "utf-8"),
+      fs.readFileSync(
+        path.join(profilesDir, "personal", "captured", "nori.json"),
+        "utf-8",
+      ),
     );
     expect(noriJson.dependencies.skills["registry-skill"]).toBe("1.2.3");
     expect(noriJson.dependencies.skills["local-skill"]).toBe("*");
@@ -1429,10 +1432,11 @@ describe("captureExistingConfig", () => {
     );
 
     // Create profiles directory with existing directory-based subagent
-    const profilesDir = path.join(TEST_NORI_DIR, "profiles");
+    const profilesDir = path.join(tempDir, ".nori", "profiles");
     fs.mkdirSync(profilesDir, { recursive: true });
     const existingSubagentDir = path.join(
       profilesDir,
+      "personal",
       "captured",
       "subagents",
       "my-agent",
@@ -1459,7 +1463,7 @@ describe("captureExistingConfig", () => {
       config,
     });
 
-    const capturedDir = path.join(profilesDir, "captured");
+    const capturedDir = path.join(profilesDir, "personal", "captured");
 
     // SUBAGENT.md should be updated with the new content
     const subagentMdContent = fs.readFileSync(

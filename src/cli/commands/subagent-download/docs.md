@@ -38,7 +38,7 @@ The `onDownload` callback handles both new installs and updates. Updates use `at
 
 ### Things to Know
 
-- The `--skillset` flag targets a specific skillset for `nori.json` updates; otherwise it defaults to the active skillset from config. When no skillset is available, the subagent is still installed to the agents directory but without profile persistence.
+- The `--skillset` flag targets a specific skillset for `nori.json` updates; otherwise it defaults to the active skillset from config. When no skillset is available, the subagent is still installed to the agents directory but without profile persistence. A user-supplied `--skillset` is resolved via `resolveUserSkillsetRef` from @/src/norijson/skillset.ts (resolving a bare name across the `personal/`/`public/` storage buckets and warning once on a bare name, suppressed under `--non-interactive`); the active-skillset fallback uses `resolveSkillsetDir` (no warning). The command tracks the resolved directory (`targetSkillsetDir`) for file writes separately from the display name (`targetSkillset`).
 - The `--registry` flag and namespace prefix (`org/`) are mutually exclusive since the namespace implicitly determines the registry URL. Under unified auth, that URL plus the org-membership check and token acquisition come from `resolveOrgRegistryAuth` in @/src/core/registryAuthResolution.ts (shared with the other registry commands).
 - The `nonInteractive` and `silent` params are threaded from the CLI registration layer to `subagentDownloadFlow`, where they control whether the "Re-download from registry?" confirm prompt is skipped when the subagent is already at the current version.
 - The `.nori-version` file written to the subagent directory tracks `version`, `registryUrl`, and `orgId` for provenance.

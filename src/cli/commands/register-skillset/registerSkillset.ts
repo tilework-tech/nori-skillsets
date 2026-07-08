@@ -12,7 +12,10 @@ import { log, note } from "@clack/prompts";
 import { bold } from "@/cli/logger.js";
 import { registerSkillsetFlow } from "@/cli/prompts/flows/registerSkillset.js";
 import { writeSkillsetMetadata, type NoriJson } from "@/norijson/nori.js";
-import { getNoriSkillsetsDir } from "@/norijson/skillset.js";
+import {
+  getNoriSkillsetsDir,
+  resolveUserSkillsetRef,
+} from "@/norijson/skillset.js";
 
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 
@@ -64,15 +67,14 @@ export const registerSkillsetMain = async (args: {
     skillsetName = activeSkillset;
   }
 
-  const skillsetsDir = getNoriSkillsetsDir();
-  const destPath = path.join(skillsetsDir, skillsetName);
+  // Resolve the existing skillset directory across storage buckets, warning
+  // once if a deprecated bare name was used.
+  const destPath = (await resolveUserSkillsetRef({ name: skillsetName }))?.dir;
 
   // Validate that the directory exists
-  try {
-    await fs.access(destPath);
-  } catch {
+  if (destPath == null) {
     log.error(
-      `Skillset '${skillsetName}' does not exist at ${destPath}. Please create it first.`,
+      `Skillset '${skillsetName}' does not exist. Please create it first.`,
     );
     return {
       success: false,
@@ -136,9 +138,10 @@ export const registerSkillsetMain = async (args: {
     metadata,
   });
 
+  const relLocation = path.relative(getNoriSkillsetsDir(), destPath);
   const nextSteps = [
     `To edit:    nori-skillsets edit ${skillsetName}`,
-    `Location:   ~/.nori/profiles/${skillsetName}/nori.json`,
+    `Location:   ~/.nori/profiles/${relLocation}/nori.json`,
   ].join("\n");
   note(nextSteps, "Next Steps");
 

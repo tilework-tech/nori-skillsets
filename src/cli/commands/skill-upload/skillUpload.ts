@@ -31,12 +31,11 @@ import {
 } from "@/cli/config.js";
 import { skillUploadFlow } from "@/cli/prompts/flows/index.js";
 import { resolveOrgRegistryAuth } from "@/core/registryAuthResolution.js";
-import { getNoriSkillsetsDir } from "@/norijson/skillset.js";
+import { resolveUserSkillsetRef } from "@/norijson/skillset.js";
 import { createArchive, extractFileFromArchive } from "@/packaging/archive.js";
 import {
   parseNamespacedPackage,
   extractOrgId,
-  localSkillsetName,
   formatDefaultOrgNotice,
 } from "@/utils/url.js";
 
@@ -298,10 +297,25 @@ export const skillUploadMain = async (args: {
     };
   }
 
-  const resolvedSource = localSkillsetName({ name: sourceSkillset });
-
-  const skillsetsDir = getNoriSkillsetsDir();
-  const skillDir = path.join(skillsetsDir, resolvedSource, "skills", skillName);
+  // Resolve the source skillset across storage buckets (bare, public, org).
+  // Warn once only when the user explicitly passed a deprecated bare --skillset;
+  // the silent active-skillset fallback must not nag.
+  const sourceSkillsetDir =
+    (
+      await resolveUserSkillsetRef({
+        name: sourceSkillset,
+        warn: skillset != null && !nonInteractive,
+      })
+    )?.dir ?? null;
+  if (sourceSkillsetDir == null) {
+    log.error(`Skillset "${sourceSkillset}" not found.`);
+    return {
+      success: false,
+      cancelled: false,
+      message: `Skillset "${sourceSkillset}" not found`,
+    };
+  }
+  const skillDir = path.join(sourceSkillsetDir, "skills", skillName);
 
   try {
     await fs.access(skillDir);

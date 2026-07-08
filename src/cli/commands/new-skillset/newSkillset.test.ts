@@ -79,7 +79,7 @@ describe("newSkillsetMain", () => {
 
     const result = await newSkillsetMain();
 
-    const destDir = path.join(skillsetsDir, "my-new-skillset");
+    const destDir = path.join(skillsetsDir, "personal", "my-new-skillset");
 
     // Verify nori.json exists with correct content
     const noriJson = JSON.parse(
@@ -126,8 +126,12 @@ describe("newSkillsetMain", () => {
   });
 
   it("should error when skillset already exists", async () => {
-    // Create a directory that already exists
-    const existingDir = path.join(skillsetsDir, "existing-skillset");
+    // Create a directory that already exists in the personal bucket
+    const existingDir = path.join(
+      skillsetsDir,
+      "personal",
+      "existing-skillset",
+    );
     await fs.mkdir(existingDir, { recursive: true });
 
     mockNewSkillsetFlow.mockResolvedValueOnce({
@@ -164,11 +168,11 @@ describe("newSkillsetMain", () => {
 
     // Should show note with next steps containing switch and edit instructions
     expect(mockNote).toHaveBeenCalledWith(
-      expect.stringContaining("switch my-skillset"),
+      expect.stringContaining("switch personal/my-skillset"),
       "Next Steps",
     );
     expect(mockNote).toHaveBeenCalledWith(
-      expect.stringContaining("~/.nori/profiles/my-skillset"),
+      expect.stringContaining("~/.nori/profiles/personal/my-skillset"),
       "Next Steps",
     );
   });
@@ -185,7 +189,7 @@ describe("newSkillsetMain", () => {
 
     await newSkillsetMain();
 
-    const destDir = path.join(skillsetsDir, "full-metadata");
+    const destDir = path.join(skillsetsDir, "personal", "full-metadata");
     const noriJson = JSON.parse(
       await fs.readFile(path.join(destDir, "nori.json"), "utf-8"),
     );
@@ -213,7 +217,7 @@ describe("newSkillsetMain", () => {
 
     await newSkillsetMain();
 
-    const destDir = path.join(skillsetsDir, "default-version");
+    const destDir = path.join(skillsetsDir, "personal", "default-version");
     const noriJson = JSON.parse(
       await fs.readFile(path.join(destDir, "nori.json"), "utf-8"),
     );
@@ -233,7 +237,7 @@ describe("newSkillsetMain", () => {
 
     await newSkillsetMain();
 
-    const destDir = path.join(skillsetsDir, "minimal-metadata");
+    const destDir = path.join(skillsetsDir, "personal", "minimal-metadata");
     const noriJson = JSON.parse(
       await fs.readFile(path.join(destDir, "nori.json"), "utf-8"),
     );
@@ -274,7 +278,7 @@ describe("newSkillsetMain", () => {
 
     await newSkillsetMain();
 
-    const destDir = path.join(skillsetsDir, "repo-test");
+    const destDir = path.join(skillsetsDir, "personal", "repo-test");
     const noriJson = JSON.parse(
       await fs.readFile(path.join(destDir, "nori.json"), "utf-8"),
     );

@@ -25,11 +25,48 @@ import { main as installMain } from "@/cli/features/install/install.js";
 import { substituteTemplatePaths } from "@/cli/features/template.js";
 import { setSilentMode, isSilentMode } from "@/cli/logger.js";
 import { switchSkillsetFlow } from "@/cli/prompts/flows/switchSkillset.js";
-import { listSkillsets, getNoriSkillsetsDir } from "@/norijson/skillset.js";
+import {
+  listSkillsets,
+  getNoriSkillsetsDir,
+  resolveSkillsetDir,
+  resolveUserSkillsetRef,
+  skillsetIdentity,
+} from "@/norijson/skillset.js";
+import { readVersionInfo } from "@/packaging/provenance.js";
 import { resolveInstallDir } from "@/utils/path.js";
 
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 import type { Command } from "commander";
+
+/**
+ * Resolve what a switch redownload should refetch, pinned to the skillset's
+ * recorded `.nori-version` provenance rather than a registry re-derived from
+ * its name. Returns the skillset's canonical namespaced identity (so the
+ * refetch lands in the correct on-disk bucket even when switched to by a bare
+ * name) together with the recorded `registryUrl`, or null when the skillset has
+ * no registry source (locally-created personal-bucket skillsets), in which case
+ * switching does not trigger a redownload.
+ *
+ * @param args - Function arguments
+ * @param args.name - The skillset name being switched to (bare or namespaced)
+ *
+ * @returns The canonical package spec and recorded registry to refetch from, or
+ *   null when not registry-backed
+ */
+export const resolveRedownloadSource = async (args: {
+  name: string;
+}): Promise<{ packageSpec: string; registryUrl: string } | null> => {
+  const dir = await resolveSkillsetDir({ name: args.name });
+  if (dir == null) return null;
+  const info = await readVersionInfo({ dir });
+  if (info?.registryUrl == null || info.registryUrl.length === 0) {
+    return null;
+  }
+  return {
+    packageSpec: skillsetIdentity({ dir }),
+    registryUrl: info.registryUrl,
+  };
+};
 
 /**
  * Shared action handler for switch-skillset commands
@@ -42,6 +79,7 @@ import type { Command } from "commander";
  *
  * @returns Command status
  */
+
 export const switchSkillsetAction = async (args: {
   name?: string | null;
   options: { agent?: string; force?: boolean };
@@ -96,6 +134,13 @@ export const switchSkillsetAction = async (args: {
     }
 
     name = selected as string;
+  }
+
+  // Emit a one-time deprecation warning if the user referenced a bucketed
+  // skillset by a bare (non-namespaced) name. Suppressed for non-interactive
+  // callers (e.g. automated fleet provisioning) where it is noise, not a nudge.
+  if (name != null) {
+    await resolveUserSkillsetRef({ name, warn: !nonInteractive });
   }
 
   // Interactive flow
@@ -186,10 +231,15 @@ export const switchSkillsetAction = async (args: {
         },
         onRedownload: redownloadEnabled
           ? async ({ skillsetName: pName }) => {
+              const source = await resolveRedownloadSource({ name: pName });
+              if (source == null) {
+                return;
+              }
               const { registryDownloadMain } =
                 await import("@/cli/commands/registry-download/registryDownload.js");
               await registryDownloadMain({
-                packageSpec: pName,
+                packageSpec: source.packageSpec,
+                registryUrl: source.registryUrl,
               });
             }
           : undefined,
@@ -210,10 +260,9 @@ export const switchSkillsetAction = async (args: {
           });
           const agentDir = diffAgent.getAgentDir({ installDir: dir });
           const currentPath = path.join(agentDir, relativePath);
-          const profileDir = path.join(
-            getNoriSkillsetsDir(),
-            currentProfileName,
-          );
+          const profileDir =
+            (await resolveSkillsetDir({ name: currentProfileName })) ??
+            path.join(getNoriSkillsetsDir(), currentProfileName);
 
           // Map installed path back to profile source path
           let sourcePath: string | null = null;

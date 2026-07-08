@@ -360,9 +360,9 @@ describe("skill-upload", () => {
       expect(registrarApi.uploadSkill).toHaveBeenCalledTimes(1);
     });
 
-    it("resolves the source skill from a redundant public/ prefixed --skillset", async () => {
+    it("resolves the source skill from an explicit public/ prefixed --skillset in the public bucket", async () => {
       await createLocalSkill({
-        skillsetName: "flat-profile",
+        skillsetName: "public/flat-profile",
         skillName: "flat-skill",
       });
 
@@ -385,8 +385,8 @@ describe("skill-upload", () => {
         skillset: "public/flat-profile",
       });
 
-      // Upload only fires if `public/flat-profile` resolved to the flat
-      // `flat-profile` and the source skill was found there.
+      // Upload only fires if `public/flat-profile` resolved to the public-bucket
+      // profiles/public/flat-profile and the source skill was found there.
       expect(result.success).toBe(true);
       expect(registrarApi.uploadSkill).toHaveBeenCalledTimes(1);
     });
