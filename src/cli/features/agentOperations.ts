@@ -382,23 +382,18 @@ export const detectLocalChanges = async (args: {
   const { agent, installDir } = args;
 
   // A directory Nori never installed to has no local changes by definition.
-  // This also keeps legacy pre-keying manifests (which describe whichever
-  // directory was installed last) from producing phantom changes elsewhere.
   if (!isInstalledAtDir({ agent, path: installDir })) {
     return null;
   }
 
+  // Only the per-directory keyed manifest proves Nori installed to THIS path.
+  // Legacy, non-keyed manifests describe whichever directory was installed last,
+  // so using them as a baseline here reports phantom "local changes" for a
+  // directory that merely carries a committed or git-checked-out marker (e.g. a
+  // freshly created git worktree), which would wrongly block non-interactive
+  // switches. Absent a keyed manifest, there is no baseline to compare against.
   const manifestPath = getManifestPath({ agentName: agent.name, installDir });
-  const fallbackPaths = [
-    getLegacyAgentManifestPath({ agentName: agent.name }),
-    ...(agent.getLegacyManifestPath != null
-      ? [agent.getLegacyManifestPath()]
-      : []),
-  ];
-  const manifest = await readManifest({
-    manifestPath,
-    fallbackPaths,
-  });
+  const manifest = await readManifest({ manifestPath });
 
   if (manifest == null) {
     return null;

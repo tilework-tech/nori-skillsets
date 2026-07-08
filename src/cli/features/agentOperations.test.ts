@@ -1134,6 +1134,52 @@ describe("detectLocalChanges", () => {
     expect(diff).toBeNull();
   });
 
+  it("should return null when only a git-checked-out marker exists and no per-dir manifest (legacy manifest present)", async () => {
+    // `git worktree add` checks out a committed .claude/.codex, which carries a
+    // .nori-managed marker even though Nori never installed to THIS path (no
+    // per-dir keyed manifest). The legacy cross-directory manifest must not be
+    // used as a baseline here, or it produces phantom "local changes" that block
+    // non-interactive switches into freshly-created worktrees.
+    const agent = createTestAgent({
+      loaders: [
+        {
+          name: "loader",
+          description: "Loader",
+          managedFiles: ["INSTRUCTIONS.md"],
+          run: async () => undefined,
+        },
+      ],
+    });
+
+    // Simulate the git checkout: marker + managed file present, no keyed manifest.
+    const agentDir = agent.getAgentDir({ installDir: tempDir });
+    fs.mkdirSync(agentDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(agentDir, ".nori-managed"),
+      "committed-skillset",
+    );
+    fs.writeFileSync(
+      path.join(agentDir, "INSTRUCTIONS.md"),
+      "# Committed content",
+    );
+
+    // A pre-keying legacy manifest describing a DIFFERENT directory's install.
+    const { writeManifest, getLegacyAgentManifestPath } =
+      await import("@/cli/features/manifest.js");
+    await writeManifest({
+      manifestPath: getLegacyAgentManifestPath({ agentName: agent.name }),
+      manifest: {
+        version: 1,
+        createdAt: new Date().toISOString(),
+        skillsetName: "some-other-skillset",
+        files: { "INSTRUCTIONS.md": "some-other-dirs-hash" },
+      },
+    });
+
+    const diff = await detectLocalChanges({ agent, installDir: tempDir });
+    expect(diff).toBeNull();
+  });
+
   it("should return null when files match the manifest", async () => {
     const agent = createTestAgent({
       loaders: [

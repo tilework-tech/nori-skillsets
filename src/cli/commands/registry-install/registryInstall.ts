@@ -139,6 +139,8 @@ export const registryInstallMain = async (
           skillset: skillsetName,
           agent: agentName,
           silent: silent ?? null,
+          // A transient --install-dir install must not clobber global activeSkillset.
+          persistActiveSkillset: resolved.source !== "cli",
         });
       }
       // Initial install already sets the skillset and displays its own completion banners
@@ -179,6 +181,8 @@ export const registryInstallMain = async (
         agent: agentName,
         silent: true,
         skillset: skillsetName,
+        // A transient --install-dir switch must not clobber global activeSkillset.
+        persistActiveSkillset: resolved.source !== "cli",
       });
     }
 

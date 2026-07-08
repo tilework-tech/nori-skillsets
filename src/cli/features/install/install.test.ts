@@ -334,4 +334,26 @@ describe("install noninteractive", () => {
     const config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
     expect(config.installDir).toBe(originalInstallDir);
   });
+
+  it("should not overwrite global activeSkillset for a transient install (persistActiveSkillset: false)", async () => {
+    // A per-worktree switch drives install with an explicit --install-dir override.
+    // That install is transient and must not clobber the user's global active skillset.
+    await saveTestingConfig({
+      username: null,
+      organizationUrl: null,
+      activeSkillset: "senior-swe",
+      installDir: tempDir,
+    });
+
+    // Install a DIFFERENT skillset transiently (as a --install-dir switch does).
+    await noninteractive({
+      installDir: tempDir,
+      skillset: "amol",
+      persistActiveSkillset: false,
+    });
+
+    const configPath = getConfigPath();
+    const config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+    expect(config.activeSkillset).toBe("senior-swe");
+  });
 });
