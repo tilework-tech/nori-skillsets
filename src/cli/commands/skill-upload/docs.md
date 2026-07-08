@@ -4,7 +4,7 @@ Path: @/src/cli/commands/skill-upload
 
 ### Overview
 
-The skill-upload command uploads a single skill from a skillset's `skills/<skill>` directory to the Nori registry. Unlike `registry-upload` which packs and publishes an entire skillset, this command targets one skill at a time — useful for publishing or bumping a standalone skill that lives inside a skillset. The source skillset is located via `resolveUserSkillsetRef` from @/src/norijson/skillset.ts, so a bare skillset name resolves across the `personal/`/`public/` storage buckets and the legacy flat location (see the storage-bucket model in @/src/norijson/docs.md). A one-time bare-name deprecation warning fires only when the user explicitly passed `--skillset` (not for the silent active-skillset fallback) and never under `--non-interactive`.
+The skill-upload command uploads a single skill from a skillset's `skills/<skill>` directory to the Nori registry. Unlike `registry-upload` which packs and publishes an entire skillset, this command targets one skill at a time — useful for publishing or bumping a standalone skill that lives inside a skillset. The source skillset is located via `resolveUserSkillsetRef` from @/src/cli/skillsetResolution.ts, so a bare skillset name resolves across the `personal/`/`public/` storage buckets and the legacy flat location (see the storage-bucket model in @/src/norijson/docs.md). A one-time bare-name deprecation warning fires only when the user explicitly passed `--skillset` (not for the silent active-skillset fallback) and never under `--non-interactive`.
 
 ### How it fits into the larger codebase
 

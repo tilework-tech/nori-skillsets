@@ -497,7 +497,7 @@ describe("registry-search", () => {
       expect(registrarApi.searchPackagesOnRegistry).not.toHaveBeenCalled();
       const output = getSearchOutput();
       expect(output).toContain("public:");
-      expect(output).toContain("public-profile");
+      expect(output).toContain("public/public-profile");
     });
 
     it("should search public skills without auth when no org auth configured", async () => {

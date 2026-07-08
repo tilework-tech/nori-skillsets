@@ -803,9 +803,14 @@ export const registryUploadMain = async (args: {
     };
   }
 
-  // Check skillset exists locally (in any bucket or the legacy flat location)
+  // Find the local skillset to publish. The source may live in any bucket
+  // (personal/, public/) or the legacy flat location, so a public package is
+  // located by its bare name (bucket precedence applies) while an org package is
+  // located at its namespace. This resolves the source only; the registry target
+  // is derived separately from the parsed namespace.
   const skillsetDir = await resolveSkillsetDir({
-    name: namespacedName({ orgId, packageName }),
+    name:
+      orgId === "public" ? packageName : namespacedName({ orgId, packageName }),
   });
 
   if (skillsetDir == null) {

@@ -31,9 +31,9 @@ import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { substituteTemplatePaths } from "@/cli/features/template.js";
 import { subagentDownloadFlow } from "@/cli/prompts/flows/subagentDownload.js";
 import { recordFlowFailure } from "@/cli/prompts/flows/utils.js";
+import { resolveUserSkillsetRef } from "@/cli/skillsetResolution.js";
 import { resolveOrgRegistryAuth } from "@/core/registryAuthResolution.js";
 import { addSubagentToNoriJson, ensureNoriJson } from "@/norijson/nori.js";
-import { resolveUserSkillsetRef } from "@/norijson/skillset.js";
 import { verifyArchiveChecksum } from "@/packaging/archive.js";
 import {
   atomicReplaceDirWithArchive,
@@ -46,7 +46,11 @@ import {
   searchSpecificRegistry,
 } from "@/packaging/registryLookup.js";
 import { resolveInstallDir } from "@/utils/path.js";
-import { formatDefaultOrgNotice, parseNamespacedPackage } from "@/utils/url.js";
+import {
+  formatDefaultOrgNotice,
+  namespacedName,
+  parseNamespacedPackage,
+} from "@/utils/url.js";
 
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 import type {
@@ -145,8 +149,10 @@ export const subagentDownloadMain = async (args: {
     };
   }
   const { orgId, packageName: subagentName, version } = parsed;
-  const subagentDisplayName =
-    orgId === "public" ? subagentName : `${orgId}/${subagentName}`;
+  const subagentDisplayName = namespacedName({
+    orgId,
+    packageName: subagentName,
+  });
 
   const defaultOrgNotice = formatDefaultOrgNotice({
     packageSpec: subagentSpec,
