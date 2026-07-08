@@ -710,6 +710,55 @@ describe("resolveUserSkillsetRef deprecation warning", () => {
     expect(output.toLowerCase()).toContain("deprecated");
   });
 
+  it("prefers defaultOrg over bucketed local skillsets for bare names", async () => {
+    await seedBucket("dev", "high-autonomy");
+    await seedBucket("personal", "high-autonomy");
+    await seedBucket("public", "high-autonomy");
+
+    const resolved = await resolveUserSkillsetRef({
+      name: "high-autonomy",
+      defaultOrg: "dev",
+    });
+
+    expect(resolved?.identity).toBe("dev/high-autonomy");
+  });
+
+  it("does not apply defaultOrg to active-skillset fallbacks", async () => {
+    await seedBucket("dev", "high-autonomy");
+    await seedBucket("personal", "high-autonomy");
+
+    const resolved = await resolveUserSkillsetRef({
+      name: null,
+      activeSkillset: "high-autonomy",
+      defaultOrg: "dev",
+    });
+
+    expect(resolved?.identity).toBe("personal/high-autonomy");
+  });
+
+  it("keeps explicit public names scoped to public when defaultOrg is configured", async () => {
+    await seedBucket("dev", "high-autonomy");
+    await seedBucket("public", "high-autonomy");
+
+    const resolved = await resolveUserSkillsetRef({
+      name: "public/high-autonomy",
+      defaultOrg: "dev",
+    });
+
+    expect(resolved?.identity).toBe("public/high-autonomy");
+  });
+
+  it("falls back to bucketed local skillsets when defaultOrg target is absent", async () => {
+    await seedBucket("personal", "high-autonomy");
+
+    const resolved = await resolveUserSkillsetRef({
+      name: "high-autonomy",
+      defaultOrg: "dev",
+    });
+
+    expect(resolved?.identity).toBe("personal/high-autonomy");
+  });
+
   it("does not warn when the namespaced identity is used", async () => {
     await seedBucket("public", "warn-beta");
 

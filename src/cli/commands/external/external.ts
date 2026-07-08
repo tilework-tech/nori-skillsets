@@ -398,23 +398,23 @@ export const externalMain = async (args: {
     await createEmptySkillset({ destPath: newSkillsetDir, name: newSkillset });
     targetSkillset = path.relative(skillsetsDir, newSkillsetDir);
     log.success(`Created new skillset "${newSkillset}"`);
-  } else if (skillset != null) {
-    // Warn once if a deprecated bare name reaches a bucketed skillset.
-    const resolvedDir =
-      (await resolveUserSkillsetRef({ name: skillset }))?.dir ?? null;
-    if (resolvedDir != null) {
-      await ensureNoriJson({ skillsetDir: resolvedDir });
-    }
-    let hasManifest = false;
-    if (resolvedDir != null) {
+  } else {
+    const targetRef = await resolveUserSkillsetRef({
+      name: skillset,
+      activeSkillset: config != null ? getActiveSkillset({ config }) : null,
+      defaultOrg: config?.defaultOrg,
+      nameWasProvided: skillset != null,
+    });
+    if (targetRef != null) {
+      await ensureNoriJson({ skillsetDir: targetRef.dir });
       try {
-        await fs.access(path.join(resolvedDir, "nori.json"));
-        hasManifest = true;
+        await fs.access(path.join(targetRef.dir, "nori.json"));
+        targetSkillset = path.relative(skillsetsDir, targetRef.dir);
       } catch {
-        // Missing manifest — treated as "not found" below.
+        // Missing manifest -- explicit targets are treated as not found below.
       }
     }
-    if (!hasManifest || resolvedDir == null) {
+    if (skillset != null && targetSkillset == null) {
       log.error(
         `Skillset "${skillset}" not found.\n\nMake sure the skillset exists and contains a nori.json file.`,
       );
@@ -423,15 +423,6 @@ export const externalMain = async (args: {
         cancelled: false,
         message: `Skillset "${skillset}" not found`,
       };
-    }
-    targetSkillset = path.relative(skillsetsDir, resolvedDir);
-  } else if (config != null) {
-    const activeSkillset = getActiveSkillset({ config });
-    if (activeSkillset != null) {
-      const resolvedDir = await resolveSkillsetDir({ name: activeSkillset });
-      if (resolvedDir != null) {
-        targetSkillset = path.relative(skillsetsDir, resolvedDir);
-      }
     }
   }
 
