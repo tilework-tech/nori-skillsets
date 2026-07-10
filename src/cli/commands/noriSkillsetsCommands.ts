@@ -845,15 +845,19 @@ export const registerNoriSkillsetsCurrentCommand = (args: {
   const currentAction = async (options: { agent?: string }) => {
     const { currentSkillsetMain } =
       await import("@/cli/commands/current-skillset/currentSkillset.js");
+    const installDir = program.opts().installDir as string | undefined;
     await currentSkillsetMain({
       agent: options.agent || null,
+      installDir: installDir || null,
     });
   };
 
   // Primary command: current (shorthand, canonical)
   program
     .command("current")
-    .description("Show the currently active skillset")
+    .description(
+      "Show the currently active skillset (global config), or with -d/--install-dir the skillset installed at that directory",
+    )
     .option("-a, --agent <name>", "AI agent to get skillset for")
     .action(currentAction);
 

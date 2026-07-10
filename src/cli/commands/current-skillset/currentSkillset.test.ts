@@ -215,4 +215,89 @@ describe("currentSkillsetMain", () => {
     );
     expect(mockExit).toHaveBeenCalledWith(1);
   });
+
+  describe("with --install-dir", () => {
+    it("reports the skillset from .nori-managed at that directory", async () => {
+      // Global config still names a different skillset — -d must not read it.
+      const configPath = path.join(testHomeDir, ".nori-config.json");
+      await fs.writeFile(
+        configPath,
+        JSON.stringify({
+          activeSkillset: "demo/sessions",
+          installDir: testHomeDir,
+        }),
+      );
+
+      const workspace = path.join(testHomeDir, "org", "workspace");
+      const claudeDir = path.join(workspace, ".claude");
+      await fs.mkdir(claudeDir, { recursive: true });
+      await fs.writeFile(
+        path.join(claudeDir, ".nori-managed"),
+        "demo/high-autonomy",
+      );
+
+      await currentSkillsetMain({
+        agent: null,
+        installDir: workspace,
+      });
+
+      expect(mockStdoutWrite).toHaveBeenCalledWith("demo/high-autonomy\n");
+      expect(mockExit).not.toHaveBeenCalled();
+    });
+
+    it("does not walk parent directories (unlike list-active)", async () => {
+      const parentClaude = path.join(testHomeDir, ".claude");
+      await fs.mkdir(parentClaude, { recursive: true });
+      await fs.writeFile(
+        path.join(parentClaude, ".nori-managed"),
+        "public/sessions-platform",
+      );
+
+      const child = path.join(testHomeDir, "workspace");
+      await fs.mkdir(child, { recursive: true });
+
+      await currentSkillsetMain({ agent: null, installDir: child });
+
+      expect(log.error).toHaveBeenCalledWith(
+        expect.stringContaining("No skillset installed"),
+      );
+      expect(mockExit).toHaveBeenCalledWith(1);
+    });
+
+    it("errors when agents at the directory disagree", async () => {
+      const claudeDir = path.join(testHomeDir, ".claude");
+      const cursorDir = path.join(testHomeDir, ".cursor");
+      await fs.mkdir(claudeDir, { recursive: true });
+      await fs.mkdir(cursorDir, { recursive: true });
+      await fs.writeFile(path.join(claudeDir, ".nori-managed"), "skillset-a");
+      await fs.writeFile(path.join(cursorDir, ".nori-managed"), "skillset-b");
+
+      await currentSkillsetMain({ agent: null, installDir: testHomeDir });
+
+      expect(log.error).toHaveBeenCalledWith(
+        expect.stringContaining("Conflicting skillset markers"),
+      );
+      expect(mockExit).toHaveBeenCalledWith(1);
+    });
+
+    it("limits the read to --agent when provided", async () => {
+      const claudeDir = path.join(testHomeDir, ".claude");
+      const cursorDir = path.join(testHomeDir, ".cursor");
+      await fs.mkdir(claudeDir, { recursive: true });
+      await fs.mkdir(cursorDir, { recursive: true });
+      await fs.writeFile(
+        path.join(claudeDir, ".nori-managed"),
+        "demo/high-autonomy",
+      );
+      await fs.writeFile(path.join(cursorDir, ".nori-managed"), "demo/other");
+
+      await currentSkillsetMain({
+        agent: "claude-code",
+        installDir: testHomeDir,
+      });
+
+      expect(mockStdoutWrite).toHaveBeenCalledWith("demo/high-autonomy\n");
+      expect(mockExit).not.toHaveBeenCalled();
+    });
+  });
 });
