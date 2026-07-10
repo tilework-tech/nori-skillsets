@@ -27,9 +27,9 @@ import { addSkillDependency } from "@/cli/features/skillResolver.js";
 import { substituteTemplatePaths } from "@/cli/features/template.js";
 import { skillDownloadFlow } from "@/cli/prompts/flows/index.js";
 import { recordFlowFailure } from "@/cli/prompts/flows/utils.js";
+import { resolveUserSkillsetRef } from "@/cli/skillsetResolution.js";
 import { resolveOrgRegistryAuth } from "@/core/registryAuthResolution.js";
 import { addSkillToNoriJson, ensureNoriJson } from "@/norijson/nori.js";
-import { resolveUserSkillsetRef } from "@/norijson/skillset.js";
 import { verifyArchiveChecksum } from "@/packaging/archive.js";
 import {
   atomicReplaceDirWithArchive,
@@ -42,7 +42,11 @@ import {
   searchSpecificRegistry,
 } from "@/packaging/registryLookup.js";
 import { resolveInstallDir } from "@/utils/path.js";
-import { formatDefaultOrgNotice, parseNamespacedPackage } from "@/utils/url.js";
+import {
+  formatDefaultOrgNotice,
+  namespacedName,
+  parseNamespacedPackage,
+} from "@/utils/url.js";
 
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 import type {
@@ -165,9 +169,8 @@ export const skillDownloadMain = async (args: {
     };
   }
   const { orgId, packageName: skillName, version } = parsed;
-  // Display name includes org prefix for namespaced packages (e.g., "myorg/my-skill")
-  const skillDisplayName =
-    orgId === "public" ? skillName : `${orgId}/${skillName}`;
+  // Fully-qualified display name (e.g. "myorg/my-skill", "public/my-skill")
+  const skillDisplayName = namespacedName({ orgId, packageName: skillName });
 
   const defaultOrgNotice = formatDefaultOrgNotice({
     packageSpec: skillSpec,

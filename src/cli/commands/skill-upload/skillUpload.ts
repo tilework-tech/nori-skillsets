@@ -30,13 +30,14 @@ import {
   type Config,
 } from "@/cli/config.js";
 import { skillUploadFlow } from "@/cli/prompts/flows/index.js";
+import { resolveUserSkillsetRef } from "@/cli/skillsetResolution.js";
 import { resolveOrgRegistryAuth } from "@/core/registryAuthResolution.js";
-import { resolveUserSkillsetRef } from "@/norijson/skillset.js";
 import { createArchive, extractFileFromArchive } from "@/packaging/archive.js";
 import {
   parseNamespacedPackage,
   extractOrgId,
   formatDefaultOrgNotice,
+  namespacedName,
 } from "@/utils/url.js";
 
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
@@ -268,8 +269,7 @@ export const skillUploadMain = async (args: {
     };
   }
   const { orgId, packageName: skillName, version: specVersion } = parsed;
-  const skillDisplayName =
-    orgId === "public" ? skillName : `${orgId}/${skillName}`;
+  const skillDisplayName = namespacedName({ orgId, packageName: skillName });
 
   const defaultOrgNotice = formatDefaultOrgNotice({
     packageSpec: skillSpec,

@@ -22,12 +22,13 @@ import {
   type CanonicalMcpServer,
   type McpTargetFormat,
 } from "@/cli/features/shared/mcpEmitter.js";
+import { resolveUserSkillsetRef } from "@/cli/skillsetResolution.js";
 import {
   readSkillsetMetadata,
   writeSkillsetMetadata,
   type NoriJson,
 } from "@/norijson/nori.js";
-import { listSkillsets, resolveUserSkillsetRef } from "@/norijson/skillset.js";
+import { listSkillsets } from "@/norijson/skillset.js";
 import { getHomeDir } from "@/utils/home.js";
 
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";

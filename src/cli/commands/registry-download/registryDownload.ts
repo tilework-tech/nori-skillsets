@@ -22,7 +22,7 @@ import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { registryDownloadFlow } from "@/cli/prompts/flows/index.js";
 import { recordFlowFailure } from "@/cli/prompts/flows/utils.js";
 import { resolveOrgRegistryAuth } from "@/core/registryAuthResolution.js";
-import { getNoriSkillsetsDir } from "@/norijson/skillset.js";
+import { skillsetPath } from "@/norijson/skillset.js";
 import { verifyArchiveChecksum } from "@/packaging/archive.js";
 import {
   atomicReplaceDirWithArchive,
@@ -41,7 +41,6 @@ import {
   buildOrganizationRegistryUrl,
   extractOrgId,
   namespacedName,
-  namespacedOnDiskName,
   formatDefaultOrgNotice,
 } from "@/utils/url.js";
 
@@ -464,13 +463,11 @@ export const registryDownloadMain = async (args: {
     }
   }
 
-  const skillsetsDir = getNoriSkillsetsDir();
   // Downloaded packages are stored under their bucket/namespace on disk:
   // public packages in profiles/public/<name>, org packages in profiles/<org>/<name>.
-  const targetDir = path.join(
-    skillsetsDir,
-    ...namespacedOnDiskName({ orgId, packageName }).split("/"),
-  );
+  const targetDir = skillsetPath({
+    name: namespacedName({ orgId, packageName }),
+  });
 
   // Check if skillset already exists and get its version info
   let existingVersionInfo: VersionInfo | null = null;

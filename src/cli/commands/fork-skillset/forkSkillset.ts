@@ -13,17 +13,19 @@ import { loadConfig } from "@/cli/config.js";
 import { bold } from "@/cli/logger.js";
 import { isReservedSkillsetName } from "@/cli/prompts/validators.js";
 import {
+  namespaceCreateSkillsetName,
+  resolveUserSkillsetRef,
+} from "@/cli/skillsetResolution.js";
+import {
   ensureNoriJson,
   readSkillsetMetadata,
   writeSkillsetMetadata,
 } from "@/norijson/nori.js";
 import {
   MANIFEST_FILE,
-  getNoriSkillsetsDir,
-  namespaceCreateSkillsetName,
   resolveSkillsetDir,
-  resolveUserSkillsetRef,
   skillsetCreateDir,
+  skillsetIdentity,
 } from "@/norijson/skillset.js";
 
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
@@ -110,7 +112,7 @@ export const forkSkillsetMain = async (args: {
   metadata.name = path.basename(newSkillset);
   await writeSkillsetMetadata({ skillsetDir: destPath, metadata });
 
-  const relLocation = path.relative(getNoriSkillsetsDir(), destPath);
+  const relLocation = skillsetIdentity({ dir: destPath });
   const nextSteps = [
     `To switch:  nori-skillsets switch ${relLocation}`,
     `To edit:    ~/.nori/profiles/${relLocation}/`,

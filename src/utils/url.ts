@@ -272,48 +272,26 @@ export const formatDefaultOrgNotice = (args: {
 };
 
 /**
- * Build the local, namespaced skillset name from a parsed package reference.
- * Public skillsets are stored flat under `profiles/<name>`; org skillsets are
- * stored nested under `profiles/<orgId>/<name>`. It maps a registrar-qualified
- * reference to its on-disk name.
+ * Build the fully-qualified `<orgId>/<packageName>` name for a parsed package
+ * reference. This is the single namespaced form used everywhere below the CLI
+ * edge — user-facing display, the on-disk directory (relative to `profiles/`),
+ * and the stored identity. The public registrar is a normal namespace here, so a
+ * public package is `public/<name>`, never a bare `<name>`.
  *
  * @param args - Naming arguments
  * @param args.orgId - The organization ID ("public" for the public registry)
  * @param args.packageName - The package name
  *
- * @returns The namespaced name ("my-profile" for public, "myorg/my-profile" for an org)
+ * @returns The qualified name ("public/my-profile" for public, "myorg/my-profile" for an org)
  *
  * @example
  * namespacedName({ orgId: "public", packageName: "my-profile" })
- * // Returns: "my-profile"
+ * // Returns: "public/my-profile"
  * @example
  * namespacedName({ orgId: "myorg", packageName: "my-profile" })
  * // Returns: "myorg/my-profile"
  */
 export const namespacedName = (args: {
-  orgId: string;
-  packageName: string;
-}): string => {
-  const { orgId, packageName } = args;
-  return orgId === "public" ? packageName : `${orgId}/${packageName}`;
-};
-
-/**
- * Build the on-disk directory name (relative to profiles/) for a downloaded or
- * installed package. Public packages are stored in the `public/` bucket and org
- * packages under their `<orgId>/` namespace, so the on-disk name is always
- * `<orgId>/<packageName>` (for the public registry, `<orgId>` is `"public"`).
- *
- * This differs from {@link namespacedName}, which returns the user-facing
- * identity (bare for public packages).
- *
- * @param args - Naming arguments
- * @param args.orgId - The organization ID ("public" for the public registry)
- * @param args.packageName - The package name
- *
- * @returns The on-disk name ("public/my-profile" for public, "myorg/my-profile" for an org)
- */
-export const namespacedOnDiskName = (args: {
   orgId: string;
   packageName: string;
 }): string => {
@@ -332,26 +310,4 @@ export const namespacedOnDiskName = (args: {
 export const isPublicRegistryUrl = (args: { url: string }): boolean => {
   const { url } = args;
   return extractOrgId({ url }) === "public";
-};
-
-/**
- * Normalize a local skillset name to its on-disk form, tolerating a redundant
- * `public/` prefix. Public skillsets are stored flat, so `public/foo` and `foo`
- * both resolve to `foo`; org names (`myorg/foo`) are returned unchanged. A name
- * that is not a valid package reference is returned as-is.
- * @param args - Naming arguments
- * @param args.name - The skillset name as provided (bare, `public/<name>`, or `<org>/<name>`)
- *
- * @returns The on-disk skillset name
- */
-export const localSkillsetName = (args: { name: string }): string => {
-  const { name } = args;
-  const parsed = parseNamespacedPackage({ packageSpec: name });
-  if (parsed == null) {
-    return name;
-  }
-  return namespacedName({
-    orgId: parsed.orgId,
-    packageName: parsed.packageName,
-  });
 };

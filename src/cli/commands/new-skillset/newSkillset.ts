@@ -12,12 +12,12 @@ import { log, note } from "@clack/prompts";
 import { loadConfig } from "@/cli/config.js";
 import { bold } from "@/cli/logger.js";
 import { newSkillsetFlow } from "@/cli/prompts/flows/newSkillset.js";
+import { namespaceCreateSkillsetName } from "@/cli/skillsetResolution.js";
 import { writeSkillsetMetadata, type NoriJson } from "@/norijson/nori.js";
 import {
-  getNoriSkillsetsDir,
-  namespaceCreateSkillsetName,
   resolveSkillsetDir,
   skillsetCreateDir,
+  skillsetIdentity,
 } from "@/norijson/skillset.js";
 
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
@@ -127,7 +127,7 @@ export const newSkillsetMain = async (): Promise<CommandStatus> => {
     metadata,
   });
 
-  const relLocation = path.relative(getNoriSkillsetsDir(), destPath);
+  const relLocation = skillsetIdentity({ dir: destPath });
   const nextSteps = [
     `To switch:  nori-skillsets switch ${relLocation}`,
     `To edit:    ~/.nori/profiles/${relLocation}/`,

@@ -10,6 +10,7 @@ import * as fsPromises from "fs/promises";
 import * as os from "os";
 import * as path from "path";
 
+import { log } from "@clack/prompts";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 import {
@@ -19,7 +20,6 @@ import {
   isInstalledAtDir,
   markInstall,
   installSkillset,
-  resolveSwitchSkillsetName,
   switchSkillset,
   removeSkillset,
   detectLocalChanges,
@@ -631,12 +631,7 @@ describe("switchSkillset", () => {
   it("should succeed for valid skillset with nori.json", async () => {
     const agent = createTestAgent();
 
-    const skillsetDir = path.join(TEST_NORI_DIR, "profiles", "valid-skillset");
-    fs.mkdirSync(skillsetDir, { recursive: true });
-    fs.writeFileSync(
-      path.join(skillsetDir, "nori.json"),
-      JSON.stringify({ name: "valid-skillset", version: "1.0.0" }),
-    );
+    seedProfile(["valid-skillset"]);
 
     await expect(
       switchSkillset({
@@ -647,66 +642,28 @@ describe("switchSkillset", () => {
     ).resolves.not.toThrow();
   });
 
-  it("should resolve a bare skillset to defaultOrg when only the org profile exists", async () => {
+  it("locates a skillset by bucket precedence without applying defaultOrg", async () => {
     const agent = createTestAgent();
+    // A configured defaultOrg must NOT reroute the op: names arrive already
+    // resolved at the edge, so the op locates the given name as-is. Here the
+    // public copy is the only one on disk, and the op must resolve it to
+    // public/high-autonomy rather than looking for dev/high-autonomy.
     fs.writeFileSync(
       path.join(tempDir, ".nori-config.json"),
       JSON.stringify({ defaultOrg: "dev" }),
     );
-
-    seedProfile(["dev", "high-autonomy"]);
-
-    await expect(
-      switchSkillset({
-        agent,
-        installDir: tempDir,
-        skillsetName: "high-autonomy",
-      }),
-    ).resolves.not.toThrow();
-    await expect(
-      resolveSwitchSkillsetName({ skillsetName: "high-autonomy" }),
-    ).resolves.toBe("dev/high-autonomy");
-  });
-
-  it("should prefer defaultOrg over a flat local profile for bare names", async () => {
-    fs.writeFileSync(
-      path.join(tempDir, ".nori-config.json"),
-      JSON.stringify({ defaultOrg: "dev" }),
-    );
-    seedProfile(["high-autonomy"]);
-    seedProfile(["dev", "high-autonomy"]);
-
-    await expect(
-      resolveSwitchSkillsetName({ skillsetName: "high-autonomy" }),
-    ).resolves.toBe("dev/high-autonomy");
-  });
-
-  it("should keep explicit public-prefixed skillsets in the public bucket", async () => {
-    fs.writeFileSync(
-      path.join(tempDir, ".nori-config.json"),
-      JSON.stringify({ defaultOrg: "dev" }),
-    );
-    seedProfile(["high-autonomy"]);
-    seedProfile(["dev", "high-autonomy"]);
     seedProfile(["public", "high-autonomy"]);
 
-    await expect(
-      resolveSwitchSkillsetName({ skillsetName: "public/high-autonomy" }),
-    ).resolves.toBe("public/high-autonomy");
-  });
+    await switchSkillset({
+      agent,
+      installDir: tempDir,
+      skillsetName: "high-autonomy",
+    });
 
-  it("resolves a bare name to the defaultOrg even when only a same-named local profile exists", async () => {
-    fs.writeFileSync(
-      path.join(tempDir, ".nori-config.json"),
-      JSON.stringify({ defaultOrg: "dev" }),
+    // Resolved via bucket precedence to public/high-autonomy, not dev/*.
+    expect(vi.mocked(log.success)).toHaveBeenCalledWith(
+      expect.stringContaining("public/high-autonomy"),
     );
-    seedProfile(["personal", "high-autonomy"]);
-
-    // Strict: a bare name is an unambiguous alias for the default org and never
-    // falls through to a same-named public/personal skillset.
-    await expect(
-      resolveSwitchSkillsetName({ skillsetName: "high-autonomy" }),
-    ).resolves.toBe("dev/high-autonomy");
   });
 
   it("should throw for nonexistent skillset", async () => {

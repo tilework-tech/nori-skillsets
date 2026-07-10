@@ -10,7 +10,7 @@ import { log, note } from "@clack/prompts";
 
 import { loadConfig, getActiveSkillset } from "@/cli/config.js";
 import { bold } from "@/cli/logger.js";
-import { resolveUserSkillsetRef } from "@/norijson/skillset.js";
+import { resolveUserSkillsetRef } from "@/cli/skillsetResolution.js";
 
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 

@@ -17,7 +17,6 @@ import {
 } from "@/cli/config.js";
 import {
   switchSkillset as switchSkillsetOp,
-  resolveSwitchSkillsetName,
   detectLocalChanges,
   captureExistingConfig,
 } from "@/cli/features/agentOperations.js";
@@ -27,11 +26,14 @@ import { substituteTemplatePaths } from "@/cli/features/template.js";
 import { setSilentMode, isSilentMode } from "@/cli/logger.js";
 import { switchSkillsetFlow } from "@/cli/prompts/flows/switchSkillset.js";
 import {
-  listSkillsets,
-  getNoriSkillsetsDir,
-  resolveSkillsetDir,
   resolveUserSkillsetRef,
+  namespaceCreateSkillsetName,
+} from "@/cli/skillsetResolution.js";
+import {
+  listSkillsets,
+  resolveSkillsetDir,
   skillsetIdentity,
+  skillsetPath,
 } from "@/norijson/skillset.js";
 import { readVersionInfo } from "@/packaging/provenance.js";
 import { resolveInstallDir } from "@/utils/path.js";
@@ -145,7 +147,7 @@ export const switchSkillsetAction = async (args: {
   });
   name =
     resolvedRef?.identity ??
-    (await resolveSwitchSkillsetName({ skillsetName: name }));
+    namespaceCreateSkillsetName({ name, defaultOrg: config?.defaultOrg });
 
   // Interactive flow
   if (!nonInteractive) {
@@ -268,7 +270,7 @@ export const switchSkillsetAction = async (args: {
           const currentPath = path.join(agentDir, relativePath);
           const profileDir =
             (await resolveSkillsetDir({ name: currentProfileName })) ??
-            path.join(getNoriSkillsetsDir(), currentProfileName);
+            skillsetPath({ name: currentProfileName });
 
           // Map installed path back to profile source path
           let sourcePath: string | null = null;
