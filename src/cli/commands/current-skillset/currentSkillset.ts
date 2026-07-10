@@ -20,6 +20,15 @@ import { resolveSkillsetDir, skillsetIdentity } from "@/norijson/skillset.js";
  *
  * When multiple agents have markers at the directory they must agree; a
  * conflict is an inconsistent install. Returns null when no marker is present.
+ *
+ * @param args - Lookup arguments
+ * @param args.installDir - Directory whose agent markers should be read
+ * @param args.agent - Optional agent name; when set, only that agent's marker
+ *   is considered
+ *
+ * @throws Error when registered agents disagree about the installed skillset
+ *
+ * @returns The skillset identity at the directory, or null if none is installed
  */
 export const getSkillsetAtInstallDir = (args: {
   installDir: string;

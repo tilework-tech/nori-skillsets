@@ -289,10 +289,7 @@ describe("currentSkillsetMain", () => {
         path.join(claudeDir, ".nori-managed"),
         "demo/high-autonomy",
       );
-      await fs.writeFile(
-        path.join(cursorDir, ".nori-managed"),
-        "demo/other",
-      );
+      await fs.writeFile(path.join(cursorDir, ".nori-managed"), "demo/other");
 
       await currentSkillsetMain({
         agent: "claude-code",
